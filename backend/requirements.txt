@@ -1,0 +1,15 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+python-multipart>=0.0.9
+motor>=3.5
+httpx>=0.27
+openai>=3.19,<4  # AI provider: OpenAI (official SDK, Responses API)
+google-genai>=2.25,<3  # AI provider: Gemini (official Google GenAI SDK)
+numpy>=1.26
+scipy>=1.13
+opencv-python-headless>=4.9,<5  # 5.x removed CascadeClassifier (used for face-aware crop)
+librosa>=0.10
+soundfile>=0.12
+pypdf>=5.0  # text extraction for PDF attachments in Chat

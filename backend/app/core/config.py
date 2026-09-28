@@ -1,0 +1,121 @@
+"""Application settings, loaded from environment variables / .env."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=(REPO_ROOT / ".env", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    node_env: str = "development"
+    mongodb_uri: str = "mongodb://localhost:27017/ai_reel_maker"
+    mongodb_db: str = "ai_reel_maker"
+    cors_origins: str = "http://localhost:3100,http://127.0.0.1:3100,http://localhost:3000,http://127.0.0.1:3000"
+    # Phone mode: also accept pages opened from another device on the same private network (192.168.x.x, 10.x.x.x, 172.16-31.x.x).
+    # Off by default: the app has no login, so anyone on that network could use it while this is on.
+    cors_allow_lan: bool = False
+
+    storage_path: Path = REPO_ROOT / "storage"
+
+    # Uploads
+    max_video_size_mb: int = 500
+    max_audio_size_mb: int = 50
+    max_videos_per_project: int = 0  # 0 = unlimited
+    max_image_size_mb: int = 40
+    max_images_per_project: int = 12
+    min_free_disk_mb: int = 1024
+
+    # Output
+    output_width: int = Field(default=1080, ge=240, le=4320)
+    output_height: int = Field(default=1920, ge=240, le=7680)
+    output_fps: int = Field(default=30, ge=15, le=60)
+
+    # FFmpeg. Leave empty to auto-detect from PATH.
+    ffmpeg_bin: str = ""
+    ffprobe_bin: str = ""
+    render_timeout_seconds: int = 900
+    ffmpeg_threads: int = 0  # 0 = let FFmpeg decide
+    hw_accel: str = "auto"  # auto | off | h264_nvenc | h264_qsv | h264_amf | h264_videotoolbox (CPU fallback)
+
+    # Captions (faster-whisper). Model is downloaded on first use.
+    whisper_model: str = "base"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+    whisper_language: str = ""  # empty = auto-detect
+
+    # Jobs
+    max_concurrent_jobs: int = 1
+
+    # AI. The provider can also be chosen in Settings (saved in storage/settings/ai_config.json, which wins over .env).
+    ai_provider: str = "ollama"  # ollama | openai | gemini
+    ai_text_provider: str = ""  # optional: text tasks on another provider ("" = ai_provider)
+    ai_vision_provider: str = ""  # optional: vision tasks on another provider ("" = ai_provider)
+    ai_fallback_enabled: bool = False  # on a provider failure (timeout, quota, outage ...) try ai_fallback_provider
+    ai_fallback_provider: str = ""
+    ai_max_retries: int = Field(default=2, ge=0, le=5)  # retries of rate-limit / temporary errors (never of bad requests)
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = ""
+    ollama_vision_model: str = ""  # "" = ollama_model
+    openai_api_key: SecretStr = SecretStr("")
+    openai_text_model: str = ""
+    openai_vision_model: str = ""  # "" = openai_text_model
+    openai_base_url: str = ""  # "" = the official API
+    openai_reasoning_effort: str = ""  # optional, for reasoning models: minimal | low | medium | high
+    gemini_api_key: SecretStr = SecretStr("")
+    gemini_text_model: str = ""
+    gemini_vision_model: str = ""  # "" = gemini_text_model
+    ai_timeout_seconds: float = 300.0  # local models on CPU can need minutes for one answer, more so on a cold model load
+    cloud_ai_timeout_seconds: float = 60.0  # OpenAI / Gemini (a stalled call is retried once)
+    vision_timeout_seconds: float = 420.0  # the first vision call loads the model into memory
+    # Vision: what is sent per clip (fewer, smaller, distinct frames = faster and cheaper)
+    vision_max_frames_per_clip: int = Field(default=4, ge=1, le=8)
+    vision_max_image_size: int = Field(default=384, ge=128, le=1024)  # longest side in pixels
+    vision_detail_level: str = "low"  # low | high | auto (OpenAI image detail; others ignore it)
+    # Cost + budget. Prices are yours to set (USD per 1M tokens); an unpriced model shows "not priced".
+    ai_model_prices: str = ""  # JSON, e.g. {"model-name": {"input": 0.4, "output": 1.6, "cached": 0.1}}
+    ai_currency: str = "USD"
+    ai_currency_rate: float = Field(default=1.0, gt=0)  # 1 USD in ai_currency
+    daily_ai_budget: float = Field(default=0.0, ge=0)  # in ai_currency; 0 = no limit
+    monthly_ai_budget: float = Field(default=0.0, ge=0)
+
+    # Song library: folders whose audio files are imported automatically (";"-separated)
+    song_import_folders: str = ""
+
+    # Rate limiting (requests per minute per client) for expensive endpoints
+    rate_limit_per_minute: int = 60
+
+    @field_validator("storage_path")
+    @classmethod
+    def _absolute_storage(cls, v: Path) -> Path:
+        """Relative paths (like the ./storage in .env) are relative to the repo, not the cwd."""
+        return v if v.is_absolute() else (REPO_ROOT / v).resolve()
+
+    @property
+    def cors_origin_regex(self) -> str | None:
+        return PRIVATE_NETWORK_ORIGIN if self.cors_allow_lan else None
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+
+# http(s)://<private IPv4>[:port] only. No public addresses, no hostnames.
+PRIVATE_NETWORK_ORIGIN = (
+    r"^https?://(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d{1,5})?$"
+)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

@@ -1,0 +1,68 @@
+# Services: frontend, backend, mongodb. Ollama runs on the host (not in this file).
+#   docker compose up --build
+# Frontend http://localhost:3000 · API http://localhost:8000 · MongoDB is internal only.
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      args:
+        WITH_CAPTIONS: "1"
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/ai_reel_maker
+      MONGODB_DB: ai_reel_maker
+      STORAGE_PATH: /data/storage
+      CORS_ORIGINS: http://localhost:3000
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      # Ollama on the host machine
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      # cloud AI (keys come from your shell / .env; never baked into an image)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_TEXT_MODEL: ${OPENAI_TEXT_MODEL:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_TEXT_MODEL: ${GEMINI_TEXT_MODEL:-}
+      AI_FALLBACK_ENABLED: ${AI_FALLBACK_ENABLED:-false}
+      AI_FALLBACK_PROVIDER: ${AI_FALLBACK_PROVIDER:-}
+      MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB:-500}
+      OUTPUT_WIDTH: ${OUTPUT_WIDTH:-1080}
+      OUTPUT_HEIGHT: ${OUTPUT_HEIGHT:-1920}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    volumes:
+      - storage-data:/data/storage
+      - hf-cache:/data/hf
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  mongo-data:
+  storage-data:
+  hf-cache:

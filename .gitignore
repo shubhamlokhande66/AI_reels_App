@@ -1,0 +1,12 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+.next/
+storage/projects/
+*.log
+# local app data (uploaded songs, saved settings) and personal footage: never in the repository
+storage/
+reels/
+*.tsbuildinfo
