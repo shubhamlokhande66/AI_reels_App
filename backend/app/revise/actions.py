@@ -18,7 +18,7 @@ from typing import Any, Callable
 
 from app.ai.provider import AIProvider
 from app.core.errors import AppError
-from app.models.timeline import EFFECT_TYPES, TRANSITION_TYPES, CropSpec, Timeline
+from app.models.timeline import EFFECT_TYPES, OVERLAY_MAX_CHARS, TRANSITION_TYPES, CropSpec, Timeline
 from app.schemas.project import MAX_DURATION, MIN_DURATION
 from app.styles import list_styles
 from app.video import timeline_ops as ops
@@ -222,10 +222,10 @@ _TEXT = r"(?:text|texts|titles?|words on screen|on-?screen text|overlays?|writin
 def _r_text(c: str) -> list[Action] | None:
     m = re.search(r"\b(?:cta|call to action)\b[^a-z0-9]*(?:to|:|=|says?|reads?|with)?\s*[\"']?(?P<t>[^\"']{2,60})[\"']?$", c)
     if m and _has(c, r"\b(?:change|set|make|use|update|replace|cta|call to action)\b") and m.group("t").strip() not in ("", "the", "it"):
-        return [Action("cta", value=m.group("t").strip().strip(".")[:42])]
+        return [Action("cta", value=m.group("t").strip().strip(".")[:OVERLAY_MAX_CHARS])]
     m = re.search(r"\bhook(?: text)?\b[^a-z0-9]*(?:to|:|=|says?|reads?)\s*[\"']?(?P<t>[^\"']{2,60})[\"']?$", c)
     if m:
-        return [Action("hook_text", value=m.group("t").strip().strip(".")[:42])]
+        return [Action("hook_text", value=m.group("t").strip().strip(".")[:OVERLAY_MAX_CHARS])]
     if not _has(c, rf"\b{_TEXT}\b"):
         return None
     if _has(c, rf"{_NEG}\b.*\b{_TEXT}\b|\bno {_TEXT}\b|\b{_TEXT}\b.*\b(?:off|away)\b"):
@@ -378,10 +378,89 @@ def _clauses(text: str) -> list[str]:
     return [p for p in parts if len(p) > 1]
 
 
+# Asking for on-screen text, in English, Marathi or Hindi ("add this text", "हा मजकूर टाका", "ये लिखो" ...)
+_ADD = r"(?:add|put|write|show|use|set|change|place|display|लिहा|लिही|टाका|टाक|जोडा|घाला|दाखवा|लिखो|लिखें|लिख|डालो|डालें|जोड़ो|जोड़ें|लगाओ|दिखाओ)"
+_TEXT_WORD = r"(?:text|texts|line|words|title|heading|hook|caption line|cta|call to action|मजकूर|टेक्स्ट|ओळ|शब्द|लाइन|शब्दों)"
+_QUOTED = re.compile(r"[\"“”«»]\s*(?P<t>[^\"“”«»]{2,})\s*[\"“”«»]|(?<![A-Za-z])'(?P<s>[^']{2,})'(?![A-Za-z])")
+_THIS = r"(?:this|these|the following|following|that|हा|हे|ही|ये|यह)"
+_ROLE = r"(?:(?:opening|hook|closing|ending|end)\s+)"
+_SEP = r"(?=\s|[:=\-–—]|$)"  # a word end that also works after Devanagari vowel signs (where \b does not)
+_ON_SCREEN = r"(?:on screen|on the video|in the video|स्क्रीनवर|व्हिडिओमध्ये|वीडियो में)"
+_WHERE = r"(?:at the (?:end|start|beginning)|in the (?:end|beginning)|शेवटी|सुरुवातीला|अंत में|शुरू में)"
+_F = re.IGNORECASE | re.DOTALL
+_TEXT_PATTERNS = (
+    # add this text: X / add text X / write this X (English order)
+    re.compile(rf"^\s*{_ADD}\s+(?:(?:the|a|an|my|new)\s+)*(?P<det>{_THIS}\s+)?{_ROLE}?(?P<tw>{_TEXT_WORD})?{_SEP}\s*(?:{_ON_SCREEN}\s*)?(?:{_WHERE}\s*)?"
+               rf"(?:as|to|that says|saying|reading|is)?\s*(?P<colon>[:=\-–—])?\s*(?P<t>.+?)\s*$", _F),
+    # text: X / hook text = X
+    re.compile(rf"^\s*(?:(?:the|my|new)\s+)?{_ROLE}?(?P<tw>{_TEXT_WORD}){_SEP}\s*(?:as|to|is)?\s*(?P<colon>[:=\-–—])?\s*(?P<t>.+?)\s*$", _F),
+    # हा टेक्स्ट टाका: X / ये लिखो X (Marathi/Hindi order: the command first)
+    re.compile(rf"^\s*(?:{_WHERE}\s+)?(?:{_THIS}\s+)?(?P<tw>{_TEXT_WORD}\s+)?{_ADD}\s*(?P<colon>[:=\-–—])?\s*(?P<t>.+?)\s*$", _F),
+    # X add this text / X हा मजकूर टाका / X ये लिखो (the text first)
+    re.compile(rf"^\s*(?P<t>.+?)\s*[:,\-–—]?\s*(?:{_THIS}\s+)?(?:{_TEXT_WORD}\s+)?{_ADD}(?:\s+(?:{_THIS}|it|as|म्हणून))*(?:\s+{_TEXT_WORD})?"
+               rf"(?:\s+{_ON_SCREEN})?\s*[.!]*\s*$", _F),
+)  # fmt: skip
+_NOT_TEXT = re.compile(r"^(?:and|then|also|bigger|smaller|larger|bold|less|more|off|at|in|on|to|from|for|captions?)\b", re.IGNORECASE)
+_THEN_MORE = re.compile(r"^(?P<keep>[^A-Za-z]*?)\s*(?:,|\band\b|\bthen\b|\balso\b|\bplus\b)\s+(?P<more>[A-Za-z].*)$", re.IGNORECASE | re.DOTALL)
+_END_WORDS = r"\b(?:cta|call to action|closing|ending|at the end|end)\b|शेवटी|अंत में|आखिर में"
+
+
+def _foreign(text: str) -> bool:
+    """Letters of a non-Latin script (Marathi, Hindi ...)."""
+    return any(ord(ch) > 0x2FF and ch.isalpha() for ch in text)
+
+
+def _accept(m: re.Match) -> bool:
+    """Is the captured part really the user's words? Marathi/Hindi words are; English only after a colon or 'this text'."""
+    t, g = m.group("t"), m.groupdict()
+    if _NOT_TEXT.match(t):
+        return False
+    if _foreign(t):
+        return True
+    return bool(g.get("tw")) and bool(g.get("colon") or g.get("det"))
+
+
+def literal_text(text: str) -> tuple[Action | None, str]:
+    """The user's own on-screen words, taken EXACTLY as typed (any language, punctuation kept), before the request is split
+    into clauses; the AI never rewrites them. Returns (hook_text / cta action or None, the rest of the request).
+
+    A Marathi/Hindi sentence on its own is NOT assumed to be screen text (it may be a command): the AI reads it, and may only
+    copy words that are really in the request (see parse_ai_actions)."""
+    lit, rest = None, text
+    q = _QUOTED.search(text)
+    if q:
+        lit = (q.group("t") or q.group("s")).strip()
+        rest = (text[: q.start()] + " " + text[q.end() :]).strip()
+    else:
+        for pat in _TEXT_PATTERNS:
+            m = pat.match(text)
+            if m and _accept(m):
+                lit, rest = m.group("t").strip(), (text[: m.start("t")] + " " + text[m.end("t") :]).strip()
+                break
+    if not lit:
+        return None, text
+    if _foreign(lit):  # "<Marathi words> and make the music louder": the English request after them is a separate change
+        last = max(i for i, ch in enumerate(lit) if ord(ch) > 0x2FF and ch.isalpha())
+        more = _THEN_MORE.match(lit[last + 1 :])
+        if more:
+            rest = f"{rest} , {more.group('more')}"
+            lit = lit[: last + 1] + more.group("keep")
+    lit = lit.strip(" \"'“”«»,")
+    kind = "cta" if re.search(_END_WORDS, rest, re.IGNORECASE) else "hook_text"
+    rest = re.sub(rf"(?<!\w){_ADD}(?!\w)|(?<!\w){_TEXT_WORD}(?!\w)|\b(?:this|the|as|at|in|on screen|opening|hook|closing|ending|end|start|beginning)\b",
+                  " ", rest, flags=re.IGNORECASE)  # fmt: skip
+    rest = re.sub(r"(?:^|\s)(?:हा|हे|ही|ये|यह|म्हणून|शेवटी|सुरुवातीला)(?=\s|$)", " ", rest)
+    rest = re.sub(r"\s+", " ", rest).strip(" ,.:;-–—")
+    return Action(kind, value=lit[: OVERLAY_MAX_CHARS * 2], text=text.strip()[:200]), rest
+
+
 def parse_rules(text: str) -> tuple[list[Action], list[str]]:
     """(actions, clauses the rules did not understand)."""
     actions: list[Action] = []
     unknown: list[str] = []
+    said, text = literal_text(text)
+    if said is not None:
+        actions.append(said)
     for clause in _clauses(text):
         found = None
         for rule in _RULES:
@@ -395,7 +474,7 @@ def parse_rules(text: str) -> tuple[list[Action], list[str]]:
         else:
             unknown.append(clause)
     for a in actions:  # on-screen text keeps the user's own capitals ("Shop Now", not "shop now")
-        if a.kind in ("cta", "hook_text") and isinstance(a.value, str):
+        if a.kind in ("cta", "hook_text") and isinstance(a.value, str) and a is not said:
             at = text.lower().find(a.value.lower())
             if at >= 0:
                 a.value = text[at : at + len(a.value)]
@@ -439,7 +518,10 @@ def system_prompt() -> str:
     return (SYSTEM.replace("none|zoom_in|zoom_out|punch", "|".join(EFFECT_TYPES))
             .replace("cut|fade|dissolve|zoom|slide|blur|flash|speed_ramp", "|".join(featured))
             .replace('Answer as {"actions"', '{"action":"grade","value":"' + "|".join(grades()) + '"}   {"action":"text_off"}   {"action":"text_less"}\n'
-                     '{"action":"cta","value":"<new call to action, max 6 words>"}   {"action":"hook_text","value":"<opening text, max 6 words>"}\n'
+                     '{"action":"cta","value":"<the closing words EXACTLY as the user wrote them>"}   '
+                     '{"action":"hook_text","value":"<the opening words EXACTLY as the user wrote them>"}\n'
+                     'On-screen text is copied character for character from the request, in its own language and script: never '
+                     'translate, shorten, correct or rewrite it. If the request asks for text but gives no words, put it in unclear.\n'
                      'Shots may carry "shows": what the clip shows. Use it to find a shot the user describes (e.g. "the product"). '
                      'Answer as {"actions"'))
 
@@ -472,6 +554,11 @@ def _grounded(kind: str, scope: str, shot: int | None, text: str) -> str | None:
     if kind == "delete" and not _has(t, _REMOVAL):
         return "the AI wanted to remove a shot, but you did not ask for that"
     return None
+
+
+def _squash(text: str) -> str:
+    """For comparing words: case, spaces, quotes and punctuation do not matter."""
+    return re.sub(r"[\s\"'“”«».,!?:;…\-–—]+", "", text).casefold()
 
 
 def parse_ai_actions(data: dict[str, Any], shots: int, style_ids: set[str], request_text: str | None = None) -> tuple[list[Action], list[str]]:
@@ -529,7 +616,11 @@ def parse_ai_actions(data: dict[str, Any], shots: int, style_ids: set[str], requ
         elif kind == "grade" and isinstance(value, str) and value in _grades():
             a.value = value
         elif kind in ("cta", "hook_text") and isinstance(value, str) and value.strip():
-            a.value = value.strip()[:42]
+            if request_text is not None and _squash(value) not in _squash(request_text):
+                # on-screen text is the user's own words: the AI may find them, never rewrite or translate them
+                dropped.append(f'{kind}: the AI changed your words to "{value.strip()[:40]}"; put the exact text in quotes')
+                continue
+            a.value = value.strip()[:OVERLAY_MAX_CHARS]
         elif kind in ("text_off", "text_less"):
             pass
         elif kind in ("grade", "cta", "hook_text"):
@@ -670,10 +761,13 @@ def describe(a: Action) -> str:
         return "Remove all on-screen text"
     if k == "text_less":
         return "Less text: keep only the hook and the call to action"
-    if k == "cta":
-        return f'Call to action: "{v}"'
-    if k == "hook_text":
-        return f'Opening text: "{v}"'
+    if k in ("cta", "hook_text"):
+        from app.video.overlays import strip_emoji, tidy_text
+
+        shown = tidy_text(str(v or ""))
+        label = "Call to action" if k == "cta" else "Opening text"
+        note = " (emoji are left out of the video text: it cannot draw them in colour; add them to the post caption)" if strip_emoji(str(v or "")) != str(v or "").strip() else ""
+        return f'{label}: "{shown}"{note}'
     if k == "effect" and v == "pan":
         return f"Camera pans on {where} (left and right in turn)"
     return "Different clip selection and order (rebuilds the edit)"

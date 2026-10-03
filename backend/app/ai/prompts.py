@@ -42,11 +42,14 @@ def style_prompt(styles: dict[str, str], clips: list[dict[str, Any]], bpm: float
     )
 
 
-def copy_prompt(project_name: str, style: str, bpm: float, duration: float, clip_names: list[str]) -> str:
+def copy_prompt(project_name: str, style: str, bpm: float, duration: float, clip_names: list[str], brief: str = "",
+                platform_rules: str = "") -> str:  # fmt: skip
     return (
         f'A {duration:.0f}s Instagram Reel titled "{clean(project_name)}" in the "{style}" style, '
         f"{bpm:.0f} BPM music, made from clips: {json.dumps([clean(n, 40) for n in clip_names], ensure_ascii=False)}.\n"
-        "Write post copy. Do not invent facts, prices or claims about products.\n"
+        + (f"What it is about: {clean(brief, 600)}\n" if brief.strip() else "")
+        + (f"{platform_rules}\n" if platform_rules else "")
+        + "Write post copy. Do not invent facts, prices or claims about products.\n"
         'Return JSON: {"title": "<max 60 chars>", "description": "<max 200 chars, 1-2 sentences>", '
         '"hashtags": ["<5 to 8 hashtags without #>"]}.'
     )

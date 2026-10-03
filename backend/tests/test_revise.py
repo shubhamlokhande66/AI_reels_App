@@ -439,3 +439,52 @@ def test_the_new_camera_effects_can_be_asked_for_in_words():
     for text, (effect, scope) in cases.items():
         acts, unknown = rv.parse_rules(text)
         assert not unknown and acts[0].kind == "effect" and acts[0].value == effect and acts[0].scope == scope, text
+
+
+# ------------------------------------------------------------------ on-screen text in any language, exactly as typed
+_MR = "बाप्पा गेले… पण मन अजूनही त्यांच्यातच आहे"
+
+
+@pytest.mark.parametrize("request_text", [
+    f"{_MR} 🥹❤️ add this text", f"add this text {_MR} 🥹❤️", f"add this text: {_MR}", f'add text "{_MR}"',
+    f"{_MR} हा मजकूर टाका", f"हा टेक्स्ट टाका: {_MR}",
+])  # fmt: skip
+def test_marathi_text_is_used_exactly_as_typed(request_text):
+    from app.revise.actions import parse_rules
+
+    acts, unknown = parse_rules(request_text)
+    assert [a.kind for a in acts] == ["hook_text"] and not unknown
+    assert acts[0].value.replace(" 🥹❤️", "") == _MR
+
+
+def test_text_requests_in_english_and_hindi_and_mixed_with_other_changes():
+    from app.revise.actions import parse_rules
+
+    acts, _ = parse_rules("ये लिखो: बप्पा चले गए… पर दिल अभी भी उन्हीं में है")
+    assert acts[0].value == "बप्पा चले गए… पर दिल अभी भी उन्हीं में है"
+    acts, _ = parse_rules("add this text Bappa left... but my heart is still with him")
+    assert acts[0].value == "Bappa left... but my heart is still with him"
+    acts, _ = parse_rules(f"add this text {_MR} and make the music louder")
+    assert [a.kind for a in acts] == ["hook_text", "music_volume"] and acts[0].value == _MR
+    acts, _ = parse_rules(f"add this text at the end: {_MR}")
+    assert acts[0].kind == "cta" and acts[0].value == _MR
+    for plain in ("add captions", "remove the text", "make the music louder", "add this text and make it bigger"):
+        assert all(a.kind not in ("hook_text", "cta") for a in parse_rules(plain)[0]), plain
+
+
+def test_the_ai_may_not_rewrite_the_users_words():
+    from app.revise.actions import parse_ai_actions
+
+    req = f"{_MR} 🥹❤️"
+    ok, _ = parse_ai_actions({"actions": [{"action": "hook_text", "value": _MR}]}, 5, set(), request_text=req)
+    assert ok and ok[0].value == _MR
+    bad, dropped = parse_ai_actions({"actions": [{"action": "hook_text", "value": "दलृती दलृती"}]}, 5, set(), request_text=req)
+    assert not bad and "changed your words" in dropped[0]
+
+
+def test_emoji_are_left_out_of_video_text_and_the_user_is_told():
+    from app.revise.actions import Action, describe
+    from app.video.overlays import tidy_text
+
+    assert tidy_text(f"{_MR} 🥹❤️") == _MR
+    assert "emoji are left out" in describe(Action("hook_text", value=f"{_MR} 🥹❤️"))

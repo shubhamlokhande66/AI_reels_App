@@ -10,6 +10,7 @@ import { PostCopy } from "@/components/PostCopy";
 import { ReelPreview } from "@/components/ReelPreview";
 import { PerformanceForm, ProjectTools } from "@/components/ProjectTools";
 import { ReelPlanPanel } from "@/components/ReelPlanPanel";
+import { InstagramReport } from "@/components/InstagramReport";
 import { AiModeBadge } from "@/components/AiSettings";
 
 const AI_LABEL: Record<string, string> = { ollama: "Ollama", openai: "OpenAI", gemini: "Gemini" };
@@ -230,6 +231,9 @@ export default function ProjectPage() {
         </Card>
       </section>
 
+      {project.status !== "processing" && project.reelPlan?.instagram && (
+        <InstagramReport report={project.reelPlan.instagram} stale={(project.reelPlan.timelineVersion ?? 0) < (project.timelineVersion ?? 0)} />
+      )}
       {project.status !== "processing" && project.reelPlan && (
         <ReelPlanPanel plan={project.reelPlan} stale={(project.reelPlan.timelineVersion ?? 0) < (project.timelineVersion ?? 0)} />
       )}

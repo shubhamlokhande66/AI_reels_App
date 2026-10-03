@@ -74,8 +74,9 @@ def watermark_filter(idx: int, wm: Watermark, cfg: RenderConfig) -> str:
     x = x.format(mx=int(cfg.width * 0.04), my=int(cfg.height * 0.16), mt=int(cfg.height * 0.07))
     y = y.format(mx=int(cfg.width * 0.04), my=int(cfg.height * 0.16), mt=int(cfg.height * 0.07))
     w = max(int(cfg.width * wm.scale) // 2 * 2, 8)
+    enable = f":enable='gte(t,{wm.show_from:.3f})'" if wm.show_from else ""
     return (f"[{idx}:v]format=rgba,scale={w}:-2,colorchannelmixer=aa={wm.opacity:.2f}[wm];"
-            f"[vp][wm]overlay=x={x}:y={y}:shortest=1[v]")  # fmt: skip
+            f"[vp][wm]overlay=x={x}:y={y}:shortest=1{enable}[v]")  # fmt: skip
 
 
 def build_audio_filter(

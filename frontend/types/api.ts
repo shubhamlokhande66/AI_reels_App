@@ -7,6 +7,20 @@ export interface ApiErrorBody {
   details?: unknown;
 }
 
+export type Platform = "none" | "instagram";
+
+/** Post copy for a rendering. Instagram Reels also get a line asking for the send and alt text. */
+export interface PostCopyData {
+  title: string;
+  description: string;
+  hashtags: string[];
+  sendPrompt?: string;
+  altText?: string;
+  platform?: Platform;
+  /** "template" = made from the project name and instructions without AI. */
+  source?: string;
+}
+
 export interface ProjectSettings {
   reelType?: "edit" | "product";
   productStyle?: string;
@@ -19,6 +33,8 @@ export interface ProjectSettings {
   audioStart?: number | null;
   style: string;
   exportPreset?: string;
+  /** The social network the Reel is made for. "instagram" tunes the edit, checks and caption to how Instagram ranks Reels. */
+  platform?: Platform;
   pace: "auto" | "calm" | "balanced" | "fast";
   /** mixed = best moments in any order; steps = every clip once, in the order it happened (recipes, tutorials). */
   sequence?: Sequence;
@@ -125,7 +141,7 @@ export interface Rendering {
   downloadUrl: string;
   kind?: "final" | "preview";
   timelineVersion?: number;
-  postCopy: { title: string; description: string; hashtags: string[] } | null;
+  postCopy: PostCopyData | null;
   performance?: PerformanceInput | null;
 }
 
@@ -704,6 +720,32 @@ export interface ReelPlan {
   aiDirector?: AiDirectorLog;
   /** Set when the AI director was asked for but the rule-based editor made this Reel (and why). */
   directorFallback?: { reason: string };
+  /** Present for Reels made for Instagram: how the Reel scores against Instagram's ranking signals. */
+  instagram?: InstagramReport;
+}
+
+export type InstagramSignal = "hook" | "watch_time" | "rewatch" | "shares" | "eligibility" | "discovery";
+
+export interface InstagramCheck {
+  id: string;
+  signal: InstagramSignal;
+  name: string;
+  /** info = advice the app cannot measure (not scored). */
+  status: "pass" | "warn" | "fail" | "info";
+  detail: string;
+  tip: string;
+}
+
+export interface InstagramReport {
+  platform: "instagram";
+  score: number;
+  verdict: string;
+  /** Recommendation rules this Reel breaks (it is not shown to new viewers until they are fixed). */
+  blocked: string[];
+  signals: { id: InstagramSignal; label: string; score: number | null }[];
+  checks: InstagramCheck[];
+  postingTips: string[];
+  note: string;
 }
 
 export interface AiDirectorShotLog {

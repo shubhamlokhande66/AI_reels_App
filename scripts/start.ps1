@@ -7,7 +7,7 @@
 # Website  http://127.0.0.1:3100   (Next.js)      log: frontend.log
 #
 # Nothing here is exposed to your network. MongoDB is started automatically if it is not running (see below);
-# Ollama is optional (AI assist).
+# AI assist uses the provider chosen in Settings (Gemini, OpenAI or a local Ollama); it is optional.
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -82,10 +82,6 @@ if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
     Write-Host "The website is not set up yet: run  cd frontend; npm install  once." -ForegroundColor Red
     exit 1
 }
-if (-not (Test-Port 11434)) {
-    Write-Host "Ollama is not running: the app works, but AI assist (content understanding, 'change it with words') will say it is unavailable." -ForegroundColor Yellow
-}
-
 # --- backend -----------------------------------------------------------------------------------------------------
 if (Test-Port 8000) {
     Write-Host "API already running on port 8000: keeping it." -ForegroundColor DarkGray
@@ -113,6 +109,25 @@ $apiOk = Wait-Url "http://127.0.0.1:8000/api/health" 60
 $webOk = Wait-Url "http://127.0.0.1:3100" 90
 if (-not $apiOk) { Write-Host "The API did not answer in time. See backend.err.log in $root" -ForegroundColor Red }
 if (-not $webOk) { Write-Host "The website did not answer in time. See frontend.err.log in $root" -ForegroundColor Red }
+
+# --- AI: ask the API which provider is really used (Settings -> AI provider wins over .env) and whether it answers --
+if ($apiOk) {
+    try {
+        $ai = Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/ai/config" -TimeoutSec 10
+        foreach ($kind in @("text", "vision")) {
+            $st = $ai.status.$kind
+            if ($st -and -not $st.available) {
+                $name = (Get-Culture).TextInfo.ToTitleCase([string]$st.provider)
+                Write-Host "AI ($kind) uses $name, which is not available ($($st.detail)): the app works, but AI assist will say it is unavailable. Check Settings -> AI provider." -ForegroundColor Yellow
+            }
+        }
+        if ($ai.status.text.available) {
+            Write-Host "AI: $((Get-Culture).TextInfo.ToTitleCase([string]$ai.status.text.provider)) ($($ai.status.text.model))." -ForegroundColor DarkGray
+        }
+    } catch {
+        Write-Host "Could not read the AI settings from the API; AI assist may be unavailable." -ForegroundColor DarkGray
+    }
+}
 if ($apiOk -and $webOk) {
     Write-Host ""
     Write-Host "Ready:  http://127.0.0.1:3100" -ForegroundColor Green

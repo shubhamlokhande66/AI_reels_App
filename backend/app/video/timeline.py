@@ -126,6 +126,14 @@ def _snap_to_accent(t: float, accents_rel: list[tuple[float, float]], tol: float
     return min(near, key=lambda pair: abs(pair[0] - t))[0] if near else t
 
 
+def _hook_cut(beats: list[float], accents_rel: list[tuple[float, float]], style: EditingStyle, end: float) -> float:
+    """The opening shot ends on the last beat (or strong accent) before ``style.hook_cut``, so the picture changes before the
+    viewer decides to scroll on. Keeps ``end`` when no beat fits."""
+    lo, hi = max(style.min_segment * 0.75, 0.4), float(style.hook_cut or end)
+    cands = [b for b in beats if lo <= b <= hi] + [a for a, s in accents_rel if lo <= a <= hi and s >= ACCENT_SNAP_MIN]
+    return round(max(cands), 3) if cands else end
+
+
 def plan_slots(audio: AudioAnalysis, audio_start: float, duration: float, style: EditingStyle) -> list[Slot]:
     """Cut points on beats (snapped onto a real accent nearby, when there is one); pace follows the music energy and the style."""
     beats = _grid_beats(audio, audio_start, duration)
@@ -163,6 +171,9 @@ def plan_slots(audio: AudioAnalysis, audio_start: float, duration: float, style:
             snapped = _snap_to_accent(end, accents_rel)
             if snapped - t >= max(style.min_segment * 0.75, 0.2) and duration - snapped >= max(style.min_segment * 0.75, 0.2):
                 end = snapped
+        if not slots and style.hook_cut and end > style.hook_cut and duration > style.hook_cut + style.min_segment:
+            end = _hook_cut(beats, accents_rel, style, end)
+            j = max(k for k in range(len(beats)) if beats[k] <= end + 1e-3) if beats[0] <= end else j
         if duration - end < style.min_segment:  # do not leave a runt at the end
             end = duration
         on_strong = round(t, 3) in strong_rel or any(abs(t - d) < 0.15 for d in drops_rel)
@@ -250,6 +261,7 @@ def select_segments(
     reused_warned = False
     slow_warned = False
     terms = brief_terms(brief)
+    first_sig: list[float] = []
 
     for slot in slots:
         L = slot.length
@@ -263,6 +275,8 @@ def select_segments(
         tgt = target_motion(slot.energy, style.motion_preference)
         if is_first and style.opening == "establishing":
             tgt = 0.2
+        elif is_first and style.opening == "hook":
+            tgt = max(tgt, 0.75)  # the scroll-stopping opening moves, whatever the music does there
         cands: list[_Cand] = []
         for clip in pool:
             for w in _windows_of(clip):
@@ -321,10 +335,14 @@ def select_segments(
                 score += 0.04
             if clip.semantic is not None:
                 score += 0.10 * clip.semantic.importance + 0.25 * relevance(clip, terms)
-            if is_first:
+            if is_first and style.opening == "hook":  # the frame that decides the scroll: sharp, bright, moving, ideally a face
+                score += 0.15 * w.quality + 0.25 * motion + 0.10 * min(w.brightness, 0.8) + (0.08 if w.face else 0.0)
+            elif is_first:
                 score += 0.15 * w.quality + (
                     0.15 * (1 - abs(motion - 0.2)) if style.opening == "establishing" else 0.10 * motion
                 )
+            if is_last and style.loop_end and first_sig:
+                score += 0.25 * _intersection(w.signature, first_sig)  # colours like the opening: the replay feels seamless
             if is_last and style.closing == "reveal":
                 score += 0.30 * w.sharpness * max(w.brightness, 0.2) + 0.10 * (1 - motion)
             if order_hint and clip.clip_id in order_hint:
@@ -344,6 +362,8 @@ def select_segments(
         used[chosen.clip.clip_id].append((chosen.start, chosen.end))
         uses[chosen.clip.clip_id] += 1
         prev = (chosen.clip, chosen.window)
+        if is_first:
+            first_sig = chosen.window.signature
 
         segments.append(
             Segment(

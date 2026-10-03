@@ -76,12 +76,13 @@ def ov(text, start, end, **kw):
 
 def test_overlays_are_readable_and_never_stacked():
     out, notes = overlays.normalize([
-        ov("Pure gold that tells your whole story now", 0.0, 2.0, role="hook"),
+        ov("Gold so pure it tells a story you can see in each tiny shine", 0.0, 2.0, role="hook"),
         ov("Second", 1.5, 3.0),  # overlaps the first: moved after it
         ov("Blink", 3.0, 3.1),  # too short: extended to the minimum
         ov("Late", 9.9, 12.0),  # past the end: clamped
     ], duration=10.0)
-    assert [o.text for o in out] == ["Pure gold that tells your whole story", "Second", "Blink", "Late"]
+    # your own text is kept whole up to 12 words (it wraps onto more lines); only longer text is shortened
+    assert [o.text for o in out] == ["Gold so pure it tells a story you can see in each", "Second", "Blink", "Late"]
     assert out[1].start == 2.0 and out[2].end - out[2].start >= overlays.MIN_SECONDS - 1e-6
     assert out[3].end <= 10.0 and out[3].end - out[3].start >= overlays.MIN_SECONDS - 1e-6
     assert all(a.end <= b.start for a, b in zip(out, out[1:]))

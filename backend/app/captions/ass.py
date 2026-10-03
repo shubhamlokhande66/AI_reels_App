@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from app.captions.cues import Cue
+from app.core.fonts import font_for, needs_shaping
 
 CAPTION_STYLES = ("minimal", "bold", "karaoke", "highlight", "luxury")
 
@@ -89,6 +90,9 @@ def build_ass(
     if color:
         st = replace(st, primary=_ass_colour(color), secondary=_ass_colour(color) if st.mode != "karaoke" else st.secondary,
                      highlight=_ass_colour(color) if st.mode == "highlight" else st.highlight)  # fmt: skip
+    sample = " ".join(w.text for c in cues for w in c.words)
+    if needs_shaping(sample):  # Hindi/Marathi lyrics or voice-over: a font with the letters, and no spacing (it breaks shaping)
+        st = replace(st, font=font_for(sample, st.font), spacing=0)
     side = int(width * 0.08)
     header = (
         "[Script Info]\nScriptType: v4.00+\n"

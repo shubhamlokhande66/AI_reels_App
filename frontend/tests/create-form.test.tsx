@@ -91,10 +91,38 @@ describe("CreateReelForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Generate Reel" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
-    expect(api.createProject).toHaveBeenCalledWith("My reel", { duration: 30, style: "luxury", pace: "auto", sequence: "mixed", captions: false, captionStyle: "minimal", ai: true, aiDirector: true, audioMode: "music", language: "en", brief: "", reference: "auto" });
+    expect(api.createProject).toHaveBeenCalledWith("My reel", { duration: 30, style: "luxury", pace: "auto", sequence: "mixed", captions: false, captionStyle: "minimal", ai: true, aiDirector: true, audioMode: "music", language: "en", brief: "", reference: "auto", platform: "instagram", exportPreset: "instagram_reel", hookText: "", ctaText: "" });
     expect(api.uploadVideos.mock.calls[0][1].map((f: File) => f.name)).toEqual(["a.mp4", "b.mov"]);
     expect(api.uploadAudio.mock.calls[0][1].name).toBe("song.mp3");
     expect(api.generate).toHaveBeenCalledWith("p1");
+  });
+
+  it("makes Reels for Instagram by default, with hook text, or for no platform", async () => {
+    renderForm();
+    expect(screen.getByRole("radio", { name: /Instagram Reels/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText("What Instagram mode does")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Project name"), "Runs");
+    addFiles(VIDEO_INPUT, [video("a.mp4")]);
+    addFiles(AUDIO_INPUT, [new File(["a"], "song.mp3")]);
+    await userEvent.type(screen.getByLabelText("Hook text"), "3 mistakes new runners make");
+    await userEvent.type(screen.getByLabelText("Closing line"), "Save this");
+    await userEvent.click(screen.getByRole("button", { name: "Generate Reel" }));
+    await waitFor(() => expect(api.createProject).toHaveBeenCalled());
+    expect(api.createProject.mock.calls[0][1]).toMatchObject({ platform: "instagram", hookText: "3 mistakes new runners make", ctaText: "Save this" });
+  });
+
+  it("General sends no Instagram settings", async () => {
+    renderForm();
+    await userEvent.click(screen.getByRole("radio", { name: /General/ }));
+    expect(screen.queryByLabelText("Hook text")).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Project name"), "Plain");
+    addFiles(VIDEO_INPUT, [video("a.mp4")]);
+    addFiles(AUDIO_INPUT, [new File(["a"], "song.mp3")]);
+    await userEvent.click(screen.getByRole("button", { name: "Generate Reel" }));
+    await waitFor(() => expect(api.createProject).toHaveBeenCalled());
+    const sent = api.createProject.mock.calls[0][1];
+    expect(sent.platform).toBe("none");
+    expect(sent).not.toHaveProperty("hookText");
   });
 
   it("pre-fills from a template, applies template and brand after creating, and needs no music for voice modes", async () => {

@@ -22,7 +22,7 @@ from app.ai.provider import AIProvider
 from app.ai.schemas import Text, _Answer
 from app.director.music_map import MusicMap
 from app.models.analysis import AudioAnalysis
-from app.models.timeline import OVERLAY_ANIMATIONS, OVERLAY_MAX_WORDS
+from app.models.timeline import AI_TEXT_MAX_WORDS, OVERLAY_ANIMATIONS
 from app.video import effects as fx
 from app.video import footage, grades
 from app.video import transitions as tr
@@ -175,7 +175,7 @@ CHECK BEFORE ANSWERING
 6. Cuts land on the supplied beats; the hook is strong, the story builds, the ending is strong.
 7. Text: word limit, one at a time, none before 0.3 s, nothing invented.
 
-Reply with ONE JSON object in the requested schema only: no Markdown, no code fences, no explanations.""".format(words=OVERLAY_MAX_WORDS)
+Reply with ONE JSON object in the requested schema only: no Markdown, no code fences, no explanations.""".format(words=AI_TEXT_MAX_WORDS)
 
 
 # ---------------------------------------------------------------------- the facts sent to the model
@@ -315,7 +315,7 @@ def structure_guide(style_id: str | None, duration: float, clips: list[ClipInput
 def build_request(
     clips: list[ClipInput], audio: AudioAnalysis, mm: MusicMap, audio_start: float, duration: float, styles: dict[str, str],
     *, brief: str, language: str, style_hint: str | None, captions: bool, cta: str, hook: str, pace: str,
-    suggested_cuts: list[float] | None = None, references: list[dict[str, Any]] | None = None,
+    suggested_cuts: list[float] | None = None, references: list[dict[str, Any]] | None = None, platform_rules: list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     rows, alias = clip_facts(clips)
     facts = {
@@ -333,6 +333,8 @@ def build_request(
             "note": "beat-aligned cut times that follow the music energy (shorter shots when it is loud). Use them as the "
                     "rhythm, merging or splitting them where the story needs; vary shot lengths, never a constant length.",
         },
+        **({"platform": {"name": "instagram", "rules": platform_rules,
+                         "note": "how Instagram ranks Reels; follow these unless reel.instructions say otherwise"}} if platform_rules else {}),
         "story_shape": structure_guide(style_hint, duration, clips),
         "allowed": registries(styles),
         "rules": {

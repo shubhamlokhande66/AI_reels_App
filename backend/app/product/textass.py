@@ -10,10 +10,13 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from app.core.fonts import font_for, needs_shaping
 from app.product.models import TextLayer
 from app.product.styles import ProductStyle
 
 _FONT_OK = re.compile(r"[^A-Za-z0-9 \-_.]")
+LINE_BREAK = r"\N"  # an ASS hard line break
+BOX_COLOUR = "&H50000000&"  # the box behind boxed text: black, about 70% opaque (ASS alpha 0x00 = solid, 0xFF = clear)
 
 
 def clean_text(text: str, limit: int = 80) -> str:
@@ -40,8 +43,10 @@ def _box(text: str, size_px: float) -> float:
 
 
 def layer_events(t: TextLayer, w: int, h: int) -> list[tuple[float, float, str]]:
-    """(start, end, text-with-tags) for one layer. Most animations are one event; type-on is a few."""
-    text = clean_text(t.text)
+    """(start, end, text-with-tags) for one layer. Most animations are one event; type-on is a few.
+
+    A newline in the layer's text becomes a real line break; everything else is cleaned of markup."""
+    text = LINE_BREAK.join(p for p in (clean_text(x) for x in t.text.split("\n")) if p)
     if not text:
         return []
     x, y = t.x * w, t.y * h
@@ -51,6 +56,8 @@ def layer_events(t: TextLayer, w: int, h: int) -> list[tuple[float, float, str]]
     pos = f"\\an5\\pos({x:.0f},{y:.0f})\\fs{size_px:.0f}"
     out_tag = f"\\fad(0,{fade_out})" if fade_out else ""
     a = t.animation_in
+    if a == "type_on" and (needs_shaping(text) or LINE_BREAK in text):
+        a = "fade"  # typing letter by letter would split joined letters (or a line break) in half
     if a == "fade":
         return [(t.start, t.end, "{" + pos + f"\\fad(350,{fade_out})" + "}" + text)]
     if a == "slide_up":
@@ -60,7 +67,7 @@ def layer_events(t: TextLayer, w: int, h: int) -> list[tuple[float, float, str]]
     if a == "blur_sharp":
         return [(t.start, t.end, "{" + pos + "\\blur14\\alpha&HFF&\\t(0,520,\\blur0\\alpha&H00&)" + out_tag + "}" + text)]
     if a == "mask_reveal":
-        bw = _box(text, size_px) * 1.15
+        bw = _box(max(text.split(LINE_BREAK), key=len), size_px) * 1.15
         x0, x1, y0, y1 = x - bw / 2, x + bw / 2, y - size_px, y + size_px
         clip = f"\\clip({x0:.0f},{y0:.0f},{x0:.0f},{y1:.0f})\\t(0,520,\\clip({x0:.0f},{y0:.0f},{x1:.0f},{y1:.0f}))"
         return [(t.start, t.end, "{" + pos + clip + out_tag + "}" + text)]
@@ -77,22 +84,30 @@ def layer_events(t: TextLayer, w: int, h: int) -> list[tuple[float, float, str]]
     return events
 
 
-def write_text_ass(layers: list[TextLayer], style: ProductStyle, path: Path, w: int, h: int) -> Path | None:
-    """Write the file, or return None when there is no text. Sizes are relative to the frame, so any resolution works."""
+def write_text_ass(layers: list[TextLayer], style: ProductStyle, path: Path, w: int, h: int, boxed: bool = False) -> Path | None:
+    """Write the file, or return None when there is no text. Sizes are relative to the frame, so any resolution works.
+
+    ``boxed``: the text sits on a soft dark box, readable over busy video. Text in a complex script (Marathi, Hindi ...)
+    gets a font that has its letters and no letter spacing, so vowel signs and conjuncts join as they should."""
+    font = _FONT_OK.sub("", style.font)[:40] or "Arial"
     events: list[tuple[float, float, str]] = []
     for layer in layers:
-        events += layer_events(layer, w, h)
+        tags = "\\fn" + _FONT_OK.sub("", font_for(layer.text, font)) + "\\fsp0" if needs_shaping(layer.text) else ""
+        for start, end, body in layer_events(layer, w, h):
+            events.append((start, end, "{" + tags + body[1:] if body.startswith("{") else "{" + tags + "}" + body))
     if not events:
         return None
-    font = _FONT_OK.sub("", style.font)[:40] or "Arial"
     size_px = int(0.065 * h)
+    look = (f"0.5,0,3,{max(8, h // 110)},0" if boxed  # BorderStyle 3: an opaque box (OutlineColour) padded by Outline
+            else f"1.5,0,1,{max(2, h // 640)},{max(1, h // 960)}")  # fmt: skip
     lines = [
         "[Script Info]", "ScriptType: v4.00+", f"PlayResX: {w}", f"PlayResY: {h}", "WrapStyle: 2", "ScaledBorderAndShadow: yes", "",
         "[V4+ Styles]",
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
         "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        f"Style: Default,{font},{size_px},{_bgr(style.text_color)},{_bgr(style.text_color)},{_bgr(style.text_outline)},&H64000000&,"
-        f"{-1 if style.bold else 0},0,0,0,100,100,1.5,0,1,{max(2, h // 640)},{max(1, h // 960)},5,20,20,20,1",
+        f"Style: Default,{font},{size_px},{_bgr(style.text_color)},{_bgr(style.text_color)},"
+        f"{BOX_COLOUR if boxed else _bgr(style.text_outline)},&H64000000&,"
+        f"{-1 if style.bold else 0},0,0,0,100,100,{look},5,20,20,20,1",
         "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
     for start, end, body in sorted(events, key=lambda e: e[0]):

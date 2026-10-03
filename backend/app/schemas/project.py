@@ -17,6 +17,7 @@ Sequence = Literal["mixed", "steps"]
 OrderMode = Literal["auto", "manual"]
 AudioMode = Literal["music", "voice_music", "voice", "original", "none"]
 Language = Literal["en", "hi", "mr", "hinglish"]
+Platform = Literal["none", "instagram"]  # instagram = edit, check and write copy for how Instagram ranks Reels (see platforms/)
 
 MIN_DURATION = 5
 MAX_DURATION = 600  # 10 minutes
@@ -45,6 +46,7 @@ class ProjectSettings(CamelModel):
     order_mode: OrderMode = "auto"  # step-by-step Reels: "auto" guesses the order from file names / what clips show; "manual" keeps your clip list order exactly
     sequence: Sequence = "mixed"  # mixed = best moments in any order; steps = every clip once, in the order it happened (recipes, tutorials)
     export_preset: str = "instagram_reel"  # see video/presets.py
+    platform: Platform = "none"  # the social network this Reel is made for; "instagram" tunes the edit to its ranking signals
     audio_mode: AudioMode = "music"  # music | voice_music | voice | original | none
     reel_type: Literal["edit", "product"] = "edit"  # edit = cut the user's video clips; product = a Reel directed from product photos
     product_style: str = "luxury_jewelry"
@@ -93,6 +95,7 @@ class ProjectUpdate(CamelModel):
     step_labels: bool | None = None
     order_mode: OrderMode | None = None
     export_preset: str | None = None
+    platform: Platform | None = None
     brief: str | None = Field(default=None, max_length=1000)
     audio_mode: AudioMode | None = None
     product_style: str | None = None
@@ -215,6 +218,7 @@ class GenerateRequest(CamelModel):
     step_labels: bool | None = None
     order_mode: OrderMode | None = None
     export_preset: str | None = None
+    platform: Platform | None = None
     brief: str | None = Field(default=None, max_length=1000)
     audio_mode: AudioMode | None = None
     language: Language | None = None

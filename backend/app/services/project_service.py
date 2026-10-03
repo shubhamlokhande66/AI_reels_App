@@ -137,7 +137,7 @@ async def update_project(project_id: str, payload: ProjectUpdate) -> dict[str, A
         update["name"] = fields.pop("name")
     fields.pop("name", None)
     camel = {
-        "duration": "duration", "audio_start": "audioStart", "style": "style", "pace": "pace", "sequence": "sequence", "teaser": "teaser", "step_labels": "stepLabels", "order_mode": "orderMode", "export_preset": "exportPreset", "brief": "brief", "audio_mode": "audioMode", "language": "language", "voice_profile_id": "voiceProfileId",
+        "duration": "duration", "audio_start": "audioStart", "style": "style", "pace": "pace", "sequence": "sequence", "teaser": "teaser", "step_labels": "stepLabels", "order_mode": "orderMode", "export_preset": "exportPreset", "platform": "platform", "brief": "brief", "audio_mode": "audioMode", "language": "language", "voice_profile_id": "voiceProfileId",
         "brand_id": "brandId", "captions": "captions",
         "caption_style": "captionStyle", "ai": "ai", "ai_director": "aiDirector", "trend_id": "trendId", "reference": "reference",
         "custom_style": "customStyle", "product_style": "productStyle", "hook_text": "hookText", "tagline_text": "taglineText", "cta_text": "ctaText", "loop": "loop",

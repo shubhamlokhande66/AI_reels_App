@@ -38,8 +38,10 @@ class EditingStyle:
     # -1 = prefer steady shots everywhere, +1 = prefer high motion on strong beats.
     motion_preference: float = 0.5
     # Narrative structure hooks (proxy heuristics until vision AI can recognise content).
-    opening: Literal["establishing"] | None = None
+    opening: Literal["establishing", "hook"] | None = None  # hook = open on the most eye-catching moment (bright, moving)
     closing: Literal["reveal"] | None = None
+    hook_cut: float | None = None  # the first cut comes no later than this (s): something changes before the 3 s skip decision
+    loop_end: bool = False  # the last shot looks like the first, so the replay of a looping Reel feels seamless
     prefer_landscape: bool = False
 
     grade_filter: str | None = None  # extra FFmpeg video filter (colour grade)

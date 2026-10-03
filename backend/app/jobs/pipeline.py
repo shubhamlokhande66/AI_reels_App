@@ -42,6 +42,7 @@ from app.director.music_map import build_music_map, song_hits
 from app.director.plan import build_reel_plan
 from app.director.review import check_render, review_timeline
 from app.director.story import detect_category, order_for_food
+from app.platforms import instagram
 from app.video.steps import build_steps_timeline, order_clips
 from app.video.timeline import ClipInput, build_timeline
 
@@ -319,6 +320,8 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
     chosen = next((r for r in inp.references if r.get("chosen")), None)
     if chosen and inp.settings.pace == "auto" and chosen.get("pace") in ("calm", "balanced", "fast"):
         style = apply_pace(style, chosen["pace"])  # cut at the learned trend's pace (rules and the AI's suggested rhythm)
+    if for_instagram(inp.settings):
+        style = instagram.tune_style(style)  # hook-first opening, a cut by 1.8 s, short shots, a looping ending
     progress("selecting_clips", 1.0)
 
     progress("creating_timeline", 0.0)
@@ -342,6 +345,8 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
     timeline.warnings = res.warnings + timeline.warnings
     timeline.notes = timeline.notes + notes
     res.timeline = timeline
+    if for_instagram(inp.settings):
+        timeline.notes += instagram.polish_timeline(timeline, hook_text=inp.settings.hook_text, cta_text=inp.settings.cta_text)
     progress("creating_timeline", 1.0)
 
     provider_down = any(getattr(e, "fallback_ok", False) or getattr(e, "kind", "") == "budget" for e in director_errors)
@@ -360,6 +365,9 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
         timeline = apply_revision(inp, timeline, res)
         res.timeline = timeline
 
+    if for_instagram(inp.settings):
+        res.post_copy = instagram_copy(inp, res.post_copy, [c.semantic for c in inputs if c.semantic is not None
+                                                            and c.clip_id in {s.clip_id for s in timeline.segments}])
     if inp.settings.ai and ai_tasks:
         timeline.ai = ai_info(ai_tasks, directed is not None)
     steps = inp.settings.sequence == "steps"
@@ -380,6 +388,13 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
         res.reel_plan["aiDirector"] = directed.ai_log  # what the AI decided, shot by shot, and what the safety layer changed
     elif use_director and directed is None:  # said loudly on the project page: this Reel was NOT planned by the AI
         res.reel_plan["directorFallback"] = {"reason": director_errors[0].message if director_errors else "no clip the AI could use"}
+    if for_instagram(inp.settings):
+        r = res.render
+        res.reel_plan["instagram"] = instagram.build_report(
+            timeline, res.clips, audio_mode=resolve_audio_mode(inp.settings.audio_mode, timeline.voice is not None, inp.audio is not None)[0],
+            brief=inp.settings.brief, cta_text=inp.settings.cta_text, post_copy=res.post_copy,
+            render=(r.width, r.height, r.size, r.duration), preview=inp.kind == "preview",
+        )  # fmt: skip
     timeline.warnings += [w for w in (f"Quality check: {c.name}. {c.detail}".strip() for c in checks if not c.ok) if w not in timeline.warnings]
     return res
 
@@ -409,7 +424,8 @@ def direct_reel(inp: PipelineInput, inputs: list[ClipInput], audio: AudioAnalysi
     facts, alias = build_request(inputs, audio, mm, audio_start, eff, styles, brief=ps.brief, language=ps.language,
                                  style_hint=style.id if keep_style else None, captions=ps.captions, cta=ps.cta_text,
                                  hook=ps.hook_text, pace=ps.pace, suggested_cuts=suggested_cuts(audio, audio_start, eff, style),
-                                 references=inp.references)  # fmt: skip
+                                 references=inp.references,
+                                 platform_rules=instagram.DIRECTOR_RULES if for_instagram(ps) else None)  # fmt: skip
     if not alias:
         return None
     try:
@@ -574,7 +590,9 @@ def run_variations(inp: PipelineInput, storage: StorageBackend, progress: StageP
         settings = inp.settings.model_copy(update={"style": st.style, "pace": st.pace, "caption_style": st.caption_style})
         duration = base.duration if (base and base.voice) else inp.settings.duration
         hint = chronological_hint([v.id for v in inp.videos]) if st.order == "chronological" else None
-        tl = build_timeline(res.audio, inputs, duration, resolve_style(settings), seed=inp.seed + i * 101, order_hint=hint,
+        vstyle = resolve_style(settings)
+        vstyle = instagram.tune_style(vstyle) if for_instagram(settings) else vstyle
+        tl = build_timeline(res.audio, inputs, duration, vstyle, seed=inp.seed + i * 101, order_hint=hint,
                             brief=inp.settings.brief, audio_start=inp.settings.audio_start)  # fmt: skip
         tl.warnings = res.warnings + tl.warnings
         if inp.audio is not None:
@@ -614,6 +632,10 @@ def render_edl(
         style = get_style(timeline.style)
     except AppError:
         style = get_style("custom")
+    if for_instagram(inp.settings):  # no fade to black (skip / loop seam); a brand logo only on the closing seconds
+        style = instagram.render_style(style)
+        timeline = timeline.model_copy(update={"watermark": instagram.end_only_watermark(timeline.watermark, timeline.duration),
+                                               "overlays": instagram.hook_from_first_frame(timeline.overlays)})
     encoder = "libx264" if preview else pick_encoder()
     cfg = config_for(inp.settings.export_preset, "preview" if preview else "final", encoder)
     mode, mode_note = resolve_audio_mode(inp.settings.audio_mode, timeline.voice is not None, inp.audio is not None)
@@ -772,11 +794,23 @@ def choose_style_and_order(
     return style_id, order_hint
 
 
+def for_instagram(settings: ProjectSettings) -> bool:
+    return settings.platform == "instagram"
+
+
+def instagram_copy(inp: PipelineInput, copy: dict | None, semantics: list) -> dict:
+    """Instagram-ready post copy: at most 5 hashtags, a line asking for the send, alt text (a plain template without AI)."""
+    subjects = [getattr(s, "summary", "") or getattr(s, "scene", "") for s in semantics]
+    return instagram.finalize_copy(copy, name=inp.project_name, brief=inp.settings.brief, language=inp.settings.language, subjects=subjects)
+
+
 def write_copy(inp: PipelineInput, timeline: Timeline, audio: AudioAnalysis, progress: StageProgress) -> dict | None:
     progress("writing_copy", 0.0)
     try:
+        ig = for_instagram(inp.settings)
         copy = generate_post_copy(
-            get_provider("copy"), inp.project_name, timeline.style, audio.bpm, timeline.duration, [v.name for v in inp.videos]
+            get_provider("copy"), inp.project_name, timeline.style, audio.bpm, timeline.duration, [v.name for v in inp.videos],
+            brief=inp.settings.brief if ig else "", platform_rules=instagram.copy_rules() if ig else "",
         )
         return copy.to_doc()
     except AppError as exc:
@@ -908,7 +942,7 @@ def run_product(inp: PipelineInput, storage: StorageBackend, progress: StageProg
     plan, style = make_product_plan(inp, storage, progress)
     res.product_plan = plan.to_doc()
     res.warnings = plan.warnings
-    res.post_copy = plan.post_copy
+    res.post_copy = instagram_copy(inp, plan.post_copy, []) if for_instagram(inp.settings) else plan.post_copy
     prefix = "preview_" if inp.kind == "preview" else ""
     out_key = project_key(inp.project_id, "output", f"{prefix}{inp.rendering_id}.mp4")
     work = storage.local_path(project_key(inp.project_id, "temp", f"product_{inp.rendering_id}"))

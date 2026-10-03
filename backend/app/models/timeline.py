@@ -103,13 +103,17 @@ class Watermark(CamelModel):
     position: Literal["br", "bl", "tr", "tl", "center"] = "br"
     opacity: float = Field(default=0.85, ge=0.05, le=1)
     scale: float = Field(default=0.16, ge=0.04, le=0.6)  # logo width as a share of the video width
+    # None = on every frame. A time = the logo appears only from that second on (Instagram recommends fewer Reels with a
+    # logo or watermark on screen, so a Reel made for Instagram shows the brand only on its closing seconds).
+    show_from: float | None = Field(default=None, ge=0)
 
 
 OVERLAY_ROLES = ("hook", "benefit", "product", "emotion", "cta", "text")
 OVERLAY_POSITIONS = ("top", "center", "bottom")
 OVERLAY_ANIMATIONS = ("fade", "slide_up", "scale", "type_on", "blur_sharp", "mask_reveal")
-OVERLAY_MAX_CHARS = 42
-OVERLAY_MAX_WORDS = 7
+OVERLAY_MAX_CHARS = 66  # your own text is kept whole: up to 3 lines of about 22 characters
+OVERLAY_MAX_WORDS = 12
+AI_TEXT_MAX_WORDS = 7  # text the AI writes itself stays short (a hook is read in a second)
 
 
 class TextOverlay(CamelModel):

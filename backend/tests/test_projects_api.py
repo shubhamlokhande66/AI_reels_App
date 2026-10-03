@@ -157,3 +157,12 @@ async def test_health_and_styles(client):
     assert r.status_code == 200 and r.json()["ffmpeg"] is True
     styles = (await client.get("/api/styles")).json()
     assert {s["id"] for s in styles} >= {"fast_trending", "cinematic", "luxury", "food", "travel", "custom"}
+
+
+async def test_platform_is_stored_and_can_be_changed(client):
+    p = await create(client, settings={"duration": 15, "style": "luxury", "platform": "instagram", "hookText": "Wait for it"})
+    assert p["settings"]["platform"] == "instagram" and p["settings"]["hookText"] == "Wait for it"
+    r = await client.patch(f"/api/projects/{p['id']}", json={"platform": "none"})
+    assert r.status_code == 200 and r.json()["settings"]["platform"] == "none"
+    r = await client.patch(f"/api/projects/{p['id']}", json={"platform": "myspace"})
+    assert r.status_code == 422

@@ -23,9 +23,11 @@ class PostCopy:
 
 
 def generate_post_copy(
-    provider: AIProvider, project_name: str, style: str, bpm: float, duration: float, clip_names: list[str]
+    provider: AIProvider, project_name: str, style: str, bpm: float, duration: float, clip_names: list[str],
+    brief: str = "", platform_rules: str = "",
 ) -> PostCopy:
-    data = provider.generate_structured(prompts.SYSTEM_EDITOR, prompts.copy_prompt(project_name, style, bpm, duration, clip_names),
+    prompt = prompts.copy_prompt(project_name, style, bpm, duration, clip_names, brief=brief, platform_rules=platform_rules)
+    data = provider.generate_structured(prompts.SYSTEM_EDITOR, prompt,
                                         CopyAnswer, task="copy", temperature=0.6).model_dump()  # fmt: skip
     title = prompts.clean(data.get("title", "") if isinstance(data.get("title"), str) else "", 60)
     description = prompts.clean(data.get("description", "") if isinstance(data.get("description"), str) else "", 200)
