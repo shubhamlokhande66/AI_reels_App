@@ -4,9 +4,9 @@ __pycache__/
 .pytest_cache/
 node_modules/
 .next/
-storage/projects/
+/storage/projects/
 *.log
 # local app data (uploaded songs, saved settings) and personal footage: never in the repository
-storage/
+/storage/
 reels/
 *.tsbuildinfo
