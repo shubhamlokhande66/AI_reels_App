@@ -164,7 +164,25 @@ def look_filters(effect: str, hits: tuple[float, ...] = ()) -> list[str]:
         return [f"eq=brightness='{FLASH_STRENGTH}*max(0,1-t/{FLASH_SECONDS})':eval=frame"]
     if effect == "black_white":
         return ["hue=s=0"]
+    if effect == "vignette":
+        return ["vignette=angle=PI/4.5"]
+    if effect == "sharpen":
+        return ["unsharp=5:5:1.0:5:5:0.0"]
+    if effect == "glow":  # a blurred copy screen-blended over the shot: highlights bloom, detail stays
+        return [f"format=gbrp,split[gl1][gl2];[gl2]gblur=sigma={GLOW_SIGMA}[gl3];[gl1][gl3]blend=all_mode=screen:all_opacity={GLOW_OPACITY}"]
     return []
+
+
+GLOW_SIGMA = 14
+GLOW_OPACITY = 0.32
+FREEZE_SECONDS = 0.6
+
+
+def freeze_filters(effect: str, length: float) -> list[str]:
+    """``freeze``: hold the shot's first frame, then play (the rest of the shot is the same footage, a little later)."""
+    if effect != "freeze":
+        return []
+    return [f"tpad=start_mode=clone:start_duration={min(FREEZE_SECONDS, 0.4 * length):.3f}"]
 
 
 UPSCALE_ENHANCE_AT = 1.6  # above this upscale factor, denoise before and sharpen after scaling
@@ -267,7 +285,8 @@ def build_filter_graph(
         )
     else:
         graph = f"{core},"
-    tail = [f"trim=duration={plan.out_length:.3f}", "setpts=PTS-STARTPTS", *look_filters(seg.effect, plan.hits)]
+    tail = [*freeze_filters(seg.effect, plan.length), f"trim=duration={plan.out_length:.3f}", "setpts=PTS-STARTPTS",
+            *look_filters(seg.effect, plan.hits)]  # fmt: skip
     if grade:
         tail.append(grade)
     tail += ["setsar=1", "format=yuv420p"]

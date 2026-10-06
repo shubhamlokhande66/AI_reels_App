@@ -80,8 +80,27 @@ def build_audio_graph(
     music_volume: float = 1.0,
     fade_in: float | None = None,
     fade_out: float | None = None,
+    sfx_idx: int | None = None,
 ) -> str | None:
-    """The audio filter graph ending in ``[a]`` (None = no audio at all)."""
+    """The audio filter graph ending in ``[a]`` (None = no audio at all). ``sfx_idx``: a sound-effects track mixed in
+    under everything else just before the loudness normalisation."""
+    g = _graph(mode, music_idx=music_idx, voice_idx=voice_idx, segments=segments, plans=plans, duration=duration, style=style,
+               cfg=cfg, voice=voice, music_volume=music_volume, fade_in=fade_in, fade_out=fade_out)  # fmt: skip
+    if g is None or sfx_idx is None:
+        return g
+    fin = finish_chain(duration, cfg)
+    assert g.endswith(f"{fin}[a]")
+    head = g[: -len(f"{fin}[a]")].rstrip(",")
+    if head.endswith("]"):  # the chain ended on a label ([mix], [orig]): pass it through
+        head += "anull"
+    return (head + "[pre];"
+            f"[{sfx_idx}:a]{STEREO},volume={SFX_LEVEL}[fx];[pre][fx]amix=inputs=2:duration=first:normalize=0,{fin}[a]")
+
+
+SFX_LEVEL = 0.8  # the effects sit under the music; the loudness normaliser then sets the overall level
+
+
+def _graph(mode: str, *, music_idx, voice_idx, segments, plans, duration, style, cfg, voice, music_volume, fade_in, fade_out) -> str | None:
     fin = finish_chain(duration, cfg)
     if mode == "none":
         return None

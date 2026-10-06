@@ -395,6 +395,13 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
     else:
         creative = None
         progress("reviewing", 1.0)
+    if inp.settings.sound_effects and inp.settings.audio_mode != "none":
+        from app.director.sfx import plan_sfx
+
+        timeline.sfx = plan_sfx(timeline, mm)
+        if timeline.sfx:
+            kinds = sorted({e.type for e in timeline.sfx})
+            timeline.notes.append(f"Sound effects: {len(timeline.sfx)} ({', '.join(kinds)}), placed on transitions, the drop and text.")
     category = detect_category([c.semantic for c in inputs], timeline.style, steps)
     story_notes = [n for n in timeline.notes if steps and ("what they show" in n or "file names" in n or "clip list" in n or "finished dish" in n)]
     res.render, res.output_key = render_edl(inp, timeline, res.clips, storage, progress)

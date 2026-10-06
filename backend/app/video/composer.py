@@ -104,6 +104,7 @@ def build_compose_command(
     voice_path: Path | None = None,
     watermark: Watermark | None = None,
     watermark_path: Path | None = None,
+    sfx_path: Path | None = None,
 ) -> list[str]:
     """Arguments for the final ffmpeg run (list form; never joined into a shell string)."""
     graph, _ = build_video_graph(segments, plans, cfg)
@@ -130,9 +131,13 @@ def build_compose_command(
     if mode in ("voice", "voice_music") and voice is not None and voice_path is not None:
         args += ["-i", str(voice_path)]
         voice_idx, idx = idx, idx + 1
+    sfx_idx = None
+    if sfx_path is not None and mode != "none":
+        args += ["-i", str(sfx_path)]
+        sfx_idx, idx = idx, idx + 1
     agraph = build_audio_graph(
         mode, music_idx=music_idx, voice_idx=voice_idx, segments=segments, plans=plans, duration=duration, style=style,
-        cfg=cfg, voice=voice, music_volume=volume, fade_in=fade_in, fade_out=fade_out,
+        cfg=cfg, voice=voice, music_volume=volume, fade_in=fade_in, fade_out=fade_out, sfx_idx=sfx_idx,
     )  # fmt: skip
     if agraph:
         graph += ";" + agraph

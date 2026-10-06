@@ -127,6 +127,14 @@ class TextOverlay(CamelModel):
     size: Literal["small", "medium", "large"] = "medium"
 
 
+class SoundEffect(CamelModel):
+    """A synthesised sound effect on the Reel timeline (audio/sfx.py), placed by the director (director/sfx.py)."""
+
+    type: Literal["whoosh", "impact", "riser", "pop"]
+    at: float = Field(ge=0)  # seconds on the Reel timeline where the sound starts
+    volume: float = Field(default=0.6, ge=0, le=1)
+
+
 class AIInfo(CamelModel):
     """Which AI made the creative decisions of this edit (shown as "AI: OpenAI" on the project page)."""
 
@@ -158,6 +166,7 @@ class Timeline(CamelModel):
     # seconds INTO THE SONG of its strong hits (so moving the song part keeps them in sync); beat-reactive effects
     # (zoom_pulse, beat_punch, beat_flash) follow them
     music_hits: list[float] = []
+    sfx: list[SoundEffect] = []  # sound effects mixed under the music (empty = none)
     ai: AIInfo | None = None
     warnings: list[str] = []
     notes: list[str] = []  # informational, e.g. why the AI picked a style

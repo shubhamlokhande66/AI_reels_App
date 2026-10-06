@@ -114,7 +114,7 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
     seed = 0
     if req is not None:
         for field, key in (("style", "style"), ("pace", "pace"), ("sequence", "sequence"), ("teaser", "teaser"), ("step_labels", "stepLabels"), ("order_mode", "orderMode"), ("export_preset", "exportPreset"), ("brief", "brief"), ("audio_mode", "audioMode"), ("language", "language"), ("duration", "duration"), ("audio_start", "audioStart"), ("captions", "captions"),
-                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("auto_review", "autoReview"), ("trend_id", "trendId"), ("reference", "reference")):  # fmt: skip
+                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("auto_review", "autoReview"), ("sound_effects", "soundEffects"), ("trend_id", "trendId"), ("reference", "reference")):  # fmt: skip
             v = getattr(req, field)
             if v is not None:
                 settings[key] = v

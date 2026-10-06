@@ -61,6 +61,7 @@ class ProjectSettings(CamelModel):
     ai: bool = False
     ai_director: bool = True  # with AI on: the AI plans every shot (validated); off = AI only assists the rule-based editor
     auto_review: bool = True  # the Quality Reviewer scores the edit and revises it (up to 2 rounds) before rendering
+    sound_effects: bool = False  # whooshes on moving transitions, a riser + impact on the drop, pops under text
     delete_media_after_render: bool = False  # privacy: delete the uploaded clips/song once a final Reel is rendered
     trend_id: str | None = None
     reference: str = Field(default="auto", max_length=40)  # edit like a learned trend: "auto" = the AI picks, "none", or its id
@@ -110,6 +111,7 @@ class ProjectUpdate(CamelModel):
     ai: bool | None = None
     ai_director: bool | None = None
     auto_review: bool | None = None
+    sound_effects: bool | None = None
     trend_id: str | None = None
     reference: str | None = Field(default=None, max_length=40)
     delete_media_after_render: bool | None = None
@@ -231,6 +233,7 @@ class GenerateRequest(CamelModel):
     ai: bool | None = None
     ai_director: bool | None = None
     auto_review: bool | None = None
+    sound_effects: bool | None = None
     trend_id: str | None = None
     reference: str | None = Field(default=None, max_length=40)
     seed: int | None = None  # change to get a different edit from the same inputs

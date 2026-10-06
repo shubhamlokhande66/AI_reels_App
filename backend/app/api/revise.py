@@ -18,6 +18,7 @@ from app.revise import actions as rv
 from app.schemas.project import GenerateRequest
 from app.services import project_service as ps
 from app.services import timeline_service as ts
+from app.storage import get_storage, project_key
 
 router = APIRouter(prefix="/api", tags=["revise"])
 
@@ -65,6 +66,53 @@ def _understood(actions: list[rv.Action]) -> list[dict[str, Any]]:
     return [{"text": a.text, "does": rv.describe(a), "source": a.source, "rebuild": a.rebuild} for a in actions]
 
 
+INPLACE_KINDS = {"style", "pace"}  # whole-edit changes the Director makes on the current blueprint (no rebuild)
+
+
+def _music_map(project_id: str, doc: dict, tl: Timeline):
+    """The music map of the Reel's song part, from the cached analysis (None when the song was never analysed)."""
+    from app.director.music_map import build_music_map
+    from app.models.analysis import AudioAnalysis
+
+    aid = doc.get("audioId")
+    key = project_key(project_id, "analysis", f"audio_{aid}.json") if aid else None
+    st = get_storage()
+    if not key or not st.exists(key):
+        return None
+    try:
+        audio = AudioAnalysis.model_validate_json(st.read_bytes(key))
+    except ValueError:
+        return None
+    return build_music_map(audio, tl.audio_start, tl.duration)
+
+
+async def _revise_in_place(project_id: str, doc: dict, tl: Timeline, plan, base: dict, label: str, dry: bool):
+    """Style / pace on the current edit: same shots, manual edits, voice-over and text kept; one undoable step."""
+    from app.revise.inplace import apply_style_pace
+    from app.schemas.project import ProjectUpdate
+    from app.video.timeline_ops import apply_operations
+
+    overrides = rv.rebuild_overrides(plan.actions)
+    ctx = await ts.context_for(doc)
+    mm = await asyncio.to_thread(_music_map, project_id, doc, tl)
+    new_tl, notes = apply_style_pace(tl, style=overrides.get("style"), pace=overrides.get("pace"), mm=mm, clip_lengths=ctx.clip_durations)
+    others = [a for a in plan.actions if not a.rebuild]
+    more: list[str] = []
+    edit_ops: list = []
+    if others:
+        edit_ops, more, _ = rv.actions_to_ops(others, new_tl, audio_duration=ctx.audio_duration)
+    if dry:
+        return {**base, "mode": "edit", "notes": notes + more}
+    if edit_ops:
+        new_tl = apply_operations(new_tl, edit_ops, ctx)
+    await ts.replace(project_id, new_tl, label)
+    patch = {k: overrides[k] for k in ("style", "pace") if k in overrides}
+    if patch:  # the next fresh edit starts from the new style / pace too
+        await ps.update_project(project_id, ProjectUpdate(**patch))
+    job = await manager.submit_render(project_id, "final", label=label)
+    return {**base, "mode": "edit", "notes": notes + more, "job": ps.job_to_out(job)}
+
+
 @router.post("/projects/{project_id}/revise", dependencies=[Depends(rate_limit("job", 30))])
 async def revise(project_id: str, payload: ReviseRequest):
     """Understand the request, apply it to the Reel and start rendering the new version.
@@ -102,6 +150,9 @@ async def revise(project_id: str, payload: ReviseRequest):
     rebuild = [a for a in plan.actions if a.rebuild]
     hist = doc.get("timelineHistory") or []
     warnings: list[str] = []
+
+    if rebuild and {a.kind for a in rebuild} <= INPLACE_KINDS and not any(a.kind == "duration" for a in plan.actions):
+        return await _revise_in_place(project_id, doc, tl, plan, base, label, dry)
 
     if rebuild:
         overrides = rv.rebuild_overrides(plan.actions)

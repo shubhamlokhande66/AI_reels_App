@@ -152,6 +152,16 @@ async def restore_version(project_id: str, rendering_id: str) -> dict[str, Any]:
     return await _save(doc, hist, len(hist) - 1)
 
 
+async def replace(project_id: str, timeline: Timeline, label: str) -> dict[str, Any]:
+    """Make ``timeline`` the current edit (a whole-edit change such as a new style or pace), as one undoable step."""
+    doc = await _load(project_id)
+    _require_timeline(doc)
+    hist, idx = _history(doc)
+    hist = hist[: idx + 1] + [{"timeline": timeline.to_doc(), "label": label, "at": utcnow()}]
+    hist = hist[-HISTORY_LIMIT:]
+    return await _save(doc, hist, len(hist) - 1)
+
+
 def _describe(ops: list) -> str:
     names = {
         "trim": "Trim", "set_length": "Change length", "move": "Move shot", "split": "Split shot",

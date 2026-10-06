@@ -256,7 +256,11 @@ async def test_dry_run_explains_without_touching_anything(client, db, media_dir)
     assert [u["does"] for u in j["understood"]] == ["Remove the first shot", "Music louder"]
     assert (await client.get(f"/api/projects/{pid}/timeline")).json()["version"] == before
     j = (await revise(client, pid, "calmer with the luxury style", dryRun=True)).json()
-    assert j["mode"] == "rebuild" and j["overrides"]["pace"] == "calm" and j["overrides"]["style"] == "luxury"
+    # style and pace are changed on the current edit (no rebuild); nothing is saved in a dry run
+    assert j["mode"] == "edit" and j["job"] is None and any("Restyled as Luxury" in n for n in j["notes"])
+    assert (await client.get(f"/api/projects/{pid}/timeline")).json()["version"] == before
+    j = (await revise(client, pid, "show a different order", dryRun=True)).json()
+    assert j["mode"] == "rebuild" and "seed" in j["overrides"]  # a new shot selection still needs a fresh edit
 
 
 async def test_bad_shot_number_is_reported(client, db, media_dir):
@@ -303,10 +307,10 @@ async def test_rebuild_request_creates_a_new_version_and_applies_the_other_reque
     assert (await wait_job(client, pid, first.json()["id"]))[0]["status"] == "completed"
     before = (await client.get(f"/api/projects/{pid}/timeline")).json()["timeline"]
 
-    r = await revise(client, pid, "make it calmer and louder music, remove the first clip")
+    r = await revise(client, pid, "show a different order and louder music, remove the first clip")
     j = r.json()
     assert j["needsConfirmation"] and j["job"] is None  # includes a removal: confirm first
-    r = await revise(client, pid, "make it calmer and louder music, remove the first clip", confirmedActions=j["actions"])
+    r = await revise(client, pid, "show a different order and louder music, remove the first clip", confirmedActions=j["actions"])
     j = r.json()
     assert j["mode"] == "rebuild" and j["job"]["type"] == "generate"
     assert any("Shot-level changes" in w for w in j["warnings"])  # "remove the first clip" cannot survive a rebuild
@@ -314,14 +318,35 @@ async def test_rebuild_request_creates_a_new_version_and_applies_the_other_reque
     assert done["status"] == "completed", done
 
     proj = (await client.get(f"/api/projects/{pid}")).json()
-    assert proj["settings"]["pace"] == "calm"
     after = (await client.get(f"/api/projects/{pid}/timeline")).json()["timeline"]
     assert after["musicVolume"] > before["musicVolume"]  # the follow-up request was applied to the new edit
-    # calmer = longer shots = no more of them (the quick "punch" pieces that answer strong hits in the song are extra splits, not shots)
-    whole = lambda t: [s for s in t["segments"] if s.get("effect") != "punch"]
-    assert len(whole(after)) <= len(whole(before))
     assert len((await client.get(f"/api/projects/{pid}/renderings")).json()) == 2  # the first version is kept
-    assert proj["output"]["label"].startswith("make it calmer")
+    assert proj["output"]["label"].startswith("show a different order")
+
+
+@pytest.mark.slow
+async def test_style_and_pace_change_the_current_edit_in_place(client, db, media_dir):
+    """"Make it faster and more luxury" edits the blueprint: same footage, manual edits kept, one undoable step."""
+    from tests.test_jobs_api import make_project
+
+    pid = await make_project(client, media_dir, videos=["clip_a.mp4", "clip_d.mp4", "clip_portrait.mp4"], duration=8, style="cinematic")
+    first = await client.post(f"/api/projects/{pid}/generate")
+    assert (await wait_job(client, pid, first.json()["id"]))[0]["status"] == "completed"
+    state = (await client.get(f"/api/projects/{pid}/timeline")).json()
+    before = state["timeline"]
+    j = (await revise(client, pid, "faster and with the luxury style")).json()
+    assert j["mode"] == "edit" and j["job"]["type"] == "render", j
+    done, _ = await wait_job(client, pid, j["job"]["id"])
+    assert done["status"] == "completed", done
+    after = (await client.get(f"/api/projects/{pid}/timeline")).json()
+    tl = after["timeline"]
+    assert tl["style"] == "luxury" and after["version"] > state["version"]
+    assert len(tl["segments"]) >= len(before["segments"])  # faster: long shots were split, never fewer shots
+    used_before = {(s["clipId"], round(s["sourceStart"], 1)) for s in before["segments"]}
+    assert {(s["clipId"], round(s["sourceStart"], 1)) for s in tl["segments"]} >= used_before  # the same footage, nothing reselected
+    assert abs(sum(s["timelineEnd"] - s["timelineStart"] for s in tl["segments"]) - tl["duration"]) < 0.05
+    proj = (await client.get(f"/api/projects/{pid}")).json()
+    assert proj["settings"]["style"] == "luxury" and proj["settings"]["pace"] == "fast"
 
 
 def test_ai_cannot_act_on_shots_or_removals_the_user_never_mentioned():

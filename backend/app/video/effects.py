@@ -48,6 +48,10 @@ register(EffectSpec("roll", "motion", "Roll sway", "a gentle rotation sway; drea
 register(EffectSpec("flash", "look", "Flash", "a bright white pop at the start of the shot; lands a hard beat"))
 register(EffectSpec("black_white", "look", "Black & white", "a monochrome moment for contrast, memories, drama"))
 register(EffectSpec("beat_flash", "look", "Flash on every hit", "a short light pop on every strong hit inside the shot; drops and very energetic parts, use sparingly"))
+register(EffectSpec("freeze", "time", "Freeze frame", "holds the first frame for a beat before the shot plays; reveals, hero moments, a dramatic stop on a hit"))
+register(EffectSpec("vignette", "look", "Vignette", "darkens the edges to pull the eye to the centre; cinematic, moody, luxury"))
+register(EffectSpec("glow", "look", "Soft glow", "a dreamy bloom on the highlights; beauty, jewellery, golden-hour shots"))
+register(EffectSpec("sharpen", "look", "Sharpen", "crisper detail; product close-ups, textures, slightly soft footage"))
 
 # free-form names a model (or a person) might use -> a registered effect
 _EFFECT_ALIASES = {

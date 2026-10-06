@@ -43,6 +43,8 @@ export interface ProjectSettings {
   reference?: string;
   /** The Quality Reviewer scores the edit and revises it (up to 2 rounds) before rendering. */
   autoReview?: boolean;
+  /** Whooshes on moving transitions, a riser + impact on the drop, pops under text (synthesised locally). */
+  soundEffects?: boolean;
   /** Privacy: delete the uploaded clips and music once a final Reel is rendered (the Reels are kept). */
   deleteMediaAfterRender?: boolean;
 }

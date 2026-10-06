@@ -142,13 +142,19 @@ def render_timeline(
         final_from = cut_share + (CHUNK_SHARE if chunked else 0.0)
 
         tmp_out = work_dir / "final.mp4"
+        sfx_path = None
+        if timeline.sfx and cfg.audio_mode != "none":
+            from app.audio.sfx import synth_track
+
+            sfx_path = synth_track(timeline.sfx, timeline.duration, work_dir / "sfx.wav")
+
         def compose(c: RenderConfig) -> None:
             cmd = build_compose_command(
                 comp_segments, comp_plans, files, audio_path, timeline.audio_start, timeline.duration,
                 style, c, tmp_out, video_post, volume=timeline.music_volume,
                 fade_in=timeline.music_fade_in, fade_out=timeline.music_fade_out,
                 voice=timeline.voice, voice_path=voice_path,
-                watermark=timeline.watermark, watermark_path=watermark_path,
+                watermark=timeline.watermark, watermark_path=watermark_path, sfx_path=sfx_path,
             )  # fmt: skip
             run_ffmpeg(
                 cmd, timeout=remaining(), expected_duration=timeline.duration,
