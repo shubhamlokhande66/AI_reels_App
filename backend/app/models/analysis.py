@@ -15,6 +15,19 @@ class Section(CamelModel):
     end: float
 
 
+class SongSection(CamelModel):
+    """A labelled part of the song (audio/structure.py)."""
+
+    start: float
+    end: float
+    label: str  # intro | build | drop | chorus | verse | bridge | outro
+    energy: float = 0.5
+    density: float = 0.0  # rhythmic density 0..1
+    vocal: float = 0.0  # estimated vocal presence 0..1
+    confidence: float = 0.5
+    cut_on: str = "beat"  # phrase | bar | beat | accent: what an editor's cuts land on in this part
+
+
 class AudioAnalysis(CamelModel):
     bpm: float
     duration: float
@@ -32,6 +45,25 @@ class AudioAnalysis(CamelModel):
     # Normalised (0..1) RMS energy sampled every ``energy_hop`` seconds.
     energy_hop: float = 0.1
     energy: list[float] = []
+    # Music intelligence (analysis_version 4): curves every curve_hop seconds and labelled sections.
+    curve_hop: float = 0.5
+    loudness_db: list[float] = []  # dBFS
+    brightness: list[float] = []  # spectral centroid, 0..1
+    density: list[float] = []  # rhythmic density (onsets per second), 0..1
+    vocal: list[float] = []  # estimated vocal presence, 0..1 (heuristic, no source separation)
+    song_sections: list[SongSection] = []
+
+    def curve_at(self, name: str, t: float) -> float:
+        c = getattr(self, name)
+        if not c:
+            return 0.0
+        return float(c[min(max(int(t / self.curve_hop), 0), len(c) - 1)])
+
+    def section_at(self, t: float) -> SongSection | None:
+        for s in self.song_sections:
+            if s.start - 1e-6 <= t < s.end:
+                return s
+        return self.song_sections[-1] if self.song_sections else None
 
     def energy_at(self, t: float) -> float:
         if not self.energy:

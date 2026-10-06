@@ -702,6 +702,10 @@ export interface ReelPlan {
     drops: number[];
     pauses: { start: number; end: number }[];
     energyCurve: { start: number; end: number; level: string }[];
+    /** Labelled song parts inside the Reel and what cuts land on there. */
+    sections?: { start: number; end: number; label: string; energy: number; vocal: number; density: number; cutOn: string; confidence: number }[];
+    /** One point per beat: section, energy, beat strength, position in the musical phrase. */
+    timeline?: { time: number; section: string | null; energy: number; beatStrength: number; phrasePosition: number }[];
     notDetected: string[];
   };
   hook: { asset: string; start: number; end: number; kind: string };

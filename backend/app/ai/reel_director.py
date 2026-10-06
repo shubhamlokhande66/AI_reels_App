@@ -28,7 +28,7 @@ from app.video import footage, grades
 from app.video import transitions as tr
 from app.video.timeline import ClipInput
 
-PROMPT_VERSION = 11
+PROMPT_VERSION = 12
 PURPOSES = ("hook", "context", "buildup", "reveal", "main", "detail", "lifestyle", "payoff", "cta")
 
 
@@ -123,6 +123,11 @@ RHYTHM
 - Start shots on the times in rhythm.suggested_cuts / beats; use strong_beats, strong_hits and drops for important changes.
 - Do not cut mechanically on every beat: let calm parts breathe, cut faster in high-energy parts, vary shot lengths.
 - Match the picture to the music's energy (music.energy): in high / very_high parts use short shots and clips or windows with high motion; in low parts use longer, steady, low-motion moments. A shot longer than about 1.5 s in a loud part should react to the hits between cuts: effect zoom_pulse (subtle), beat_punch (clear) or beat_flash (drops only).
+- music.sections names each part of the song (intro, build, drop, chorus, verse, bridge, outro) and its cut_on: what the \
+cuts in that part should land on (phrase = every 4 bars, bar, beat, accent = the strong hits). Intro and outro breathe \
+(cut on phrases/bars), a build tightens toward its end (half beats in its last bar are fine), the drop lands the hero \
+moment exactly on its first beat and cuts on accents, a bridge is a calm contrast. Where vocals is true, avoid cutting \
+in the middle of a sung phrase. You may intentionally cut off the beat or hold over a cut point when the story needs it.
 - Many strong_hits close together (under 0.4 s apart) are not all cuts: cut on every 2nd-4th one and let a beat-reactive effect show the others.
 - Follow reel.pace (see reel.pace_meaning) and answer the pace you used in "pace" (calm, balanced or fast): rhythm.suggested_cuts follow the style's normal rhythm, so merge them for a calm pace and split them on beats for a fast one.
 - beat_alignment says what the cut INTO a shot lands on: "strong" for key moments, "beat" normally, "free" only when a \
@@ -280,6 +285,9 @@ def music_facts(audio: AudioAnalysis, mm: MusicMap, audio_start: float, duration
         "reel_seconds": _r(duration, 2), "bpm": _r(audio.bpm, 1), "beats": beats, "strong_beats": strong[:300],
         "strong_hits": hits, "bars": [_r(t) for t in mm.bars][:60], "drops": [_r(t) for t in mm.drops],
         "energy": [{"start": _r(a, 1), "end": _r(b, 1), "level": n} for a, b, n in mm.energy_curve],
+        # what each part of the song is, and what an editor's cuts land on there (a default the director may break)
+        "sections": [{"from": _r(s["start"], 1), "to": _r(s["end"], 1), "part": s["label"], "cut_on": s["cutOn"],
+                      "energy": _r(s["energy"]), "vocals": s["vocal"] >= 0.35} for s in mm.sections],
         "song_part_starts_at": _r(audio_start, 2),
     }  # fmt: skip
 

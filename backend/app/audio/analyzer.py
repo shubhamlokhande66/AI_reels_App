@@ -101,7 +101,7 @@ def find_drops(energy: np.ndarray, beats: list[float], dt: float = ENERGY_HOP) -
     return [round(min(beats, key=lambda b: abs(b - t)), 3) if beats else round(t, 2) for t in sorted(drops)]
 
 
-ANALYSIS_VERSION = 3  # 2 = accents; 3 = accent strength measured against a typical strong hit (older caches are redone)
+ANALYSIS_VERSION = 4  # 2 = accents; 3 = accent strength vs a typical strong hit; 4 = labelled sections + curves (older caches are redone)
 
 
 def find_accents(env: np.ndarray, sr: int) -> tuple[list[float], list[float]]:
@@ -159,6 +159,12 @@ def analyze_audio(path: Path, on_stage: StageFn | None = None) -> AudioAnalysis:
     report("detecting_beats", 1.0)
 
     accents, strengths = find_accents(env, sr)
+    from app.audio.structure import CURVE_HOP, compute_curves, label_sections, structural_parts
+    from app.models.analysis import SongSection
+
+    curves = compute_curves(y, sr, beat.onsets)
+    e_list = [float(e) for e in energy]
+    labelled = label_sections(structural_parts(y, sr, beat.beats, duration, e_list, ENERGY_HOP, drops), e_list, ENERGY_HOP, drops, curves)
     return AudioAnalysis(
         bpm=beat.bpm,
         duration=round(duration, 3),
@@ -174,4 +180,10 @@ def analyze_audio(path: Path, on_stage: StageFn | None = None) -> AudioAnalysis:
         drops=drops,
         energy_hop=ENERGY_HOP,
         energy=[round(float(e), 3) for e in energy],
+        curve_hop=CURVE_HOP,
+        loudness_db=curves.loudness_db,
+        brightness=curves.brightness,
+        density=curves.density,
+        vocal=curves.vocal,
+        song_sections=[SongSection(**r) for r in labelled],
     )

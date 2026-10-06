@@ -149,6 +149,21 @@ export function ReelPlanPanel({ plan, stale }: { plan: ReelPlan; stale?: boolean
           ))}
         </div>
         <p className="text-xs text-muted">Song energy across the Reel: dark = quiet, red = very high.</p>
+        {m.sections && m.sections.length > 0 && (
+          <div aria-label="Song parts" className="flex overflow-hidden rounded-md border border-border text-[11px]">
+            {m.sections.map((s) => (
+              <div
+                key={`${s.start}-${s.label}`}
+                title={`${pretty(s.label)} ${time(s.start)}–${time(s.end)}s · cuts on ${s.cutOn}${s.vocal >= 0.35 ? " · vocals" : ""}`}
+                className="truncate border-r border-border px-1 py-0.5 last:border-r-0"
+                style={{ width: `${((s.end - s.start) / plan.duration) * 100}%` }}
+              >
+                {s.label}
+                {s.vocal >= 0.35 ? " ♪" : ""}
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       <div className="overflow-x-auto rounded-2xl border border-border">

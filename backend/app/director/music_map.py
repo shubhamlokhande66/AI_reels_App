@@ -1,7 +1,8 @@
 """The song as an editor reads it: beat hierarchy, bars, phrases, pauses and an energy curve, all with real timestamps.
 
 It is built from the existing analysis (beats, strong beats, accents, drops, energy) and needs no re-analysis.
-Not detected: vocal entry / vocal emphasis (that needs source separation or a speech model, which this app does not run).
+Song sections (intro, build, drop ...) and vocal presence come from audio/structure.py; vocal presence is an estimate
+(no source separation), so exact vocal entries and emphasis are not claimed.
 """
 
 from __future__ import annotations
@@ -37,6 +38,14 @@ class MusicMap:
     pauses: list[tuple[float, float]]
     energy_curve: list[tuple[float, float, str]]  # (start, end, low|medium|high|very_high)
     accents: list[tuple[float, float]] = ()  # (t, strength) individual strong hits, may fall between beat-grid times
+    sections: list[dict] = ()  # labelled song sections inside the Reel (times relative to the Reel start)
+    points: list[dict] = ()  # the normalized timeline: one point per beat (time, section, energy, beat_strength, phrase_position)
+
+    def section_at(self, t: float) -> dict | None:
+        for s in self.sections:
+            if s["start"] - 1e-6 <= t < s["end"]:
+                return s
+        return self.sections[-1] if self.sections else None
 
     def level_at(self, t: float, tol: float = 0.06) -> int:
         """The level of the beat nearest ``t`` (1 when no beat is within ``tol``)."""
@@ -67,7 +76,9 @@ class MusicMap:
             "drops": [round(t, 3) for t in self.drops],
             "pauses": [{"start": round(a, 3), "end": round(b, 3)} for a, b in self.pauses],
             "energyCurve": [{"start": round(a, 2), "end": round(b, 2), "level": n} for a, b, n in self.energy_curve],
-            "notDetected": ["vocal entry", "vocal emphasis"],
+            "sections": list(self.sections),
+            "timeline": list(self.points),
+            "notDetected": ["exact vocal entries and emphasis (vocal presence is estimated, not separated)"],
         }
 
 
@@ -172,4 +183,22 @@ def build_music_map(audio: AudioAnalysis, start: float, duration: float) -> Musi
             if i * audio.energy_hop - lo >= PAUSE_MIN:
                 pauses.append((round(lo, 3), round(i * audio.energy_hop, 3)))
             lo = None
-    return MusicMap(audio.bpm, beats, bars, phrases, drops, pauses, _curve(audio, start, duration), accents=accents)
+    sections = [
+        {"start": round(max(s.start - start, 0.0), 2), "end": round(min(s.end - start, duration), 2), "label": s.label,
+         "energy": s.energy, "vocal": s.vocal, "density": s.density, "cutOn": s.cut_on, "confidence": s.confidence}
+        for s in audio.song_sections if s.end > start + 0.05 and s.start < start + duration - 0.05
+    ]  # fmt: skip
+    points = []
+    for b in beats:
+        sec = next((s for s in sections if s["start"] - 1e-6 <= b.t < s["end"]), sections[-1] if sections else None)
+        ps = [p for p in phrases if p <= b.t + 1e-6]
+        nxt = [p for p in phrases if p > b.t + 1e-6]
+        span = (nxt[0] if nxt else duration) - (ps[-1] if ps else 0.0)
+        hit = max([s for a, s in accents if abs(a - b.t) <= ACCENT_NEAR], default=0.0)
+        points.append({
+            "time": b.t, "section": sec["label"] if sec else None, "energy": round(audio.energy_at(start + b.t), 3),
+            "beatStrength": round(max(hit, b.level / 4), 3),
+            "phrasePosition": round((b.t - (ps[-1] if ps else 0.0)) / span, 3) if span > 0 else 0.0,
+        })  # fmt: skip
+    return MusicMap(audio.bpm, beats, bars, phrases, drops, pauses, _curve(audio, start, duration), accents=accents,
+                    sections=sections, points=points)  # fmt: skip

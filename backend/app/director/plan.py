@@ -16,7 +16,7 @@ FORMAT = "1080x1920"
 LIMITS = [
     "Shots come from your own footage: nothing is generated.",
     "Subjects and stages come from the vision model when 'AI assist' is on; otherwise the plan says they were not analysed.",
-    "Vocal entry and vocal emphasis are not detected.",
+    "Song parts (intro, build, drop ...) are measured; vocal presence is an estimate, so exact vocal entries are not detected.",
 ]
 
 

@@ -26,7 +26,7 @@ def test_music_map_grades_beats_and_finds_drops_pauses_and_energy():
     assert mm.bars[:3] == [0.0, 2.0, 4.0] and mm.phrases[:2] == [0.0, 8.0]
     assert mm.energy_curve[0][2] == "low" and mm.energy_curve[-1][2] in ("high", "very_high")
     assert mm.level_at(15.02) == 4 and mm.level_at(15.25) == 1  # no beat nearby
-    assert "vocal entry" in mm.to_doc()["notDetected"]  # the limits are stated, not hidden
+    assert any("vocal" in n for n in mm.to_doc()["notDetected"])  # the limits are stated, not hidden
 
 
 def test_quiet_gaps_are_reported_as_pauses():

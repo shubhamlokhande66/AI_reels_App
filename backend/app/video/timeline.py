@@ -143,6 +143,12 @@ def plan_slots(audio: AudioAnalysis, audio_start: float, duration: float, style:
     while duration - t > 1e-3:
         e = audio.mean_energy(audio_start + t, audio_start + min(t + 2 * period, duration))
         n = style.cut_beats_high if e >= HIGH_ENERGY else style.cut_beats_low
+        sec = audio.section_at(audio_start + t) if audio.song_sections else None
+        if sec is not None:  # cut like the part of the song it is: intro/outro/bridge breathe, a drop tightens
+            if sec.label in ("intro", "outro", "bridge"):
+                n *= 2
+            elif sec.label == "drop" and n >= 2:
+                n //= 2
         n = max(n, 1)
         # Prefer ending on a strong beat when one is within +/-1 beat of the target.
         best_j, best_pen = i + n, 1.0
