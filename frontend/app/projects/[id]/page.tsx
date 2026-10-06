@@ -10,9 +10,10 @@ import { PostCopy } from "@/components/PostCopy";
 import { ReelPreview } from "@/components/ReelPreview";
 import { PerformanceForm, ProjectTools } from "@/components/ProjectTools";
 import { ReelPlanPanel } from "@/components/ReelPlanPanel";
+import { DirectorFeedback, PurgeMediaButton } from "@/components/DirectorFeedback";
 import { AiModeBadge } from "@/components/AiSettings";
 
-const AI_LABEL: Record<string, string> = { ollama: "Ollama", openai: "OpenAI", gemini: "Gemini" };
+const AI_LABEL: Record<string, string> = { ollama: "Ollama", openai: "OpenAI", gemini: "Gemini", claude: "Claude" };
 import { ReviseBox } from "@/components/ReviseBox";
 import { btnDanger, btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner, StatusBadge } from "@/components/ui";
 import { useCancelJob, useDeleteProject, useGenerate, useProject, useRenderings } from "@/hooks/useApi";
@@ -125,6 +126,7 @@ export default function ProjectPage() {
           onGenerate={start}
         />
       )}
+      {project.status === "completed" && project.output && <DirectorFeedback key={project.output.id} project={project} />}
 
       {project.timeline && project.status !== "draft" && project.status !== "failed" && (
         <ReviseBox projectId={id} busy={busy} initialText={initialPrompt} autoRun={!!initialPrompt} />
@@ -201,6 +203,7 @@ export default function ProjectPage() {
                   <img src={assetUrl(v.thumbnailUrl)} alt="" className="h-10 w-16 rounded-md object-cover" />
                 )}
                 <span className="min-w-0 flex-1 truncate">{v.name}</span>
+                {v.purged && <span className="text-xs text-muted">deleted (privacy)</span>}
                 {v.analysis && (
                   <span
                     className={`text-xs ${v.analysis.usable ? "text-muted" : "text-warning"}`}
@@ -235,7 +238,8 @@ export default function ProjectPage() {
       )}
       {project.status !== "processing" && <ProjectTools project={project} busy={busy} />}
 
-      <div className="mt-10">
+      <div className="mt-10 flex flex-wrap items-start gap-3">
+        {project.status === "completed" && project.videos.some((v) => !v.purged) && <PurgeMediaButton project={project} busy={busy} />}
         <button
           type="button"
           className={btnDanger}

@@ -50,7 +50,8 @@ def media_to_out(doc: dict[str, Any]) -> MediaOut:
         fps=doc.get("fps"),
         analysis=doc.get("analysisSummary"),
         url=media_url(pid, mid),
-        thumbnail_url=f"/api/projects/{pid}/media/{mid}/thumbnail" if doc.get("thumbnailKey") else None,
+        thumbnail_url=f"/api/projects/{pid}/media/{mid}/thumbnail" if doc.get("thumbnailKey") and not doc.get("purged") else None,
+        purged=bool(doc.get("purged")),
     )
 
 
@@ -139,7 +140,7 @@ async def update_project(project_id: str, payload: ProjectUpdate) -> dict[str, A
     camel = {
         "duration": "duration", "audio_start": "audioStart", "style": "style", "pace": "pace", "sequence": "sequence", "teaser": "teaser", "step_labels": "stepLabels", "order_mode": "orderMode", "export_preset": "exportPreset", "brief": "brief", "audio_mode": "audioMode", "language": "language", "voice_profile_id": "voiceProfileId",
         "brand_id": "brandId", "captions": "captions",
-        "caption_style": "captionStyle", "ai": "ai", "ai_director": "aiDirector", "trend_id": "trendId", "reference": "reference",
+        "caption_style": "captionStyle", "ai": "ai", "ai_director": "aiDirector", "auto_review": "autoReview", "delete_media_after_render": "deleteMediaAfterRender", "trend_id": "trendId", "reference": "reference",
         "custom_style": "customStyle", "product_style": "productStyle", "hook_text": "hookText", "tagline_text": "taglineText", "cta_text": "ctaText", "loop": "loop",
     }  # fmt: skip
     for k, v in fields.items():
@@ -148,6 +149,9 @@ async def update_project(project_id: str, payload: ProjectUpdate) -> dict[str, A
         settings[camel[k]] = v
     if "style" in fields and fields["style"] is not None:
         validate_style_id(fields["style"])
+    from app.services.feedback import record_settings_change
+
+    await record_settings_change(doc["_id"], dict(doc["settings"]), {camel[k]: v for k, v in fields.items() if k in ("duration", "style", "pace")})
     if fields.get("export_preset"):
         validate_preset_id(fields["export_preset"])
     if fields.get("trend_id"):

@@ -1,5 +1,7 @@
 import type {
   ApiErrorBody,
+  DirectorProfile,
+  FeedbackReason,
   GenerateOptions,
   Health,
   Job,
@@ -160,6 +162,12 @@ export const api = {
   updateProject: (id: string, patch: Partial<ProjectSettings> & { name?: string }) =>
     request<Project>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteProject: (id: string) => request<void>(`/api/projects/${id}`, { method: "DELETE" }),
+  feedback: (id: string, verdict: "accepted" | "rejected", reason?: FeedbackReason, renderingId?: string) =>
+    request<DirectorProfile>(`/api/projects/${id}/feedback`, { method: "POST", body: JSON.stringify({ verdict, reason, renderingId }) }),
+  purgeMedia: (id: string) => request<{ deleted: number }>(`/api/projects/${id}/purge-media`, { method: "POST" }),
+  directorProfile: () => request<DirectorProfile>("/api/director/profile"),
+  setDirectorProfile: (enabled: boolean) => request<DirectorProfile>("/api/director/profile", { method: "PUT", body: JSON.stringify({ enabled }) }),
+  resetDirectorProfile: () => request<DirectorProfile>("/api/director/profile", { method: "DELETE" }),
 
   uploadVideos: (id: string, files: File[], onProgress?: (f: number) => void) => {
     const form = new FormData();

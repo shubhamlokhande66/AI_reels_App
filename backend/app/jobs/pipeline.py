@@ -33,13 +33,15 @@ from app.schemas.project import ProjectSettings
 from app.storage import StorageBackend, project_key
 from app.styles import AUTO_STYLE, get_style, list_styles
 from app.styles.resolve import apply_pace, resolve_style
-from app.video.analyzer import analyze_clip
+from app.video.analyzer import VIDEO_ANALYSIS_VERSION, analyze_clip
 from app.video.cutter import RenderConfig, SourceClip
 from app.video.hardware import pick_encoder
 from app.video.presets import config_for, get_preset
 from app.video.renderer import RenderResult, render_timeline
 from app.director.music_map import build_music_map, song_hits
 from app.director.plan import build_reel_plan
+from app.director.creative_review import auto_revise, review_edit
+from app.director.intelligence import find_hero, rank_hooks
 from app.director.review import check_render, review_timeline
 from app.director.story import detect_category, order_for_food
 from app.video.steps import build_steps_timeline, order_clips
@@ -58,6 +60,7 @@ STAGES: list[tuple[str, str, float]] = [
     ("creating_timeline", "Creating timeline", 0.05),
     ("generating_captions", "Generating captions", 0.08),
     ("writing_copy", "Writing title & description", 0.04),
+    ("reviewing", "Reviewing & improving the edit", 0.02),
     ("rendering", "Rendering video", 0.45),
 ]
 ANALYZE_STAGES = ("analyzing_videos", "analyzing_music", "detecting_beats")
@@ -96,6 +99,7 @@ class PipelineInput:
     images: list[MediaRef] = field(default_factory=list)  # product Reels: the photos, in order
     revision: list[dict] = field(default_factory=list)  # global edit actions to apply to the freshly built timeline
     references: list[dict] = field(default_factory=list)  # learned trends the AI may edit like (see trends/reference.py)
+    profile: dict | None = None  # the personal director profile (services/feedback.py), applied to settings left on auto
 
 
 @dataclass
@@ -178,9 +182,12 @@ def analyze_videos(inp: PipelineInput, storage: StorageBackend, progress: StageP
         cached = _load_json(storage, _clip_key(inp.project_id, v.id))
         if cached:
             try:
-                out[v.id] = ClipAnalysis.model_validate(cached)
-                progress("analyzing_videos", (i + 1) / n)
-                continue
+                a = ClipAnalysis.model_validate(cached)
+                if a.analysis_version >= VIDEO_ANALYSIS_VERSION:
+                    out[v.id] = a
+                    progress("analyzing_videos", (i + 1) / n)
+                    continue
+                log.info("clip analysis for %s predates motion direction; recomputing", v.id)
             except ValueError:
                 log.info("stale clip analysis for %s; recomputing", v.id)
         a = analyze_clip(
@@ -319,6 +326,11 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
     chosen = next((r for r in inp.references if r.get("chosen")), None)
     if chosen and inp.settings.pace == "auto" and chosen.get("pace") in ("calm", "balanced", "fast"):
         style = apply_pace(style, chosen["pace"])  # cut at the learned trend's pace (rules and the AI's suggested rhythm)
+    elif inp.profile:
+        from app.services.feedback import apply_profile
+
+        style, profile_notes = apply_profile(style, inp.settings.pace, inp.profile)
+        notes += profile_notes
     progress("selecting_clips", 1.0)
 
     progress("creating_timeline", 0.0)
@@ -369,19 +381,48 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
     mm = build_music_map(res.audio, timeline.audio_start, timeline.duration)
     if inp.audio is not None:  # the song's strong hits: beat-reactive effects pulse on them between cuts
         timeline.music_hits = song_hits(res.audio)
-    checks = review_timeline(timeline, inputs, mm, steps_order=order, teaser_first=teaser_first, pace=directed_pace(inp, directed))
+    pace = directed_pace(inp, directed)
+    checks = review_timeline(timeline, inputs, mm, steps_order=order, teaser_first=teaser_first, pace=pace)
+    max_tr = _transition_budget(timeline.style)
+    if inp.settings.auto_review and not inp.revision:  # the Quality Reviewer improves the edit before anything is rendered
+        progress("reviewing", 0.0)
+        timeline, creative = auto_revise(
+            timeline, inputs, mm, brief=inp.settings.brief, max_transition_ratio=max_tr, pace=pace, steps=steps or teaser_first,
+            repair=lambda t: review_timeline(t, inputs, mm, steps_order=order, teaser_first=teaser_first, pace=pace),
+        )  # fmt: skip
+        res.timeline = timeline
+        progress("reviewing", 1.0)
+    else:
+        creative = None
+        progress("reviewing", 1.0)
     category = detect_category([c.semantic for c in inputs], timeline.style, steps)
     story_notes = [n for n in timeline.notes if steps and ("what they show" in n or "file names" in n or "clip list" in n or "finished dish" in n)]
     res.render, res.output_key = render_edl(inp, timeline, res.clips, storage, progress)
-    checks += check_render(storage.local_path(res.output_key), res.render.duration, inp.audio is not None and inp.settings.audio_mode != "none",
-                           expect_preview=inp.kind == "preview")
+    rendered = check_render(storage.local_path(res.output_key), res.render.duration, inp.audio is not None and inp.settings.audio_mode != "none",
+                            expect_preview=inp.kind == "preview")
+    checks += rendered
     res.reel_plan = build_reel_plan(timeline, inputs, mm, category, checks, steps=steps, teaser=teaser_first, story_notes=story_notes)
+    final = review_edit(timeline, inputs, mm, brief=inp.settings.brief, max_transition_ratio=max_tr, pace=pace, steps=steps or teaser_first,
+                        render_checks=rendered)  # fmt: skip
+    final.iterations = creative.iterations if creative else []
+    res.reel_plan["review"] = final.to_doc()
+    res.reel_plan["hookCandidates"] = [h.to_doc() for h in rank_hooks(inputs, inp.settings.brief)]
+    hero = find_hero(inputs)
+    res.reel_plan["heroMoment"] = hero.to_doc() if hero else None
     if directed is not None and getattr(directed, "ai_log", None):
         res.reel_plan["aiDirector"] = directed.ai_log  # what the AI decided, shot by shot, and what the safety layer changed
     elif use_director and directed is None:  # said loudly on the project page: this Reel was NOT planned by the AI
         res.reel_plan["directorFallback"] = {"reason": director_errors[0].message if director_errors else "no clip the AI could use"}
     timeline.warnings += [w for w in (f"Quality check: {c.name}. {c.detail}".strip() for c in checks if not c.ok) if w not in timeline.warnings]
     return res
+
+
+def _transition_budget(style_id: str) -> float:
+    """The share of non-cut transitions the Reel's style allows (the reviewer flags anything beyond it)."""
+    try:
+        return get_style(style_id).max_transition_ratio
+    except AppError:
+        return 0.5
 
 
 def _director_key(pid: str, key: str) -> str:

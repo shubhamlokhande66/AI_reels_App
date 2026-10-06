@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     max_concurrent_jobs: int = 1
 
     # AI. The provider can also be chosen in Settings (saved in storage/settings/ai_config.json, which wins over .env).
-    ai_provider: str = "ollama"  # ollama | openai | gemini
+    ai_provider: str = "ollama"  # ollama | openai | gemini | claude
     ai_text_provider: str = ""  # optional: text tasks on another provider ("" = ai_provider)
     ai_vision_provider: str = ""  # optional: vision tasks on another provider ("" = ai_provider)
     ai_fallback_enabled: bool = False  # on a provider failure (timeout, quota, outage ...) try ai_fallback_provider
@@ -75,6 +75,11 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr = SecretStr("")
     gemini_text_model: str = ""
     gemini_vision_model: str = ""  # "" = gemini_text_model
+    anthropic_api_key: SecretStr = SecretStr("")
+    claude_text_model: str = "claude-opus-5-5"
+    claude_vision_model: str = ""  # "" = claude_text_model (Claude reads images with the same model)
+    claude_effort: str = "medium"  # low | medium | high | xhigh | max: how deeply Claude thinks (cost vs quality)
+    claude_timeout_seconds: float = 180.0  # a whole-Reel director plan with thinking can take a couple of minutes
     ai_timeout_seconds: float = 300.0  # local models on CPU can need minutes for one answer, more so on a cold model load
     cloud_ai_timeout_seconds: float = 60.0  # OpenAI / Gemini (a stalled call is retried once)
     vision_timeout_seconds: float = 420.0  # the first vision call loads the model into memory

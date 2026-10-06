@@ -58,9 +58,9 @@ class VariationsRequest(CamelModel):
 
 @router.get("/variation-strategies")
 async def variation_strategies():
-    from app.variations.strategies import STRATEGIES
+    from app.variations.strategies import DEFAULT_SET, STRATEGIES
 
-    return [{"id": s.id, "label": s.label, "description": s.description, "style": s.style, "order": s.order}
+    return [{"id": s.id, "label": s.label, "description": s.description, "style": s.style, "order": s.order, "default": s.id in DEFAULT_SET}
             for s in STRATEGIES.values()]  # fmt: skip
 
 

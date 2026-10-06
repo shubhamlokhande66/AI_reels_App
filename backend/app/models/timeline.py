@@ -55,6 +55,7 @@ class Segment(CamelModel):
     volume: float = 1.0  # the clip's own audio (used by "original audio" mode; muted by default)
     transition_in: Transition = Transition()
     caption: str | None = None
+    reason: str | None = None  # why the director chose this shot here (shown to the person; never executed)
 
     @property
     def length(self) -> float:

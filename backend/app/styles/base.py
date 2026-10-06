@@ -50,6 +50,10 @@ class EditingStyle:
     # Answer strong drum hits that fall inside a long shot with a quick punch on the beat (the footage keeps playing).
     # Off for the calm, elegant styles, where a jolt would be out of place.
     accent_hits: bool = True
+    # Creative priorities (the same footage gives a meaningfully different edit per mode):
+    hook_priority: float = 0.3  # how hard the opening is chosen for hook strength (viral = strongest)
+    subject_priority: float = 0.0  # favour clear subjects / products / faces over general footage (product focus)
+    shake_tolerance: float = 0.0  # 0 = shaky footage is penalised as usual, 1 = handheld energy is welcome (social native)
 
     def with_overrides(self, **overrides) -> "EditingStyle":
         return replace(self, **overrides)

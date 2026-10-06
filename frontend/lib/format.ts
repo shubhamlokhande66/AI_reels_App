@@ -51,9 +51,15 @@ export function formatRelative(iso: string, now: Date = new Date()): string {
 }
 
 export const STYLE_LABELS: Record<string, string> = {
-  fast_trending: "Fast Trending",
+  viral: "Viral",
   cinematic: "Cinematic",
   luxury: "Luxury",
+  energetic: "Energetic",
+  storytelling: "Storytelling",
+  product_focus: "Product Focus",
+  social_native: "Social Native",
+  fast_trending: "Fast Trending",
+  minimal: "Minimal",
   food: "Food",
   travel: "Travel",
   custom: "Custom",

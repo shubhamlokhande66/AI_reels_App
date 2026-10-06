@@ -118,12 +118,17 @@ def _lengthen_ending(tl: Timeline, clips: dict[str, ClipInput]) -> bool:
         return False
     last, prev = tl.segments[-1], tl.segments[-2]
     need = MIN_ENDING - last.length
-    if need <= 0 or prev.length - need < 0.7 or last.source_start - need * last.speed < 0:
+    if need <= 0 or prev.length - need < 0.7:
+        return False
+    if last.source_start - need * last.speed >= 0:  # show a little more of what leads into the last moment
+        last.source_start = round(last.source_start - need * last.speed, 3)
+    elif last.source_end + need * last.speed <= _clip_len(clips, last.clip_id) + 1e-6:  # else let the last moment run on
+        last.source_end = round(last.source_end + need * last.speed, 3)
+    else:
         return False
     prev.timeline_end = round(prev.timeline_end - need, 3)
     prev.source_end = round(prev.source_end - need * prev.speed, 3)
     last.timeline_start = round(last.timeline_start - need, 3)
-    last.source_start = round(last.source_start - need * last.speed, 3)
     return True
 
 

@@ -5,6 +5,12 @@ import { STYLE_LABELS } from "@/lib/format";
 import type { Sequence } from "@/types/api";
 
 const DESCRIPTIONS: Record<string, string> = {
+  viral: "Built for retention: the strongest hook, fast cuts on the hits, constant change.",
+  energetic: "Fast cuts on every strong beat, movement everywhere, flashes on the drops.",
+  storytelling: "An establishing opening, a steady journey, and a reveal at the end.",
+  product_focus: "The product is the star: close-ups first, clean cuts, a hero ending.",
+  social_native: "Creator-style: handheld energy, jump cuts, no fancy transitions.",
+  minimal: "Plain cuts on the beat, no effects. Lets the footage speak.",
   fast_trending: "Fast beat-synced cuts, punchy zooms, quick flashes.",
   cinematic: "Longer shots, slow fades, subtle zoom, slow motion.",
   luxury: "Smooth transitions, elegant zoom, premium pacing.",

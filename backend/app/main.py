@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import ai_settings, brands, chat, jobs, library, product, projects, quality, references, revise, songs, system, templates, timeline, voice, workspace
+from app.api import ai_settings, brands, chat, director, jobs, library, product, projects, quality, references, revise, songs, system, templates, timeline, voice, workspace
 from app.core.config import get_settings
 from app.core.database import close_db, ensure_indexes, get_db
 from app.core.errors import register_error_handlers
@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(revise.router)
     app.include_router(chat.router)
     app.include_router(ai_settings.router)
+    app.include_router(director.router)
     app.include_router(product.router)
     app.include_router(library.router)
     app.include_router(brands.router)

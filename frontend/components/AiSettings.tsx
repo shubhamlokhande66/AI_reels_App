@@ -150,7 +150,7 @@ function ProviderForm({ cfg, onSaved }: { cfg: AiConfig; onSaved: (c: AiConfig) 
       </div>
       {needsKey(provider) && (
         <p className="text-xs text-warning">
-          {p.label} has no API key on the server. Add {provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"} to the backend <code>.env</code> file
+          {p.label} has no API key on the server. Add {({ openai: "OPENAI_API_KEY", gemini: "GEMINI_API_KEY", claude: "ANTHROPIC_API_KEY" } as Record<string, string>)[provider] ?? "the API key"} to the backend <code>.env</code> file
           and restart the backend. Keys are never entered or shown in the browser.
         </p>
       )}

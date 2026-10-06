@@ -71,6 +71,7 @@ def build_reel_plan(
             "beatLevel": lvl, "beatLevelName": LEVEL_NAMES[lvl], "mayTrigger": LEVEL_ACTION[lvl],
             "energy": mm.energy_at(s.timeline_start),
             "importance": round(sem.importance, 2) if sem else None,
+            "why": s.reason,
         })
     first, last = tl.segments[0], tl.segments[-1]
     lc = by_id.get(last.clip_id)

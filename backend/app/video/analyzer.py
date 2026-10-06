@@ -14,6 +14,7 @@ from app.core.errors import CorruptedMedia, UnsupportedMedia
 from app.core.ffmpeg import probe
 from app.models.analysis import ClipAnalysis, UsableWindow, VideoMetadata
 
+VIDEO_ANALYSIS_VERSION = 2  # 2 = windows carry their motion direction (pan_x / pan_y)
 SAMPLE_FPS = 4.0  # frames analysed per second of footage
 MAX_SAMPLES = 320  # hard cap so very long clips stay fast
 ANALYSIS_WIDTH = 320
@@ -427,6 +428,7 @@ def _window_from(
     quality = 0.45 * sharp + 0.25 * _score_brightness(bright) + 0.15 * (1 - shake) + 0.15 * (1 - dup)
     quality *= res_factor  # small pictures look worse once stretched to the output size
     sig = np.mean([s.hist for s in ch], axis=0)
+    pan_x, pan_y = _pan(ch, dt)
     return UsableWindow(
         start=round(start, 3),
         end=round(end, 3),
@@ -442,7 +444,20 @@ def _window_from(
         shot=shot,
         motion_curve=motion_curve,
         curve_dt=round(dt, 4),
+        pan_x=pan_x,
+        pan_y=pan_y,
     )
+
+
+def _pan(ch: list[_Sample], dt: float) -> tuple[float, float]:
+    """The steady way the picture moves (share of the frame per second). Hand-shake flips direction and averages out;
+    a window where most samples have no reliable shift counts as still."""
+    shifts = [s.shift for s in ch if s.shift is not None]
+    if len(shifts) < max(2, len(ch) // 3):
+        return 0.0, 0.0
+    dx = float(np.median([s[0] for s in shifts])) / dt
+    dy = float(np.median([s[1] for s in shifts])) / dt
+    return round(dx, 3), round(dy, 3)
 
 
 def analyze_clip(
@@ -519,6 +534,7 @@ def analyze_clip(
         flags=flags,  # type: ignore[arg-type]
         usable=usable,
         windows=windows,
+        analysis_version=VIDEO_ANALYSIS_VERSION,
     )
 
 

@@ -120,7 +120,7 @@ def _supports_vision(provider: AIProvider) -> bool:
     """Whether the model currently in use can actually look at an image. Cloud providers use their configured vision
     model; a local Ollama model is checked for the vision capability."""
     provider = getattr(provider, "primary", provider)  # the managed wrapper -> the real provider
-    if not provider.is_local and provider.name in ("openai", "gemini"):
+    if not provider.is_local and provider.name in ("openai", "gemini", "claude"):
         return bool(provider.vision_model or provider.model)
     if not isinstance(provider, OllamaProvider):
         return False

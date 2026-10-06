@@ -1,7 +1,85 @@
 "use client";
 
-import type { AiDirectorLog, ReelPlan } from "@/types/api";
+import type { AiDirectorLog, CreativeReview, HookCandidate, ReelPlan } from "@/types/api";
 import { Card } from "./ui";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  hook: "Hook", pacing: "Pacing", story: "Story", diversity: "Variety", beat: "On the beat", visual: "Picture quality",
+  transitions: "Transitions", motion: "Motion flow", ending: "Ending", text: "Text",
+};
+const SEVERITY_TONE: Record<string, string> = { high: "text-danger", medium: "text-warning", low: "text-muted" };
+const scoreTone = (s: number) => (s >= 80 ? "text-success" : s >= 60 ? "text-warning" : "text-danger");
+
+/** The Quality Reviewer's verdict: a score, what it measured, what it fixed before rendering, and what is left. */
+export function CreativeReviewCard({ review }: { review: CreativeReview }) {
+  const kept = review.iterations.filter((r) => r.kept);
+  return (
+    <section aria-label="Quality review">
+    <Card className="space-y-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 className="font-medium">Quality review</h3>
+        <span className={`text-2xl font-semibold tabular-nums ${scoreTone(review.overallScore)}`}>{review.overallScore}</span>
+        <span className="text-sm text-muted">/ 100 (target {review.target})</span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">
+        {Object.entries(review.categories).map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-2">
+            <span className="text-muted">{CATEGORY_LABELS[k] ?? k}</span>
+            <span className={`tabular-nums ${scoreTone(v)}`}>{v}</span>
+          </div>
+        ))}
+      </div>
+      {kept.length > 0 && (
+        <div className="text-sm">
+          <p className="text-muted">Improved before rendering:</p>
+          <ul className="mt-1 space-y-0.5">
+            {kept.map((r) => (
+              <li key={r.round}>
+                ✎ Round {r.round} ({r.scoreBefore} → {r.scoreAfter}): {r.changes.join("; ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {review.iterations.some((r) => !r.kept) && (
+        <p className="text-xs text-muted">A further revision did not improve the score, so it was not used.</p>
+      )}
+      {review.issues.length === 0 ? (
+        <p className="text-sm text-success">✓ No problems found.</p>
+      ) : (
+        <ul aria-label="Remaining issues" className="space-y-1 text-sm">
+          {review.issues.map((i) => (
+            <li key={`${i.timestamp}-${i.problem}`} className="flex gap-2">
+              <span className={`w-14 shrink-0 tabular-nums ${SEVERITY_TONE[i.severity]}`}>{i.timestamp.toFixed(1)}s</span>
+              <span>
+                {i.problem} <span className={`text-xs ${SEVERITY_TONE[i.severity]}`}>({i.severity})</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+    </section>
+  );
+}
+
+function HookCandidates({ hooks, chosen }: { hooks: HookCandidate[]; chosen: string }) {
+  return (
+    <div className="text-sm">
+      <p className="text-muted">Openings compared:</p>
+      <ol className="mt-1 space-y-0.5">
+        {hooks.map((h, i) => (
+          <li key={h.clipId}>
+            {i + 1}. {h.asset} {h.asset === chosen && <span className="text-success">(used)</span>}{" "}
+            <span className="text-muted">
+              · score {Math.round(h.score * 100)} · {h.reason}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 const LEVEL_TONE: Record<number, string> = {
   1: "bg-slate-400/20 text-slate-200",
@@ -43,6 +121,14 @@ export function ReelPlanPanel({ plan, stale }: { plan: ReelPlan; stale?: boolean
           <span className="text-muted">Hook: </span>
           {plan.hook.kind}: {plan.hook.asset}, {time(plan.hook.start)}–{time(plan.hook.end)}s
         </p>
+        {plan.hookCandidates && plan.hookCandidates.length > 1 && <HookCandidates hooks={plan.hookCandidates} chosen={plan.hook.asset} />}
+        {plan.heroMoment && (
+          <p>
+            <span className="text-muted">Strongest moment: </span>
+            {plan.heroMoment.asset}, {time(plan.heroMoment.start)}–{time(plan.heroMoment.end)}s{" "}
+            <span className="text-muted">(kept for the music&apos;s peak)</span>
+          </p>
+        )}
         <p>
           <span className="text-muted">Ending: </span>
           {plan.ending.purpose}: {plan.ending.asset}
@@ -86,7 +172,10 @@ export function ReelPlanPanel({ plan, stale }: { plan: ReelPlan; stale?: boolean
                 <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                   {time(s.start)}–{time(s.end)}
                 </td>
-                <td className="px-3 py-2">{s.purpose}</td>
+                <td className="px-3 py-2">
+                  {s.purpose}
+                  {s.why && <span className="mt-0.5 block max-w-[20rem] text-xs text-muted">{s.why}</span>}
+                </td>
                 <td className="px-3 py-2">
                   <span className="block max-w-[16rem] truncate" title={s.subject}>
                     {s.subject === "not analysed" ? <span className="text-muted">not analysed</span> : s.subject}
@@ -110,6 +199,8 @@ export function ReelPlanPanel({ plan, stale }: { plan: ReelPlan; stale?: boolean
           </tbody>
         </table>
       </div>
+
+      {plan.review && <CreativeReviewCard review={plan.review} />}
 
       {plan.aiDirector && <AiDirectorSection log={plan.aiDirector} />}
       {!plan.aiDirector && plan.directorFallback && (
@@ -150,7 +241,7 @@ export function ReelPlanPanel({ plan, stale }: { plan: ReelPlan; stale?: boolean
   );
 }
 
-const NAMES: Record<string, string> = { gemini: "Gemini", openai: "OpenAI", ollama: "Ollama" };
+const NAMES: Record<string, string> = { gemini: "Gemini", openai: "OpenAI", ollama: "Ollama", claude: "Claude" };
 
 /** What the AI director decided for every shot, next to what was actually used (the safety layer may repair values). */
 export function AiDirectorSection({ log }: { log: AiDirectorLog }) {

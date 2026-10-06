@@ -43,9 +43,9 @@ def clips():
 
 
 def test_registry_labels_and_unknown_strategy():
-    assert list(DEFAULT_SET) == ["fast_trending", "cinematic", "storytelling", "luxury", "minimal"] and set(DEFAULT_SET) <= set(STRATEGIES)
+    assert list(DEFAULT_SET) == ["viral", "cinematic", "luxury", "storytelling", "minimal"] and set(DEFAULT_SET) <= set(STRATEGIES)
     assert [version_label(i, get_strategy(s)) for i, s in enumerate(DEFAULT_SET)][:3] == [
-        "Version A: Fast + Trending", "Version B: Cinematic", "Version C: Storytelling"]
+        "Version A: Viral", "Version B: Cinematic", "Version C: Luxury"]
     with pytest.raises(ValidationFailed) as e:
         get_strategy("tiktok-dance")
     assert e.value.code == "UNKNOWN_STRATEGY" and "minimal" in e.value.details["available"]
@@ -153,7 +153,7 @@ def test_pipeline_runs_the_story_planner_when_there_is_a_brief_and_reports_agent
 async def test_variations_render_versions_with_different_strategies_from_one_analysis(client, media_dir, storage):
     pid = await make_project(client, media_dir, videos=["clip_a.mp4", "clip_d.mp4", "clip_portrait.mp4"], duration=6, style="fast_trending")
     strategies = (await client.get("/api/variation-strategies")).json()
-    assert [s["id"] for s in strategies] == list(DEFAULT_SET)
+    assert [s["id"] for s in strategies if s["default"]] == list(DEFAULT_SET)
 
     job = (await client.post(f"/api/projects/{pid}/variations", json={"strategies": ["cinematic", "minimal"]})).json()
     assert job["type"] == "variations" and "rendering" in [s["name"] for s in job["stages"]]

@@ -22,7 +22,7 @@ from app.storage import get_storage
 
 log = logging.getLogger(__name__)
 KEY = "settings/ai_config.json"
-PROVIDERS = ("ollama", "openai", "gemini")
+PROVIDERS = ("ollama", "openai", "gemini", "claude")
 LOCAL_PROVIDERS = frozenset({"ollama"})
 
 
@@ -106,6 +106,7 @@ def effective(saved: SavedAIConfig | None = None) -> EffectiveAIConfig:
         "ollama": pick("ollama", ollama_text, s.ollama_vision_model),
         "openai": pick("openai", s.openai_text_model, s.openai_vision_model),
         "gemini": pick("gemini", s.gemini_text_model, s.gemini_vision_model),
+        "claude": pick("claude", s.claude_text_model, s.claude_vision_model),
     }
     return EffectiveAIConfig(
         provider=provider, text_provider=text, vision_provider=vision, fallback_enabled=bool(fb_enabled),
@@ -124,6 +125,8 @@ def key_configured(provider: str) -> bool:
         return bool(s.openai_api_key.get_secret_value().strip())
     if provider == "gemini":
         return bool(s.gemini_api_key.get_secret_value().strip())
+    if provider == "claude":
+        return bool(s.anthropic_api_key.get_secret_value().strip())
     return True
 
 
@@ -134,7 +137,7 @@ def public_view(cfg: EffectiveAIConfig) -> dict[str, Any]:
         "fallbackEnabled": cfg.fallback_enabled, "fallbackProvider": cfg.fallback_provider or None,
         "taskProviders": cfg.task_providers,
         "providers": [
-            {"id": p, "label": {"ollama": "Ollama", "openai": "OpenAI", "gemini": "Gemini"}[p], "local": p in LOCAL_PROVIDERS,
+            {"id": p, "label": {"ollama": "Ollama", "openai": "OpenAI", "gemini": "Gemini", "claude": "Claude"}[p], "local": p in LOCAL_PROVIDERS,
              "keyConfigured": key_configured(p), "textModel": cfg.models[p][0] or None, "visionModel": cfg.models[p][1] or None}
             for p in PROVIDERS
         ],

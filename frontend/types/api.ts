@@ -41,6 +41,10 @@ export interface ProjectSettings {
   trendId: string | null;
   /** Edit like a learned trend: "auto" (the AI picks from My trends), "none", or a trend id. */
   reference?: string;
+  /** The Quality Reviewer scores the edit and revises it (up to 2 rounds) before rendering. */
+  autoReview?: boolean;
+  /** Privacy: delete the uploaded clips and music once a final Reel is rendered (the Reels are kept). */
+  deleteMediaAfterRender?: boolean;
 }
 
 /** What was measured in a trending Reel (or averaged over a trend's Reels). Seconds unless noted. */
@@ -109,6 +113,8 @@ export interface Media {
   analysis: ClipSummary | null;
   url: string;
   thumbnailUrl: string | null;
+  /** Deleted for privacy after rendering (the Reels are kept). */
+  purged?: boolean;
 }
 
 export interface Rendering {
@@ -238,7 +244,7 @@ export interface Health {
   ai: { provider: string; model: string | null; available: boolean; detail: string; local?: boolean; fallback?: string | null };
 }
 
-export type AiProviderId = "ollama" | "openai" | "gemini";
+export type AiProviderId = "ollama" | "openai" | "gemini" | "claude";
 
 export interface AiProviderInfo {
   id: AiProviderId;
@@ -667,6 +673,8 @@ export interface ReelPlanShot {
   mayTrigger: string;
   energy: string;
   importance: number | null;
+  /** Why the director chose this shot here, in plain words. */
+  why?: string | null;
 }
 
 export interface ReelPlanCheck {
@@ -704,7 +712,59 @@ export interface ReelPlan {
   aiDirector?: AiDirectorLog;
   /** Set when the AI director was asked for but the rule-based editor made this Reel (and why). */
   directorFallback?: { reason: string };
+  /** The Quality Reviewer's verdict on the final edit, with the revisions it made before rendering. */
+  review?: CreativeReview;
+  /** The strongest possible openings the director compared (best first). */
+  hookCandidates?: HookCandidate[];
+  /** The single strongest moment of the footage, kept for the music's peak. */
+  heroMoment?: { clipId: string; asset: string; start: number; end: number; score: number } | null;
 }
+
+export interface CreativeIssue {
+  timestamp: number;
+  problem: string;
+  severity: "high" | "medium" | "low";
+  category: string;
+  fix: string | null;
+}
+
+export interface CreativeReview {
+  overallScore: number;
+  target: number;
+  categories: Record<string, number>;
+  issues: CreativeIssue[];
+  iterations: { round: number; changes: string[]; scoreBefore: number; scoreAfter: number; kept: boolean }[];
+}
+
+export interface HookCandidate {
+  clipId: string;
+  asset: string;
+  start: number;
+  end: number;
+  score: number;
+  parts: Record<string, number>;
+  reason: string;
+}
+
+export interface DirectorProfile {
+  ready: boolean;
+  enabled: boolean;
+  evidence: number;
+  minEvidence: number;
+  preferences: {
+    avgShotSeconds?: number | null;
+    duration?: number;
+    style?: string;
+    pace?: "calm" | "balanced" | "fast";
+    transitions?: "minimal" | "more" | "as styled";
+    effects?: "minimal" | "as styled";
+    hook?: "aggressive" | "balanced";
+    text?: "minimal" | "as styled";
+  };
+  counts: Record<string, number>;
+}
+
+export type FeedbackReason = "opening" | "pacing" | "music" | "clips" | "text" | "effects" | "other";
 
 export interface AiDirectorShotLog {
   shot: number;

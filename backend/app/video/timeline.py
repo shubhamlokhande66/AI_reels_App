@@ -237,11 +237,17 @@ def select_segments(
     warnings: list[str] | None = None,
     brief: str = "",
 ) -> list[Segment]:
+    from app.director import intelligence as intel  # lazy: it builds on this module's helpers
+
     warnings = warnings if warnings is not None else []
     usable = [c for c in clips if c.analysis.usable]
     pool = usable or clips
     if not usable:
         warnings.append("No clip passed the quality checks; using the best available footage.")
+    hooks = intel.rank_hooks(pool, brief)
+    hero = intel.find_hero(pool) if len(slots) >= 3 else None
+    peak = intel.hero_slot(slots, HIGH_ENERGY) if hero is not None else None
+    hook_sigs = [w.signature for c in pool for w in _windows_of(c)]
     used: dict[str, list[tuple[float, float]]] = {c.clip_id: [] for c in pool}
     uses: dict[str, int] = {c.clip_id: 0 for c in pool}
     segments: list[Segment] = []
@@ -325,6 +331,22 @@ def select_segments(
                 score += 0.15 * w.quality + (
                     0.15 * (1 - abs(motion - 0.2)) if style.opening == "establishing" else 0.10 * motion
                 )
+                if style.opening != "establishing":  # the opening is the strongest hook, not just the best picture
+                    score += style.hook_priority * intel.hook_score(intel.hook_parts(clip, w, terms, hook_sigs))
+            if style.subject_priority:
+                score += style.subject_priority * intel.subject_value(clip, w)
+            if style.shake_tolerance:
+                score += 0.1 * style.shake_tolerance * clip.analysis.shake_score  # handheld energy is part of the look
+            if prev is not None:  # motion matching: continue the movement of the shot before, never reverse it
+                score += 0.08 * intel.motion_match(prev[1], w)
+            if hero is not None and peak is not None and clip.clip_id == hero.clip_id:
+                on_hero = _overlap(c.start, c.end, [(hero.start, hero.end)])
+                if slot.index < peak:
+                    score -= 0.45 * on_hero  # keep the strongest moment back for the music's peak
+                elif slot.index == peak:
+                    score += 0.40 * on_hero
+            if slot.index == peak:
+                score += 0.20 * intel.hero_value(clip, w, c.start, c.end)
             if is_last and style.closing == "reveal":
                 score += 0.30 * w.sharpness * max(w.brightness, 0.2) + 0.10 * (1 - motion)
             if order_hint and clip.clip_id in order_hint:
@@ -341,6 +363,16 @@ def select_segments(
                 warnings.append("There is not enough different good footage for this length, so a moment is shown again as a "
                                 "slow-motion replay. Add more clips or choose a shorter Reel to avoid it.")
                 reused_warned = True
+        prev_w = prev[1] if prev is not None else None
+        is_hero = (slot.index == peak and hero is not None and chosen.clip.clip_id == hero.clip_id
+                   and _overlap(chosen.start, chosen.end, [(hero.start, hero.end)]) > 0.3)  # fmt: skip
+        reason = intel.shot_reason(
+            index=slot.index, n=n_slots, clip_name=chosen.clip.name, first_use=uses[chosen.clip.clip_id] == 0,
+            hook=next((h for h in hooks if h.clip_id == chosen.clip.clip_id), None) if is_first else None,
+            hero=is_hero, drop_at=slot.start if slot.on_strong else None, match=intel.motion_match(prev_w, chosen.window),
+            energy=slot.energy, quality=chosen.window.quality, slow=speed < 0.95 and not replay,
+            relevant=relevance(chosen.clip, terms) >= 0.5, prev_direction=prev_w.direction if prev_w else "still",
+        )  # fmt: skip
         used[chosen.clip.clip_id].append((chosen.start, chosen.end))
         uses[chosen.clip.clip_id] += 1
         prev = (chosen.clip, chosen.window)
@@ -357,6 +389,7 @@ def select_segments(
                 focus_x=chosen.window.focus_x,
                 focus_y=chosen.window.focus_y,
                 focus_source=chosen.window.focus_source,
+                reason=reason,
             )
         )
     return segments
@@ -454,6 +487,7 @@ def add_accent_hits(segments: list[Segment], audio: AudioAnalysis, audio_start: 
             if k > 0:
                 piece.effect = "punch"
                 piece.transition_in = Transition(type="cut", duration=0.0)
+                piece.reason = f"{seg.video}: A quick punch on a strong hit in the music; the same footage carries on, nothing repeats."
             out.append(piece)
         added += len(cuts)
     segments[:] = out

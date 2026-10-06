@@ -25,15 +25,21 @@ class Strategy:
 STRATEGIES: dict[str, Strategy] = {
     s.id: s
     for s in (
-        Strategy("fast_trending", "Fast + Trending", "Quick beat-synced cuts, punchy zooms.", "fast_trending", "balanced", "bold"),
+        Strategy("viral", "Viral", "The strongest hook, fast cuts on the hits, built for retention.", "viral", "fast", "bold"),
         Strategy("cinematic", "Cinematic", "Longer shots, slow fades, slow motion.", "cinematic", "balanced", "minimal"),
+        Strategy("luxury", "Luxury", "Elegant, slow and premium.", "luxury", "balanced", "luxury"),
         Strategy("storytelling", "Storytelling", "Clips in the order you shot them: opening, journey, reveal.", "storytelling",
                  "balanced", "highlight", order="chronological"),  # fmt: skip
-        Strategy("luxury", "Luxury", "Elegant, slow and premium.", "luxury", "balanced", "luxury"),
         Strategy("minimal", "Minimal", "Plain cuts and no effects; the footage speaks.", "minimal", "balanced", "minimal"),
+        Strategy("fast_trending", "Fast + Trending", "Quick beat-synced cuts, punchy zooms.", "fast_trending", "balanced", "bold"),
+        Strategy("energetic", "Energetic", "Fast cuts on every strong beat, movement everywhere.", "energetic", "fast", "bold"),
+        Strategy("product_focus", "Product Focus", "The product is the star: close-ups first, clean cuts, a hero ending.",
+                 "product_focus", "balanced", "minimal"),  # fmt: skip
+        Strategy("social_native", "Social Native", "Creator-style: handheld energy, jump cuts, no fancy transitions.",
+                 "social_native", "balanced", "bold"),  # fmt: skip
     )
 }
-DEFAULT_SET = ("fast_trending", "cinematic", "storytelling", "luxury", "minimal")
+DEFAULT_SET = ("viral", "cinematic", "luxury", "storytelling", "minimal")  # Version A Viral, B Cinematic, C Luxury ...
 LETTERS = "ABCDEFGH"
 
 

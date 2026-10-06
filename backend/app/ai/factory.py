@@ -29,6 +29,11 @@ def build_provider(name: str, cfg: EffectiveAIConfig | None = None) -> AIProvide
 
         return OpenAIProvider(s.openai_api_key.get_secret_value(), text, vision if vision != text else "", s.cloud_ai_timeout_seconds,
                               s.openai_base_url)  # fmt: skip
+    if name == "claude":
+        from app.ai.claude_provider import ClaudeProvider
+
+        return ClaudeProvider(s.anthropic_api_key.get_secret_value(), text, vision if vision != text else "", s.claude_timeout_seconds,
+                              s.claude_effort)  # fmt: skip
     from app.ai.gemini_provider import GeminiProvider
 
     return GeminiProvider(s.gemini_api_key.get_secret_value(), text, vision if vision != text else "", s.cloud_ai_timeout_seconds)

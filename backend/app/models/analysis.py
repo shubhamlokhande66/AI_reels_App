@@ -7,6 +7,9 @@ from typing import Literal
 from app.models.base import CamelModel
 
 
+PAN_MIN = 0.04  # share of the frame per second below which the picture counts as still
+
+
 class Section(CamelModel):
     start: float
     end: float
@@ -77,10 +80,23 @@ class UsableWindow(CamelModel):
     # Per-sample motion (0..1) so the selector can pick the best sub-range inside a window.
     motion_curve: list[float] = []
     curve_dt: float = 0.25
+    # Which way the picture moves on screen (global shift, share of the frame per second; +x = right, +y = down).
+    # 0, 0 = steady or not measured. Used to keep consecutive shots moving the same way (motion matching).
+    pan_x: float = 0.0
+    pan_y: float = 0.0
 
     @property
     def length(self) -> float:
         return self.end - self.start
+
+    @property
+    def direction(self) -> str:
+        """left | right | up | down | still: the dominant way the picture moves."""
+        if max(abs(self.pan_x), abs(self.pan_y)) < PAN_MIN:
+            return "still"
+        if abs(self.pan_x) >= abs(self.pan_y):
+            return "right" if self.pan_x > 0 else "left"
+        return "down" if self.pan_y > 0 else "up"
 
     def motion_between(self, a: float, b: float) -> float:
         """Mean motion of the window sub-range [a, b] (absolute clip time)."""
@@ -114,3 +130,4 @@ class ClipAnalysis(CamelModel):
     flags: list[ClipFlag] = []
     usable: bool = True
     windows: list[UsableWindow] = []
+    analysis_version: int = 1  # 2 = windows carry their motion direction; older cached analyses are redone

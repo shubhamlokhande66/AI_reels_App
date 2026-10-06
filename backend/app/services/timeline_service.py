@@ -110,6 +110,9 @@ async def apply(project_id: str, ops: list, label: str | None = None) -> dict[st
     hist, idx = _history(doc)
     current = Timeline.model_validate(ensure_ids(hist[idx]["timeline"]))
     result = apply_operations(current, ops, await context_for(doc))  # raises EditError; nothing is saved then
+    from app.services.feedback import record_ops
+
+    await record_ops(doc["_id"], current, ops)  # what this edit says about the person's taste (anonymous)
     entry = {"timeline": result.to_doc(), "label": label or _describe(ops), "at": utcnow()}
     hist = hist[: idx + 1] + [entry]  # a new edit discards the redo branch
     if len(hist) > HISTORY_LIMIT:

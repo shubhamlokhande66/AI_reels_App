@@ -28,7 +28,7 @@ from app.video import footage, grades
 from app.video import transitions as tr
 from app.video.timeline import ClipInput
 
-PROMPT_VERSION = 10
+PROMPT_VERSION = 11
 PURPOSES = ("hook", "context", "buildup", "reveal", "main", "detail", "lifestyle", "payoff", "cta")
 
 
@@ -46,6 +46,7 @@ class DirectorShot(_Answer):
     focus_y: float | None = None
     speed: float = Field(default=1.0, description="0.5..2.0; below 1 is slow motion")
     beat_alignment: str = Field(default="beat", description="strong|beat|free: what the cut INTO this shot lands on")
+    why: str = Field(default="", description="one short sentence for the user: why this shot, here")
 
 
 class DirectorOverlay(_Answer):
@@ -107,9 +108,13 @@ music.song_part_starts_at is only for information; never add it to any time.
 HOOK
 - Shot 1 is the strongest suitable visual: prefer a clip with hook_candidate true, high importance, high quality and \
 sharpness, good brightness and low shake. It must grab attention in the first second.
+- openings ranks the 3 strongest possible openings (measured: impact, motion, subject clarity, curiosity, novelty, \
+relevance to the instructions). Open on openings[0] unless reel.instructions or the story clearly need another of them.
 
 STORY
 - Follow story_shape (scaled to this Reel's length) unless the footage clearly supports a better order.
+- hero_moment is the single strongest moment of all the footage: put it on the music's peak (a drop, else the \
+loudest strong beat in the middle) and do not show it earlier. Weaker moments come before it, so the Reel builds.
 - Build to the hero/reveal moment (a drop is ideal for it) and end on the strongest ending visual: prefer \
 ending_candidate true, a clean hero/product or beauty shot, landing on the final strong beat. Never end on a weak, \
 shaky or dark moment.
@@ -142,6 +147,12 @@ parts; use other transitions selectively, never the same non-cut transition on t
 - crop: "auto" normally; "fill" with focus_x / focus_y (0..1, the subject's position) to frame a subject; "fit" to \
 show the whole frame.
 - Do not put visually similar shots back to back when better alternatives exist.
+- Motion matching: usable_windows give each part's on-screen movement (direction left|right|up|down|still). When two \
+moving shots follow each other, keep the same direction (a natural match cut); never reverse it (left then right) \
+unless the story needs a jolt. Fast movement belongs on strong beats, slow movement in calm parts.
+- Do not cut on every beat: in calm or emotional parts a shot may run over several beats, and the hero moment may \
+be held longer than the rhythm suggests when that serves the story.
+- why: one short, plain sentence a non-editor understands (e.g. "the sharpest close-up, saved for the drop").
 
 LENGTH
 - The shot durations must add up to reel.seconds EXACTLY. Use at least footage.min_shots shots. When footage is short, \
@@ -228,7 +239,7 @@ def clip_facts(clips: list[ClipInput]) -> tuple[list[dict[str, Any]], dict[str, 
             "longest_shot_seconds": _down(min(max((w.end - w.start for w in windows), default=0.0), 5.0)),
             # rounded INWARD, so a range the model copies from here always exists in the clip
             "usable_windows": [{"start": _up(w.start), "end": _down(w.end), "quality": _r(w.quality), "motion": _r(w.motion),
-                                "face": w.face} for w in sorted(windows, key=lambda w: w.start)],
+                                "face": w.face, "direction": w.direction} for w in sorted(windows, key=lambda w: w.start)],
         }  # fmt: skip
         s = c.semantic
         if s is not None:
@@ -317,7 +328,13 @@ def build_request(
     *, brief: str, language: str, style_hint: str | None, captions: bool, cta: str, hook: str, pace: str,
     suggested_cuts: list[float] | None = None, references: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
+    from app.director import intelligence as intel
+
     rows, alias = clip_facts(clips)
+    back = {cid: key for key, cid in alias.items()}
+    openings = [{"clip": back[h.clip_id], "from": _up(h.start), "to": _down(h.end), "score": _r(h.score), "why": h.reason}
+                for h in intel.rank_hooks(clips, brief) if h.clip_id in back]
+    hero = intel.find_hero(clips)
     facts = {
         "task": "Plan every shot of this Reel.",
         "reel": {"seconds": _r(duration, 2), "pace": pace, "language": language, "captions_on": captions,
@@ -334,6 +351,9 @@ def build_request(
                     "rhythm, merging or splitting them where the story needs; vary shot lengths, never a constant length.",
         },
         "story_shape": structure_guide(style_hint, duration, clips),
+        "openings": openings,
+        **({"hero_moment": {"clip": back[hero.clip_id], "from": _r(hero.start, 1), "to": _r(hero.end, 1), "score": _r(hero.score)}}
+           if hero is not None and hero.clip_id in back else {}),
         "allowed": registries(styles),
         "rules": {
             "total_duration": "the shot durations must add up to reel.seconds EXACTLY (check the sum before answering); plan at "
@@ -351,6 +371,9 @@ def build_request(
             "shot_length": "0.4 to 5 seconds; faster cutting when energy is high; varied, not all equal",
             "story_shape": "a guide scaled to this Reel's length: adapt it to the footage you have",
             "text": "optional; hook text in the first 2 s, a call to action at the end if one is given",
+            "hook": "open on openings[0] unless the instructions or the story clearly need another of the openings",
+            "hero": "put hero_moment on the music's peak (a drop) and not before it",
+            "motion": "consecutive moving shots keep the same direction; never reverse it without a reason",
             "style": "keep reel.style when it is not 'choose'",
         },
     }  # fmt: skip

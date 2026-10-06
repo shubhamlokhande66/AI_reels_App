@@ -107,11 +107,14 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
     audio = media.get(doc.get("audioId"))
     if not videos:
         raise ValidationFailed("Upload at least one video first.", code="NO_VIDEOS")
+    from app.services.privacy import ensure_not_purged
+
+    ensure_not_purged([*videos, audio])
     settings = dict(doc["settings"])
     seed = 0
     if req is not None:
         for field, key in (("style", "style"), ("pace", "pace"), ("sequence", "sequence"), ("teaser", "teaser"), ("step_labels", "stepLabels"), ("order_mode", "orderMode"), ("export_preset", "exportPreset"), ("brief", "brief"), ("audio_mode", "audioMode"), ("language", "language"), ("duration", "duration"), ("audio_start", "audioStart"), ("captions", "captions"),
-                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("trend_id", "trendId"), ("reference", "reference")):  # fmt: skip
+                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("auto_review", "autoReview"), ("trend_id", "trendId"), ("reference", "reference")):  # fmt: skip
             v = getattr(req, field)
             if v is not None:
                 settings[key] = v
@@ -123,6 +126,10 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
         if req.audio_auto:
             settings["audioStart"] = None
         seed = req.seed if req.seed is not None else 0
+        if req.style and req.style != doc["settings"].get("style"):
+            from app.services.feedback import record
+
+            await record(doc["_id"], "changed_style", frm=doc["settings"].get("style"), to=req.style)
     ps = ProjectSettings.model_validate(settings)
     if job_type == "generate" and audio is None and ps.audio_mode in ("music", "voice_music"):
         raise ValidationFailed("Upload a music file first (or choose an audio mode that does not need music).", code="NO_AUDIO")
@@ -143,12 +150,14 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
     def ref(m: dict[str, Any]) -> pl.MediaRef:
         return pl.MediaRef(str(m["_id"]), m["originalName"], m["storedKey"], m.get("width") or 0, m.get("height") or 0)
 
+    from app.services.feedback import load_profile
     from app.trends.reference import load_references
 
+    profile = (await load_profile()).to_doc() if job_type == "generate" else None
     inp = pl.PipelineInput(
         project_id=str(doc["_id"]), job_type=job_type, videos=[ref(v) for v in videos],
         audio=ref(audio) if audio else None, settings=ps, rendering_id=str(rendering_id), seed=seed,
-        project_name=doc["name"], revision=revision or [], references=await load_references(ps.reference),
+        project_name=doc["name"], revision=revision or [], references=await load_references(ps.reference), profile=profile,
     )  # fmt: skip
     prior_status = "completed" if doc.get("latestRenderingId") else "draft"
     label = (req.label if req and req.label else "") or ""
@@ -174,6 +183,9 @@ async def submit_render(project_id: str, quality: str = "final", label: str = ""
     audio = media.get(doc.get("audioId"))
     timeline = Timeline.model_validate(ensure_ids(doc["timeline"]))
     ps = ProjectSettings.model_validate(doc["settings"])
+    from app.services.privacy import ensure_not_purged
+
+    ensure_not_purged([*videos, audio])
     if not videos or (audio is None and ps.audio_mode in ("music", "voice_music") and timeline.voice is None):
         raise ValidationFailed("The project needs its videos (and music, for this audio mode) to render.", code="NO_MEDIA")
     now = utcnow()
@@ -221,6 +233,9 @@ async def submit_variations(project_id: str, strategy_ids: list[str] | None = No
     ps = ProjectSettings.model_validate(doc["settings"])
     if not videos:
         raise ValidationFailed("Upload at least one video first.", code="NO_VIDEOS")
+    from app.services.privacy import ensure_not_purged
+
+    ensure_not_purged([*videos, audio])
     if audio is None and ps.audio_mode in ("music", "voice_music"):
         raise ValidationFailed("Upload a music file first (or choose an audio mode that does not need music).", code="NO_AUDIO")
     base = Timeline.model_validate(ensure_ids(doc["timeline"])) if doc.get("timeline") else None
@@ -342,6 +357,7 @@ async def _finish_render(job_id, project_oid, inp, result: pl.PipelineResult, re
     else:
         update.update({"latestRenderingId": rendering_id, "status": "completed"})
     await db.projects.update_one({"_id": project_oid}, {"$set": update})
+    await _maybe_purge(project_oid, inp)
     await _update_job(job_id, status="completed", progress=100, stage="rendering", renderingId=rendering_id,
                       stages=[dict(s, status="completed", progress=100) for s in _initial_stages("render")])  # fmt: skip
 
@@ -387,8 +403,17 @@ async def _finish_product(job_id, project_oid, inp, result: pl.PipelineResult, r
     else:
         update.update({"latestRenderingId": rendering_id, "status": "completed"})
     await db.projects.update_one({"_id": project_oid}, {"$set": update})
+    await _maybe_purge(project_oid, inp)
     await _update_job(job_id, status="completed", progress=100, stage="rendering", renderingId=rendering_id,
                       stages=[dict(s, status="completed", progress=100) for s in _initial_stages("product")])  # fmt: skip
+
+
+async def _maybe_purge(project_oid, inp: pl.PipelineInput) -> None:
+    """Privacy setting: once a final Reel exists, the uploaded footage and music are deleted."""
+    if inp.settings.delete_media_after_render and inp.kind == "final":
+        from app.services.privacy import purge_media
+
+        await purge_media(project_oid)
 
 
 async def _finish(job_id, project_oid, inp, result: pl.PipelineResult, rendering_id, prior_status, label) -> None:
@@ -444,6 +469,8 @@ async def _finish(job_id, project_oid, inp, result: pl.PipelineResult, rendering
         })  # fmt: skip
         job_fields["renderingId"] = rendering_id
     await db.projects.update_one({"_id": project_oid}, {"$set": update})
+    if result.timeline and result.render:
+        await _maybe_purge(project_oid, inp)
     done = [dict(s, status="completed", progress=100) for s in _initial_stages(inp.job_type, inp.settings.captions, inp.settings.ai)]
     await _update_job(job_id, status="completed", progress=100, stage=done[-1]["name"], stages=done, **job_fields)
 

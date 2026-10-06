@@ -1,4 +1,4 @@
-"""Provider contract tests: Ollama, OpenAI and Gemini must behave the same behind ``AIProvider``.
+"""Provider contract tests: Ollama, OpenAI, Gemini and Claude must behave the same behind ``AIProvider``.
 
 Everything is mocked (Ollama through ``httpx.post``, OpenAI and Gemini through fake SDK clients); no API key or
 network is needed. Plus: the managed provider (retry, fallback, budget, usage log), routing and key safety.
@@ -9,12 +9,15 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
+import anthropic
 import httpx
+import httpx2
 import openai
 import pytest
 from google.genai import errors as gerrors
 from pydantic import BaseModel
 
+from app.ai.claude_provider import ClaudeProvider
 from app.ai.gemini_provider import GeminiProvider
 from app.ai.managed import ManagedProvider
 from app.ai.ollama import OllamaProvider
@@ -105,6 +108,45 @@ GEMINI_ERRORS = {
     "unavailable": lambda: httpx.ConnectError("refused"),
 }
 
+class ClaudeFake:
+    def __init__(self):
+        self.replies: list = []
+        self.calls: list[dict] = []
+        self.messages = SimpleNamespace(create=self._create)
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+        self.models = SimpleNamespace(list=lambda: [SimpleNamespace(id="claude-b"), SimpleNamespace(id="claude-a")],
+                                      retrieve=lambda model: SimpleNamespace(id=model))  # fmt: skip
+
+    def _create(self, **kw):
+        self.calls.append(kw)
+        r = self.replies.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        if isinstance(r, SimpleNamespace):
+            return r
+        usage = SimpleNamespace(input_tokens=10, output_tokens=6, cache_read_input_tokens=0)
+        return SimpleNamespace(content=[SimpleNamespace(type="text", text=r)], stop_reason="end_turn", stop_details=None,
+                               usage=usage, model=kw["model"], id="msg_1", _request_id="req_1")  # fmt: skip
+
+
+CREQ = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+
+
+def _c(cls, status, msg="boom", headers=None):
+    return cls(msg, response=httpx2.Response(status, request=CREQ, headers=headers or {}), body=None)
+
+
+CLAUDE_ERRORS = {
+    "timeout": lambda: anthropic.APITimeoutError(request=CREQ),
+    "rate_limit": lambda: _c(anthropic.RateLimitError, 429, headers={"retry-after": "12"}),
+    "quota": lambda: _c(anthropic.BadRequestError, 400, "Your credit balance is too low to access the Anthropic API."),
+    "auth": lambda: _c(anthropic.AuthenticationError, 401),
+    "temporary": lambda: _c(anthropic.InternalServerError, 529, "Overloaded"),
+    "bad_request": lambda: _c(anthropic.BadRequestError, 400, "messages: field required"),
+    "unavailable": lambda: anthropic.APIConnectionError(request=CREQ),
+    "model_missing": lambda: _c(anthropic.NotFoundError, 404),
+}
+
 OLLAMA_ERRORS = {
     "timeout": lambda: httpx.ReadTimeout("slow"),
     "temporary": lambda: httpx.Response(500, text="oops"),
@@ -133,6 +175,11 @@ class Harness:
             fake.replies = [GEMINI_ERRORS[r[1:]]() if isinstance(r, str) and r.startswith("!") else r for r in replies]
             self.calls = fake.calls
             return GeminiProvider(model="text-m", vision_model="vision-m", client=fake)
+        if self.name == "claude":
+            fake = ClaudeFake()
+            fake.replies = [CLAUDE_ERRORS[r[1:]]() if isinstance(r, str) and r.startswith("!") else r for r in replies]
+            self.calls = fake.calls
+            return ClaudeProvider(model="text-m", vision_model="vision-m", client=fake)
         queue = list(replies)
         calls = self.calls
 
@@ -154,7 +201,7 @@ class Harness:
         return c["model"]
 
 
-@pytest.fixture(params=["ollama", "openai", "gemini"])
+@pytest.fixture(params=["ollama", "openai", "gemini", "claude"])
 def h(request, monkeypatch):
     return Harness(request.param, monkeypatch)
 
@@ -197,6 +244,11 @@ def test_structured_output_is_schema_constrained_and_validated(h):
     elif h.name == "gemini":
         cfg = call["config"]
         assert cfg.response_mime_type == "application/json" and cfg.response_json_schema["properties"]["number"]["type"] == "integer"
+    elif h.name == "claude":
+        fmt = call["output_config"]["format"]
+        assert fmt["type"] == "json_schema" and fmt["schema"]["additionalProperties"] is False
+        assert fmt["schema"]["properties"]["number"]["type"] == "integer"
+        assert "temperature" not in call  # current Claude models reject sampling parameters
     else:
         assert call["format"] == "json" and '"number"' in call["messages"][-1]["content"]  # JSON mode + schema in the prompt
 
@@ -221,7 +273,7 @@ def test_timeout_is_normalized(h):
 
 @pytest.mark.parametrize("kind", ["rate_limit", "quota", "auth", "temporary", "bad_request", "unavailable", "model_missing"])
 def test_errors_are_normalized_the_same_way(h, kind):
-    table = {"openai": OPENAI_ERRORS, "gemini": GEMINI_ERRORS, "ollama": OLLAMA_ERRORS}[h.name]
+    table = {"openai": OPENAI_ERRORS, "gemini": GEMINI_ERRORS, "ollama": OLLAMA_ERRORS, "claude": CLAUDE_ERRORS}[h.name]
     if kind not in table:
         pytest.skip(f"{h.name} has no {kind} error")
     with pytest.raises(AIProviderError) as e:
@@ -237,7 +289,7 @@ def test_health_never_raises(h, monkeypatch):
     else:
         p = h.make()
         assert p.health()["available"] is True
-        cls = OpenAIProvider if h.name == "openai" else GeminiProvider
+        cls = {"openai": OpenAIProvider, "gemini": GeminiProvider, "claude": ClaudeProvider}[h.name]
         assert cls(api_key="", model="m").health()["available"] is False  # no key: reported, not raised
 
 
@@ -248,7 +300,7 @@ def test_list_models(h, monkeypatch):
         assert OllamaProvider("http://x", "a:1").list_models() == [{"name": "a:1", "vision": True}]
     else:
         names = [m["name"] for m in h.make().list_models()]
-        assert names == (["m-a", "m-b"] if h.name == "openai" else ["g-1"])
+        assert names == {"openai": ["m-a", "m-b"], "gemini": ["g-1"], "claude": ["claude-a", "claude-b"]}[h.name]
 
 
 # ---------------------------------------------------------------------- provider-specific details
@@ -271,6 +323,50 @@ def test_gemini_safety_block_is_a_refusal():
     assert e.value.kind == "refusal"
 
 
+def test_claude_refusal_is_a_refusal_not_a_fallback():
+    fake = ClaudeFake()
+    fake.replies = [SimpleNamespace(content=[], stop_reason="refusal", stop_details=SimpleNamespace(category="cyber"), usage=None,
+                                    model="m", id="x")]  # fmt: skip
+    with pytest.raises(AIProviderError) as e:
+        ClaudeProvider(model="m", client=fake).chat("s", "u")
+    assert e.value.kind == "refusal" and not e.value.fallback_ok and e.value.details == {"category": "cyber"}
+
+
+def test_claude_uses_server_side_refusal_fallback_and_effort_on_current_models():
+    fake = ClaudeFake()
+    fake.replies = ["ok"]
+    assert ClaudeProvider(model="claude-opus-5-5", client=fake, effort="high").chat("s", "u") == "ok"
+    call = fake.calls[-1]
+    assert call["fallbacks"] == "default" and call["betas"] == ["server-side-fallback-2026-07-01"]
+    assert call["output_config"]["effort"] == "high" and "thinking" not in call and "temperature" not in call
+
+
+def test_claude_rate_limit_carries_retry_after_and_default_model():
+    fake = ClaudeFake()
+    fake.replies = [CLAUDE_ERRORS["rate_limit"]()]
+    p = ClaudeProvider(client=fake)
+    assert p.model == "claude-opus-5-5"
+    with pytest.raises(AIProviderError) as e:
+        p.chat("s", "u")
+    assert e.value.kind == "rate_limit" and e.value.retry_after == 12.0
+
+
+def test_claude_retries_in_json_mode_when_the_schema_is_refused():
+    fake = ClaudeFake()
+    fake.replies = [_c(anthropic.BadRequestError, 400, "output_config.format.schema: unsupported keyword"), '{"status": "ok", "number": 3}']
+    assert ClaudeProvider(model="m", client=fake).generate_structured("sys", "reply", Answer).number == 3
+    assert "format" not in fake.calls[-1]["output_config"] and '"number"' in fake.calls[-1]["system"]
+
+
+def test_claude_sends_images_as_base64_blocks():
+    fake = ClaudeFake()
+    fake.replies = ['{"scene": "beach"}']
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 16
+    ClaudeProvider(model="m", client=fake).chat_images("sys", "look", [png])
+    blocks = fake.calls[-1]["messages"][0]["content"]
+    assert blocks[0]["type"] == "image" and blocks[0]["source"]["media_type"] == "image/png" and blocks[-1]["type"] == "text"
+
+
 def test_cloud_providers_need_a_model_and_a_key():
     with pytest.raises(AIProviderError) as e:
         OpenAIProvider(api_key="sk-test", model="").chat("s", "u")
@@ -278,6 +374,9 @@ def test_cloud_providers_need_a_model_and_a_key():
     with pytest.raises(AIProviderError) as e:
         GeminiProvider(api_key="", model="g").chat("s", "u")
     assert e.value.kind == "not_configured" and "GEMINI_API_KEY" in e.value.message
+    with pytest.raises(AIProviderError) as e:
+        ClaudeProvider(api_key="", model="claude-opus-5-5").chat("s", "u")
+    assert e.value.kind == "not_configured" and "ANTHROPIC_API_KEY" in e.value.message
 
 
 def test_api_keys_never_appear_in_repr_or_errors():

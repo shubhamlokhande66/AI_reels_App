@@ -470,6 +470,8 @@ def plan_to_timeline(
             timeline_start=round(start, 3), timeline_end=round(end, 3), speed=round(speed, 3), effect=effect,
             focus_x=w.focus_x if w else 0.5, focus_y=w.focus_y if w else 0.5, focus_source=w.focus_source if w else "center",
             crop=crop, transition_in=Transition(type=kind, duration=tr_dur),
+            reason=f"{clip.name}: {prompts.clean(s.why, 160)}" if prompts.clean(s.why, 160)
+            else f"{clip.name}: the AI director's {s.purpose if s.purpose in PURPOSES else 'main'} shot.",
         ))  # fmt: skip
         purposes.append(s.purpose if s.purpose in PURPOSES else "main")
         log.append({

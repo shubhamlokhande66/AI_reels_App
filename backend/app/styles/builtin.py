@@ -180,3 +180,92 @@ STORYTELLING = register_style(
         caption_style="highlight",
     )
 )
+
+# ---------------------------------------------------------------------------- creative modes (AI Creative Director)
+VIRAL = register_style(
+    EditingStyle(
+        id="viral",
+        name="Viral",
+        description="High retention: the strongest possible hook, fast cuts on the hits, constant visual change.",
+        cut_beats_high=1,
+        cut_beats_low=2,
+        min_segment=0.5,
+        max_segment=2.4,
+        transitions={"cut": 0.82, "zoom": 0.08, "speed_ramp": 0.05, "flash": 0.05},
+        transition_duration=0.12,
+        max_transition_ratio=0.2,
+        effects={"none": 0.25, "punch": 0.25, "zoom_pulse": 0.2, "beat_punch": 0.15, "crash_zoom": 0.15},
+        motion_preference=1.0,
+        hook_priority=0.7,
+        grade_filter="eq=contrast=1.08:saturation=1.12",
+        audio_fade_out=0.6,
+        caption_style="bold",
+    )
+)
+
+ENERGETIC = register_style(
+    EditingStyle(
+        id="energetic",
+        name="Energetic",
+        description="Fast cuts on every strong beat, movement everywhere, beat-reactive zooms and flashes on the drops.",
+        cut_beats_high=1,
+        cut_beats_low=2,
+        min_segment=0.4,
+        max_segment=2.0,
+        transitions={"cut": 0.65, "slide_left": 0.08, "slide_right": 0.08, "zoom": 0.1, "speed_ramp": 0.09},
+        transition_duration=0.12,
+        max_transition_ratio=0.35,
+        effects={"none": 0.15, "punch": 0.25, "beat_punch": 0.2, "zoom_pulse": 0.15, "shake": 0.1, "beat_flash": 0.15},
+        motion_preference=1.0,
+        hook_priority=0.5,
+        grade_filter="eq=contrast=1.1:saturation=1.15",
+        audio_fade_out=0.6,
+        caption_style="bold",
+    )
+)
+
+PRODUCT_FOCUS = register_style(
+    EditingStyle(
+        id="product_focus",
+        accent_hits=False,
+        name="Product Focus",
+        description="The product is the star: clear close-ups and framed subjects first, clean cuts, slow pushes, a hero ending.",
+        cut_beats_high=2,
+        cut_beats_low=4,
+        min_segment=1.0,
+        max_segment=4.0,
+        transitions={"cut": 0.8, "dissolve": 0.12, "zoom": 0.08},
+        transition_duration=0.3,
+        max_transition_ratio=0.25,
+        effects={"zoom_in": 0.5, "ken_burns": 0.2, "none": 0.3},
+        slow_motion_chance=0.15,
+        slow_motion_speed=0.7,
+        motion_preference=-0.2,
+        closing="reveal",
+        hook_priority=0.45,
+        subject_priority=0.35,
+        grade_filter="eq=contrast=1.05:saturation=1.05",
+        fade_in_out=0.2,
+        caption_style="minimal",
+    )
+)
+
+SOCIAL_NATIVE = register_style(
+    EditingStyle(
+        id="social_native",
+        name="Social Native",
+        description="Creator-style and less polished: handheld energy, quick jump cuts, punchy zooms, no fancy transitions.",
+        cut_beats_high=2,
+        cut_beats_low=3,
+        min_segment=0.6,
+        max_segment=3.0,
+        transitions={"cut": 1.0},
+        transition_duration=0.1,
+        max_transition_ratio=0.0,
+        effects={"none": 0.45, "punch": 0.3, "crash_zoom": 0.1, "shake": 0.15},
+        motion_preference=0.6,
+        hook_priority=0.5,
+        shake_tolerance=1.0,
+        caption_style="bold",
+    )
+)

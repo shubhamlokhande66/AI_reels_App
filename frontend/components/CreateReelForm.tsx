@@ -67,6 +67,8 @@ export function CreateReelForm() {
   const [captions, setCaptions] = useState(false);
   const [captionStyle, setCaptionStyle] = useState("minimal");
   const [aiDirector, setAiDirector] = useState(true); // the AI plans every shot; the safety layer checks it
+  const [autoReview, setAutoReview] = useState(true); // the Quality Reviewer scores the edit and improves it before rendering
+  const [deleteMedia, setDeleteMedia] = useState(false); // privacy: delete the uploads once the final Reel exists
   const [ai, setAi] = useState(true); // quality over speed by default: the app looks at every clip before picking shots (a few minutes on a local computer)
   const [trendId, setTrendId] = useState("");
   const [audioMode, setAudioMode] = useState<AudioModeId>("music");
@@ -120,7 +122,7 @@ export function CreateReelForm() {
     try {
       if (!done.current.projectId) {
         setStep("creating");
-        const p = await api.createProject(name.trim(), { duration, style, pace, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) });
+        const p = await api.createProject(name.trim(), { duration, style, pace, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, autoReview, deleteMediaAfterRender: deleteMedia, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) });
         done.current.projectId = p.id;
       }
       const id = done.current.projectId;
@@ -429,6 +431,24 @@ export function CreateReelForm() {
             on: FEATURES.ai && ai,
             todo: "Needs AI assist",
             hint: "The AI plans every shot — which moment, where to cut on the beat, effect, transition, text and colour — and the app checks every choice before editing. Off: the built-in editor cuts, the AI only helps.",
+          },
+          {
+            id: "autoReview",
+            label: "Quality reviewer",
+            value: autoReview,
+            set: setAutoReview,
+            on: true,
+            todo: "",
+            hint: "Scores the edit like a creative director (hook, pacing, story, variety, beat, ending) and fixes what it can before rendering: up to 2 rounds, kept only when the score improves.",
+          },
+          {
+            id: "deleteMedia",
+            label: "Delete my uploads after rendering",
+            value: deleteMedia,
+            set: setDeleteMedia,
+            on: true,
+            todo: "",
+            hint: "Privacy: once the final Reel is made, your clips and music are deleted from this computer. The Reel stays; a new version needs a new upload.",
           },
         ].map((t) => (
           <label

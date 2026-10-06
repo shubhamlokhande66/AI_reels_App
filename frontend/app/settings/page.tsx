@@ -6,6 +6,7 @@ import { API_URL, api, errorMessage } from "@/lib/api";
 import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
 import { useHealth } from "@/hooks/useApi";
 import { AiSettingsSection } from "@/components/AiSettings";
+import { DirectorProfileSection } from "@/components/DirectorFeedback";
 import type { AiModels, ModelTestResult } from "@/types/api";
 
 function Row({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
@@ -147,6 +148,7 @@ export default function SettingsPage() {
           <AiSettingsSection>
             <OllamaModels />
           </AiSettingsSection>
+          <DirectorProfileSection />
         </div>
       )}
     </>
