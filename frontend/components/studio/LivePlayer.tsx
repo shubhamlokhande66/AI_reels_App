@@ -12,6 +12,8 @@ interface Props {
   onTime: (t: number) => void;
   playing: boolean;
   onPlaying: (p: boolean) => void;
+  /** Fill the height it is given (the editor's player area), keeping 9:16, instead of a fixed width. */
+  fill?: boolean;
 }
 
 const SIZE = { small: "text-[5.5cqw]", medium: "text-[7.5cqw]", large: "text-[10cqw]" } as const;
@@ -19,7 +21,7 @@ const POS = { top: "top-[14%]", center: "top-1/2 -translate-y-1/2", bottom: "bot
 
 /** Plays the edit in the browser at once: every clip is preloaded once, the right one is shown and kept in sync with
  * the clock and the song; effects, looks and transitions are close approximations (Export HD renders them exactly). */
-export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, playing, onPlaying }: Props) {
+export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, playing, onPlaying, fill = false }: Props) {
   const videos = useRef<Record<string, HTMLVideoElement | null>>({});
   const layers = useRef<Record<string, HTMLDivElement | null>>({});
   const audio = useRef<HTMLAudioElement>(null);
@@ -137,7 +139,11 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
   const caption = tl.captions.find((c) => playhead >= c.start && playhead <= c.end);
 
   return (
-    <div className="relative mx-auto aspect-[9/16] w-full max-w-[min(360px,calc(62svh*9/16))] overflow-hidden rounded-2xl bg-black shadow-2xl [container-type:inline-size]">
+    <div
+      className={`relative mx-auto aspect-[9/16] overflow-hidden rounded-xl bg-black shadow-2xl [container-type:inline-size] ${
+        fill ? "h-full max-h-full max-w-full" : "w-full max-w-[min(360px,calc(62svh*9/16))]"
+      }`}
+    >
       {clipIds.map((cid) => {
         const fit = tl.segments.find((s) => s.clipId === cid)?.crop.framing === "fit";
         return (

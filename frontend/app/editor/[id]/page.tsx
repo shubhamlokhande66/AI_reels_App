@@ -92,6 +92,21 @@ export default function StudioEditorPage() {
     setSheet(l);
   };
 
+  // inside the editor a pinch never zooms the whole page (the timeline handles its own pinch-to-zoom)
+  useEffect(() => {
+    const stop = (e: Event) => {
+      if ((e as WheelEvent).ctrlKey || e.type.startsWith("gesture")) e.preventDefault();
+    };
+    window.addEventListener("wheel", stop, { passive: false });
+    window.addEventListener("gesturestart", stop as EventListener, { passive: false });
+    window.addEventListener("gesturechange", stop as EventListener, { passive: false });
+    return () => {
+      window.removeEventListener("wheel", stop);
+      window.removeEventListener("gesturestart", stop as EventListener);
+      window.removeEventListener("gesturechange", stop as EventListener);
+    };
+  }, []);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
@@ -239,11 +254,12 @@ export default function StudioEditorPage() {
         </section>
 
         {/* player */}
-        <section aria-label="Player" className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-3">
+        <section aria-label="Player" className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 p-2 lg:p-3">
           {tl ? (
             <>
-              <div className="w-full max-w-[min(340px,calc(48svh*9/16))] lg:max-w-[min(360px,calc(56vh*9/16))]">
+              <div className="flex h-[46svh] min-h-0 w-full justify-center lg:h-auto lg:flex-1">
                 <LivePlayer
+                  fill
                   timeline={tl}
                   clipUrls={clipUrls}
                   musicUrl={p.audio ? assetUrl(p.audio.url) : null}

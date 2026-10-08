@@ -91,18 +91,18 @@ export function ReferencePicker({ file, onFile, disabled }: { file: File | null;
           + Add a Reel to copy
         </button>
       )}
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner title="This Reel cannot be used as a reference" message={error} />}
     </Frame>
   );
 }
 
 /** Once the project exists: upload / show / change / remove the project's reference Reel. */
-export function ReferenceReel({ projectId, disabled }: { projectId: string; disabled?: boolean }) {
+export function ReferenceReel({ projectId, disabled, initialError }: { projectId: string; disabled?: boolean; initialError?: string | null }) {
   const qc = useQueryClient();
   const key = ["reference-reel", projectId];
   const q = useQuery({ queryKey: key, queryFn: () => api.referenceReel(projectId) });
   const input = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
   const upload = useMutation({
     mutationFn: (f: File) => api.setReferenceReel(projectId, f),
     onSuccess: (r) => qc.setQueryData(key, r),
@@ -159,7 +159,19 @@ export function ReferenceReel({ projectId, disabled }: { projectId: string; disa
           {upload.isPending ? "Studying the Reel… (10-30 s)" : "+ Add a Reel to copy"}
         </button>
       )}
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner title="This Reel cannot be used as a reference" message={error} />}
     </Frame>
+  );
+}
+
+/** A one-line reminder in the last step: the Reel will follow the reference chosen in step 1. */
+export function ReferenceStatus({ projectId }: { projectId: string }) {
+  const q = useQuery({ queryKey: ["reference-reel", projectId], queryFn: () => api.referenceReel(projectId) });
+  if (!q.data) return null;
+  return (
+    <p className="rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-sm">
+      <span className="text-accent">✦</span> Your Reel will follow <span className="font-medium">“{q.data.name}”</span>: {q.data.shots} shots, same cut timing
+      and hook (change it in step 1).
+    </p>
   );
 }

@@ -73,6 +73,19 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drag, pps]);
 
+  // touchpad pinch (Ctrl + wheel) zooms the timeline, not the page: needs a non-passive listener to be allowed to cancel it
+  useEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      setPps((v) => Math.min(Math.max(v * Math.exp(-e.deltaY * 0.01), 10), 240));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
   // keep the playhead in view while playing
   useEffect(() => {
     const el = area.current;
@@ -99,12 +112,6 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
       <div
         ref={area}
         className="relative overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-background"
-        onWheel={(e) => {
-          if (e.ctrlKey || e.metaKey) {
-            e.preventDefault();
-            setPps((v) => Math.min(Math.max(v * (e.deltaY < 0 ? 1.15 : 0.87), 10), 240));
-          }
-        }}
       >
         <div className="relative" style={{ width: width + HEAD }}>
           {/* ruler */}
@@ -130,9 +137,10 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
           {/* tracks */}
           {(
             [
-              ["T1", "Text", "h-8"],
-              ["V1", "Video", "h-16"],
-              ["A1", "Music", "h-10"],
+              // compact tracks on short laptop screens, roomier on tall ones
+              ["T1", "Text", "h-6 [@media(min-height:760px)]:h-8"],
+              ["V1", "Video", "h-12 [@media(min-height:760px)]:h-16"],
+              ["A1", "Music", "h-7 [@media(min-height:760px)]:h-10"],
             ] as const
           ).map(([code, name, h]) => (
             <div key={code} className={`flex border-b border-border ${h}`}>

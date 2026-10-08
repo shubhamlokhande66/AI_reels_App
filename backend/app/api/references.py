@@ -231,7 +231,8 @@ async def set_reference_reel(project_id: str, file: UploadFile = File(...)):
         except Exception as exc:  # noqa: BLE001
             raise ValidationFailed(f"{name} could not be read as a video ({exc}).", code="UNREADABLE_VIDEO") from exc
     if prof.get("shots", 0) < 2:
-        raise ValidationFailed("This video has no cuts to copy (it is one continuous shot). Choose an edited Reel.", code="NO_CUTS")
+        raise ValidationFailed("No cuts were found in this video: it looks like one continuous shot, so there is no editing to copy. "
+                               "Choose a Reel that cuts between several shots.", code="NO_CUTS")
     ref = {"name": name, "seconds": prof["seconds"], "cuts": prof.pop("cuts", []), "on_beat_share": prof.get("on_beat_share"),
            "profile": for_ai({"name": name, "profile": prof})}  # fmt: skip
     await get_db().projects.update_one({"_id": doc["_id"]}, {"$set": {"referenceReel": ref, "updatedAt": utcnow()}})

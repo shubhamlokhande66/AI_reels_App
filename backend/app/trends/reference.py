@@ -34,6 +34,7 @@ from app.video.analyzer import read_metadata
 log = logging.getLogger(__name__)
 
 SCENE_THRESHOLD = 0.32  # FFmpeg scene score above which a frame starts a new shot
+SOFT_SCENE_THRESHOLD = 0.16  # second pass, when the first finds (almost) no cuts
 MIN_GAP = 0.2  # two detected cuts closer than this are one cut (flashes, fades)
 ON_BEAT = 0.1  # a cut this close to a beat or strong hit counts as "on the beat" (detection is frame-accurate)
 MAX_SECONDS = 180  # reference Reels are short; longer files are measured over their first 3 minutes
@@ -41,10 +42,10 @@ _PTS = re.compile(r"pts_time:([0-9.]+)")
 
 
 # ---------------------------------------------------------------------- measuring one video
-def detect_cuts(path: Path, duration: float) -> list[float]:
+def detect_cuts(path: Path, duration: float, threshold: float = SCENE_THRESHOLD) -> list[float]:
     """Frame-accurate cut times (seconds), from FFmpeg's scene-change score on a small copy of the picture."""
     cmd = [find_binary("ffmpeg"), "-hide_banner", "-nostats", "-t", str(MAX_SECONDS), "-i", str(path), "-an",
-           "-vf", f"scale=320:-2,select='gt(scene,{SCENE_THRESHOLD})',showinfo", "-f", "null", "-"]  # fmt: skip
+           "-vf", f"scale=320:-2,select='gt(scene,{threshold})',showinfo", "-f", "null", "-"]  # fmt: skip
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     cuts: list[float] = []
     for t in sorted(float(m) for m in _PTS.findall(r.stderr)):
@@ -214,6 +215,8 @@ def profile_video(path: Path, name: str = "", keep_cuts: bool = False) -> dict[s
     meta = read_metadata(path)
     duration = min(meta.duration, MAX_SECONDS)
     cuts = detect_cuts(path, duration)
+    if len(cuts) < 2 and duration > 3:  # soft cuts and similar-looking shots: look again, more sensitively
+        cuts = detect_cuts(path, duration, SOFT_SCENE_THRESHOLD) or cuts
     audio = None
     with tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / "ref.wav"

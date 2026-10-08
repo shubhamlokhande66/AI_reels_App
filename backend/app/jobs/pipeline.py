@@ -380,7 +380,9 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
     ai_tasks: list[str] = ["clip_understanding"] if res.semantics else []
     # The AI director plans the whole edit in one call (story + shots + text + post copy); it replaces the separate
     # style / order / story / copy calls. Step-by-step Reels keep their deterministic order.
-    use_director = inp.settings.ai and inp.settings.ai_director and inp.settings.sequence != "steps"
+    # "make it like this Reel": its shot timing is the plan, so the rule engine cuts it exactly (the AI still orders the
+    # footage); the AI director would otherwise plan its own shots and only take the reference as a hint
+    use_director = inp.settings.ai and inp.settings.ai_director and inp.settings.sequence != "steps" and not (inp.template and inp.template.get("cuts"))
     progress("selecting_clips", 0.0)
     style_id, order_hint = choose_style_and_order(inp, inputs, res.audio, notes, res.warnings, use_ai=not use_director, ai_tasks=ai_tasks)
     brand_look = (inp.brand or {}).get("visualStyle")
