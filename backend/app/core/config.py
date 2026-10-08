@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     openai_reasoning_effort: str = ""  # optional, for reasoning models: minimal | low | medium | high
     gemini_api_key: SecretStr = SecretStr("")
     gemini_tts_model: str = "gemini-3.8-flash-tts"  # natural AI voices (voice/gemini.py)
+    openai_tts_model: str = "gpt-4o-mini-tts"  # OpenAI voices (voice/openai_voice.py); "tts-1" is cheaper, without style instructions
     # Story -> Reel pictures (story/images.py): the free AI pictures (Cloudflare Workers AI, FLUX.1 schnell) ...
     cloudflare_account_id: str = ""
     cloudflare_api_token: SecretStr = SecretStr("")

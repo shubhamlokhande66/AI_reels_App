@@ -124,7 +124,7 @@ def speak(plan: StoryPlan, voice_id: str | None, work: Path, progress: Callable[
     This computer's voices read line by line. A daily limit stops the Reel with a clear message (its credits come back);
     other voice problems leave that scene with captions only, with a warning."""
     from app.voice.base import SpeechSettings, build_ssml
-    from app.voice.gemini import PREFIX, VoiceQuotaExhausted
+    from app.voice.gemini import AI_VOICE_PREFIXES, VoiceQuotaExhausted
     from app.voice.sapi import get_voice_provider
 
     if voice_id == "none":  # the person chose no narrator: captions and music only
@@ -138,7 +138,7 @@ def speak(plan: StoryPlan, voice_id: str | None, work: Path, progress: Callable[
     except Exception as exc:  # noqa: BLE001 - no voice at all: a silent story with captions still works
         return [None] * len(plan.scenes), [f"No voice for this language ({exc}); the Reel has captions only."]
     texts = [_ends(s.narration) for s in plan.scenes]
-    if voice.id.startswith(PREFIX):
+    if voice.id.startswith(AI_VOICE_PREFIXES):
         wav = work / "narration_full.wav"
         mood = max(set(s.mood for s in plan.scenes), key=[s.mood for s in plan.scenes].count)
         ssml = build_ssml("\n\n".join(texts), SpeechSettings(emotion=MOOD_VOICE.get(mood, "calm"), pause_style="dramatic"), tag)

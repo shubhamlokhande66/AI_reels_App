@@ -71,12 +71,29 @@ def _out(doc: dict[str, Any], plan) -> dict[str, Any]:
     return {"projectId": pid, **data}
 
 
+OPENAI_NARRATORS = [("openai:onyx", "Onyx · deep (male, OpenAI)"), ("openai:ballad", "Ballad · storyteller (male, OpenAI)"),
+                    ("openai:ash", "Ash · warm (male, OpenAI)"), ("openai:fable", "Fable · narrator (OpenAI)"),
+                    ("openai:nova", "Nova · friendly (female, OpenAI)"), ("openai:shimmer", "Shimmer · clear (female, OpenAI)")]  # fmt: skip
+
+
+def narrators() -> list[dict[str, str]]:
+    """The narrators whose service has a key on this server (Gemini, OpenAI), and "no narration"."""
+    from app.core.config import get_settings
+
+    s = get_settings()
+    out = [(i, n) for i, n in NARRATORS if i.startswith("gemini:") and s.gemini_api_key.get_secret_value()]
+    if s.openai_api_key.get_secret_value():
+        out += OPENAI_NARRATORS
+    out += [(i, n) for i, n in NARRATORS if i == "none"]
+    return [{"id": i, "name": n} for i, n in out]
+
+
 @router.get("/story/options")
 async def options():
     """Art styles, narrators and which picture sources are connected (so the page can say what pictures will cost)."""
     return {
         "artStyles": [{"id": s.id, "name": s.name, "paintings": s.paintings, "sources": im.sources_available(s.id)} for s in ART_STYLES.values()],
-        "narrators": [{"id": i, "name": n} for i, n in NARRATORS],
+        "narrators": narrators(),
         "freeAi": im.cloudflare_ready(),
         "paidAi": bool(im.paid_ready()),
     }

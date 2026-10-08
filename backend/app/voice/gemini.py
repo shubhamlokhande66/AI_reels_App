@@ -101,6 +101,7 @@ def to_wav(data: bytes, mime: str) -> bytes:
 
 class GeminiVoiceProvider(VoiceProvider):
     name = "gemini"
+    voice_prefix = PREFIX
 
     def _key(self) -> str:
         return get_settings().gemini_api_key.get_secret_value()
@@ -162,29 +163,44 @@ class GeminiVoiceProvider(VoiceProvider):
         out.write_bytes(audio)
 
 
+AI_VOICE_PREFIXES = (PREFIX, "openai:")  # natural AI voices (one request can read a whole story)
+
+
 class CombinedVoiceProvider(VoiceProvider):
-    """The voices of this computer (Windows) and the natural AI voices, as one list; each line goes to its engine."""
+    """The voices of this computer (Windows) and the natural AI voices (Gemini, OpenAI), as one list; each line goes to
+    its engine by the voice id's prefix."""
 
     name = "combined"
 
-    def __init__(self, local: VoiceProvider, ai: GeminiVoiceProvider) -> None:
+    def __init__(self, local: VoiceProvider, ai: VoiceProvider, *more_ai: VoiceProvider) -> None:
         self.local, self.ai = local, ai
+        self.ais: list[VoiceProvider] = [ai, *more_ai]
+
+    def _engine(self, voice_id: str) -> VoiceProvider:
+        for p in self.ais:
+            prefix = getattr(p, "voice_prefix", PREFIX if p is self.ai else "")
+            if prefix and voice_id.startswith(prefix):
+                return p
+        return self.local
 
     def available(self) -> bool:
-        return self.ai.available() or self.local.available()
+        return any(p.available() for p in self.ais) or self.local.available()
 
     def list_voices(self) -> list[VoiceInfo]:
-        return [*self.ai.list_voices(), *self.local.list_voices()]  # the natural voices first
+        return [*(v for p in self.ais for v in p.list_voices()), *self.local.list_voices()]  # the natural voices first
 
     def find_voice(self, language: str, preferred: str | None = None) -> VoiceInfo:
-        if preferred and preferred.startswith(PREFIX):
-            return self.ai.find_voice(language, preferred)
+        if preferred:
+            engine = self._engine(preferred)
+            if engine is not self.local:
+                return engine.find_voice(language, preferred)
         try:
             return self.local.find_voice(language, preferred)
         except Exception:  # noqa: BLE001 - no local voice for this language: a natural AI voice speaks it
-            if self.ai.available():
-                return self.ai.find_voice(language, preferred)
+            for p in self.ais:
+                if p.available():
+                    return p.find_voice(language, preferred)
             raise
 
     def synthesize(self, ssml: str, voice_id: str, out: Path) -> None:
-        (self.ai if voice_id.startswith(PREFIX) else self.local).synthesize(ssml, voice_id, out)
+        self._engine(voice_id).synthesize(ssml, voice_id, out)
