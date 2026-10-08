@@ -49,7 +49,7 @@ import type {
   Template,
   TemplateInput,
   VoiceProfile,
-  VoiceProfileInput, Connections, Platform, Post, CheckoutOrder, Credits, Pricing, Retention, Story, StoryOptions } from "@/types/api";
+  VoiceProfileInput, Connections, Platform, Post, CheckoutOrder, Credits, Pricing, SiteInfo, Retention, Story, StoryOptions } from "@/types/api";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -187,6 +187,15 @@ export const api = {
   register: (email: string, password: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  forgotPassword: (email: string) => request<{ ok: boolean }>("/api/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, password: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/reset", { method: "POST", body: JSON.stringify({ token, password }) }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>("/api/auth/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
+  logoutEverywhere: () => request<{ ok: boolean }>("/api/auth/logout-everywhere", { method: "POST" }),
+  deleteAccount: (password: string, confirm: string) =>
+    request<{ ok: boolean }>("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),
+  site: () => request<SiteInfo>("/api/site"),
   /** Is this browser in admin mode? (required = the server has an admin key; without one everyone is admin) */
   adminSession: (key?: string) =>
     request<{ admin: boolean; required: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined),

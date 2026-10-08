@@ -1097,3 +1097,12 @@ export interface CheckoutOrder {
   label: string;
   email: string;
 }
+
+/** Business details for the legal and contact pages. */
+export interface SiteInfo {
+  businessName: string;
+  supportEmail: string;
+  supportPhone: string;
+  businessAddress: string;
+  legalUpdated: string;
+}

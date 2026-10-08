@@ -87,6 +87,14 @@ class RetentionIn(CamelModel):
     projects_hours: int = Field(ge=1, le=24 * 90)
 
 
+@router.get("/site")
+async def site():
+    """The business details for the legal and contact pages (public)."""
+    s = get_settings()
+    return {"businessName": s.business_name, "supportEmail": s.support_email, "supportPhone": s.support_phone,
+            "businessAddress": s.business_address, "legalUpdated": s.legal_updated}  # fmt: skip
+
+
 @router.get("/plans")
 async def plans():
     """Plans, credits and prices (public: the pricing page is shown before sign-in)."""

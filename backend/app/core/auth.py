@@ -23,7 +23,7 @@ from app.core.errors import AppError
 
 COOKIE = "reel_session"
 SESSION_DAYS = 30
-PUBLIC_PATHS = ("/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/", "/api/plans")  # /api/public: signed links
+PUBLIC_PATHS = ("/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/", "/api/plans", "/api/site")  # /api/public: signed links
 
 current_user: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_user", default=None)
 
@@ -55,15 +55,24 @@ def _secret() -> bytes:
     return key.encode()
 
 
-def make_token(user_id: str, days: int = SESSION_DAYS) -> str:
+def make_token(user_id: str, days: int = SESSION_DAYS, version: int = 0) -> str:
+    """``version``: the user's session version; changing the password or deleting the account raises it, which ends
+    every older session on every device."""
     # no "=" padding: the token is cookie-safe as it is (a padded value would be sent back quoted)
-    payload = base64.urlsafe_b64encode(json.dumps({"u": user_id, "e": int(time.time()) + days * 86400}).encode()).decode().rstrip("=")
+    data = {"u": user_id, "e": int(time.time()) + days * 86400, "v": version}
+    payload = base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip("=")
     sig = hmac.new(_secret(), payload.encode(), hashlib.sha256).hexdigest()
     return f"{payload}.{sig}"
 
 
 def read_token(token: str | None) -> str | None:
     """The user id of a valid, unexpired session token; None otherwise."""
+    s = read_session(token)
+    return s[0] if s else None
+
+
+def read_session(token: str | None) -> tuple[str, int] | None:
+    """(user id, session version) of a valid, unexpired token; None otherwise."""
     token = (token or "").strip().strip('"')
     if not token or "." not in token:
         return None
@@ -74,7 +83,38 @@ def read_token(token: str | None) -> str | None:
         data = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
     except (ValueError, TypeError):
         return None
-    return data.get("u") if data.get("e", 0) > time.time() else None
+    if data.get("e", 0) <= time.time() or not data.get("u"):
+        return None
+    return str(data["u"]), int(data.get("v", 0))
+
+
+# user id -> (session version, checked at); a short cache so a request does not always cost a database read
+_versions: dict[str, tuple[int, float]] = {}
+VERSION_TTL = 20.0
+
+
+def forget_session_cache(user_id: str) -> None:
+    _versions.pop(user_id, None)
+
+
+async def session_valid(user_id: str, version: int) -> bool:
+    """The account still exists and the session is not older than its last password change / sign-out everywhere."""
+    hit = _versions.get(user_id)
+    now = time.time()
+    if hit is None or now - hit[1] > VERSION_TTL:
+        from bson import ObjectId
+
+        from app.core.database import get_main_db
+
+        if not ObjectId.is_valid(user_id):
+            return False
+        doc = await get_main_db().users.find_one({"_id": ObjectId(user_id)}, {"sessionVersion": 1})
+        if doc is None:
+            _versions.pop(user_id, None)
+            return False
+        hit = (int(doc.get("sessionVersion", 0)), now)
+        _versions[user_id] = hit
+    return hit[0] == version
 
 
 def is_public(path: str) -> bool:
@@ -99,7 +139,8 @@ class AuthMiddleware:
                 token = v
         if not token and headers.get("authorization", "").lower().startswith("bearer "):
             token = headers["authorization"][7:]
-        uid = read_token(token)
+        session = read_session(token)
+        uid = session[0] if session and await session_valid(*session) else None
         path = scope.get("path", "")
         if uid is None and not is_public(path) and scope.get("method") != "OPTIONS":
             body = json.dumps({"error": {"code": "AUTH_REQUIRED", "message": "Please sign in.", "details": None}}).encode()

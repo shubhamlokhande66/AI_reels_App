@@ -73,6 +73,19 @@ class Settings(BaseSettings):
     auth_enabled: bool = False
     # Billing (services/credits.py, api/billing.py): credits are counted only when this and accounts are on.
     billing_enabled: bool = False
+    # Your business, shown on the legal and contact pages (Razorpay checks that these exist)
+    business_name: str = "Reel Maison"
+    support_email: str = ""
+    support_phone: str = ""
+    business_address: str = ""
+    legal_updated: str = "8 October 2026"
+    # Email (password reset): any SMTP service (Gmail app password, Brevo, Zoho, Amazon SES ...). Empty = links go to the log.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from: str = ""  # e.g. "Reel Maison <no-reply@your-domain>"
+    smtp_ssl: bool = False  # true for port 465 (SSL); false = STARTTLS on 587
     razorpay_key_id: str = ""  # Razorpay dashboard > Settings > API keys (rzp_test_... while testing)
     razorpay_key_secret: SecretStr = SecretStr("")
     razorpay_webhook_secret: SecretStr = SecretStr("")  # Razorpay dashboard > Webhooks (payment.captured, order.paid)

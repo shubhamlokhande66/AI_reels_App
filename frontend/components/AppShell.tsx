@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { ThemeToggle } from "./ThemeToggle";
 import { GlobalActivity } from "./GlobalActivity";
+import { LegalFooter } from "./Legal";
 import { useAdmin, useCredits, useMe } from "@/hooks/useApi";
 
 // What every user sees: the product. The admin section (settings, diagnostics, experimental tools) appears only in
@@ -32,7 +33,10 @@ const GROUPS: { title: string; admin?: boolean; items: { href: string; label: st
   },
   {
     title: "Account",
-    items: [{ href: "/pricing", label: "Plans & pricing", icon: "₹" }],
+    items: [
+      { href: "/account", label: "My account", icon: "◉" },
+      { href: "/pricing", label: "Plans & pricing", icon: "₹" },
+    ],
   },
   {
     title: "Admin",
@@ -48,6 +52,9 @@ const GROUPS: { title: string; admin?: boolean; items: { href: string; label: st
     ],
   },
 ];
+
+const AUTH_PAGES = ["/login", "/forgot", "/reset"];
+const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact"];
 
 // phones: the bottom bar (everything else is in the drawer behind "More")
 const TABS: { href: string; label: string; icon: string; primary?: boolean }[] = [
@@ -161,8 +168,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener("keydown", onKey);
     };
   }, [drawer]);
-  const authPage = pathname === "/login";
-  const publicPage = pathname === "/pricing"; // open to everyone, also before signing in
+  const authPage = AUTH_PAGES.includes(pathname); // sign in, forgot / reset password: shown on their own
+  const publicPage = PUBLIC_PAGES.includes(pathname); // open to everyone, also before signing in
   const signedOut = !!me.data?.authEnabled && !me.data.user;
   useEffect(() => {
     if (signedOut && !authPage && !publicPage) router.replace("/login"); // accounts on and nobody signed in: the sign-in page
@@ -368,6 +375,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ) : (
             children
           )}
+          <LegalFooter className="mt-16 border-t border-border pt-6" />
         </div>
       </main>
     </div>

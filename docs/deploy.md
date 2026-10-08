@@ -80,3 +80,12 @@ the paid period and do not carry over; starter and top-up credits never expire. 
 and given back automatically if it fails. Amounts always come from the server's prices, and every payment is checked
 with Razorpay's signature before anything is credited. GST invoices: Razorpay sends a payment receipt; issue tax
 invoices from your accounting tool (or enable Razorpay's invoices) until in-app invoices are added.
+
+## Accounts, email and legal pages
+- **Password reset** emails go through any SMTP service: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and
+  `SMTP_FROM` (e.g. Brevo's free plan, Zoho Mail, Amazon SES, or a Gmail app password). Without them the reset link is
+  written to the backend log.
+- **Legal pages** (`/terms`, `/privacy`, `/refunds`, `/contact`) use `BUSINESS_NAME`, `SUPPORT_EMAIL`, `SUPPORT_PHONE`,
+  `BUSINESS_ADDRESS` and `LEGAL_UPDATED`. Razorpay checks that these pages exist before it approves live payments. The texts
+  describe how the app works (credits, refunds, auto-delete); have them reviewed before launch.
+- Users manage their account at `/account`: change password, sign out everywhere, delete the account and all its data.

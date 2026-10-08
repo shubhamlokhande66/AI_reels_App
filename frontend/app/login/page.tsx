@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { btnPrimary, ErrorBanner } from "@/components/ui";
+import { LegalFooter } from "@/components/Legal";
+import Link from "next/link";
 
 const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2.5 outline-none focus:border-accent";
 
@@ -59,6 +61,11 @@ export default function LoginPage() {
               className={FIELD}
             />
             {mode === "signup" && <span className="mt-1 block text-xs text-muted">At least 8 characters.</span>}
+            {mode === "signin" && (
+              <Link href="/forgot" className="mt-1.5 block text-right text-xs text-muted hover:text-accent">
+                Forgot password?
+              </Link>
+            )}
           </label>
           {error && <ErrorBanner message={error} />}
           <button type="submit" className={`${btnPrimary} w-full py-3`} disabled={busy}>
@@ -71,9 +78,7 @@ export default function LoginPage() {
             {mode === "signin" ? "Create an account" : "Sign in"}
           </button>
         </p>
-        <p className="mt-3 text-center text-xs text-muted">
-          <a href="/pricing" className="hover:text-accent">See plans & pricing</a>
-        </p>
+        <LegalFooter className="mt-6" />
       </div>
     </div>
   );
