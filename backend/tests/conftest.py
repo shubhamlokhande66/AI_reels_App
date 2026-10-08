@@ -102,7 +102,10 @@ def _isolated_storage(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def _settings_cache():
+def _settings_cache(monkeypatch):
+    # tests never inherit the developer's production switches from .env (environment variables win over .env)
+    monkeypatch.setenv("ADMIN_KEY", "")
+    monkeypatch.setenv("AUTH_ENABLED", "false")
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

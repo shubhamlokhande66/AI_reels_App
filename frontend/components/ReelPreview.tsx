@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { assetUrl } from "@/lib/api";
 import { formatBytes, formatDuration, styleLabel } from "@/lib/format";
+import { ShareReel } from "./ShareReel";
 import type { GenerateOptions, Rendering } from "@/types/api";
 import { DurationSelector, PaceSelector, StyleSelector, type PaceId } from "./StyleSelector";
 import { btnPrimary, btnSecondary } from "./ui";
@@ -14,11 +15,13 @@ interface Props {
   versionCount: number;
   busy: boolean;
   onGenerate: (options: GenerateOptions) => void;
+  /** Where in the song the Reel starts (seconds): shown with the no-music download, so the sound added in the app lines up. */
+  songStart?: number | null;
 }
 
 const newSeed = () => Math.floor(Math.random() * 1_000_000) + 1;
 
-export function ReelPreview({ rendering, currentStyle, currentDuration, versionCount, busy, onGenerate }: Props) {
+export function ReelPreview({ rendering, currentStyle, currentDuration, versionCount, busy, onGenerate, songStart }: Props) {
   const [panel, setPanel] = useState<"style" | "duration" | "pace" | null>(null);
   const [pace, setPace] = useState<PaceId>("balanced");
   const [style, setStyle] = useState(currentStyle);
@@ -26,7 +29,7 @@ export function ReelPreview({ rendering, currentStyle, currentDuration, versionC
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,340px)_1fr]">
-      <div className="mx-auto w-full max-w-[340px]">
+      <div className="mx-auto w-full max-w-[min(340px,calc(62svh*9/16))] lg:max-w-[340px]">
         <video
           key={rendering.id}
           src={assetUrl(rendering.url)}
@@ -53,10 +56,27 @@ export function ReelPreview({ rendering, currentStyle, currentDuration, versionC
           ))}
         </dl>
 
-        <div className="flex flex-wrap gap-2">
-          <a href={assetUrl(rendering.downloadUrl)} download className={btnPrimary}>
+        {songStart != null && (
+          <p className="text-xs text-muted">
+            Posting with a licensed or trending sound? Use <span className="text-foreground">Download without music</span>, then in
+            Instagram or TikTok add your song and start it at <span className="text-foreground">{formatDuration(songStart)}</span>: the
+            cuts stay on the beat.
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <a href={assetUrl(rendering.downloadUrl)} download className={`${btnPrimary} col-span-2`}>
             Download MP4
           </a>
+          <a
+            href={assetUrl(`${rendering.downloadUrl}${rendering.downloadUrl.includes("?") ? "&" : "?"}music=false`)}
+            download
+            className={`${btnSecondary} col-span-2`}
+            title="The same Reel with no sound: add a licensed or trending sound in Instagram / TikTok (no muted posts)"
+          >
+            Download without music
+          </a>
+          <ShareReel url={rendering.url} name={rendering.label || "reel"} />
           <button type="button" disabled={busy} className={btnSecondary} onClick={() => onGenerate({ seed: newSeed() })}>
             Regenerate
           </button>

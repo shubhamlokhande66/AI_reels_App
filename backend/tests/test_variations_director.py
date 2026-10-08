@@ -55,11 +55,11 @@ def test_registry_labels_and_unknown_strategy():
 def test_versions_use_different_pacing_transitions_and_effects_not_just_a_shuffle(clips):
     tls = {sid: _timeline_for(sid, clips) for sid in DEFAULT_SET}
     shots = {sid: len(t.segments) for sid, t in tls.items()}
-    assert shots["fast_trending"] > 1.8 * shots["cinematic"]  # tempo differs a lot
+    assert shots["viral"] > 1.8 * shots["cinematic"]  # tempo differs a lot
     minimal = tls["minimal"]
     assert {s.transition_in.type for s in minimal.segments} == {"cut"} and {s.effect for s in minimal.segments} == {"none"}
     assert any(s.transition_in.type in ("dissolve", "fade") for s in tls["cinematic"].segments)
-    assert any(s.effect != "none" for s in tls["fast_trending"].segments)
+    assert any(s.effect != "none" for s in tls["viral"].segments)
     assert any(s.speed < 1 for s in tls["luxury"].segments)  # slow motion
     # every version is a different edit
     docs = {sid: json.dumps([(s.clip_id, s.source_start, s.timeline_end, s.effect, s.transition_in.type, s.speed) for s in t.segments])

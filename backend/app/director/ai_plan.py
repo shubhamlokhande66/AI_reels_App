@@ -518,6 +518,12 @@ def plan_to_timeline(
                         color_grade=grade, overlays=overlays, music_volume=music_volume)  # fmt: skip
     if snapped:
         fixes.append(f"{snapped} cut(s) were moved onto the nearest beat.")
+    early_cta = [k for k, p in enumerate(purposes) if p == "cta" and k < len(purposes) - 2 and segments[k].timeline_start < duration * 0.75]
+    for k in early_cta:  # the call to action is the ending: earlier "cta" shots are the build-up to it
+        purposes[k] = "payoff"
+        log[k]["purpose"] = "payoff"
+    if early_cta:
+        fixes.append(f"{len(early_cta)} shot(s) the AI marked as call to action come before the ending; they count as payoff shots.")
     return DirectedReel(timeline=timeline, fixes=fixes, post_copy=_post_copy(plan), purposes=purposes, log=log, problems=problems, pace=cut_pace)
 
 

@@ -337,12 +337,28 @@ def test_big_upscales_get_denoise_and_sharpen_small_ones_do_not():
 
     assert _enhance(1.2) == ("", "")
     pre, post = _enhance(3.0)
-    assert pre.startswith("hqdn3d") and post.startswith("unsharp")
+    assert pre.startswith("hqdn3d") and post.startswith("cas=")  # contrast-adaptive sharpening after the upscale
     low = SourceClip(path=Path("x.mp4"), width=360, height=640)
     g = build_filter_graph(seg(), low, plan_segments([seg()])[0], FILL)
-    assert "hqdn3d" in g and "unsharp" in g
+    assert "hqdn3d" in g and "cas=" in g
     hi = SourceClip(path=Path("x.mp4"), width=1080, height=1920)
     assert "hqdn3d" not in build_filter_graph(seg(), hi, plan_segments([seg()])[0], FILL)
+
+
+def test_quality_filters_stabilise_smooth_and_correct_exposure():
+    from app.video.cutter import RenderConfig, quality_filters, time_filters
+
+    final, preview = RenderConfig(), RenderConfig(smooth_slowmo=False, stabilize=False)
+    shaky_dark = SourceClip(path=Path("x.mp4"), width=1080, height=1920, shaky=True, brightness=0.2)
+    q = quality_filters(shaky_dark, final)
+    assert q[0].startswith("deshake") and any(f.startswith("eq=brightness=") for f in q)
+    assert not any(f.startswith("deshake") for f in quality_filters(shaky_dark, preview))  # previews stay fast
+    assert quality_filters(SourceClip(path=Path("x.mp4"), width=1080, height=1920), final) == []  # a good clip is untouched
+    assert quality_filters(SourceClip(path=Path("x.mp4"), width=1080, height=1920, brightness=0.9), final)[0].startswith("eq=gamma")
+    slow = seg().model_copy(update={"speed": 0.6})
+    assert any(f.startswith("minterpolate") for f in time_filters(slow, final))  # real in-between frames
+    assert not any(f.startswith("minterpolate") for f in time_filters(slow, preview))
+    assert not any(f.startswith("minterpolate") for f in time_filters(seg(), final))  # normal speed: no interpolation
 
 
 # ------------------------------------------------------------------ long Reels are joined in chunks
@@ -439,3 +455,19 @@ def test_a_reel_with_accent_hits_renders_at_exactly_the_planned_length(prepared,
     res = render_timeline(with_hits, sources, media_dir / "beat120.mp3", tmp_path / "hits.mp4", tmp_path / "w", steady,
                           RenderConfig(segment_preset="ultrafast", final_preset="ultrafast"))  # fmt: skip
     _assert_playable(res.path, 12)
+
+
+@pytest.mark.slow
+async def test_a_reel_can_be_downloaded_without_music(client, media_dir, storage):
+    from app.core.ffmpeg import probe
+    from tests.test_jobs_api import make_project, wait_job
+
+    pid = await make_project(client, media_dir, videos=["clip_a.mp4"], duration=5)
+    job = (await client.post(f"/api/projects/{pid}/generate")).json()
+    done, _ = await wait_job(client, pid, job["id"])
+    assert done["status"] == "completed", done["error"]
+    rid = (await client.get(f"/api/projects/{pid}")).json()["output"]["id"]
+    r = await client.get(f"/api/projects/{pid}/renderings/{rid}/file", params={"music": "false", "download": "true"})
+    assert r.status_code == 200 and "no-music" in r.headers["content-disposition"]
+    silent = next(storage.local_path(f"projects/{pid}/output").glob("*_nomusic.mp4"))
+    assert {s["codec_type"] for s in probe(silent)["streams"]} == {"video"}  # the picture, no sound

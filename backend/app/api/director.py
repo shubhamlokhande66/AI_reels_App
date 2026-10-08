@@ -53,6 +53,16 @@ async def give_feedback(project_id: str, payload: FeedbackIn):
     return (await fb.load_profile()).to_doc()
 
 
+@router.get("/projects/{project_id}/generations")
+async def generations(project_id: str):
+    """Every generation of this project: analysis versions, model + prompt version, creative plan, EDL version, reviewer
+    score, self-correction rounds and the output (observability)."""
+    from app.services.generations import list_generations
+
+    doc = await ps.get_project_doc(project_id)
+    return await list_generations(doc["_id"])
+
+
 @router.get("/director/profile")
 async def get_profile():
     return (await fb.load_profile()).to_doc()

@@ -117,6 +117,8 @@ def keyframe_times(duration: float, analysis=None, n: int = KEYFRAMES) -> list[f
         cands.append((2.6, (sharp.start + sharp.end) / 2))
         lively = max(windows, key=lambda w: w.motion)
         cands.append((2.0, (lively.start + lively.end) / 2))
+    for i, seg in enumerate(getattr(analysis, "best_segments", None) or []):  # measured best moments first
+        cands.append((3.1 - 0.05 * i, (seg.start + seg.end) / 2))
     for sc in (analysis.scene_changes if analysis is not None else [])[:6]:
         cands.append((2.3, sc + 0.4))
     cands += [(1.0, duration * (i + 1) / (n + 1)) for i in range(n)]

@@ -160,7 +160,7 @@ export default function NewBeatSyncPage() {
                 {step === "audio" && "Uploading song…"}
                 {step === "checking" && "Splitting on the beat…"}
               </p>
-              {(step === "videos" || step === "audio") && <ProgressBar value={pct * 100} label="Upload progress" />}
+              {(step === "videos" || step === "audio") && <ProgressBar value={pct * 100} label="Upload progress" showEta />}
             </div>
           )}
           <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>

@@ -64,6 +64,8 @@ def _distinct(sig: list[float], others: list[list[float]]) -> float:
 def hook_parts(clip: ClipInput, w: UsableWindow, terms: set[str], others: list[list[float]]) -> dict[str, float]:
     sem = clip.semantic
     clarity = 1.0 if w.face else (0.75 if w.focus_source in ("subject", "motion") else 0.45)
+    if w.shot_size != "unknown":  # measured (video/shots.py): a dominant, well-placed subject; nothing in an empty frame
+        clarity = (0.5 * clarity + 0.3 * w.subject + 0.2 * w.composition) * (1.0 - 0.6 * w.empty)
     curiosity = (0.6 * sem.importance + (0.4 if sem.hook_candidate else 0.0)) if sem else 0.4
     return {
         "impact": 0.6 * w.quality + 0.4 * w.sharpness,
@@ -101,6 +103,8 @@ def subject_value(clip: ClipInput, w: UsableWindow) -> float:
     """0..1: how clearly a moment shows a subject (a face, a product, a framed object) rather than general footage."""
     sem = clip.semantic
     framed = 1.0 if w.face else (0.7 if w.focus_source in ("subject", "motion") else 0.2)
+    if w.shot_size != "unknown":  # measured: how much one subject dominates, and how close the shot is
+        framed = 0.5 * framed + 0.5 * max(w.subject, {"close": 0.8, "medium": 0.5}.get(w.shot_size, 0.2))
     product = 1.0 if sem is not None and sem.category in PRODUCT_CATEGORIES else (0.4 if sem is None else 0.1)
     return 0.5 * framed + 0.3 * product + 0.2 * w.sharpness
 

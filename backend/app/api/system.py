@@ -8,7 +8,11 @@ from dataclasses import asdict
 
 import asyncio
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
+from pydantic import Field
+
+from app.core.admin import require_admin
+from app.models.base import CamelModel
 from fastapi.responses import HTMLResponse
 
 from app.ai.provider import get_provider
@@ -67,6 +71,43 @@ def lan_addresses() -> list[str]:
         if ip not in out and re.match(PRIVATE_NETWORK_ORIGIN, f"http://{ip}"):
             out.append(ip)
     return out
+
+
+@router.get("/admin/session")
+async def admin_session(request: Request):
+    """Whether this browser is in admin mode (``required`` = an admin key is configured on the server)."""
+    from app.core.admin import admin_required, is_admin
+
+    return {"admin": is_admin(request), "required": admin_required()}
+
+
+class RetentionIn(CamelModel):
+    enabled: bool
+    uploads_hours: int = Field(ge=1, le=24 * 90)
+    projects_hours: int = Field(ge=1, le=24 * 90)
+
+
+@router.get("/retention")
+async def retention():
+    """How long uploads and projects are kept (shown to users so they download in time)."""
+    from app.services.retention import get_retention
+
+    return await get_retention()
+
+
+@router.put("/admin/retention", dependencies=[Depends(require_admin)])
+async def set_retention(payload: RetentionIn):
+    from app.services.retention import set_retention as save
+
+    return await save(payload.enabled, payload.uploads_hours, payload.projects_hours)
+
+
+@router.post("/admin/retention/run", dependencies=[Depends(require_admin)])
+async def run_retention():
+    """Run the auto-delete now (it also runs by itself every 10 minutes)."""
+    from app.services.retention import sweep
+
+    return await sweep()
 
 
 @router.get("/phone")

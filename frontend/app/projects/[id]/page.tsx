@@ -2,23 +2,29 @@
 
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { assetUrl, errorMessage } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { api, assetUrl, errorMessage } from "@/lib/api";
 import { ProductProjectView } from "@/components/ProductProjectView";
+import { StoryStudio } from "@/components/StoryStudio";
 import { ProgressStages } from "@/components/ProgressStages";
 import { PostCopy } from "@/components/PostCopy";
 import { ReelPreview } from "@/components/ReelPreview";
+import { PublishPanel } from "@/components/PublishPanel";
+import { RetentionNotice } from "@/components/RetentionSettings";
 import { PerformanceForm, ProjectTools } from "@/components/ProjectTools";
 import { ReelPlanPanel } from "@/components/ReelPlanPanel";
+import { CreativeDirectorPanel } from "@/components/CreativeDirectorPanel";
+import { ProjectFootageGate, checkProject } from "@/components/ProjectFootageGate";
+import type { FootageCheck } from "@/lib/footage";
 import { DirectorFeedback, PurgeMediaButton } from "@/components/DirectorFeedback";
 import { AiModeBadge } from "@/components/AiSettings";
 
 const AI_LABEL: Record<string, string> = { ollama: "Ollama", openai: "OpenAI", gemini: "Gemini", claude: "Claude" };
 import { ReviseBox } from "@/components/ReviseBox";
 import { btnDanger, btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner, StatusBadge } from "@/components/ui";
-import { useCancelJob, useDeleteProject, useGenerate, useProject, useRenderings } from "@/hooks/useApi";
+import { useAdmin, useCancelJob, useDeleteProject, useGenerate, useProject, useRenderings, useTimelineActions } from "@/hooks/useApi";
 import { formatBytes, formatDuration, styleLabel } from "@/lib/format";
-import type { GenerateOptions } from "@/types/api";
+import type { ClipSummary, GenerateOptions } from "@/types/api";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +35,11 @@ export default function ProjectPage() {
   const cancelJob = useCancelJob(id);
   const del = useDeleteProject();
   const renderings = useRenderings(id, project?.status === "completed");
+  const { restore } = useTimelineActions(id);
+  const { admin } = useAdmin();
+  const lastOpts = useRef<GenerateOptions>({}); // what the Retry button repeats after a failed start // the technical internals (plan tables, safety log, diagnostics) are for the administrator
+  // not enough footage for the Reel length: asked before anything is generated (add clips, or shorten)
+  const [gateFor, setGateFor] = useState<{ check: FootageCheck; opts?: GenerateOptions; run?: () => void } | null>(null);
 
   // A prompt typed on the create page ("AI Edit"): pre-fill it into "Change this Reel" and run it once, automatically,
   // as soon as the Reel is ready. Taken from the URL once, then cleared so a refresh does not run it again.
@@ -42,9 +53,34 @@ export default function ProjectPage() {
   if (error || !project) return <ErrorBanner message={errorMessage(error)} onRetry={() => refetch()} />;
 
   if (project.settings.reelType === "product") return <ProductProjectView project={project} />;
+  if (project.settings.reelType === "story") return <StoryStudio project={project} />;
 
   const busy = project.status === "processing" || generate.isPending;
-  const start = (opts: GenerateOptions = {}) => generate.mutate(opts);
+  // after a click that starts a job, take the person to its live progress at the top of the page
+  const toProgress = () => window.scrollTo({ top: 0, behavior: "smooth" });
+  const start = (opts: GenerateOptions = {}) => {
+    const check = checkProject(project, opts.duration);
+    if (!check.ok) return setGateFor({ check, opts });
+    setGateFor(null);
+    lastOpts.current = opts;
+    generate.mutate(opts, { onSuccess: toProgress });
+  };
+  const guard = (run: () => void) => {
+    const check = checkProject(project);
+    if (!check.ok) return setGateFor({ check, run });
+    run();
+  };
+  const continueAfterGate = async (seconds: number | null) => {
+    const g = gateFor;
+    setGateFor(null);
+    if (!g) return;
+    if (g.run) {
+      if (seconds) await api.updateProject(id, { duration: seconds });
+      g.run();
+    } else {
+      generate.mutate(seconds ? { ...g.opts, duration: seconds, label: `${seconds}s (fits the footage)` } : g.opts ?? {}, { onSuccess: toProgress });
+    }
+  };
 
   return (
     <>
@@ -53,7 +89,7 @@ export default function ProjectPage() {
         subtitle={`${styleLabel(project.settings.style)} · ${project.settings.duration}s · ${project.videos.length} clip${project.videos.length === 1 ? "" : "s"}`}
         action={
           <div className="flex items-center gap-2">
-            {project.timeline && (
+            {admin && project.timeline && (
               <Link href={`/projects/${id}/beats`} className={btnSecondary}>
                 🎵 Beat sync
               </Link>
@@ -68,7 +104,14 @@ export default function ProjectPage() {
         }
       />
 
-      {generate.error && <div className="mb-4"><ErrorBanner message={errorMessage(generate.error)} /></div>}
+      {generate.error && (
+        <div className="mb-4">
+          <ErrorBanner message={errorMessage(generate.error)} onRetry={() => generate.mutate(lastOpts.current, { onSuccess: toProgress })} />
+        </div>
+      )}
+      {gateFor && (
+        <ProjectFootageGate project={project} check={gateFor.check} onContinue={(s) => void continueAfterGate(s)} onClose={() => setGateFor(null)} />
+      )}
 
       {project.status === "processing" && (
         <Card>
@@ -116,6 +159,7 @@ export default function ProjectPage() {
         </Card>
       )}
 
+      <RetentionNotice updatedAt={project.updatedAt} hasReel={!!project.output} />
       {project.status === "completed" && project.output && (
         <ReelPreview
           rendering={project.output}
@@ -124,9 +168,17 @@ export default function ProjectPage() {
           versionCount={renderings.data?.length ?? 1}
           busy={busy}
           onGenerate={start}
+          songStart={project.audio ? project.timeline?.audioStart ?? null : null}
         />
       )}
+      {project.status === "completed" && project.output && (
+        <PublishPanel key={`pub-${project.output.id}`} projectId={project.id} rendering={project.output} />
+      )}
       {project.status === "completed" && project.output && <DirectorFeedback key={project.output.id} project={project} />}
+
+      {project.timeline && project.status !== "draft" && project.status !== "failed" && (
+        <CreativeDirectorPanel project={project} busy={busy} onGenerate={start} guard={guard} />
+      )}
 
       {project.timeline && project.status !== "draft" && project.status !== "failed" && (
         <ReviseBox projectId={id} busy={busy} initialText={initialPrompt} autoRun={!!initialPrompt} />
@@ -153,7 +205,7 @@ export default function ProjectPage() {
         </p>
       )}
 
-      {project.timeline?.notes && project.timeline.notes.length > 0 && (
+      {admin && project.timeline?.notes && project.timeline.notes.length > 0 && (
         <ul className="mt-6 space-y-1 rounded-2xl border border-border bg-surface p-4 text-sm text-muted" aria-label="Editing notes">
           {project.timeline.notes.map((n) => (
             <li key={n}>✦ {n}</li>
@@ -183,6 +235,16 @@ export default function ProjectPage() {
                 <a href={assetUrl(r.downloadUrl)} download className="mt-1 inline-block text-xs text-accent hover:underline">
                   Download
                 </a>
+                {r.id !== project.output?.id && (
+                  <button
+                    type="button"
+                    className="ml-3 text-xs text-accent hover:underline disabled:opacity-50"
+                    disabled={busy || restore.isPending}
+                    onClick={() => restore.mutate(r.id, { onSuccess: () => refetch() })}
+                  >
+                    Use this version
+                  </button>
+                )}
                 <div className="mt-1">
                   <PerformanceForm rendering={r} />
                 </div>
@@ -207,7 +269,7 @@ export default function ProjectPage() {
                 {v.analysis && (
                   <span
                     className={`text-xs ${v.analysis.usable ? "text-muted" : "text-warning"}`}
-                    title={v.analysis.flags.join(", ")}
+                    title={clipTitle(v.analysis)}
                   >
                     {v.analysis.usable ? `quality ${Math.round(v.analysis.qualityScore * 100)}%` : "skipped"}
                   </span>
@@ -233,10 +295,10 @@ export default function ProjectPage() {
         </Card>
       </section>
 
-      {project.status !== "processing" && project.reelPlan && (
+      {admin && project.status !== "processing" && project.reelPlan && (
         <ReelPlanPanel plan={project.reelPlan} stale={(project.reelPlan.timelineVersion ?? 0) < (project.timelineVersion ?? 0)} />
       )}
-      {project.status !== "processing" && <ProjectTools project={project} busy={busy} />}
+      {project.status !== "processing" && <ProjectTools project={project} busy={busy} admin={admin} />}
 
       <div className="mt-10 flex flex-wrap items-start gap-3">
         {project.status === "completed" && project.videos.some((v) => !v.purged) && <PurgeMediaButton project={project} busy={busy} />}
@@ -255,4 +317,16 @@ export default function ProjectPage() {
       </div>
     </>
   );
+}
+
+/** Hover text for a clip: its flags, then what the shot analysis measured (when it did). */
+function clipTitle(a: ClipSummary): string {
+  const parts = [a.flags.join(", ")];
+  const sizes = Object.entries(a.shotSizes ?? {}).sort((x, y) => y[1] - x[1]);
+  if (sizes.length) parts.push(`mostly ${sizes[0][0]} shots`);
+  if (a.compositionScore != null) parts.push(`composition ${Math.round(a.compositionScore * 100)}%`);
+  if (a.productVisibility != null) parts.push(`product visible ${Math.round(a.productVisibility * 100)}%`);
+  const best = a.bestSegments?.[0];
+  if (best) parts.push(`best moment ${best.start.toFixed(1)}–${best.end.toFixed(1)}s`);
+  return parts.filter(Boolean).join(" · ");
 }

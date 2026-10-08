@@ -15,6 +15,7 @@ from app.jobs import manager
 from app.models.base import CamelModel
 from app.models.timeline import Timeline
 from app.revise import actions as rv
+from app.revise.director_patch import to_patch
 from app.schemas.project import GenerateRequest
 from app.services import project_service as ps
 from app.services import timeline_service as ts
@@ -113,6 +114,59 @@ async def _revise_in_place(project_id: str, doc: dict, tl: Timeline, plan, base:
     return {**base, "mode": "edit", "notes": notes + more, "job": ps.job_to_out(job)}
 
 
+async def _clip_inputs(project_id: str, doc: dict) -> list:
+    """The project's clips with their cached analyses (and what the vision model saw), for edits that choose footage."""
+    from app.ai.understanding import ClipSemantic
+    from app.core.database import get_db
+    from app.jobs.pipeline import _clip_key, _semantic_key
+    from app.models.analysis import ClipAnalysis
+    from app.video.timeline import ClipInput
+
+    st = get_storage()
+    names = {m["_id"]: m.get("originalName", "") async for m in get_db().media.find({"projectId": doc["_id"]})}
+    out = []
+    for mid in doc.get("videoOrder", []):
+        key = _clip_key(project_id, str(mid))
+        if not st.exists(key):
+            continue
+        try:
+            a = ClipAnalysis.model_validate_json(st.read_bytes(key))
+        except ValueError:
+            continue
+        sem = None
+        skey = _semantic_key(project_id, str(mid))
+        if st.exists(skey):
+            try:
+                sem = ClipSemantic.model_validate_json(st.read_bytes(skey))
+            except ValueError:
+                sem = None
+        out.append(ClipInput(str(mid), names.get(mid, ""), a, sem))
+    return out
+
+
+async def _revise_director(project_id: str, doc: dict, tl: Timeline, plan, base: dict, label: str, dry: bool):
+    """Creative patches (stronger hook, reveal on the drop, product earlier) on the current edit: same cuts, one undoable step."""
+    from app.revise.director_patch import apply_patches
+    from app.video.timeline_ops import apply_operations
+
+    kinds = [a.kind for a in plan.actions if a.kind in rv.DIRECTOR_KINDS]
+    if dry:
+        return {**base, "mode": "edit", "notes": [rv.describe(a) for a in plan.actions if a.kind in rv.DIRECTOR_KINDS]}
+    clips = await _clip_inputs(project_id, doc)
+    mm = await asyncio.to_thread(_music_map, project_id, doc, tl)
+    new_tl, notes = await asyncio.to_thread(apply_patches, tl, kinds, clips, mm, brief=doc["settings"].get("brief", ""))
+    others = [a for a in plan.actions if a.kind not in rv.DIRECTOR_KINDS]
+    if others:
+        ctx = await ts.context_for(doc)
+        edit_ops, more, _ = rv.actions_to_ops(others, new_tl, audio_duration=ctx.audio_duration)
+        if edit_ops:
+            new_tl = apply_operations(new_tl, edit_ops, ctx)
+        notes += more
+    await ts.replace(project_id, new_tl, label)
+    job = await manager.submit_render(project_id, "final", label=label)
+    return {**base, "mode": "edit", "notes": notes, "job": ps.job_to_out(job)}
+
+
 @router.post("/projects/{project_id}/revise", dependencies=[Depends(rate_limit("job", 30))])
 async def revise(project_id: str, payload: ReviseRequest):
     """Understand the request, apply it to the Reel and start rendering the new version.
@@ -141,7 +195,8 @@ async def revise(project_id: str, payload: ReviseRequest):
     dry = payload.dry_run or needs_confirmation
     base = {"understood": _understood(plan.actions), "notUnderstood": plan.not_understood, "usedAi": plan.used_ai,
             "aiNote": plan.ai_note, "examples": list(rv.EXAMPLES), "warnings": [], "notes": [], "job": None,
-            "needsConfirmation": needs_confirmation, "actions": [a.to_dict() for a in plan.actions]}  # fmt: skip
+            "needsConfirmation": needs_confirmation, "actions": [a.to_dict() for a in plan.actions],
+            "patches": [to_patch(a, tl) for a in plan.actions]}  # fmt: skip
 
     if not plan.actions:
         return {**base, "mode": "none"}
@@ -149,6 +204,8 @@ async def revise(project_id: str, payload: ReviseRequest):
     label = rv.short_label(payload.instruction)
     rebuild = [a for a in plan.actions if a.rebuild]
     hist = doc.get("timelineHistory") or []
+    if not rebuild and any(a.kind in rv.DIRECTOR_KINDS for a in plan.actions):
+        return await _revise_director(project_id, doc, tl, plan, base, label, dry)
     warnings: list[str] = []
 
     if rebuild and {a.kind for a in rebuild} <= INPLACE_KINDS and not any(a.kind == "duration" for a in plan.actions):
@@ -179,6 +236,6 @@ async def revise(project_id: str, payload: ReviseRequest):
                 "notUnderstood": plan.not_understood + ([] if notes else ["Nothing to change for that request."])}  # fmt: skip
     if dry:
         return {**base, "mode": "edit", "understood": _understood(applied), "notes": notes}
-    await ts.apply(project_id, edit_ops, label)  # atomic; raises a clear error and changes nothing if any op is invalid
+    await ts.apply(project_id, edit_ops, label, manual=False)  # atomic; raises a clear error and changes nothing if any op is invalid
     job = await manager.submit_render(project_id, "final", label=label)
     return {**base, "mode": "edit", "understood": _understood(applied), "notes": notes, "job": ps.job_to_out(job)}

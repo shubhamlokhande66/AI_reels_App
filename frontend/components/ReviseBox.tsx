@@ -17,6 +17,9 @@ const IDEAS = [
   "Louder music",
   "Use the luxury style",
   "Show a different order",
+  "Change the hook",
+  "Use the drop for the product reveal",
+  "Show the product earlier",
 ];
 
 interface Props {

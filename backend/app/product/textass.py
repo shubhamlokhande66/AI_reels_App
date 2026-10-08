@@ -14,6 +14,7 @@ from app.product.models import TextLayer
 from app.product.styles import ProductStyle
 
 _FONT_OK = re.compile(r"[^A-Za-z0-9 \-_.]")
+INDIC = re.compile("[" + chr(0x0900) + "-" + chr(0x0DFF) + "]")  # Devanagari ... Sinhala (U+0900-U+0DFF): Indic scripts
 
 
 def clean_text(text: str, limit: int = 80) -> str:
@@ -85,6 +86,8 @@ def write_text_ass(layers: list[TextLayer], style: ProductStyle, path: Path, w: 
     if not events:
         return None
     font = _FONT_OK.sub("", style.font)[:40] or "Arial"
+    # letter spacing makes libass place every glyph on its own: Indic vowel signs and conjuncts would fall apart
+    spacing = "0" if any(INDIC.search(layer.text) for layer in layers) else "1.5"
     size_px = int(0.065 * h)
     lines = [
         "[Script Info]", "ScriptType: v4.00+", f"PlayResX: {w}", f"PlayResY: {h}", "WrapStyle: 2", "ScaledBorderAndShadow: yes", "",
@@ -92,7 +95,7 @@ def write_text_ass(layers: list[TextLayer], style: ProductStyle, path: Path, w: 
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
         "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
         f"Style: Default,{font},{size_px},{_bgr(style.text_color)},{_bgr(style.text_color)},{_bgr(style.text_outline)},&H64000000&,"
-        f"{-1 if style.bold else 0},0,0,0,100,100,1.5,0,1,{max(2, h // 640)},{max(1, h // 960)},5,20,20,20,1",
+        f"{-1 if style.bold else 0},0,0,0,100,100,{spacing},0,1,{max(2, h // 640)},{max(1, h // 960)},5,20,20,20,1",
         "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ]
     for start, end, body in sorted(events, key=lambda e: e[0]):

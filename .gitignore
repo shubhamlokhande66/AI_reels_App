@@ -10,3 +10,6 @@ node_modules/
 /storage/
 reels/
 *.tsbuildinfo
+
+# production secrets (the .example file is committed)
+.env.production

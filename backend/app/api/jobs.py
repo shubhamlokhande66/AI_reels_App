@@ -56,6 +56,18 @@ class VariationsRequest(CamelModel):
     seed: int = 0
 
 
+class SplitRequest(CamelModel):
+    count: int = Field(default=3, ge=1, le=5)
+    seconds: int = Field(default=30, ge=10, le=90)
+
+
+@router.post("/projects/{project_id}/split", response_model=JobOut, status_code=202, dependencies=[Depends(rate_limit("job", 30))])
+async def split(project_id: str, payload: SplitRequest):
+    """One long video -> several Reels made from its best parts (talks: the densest whole sentences; other footage: the
+    strongest moments). They appear as versions of this project."""
+    return ps.job_to_out(await manager.submit_split(project_id, payload.count, payload.seconds))
+
+
 @router.get("/variation-strategies")
 async def variation_strategies():
     from app.variations.strategies import DEFAULT_SET, STRATEGIES
@@ -123,7 +135,9 @@ async def list_renderings(project_id: str):
 
 
 @router.get("/projects/{project_id}/renderings/{rendering_id}/file")
-async def rendering_file(project_id: str, rendering_id: str, download: bool = False):
+async def rendering_file(project_id: str, rendering_id: str, download: bool = False, music: bool = True):
+    """The rendered MP4. ``music=false``: the same Reel with no sound (made once by copying the picture, instant), to
+    post with a licensed / trending sound added inside Instagram or TikTok."""
     doc = await ps.get_project_doc(project_id)
     r = await get_db().renderings.find_one({"_id": parse_id(rendering_id, "Rendering"), "projectId": doc["_id"]})
     if not r:
@@ -132,7 +146,41 @@ async def rendering_file(project_id: str, rendering_id: str, download: bool = Fa
     if not path.exists():
         raise NotFoundError("The rendered file is missing from storage.", code="RENDERING_FILE_MISSING")
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", doc["name"]).strip("-")[:60] or "reel"
+    if not music:
+        import asyncio
+
+        from app.core.ffmpeg import run_ffmpeg
+
+        silent = path.with_name(f"{path.stem}_nomusic.mp4")
+        if not silent.exists():  # the picture is copied as it is: no re-encode, no quality loss, under a second
+            await asyncio.to_thread(lambda: run_ffmpeg(["-i", str(path), "-map", "0:v:0", "-c:v", "copy", "-an", "-movflags", "+faststart", str(silent)], timeout=120))
+        path, slug = silent, f"{slug}-no-music"
     return FileResponse(
         path, media_type="video/mp4", filename=f"{slug}.mp4" if download else None,
         content_disposition_type="attachment" if download else "inline",
     )
+
+
+@router.get("/projects/{project_id}/song-parts", dependencies=[Depends(rate_limit("job", 60))])
+async def song_parts(project_id: str, duration: float = Query(default=15, ge=5, le=600), count: int = Query(default=5, ge=1, le=10)):
+    """The best parts of the project's song for a Reel of ``duration`` seconds, best first (the first is what the editor
+    picks automatically), each with why. The song is analysed once (cached, also across projects)."""
+    import asyncio
+
+    from app.core.errors import ValidationFailed
+    from app.jobs import pipeline as pl
+    from app.schemas.project import ProjectSettings
+    from app.video.timeline import rank_music_windows
+
+    doc = await ps.get_project_doc(project_id)
+    audio = await get_db().media.find_one({"_id": doc.get("audioId")}) if doc.get("audioId") else None
+    if audio is None:
+        raise ValidationFailed("Upload a song first.", code="NO_AUDIO")
+    if audio.get("purged"):
+        raise ValidationFailed("The song of this project was deleted (privacy). Upload it again.", code="MEDIA_PURGED")
+    inp = pl.PipelineInput(project_id=str(doc["_id"]), job_type="analyze", videos=[], settings=ProjectSettings.model_validate(doc["settings"]),
+                           audio=pl.MediaRef(str(audio["_id"]), audio["originalName"], audio["storedKey"]))  # fmt: skip
+    analysis = await asyncio.to_thread(pl.analyze_music, inp, get_storage(), lambda *_: None)
+    parts = rank_music_windows(analysis, duration, k=count)
+    return {"songSeconds": round(analysis.duration, 2), "bpm": round(analysis.bpm, 1), "duration": duration,
+            "parts": parts, "tooShort": analysis.duration < duration}  # fmt: skip

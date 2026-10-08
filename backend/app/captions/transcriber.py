@@ -72,8 +72,13 @@ def transcribe_window(
              "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(wav)],
             timeout=120, error_code="AUDIO_DECODE_FAILED",
         )  # fmt: skip
+        # the samples are read here (16 kHz mono float), so the model never decodes files itself: no dependency on the
+        # audio-decoding library version faster-whisper was built against
+        import soundfile as sf
+
+        samples, _sr = sf.read(str(wav), dtype="float32")
         segments, _info = model.transcribe(
-            str(wav), word_timestamps=True, vad_filter=True, language=s.whisper_language or None
+            samples, word_timestamps=True, vad_filter=True, language=s.whisper_language or None
         )
         words: list[Word] = []
         for seg in segments:  # generator: transcription happens as we iterate

@@ -265,7 +265,7 @@ export function ProductReelForm() {
         {busy && (
           <div aria-live="polite">
             <p className="mb-1 text-sm text-muted">{STEP_LABEL[step]}</p>
-            {(step === "photos" || step === "music") && <ProgressBar value={pct * 100} label="Upload progress" />}
+            {(step === "photos" || step === "music") && <ProgressBar value={pct * 100} label="Upload progress" showEta />}
           </div>
         )}
         <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>

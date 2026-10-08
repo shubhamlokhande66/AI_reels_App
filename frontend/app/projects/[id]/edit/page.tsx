@@ -213,7 +213,7 @@ export default function EditorPage() {
           </div>
           {job.data && (job.data.status === "queued" || job.data.status === "processing") && (
             <div>
-              <ProgressBar value={job.data.progress} label="Render progress" />
+              <ProgressBar value={job.data.progress} label="Render progress" showEta />
               <p className="mt-1 text-xs text-muted">{job.data.status === "queued" ? "Waiting in the render queue…" : `Rendering ${job.data.progress}%`}</p>
             </div>
           )}

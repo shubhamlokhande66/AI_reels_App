@@ -78,7 +78,7 @@ async def quality_fix(project_id: str, payload: FixRequest):
     last_error: Exception | None = None
     for ops in candidates:
         try:
-            new_state = await ts.apply(project_id, ops, f"Auto-fix: {payload.code.replace('_', ' ').lower()}")
+            new_state = await ts.apply(project_id, ops, f"Auto-fix: {payload.code.replace('_', ' ').lower()}", manual=False)
             break
         except EditError as exc:
             last_error = exc

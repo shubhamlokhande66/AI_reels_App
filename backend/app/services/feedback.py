@@ -26,8 +26,9 @@ log = logging.getLogger(__name__)
 EVENTS = (
     "accepted", "rejected", "rejected_opening", "replaced_clip", "removed_shot", "changed_duration", "changed_style",
     "changed_pace", "removed_effect", "added_effect", "removed_transition", "added_transition", "changed_speed",
-    "edited_text", "regenerated",
+    "edited_text", "regenerated", "chose_concept",
 )  # fmt: skip
+CONCEPTS = ("viral", "cinematic", "premium")
 REJECT_REASONS = ("opening", "pacing", "music", "clips", "text", "effects", "other")
 MIN_EVIDENCE = 3  # events before the profile changes anything
 PROFILE_KEY = "settings/director_profile.json"
@@ -40,6 +41,7 @@ def edit_facts(tl: Timeline) -> dict[str, Any]:
         "avgShot": round(tl.duration / max(n, 1), 3), "shots": n, "duration": round(tl.duration, 2), "style": tl.style,
         "transitionRatio": round(sum(1 for s in tl.segments[1:] if s.transition_in.type != "cut") / max(n - 1, 1), 3),
         "effectRatio": round(sum(1 for s in tl.segments if s.effect != "none") / max(n, 1), 3), "texts": len(tl.overlays),
+        "concept": (tl.creative_plan or {}).get("direction") if (tl.creative_plan or {}).get("direction") in CONCEPTS else None,
     }  # fmt: skip
 
 
@@ -107,8 +109,11 @@ class DirectorProfile:
     enabled: bool = True
 
     def to_doc(self) -> dict[str, Any]:
+        p = self.preferences
+        summary = {"preferred_pacing": p.get("pace"), "transition_preference": p.get("transitions"), "style": p.get("style"),
+                   "concept": p.get("concept"), "shot_range": p.get("shotRange")}  # fmt: skip
         return {"ready": self.ready, "enabled": self.enabled, "evidence": self.evidence, "minEvidence": MIN_EVIDENCE,
-                "preferences": self.preferences, "counts": self.counts}  # fmt: skip
+                "preferences": self.preferences, "counts": self.counts, "summary": {k: v for k, v in summary.items() if v}}  # fmt: skip
 
 
 def build_profile(events: list[dict[str, Any]], enabled: bool = True) -> DirectorProfile:
@@ -136,6 +141,13 @@ def build_profile(events: list[dict[str, Any]], enabled: bool = True) -> Directo
     prefs["hook"] = "aggressive" if counts["rejected_opening"] >= 2 else "balanced"
     texts = [a.get("texts", 0) for a in accepted]
     prefs["text"] = "minimal" if (texts and mean(texts) <= 1) or counts["edited_text"] >= 3 else "as styled"
+    if accepted and any(a.get("avgShot") for a in accepted):  # the shot lengths the person keeps (e.g. 0.7-1.2 s)
+        shots = sorted(a["avgShot"] for a in accepted if a.get("avgShot"))
+        prefs["shotRange"] = [round(shots[len(shots) // 4], 2), round(shots[(3 * len(shots)) // 4], 2)]
+    concepts = Counter(a.get("concept") for a in accepted if a.get("concept"))
+    concepts.update(e.get("facts", {}).get("concept") for e in events if e["event"] == "chose_concept" and e.get("facts", {}).get("concept"))
+    if concepts and concepts.most_common(1)[0][1] >= 2:
+        prefs["concept"] = concepts.most_common(1)[0][0]
     evidence = sum(counts[k] for k in EVENTS if k != "regenerated")
     return DirectorProfile(evidence >= MIN_EVIDENCE, evidence, prefs, dict(counts), enabled)
 

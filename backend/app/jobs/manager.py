@@ -39,6 +39,12 @@ def request_cancel(job_id: str) -> bool:
     return True
 
 
+def _current_user() -> str | None:
+    from app.core.auth import current_user
+
+    return current_user.get()
+
+
 def _spawn(job_id: ObjectId, coro) -> None:
     """Schedule a job's coroutine, registering its cancel event first — not inside the coroutine itself, since
     asyncio.create_task does not start it synchronously; registering it late would race a client that cancels the
@@ -114,7 +120,8 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
     seed = 0
     if req is not None:
         for field, key in (("style", "style"), ("pace", "pace"), ("sequence", "sequence"), ("teaser", "teaser"), ("step_labels", "stepLabels"), ("order_mode", "orderMode"), ("export_preset", "exportPreset"), ("brief", "brief"), ("audio_mode", "audioMode"), ("language", "language"), ("duration", "duration"), ("audio_start", "audioStart"), ("captions", "captions"),
-                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("auto_review", "autoReview"), ("sound_effects", "soundEffects"), ("trend_id", "trendId"), ("reference", "reference")):  # fmt: skip
+                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("auto_review", "autoReview"), ("sound_effects", "soundEffects"), ("trend_id", "trendId"), ("reference", "reference"), ("concept", "concept"),
+                           ("objective", "objective"), ("audience", "audience")):  # fmt: skip
             v = getattr(req, field)
             if v is not None:
                 settings[key] = v
@@ -158,6 +165,7 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
         project_id=str(doc["_id"]), job_type=job_type, videos=[ref(v) for v in videos],
         audio=ref(audio) if audio else None, settings=ps, rendering_id=str(rendering_id), seed=seed,
         project_name=doc["name"], revision=revision or [], references=await load_references(ps.reference), profile=profile,
+        brand=await load_brand(ps.brand_id),
     )  # fmt: skip
     prior_status = "completed" if doc.get("latestRenderingId") else "draft"
     label = (req.label if req and req.label else "") or ""
@@ -212,6 +220,47 @@ async def submit_render(project_id: str, quality: str = "final", label: str = ""
     return job
 
 
+async def submit_split(project_id: str, count: int, seconds: int) -> dict[str, Any]:
+    """One long video -> ``count`` Reels of about ``seconds`` each, made from its best parts (saved as versions)."""
+    if not 1 <= count <= 5:
+        raise ValidationFailed("Choose between 1 and 5 Reels.", code="INVALID_COUNT")
+    db = get_db()
+    doc = await get_project_doc(project_id)
+    if doc["status"] == "processing":
+        raise ConflictError("This project is already being processed.", code="PROJECT_BUSY")
+    media = {m["_id"]: m async for m in db.media.find({"projectId": doc["_id"]})}
+    videos = [media[i] for i in doc.get("videoOrder", []) if i in media]
+    audio = media.get(doc.get("audioId"))
+    if not videos:
+        raise ValidationFailed("Upload the long video first.", code="NO_VIDEOS")
+    from app.services.privacy import ensure_not_purged
+
+    ensure_not_purged([*videos, audio])
+    ps = ProjectSettings.model_validate({**doc["settings"], "duration": seconds})
+    now = utcnow()
+    job_id = ObjectId()
+    job = {
+        "_id": job_id, "projectId": doc["_id"], "type": "split", "status": "queued", "progress": 0,
+        "stage": "analyzing_videos", "stages": _initial_stages("split", False, ps.ai), "error": None,
+        "renderingId": None, "createdAt": now, "updatedAt": now,
+    }  # fmt: skip
+    await db.jobs.insert_one(job)
+    await db.projects.update_one({"_id": doc["_id"]}, {"$set": {"status": "processing", "latestJobId": job_id, "error": None, "updatedAt": now}})
+
+    def ref(m: dict[str, Any]) -> pl.MediaRef:
+        return pl.MediaRef(str(m["_id"]), m["originalName"], m["storedKey"], m.get("width") or 0, m.get("height") or 0)
+
+    inp = pl.PipelineInput(
+        project_id=str(doc["_id"]), job_type="split", videos=[ref(v) for v in videos], audio=ref(audio) if audio else None,
+        settings=ps, rendering_id=str(ObjectId()), project_name=doc["name"], kind="final",
+        strategies=[f"part{i + 1}" for i in range(count)], variant_ids=[str(ObjectId()) for _ in range(count)],
+        brand=await load_brand(ps.brand_id),
+    )  # fmt: skip
+    prior_status = "completed" if doc.get("latestRenderingId") else "draft"
+    _spawn(job_id, _run(job_id, doc["_id"], inp, ObjectId(), prior_status, ""))
+    return job
+
+
 async def submit_variations(project_id: str, strategy_ids: list[str] | None = None, seed: int = 0) -> dict[str, Any]:
     """Render several versions (each a different editing strategy) from the same footage and music."""
     from app.models.timeline import Timeline
@@ -256,7 +305,8 @@ async def submit_variations(project_id: str, strategy_ids: list[str] | None = No
     inp = pl.PipelineInput(
         project_id=str(doc["_id"]), job_type="variations", videos=[ref(v) for v in videos], audio=ref(audio) if audio else None,
         settings=ps, rendering_id=str(ObjectId()), seed=seed, project_name=doc["name"], kind="final", timeline=base,
-        strategies=ids, variant_ids=[str(ObjectId()) for _ in ids],
+        strategies=ids, variant_ids=[str(ObjectId()) for _ in ids], brand=await load_brand(ps.brand_id),
+        references=await load_references_for(ps.reference),
     )  # fmt: skip
     prior_status = "completed" if doc.get("latestRenderingId") else "draft"
     _spawn(job_id, _run(job_id, doc["_id"], inp, ObjectId(), prior_status, ""))
@@ -271,12 +321,18 @@ async def _update_job(job_id: ObjectId, *, only_active: bool = False, **fields: 
     await get_db().jobs.update_one(query, {"$set": fields})
 
 
-def _with_ai_context(fn, inp: pl.PipelineInput, storage, on_progress):
-    """Runs in the worker thread: AI calls made by this job are logged against its project."""
+def _with_ai_context(fn, inp: pl.PipelineInput, storage, on_progress, user_id: str | None = None):
+    """Runs in the worker thread: AI calls made by this job are logged against its project, and (accounts on) its
+    progress updates go to its owner's database (a worker thread does not inherit the request's user by itself)."""
     from app.ai.usage import ai_context
+    from app.core.auth import current_user
 
-    with ai_context(inp.project_id):
-        return fn(inp, storage, on_progress)
+    tok = current_user.set(user_id)
+    try:
+        with ai_context(inp.project_id):
+            return fn(inp, storage, on_progress)
+    finally:
+        current_user.reset(tok)
 
 
 async def _run(job_id, project_oid, inp: pl.PipelineInput, rendering_id, prior_status: str, label: str) -> None:
@@ -315,15 +371,15 @@ async def _run(job_id, project_oid, inp: pl.PipelineInput, rendering_id, prior_s
 
     try:
         try:
-            fn = {"render": pl.run_render, "variations": pl.run_variations, "product": pl.run_product}.get(inp.job_type, pl.run_pipeline)
-            result = await loop.run_in_executor(_get_executor(), _with_ai_context, fn, inp, get_storage(), on_progress)
+            fn = {"render": pl.run_render, "variations": pl.run_variations, "split": pl.run_split, "product": pl.run_product, "story": pl.run_story}.get(inp.job_type, pl.run_pipeline)
+            result = await loop.run_in_executor(_get_executor(), _with_ai_context, fn, inp, get_storage(), on_progress, _current_user())
         except BaseException as exc:  # noqa: BLE001 - every failure (including a cancel) must be recorded on the job
             cancelled = isinstance(exc, JobCancelled)
             err = _error_doc(exc)
             failed_stages = [dict(s, status="failed") if s["status"] == "running" else dict(s) for s in stages]
             await _update_job(job_id, status="cancelled" if cancelled else "failed", error=err, stages=failed_stages)
             # A failed/cancelled preview/re-render must not mark the whole project failed: the previous result still stands.
-            status = prior_status if cancelled or inp.job_type in ("render", "variations") or (inp.job_type == "product" and inp.kind == "preview") else "failed"
+            status = prior_status if cancelled or inp.job_type in ("render", "variations", "split") or (inp.job_type == "product" and inp.kind == "preview") else "failed"
             await get_db().projects.update_one(
                 {"_id": project_oid}, {"$set": {"status": status, "error": None if cancelled else err, "updatedAt": utcnow()}}
             )
@@ -395,7 +451,7 @@ async def _finish_product(job_id, project_oid, inp, result: pl.PipelineResult, r
     await db.renderings.insert_one({
         "_id": rendering_id, "projectId": project_oid, "jobId": job_id, "style": inp.settings.product_style, "kind": inp.kind,
         "duration": round(r.duration, 3), "width": r.width, "height": r.height, "size": r.size, "storedKey": result.output_key,
-        "label": label, "plan": result.product_plan, "settings": inp.settings.to_doc(), "postCopy": None, "createdAt": now,
+        "label": label, "plan": result.product_plan, "settings": inp.settings.to_doc(), "postCopy": result.post_copy, "createdAt": now,
     })  # fmt: skip
     update: dict[str, Any] = {"updatedAt": now, "error": None, "status": prior_status, "productPlan": result.product_plan}
     if inp.kind == "preview":
@@ -405,7 +461,7 @@ async def _finish_product(job_id, project_oid, inp, result: pl.PipelineResult, r
     await db.projects.update_one({"_id": project_oid}, {"$set": update})
     await _maybe_purge(project_oid, inp)
     await _update_job(job_id, status="completed", progress=100, stage="rendering", renderingId=rendering_id,
-                      stages=[dict(s, status="completed", progress=100) for s in _initial_stages("product")])  # fmt: skip
+                      stages=[dict(s, status="completed", progress=100) for s in _initial_stages(inp.job_type)])  # fmt: skip
 
 
 async def _maybe_purge(project_oid, inp: pl.PipelineInput) -> None:
@@ -417,9 +473,17 @@ async def _maybe_purge(project_oid, inp: pl.PipelineInput) -> None:
 
 
 async def _finish(job_id, project_oid, inp, result: pl.PipelineResult, rendering_id, prior_status, label) -> None:
-    if inp.job_type == "product":
+    await _finish_job(job_id, project_oid, inp, result, rendering_id, prior_status, label)
+    if inp.job_type in ("generate", "variations", "split", "render") and (result.timeline is not None or result.variants):
+        from app.services.generations import record_generation
+
+        await record_generation(project_oid, job_id, inp.job_type, rendering_id, result, kind=inp.kind, label=label)
+
+
+async def _finish_job(job_id, project_oid, inp, result: pl.PipelineResult, rendering_id, prior_status, label) -> None:
+    if inp.job_type in ("product", "story"):
         return await _finish_product(job_id, project_oid, inp, result, rendering_id, prior_status, label)
-    if inp.job_type == "variations":
+    if inp.job_type in ("variations", "split"):
         return await _finish_variations(job_id, project_oid, inp, result, prior_status)
     if inp.job_type == "render":
         return await _finish_render(job_id, project_oid, inp, result, rendering_id, prior_status, label)
@@ -531,3 +595,52 @@ async def submit_product(
     prior_status = "completed" if doc.get("latestRenderingId") else "draft"
     _spawn(job_id, _run(job_id, doc["_id"], inp, rendering_id, prior_status, label or ""))
     return job
+
+
+async def submit_story(project_id: str, voice_id: str | None, quality: str = "final", label: str = "") -> dict[str, Any]:
+    """Narrate and render a story project (every scene needs its picture)."""
+    from app.story.models import StoryPlan
+
+    db = get_db()
+    doc = await get_project_doc(project_id)
+    if doc["status"] == "processing":
+        raise ConflictError("This project is already being processed.", code="PROJECT_BUSY")
+    if doc["settings"].get("reelType") != "story" or not doc.get("story"):
+        raise ValidationFailed("This project is not a story Reel.", code="NOT_A_STORY_PROJECT")
+    plan = StoryPlan.model_validate(doc["story"])
+    missing = [str(i + 1) for i, s in enumerate(plan.scenes) if not s.image_key]
+    if missing:
+        raise ValidationFailed(f"Give every scene a picture first (missing: scene {', '.join(missing)}).", code="STORY_PICTURES_MISSING")
+    audio = await db.media.find_one({"_id": doc.get("audioId")}) if doc.get("audioId") else None
+    ps = ProjectSettings.model_validate(doc["settings"])
+    ref = pl.MediaRef(str(audio["_id"]), audio["originalName"], audio["storedKey"]) if audio and not audio.get("purged") else None
+    inp = pl.PipelineInput(project_id=str(doc["_id"]), job_type="story", videos=[], audio=ref, settings=ps, rendering_id=str(ObjectId()),
+                           project_name=doc["name"], kind="preview" if quality == "preview" else "final", story=doc["story"],
+                           voice_id=voice_id)  # fmt: skip
+    now = utcnow()
+    job_id = ObjectId()
+    job = {"_id": job_id, "projectId": doc["_id"], "type": "story", "status": "queued", "progress": 0, "stage": "voicing",
+           "stages": _initial_stages("story"), "error": None, "renderingId": None, "createdAt": now, "updatedAt": now}  # fmt: skip
+    await db.jobs.insert_one(job)
+    await db.projects.update_one({"_id": doc["_id"]}, {"$set": {"status": "processing", "latestJobId": job_id, "error": None, "updatedAt": now}})
+    prior_status = "completed" if doc.get("latestRenderingId") else "draft"
+    _spawn(job_id, _run(job_id, doc["_id"], inp, ObjectId(inp.rendering_id), prior_status, label))
+    return job
+
+
+async def load_brand(brand_id: str | None) -> dict | None:
+    """The project's brand kit for the Creative Director (None when there is none or it was deleted)."""
+    if not brand_id or not ObjectId.is_valid(brand_id):
+        return None
+    d = await get_db().brands.find_one({"_id": ObjectId(brand_id)})
+    if d is None:
+        return None
+    keys = ("name", "colors", "headingFont", "captionFont", "cta", "scriptTone", "style", "visualStyle", "pace", "language")
+    return {k: d.get(k) for k in keys if d.get(k) is not None}
+
+
+async def load_references_for(reference: str) -> list[dict]:
+    from app.trends.reference import load_references
+
+    return await load_references(reference)
+

@@ -13,7 +13,7 @@ from app.models.base import CamelModel
 ProjectStatus = Literal["draft", "processing", "completed", "failed"]
 CaptionStyle = Literal["minimal", "bold", "karaoke", "highlight", "luxury"]
 Pace = Literal["auto", "calm", "balanced", "fast"]  # auto = the AI director decides from the instructions and music
-Sequence = Literal["mixed", "steps"]
+Sequence = Literal["mixed", "steps", "talk"]  # talk = a person speaking to the camera (video/talking.py)
 OrderMode = Literal["auto", "manual"]
 AudioMode = Literal["music", "voice_music", "voice", "original", "none"]
 Language = Literal["en", "hi", "mr", "hinglish"]
@@ -46,7 +46,7 @@ class ProjectSettings(CamelModel):
     sequence: Sequence = "mixed"  # mixed = best moments in any order; steps = every clip once, in the order it happened (recipes, tutorials)
     export_preset: str = "instagram_reel"  # see video/presets.py
     audio_mode: AudioMode = "music"  # music | voice_music | voice | original | none
-    reel_type: Literal["edit", "product"] = "edit"  # edit = cut the user's video clips; product = a Reel directed from product photos
+    reel_type: Literal["edit", "product", "story"] = "edit"  # edit = cut the user's video clips; product = a Reel directed from product photos
     product_style: str = "luxury_jewelry"
     hook_text: str = Field(default="", max_length=80)  # on-screen text, all optional (kept minimal)
     tagline_text: str = Field(default="", max_length=80)
@@ -56,6 +56,10 @@ class ProjectSettings(CamelModel):
     voice_profile_id: str | None = None
     brand_id: str | None = None
     brief: str = Field(default="", max_length=1000)  # what the Reel is about (drives clip relevance, hooks, scripts)
+    # Optional project-brief fields; empty = inferred (director/brief.py). Nobody has to fill them in.
+    objective: str = Field(default="", max_length=60)  # e.g. product_showcase, food_showcase, travel_story, tutorial
+    audience: str = Field(default="", max_length=60)  # e.g. young_women
+    concept: Literal["auto", "viral", "cinematic", "premium"] = "auto"  # creative direction (director/creative.py)
     captions: bool = False
     caption_style: CaptionStyle = "minimal"
     ai: bool = False
@@ -167,7 +171,7 @@ class JobStage(CamelModel):
 class JobOut(CamelModel):
     id: str
     project_id: str
-    type: Literal["analyze", "generate", "render", "variations", "product"]
+    type: Literal["analyze", "generate", "render", "variations", "split", "product", "story"]
     status: Literal["queued", "processing", "completed", "failed", "cancelled"]
     progress: int
     stage: str
@@ -236,6 +240,9 @@ class GenerateRequest(CamelModel):
     sound_effects: bool | None = None
     trend_id: str | None = None
     reference: str | None = Field(default=None, max_length=40)
+    concept: Literal["auto", "viral", "cinematic", "premium"] | None = None  # creative direction for this generation
+    objective: str | None = Field(default=None, max_length=60)
+    audience: str | None = Field(default=None, max_length=60)
     seed: int | None = None  # change to get a different edit from the same inputs
     label: str | None = Field(default=None, max_length=60)
 

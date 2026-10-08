@@ -29,7 +29,7 @@ Analyze videos → Analyze music → Detect beats → Select clips → Create ti
 | 9 | Captions (faster-whisper → ASS → burned in): minimal, bold, karaoke, highlight, luxury | ✅ done (optional dependency) |
 | 10 | Ollama AI: style choice, clip ordering, title/description/hashtags | ✅ done (needs `OLLAMA_MODEL`) |
 | 11 | Vision AI | ✅ local multimodal model (`gemma3:4b` via Ollama) describes keyframes: scene, objects, mood, tags. Cached per clip; ~20 s/clip on CPU |
-| 12 | Trend Mode | ✅ manual presets + `TrendSource` interface; **no live trend feed** |
+| 12 | Trend Mode | ✅ manual presets + `TrendSource` interface; a live feed plugs in with `TREND_FEED_URL` (G8) |
 | A | **Editable timeline (EDL)**: trim, split, move, delete, duplicate, replace clip, speed, transition, effect, framing, music, captions; server-side **undo/redo**; version restore | ✅ done (see `docs/roadmap.md`) |
 | A | **Preview → final**: 360×640 preview in seconds, then the full-quality export | ✅ done |
 | A | **Quality check + Auto Fix** (repeats, short shots, duration, captions; black frames, silence, clipping, abrupt music end in the rendered file) | ✅ done |
@@ -43,6 +43,19 @@ Analyze videos → Analyze music → Detect beats → Select clips → Create ti
 | F | **AI model picker** in Settings: list installed Ollama models (vision / reasoning badges), choose one, and *test it* on this computer | ✅ done |
 | G | **Product Reel Director** (from photos): understands each product photo, plans a beat-synced micro-timeline (hook, curiosity, reveal, hero, detail, macro, payoff, call to action), then renders every frame with real camera moves, light sweeps, sparkles on genuine reflections, glow, light leaks, purposeful transitions and animated text; quality-checks its own plan; can loop | ✅ done (see "Product Reels" below for exactly what it does and does not do) |
 | H | **Accent-aware editing**: strong individual drum hits inside a long shot get a quick punch on the beat (the footage carries on, nothing repeats) | ✅ done: on a real song the picture answers 43% of the strong hits, up from 24% |
+| 2.1 | **Music intelligence**: song parts (intro, build, drop, chorus, verse, bridge, outro), what cuts land on in each part, loudness / brightness / rhythmic-density curves, estimated vocal presence, a per-beat timeline (section, energy, beat strength, phrase position) | ✅ done: vocal presence is an estimate (no source separation). Phase 2 plan: [docs/phase2-plan.md](docs/phase2-plan.md) |
+| 2.2 | **Video intelligence**: shot size (close / medium / wide), composition, subject clarity, camera vs subject motion, empty frames, best moments (action peak, camera arrives, face appears, focus lands, subject fills the frame, reveal) and ready-made best segments per clip; product visibility for product clips | ✅ done: heuristics on the analysis frames (Haar faces, saliency), not an object detector |
+| 2.3-2.5 | **Creative Director**: a project brief inferred from what you gave (nothing to fill in), a Creative Plan (concept, hook, story beats, pacing, music reading, text / effects strategy) decided before the shots, three concepts (Viral, Cinematic, Premium) planned separately, and a hook engine with up to 5 typed, scored openings | ✅ done: with AI the concept comes in the same call as the shots (no extra cost) |
+| 2.6-2.8 | **Brand look, AI review, self-correction**: the brand kit's look is used automatically; every final Reel gets ten measured scores (hook, story, pacing, music sync, visual quality, brand fit, text, audio, ending, retention); below 70 it is corrected, re-rendered and re-scored (at most 3 reviews, kept only if better) | ✅ done: scores are measured, an optional AI reviewer only names fixes |
+| 2.9-2.11 | **Tell the director, your edits are safe, it learns**: "change the hook", "use the drop for the reveal", "show the product earlier" as edit patches on the current edit; shots you edit by hand are locked against automatic changes; reference Reels summed up as creative traits; your preferred concept learned; every generation logged | ✅ done |
+| G1 | **Production on one server**: user accounts (email + password, private studios: each user in their own database), HTTPS via Caddy, `docker-compose.prod.yml`, render queue (`MAX_CONCURRENT_JOBS`), scheduled-post runner | ✅ done: see [docs/deploy.md](docs/deploy.md). Files stay on the server disk (a Docker volume), not S3 |
+| G2 | **Mobile and sharing**: installable app (PWA icons), Share button (phone share sheet), download without music + where to start the song | ✅ done |
+| G3 | **Talking-to-camera mode**: cuts pauses and filler words (um, uh), word-by-word captions | ✅ done (needs faster-whisper) |
+| G4 | **Long video → several Reels**: finds the best parts (whole sentences for talks, strongest moments otherwise) and makes 2-5 Reels as versions | ✅ done |
+| G5 | **Quality**: stabilisation of shaky clips, smooth slow motion, sharper upscaling, automatic exposure fix | ✅ done (final export only) |
+| G6 | **Natural AI voices** (Gemini TTS, many languages) next to the offline Windows voices | ✅ done (needs a Gemini key) |
+| G7 | **Post and schedule** to Instagram Reels, TikTok, YouTube Shorts through their official APIs | ✅ ready for keys: shows "Not connected" until the keys are set |
+| G8 | **Live trends** from a licensed trend-data feed (`TREND_FEED_URL`), shown above the built-in presets, cached hourly, outage-safe | ✅ ready for a feed: no scraping |
 
 The larger vision in `adv_requirement.md` (multi-agent AI director, semantic video understanding, voice/script/hooks,
 brand + template engine, media library, repurposing) is mapped section by section in **[docs/roadmap.md](docs/roadmap.md)**

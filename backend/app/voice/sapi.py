@@ -73,7 +73,9 @@ _provider: VoiceProvider | None = None
 def get_voice_provider() -> VoiceProvider:
     global _provider
     if _provider is None:
-        _provider = SapiProvider()
+        from app.voice.gemini import CombinedVoiceProvider, GeminiVoiceProvider
+
+        _provider = CombinedVoiceProvider(SapiProvider(), GeminiVoiceProvider())  # this computer's voices + natural AI voices
     return _provider
 
 

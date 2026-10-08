@@ -95,7 +95,7 @@ function LearnForm() {
         </ul>
       )}
       {error && <ErrorBanner title="Could not learn this trend" message={error} />}
-      {busy && <ProgressBar value={pct * 100} label={pct < 1 ? "Uploading" : "Measuring the Reels"} />}
+      {busy && <ProgressBar value={pct * 100} label={pct < 1 ? "Uploading" : "Measuring the Reels"} showEta />}
       {busy && pct >= 1 && <p className="text-xs text-muted">Measuring the cuts, the music and the look… about 10-30 s per Reel.</p>}
       <button type="button" className={btnPrimary} disabled={busy || !name.trim() || files.length === 0} onClick={() => { setError(null); learn.mutate(); }}>
         {busy ? "Learning…" : "Learn this trend"}

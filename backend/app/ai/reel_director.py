@@ -20,6 +20,7 @@ from pydantic import Field
 from app.ai import prompts
 from app.ai.provider import AIProvider
 from app.ai.schemas import Text, _Answer
+from app.director.creative import DirectorConcept
 from app.director.music_map import MusicMap
 from app.models.analysis import AudioAnalysis
 from app.models.timeline import OVERLAY_ANIMATIONS, OVERLAY_MAX_WORDS
@@ -28,7 +29,7 @@ from app.video import footage, grades
 from app.video import transitions as tr
 from app.video.timeline import ClipInput
 
-PROMPT_VERSION = 12
+PROMPT_VERSION = 16
 PURPOSES = ("hook", "context", "buildup", "reveal", "main", "detail", "lifestyle", "payoff", "cta")
 
 
@@ -62,6 +63,7 @@ class ReelDirectorPlan(_Answer):
     style: str = Field(description="one style id from the list")
     grade: str = Field(description="one colour grade id from the list")
     reason: str = Field(default="", description="one sentence: the creative idea")
+    concept: DirectorConcept | None = Field(default=None, description="the creative plan this edit carries out (decide it first)")
     shots: list[DirectorShot]
     overlays: list[DirectorOverlay] = []
     pace: str = Field(default="", description="calm|balanced|fast: the pace this plan is cut at")
@@ -81,8 +83,14 @@ THE USER'S INSTRUCTIONS COME FIRST
 - It never overrides the rules below (real footage only, exact length, allowed names, nothing invented). When it asks for something the footage cannot give, do the closest thing possible and say so in warnings.
 - Everything the user left open, you decide: reel.style "choose" = pick the best style; reel.pace "auto" = pick the pace (see reel.pace_meaning); no instructions = decide from the footage and the music.
 
+CREATIVE PLAN (decide WHAT Reel to make before placing shots)
+- brief says who the Reel is for: platform, objective, content_type, audience, style, tone, cta, brand. Fields listed in brief.inferred were guessed by the app: treat them as defaults, not orders. brand (when present) is the brand kit: keep its tone, visual_style and colours; its cta is the call to action.
+- creative_direction is a draft plan: concept, hook (the kind of opening), story beats, pacing, visual_energy, music_interpretation, text_strategy, effects_strategy, transition_strategy, ending. When it has a direction other than "auto" it is one of several versions the user will compare: keep that direction clearly (its kind of hook, pacing, shot_order, music reading, text and effects), so the versions really differ. Then openings[0] is this version's own opening, chosen so the versions start differently: open on it. Otherwise improve on it freely.
+- Answer `concept` first (concept name, logline, hook_type, story beats, pacing, visual_energy, music_interpretation, text_strategy, effects_strategy, transition_strategy, ending), then plan the shots so they carry it out: each story beat gets the shots that tell it, in that order.
+- Optimise for attention in the first second, clarity, story, visual quality, retention, brand consistency and music sync. Hard cuts are the default: any other transition needs a reason in that shot's why. Effects only when the footage or a beat calls for them; never load the Reel with effects.
+
 REFERENCE EDITS (the user's learned trends)
-- reference_edits (when present) are measured from real trending Reels the user uploaded: pace, avg_shot, hook_seconds, cuts_per_10s, on_beat_share (share of cuts on a beat), beats_per_shot, loud_avg_shot / calm_avg_shot (seconds per shot in loud / calm music), look (brightness and saturation 0..1) and described (framing, text, effects, transitions, colour).
+- reference_edits (when present) are measured from real trending Reels the user uploaded: pace, avg_shot, hook_seconds, cuts_per_10s, on_beat_share (share of cuts on a beat), beats_per_shot, loud_avg_shot / calm_avg_shot (seconds per shot in loud / calm music), look (brightness and saturation 0..1) and described (framing, text, effects, transitions, colour). traits sums each up as creative characteristics (pacing, average_shot_duration, energy_curve, transition_style, text_density, music_sync, color_mood, story_structure): use them as creative guidance, never copy the reference's content.
 - reel.reference = a name: edit like that one with the user's own footage: similar shot lengths in loud and calm parts, the same hook length, as many cuts on the beat, similar effects, transitions and text habits (allowed names only) and the grade closest to its colour. Answer its pace in "pace".
 - reel.reference = "auto": when one of them fits reel.instructions and the footage, edit like it and name it in "reason"; otherwise ignore them. "none" or no reference_edits: decide yourself.
 - reel.instructions still come first, and the rules always apply.
@@ -108,8 +116,11 @@ music.song_part_starts_at is only for information; never add it to any time.
 HOOK
 - Shot 1 is the strongest suitable visual: prefer a clip with hook_candidate true, high importance, high quality and \
 sharpness, good brightness and low shake. It must grab attention in the first second.
-- openings ranks the 3 strongest possible openings (measured: impact, motion, subject clarity, curiosity, novelty, \
-relevance to the instructions). Open on openings[0] unless reel.instructions or the story clearly need another of them.
+- openings ranks up to 5 possible openings, best first (measured: impact, motion, subject clarity, curiosity, novelty, \
+relevance to the instructions). Each has a type (visual_surprise, product_reveal, fast_movement, curiosity, \
+transformation, close_up, pattern_interrupt, text_hook) and hook scores (clarity, curiosity, visual_strength). Open on \
+openings[0] unless reel.instructions, creative_direction (its kind of hook) or the story clearly need another of them; \
+a text_hook opening carries its text as hook text in the first second.
 
 STORY
 - Follow story_shape (scaled to this Reel's length) unless the footage clearly supports a better order.
@@ -142,6 +153,14 @@ start early enough for the whole shot.
 - duration: seconds on the Reel, 0.4 to 5.0, never more than the clip's longest_shot_seconds.
 - Choose the most interesting moment (best_moments), not 0.0 by default: a phone clip's first second is often the \
 camera settling. Avoid clips with high shake, low brightness or low quality.
+- best_segments are measured, ready-made spans (best first) built around moments: the action peaks, the camera \
+arrives and settles, a face turns up, the picture snaps into focus, the subject fills the frame, an empty frame \
+reveals something. Prefer them over arbitrary parts of a clip; a shot may use part of a segment. moments lists the \
+events themselves: put a strong one on a strong beat or the drop.
+- Each usable_window may say its shot (close | medium | wide), composition (0..1), camera_motion and subject_motion. \
+Vary shot sizes (wide -> medium -> close builds into a detail; a close-up after a wide shot reads as a reveal), prefer \
+well-composed parts, and open on a close or medium shot with a clear subject. Where product_visibility is given, the \
+reveal, hero and CTA shots go where the product is clearest.
 - Never show the same moment of a clip twice. The ONLY exception is a deliberate slow-motion replay with speed <= 0.75.
 - speed: 1.0 normally; 0.5-0.75 only for a deliberate slow-motion moment; up to 2.0 for a quick speed-up. Never slow a \
 shot down just to fill time: add shots instead.
@@ -244,8 +263,19 @@ def clip_facts(clips: list[ClipInput]) -> tuple[list[dict[str, Any]], dict[str, 
             "longest_shot_seconds": _down(min(max((w.end - w.start for w in windows), default=0.0), 5.0)),
             # rounded INWARD, so a range the model copies from here always exists in the clip
             "usable_windows": [{"start": _up(w.start), "end": _down(w.end), "quality": _r(w.quality), "motion": _r(w.motion),
-                                "face": w.face, "direction": w.direction} for w in sorted(windows, key=lambda w: w.start)],
+                                "face": w.face, "direction": w.direction, **_shot_facts(w)} for w in sorted(windows, key=lambda w: w.start)],
         }  # fmt: skip
+        if a.analysis_version >= 3:  # shot intelligence (video/shots.py, video/moments.py)
+            row.update({
+                "composition": _r(a.composition_score), "subject": _r(a.subject_score),
+                "camera_motion": _r(a.camera_motion_score), "subject_motion": _r(a.subject_motion_score),
+                "shot_sizes": {k: _r(v) for k, v in a.shot_sizes.items()},
+                "moments": [{"t": _r(m.t, 1), "event": m.kind, "strength": _r(m.score)} for m in a.moments[:8]],
+                "best_segments": [{"start": _up(b.start), "end": _down(b.end), "score": _r(b.score), "why": b.reason}
+                                  for b in a.best_segments[:4] if _down(b.end) - _up(b.start) >= 0.4],
+            })  # fmt: skip
+        if a.product_visibility is not None:
+            row["product_visibility"] = _r(a.product_visibility)
         s = c.semantic
         if s is not None:
             row.update({"shows": prompts.clean(s.summary, 160), "scene": s.scene, "objects": s.objects[:6], "tags": s.tags[:8],
@@ -253,6 +283,14 @@ def clip_facts(clips: list[ClipInput]) -> tuple[list[dict[str, Any]], dict[str, 
                         "hook_candidate": s.hook_candidate, "ending_candidate": s.ending_candidate, "importance": s.importance})  # fmt: skip
         rows.append(row)
     return rows, alias
+
+
+def _shot_facts(w) -> dict[str, Any]:
+    """What kind of shot a window is (only when it was measured)."""
+    if w.shot_size == "unknown":
+        return {}
+    return {"shot": w.shot_size, "composition": _r(w.composition), "camera_motion": _r(w.camera_motion),
+            "subject_motion": _r(w.subject_motion)}  # fmt: skip
 
 
 def best_moments(windows) -> list[float]:
@@ -335,13 +373,20 @@ def build_request(
     clips: list[ClipInput], audio: AudioAnalysis, mm: MusicMap, audio_start: float, duration: float, styles: dict[str, str],
     *, brief: str, language: str, style_hint: str | None, captions: bool, cta: str, hook: str, pace: str,
     suggested_cuts: list[float] | None = None, references: list[dict[str, Any]] | None = None,
+    project_brief: dict[str, Any] | None = None, creative: dict[str, Any] | None = None, hooks: list | None = None,
+    brand: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     from app.director import intelligence as intel
 
     rows, alias = clip_facts(clips)
     back = {cid: key for key, cid in alias.items()}
-    openings = [{"clip": back[h.clip_id], "from": _up(h.start), "to": _down(h.end), "score": _r(h.score), "why": h.reason}
-                for h in intel.rank_hooks(clips, brief) if h.clip_id in back]
+    if hooks:  # the hook engine's typed, scored openings (director/hooks.py)
+        openings = [{"clip": back[h.clip_id], "from": _up(h.start), "to": _down(h.end), "type": h.type, "score": _r(h.hook_score),
+                     "clarity": _r(h.clarity), "curiosity": _r(h.curiosity), "visual_strength": _r(h.visual_strength), "why": h.reason,
+                     **({"text": h.text} if h.text else {})} for h in hooks if h.clip_id in back]  # fmt: skip
+    else:
+        openings = [{"clip": back[h.clip_id], "from": _up(h.start), "to": _down(h.end), "score": _r(h.score), "why": h.reason}
+                    for h in intel.rank_hooks(clips, brief) if h.clip_id in back]
     hero = intel.find_hero(clips)
     facts = {
         "task": "Plan every shot of this Reel.",
@@ -349,6 +394,9 @@ def build_request(
                  "style": style_hint or "choose", "pace_meaning": PACE_MEANING, "instructions": prompts.clean(brief, 1000),
                  "reference": next((r["name"] for r in references or [] if r.get("chosen")), "auto" if references else "none"), "hook_text": prompts.clean(hook, 80),
                  "call_to_action": prompts.clean(cta, 80)},
+        **({"brief": project_brief} if project_brief else {}),
+        **({"brand": brand} if brand else {}),
+        **({"creative_direction": {k: v for k, v in creative.items() if k not in ("source",)}} if creative else {}),
         "clips": rows,
         "footage": footage_budget(clips, duration, pace),
         **({"reference_edits": [{k: v for k, v in r.items() if k != "chosen"} for r in references]} if references else {}),
@@ -374,12 +422,15 @@ def build_request(
             "no_repeats": "never use the same moment of a clip twice (the only exception: a slow-motion replay with speed <= 0.75)",
             "transitions": "never use the same transition (other than cut) on two consecutive shots",
             "cuts": "put each cut on a beat; strong_beats, strong_hits and drops for important moments",
-            "moments": "choose source_start at the most interesting moment of a usable window (see best_moments), NOT 0.0 by "
-                       "default: the first second of a phone clip is often the camera settling",
+            "moments": "choose source_start at the most interesting moment of a usable window (see best_moments and "
+                       "best_segments), NOT 0.0 by default: the first second of a phone clip is often the camera settling",
             "shot_length": "0.4 to 5 seconds; faster cutting when energy is high; varied, not all equal",
             "story_shape": "a guide scaled to this Reel's length: adapt it to the footage you have",
             "text": "optional; hook text in the first 2 s, a call to action at the end if one is given",
-            "hook": "open on openings[0] unless the instructions or the story clearly need another of the openings",
+            "hook": "open on openings[0] unless the instructions, the creative direction or the story clearly need another of the openings",
+            "concept": "decide the concept first (answer `concept`), then plan shots that carry it out; follow creative_direction "
+                       "when given (it may be one of several versions: keep its hook type, pacing, music reading, text and "
+                       "effects strategy), improving it where the footage allows",
             "hero": "put hero_moment on the music's peak (a drop) and not before it",
             "motion": "consecutive moving shots keep the same direction; never reverse it without a reason",
             "style": "keep reel.style when it is not 'choose'",

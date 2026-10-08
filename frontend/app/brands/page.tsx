@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { btnDanger, btnPrimary, btnSecondary, Card, EmptyState, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { STYLE_LABELS } from "@/lib/format";
-import { LANGUAGES, type Brand, type BrandInput, type Language } from "@/types/api";
+import { BRAND_VISUAL_STYLES, LANGUAGES, type Brand, type BrandInput, type Language } from "@/types/api";
 
 const FIELD = "w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent";
 const CAPTION_STYLES = ["minimal", "bold", "karaoke", "highlight", "luxury"];
@@ -19,7 +19,7 @@ const POSITIONS = [
 
 const EMPTY: BrandInput = {
   name: "",
-  colors: { primary: "#FFFFFF", secondary: "#111111", accent: "#8B5CF6" },
+  colors: { primary: "#FFFFFF", secondary: "#111111", accent: "#D4B07A" },
   captionFont: null,
   headingFont: null,
   watermark: { enabled: true, position: "br", opacity: 0.85, scale: 0.16 },
@@ -29,6 +29,7 @@ const EMPTY: BrandInput = {
   scriptTone: "",
   captionStyle: "minimal",
   style: "auto",
+  visualStyle: null,
   pace: "balanced",
   trendId: null,
   musicStyle: "",
@@ -228,6 +229,21 @@ export default function BrandsPage() {
                 <select className={FIELD} value={editing.data.pace} onChange={(e) => set("pace", e.target.value as BrandInput["pace"])}>
                   {["calm", "balanced", "fast"].map((v) => (
                     <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs text-muted">Brand look (used when a project style is auto)</span>
+                <select
+                  className={FIELD}
+                  value={editing.data.visualStyle ?? ""}
+                  onChange={(e) => set("visualStyle", (e.target.value || null) as BrandInput["visualStyle"])}
+                >
+                  <option value="">none</option>
+                  {BRAND_VISUAL_STYLES.map((v) => (
+                    <option key={v} value={v}>
+                      {v.replace("_", " ")}
+                    </option>
                   ))}
                 </select>
               </label>

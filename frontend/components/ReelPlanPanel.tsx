@@ -121,7 +121,10 @@ export function ReelPlanPanel({ plan, stale }: { plan: ReelPlan; stale?: boolean
           <span className="text-muted">Hook: </span>
           {plan.hook.kind}: {plan.hook.asset}, {time(plan.hook.start)}–{time(plan.hook.end)}s
         </p>
-        {plan.hookCandidates && plan.hookCandidates.length > 1 && <HookCandidates hooks={plan.hookCandidates} chosen={plan.hook.asset} />}
+        {/* older plans only: newer ones show the hook engine's openings in the Creative Director panel */}
+        {!plan.hooks?.length && plan.hookCandidates && plan.hookCandidates.length > 1 && (
+          <HookCandidates hooks={plan.hookCandidates} chosen={plan.hook.asset} />
+        )}
         {plan.heroMoment && (
           <p>
             <span className="text-muted">Strongest moment: </span>
@@ -215,7 +218,8 @@ export function ReelPlanPanel({ plan, stale }: { plan: ReelPlan; stale?: boolean
         </table>
       </div>
 
-      {plan.review && <CreativeReviewCard review={plan.review} />}
+      {/* older plans only: newer ones show the measured score card (AI review) in the Creative Director panel */}
+      {plan.review && !plan.scorecard && <CreativeReviewCard review={plan.review} />}
 
       {plan.aiDirector && <AiDirectorSection log={plan.aiDirector} />}
       {!plan.aiDirector && plan.directorFallback && (

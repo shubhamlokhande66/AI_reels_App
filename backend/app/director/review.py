@@ -112,12 +112,18 @@ def _dedupe(tl: Timeline, clips: dict[str, ClipInput], skip_first: bool) -> tupl
     return fixed, stuck
 
 
-def _lengthen_ending(tl: Timeline, clips: dict[str, ClipInput]) -> bool:
-    """A closing shot under MIN_ENDING feels like the Reel was cut off. Borrow the time from the shot before it."""
+def _lengthen_ending(tl: Timeline, clips: dict[str, ClipInput], mm: MusicMap | None = None) -> bool:
+    """A closing shot under MIN_ENDING feels like the Reel was cut off. Borrow the time from the shot before it, moving
+    the last cut back onto a beat (the latest one that leaves the ending long enough) so the cut stays on the music."""
     if len(tl.segments) < 2:
         return False
     last, prev = tl.segments[-1], tl.segments[-2]
     need = MIN_ENDING - last.length
+    if need > 0 and mm is not None:
+        latest = last.timeline_end - MIN_ENDING
+        beats = [b for b in mm.snap_points if prev.timeline_start + 0.7 <= b <= latest + 1e-6]
+        if beats:
+            need = last.timeline_start - max(beats)
     if need <= 0 or prev.length - need < 0.7:
         return False
     if last.source_start - need * last.speed >= 0:  # show a little more of what leads into the last moment
@@ -192,7 +198,7 @@ def review_timeline(
     out.append(Check("No accidental duplicate shots", stuck == 0,
                      (f"{fx} repeated moment(s) moved to unused footage" if fx else "") + (f"; {stuck} repeat(s) could not be avoided (not enough footage)" if stuck else ""), fx > 0))
 
-    lengthened = _lengthen_ending(tl, by_id)
+    lengthened = _lengthen_ending(tl, by_id, mm)
     last = tl.segments[-1]
     out.append(Check("The ending is a real shot, not a cut-off", last.length >= MIN_ENDING - 1e-6,
                      f"last shot {last.length:.2f}s" + ("; borrowed time from the shot before" if lengthened else ""), lengthened))

@@ -28,6 +28,8 @@ STRATEGIES: dict[str, Strategy] = {
         Strategy("viral", "Viral", "The strongest hook, fast cuts on the hits, built for retention.", "viral", "fast", "bold"),
         Strategy("cinematic", "Cinematic", "Longer shots, slow fades, slow motion.", "cinematic", "balanced", "minimal"),
         Strategy("luxury", "Luxury", "Elegant, slow and premium.", "luxury", "balanced", "luxury"),
+        Strategy("premium", "Premium", "Product and brand first: close-ups, the reveal on the drop, a hero ending.", "luxury",
+                 "balanced", "luxury"),  # fmt: skip
         Strategy("storytelling", "Storytelling", "Clips in the order you shot them: opening, journey, reveal.", "storytelling",
                  "balanced", "highlight", order="chronological"),  # fmt: skip
         Strategy("minimal", "Minimal", "Plain cuts and no effects; the footage speaks.", "minimal", "balanced", "minimal"),
@@ -40,6 +42,8 @@ STRATEGIES: dict[str, Strategy] = {
     )
 }
 DEFAULT_SET = ("viral", "cinematic", "luxury", "storytelling", "minimal")  # Version A Viral, B Cinematic, C Luxury ...
+# The Creative Director's three concepts (director/creative.py DIRECTIONS): with AI each is planned separately.
+CONCEPT_SET = ("viral", "cinematic", "premium")
 LETTERS = "ABCDEFGH"
 
 

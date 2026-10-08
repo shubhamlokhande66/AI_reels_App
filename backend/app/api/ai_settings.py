@@ -30,7 +30,10 @@ from app.revise import actions as rv
 from app.storage import get_storage
 from app.styles import list_styles
 
-router = APIRouter(prefix="/api/ai", tags=["ai-settings"])
+from app.core.admin import require_admin
+
+# AI provider, models, keys, budgets and usage are the operator's: admin only (app/core/admin.py)
+router = APIRouter(prefix="/api/ai", tags=["ai-settings"], dependencies=[Depends(require_admin)])
 LAST_TEST_KEY = "settings/ai_last_test.json"
 
 

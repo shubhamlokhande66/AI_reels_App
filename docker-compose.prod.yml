@@ -1,0 +1,53 @@
+# Production on one server (VPS):   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+# Caddy serves https://$DOMAIN with automatic certificates; /api goes to the backend, the rest to the website.
+# Only ports 80/443 are public. The database is MongoDB Atlas (MONGODB_URI in .env.production).
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      args:
+        WITH_CAPTIONS: "1"
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      STORAGE_PATH: /data/storage
+      CORS_ORIGINS: https://${DOMAIN}
+      AUTH_ENABLED: "true"
+      COOKIE_SECURE: "true"
+    volumes:
+      - storage-data:/data/storage
+      - hf-cache:/data/hf
+    # one process: the job queue (MAX_CONCURRENT_JOBS) lives in it
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN}
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  storage-data:
+  hf-cache:
+  caddy-data:
+  caddy-config:

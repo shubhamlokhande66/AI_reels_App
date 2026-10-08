@@ -208,6 +208,14 @@ class SetOverlays(_Op):
     overlays: list[TextOverlay] = Field(default_factory=list, max_length=30)
 
 
+class SetLock(_Op):
+    """Lock / unlock a shot against automatic changes (the reviewer, self-correction, AI revisions)."""
+
+    type: Literal["set_lock"] = "set_lock"
+    segment_id: str
+    locked: bool = True
+
+
 class SetGrade(_Op):
     """Choose a colour-grade preset (video/grades.py); null = the style's own grade."""
 
@@ -219,7 +227,7 @@ Operation = Annotated[
     Union[
         Trim, SetLength, Move, Split, Delete, Duplicate, Replace, SetSpeed, SetTransition, SetEffect, SetCrop,
         SetMusic, AddCaption, UpdateCaption, DeleteCaption, SetCaptionStyle, FitDuration, SetVoice, ClearVoice,
-        SetVoiceMix, ReplaceCaptions, FitToVoice, SetWatermark, ClearWatermark, SetCaptionLook, SetOverlays, SetGrade,
+        SetVoiceMix, ReplaceCaptions, FitToVoice, SetWatermark, ClearWatermark, SetCaptionLook, SetOverlays, SetGrade, SetLock,
     ],
     Field(discriminator="type"),
 ]  # fmt: skip
@@ -569,6 +577,31 @@ _HANDLERS = {
     FitToVoice: _fit_to_voice, SetWatermark: _set_watermark, ClearWatermark: _clear_watermark,
     SetCaptionLook: _set_caption_look, SetOverlays: _set_overlays, SetGrade: _set_grade,
 }  # fmt: skip
+
+
+def _set_lock(tl: Timeline, op: SetLock, ctx: OpContext) -> None:
+    tl.segments[_index(tl, op.segment_id)].locked = op.locked
+
+
+_HANDLERS[SetLock] = _set_lock
+
+
+# Hand edits that change a shot itself: the shot is locked so automatic changes never undo the person's choice.
+_MANUAL_SHOT_OPS = (Trim, SetLength, Move, Split, Duplicate, Replace, SetSpeed, SetTransition, SetEffect, SetCrop)
+
+
+def mark_manual(tl: Timeline, ops: list[_Op]) -> Timeline:
+    """Lock every shot the person edited by hand (both halves of a split; the copy of a duplicate)."""
+    touched = {op.segment_id for op in ops if isinstance(op, _MANUAL_SHOT_OPS)}
+    if not touched:
+        return tl
+    splits = {op.segment_id for op in ops if isinstance(op, (Split, Duplicate))}
+    for i, s in enumerate(tl.segments):
+        if s.id in touched:
+            s.locked = True
+            if s.id in splits and i + 1 < len(tl.segments):
+                tl.segments[i + 1].locked = True
+    return tl
 
 
 def apply_operations(timeline: Timeline, ops: list[_Op], ctx: OpContext) -> Timeline:

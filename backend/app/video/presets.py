@@ -70,6 +70,7 @@ def config_for(preset_id: str | None, quality: str = "final", encoder: str = "li
         return RenderConfig(
             width=w, height=h, fps=24, segment_crf=30, segment_preset="ultrafast", final_crf=30,
             final_preset="ultrafast", max_bitrate="2M", audio_bitrate="96k", encoder="libx264",
+            smooth_slowmo=False, stabilize=False,  # previews stay fast
         )  # fmt: skip
     return RenderConfig(
         width=p.width, height=p.height, fps=p.fps, final_crf=p.crf, max_bitrate=p.max_bitrate,

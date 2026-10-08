@@ -104,12 +104,17 @@ def _require_timeline(doc: dict[str, Any]) -> None:
         raise NotFoundError("This project has no timeline yet. Generate a Reel first.", code="NO_TIMELINE")
 
 
-async def apply(project_id: str, ops: list, label: str | None = None) -> dict[str, Any]:
+async def apply(project_id: str, ops: list, label: str | None = None, manual: bool = True) -> dict[str, Any]:
+    """``manual``: a hand edit in the editor. The shots it changes are locked against automatic changes."""
     doc = await _load(project_id)
     _require_timeline(doc)
     hist, idx = _history(doc)
     current = Timeline.model_validate(ensure_ids(hist[idx]["timeline"]))
     result = apply_operations(current, ops, await context_for(doc))  # raises EditError; nothing is saved then
+    if manual:
+        from app.video.timeline_ops import mark_manual
+
+        mark_manual(result, ops)
     from app.services.feedback import record_ops
 
     await record_ops(doc["_id"], current, ops)  # what this edit says about the person's taste (anonymous)
@@ -149,6 +154,11 @@ async def restore_version(project_id: str, rendering_id: str) -> dict[str, Any]:
     hist = hist[: idx + 1] + [{"timeline": ensure_ids(r["timeline"]), "label": label, "at": utcnow()}]
     hist = hist[-HISTORY_LIMIT:]
     await get_db().projects.update_one({"_id": doc["_id"]}, {"$set": {"latestRenderingId": r["_id"]}})
+    concept = ((r.get("timeline") or {}).get("creativePlan") or {}).get("direction")
+    if concept in ("viral", "cinematic", "premium"):  # choosing one of the concepts teaches the personal director
+        from app.services.feedback import record
+
+        await record(doc["_id"], "chose_concept", concept=concept)
     return await _save(doc, hist, len(hist) - 1)
 
 

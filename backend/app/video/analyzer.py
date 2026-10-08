@@ -13,8 +13,10 @@ import numpy as np
 from app.core.errors import CorruptedMedia, UnsupportedMedia
 from app.core.ffmpeg import probe
 from app.models.analysis import ClipAnalysis, UsableWindow, VideoMetadata
+from app.video import moments as mom
+from app.video import shots
 
-VIDEO_ANALYSIS_VERSION = 2  # 2 = windows carry their motion direction (pan_x / pan_y)
+VIDEO_ANALYSIS_VERSION = 3  # 2 = windows carry their motion direction (pan_x / pan_y); 3 = shot intelligence + best moments
 SAMPLE_FPS = 4.0  # frames analysed per second of footage
 MAX_SAMPLES = 320  # hard cap so very long clips stay fast
 ANALYSIS_WIDTH = 320
@@ -215,7 +217,11 @@ class _Sample:
     focus_y: float = 0.5
     has_focus: bool = False  # focus_* came from real motion
     face: tuple[float, float] | None = None
-    shift: tuple[float, float] | None = None  # global translation vs previous sample (px)
+    face_box: tuple[float, float, float, float] | None = None  # normalised x0, y0, x1, y1 of the largest face
+    shift: tuple[float, float] | None = None  # global translation vs previous sample (share of the frame)
+    look: shots.FrameLook | None = None  # subject, edges, face size (video/shots.py)
+    subj_motion: float = 0.0  # movement left after removing the camera's shift (0..1 raw)
+    camera: float = 0.0  # 0..1 how fast the whole picture moves
     scene_cut: bool = False
     duplicate: bool = False
 
@@ -223,16 +229,33 @@ class _Sample:
 @dataclass
 class _Detectors:
     face: cv2.CascadeClassifier | None = None
+    profile: cv2.CascadeClassifier | None = None  # heads turned to the side (the frontal cascade misses them)
     _tried: bool = field(default=False, repr=False)
 
     @classmethod
     def load(cls) -> "_Detectors":
         try:
-            path = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
-            c = cv2.CascadeClassifier(str(path))
-            return cls(face=None if c.empty() else c)
+            root = Path(cv2.data.haarcascades)
+            c = cv2.CascadeClassifier(str(root / "haarcascade_frontalface_default.xml"))
+            p = cv2.CascadeClassifier(str(root / "haarcascade_profileface.xml"))
+            return cls(face=None if c.empty() else c, profile=None if p.empty() else p)
         except (AttributeError, cv2.error):  # OpenCV builds without objdetect
             return cls()
+
+    def find(self, gray: np.ndarray, small_bgr: np.ndarray) -> tuple[int, int, int, int] | None:
+        """The largest face (frontal, else a profile facing either way) whose box has skin in it."""
+        if self.face is None:
+            return None
+        gh, gw = gray.shape
+        eq = cv2.equalizeHist(gray)  # faces in shade or coloured light
+        size = (max(gw // 14, 18),) * 2
+        found = list(self.face.detectMultiScale(eq, scaleFactor=1.1, minNeighbors=4, minSize=size))
+        if not found and self.profile is not None:
+            found = list(self.profile.detectMultiScale(eq, scaleFactor=1.1, minNeighbors=4, minSize=size))
+            flipped = self.profile.detectMultiScale(cv2.flip(eq, 1), scaleFactor=1.1, minNeighbors=4, minSize=size)
+            found += [(gw - x - w, y, w, h) for x, y, w, h in flipped]
+        found = [f for f in found if shots.skin_share(small_bgr[f[1]:f[1] + f[3], f[0]:f[0] + f[2]]) >= 0.2]  # not leaves or bricks
+        return tuple(int(v) for v in max(found, key=lambda f: f[2] * f[3])) if found else None
 
 
 def _hist(frame_bgr_small: np.ndarray) -> np.ndarray:
@@ -315,13 +338,15 @@ def sample_video(
                         )
                         if resp > 0.03:
                             s.shift = (float(dx) / gw, float(dy) / gh)
+                    s.subj_motion = shots.subject_motion(prev_gray, gray, (dx, dy) if s.shift else None) if not s.duplicate else 0.0
+                    s.camera = shots.camera_score(s.shift, step / fps)
             if detectors.face is not None and len(samples) % 2 == 0:
-                faces = detectors.face.detectMultiScale(
-                    gray, scaleFactor=1.15, minNeighbors=5, minSize=(max(gw // 12, 20),) * 2
-                )
-                if len(faces):
-                    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+                best = detectors.find(gray, small)
+                if best is not None:
+                    fx, fy, fw, fh = best
                     s.face = ((fx + fw / 2) / gw, (fy + fh / 2) / gh)
+                    s.face_box = (fx / gw, fy / gh, (fx + fw) / gw, (fy + fh) / gh)
+            s.look = shots.look_of(gray, None)  # the face (when confirmed) replaces the salient subject in _confirm_faces
             samples.append(s)
             prev_gray, prev_hist = gray, hist
             if progress:
@@ -331,6 +356,34 @@ def sample_video(
         return samples
     finally:
         cap.release()
+
+
+def _iou(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> float:
+    ix = max(min(a[2], b[2]) - max(a[0], b[0]), 0.0)
+    iy = max(min(a[3], b[3]) - max(a[1], b[1]), 0.0)
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _confirm_faces(samples: list[_Sample]) -> None:
+    """Haar cascades also fire on foliage, brickwork and other textures. A face counts only when the neighbouring
+    detection (faces are looked for on every other sample) finds one in about the same place; the confirmed face then
+    covers the sample in between and becomes the frame's subject."""
+    det = list(range(0, len(samples), 2))
+    boxes = {i: samples[i].face_box for i in det}
+    for k, i in enumerate(det):
+        b = boxes[i]
+        if b is None:
+            continue
+        near = [boxes[det[j]] for j in (k - 1, k + 1) if 0 <= j < len(det)]
+        if not any(o is not None and _iou(b, o) > 0.1 for o in near):
+            samples[i].face_box, samples[i].face = None, None
+    for i in range(1, len(samples), 2):
+        samples[i].face_box = samples[i - 1].face_box
+    for s in samples:
+        if s.face_box is not None and s.look is not None:
+            s.look = shots.FrameLook(s.face_box, 1.0, s.look.edges, face_h=s.face_box[3] - s.face_box[1])
 
 
 # --------------------------------------------------------------------------- scoring
@@ -429,6 +482,9 @@ def _window_from(
     quality *= res_factor  # small pictures look worse once stretched to the output size
     sig = np.mean([s.hist for s in ch], axis=0)
     pan_x, pan_y = _pan(ch, dt)
+    looks = [s.look for s in ch if s.look is not None]
+    sizes = [shots.shot_size(lk) for lk in looks]
+    size = max(("close", "medium", "wide"), key=sizes.count) if sizes else "unknown"
     return UsableWindow(
         start=round(start, 3),
         end=round(end, 3),
@@ -446,6 +502,12 @@ def _window_from(
         curve_dt=round(dt, 4),
         pan_x=pan_x,
         pan_y=pan_y,
+        shot_size=size,  # type: ignore[arg-type]
+        composition=round(float(np.mean([shots.composition(lk) for lk in looks])), 3) if looks else 0.5,
+        subject=round(float(np.mean([shots.subject_value(lk) for lk in looks])), 3) if looks else 0.0,
+        camera_motion=round(float(np.mean([s.camera for s in ch])), 3),
+        subject_motion=round(float(np.mean([_score_motion(s.subj_motion) for s in ch])), 3),
+        empty=round(float(np.mean([lk.empty for lk in looks])), 3) if looks else 0.0,
     )
 
 
@@ -466,6 +528,7 @@ def analyze_clip(
     meta = meta or read_metadata(path)
     rect = detect_content_rect(path, meta)
     samples = sample_video(path, meta, progress, rect)
+    _confirm_faces(samples)
     if rect is not None:
         cx0, cy0 = int(rect[0] * meta.width) // 2 * 2, int(rect[1] * meta.height) // 2 * 2
         cw = max(int((rect[2] - rect[0]) * meta.width) // 2 * 2, 2)
@@ -516,6 +579,24 @@ def analyze_clip(
     quality *= res_factor
     quality = min(max(quality, 0.0), 1.0)
 
+    found = mom.detect_moments(
+        [s.t for s in samples], [s.subj_motion for s in samples], [s.camera for s in samples],
+        [s.face_box is not None for s in samples], sharp_scores,
+        [lk.area if lk.subject_strength >= 0.15 and not lk.empty else 0.0 for lk in (s.look or shots.FrameLook(None, 0, 0) for s in samples)],
+        [bool(s.look and s.look.empty) for s in samples], windows, [s.scene_cut for s in samples],
+    )  # fmt: skip
+    wl = np.array([w.length for w in windows]) if windows else None
+
+    def wmean(attr: str, default: float) -> float:
+        return round(float(np.average([getattr(w, attr) for w in windows], weights=wl)), 3) if windows else default
+
+    shot_sizes: dict[str, float] = {}
+    for w in windows:
+        if w.shot_size != "unknown":
+            shot_sizes[w.shot_size] = shot_sizes.get(w.shot_size, 0.0) + w.length
+    total_len = sum(shot_sizes.values())
+    shot_sizes = {k: round(v / total_len, 3) for k, v in shot_sizes.items()} if total_len else {}
+
     blocking = {"too_dark", "too_blurry", "too_short"}
     usable = bool(windows) and not (blocking & set(flags)) and content_w >= BLOCKING_WIDTH
 
@@ -535,12 +616,33 @@ def analyze_clip(
         usable=usable,
         windows=windows,
         analysis_version=VIDEO_ANALYSIS_VERSION,
+        composition_score=wmean("composition", 0.5),
+        subject_score=wmean("subject", 0.0),
+        camera_motion_score=wmean("camera_motion", 0.0),
+        subject_motion_score=wmean("subject_motion", 0.0),
+        shot_sizes=shot_sizes,
+        moments=found,
+        best_segments=mom.best_segments(windows, found),
     )
+
+
+MIN_USEFUL_WINDOW = 0.4  # seconds: a good stretch shorter than this cannot carry a shot
+
+
+def good_seconds(a: ClipAnalysis) -> float:
+    """Seconds of this clip the editor can really use: its good parts (not dark, blurry or shaky), joined, ignoring
+    stretches too short for a shot. 0 for an unusable clip."""
+    if not a.usable:
+        return 0.0
+    from app.video.footage import joined
+
+    return round(sum(w.end - w.start for w in joined(a.windows) if w.end - w.start >= MIN_USEFUL_WINDOW), 2)
 
 
 def clip_summary(a: ClipAnalysis) -> dict:
     """Small, UI-friendly summary (matches the spec example) stored on the media document."""
     return {
+        "goodSeconds": good_seconds(a),
         "clipId": a.clip_id,
         "qualityScore": a.quality_score,
         "motionScore": a.motion_score,
@@ -554,4 +656,9 @@ def clip_summary(a: ClipAnalysis) -> dict:
         "orientation": a.metadata.orientation,
         "resolutionScore": a.resolution_score,
         "contentRect": a.content_rect,
+        "compositionScore": a.composition_score,
+        "subjectScore": a.subject_score,
+        "productVisibility": a.product_visibility,
+        "shotSizes": a.shot_sizes,
+        "bestSegments": [{"start": b.start, "end": b.end, "score": b.score} for b in a.best_segments[:3]],
     }

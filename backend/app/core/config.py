@@ -64,6 +64,21 @@ class Settings(BaseSettings):
     ai_fallback_enabled: bool = False  # on a provider failure (timeout, quota, outage ...) try ai_fallback_provider
     ai_fallback_provider: str = ""
     ai_max_retries: int = Field(default=2, ge=0, le=5)  # retries of rate-limit / temporary errors (never of bad requests)
+    # Reviewer + self-correction (director/self_correct.py): below this overall score a final Reel is corrected and
+    # rendered again, at most review_max_iterations reviews in all (the first render counts).
+    review_threshold: int = Field(default=70, ge=0, le=100)
+    # Production: the key that unlocks admin-only parts (AI settings, diagnostics). Empty = everyone is admin (local use).
+    admin_key: SecretStr = SecretStr("")
+    # Production accounts (core/auth.py): sign-in required, each user's data in their own database.
+    auth_enabled: bool = False
+    # Auto-delete (services/retention.py; the admin can change it on the Admin page): uploaded clips / songs go this many
+    # hours after a project was last used, the whole project (Reels included) after the second number.
+    retention_enabled: bool = False
+    keep_uploads_hours: int = 2
+    keep_projects_hours: int = 24
+    secret_key: SecretStr = SecretStr("")  # signs the session cookies: a long random string, keep it secret
+    cookie_secure: bool = False  # true behind HTTPS (the session cookie is then only sent over HTTPS)
+    review_max_iterations: int = Field(default=3, ge=1, le=3)
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = ""
     ollama_vision_model: str = ""  # "" = ollama_model
@@ -73,6 +88,26 @@ class Settings(BaseSettings):
     openai_base_url: str = ""  # "" = the official API
     openai_reasoning_effort: str = ""  # optional, for reasoning models: minimal | low | medium | high
     gemini_api_key: SecretStr = SecretStr("")
+    gemini_tts_model: str = "gemini-3.8-flash-tts"  # natural AI voices (voice/gemini.py)
+    # Story -> Reel pictures (story/images.py): the free AI pictures (Cloudflare Workers AI, FLUX.1 schnell) ...
+    cloudflare_account_id: str = ""
+    cloudflare_api_token: SecretStr = SecretStr("")
+    # ... and paid pictures, only when the admin switches them on: "" (off) | "gemini" | "openai"
+    story_paid_images: str = ""
+    contact_email: str = ""  # sent to Wikimedia with picture searches (their API policy asks clients for a contact)
+    gemini_image_model: str = "gemini-3.1-flash-image"
+    openai_image_model: str = "gpt-image-2"
+    # Live trends (trends/feed.py): a licensed / official trend-data feed. Empty = the built-in presets only.
+    trend_feed_url: str = ""
+    trend_feed_key: SecretStr = SecretStr("")
+    # Publishing (publish/): the platforms' official APIs. Empty = that platform is not connected.
+    instagram_user_id: str = ""  # Instagram professional account id (Meta Graph API)
+    instagram_access_token: SecretStr = SecretStr("")
+    tiktok_access_token: SecretStr = SecretStr("")  # TikTok Content Posting API (an approved app)
+    youtube_client_id: str = ""  # YouTube Data API (OAuth client)
+    youtube_client_secret: SecretStr = SecretStr("")
+    youtube_refresh_token: SecretStr = SecretStr("")
+    public_base_url: str = ""  # https://your-domain: platforms fetch the video from a signed link on it
     gemini_text_model: str = ""
     gemini_vision_model: str = ""  # "" = gemini_text_model
     anthropic_api_key: SecretStr = SecretStr("")

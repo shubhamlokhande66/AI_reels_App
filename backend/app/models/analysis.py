@@ -116,6 +116,13 @@ class UsableWindow(CamelModel):
     # 0, 0 = steady or not measured. Used to keep consecutive shots moving the same way (motion matching).
     pan_x: float = 0.0
     pan_y: float = 0.0
+    # Shot intelligence (video analysis v3, video/shots.py). Heuristics on the analysis frames, not a detector model.
+    shot_size: Literal["close", "medium", "wide", "unknown"] = "unknown"
+    composition: float = 0.5  # 0..1: subject well placed for a vertical frame, not cut by the edge, big enough
+    subject: float = 0.0  # 0..1: how clearly one subject (a face or a salient object) dominates the picture
+    camera_motion: float = 0.0  # 0..1: the whole picture moving (pan, tilt, travel)
+    subject_motion: float = 0.0  # 0..1: movement inside the picture once the camera move is removed
+    empty: float = 0.0  # share of frames with nothing to look at (blank wall, sky, floor)
 
     @property
     def length(self) -> float:
@@ -140,6 +147,28 @@ class UsableWindow(CamelModel):
         return sum(seg) / len(seg)
 
 
+MomentKind = Literal["action_peak", "camera_settles", "face_appears", "focus_peak", "subject_close", "reveal"]
+
+
+class Moment(CamelModel):
+    """A single instant worth cutting to (video/moments.py): the action peaks, the camera arrives, a face turns up..."""
+
+    t: float
+    kind: MomentKind
+    score: float  # 0..1, how strong the event is, weighted by the picture quality there
+    reason: str = ""
+
+
+class BestSegment(CamelModel):
+    """A short, ready-to-use span of a clip (inside one usable window), ranked by how good a shot it makes."""
+
+    start: float
+    end: float
+    score: float
+    moment: MomentKind | None = None  # the event the span is built around (None = simply the best-looking stretch)
+    reason: str = ""
+
+
 ClipFlag = Literal[
     "too_dark", "too_blurry", "too_short", "wrong_orientation", "shaky", "duplicate_heavy", "low_resolution"
 ]
@@ -162,4 +191,15 @@ class ClipAnalysis(CamelModel):
     flags: list[ClipFlag] = []
     usable: bool = True
     windows: list[UsableWindow] = []
-    analysis_version: int = 1  # 2 = windows carry their motion direction; older cached analyses are redone
+    analysis_version: int = 1  # 2 = windows carry their motion direction; 3 = shot intelligence + moments; older are redone
+    # Shot intelligence (v3): clip-level scores (length-weighted over the usable windows), events and best spans.
+    composition_score: float = 0.5
+    subject_score: float = 0.0
+    camera_motion_score: float = 0.0
+    subject_motion_score: float = 0.0
+    shot_sizes: dict[str, float] = {}  # share of usable footage per shot size, e.g. {"close": 0.6, "wide": 0.4}
+    moments: list[Moment] = []
+    best_segments: list[BestSegment] = []
+    # How clearly a product is on screen (0..1). Only set when the vision model says the clip shows a product
+    # (product, jewelry, fashion, beauty); None = not known. See video/moments.product_visibility.
+    product_visibility: float | None = None

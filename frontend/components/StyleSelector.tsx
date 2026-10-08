@@ -16,7 +16,7 @@ const DESCRIPTIONS: Record<string, string> = {
   luxury: "Smooth transitions, elegant zoom, premium pacing.",
   food: "Fast action cuts, ending on a slow hero reveal.",
   travel: "Establishing shot first, landscape framing, motion transitions.",
-  custom: "Balanced defaults. TODO: fine-tuning controls are not in the UI yet.",
+  custom: "Balanced defaults: fine-tune the cuts, speed and transitions in the editor after the first render.",
   auto: "Picks a style from your music and footage (with AI assist on, the AI decides).",
 };
 
@@ -81,7 +81,7 @@ export function PaceSelector<T extends PaceChoice>({ value, onChange, disabled, 
           onClick={() => onChange(p.id as T)}
           title={p.hint}
           className={`rounded-lg px-4 py-1.5 text-sm transition-colors disabled:opacity-50 ${
-            value === p.id ? "bg-accent text-white" : "text-muted hover:text-foreground"
+            value === p.id ? "lux-btn-gold" : "text-muted hover:text-foreground"
           }`}
         >
           {p.label}
@@ -94,11 +94,12 @@ export function PaceSelector<T extends PaceChoice>({ value, onChange, disabled, 
 export const SEQUENCES: { id: Sequence; label: string; hint: string }[] = [
   { id: "mixed", label: "Best moments", hint: "The editor picks the strongest moments and mixes them. Good for travel, events and product clips." },
   { id: "steps", label: "Step by step", hint: "Every clip once, in the order it happened, with long steps sped up and the last clip as the finale. Made for recipes, crafts and tutorials." },
+  { id: "talk", label: "Talking to camera", hint: "Someone speaking: pauses and filler words (um, uh) are cut out, word-by-word captions are added, and their own voice is kept." },
 ];
 
 export function SequenceSelector({ value, onChange, disabled }: { value: Sequence; onChange: (s: Sequence) => void; disabled?: boolean }) {
   return (
-    <div role="radiogroup" aria-label="Clip order" className="grid gap-3 sm:grid-cols-2">
+    <div role="radiogroup" aria-label="Clip order" className="grid gap-3 sm:grid-cols-3">
       {SEQUENCES.map((o) => (
         <button
           key={o.id}
@@ -176,7 +177,7 @@ export function DurationSelector({ value, onChange, disabled }: { value: number;
   const isPreset = (DURATIONS as readonly number[]).includes(value);
   const custom = customOpen || !isPreset;
   const pill = (active: boolean) =>
-    `rounded-lg px-4 py-1.5 text-sm transition-colors disabled:opacity-50 ${active ? "bg-accent text-white" : "text-muted hover:text-foreground"}`;
+    `rounded-lg px-4 py-1.5 text-sm transition-colors disabled:opacity-50 ${active ? "lux-btn-gold" : "text-muted hover:text-foreground"}`;
   return (
     <div className="space-y-3">
       <div role="radiogroup" aria-label="Duration" className="inline-flex flex-wrap rounded-xl border border-border bg-surface p-1">

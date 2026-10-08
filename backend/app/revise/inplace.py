@@ -34,10 +34,14 @@ def restyle(tl: Timeline, style_id: str, mm: MusicMap | None, seed: int = 0) -> 
     style = get_style(style_id)
     rng = random.Random(seed)
     slots = _slots(tl, mm)
+    kept = {s.id: (s.effect, s.transition_in.model_copy()) for s in tl.segments if s.locked}  # shots the person set by hand
     assign_effects(tl.segments, slots, style, rng)
     assign_transitions(tl.segments, slots, style, rng)
     tl.style, tl.color_grade = style.id, None  # the new style's own colour grade
     for s in tl.segments:
+        if s.id in kept:
+            s.effect, s.transition_in = kept[s.id]
+            continue
         s.reason = (s.reason or f"{s.video}:").split(" Restyled")[0] + f" Restyled as {style.name}: same shot, new effect and transition."
     return [f"Restyled as {style.name}: the same {len(tl.segments)} shots and cuts, with its effects, transitions and colour grade."]
 
@@ -47,7 +51,7 @@ def _split(tl: Timeline, mm: MusicMap | None, longest: float) -> int:
     i = 0
     while i < len(tl.segments):
         s = tl.segments[i]
-        if s.length > longest:
+        if s.length > longest and not s.locked:
             inner = [b.t for b in (mm.beats if mm else []) if s.timeline_start + 0.5 < b.t < s.timeline_end - 0.5]
             mid = (s.timeline_start + s.timeline_end) / 2
             cut = max(inner, key=lambda b: (mm.level_at(b), -abs(b - mid))) if inner else round(mid, 3)
@@ -75,7 +79,7 @@ def _merge(tl: Timeline, clip_lengths: dict[str, float], longest: float) -> int:
         total = a.length + b.length
         room = clip_lengths.get(a.clip_id, 0.0)
         need_end = a.source_start + total * a.speed
-        if total <= longest and need_end <= room + 1e-6 and len(tl.segments) > 2:
+        if total <= longest and need_end <= room + 1e-6 and len(tl.segments) > 2 and not (a.locked or b.locked):
             a.timeline_end = b.timeline_end
             a.source_end = round(need_end, 3)
             a.reason = f"{a.video}: Plays on for a calmer pace (fewer cuts)."

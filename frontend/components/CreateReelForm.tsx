@@ -1,21 +1,26 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { checkFootage, readVideoSeconds, type FootageCheck } from "@/lib/footage";
+import { FootageGate } from "./FootageGate";
+import { ClipCheckPanel, FLAG_TEXT, clipCheck } from "./ClipCheckPanel";
+import { TaskLog, type LogLine, type TaskLogState } from "./TaskLog";
+import { Stepper } from "./Stepper";
+import { SongPartPicker } from "./SongPartPicker";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
-import { useTrends } from "@/hooks/useApi";
+import { useAdmin, useTrends } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
-import { PICKER_AUDIO, PICKER_VIDEO, formatBytes, isAudioFile, isVideoFile } from "@/lib/format";
-import { AudioRangePicker } from "./AudioRangePicker";
+import { MAX_AUDIO_MB, MAX_VIDEO_MB, PICKER_AUDIO, PICKER_VIDEO, formatBytes, formatDuration, isAudioFile, isVideoFile, tooBig } from "@/lib/format";
 import { Dropzone } from "./Dropzone";
 import { SongPicker } from "./Songs";
 import { ProgressBar } from "./ProgressStages";
 import { DurationSelector, OrderModeSelector, PaceSelector, SequenceSelector, StepOptions, StyleSelector, type PaceChoice } from "./StyleSelector";
-import { btnPrimary, btnSecondary, Card, ErrorBanner } from "./ui";
+import { btnPrimary, btnSecondary, Card, ErrorBanner, Spinner } from "./ui";
 import { LocalVideo, VideoList } from "./VideoList";
-import { LANGUAGES, type Language, type Sequence, type Template } from "@/types/api";
+import { LANGUAGES, type Concept, type Language, type Project, type Sequence, type Template } from "@/types/api";
 
 const AUDIO_MODES = [
   ["music", "Music only"],
@@ -27,16 +32,27 @@ const AUDIO_MODES = [
 type AudioModeId = (typeof AUDIO_MODES)[number][0];
 const SELECT = "w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent sm:w-auto";
 
-type Step = "idle" | "creating" | "videos" | "audio" | "starting";
+type Step = "idle" | "creating" | "videos" | "checking" | "audio" | "starting";
 const STEP_LABEL: Record<Step, string> = {
   idle: "",
   creating: "Creating project…",
   videos: "Uploading videos…",
+  checking: "Checking your clips (quality, sharpness, light, shake, length)…",
   audio: "Uploading music…",
   starting: "Starting the render…",
 };
+// The create flow: 1 clips (checked before anything else), 2 the song (its part chosen), 3 style and generate.
+type Stage = "clips" | "song" | "rest";
 
 const CAPTION_STYLES = ["minimal", "bold", "karaoke", "highlight", "luxury"];
+
+// The creative direction, the one choice that shapes the whole Reel (director/creative.py DIRECTIONS).
+const DIRECTIONS: { id: Concept; label: string; blurb: string }[] = [
+  { id: "auto", label: "✦ Let the AI decide", blurb: "The director reads your clips, song and words and picks the concept." },
+  { id: "viral", label: "Viral", blurb: "The strongest hook first, fast cuts on the hits, the big moment on the drop." },
+  { id: "cinematic", label: "Cinematic", blurb: "A story in order: shots breathe, slow pushes, a held ending." },
+  { id: "premium", label: "Premium", blurb: "Product and brand first: close-ups, the reveal on the drop, a hero ending." },
+];
 
 // Tap-to-add examples for the AI instruction box (plain words, not settings)
 const INSTRUCTION_IDEAS = [
@@ -55,10 +71,25 @@ export function CreateReelForm() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [videos, setVideos] = useState<LocalVideo[]>([]);
+  const videosRef2 = useRef<LocalVideo[]>([]); // the clips still waiting to upload, for a retry
+  videosRef2.current = videos;
+  const [clipSeconds, setClipSeconds] = useState<Record<string, number | null>>({}); // read in the browser, nothing uploaded
+  const [gate, setGate] = useState<FootageCheck | null>(null); // not enough footage: add clips or shorten, before anything is created
+  const [stage, setStage] = useState<Stage>("clips");
+  const [project, setProject] = useState<Project | null>(null); // the project once its clips were uploaded and checked
+  const [songReady, setSongReady] = useState(false); // the song is uploaded, so its best parts can be shown
+  const [log, setLog] = useState<TaskLogState | null>(null); // the live popup while clips / the song are checked
+  const lineSeq = useRef(0);
+  const closeLog = useCallback(() => setLog(null), []);
+  const retry = useRef<(() => void) | null>(null); // what the popup's Retry runs: the step that stopped, from where it stopped
+  const formRef = useRef<HTMLFormElement>(null);
+  const videosRef = useRef<HTMLElement>(null);
   const [audio, setAudio] = useState<File | null>(null);
   const [duration, setDuration] = useState(15);
   const [audioStart, setAudioStart] = useState<number | null>(null); // null = the app picks the best part of the song
   const [style, setStyle] = useState("auto"); // the AI picks the style from the instructions, clips and song
+  const [concept, setConcept] = useState<Concept>("auto"); // the creative direction
+  const { admin } = useAdmin(); // the AI switches and the trend tools are the administrator's
   const [pace, setPace] = useState<PaceChoice>("auto"); // the AI picks the pace too
   const [sequence, setSequence] = useState<Sequence>("mixed");
   const [teaser, setTeaser] = useState(true);
@@ -93,10 +124,29 @@ export function CreateReelForm() {
   const busy = step !== "idle";
   const needsMusic = audioMode === "music";
   const usesMusic = audioMode === "music" || audioMode === "voice_music"; // the song plays in these modes, so its part matters
-  const canSubmit = name.trim().length > 0 && videos.length > 0 && (audio !== null || !needsMusic) && !busy;
+  const canSubmit = (videos.length > 0 || (project?.videos.length ?? 0) > 0) && (audio !== null || !needsMusic) && !busy;
+  const canCheck = (videos.length > 0 || (project?.videos.length ?? 0) > 0) && !busy;
+  const check = project ? clipCheck(project, duration, sequence === "talk") : null;
 
-  // Arriving from "Use template": adjust state during render, once the templates have loaded.
-  const wantedTemplate = useSearchParams().get("template");
+  // Arriving from "Use template" / a style / a trend card: adjust state during render, once the lists have loaded.
+  const params = useSearchParams();
+  const wantedTemplate = params.get("template");
+  const wantedStyle = params.get("style");
+  const wantedTrend = params.get("trend");
+  const [linkApplied, setLinkApplied] = useState<string | null>(null);
+  const linkKey = `${wantedStyle ?? ""}|${wantedTrend ?? ""}`;
+  const trendFromLink = wantedTrend ? trends.data?.find((x) => x.id === wantedTrend) : undefined;
+  if ((wantedStyle || trendFromLink) && linkApplied !== linkKey) {
+    setLinkApplied(linkKey);
+    if (wantedStyle) setStyle(wantedStyle);
+    if (trendFromLink) {
+      setTrendId(trendFromLink.id);
+      if ([15, 30, 60].includes(trendFromLink.recommendedDuration)) setDuration(trendFromLink.recommendedDuration);
+      setCaptionStyle(trendFromLink.captionStyle);
+    }
+  }
+  const chosenTemplate = templateId ? templates.data?.find((x) => x.id === templateId) : undefined;
+  const chosenTrend = trendId ? trends.data?.find((x) => x.id === trendId) : undefined;
   const [appliedFor, setAppliedFor] = useState<string | null>(null);
   const fromLink = wantedTemplate ? templates.data?.find((x) => x.id === wantedTemplate) : undefined;
   if (fromLink && appliedFor !== wantedTemplate) {
@@ -116,21 +166,215 @@ export function CreateReelForm() {
     setAi(t.ai);
   }
 
+
+  // a new length or new clips must be checked again before the next step
+  function backToClips() {
+    if (stage !== "clips") setStage("clips");
+  }
+
+  // ---- the live log popup
+  function startLog(title: string) {
+    setLog({ title, lines: [], progress: null, barKey: "start", state: "running" });
+  }
+  /** A new line; the previous running line is finished (✓). */
+  function addLine(text: string, status: LogLine["status"] = "running") {
+    const id = `l${++lineSeq.current}`;
+    setLog((l) => l && { ...l, lines: [...l.lines.map((x) => (x.status === "running" ? { ...x, status: "done" as const } : x)), { id, text, status, at: Date.now() }] });
+  }
+  function setBar(progress: number | null, barKey?: string) {
+    setLog((l) => l && { ...l, progress, barKey: barKey ?? l.barKey });
+  }
+  function finishLog(state: TaskLogState["state"], summary: string) {
+    setLog((l) => l && {
+      ...l, state, summary, progress: null,
+      lines: l.lines.map((x) => (x.status === "running" ? { ...x, status: state === "error" ? ("error" as const) : ("done" as const) } : x)),
+    });
+  }
+
+  async function ensureProject(seconds: number = duration): Promise<string> {
+    if (!done.current.projectId) {
+      setStep("creating");
+      const p = await api.createProject(name.trim() || "Untitled Reel", { duration: seconds, sequence });
+      done.current.projectId = p.id;
+    }
+    return done.current.projectId;
+  }
+
+  /** Step 1: upload the clips, analyse them (once: every later step and Reel reuses it) and show the verdict, with a
+   * live log in a popup. Starts by itself when clips are added. */
+  async function checkClips(seconds: number = duration, files: LocalVideo[] = videos) {
+    retry.current = () => void checkClips(seconds, files.filter((v) => videosRef2.current.includes(v)));
+    setError(null);
+    setGate(null);
+    startLog("Checking your clips");
+    try {
+      addLine(done.current.projectId ? "Opening your project" : "Creating your project");
+      const id = await ensureProject(seconds);
+      if (files.length) {
+        addLine(`Uploading ${files.length} clip${files.length === 1 ? "" : "s"}`);
+        setStep("videos");
+        setBar(0, "upload");
+        const res = await api.uploadVideos(id, files.map((v) => v.file), (f) => setBar(f * 100));
+        setVideos((cur) => cur.filter((v) => !files.includes(v)));
+        for (const f of res.failed) addLine(`Skipped ${f.name}: ${f.error.message}`, "warn");
+      }
+      done.current.videos = true;
+      await api.updateProject(id, { duration: seconds, sequence });
+      const names = (await api.getProject(id)).videos.filter((v) => !v.purged).map((v) => v.name);
+      setStep("checking");
+      setBar(0, "analysis");
+      const job = await api.analyze(id);
+      let shown = -1;
+      for (;;) {
+        const j = await api.getJob(id, job.id);
+        setBar(j.progress);
+        const st = j.stages.find((x) => x.name === "analyzing_videos");
+        if (st && st.status !== "completed" && names.length) {
+          const k = Math.min(names.length - 1, Math.floor((st.progress / 100) * names.length));
+          if (k !== shown) {
+            shown = k;
+            addLine(`Analysing clip ${k + 1} of ${names.length}: ${names[k]} (light, sharpness, motion, shake, faces, best moments)`);
+          }
+        }
+        if (j.status === "completed") break;
+        if (j.status === "failed" || j.status === "cancelled") throw Object.assign(new Error(j.error?.message ?? "The clip check failed."), { code: j.error?.code });
+        await new Promise((r) => setTimeout(r, 1200));
+      }
+      addLine(`Checking the footage against a ${seconds}s Reel`);
+      const fresh = await api.getProject(id);
+      setProject(fresh);
+      const verdict = clipCheck(fresh, seconds, sequence === "talk");
+      for (const v of fresh.videos.filter((x) => !x.purged)) {
+        const an = v.analysis;
+        const words = (an?.flags ?? []).map((f) => FLAG_TEXT[f]?.text).filter(Boolean);
+        const bad = !!an && !an.usable;
+        addLine(`${v.name}: ${an ? `quality ${Math.round(an.qualityScore * 100)}%` : "not analysed"}${words.length ? ` · ${words.join(" · ")}` : ""}${bad ? " · cannot be used" : ""}`,
+          bad ? "error" : words.length ? "warn" : "done");
+      }
+      const f = verdict.footage;
+      addLine(`About ${Math.round(f.footage)}s of good footage; a ${seconds}s Reel needs about ${Math.ceil(f.needed)}s${f.ok ? "" : ` (about ${Math.ceil(f.needed - f.footage)}s more, or the Reel would slow shots down and repeat moments)`}`, f.ok ? "done" : "error");
+      if (verdict.passed && sequence === "talk") {
+        finishLog("ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}. Their own voice is kept, so no song is needed.`);
+        setAudioMode("original");
+        setStage("rest");
+      } else if (verdict.passed) {
+        finishLog("ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}, about ${Math.round(f.footage)}s of footage. Next: your song.`);
+        setStage("song");
+      } else {
+        const parts = [verdict.blocked.length ? `${verdict.blocked.length} clip${verdict.blocked.length === 1 ? " cannot" : "s cannot"} be used (remove or replace)` : "",
+          f.ok ? "" : `about ${Math.ceil(f.needed - f.footage)}s more good footage is needed (add clips, or make the Reel ${f.fits}s)`].filter(Boolean);
+        finishLog("problem", `To continue: ${parts.join("; ")}.`);
+        if (!f.ok) setGate(f);
+      }
+    } catch (err) {
+      const msg = errorMessage(err);
+      addLine(msg, "error");
+      finishLog("error", "The check stopped. Fix the problem above and add the clips again, or try again.");
+      setError({ message: msg, code: (err as { code?: string }).code });
+    } finally {
+      setStep("idle");
+    }
+  }
+
+  async function removeClip(mediaId: string) {
+    if (!project) return;
+    try {
+      await api.deleteVideo(project.id, mediaId);
+      const fresh = await api.getProject(project.id);
+      setProject(fresh);
+      const verdict = clipCheck(fresh, duration, sequence === "talk");
+      setGate(verdict.footage.ok ? null : verdict.footage);
+      if (verdict.passed) setStage("song");
+    } catch (err) {
+      setError({ message: errorMessage(err), code: (err as { code?: string }).code });
+    }
+  }
+
+  /** A new Reel length: the clips need no new analysis, only the footage check against the new length. */
+  function changeDuration(d: number) {
+    setDuration(d);
+    setGate(null);
+    if (!project) return;
+    const verdict = clipCheck(project, d, sequence === "talk");
+    if (!verdict.footage.ok) setGate(verdict.footage);
+    if (!verdict.passed) setStage("clips");
+    else if (stage === "clips") setStage("song");
+    setAudioStart(null); // the best song part depends on the length
+  }
+
+  /** Step 2: the song is uploaded and analysed right away, with a live log, and the app's choice of part is shown. */
+  async function pickSong(file: File) {
+    retry.current = () => void pickSong(file);
+    setError(null);
+    if (file.size > MAX_AUDIO_MB * 1024 * 1024) {
+      setError({ message: `The song is larger than ${MAX_AUDIO_MB} MB (${Math.round(file.size / 1024 / 1024)} MB). Use an MP3 or a shorter file.`, code: "FILE_TOO_LARGE" });
+      return;
+    }
+    setAudio(file);
+    setAudioStart(null);
+    setSongReady(false);
+    startLog("Preparing your song");
+    try {
+      const id = await ensureProject();
+      addLine("Uploading the song");
+      setStep("audio");
+      setBar(0, "song");
+      await api.uploadAudio(id, file, (f) => setBar(f * 100));
+      done.current.audio = true;
+      setBar(null);
+      addLine("Detecting the tempo, the beats and the song's parts (intro, build, drop, chorus …)");
+      const parts = await api.songParts(id, duration, 6);
+      qc.setQueryData(["songParts", id, duration], parts);
+      addLine(`${parts.bpm} BPM · ${parts.parts.length} good part${parts.parts.length === 1 ? "" : "s"} found for a ${duration}s Reel`);
+      const best = parts.parts[0];
+      if (best) {
+        addLine(`Best part: ${formatDuration(best.start)} – ${formatDuration(best.end)} (${best.reasons.join(", ")})`);
+        setAudioStart(best.start);
+      }
+      finishLog("ok", parts.tooShort ? "The song is shorter than the Reel, so the whole song is used." : "Listen to it below, try the next part, or choose your own.");
+      setSongReady(true);
+    } catch (err) {
+      const msg = errorMessage(err);
+      addLine(msg, "error");
+      finishLog("error", "The song could not be prepared. Try another file.");
+      setError({ message: msg, code: (err as { code?: string }).code });
+    } finally {
+      setStep("idle");
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
+    if (stage !== "rest") return; // steps 1 and 2 come first
+    if (!done.current.projectId) {
+      // the gate: a Reel can only show as much real footage as the clips have (lengths unknown to the browser are not guessed)
+      const lens = videos.map((v) => clipSeconds[v.key]);
+      if (lens.every((s) => typeof s === "number")) {
+        const check = checkFootage(lens, duration);
+        if (!check.ok) {
+          setGate(check);
+          return;
+        }
+      }
+    }
+    setGate(null);
     try {
+      const settings = { duration, style, pace, concept, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, autoReview, soundEffects, deleteMediaAfterRender: deleteMedia, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) };
       if (!done.current.projectId) {
         setStep("creating");
-        const p = await api.createProject(name.trim(), { duration, style, pace, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, autoReview, soundEffects, deleteMediaAfterRender: deleteMedia, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) });
+        const p = await api.createProject(name.trim() || "Untitled Reel", settings);
         done.current.projectId = p.id;
+      } else {
+        await api.updateProject(done.current.projectId, { ...(name.trim() ? { name: name.trim() } : {}), ...settings });
       }
       const id = done.current.projectId;
       if (!done.current.videos) {
         setStep("videos");
         setUploadPct(0);
         const res = await api.uploadVideos(id, videos.map((v) => v.file), setUploadPct);
+        setVideos([]);
         if (res.failed.length) {
           const names = res.failed.map((f) => `${f.name}: ${f.error.message}`).join("; ");
           setNotice(`Some clips were skipped — ${names}`);
@@ -162,10 +406,52 @@ export function CreateReelForm() {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-8" aria-label="Create Reel">
+    <form ref={formRef} onSubmit={submit} className="space-y-8" aria-label="Create Reel">
+      {(chosenTemplate || chosenTrend) && (
+        <div className="lux-card flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm">
+          <p className="min-w-0">
+            <span className="text-accent">✦</span>{" "}
+            {chosenTemplate ? (
+              <>
+                Using template <span className="font-medium">{chosenTemplate.name}</span>
+                <span className="text-muted"> · {chosenTemplate.duration}s · its style, pace and captions are set</span>
+              </>
+            ) : (
+              <>
+                Using trend <span className="font-medium">{chosenTrend?.trendName}</span>
+                <span className="text-muted"> · {chosenTrend?.cutFrequency} cuts, {chosenTrend?.transitionStyle} transitions</span>
+              </>
+            )}
+          </p>
+          <button
+            type="button"
+            className="shrink-0 text-xs text-muted hover:text-accent"
+            disabled={busy}
+            onClick={() => {
+              if (chosenTemplate) setTemplateId("");
+              else setTrendId("");
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+      <Stepper
+        current={stage}
+        onOpen={(id) => setStage(id as Stage)}
+        steps={[
+          { id: "clips", title: "Length & clips", done: !!check?.passed,
+            summary: check?.passed ? `${duration}s Reel · ${project?.videos.filter((v) => !v.purged).length} clips · ${Math.round(check.footage.footage)}s of footage` : undefined },
+          { id: "song", title: "Song", done: stage === "rest" && (!usesMusic || (audio !== null && audioStart !== null)),
+            summary: audio && audioStart !== null ? `${formatDuration(audioStart)} – ${formatDuration(audioStart + duration)}` : !audio && stage === "rest" ? "no music" : undefined },
+          { id: "rest", title: "Style & generate", done: false },
+        ]}
+      />
+
+      {stage === "clips" && (<>
       <section>
         <label htmlFor="project-name" className="mb-1.5 block text-sm font-medium">
-          Project name
+          Project name <span className="font-normal text-muted">(optional: you can rename it later)</span>
         </label>
         <input
           id="project-name"
@@ -179,7 +465,14 @@ export function CreateReelForm() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium">Videos</h2>
+        <h2 className="text-sm font-medium">1 · Reel length</h2>
+        <DurationSelector value={duration} onChange={changeDuration} disabled={busy} />
+        <p className="text-xs text-muted">First the length: your clips are checked against it (is there enough footage?), then the song part is chosen to fit it.</p>
+      </section>
+
+      <section ref={videosRef} className="space-y-3">
+        <h2 className="text-sm font-medium">2 · Your clips</h2>
+        <p className="text-xs text-muted">Add your clips: they are uploaded and checked right away (light, sharpness, shake, resolution, length).</p>
         <Dropzone
           label="Drag & drop your clips here"
           hint="MP4, MOV, M4V, WEBM, MKV, AVI · up to 500 MB each"
@@ -188,9 +481,18 @@ export function CreateReelForm() {
           disabled={busy}
           validate={isVideoFile}
           onReject={(n) => setError({ message: `Unsupported video file: ${n.join(", ")}`, code: "UNSUPPORTED_MEDIA" })}
-          onFiles={(files) => {
+          onFiles={(picked) => {
             setError(null);
-            setVideos((cur) => [...cur, ...files.map((file) => ({ key: `v${++keySeq}`, file }))]);
+            const big = tooBig(picked, MAX_VIDEO_MB);
+            if (big.length) setError({ message: `These clips are larger than ${MAX_VIDEO_MB} MB and were not added: ${big.join(", ")}. Shorten or compress them, then add them again.`, code: "FILE_TOO_LARGE" });
+            const files = picked.filter((x) => x.size <= MAX_VIDEO_MB * 1024 * 1024);
+            if (!files.length) return;
+            const added = files.map((file) => ({ key: `v${++keySeq}`, file }));
+            setVideos((cur) => [...cur, ...added]);
+            setGate(null);
+            backToClips();
+            for (const v of added) readVideoSeconds(v.file).then((s) => setClipSeconds((m) => ({ ...m, [v.key]: s })));
+            void checkClips(duration, added); // straight into the check: a popup shows every step
           }}
         />
         <VideoList items={videos} onChange={setVideos} disabled={busy} />
@@ -211,15 +513,49 @@ export function CreateReelForm() {
         )}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Duration</h2>
-        <DurationSelector value={duration} onChange={setDuration} disabled={busy} />
-        <p className="text-xs text-muted">Choose the length first: below, you pick which part of your song fits it.</p>
-      </section>
 
+      {project && check && (
+        <ClipCheckPanel project={project} result={check} onRemove={removeClip} busy={busy} />
+      )}
+      {gate && (
+        <FootageGate
+          check={gate}
+          onAddClips={() => {
+            setGate(null);
+            videosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          onShorten={(s) => {
+            setDuration(s);
+            setGate(null);
+            void checkClips(s); // check again at the shorter length
+          }}
+          onClose={() => setGate(null)}
+        />
+      )}
+      {stage === "clips" && (videos.length > 0 || project) && !log && (
+        <div className="space-y-2">
+          <button type="button" className={btnSecondary} disabled={!canCheck} onClick={() => void checkClips()}>
+            {busy ? "Working…" : "Check my clips again"}
+          </button>
+          <p className="text-xs text-muted">
+            Step 1 of 3: your clips are uploaded and checked (light, sharpness, shake, resolution, length) before you choose the
+            music. The check is done once; every Reel from these clips reuses it.
+          </p>
+          {busy && (
+            <div aria-live="polite">
+              <p className="mb-1 text-sm text-muted">{STEP_LABEL[step]}</p>
+              {step === "videos" && <ProgressBar key="upload" value={uploadPct * 100} label="Upload progress" showEta />}
+            </div>
+          )}
+        </div>
+      )}
+
+      </>)}
+
+      {stage === "song" && (
       <section className="space-y-3">
         <h2 className="text-sm font-medium">
-          Music {!needsMusic && <span className="font-normal text-muted">(optional for this audio mode)</span>}
+          3 · Music {!needsMusic && <span className="font-normal text-muted">(optional for this audio mode)</span>}
         </h2>
         {audio ? (
           <Card className="space-y-4">
@@ -228,12 +564,16 @@ export function CreateReelForm() {
                 <p className="truncate text-sm font-medium">{audio.name}</p>
                 <p className="text-xs text-muted">{formatBytes(audio.size)}</p>
               </div>
-              <button type="button" disabled={busy} className={btnSecondary} onClick={() => setAudio(null)}>
+              <button type="button" disabled={busy} className={btnSecondary} onClick={() => { setAudio(null); setAudioStart(null); setSongReady(false); }}>
                 Remove music
               </button>
             </div>
             {usesMusic ? (
-              <AudioRangePicker bare source={audio} duration={duration} start={audioStart} onChange={setAudioStart} />
+              songReady && project ? (
+                <SongPartPicker projectId={project.id} file={audio} seconds={duration} value={audioStart} onChange={setAudioStart} />
+              ) : (
+                <Spinner label="Uploading the song…" />
+              )
             ) : (
               <p className="border-t border-border pt-3 text-xs text-muted">This audio mode does not use the song, so there is no part to choose.</p>
             )}
@@ -246,24 +586,57 @@ export function CreateReelForm() {
             disabled={busy}
             validate={isAudioFile}
             onReject={(n) => setError({ message: `Unsupported audio file: ${n.join(", ")}`, code: "UNSUPPORTED_MEDIA" })}
-            onFiles={(files) => {
-              setError(null);
-              setAudio(files[0]);
-            }}
+            onFiles={(files) => void pickSong(files[0])}
           />
         )}
         {!audio && (
           <SongPicker
             disabled={busy}
-            onPick={(file) => {
-              setError(null);
-              setAudio(file);
-            }}
+            onPick={(file) => void pickSong(file)}
           />
         )}
+        {stage === "song" && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("clips")}>
+              ‹ Back
+            </button>
+            <button type="button" className={btnPrimary} disabled={busy || (usesMusic && (!audio || audioStart === null))} onClick={() => setStage("rest")}>
+              Next: style and generate
+            </button>
+            {usesMusic && audio && audioStart === null && <span className="text-xs text-muted">Choose a part of the song first (Use this part).</span>}
+            {!audio && (
+              <button type="button" className="text-sm text-muted hover:underline" onClick={() => { setAudioMode("original"); setStage("rest"); }}>
+                Continue without music (use the clips&apos; own sound)
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+      )}
+
+      {stage === "rest" && (<>
+      <section className="space-y-3" aria-label="Creative direction">
+        <h2 className="text-sm font-medium">Creative direction</h2>
+        <div role="radiogroup" aria-label="Creative direction" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {DIRECTIONS.map((d) => (
+            <button
+              key={d.id}
+              type="button"
+              role="radio"
+              aria-checked={concept === d.id}
+              disabled={busy}
+              onClick={() => setConcept(d.id)}
+              className={`rounded-2xl border p-4 text-left transition-all ${concept === d.id ? "border-accent bg-accent/10" : "border-border hover:border-accent/50"}`}
+            >
+              <span className="block font-display text-lg">{d.label}</span>
+              <span className="mt-1 block text-xs text-muted">{d.blurb}</span>
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="space-y-4" aria-label="Brand and instructions">
+        {(brands.data?.length ?? 0) > 0 && (
         <label className="block text-sm">
           <span className="mb-1.5 block font-medium">Brand <span className="font-normal text-muted">(optional)</span></span>
           <select aria-label="Brand" value={brandId} disabled={busy} onChange={(e) => setBrandId(e.target.value)} className={SELECT}>
@@ -273,6 +646,7 @@ export function CreateReelForm() {
             ))}
           </select>
         </label>
+        )}
         <div className="space-y-2">
           <label htmlFor="ai-instructions" className="block text-sm font-medium">
             Tell the AI what you want <span className="font-normal text-muted">(optional)</span>
@@ -286,8 +660,12 @@ export function CreateReelForm() {
             disabled={busy}
             onChange={(e) => setBrief(e.target.value)}
             placeholder="e.g. Luxury gold necklace collection. Slow and elegant, lots of close-ups of the details, end on the full look. Add text: New Collection."
+            aria-describedby="ai-instructions-count"
             className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
           />
+          <p id="ai-instructions-count" className={`text-right text-xs ${brief.length > 950 ? "text-warning" : "text-muted"}`}>
+            {brief.length} / 1000
+          </p>
           <div className="flex flex-wrap gap-2" aria-label="Instruction ideas">
             {INSTRUCTION_IDEAS.map((idea) => (
               <button
@@ -308,7 +686,7 @@ export function CreateReelForm() {
         </div>
       </section>
 
-      {learned.data && learned.data.length > 0 && (
+      {admin && learned.data && learned.data.length > 0 && (
         <section className="space-y-2">
           <label className="block text-sm">
             <span className="mb-1.5 block font-medium">Edit like</span>
@@ -326,10 +704,11 @@ export function CreateReelForm() {
 
       <details className="group rounded-xl border border-border bg-surface/50 px-4 py-3">
         <summary className="cursor-pointer select-none text-sm font-medium">
-          Advanced <span className="font-normal text-muted">(optional: the AI decides these unless you set them)</span>
+          More options <span className="font-normal text-muted">(optional: captions, sound effects, privacy)</span>
         </summary>
         <div className="mt-4 space-y-8">
           <section className="grid gap-4 sm:grid-cols-2" aria-label="Reel setup">
+        {admin && (<>
         <label className="block text-sm">
           <span className="mb-1.5 block font-medium">Start from a template <span className="font-normal text-muted">(optional)</span></span>
           <select
@@ -360,16 +739,20 @@ export function CreateReelForm() {
             <span className="mt-1 block text-xs text-muted">Write the script and generate the voice in the editor after the first render.</span>
           )}
         </label>
+        </>)}
+        {(admin || captions) && (
         <label className="block text-sm">
-          <span className="mb-1.5 block font-medium">Language</span>
+          <span className="mb-1.5 block font-medium">{admin ? "Language" : "Caption language"}</span>
           <select aria-label="Language" value={language} disabled={busy} onChange={(e) => setLanguage(e.target.value as Language)} className={SELECT}>
             {LANGUAGES.map((l) => (
               <option key={l.id} value={l.id}>{l.label}</option>
             ))}
           </select>
         </label>
+        )}
           </section>
 
+      {admin && (<>
       <section className="space-y-3">
         <h2 className="text-sm font-medium">Pace</h2>
         <PaceSelector withAuto value={pace} onChange={setPace} disabled={busy} />
@@ -380,8 +763,9 @@ export function CreateReelForm() {
         <h2 className="text-sm font-medium">Style</h2>
         <StyleSelector value={style} onChange={setStyle} disabled={busy} />
       </section>
+      </>)}
 
-      {trends.data && trends.data.length > 0 && (
+      {admin && trends.data && trends.data.length > 0 && (
         <section className="space-y-2">
           <label htmlFor="trend" className="block text-sm font-medium">
             Trend preset <span className="font-normal text-muted">(optional)</span>
@@ -460,7 +844,7 @@ export function CreateReelForm() {
             todo: "",
             hint: "Privacy: once the final Reel is made, your clips and music are deleted from this computer. The Reel stays; a new version needs a new upload.",
           },
-        ].map((t) => (
+        ].filter((t) => admin || !["ai", "aiDirector", "autoReview"].includes(t.id)).map((t) => (
           <label
             key={t.id}
             className={`flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3 ${t.on ? "" : "opacity-60"}`}
@@ -509,6 +893,10 @@ export function CreateReelForm() {
         </div>
       </details>
 
+      </>)}
+
+      {log && <TaskLog log={log} onClose={closeLog} onRetry={() => retry.current?.()} reviewLabel="Review" />}
+
       {notice && (
         <p role="status" className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
           {notice}
@@ -520,14 +908,21 @@ export function CreateReelForm() {
         {busy && (
           <div aria-live="polite">
             <p className="mb-1 text-sm text-muted">{STEP_LABEL[step]}</p>
-            {(step === "videos" || step === "audio") && <ProgressBar value={uploadPct * 100} label="Upload progress" />}
+            {(step === "videos" || step === "audio") && <ProgressBar value={uploadPct * 100} label="Upload progress" showEta />}
           </div>
         )}
-        <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>
-          {busy ? "Working…" : "Generate Reel"}
-        </button>
-        {!canSubmit && !busy && (
-          <p className="text-xs text-muted">{needsMusic ? "Add a name, at least one video and a song to continue." : "Add a name and at least one video to continue."}</p>
+        {stage === "rest" && (
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("song")}>
+              ‹ Back
+            </button>
+            <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>
+              {busy ? "Working…" : "✦ Generate Reel"}
+            </button>
+          </div>
+        )}
+        {stage === "rest" && !canSubmit && !busy && (
+          <p className="text-xs text-muted">{needsMusic && !audio ? "Add a song in step 2 (or choose an audio mode without music) to continue." : "Add at least one clip in step 1 to continue."}</p>
         )}
       </div>
     </form>

@@ -28,7 +28,9 @@ REBUILD_KINDS = {"style", "pace", "reshuffle", "captions_on"}
 # Edit actions that still make sense on a freshly built timeline (they do not point at a specific shot).
 GLOBAL_KINDS = {"speed", "effect", "transition", "music_volume", "music_fade", "caption_style", "framing", "watermark_off", "mute_music",
                 "grade", "text_off", "text_less", "cta", "hook_text"}  # fmt: skip
-KINDS = REBUILD_KINDS | GLOBAL_KINDS | {"delete", "move", "duration", "captions_off", "voice_off", "voice_volume"}
+# Creative changes the Director makes on the current edit (revise/director_patch.py): no rebuild, cuts kept.
+DIRECTOR_KINDS = {"replace_hook", "drop_reveal", "product_earlier"}
+KINDS = REBUILD_KINDS | GLOBAL_KINDS | DIRECTOR_KINDS | {"delete", "move", "duration", "captions_off", "voice_off", "voice_volume"}
 # Changes that remove something the user may want to keep: shown first and applied only after confirmation.
 DESTRUCTIVE_KINDS = {"delete", "text_off", "captions_off", "voice_off", "mute_music"}
 GRADE_WORDS: tuple[tuple[str, str], ...] = (
@@ -58,6 +60,9 @@ EXAMPLES = (
     "louder music",
     "use the luxury style",
     "show a different order",
+    "make the first 3 seconds stronger",
+    "use the drop for the product reveal",
+    "show the product earlier",
 )
 
 
@@ -236,7 +241,8 @@ def _r_text(c: str) -> list[Action] | None:
 
 
 _TRANSITION_WORDS = (
-    (r"\b(?:no|without|hard|straight|plain|simple) (?:transitions?|cuts?)\b|\bcut only\b", "cut"),
+    (r"\b(?:no|without|hard|straight|plain|simple) (?:transitions?|cuts?)\b|\bcut only\b"
+     r"|\b(?:remove|drop|fewer|less|unnecessary|extra|too many) (?:\w+ )?transitions?\b", "cut"),
     (r"\bspeed[- ]?ramp\b", "speed_ramp"),
     (r"\b(?:dissolve|crossfade|cross[- ]fade|smooth(?:er)?|softer|gentle|gentler)\b", "dissolve"),
     (r"\bfade\b", "fade"),
@@ -364,8 +370,14 @@ def _r_reshuffle(c: str) -> list[Action] | None:
 
 
 # Order matters: specific things (logo, captions, music, numbers) before generic words like "faster".
+def _r_director(c: str) -> list[Action] | None:
+    from app.revise.director_patch import parse_director
+
+    return parse_director(c)
+
+
 _RULES: tuple[Callable[[str], list[Action] | None], ...] = (
-    _r_watermark, _r_voice, _r_captions, _r_text, _r_music, _r_duration, _r_framing, _r_grade, _r_transition, _r_effect, _r_delete,
+    _r_director, _r_watermark, _r_voice, _r_captions, _r_text, _r_music, _r_duration, _r_framing, _r_grade, _r_transition, _r_effect, _r_delete,
     _r_move, _r_pace, _r_speed, _r_style, _r_reshuffle,
 )  # fmt: skip
 
@@ -674,6 +686,10 @@ def describe(a: Action) -> str:
         return f'Call to action: "{v}"'
     if k == "hook_text":
         return f'Opening text: "{v}"'
+    if k in DIRECTOR_KINDS:
+        from app.revise.director_patch import describe as describe_patch
+
+        return describe_patch(k)
     if k == "effect" and v == "pan":
         return f"Camera pans on {where} (left and right in turn)"
     return "Different clip selection and order (rebuilds the edit)"

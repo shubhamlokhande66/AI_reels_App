@@ -56,6 +56,9 @@ class Segment(CamelModel):
     transition_in: Transition = Transition()
     caption: str | None = None
     reason: str | None = None  # why the director chose this shot here (shown to the person; never executed)
+    # Set when the person edits this shot by hand (timeline_ops.mark_manual). The reviewer, the self-correction loop and
+    # AI revisions never change a locked shot unless the person's own request names it.
+    locked: bool = False
 
     @property
     def length(self) -> float:
@@ -146,7 +149,11 @@ class AIInfo(CamelModel):
     fallback_used: bool = False
 
 
+EDL_VERSION = "2.0"  # 2.0 = segments may be locked; brief + creative plan recorded (older timelines validate unchanged)
+
+
 class Timeline(CamelModel):
+    edl_version: str = EDL_VERSION
     duration: float
     bpm: float = 0.0
     audio_start: float = 0.0  # offset into the music where the reel begins
@@ -168,6 +175,10 @@ class Timeline(CamelModel):
     music_hits: list[float] = []
     sfx: list[SoundEffect] = []  # sound effects mixed under the music (empty = none)
     ai: AIInfo | None = None
+    # The Creative Director's decisions for this edit (director/brief.py, director/creative.py); informational,
+    # never executed: the segments above are what renders.
+    brief: dict | None = None
+    creative_plan: dict | None = None
     warnings: list[str] = []
     notes: list[str] = []  # informational, e.g. why the AI picked a style
 

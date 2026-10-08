@@ -23,6 +23,10 @@ async def purge_media(project_oid: ObjectId) -> int:
     storage = get_storage()
     n = 0
     async for m in db.media.find({"projectId": project_oid, "purged": {"$ne": True}}):
+        if m.get("storedKey"):
+            from app.services.analysis_cache import forget
+
+            forget(storage, m["storedKey"])  # what was measured / described about this file goes too
         for key in (m.get("storedKey"), m.get("thumbnailKey")):
             if key:
                 storage.delete(key)

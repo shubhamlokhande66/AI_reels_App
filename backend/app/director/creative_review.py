@@ -24,6 +24,9 @@ from app.video import footage
 from app.video.timeline import ClipInput, _windows_of, brief_terms, cut_points
 
 TARGET_SCORE = 80  # below this the reviewer tries to improve the edit
+# Fixes for a failed hard quality check (a shot that drags in a loud part): applied whatever the overall score, because
+# a high score elsewhere does not make a failed check acceptable. They are safe, deterministic and keep the footage.
+MUST_FIX = {"split_long_shot"}
 MAX_REVISIONS = 2
 WEIGHTS = {"hook": 0.18, "pacing": 0.12, "story": 0.14, "diversity": 0.14, "beat": 0.10, "visual": 0.10,
            "transitions": 0.06, "motion": 0.05, "ending": 0.06, "text": 0.05}  # fmt: skip
@@ -256,13 +259,17 @@ def _used(tl: Timeline, skip: int | None = None) -> dict[str, list[tuple[float, 
     return out
 
 
-def _place(tl: Timeline, i: int, clip: ClipInput, start: float, w: UsableWindow, reason: str) -> None:
+def _place(tl: Timeline, i: int, clip: ClipInput, start: float, w: UsableWindow, reason: str) -> bool:
+    """Put footage into shot ``i``; False (nothing changed) when the person locked that shot by editing it by hand."""
     s = tl.segments[i]
+    if s.locked:
+        return False
     span = s.length * s.speed
     s.clip_id, s.video = clip.clip_id, clip.name
     s.source_start, s.source_end = round(start, 3), round(start + span, 3)
     s.focus_x, s.focus_y, s.focus_source = w.focus_x, w.focus_y, w.focus_source
     s.reason = f"{clip.name}: {reason}"
+    return True
 
 
 def _best_fresh(tl: Timeline, i: int, clips: list[ClipInput], key, avoid_clips: set[str] = frozenset()) -> tuple[ClipInput, float, UsableWindow] | None:
@@ -303,8 +310,8 @@ def revise_once(tl: Timeline, review: CreativeReview, clips: list[ClipInput], mm
                            avoid_clips=_neighbours(tl, 0) - {tl.segments[0].clip_id})  # fmt: skip
         if pick:
             c, a, w = pick
-            _place(tl, 0, c, a, w, f"Replaced the opening: the strongest hook in the footage ({intel.HookCandidate(c.clip_id, c.name, a, a, 0, intel.hook_parts(c, w, terms, sigs)).reason}).")
-            done.append(f"replaced the opening with {c.name}")
+            if _place(tl, 0, c, a, w, f"Replaced the opening: the strongest hook in the footage ({intel.HookCandidate(c.clip_id, c.name, a, a, 0, intel.hook_parts(c, w, terms, sigs)).reason})."):
+                done.append(f"replaced the opening with {c.name}")
 
     peak = _peak_index(tl, mm)
     hero = intel.find_hero(clips)
@@ -320,8 +327,8 @@ def revise_once(tl: Timeline, review: CreativeReview, clips: list[ClipInput], mm
                     _place(tl, j, alt[0], alt[1], alt[2], "Moved here so the strongest moment is saved for the music's peak.")
         w = _window(c, hero.start) if c else None
         if c is not None and w is not None and hero.start + span <= w.end + 1e-6 and footage.is_fresh(hero.start, hero.start + span, _used(tl, skip=peak).get(c.clip_id, [])):
-            _place(tl, peak, c, hero.start, w, "Saved the strongest moment of the footage for the music's peak.")
-            done.append(f"put the strongest moment ({c.name}) on the music's peak")
+            if _place(tl, peak, c, hero.start, w, "Saved the strongest moment of the footage for the music's peak."):
+                done.append(f"put the strongest moment ({c.name}) on the music's peak")
 
     if "strengthen_middle" in fixes or "strengthen_ending" in fixes:
         targets = []
@@ -339,8 +346,8 @@ def revise_once(tl: Timeline, review: CreativeReview, clips: list[ClipInput], mm
                 cur = _window(by_id.get(tl.segments[i].clip_id), tl.segments[i].source_start)
                 if cur is None or 0.55 * w.quality + 0.45 * w.motion_between(a, a + 1) > 0.55 * cur.quality + 0.45 * cur.motion + 0.03:
                     last = i == len(tl.segments) - 1
-                    _place(tl, i, c, a, w, "A stronger shot to end on." if last else "A stronger moment so the middle keeps viewers watching.")
-                    done.append(f"strengthened the {'ending' if last else 'middle'} with {c.name}")
+                    if _place(tl, i, c, a, w, "A stronger shot to end on." if last else "A stronger moment so the middle keeps viewers watching."):
+                        done.append(f"strengthened the {'ending' if last else 'middle'} with {c.name}")
 
     rep_times = [i.timestamp for i in review.issues if i.fix == "swap_repetitive"]
     for t in rep_times:
@@ -352,8 +359,8 @@ def revise_once(tl: Timeline, review: CreativeReview, clips: list[ClipInput], mm
                            + 0.1 * intel.motion_match(prev_w, w), avoid_clips=_neighbours(tl, i))  # fmt: skip
         if pick:
             c, a, w = pick
-            _place(tl, i, c, a, w, "Brings in different footage so neighbouring shots do not look alike.")
-            done.append(f"swapped a repetitive shot at {tl.segments[i].timeline_start:.1f}s for {c.name}")
+            if _place(tl, i, c, a, w, "Brings in different footage so neighbouring shots do not look alike."):
+                done.append(f"swapped a repetitive shot at {tl.segments[i].timeline_start:.1f}s for {c.name}")
 
     for t in [i.timestamp for i in review.issues if i.fix == "match_motion"]:
         i = next((k for k, s in enumerate(tl.segments) if abs(s.timeline_start - t) < 1e-3), None)
@@ -364,13 +371,13 @@ def revise_once(tl: Timeline, review: CreativeReview, clips: list[ClipInput], mm
                            avoid_clips=_neighbours(tl, i))  # fmt: skip
         if pick and intel.motion_match(prev_w, pick[2]) >= 0:
             c, a, w = pick
-            _place(tl, i, c, a, w, f"Continues the movement of the shot before ({prev_w.direction if prev_w else 'still'}) instead of reversing it.")
-            done.append(f"smoothed a direction change at {t:.1f}s")
+            if _place(tl, i, c, a, w, f"Continues the movement of the shot before ({prev_w.direction if prev_w else 'still'}) instead of reversing it."):
+                done.append(f"smoothed a direction change at {t:.1f}s")
 
     if "calm_transitions" in fixes:
         n = len(tl.segments)
         allowed = int(max_transition_ratio * max(n - 1, 1))
-        fancy = [s for s in tl.segments[1:] if s.transition_in.type != "cut"]
+        fancy = [s for s in tl.segments[1:] if s.transition_in.type != "cut" and not s.locked]
         extra = len(fancy) - allowed
         if extra > 0:
             for s in sorted(fancy, key=lambda s: (mm.level_at(s.timeline_start) if mm else 1))[:extra]:  # keep those on the strongest beats
@@ -389,7 +396,7 @@ def _split_long(tl: Timeline, review: CreativeReview, mm: MusicMap | None) -> li
     out: list[str] = []
     for t in sorted({i.timestamp for i in review.issues if i.fix == "split_long_shot"}, reverse=True):
         k = next((j for j, s in enumerate(tl.segments) if abs(s.timeline_start - t) < 1e-3), None)
-        if k is None:
+        if k is None or tl.segments[k].locked:
             continue
         s = tl.segments[k]
         beats = [b.t for b in mm.beats if s.timeline_start + 0.6 < b.t < s.timeline_end - 0.6]
@@ -423,18 +430,21 @@ def auto_revise(tl: Timeline, clips: list[ClipInput], mm: MusicMap | None, *, br
     best_tl, best = tl, review
     rounds: list[dict] = []
     for k in range(MAX_REVISIONS):
-        if best.overall_score >= TARGET_SCORE or not any(i.fix for i in best.issues):
+        must_only = best.overall_score >= TARGET_SCORE
+        todo = [i for i in best.issues if i.fix and (i.fix in MUST_FIX or not must_only)]
+        if steps:
+            todo = [i for i in todo if i.fix in ("calm_transitions", *MUST_FIX)]
+        if not todo:
             break
         cand = best_tl.model_copy(deep=True)
-        if steps:
-            best.issues = [i for i in best.issues if i.fix == "calm_transitions"]
-        changes = revise_once(cand, best, clips, mm, brief=brief, max_transition_ratio=max_transition_ratio)
+        changes = revise_once(cand, CreativeReview(best.overall_score, best.categories, todo), clips, mm, brief=brief,
+                              max_transition_ratio=max_transition_ratio)  # fmt: skip
         if not changes:
             break
         if repair is not None:
             repair(cand)
         again = review_edit(cand, clips, mm, brief=brief, max_transition_ratio=max_transition_ratio, pace=pace, steps=steps)
-        kept = again.overall_score > best.overall_score
+        kept = again.overall_score > best.overall_score or (must_only and again.overall_score >= best.overall_score)
         rounds.append({"round": k + 1, "changes": changes, "scoreBefore": best.overall_score, "scoreAfter": again.overall_score, "kept": kept})
         if not kept:
             break

@@ -3,14 +3,15 @@
 Deterministic signal processing (librosa / numpy), no AI:
 
 * curves every ``CURVE_HOP`` seconds: loudness (dBFS), brightness (spectral centroid, 0..1), rhythmic density (onsets
-  per second, 0..1) and vocal presence (0..1, an *estimate*: harmonic energy in the voice band that is not flat noise);
+  per second, 0..1) and vocal presence (0..1, an *estimate*: a tonal partial in the voice range whose pitch wavers the
+  way a voice does, which held synth / pad notes do not);
 * labelled sections: intro, build, drop, chorus, verse, bridge, outro, from the coarse MFCC sections plus energy,
   energy slope, density, repetition and position in the song;
 * a cut strategy per section label: what the cuts in that part land on (phrase, bar, beat, half beat, accent,
   silence ...). The Creative Director reads it as guidance; it may break it when the story needs.
 
 Vocal presence is a heuristic (no source separation): good enough to tell "someone is singing" from "drums and synths",
-not a lyric aligner. It says so in the analysis (``vocal_method``).
+not a lyric aligner, and the Reel plan says so.
 """
 
 from __future__ import annotations
@@ -59,11 +60,46 @@ def _resample(x: np.ndarray, src_hop: float, n: int) -> np.ndarray:
     return out
 
 
-def compute_curves(y: np.ndarray, sr: int, onsets: list[float], hop: int = 512) -> Curves:
+VOICE_LO, VOICE_HI = 150.0, 1000.0  # Hz: where a sung melody's strongest partial sits
+
+
+def _pitch_motion(S: np.ndarray, freqs: np.ndarray, fh: float) -> np.ndarray:
+    """Per frame, how much the strongest tonal partial in the voice range *wavers* (0..1).
+
+    Singing never holds a pitch still: vibrato and glides move it by a fraction of a semitone, continuously. Pads,
+    synths and most instruments hold a note dead steady, and drums have no stable partial at all. So: track the
+    strongest clear peak (sub-bin accurate), drop note changes (jumps over 1.5 semitones), and measure the remaining
+    back-and-forth movement over ~0.4 s (a one-way slide, like a kick drum's falling pitch, does not count). Frames without a clear peak score 0."""
+    band = np.where((freqs >= VOICE_LO) & (freqs <= VOICE_HI))[0]
+    B = S[band]
+    k = np.argmax(B, axis=0)
+    peak = B[k, np.arange(B.shape[1])]
+    clear = peak > 6.0 * np.maximum(np.median(B, axis=0), 1e-9)
+    # parabolic interpolation around the peak bin -> sub-bin frequency
+    kk = np.clip(k, 1, len(band) - 2)
+    a, b, c = (np.log(np.maximum(B[kk + d, np.arange(B.shape[1])], 1e-9)) for d in (-1, 0, 1))
+    den = a - 2 * b + c
+    off = np.where(np.abs(den) > 1e-9, 0.5 * (a - c) / np.where(np.abs(den) > 1e-9, den, 1.0), 0.0)
+    f = freqs[band][kk] + np.clip(off, -0.5, 0.5) * (freqs[1] - freqs[0])
+    semis = 12 * np.log2(np.maximum(f, 1.0) / 440.0)
+    d = np.diff(semis, prepend=semis[:1])
+    step = np.abs(d)
+    ok = clear & np.roll(clear, 1) & (step < 1.5)
+    moving = np.where(ok, np.clip((step - 0.03) / 0.12, 0.0, 1.0), 0.0)  # 0.03-0.15 semitone per frame = a voice wavering
+    signed = np.where(ok, np.sign(d) * moving, 0.0)
+    w = max(int(round(0.4 / fh)), 1)
+    ones = np.ones(w)
+    held = np.convolve(ok.astype(float), ones, mode="same")
+    # wavering = back-and-forth movement; a one-way slide (a kick's pitch drop, a riser) cancels out here
+    wobble = np.maximum(np.convolve(moving, ones, mode="same") - np.abs(np.convolve(signed, ones, mode="same")), 0.0)
+    return np.where(held > 0, wobble / np.maximum(held, 1.0), 0.0) * (held / w)
+
+
+def compute_curves(y: np.ndarray, sr: int, onsets: list[float], hop: int = 1024) -> Curves:
     duration = len(y) / sr
     n = max(int(np.ceil(duration / CURVE_HOP)), 1)
     fh = hop / sr
-    rms = librosa.feature.rms(y=y, frame_length=hop * 4, hop_length=hop)[0]
+    rms = librosa.feature.rms(y=y, frame_length=hop * 2, hop_length=hop)[0]
     loud = 20 * np.log10(np.maximum(_resample(rms, fh, n), 1e-5))
     S = np.abs(librosa.stft(y, n_fft=2048, hop_length=hop))
     centroid = librosa.feature.spectral_centroid(S=S, sr=sr)[0]
@@ -78,17 +114,13 @@ def compute_curves(y: np.ndarray, sr: int, onsets: list[float], hop: int = 512) 
     dens = np.convolve(counts, np.ones(window) / (window * CURVE_HOP), mode="same")
     dens = np.clip(dens / 8.0, 0.0, 1.0)  # 8 onsets per second = as busy as it gets
 
-    # vocal estimate: harmonic part (HPSS), energy share in the voice band, and not noise-like
-    H, _ = librosa.decompose.hpss(S)
+    # vocal estimate: a wavering tonal partial in the voice range, weighted by how much energy sits in the voice band
     freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
     band = (freqs >= 250) & (freqs <= 3500)
-    share = H[band].sum(axis=0) / np.maximum(S.sum(axis=0), 1e-9)
-    flat = librosa.feature.spectral_flatness(S=H)[0]
-    tonal = np.clip(1.0 - flat * 20, 0.0, 1.0)
-    vocal = _resample(np.clip(share * 1.6, 0.0, 1.0) * tonal, fh, n)
+    share = np.clip(S[band].sum(axis=0) / np.maximum(S.sum(axis=0), 1e-9) * 1.5, 0.0, 1.0)
+    vocal = _resample(np.clip(_pitch_motion(S, freqs, fh) * 1.5, 0.0, 1.0) * (0.4 + 0.6 * share), fh, n)
     vocal = np.convolve(vocal, np.ones(3) / 3, mode="same")
-    quiet = loud < (np.max(loud) - 35)
-    vocal[quiet] = 0.0
+    vocal[loud < (np.max(loud) - 35)] = 0.0
     return Curves([round(float(v), 1) for v in loud], [round(float(v), 3) for v in bright],
                   [round(float(v), 3) for v in dens], [round(float(min(max(v, 0.0), 1.0)), 3) for v in vocal])  # fmt: skip
 

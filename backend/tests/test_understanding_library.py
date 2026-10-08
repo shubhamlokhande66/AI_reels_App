@@ -198,6 +198,7 @@ def test_understanding_stage_caches_and_degrades(storage, media_dir):
 
     for v in vids:
         storage.delete(pipeline._semantic_key("p", v.id))
+    storage.delete_prefix("shared/analysis")  # the same footage is also remembered across projects
     set_provider(VisionFake(error=AIUnavailable("Cannot reach Ollama.", code="OLLAMA_UNAVAILABLE")))
     w2: list[str] = []
     assert pipeline.understand_clips(_inp(vids), clips, storage, lambda *_: None, w2) == {}

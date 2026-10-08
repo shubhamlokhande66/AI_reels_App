@@ -57,6 +57,10 @@ class RenderConfig:
     target_lufs: int = -14
     encoder: str = "libx264"  # final encode; hardware encoders fall back to x264 on failure
     audio_mode: str = "music"  # music | voice_music | voice | original | none
+    # Picture quality (final renders): real in-between frames for slow motion, stabilising shaky clips. Previews skip
+    # them to stay fast.
+    smooth_slowmo: bool = True
+    stabilize: bool = True
 
     @property
     def aspect(self) -> float:
@@ -72,6 +76,8 @@ class SourceClip:
     # Real picture inside the frame (x, y, w, h) when the file has solid padding around it.
     content: tuple[int, int, int, int] | None = None
     has_audio: bool = False  # the source has its own sound (used by the 'original audio' mode)
+    shaky: bool = False  # the analysis found hand shake: the shot is stabilised
+    brightness: float = 0.5  # mean brightness of its good parts (0..1): too dark / too bright clips are corrected
 
 
 @dataclass(frozen=True)
@@ -218,14 +224,42 @@ def choose_framing(content_w: int, content_h: int, cfg: RenderConfig) -> str:
 
 
 def _enhance(upscale: float) -> tuple[str, str]:
-    """(pre-scale, post-scale) filters. Compressed low-res sources look blocky once stretched."""
+    """(pre-scale, post-scale) filters. Compressed low-res sources look blocky once stretched: denoise before the
+    (Lanczos) upscale, then contrast-adaptive sharpening restores edges without halos."""
     if upscale <= UPSCALE_ENHANCE_AT:
         return "", ""
     strength = min(1.0 + (upscale - UPSCALE_ENHANCE_AT) * 0.6, 3.0)
     return (
         f"hqdn3d={strength:.1f}:{strength * 0.75:.1f}:{strength * 2:.1f}:{strength * 2:.1f}",
-        "unsharp=5:5:0.55:5:5:0.0",
+        f"cas={min(0.35 + 0.1 * (upscale - UPSCALE_ENHANCE_AT), 0.7):.2f}",
     )
+
+
+SLOWMO_SMOOTH_BELOW = 0.95  # a shot slower than this gets interpolated in-between frames (not repeated frames)
+
+
+def quality_filters(src: SourceClip, cfg: RenderConfig) -> list[str]:
+    """Before framing: stabilise a shaky clip and correct a clip that is clearly too dark or too bright."""
+    out: list[str] = []
+    if cfg.stabilize and src.shaky:
+        out.append("deshake=rx=32:ry=32:edge=mirror")  # one pass; the crop / framing that follows hides the edges
+    if src.brightness < 0.32:
+        lift = min((0.32 - src.brightness) * 0.9, 0.18)
+        out.append(f"eq=brightness={lift:.3f}:gamma={1 + lift * 1.5:.3f}:saturation=1.05")
+    elif src.brightness > 0.8:
+        out.append(f"eq=gamma={max(1 - (src.brightness - 0.8) * 1.2, 0.8):.3f}")
+    return out
+
+
+def time_filters(seg: Segment, cfg: RenderConfig) -> list[str]:
+    """Speed. Slow motion in a final render is smoothed with motion-compensated interpolation, so it flows instead of
+    stepping; everything else (and previews) simply resamples to the output frame rate."""
+    chain = [f"setpts=(PTS-STARTPTS)/{seg.speed:.4f}"]
+    if cfg.smooth_slowmo and seg.speed < SLOWMO_SMOOTH_BELOW:
+        chain.append(f"minterpolate=fps={cfg.fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1")
+    else:
+        chain.append(f"fps={cfg.fps}")
+    return chain
 
 
 def build_filter_graph(
@@ -235,7 +269,7 @@ def build_filter_graph(
     W, H = cfg.width, cfg.height
     cx, cy, cw, ch = src.content or (0, 0, src.width, src.height)
     mode = seg.crop.framing if seg.crop.framing in ("fill", "fit") else choose_framing(cw, ch, cfg)
-    time_chain = [f"setpts=(PTS-STARTPTS)/{seg.speed:.4f}", f"fps={cfg.fps}"]
+    time_chain = [*quality_filters(src, cfg), *time_filters(seg, cfg)]
     if mode == "fill":
         fx, fy, fsrc = seg.focus_x, seg.focus_y, seg.focus_source
         if seg.crop.focus_x is not None:  # a manual subject position beats detection

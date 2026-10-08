@@ -7,7 +7,7 @@ import numpy as np
 import soundfile as sf
 
 from app.audio.analyzer import ANALYSIS_VERSION, analyze_audio
-from app.audio.structure import CUT_STRATEGY, Curves, label_sections
+from app.audio.structure import CUT_STRATEGY, Curves, compute_curves, label_sections
 from app.director.music_map import build_music_map
 from app.models.analysis import Section, SongSection
 from app.styles import get_style
@@ -37,7 +37,7 @@ def _song(path, sr=SR):
             k += step if start == 20 else max(step - 0.03 * (k - start), 0.25)
     drop = (t >= 20) & (t < 34)
     y += drop * 0.25 * np.sin(2 * np.pi * 55 * t)
-    f0 = 330 * (1 + 0.01 * np.sin(2 * np.pi * 5.5 * t))
+    f0 = 330 * (1 + 0.03 * np.sin(2 * np.pi * 5.5 * t))  # a sung note: ~0.5 semitone vibrato
     phase = 2 * np.pi * np.cumsum(f0) / sr
     voice = sum(np.sin(h * phase) / h for h in range(1, 8))
     y += drop * 0.12 * voice
@@ -57,7 +57,17 @@ def test_sections_curves_and_vocals_from_a_real_signal(tmp_path):
     assert n == len(a.brightness) == len(a.density) == len(a.vocal) >= 80  # every 0.5 s
     assert a.curve_at("loudness_db", 27.0) > a.curve_at("loudness_db", 5.0) + 6  # the drop is clearly louder
     assert a.curve_at("density", 27.0) > a.curve_at("density", 5.0)
-    assert np.mean(a.vocal[int(22 / 0.5):int(32 / 0.5)]) > np.mean(a.vocal[int(12 / 0.5):int(18 / 0.5)])  # singing over the drop
+    sung, kicks, pad = (float(np.mean(a.vocal[int(x / 0.5):int(z / 0.5)])) for x, z in ((22, 32), (12, 18), (2, 8)))
+    assert sung > 0.5 and kicks < 0.35 and pad < 0.1  # singing over the drop; drums and a held pad are not vocals
+
+
+def test_held_synth_chord_is_not_a_voice():
+    """Pads and synths hold a pitch; a voice wavers. A loud, tonal, voice-band chord must still read as instrumental."""
+    t = np.arange(int(12 * SR)) / SR
+    y = sum(0.2 * np.sin(2 * np.pi * f * t) for f in (262, 330, 392, 523))
+    y += sum(0.05 * np.sin(2 * np.pi * 3 * f * t) for f in (262, 330))
+    c = compute_curves(y.astype(np.float32), SR, [])
+    assert max(c.vocal) < 0.1
 
 
 def test_labels_follow_energy_slope_drops_and_position():

@@ -1,3 +1,5 @@
+import { tracked } from "./activity";
+import { adminHeaders } from "./admin";
 import type {
   ApiErrorBody,
   DirectorProfile,
@@ -10,6 +12,7 @@ import type {
   ProjectSettings,
   ProjectStatus,
   ProjectSummary,
+  SongParts,
   Rendering,
   StyleInfo,
   TrendPreset,
@@ -46,8 +49,7 @@ import type {
   Template,
   TemplateInput,
   VoiceProfile,
-  VoiceProfileInput,
-} from "@/types/api";
+  VoiceProfileInput, Connections, Platform, Post, Retention, Story, StoryOptions } from "@/types/api";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -103,19 +105,40 @@ async function parseError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, { code: "HTTP_ERROR", message: `Request failed (${res.status}).` });
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** No request may hang forever: without an answer in time it fails with a clear message (the server may be down). */
+const DEFAULT_TIMEOUT_MS = 45_000;
+const AI_TIMEOUT_MS = 240_000; // story planning / a scene picture: one AI call, can take a minute or two
+
+async function request<T>(path: string, init?: RequestInit, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  return method === "GET" ? send<T>(path, init, timeoutMs) : tracked(send<T>(path, init, timeoutMs)); // actions light up the activity bar
+}
+
+async function send<T>(path: string, init: RequestInit | undefined, timeoutMs: number): Promise<T> {
   let res: Response;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     res = await fetch(`${API_URL}${path}`, {
       ...init,
-      headers: { ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...init?.headers },
+      signal: init?.signal ?? ctrl.signal,
+      credentials: "include", // the session cookie (accounts on)
+      headers: { ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...adminHeaders(), ...init?.headers },
     });
   } catch {
+    clearTimeout(timer);
+    if (ctrl.signal.aborted) {
+      throw new ApiError(0, {
+        code: "SERVER_TIMEOUT",
+        message: `The server did not answer within ${Math.round(timeoutMs / 1000)} seconds. It may be busy or restarting: wait a moment and try again.`,
+      });
+    }
     throw new ApiError(0, {
       code: "NETWORK_ERROR",
       message: "Cannot reach the server. Is the backend running?",
     });
   }
+  clearTimeout(timer);
   if (!res.ok) throw await parseError(res);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -123,9 +146,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** Multipart upload with progress (fetch has no upload progress events). */
 function upload<T>(path: string, form: FormData, onProgress?: (fraction: number) => void): Promise<T> {
-  return new Promise((resolve, reject) => {
+  return tracked(new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_URL}${path}`);
+    xhr.withCredentials = true; // the session cookie (accounts on)
+    for (const [k, v] of Object.entries(adminHeaders())) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
     xhr.onerror = () =>
       reject(new ApiError(0, { code: "NETWORK_ERROR", message: "Cannot reach the server. Is the backend running?" }));
@@ -141,7 +166,7 @@ function upload<T>(path: string, form: FormData, onProgress?: (fraction: number)
       reject(new ApiError(xhr.status, err ?? { code: "HTTP_ERROR", message: `Upload failed (${xhr.status}).` }));
     };
     xhr.send(form);
-  });
+  }));
 }
 
 export interface UploadResult {
@@ -151,6 +176,15 @@ export interface UploadResult {
 
 export const api = {
   health: () => request<Health>("/api/health"),
+  me: () => request<{ authEnabled: boolean; user: { id: string; email: string } | null }>("/api/auth/me"),
+  login: (email: string, password: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  register: (email: string, password: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
+  logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  /** Is this browser in admin mode? (required = the server has an admin key; without one everyone is admin) */
+  adminSession: (key?: string) =>
+    request<{ admin: boolean; required: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined),
   styles: () => request<StyleInfo[]>("/api/styles"),
   trends: () => request<TrendPreset[]>("/api/trends"),
 
@@ -187,9 +221,36 @@ export const api = {
   generate: (id: string, options: GenerateOptions = {}) =>
     request<Job>(`/api/projects/${id}/generate`, { method: "POST", body: JSON.stringify(options) }),
   analyze: (id: string) => request<Job>(`/api/projects/${id}/analyze`, { method: "POST" }),
+  /** The best parts of the project's song for a Reel of `duration` seconds, best first (the first = the automatic choice). */
+  songParts: (id: string, duration: number, count = 5) =>
+    request<SongParts>(`/api/projects/${id}/song-parts?duration=${duration}&count=${count}`, undefined, 240_000), // analyses the song: can take a while
   getJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}`),
   cancelJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}/cancel`, { method: "POST" }),
   renderings: (id: string) => request<Rendering[]>(`/api/projects/${id}/renderings`),
+  storyOptions: () => request<StoryOptions>("/api/story/options"),
+  createStory: (body: { text: string; language: string; artStyle: string; scenes: number; seconds: number }) =>
+    request<Story>("/api/story", { method: "POST", body: JSON.stringify(body) }, AI_TIMEOUT_MS),
+  replanStory: (id: string) => request<Story>(`/api/projects/${id}/story/replan`, { method: "POST" }, AI_TIMEOUT_MS),
+  getStory: (id: string) => request<Story>(`/api/projects/${id}/story`),
+  editStory: (id: string, body: { title: string; scenes: { id: string; narration: string; visual: string }[] }) =>
+    request<Story>(`/api/projects/${id}/story`, { method: "PUT", body: JSON.stringify(body) }),
+  scenePicture: (id: string, sceneId: string, another = false) =>
+    request<Story>(`/api/projects/${id}/story/scenes/${sceneId}/picture`, { method: "POST", body: JSON.stringify({ another }) }, AI_TIMEOUT_MS),
+  uploadScenePicture: (id: string, sceneId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<Story>(`/api/projects/${id}/story/scenes/${sceneId}/upload`, form);
+  },
+  renderStory: (id: string, body: { voiceId: string | null; quality: "preview" | "final" }) =>
+    request<Job>(`/api/projects/${id}/story/render`, { method: "POST", body: JSON.stringify(body) }),
+  retention: () => request<Retention>("/api/retention"),
+  setRetention: (body: Retention) => request<Retention>("/api/admin/retention", { method: "PUT", body: JSON.stringify(body) }),
+  runRetention: () => request<{ uploads: number; projects: number }>("/api/admin/retention/run", { method: "POST" }),
+  connections: () => request<Connections>("/api/publish/connections"),
+  publish: (id: string, renderingId: string, body: { platforms: Platform[]; caption: string; at?: string | null }) =>
+    request<Post>(`/api/projects/${id}/renderings/${renderingId}/publish`, { method: "POST", body: JSON.stringify(body) }),
+  posts: (id: string) => request<Post[]>(`/api/projects/${id}/posts`),
+  cancelPost: (postId: string) => request<{ ok: boolean }>(`/api/posts/${postId}`, { method: "DELETE" }),
 
   // --- editor ---
   timeline: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline`),
@@ -340,6 +401,9 @@ export const api = {
 
   // --- variations, workspace ---
   strategies: () => request<Strategy[]>("/api/variation-strategies"),
+  /** One long video -> several Reels from its best parts (they appear as versions). */
+  split: (id: string, count: number, seconds: number) =>
+    request<Job>(`/api/projects/${id}/split`, { method: "POST", body: JSON.stringify({ count, seconds }) }),
   variations: (id: string, strategies?: string[]) =>
     request<Job>(`/api/projects/${id}/variations`, { method: "POST", body: JSON.stringify({ strategies }) }),
   duplicate: (id: string, body: { name?: string; variant?: "copy" | "language"; language?: string }) =>

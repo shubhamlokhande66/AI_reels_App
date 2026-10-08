@@ -25,6 +25,7 @@ TASKS: dict[str, TaskSpec] = {t.id: t for t in (
     TaskSpec("director", "text", False, "Creative director"),
     TaskSpec("product_director", "text", False, "Product creative director"),
     TaskSpec("copy", "text", False, "Post copy"),
+    TaskSpec("reviewer", "text", False, "Reel reviewer"),
     TaskSpec("library_search", "text", False, "Library search"),
     TaskSpec("hooks", "text", True, "Hook generation"),
     TaskSpec("script", "text", True, "Script writing"),

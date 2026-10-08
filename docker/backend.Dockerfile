@@ -3,7 +3,7 @@ FROM python:3.12-slim
 
 # FFmpeg/FFprobe are required for all video work; libsndfile for audio decoding helpers.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 fonts-dejavu-core fontconfig \
+    && apt-get install -y --no-install-recommends ffmpeg libsndfile1 fonts-dejavu-core fonts-noto-core fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

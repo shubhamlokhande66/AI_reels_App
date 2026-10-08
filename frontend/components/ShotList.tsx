@@ -5,7 +5,7 @@ import { Card } from "./ui";
 
 const PURPOSE_TONE: Record<ProductShot["purpose"], string> = {
   hook: "bg-fuchsia-400/20 text-fuchsia-200",
-  curiosity: "bg-violet-400/20 text-violet-200",
+  curiosity: "bg-accent/15 text-accent",
   reveal: "bg-blue-400/20 text-blue-200",
   hero: "bg-emerald-400/20 text-emerald-200",
   detail: "bg-amber-400/20 text-amber-200",

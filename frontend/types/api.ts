@@ -8,7 +8,7 @@ export interface ApiErrorBody {
 }
 
 export interface ProjectSettings {
-  reelType?: "edit" | "product";
+  reelType?: "edit" | "product" | "story";
   productStyle?: string;
   hookText?: string;
   taglineText?: string;
@@ -31,6 +31,11 @@ export interface ProjectSettings {
   audioMode?: "music" | "voice_music" | "voice" | "original" | "none";
   language?: string;
   brief?: string;
+  /** Optional brief fields; empty = inferred by the Creative Director. */
+  objective?: string;
+  audience?: string;
+  /** Creative direction: auto, or one of the three concepts. */
+  concept?: Concept;
   brandId?: string | null;
   voiceProfileId?: string | null;
   captions: boolean;
@@ -100,6 +105,16 @@ export interface ClipSummary {
   sharpnessScore: number;
   flags: string[];
   usable: boolean;
+  /** Seconds of this clip the editor can really use (good parts only); absent before the analysis. */
+  goodSeconds?: number;
+  /** Shot intelligence (video analysis v3); absent on older analyses. */
+  compositionScore?: number;
+  subjectScore?: number;
+  /** Only when the vision model says the clip shows a product. */
+  productVisibility?: number | null;
+  /** Share of usable footage per shot size, e.g. { close: 0.6, wide: 0.4 }. */
+  shotSizes?: Record<string, number>;
+  bestSegments?: { start: number; end: number; score: number }[];
 }
 
 export interface Media {
@@ -158,7 +173,7 @@ export interface JobStage {
 export interface Job {
   id: string;
   projectId: string;
-  type: "analyze" | "generate" | "render" | "variations" | "product";
+  type: "analyze" | "generate" | "render" | "variations" | "split" | "product";
   status: JobStatus;
   progress: number;
   stage: string;
@@ -193,7 +208,7 @@ export interface Project {
     audio?: { bpm: number; duration: number; beatCount: number };
   } | null;
   timeline: {
-    duration: number; bpm: number; warnings: string[]; notes?: string[]; segments: TimelineSegment[];
+    duration: number; bpm: number; audioStart?: number; warnings: string[]; notes?: string[]; segments: TimelineSegment[];
     colorGrade?: string | null;
     overlays?: { id: string; text: string; start: number; end: number; role: string }[];
     /** Which AI made the creative decisions ("AI: Gemini"). */
@@ -345,7 +360,23 @@ export interface AiUsage {
   budget: AiBudgetState & { daily: number; monthly: number; override: boolean };
 }
 
-export type Sequence = "mixed" | "steps";
+export type Sequence = "mixed" | "steps" | "talk";
+
+export interface SongPart {
+  start: number;
+  end: number;
+  score: number;
+  reasons: string[];
+}
+
+export interface SongParts {
+  songSeconds: number;
+  bpm: number;
+  duration: number;
+  parts: SongPart[];
+  tooShort: boolean;
+}
+export type Concept = "auto" | "viral" | "cinematic" | "premium";
 
 export interface GenerateOptions {
   sequence?: Sequence;
@@ -354,6 +385,7 @@ export interface GenerateOptions {
   orderMode?: "auto" | "manual";
   audioMode?: string;
   brief?: string;
+  concept?: Concept;
   language?: string;
   style?: string;
   pace?: "auto" | "calm" | "balanced" | "fast";
@@ -532,6 +564,8 @@ export interface Brand {
   scriptTone: string;
   captionStyle: string;
   style: string;
+  /** The brand look the Creative Director uses whenever a project style is auto. */
+  visualStyle?: BrandVisualStyle | null;
   pace: "calm" | "balanced" | "fast";
   trendId: string | null;
   musicStyle: string;
@@ -540,6 +574,8 @@ export interface Brand {
   logoUrl: string | null;
 }
 export type BrandInput = Omit<Brand, "id" | "hasLogo" | "logoUrl">;
+export const BRAND_VISUAL_STYLES = ["luxury", "cinematic", "viral", "minimal", "energetic", "storytelling", "product_focus", "social_native"] as const;
+export type BrandVisualStyle = (typeof BRAND_VISUAL_STYLES)[number];
 
 export interface Template {
   id: string;
@@ -724,6 +760,77 @@ export interface ReelPlan {
   hookCandidates?: HookCandidate[];
   /** The single strongest moment of the footage, kept for the music's peak. */
   heroMoment?: { clipId: string; asset: string; start: number; end: number; score: number } | null;
+  /** Phase 2: the project brief (who / what / why), with the fields the app inferred. */
+  brief?: ProjectBrief;
+  /** Phase 2: the Creative Plan this edit carries out. */
+  creativePlan?: CreativePlan;
+  /** Phase 2: the hook engine's typed, scored openings (best first). */
+  hooks?: HookOption[];
+  /** Phase 2: the Reviewer's ten measured scores. */
+  scorecard?: Scorecard;
+  /** Phase 2: review -> correct -> re-render rounds after the first render. */
+  selfCorrection?: { iteration: number; scoreBefore: number; scoreAfter: number | null; changes: string[]; kept: boolean; aiSummary: string }[];
+}
+
+export interface ProjectBrief {
+  platform: string;
+  duration: number;
+  objective: string;
+  contentType: string;
+  audience: string;
+  style: string;
+  tone: string;
+  cta: string;
+  brand: string;
+  language: string;
+  inferred: string[];
+}
+
+export interface CreativePlan {
+  concept: string;
+  direction: "auto" | "viral" | "cinematic" | "premium";
+  logline: string;
+  hook: { type?: string; clipId?: string; asset?: string; start?: number; duration?: number; why?: string };
+  story: string[];
+  pacing: string;
+  visualEnergy: string;
+  musicInterpretation: string;
+  textStrategy: string;
+  effectsStrategy: string;
+  transitionStrategy: string;
+  ending: string;
+  source: "rules" | "ai";
+}
+
+export interface HookOption {
+  clipId: string;
+  asset: string;
+  start: number;
+  end: number;
+  type: string;
+  hookScore: number;
+  clarity: number;
+  curiosity: number;
+  visualStrength: number;
+  reason: string;
+  text: string;
+}
+
+export interface Scorecard {
+  overallScore: number;
+  hook: number;
+  story: number;
+  pacing: number;
+  musicSync: number;
+  visualQuality: number;
+  brandFit: number;
+  textReadability: number;
+  audio: number;
+  ending: number;
+  retention: number;
+  issues: string[];
+  threshold: number;
+  measured: boolean;
 }
 
 export interface CreativeIssue {
@@ -890,4 +997,57 @@ export interface SongList {
   songs: Song[];
   /** Folders watched for new songs (SONG_IMPORT_FOLDERS in the backend .env). */
   folders: string[];
+}
+
+/** Publishing (official platform APIs; keys on the server). */
+export type Platform = "instagram" | "tiktok" | "youtube";
+export type Connections = Record<Platform, { connected: boolean; missing: string[] }>;
+export interface Post {
+  id: string;
+  renderingId: string;
+  platforms: Platform[];
+  caption: string;
+  at: string;
+  status: "scheduled" | "publishing" | "done" | "failed" | "cancelled";
+  results: Partial<Record<Platform, { ok: boolean; postId: string | null; url: string; error: string | null }>>;
+  error: string | null;
+  createdAt: string;
+}
+
+/** Automatic deletion (admin setting). */
+export interface Retention {
+  enabled: boolean;
+  uploadsHours: number;
+  projectsHours: number;
+}
+
+/** Story -> Reel. */
+export type PictureSource = "library" | "public_domain" | "free_ai" | "paid_ai" | "upload";
+export interface StoryScene {
+  id: string;
+  narration: string;
+  visual: string;
+  keywords: string[];
+  characters: string[];
+  shot: "wide" | "medium" | "close";
+  mood: string;
+  source: PictureSource | null;
+  credit: string;
+  imageUrl: string | null;
+}
+export interface Story {
+  projectId: string;
+  title: string;
+  language: string;
+  artStyle: string;
+  characters: { name: string; look: string }[];
+  scenes: StoryScene[];
+  postCopy: { title: string; description: string; hashtags: string[] } | null;
+  plannedBy: "ai" | "simple";
+}
+export interface StoryOptions {
+  artStyles: { id: string; name: string; paintings: boolean; sources: string[] }[];
+  narrators: { id: string; name: string }[];
+  freeAi: boolean;
+  paidAi: boolean;
 }

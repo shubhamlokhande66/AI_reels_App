@@ -55,6 +55,8 @@ class BrandIn(CamelModel):
     script_tone: str = Field(default="", max_length=80)
     caption_style: CaptionStyle = "minimal"
     style: str = "auto"
+    # The brand's look for the Creative Director (one of the built-in styles); used whenever a project's style is auto.
+    visual_style: Literal["luxury", "cinematic", "viral", "minimal", "energetic", "storytelling", "product_focus", "social_native"] | None = None
     pace: Pace = "balanced"
     trend_id: str | None = None
     music_style: str = Field(default="", max_length=100)  # free text guidance ("warm acoustic", "upbeat house")
@@ -63,7 +65,7 @@ class BrandIn(CamelModel):
 
 def _out(d: dict) -> dict:
     keys = ("name", "colors", "captionFont", "headingFont", "watermark", "cta", "language", "voiceProfileId", "scriptTone",
-            "captionStyle", "style", "pace", "trendId", "musicStyle", "exportPreset")  # fmt: skip
+            "captionStyle", "style", "visualStyle", "pace", "trendId", "musicStyle", "exportPreset")  # fmt: skip
     return {"id": str(d["_id"]), **{k: d.get(k) for k in keys}, "hasLogo": bool(d.get("logoKey")),
             "logoUrl": f"/api/brands/{d['_id']}/logo" if d.get("logoKey") else None, "createdAt": d.get("createdAt")}  # fmt: skip
 

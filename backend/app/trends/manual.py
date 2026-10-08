@@ -38,13 +38,19 @@ class ManualTrendSource(TrendSource):
         return list(PRESETS)
 
 
-_source: TrendSource = ManualTrendSource()
+_source: TrendSource | None = None
 
 
 def get_trend_source() -> TrendSource:
+    """The built-in presets, plus a live feed when TREND_FEED_URL is set (trends/feed.py)."""
+    global _source
+    if _source is None:
+        from app.trends.feed import FeedTrendSource
+
+        _source = FeedTrendSource()
     return _source
 
 
 def set_trend_source(source: TrendSource | None) -> None:
     global _source
-    _source = source or ManualTrendSource()
+    _source = source

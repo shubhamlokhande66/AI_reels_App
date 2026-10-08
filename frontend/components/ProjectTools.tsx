@@ -14,7 +14,7 @@ import { LANGUAGES, type Language, type PerformanceInput, type Project, type Ren
 import { btnPrimary, btnSecondary, Card, ErrorBanner } from "./ui";
 
 /** Analyse content, create variations, duplicate / language variant. */
-export function ProjectTools({ project, busy }: { project: Project; busy: boolean }) {
+export function ProjectTools({ project, busy, admin = true }: { project: Project; busy: boolean; admin?: boolean }) {
   const router = useRouter();
   const qc = useQueryClient();
   const strategies = useQuery({ queryKey: ["strategies"], queryFn: api.strategies });
@@ -25,6 +25,10 @@ export function ProjectTools({ project, busy }: { project: Project; busy: boolea
   const understand = useMutation({ mutationFn: () => api.understand(project.id), onSuccess: refresh });
   const chosen = picked ?? strategies.data?.slice(0, 3).map((s) => s.id) ?? [];
   const variations = useMutation({ mutationFn: () => api.variations(project.id, chosen), onSuccess: refresh });
+  const longest = Math.max(0, ...project.videos.filter((v) => !v.purged).map((v) => v.duration ?? 0));
+  const [parts, setParts] = useState(3);
+  const [partSeconds, setPartSeconds] = useState(30);
+  const split = useMutation({ mutationFn: () => api.split(project.id, parts, partSeconds), onSuccess: () => { void refresh(); window.scrollTo({ top: 0, behavior: "smooth" }); } });
   const [start, setStart] = useState<number | null>(project.settings.audioStart ?? null);
   const part = useMutation({
     mutationFn: () =>
@@ -61,7 +65,7 @@ export function ProjectTools({ project, busy }: { project: Project; busy: boolea
 
   const hasFootage = project.videos.length > 0;
   const hasSound = !!project.audio || (project.settings.audioMode ?? "music") !== "music";
-  const error = understand.error ?? variations.error ?? copy.error ?? part.error ?? order.error ?? changeSong.error;
+  const error = understand.error ?? variations.error ?? split.error ?? copy.error ?? part.error ?? order.error ?? changeSong.error;
   const toggle = (id: string) => setPicked(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
 
   return (
@@ -69,6 +73,7 @@ export function ProjectTools({ project, busy }: { project: Project; busy: boolea
       <h2 className="text-lg font-semibold">Tools</h2>
       {error && <ErrorBanner message={errorMessage(error)} />}
       <div className="grid gap-4 md:grid-cols-2">
+        {admin && (
         <Card className="space-y-3">
           <h3 className="font-medium">Understand the footage</h3>
           <p className="text-sm text-muted">
@@ -78,6 +83,7 @@ export function ProjectTools({ project, busy }: { project: Project; busy: boolea
             {understand.isPending ? "Starting…" : "Analyse content"}
           </button>
         </Card>
+        )}
 
         {hasFootage && (
           <Card className="space-y-3 md:col-span-2">
@@ -179,6 +185,35 @@ export function ProjectTools({ project, busy }: { project: Project; busy: boolea
           </Card>
         )}
 
+        {longest >= 45 && (
+          <Card className="space-y-3 md:col-span-2">
+            <h3 className="font-medium">Turn the long video into several Reels</h3>
+            <p className="text-sm text-muted">
+              Your video is {Math.round(longest / 60)} min long. The app finds its best parts (for a talk: the densest whole
+              sentences; otherwise the strongest moments) and makes a Reel from each. They appear under Versions.
+            </p>
+            <div className="flex flex-wrap items-end gap-3 text-sm">
+              <label>
+                <span className="mb-1 block text-xs text-muted">How many Reels</span>
+                <select className="rounded-xl border border-border bg-surface px-3 py-2" value={parts} onChange={(e) => setParts(Number(e.target.value))} disabled={busy}>
+                  {[2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="mb-1 block text-xs text-muted">Each about</span>
+                <select className="rounded-xl border border-border bg-surface px-3 py-2" value={partSeconds} onChange={(e) => setPartSeconds(Number(e.target.value))} disabled={busy}>
+                  {[15, 30, 45, 60].map((n) => <option key={n} value={n}>{n}s</option>)}
+                </select>
+              </label>
+              <button type="button" className={btnPrimary} disabled={busy || split.isPending} onClick={() => split.mutate()}>
+                {split.isPending ? "Starting…" : `Make ${parts} Reels`}
+              </button>
+            </div>
+          </Card>
+        )}
+
+        {/* users make versions with the three concepts in the Creative Director; the full strategy list is for the admin */}
+        {admin && (
         <Card className="space-y-3 md:col-span-2">
           <h3 className="font-medium">Variations</h3>
           <p className="text-sm text-muted">Render several versions of the same Reel with different editing strategies, then pick the one you like.</p>
@@ -203,6 +238,7 @@ export function ProjectTools({ project, busy }: { project: Project; busy: boolea
             {variations.isPending ? "Starting…" : `Create ${chosen.length} variation${chosen.length === 1 ? "" : "s"}`}
           </button>
         </Card>
+        )}
       </div>
     </section>
   );

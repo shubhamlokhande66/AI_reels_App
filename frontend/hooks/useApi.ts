@@ -61,6 +61,17 @@ export function useTrends() {
   return useQuery({ queryKey: ["trends"], queryFn: api.trends, staleTime: 5 * 60_000 });
 }
 
+/** The signed-in account (accounts on), or null; ``authEnabled`` false = a local studio without accounts. */
+export function useMe() {
+  return useQuery({ queryKey: ["me"], queryFn: api.me, staleTime: 60_000, retry: false });
+}
+
+/** Admin mode in this browser (settings and diagnostics are admin only; see lib/admin.ts). */
+export function useAdmin(): { admin: boolean; required: boolean; loading: boolean } {
+  const q = useQuery({ queryKey: ["admin"], queryFn: () => api.adminSession(), staleTime: 60_000, retry: false });
+  return { admin: q.data?.admin ?? false, required: q.data?.required ?? true, loading: q.isLoading };
+}
+
 export function useHealth() {
   return useQuery({ queryKey: keys.health, queryFn: api.health, refetchInterval: 15_000, retry: false });
 }

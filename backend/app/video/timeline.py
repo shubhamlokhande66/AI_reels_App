@@ -80,24 +80,49 @@ def choose_music_window(
         return round(chosen, 3), float(duration)
     if audio.duration - duration < 1.0 or not audio.beats:
         return 0.0, float(duration)
+    parts = rank_music_windows(audio, duration, k=1)
+    return (parts[0]["start"] if parts else 0.0), float(duration)
 
+
+def _window_score(audio: AudioAnalysis, b: float, duration: float, strong: set[float]) -> tuple[float, list[str]]:
+    e = audio.mean_energy(b, b + duration)
+    score, why = e, [f"{'very high' if e >= 0.75 else 'high' if e >= 0.55 else 'medium' if e >= 0.35 else 'low'} energy"]
+    if b in strong:
+        score += 0.03
+        why.append("starts on a strong beat")
+    drop = next((d for d in audio.drops if b <= d <= b + duration * 0.4), None)
+    if drop is not None:
+        score += 0.10
+        why.append(f"the drop hits {drop - b:.1f}s in")
+    if b < 0.3:
+        score += 0.05  # starting from the beginning of a song feels natural
+        why.append("the start of the song")
+    sec = audio.section_at(b + duration / 2) if audio.song_sections else None
+    if sec is not None:
+        why.append(f"mostly the {sec.label}")
+    return score, why
+
+
+def rank_music_windows(audio: AudioAnalysis, duration: float, k: int = 5) -> list[dict]:
+    """The best parts of the song for a ``duration``-second Reel, best first, each clearly different from the others
+    (they overlap by less than half). Each: {start, end, score, reasons}. The first is what the editor uses by default."""
+    if audio.duration - duration < 1.0 or not audio.beats:
+        return [{"start": 0.0, "end": round(min(duration, audio.duration), 3), "score": 0.0, "reasons": ["the whole song"]}]
     candidates = [b for b in audio.beats if b + duration <= audio.duration - 0.05]
     if 0.0 not in candidates:
         candidates.insert(0, 0.0)
     strong = set(audio.strong_beats)
-    best_t, best_score = 0.0, -1.0
-    for b in candidates:
-        e = audio.mean_energy(b, b + duration)
-        score = e
-        if b in strong:
-            score += 0.03
-        if any(b <= d <= b + duration * 0.4 for d in audio.drops):
-            score += 0.10
-        if b < 0.3:
-            score += 0.05  # starting from the beginning of a song feels natural
-        if score > best_score + 1e-9:
-            best_t, best_score = b, score
-    return round(best_t, 3), float(duration)
+    scored = []
+    for i, b in enumerate(candidates):  # stable: equal scores keep the earlier start, as before
+        sc, why = _window_score(audio, b, duration, strong)
+        scored.append((-sc, i, b, why, sc))
+    out: list[dict] = []
+    for _, _, b, why, sc in sorted(scored):
+        if all(abs(b - o["start"]) >= duration * 0.5 for o in out):
+            out.append({"start": round(b, 3), "end": round(b + duration, 3), "score": round(sc, 3), "reasons": why})
+        if len(out) >= k:
+            break
+    return out
 
 
 # ----------------------------------------------------------------------------- cut planning
