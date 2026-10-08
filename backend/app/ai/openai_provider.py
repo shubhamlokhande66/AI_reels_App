@@ -119,6 +119,11 @@ class OpenAIProvider(AIProvider):
             kwargs: dict[str, Any] = {"model": model, "instructions": req.system + extra, "input": self._input(req), "store": False}
             if fmt is not None:
                 kwargs["text"] = {"format": fmt}
+            if fmt is not None and fmt.get("type") == "json_object":
+                # OpenAI only accepts JSON mode when the *input* (not just the instructions) mentions json
+                note = "Answer in json."
+                inp = kwargs["input"]
+                kwargs["input"] = f"{inp}\n\n{note}" if isinstance(inp, str) else [*inp, {"role": "user", "content": note}]
             effort = get_settings().openai_reasoning_effort.strip()
             if effort:
                 kwargs["reasoning"] = {"effort": effort}
