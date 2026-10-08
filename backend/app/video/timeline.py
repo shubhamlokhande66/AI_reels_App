@@ -7,6 +7,7 @@ The same seed gives the same edit; a different seed gives a different version.
 from __future__ import annotations
 
 import bisect
+import math
 import random
 import re
 from dataclasses import dataclass
@@ -205,14 +206,47 @@ def plan_slots(audio: AudioAnalysis, audio_start: float, duration: float, style:
     return slots
 
 
+def reference_cuts(ref_cuts: list[float], ref_duration: float, duration: float) -> list[float]:
+    """The reference's cut times over ``duration`` seconds at their real speed: its most typical stretch (a longer
+    reference), or its pattern repeated (a shorter one)."""
+    inner = [c for c in ref_cuts if 0 < c < ref_duration]
+    if ref_duration > duration * 1.2 and inner:
+        # a longer reference: the stretch of it that cuts most like the reference as a whole (its typical rhythm),
+        # not just its opening (a long intro shot would leave one shot for a short Reel)
+        bounds = [0.0, *inner, ref_duration]
+        shots = sorted(b - a for a, b in zip(bounds, bounds[1:]))
+        typical = shots[len(shots) // 2]  # the reference's median shot length
+
+        def score(st: float) -> float:
+            cs = [c - st for c in inner if st < c < st + duration - 0.2]
+            lens = [b - a for a, b in zip([0.0, *cs], [*cs, duration])]
+            # every shot in the stretch close to the reference's typical shot (log scale: 2x too long = 2x too short)
+            return sum(abs(math.log(max(x, 0.05) / typical)) for x in lens) / len(lens)
+
+        starts = [0.0] + [c for c in inner if c <= ref_duration - duration]
+        best = min(starts, key=lambda st: (round(score(st), 3), st))
+        return [round(c - best, 3) for c in inner if best < c < best + duration - 0.2]
+    pattern = inner + [ref_duration]  # the end of the reference starts its next round
+    out: list[float] = []
+    offset = 0.0
+    while offset < duration and pattern:
+        for c in pattern:
+            t = offset + c
+            if t >= duration - 0.2:
+                return out
+            out.append(round(t, 3))
+        offset += ref_duration
+    return out
+
+
 def template_slots(audio: AudioAnalysis, audio_start: float, duration: float, ref_cuts: list[float], ref_duration: float,
                    on_beat: float | None, style: EditingStyle) -> list[Slot]:  # fmt: skip
-    """"Make it like this Reel": the reference Reel's own cut timing, shot by shot, stretched to this Reel's length and
-    (when the reference cuts on the beat) moved onto this song's nearest beats. Shot 1 keeps the reference's hook length."""
+    """"Make it like this Reel": the reference Reel's own cut timing, shot by shot, at its real speed (not squeezed or
+    stretched): a longer reference gives its first ``duration`` seconds, a shorter one repeats its pattern. When the
+    reference cuts on the beat, every cut moves onto this song's nearest beat. Shot 1 keeps the reference's hook."""
     if not ref_cuts or ref_duration <= 0:
         return plan_slots(audio, audio_start, duration, style)
-    scale = duration / ref_duration
-    cuts = [c * scale for c in ref_cuts if 0 < c * scale < duration - 0.2]
+    cuts = reference_cuts(ref_cuts, ref_duration, duration)
     if len(cuts) < 1:
         return plan_slots(audio, audio_start, duration, style)
     beats = [b - audio_start for b in audio.beats if audio_start <= b <= audio_start + duration]

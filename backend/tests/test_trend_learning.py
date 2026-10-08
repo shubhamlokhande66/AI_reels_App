@@ -190,3 +190,23 @@ async def test_one_learned_reel_is_already_a_style(client, media_dir, monkeypatc
     await client.delete("/api/trend-library")
     empty = await client.post("/api/trend-library/group")
     assert empty.status_code == 422 and empty.json()["error"]["code"] == "NO_REELS"
+
+
+def test_a_field_called_title_stays_in_the_ai_schema():
+    """The AI's answer schema drops decorative labels ("title" keywords), never a real field named "title"."""
+    from app.ai.schemas import CopyAnswer
+    from app.ai.structured import json_schema
+
+    s = json_schema(CopyAnswer)
+    assert set(s["properties"]) == {"title", "description", "hashtags"} and set(s["required"]) <= set(s["properties"])
+    assert "title" not in s and all("title" not in v for v in s["properties"].values())
+
+
+def test_reference_timing_keeps_its_real_speed():
+    from app.video.timeline import reference_cuts
+
+    long_ref = [14.77, 16.57, 30.37, 35.77, 36.62, 37.12, 41.12, 44.42, 47.52, 49.22, 50.42]  # 64 s, slow shots
+    cuts = reference_cuts(long_ref, 63.6, 15)
+    shots = [b - a for a, b in zip([0, *cuts], [*cuts, 15])]
+    assert len(shots) >= 3 and max(shots) <= 6  # a typical stretch at real speed, not the 15 s intro, not squeezed
+    assert reference_cuts([1.0, 1.5, 3.0], 6.0, 15)[:4] == [1.0, 1.5, 3.0, 6.0]  # a short reference repeats its pattern

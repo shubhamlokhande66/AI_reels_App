@@ -409,7 +409,7 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
         if inp.template and inp.template.get("cuts"):  # copying one Reel: its shot list exactly, no extra cuts of our own
             bounds = [0.0, *inp.template["cuts"], inp.template.get("seconds") or inp.settings.duration]
             shots = [b - a for a, b in zip(bounds, bounds[1:]) if b > a]
-            scale = inp.settings.duration / max(inp.template.get("seconds") or inp.settings.duration, 0.1)
+            scale = 1.0  # the reference's shots keep their real length (see video/timeline.reference_cuts)
             style = style.with_overrides(accent_hits=False, max_segment=max(style.max_segment, max(shots) * scale + 0.6),
                                          min_segment=min(style.min_segment, max(min(shots) * scale * 0.8, 0.2)))  # fmt: skip
         if trend_note:

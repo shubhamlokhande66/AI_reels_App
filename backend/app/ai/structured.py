@@ -27,15 +27,19 @@ T = TypeVar("T", bound=BaseModel)
 _DROP = {"title", "default", "examples"}
 
 
-def _inline(node: Any, defs: dict[str, Any], depth: int = 0) -> Any:
+def _inline(node: Any, defs: dict[str, Any], depth: int = 0, field_names: bool = False) -> Any:
+    """``field_names``: ``node`` is a "properties" map, whose keys are the answer's own fields (a field may be called
+    "title" or "default"); only schema keywords are dropped, never a field."""
     if depth > 12:
         return {}
     if isinstance(node, dict):
-        if "$ref" in node:
+        if "$ref" in node and not field_names:
             target = defs.get(str(node["$ref"]).split("/")[-1], {})
             merged = {**copy.deepcopy(target), **{k: v for k, v in node.items() if k != "$ref"}}
             return _inline(merged, defs, depth + 1)
-        return {k: _inline(v, defs, depth + 1) for k, v in node.items() if k not in _DROP and k != "$defs"}
+        if field_names:
+            return {k: _inline(v, defs, depth + 1) for k, v in node.items()}
+        return {k: _inline(v, defs, depth + 1, field_names=(k == "properties")) for k, v in node.items() if k not in _DROP and k != "$defs"}
     if isinstance(node, list):
         return [_inline(v, defs, depth + 1) for v in node]
     return node
