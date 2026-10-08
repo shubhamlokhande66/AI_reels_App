@@ -103,6 +103,7 @@ class PipelineInput:
     variant_ids: list[str] = field(default_factory=list)  # one pre-allocated rendering id per strategy
     images: list[MediaRef] = field(default_factory=list)  # product Reels: the photos, in order
     story: dict | None = None  # story Reels: the plan (scenes with their pictures)
+    template: dict | None = None  # "make it like this Reel": the measured reference Reel (cuts, seconds, profile)
     voice_id: str | None = None  # story Reels: the narrator
     revision: list[dict] = field(default_factory=list)  # global edit actions to apply to the freshly built timeline
     references: list[dict] = field(default_factory=list)  # learned trends the AI may edit like (see trends/reference.py)
@@ -387,9 +388,32 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
         style_id = brand_look
         notes.append(f"Style {brand_look.replace('_', ' ')} from the brand kit ({(inp.brand or {}).get('name', 'brand')}).")
     style = resolve_style(inp.settings, style_id)
+    if inp.template:  # "make it like this Reel": it is the style to follow, shot by shot
+        ref = {**(inp.template.get("profile") or {}), "name": inp.template.get("name") or "your reference Reel", "chosen": True}
+        inp.references = [ref, *[{**r, "chosen": False} for r in inp.references]]
     chosen = next((r for r in inp.references if r.get("chosen")), None)
-    if chosen and inp.settings.pace == "auto" and chosen.get("pace") in ("calm", "balanced", "fast"):
-        style = apply_pace(style, chosen["pace"])  # cut at the learned trend's pace (rules and the AI's suggested rhythm)
+    if chosen is None and inp.references and inp.settings.sequence == "mixed":
+        # "auto": the learned style that fits this Reel best (the user's words, the song's tempo, the length); the AI is told
+        from app.trends.learn import best_match
+
+        chosen = best_match(inp.references, f"{inp.settings.brief} {inp.project_name}", res.audio.bpm if inp.audio else None, inp.settings.duration)
+        if chosen is not None:
+            inp.references = [{**r, "chosen": r is chosen} for r in inp.references]
+            chosen = next(r for r in inp.references if r.get("chosen"))
+    if chosen and inp.settings.pace in ("auto", "balanced"):  # an explicit "fast" / "calm" wins; "balanced" is the neutral default
+        from app.trends.learn import apply_trend
+
+        style, trend_note = apply_trend(style, chosen, res.audio.bpm if inp.audio else None)  # the learned rhythm, at this song's tempo
+        if inp.template and inp.template.get("cuts"):  # copying one Reel: its shot list exactly, no extra cuts of our own
+            bounds = [0.0, *inp.template["cuts"], inp.template.get("seconds") or inp.settings.duration]
+            shots = [b - a for a, b in zip(bounds, bounds[1:]) if b > a]
+            scale = inp.settings.duration / max(inp.template.get("seconds") or inp.settings.duration, 0.1)
+            style = style.with_overrides(accent_hits=False, max_segment=max(style.max_segment, max(shots) * scale + 0.6),
+                                         min_segment=min(style.min_segment, max(min(shots) * scale * 0.8, 0.2)))  # fmt: skip
+        if trend_note:
+            notes.append(trend_note)
+        elif chosen.get("pace") in ("calm", "balanced", "fast"):
+            style = apply_pace(style, chosen["pace"])
     elif inp.profile:
         from app.services.feedback import apply_profile
 
@@ -431,7 +455,12 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
             timeline.notes.append("Step numbers were not added because song captions are on (they share the same text track).")
     else:
         timeline = build_timeline(res.audio, inputs, inp.settings.duration, style, seed=inp.seed, order_hint=order_hint,
-                                  brief=inp.settings.brief, audio_start=inp.settings.audio_start)
+                                  brief=inp.settings.brief, audio_start=inp.settings.audio_start, template=inp.template)
+        if inp.template:
+            for seg in timeline.segments:  # the reference's shot list: automatic reviews must not split or merge it
+                seg.locked = True
+            notes.append(f"Cut like your reference Reel: {len(timeline.segments)} shots following its timing"
+                         + (", moved onto this song's beats." if (inp.template.get("on_beat_share") or 0) >= 0.5 else "."))
     timeline.warnings = res.warnings + timeline.warnings
     good = sum(good_seconds(c.analysis) for c in inputs)
     if good < FOOTAGE_HEADROOM * timeline.duration:  # said first and plainly: the clip check would have stopped this
@@ -692,7 +721,7 @@ def direct_reel(inp: PipelineInput, inputs: list[ClipInput], audio: AudioAnalysi
         draft = draft_plan(brief, hooks or [], mm, direction=direction, pace=ps.pace, has_face=_has_face(inputs))
     facts, alias = build_request(inputs, audio, mm, audio_start, eff, styles, brief=ps.brief, language=ps.language,
                                  style_hint=style.id if keep_style else None, captions=ps.captions, cta=ps.cta_text,
-                                 hook=ps.hook_text, pace=ps.pace, suggested_cuts=suggested_cuts(audio, audio_start, eff, style),
+                                 hook=ps.hook_text, pace=ps.pace, suggested_cuts=suggested_cuts(audio, audio_start, eff, style, inp.template),
                                  references=inp.references, project_brief=brief.for_ai() if brief is not None else None,
                                  creative=draft.model_dump() if draft is not None else None, hooks=hooks,
                                  brand=brand_facts(inp.brand))  # fmt: skip
@@ -817,11 +846,16 @@ def brand_facts(brand: dict | None) -> dict | None:
     return {k: v for k, v in keep.items() if v}
 
 
-def suggested_cuts(audio: AudioAnalysis, audio_start: float, duration: float, style) -> list[float]:
-    """The rule engine's beat-aligned, energy-aware cut times: the rhythm the AI director builds its story on."""
-    from app.video.timeline import plan_slots
+def suggested_cuts(audio: AudioAnalysis, audio_start: float, duration: float, style, template: dict | None = None) -> list[float]:
+    """The rule engine's beat-aligned, energy-aware cut times: the rhythm the AI director builds its story on (the
+    reference Reel's own timing when the user asked to make it like one)."""
+    from app.video.timeline import plan_slots, template_slots
 
     try:
+        if template and template.get("cuts"):
+            slots = template_slots(audio, audio_start, duration, template["cuts"], template.get("seconds") or duration,
+                                   template.get("on_beat_share"), style)  # fmt: skip
+            return [sl.start for sl in slots[1:]]
         return [sl.start for sl in plan_slots(audio, audio_start, duration, style)[1:]]
     except Exception:  # noqa: BLE001 - a rhythm hint is optional
         return []
@@ -1398,7 +1432,7 @@ def run_story(inp: PipelineInput, storage: StorageBackend, progress: StageProgre
     music = storage.local_path(inp.audio.key) if inp.audio is not None else None
     try:
         reel, warnings = render_story(plan, [storage.local_path(s.image_key) for s in plan.scenes], storage.new_local_path(out_key), work,
-                                      inp.voice_id, music, inp.kind, progress)  # fmt: skip
+                                      inp.voice_id, music, inp.kind, progress, reference=(inp.template or {}).get("profile"))  # fmt: skip
     finally:
         shutil.rmtree(work, ignore_errors=True)
     storage.commit(out_key)

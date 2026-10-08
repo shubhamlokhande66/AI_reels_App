@@ -168,7 +168,7 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
         project_id=str(doc["_id"]), job_type=job_type, videos=[ref(v) for v in videos],
         audio=ref(audio) if audio else None, settings=ps, rendering_id=str(rendering_id), seed=seed,
         project_name=doc["name"], revision=revision or [], references=await load_references(ps.reference), profile=profile,
-        brand=await load_brand(ps.brand_id),
+        brand=await load_brand(ps.brand_id), template=doc.get("referenceReel") if job_type == "generate" else None,
     )  # fmt: skip
     prior_status = "completed" if doc.get("latestRenderingId") else "draft"
     label = (req.label if req and req.label else "") or ""
@@ -624,7 +624,7 @@ async def submit_story(project_id: str, voice_id: str | None, quality: str = "fi
     ref = pl.MediaRef(str(audio["_id"]), audio["originalName"], audio["storedKey"]) if audio and not audio.get("purged") else None
     inp = pl.PipelineInput(project_id=str(doc["_id"]), job_type="story", videos=[], audio=ref, settings=ps, rendering_id=str(ObjectId()),
                            project_name=doc["name"], kind="preview" if quality == "preview" else "final", story=doc["story"],
-                           voice_id=voice_id)  # fmt: skip
+                           voice_id=voice_id, template=doc.get("referenceReel"))  # fmt: skip
     now = utcnow()
     job_id = ObjectId()
     job = {"_id": job_id, "projectId": doc["_id"], "type": "story", "status": "queued", "progress": 0, "stage": "voicing",

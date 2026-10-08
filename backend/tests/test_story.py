@@ -285,3 +285,16 @@ def test_no_narration_needs_no_voice(tmp_path):
 
     voices, warnings = rd.speak(simple_plan(STORY, "en", "watercolor", 3, "Gita"), "none", tmp_path, lambda f: None)
     assert voices == [None, None, None] and warnings == []
+
+
+def test_a_fast_reference_reel_gives_a_story_more_shots_and_hard_cuts():
+    from app.story.render import STORY_STYLE, Line, build_plan
+
+    plan = simple_plan(STORY, "en", "watercolor", 3, "Gita")
+    lines = [Line(s, i * 6.0, 6.0, None) for i, s in enumerate(plan.scenes)]
+    calm = build_plan(plan, lines, [(1600, 1000)] * 3, STORY_STYLE)
+    fast = build_plan(plan, lines, [(1600, 1000)] * 3, STORY_STYLE, reference={"median_shot": 0.8, "traits": {"transition_style": "mostly_hard_cut"}})
+    assert len(calm.shots) == 3 and len(fast.shots) >= 9
+    assert all(s.transition_in.type == "cut" for s in fast.shots[1:])
+    assert all(s.camera.start != s.camera.end for s in fast.shots)  # every shot still moves
+    assert abs(fast.duration - calm.duration) < 1e-6  # the narration keeps the timing

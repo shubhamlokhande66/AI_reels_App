@@ -113,7 +113,7 @@ def test_bad_instructions_are_repaired_not_trusted():
 
 
 def test_user_style_is_kept_and_unknown_grades_ignored():
-    p = plan([shot("c1", 0, 3, 3), shot("c2", 0, 3, 3), shot("c3", 0, 3, 3), shot("c4", 0, 3, 3)], style="food", grade="neon")
+    p = plan([shot("c1", 0, 3, 3), shot("c2", 0, 3, 3), shot("c3", 0, 3, 3), shot("c4", 0, 3, 3)], style="food", grade="glitter_bomb")
     d, _ = direct(p, keep_style=True)
     assert d.timeline.style == "cinematic" and d.timeline.color_grade is None
 

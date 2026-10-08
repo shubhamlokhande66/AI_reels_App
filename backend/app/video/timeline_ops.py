@@ -78,6 +78,17 @@ class Duplicate(_Op):
     segment_id: str
 
 
+class Insert(_Op):
+    """Add a clip to the edit (the manual editor's media bin): ``length`` seconds of it from ``source_start``, at
+    ``index`` (None = at the end)."""
+
+    type: Literal["insert"] = "insert"
+    clip_id: str
+    source_start: float = Field(default=0.0, ge=0)
+    length: float = Field(default=3.0, gt=0, le=60)
+    index: int | None = None
+
+
 class Replace(_Op):
     type: Literal["replace"] = "replace"
     segment_id: str
@@ -225,7 +236,7 @@ class SetGrade(_Op):
 
 Operation = Annotated[
     Union[
-        Trim, SetLength, Move, Split, Delete, Duplicate, Replace, SetSpeed, SetTransition, SetEffect, SetCrop,
+        Trim, SetLength, Move, Split, Delete, Duplicate, Insert, Replace, SetSpeed, SetTransition, SetEffect, SetCrop,
         SetMusic, AddCaption, UpdateCaption, DeleteCaption, SetCaptionStyle, FitDuration, SetVoice, ClearVoice,
         SetVoiceMix, ReplaceCaptions, FitToVoice, SetWatermark, ClearWatermark, SetCaptionLook, SetOverlays, SetGrade, SetLock,
     ],
@@ -372,6 +383,20 @@ def _duplicate(tl: Timeline, op: Duplicate, ctx: OpContext) -> None:
     dup.id = new_id()
     dup.transition_in = Transition()
     tl.segments.insert(i + 1, dup)
+
+
+def _insert(tl: Timeline, op: Insert, ctx: OpContext) -> None:
+    dur = ctx.clip_durations.get(op.clip_id)
+    if ctx.clip_durations and dur is None:
+        raise EditError("That clip is not part of this project.", code="CLIP_NOT_FOUND")
+    start = min(op.source_start, max((dur or op.source_start + op.length) - 0.3, 0.0))
+    end = min(start + op.length, dur) if dur else start + op.length
+    if end - start < 0.2:
+        raise EditError("That part of the clip is too short to add.", code="SEGMENT_TOO_SHORT")
+    seg = Segment(clip_id=op.clip_id, video=ctx.clip_names.get(op.clip_id, "clip"), source_start=round(start, 3), source_end=round(end, 3),
+                  timeline_start=0.0, timeline_end=round(end - start, 3))  # fmt: skip
+    at = len(tl.segments) if op.index is None else max(0, min(op.index, len(tl.segments)))
+    tl.segments.insert(at, seg)
 
 
 def _replace(tl: Timeline, op: Replace, ctx: OpContext) -> None:
@@ -569,7 +594,7 @@ def _set_grade(tl: Timeline, op: SetGrade, ctx: OpContext) -> None:
 
 
 _HANDLERS = {
-    Trim: _trim, SetLength: _set_length, Move: _move, Split: _split, Delete: _delete, Duplicate: _duplicate,
+    Trim: _trim, SetLength: _set_length, Move: _move, Split: _split, Delete: _delete, Duplicate: _duplicate, Insert: _insert,
     Replace: _replace, SetSpeed: _set_speed, SetTransition: _set_transition, SetEffect: _set_effect,
     SetCrop: _set_crop, SetMusic: _set_music, AddCaption: _add_caption, UpdateCaption: _update_caption,
     DeleteCaption: _delete_caption, SetCaptionStyle: _set_caption_style, FitDuration: _fit_duration,

@@ -8,6 +8,7 @@ import { ClipCheckPanel, FLAG_TEXT, clipCheck } from "./ClipCheckPanel";
 import { TaskLog, type LogLine, type TaskLogState } from "./TaskLog";
 import { Stepper } from "./Stepper";
 import { SongPartPicker } from "./SongPartPicker";
+import { ReferencePicker, ReferenceReel } from "./ReferenceReel";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { useAdmin, useTrends } from "@/hooks/useApi";
@@ -109,6 +110,7 @@ export function CreateReelForm() {
   const [brandId, setBrandId] = useState("");
   const [reference, setReference] = useState("auto"); // edit like a learned trend: the AI picks one unless the user does
   const [templateId, setTemplateId] = useState("");
+  const [refFile, setRefFile] = useState<File | null>(null); // "make it like this Reel": studied when the clips are checked
   const templates = useQuery({ queryKey: ["templates"], queryFn: api.templates });
   const brands = useQuery({ queryKey: ["brands"], queryFn: api.brands });
   const learned = useQuery({ queryKey: ["references"], queryFn: api.references });
@@ -210,6 +212,18 @@ export function CreateReelForm() {
     try {
       addLine(done.current.projectId ? "Opening your project" : "Creating your project");
       const id = await ensureProject(seconds);
+      if (refFile) {
+        addLine(`Studying your reference Reel: ${refFile.name} (its cut timing, hook, beat sync and look)`);
+        try {
+          const info = await api.setReferenceReel(id, refFile);
+          qc.setQueryData(["reference-reel", id], info);
+          addLine(`Your Reel will follow it: ${info.shots} shots, ${info.hookSeconds ? `${info.hookSeconds.toFixed(1)} s hook` : "same hook"}`, "done");
+          setRefFile(null);
+        } catch (e) {
+          addLine(`The reference Reel could not be studied: ${errorMessage(e)}. You can add it again later.`, "warn");
+          setRefFile(null);
+        }
+      }
       if (files.length) {
         addLine(`Uploading ${files.length} clip${files.length === 1 ? "" : "s"}`);
         setStep("videos");
@@ -470,6 +484,8 @@ export function CreateReelForm() {
         <p className="text-xs text-muted">First the length: your clips are checked against it (is there enough footage?), then the song part is chosen to fit it.</p>
       </section>
 
+      {project ? <ReferenceReel projectId={project.id} disabled={busy} /> : <ReferencePicker file={refFile} onFile={setRefFile} disabled={busy} />}
+
       <section ref={videosRef} className="space-y-3">
         <h2 className="text-sm font-medium">2 · Your clips</h2>
         <p className="text-xs text-muted">Add your clips: they are uploaded and checked right away (light, sharpness, shake, resolution, length).</p>
@@ -634,6 +650,8 @@ export function CreateReelForm() {
           ))}
         </div>
       </section>
+
+      {project && <ReferenceReel projectId={project.id} disabled={busy} />}
 
       <section className="space-y-4" aria-label="Brand and instructions">
         {(brands.data?.length ?? 0) > 0 && (

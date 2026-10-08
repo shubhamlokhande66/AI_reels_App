@@ -50,6 +50,9 @@ class EditingStyle:
     # Answer strong drum hits that fall inside a long shot with a quick punch on the beat (the footage keeps playing).
     # Off for the calm, elegant styles, where a jolt would be out of place.
     accent_hits: bool = True
+    # Cut like the part of the song it is (intro/outro breathe, a drop tightens). Off when a learned trend sets the
+    # rhythm: its measured loud / calm shot lengths already say how it cuts in each part.
+    section_pacing: bool = True
     # Creative priorities (the same footage gives a meaningfully different edit per mode):
     hook_priority: float = 0.3  # how hard the opening is chosen for hook strength (viral = strongest)
     subject_priority: float = 0.0  # favour clear subjects / products / faces over general footage (product focus)

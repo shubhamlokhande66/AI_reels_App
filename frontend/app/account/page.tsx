@@ -7,7 +7,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { useCredits, useMe } from "@/hooks/useApi";
 import { btnDanger, btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
-import { LegalFooter } from "@/components/Legal";
 
 const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent";
 
@@ -180,7 +179,6 @@ export default function AccountPage() {
         </Card>
         <DeleteAccount email={user.email} />
       </div>
-      <LegalFooter className="mt-12" />
     </>
   );
 }

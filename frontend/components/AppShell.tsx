@@ -19,6 +19,7 @@ const GROUPS: { title: string; admin?: boolean; items: { href: string; label: st
       { href: "/", label: "Dashboard", icon: "◇" },
       { href: "/projects/new", label: "Create Reel", icon: "✦" },
       { href: "/story/new", label: "Story → Reel", icon: "❦" },
+      { href: "/editor", label: "Editor", icon: "✂" },
       { href: "/projects", label: "Projects", icon: "▤" },
     ],
   },
@@ -61,7 +62,7 @@ const TABS: { href: string; label: string; icon: string; primary?: boolean }[] =
   { href: "/", label: "Home", icon: "◇" },
   { href: "/projects", label: "Projects", icon: "▤" },
   { href: "/projects/new", label: "Create", icon: "✦", primary: true },
-  { href: "/library", label: "Footage", icon: "▦" },
+  { href: "/editor", label: "Editor", icon: "✂" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -177,6 +178,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // an admin page opened by address in user mode: say so instead of showing it (the server guards its data too)
   const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => i.href !== "/admin" && isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
+  if (pathname.startsWith("/editor/") && !signedOut) {
+    // the editor is a full-screen workspace (like CapCut): no studio sidebar or bottom bar
+    return (
+      <main className="min-h-screen">
+        <GlobalActivity />
+        {children}
+      </main>
+    );
+  }
   if (authPage || (signedOut && !publicPage)) {
     // the sign-in page stands alone, without the studio around it
     return (

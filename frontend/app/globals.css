@@ -331,3 +331,22 @@ body {
     max-width: 100%;
   }
 }
+
+/* ---- the manual editor: a graphite pro workspace (CapCut / Filmora style), the studio's gold kept as the accent ---- */
+.pro-workspace {
+  --background: #0e0e10;
+  --surface: #17171a;
+  --surface-2: #212125;
+  --border: #2b2b30;
+  --foreground: #ececee;
+  --muted: #94949c;
+  --track: rgba(255, 255, 255, 0.05);
+  --scrollbar: #34343a;
+  background: var(--background);
+  color: var(--foreground);
+  color-scheme: dark;
+}
+.pro-workspace .lux-card {
+  background: var(--surface);
+  box-shadow: none;
+}

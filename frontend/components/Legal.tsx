@@ -54,7 +54,6 @@ export function LegalPage({ title, children }: { title: string; children: (s: Re
       <div className="legal mt-8 space-y-6 text-[15px] leading-relaxed text-foreground/90 [&_h2]:mt-8 [&_h2]:font-display [&_h2]:text-2xl [&_h2]:text-foreground [&_li]:ml-5 [&_li]:list-disc [&_ul]:space-y-1.5">
         {children(s)}
       </div>
-      <LegalFooter className="mt-12 border-t border-border pt-6" />
     </article>
   );
 }

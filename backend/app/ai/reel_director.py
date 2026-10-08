@@ -399,7 +399,7 @@ def build_request(
         **({"creative_direction": {k: v for k, v in creative.items() if k not in ("source",)}} if creative else {}),
         "clips": rows,
         "footage": footage_budget(clips, duration, pace),
-        **({"reference_edits": [{k: v for k, v in r.items() if k != "chosen"} for r in references]} if references else {}),
+        **({"reference_edits": [{k: v for k, v in r.items() if k not in ("chosen", "id")} for r in references]} if references else {}),
         "music": music_facts(audio, mm, audio_start, duration),
         "rhythm": {
             "suggested_cuts": [_r(t) for t in (suggested_cuts or [])][:200],

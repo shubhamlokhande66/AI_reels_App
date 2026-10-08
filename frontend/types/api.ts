@@ -93,6 +93,7 @@ export interface LearnedTrend {
   notes: string;
   profile: TrendProfile;
   videos: TrendProfile[];
+  auto?: boolean; // sorted out of the learned Reels automatically
   createdAt: string;
   updatedAt: string;
 }
@@ -435,8 +436,22 @@ export interface EdlTimeline {
   musicVolume: number;
   musicFadeIn: number | null;
   musicFadeOut: number | null;
+  colorGrade?: string | null;
+  overlays?: EdlOverlay[];
   warnings: string[];
   notes: string[];
+}
+
+/** On-screen text layer (the manual editor's Text tool). */
+export interface EdlOverlay {
+  id?: string;
+  text: string;
+  start: number;
+  end: number;
+  role?: "hook" | "benefit" | "product" | "emotion" | "cta" | "text";
+  position: "top" | "center" | "bottom";
+  animation: "fade" | "slide_up" | "scale" | "type_on" | "blur_sharp" | "mask_reveal";
+  size: "small" | "medium" | "large";
 }
 
 export interface TimelineState {
@@ -1105,4 +1120,16 @@ export interface SiteInfo {
   supportPhone: string;
   businessAddress: string;
   legalUpdated: string;
+}
+
+/** "Make it like this Reel": the measured reference (only numbers are kept). */
+export interface ReferenceReelInfo {
+  name: string;
+  seconds: number;
+  shots: number;
+  avgShot?: number;
+  hookSeconds?: number;
+  onBeatShare?: number | null;
+  bpm?: number;
+  summary: string;
 }

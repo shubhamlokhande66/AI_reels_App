@@ -49,7 +49,7 @@ import type {
   Template,
   TemplateInput,
   VoiceProfile,
-  VoiceProfileInput, Connections, Platform, Post, CheckoutOrder, Credits, Pricing, SiteInfo, Retention, Story, StoryOptions } from "@/types/api";
+  VoiceProfileInput, Connections, Platform, Post, CheckoutOrder, Credits, Pricing, ReferenceReelInfo, SiteInfo, Retention, Story, StoryOptions } from "@/types/api";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -275,6 +275,8 @@ export const api = {
 
   // --- editor ---
   timeline: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline`),
+  startEditing: (id: string, fresh = false) => request<TimelineState>(`/api/projects/${id}/timeline/start${fresh ? "?fresh=true" : ""}`, { method: "POST" }),
+  editorCatalog: () => request<{ transitions: string[]; effects: string[]; looks: { id: string; label: string; hint: string }[] }>("/api/editor/catalog"),
   editTimeline: (id: string, ops: object[], label?: string) =>
     request<TimelineState>(`/api/projects/${id}/timeline/ops`, { method: "POST", body: JSON.stringify({ ops, label }) }),
   undo: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline/undo`, { method: "POST" }),
@@ -378,6 +380,21 @@ export const api = {
 
   // --- my trends (learned from reference Reels) ---
   references: () => request<LearnedTrend[]>("/api/references"),
+  referenceReel: (id: string) => request<ReferenceReelInfo | null>(`/api/projects/${id}/reference-reel`),
+  setReferenceReel: (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<ReferenceReelInfo>(`/api/projects/${id}/reference-reel`, form);
+  },
+  removeReferenceReel: (id: string) => request<void>(`/api/projects/${id}/reference-reel`, { method: "DELETE" }),
+  trendLibrary: () => request<{ count: number; lastAdded: string | null; styles: number }>("/api/trend-library"),
+  learnTrends: (files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    return upload<{ learned: string[]; failed: { name: string; error: string }[]; total: number }>("/api/trend-library/learn", form);
+  },
+  groupTrends: () => request<LearnedTrend[]>("/api/trend-library/group", { method: "POST" }, AI_TIMEOUT_MS),
+  clearTrendLibrary: () => request<void>("/api/trend-library", { method: "DELETE" }),
   createReference: (name: string, notes: string, files: File[], onProgress?: (f: number) => void) => {
     const form = new FormData();
     form.append("name", name);

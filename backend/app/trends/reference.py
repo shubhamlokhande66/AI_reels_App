@@ -206,8 +206,9 @@ def describe_look(frames: list[bytes], profile: dict[str, Any]) -> dict[str, Any
         return None
 
 
-def profile_video(path: Path, name: str = "") -> dict[str, Any]:
-    """Measure one reference video (see the module docstring)."""
+def profile_video(path: Path, name: str = "", keep_cuts: bool = False) -> dict[str, Any]:
+    """Measure one reference video (see the module docstring). ``keep_cuts``: also return its cut times (to cut a new
+    Reel shot by shot like it)."""
     from app.audio.analyzer import analyze_audio
 
     meta = read_metadata(path)
@@ -227,6 +228,8 @@ def profile_video(path: Path, name: str = "") -> dict[str, Any]:
     prof["look"] = look_of(frames)
     prof["described"] = describe_look(frames, prof)
     prof["name"] = name
+    if keep_cuts:
+        prof["cuts"] = [round(c, 3) for c in cuts]
     return prof
 
 
@@ -235,12 +238,16 @@ _AVG_KEYS = ("avg_shot", "median_shot", "hook_seconds", "cuts_per_10s", "bpm", "
 
 
 def merge_profiles(videos: list[dict[str, Any]]) -> dict[str, Any]:
-    """One profile for the trend: numbers averaged (weighted by length), descriptions listed."""
+    """One profile for the trend: numbers averaged (weighted by length and by how recent each Reel is: trends change),
+    descriptions listed."""
+    from app.trends.learn import recency_weight
+
     if not videos:
         return {}
-    out: dict[str, Any] = {"videos": len(videos), "seconds": round(sum(v["seconds"] for v in videos), 1)}
+    out: dict[str, Any] = {"videos": len(videos), "seconds": round(sum(v["seconds"] for v in videos), 1),
+                           "seconds_per_video": round(sum(v["seconds"] for v in videos) / len(videos), 1)}  # fmt: skip
     for k in _AVG_KEYS:
-        vals = [(v[k], v["seconds"]) for v in videos if v.get(k) is not None]
+        vals = [(v[k], v["seconds"] * recency_weight(v.get("added_at"))) for v in videos if v.get(k) is not None]
         if vals:
             out[k] = round(sum(x * w for x, w in vals) / sum(w for _, w in vals), 2)
     out["shortest_shot"] = min(v["shortest_shot"] for v in videos)
@@ -249,7 +256,7 @@ def merge_profiles(videos: list[dict[str, Any]]) -> dict[str, Any]:
     looks = [v["look"] for v in videos if v.get("look")]
     if looks:
         out["look"] = {k: round(statistics.fmean(lk[k] for lk in looks), 2) for k in ("brightness", "saturation")}
-    out["described"] = [v["described"] for v in videos if v.get("described")][:4]
+    out["described"] = [v["described"] for v in sorted(videos, key=lambda v: str(v.get("added_at", "")), reverse=True) if v.get("described")][:4]
     curves = [v.get("energy_curve") for v in videos if v.get("energy_curve")]
     if curves:
         out["energy_curve"] = max(set(curves), key=curves.count)
@@ -260,8 +267,9 @@ def for_ai(trend: dict[str, Any]) -> dict[str, Any]:
     """The compact form the AI director receives."""
     p = trend.get("profile", {})
     keep = ("pace", "avg_shot", "median_shot", "hook_seconds", "cuts_per_10s", "on_beat_share", "beats_per_shot", "loud_avg_shot",
-            "calm_avg_shot", "shortest_shot", "longest_shot", "look", "described")  # fmt: skip
-    return {"name": trend.get("name", ""), "notes": trend.get("notes", ""), **{k: p[k] for k in keep if p.get(k) not in (None, [], {})},
+            "calm_avg_shot", "shortest_shot", "longest_shot", "look", "described", "bpm", "videos", "seconds_per_video")  # fmt: skip
+    return {"id": str(trend.get("_id", "")), "name": trend.get("name", ""), "notes": trend.get("notes", ""),
+            **{k: p[k] for k in keep if p.get(k) not in (None, [], {})},
             "traits": traits(p)}  # fmt: skip
 
 
@@ -282,7 +290,7 @@ async def load_references(choice: str | None) -> list[dict[str, Any]]:
                 return []
             doc = await db.references.find_one({"_id": ObjectId(choice)})
             return [{**for_ai(doc), "chosen": True}] if doc else []
-        return [for_ai(d) async for d in db.references.find({}).sort("updatedAt", -1).limit(8)]
+        return [for_ai(d) async for d in db.references.find({}).sort("updatedAt", -1).limit(12)]
     except Exception as exc:  # noqa: BLE001 - a missing trend never blocks a render
         log.warning("learned trends not loaded: %s", exc)
         return []

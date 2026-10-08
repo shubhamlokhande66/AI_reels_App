@@ -169,7 +169,7 @@ def plan_slots(audio: AudioAnalysis, audio_start: float, duration: float, style:
         e = audio.mean_energy(audio_start + t, audio_start + min(t + 2 * period, duration))
         n = style.cut_beats_high if e >= HIGH_ENERGY else style.cut_beats_low
         sec = audio.section_at(audio_start + t) if audio.song_sections else None
-        if sec is not None:  # cut like the part of the song it is: intro/outro/bridge breathe, a drop tightens
+        if sec is not None and style.section_pacing:  # cut like the part of the song it is: intro/outro/bridge breathe, a drop tightens
             if sec.label in ("intro", "outro", "bridge"):
                 n *= 2
             elif sec.label == "drop" and n >= 2:
@@ -202,6 +202,38 @@ def plan_slots(audio: AudioAnalysis, audio_start: float, duration: float, style:
         )
         t, i = end, j
     slots[-1].end = round(float(duration), 3)
+    return slots
+
+
+def template_slots(audio: AudioAnalysis, audio_start: float, duration: float, ref_cuts: list[float], ref_duration: float,
+                   on_beat: float | None, style: EditingStyle) -> list[Slot]:  # fmt: skip
+    """"Make it like this Reel": the reference Reel's own cut timing, shot by shot, stretched to this Reel's length and
+    (when the reference cuts on the beat) moved onto this song's nearest beats. Shot 1 keeps the reference's hook length."""
+    if not ref_cuts or ref_duration <= 0:
+        return plan_slots(audio, audio_start, duration, style)
+    scale = duration / ref_duration
+    cuts = [c * scale for c in ref_cuts if 0 < c * scale < duration - 0.2]
+    if len(cuts) < 1:
+        return plan_slots(audio, audio_start, duration, style)
+    beats = [b - audio_start for b in audio.beats if audio_start <= b <= audio_start + duration]
+    period = 60.0 / audio.bpm if audio.bpm > 0 else 0.5
+    snap = on_beat is not None and on_beat >= 0.5 and len(beats) >= 2
+    strong_rel = {round(b - audio_start, 3) for b in audio.strong_beats}
+    out: list[float] = []
+    for c in cuts:
+        if snap:
+            near = min(beats, key=lambda b: abs(b - c))
+            if abs(near - c) <= period * 0.5:
+                c = near
+        if (not out and c >= 0.2) or (out and c - out[-1] >= 0.2):
+            out.append(round(c, 3))
+    bounds = [0.0, *out, round(float(duration), 3)]
+    if bounds[-1] - bounds[-2] < 0.2 and len(bounds) > 2:
+        bounds.pop(-2)
+    slots = []
+    for k, (a, b) in enumerate(zip(bounds, bounds[1:])):
+        on_strong = round(a, 3) in strong_rel
+        slots.append(Slot(k, round(a, 3), round(b, 3), audio.mean_energy(audio_start + a, audio_start + b), on_strong))
     return slots
 
 
@@ -541,7 +573,10 @@ def build_timeline(
     order_hint: Mapping[str, float] | None = None,
     brief: str = "",
     audio_start: float | None = None,
+    template: dict | None = None,
 ) -> Timeline:
+    """``template``: a reference Reel to cut like ({"cuts", "seconds", "on_beat_share"}): its shot timing replaces the
+    beat/energy-planned one (see template_slots)."""
     if not clips:
         raise ValueError("At least one clip is required to build a timeline.")
     rng = random.Random(seed)
@@ -553,7 +588,10 @@ def build_timeline(
             f"You provided about {footage:.0f}s of usable footage for a {eff:g}s Reel, so some moments will repeat. "
             "Add more clips or choose a shorter duration."
         )
-    slots = plan_slots(audio, audio_start, eff, style)
+    if template and template.get("cuts"):
+        slots = template_slots(audio, audio_start, eff, template["cuts"], template.get("seconds") or eff, template.get("on_beat_share"), style)
+    else:
+        slots = plan_slots(audio, audio_start, eff, style)
     segments = select_segments(slots, clips, style, rng, order_hint, warnings, brief)
     assign_effects(segments, slots, style, rng)
     assign_transitions(segments, slots, style, rng)

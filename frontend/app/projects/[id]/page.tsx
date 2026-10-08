@@ -94,9 +94,12 @@ export default function ProjectPage() {
                 🎵 Beat sync
               </Link>
             )}
+            <Link href={`/editor/${id}`} className={btnPrimary}>
+              ✂ Open in editor
+            </Link>
             {project.timeline && (
-              <Link href={`/projects/${id}/edit`} className={btnSecondary}>
-                ✎ Edit timeline
+              <Link href={`/projects/${id}/edit`} className={btnSecondary} title="Voice-over script, brand watermark, quality check">
+                More tools
               </Link>
             )}
             <StatusBadge status={project.status} />

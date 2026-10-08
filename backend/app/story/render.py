@@ -213,13 +213,37 @@ def _chunks(text: str, width: int = 20) -> list[str]:
     return out or [text]
 
 
-def build_plan(plan: StoryPlan, lines: list[Line], sizes: list[tuple[int, int]], style: ProductStyle) -> ProductReelPlan:
+def shots_per_scene(length: float, reference: dict | None) -> int:
+    """A long scene is shown as several shots of its picture (wide, closer, a pan) when the reference Reel cuts fast."""
+    target = (reference or {}).get("median_shot") or (reference or {}).get("avg_shot")
+    if not target:
+        return 1
+    return int(max(1, min(4, round(length / max(float(target) * 1.6, 1.2)))))  # pictures hold a little longer than video shots
+
+
+def build_plan(plan: StoryPlan, lines: list[Line], sizes: list[tuple[int, int]], style: ProductStyle, reference: dict | None = None) -> ProductReelPlan:
+    """``reference``: a Reel to make it like (its measured profile): its pace (shots per scene), its transitions."""
+    hard_cuts = ((reference or {}).get("traits") or {}).get("transition_style") == "mostly_hard_cut" or (
+        reference is not None and (reference.get("median_shot") or 9) <= 1.0)  # fast Reels cut, they do not dissolve
     shots, texts = [], []
+    shot_no = 0
     for i, ln in enumerate(lines):
         iw, ih = sizes[i]
-        tr = ShotTransition(type="fade_from_black", duration=0.7) if i == 0 else ShotTransition(type="dissolve", duration=0.6)
-        shots.append(Shot(index=i, start=ln.start, end=ln.start + ln.length, purpose="hook" if i == 0 else "hero", framing="hero",
-                          image_index=i, camera=camera(i, ln.scene, iw, ih, style.push), transition_in=tr, note=ln.scene.narration[:80]))  # fmt: skip
+        n = shots_per_scene(ln.length, reference)
+        for j in range(n):
+            a = ln.start + ln.length * j / n
+            b = ln.start + ln.length * (j + 1) / n
+            if i == 0 and j == 0:
+                tr = ShotTransition(type="fade_from_black", duration=0.7)
+            elif j > 0 or hard_cuts:
+                tr = ShotTransition(type="cut", duration=0.0)  # within a scene: a cut to a new framing of the same picture
+            else:
+                tr = ShotTransition(type="dissolve", duration=0.6)
+            shots.append(Shot(index=shot_no, start=a, end=b, purpose="hook" if i == 0 else "hero", framing="hero", image_index=i,
+                              camera=camera(i + j, ln.scene.model_copy(update={"shot": ("wide", "close", "medium", "close")[j % 4]}) if n > 1 else ln.scene,
+                                            iw, ih, style.push),
+                              transition_in=tr, note=ln.scene.narration[:80]))  # fmt: skip
+            shot_no += 1
         # captions follow the voice: each chunk gets a share of the spoken time by its length
         spoken0 = ln.start + (LEAD if i == 0 else 0.0)
         spoken = (len(ln.voice) / SR) if ln.voice is not None else len(ln.scene.narration.split()) / WORDS_PER_SECOND
@@ -256,8 +280,8 @@ def mix_narration(lines: list[Line], duration: float, out: Path) -> bool:
 
 
 def render_story(plan: StoryPlan, pictures: list[Path], out: Path, work: Path, voice_id: str | None, music: Path | None,
-                 quality: str, progress: Callable[[str, float], None]) -> tuple[ProductReelPlan, list[str]]:  # fmt: skip
-    """Make the MP4. ``pictures`` follow ``plan.scenes``."""
+                 quality: str, progress: Callable[[str, float], None], reference: dict | None = None) -> tuple[ProductReelPlan, list[str]]:  # fmt: skip
+    """Make the MP4. ``pictures`` follow ``plan.scenes``. ``reference``: a Reel to make it like (its measured profile)."""
     work.mkdir(parents=True, exist_ok=True)
     voices, warnings = speak(plan, voice_id, work, lambda f: progress("voicing", f))
     lines = time_lines(plan, voices)
@@ -270,7 +294,11 @@ def render_story(plan: StoryPlan, pictures: list[Path], out: Path, work: Path, v
     style = STORY_STYLE
     if plan.language in DEVANAGARI:
         style = dataclasses.replace(style, font="Nirmala UI" if os.name == "nt" else "Noto Sans Devanagari")  # fonts with Devanagari
-    reel = build_plan(plan, lines, sizes, style)
+    if reference and reference.get("look"):  # the reference Reel's colour
+        lk = reference["look"]
+        style = dataclasses.replace(style, saturation=round(1 + max(-0.15, min(0.25, (float(lk.get("saturation", 0.4)) - 0.4) * 0.8)), 2),
+                                    contrast=round(1.04 + max(-0.04, min(0.06, (float(lk.get("saturation", 0.4)) - 0.4) * 0.2)), 2))  # fmt: skip
+    reel = build_plan(plan, lines, sizes, style, reference)
     base = dataclasses.replace(FINAL, fps=25) if quality == "final" else PREVIEW  # slow painterly moves: 25 fps looks the same, renders faster
     rs = dataclasses.replace(base, music_volume=0.22 if any(v is not None for v in voices) else 0.8)
     silent = work / "pictures.mp4"

@@ -69,7 +69,7 @@ def test_the_ai_director_gets_the_chosen_trend():
     ask = dict(brief="", language="en", style_hint=None, captions=False, cta="", hook="", pace="auto")
     facts, _ = build_request(clips, audio, mm, 0.0, 12.0, {"luxury": "x"}, references=[{**trend, "chosen": True}], **ask)
     assert facts["reel"]["reference"] == "Luxury Oct"
-    assert facts["reference_edits"] == [trend] and "chosen" not in facts["reference_edits"][0]
+    assert facts["reference_edits"] == [{k: v for k, v in trend.items() if k != "id"}] and "chosen" not in facts["reference_edits"][0]  # the id stays internal
     auto, _ = build_request(clips, audio, mm, 0.0, 12.0, {"luxury": "x"}, references=[trend], **ask)
     assert auto["reel"]["reference"] == "auto"
     none, _ = build_request(clips, audio, mm, 0.0, 12.0, {"luxury": "x"}, **ask)

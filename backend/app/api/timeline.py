@@ -35,6 +35,22 @@ async def get_timeline(project_id: str):
     return await ts.get_state(project_id)
 
 
+@router.get("/editor/catalog")
+async def editor_catalog():
+    """Everything the manual editor can apply: transitions, per-shot effects and colour looks (all rendered for real)."""
+    from app.models.timeline import EFFECT_TYPES, TRANSITION_TYPES
+    from app.video.grades import _PRESETS
+
+    return {"transitions": list(TRANSITION_TYPES), "effects": list(EFFECT_TYPES),
+            "looks": [{"id": g.id, "label": g.label, "hint": g.hint} for g in _PRESETS.values()]}  # fmt: skip
+
+
+@router.post("/projects/{project_id}/timeline/start")
+async def start_editing(project_id: str, fresh: bool = False):
+    """The manual editor: open the edit, or (no edit yet / ``fresh``) start one from the uploaded clips, by hand."""
+    return await ts.start_manual(project_id, fresh=fresh)
+
+
 @router.post("/projects/{project_id}/timeline/ops")
 async def edit_timeline(project_id: str, payload: OpsRequest):
     return await ts.apply(project_id, payload.ops, payload.label)

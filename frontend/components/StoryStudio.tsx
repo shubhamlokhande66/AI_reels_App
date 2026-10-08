@@ -8,6 +8,7 @@ import { MAX_AUDIO_MB, tooBig } from "@/lib/format";
 import type { PictureSource, Project, Story } from "@/types/api";
 import { ProgressStages } from "./ProgressStages";
 import { PublishPanel } from "./PublishPanel";
+import { ReferenceReel } from "./ReferenceReel";
 import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "./ui";
 
 const SOURCE: Record<PictureSource, string> = {
@@ -350,6 +351,8 @@ export function StoryStudio({ project }: { project: Project }) {
             <span className="mt-1 block text-xs text-muted">Played softly under the voice. Use music you have the rights to.</span>
           </div>
         </div>
+        <ReferenceReel projectId={pid} disabled={busy} />
+        <p className="-mt-1 text-xs text-muted">For a story, the narration sets the timing; a reference Reel sets the pace of the shots, the transitions and the colour.</p>
         {(render.error || music.error) && <ErrorBanner message={errorMessage(render.error ?? music.error)} />}
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <button type="button" className={`${btnPrimary} col-span-2`} disabled={busy || missing > 0 || render.isPending} onClick={() => render.mutate("final")}>

@@ -162,6 +162,44 @@ async def restore_version(project_id: str, rendering_id: str) -> dict[str, Any]:
     return await _save(doc, hist, len(hist) - 1)
 
 
+async def start_manual(project_id: str, fresh: bool = False, seconds_per_clip: float = 3.0) -> dict[str, Any]:
+    """The manual editor's starting point: every uploaded clip once, in order (a few seconds of each, from its best
+    moment when it was analysed), with the song from its start. The person shapes it from there. A project that
+    already has an edit opens it as it is (``fresh`` starts over, as one undoable step)."""
+    from app.models.timeline import Segment
+
+    doc = await _load(project_id)
+    if doc.get("timeline") and not fresh:
+        return state_of(doc)
+    ctx = await context_for(doc)
+    order = [str(i) for i in doc.get("videoOrder", []) if str(i) in ctx.clip_durations]
+    if not order:
+        raise NotFoundError("Add your clips first.", code="NO_VIDEOS")
+    best: dict[str, float] = {}
+    async for m in get_db().media.find({"projectId": doc["_id"], "kind": "video"}):
+        segs = ((m.get("analysis") or {}).get("bestSegments") or [])
+        if segs:
+            best[str(m["_id"])] = float(segs[0].get("start", 0.0))
+    segments, t = [], 0.0
+    for cid in order:
+        dur = ctx.clip_durations[cid]
+        length = min(seconds_per_clip, dur)
+        start = min(best.get(cid, 0.0), max(dur - length, 0.0))
+        segments.append(Segment(clip_id=cid, video=ctx.clip_names.get(cid, "clip"), source_start=round(start, 3),
+                                source_end=round(start + length, 3), timeline_start=round(t, 3), timeline_end=round(t + length, 3)))  # fmt: skip
+        t += length
+    bpm = 0.0
+    if doc.get("audioId"):
+        audio = await get_db().media.find_one({"_id": doc["audioId"]})
+        bpm = float(((audio or {}).get("analysis") or {}).get("bpm") or 0.0)
+    tl = Timeline(duration=round(t, 3), bpm=bpm, audio_start=0.0, style="custom", segments=segments,
+                  notes=["Built by hand in the editor."])  # fmt: skip
+    hist, idx = _history(doc)
+    hist = hist[: idx + 1] + [{"timeline": tl.to_doc(), "label": "Start editing", "at": utcnow()}]
+    hist = hist[-HISTORY_LIMIT:]
+    return await _save(doc, hist, len(hist) - 1)
+
+
 async def replace(project_id: str, timeline: Timeline, label: str) -> dict[str, Any]:
     """Make ``timeline`` the current edit (a whole-edit change such as a new style or pace), as one undoable step."""
     doc = await _load(project_id)
@@ -175,7 +213,7 @@ async def replace(project_id: str, timeline: Timeline, label: str) -> dict[str, 
 def _describe(ops: list) -> str:
     names = {
         "trim": "Trim", "set_length": "Change length", "move": "Move shot", "split": "Split shot",
-        "delete": "Delete shot", "duplicate": "Duplicate shot", "replace": "Replace clip", "set_speed": "Change speed",
+        "delete": "Delete shot", "duplicate": "Duplicate shot", "insert": "Add clip", "replace": "Replace clip", "set_speed": "Change speed",
         "set_transition": "Change transition", "set_effect": "Change effect", "set_crop": "Change framing",
         "set_music": "Adjust music", "add_caption": "Add caption", "update_caption": "Edit caption",
         "delete_caption": "Delete caption", "set_caption_style": "Caption style", "fit_duration": "Fit to duration",
