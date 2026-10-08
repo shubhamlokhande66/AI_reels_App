@@ -131,15 +131,21 @@ async def find_scene_picture(doc: dict[str, Any], scene_id: str, another: bool =
     key = im.library_key(plan.art_style, scene)
 
     def work() -> tuple[im.Picture, str | None]:
-        pic = im.find_picture(plan, scene, lib, skip | ({key} if another else set()))
+        used = {r for s in plan.scenes if s.id != scene.id for r in s.seen}  # pictures other scenes show
+        pic = im.find_picture(plan, scene, lib, skip | ({key} if another else set()), used)
         _check_image(pic.data)
         lib_id = lib.remember(key if pic.source != "public_domain" else f"pd_{uuid.uuid5(uuid.NAMESPACE_URL, pic.ref).hex[:20]}", plan.art_style, scene, pic)
         return pic, lib_id
+
+    from app.services import credits
 
     try:
         pic, lib_id = await asyncio.to_thread(work)
     except im.NoPicture as exc:
         raise ValidationFailed(str(exc), code="NO_PICTURE") from exc
+    if pic.source in ("free_ai", "paid_ai"):  # made just now for this user (the library and paintings are free)
+        await credits.charge("paid_picture" if pic.source == "paid_ai" else "ai_picture", f"picture_{doc['_id']}_{scene.id}_{uuid.uuid4().hex[:6]}",
+                             "AI picture for a story scene")  # fmt: skip
     scene.image_key = _store_scene_picture(str(doc["_id"]), scene, pic.data, pic.ext)
     scene.source, scene.credit, scene.library_id = pic.source, pic.credit, lib_id
     scene.seen = list(dict.fromkeys([*scene.seen, *(x for x in (pic.ref, lib_id) if x)]))[-30:]

@@ -1068,6 +1068,32 @@ export interface Pricing {
     features: string[];
   }[];
   topUps: { id: string; credits: number; price: number }[];
-  creditCosts: { action: string; credits: number | string }[];
+  creditCosts: { id: string; action: string; credits: number }[];
+  costs: Record<string, number>;
   paymentsOpen: boolean;
+  billingEnabled: boolean;
+}
+
+/** The signed-in user's credits (billing on). */
+export type Credits =
+  | { enabled: false }
+  | {
+      enabled: true;
+      balance: number;
+      monthly: number;
+      extra: number;
+      plan: string;
+      planName: string;
+      period: "monthly" | "yearly" | null;
+      planEnds: string | null;
+      renews: string | null;
+      history: { delta: number; reason: string; at: string; balance: number | null }[];
+    };
+export interface CheckoutOrder {
+  orderId: string;
+  keyId: string;
+  amount: number;
+  currency: string;
+  label: string;
+  email: string;
 }

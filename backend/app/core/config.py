@@ -71,6 +71,11 @@ class Settings(BaseSettings):
     admin_key: SecretStr = SecretStr("")
     # Production accounts (core/auth.py): sign-in required, each user's data in their own database.
     auth_enabled: bool = False
+    # Billing (services/credits.py, api/billing.py): credits are counted only when this and accounts are on.
+    billing_enabled: bool = False
+    razorpay_key_id: str = ""  # Razorpay dashboard > Settings > API keys (rzp_test_... while testing)
+    razorpay_key_secret: SecretStr = SecretStr("")
+    razorpay_webhook_secret: SecretStr = SecretStr("")  # Razorpay dashboard > Webhooks (payment.captured, order.paid)
     # Auto-delete (services/retention.py; the admin can change it on the Admin page): uploaded clips / songs go this many
     # hours after a project was last used, the whole project (Reels included) after the second number.
     retention_enabled: bool = False

@@ -14,6 +14,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.errors import AppError, ConflictError, JobCancelled, ValidationFailed
 from app.jobs import pipeline as pl
+from app.services import credits
 from app.models.base import utcnow
 from app.schemas.project import GenerateRequest, ProjectSettings
 from app.services.project_service import get_project_doc, validate_trend_id
@@ -82,6 +83,7 @@ async def recover_stale_jobs() -> None:
     now = utcnow()
     async for j in db.jobs.find({"status": {"$in": ["queued", "processing"]}}):
         await db.jobs.update_one({"_id": j["_id"]}, {"$set": {"status": "failed", "error": err, "updatedAt": now}})
+        await credits.refund(str(j["_id"]))  # interrupted by a restart: the credits come back
         await db.projects.update_one(
             {"_id": j["projectId"], "status": "processing"}, {"$set": {"status": "failed", "error": err, "updatedAt": now}}
         )
@@ -148,6 +150,7 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
         "stage": pl.stage_names(job_type)[0], "stages": _initial_stages(job_type, ps.captions, ps.ai), "error": None,
         "renderingId": None, "createdAt": now, "updatedAt": now,
     }  # fmt: skip
+    await credits.charge("clip_reel" if job_type == "generate" else "preview", str(job_id), "Reel from your clips")
     await db.jobs.insert_one(job)
     await db.projects.update_one(
         {"_id": doc["_id"]},
@@ -203,6 +206,7 @@ async def submit_render(project_id: str, quality: str = "final", label: str = ""
         "stage": "rendering", "stages": _initial_stages("render"), "error": None, "renderingId": None,
         "createdAt": now, "updatedAt": now,
     }  # fmt: skip
+    await credits.charge("version" if quality == "final" else "preview", str(job_id), "Re-render")
     await db.jobs.insert_one(job)
     await db.projects.update_one(
         {"_id": doc["_id"]}, {"$set": {"status": "processing", "latestJobId": job_id, "error": None, "updatedAt": now}}
@@ -244,6 +248,7 @@ async def submit_split(project_id: str, count: int, seconds: int) -> dict[str, A
         "stage": "analyzing_videos", "stages": _initial_stages("split", False, ps.ai), "error": None,
         "renderingId": None, "createdAt": now, "updatedAt": now,
     }  # fmt: skip
+    await credits.charge("clip_reel", str(job_id), f"{count} Reels from a long video", times=count)
     await db.jobs.insert_one(job)
     await db.projects.update_one({"_id": doc["_id"]}, {"$set": {"status": "processing", "latestJobId": job_id, "error": None, "updatedAt": now}})
 
@@ -296,6 +301,7 @@ async def submit_variations(project_id: str, strategy_ids: list[str] | None = No
         "stage": "analyzing_videos", "stages": _initial_stages("variations", False, ps.ai), "error": None,
         "renderingId": None, "createdAt": now, "updatedAt": now,
     }  # fmt: skip
+    await credits.charge("version", str(job_id), "New versions", times=len(ids))
     await db.jobs.insert_one(job)
     await db.projects.update_one({"_id": doc["_id"]}, {"$set": {"status": "processing", "latestJobId": job_id, "error": None, "updatedAt": now}})
 
@@ -378,6 +384,7 @@ async def _run(job_id, project_oid, inp: pl.PipelineInput, rendering_id, prior_s
             err = _error_doc(exc)
             failed_stages = [dict(s, status="failed") if s["status"] == "running" else dict(s) for s in stages]
             await _update_job(job_id, status="cancelled" if cancelled else "failed", error=err, stages=failed_stages)
+            await credits.refund(str(job_id))  # the Reel was not made: its credits come back
             # A failed/cancelled preview/re-render must not mark the whole project failed: the previous result still stands.
             status = prior_status if cancelled or inp.job_type in ("render", "variations", "split") or (inp.job_type == "product" and inp.kind == "preview") else "failed"
             await get_db().projects.update_one(
@@ -587,6 +594,7 @@ async def submit_product(
         "_id": job_id, "projectId": doc["_id"], "type": "product", "status": "queued", "progress": 0, "stage": pl.stage_names("product")[0],
         "stages": _initial_stages("product"), "error": None, "renderingId": None, "createdAt": now, "updatedAt": now,
     }  # fmt: skip
+    await credits.charge("clip_reel" if quality == "final" else "preview", str(job_id), "Product Reel")
     await db.jobs.insert_one(job)
     await db.projects.update_one(
         {"_id": doc["_id"]},
@@ -621,6 +629,7 @@ async def submit_story(project_id: str, voice_id: str | None, quality: str = "fi
     job_id = ObjectId()
     job = {"_id": job_id, "projectId": doc["_id"], "type": "story", "status": "queued", "progress": 0, "stage": "voicing",
            "stages": _initial_stages("story"), "error": None, "renderingId": None, "createdAt": now, "updatedAt": now}  # fmt: skip
+    await credits.charge("story_render" if quality == "final" else "preview", str(job_id), "Story Reel")
     await db.jobs.insert_one(job)
     await db.projects.update_one({"_id": doc["_id"]}, {"$set": {"status": "processing", "latestJobId": job_id, "error": None, "updatedAt": now}})
     prior_status = "completed" if doc.get("latestRenderingId") else "draft"

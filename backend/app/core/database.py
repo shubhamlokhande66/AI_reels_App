@@ -20,7 +20,8 @@ _client: Any = None
 _db: Any = None
 
 OWNER = "ownerId"
-UNSCOPED = frozenset({"users", "app_settings", "story_images"})  # accounts, studio-wide settings, the shared picture library
+# accounts, studio-wide settings, the shared picture library, and billing (always looked up by user id explicitly)
+UNSCOPED = frozenset({"users", "app_settings", "story_images", "wallets", "credit_ledger", "payments"})
 
 
 def set_database(db: Any) -> None:
@@ -150,3 +151,6 @@ async def ensure_indexes(db: Any) -> None:
     await db.posts.create_index([("status", 1), ("at", 1)])
     await db.posts.create_index([("projectId", 1), ("createdAt", -1)])
     await db.users.create_index("email", unique=True)
+    await db.credit_ledger.create_index([("userId", 1), ("at", -1)])
+    await db.credit_ledger.create_index("ref")
+    await db.payments.create_index([("userId", 1), ("createdAt", -1)])

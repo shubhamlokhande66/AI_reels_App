@@ -7,6 +7,7 @@ import { api, errorMessage } from "@/lib/api";
 import { setAdminKey } from "@/lib/admin";
 import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader } from "@/components/ui";
 import { RetentionSettings } from "@/components/RetentionSettings";
+import { PricingSettings } from "@/components/PricingSettings";
 
 /** Unlock (or leave) admin mode in this browser with the server's ADMIN_KEY. */
 export default function AdminPage() {
@@ -79,6 +80,9 @@ export default function AdminPage() {
       {admin && (
         <div className="mt-6">
           <RetentionSettings />
+          <div className="mt-6">
+            <PricingSettings />
+          </div>
         </div>
       )}
     </>

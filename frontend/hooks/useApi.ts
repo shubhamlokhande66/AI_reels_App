@@ -66,6 +66,11 @@ export function useMe() {
   return useQuery({ queryKey: ["me"], queryFn: api.me, staleTime: 60_000, retry: false });
 }
 
+/** The signed-in user's credits (`enabled: false` when billing is off or nobody is signed in). */
+export function useCredits() {
+  return useQuery({ queryKey: ["credits"], queryFn: api.credits, staleTime: 15_000, refetchInterval: 60_000, refetchOnWindowFocus: true });
+}
+
 /** Admin mode in this browser (settings and diagnostics are admin only; see lib/admin.ts). */
 export function useAdmin(): { admin: boolean; required: boolean; loading: boolean } {
   const q = useQuery({ queryKey: ["admin"], queryFn: () => api.adminSession(), staleTime: 60_000, retry: false });

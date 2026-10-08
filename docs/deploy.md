@@ -65,3 +65,18 @@ The connected accounts are the studio's (one set of keys for the server).
 (`id, trendName, recommendedDuration, cutFrequency: fast|medium|slow, transitionStyle: smooth|punchy|minimal,
 captionStyle, description`). It is read once an hour, shown above the built-in trends, and if it is down the last good
 list keeps working. Nothing is scraped.
+
+## Plans, credits and payments (Razorpay)
+1. Create a Razorpay account and complete KYC (needed for live payments; test mode works at once).
+2. Dashboard → *Account & Settings → API keys*: put the key id and secret in `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET`
+   (start with `rzp_test_…` keys: test cards and test UPI ids never move real money).
+3. Dashboard → *Webhooks*: add `https://<DOMAIN>/api/public/billing/webhook` with the events `payment.captured` and
+   `order.paid`, and a secret → `RAZORPAY_WEBHOOK_SECRET`. This credits a payment even if the buyer closes the browser.
+4. `BILLING_ENABLED=true` (with `AUTH_ENABLED=true`). Every new account gets the Free plan's starter credits.
+5. Prices, credits per plan, top-ups and credits per action: Admin page → *Plans & credits*.
+
+How it works: plans are prepaid for 1 month or 1 year (no automatic renewal). Plan credits renew every 30 days during
+the paid period and do not carry over; starter and top-up credits never expire. Credits are taken when a Reel starts
+and given back automatically if it fails. Amounts always come from the server's prices, and every payment is checked
+with Razorpay's signature before anything is credited. GST invoices: Razorpay sends a payment receipt; issue tax
+invoices from your accounting tool (or enable Razorpay's invoices) until in-app invoices are added.

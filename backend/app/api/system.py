@@ -92,7 +92,7 @@ async def plans():
     """Plans, credits and prices (public: the pricing page is shown before sign-in)."""
     from app.services.plans import pricing
 
-    return pricing()
+    return await pricing()
 
 
 @router.get("/retention")

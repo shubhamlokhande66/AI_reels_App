@@ -63,6 +63,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_api.router)
     from app.api import publish as publish_api
     from app.api import story as story_api
+    from app.api import billing as billing_api
+
+    app.include_router(billing_api.router)
 
     app.include_router(story_api.router)
 

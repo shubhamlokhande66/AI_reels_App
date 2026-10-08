@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { ThemeToggle } from "./ThemeToggle";
 import { GlobalActivity } from "./GlobalActivity";
-import { useAdmin, useMe } from "@/hooks/useApi";
+import { useAdmin, useCredits, useMe } from "@/hooks/useApi";
 
 // What every user sees: the product. The admin section (settings, diagnostics, experimental tools) appears only in
 // admin mode (lib/admin.ts); the server enforces it for the settings API too.
@@ -79,6 +79,23 @@ function Brand({ compact = false }: { compact?: boolean }) {
   );
 }
 
+/** The signed-in user's credits (billing on): tap to see plans and top up. */
+function CreditPill({ balance }: { balance: number }) {
+  return (
+    <Link
+      href="/pricing"
+      title="Your credits: plans and top-ups"
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors hover:border-accent/70 ${
+        balance <= 2 ? "border-warning/60 text-warning" : "border-accent/40 text-accent"
+      }`}
+    >
+      <span aria-hidden>◆</span>
+      {balance}
+      <span className="sr-only"> credits</span>
+    </Link>
+  );
+}
+
 function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pathname: string; onNavigate?: () => void }) {
   return (
     <>
@@ -120,6 +137,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const me = useMe();
   const [drawer, setDrawer] = useState(false);
+  const creditsQ = useCredits();
+  const credits = creditsQ.data?.enabled ? creditsQ.data : null;
+  const [needCredits, setNeedCredits] = useState<string | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => {
+      setNeedCredits((e as CustomEvent<string>).detail || "You are out of credits.");
+      void qc.invalidateQueries({ queryKey: ["credits"] });
+    };
+    window.addEventListener("credits:needed", on);
+    return () => window.removeEventListener("credits:needed", on);
+  }, [qc]);
   useEffect(() => {
     if (!drawer) return;
     const onKey = (e: KeyboardEvent) => {
@@ -192,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex justify-center">
           <Brand compact />
         </div>
-        <span aria-hidden />
+        <div className="flex justify-end">{credits ? <CreditPill balance={credits.balance} /> : <span aria-hidden />}</div>
       </header>
 
       {/* phones: the slide-out drawer with every page */}
@@ -244,6 +272,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="px-6 pb-8 pt-2">
           <div className="lux-hairline mb-4" />
+          {credits && (
+            <div className="mb-3 flex items-center justify-between text-xs text-muted">
+              <span>{credits.planName} plan</span>
+              <CreditPill balance={credits.balance} />
+            </div>
+          )}
           {account}
           <Link href="/projects/new" className="lux-btn-gold flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold">
             ✦ New Reel
@@ -296,6 +330,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           More
         </button>
       </nav>
+
+      {needCredits && (
+        <div className="lux-overlay fixed inset-0 z-[90] flex items-center justify-center p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Not enough credits">
+          <div className="lux-card lux-enter w-full max-w-md rounded-3xl p-6 text-center">
+            <p className="lux-eyebrow">Credits</p>
+            <h2 className="mt-1 font-display text-3xl">Not enough credits</h2>
+            <p className="mt-2 text-sm text-muted">{needCredits}</p>
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              <Link href="/pricing" onClick={() => setNeedCredits(null)} className="lux-btn-gold rounded-full px-5 py-2.5 text-sm font-semibold">
+                See plans & top-ups
+              </Link>
+              <button type="button" onClick={() => setNeedCredits(null)} className="rounded-full border border-border px-5 py-2.5 text-sm hover:border-accent/60">
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="min-w-0 flex-1 px-4 pb-28 pt-5 md:px-12 md:py-10">
         <div className="mx-auto w-full max-w-6xl">

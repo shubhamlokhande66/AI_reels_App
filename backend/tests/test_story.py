@@ -176,3 +176,38 @@ async def test_shared_library_reuses_pictures(db, storage):
 def test_plan_survives_a_round_trip():
     plan = simple_plan(STORY, "hi", "ravi_varma", 4, "t")
     assert StoryPlan.model_validate(plan.model_dump(mode="json")).scenes[0].id == plan.scenes[0].id
+
+
+def _commons(pages_by_query):
+    """A fake Wikimedia API: search results by query, and a tiny JPEG for every file."""
+    import httpx
+
+    def handler(req):
+        if req.url.host == "upload.example":
+            return httpx.Response(200, content=b"\xff\xd8\xff\xe0jpeg")
+        q = req.url.params.get("gsrsearch", "").replace(" filetype:bitmap", "")
+        pages = {}
+        for i, title in enumerate(pages_by_query.get(q, [])):
+            pages[str(i)] = {"title": title, "index": i, "imageinfo": [{"width": 1600, "height": 1000, "thumburl": "https://upload.example/x.jpg",
+                             "extmetadata": {"LicenseShortName": {"value": "Public domain"}, "Artist": {"value": "Raja Ravi Varma"}}}]}  # fmt: skip
+        return httpx.Response(200, json={"query": {"pages": pages}})
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_painting_search_falls_back_to_each_name_and_the_storys_people():
+    scene = StoryScene(id="s", narration="n", visual="v", keywords=["Chakravyuh", "Kurukshetra war", "golden maze"], characters=["Abhimanyu"])
+    client = _commons({'"Ravi Varma" Abhimanyu': ["File:The Death of Abhimanyu.jpg"]})
+    pic = im.commons_search(scene, set(), client)
+    assert pic is not None and pic.ref == "File:The Death of Abhimanyu.jpg"  # the combined search found nothing; the name alone did
+    ending = StoryScene(id="e", narration="n", visual="v", keywords=["eternal glory", "dharma"])
+    assert im.commons_search(ending, set(), client) is None
+    assert im.commons_search(ending, set(), client, story_names=["Abhimanyu"]).ref == "File:The Death of Abhimanyu.jpg"
+
+
+def test_painting_search_prefers_one_not_used_by_another_scene():
+    scene = StoryScene(id="s", narration="n", visual="v", keywords=["Arjuna"], characters=["Arjuna"])
+    client = _commons({'"Ravi Varma" Arjuna': ["File:Arjuna on the chariot.jpg", "File:Arjuna and Subhadra.jpg"]})
+    assert im.commons_search(scene, set(), client).ref == "File:Arjuna on the chariot.jpg"
+    assert im.commons_search(scene, set(), client, prefer_not={"File:Arjuna on the chariot.jpg"}).ref == "File:Arjuna and Subhadra.jpg"
+    assert "chakravyuha" in im._forms("Chakravyuh") and "arjun" in im._forms("Arjuna")

@@ -49,7 +49,7 @@ import type {
   Template,
   TemplateInput,
   VoiceProfile,
-  VoiceProfileInput, Connections, Platform, Post, Pricing, Retention, Story, StoryOptions } from "@/types/api";
+  VoiceProfileInput, Connections, Platform, Post, CheckoutOrder, Credits, Pricing, Retention, Story, StoryOptions } from "@/types/api";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -139,7 +139,12 @@ async function send<T>(path: string, init: RequestInit | undefined, timeoutMs: n
     });
   }
   clearTimeout(timer);
-  if (!res.ok) throw await parseError(res);
+  if (!res.ok) {
+    const err = await parseError(res);
+    // out of credits: the app shows "Top up or choose a plan" wherever it happened
+    if (err.code === "INSUFFICIENT_CREDITS" && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("credits:needed", { detail: err.message }));
+    throw err;
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
@@ -228,6 +233,12 @@ export const api = {
   cancelJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}/cancel`, { method: "POST" }),
   renderings: (id: string) => request<Rendering[]>(`/api/projects/${id}/renderings`),
   plans: () => request<Pricing>("/api/plans"),
+  credits: () => request<Credits>("/api/credits"),
+  createOrder: (item: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item }) }),
+  verifyPayment: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
+    request<Credits>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
+  setPricing: (body: { plans: { id: string; monthly: number; credits: number; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
+    request<Pricing>("/api/admin/pricing", { method: "PUT", body: JSON.stringify(body) }),
   storyOptions: () => request<StoryOptions>("/api/story/options"),
   createStory: (body: { text: string; language: string; artStyle: string; scenes: number; seconds: number }) =>
     request<Story>("/api/story", { method: "POST", body: JSON.stringify(body) }, AI_TIMEOUT_MS),

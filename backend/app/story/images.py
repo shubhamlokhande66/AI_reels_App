@@ -75,38 +75,70 @@ def user_agent() -> str:
     return f"AIReelMaker/1.0 ({site}{contact})"
 
 
-def commons_search(scene: StoryScene, skip: set[str], client: httpx.Client) -> Picture | None:
-    """A public-domain painting on Wikimedia Commons matching the scene's names (Raja Ravi Varma first)."""
-    words = [k for k in scene.keywords if k][:3] or scene.characters[:2]
-    if not words:
+def _forms(word: str) -> set[str]:
+    """Spellings of a name as they appear in titles: Chakravyuh / Chakravyuha, Draupadi / Draupadee are common."""
+    w = word.lower().strip()
+    out = {w}
+    if len(w) > 4:
+        out |= {w.rstrip("a"), w + "a"}
+    return {x for x in out if len(x) > 3}
+
+
+def _is_name(word: str) -> bool:
+    return word[:1].isupper() and " " not in word.strip()
+
+
+def commons_search(scene: StoryScene, skip: set[str], client: httpx.Client, story_names: list[str] | None = None,
+                   prefer_not: set[str] | None = None) -> Picture | None:  # fmt: skip
+    """A public-domain painting on Wikimedia Commons for a scene (Raja Ravi Varma first).
+
+    Searches with the scene's words together, then each person's name alone, then (for scenes without names, like an
+    ending) the story's main characters. A candidate must mention one of those names or words; the one mentioning
+    the most wins. ``prefer_not``: paintings already used by other scenes (taken only when nothing else fits)."""
+    names = list(dict.fromkeys([*scene.characters, *(k for k in scene.keywords if _is_name(k))]))
+    words = [k for k in scene.keywords if k][:3] or names[:2]
+    if not names and story_names:
+        names = list(story_names[:2])
+        words = words or names
+    if not words and not names:
         return None
-    # what the painting should mention: the people first (they matter most), then the other keywords
-    wanted = {w.lower(): (2.0 if w in scene.characters or w[:1].isupper() else 1.0) for w in [*scene.characters, *scene.keywords] if w}
+    wanted: dict[str, float] = {}
+    for w in [*scene.keywords, *names]:
+        for f in _forms(w):
+            wanted[f] = max(wanted.get(f, 0.0), 2.0 if w in names else 1.0)
+    queries = [f'"Ravi Varma" {" ".join(words)}', f"{' '.join(words)} painting"]
+    queries += [q for n in names[:3] for q in (f'"Ravi Varma" {n}', f"{n} painting")]
     best: tuple[float, dict, dict, str] | None = None
-    for query in (f'"Ravi Varma" {" ".join(words)}', f"{' '.join(words)} painting"):
+    seen_titles: set[str] = set()
+    for query in dict.fromkeys(queries):
         r = client.get(COMMONS, headers={"User-Agent": user_agent()}, timeout=20, params={
             "action": "query", "format": "json", "generator": "search", "gsrnamespace": 6, "gsrlimit": 15,
             "gsrsearch": f"{query} filetype:bitmap", "prop": "imageinfo", "iiprop": "url|extmetadata|size", "iiurlwidth": 1600})  # fmt: skip
         r.raise_for_status()
         pages = sorted((r.json().get("query") or {}).get("pages", {}).values(), key=lambda p: p.get("index", 99))
-        for rank, p in enumerate(pages):
-            info = (p.get("imageinfo") or [{}])[0]
+        for rank, pg in enumerate(pages):
+            title = pg.get("title", "")
+            if title in skip or title in seen_titles:
+                continue
+            seen_titles.add(title)
+            info = (pg.get("imageinfo") or [{}])[0]
             meta = info.get("extmetadata") or {}
             licence = _plain((meta.get("LicenseShortName") or {}).get("value", "")).lower()
-            title = p.get("title", "")
-            if title in skip or not ("public domain" in licence or licence.startswith("pd")):
+            if not ("public domain" in licence or licence.startswith("pd")):
                 continue
             if min(info.get("width", 0), info.get("height", 0)) < 600:
                 continue
             about = (title + " " + _plain((meta.get("ImageDescription") or {}).get("value", ""))).lower()
             score = sum(w for k, w in wanted.items() if k in about)
             if score <= 0:
-                continue  # the painting must at least mention one of the scene's names
+                continue  # the painting must at least mention one of the scene's names or words
             score -= rank * 0.05  # among equals, the search engine's order
+            if prefer_not and title in prefer_not:
+                score -= 2.5  # another scene already shows it: only if nothing else fits
             if best is None or score > best[0]:
                 best = (score, info, meta, title)
         if best and best[0] >= 3.5:
-            break  # a painting with two of the scene's people: no need for the broader search
+            break  # a painting with two of the scene's people: no need to search further
     if best is None:
         return None
     _, info, meta, title = best
@@ -184,7 +216,7 @@ def sources_available(art_style: str) -> list[str]:
     return out
 
 
-def find_picture(plan: StoryPlan, scene: StoryScene, library: Any, skip: set[str]) -> Picture:
+def find_picture(plan: StoryPlan, scene: StoryScene, library: Any, skip: set[str], used: set[str] | None = None) -> Picture:
     """The cheapest picture for a scene that it has not shown yet. ``library`` looks up / remembers shared pictures
     (``get(key, skip) -> Picture | None``); generated pictures are added to it by the caller."""
     errors: list[str] = []
@@ -195,7 +227,7 @@ def find_picture(plan: StoryPlan, scene: StoryScene, library: Any, skip: set[str
     with httpx.Client() as client:
         if ART_STYLES[plan.art_style].paintings:
             try:
-                pic = commons_search(scene, skip, client)
+                pic = commons_search(scene, skip, client, [c.name for c in plan.characters], used)
                 if pic:
                     return pic
             except (httpx.HTTPError, ValueError, KeyError) as exc:
