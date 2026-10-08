@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import io
 import re
+import time
 import wave
 from pathlib import Path
 from xml.sax.saxutils import unescape
@@ -22,6 +23,36 @@ from app.voice.base import VoiceInfo, VoiceProvider, VoiceUnavailable
 
 API = "https://generativelanguage.googleapis.com/v1beta/models"
 PREFIX = "gemini:"
+RATE_LIMIT_TRIES = 4  # the free tier allows only a few voice lines a minute: wait and retry instead of losing the line
+MAX_WAIT = 60.0
+
+
+class VoiceQuotaExhausted(VoiceUnavailable):
+    """The voice service's limit for today (or a long wait) is reached: retrying now cannot help."""
+
+    code = "VOICE_DAILY_LIMIT"
+
+
+def rate_limit(r: httpx.Response) -> tuple[float, bool]:
+    """(seconds the service asks to wait, whether it is a daily quota) from a 429 reply."""
+    wait, daily = 20.0, False
+    try:
+        for d in r.json().get("error", {}).get("details", []):
+            if str(d.get("@type", "")).endswith("RetryInfo") and d.get("retryDelay"):
+                wait = float(str(d["retryDelay"]).rstrip("s"))
+            for v in d.get("violations", []) or []:
+                if "PerDay" in str(v.get("quotaId", "")):
+                    daily = True
+    except (ValueError, AttributeError):
+        pass
+    return wait, daily
+
+
+def retry_delay(r: httpx.Response) -> float:
+    """How long to wait before trying again (the service's RetryInfo + 1 s, at most MAX_WAIT)."""
+    return min(rate_limit(r)[0] + 1.0, MAX_WAIT)
+
+
 # Gemini's prebuilt voices (name, character, gender)
 VOICES = (
     ("Kore", "firm", "female"), ("Aoede", "breezy", "female"), ("Leda", "youthful", "female"), ("Zephyr", "bright", "female"),
@@ -102,10 +133,24 @@ class GeminiVoiceProvider(VoiceProvider):
             "generationConfig": {"responseModalities": ["AUDIO"],
                                  "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": name}}}},
         }  # fmt: skip
-        try:
-            r = httpx.post(f"{API}/{s.gemini_tts_model}:generateContent", params={"key": self._key()}, json=body, timeout=120)
-        except httpx.HTTPError as exc:
-            raise VoiceUnavailable("The AI voice service could not be reached.") from exc
+        # the key goes in a header, never in the address (addresses end up in logs)
+        headers = {"x-goog-api-key": self._key()}
+        for attempt in range(RATE_LIMIT_TRIES):
+            try:
+                r = httpx.post(f"{API}/{s.gemini_tts_model}:generateContent", headers=headers, json=body, timeout=120)
+            except httpx.HTTPError as exc:
+                raise VoiceUnavailable("The AI voice service could not be reached.") from exc
+            if r.status_code != 429 or attempt == RATE_LIMIT_TRIES - 1:
+                break
+            wait, daily = rate_limit(r)
+            if daily or wait > MAX_WAIT:  # today's quota is used up: waiting a minute cannot help, say so at once
+                raise VoiceQuotaExhausted(
+                    "Today's free AI voice limit is used up (the free Gemini tier allows only a few voice requests a day). "
+                    "It resets tomorrow; with billing on the Gemini key there is no daily limit."
+                )
+            time.sleep(retry_delay(r))  # a per-minute limit: wait as long as the service asks, then try again
+        if r.status_code == 429:
+            raise VoiceUnavailable("The AI voice service is busy (too many requests). Try again in a minute.", code="VOICE_RATE_LIMITED")
         if r.status_code != 200:
             raise VoiceUnavailable(f"The AI voice service refused the request ({r.status_code}).", details=r.text[-300:])
         try:

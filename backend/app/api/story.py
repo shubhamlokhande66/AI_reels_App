@@ -28,7 +28,8 @@ router = APIRouter(prefix="/api", tags=["story"])
 # narrators that suit stories (Gemini voices speak every language); the first is the default
 NARRATORS = [("gemini:Orus", "Orus · deep, firm (male)"), ("gemini:Charon", "Charon · calm storyteller (male)"),
              ("gemini:Algenib", "Algenib · gravelly, epic (male)"), ("gemini:Kore", "Kore · firm (female)"),
-             ("gemini:Despina", "Despina · smooth (female)"), ("gemini:Aoede", "Aoede · gentle (female)")]  # fmt: skip
+             ("gemini:Despina", "Despina · smooth (female)"), ("gemini:Aoede", "Aoede · gentle (female)"),
+             ("none", "No narration (captions + music only)")]  # fmt: skip
 
 
 class StoryIn(CamelModel):

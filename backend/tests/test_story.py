@@ -211,3 +211,77 @@ def test_painting_search_prefers_one_not_used_by_another_scene():
     assert im.commons_search(scene, set(), client).ref == "File:Arjuna on the chariot.jpg"
     assert im.commons_search(scene, set(), client, prefer_not={"File:Arjuna on the chariot.jpg"}).ref == "File:Arjuna and Subhadra.jpg"
     assert "chakravyuha" in im._forms("Chakravyuh") and "arjun" in im._forms("Arjuna")
+
+
+def _speech(segments: list[float], pause: float, inner: float = 0.08) -> np.ndarray:
+    """Fake speech: each scene is "words" (tone bursts with short gaps), scenes separated by ``pause`` of silence."""
+    from app.story.render import SR
+
+    parts = []
+    for k, seconds in enumerate(segments):
+        t = np.arange(int(SR * 0.3)) / SR
+        word = (0.3 * np.sin(2 * np.pi * 180 * t)).astype(np.float32)
+        gap = np.zeros(int(SR * inner), np.float32)
+        n = max(int(seconds / 0.38), 1)
+        parts += [np.concatenate([word, gap])] * n
+        if k < len(segments) - 1:
+            parts.append(np.zeros(int(SR * pause), np.float32))
+    return np.concatenate(parts)
+
+
+def test_one_recording_is_cut_into_scenes_at_the_pauses():
+    from app.story.render import SR, split_narration
+
+    texts = ["a" * 40, "b" * 80, "c" * 40]
+    audio = _speech([3.0, 6.0, 3.0], pause=0.7)
+    pieces = split_narration(audio, texts)
+    assert len(pieces) == 3
+    lengths = [len(p) / SR for p in pieces]
+    assert abs(lengths[0] - 3.0) < 0.6 and abs(lengths[1] - 6.0) < 0.8 and abs(lengths[2] - 3.0) < 0.6, lengths
+    assert split_narration(audio, ["only one"])[0] is audio
+
+
+def test_ai_voice_reads_the_whole_story_in_one_request(tmp_path, monkeypatch):
+    from app.story import render as rd
+    from app.voice.base import VoiceInfo
+
+    calls = []
+
+    class OneShot:
+        def find_voice(self, language, preferred=None):
+            return VoiceInfo(id="gemini:Orus", name="Orus", language="multi")
+
+        def synthesize(self, ssml, voice_id, out):
+            import soundfile as sf
+
+            calls.append(ssml)
+            sf.write(str(out), _speech([2.0, 2.0, 2.0], pause=0.7), rd.SR)
+
+    monkeypatch.setattr("app.voice.sapi.get_voice_provider", lambda: OneShot())
+    plan = simple_plan(STORY, "en", "watercolor", 3, "Gita")
+    voices, warnings = rd.speak(plan, "gemini:Orus", tmp_path, lambda f: None)
+    assert len(calls) == 1 and len(voices) == 3 and all(v is not None and len(v) > rd.SR for v in voices) and not warnings
+
+
+def test_daily_voice_limit_stops_with_a_clear_message(tmp_path, monkeypatch):
+    from app.story import render as rd
+    from app.voice.base import VoiceInfo
+    from app.voice.gemini import VoiceQuotaExhausted
+
+    class Exhausted:
+        def find_voice(self, language, preferred=None):
+            return VoiceInfo(id="gemini:Orus", name="Orus", language="multi")
+
+        def synthesize(self, ssml, voice_id, out):
+            raise VoiceQuotaExhausted("Today's free AI voice limit is used up.")
+
+    monkeypatch.setattr("app.voice.sapi.get_voice_provider", lambda: Exhausted())
+    with pytest.raises(VoiceQuotaExhausted):
+        rd.speak(simple_plan(STORY, "en", "watercolor", 3, "Gita"), "gemini:Orus", tmp_path, lambda f: None)
+
+
+def test_no_narration_needs_no_voice(tmp_path):
+    from app.story import render as rd
+
+    voices, warnings = rd.speak(simple_plan(STORY, "en", "watercolor", 3, "Gita"), "none", tmp_path, lambda f: None)
+    assert voices == [None, None, None] and warnings == []

@@ -59,11 +59,77 @@ def _read(path: Path) -> np.ndarray:
     return mono.astype(np.float32)
 
 
+def _ends(text: str) -> str:
+    """A scene's line ends with a full stop, so the narrator pauses between scenes."""
+    t = text.strip()
+    return t if t[-1:] in ".!?।|…" else t + "।" if any("\u0900" <= ch <= "\u097f" for ch in t) else t + "."
+
+
+def split_narration(audio: np.ndarray, texts: list[str]) -> list[np.ndarray]:
+    """One recording of the whole story -> one piece per scene, cut in the pauses nearest to where each scene should end
+    (by its share of the text). Falls back to cutting at those points when the pauses are unclear."""
+    n = len(texts)
+    if n <= 1 or len(audio) < SR:
+        return [audio]
+    hop = int(0.02 * SR)
+    frames = len(audio) // hop
+    rms = np.sqrt(np.mean(audio[: frames * hop].reshape(frames, hop) ** 2, axis=1) + 1e-12)
+    thr = max(float(np.percentile(rms, 95)) * 0.06, 1e-4)
+    silent = rms < thr
+    gaps: list[tuple[float, float]] = []  # (middle, length) in seconds, inside the speech
+    i = 0
+    while i < frames:
+        if silent[i]:
+            j = i
+            while j < frames and silent[j]:
+                j += 1
+            if i > 0 and j < frames and (j - i) * 0.02 >= 0.16:
+                gaps.append(((i + j) / 2 * 0.02, (j - i) * 0.02))
+            i = j
+        else:
+            i += 1
+    total = len(audio) / SR
+    weights = [max(len(t), 1) for t in texts]
+    cuts: list[float] = []
+    prev = 0.0
+    for k in range(1, n):
+        expected = total * sum(weights[:k]) / sum(weights)
+        options = [g for g in gaps if g[0] > prev + 0.5]
+        if options:
+            mid, _ = min(options, key=lambda g: abs(g[0] - expected) - 0.6 * g[1])  # near where it should be; longer pauses win ties
+            if abs(mid - expected) > max(2.5, 0.35 * total / n):
+                mid = expected  # no pause anywhere near: cut where the scene should end
+        else:
+            mid = expected
+        mid = max(mid, prev + 0.5)
+        cuts.append(mid)
+        prev = mid
+    bounds = [0, *[int(c * SR) for c in cuts], len(audio)]
+    pieces = []
+    for a, b in zip(bounds, bounds[1:]):
+        seg = audio[a:b]
+        loud = np.flatnonzero(np.abs(seg) > thr)
+        if len(loud):  # trim the pause at both ends (the timeline adds its own breath between scenes)
+            pad = int(0.05 * SR)
+            seg = seg[max(loud[0] - pad, 0) : min(loud[-1] + pad, len(seg))]
+        pieces.append(seg.astype(np.float32))
+    return pieces
+
+
 def speak(plan: StoryPlan, voice_id: str | None, work: Path, progress: Callable[[float], None]) -> tuple[list[np.ndarray | None], list[str]]:
-    """One WAV per scene (the narration). A scene whose voice fails is timed for reading instead, with a warning."""
+    """The narration, one piece per scene.
+
+    AI voices (Gemini) record the whole story in ONE request and it is cut into scenes at the pauses: one request per
+    Reel instead of one per scene (the free tier allows only a few a day), and one continuous, natural reading.
+    This computer's voices read line by line. A daily limit stops the Reel with a clear message (its credits come back);
+    other voice problems leave that scene with captions only, with a warning."""
     from app.voice.base import SpeechSettings, build_ssml
+    from app.voice.gemini import PREFIX, VoiceQuotaExhausted
     from app.voice.sapi import get_voice_provider
 
+    if voice_id == "none":  # the person chose no narrator: captions and music only
+        progress(1.0)
+        return [None] * len(plan.scenes), []
     provider = get_voice_provider()
     tag = LANG_TAGS.get(plan.language, "hi-IN")
     warnings: list[str] = []
@@ -71,13 +137,25 @@ def speak(plan: StoryPlan, voice_id: str | None, work: Path, progress: Callable[
         voice = provider.find_voice(tag, voice_id)
     except Exception as exc:  # noqa: BLE001 - no voice at all: a silent story with captions still works
         return [None] * len(plan.scenes), [f"No voice for this language ({exc}); the Reel has captions only."]
+    texts = [_ends(s.narration) for s in plan.scenes]
+    if voice.id.startswith(PREFIX):
+        wav = work / "narration_full.wav"
+        mood = max(set(s.mood for s in plan.scenes), key=[s.mood for s in plan.scenes].count)
+        ssml = build_ssml("\n\n".join(texts), SpeechSettings(emotion=MOOD_VOICE.get(mood, "calm"), pause_style="dramatic"), tag)
+        progress(0.1)
+        provider.synthesize(ssml, voice.id, wav)  # VoiceQuotaExhausted / VoiceUnavailable stop the Reel with their message
+        progress(0.8)
+        pieces = split_narration(_read(wav), texts)
+        progress(1.0)
+        return [*pieces, *[None] * (len(texts) - len(pieces))], warnings
     out: list[np.ndarray | None] = []
-    for i, s in enumerate(plan.scenes):
+    for i, (s, text) in enumerate(zip(plan.scenes, texts)):
         wav = work / f"line_{i:02d}.wav"
         try:
-            provider.synthesize(build_ssml(s.narration, SpeechSettings(emotion=MOOD_VOICE.get(s.mood, "calm"), pause_style="natural"), tag),
-                                voice.id, wav)  # fmt: skip
+            provider.synthesize(build_ssml(text, SpeechSettings(emotion=MOOD_VOICE.get(s.mood, "calm"), pause_style="natural"), tag), voice.id, wav)
             out.append(_read(wav))
+        except VoiceQuotaExhausted:
+            raise
         except Exception as exc:  # noqa: BLE001
             log.warning("story voice for scene %d: %s", i + 1, exc)
             warnings.append(f"Scene {i + 1}: the voice could not be made ({str(exc)[:80]}); it is shown with captions only.")
@@ -193,7 +271,8 @@ def render_story(plan: StoryPlan, pictures: list[Path], out: Path, work: Path, v
     if plan.language in DEVANAGARI:
         style = dataclasses.replace(style, font="Nirmala UI" if os.name == "nt" else "Noto Sans Devanagari")  # fonts with Devanagari
     reel = build_plan(plan, lines, sizes, style)
-    rs = dataclasses.replace(FINAL if quality == "final" else PREVIEW, music_volume=0.22 if any(v is not None for v in voices) else 0.8)
+    base = dataclasses.replace(FINAL, fps=25) if quality == "final" else PREVIEW  # slow painterly moves: 25 fps looks the same, renders faster
+    rs = dataclasses.replace(base, music_volume=0.22 if any(v is not None for v in voices) else 0.8)
     silent = work / "pictures.mp4"
     render_reel(reel, pictures, style, silent, work / "frames", music=music, settings=rs, progress=lambda f: progress("rendering", f * 0.95))
     narration = work / "narration.wav"

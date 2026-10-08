@@ -68,9 +68,16 @@ class Grid:
 def vignette(frame: np.ndarray, g: Grid, strength: float) -> np.ndarray:
     if strength <= 0:
         return frame
-    mask = 1.0 - strength * (g.radial ** 2.2)
-    m = _up(mask.astype(np.float32), g.w, g.h)
-    return np.clip(frame.astype(np.float32) * m[..., None], 0, 255).astype(np.uint8)
+    # the mask never changes for a frame size: made once, then one fast 8-bit multiply per frame (was the slowest step)
+    cache = g.__dict__.setdefault("_vignettes", {})
+    key = round(strength, 4)
+    m8 = cache.get(key)
+    if m8 is None:
+        mask = 1.0 - strength * (g.radial ** 2.2)
+        m = _up(mask.astype(np.float32), g.w, g.h)
+        m8 = cv2.merge([np.clip(np.round(m * 255.0), 0, 255).astype(np.uint8)] * 3)
+        cache[key] = m8
+    return cv2.multiply(frame, m8, scale=1.0 / 255.0)
 
 
 def grade(frame: np.ndarray, contrast: float) -> np.ndarray:

@@ -13,6 +13,9 @@ from app.core.errors import register_error_handlers
 from app.jobs import manager
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# request addresses are not logged: some services put a key or other secrets in them
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 log = logging.getLogger("app")
 
 

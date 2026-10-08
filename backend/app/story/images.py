@@ -185,7 +185,7 @@ def paid_picture(prompt: str, client: httpx.Client) -> Picture:
     which = paid_ready()
     if which == "gemini":
         r = client.post(f"https://generativelanguage.googleapis.com/v1beta/models/{s.gemini_image_model}:generateContent",
-                        params={"key": s.gemini_api_key.get_secret_value()}, timeout=180,
+                        headers={"x-goog-api-key": s.gemini_api_key.get_secret_value()}, timeout=180,
                         json={"contents": [{"parts": [{"text": prompt}]}],
                               "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": "9:16"}}})  # fmt: skip
         if r.status_code != 200:

@@ -1387,7 +1387,10 @@ def run_story(inp: PipelineInput, storage: StorageBackend, progress: StageProgre
     plan = StoryPlan.model_validate(inp.story or {})
     missing = [i + 1 for i, s in enumerate(plan.scenes) if not s.image_key or not storage.exists(s.image_key)]
     if missing:
-        raise ValueError(f"Scenes without a picture: {', '.join(map(str, missing))}. Give every scene a picture first.")
+        from app.core.errors import ValidationFailed
+
+        raise ValidationFailed(f"Scene {', '.join(map(str, missing))} has no picture any more. Get or upload a picture for it, then make the Reel again.",
+                               code="STORY_PICTURES_MISSING")  # fmt: skip
     res = PipelineResult()
     prefix = "preview_" if inp.kind == "preview" else ""
     out_key = project_key(inp.project_id, "output", f"{prefix}{inp.rendering_id}.mp4")
