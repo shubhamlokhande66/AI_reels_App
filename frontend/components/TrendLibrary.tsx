@@ -26,7 +26,12 @@ export function TrendLibrary() {
   const group = useMutation({
     mutationFn: api.groupTrends,
     onSuccess: (styles) => {
-      setGrouped(`Sorted into ${styles.length} style${styles.length === 1 ? "" : "s"}: ${styles.map((s) => s.name).join(", ")}.`);
+      const n = styles.reduce((a, s) => a + (s.profile.videos ?? s.videos.length), 0);
+      setGrouped(
+        styles.length === 1
+          ? `Learned the style "${styles[0].name}" from ${n} Reel${n === 1 ? "" : "s"}.${n < 5 ? " Add a few more Reels of this kind to make it steadier." : ""}`
+          : `Sorted ${n} Reels into ${styles.length} styles: ${styles.map((s) => s.name).join(", ")}.`,
+      );
       void qc.invalidateQueries({ queryKey: ["references"] });
       void qc.invalidateQueries({ queryKey: ["trend-library"] });
     },
@@ -133,7 +138,7 @@ export function TrendLibrary() {
         </div>
       )}
 
-      {(error || group.error || clear.error) && <ErrorBanner message={error ?? errorMessage(group.error ?? clear.error)} />}
+      {(error || group.error || clear.error) && <ErrorBanner title="Could not finish" message={error ?? errorMessage(group.error ?? clear.error)} />}
       {grouped && <p className="rounded-2xl border border-success/40 bg-success/10 p-3 text-sm text-success">✓ {grouped}</p>}
 
       <div className="flex flex-wrap gap-2">
@@ -146,7 +151,7 @@ export function TrendLibrary() {
             {failed && !waiting ? `Try the ${failed} failed again` : waiting ? `Learn ${waiting} Reel${waiting === 1 ? "" : "s"}` : "Learn"}
           </button>
         )}
-        <button type="button" className={btnSecondary} disabled={running || group.isPending || count < 3} onClick={() => group.mutate()}>
+        <button type="button" className={btnSecondary} disabled={running || group.isPending || count < 1} onClick={() => group.mutate()}>
           {group.isPending ? "Sorting into styles…" : "Sort into styles again"}
         </button>
         {count > 0 && (

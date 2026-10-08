@@ -178,8 +178,8 @@ async def group():
 
     db = get_db()
     videos = [d["profile"] async for d in db.trend_videos.find({}).sort("addedAt", 1)]
-    if len(videos) < 3:
-        raise ValidationFailed("Add at least 3 Reels to learn a style.", code="TOO_FEW_REELS")
+    if not videos:
+        raise ValidationFailed("Add a trending Reel first.", code="NO_REELS")  # one Reel already gives a style; more make it steadier
     groups = await asyncio.to_thread(group_videos, videos)
     await db.references.delete_many({"auto": True})
     names: set[str] = set()

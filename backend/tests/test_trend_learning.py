@@ -178,3 +178,15 @@ async def test_make_it_like_this_reel_copies_the_cut_timing(client, media_dir, t
     assert all(abs(a - b) <= 0.26 for a, b in zip(cuts, expected)), (cuts, expected)  # the reference's timing, on this song's beats
     assert (await client.get(f"/api/projects/{pid}/reference-reel")).json()["shots"] == len(shots)
     assert (await client.delete(f"/api/projects/{pid}/reference-reel")).status_code == 204
+
+
+async def test_one_learned_reel_is_already_a_style(client, media_dir, monkeypatch):
+    monkeypatch.setattr("app.api.references.profile_video", lambda path, name="": {**_reel(0.6, 0.85, 0.6, 0.55, hook=0.5), "name": name})
+    clip = (media_dir / "clip_a.mp4").read_bytes()
+    r = await client.post("/api/trend-library/learn", files=[("files", ("my_trend.mp4", clip, "video/mp4"))])
+    assert r.json()["learned"] == ["my_trend.mp4"]
+    styles = (await client.post("/api/trend-library/group")).json()
+    assert len(styles) == 1 and styles[0]["profile"]["videos"] == 1 and styles[0]["auto"]
+    await client.delete("/api/trend-library")
+    empty = await client.post("/api/trend-library/group")
+    assert empty.status_code == 422 and empty.json()["error"]["code"] == "NO_REELS"
