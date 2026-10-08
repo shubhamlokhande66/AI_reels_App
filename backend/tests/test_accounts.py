@@ -78,3 +78,13 @@ async def test_a_users_job_runs_and_reports_in_their_own_studio(client, monkeypa
     assert done["status"] == "completed", done["error"]
     assert any(p > 0 for _, p in seen)  # progress was visible while it ran
     assert (await client.get(f"/api/projects/{pid}")).json()["videos"][0]["analysis"]["usable"] is True
+
+
+async def test_pricing_is_public(client, monkeypatch):
+    _accounts_on(monkeypatch)
+    r = await client.get("/api/plans")
+    assert r.status_code == 200
+    data = r.json()
+    assert [p["id"] for p in data["plans"]] == ["free", "creator", "pro", "business"]
+    creator = next(p for p in data["plans"] if p["id"] == "creator")
+    assert creator["yearly"] == creator["monthly"] * 10 and data["paymentsOpen"] is False

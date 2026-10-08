@@ -31,6 +31,10 @@ const GROUPS: { title: string; admin?: boolean; items: { href: string; label: st
     ],
   },
   {
+    title: "Account",
+    items: [{ href: "/pricing", label: "Plans & pricing", icon: "₹" }],
+  },
+  {
     title: "Admin",
     admin: true,
     items: [
@@ -130,14 +134,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [drawer]);
   const authPage = pathname === "/login";
+  const publicPage = pathname === "/pricing"; // open to everyone, also before signing in
   const signedOut = !!me.data?.authEnabled && !me.data.user;
   useEffect(() => {
-    if (signedOut && !authPage) router.replace("/login"); // accounts on and nobody signed in: the sign-in page
-  }, [signedOut, authPage, router]);
+    if (signedOut && !authPage && !publicPage) router.replace("/login"); // accounts on and nobody signed in: the sign-in page
+  }, [signedOut, authPage, publicPage, router]);
   // an admin page opened by address in user mode: say so instead of showing it (the server guards its data too)
   const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => i.href !== "/admin" && isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
-  if (authPage || signedOut) {
+  if (authPage || (signedOut && !publicPage)) {
     // the sign-in page stands alone, without the studio around it
     return (
       <main className="min-h-screen px-4 py-10">

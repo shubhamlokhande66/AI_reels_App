@@ -1051,3 +1051,23 @@ export interface StoryOptions {
   freeAi: boolean;
   paidAi: boolean;
 }
+
+/** Plans and credits (pricing page). */
+export interface Pricing {
+  currency: string;
+  yearlyMonthsCharged: number;
+  plans: {
+    id: string;
+    name: string;
+    monthly: number;
+    yearly: number;
+    credits: number;
+    creditsNote: string;
+    tagline: string;
+    highlight: boolean;
+    features: string[];
+  }[];
+  topUps: { id: string; credits: number; price: number }[];
+  creditCosts: { action: string; credits: number | string }[];
+  paymentsOpen: boolean;
+}

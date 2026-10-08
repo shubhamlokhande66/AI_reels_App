@@ -49,7 +49,7 @@ import type {
   Template,
   TemplateInput,
   VoiceProfile,
-  VoiceProfileInput, Connections, Platform, Post, Retention, Story, StoryOptions } from "@/types/api";
+  VoiceProfileInput, Connections, Platform, Post, Pricing, Retention, Story, StoryOptions } from "@/types/api";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -227,6 +227,7 @@ export const api = {
   getJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}`),
   cancelJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}/cancel`, { method: "POST" }),
   renderings: (id: string) => request<Rendering[]>(`/api/projects/${id}/renderings`),
+  plans: () => request<Pricing>("/api/plans"),
   storyOptions: () => request<StoryOptions>("/api/story/options"),
   createStory: (body: { text: string; language: string; artStyle: string; scenes: number; seconds: number }) =>
     request<Story>("/api/story", { method: "POST", body: JSON.stringify(body) }, AI_TIMEOUT_MS),

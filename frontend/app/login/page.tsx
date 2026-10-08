@@ -71,6 +71,9 @@ export default function LoginPage() {
             {mode === "signin" ? "Create an account" : "Sign in"}
           </button>
         </p>
+        <p className="mt-3 text-center text-xs text-muted">
+          <a href="/pricing" className="hover:text-accent">See plans & pricing</a>
+        </p>
       </div>
     </div>
   );

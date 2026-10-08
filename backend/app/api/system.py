@@ -87,6 +87,14 @@ class RetentionIn(CamelModel):
     projects_hours: int = Field(ge=1, le=24 * 90)
 
 
+@router.get("/plans")
+async def plans():
+    """Plans, credits and prices (public: the pricing page is shown before sign-in)."""
+    from app.services.plans import pricing
+
+    return pricing()
+
+
 @router.get("/retention")
 async def retention():
     """How long uploads and projects are kept (shown to users so they download in time)."""

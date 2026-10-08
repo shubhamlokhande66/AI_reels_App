@@ -23,7 +23,7 @@ from app.core.errors import AppError
 
 COOKIE = "reel_session"
 SESSION_DAYS = 30
-PUBLIC_PATHS = ("/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/")  # /api/public: signed links
+PUBLIC_PATHS = ("/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/", "/api/plans")  # /api/public: signed links
 
 current_user: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_user", default=None)
 
