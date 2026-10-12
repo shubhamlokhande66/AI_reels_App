@@ -37,7 +37,13 @@ const CATEGORIES: Record<"transitions" | "effects" | "looks", { name: string; ma
 
 /** Filmora-style library chrome: tabs across the top; for transitions, effects and filters a category list and a
  * search box. ``children`` receives the catalog filtered to what is shown. */
-export function Library({ tab, onTab, catalog, children }: {
+export function Library({ tab, onTab, catalog, children, hideTabs, only, compact }: {
+  /** a narrow side panel: the categories as a dropdown, not a list */
+  compact?: boolean;
+  /** the tabs to offer (clips and music are added with the timeline's + buttons) */
+  only?: LibTab[];
+  /** the tabs are in the editor's top bar (desktop) */
+  hideTabs?: boolean;
   tab: LibTab;
   onTab: (t: LibTab) => void;
   catalog?: Catalog;
@@ -59,8 +65,8 @@ export function Library({ tab, onTab, catalog, children }: {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div role="tablist" aria-label="Library" className="flex shrink-0 gap-0.5 overflow-x-auto border-b border-border px-1">
-        {LIB_TABS.map((t) => (
+      <div role="tablist" aria-label="Library" className={`${hideTabs ? "hidden" : "flex"} shrink-0 gap-0.5 overflow-x-auto border-b border-border px-1`}>
+        {LIB_TABS.filter((t) => !only || only.includes(t.id)).map((t) => (
           <button
             key={t.id}
             type="button"
@@ -82,7 +88,7 @@ export function Library({ tab, onTab, catalog, children }: {
       </div>
       <div className="flex min-h-0 flex-1">
         {browsable && (
-          <ul className="hidden w-28 shrink-0 space-y-0.5 overflow-y-auto border-r border-border p-1.5 text-xs sm:block">
+          <ul className={`${compact ? "hidden" : "hidden sm:block"} w-28 shrink-0 space-y-0.5 overflow-y-auto border-r border-border p-1.5 text-xs`}>
             {["All", ...cats.map((c) => c.name)].map((name) => (
               <li key={name}>
                 <button
@@ -105,7 +111,7 @@ export function Library({ tab, onTab, catalog, children }: {
                 placeholder={`Search ${LIB_TABS.find((t) => t.id === tab)?.label.toLowerCase()}…`}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs outline-none focus:border-accent"
               />
-              <select value={cat} onChange={(e) => setCat(e.target.value)} className="rounded-lg border border-border bg-background px-2 text-xs sm:hidden" aria-label="Category">
+              <select value={cat} onChange={(e) => setCat(e.target.value)} className={`rounded-lg border border-border bg-background px-2 text-xs ${compact ? "" : "sm:hidden"}`} aria-label="Category">
                 {["All", ...cats.map((c) => c.name)].map((n) => (
                   <option key={n}>{n}</option>
                 ))}

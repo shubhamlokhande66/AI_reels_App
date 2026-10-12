@@ -135,7 +135,7 @@ export default function NewAiEditPage() {
           ) : (
             <Dropzone
               label="Drop your song here"
-              hint="MP3, WAV, M4A, AAC, OGG, FLAC"
+              hint="MP3, MPEG, WAV, M4A, AAC, OGG, OPUS, FLAC, AMR and more"
               accept={PICKER_AUDIO}
               disabled={busy}
               validate={isAudioFile}

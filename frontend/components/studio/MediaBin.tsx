@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { keys } from "@/hooks/useApi";
-import { MAX_AUDIO_MB, MAX_VIDEO_MB, formatDuration, isAudioFile, isVideoFile, tooBig } from "@/lib/format";
+import { MAX_AUDIO_MB, MAX_VIDEO_MB, PICKER_AUDIO, PICKER_VIDEO, formatDuration, isAudioFile, isVideoFile, tooBig } from "@/lib/format";
 import type { Project } from "@/types/api";
 import { ProgressBar } from "@/components/ProgressStages";
 import { ErrorBanner } from "@/components/ui";
@@ -39,8 +39,8 @@ export function MediaBin({ project, busy, onAdd, onUploaded }: { project: Projec
 
   return (
     <div className="space-y-4">
-      <input ref={vInput} type="file" accept="video/*" multiple hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void upload("video", f); }} />
-      <input ref={aInput} type="file" accept="audio/*" hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void upload("audio", f); }} />
+      <input ref={vInput} type="file" accept={PICKER_VIDEO} multiple hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void upload("video", f); }} />
+      <input ref={aInput} type="file" accept={PICKER_AUDIO} hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void upload("audio", f); }} />
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">Clips</h3>
         <button type="button" className="text-xs text-accent hover:underline" disabled={busy || pct !== null} onClick={() => vInput.current?.click()}>

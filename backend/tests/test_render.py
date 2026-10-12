@@ -114,7 +114,7 @@ def test_zoom_effects_use_time_expressions():
     assert "max(0,1-t/" in zoom_expression("punch", 2)
     s = seg(effect="zoom_in")
     g = build_filter_graph(s, SRC, plan_segments([s])[0], FILL)
-    assert "eval=frame" in g and "crop=1080:1920" in g
+    assert "eval=frame" in g and "crop=2160:3840" in g and "scale=1080:1920:flags=area" in g  # zoom drawn at 2x, scaled down (smooth)
 
 
 def test_plan_tail_and_ramp_come_from_next_transition():
@@ -350,9 +350,13 @@ def test_quality_filters_stabilise_smooth_and_correct_exposure():
 
     final, preview = RenderConfig(), RenderConfig(smooth_slowmo=False, stabilize=False)
     shaky_dark = SourceClip(path=Path("x.mp4"), width=1080, height=1920, shaky=True, brightness=0.2)
-    q = quality_filters(shaky_dark, final)
-    assert q[0].startswith("deshake") and any(f.startswith("eq=brightness=") for f in q)
-    assert not any(f.startswith("deshake") for f in quality_filters(shaky_dark, preview))  # previews stay fast
+    trf = Path("seg.trf")
+    q = quality_filters(shaky_dark, final, trf)
+    # vid.stab zooms past the edges it uncovers (no mirrored band down the side, as deshake left)
+    assert q[0].startswith("vidstabtransform") and "optzoom=1" in q[0] and any(f.startswith("eq=brightness=") for f in q)
+    assert not any("deshake" in f for f in q)
+    assert not any(f.startswith("vidstab") for f in quality_filters(shaky_dark, preview, trf))  # previews stay fast
+    assert not any(f.startswith("vidstab") for f in quality_filters(shaky_dark, final))  # motion not measured: as shot
     assert quality_filters(SourceClip(path=Path("x.mp4"), width=1080, height=1920), final) == []  # a good clip is untouched
     assert quality_filters(SourceClip(path=Path("x.mp4"), width=1080, height=1920, brightness=0.9), final)[0].startswith("eq=gamma")
     slow = seg().model_copy(update={"speed": 0.6})

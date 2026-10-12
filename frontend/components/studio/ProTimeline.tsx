@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { EdlTimeline } from "@/types/api";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { EdlTimeline, BeatMarker, MarkerDensity, MarkerKind } from "@/types/api";
 import { op } from "@/lib/ops";
 import { pretty } from "@/lib/editorFx";
 
 const HEAD = 76; // px: the track header column
+const GAP = 12; // px between the header column and 0:00, so the first clip does not start under it
 const MIN_LEN = 0.25;
 
 type Drag =
@@ -17,7 +18,42 @@ type Drag =
 /** A professional timeline (Filmora / Premiere style): a time ruler, track headers (Text, Video, Music), clips drawn as
  * filmstrips of their picture, transition markers between clips, a playhead you can drag, and a zoom slider. Click a
  * clip to select it, drag it to reorder, drag its right edge to trim; every change goes to the server as one edit. */
-export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs, musicName, busy, onEdit, onTransitionClick }: {
+const DENSITY_KINDS: Record<MarkerDensity, MarkerKind[]> = {
+  both: ["strong", "medium", "drop", "custom"], strong: ["strong", "drop", "custom"], drops: ["drop", "custom"],
+};
+const DENSITY_LABEL: Record<MarkerDensity, string> = { both: "Strong + medium", strong: "Strong only", drops: "Drops only" };
+type TrackCode = "T1" | "V1" | "A1";
+const TRACK_H: Record<TrackCode, number> = { T1: 34, V1: 84, A1: 72 }; // px, starting heights (drag a track's bottom edge)
+const TRACK_MIN: Record<TrackCode, number> = { T1: 24, V1: 44, A1: 36 };
+const TRACK_MAX = 220;
+function savedHeights(): Record<TrackCode, number> {
+  try {
+    const v = JSON.parse(localStorage.getItem("editor.trackHeights") ?? "null");
+    if (v && typeof v === "object") return { ...TRACK_H, ...v };
+  } catch {
+    /* no storage: the starting heights */
+  }
+  return TRACK_H;
+}
+const SNAP = 0.1; // a dragged edge this close to a marker sticks to it (hold Alt to place it freely)
+const MARK: Record<MarkerKind, { size: number; color: string; label: string }> = {
+  strong: { size: 8, color: "#facc15", label: "Strong beat" }, medium: { size: 5, color: "#d4b07a", label: "Medium beat" },
+  drop: { size: 10, color: "#ef4444", label: "Drop" }, custom: { size: 7, color: "#38bdf8", label: "Your marker" },
+};
+
+export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs, musicName, busy, onEdit, onTransitionClick, markers, onAddMarker, onRemoveMarker, onAutoCut, beatHint, waveform, tools, onAddVideo, onAddAudio }: {
+  markers?: BeatMarker[];
+  /** shown instead of the beat tools while there are no markers (no song yet, or its beats being found) */
+  beatHint?: string;
+  /** the edit tools (undo, split...), shown at the left of the control row */
+  tools?: React.ReactNode;
+  /** the + at the end of the video / music track */
+  onAddVideo?: () => void;
+  onAddAudio?: () => void;
+  waveform?: { perSecond: number; peaks: number[] };
+  onAddMarker?: (t: number) => void;
+  onRemoveMarker?: (t: number) => void;
+  onAutoCut?: (density: MarkerDensity) => void;
   tl: EdlTimeline;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -31,7 +67,62 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
 }) {
   const [pps, setPps] = useState(60); // pixels per second (the zoom)
   const [drag, setDrag] = useState<Drag>(null);
+  const [density, setDensity] = useState<MarkerDensity>("both");
+  const [magnet, setMagnet] = useState(true);
+  // the timeline is drawn only in the browser (after the edit loads), so the saved heights can be read straight away
+  const [heights, setHeights] = useState<Record<TrackCode, number>>(() => (typeof window === "undefined" ? TRACK_H : savedHeights()));
+  const resizeTrack = (code: TrackCode, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const y0 = e.clientY;
+    const h0 = heights[code];
+    let last = heights;
+    const move = (ev: PointerEvent) =>
+      setHeights((cur) => (last = { ...cur, [code]: Math.round(Math.min(Math.max(h0 + ev.clientY - y0, TRACK_MIN[code]), TRACK_MAX)) }));
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      try {
+        localStorage.setItem("editor.trackHeights", JSON.stringify(last));
+      } catch {
+        /* not kept: fine */
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const shownMarks = (markers ?? []).filter((m) => DENSITY_KINDS[density].includes(m.kind) && m.t >= 0 && m.t <= tl.duration);
+  /** A time stuck to the nearest shown marker (within SNAP), unless the magnet is off or Alt is held. */
+  const snapTo = (t: number, free: boolean) => {
+    if (!magnet || free || !shownMarks.length) return t;
+    let best = t;
+    let gap = SNAP;
+    for (const m of shownMarks) if (Math.abs(m.t - t) <= gap) [best, gap] = [m.t, Math.abs(m.t - t)];
+    return best;
+  };
   const area = useRef<HTMLDivElement>(null);
+  const fitted = useRef(false);
+  const ppsNow = useRef(60);
+  /** while zooming: the time that must stay under the same spot of the view (the mouse, or the playhead) */
+  const anchor = useRef<{ t: number; offset: number } | null>(null);
+  /** The zoom at which the whole Reel fills the timeline's width. */
+  const fitPps = () => {
+    const w = area.current?.clientWidth ?? 0;
+    return w > HEAD + 80 ? Math.min(Math.max((w - HEAD - GAP - 24) / Math.max(tl.duration, 1), 10), 240) : null;
+  };
+  // by default the clips and the music fill the full width (and keep filling it as the window resizes, until you zoom)
+  useEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (fitted.current) return;
+      const v = fitPps();
+      if (v) setPps(v);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tl.duration]);
   const total = Math.max(tl.duration, 1);
   const width = Math.max(total * pps + 120, 300);
   const x = (t: number) => t * pps;
@@ -44,14 +135,19 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
   const timeAt = (clientX: number) => {
     const r = area.current?.getBoundingClientRect();
     if (!r) return 0;
-    return Math.min(Math.max((clientX - r.left + (area.current?.scrollLeft ?? 0) - HEAD) / pps, 0), tl.duration);
+    return Math.min(Math.max((clientX - r.left + (area.current?.scrollLeft ?? 0) - HEAD - GAP) / pps, 0), tl.duration);
   };
 
   useEffect(() => {
     if (!drag) return;
     const onMove = (e: PointerEvent) => {
       if (drag.kind === "playhead") onSeek(timeAt(e.clientX));
-      else if (drag.kind === "trim") setDrag({ ...drag, len: Math.max(drag.len0 + (e.clientX - drag.x0) / pps, MIN_LEN) });
+      else if (drag.kind === "trim") {
+        const seg = tl.segments.find((s) => s.id === drag.id);
+        const raw = Math.max(drag.len0 + (e.clientX - drag.x0) / pps, MIN_LEN);
+        const end = seg ? snapTo(seg.timelineStart + raw, e.altKey) : raw; // the edge sticks to a beat marker
+        setDrag({ ...drag, len: Math.max(seg ? end - seg.timelineStart : raw, MIN_LEN) });
+      }
       else setDrag({ ...drag, dx: e.clientX - drag.x0 });
     };
     const onUp = () => {
@@ -80,40 +176,80 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
+      fitted.current = true;
+      const r = el.getBoundingClientRect();
+      const offset = e.clientX - r.left; // zoom around the point under the mouse
+      anchor.current = { t: Math.max((el.scrollLeft + offset - HEAD - GAP) / ppsNow.current, 0), offset };
       setPps((v) => Math.min(Math.max(v * Math.exp(-e.deltaY * 0.01), 10), 240));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
 
-  // keep the playhead in view while playing
+  // after a zoom: the anchored time back under the same spot (so zooming never jumps to the start)
+  useLayoutEffect(() => {
+    ppsNow.current = pps;
+    const el = area.current;
+    const a = anchor.current;
+    anchor.current = null;
+    if (el && a) el.scrollLeft = Math.max(HEAD + GAP + a.t * pps - a.offset, 0);
+  }, [pps]);
+
+  // keep the playhead in view when it moves (playing, seeking) - not when zooming
   useEffect(() => {
     const el = area.current;
     if (!el) return;
-    const px = HEAD + x(playhead);
+    const px = HEAD + GAP + x(playhead);
     if (px < el.scrollLeft + HEAD || px > el.scrollLeft + el.clientWidth - 40) el.scrollLeft = Math.max(px - el.clientWidth / 3, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playhead, pps]);
+  }, [playhead]);
 
-  const beats = tl.bpm > 0 ? Array.from({ length: Math.floor((tl.duration * tl.bpm) / 60) + 1 }, (_, i) => (i * 60) / tl.bpm) : [];
 
   return (
     <div className="select-none">
-      <div className="mb-1 flex items-center justify-end gap-2 px-1 text-[10px] text-muted">
-        <span>Zoom</span>
-        <button type="button" className="px-1 hover:text-foreground" onClick={() => setPps((v) => Math.max(v / 1.4, 10))} aria-label="Zoom out">
-          −
-        </button>
-        <input type="range" min={10} max={240} value={pps} onChange={(e) => setPps(Number(e.target.value))} aria-label="Timeline zoom" className="w-28 accent-[var(--accent)]" />
-        <button type="button" className="px-1 hover:text-foreground" onClick={() => setPps((v) => Math.min(v * 1.4, 240))} aria-label="Zoom in">
-          +
+      <div className="mb-1 flex flex-wrap items-center justify-end gap-2 px-1 text-[10px] text-muted">
+        {tools && <div className="mr-auto flex items-center gap-0.5">{tools}</div>}
+        {!markers && beatHint && <span className={`${tools ? "" : "mr-auto "}text-[10px] text-muted`}>♪ {beatHint}</span>}
+        {markers && (
+          <>
+            <label className="flex items-center gap-1">
+              Beat markers
+              <select className="rounded border border-border bg-surface px-1 py-0.5 text-[10px]" value={density} onChange={(e) => setDensity(e.target.value as MarkerDensity)}>
+                {(Object.keys(DENSITY_LABEL) as MarkerDensity[]).map((d) => <option key={d} value={d}>{DENSITY_LABEL[d]}</option>)}
+              </select>
+            </label>
+            <button type="button" aria-pressed={magnet} title="Clip edges stick to the markers while you trim (hold Alt to place freely)"
+              className={`rounded border px-1.5 py-0.5 ${magnet ? "border-accent text-accent" : "border-border"}`} onClick={() => setMagnet((m) => !m)}>
+              🧲 Snap {magnet ? "on" : "off"}
+            </button>
+            {onAddMarker && (
+              <button type="button" className="rounded border border-border px-1.5 py-0.5 hover:text-foreground" disabled={busy} onClick={() => onAddMarker(playhead)}>
+                + Marker at playhead
+              </button>
+            )}
+            {onAutoCut && (
+              <button type="button" className="rounded border border-accent/60 px-1.5 py-0.5 text-accent hover:bg-accent/10" disabled={busy}
+                title="Re-cut your clips onto these markers (one undoable step)" onClick={() => onAutoCut(density)}>
+                ✂ Auto-cut to {DENSITY_LABEL[density].toLowerCase()}
+              </button>
+            )}
+            <span className="mx-1 h-3 w-px bg-border" />
+          </>
+        )}
+        <button type="button" title="Fit the whole Reel to the width" className="rounded border border-border px-1.5 py-0.5 hover:text-foreground"
+          onClick={() => {
+            fitted.current = false;
+            const v = fitPps();
+            if (v) setPps(v);
+          }}>
+          ⇔ Fit
         </button>
       </div>
       <div
         ref={area}
         className="relative overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-background"
       >
-        <div className="relative" style={{ width: width + HEAD }}>
+        <div className="relative" style={{ width: width + HEAD + GAP }}>
           {/* ruler */}
           <div
             className="sticky top-0 z-10 flex h-6 border-b border-border bg-surface"
@@ -122,7 +258,7 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
               setDrag({ kind: "playhead" });
             }}
           >
-            <div className="sticky left-0 z-20 shrink-0 border-r border-border bg-surface" style={{ width: HEAD }} />
+            <div className="sticky left-0 z-40 shrink-0 border-r border-border bg-surface" style={{ width: HEAD + GAP }} />
             <div className="relative flex-1 cursor-pointer">
               {ticks.map((t) => (
                 <span key={t} className="absolute top-0 h-full border-l border-border/80" style={{ left: x(t) }}>
@@ -138,17 +274,22 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
           {(
             [
               // compact tracks on short laptop screens, roomier on tall ones
-              ["T1", "Text", "h-6 [@media(min-height:760px)]:h-8"],
-              ["V1", "Video", "h-12 [@media(min-height:760px)]:h-16"],
-              ["A1", "Music", "h-7 [@media(min-height:760px)]:h-10"],
+              ["T1", "Text"],
+              ["V1", "Video"],
+              ["A1", "Music"],
             ] as const
-          ).map(([code, name, h]) => (
-            <div key={code} className={`flex border-b border-border ${h}`}>
-              <div className="sticky left-0 z-10 flex shrink-0 items-center gap-1.5 border-r border-border bg-surface px-2 text-[10px] text-muted" style={{ width: HEAD }}>
+          ).map(([code, name]) => (
+            <div key={code} className="relative flex border-b border-border" style={{ height: heights[code] }}>
+              <div className="sticky left-0 z-40 flex shrink-0 items-center gap-1.5 border-r border-border bg-surface px-2 text-[10px] text-muted" style={{ width: HEAD }}>
                 <span className="rounded bg-surface-2 px-1 font-mono text-[9px] text-foreground">{code}</span>
                 {name}
               </div>
-              <div className="relative flex-1" onPointerDown={(e) => e.target === e.currentTarget && onSelect(null)}>
+              {/* drag the bottom edge to make the track taller or shorter (double-click: back to the start height) */}
+              <div role="separator" aria-orientation="horizontal" aria-label={`Resize the ${name} track`} title="Drag to resize the track (double-click to reset)"
+                className="absolute inset-x-0 -bottom-1 z-20 h-2 cursor-row-resize hover:bg-accent/40"
+                onPointerDown={(e) => resizeTrack(code, e)}
+                onDoubleClick={() => setHeights((cur) => ({ ...cur, [code]: TRACK_H[code] }))} />
+              <div className="relative ml-3 flex-1" onPointerDown={(e) => e.target === e.currentTarget && onSelect(null)}>
                 {code === "V1" &&
                   tl.segments.map((s, i) => {
                     const sel = s.id === selectedId;
@@ -227,18 +368,61 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
                   ))}
                 {code === "A1" && (
                   <div className="absolute inset-y-1 left-0 overflow-hidden rounded bg-emerald-600/30" style={{ width: x(tl.duration) }}>
-                    {beats.map((b, k) => (
-                      <span key={k} className={`absolute inset-y-0 w-px ${k % 4 === 0 ? "bg-emerald-200/60" : "bg-emerald-200/25"}`} style={{ left: x(b) }} />
+                    {waveform && waveform.peaks.length > 1 && (
+                      // the music's amplitude, bar by bar (like CapCut): a louder moment is a taller bar
+                      <svg className="pointer-events-none absolute inset-0 h-full" width={x(tl.duration)} viewBox={`0 0 ${waveform.peaks.length} 100`} preserveAspectRatio="none" aria-hidden>
+                        <defs>
+                          <linearGradient id="wave-fill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="rgba(167,243,208,0.85)" />
+                            <stop offset="100%" stopColor="rgba(16,185,129,0.35)" />
+                          </linearGradient>
+                        </defs>
+                        {(() => {
+                          // a smooth wave (the level, lightly smoothed) rising from one flat line at the bottom
+                          const pk = waveform.peaks;
+                          const lv = pk.map((_, i) => {
+                            let sum = 0, n = 0;
+                            for (let k = Math.max(i - 2, 0); k <= Math.min(i + 2, pk.length - 1); k++) { sum += pk[k]; n++; }
+                            return Math.max(Math.pow(Math.max(sum / n, pk[i] * 0.85), 0.8) * 80, 1);
+                          });
+                          const top = lv.map((h, i) => `${i === 0 ? "M" : "L"}${i} ${(98 - h).toFixed(1)}`).join("");
+                          return (
+                            <>
+                              <path d={`${top}L${pk.length - 1} 98L0 98Z`} fill="url(#wave-fill)" />
+                              <path d={top} fill="none" stroke="rgba(209,250,229,0.9)" strokeWidth={1.2} vectorEffect="non-scaling-stroke" />
+                              <rect x={0} y={97.5} width={pk.length} height={1} fill="rgba(167,243,208,0.6)" />
+                            </>
+                          );
+                        })()}
+                      </svg>
+                    )}
+                    {shownMarks.map((m, k) => (
+                      // the real beats of the Reel's part of the song: big = bar start, red = drop, blue = yours (click to remove)
+                      <button key={k} type="button" disabled={busy || !onRemoveMarker}
+                        title={`${MARK[m.kind].label}${m.barStart ? " (bar start)" : ""} ${m.t.toFixed(3)}s${onRemoveMarker ? " (click to remove)" : ""}`}
+                        onClick={(e) => { e.stopPropagation(); onRemoveMarker?.(m.t); }}
+                        className="absolute bottom-0 -translate-x-1/2 translate-y-1/2 rounded-full ring-1 ring-black/40"
+                        style={{ left: x(m.t), width: MARK[m.kind].size + (m.barStart ? 2 : 0), height: MARK[m.kind].size + (m.barStart ? 2 : 0), background: MARK[m.kind].color }} />
                     ))}
                     <span className="absolute left-1 top-0.5 truncate text-[9px] text-emerald-50">♪ {musicName ?? "No music"}{tl.bpm ? ` · ${Math.round(tl.bpm)} BPM` : ""}</span>
                   </div>
                 )}
               </div>
+              {((code === "V1" && onAddVideo) || (code === "A1" && onAddAudio)) && (
+                // + stays at the right edge of the view while you zoom or scroll
+                <div className="sticky right-0 z-[35] flex shrink-0 items-center bg-gradient-to-l from-background via-background/90 to-transparent py-1 pl-3 pr-1.5">
+                  <button type="button" disabled={busy} onClick={code === "V1" ? onAddVideo : onAddAudio}
+                    title={code === "V1" ? "Add video clips at the end" : "Add or replace the music"} aria-label={code === "V1" ? "Add video" : "Add music"}
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-white/25 bg-surface-2 text-lg text-foreground shadow-lg transition-colors hover:border-accent hover:bg-accent hover:text-black disabled:opacity-40">
+                    +
+                  </button>
+                </div>
+              )}
             </div>
           ))}
 
           {/* playhead */}
-          <div className="pointer-events-none absolute bottom-0 top-0 z-30 w-px bg-accent" style={{ left: HEAD + x(playhead) }}>
+          <div className="pointer-events-none absolute bottom-0 top-0 z-30 w-px bg-accent" style={{ left: HEAD + GAP + x(playhead) }}>
             <span
               className="pointer-events-auto absolute -left-[6px] top-0 h-3 w-[13px] cursor-ew-resize rounded-b bg-accent"
               onPointerDown={(e) => {

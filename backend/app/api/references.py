@@ -211,8 +211,9 @@ async def clear_library():
 
 # ---------------------------------------------------------------------- "make it like this Reel" (one project)
 @router.post("/api/projects/{project_id}/reference-reel")
-async def set_reference_reel(project_id: str, file: UploadFile = File(...)):
-    """Measure one Reel the user wants theirs to be like (shot by shot). Only the measurements are kept on the project."""
+async def set_reference_reel(project_id: str, file: UploadFile = File(...), use_audio: bool = Form(True)):
+    """Measure one Reel the user wants theirs to be like (shot by shot). Only the measurements are kept on the project,
+    and (``use_audio``) its sound, as the project's song: the same music at the same point, so the cuts line up."""
     from app.services.project_service import get_project_doc
     from app.trends.reference import for_ai
 
@@ -230,11 +231,30 @@ async def set_reference_reel(project_id: str, file: UploadFile = File(...)):
             prof = await asyncio.to_thread(profile_video, path, name, True)
         except Exception as exc:  # noqa: BLE001
             raise ValidationFailed(f"{name} could not be read as a video ({exc}).", code="UNREADABLE_VIDEO") from exc
-    if prof.get("shots", 0) < 2:
-        raise ValidationFailed("No cuts were found in this video: it looks like one continuous shot, so there is no editing to copy. "
-                               "Choose a Reel that cuts between several shots.", code="NO_CUTS")
-    ref = {"name": name, "seconds": prof["seconds"], "cuts": prof.pop("cuts", []), "on_beat_share": prof.get("on_beat_share"),
-           "profile": for_ai({"name": name, "profile": prof})}  # fmt: skip
+        if prof.get("shots", 0) < 2:
+            raise ValidationFailed("No cuts were found in this video: it looks like one continuous shot, so there is no editing to copy. "
+                                   "Choose a Reel that cuts between several shots.", code="NO_CUTS")
+        song = None
+        if use_audio:
+            from app.core.errors import AppError
+            from app.core.ffmpeg import run_ffmpeg
+
+            m4a = Path(tmp) / f"{Path(name).stem[:60]} (music).m4a"
+            try:  # the sound as it is (stereo, full quality); a silent video has none
+                await asyncio.to_thread(run_ffmpeg, ["-y", "-i", str(path), "-vn", "-c:a", "aac", "-b:a", "192k", str(m4a)], timeout=300)
+                song = m4a if m4a.exists() and m4a.stat().st_size > 20_000 else None
+            except AppError:
+                song = None
+        ref = {"name": name, "seconds": prof["seconds"], "cuts": prof.pop("cuts", []), "on_beat_share": prof.get("on_beat_share"),
+               "profile": for_ai({"name": name, "profile": prof}), "use_audio": song is not None}  # fmt: skip
+        if song is not None:  # the reference's sound becomes this project's song (replacing the previous one)
+            from starlette.datastructures import Headers, UploadFile as StarletteUpload
+
+            from app.api.projects import replace_project_audio
+
+            with song.open("rb") as fh:
+                await replace_project_audio(doc, StarletteUpload(file=fh, filename=song.name, headers=Headers({"content-type": "audio/mp4"})),
+                                            to_library=False)  # fmt: skip
     await get_db().projects.update_one({"_id": doc["_id"]}, {"$set": {"referenceReel": ref, "updatedAt": utcnow()}})
     return _reference_out(ref)
 
@@ -245,7 +265,8 @@ def _reference_out(ref: dict | None) -> dict | None:
     p = ref.get("profile") or {}
     return {"name": ref["name"], "seconds": ref["seconds"], "shots": len(ref.get("cuts", [])) + 1, "avgShot": p.get("avg_shot"),
             "hookSeconds": p.get("hook_seconds"), "onBeatShare": ref.get("on_beat_share"), "bpm": p.get("bpm"),
-            "summary": ((p.get("described") or [{}])[0] or {}).get("summary", "") if isinstance(p.get("described"), list) else ""}  # fmt: skip
+            "summary": ((p.get("described") or [{}])[0] or {}).get("summary", "") if isinstance(p.get("described"), list) else "",
+            "usesAudio": bool(ref.get("use_audio"))}  # fmt: skip
 
 
 @router.get("/api/projects/{project_id}/reference-reel")

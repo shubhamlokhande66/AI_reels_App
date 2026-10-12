@@ -71,7 +71,7 @@ export function styleLabel(id: string): string {
 }
 
 export const ACCEPTED_VIDEO = ".mp4,.mov,.m4v,.webm,.mkv,.avi";
-export const ACCEPTED_AUDIO = ".mp3,.wav,.m4a,.aac,.ogg,.flac";
+export const ACCEPTED_AUDIO = ".mp3,.mpeg,.mpga,.mp2,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.amr,.wma,.aif,.aiff,.caf,.weba"; // same list as the backend (AUDIO_EXTS)
 // For the file picker: the wildcard types make phones open the photo/video gallery and the music files directly.
 // (Files are still checked by extension after they are chosen.)
 export const ACCEPTED_IMAGE = ".jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff";

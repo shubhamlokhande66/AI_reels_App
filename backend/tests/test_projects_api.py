@@ -157,3 +157,20 @@ async def test_health_and_styles(client):
     assert r.status_code == 200 and r.json()["ffmpeg"] is True
     styles = (await client.get("/api/styles")).json()
     assert {s["id"] for s in styles} >= {"fast_trending", "cinematic", "luxury", "food", "travel", "custom"}
+
+
+async def test_voice_and_song_files_in_mpeg_opus_and_amr_are_accepted(client, media_dir, tmp_path):
+    """A recorded voice often comes as .mpeg (MP3 inside), WhatsApp .opus or Android .amr: all are read by FFmpeg."""
+    import subprocess
+
+    from app.core.ffmpeg import find_binary
+
+    pid = (await client.post("/api/projects", json={"name": "Voice formats"})).json()["id"]
+    for name, codec in (("voice.mpeg", ["-c:a", "libmp3lame", "-f", "mp3"]), ("voice.opus", ["-c:a", "libopus"]), ("voice.amr", ["-ar", "8000", "-ac", "1", "-c:a", "libopencore_amrnb"])):
+        out = tmp_path / name
+        r = subprocess.run([find_binary("ffmpeg"), "-v", "error", "-y", "-i", str(media_dir / "beat120.wav"), "-t", "4", *codec, str(out)], capture_output=True)
+        if r.returncode != 0:
+            continue  # this FFmpeg build has no encoder for it (the upload itself is still allowed)
+        res = await client.post(f"/api/projects/{pid}/audio", files={"file": (name, out.read_bytes(), "audio/mpeg")})
+        assert res.status_code == 201, (name, res.text)
+        assert res.json()["duration"] and res.json()["duration"] > 3, name

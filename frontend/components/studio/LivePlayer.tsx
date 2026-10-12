@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { EdlTimeline } from "@/types/api";
-import { LOOK_CSS, effectStyle, transitionStyle } from "@/lib/editorFx";
+import type { EdlTimeline, PreviewHints } from "@/types/api";
+import { LOOK_CSS, correctionCss, effectStyle, flashAmount, flashThrough, keyframeStyle, lookCss, rampAt, shotAnimation, transitionStyle } from "@/lib/editorFx";
 
 interface Props {
   timeline: EdlTimeline;
@@ -14,16 +14,25 @@ interface Props {
   onPlaying: (p: boolean) => void;
   /** Fill the height it is given (the editor's player area), keeping 9:16, instead of a fixed width. */
   fill?: boolean;
+  /** The renderer's framing and correction per shot (backend services/preview_hints.py): without them the preview
+   * centres every clip and skips the corrections, so it does not look like the export. */
+  hints?: PreviewHints;
 }
+
+const STAB_ZOOM = 1.04; // a steadied (shaky) clip is shown slightly enlarged, as the stabiliser does
+const BACKDROP = "blur(6px) brightness(0.9) saturate(1.15)"; // fit mode: the dimmed, blurred copy behind the picture
 
 const SIZE = { small: "text-[5.5cqw]", medium: "text-[7.5cqw]", large: "text-[10cqw]" } as const;
 const POS = { top: "top-[14%]", center: "top-1/2 -translate-y-1/2", bottom: "bottom-[18%]" } as const;
 
 /** Plays the edit in the browser at once: every clip is preloaded once, the right one is shown and kept in sync with
  * the clock and the song; effects, looks and transitions are close approximations (Export HD renders them exactly). */
-export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, playing, onPlaying, fill = false }: Props) {
+export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, playing, onPlaying, fill = false, hints }: Props) {
   const videos = useRef<Record<string, HTMLVideoElement | null>>({});
   const layers = useRef<Record<string, HTMLDivElement | null>>({});
+  const frames = useRef<Record<string, HTMLDivElement | null>>({});
+  const backdrops = useRef<Record<string, HTMLCanvasElement | null>>({});
+  const white = useRef<HTMLDivElement>(null);
   const audio = useRef<HTMLAudioElement>(null);
   const clock = useRef({ t: playhead, at: 0 });
   const raf = useRef<number | null>(null);
@@ -31,37 +40,52 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
   const look = LOOK_CSS[tl.colorGrade ?? ""] ?? "";
   const clipIds = [...new Set(tl.segments.map((s) => s.clipId))];
 
-  // draw the frame for time t: which clips are visible, at which point, with which effect / transition
+  // the song's hits inside a shot, seconds from its start (renderer.py / cutter.plan_segments)
+  const hitsFor = (s: (typeof tl.segments)[number]) =>
+    musicUrl ? (tl.musicHits ?? []).map((h) => h - tl.audioStart).filter((h) => s.timelineStart + 0.05 < h && h < s.timelineEnd - 0.05).slice(0, 40).map((h) => h - s.timelineStart) : [];
+
+  // a shot's picture at ``local`` seconds: its keyframes over its effect (video/keyframes.py), its looks on top
+  function shotStyle(s: (typeof tl.segments)[number], local: number, len: number): { transform: string; filter: string; white: number } {
+    const fx = effectStyle(s.effect, local / Math.max(len, 0.01), local, len, hitsFor(s));
+    const looks = (s.looks ?? []).map(lookCss).filter(Boolean).join(" ");
+    const anim = shotAnimation(s.effect, s.keyframes, len);
+    if (!anim.length) return { transform: fx.transform, filter: `${fx.filter} ${looks}`, white: flashAmount(s.effect, local, hitsFor(s)) };
+    const k = keyframeStyle(anim, local, layers.current[s.clipId]?.clientWidth ?? 360);
+    const keyedFlash = s.effect === "flash"; // the flash is in the keyframes then
+    return {
+      transform: k.transform ?? fx.transform, // keyframes that move the picture replace the effect's own movement
+      filter: `${k.transform ? "" : fx.filter} ${looks} ${k.filter}`,
+      white: Math.max(k.white, keyedFlash ? 0 : flashAmount(s.effect, local, hitsFor(s))),
+    };
+  }
+
+  // draw the frame for time t exactly as the renderer composes it: a shot's transition starts at its first moment and
+  // runs for its duration over the previous shot, which plays on underneath (composer.build_video_graph)
   function draw(t: number, play: boolean) {
     const segs = tl.segments;
     const i = Math.max(0, segs.findIndex((s) => t >= s.timelineStart && t < s.timelineEnd));
     const cur = segs[i];
-    const next = segs[i + 1];
-    const visible = new Map<string, { opacity: number; clip?: string; transform: string; filter: string; z: number }>();
+    const visible = new Map<string, { opacity: number; clip?: string; transform: string; filter: string; z: number; local: number }>();
+    let flash = 0; // white laid over the picture: a flash effect or a flash transition (the renderer adds light)
     if (cur) {
       const local = t - cur.timelineStart;
-      const fx = effectStyle(cur.effect, local / Math.max(cur.timelineEnd - cur.timelineStart, 0.01), local);
-      visible.set(cur.id, { opacity: 1, transform: fx.transform, filter: fx.filter, z: 1 });
-      // the incoming transition of the next shot overlaps the end of this one (half before the cut)
-      const tr = next?.transitionIn;
-      if (next && tr && tr.type !== "cut" && tr.duration > 0) {
-        const into = t - (next.timelineStart - tr.duration / 2);
-        if (into > 0) {
-          const st = transitionStyle(tr.type, into / tr.duration);
-          const nfx = effectStyle(next.effect, 0, 0);
-          visible.set(next.id, { opacity: st.opacity, clip: st.clipPath, transform: `${st.transform ?? ""} ${nfx.transform}`, filter: `${st.filter ?? ""} ${nfx.filter}`, z: 2 });
-        }
-      }
-      // ... and the start of this one
+      const len = cur.timelineEnd - cur.timelineStart;
+      const fx = shotStyle(cur, local, len);
+      flash = fx.white;
+      visible.set(cur.id, { opacity: 1, transform: fx.transform, filter: fx.filter, z: 1, local });
       const tin = cur.transitionIn;
-      if (i > 0 && tin.type !== "cut" && tin.duration > 0 && local < tin.duration / 2) {
-        const st = transitionStyle(tin.type, (local + tin.duration / 2) / tin.duration);
-        visible.set(cur.id, { opacity: st.opacity, clip: st.clipPath, transform: `${st.transform ?? ""} ${fx.transform}`, filter: `${st.filter ?? ""} ${fx.filter}`, z: 2 });
+      if (i > 0 && tin.type !== "cut" && tin.type !== "speed_ramp" && tin.duration > 0 && local < tin.duration) {
+        const st = transitionStyle(tin.type, local / tin.duration);
+        visible.set(cur.id, { opacity: st.opacity, clip: st.clipPath, transform: `${st.transform ?? ""} ${fx.transform}`, filter: `${st.filter ?? ""} ${fx.filter}`, z: 2, local });
         const prev = segs[i - 1];
-        const pfx = effectStyle(prev.effect, 1, prev.timelineEnd - prev.timelineStart);
-        visible.set(prev.id, { opacity: 1, transform: pfx.transform, filter: pfx.filter, z: 1 });
+        const plen = prev.timelineEnd - prev.timelineStart;
+        const plocal = t - prev.timelineStart; // the previous shot runs on past its end (its tail)
+        const pfx = shotStyle(prev, plocal, plen);
+        if (tin.type === "flash") flash = Math.max(flash, flashThrough(local / tin.duration));
+        visible.set(prev.id, { opacity: 1, transform: pfx.transform, filter: pfx.filter, z: 1, local: plocal });
       }
     }
+    if (white.current) white.current.style.opacity = String(Math.min(flash, 1));
     // one picture layer per clip (not per shot): shots of the same clip share it, so a Reel of 40 shots from 10 clips loads 10 videos
     const byClip = new Map<string, { s: (typeof segs)[number]; vis: NonNullable<ReturnType<typeof visible.get>> }>();
     for (const s of segs) {
@@ -83,12 +107,43 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
       layer.style.opacity = String(vis.opacity);
       layer.style.zIndex = String(vis.z);
       layer.style.clipPath = vis.clip ?? "none";
-      v.style.transform = vis.transform;
-      v.style.filter = `${look} ${vis.filter}`;
-      const local = Math.min(Math.max(t - s.timelineStart, 0), s.timelineEnd - s.timelineStart);
-      const want = s.effect === "freeze" ? s.sourceStart : s.sourceStart + local * s.speed;
-      if (Math.abs(v.currentTime - want) > (play ? 0.25 : 0.04)) v.currentTime = want;
-      v.playbackRate = Math.min(Math.max(s.speed, 0.25), 4);
+      // framed as the renderer frames it: its own crop of the clip (fill), or the whole picture over a blurred copy (fit)
+      const h = hints?.segments[s.id];
+      const fit = h ? h.mode === "fit" : s.crop.framing === "fit";
+      const frame = frames.current[clipId];
+      const back = backdrops.current[clipId];
+      const zoom = h?.stabilized ? `scale(${STAB_ZOOM}) ` : "";
+      const correction = look || correctionCss(hints?.grade, h?.lift, h?.gamma);
+      layer.style.filter = `${correction} ${vis.filter}`;
+      if (fit) {
+        Object.assign(v.style, { left: "0", top: "0", width: "100%", height: "100%", objectFit: "contain", transform: `${zoom}${vis.transform}` });
+        if (frame) frame.style.transform = "none";
+        if (back) {
+          back.style.display = "block";
+          const ctx = back.getContext("2d");
+          if (ctx && v.readyState >= 2 && v.videoWidth) {
+            const r = Math.max(back.width / v.videoWidth, back.height / v.videoHeight);
+            const w = back.width / r;
+            const hh = back.height / r;
+            ctx.drawImage(v, (v.videoWidth - w) / 2, (v.videoHeight - hh) / 2, w, hh, 0, 0, back.width, back.height);
+          }
+        }
+      } else {
+        const c = h?.crop;
+        Object.assign(
+          v.style,
+          c
+            ? { left: `${(-c.x / c.w) * 100}%`, top: `${(-c.y / c.h) * 100}%`, width: `${100 / c.w}%`, height: `${100 / c.h}%`, objectFit: "fill", transform: "none" }
+            : { left: "0", top: "0", width: "100%", height: "100%", objectFit: "cover", transform: "none" },
+        );
+        if (frame) frame.style.transform = `${zoom}${vis.transform}`;
+        if (back) back.style.display = "none";
+      }
+      const local = Math.max(vis.local, 0);
+      const ramp = rampAt(s.keyframes, local, s.timelineEnd - s.timelineStart); // a speed ramp: the footage follows its speed track
+      const want = s.effect === "freeze" ? s.sourceStart : s.sourceStart + (ramp ? ramp.source : local * s.speed);
+      if (Math.abs(v.currentTime - want) > (play ? (ramp ? 0.12 : 0.25) : 0.04)) v.currentTime = want;
+      v.playbackRate = Math.min(Math.max(ramp ? ramp.speed : s.speed, 0.25), 4);
       if (play && s.effect !== "freeze" && v.paused) void v.play().catch(() => {});
       if (!play && !v.paused) v.pause();
     }
@@ -109,7 +164,7 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
       draw(playhead, false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playhead, playing, timeline]);
+  }, [playhead, playing, timeline, hints]);
 
   // the clock while playing
   useEffect(() => {
@@ -135,6 +190,8 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
 
+  const fade = tl.pictureFade ?? 0;
+  const black = fade > 0 ? Math.max(0, 1 - playhead / fade, 1 - (tl.duration - playhead) / fade) : 0;
   const overlays = (tl.overlays ?? []).filter((o) => playhead >= o.start && playhead <= o.end);
   const caption = tl.captions.find((c) => playhead >= c.start && playhead <= c.end);
 
@@ -144,10 +201,17 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
         fill ? "h-full max-h-full max-w-full" : "w-full max-w-[min(360px,calc(62svh*9/16))]"
       }`}
     >
-      {clipIds.map((cid) => {
-        const fit = tl.segments.find((s) => s.clipId === cid)?.crop.framing === "fit";
-        return (
-          <div key={cid} ref={(el) => void (layers.current[cid] = el)} className="absolute inset-0 overflow-hidden" style={{ opacity: 0 }}>
+      {clipIds.map((cid) => (
+        <div key={cid} ref={(el) => void (layers.current[cid] = el)} className="absolute inset-0 overflow-hidden" style={{ opacity: 0 }}>
+          <canvas
+            ref={(el) => void (backdrops.current[cid] = el)}
+            width={90}
+            height={160}
+            aria-hidden
+            className="absolute inset-0 h-full w-full scale-110"
+            style={{ display: "none", filter: BACKDROP }}
+          />
+          <div ref={(el) => void (frames.current[cid] = el)} className="absolute inset-0" style={{ transformOrigin: "50% 50%" }}>
             <video
               ref={(el) => void (videos.current[cid] = el)}
               src={clipUrls[cid]}
@@ -157,13 +221,15 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
               onLoadedData={() => {
                 if (!playing) draw(clock.current.t, false); // the first frame once the clip has loaded (not a black box)
               }}
-              className={`h-full w-full ${fit ? "object-contain" : "object-cover"}`}
+              className="absolute h-full w-full max-w-none object-cover"
               style={{ transformOrigin: "50% 50%" }}
             />
           </div>
-        );
-      })}
+        </div>
+      ))}
+      <div ref={white} aria-hidden className="pointer-events-none absolute inset-0 z-[4] bg-white" style={{ opacity: 0 }} />
       {musicUrl && <audio ref={audio} src={musicUrl} preload="auto" />}
+      {black > 0 && <div aria-hidden className="pointer-events-none absolute inset-0 z-[5] bg-black" style={{ opacity: black }} />}
       {overlays.map((o, k) => (
         <p
           key={o.id ?? k}

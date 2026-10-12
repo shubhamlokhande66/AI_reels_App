@@ -36,6 +36,7 @@ register(EffectSpec("zoom_out", "zoom", "Slow pull out", "reveals context; endin
 register(EffectSpec("punch", "zoom", "Punch in on the cut", "a hit on a strong beat or drop"))
 register(EffectSpec("punch_out", "zoom", "Punch building to the cut", "tension right before the next cut"))
 register(EffectSpec("zoom_pulse", "zoom", "Beat pulse", "a small zoom pulse on every strong hit of the song inside the shot; energetic, beat-driven sections"))
+register(EffectSpec("beat_stutter", "zoom", "Stutter punches", "a quick punch on every fast hit inside the shot (a roll or hi-hats into a drop); each hit is seen"))
 register(EffectSpec("beat_punch", "zoom", "Punch on every hit", "a clear zoom punch on every strong hit inside the shot; a longer shot in loud, fast music still feels on the beat"))
 register(EffectSpec("pan_left", "pan", "Pan left", "smooth travel across a wide or detailed frame"))
 register(EffectSpec("pan_right", "pan", "Pan right", "smooth travel across a wide or detailed frame"))

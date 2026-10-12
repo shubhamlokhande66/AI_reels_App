@@ -14,7 +14,7 @@ from scipy.ndimage import uniform_filter1d
 from app.audio.beat_detector import HOP, detect_beats, onset_envelope
 from app.core.errors import CorruptedMedia
 from app.core.ffmpeg import run_ffmpeg
-from app.models.analysis import AudioAnalysis, Section
+from app.models.analysis import AudioAnalysis, Section, TempoSection
 
 SR = 22050
 MAX_SECONDS = 600  # analyse at most 10 minutes of a track
@@ -101,7 +101,7 @@ def find_drops(energy: np.ndarray, beats: list[float], dt: float = ENERGY_HOP) -
     return [round(min(beats, key=lambda b: abs(b - t)), 3) if beats else round(t, 2) for t in sorted(drops)]
 
 
-ANALYSIS_VERSION = 4  # 2 = accents; 3 = accent strength vs a typical strong hit; 4 = labelled sections + curves (older caches are redone)
+ANALYSIS_VERSION = 8  # 8 = beats on their real hits + medium beats; 7 = bar starts / strong beats from kick, harmony and bass; 2 = accents; 3 = accent strength vs a typical strong hit; 4 = labelled sections + curves; 5 = half-time beats filled in; 6 = tempo changes, beat confidence, downbeats, music events (older caches are redone)
 
 
 def find_accents(env: np.ndarray, sr: int) -> tuple[list[float], list[float]]:
@@ -139,11 +139,11 @@ def find_sections(y: np.ndarray, sr: int, beats: list[float], duration: float) -
     return [Section(start=a, end=b) for a, b in zip(edges[:-1], edges[1:]) if b - a > 1.0]
 
 
-def analyze_audio(path: Path, on_stage: StageFn | None = None) -> AudioAnalysis:
+def analyze_audio(path: Path, on_stage: StageFn | None = None, max_seconds: int = MAX_SECONDS) -> AudioAnalysis:
     """Full analysis. Reports the ``analyzing_music`` then ``detecting_beats`` stages."""
     report = on_stage or (lambda *_: None)
     report("analyzing_music", 0.0)
-    y, sr = load_audio(path)
+    y, sr = load_audio(path, max_seconds)
     duration = len(y) / sr
     report("analyzing_music", 0.4)
     energy = compute_energy(y, sr)
@@ -154,7 +154,12 @@ def analyze_audio(path: Path, on_stage: StageFn | None = None) -> AudioAnalysis:
     report("detecting_beats", 0.0)
     beat = detect_beats(y, sr, env)
     report("detecting_beats", 0.6)
-    drops = find_drops(energy, beat.beats)
+    # drops, build-ups, breakdowns and entries from five measurements against their local context (audio/drops.py);
+    # find_drops (energy alone) is the fallback for a song too short for it
+    from app.audio.drops import detect_events, drops_from, measurements
+
+    events = detect_events(measurements(y, sr, env, beat.onsets), beat.beats)
+    drops = drops_from(events) if events else find_drops(energy, beat.beats)
     sections = find_sections(y, sr, beat.beats, duration)
     report("detecting_beats", 1.0)
 
@@ -165,12 +170,19 @@ def analyze_audio(path: Path, on_stage: StageFn | None = None) -> AudioAnalysis:
     curves = compute_curves(y, sr, beat.onsets)
     e_list = [float(e) for e in energy]
     labelled = label_sections(structural_parts(y, sr, beat.beats, duration, e_list, ENERGY_HOP, drops), e_list, ENERGY_HOP, drops, curves)
+    # which beats are strong: bar starts from kick + chord change + bass change, strength against the beats around
+    # (audio/accents.py); the sections' starts vote for the bar
+    from app.audio.accents import analyze as accent_analysis
+
+    acc = accent_analysis(y, sr, beat.beats, [r["start"] for r in labelled[1:]])
+    exact = acc.beats if acc.beats and len(acc.beats) == len(beat.beats) else beat.beats  # beats on their real hits
     return AudioAnalysis(
         bpm=beat.bpm,
         duration=round(duration, 3),
-        beats=beat.beats,
+        beats=exact,
+        medium_beats=acc.medium_beats or [],
         beat_confidence=beat.confidence,
-        strong_beats=beat.strong_beats,
+        strong_beats=acc.strong_beats or beat.strong_beats,
         onsets=beat.onsets,
         accents=accents,
         accent_strengths=strengths,
@@ -186,4 +198,11 @@ def analyze_audio(path: Path, on_stage: StageFn | None = None) -> AudioAnalysis:
         density=curves.density,
         vocal=curves.vocal,
         song_sections=[SongSection(**r) for r in labelled],
+        tempo_sections=[TempoSection(start=t.start, end=t.end, bpm=t.bpm, confidence=t.confidence) for t in beat.tempo_sections],
+        beat_confidences=beat.beat_confidences,
+        downbeats=acc.downbeats or beat.downbeats,
+        downbeat_confidence=acc.downbeat_confidence if acc.downbeats else beat.downbeat_confidence,
+        beat_levels=acc.levels,
+        beat_kick=acc.kick,
+        events=events,
     )

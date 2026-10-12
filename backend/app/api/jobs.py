@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 from fastapi import APIRouter, Depends, Query
@@ -159,6 +160,98 @@ async def rendering_file(project_id: str, rendering_id: str, download: bool = Fa
         path, media_type="video/mp4", filename=f"{slug}.mp4" if download else None,
         content_disposition_type="attachment" if download else "inline",
     )
+
+
+@router.get("/projects/{project_id}/beat-map", dependencies=[Depends(rate_limit("job", 60))])
+async def beat_map(project_id: str):
+    """The song's full beat map: every major beat, beat and sub-beat with its time, the rises and falls in rhythm and
+    energy, the drops and parts, and the video effect for each moment (audio/beatmap.py). Uses the cached analysis."""
+    import asyncio
+
+    from app.audio.beatmap import beat_map as build
+
+    analysis = await _project_song_analysis(project_id)
+    return await asyncio.to_thread(build, analysis)
+
+
+@router.get("/projects/{project_id}/beat-plan", dependencies=[Depends(rate_limit("job", 60))])
+async def beat_plan(project_id: str, start: float = Query(default=0, ge=0, le=36000), duration: float = Query(default=15, ge=3, le=600),
+                    every_beat: bool = Query(default=False), min_clip: float = Query(default=0.35, ge=0.25, le=1.0)):
+    """The cut plan for the chosen part of the song (``start`` .. ``start + duration``, song time): what a Reel made
+    with "Cut by the beat map" does, shot by shot (audio/beatmap.cut_plan)."""
+    import asyncio
+
+    from app.audio.beatmap import cut_plan
+
+    analysis = await _project_song_analysis(project_id)
+    rows = await asyncio.to_thread(cut_plan, analysis, None, None, start, start + duration, None, every_beat, min_clip)
+    from app.director.plan_motion import annotate_plan  # the keyframes and ramps each shot will get
+
+    annotate_plan(rows, analysis)
+    return {"start": start, "duration": duration, "rows": rows}
+
+
+class AITimelineRequest(CamelModel):
+    duration: float | None = Field(default=None, ge=3, le=600)  # default: the project's Reel length
+    start: float | None = Field(default=None, ge=0, le=36000)  # song time the Reel starts at (default: the chosen / best part)
+    min_clip: float = Field(default=0.4, ge=0.25, le=2.0)
+    brief: str | None = Field(default=None, max_length=600)
+    refresh: bool = False  # ask the AI again instead of reusing its saved timeline
+
+
+@router.post("/projects/{project_id}/ai-timeline", dependencies=[Depends(rate_limit("job", 20))])
+async def ai_timeline(project_id: str, req: AITimelineRequest):
+    """The AI's editing timeline for the project (same as POST /api/v1/reels/plan; services/music_reel.py)."""
+    import asyncio
+
+    from app.services import music_reel as mr
+
+    _, inp = await mr.project_input(project_id)
+    return await asyncio.to_thread(mr.make_plan, inp, get_storage(), req.duration, req.start, req.min_clip, req.brief, req.refresh)
+
+
+@router.get("/projects/{project_id}/analysis-json", dependencies=[Depends(rate_limit("job", 30))])
+async def analysis_json(project_id: str, frame_step: int = Query(default=1, ge=1, le=100)):
+    """The song's analysis document (audio/analysis_json.py): tempo, every beat and onset, per-frame features, the
+    detected events, silences and candidate changes. Measurements only: the input for choosing transitions and effects."""
+    import asyncio
+
+    from app.services import music_reel as mr
+
+    _, key = await _project_song_analysis(project_id, with_key=True)
+    return await asyncio.to_thread(mr.song_document, get_storage(), key, frame_step)
+
+
+@router.get("/projects/{project_id}/song-analysis", dependencies=[Depends(rate_limit("job", 30))])
+async def song_analysis(project_id: str, min_clip: float = Query(default=0.4, ge=0.25, le=2.0), every_beat: bool = Query(default=False)):
+    """The full song report (audio/song_report.py): tempo by section, every detected event with its strength and
+    confidence, the sections with their measurements, repeated patterns, and - kept apart - the editing segments and
+    recommendations, never a clip shorter than ``min_clip``. Built on the saved analysis of the song."""
+    import asyncio
+
+    from app.audio.song_report import analyze_song
+
+    analysis, key = await _project_song_analysis(project_id, with_key=True)
+    return await asyncio.to_thread(analyze_song, get_storage().local_path(key), min_clip, every_beat, analysis)
+
+
+async def _project_song_analysis(project_id: str, with_key: bool = False):
+    import asyncio
+
+    from app.core.errors import ValidationFailed
+    from app.jobs import pipeline as pl
+    from app.schemas.project import ProjectSettings
+
+    doc = await ps.get_project_doc(project_id)
+    audio = await get_db().media.find_one({"_id": doc.get("audioId")}) if doc.get("audioId") else None
+    if audio is None:
+        raise ValidationFailed("Upload a song first.", code="NO_AUDIO")
+    if audio.get("purged"):
+        raise ValidationFailed("The song of this project was deleted (privacy). Upload it again.", code="MEDIA_PURGED")
+    inp = pl.PipelineInput(project_id=str(doc["_id"]), job_type="analyze", videos=[], settings=ProjectSettings.model_validate(doc["settings"]),
+                           audio=pl.MediaRef(str(audio["_id"]), audio["originalName"], audio["storedKey"]))  # fmt: skip
+    analysis = await asyncio.to_thread(pl.analyze_music, inp, get_storage(), lambda *_: None)
+    return (analysis, audio["storedKey"]) if with_key else analysis
 
 
 @router.get("/projects/{project_id}/song-parts", dependencies=[Depends(rate_limit("job", 60))])

@@ -1,0 +1,9 @@
+{
+  "name": "reels-essentia",
+  "private": true,
+  "description": "Beat tracking with Essentia (essentia.js, WebAssembly) for the backend: app/audio/essentia_beats.py runs beats.js",
+  "type": "commonjs",
+  "dependencies": {
+    "essentia.js": "0.1.3"
+  }
+}

@@ -210,3 +210,32 @@ def test_reference_timing_keeps_its_real_speed():
     shots = [b - a for a, b in zip([0, *cuts], [*cuts, 15])]
     assert len(shots) >= 3 and max(shots) <= 6  # a typical stretch at real speed, not the 15 s intro, not squeezed
     assert reference_cuts([1.0, 1.5, 3.0], 6.0, 15)[:4] == [1.0, 1.5, 3.0, 6.0]  # a short reference repeats its pattern
+
+
+@pytest.mark.slow
+async def test_with_the_reference_music_the_cuts_land_exactly_where_the_originals_do(client, media_dir, tmp_path):
+    from tests.test_jobs_api import wait_job
+
+    shots = [1.15, 0.7, 1.3, 2.05, 0.9, 1.6, 1.1, 1.2, 1.9, 2.0]  # 13.9 s, cuts off the beat grid on purpose
+    ref = tmp_path / "ref.mp4"
+    ref_cuts = _make_reference_reel(ref, shots, media_dir)
+    pid = (await client.post("/api/projects", json={"name": "Same music", "settings": {"duration": 12, "ai": False}})).json()["id"]
+    files = [("files", (n, (media_dir / n).read_bytes(), "video/mp4")) for n in ("clip_a.mp4", "clip_b.mp4", "clip_c.mp4", "clip_d.mp4")]
+    await client.post(f"/api/projects/{pid}/videos", files=files)
+    r = await client.post(f"/api/projects/{pid}/reference-reel", files={"file": ("ref.mp4", ref.read_bytes(), "video/mp4")},
+                          data={"use_audio": "true"})  # fmt: skip
+    assert r.status_code == 200, r.text and r.json()["usesAudio"] is True
+    assert (await client.get(f"/api/projects/{pid}")).json()["audio"] is not None  # its sound is the song now
+    job = (await client.post(f"/api/projects/{pid}/generate", json={"quality": "preview"})).json()
+    done, _ = await wait_job(client, pid, job["id"], timeout=600)
+    assert done["status"] == "completed", done["error"]
+    tl = (await client.get(f"/api/projects/{pid}/timeline")).json()
+    segs = tl.get("segments") or tl.get("timeline", {}).get("segments")
+    start = tl.get("audioStart") or 0.0
+    cuts = [s["timelineStart"] for s in segs[1:]]
+    expected = [c - start for c in ref_cuts if start < c < start + tl.get("duration", 12) - 0.2]
+    assert len(cuts) == len(expected), (cuts, expected, start)
+    assert all(abs(a - b) <= 0.08 for a, b in zip(cuts, expected)), (cuts, expected)  # not moved onto beats: the same moments
+
+    await client.post(f"/api/projects/{pid}/audio", files={"file": ("beat120.mp3", (media_dir / "beat120.mp3").read_bytes(), "audio/mpeg")})
+    assert (await client.get(f"/api/projects/{pid}/reference-reel")).json()["usesAudio"] is False  # their own song wins

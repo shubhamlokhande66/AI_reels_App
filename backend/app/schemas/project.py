@@ -64,6 +64,9 @@ class ProjectSettings(CamelModel):
     caption_style: CaptionStyle = "minimal"
     ai: bool = False
     ai_director: bool = True  # with AI on: the AI plans every shot (validated); off = AI only assists the rule-based editor
+    beat_plan: bool = False  # cut exactly by the song's beat map plan (audio/beatmap.py): its cuts, effects, flashes and fades
+    cut_every_beat: bool = False  # with beat_plan: a cut and a transition on every beat
+    min_clip: Literal[0.25, 0.35, 0.4, 0.6] = 0.35  # with beat_plan: the shortest shot (s); faster beats are grouped
     auto_review: bool = True  # the Quality Reviewer scores the edit and revises it (up to 2 rounds) before rendering
     sound_effects: bool = False  # whooshes on moving transitions, a riser + impact on the drop, pops under text
     delete_media_after_render: bool = False  # privacy: delete the uploaded clips/song once a final Reel is rendered
@@ -114,6 +117,9 @@ class ProjectUpdate(CamelModel):
     caption_style: CaptionStyle | None = None
     ai: bool | None = None
     ai_director: bool | None = None
+    beat_plan: bool | None = None
+    cut_every_beat: bool | None = None
+    min_clip: Literal[0.25, 0.35, 0.4, 0.6] | None = None
     auto_review: bool | None = None
     sound_effects: bool | None = None
     trend_id: str | None = None
@@ -236,6 +242,9 @@ class GenerateRequest(CamelModel):
     caption_style: CaptionStyle | None = None
     ai: bool | None = None
     ai_director: bool | None = None
+    beat_plan: bool | None = None
+    cut_every_beat: bool | None = None
+    min_clip: Literal[0.25, 0.35, 0.4, 0.6] | None = None
     auto_review: bool | None = None
     sound_effects: bool | None = None
     trend_id: str | None = None

@@ -1,5 +1,6 @@
 "use client";
 
+import { audioBlobUrl } from "@/lib/audioUrl";
 import { useEffect, useRef, useState } from "react";
 import { formatDuration } from "@/lib/format";
 import { btnSecondary } from "./ui";
@@ -127,7 +128,7 @@ function Picker({ source, duration, start, onChange, bare = false }: Props) {
 
   function ensureAudio(): HTMLAudioElement {
     if (audioRef.current) return audioRef.current;
-    urlRef.current = typeof source === "string" ? source : URL.createObjectURL(source);
+    urlRef.current = typeof source === "string" ? source : audioBlobUrl(source);
     const a = new Audio(urlRef.current);
     a.ontimeupdate = () => {
       setPlayhead(a.currentTime);

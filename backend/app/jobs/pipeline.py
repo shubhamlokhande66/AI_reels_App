@@ -129,6 +129,7 @@ class PipelineResult:
     render: RenderResult | None = None
     output_key: str | None = None
     warnings: list[str] = field(default_factory=list)
+    render_check: dict | None = None  # quality/checker.final_check of the finished file (render jobs)
     post_copy: dict | None = None
     semantics: dict[str, ClipSemantic] = field(default_factory=dict)
     variants: list[VariantResult] = field(default_factory=list)
@@ -222,6 +223,29 @@ def analyze_videos(inp: PipelineInput, storage: StorageBackend, progress: StageP
         out[v.id] = a
         progress("analyzing_videos", (i + 1) / n)
     return out
+
+
+SONG_PART_VERSION = 1
+
+
+def _remembered_song_part(storage: StorageBackend, inp: PipelineInput, choose) -> tuple[float | None, str]:
+    """The same song with the same length, instructions, concept and version always starts at the same point: the
+    first choice (the AI's, or the best-ranked part) is saved and reused, so a song uploaded again gives the same Reel
+    timing. A new version (another seed) or other instructions get a fresh choice."""
+    import hashlib
+
+    from app.services import analysis_cache as shared
+
+    assert inp.audio is not None
+    digest = shared.content_hash(storage, inp.audio.key)
+    wanted = f"{inp.settings.duration}|{inp.settings.brief.strip().lower()}|{inp.settings.concept}|{inp.seed}|{bool(inp.settings.ai)}"
+    kind = "song_part_" + hashlib.sha1(wanted.encode()).hexdigest()[:16]
+    hit = shared.load(storage, digest, kind, SONG_PART_VERSION)
+    if hit is not None:
+        return hit.get("start"), hit.get("note", "")
+    start, note = choose()
+    shared.save(storage, digest, kind, SONG_PART_VERSION, {"start": start, "note": note})
+    return start, note
 
 
 def analyze_music(inp: PipelineInput, storage: StorageBackend, progress: StageProgress) -> AudioAnalysis:
@@ -320,15 +344,15 @@ def understand_clips(
     return out
 
 
-def drop_duplicate_videos(inp: PipelineInput, storage: StorageBackend, warnings: list[str]) -> PipelineInput:
-    """The same video uploaded twice (a WhatsApp "(1)" copy, a trimmed re-export) is used only once: the copies are left
-    out before any shot is chosen, so no moment can appear twice through a second file. Cached per set of clips."""
+def find_duplicate_videos(inp: PipelineInput, storage: StorageBackend) -> list[dict] | None:
+    """[{"clipId", "sameAs", "offset"}]: videos that are a copy of another (cached per set of clips). None = the check
+    could not run."""
     import hashlib
 
     from app.video.duplicates import find_duplicates, thumbnails
 
     if len(inp.videos) < 2:
-        return inp
+        return []
     key = project_key(inp.project_id, "analysis", "duplicates_v2_" + hashlib.sha1(",".join(sorted(v.id for v in inp.videos)).encode()).hexdigest()[:16] + ".json")
     found = _load_json(storage, key)
     if not isinstance(found, list):
@@ -338,7 +362,14 @@ def drop_duplicate_videos(inp: PipelineInput, storage: StorageBackend, warnings:
             storage.write_bytes(key, json.dumps(found).encode())
         except Exception as exc:  # noqa: BLE001 - a failed check must never stop a Reel
             log.warning("duplicate check skipped: %s", exc)
-            return inp
+            return None
+    return found
+
+
+def drop_duplicate_videos(inp: PipelineInput, storage: StorageBackend, warnings: list[str]) -> PipelineInput:
+    """The same video uploaded twice (a WhatsApp "(1)" copy, a trimmed re-export) is used only once: the copies are left
+    out before any shot is chosen, so no moment can appear twice through a second file."""
+    found = find_duplicate_videos(inp, storage)
     if not found:
         return inp
     names = {v.id: v.name for v in inp.videos}
@@ -382,7 +413,36 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
     # style / order / story / copy calls. Step-by-step Reels keep their deterministic order.
     # "make it like this Reel": its shot timing is the plan, so the rule engine cuts it exactly (the AI still orders the
     # footage); the AI director would otherwise plan its own shots and only take the reference as a hint
-    use_director = inp.settings.ai and inp.settings.ai_director and inp.settings.sequence != "steps" and not (inp.template and inp.template.get("cuts"))
+    follow_plan = inp.settings.beat_plan and inp.audio is not None and inp.settings.sequence != "steps" and not (inp.template and inp.template.get("cuts"))
+    # the beat map plan, like a reference Reel, is the shot list: the AI still orders the footage, the plan cuts it
+    use_director = (inp.settings.ai and inp.settings.ai_director and inp.settings.sequence != "steps" and not (inp.template and inp.template.get("cuts"))
+                    and not follow_plan)  # fmt: skip
+    if inp.template and inp.template.get("use_audio") and inp.template.get("cuts") and inp.audio is not None:
+        # the reference's own music: start it where the copied stretch starts, so every cut lands where the original's did
+        from app.video.timeline import reference_window
+
+        offset, _ = reference_window(inp.template["cuts"], inp.template.get("seconds") or inp.settings.duration, float(inp.settings.duration))
+        inp.settings = inp.settings.model_copy(update={"audio_start": offset})
+        notes.append(f"The reference Reel's own music, from {int(offset // 60)}:{int(offset % 60):02d}: the cuts land where the original's do. "
+                     "To post, use Download without music, then tap Use audio on the original Reel in Instagram.")
+    if inp.audio is not None and inp.settings.audio_start is None and inp.settings.audio_mode in ("music", "voice_music"):
+        # which part of the song: the AI weighs the instructions, concept and footage against the best-ranked parts;
+        # a regenerated version rotates through them (director/song_part.py)
+        from collections import Counter
+
+        from app.director.song_part import choose_song_part
+
+        cats = Counter(c.semantic.category for c in inputs if c.semantic and c.semantic.category)
+        footage = f"{len(inputs)} clips" + (": " + ", ".join(f"{k} ({v})" for k, v in cats.most_common(4)) if cats else "")
+        start, song_note = _remembered_song_part(
+            storage, inp, lambda: choose_song_part(res.audio, float(inp.settings.duration), inp.settings.brief, inp.settings.concept,
+                                                   footage, inp.seed, use_ai=inp.settings.ai))  # fmt: skip
+        if start is not None:
+            inp.settings = inp.settings.model_copy(update={"audio_start": start})
+            if inp.settings.ai and song_note.startswith("AI"):
+                ai_tasks.append("music")
+        if song_note:
+            notes.append(song_note)
     progress("selecting_clips", 0.0)
     style_id, order_hint = choose_style_and_order(inp, inputs, res.audio, notes, res.warnings, use_ai=not use_director, ai_tasks=ai_tasks)
     brand_look = (inp.brand or {}).get("visualStyle")
@@ -398,7 +458,9 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
         # "auto": the learned style that fits this Reel best (the user's words, the song's tempo, the length); the AI is told
         from app.trends.learn import best_match
 
-        chosen = best_match(inp.references, f"{inp.settings.brief} {inp.project_name}", res.audio.bpm if inp.audio else None, inp.settings.duration)
+        # only styles learned from a few Reels are applied by themselves (one odd video must not set every Reel's pace)
+        steady = [r for r in inp.references if (r.get("videos") or 0) >= 3]
+        chosen = best_match(steady, f"{inp.settings.brief} {inp.project_name}", res.audio.bpm if inp.audio else None, inp.settings.duration)
         if chosen is not None:
             inp.references = [{**r, "chosen": r is chosen} for r in inp.references]
             chosen = next(r for r in inp.references if r.get("chosen"))
@@ -457,10 +519,20 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
             timeline.notes.append("Step numbers were not added because song captions are on (they share the same text track).")
     else:
         timeline = build_timeline(res.audio, inputs, inp.settings.duration, style, seed=inp.seed, order_hint=order_hint,
-                                  brief=inp.settings.brief, audio_start=inp.settings.audio_start, template=inp.template)
+                                  brief=inp.settings.brief, audio_start=inp.settings.audio_start, template=inp.template, beat_plan=follow_plan,
+                                  every_beat=inp.settings.cut_every_beat, min_clip=inp.settings.min_clip)
+        if follow_plan:
+            timeline.picture_fade = 0.4  # the plan opens with a fade-in and ends with the hero shot fading out
+            flashes = sum(1 for s in timeline.segments if s.effect == "beat_flash")
+            notes.append(f"Cut by the song's beat map: {len(timeline.segments) - flashes} shots on its beats, the drop and strong hits as impacts, "
+                         f"{flashes} flash{'es' if flashes != 1 else ''} on hard hits between beats, a fade-in and a hero shot that fades out.")
         if inp.template:
             for seg in timeline.segments:  # the reference's shot list: automatic reviews must not split or merge it
                 seg.locked = True
+            ref_shot = (inp.template.get("profile") or {}).get("median_shot") or (inp.template.get("profile") or {}).get("avg_shot") or 0
+            if ref_shot >= 2.5 and inp.audio is not None and res.audio.bpm >= 95:
+                res.warnings.append(f"Your reference Reel cuts slowly (about {ref_shot:.1f} s per shot), so this Reel does too, although the "
+                                    "song is energetic. For beat-to-beat cutting, remove the reference or use a faster-cut one.")
             notes.append(f"Cut like your reference Reel: {len(timeline.segments)} shots following its timing"
                          + (", moved onto this song's beats." if (inp.template.get("on_beat_share") or 0) >= 0.5 else "."))
     timeline.warnings = res.warnings + timeline.warnings
@@ -503,6 +575,12 @@ def run_pipeline(inp: PipelineInput, storage: StorageBackend, progress: StagePro
         cplan = draft_plan(brief, hooks, mm, direction=direction, pace=inp.settings.pace, has_face=_has_face(inputs))
     if inp.audio is not None:  # the song's strong hits: beat-reactive effects pulse on them between cuts
         timeline.music_hits = song_hits(res.audio)
+        if inp.settings.beat_plan and timeline.picture_fade is not None:  # cut by the beat map: the shots pulse on every beat they hold
+            from app.audio.beatmap import cut_plan, plan_hits
+
+            rows = cut_plan(res.audio, start=timeline.audio_start, end=timeline.audio_start + timeline.duration,
+                            every_beat=inp.settings.cut_every_beat, min_shot=inp.settings.min_clip)
+            timeline.music_hits = sorted(set(timeline.music_hits) | set(plan_hits(rows)))
     pace = directed_pace(inp, directed)
     checks = review_timeline(timeline, inputs, mm, steps_order=order, teaser_first=teaser_first, pace=pace)
     max_tr = _transition_budget(timeline.style)
@@ -856,7 +934,7 @@ def suggested_cuts(audio: AudioAnalysis, audio_start: float, duration: float, st
     try:
         if template and template.get("cuts"):
             slots = template_slots(audio, audio_start, duration, template["cuts"], template.get("seconds") or duration,
-                                   template.get("on_beat_share"), style)  # fmt: skip
+                                   template.get("on_beat_share"), style, same_song=bool(template.get("use_audio")))  # fmt: skip
             return [sl.start for sl in slots[1:]]
         return [sl.start for sl in plan_slots(audio, audio_start, duration, style)[1:]]
     except Exception:  # noqa: BLE001 - a rhythm hint is optional
@@ -992,6 +1070,14 @@ def run_render(inp: PipelineInput, storage: StorageBackend, progress: StageProgr
     res = PipelineResult(timeline=inp.timeline)
     res.clips = analyze_videos(inp, storage, lambda *_: None)  # cache hit for anything already analysed
     res.render, res.output_key = render_edl(inp, inp.timeline, res.clips, storage, progress)
+    if inp.kind != "preview":  # the finished Reel is checked: picture, sound, duration, footage, cuts on the beat
+        from app.quality.checker import final_check
+
+        res.render_check = final_check(storage.local_path(res.output_key), inp.timeline,
+                                       {k: c.metadata.duration for k, c in res.clips.items()},
+                                       (res.render.width, res.render.height))  # fmt: skip
+        if not res.render_check["passed"]:
+            res.warnings += [i["message"] for i in res.render_check["issues"] if i["severity"] in ("error", "warning")]
     return res
 
 
@@ -1006,6 +1092,8 @@ def render_edl(
         style = get_style(timeline.style)
     except AppError:
         style = get_style("custom")
+    if timeline.picture_fade is not None:
+        style = replace(style, fade_in_out=timeline.picture_fade)
     encoder = "libx264" if preview else pick_encoder()
     cfg = config_for(inp.settings.export_preset, "preview" if preview else "final", encoder)
     mode, mode_note = resolve_audio_mode(inp.settings.audio_mode, timeline.voice is not None, inp.audio is not None)

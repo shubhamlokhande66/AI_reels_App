@@ -99,3 +99,35 @@ def test_loudness_fix_moves_the_music_toward_the_target():
     loud = apply_operations(tl, fix_for_loudness(tl, -6.0)[0], ctx())
     quiet = apply_operations(tl, fix_for_loudness(tl, -30.0)[0], ctx())
     assert loud.music_volume < 1.0 < quiet.music_volume <= 2.0
+
+
+
+def test_the_final_check_finds_missing_footage_and_checks_the_cuts_land_on_time(tmp_path):
+    """A Reel of three very different pictures, cut at 1.0 s and 2.0 s: the check finds both cuts on time; a shot
+    asking for more footage than its clip has is reported."""
+    import subprocess
+
+    from app.core.ffmpeg import find_binary
+    from app.models.timeline import Segment, Timeline
+    from app.quality.checker import check_footage, check_sync, final_check
+
+    out = tmp_path / "reel.mp4"
+    parts = ["color=c=red:s=180x320:d=1", "color=c=blue:s=180x320:d=1", "testsrc2=s=180x320:d=1"]
+    cmd = [find_binary("ffmpeg"), "-y", "-v", "error"]
+    for src in parts:
+        cmd += ["-f", "lavfi", "-i", src]
+    cmd += ["-f", "lavfi", "-i", "sine=f=220:d=3", "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0,format=yuv420p[v]",
+            "-map", "[v]", "-map", "3:a", "-r", "30", "-shortest", str(out)]
+    subprocess.run(cmd, check=True, capture_output=True)
+    segs = [Segment(clip_id=c, video=c, source_start=0, source_end=1.0, timeline_start=k, timeline_end=k + 1.0) for k, c in enumerate(("a", "b", "c"))]
+    tl = Timeline(duration=3.0, segments=segs)
+    sync = check_sync(out, tl)
+    assert sync[0].code == "CUTS_IN_SYNC" and sync[0].details["matched"] == 2 and sync[0].details["mean_offset_sec"] <= 0.07
+    late = Timeline(duration=3.0, segments=[s.model_copy(update={"timeline_start": s.timeline_start + (0.15 if k else 0)}) for k, s in enumerate(segs)])
+    assert check_sync(out, late)[0].code == "CUTS_OUT_OF_SYNC"  # planned 150 ms later than they happen
+    short = {"a": 1.0, "b": 0.6, "c": 1.0}  # clip b has only 0.6 s
+    assert [i.code for i in check_footage(tl, short)] == ["MISSING_FOOTAGE"]
+    assert [i.code for i in check_footage(tl, {"a": 1.0})] == ["MISSING_CLIP", "MISSING_CLIP"]
+    report = final_check(out, tl, {"a": 1.0, "b": 1.0, "c": 1.0}, (180, 320))
+    assert {"passed", "errors", "warnings", "issues"} <= set(report)
+    assert not any(i["code"] in ("MISSING_FOOTAGE", "MISSING_CLIP", "WRONG_RESOLUTION", "INVALID_DURATION") for i in report["issues"])

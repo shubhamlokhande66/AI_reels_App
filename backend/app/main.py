@@ -77,6 +77,9 @@ def create_app() -> FastAPI:
     app.include_router(system.check_router)
     app.include_router(projects.router)
     app.include_router(jobs.router)
+    from app.api import v1 as v1_api
+
+    app.include_router(v1_api.router)
     app.include_router(timeline.router)
     app.include_router(quality.router)
     app.include_router(revise.router)

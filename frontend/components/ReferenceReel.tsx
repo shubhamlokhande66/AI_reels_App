@@ -22,6 +22,7 @@ function Facts({ r }: { r: ReferenceReelInfo }) {
       {r.avgShot ? ` · a cut every ${r.avgShot.toFixed(1)} s` : ""}
       {r.hookSeconds ? ` · ${r.hookSeconds.toFixed(1)} s hook` : ""}
       {r.onBeatShare != null ? ` · ${Math.round(r.onBeatShare * 100)}% on the beat` : ""}
+      {r.usesAudio ? " · ♪ with its music" : ""}
     </p>
   );
 }
@@ -41,8 +42,8 @@ function Frame({ children }: { children: React.ReactNode }) {
           <div>
             <h2 className="font-display text-xl">Have a Reel you love? Make yours just like it</h2>
             <p className="text-sm text-muted">
-              Add one trending Reel: your Reel gets the same cut timing, hook, beat sync and look, made with your own clips and song.
-              Optional. Only its timing is kept, never the video.
+              Add one trending Reel: your Reel gets the same cut timing, hook, beat sync and look, made with your own clips.
+              Optional. Its video is never kept.
             </p>
           </div>
           {children}
@@ -52,8 +53,26 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** "Use this Reel's music": its sound becomes the song, from the same point, so every cut lands where the original's did. */
+export function UseMusicToggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-2 text-sm">
+      <input type="checkbox" className="mt-1 accent-[var(--accent)]" checked={value} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        <span className="font-medium">Use this Reel&apos;s music</span>
+        <span className="block text-xs text-muted">
+          Same song from the same point, so every cut lands exactly where the original&apos;s does. When you post, tap “Use audio”
+          on the original Reel in Instagram, so the music is licensed and not muted.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 /** Before the project exists (step 1): only remembers the chosen file; it is studied when the clips are checked. */
-export function ReferencePicker({ file, onFile, disabled }: { file: File | null; onFile: (f: File | null) => void; disabled?: boolean }) {
+export function ReferencePicker({ file, onFile, disabled, useMusic, onUseMusic }: {
+  file: File | null; onFile: (f: File | null) => void; disabled?: boolean; useMusic: boolean; onUseMusic: (v: boolean) => void;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -86,7 +105,9 @@ export function ReferencePicker({ file, onFile, disabled }: { file: File | null;
             </button>
           </span>
         </div>
-      ) : (
+      ) : null}
+      {file && <UseMusicToggle value={useMusic} onChange={onUseMusic} disabled={disabled} />}
+      {file ? null : (
         <button type="button" className="lux-btn-gold rounded-full px-5 py-2.5 text-sm font-semibold" disabled={disabled} onClick={() => input.current?.click()}>
           + Add a Reel to copy
         </button>
@@ -103,8 +124,9 @@ export function ReferenceReel({ projectId, disabled, initialError }: { projectId
   const q = useQuery({ queryKey: key, queryFn: () => api.referenceReel(projectId) });
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(initialError ?? null);
+  const [useMusic, setUseMusic] = useState(true);
   const upload = useMutation({
-    mutationFn: (f: File) => api.setReferenceReel(projectId, f),
+    mutationFn: (f: File) => api.setReferenceReel(projectId, f, useMusic),
     onSuccess: (r) => qc.setQueryData(key, r),
     onError: (e) => setError(errorMessage(e)),
   });
@@ -159,6 +181,7 @@ export function ReferenceReel({ projectId, disabled, initialError }: { projectId
           {upload.isPending ? "Studying the Reel… (10-30 s)" : "+ Add a Reel to copy"}
         </button>
       )}
+      {!ref && <UseMusicToggle value={useMusic} onChange={setUseMusic} disabled={disabled || upload.isPending} />}
       {error && <ErrorBanner title="This Reel cannot be used as a reference" message={error} />}
     </Frame>
   );

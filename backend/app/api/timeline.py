@@ -35,6 +35,58 @@ async def get_timeline(project_id: str):
     return await ts.get_state(project_id)
 
 
+@router.get("/projects/{project_id}/timeline/markers")
+async def timeline_markers(project_id: str):
+    """The Reel's beat markers (Reel time): every real beat with its kind (bar / strong / beat), the drops, and the
+    person's own markers (services/markers.py)."""
+    from app.services.markers import markers
+
+    return await markers(project_id)
+
+
+class MarkerEdit(CamelModel):
+    add: list[float] = []
+    remove: list[float] = []
+
+
+@router.post("/projects/{project_id}/timeline/markers")
+async def timeline_edit_markers(project_id: str, payload: MarkerEdit):
+    """Add or remove beat markers by hand (Reel times)."""
+    from app.services.markers import edit_markers
+
+    return await edit_markers(project_id, payload.add, payload.remove)
+
+
+class AutoCutRequest(CamelModel):
+    density: str = "both"  # both (strong + medium) | strong | drops
+    min_clip: float = Field(default=0.4, ge=0.25, le=3.0)
+
+
+@router.post("/projects/{project_id}/timeline/auto-cut")
+async def timeline_auto_cut(project_id: str, payload: AutoCutRequest):
+    """Re-cut the Reel's clips onto the markers of a density (one undoable edit), with keyframes and ramps from the music."""
+    from app.services.markers import auto_cut
+
+    return await auto_cut(project_id, payload.density, payload.min_clip)
+
+
+@router.get("/projects/{project_id}/timeline/preview-hints")
+async def preview_hints(project_id: str):
+    """The renderer's own framing, brightness correction and colour grade for each shot, so the editor's live preview
+    shows the picture the export will have (services/preview_hints.py)."""
+    import asyncio
+
+    from app.models.timeline import Timeline
+    from app.services import music_reel as mr
+    from app.services.preview_hints import hints
+    from app.video.timeline_ops import ensure_ids
+
+    doc, inp = await mr.project_input(project_id, need_audio=False)
+    if not doc.get("timeline"):
+        return {"segments": {}, "grade": {}}
+    return await asyncio.to_thread(hints, inp, Timeline.model_validate(ensure_ids(doc["timeline"])))
+
+
 @router.get("/editor/catalog")
 async def editor_catalog():
     """Everything the manual editor can apply: transitions, per-shot effects and colour looks (all rendered for real)."""

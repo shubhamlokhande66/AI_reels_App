@@ -251,6 +251,75 @@ def check_render_file(
     return issues
 
 
+SYNC_SEARCH = 0.25  # a planned cut is looked for this far around its time in the file
+SYNC_OFF = 0.07  # cuts landing further off than this (about 2 frames), on average, are out of sync
+SCENE_THRESHOLD = 0.3
+
+
+def check_footage(tl: Timeline, clip_seconds: dict[str, float]) -> list[Issue]:
+    """Shots asking for footage that is not there: an unknown clip, or a range running past the clip's end (the
+    renderer would hold the last frame)."""
+    issues: list[Issue] = []
+    for k, seg in enumerate(tl.segments):
+        dur = clip_seconds.get(seg.clip_id)
+        if dur is None:
+            issues.append(Issue("MISSING_CLIP", "error", f"Shot {k + 1} uses a clip that is not in the project.", segment_id=seg.id))
+        elif seg.source_end > dur + 0.1:
+            issues.append(Issue("MISSING_FOOTAGE", "warning", f"Shot {k + 1} runs {seg.source_end - dur:.2f}s past the end of its clip "
+                                f"(the last frame is held).", segment_id=seg.id, details={"over": round(seg.source_end - dur, 3)}))  # fmt: skip
+    return issues
+
+
+def planned_cuts(tl: Timeline) -> list[float]:
+    """Reel times where the picture changes on a hard cut (an effect split inside the same footage is not a cut)."""
+    out = []
+    for prev, seg in zip(tl.segments, tl.segments[1:]):
+        same_footage = seg.clip_id == prev.clip_id and abs(seg.source_start - prev.source_end) < 0.05
+        if not same_footage and seg.transition_in.type in ("cut", "speed_ramp"):
+            out.append(round(seg.timeline_start, 3))
+    return out
+
+
+def check_sync(path: Path, tl: Timeline) -> list[Issue]:
+    """Do the cuts in the file land where the timeline put them (on the beat)? The file's picture changes are found by
+    scene detection; each planned hard cut is matched with the nearest one."""
+    cuts = planned_cuts(tl)
+    if not cuts:
+        return []
+    log = _run_filters(path, ["-an", "-vf", f"scale=160:-2,select='gt(scene,{SCENE_THRESHOLD})',showinfo"])
+    seen = [float(m) for m in re.findall(r"pts_time:([0-9.]+)", log)]
+    offsets = []
+    for c in cuts:
+        near = min(seen, key=lambda t: abs(t - c)) if seen else None
+        if near is not None and abs(near - c) <= SYNC_SEARCH:
+            offsets.append(near - c)
+    matched = len(offsets)
+    details = {"planned_cuts": len(cuts), "matched": matched}
+    if matched < max(2, len(cuts) // 3):  # similar-looking shots hide their cuts from scene detection: not judged
+        return [Issue("SYNC_UNCHECKED", "info", f"Only {matched} of {len(cuts)} cuts could be found in the file, so their timing "
+                      "was not judged.", details=details)]  # fmt: skip
+    avg = sum(abs(o) for o in offsets) / matched
+    details.update(mean_offset_sec=round(avg, 3), worst_offset_sec=round(max(abs(o) for o in offsets), 3))
+    if avg > SYNC_OFF:
+        return [Issue("CUTS_OUT_OF_SYNC", "warning", f"The cuts land {avg * 1000:.0f} ms away from their beats on average.", details=details)]
+    return [Issue("CUTS_IN_SYNC", "info", f"{matched} of {len(cuts)} cuts checked: within {avg * 1000:.0f} ms of their beats.", details=details)]
+
+
+def final_check(path: Path, tl: Timeline, clip_seconds: dict[str, float], expected_size: tuple[int, int] | None = None) -> dict[str, Any]:
+    """Everything checked on a finished Reel: picture (black / frozen frames), sound (loudness, clipping, abrupt start or
+    end, audio shorter than the video), duration and size, missing footage, and whether the cuts land on their beats.
+    ``passed`` is False when any issue is an error or a warning."""
+    issues = check_footage(tl, clip_seconds)
+    try:
+        issues += check_render_file(path, expected_size, tl.duration, has_fades=True)
+        issues += check_sync(path, tl)
+    except Exception as exc:  # noqa: BLE001 - a check that cannot run must not fail a finished render
+        issues.append(Issue("CHECK_FAILED", "info", f"Part of the final check could not run: {str(exc)[:120]}"))
+    bad = [i for i in issues if i.severity in ("error", "warning")]
+    return {"passed": not bad, "errors": sum(i.severity == "error" for i in issues), "warnings": sum(i.severity == "warning" for i in issues),
+            "issues": [i.to_doc() for i in issues]}  # fmt: skip
+
+
 # ------------------------------------------------------------------ auto-fix: issue -> edit operations
 def fix_operations(issue_code: str, tl: Timeline, target: float | None, segment_id: str | None = None) -> list[list]:
     """Candidate operation batches for a fix, best first. The caller uses the first that is valid."""

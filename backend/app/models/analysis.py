@@ -28,6 +28,27 @@ class SongSection(CamelModel):
     cut_on: str = "beat"  # phrase | bar | beat | accent: what an editor's cuts land on in this part
 
 
+class TempoSection(CamelModel):
+    """A stretch of the song at one tempo (audio/tempo.py)."""
+
+    start: float
+    end: float
+    bpm: float
+    confidence: float = 0.0
+
+
+class MusicEvent(CamelModel):
+    """A candidate moment in the music (audio/drops.py): a drop, build-up, breakdown or entry. Estimates, with the
+    measurements behind them."""
+
+    time: float
+    type: str  # possible_drop | build_up | breakdown | entry
+    strength: float
+    confidence: float
+    end: float | None = None  # build-ups and breakdowns are stretches
+    measurements: dict[str, float] = {}
+
+
 class AudioAnalysis(CamelModel):
     bpm: float
     duration: float
@@ -52,6 +73,15 @@ class AudioAnalysis(CamelModel):
     density: list[float] = []  # rhythmic density (onsets per second), 0..1
     vocal: list[float] = []  # estimated vocal presence, 0..1 (heuristic, no source separation)
     song_sections: list[SongSection] = []
+    # analysis_version 6: tempo that can change, how sure each beat is, bar starts, and candidate music events
+    tempo_sections: list[TempoSection] = []
+    beat_confidences: list[float] = []  # one per beat, 0..1
+    downbeats: list[float] = []
+    downbeat_confidence: float = 0.0  # 0 = the bars could start on any beat (librosa has no downbeat model: an estimate)
+    beat_levels: list[int] = []  # one per beat: 4 bar start with a hard kick, 3 bar start, 2 backbeat, 1 other (audio/accents.py)
+    medium_beats: list[float] = []  # beats with a clear, medium hit (audio/accents.py); not the strong ones
+    beat_kick: list[float] = []  # one per beat: the kick's strength, 0..1
+    events: list[MusicEvent] = []
 
     def curve_at(self, name: str, t: float) -> float:
         c = getattr(self, name)

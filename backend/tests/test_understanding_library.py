@@ -339,3 +339,27 @@ def test_near_identical_frames_are_not_sent_twice(tmp_path):
 
     img = cv2.imdecode(np.frombuffer(frames[0], np.uint8), cv2.IMREAD_COLOR)
     assert max(img.shape[:2]) <= 256
+
+
+def test_the_v1_video_report_can_ask_what_each_clip_shows(storage, media_dir):
+    """POST /api/v1/video/analyze with understand=true: the vision model describes each clip once (saved), and the
+    report carries it (what it shows, opening / ending candidate, importance); without it, no model call is made."""
+    from app.services import music_reel as mr
+    from app.storage import project_key
+
+    storage.ensure_project("p")
+    for n in ("clip_a.mp4", "clip_d.mp4"):
+        storage.new_local_path(project_key("p", "input", n)).write_bytes((media_dir / n).read_bytes())
+    vids = [pipeline.MediaRef(n[:-4], n, project_key("p", "input", n)) for n in ("clip_a.mp4", "clip_d.mp4")]
+    fake = VisionFake()
+    set_provider(fake)
+    plain = mr.video_report(_inp(vids), storage)
+    assert not fake.calls and plain["understood"] == 0 and all(c["understanding"] is None for c in plain["clips"])
+    seen = mr.video_report(_inp(vids), storage, understand=True)
+    assert len(fake.calls) == 2 and seen["understood"] == 2
+    u = seen["clips"][0]["understanding"]
+    assert u["shows"] == "Someone stirs vegetables in a pan." and {"hook_candidate", "ending_candidate", "importance", "category"} <= set(u)
+    mr.video_report(_inp(vids), storage, understand=True)
+    assert len(fake.calls) == 2  # saved: the same clips are not sent again
+    rows, _ = __import__("app.director.ai_timeline", fromlist=["clips_for_ai"]).clips_for_ai(mr.clip_inputs(_inp(vids), storage))
+    assert rows and rows[0].get("shows")  # and the AI editor receives it

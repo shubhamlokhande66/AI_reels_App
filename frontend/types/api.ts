@@ -43,6 +43,12 @@ export interface ProjectSettings {
   ai: boolean;
   /** With AI on: the AI director plans every shot (validated before use). Off = AI only assists the rule-based editor. */
   aiDirector?: boolean;
+  /** cut exactly by the song's beat map plan (its cuts, effects, flashes and fades) */
+  beatPlan?: boolean;
+  /** with beatPlan: a cut and a transition on every beat */
+  cutEveryBeat?: boolean;
+  /** with beatPlan: the shortest shot in seconds; faster beats are grouped */
+  minClip?: MinClip;
   trendId: string | null;
   /** Edit like a learned trend: "auto" (the AI picks from My trends), "none", or a trend id. */
   reference?: string;
@@ -377,6 +383,94 @@ export interface SongParts {
   parts: SongPart[];
   tooShort: boolean;
 }
+/** One moment of the song's beat map (backend audio/beatmap.py). */
+export interface BeatEvent {
+  t: number;
+  kind: "major" | "beat" | "sub";
+  strength: number;
+  /** beats only (backend audio/accents.py): 4 bar start with a hard kick, 3 bar start, 2 backbeat, 1 other */
+  level?: number;
+  /** beats only: an estimated bar start */
+  downbeat?: boolean;
+  effect: string;
+  effectLabel: string;
+  why: string;
+  section: string;
+}
+export interface BeatTrend {
+  kind: "rise" | "fall";
+  start: number;
+  end: number;
+  change: number;
+  effect: string;
+  effectLabel: string;
+  why: string;
+}
+/** One row of the cut plan: a new shot ("cut"), or a hard hit marked inside a shot: a flash, a speed ramp into the
+ * next cut, or a quick zoom-in out of the last one (for hits under 0.25 s from a cut). */
+export interface PlanRow {
+  t: number;
+  end: number;
+  kind: "cut" | "flash" | "ramp" | "zoom" | "hit";
+  shot: string;
+  effect: string;
+  effectLabel: string;
+  transition: string;
+  /** the transition's length (s); it lands on the beat */
+  tdur?: number;
+  transitionLabel?: string;
+  why: string;
+  /** on a cut: the beats the shot holds over (it pulses on each) */
+  pulses?: number[];
+  /** on a cut: the keyframe motion the shot gets from the music (backend director/plan_motion.py), in words */
+  motion?: string[];
+  /** on a cut: a speed ramp, if any: into_drop | out_of_drop | slow_hit */
+  ramp?: string;
+  keyframes?: Keyframe[];
+}
+export type MinClip = 0.25 | 0.35 | 0.4 | 0.6;
+/** The song analysis, schema 1.0 (backend audio/analysis_json.video_shape): what video editing needs, no decisions. */
+export interface SongAnalysisEvent {
+  type: string;
+  time_sec: number | null;
+  start_sec: number | null;
+  end_sec: number | null;
+  strength: number | null;
+  confidence: number | null;
+}
+export interface SongAnalysis {
+  schema_version: string;
+  status: "completed" | "failed";
+  audio: { duration_sec: number; sample_rate: number; channels_analyzed: number };
+  tempo: { bpm: number | null; alternative_bpm: number | null; beat_interval_sec: number | null; confidence?: number;
+           sections: { start_sec: number; end_sec: number; bpm: number; confidence: number }[] };
+  beats: { time_sec: number; strength: number | null; downbeat: boolean; beat_in_bar: number | null }[];
+  onsets: { time_sec: number; strength: number | null }[];
+  energy_curve: { sample_interval_sec: number; values: number[] };
+  sections: { type: string; start_sec: number; end_sec: number; energy_level: string; energy: number; confidence: number }[];
+  candidate_events: SongAnalysisEvent[];
+  errors: string[];
+}
+export interface BeatMap {
+  bpm: number;
+  /** the beat tracker's own tempo (can be double the beats listed) */
+  trackerBpm: number;
+  plan: PlanRow[];
+  rolls: { start: number; end: number; count: number; perSecond: number }[];
+  seconds: number;
+  beatSeconds: number;
+  beatConfidence: number;
+  /** how sure the bar starts are, 0..1 */
+  downbeatConfidence?: number;
+  counts: { major: number; beat: number; sub: number; hardSub: number; rolls: number; drops: number; rises: number; falls: number; cuts: number };
+  events: BeatEvent[];
+  trends: BeatTrend[];
+  sections: { label: string; start: number; end: number; energy: number; cutOn: string }[];
+  drops: number[];
+  curveStep: number;
+  energy: number[];
+  rhythm: number[];
+}
 export type Concept = "auto" | "viral" | "cinematic" | "premium";
 
 export interface GenerateOptions {
@@ -414,6 +508,25 @@ export interface EdlSegment {
   effect: string;
   transitionIn: { type: string; duration: number };
   crop: { framing: Framing; focusX: number | null; focusY: number | null };
+  /** keyframe animation of the shot (backend video/keyframes.py) */
+  keyframes?: Keyframe[];
+  /** colour looks on top of the movement (glow, black_white, vignette...) */
+  looks?: string[];
+}
+
+export type Ease = "linear" | "ease_in" | "ease_out" | "ease_in_out" | "hold";
+export interface Keyframe {
+  t: number;
+  zoom?: number | null;
+  x?: number | null;
+  y?: number | null;
+  rotation?: number | null;
+  opacity?: number | null;
+  blur?: number | null;
+  brightness?: number | null;
+  /** a speed ramp: playback speed at this moment (0.25..4) */
+  speed?: number | null;
+  ease: Ease;
 }
 
 export interface EdlCaption {
@@ -438,6 +551,10 @@ export interface EdlTimeline {
   musicFadeOut: number | null;
   colorGrade?: string | null;
   overlays?: EdlOverlay[];
+  /** the song's hits (song time) the beat effects follow */
+  musicHits?: number[];
+  /** fade from / to black at the start / end (s) */
+  pictureFade?: number | null;
   warnings: string[];
   notes: string[];
 }
@@ -454,6 +571,40 @@ export interface EdlOverlay {
   size: "small" | "medium" | "large";
 }
 
+/** A beat marker in the editor (backend services/markers.py), in Reel time. */
+/** strong / medium beats on their real hits (weak beats are not markers), drops, the person's own */
+export type MarkerKind = "strong" | "medium" | "drop" | "custom";
+export type MarkerDensity = "both" | "strong" | "drops";
+export interface BeatMarker {
+  t: number;
+  kind: MarkerKind;
+  level: number;
+  /** a strong beat that also starts a bar */
+  barStart?: boolean;
+}
+export interface BeatMarkers {
+  markers: BeatMarker[];
+  /** the Reel's part of the song: loudest level per 1/perSecond s, 0..1 */
+  waveform?: { perSecond: number; peaks: number[] };
+  barConfidence: number;
+  bpm: number;
+  audioStart: number;
+  duration: number;
+  own: { added: number; removed: number };
+}
+
+/** The renderer's own framing and correction per shot (backend services/preview_hints.py), for the live preview. */
+export interface ShotHint {
+  mode: "fill" | "fit";
+  crop: { x: number; y: number; w: number; h: number };
+  lift: number;
+  gamma: number;
+  stabilized: boolean;
+}
+export interface PreviewHints {
+  segments: Record<string, ShotHint>;
+  grade: { contrast?: number; saturation?: number; brightness?: number };
+}
 export interface TimelineState {
   timeline: EdlTimeline | null;
   version: number;
@@ -1132,4 +1283,6 @@ export interface ReferenceReelInfo {
   onBeatShare?: number | null;
   bpm?: number;
   summary: string;
+  /** its own music is this project's song (same song, same point: the cuts line up with the original) */
+  usesAudio?: boolean;
 }

@@ -11,7 +11,7 @@ export const FLAG_TEXT: Record<string, { text: string; block?: boolean }> = {
   too_dark: { text: "too dark to use", block: true },
   too_blurry: { text: "too blurry to use", block: true },
   too_short: { text: "shorter than 1 second", block: true },
-  low_resolution: { text: "low resolution: may look soft on a phone" },
+  low_resolution: { text: "low resolution (often WhatsApp-compressed): will look soft. Send it as a document, or use the original from your phone" },
   shaky: { text: "shaky: steadier parts are preferred" },
   duplicate_heavy: { text: "mostly frozen or repeated frames" },
   wrong_orientation: { text: "landscape: it will be cropped to 9:16" },

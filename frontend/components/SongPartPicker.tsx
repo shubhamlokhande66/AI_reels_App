@@ -1,5 +1,6 @@
 "use client";
 
+import { audioBlobUrl } from "@/lib/audioUrl";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
@@ -24,7 +25,7 @@ export function SongPartPicker({ projectId, file, seconds, value, onChange }: {
   const stopAt = useRef(0);
 
   useEffect(() => {
-    const url = URL.createObjectURL(file);
+    const url = audioBlobUrl(file);
     const el = new Audio(url);
     el.ontimeupdate = () => {
       if (el.currentTime >= stopAt.current) {

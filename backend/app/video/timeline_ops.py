@@ -16,7 +16,7 @@ from pydantic import Field
 from app.core.errors import ValidationFailed
 from app.models.base import CamelModel
 from app.models.timeline import (
-    EFFECT_TYPES, TRANSITION_TYPES, Caption, CaptionWord, CropSpec, Segment, TextOverlay, Timeline, Transition, VoiceTrack, Watermark,
+    EFFECT_TYPES, TRANSITION_TYPES, Caption, CaptionWord, CropSpec, Keyframe, Segment, TextOverlay, Timeline, Transition, VoiceTrack, Watermark,
     new_id,
 )  # fmt: skip
 
@@ -113,6 +113,22 @@ class SetEffect(_Op):
     type: Literal["set_effect"] = "set_effect"
     segment_id: str
     effect: str
+
+
+class SetKeyframes(_Op):
+    """The shot's keyframe animation (video/keyframes.py), replaced as a whole; made safe before it is stored."""
+
+    type: Literal["set_keyframes"] = "set_keyframes"
+    segment_id: str
+    keyframes: list[Keyframe] = []
+
+
+class SetLooks(_Op):
+    """Colour looks laid over the shot's movement (glow, black_white, vignette, sharpen)."""
+
+    type: Literal["set_looks"] = "set_looks"
+    segment_id: str
+    looks: list[str] = []
 
 
 class SetCrop(_Op):
@@ -236,7 +252,7 @@ class SetGrade(_Op):
 
 Operation = Annotated[
     Union[
-        Trim, SetLength, Move, Split, Delete, Duplicate, Insert, Replace, SetSpeed, SetTransition, SetEffect, SetCrop,
+        Trim, SetLength, Move, Split, Delete, Duplicate, Insert, Replace, SetSpeed, SetTransition, SetEffect, SetKeyframes, SetLooks, SetCrop,
         SetMusic, AddCaption, UpdateCaption, DeleteCaption, SetCaptionStyle, FitDuration, SetVoice, ClearVoice,
         SetVoiceMix, ReplaceCaptions, FitToVoice, SetWatermark, ClearWatermark, SetCaptionLook, SetOverlays, SetGrade, SetLock,
     ],
@@ -434,6 +450,31 @@ def _set_effect(tl: Timeline, op: SetEffect, ctx: OpContext) -> None:
     tl.segments[_index(tl, op.segment_id)].effect = op.effect
 
 
+def _set_keyframes(tl: Timeline, op: SetKeyframes, ctx: OpContext) -> None:
+    from app.video import keyframes as kf
+
+    seg = tl.segments[_index(tl, op.segment_id)]
+    seg.keyframes, _ = kf.validate(op.keyframes, seg.length)
+    if kf.has_speed(seg.keyframes):  # a speed ramp: the footage it plays, within the clip
+        span = kf.source_seconds(seg.keyframes, seg.length)
+        clip = ctx.clip_durations.get(seg.clip_id)
+        if clip is not None and seg.source_start + span > clip:
+            raise EditError(f"This speed ramp needs {span:.1f}s of footage but the clip has {clip - seg.source_start:.1f}s from here.",
+                            code="RAMP_TOO_LONG", details={"needed": round(span, 3)})  # fmt: skip
+        seg.speed = round(span / max(seg.length, 1e-6), 4)
+        seg.source_end = round(seg.source_start + span, 3)
+
+
+LOOK_NAMES = ("glow", "black_white", "vignette", "sharpen")
+
+
+def _set_looks(tl: Timeline, op: SetLooks, ctx: OpContext) -> None:
+    bad = [x for x in op.looks if x not in LOOK_NAMES]
+    if bad:
+        raise EditError(f"Unknown look '{bad[0]}'.", code="UNKNOWN_LOOK", details={"available": list(LOOK_NAMES)})
+    tl.segments[_index(tl, op.segment_id)].looks = list(dict.fromkeys(op.looks))
+
+
 def _set_crop(tl: Timeline, op: SetCrop, ctx: OpContext) -> None:
     tl.segments[_index(tl, op.segment_id)].crop = op.crop
 
@@ -595,7 +636,7 @@ def _set_grade(tl: Timeline, op: SetGrade, ctx: OpContext) -> None:
 
 _HANDLERS = {
     Trim: _trim, SetLength: _set_length, Move: _move, Split: _split, Delete: _delete, Duplicate: _duplicate, Insert: _insert,
-    Replace: _replace, SetSpeed: _set_speed, SetTransition: _set_transition, SetEffect: _set_effect,
+    Replace: _replace, SetSpeed: _set_speed, SetTransition: _set_transition, SetEffect: _set_effect, SetKeyframes: _set_keyframes, SetLooks: _set_looks,
     SetCrop: _set_crop, SetMusic: _set_music, AddCaption: _add_caption, UpdateCaption: _update_caption,
     DeleteCaption: _delete_caption, SetCaptionStyle: _set_caption_style, FitDuration: _fit_duration,
     SetVoice: _set_voice, ClearVoice: _clear_voice, SetVoiceMix: _set_voice_mix, ReplaceCaptions: _replace_captions,

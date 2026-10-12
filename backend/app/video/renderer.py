@@ -15,7 +15,7 @@ from app.models.timeline import Segment, Timeline
 from app.styles.base import EditingStyle
 from app.video.composer import build_chunk_command, build_compose_command
 from app.video.grades import grade_filter
-from app.video.cutter import RenderConfig, SegmentPlan, SourceClip, build_segment_command, plan_segments
+from app.video.cutter import RenderConfig, SegmentPlan, SourceClip, build_segment_command, measure_shake, plan_segments
 
 log = logging.getLogger(__name__)
 
@@ -128,7 +128,8 @@ def render_timeline(
     try:
         for i, (seg, plan) in enumerate(zip(timeline.segments, plans)):
             out = work_dir / f"seg_{i:03d}.mp4"
-            cmd = build_segment_command(seg, sources[seg.clip_id], out, plan, cfg, grade)
+            transforms = measure_shake(seg, sources[seg.clip_id], plan, cfg, out, remaining())  # shaky clips: steadied
+            cmd = build_segment_command(seg, sources[seg.clip_id], out, plan, cfg, grade, transforms)
             run_ffmpeg(cmd, timeout=remaining(), expected_duration=plan.out_length)
             files.append(out)
             report(cut_share * (i + 1) / n)

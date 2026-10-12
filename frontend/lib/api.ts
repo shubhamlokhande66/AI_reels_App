@@ -13,6 +13,12 @@ import type {
   ProjectStatus,
   ProjectSummary,
   SongParts,
+  BeatMap,
+  SongAnalysis,
+  PreviewHints,
+  BeatMarkers,
+  MarkerDensity,
+  PlanRow,
   Rendering,
   StyleInfo,
   TrendPreset,
@@ -236,6 +242,18 @@ export const api = {
     request<Job>(`/api/projects/${id}/generate`, { method: "POST", body: JSON.stringify(options) }),
   analyze: (id: string) => request<Job>(`/api/projects/${id}/analyze`, { method: "POST" }),
   /** The best parts of the project's song for a Reel of `duration` seconds, best first (the first = the automatic choice). */
+  beatPlan: (id: string, start: number, duration: number, everyBeat = false, minClip = 0.35) =>
+    request<{ start: number; duration: number; rows: PlanRow[] }>(`/api/projects/${id}/beat-plan?start=${start}&duration=${duration}&every_beat=${everyBeat}&min_clip=${minClip}`, undefined, 240_000),
+  beatMap: (id: string) => request<BeatMap>(`/api/projects/${id}/beat-map`, undefined, 240_000), // analyses the song once (cached)
+  /** The song analysis document (librosa: beats, onsets, frame features, events). Analysed once per song. */
+  /** Schema 1.0 (small: beats, energy curve, sections, candidate events). full = the whole internal document. */
+  songAnalysis: (id: string, includeOnsets = false, full = false) => {
+    const body = new FormData();
+    body.append("project_id", id);
+    body.append("onsets", String(includeOnsets));
+    body.append("full", String(full));
+    return request<SongAnalysis>("/api/v1/audio/analyze", { method: "POST", body }, 300_000); // step 1 of the v1 pipeline
+  },
   songParts: (id: string, duration: number, count = 5) =>
     request<SongParts>(`/api/projects/${id}/song-parts?duration=${duration}&count=${count}`, undefined, 240_000), // analyses the song: can take a while
   getJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}`),
@@ -275,6 +293,15 @@ export const api = {
 
   // --- editor ---
   timeline: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline`),
+  /** How the renderer frames, corrects and grades each shot: the live preview shows the same picture. */
+  /** The Reel's real beat markers: every beat with its kind, the drops, and the person's own markers. */
+  timelineMarkers: (id: string) => request<BeatMarkers>(`/api/projects/${id}/timeline/markers`, undefined, 120_000),
+  editMarkers: (id: string, add: number[], remove: number[]) =>
+    request<BeatMarkers>(`/api/projects/${id}/timeline/markers`, { method: "POST", body: JSON.stringify({ add, remove }) }, 120_000),
+  /** Re-cut the Reel's clips onto the markers of a density (one undoable edit). */
+  autoCut: (id: string, density: MarkerDensity, minClip = 0.4) =>
+    request<TimelineState>(`/api/projects/${id}/timeline/auto-cut`, { method: "POST", body: JSON.stringify({ density, minClip }) }, 300_000),
+  previewHints: (id: string) => request<PreviewHints>(`/api/projects/${id}/timeline/preview-hints`, undefined, 120_000),
   startEditing: (id: string, fresh = false) => request<TimelineState>(`/api/projects/${id}/timeline/start${fresh ? "?fresh=true" : ""}`, { method: "POST" }),
   editorCatalog: () => request<{ transitions: string[]; effects: string[]; looks: { id: string; label: string; hint: string }[] }>("/api/editor/catalog"),
   editTimeline: (id: string, ops: object[], label?: string) =>
@@ -381,9 +408,10 @@ export const api = {
   // --- my trends (learned from reference Reels) ---
   references: () => request<LearnedTrend[]>("/api/references"),
   referenceReel: (id: string) => request<ReferenceReelInfo | null>(`/api/projects/${id}/reference-reel`),
-  setReferenceReel: (id: string, file: File) => {
+  setReferenceReel: (id: string, file: File, useAudio = true) => {
     const form = new FormData();
     form.append("file", file);
+    form.append("use_audio", useAudio ? "true" : "false");
     return upload<ReferenceReelInfo>(`/api/projects/${id}/reference-reel`, form);
   },
   removeReferenceReel: (id: string) => request<void>(`/api/projects/${id}/reference-reel`, { method: "DELETE" }),

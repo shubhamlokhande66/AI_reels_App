@@ -36,7 +36,7 @@ RECT_ROW_FRACTION = 0.6  # a "picture row" has this share of non-padding pixels
 RECT_MIN_AREA, RECT_MAX_AREA = 0.12, 0.93
 GOOD_WIDTH = 720  # content width (px) that looks fine on a 1080-wide canvas
 BLOCKING_WIDTH = 240  # narrower than this the picture is unusable at 1080 wide
-LOW_RES_WIDTH = 400
+LOW_RES_WIDTH = 540  # narrower than this looks soft on a 1080-wide Reel (e.g. WhatsApp-compressed clips)
 
 
 # --------------------------------------------------------------------------- metadata

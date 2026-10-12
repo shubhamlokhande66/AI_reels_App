@@ -1,13 +1,16 @@
 "use client";
 
+import { audioBlobUrl } from "@/lib/audioUrl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { checkFootage, readVideoSeconds, type FootageCheck } from "@/lib/footage";
 import { FootageGate } from "./FootageGate";
 import { ClipCheckPanel, FLAG_TEXT, clipCheck } from "./ClipCheckPanel";
 import { TaskLog, type LogLine, type TaskLogState } from "./TaskLog";
 import { Stepper } from "./Stepper";
 import { SongPartPicker } from "./SongPartPicker";
+import { BeatMap, PlanTable } from "./BeatMap";
+import { SongAnalysis } from "./SongAnalysis";
 import { ReferencePicker, ReferenceReel, ReferenceStatus } from "./ReferenceReel";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
@@ -21,7 +24,7 @@ import { ProgressBar } from "./ProgressStages";
 import { DurationSelector, OrderModeSelector, PaceSelector, SequenceSelector, StepOptions, StyleSelector, type PaceChoice } from "./StyleSelector";
 import { btnPrimary, btnSecondary, Card, ErrorBanner, Spinner } from "./ui";
 import { LocalVideo, VideoList } from "./VideoList";
-import { LANGUAGES, type Concept, type Language, type Project, type Sequence, type Template } from "@/types/api";
+import { LANGUAGES, type Concept, type Language, type MinClip, type Project, type Sequence, type Template } from "@/types/api";
 
 const AUDIO_MODES = [
   ["music", "Music only"],
@@ -43,7 +46,7 @@ const STEP_LABEL: Record<Step, string> = {
   starting: "Starting the render…",
 };
 // The create flow: 1 clips (checked before anything else), 2 the song (its part chosen), 3 style and generate.
-type Stage = "clips" | "song" | "rest";
+type Stage = "song" | "length" | "clips" | "rest"; // music first: the song decides the edit
 
 const CAPTION_STYLES = ["minimal", "bold", "karaoke", "highlight", "luxury"];
 
@@ -76,7 +79,7 @@ export function CreateReelForm() {
   videosRef2.current = videos;
   const [clipSeconds, setClipSeconds] = useState<Record<string, number | null>>({}); // read in the browser, nothing uploaded
   const [gate, setGate] = useState<FootageCheck | null>(null); // not enough footage: add clips or shorten, before anything is created
-  const [stage, setStage] = useState<Stage>("clips");
+  const [stage, setStage] = useState<Stage>("song");
   const [project, setProject] = useState<Project | null>(null); // the project once its clips were uploaded and checked
   const [songReady, setSongReady] = useState(false); // the song is uploaded, so its best parts can be shown
   const [log, setLog] = useState<TaskLogState | null>(null); // the live popup while clips / the song are checked
@@ -111,10 +114,25 @@ export function CreateReelForm() {
   const [reference, setReference] = useState("auto"); // edit like a learned trend: the AI picks one unless the user does
   const [templateId, setTemplateId] = useState("");
   const [refFile, setRefFile] = useState<File | null>(null);
+  const [refUseMusic, setRefUseMusic] = useState(true);
+  const [beatPlan, setBeatPlan] = useState(true); // cut exactly by the beat map's plan
+  const [everyBeat, setEveryBeat] = useState(true); // with the plan: a cut + transition on every beat
+  const [minClip, setMinClip] = useState<MinClip>(0.35); // with the plan: the shortest shot; faster beats are grouped
+  const [refMusic, setRefMusic] = useState<string | null>(null); // the reference Reel's music is the song (its name)
   const [refError, setRefError] = useState<string | null>(null); // "make it like this Reel": studied when the clips are checked
   const templates = useQuery({ queryKey: ["templates"], queryFn: api.templates });
   const brands = useQuery({ queryKey: ["brands"], queryFn: api.brands });
   const learned = useQuery({ queryKey: ["references"], queryFn: api.references });
+  // the song's beat map (step 1), fetched while the song is prepared; the audio plays from the file in the browser
+  const [songProjectId, setSongProjectId] = useState<string | null>(null); // the project, created when the song is added (step 1)
+  const pid = project?.id ?? songProjectId;
+  const beatMapQ = useQuery({ queryKey: ["beatMap", pid], queryFn: () => api.beatMap(pid!), enabled: songReady && !!pid, staleTime: Infinity });
+  const beatMap = audio ? beatMapQ.data : undefined;
+  // the song analysis document (librosa measurements: beats, onsets, frame features, events), made when the song is added
+  const analysisQ = useQuery({ queryKey: ["songAnalysis", pid], queryFn: () => api.songAnalysis(pid!), enabled: songReady && !!pid, staleTime: Infinity });
+  const songAnalysis = audio ? analysisQ.data : undefined;
+  const audioUrl = useMemo(() => (audio ? audioBlobUrl(audio) : ""), [audio]);
+  useEffect(() => () => { if (audioUrl) URL.revokeObjectURL(audioUrl); }, [audioUrl]);
   const trends = useTrends();
   const [step, setStep] = useState<Step>("idle");
   const [uploadPct, setUploadPct] = useState(0);
@@ -127,7 +145,7 @@ export function CreateReelForm() {
   const busy = step !== "idle";
   const needsMusic = audioMode === "music";
   const usesMusic = audioMode === "music" || audioMode === "voice_music"; // the song plays in these modes, so its part matters
-  const canSubmit = (videos.length > 0 || (project?.videos.length ?? 0) > 0) && (audio !== null || !needsMusic) && !busy;
+  const canSubmit = (videos.length > 0 || (project?.videos.length ?? 0) > 0) && (audio !== null || refMusic !== null || !needsMusic) && !busy;
   const canCheck = (videos.length > 0 || (project?.videos.length ?? 0) > 0) && !busy;
   const check = project ? clipCheck(project, duration, sequence === "talk") : null;
 
@@ -216,8 +234,10 @@ export function CreateReelForm() {
       if (refFile) {
         addLine(`Studying your reference Reel: ${refFile.name} (its cut timing, hook, beat sync and look)`);
         try {
-          const info = await api.setReferenceReel(id, refFile);
+          const info = await api.setReferenceReel(id, refFile, refUseMusic);
           qc.setQueryData(["reference-reel", id], info);
+          setRefMusic(info.usesAudio ? info.name : null);
+          if (info.usesAudio) addLine("Its music will be your song, from the same point, so the cuts match the original", "done");
           addLine(`Your Reel will follow it: ${info.shots} shots, ${info.hookSeconds ? `${info.hookSeconds.toFixed(1)} s hook` : "same hook"}`, "done");
           setRefFile(null);
         } catch (e) {
@@ -273,8 +293,8 @@ export function CreateReelForm() {
         setAudioMode("original");
         setStage("rest");
       } else if (verdict.passed) {
-        finishLog("ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}, about ${Math.round(f.footage)}s of footage. Next: your song.`);
-        setStage("song");
+        finishLog("ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}, about ${Math.round(f.footage)}s of footage. Next: style and generate.`);
+        setStage("rest");
       } else {
         const parts = [verdict.blocked.length ? `${verdict.blocked.length} clip${verdict.blocked.length === 1 ? " cannot" : "s cannot"} be used (remove or replace)` : "",
           f.ok ? "" : `about ${Math.ceil(f.needed - f.footage)}s more good footage is needed (add clips, or make the Reel ${f.fits}s)`].filter(Boolean);
@@ -299,7 +319,7 @@ export function CreateReelForm() {
       setProject(fresh);
       const verdict = clipCheck(fresh, duration, sequence === "talk");
       setGate(verdict.footage.ok ? null : verdict.footage);
-      if (verdict.passed) setStage("song");
+      if (verdict.passed && stage === "clips") setStage("rest");
     } catch (err) {
       setError({ message: errorMessage(err), code: (err as { code?: string }).code });
     }
@@ -312,8 +332,7 @@ export function CreateReelForm() {
     if (!project) return;
     const verdict = clipCheck(project, d, sequence === "talk");
     if (!verdict.footage.ok) setGate(verdict.footage);
-    if (!verdict.passed) setStage("clips");
-    else if (stage === "clips") setStage("song");
+    if (!verdict.passed && stage === "rest") setStage("clips");
     setAudioStart(null); // the best song part depends on the length
   }
 
@@ -331,13 +350,23 @@ export function CreateReelForm() {
     startLog("Preparing your song");
     try {
       const id = await ensureProject();
+      setSongProjectId(id);
       addLine("Uploading the song");
       setStep("audio");
       setBar(0, "song");
       await api.uploadAudio(id, file, (f) => setBar(f * 100));
       done.current.audio = true;
       setBar(null);
-      addLine("Detecting the tempo, the beats and the song's parts (intro, build, drop, chorus …)");
+      addLine("Analysing every beat: major beats, beats, sub-beats, build-ups, breakdowns, drops and the song's parts");
+      const map = await api.beatMap(id);
+      qc.setQueryData(["beatMap", id], map);
+      addLine(`${map.bpm} BPM · ${map.counts.major} major beats · ${map.counts.beat} beats · ${map.counts.sub} sub-beats · ${map.counts.drops} drops · ${map.counts.rises} build-ups · ${map.counts.falls} breakdowns`);
+      addLine("Song analysis (librosa): beats, onsets, frame features and events");
+      const analysis = await api.songAnalysis(id);
+      qc.setQueryData(["songAnalysis", id], analysis);
+      addLine(analysis.status === "completed"
+        ? `${analysis.tempo.bpm} BPM · ${analysis.beats.length} beats · ${analysis.sections.length} sections · ${analysis.candidate_events.length} events`
+        : `Song analysis failed: ${analysis.errors.join("; ")}`);
       const parts = await api.songParts(id, duration, 6);
       qc.setQueryData(["songParts", id, duration], parts);
       addLine(`${parts.bpm} BPM · ${parts.parts.length} good part${parts.parts.length === 1 ? "" : "s"} found for a ${duration}s Reel`);
@@ -346,7 +375,7 @@ export function CreateReelForm() {
         addLine(`Best part: ${formatDuration(best.start)} – ${formatDuration(best.end)} (${best.reasons.join(", ")})`);
         setAudioStart(best.start);
       }
-      finishLog("ok", parts.tooShort ? "The song is shorter than the Reel, so the whole song is used." : "Listen to it below, try the next part, or choose your own.");
+      finishLog("ok", "Explore the beat map below, then choose the Reel length.");
       setSongReady(true);
     } catch (err) {
       const msg = errorMessage(err);
@@ -376,7 +405,7 @@ export function CreateReelForm() {
     }
     setGate(null);
     try {
-      const settings = { duration, style, pace, concept, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, autoReview, soundEffects, deleteMediaAfterRender: deleteMedia, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) };
+      const settings = { duration, style, pace, concept, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, beatPlan: beatPlan && !!audio, cutEveryBeat: everyBeat, minClip, autoReview, soundEffects, deleteMediaAfterRender: deleteMedia, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) };
       if (!done.current.projectId) {
         setStep("creating");
         const p = await api.createProject(name.trim() || "Untitled Reel", settings);
@@ -455,44 +484,27 @@ export function CreateReelForm() {
         current={stage}
         onOpen={(id) => setStage(id as Stage)}
         steps={[
-          { id: "clips", title: "Length & clips", done: !!check?.passed,
-            summary: check?.passed ? `${duration}s Reel · ${project?.videos.filter((v) => !v.purged).length} clips · ${Math.round(check.footage.footage)}s of footage` : undefined },
-          { id: "song", title: "Song", done: stage === "rest" && (!usesMusic || (audio !== null && audioStart !== null)),
-            summary: audio && audioStart !== null ? `${formatDuration(audioStart)} – ${formatDuration(audioStart + duration)}` : !audio && stage === "rest" ? "no music" : undefined },
+          { id: "song", title: "Music", done: stage !== "song" && (songReady || !audio),
+            summary: audio && beatMap ? `${audio.name} · ${beatMap.bpm} BPM` : !audio && refMusic ? "the reference Reel's music" : !audio && stage !== "song" ? "no music" : undefined },
+          { id: "length", title: "Length", done: stage === "clips" || stage === "rest",
+            summary: stage === "clips" || stage === "rest" ? `${duration}s${audio && audioStart !== null ? ` · ${formatDuration(audioStart)} – ${formatDuration(audioStart + duration)}` : ""}` : undefined },
+          { id: "clips", title: "Clips", done: !!check?.passed,
+            summary: check?.passed ? `${project?.videos.filter((v) => !v.purged).length} clips · ${Math.round(check.footage.footage)}s of footage` : undefined },
           { id: "rest", title: "Style & generate", done: false },
         ]}
       />
 
       {stage === "clips" && (<>
-      <section>
-        <label htmlFor="project-name" className="mb-1.5 block text-sm font-medium">
-          Project name <span className="font-normal text-muted">(optional: you can rename it later)</span>
-        </label>
-        <input
-          id="project-name"
-          value={name}
-          maxLength={120}
-          disabled={busy}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Namora Luxury Reel"
-          className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
-        />
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">1 · Reel length</h2>
-        <DurationSelector value={duration} onChange={changeDuration} disabled={busy} />
-        <p className="text-xs text-muted">First the length: your clips are checked against it (is there enough footage?), then the song part is chosen to fit it.</p>
-      </section>
 
       {project ? (
         <ReferenceReel projectId={project.id} disabled={busy} initialError={refError} />
       ) : (
-        <ReferencePicker file={refFile} onFile={(f) => { setRefFile(f); setRefError(null); }} disabled={busy} />
+        <ReferencePicker file={refFile} onFile={(f) => { setRefFile(f); setRefError(null); }} disabled={busy}
+          useMusic={refUseMusic} onUseMusic={setRefUseMusic} />
       )}
 
       <section ref={videosRef} className="space-y-3">
-        <h2 className="text-sm font-medium">2 · Your clips</h2>
+        <h2 className="text-sm font-medium">3 · Your clips</h2>
         <p className="text-xs text-muted">Add your clips: they are uploaded and checked right away (light, sharpness, shake, resolution, length).</p>
         <Dropzone
           label="Drag & drop your clips here"
@@ -553,14 +565,19 @@ export function CreateReelForm() {
           onClose={() => setGate(null)}
         />
       )}
+      {stage === "clips" && (
+        <button type="button" className={`${btnSecondary} w-fit`} disabled={busy} onClick={() => setStage("length")}>
+          ‹ Back to length
+        </button>
+      )}
       {stage === "clips" && (videos.length > 0 || project) && !log && (
         <div className="space-y-2">
           <button type="button" className={btnSecondary} disabled={!canCheck} onClick={() => void checkClips()}>
             {busy ? "Working…" : "Check my clips again"}
           </button>
           <p className="text-xs text-muted">
-            Step 1 of 3: your clips are uploaded and checked (light, sharpness, shake, resolution, length) before you choose the
-            music. The check is done once; every Reel from these clips reuses it.
+            Step 3: your clips are uploaded and checked (light, sharpness, shake, resolution, length) against the Reel length. The
+            check is done once; every Reel from these clips reuses it.
           </p>
           {busy && (
             <div aria-live="polite">
@@ -575,9 +592,32 @@ export function CreateReelForm() {
 
       {stage === "song" && (
       <section className="space-y-3">
+        <section>
+        <label htmlFor="project-name" className="mb-1.5 block text-sm font-medium">
+          Project name <span className="font-normal text-muted">(optional: you can rename it later)</span>
+        </label>
+        <input
+          id="project-name"
+          value={name}
+          maxLength={120}
+          disabled={busy}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Namora Luxury Reel"
+          className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
+        />
+      </section>
         <h2 className="text-sm font-medium">
-          3 · Music {!needsMusic && <span className="font-normal text-muted">(optional for this audio mode)</span>}
+          1 · Music <span className="font-normal text-muted">(start here: every beat of the song is analysed, and the edit follows it)</span>
         </h2>
+        {refMusic && !audio && (
+          <Card className="space-y-1 border-accent/50">
+            <p className="text-sm font-medium"><span className="text-accent">♪</span> Using the music from “{refMusic}”</p>
+            <p className="text-xs text-muted">
+              Same song from the same point as the part being copied, so every cut lands where the original&apos;s does. Add your own
+              song below to use it instead.
+            </p>
+          </Card>
+        )}
         {audio ? (
           <Card className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -589,20 +629,24 @@ export function CreateReelForm() {
                 Remove music
               </button>
             </div>
-            {usesMusic ? (
-              songReady && project ? (
-                <SongPartPicker projectId={project.id} file={audio} seconds={duration} value={audioStart} onChange={setAudioStart} />
-              ) : (
-                <Spinner label="Uploading the song…" />
-              )
-            ) : (
-              <p className="border-t border-border pt-3 text-xs text-muted">This audio mode does not use the song, so there is no part to choose.</p>
-            )}
+            {songReady && beatMap && audioUrl ? (
+              <div className="border-t border-border pt-4">
+                <h3 className="mb-3 text-sm font-medium">Beat map: every beat, and the video effect it gets</h3>
+                <BeatMap data={beatMap} src={audioUrl} />
+              </div>
+            ) : null}
+            {songReady && songAnalysis && pid ? (
+              <div className="border-t border-border pt-4">
+                <SongAnalysis projectId={pid} data={songAnalysis} />
+              </div>
+            ) : !(songReady && beatMap && audioUrl) ? (
+              <Spinner label="Analysing every beat of the song…" />
+            ) : null}
           </Card>
         ) : (
           <Dropzone
             label="Drop your song here"
-            hint="MP3, WAV, M4A, AAC, OGG, FLAC"
+            hint="MP3, MPEG, WAV, M4A, AAC, OGG, OPUS, FLAC, AMR and more"
             accept={PICKER_AUDIO}
             disabled={busy}
             validate={isAudioFile}
@@ -616,22 +660,81 @@ export function CreateReelForm() {
             onPick={(file) => void pickSong(file)}
           />
         )}
-        {stage === "song" && (
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("clips")}>
-              ‹ Back
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" className={btnPrimary} disabled={busy || (!!audio && !songReady)} onClick={() => setStage("length")}>
+            Next: Reel length
+          </button>
+          {!audio && !refMusic && (
+            <button type="button" className="text-sm text-muted hover:underline" onClick={() => { setAudioMode("original"); setStage("length"); }}>
+              Continue without music (use the clips&apos; own sound)
             </button>
-            <button type="button" className={btnPrimary} disabled={busy || (usesMusic && (!audio || audioStart === null))} onClick={() => setStage("rest")}>
-              Next: style and generate
-            </button>
-            {usesMusic && audio && audioStart === null && <span className="text-xs text-muted">Choose a part of the song first (Use this part).</span>}
-            {!audio && (
-              <button type="button" className="text-sm text-muted hover:underline" onClick={() => { setAudioMode("original"); setStage("rest"); }}>
-                Continue without music (use the clips&apos; own sound)
-              </button>
-            )}
-          </div>
+          )}
+        </div>
+      </section>
+      )}
+
+      {stage === "length" && (
+      <section className="space-y-4">
+        <div className="space-y-3">
+          <h2 className="text-sm font-medium">2 · Reel length</h2>
+          <DurationSelector value={duration} onChange={changeDuration} disabled={busy} />
+          <p className="text-xs text-muted">The part of the song is chosen to fit this length; your clips are then checked against it.</p>
+        </div>
+        {audio && usesMusic && songReady && pid && (
+          <Card className="space-y-3">
+            <h3 className="text-sm font-medium">The part of the song</h3>
+            <SongPartPicker projectId={pid} file={audio} seconds={duration} value={audioStart} onChange={setAudioStart} />
+          </Card>
         )}
+        {audio && usesMusic && songReady && pid && audioStart !== null && (
+          <Card className="space-y-3">
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={beatPlan} disabled={busy} onChange={(e) => setBeatPlan(e.target.checked)} />
+              <span>
+                <span className="font-medium">Cut by the beat map</span>
+                <span className="block text-xs text-muted">
+                  Your Reel follows this plan exactly: a cut on its beats, impacts on the drop and strong hits, flashes on hard hits, a
+                  fade-in and a hero shot that fades out. Off: the AI director plans the cuts itself.
+                </span>
+              </span>
+            </label>
+            {beatPlan && (
+              <label className="flex cursor-pointer items-start gap-2 pl-6 text-sm">
+                <input type="checkbox" className="mt-1" checked={everyBeat} disabled={busy} onChange={(e) => setEveryBeat(e.target.checked)} />
+                <span>
+                  <span className="font-medium">A cut + transition on every beat</span>
+                  <span className="block text-xs text-muted">
+                    Every beat gets a new shot, and each transition lands exactly on its beat. Hits between beats get an instant
+                    flash, punch or pulse. Off: a cut every 1-2 beats with pulses in between (calmer).
+                  </span>
+                </span>
+              </label>
+            )}
+            {beatPlan && (
+              <label className="flex items-center gap-2 pl-6 text-sm">
+                <span className="font-medium">Shortest shot</span>
+                <select className="rounded-lg border border-border bg-surface px-2 py-1 text-sm" value={minClip} disabled={busy}
+                  onChange={(e) => setMinClip(Number(e.target.value) as MinClip)}>
+                  <option value={0.25}>0.25 s (fastest)</option>
+                  <option value={0.35}>0.35 s</option>
+                  <option value={0.4}>0.40 s</option>
+                  <option value={0.6}>0.60 s (calmer)</option>
+                </select>
+                <span className="text-xs text-muted">Beats faster than this are grouped: no cut is shorter.</span>
+              </label>
+            )}
+            {beatPlan && <ChosenPartPlan projectId={pid} start={audioStart} seconds={duration} everyBeat={everyBeat} minClip={minClip} />}
+          </Card>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("song")}>
+            ‹ Back
+          </button>
+          <button type="button" className={btnPrimary} disabled={busy || (usesMusic && !!audio && audioStart === null)} onClick={() => setStage(check?.passed ? "rest" : "clips")}>
+            Next: your clips
+          </button>
+          {usesMusic && audio && audioStart === null && <span className="text-xs text-muted">Choose a part of the song first (Use this part).</span>}
+        </div>
       </section>
       )}
 
@@ -936,7 +1039,7 @@ export function CreateReelForm() {
         )}
         {stage === "rest" && (
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("song")}>
+            <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("clips")}>
               ‹ Back
             </button>
             <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>
@@ -949,5 +1052,26 @@ export function CreateReelForm() {
         )}
       </div>
     </form>
+  );
+}
+
+/** The cut plan for the chosen part of the song (Reel time, from 0:00). */
+function ChosenPartPlan({ projectId, start, seconds, everyBeat, minClip }: { projectId: string; start: number; seconds: number; everyBeat: boolean; minClip: MinClip }) {
+  const q = useQuery({ queryKey: ["beatPlan", projectId, start, seconds, everyBeat, minClip], queryFn: () => api.beatPlan(projectId, start, seconds, everyBeat, minClip), staleTime: Infinity });
+  if (q.isLoading) return <Spinner label="Planning the cuts…" />;
+  if (!q.data) return null;
+  const cuts = q.data.rows.filter((r) => r.kind === "cut").length;
+  const flashes = q.data.rows.filter((r) => r.kind === "flash").length;
+  const close = q.data.rows.filter((r) => r.kind === "ramp" || r.kind === "zoom").length;
+  const punches = q.data.rows.filter((r) => r.kind === "hit").length;
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted">
+        Your {seconds}s Reel: {cuts} shots, {flashes} flash{flashes === 1 ? "" : "es"}
+        {close ? `, ${close} speed ramp${close === 1 ? "" : "s"} / quick zooms on hits right next to a cut` : ""}
+        {punches ? `, ${punches} punch${punches === 1 ? "" : "es"} on the small hits` : ""}: every beat and every hit is marked. Times are from the start of the Reel.
+      </p>
+      <PlanTable rows={q.data.rows} offset={start} />
+    </div>
   );
 }

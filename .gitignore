@@ -13,3 +13,9 @@ reels/
 
 # production secrets (the .example file is committed)
 .env.production
+
+# local dev server output
+*.log.err
+
+# local test songs (copyrighted music, large files)
+songs/

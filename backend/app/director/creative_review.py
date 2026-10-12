@@ -161,10 +161,12 @@ def review_edit(tl: Timeline, clips: list[ClipInput], mm: MusicMap | None, *, br
     cat["diversity"] = max(0.0, min(used_share, 1.0) - 0.15 * rep)
 
     # beat alignment
-    cuts = cut_points(tl)
+    from app.video.timeline import beat_distance, cut_moments
+
+    cuts = cut_moments(tl)  # a cut is on the beat when it starts or lands on it (a transition timed to land on the beat)
     if mm is not None and mm.beats and cuts:
         snap = mm.snap_points
-        on = sum(1 for c in cuts if min(abs(c - b) for b in snap) <= BEAT_TOLERANCE)
+        on = sum(1 for c in cuts if beat_distance(c, snap) <= BEAT_TOLERANCE)
         cat["beat"] = on / len(cuts)
     else:
         cat["beat"] = 0.7  # no detectable beat: a visually paced edit, judged neutrally

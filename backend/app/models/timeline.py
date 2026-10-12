@@ -23,6 +23,38 @@ def new_id() -> str:
     return uuid4().hex[:12]
 
 
+Ease = Literal["linear", "ease_in", "ease_out", "ease_in_out", "hold"]
+KEYFRAME_PROPS = ("zoom", "x", "y", "rotation", "opacity", "blur", "brightness", "speed")
+
+
+class Keyframe(CamelModel):
+    """One moment of a shot's animation (video/keyframes.py). Every property is its own track: a keyframe sets only the
+    properties it names, and each track moves from one of its keyframes to the next with the easing of the later one.
+
+    - ``zoom``: 1 = the framed picture, 1.2 = 20% closer (1..3)
+    - ``x`` / ``y``: where the zoomed window sits, -1 (left / top edge of the picture) .. 1 (right / bottom); 0 = centre.
+      Measured in the room the zoom leaves, so the picture's edge never shows
+    - ``rotation``: degrees (-20..20); the picture is enlarged just enough that its corners never show
+    - ``opacity``: 1 = fully visible, 0 = black
+    - ``blur``: 0 = sharp .. 1 = very soft
+    - ``brightness``: added light, -0.5 (darker) .. 0.5 (a flash)
+    - ``speed``: playback speed (a speed ramp), 0.25 (slow motion) .. 4 (fast); the shot's footage follows it
+    - ``ease``: how the tracks arrive at this keyframe: linear, ease_in (slow start), ease_out (slow end), ease_in_out,
+      hold (stay at the previous value, then jump here)
+    """
+
+    t: float  # seconds into the shot (outside the shot is moved into it by video/keyframes.validate)
+    zoom: float | None = None
+    x: float | None = None
+    y: float | None = None
+    rotation: float | None = None
+    opacity: float | None = None
+    blur: float | None = None
+    brightness: float | None = None
+    speed: float | None = None
+    ease: Ease = "linear"
+
+
 class Transition(CamelModel):
     """How a segment is entered from the previous one. ``cut`` has zero duration."""
 
@@ -48,6 +80,11 @@ class Segment(CamelModel):
     timeline_end: float
     speed: float = 1.0  # <1 = slow motion. source span = timeline span * speed
     effect: str = "none"
+    # keyframe animation of the shot (video/keyframes.py). When it animates zoom / position / rotation it replaces the
+    # effect's own movement; ``looks`` are colour looks laid on top (glow, black_white, vignette...), so a look and a
+    # movement can be combined
+    keyframes: list[Keyframe] = []
+    looks: list[str] = []
     focus_x: float = 0.5
     focus_y: float = 0.5
     focus_source: str = "center"  # face | subject | motion | center
@@ -164,6 +201,7 @@ class Timeline(CamelModel):
     music_volume: float = 1.0
     music_fade_in: float | None = None  # None = the style's default
     music_fade_out: float | None = None
+    picture_fade: float | None = None  # fade from / to black at the start / end (s); None = the style's own
     voice: VoiceTrack | None = None
     watermark: Watermark | None = None
     caption_font: str | None = None  # brand override (font family name)

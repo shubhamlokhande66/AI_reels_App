@@ -152,3 +152,83 @@ def test_one_huge_hit_does_not_make_every_other_hit_look_weak():
     assert len(times) > 60  # the pulse is still found
     assert sum(1 for x in strengths if x >= 0.55) > 60  # and counts as strong (relative to a typical strong hit)
     assert max(strengths) == 1.0
+
+
+# ------------------------------------------------------------------ half time: the tracker kept every second beat
+def test_half_time_beats_are_added_only_where_the_music_hits_between_them():
+    """The tracker kept every second beat. A quiet intro has nothing in between (keep its beats as they are); later the
+    music hits between them, and those skipped beats are added at the hit itself, not at the computed middle."""
+    import librosa
+    import numpy as np
+
+    from app.audio.beat_detector import HOP, _fill_half_time
+
+    sr = 22050
+    beats = np.arange(1.0, 20.0, 0.86)  # what the tracker kept: ~70 BPM
+    frame = lambda t: int(librosa.time_to_frames(t, sr=sr, hop_length=HOP))  # noqa: E731
+    env = np.full(frame(22.0), 0.7)
+    for b in beats:
+        env[frame(b)] = 8.7
+        if b >= 10.0:  # from 10 s: a snare between the beats, a little after the middle
+            env[frame(b + 0.45)] = 3.4
+    filled = _fill_half_time(beats, env, sr)
+    added = sorted(set(np.round(filled, 3)) - set(np.round(beats, 3)))
+    assert added and all(t > 10.0 for t in added)  # nothing invented in the quiet part
+    assert all(any(abs(t - (b + 0.45)) < 0.03 for b in beats) for t in added)  # on the real hit
+    assert len(added) == sum(1 for b in beats[:-1] if b >= 10.0)
+    quiet = np.full(frame(22.0), 0.7)
+    quiet[[frame(b) for b in beats]] = 8.7
+    assert len(_fill_half_time(beats, quiet, sr)) == len(beats)  # a slow song with nothing between: unchanged
+
+
+def test_bpm_and_beat_grid_agree():
+    """The BPM reported is the spacing of the beats listed (a half-time grid used to say 139 BPM with 70 BPM beats)."""
+    import numpy as np
+
+    from tests.conftest import make_click_track
+
+    def check(path, bpm):
+        make_click_track(path, bpm=bpm, seconds=20)
+        a = analyze_audio(path)
+        grid = 60 / float(np.median(np.diff(a.beats)))
+        assert abs(grid - a.bpm) / a.bpm < 0.05, (bpm, a.bpm, grid)
+
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as d:
+        check(Path(d) / "a.wav", 140)
+        check(Path(d) / "b.wav", 75)
+
+
+def test_bar_starts_and_strong_beats_come_from_the_kick_chords_and_bass():
+    """audio/accents.py on a 4/4 song with a pickup (it starts on beat 3): the bar starts are found, sure; strong beats
+    are about 1 in 4 and include the bar starts; levels follow the bar (bar start, backbeat, other)."""
+    from app.audio import accents
+    from tests.bar_song import SR, bar_song
+
+    y, downs, beats = bar_song(pickup=2)
+    r = accents.analyze(y, SR, beats)
+    found = sum(any(abs(d - x) < 0.03 for x in r.downbeats) for d in downs)
+    assert found == len(downs) and r.downbeat_confidence >= 0.6
+    assert 0.18 <= len(r.strong_beats) / len(beats) <= 0.35
+    assert sum(any(abs(s - d) < 0.03 for d in downs) for s in r.strong_beats) >= len(downs) // 2
+    assert r.levels[2] in (3, 4) and r.levels[3] == 2 and r.levels[0] == 1  # beat 3 of the pickup, then bar 1, beat 2
+    assert len(r.levels) == len(r.kick) == len(beats)
+
+
+def test_beats_are_moved_onto_the_real_hits_and_weak_beats_are_not_medium():
+    import numpy as np
+
+    from app.audio.accents import analyze, snap_to_hits
+    from tests.bar_song import SR, bar_song
+
+    y, downs, beats = bar_song(120, 16, 0)
+    off = np.asarray(beats) + 0.025  # a tracker's grid, 25 ms late
+    exact, clear = snap_to_hits(y, SR, off)
+    err = np.abs(exact - np.asarray(beats))
+    assert clear.mean() > 0.9 and float(np.median(err[1:])) < 0.003 and float(err[1:].max()) < 0.012  # well inside one video frame (33 ms)
+    acc = analyze(y, SR, list(off))
+    assert acc.beats and abs(acc.beats[4] - beats[4]) < 0.006
+    strong, medium = set(acc.strong_beats), set(acc.medium_beats or [])
+    assert not strong & medium and len(strong) + len(medium) < len(beats)  # weak beats are neither

@@ -122,7 +122,7 @@ async def submit(project_id: str, job_type: str, req: GenerateRequest | None = N
     seed = 0
     if req is not None:
         for field, key in (("style", "style"), ("pace", "pace"), ("sequence", "sequence"), ("teaser", "teaser"), ("step_labels", "stepLabels"), ("order_mode", "orderMode"), ("export_preset", "exportPreset"), ("brief", "brief"), ("audio_mode", "audioMode"), ("language", "language"), ("duration", "duration"), ("audio_start", "audioStart"), ("captions", "captions"),
-                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("auto_review", "autoReview"), ("sound_effects", "soundEffects"), ("trend_id", "trendId"), ("reference", "reference"), ("concept", "concept"),
+                           ("caption_style", "captionStyle"), ("ai", "ai"), ("ai_director", "aiDirector"), ("beat_plan", "beatPlan"), ("cut_every_beat", "cutEveryBeat"), ("min_clip", "minClip"), ("auto_review", "autoReview"), ("sound_effects", "soundEffects"), ("trend_id", "trendId"), ("reference", "reference"), ("concept", "concept"),
                            ("objective", "objective"), ("audience", "audience")):  # fmt: skip
             v = getattr(req, field)
             if v is not None:
@@ -412,7 +412,7 @@ async def _finish_render(job_id, project_oid, inp, result: pl.PipelineResult, re
         "kind": inp.kind, "timelineVersion": proj.get("timelineVersion", 1),
         "duration": round(r.duration, 3), "width": r.width, "height": r.height, "size": r.size,
         "storedKey": result.output_key, "label": label, "timeline": result.timeline.to_doc(),
-        "settings": inp.settings.to_doc(), "postCopy": None, "createdAt": now,
+        "settings": inp.settings.to_doc(), "postCopy": None, "createdAt": now, "check": result.render_check,
     })  # fmt: skip
     update: dict[str, Any] = {"updatedAt": now, "error": None, "status": prior_status}
     if inp.kind == "preview":

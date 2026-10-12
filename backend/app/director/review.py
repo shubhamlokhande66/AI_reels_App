@@ -210,9 +210,12 @@ def review_timeline(
     out.append(Check("No extreme speed changes", not bad, f"{len(bad)} shot(s) outside {SPEED_RANGE[0]}x-{SPEED_RANGE[1]}x" if bad else ""))
 
     if mm and mm.beats:
+        from app.video.timeline import beat_distance, cut_moments
+
         cuts = cut_points(tl)
         snap = mm.snap_points  # beats plus real strong accents: how a professional edit is actually judged "on the beat"
-        worst = max((min(abs(c - b) for b in snap) for c in cuts), default=0.0)
+        # a cut is on the beat when it starts or lands on it (a transition may be timed to land on the beat)
+        worst = max((beat_distance(m, snap) for m in cut_moments(tl)), default=0.0)
         out.append(Check("Cuts land on the beat or a strong accent", worst <= BEAT_TOLERANCE, f"worst cut is {worst * 1000:.0f} ms away"))
         out.append(energy_check(tl, mm, pace, steps=steps_order is not None))
         strong = [c for c in cuts if mm.level_at(c) >= 3]

@@ -207,24 +207,29 @@ def plan_slots(audio: AudioAnalysis, audio_start: float, duration: float, style:
 
 
 def reference_cuts(ref_cuts: list[float], ref_duration: float, duration: float) -> list[float]:
+    return reference_window(ref_cuts, ref_duration, duration)[1]
+
+
+def reference_window(ref_cuts: list[float], ref_duration: float, duration: float) -> tuple[float, list[float]]:
+    """(where in the reference the copied stretch starts, its cut times from there). See ``reference_cuts``."""
+    return _window_offset(ref_cuts, ref_duration, duration), _reference_cuts(ref_cuts, ref_duration, duration)
+
+
+def _window_offset(ref_cuts: list[float], ref_duration: float, duration: float) -> float:
+    inner = [c for c in ref_cuts if 0 < c < ref_duration]
+    if not (ref_duration > duration * 1.2 and inner):
+        return 0.0
+    return _best_start(inner, ref_duration, duration)
+
+
+def _reference_cuts(ref_cuts: list[float], ref_duration: float, duration: float) -> list[float]:
     """The reference's cut times over ``duration`` seconds at their real speed: its most typical stretch (a longer
     reference), or its pattern repeated (a shorter one)."""
     inner = [c for c in ref_cuts if 0 < c < ref_duration]
     if ref_duration > duration * 1.2 and inner:
         # a longer reference: the stretch of it that cuts most like the reference as a whole (its typical rhythm),
         # not just its opening (a long intro shot would leave one shot for a short Reel)
-        bounds = [0.0, *inner, ref_duration]
-        shots = sorted(b - a for a, b in zip(bounds, bounds[1:]))
-        typical = shots[len(shots) // 2]  # the reference's median shot length
-
-        def score(st: float) -> float:
-            cs = [c - st for c in inner if st < c < st + duration - 0.2]
-            lens = [b - a for a, b in zip([0.0, *cs], [*cs, duration])]
-            # every shot in the stretch close to the reference's typical shot (log scale: 2x too long = 2x too short)
-            return sum(abs(math.log(max(x, 0.05) / typical)) for x in lens) / len(lens)
-
-        starts = [0.0] + [c for c in inner if c <= ref_duration - duration]
-        best = min(starts, key=lambda st: (round(score(st), 3), st))
+        best = _best_start(inner, ref_duration, duration)
         return [round(c - best, 3) for c in inner if best < c < best + duration - 0.2]
     pattern = inner + [ref_duration]  # the end of the reference starts its next round
     out: list[float] = []
@@ -239,8 +244,23 @@ def reference_cuts(ref_cuts: list[float], ref_duration: float, duration: float) 
     return out
 
 
+def _best_start(inner: list[float], ref_duration: float, duration: float) -> float:
+    """Where the reference's most typical ``duration``-second stretch starts."""
+    bounds = [0.0, *inner, ref_duration]
+    shots = sorted(b - a for a, b in zip(bounds, bounds[1:]))
+    typical = shots[len(shots) // 2]  # the reference's median shot length
+
+    def score(st: float) -> float:
+        cs = [c - st for c in inner if st < c < st + duration - 0.2]
+        lens = [b - a for a, b in zip([0.0, *cs], [*cs, duration])]
+        # every shot in the stretch close to the reference's typical shot (log scale: 2x too long = 2x too short)
+        return sum(abs(math.log(max(x, 0.05) / typical)) for x in lens) / len(lens)
+    starts = [0.0] + [c for c in inner if c <= ref_duration - duration]
+    return min(starts, key=lambda st: (round(score(st), 3), st))
+
+
 def template_slots(audio: AudioAnalysis, audio_start: float, duration: float, ref_cuts: list[float], ref_duration: float,
-                   on_beat: float | None, style: EditingStyle) -> list[Slot]:  # fmt: skip
+                   on_beat: float | None, style: EditingStyle, same_song: bool = False) -> list[Slot]:  # fmt: skip
     """"Make it like this Reel": the reference Reel's own cut timing, shot by shot, at its real speed (not squeezed or
     stretched): a longer reference gives its first ``duration`` seconds, a shorter one repeats its pattern. When the
     reference cuts on the beat, every cut moves onto this song's nearest beat. Shot 1 keeps the reference's hook."""
@@ -251,7 +271,7 @@ def template_slots(audio: AudioAnalysis, audio_start: float, duration: float, re
         return plan_slots(audio, audio_start, duration, style)
     beats = [b - audio_start for b in audio.beats if audio_start <= b <= audio_start + duration]
     period = 60.0 / audio.bpm if audio.bpm > 0 else 0.5
-    snap = on_beat is not None and on_beat >= 0.5 and len(beats) >= 2
+    snap = on_beat is not None and on_beat >= 0.5 and len(beats) >= 2 and not same_song
     strong_rel = {round(b - audio_start, 3) for b in audio.strong_beats}
     out: list[float] = []
     for c in cuts:
@@ -591,6 +611,10 @@ def add_accent_hits(segments: list[Segment], audio: AudioAnalysis, audio_start: 
     return added
 
 
+def _usable(c: ClipInput) -> float:
+    return usable_footage_seconds([c])
+
+
 def usable_footage_seconds(clips: list[ClipInput]) -> float:
     """Seconds of footage the selector can actually draw from (usable windows only)."""
     pool = [c for c in clips if c.analysis.usable] or clips
@@ -608,9 +632,13 @@ def build_timeline(
     brief: str = "",
     audio_start: float | None = None,
     template: dict | None = None,
+    beat_plan: bool = False,
+    every_beat: bool = False,
+    min_clip: float | None = None,
 ) -> Timeline:
     """``template``: a reference Reel to cut like ({"cuts", "seconds", "on_beat_share"}): its shot timing replaces the
-    beat/energy-planned one (see template_slots)."""
+    beat/energy-planned one (see template_slots). ``beat_plan``: cut exactly by the song's beat map plan
+    (audio/beatmap.cut_plan): its cuts, each shot's effect and transition, and flashes on hard hits between beats."""
     if not clips:
         raise ValueError("At least one clip is required to build a timeline.")
     rng = random.Random(seed)
@@ -622,14 +650,33 @@ def build_timeline(
             f"You provided about {footage:.0f}s of usable footage for a {eff:g}s Reel, so some moments will repeat. "
             "Add more clips or choose a shorter duration."
         )
+    plan_rows: list[dict] = []
     if template and template.get("cuts"):
-        slots = template_slots(audio, audio_start, eff, template["cuts"], template.get("seconds") or eff, template.get("on_beat_share"), style)
+        slots = template_slots(audio, audio_start, eff, template["cuts"], template.get("seconds") or eff, template.get("on_beat_share"), style,
+                               same_song=bool(template.get("use_audio")))  # fmt: skip
+    elif beat_plan:
+        from app.audio.beatmap import cut_plan
+
+        # distinct moments the footage can give (every-beat cutting takes shorter pieces of each clip)
+        moments = sum(max(1, int(_usable(c) / (0.6 if every_beat else 1.6))) for c in clips)
+        plan_rows = cut_plan(audio, start=audio_start, end=audio_start + eff, max_shots=max(moments, 3), every_beat=every_beat,
+                             **({"min_shot": min_clip} if min_clip else {}))
+        slots = plan_rows_to_slots(audio, audio_start, eff, plan_rows)
     else:
         slots = plan_slots(audio, audio_start, eff, style)
     segments = select_segments(slots, clips, style, rng, order_hint, warnings, brief)
     assign_effects(segments, slots, style, rng)
     assign_transitions(segments, slots, style, rng)
-    accents_added = add_accent_hits(segments, audio, audio_start, style.closing == "reveal") if style.accent_hits else 0
+    motion_notes: list[str] = []
+    if plan_rows:
+        seconds = {c.clip_id: c.analysis.metadata.duration for c in clips}
+        apply_plan(segments, plan_rows, audio_start, seconds)
+        from app.director.plan_motion import add_motion  # keyframes and speed ramps from the music
+
+        motion_notes = add_motion(segments, audio, audio_start, seconds)
+        accents_added = 0
+    else:
+        accents_added = add_accent_hits(segments, audio, audio_start, style.closing == "reveal") if style.accent_hits else 0
     for seg in segments:  # ids come from the seeded RNG so the same seed gives an identical timeline
         seg.id = f"{rng.getrandbits(48):012x}"
     return Timeline(
@@ -639,12 +686,123 @@ def build_timeline(
         style=style.id,
         segments=segments,
         warnings=warnings,
-        notes=[f"The picture answers {accents_added} strong hits in the music (a quick punch on the beat)."] if accents_added else [],
+        notes=([f"The picture answers {accents_added} strong hits in the music (a quick punch on the beat)."] if accents_added else []) + motion_notes,
     )
+
+
+def plan_rows_to_slots(audio: AudioAnalysis, audio_start: float, duration: float, rows: list[dict]) -> list[Slot]:
+    """The beat map plan's shots (song time) as slots in Reel time."""
+    cuts = [round(r["t"] - audio_start, 3) for r in rows if r["kind"] == "cut" and r["transition"] != "fade_in"]
+    bounds = [0.0, *[c for c in cuts if 0.2 <= c <= duration - 0.2], round(float(duration), 3)]
+    strong = {round(b - audio_start, 3) for b in audio.strong_beats}
+    return [Slot(k, a, b, audio.mean_energy(audio_start + a, audio_start + b), round(a, 3) in strong)
+            for k, (a, b) in enumerate(zip(bounds, bounds[1:]))]  # fmt: skip
+
+
+def apply_plan(segments: list[Segment], rows: list[dict], audio_start: float, clip_seconds: Mapping[str, float] | None = None) -> None:
+    """Each shot gets the plan's effect and way in; a hard hit inside a shot gets a flash (the shot is split there, the
+    same footage carrying on, so the flash lands on the hit). The plan's shots are locked: reviews keep them."""
+    shots = [r for r in rows if r["kind"] == "cut"]
+    for seg in segments:
+        t = seg.timeline_start + audio_start
+        row = min(shots, key=lambda r: abs(r["t"] - t)) if seg.timeline_start > 0.01 else shots[0]
+        seg.effect = row["effect"] if row["effect"] != "none" else seg.effect if row["transition"] == "fade_in" else "none"
+        if seg.timeline_start > 0.01 and row["transition"] not in ("fade_in", "cut", ""):
+            seg.transition_in = Transition(type=row["transition"], duration=float(row.get("tdur") or 0.2))
+        elif seg.timeline_start > 0.01:
+            seg.transition_in = Transition(type="cut", duration=0.0)
+        seg.locked = True
+    land_on_beat(segments, clip_seconds or {})
+    for r in rows:  # hard hits too close to a cut for a piece of their own: a speed ramp into the cut, or a zoom out of it
+        at = round(r["t"] - audio_start, 3)
+        if r["kind"] == "ramp":
+            k = next((k for k, s in enumerate(segments) if s.timeline_start > at), None)
+            if k is not None and segments[k].transition_in.type == "cut":
+                segments[k].transition_in = Transition(type="speed_ramp", duration=round(max(segments[k].timeline_start - at, 0.12), 3))
+        elif r["kind"] == "zoom":
+            k = next((k for k in range(len(segments) - 1, -1, -1) if segments[k].timeline_start < at), None)
+            if k is not None and segments[k].effect in ("none", "zoom_in", "zoom_pulse"):
+                segments[k].effect = "punch"  # a sharp punch-in on the new shot (a zoom transition would blur it)
+    for r in rows:
+        if r["kind"] != "flash":
+            continue
+        at = round(r["t"] - audio_start, 3)
+        from app.audio.beatmap import FLASH_MARGIN
+
+        i = next((k for k, s in enumerate(segments) if s.timeline_start + FLASH_MARGIN <= at <= s.timeline_end - FLASH_MARGIN), None)
+        if i is None:
+            continue
+        seg = segments[i]
+        first = seg.model_copy(deep=True)
+        second = seg.model_copy(deep=True)
+        span = at - seg.timeline_start
+        first.timeline_end = at
+        first.source_end = round(seg.source_start + span * seg.speed, 3)
+        second.timeline_start = at
+        second.source_start = first.source_end
+        second.effect = "beat_flash"
+        second.transition_in = Transition(type="cut", duration=0.0)
+        second.id = f"{seg.id}f"
+        segments[i:i + 1] = [first, second]
+
+
+def land_on_beat(segments: list[Segment], clip_seconds: Mapping[str, float]) -> None:
+    """A blending transition runs from the boundary for its duration, so on its own the new shot arrives late. Move
+    each boundary earlier so the transition lands on the beat: it ends on the beat (the new shot arrives on the hit),
+    and a flash peaks on it (half its length before). The shot that comes in plays a little longer (its footage runs
+    on; if the clip has no more, the transition is shortened)."""
+    for i in range(1, len(segments)):
+        prev, seg = segments[i - 1], segments[i]
+        t = seg.transition_in
+        if t.type in ("cut", "speed_ramp") or t.duration <= 0:
+            continue
+        flash = t.type == "flash"
+        # a transition may last at most 40% of the shorter shot it joins (review._tidy_transitions); moving the cut
+        # earlier shortens the previous shot, so stay inside that from the start: nothing gets trimmed later
+        prev_len, seg_len = prev.timeline_end - prev.timeline_start, seg.timeline_end - seg.timeline_start
+        want = min(t.duration, 0.4 * seg_len) / (2 if flash else 1)
+        room_prev = 0.4 * prev_len / (1.8 if flash else 1.4) - 0.005
+        spd = max(seg.speed, 0.01)
+        after = (clip_seconds.get(seg.clip_id, 1e9) - seg.source_end) / spd  # footage left after the piece
+        before = seg.source_start / spd  # or before it
+        from_before = after < min(want, room_prev) and before > after
+        shift = round(max(0.0, min(want, room_prev, before if from_before else after)), 3)
+        if shift < 0.06:  # no room to start early: a hard cut, exactly on the beat
+            seg.transition_in = Transition(type="cut", duration=0.0)
+            continue
+        if shift < want:  # less room: a shorter transition, still ending on the beat
+            seg.transition_in = Transition(type=t.type, duration=round(shift * 2 if t.type == "flash" else shift, 3))
+        prev.timeline_end = round(prev.timeline_end - shift, 3)
+        prev.source_end = round(prev.source_end - shift * prev.speed, 3)
+        seg.timeline_start = round(seg.timeline_start - shift, 3)
+        if from_before:  # the clip has no more footage after the piece: start it a little earlier in the clip instead
+            seg.source_start = round(seg.source_start - shift * seg.speed, 3)
+        else:
+            seg.source_end = round(seg.source_end + shift * seg.speed, 3)
 
 
 def cut_points(timeline: Timeline) -> list[float]:
     return [s.timeline_start for s in timeline.segments[1:]]
+
+
+def cut_moments(timeline: Timeline) -> list[tuple[float, float]]:
+    """Each cut as (start, landing): where the next shot begins, and where its transition lands (its end; a flash at
+    its peak, half-way; a hard cut or speed ramp lands where it starts). An edit may put either on the beat: a
+    transition that starts on the beat, or one that starts early so it lands on it (the beat-map plan's way,
+    video/timeline.land_on_beat). Both are on the beat."""
+    out = []
+    for s in timeline.segments[1:]:
+        t = s.transition_in
+        if t.type in ("cut", "speed_ramp") or t.duration <= 0:
+            out.append((s.timeline_start, s.timeline_start))
+        else:
+            out.append((s.timeline_start, round(s.timeline_start + (t.duration / 2 if t.type == "flash" else t.duration), 4)))
+    return out
+
+
+def beat_distance(moment: tuple[float, float], points: list[float]) -> float:
+    """How far a cut is from the beat: the nearer of its start and its landing (see cut_moments)."""
+    return min(min(abs(m - b) for b in points) for m in moment) if points else 0.0
 
 
 def nearest_beat_error(timeline: Timeline, audio: AudioAnalysis) -> float:

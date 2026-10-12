@@ -28,7 +28,7 @@ from app.video.analyzer import parse_video_probe
 log = logging.getLogger(__name__)
 
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
-AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac"}
+AUDIO_EXTS = {".mp3", ".mpeg", ".mpga", ".mp2", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", ".amr", ".wma", ".aif", ".aiff", ".caf", ".weba"}  # all decoded by FFmpeg (.mpeg audio, WhatsApp .opus, Android .amr, iPhone .caf)
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 MIN_IMAGE_SIDE = 400  # below this a photo cannot be zoomed into without turning soft
 CHUNK = 1024 * 1024

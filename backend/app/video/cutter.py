@@ -6,13 +6,17 @@ to the output size with its zoom effect, constant frame-rate. The composer then 
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.core.errors import RenderTimeout
 from app.core.ffmpeg import run_ffmpeg
 from app.models.timeline import Segment
 from app.video import transitions as tr
 from app.video.cropper import Focus, get_crop_strategy
+
+log = logging.getLogger(__name__)
 
 ZOOM_AMOUNT = 0.08  # 8% push-in / pull-out over a shot
 PUNCH_AMOUNT = 0.10
@@ -31,8 +35,10 @@ FLASH_STRENGTH = 0.55
 FLASH_SECONDS = 0.2
 HIT_PULSE_AMOUNT = 0.045  # zoom_pulse: a small push on every strong hit of the song
 HIT_PULSE_DECAY = 0.2
-HIT_PUNCH_AMOUNT = 0.09  # beat_punch: a clear punch on every hit
+HIT_PUNCH_AMOUNT = 0.06  # beat_punch: a clear but gentle punch on every hit
 HIT_PUNCH_DECAY = 0.16
+STUTTER_AMOUNT = 0.05  # beat_stutter: a quick punch on every fast hit (a roll into a drop)
+STUTTER_DECAY = 0.08  # shorter than the gap between hits 0.12-0.15 s apart, so each punch is seen on its own
 HIT_FLASH_STRENGTH = 0.28  # beat_flash: a light pop on every hit
 HIT_FLASH_DECAY = 0.12
 MAX_HITS = 40  # per shot (FFmpeg expression length)
@@ -119,7 +125,9 @@ def zoom_expression(effect: str, length: float, hits: tuple[float, ...] = ()) ->
     d = max(length, 0.1)
     if effect == "zoom_pulse" and hits:
         return f"(1+{HIT_PULSE_AMOUNT}*{_hit_envelope(hits, HIT_PULSE_DECAY)})"
-    if effect == "beat_punch":
+    if effect == "beat_stutter" and hits:
+        return f"(1+{STUTTER_AMOUNT}*{_hit_envelope(hits, STUTTER_DECAY)})"
+    if effect in ("beat_punch", "beat_stutter"):
         if hits:
             return f"(1+{HIT_PUNCH_AMOUNT}*{_hit_envelope(hits, HIT_PUNCH_DECAY)})"
         effect = "punch"
@@ -134,7 +142,9 @@ def zoom_expression(effect: str, length: float, hits: tuple[float, ...] = ()) ->
     if effect == "zoom_pulse":  # a small rhythmic pulse for the whole shot, not a one-off hit
         return f"(1+{PULSE_AMOUNT}*(0.5+0.5*sin(2*PI*t/{PULSE_PERIOD})))"
     if effect == "crash_zoom":  # a fast zoom in over the first moment, then holds (a "snap" onto the subject)
-        return f"(1+{CRASH_AMOUNT}*min(t/{CRASH_SECONDS},1))"
+        crash = f"(1+{CRASH_AMOUNT}*min(t/{CRASH_SECONDS},1))"
+        # with hits (a beat-map Reel), the held shot still punches on each hit after the snap
+        return f"{crash}*(1+{STUTTER_AMOUNT}*{_hit_envelope(hits, STUTTER_DECAY)})" if hits else crash
     if effect == "ken_burns":  # slow push in (with a diagonal drift, see motion_chain)
         return f"(1+{KEN_BURNS_AMOUNT}*min(t/{d:.3f},1))"
     return None
@@ -146,10 +156,13 @@ def motion_chain(effect: str, w: int, h: int, length: float, hits: tuple[float, 
     z = zoom_expression(effect, length, hits)
     if effect == "ken_burns":
         p = f"min(t/{d:.3f},1)"
-        return (f"scale=w='trunc({w}*{z}/2)*2':h='trunc({h}*{z}/2)*2':eval=frame:flags=bicubic,"
-                f"crop=w={w}:h={h}:x='(in_w-out_w)*{p}':y='(in_h-out_h)*(1-{p})'")
+        return (f"scale=w='trunc({2 * w}*{z}/2)*2':h='trunc({2 * h}*{z}/2)*2':eval=frame:flags=bicubic,"
+                f"crop=w={2 * w}:h={2 * h}:x='(in_w-out_w)*{p}':y='(in_h-out_h)*(1-{p})',scale={w}:{h}:flags=area")
     if z:
-        return f"scale=w='trunc({w}*{z}/2)*2':h='trunc({h}*{z}/2)*2':eval=frame:flags=bicubic,crop={w}:{h}"
+        # drawn at twice the size and scaled down, so the zoom moves in half-pixel steps: smooth, no wobble
+        # (at 1x the size can only change in whole even pixels, which shows as a slight shake on slow zooms)
+        return (f"scale=w='trunc({2 * w}*{z}/2)*2':h='trunc({2 * h}*{z}/2)*2':eval=frame:flags=bicubic,"
+                f"crop={2 * w}:{2 * h},scale={w}:{h}:flags=area")
     pan = pan_expression(effect, length)
     if pan:
         return _pan_chain(w, h, pan)
@@ -179,6 +192,7 @@ def look_filters(effect: str, hits: tuple[float, ...] = ()) -> list[str]:
     return []
 
 
+LOOKS = ("black_white", "vignette", "sharpen", "glow", "beat_flash", "flash")  # effects that are a look, not a movement
 GLOW_SIGMA = 14
 GLOW_OPACITY = 0.32
 FREEZE_SECONDS = 0.6
@@ -228,21 +242,31 @@ def _enhance(upscale: float) -> tuple[str, str]:
     (Lanczos) upscale, then contrast-adaptive sharpening restores edges without halos."""
     if upscale <= UPSCALE_ENHANCE_AT:
         return "", ""
-    strength = min(1.0 + (upscale - UPSCALE_ENHANCE_AT) * 0.6, 3.0)
+    # light, mostly spatial: strong temporal denoise smears motion and makes products look waxy on stretched clips
+    strength = min(0.8 + (upscale - UPSCALE_ENHANCE_AT) * 0.3, 1.6)
     return (
-        f"hqdn3d={strength:.1f}:{strength * 0.75:.1f}:{strength * 2:.1f}:{strength * 2:.1f}",
-        f"cas={min(0.35 + 0.1 * (upscale - UPSCALE_ENHANCE_AT), 0.7):.2f}",
+        f"hqdn3d={strength:.1f}:{strength * 0.75:.1f}:{strength * 0.8:.1f}:{strength * 0.8:.1f}",
+        f"cas={min(0.25 + 0.05 * (upscale - UPSCALE_ENHANCE_AT), 0.4):.2f}",
     )
 
 
 SLOWMO_SMOOTH_BELOW = 0.95  # a shot slower than this gets interpolated in-between frames (not repeated frames)
 
 
-def quality_filters(src: SourceClip, cfg: RenderConfig) -> list[str]:
-    """Before framing: stabilise a shaky clip and correct a clip that is clearly too dark or too bright."""
+def _filter_path(path: Path) -> str:
+    """A file path quoted for filtergraph syntax (Windows drive colons and backslashes escaped)."""
+    return "'" + str(path.resolve()).replace("\\", "/").replace(":", "\\:").replace("'", "\\'") + "'"
+
+
+def quality_filters(src: SourceClip, cfg: RenderConfig, transforms: Path | None = None) -> list[str]:
+    """Before framing: stabilise a shaky clip and correct a clip that is clearly too dark or too bright.
+
+    Stabilising needs ``transforms``, the camera motion measured by ``detect_shake`` on the same framed picture. vid.stab
+    then zooms in once, just enough that no frame shows an edge (deshake instead filled the uncovered strip with a
+    mirror copy: a smeared, flipped band down the side of the shot)."""
     out: list[str] = []
-    if cfg.stabilize and src.shaky:
-        out.append("deshake=rx=32:ry=32:edge=mirror")  # one pass; the crop / framing that follows hides the edges
+    if cfg.stabilize and src.shaky and transforms is not None:
+        out.append(f"vidstabtransform=input={_filter_path(transforms)}:smoothing=12:optzoom=1:interpol=bicubic")
     if src.brightness < 0.32:
         lift = min((0.32 - src.brightness) * 0.9, 0.18)
         out.append(f"eq=brightness={lift:.3f}:gamma={1 + lift * 1.5:.3f}:saturation=1.05")
@@ -254,32 +278,65 @@ def quality_filters(src: SourceClip, cfg: RenderConfig) -> list[str]:
 def time_filters(seg: Segment, cfg: RenderConfig) -> list[str]:
     """Speed. Slow motion in a final render is smoothed with motion-compensated interpolation, so it flows instead of
     stepping; everything else (and previews) simply resamples to the output frame rate."""
+    from app.video import keyframes as kf
+
+    if seg.keyframes and kf.has_speed(seg.keyframes):  # a speed ramp: the footage's time remapped (video/keyframes.py)
+        kfs, _ = kf.validate(seg.keyframes, seg.length)
+        chain = [kf.speed_setpts(kfs, seg.length)]
+        if cfg.smooth_slowmo and kf.slowest(kfs) < SLOWMO_SMOOTH_BELOW:
+            chain += ["format=yuv444p,format=yuv420p", f"minterpolate=fps={cfg.fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1"]
+        else:
+            chain.append(f"fps={cfg.fps}")
+        return chain
     chain = [f"setpts=(PTS-STARTPTS)/{seg.speed:.4f}"]
     if cfg.smooth_slowmo and seg.speed < SLOWMO_SMOOTH_BELOW:
+        # minterpolate crashes (FFmpeg 9 segfault) on a frame that crop only re-pointed into (any x offset): a format
+        # round trip hands it a real copy of the cropped picture
+        chain.append("format=yuv444p,format=yuv420p")
         chain.append(f"minterpolate=fps={cfg.fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1")
     else:
         chain.append(f"fps={cfg.fps}")
     return chain
 
 
+def framing(seg: Segment, src: SourceClip, cfg: RenderConfig) -> tuple[str, str, tuple[int, int]]:
+    """(mode, the crop that frames the source, its size): 'fill' cuts a 9:16 region, 'fit' keeps the whole picture."""
+    cx, cy, cw, ch = src.content or (0, 0, src.width, src.height)
+    mode = seg.crop.framing if seg.crop.framing in ("fill", "fit") else choose_framing(cw, ch, cfg)
+    if mode != "fill":
+        return mode, f"crop={cw}:{ch}:{cx}:{cy}", (cw, ch)
+    fx, fy, fsrc = seg.focus_x, seg.focus_y, seg.focus_source
+    if seg.crop.focus_x is not None:  # a manual subject position beats detection
+        fx, fy, fsrc = seg.crop.focus_x, seg.crop.focus_y if seg.crop.focus_y is not None else fy, "subject"
+    region = get_crop_strategy(cfg.crop_strategy).compute(cw, ch, cfg.aspect, Focus(fx, fy, fsrc))
+    return mode, f"crop={region.w}:{region.h}:{cx + region.x}:{cy + region.y}", (region.w, region.h)
+
+
 def build_filter_graph(
-    seg: Segment, src: SourceClip, plan: SegmentPlan, cfg: RenderConfig, grade: str | None = None
+    seg: Segment, src: SourceClip, plan: SegmentPlan, cfg: RenderConfig, grade: str | None = None,
+    transforms: Path | None = None,
 ) -> str:
     """The -filter_complex string that turns the trimmed source into the segment video."""
     W, H = cfg.width, cfg.height
-    cx, cy, cw, ch = src.content or (0, 0, src.width, src.height)
-    mode = seg.crop.framing if seg.crop.framing in ("fill", "fit") else choose_framing(cw, ch, cfg)
-    time_chain = [*quality_filters(src, cfg), *time_filters(seg, cfg)]
+    mode, crop, (cw, ch) = framing(seg, src, cfg)
+    # keyframes (video/keyframes.py): the effect as keyframes, with the shot's own keyframes over it. Without keyframes
+    # the shot renders exactly as before (the effect's own filters).
+    from app.video import keyframes as kf
+
+    anim = kf.merge(kf.preset(seg.effect, plan.length), kf.validate(seg.keyframes, plan.length)[0]) if seg.keyframes else []
+    keyed = bool(anim) and kf.animates(anim, kf.MOTION)
+
+    def movement(w: int, h: int) -> str:
+        return kf.motion_chain(anim, w, h) if keyed else motion_chain(seg.effect, w, h, plan.length, plan.hits)
+
+    time_chain = [*quality_filters(src, cfg, transforms), *time_filters(seg, cfg)]
     if mode == "fill":
-        fx, fy, fsrc = seg.focus_x, seg.focus_y, seg.focus_source
-        if seg.crop.focus_x is not None:  # a manual subject position beats detection
-            fx, fy, fsrc = seg.crop.focus_x, seg.crop.focus_y if seg.crop.focus_y is not None else fy, "subject"
-        region = get_crop_strategy(cfg.crop_strategy).compute(cw, ch, cfg.aspect, Focus(fx, fy, fsrc))
-        pre, post = _enhance(max(W / max(region.w, 1), H / max(region.h, 1)))
-        chain = [f"crop={region.w}:{region.h}:{cx + region.x}:{cy + region.y}", *time_chain]
+        region_w, region_h = cw, ch
+        pre, post = _enhance(max(W / max(region_w, 1), H / max(region_h, 1)))
+        chain = [crop, *time_chain]
         if pre:
             chain.append(pre)
-        chain.append(motion_chain(seg.effect, W, H, plan.length, plan.hits))
+        chain.append(movement(W, H))
         if post:
             chain.append(post)
         core = f"[0:v]{','.join(chain)}"
@@ -290,13 +347,13 @@ def build_filter_graph(
         else:
             fw, fh = max(int(H * cw / ch) // 2 * 2, 2), H
         pre, post = _enhance(max(fw / max(cw, 1), fh / max(ch, 1)))
-        base = [f"crop={cw}:{ch}:{cx}:{cy}", *time_chain]
+        base = [crop, *time_chain]
         if pre:
             base.append(pre)
         bw, bh = W // BG_DOWNSCALE, H // BG_DOWNSCALE
         # A zoomed picture changes size every frame; motion_chain crops it back to a constant size so later filters
         # (unsharp, overlay) never see a size change (which crashes FFmpeg).
-        fg = motion_chain(seg.effect, fw, fh, plan.length, plan.hits)
+        fg = movement(fw, fh)
         fg_chain = [fg] + ([post] if post else [])
         core = (
             f"[0:v]{','.join(base)},split[bgs][fgs];"
@@ -319,8 +376,12 @@ def build_filter_graph(
         )
     else:
         graph = f"{core},"
+    looks = [] if anim and seg.effect == "flash" else look_filters(seg.effect, plan.hits)  # a keyed flash is in the keyframes
+    for name in dict.fromkeys(seg.looks):  # extra looks on top of the movement (each once)
+        if name in LOOKS and name != seg.effect:
+            looks += look_filters(name, plan.hits)
     tail = [*freeze_filters(seg.effect, plan.length), f"trim=duration={plan.out_length:.3f}", "setpts=PTS-STARTPTS",
-            *look_filters(seg.effect, plan.hits)]  # fmt: skip
+            *looks, *(kf.frame_filters(anim, W, H) if anim else [])]  # fmt: skip
     if grade:
         tail.append(grade)
     tail += ["setsar=1", "format=yuv420p"]
@@ -333,19 +394,35 @@ def source_read_seconds(seg: Segment, plan: SegmentPlan) -> float:
     if plan.ramp:
         r = min(tr.RAMP_SECONDS, plan.length * 0.5)
         extra += r * (tr.RAMP_FACTOR - 1)
+    from app.video import keyframes as kf
+
+    if seg.keyframes and kf.has_speed(seg.keyframes):  # a speed ramp reads what its speed track plays
+        return kf.source_seconds(kf.validate(seg.keyframes, seg.length)[0], plan.length + extra) + SOURCE_MARGIN
     return (plan.length + extra) * seg.speed + SOURCE_MARGIN
 
 
-def build_segment_command(
-    seg: Segment, src: SourceClip, out: Path, plan: SegmentPlan, cfg: RenderConfig, grade: str | None = None
-) -> list[str]:
-    """Arguments for ffmpeg (excluding the binary and global flags). A list - never a shell string."""
-    graph = build_filter_graph(seg, src, plan, cfg, grade)
-    args = [
+def _source_input(seg: Segment, src: SourceClip, plan: SegmentPlan) -> list[str]:
+    return [
         "-ss", f"{max(seg.source_start, 0):.3f}",
         "-t", f"{source_read_seconds(seg, plan):.3f}",
         "-i", str(src.path),
     ]  # fmt: skip
+
+
+def build_shake_command(seg: Segment, src: SourceClip, plan: SegmentPlan, cfg: RenderConfig, transforms: Path) -> list[str]:
+    """Pass 1 of stabilising: measure the camera motion of exactly the frames (and framing) the segment will use."""
+    _, crop, _ = framing(seg, src, cfg)
+    detect = f"vidstabdetect=shakiness=6:accuracy=12:result={_filter_path(transforms)}"
+    return [*_source_input(seg, src, plan), "-vf", f"{crop},{detect}", "-an", "-f", "null", "-"]
+
+
+def build_segment_command(
+    seg: Segment, src: SourceClip, out: Path, plan: SegmentPlan, cfg: RenderConfig, grade: str | None = None,
+    transforms: Path | None = None,
+) -> list[str]:
+    """Arguments for ffmpeg (excluding the binary and global flags). A list - never a shell string."""
+    graph = build_filter_graph(seg, src, plan, cfg, grade, transforms)
+    args = _source_input(seg, src, plan)
     if cfg.audio_mode == "original":
         # This shot's own sound, time-stretched like the picture, padded/trimmed to the exact shot length.
         if src.has_audio:
@@ -371,9 +448,27 @@ def build_segment_command(
     ]  # fmt: skip
 
 
+def measure_shake(seg: Segment, src: SourceClip, plan: SegmentPlan, cfg: RenderConfig, out: Path,
+                  timeout: float | None = None) -> Path | None:  # fmt: skip
+    """Pass 1 of stabilising a shaky clip's segment: the transforms file for ``build_segment_command`` (None = the
+    clip is steady, stabilising is off, or measuring failed: the shot is then rendered as it was filmed)."""
+    if not (cfg.stabilize and src.shaky):
+        return None
+    transforms = out.with_suffix(".trf")
+    try:
+        run_ffmpeg(build_shake_command(seg, src, plan, cfg, transforms), timeout=timeout)
+    except RenderTimeout:
+        raise
+    except Exception:  # noqa: BLE001 - a shot that cannot be stabilised is still rendered, just unstabilised
+        log.warning("stabilising %s failed; rendering it as shot", src.name or src.path.name, exc_info=True)
+        return None
+    return transforms
+
+
 def cut_segment(
     seg: Segment, src: SourceClip, out: Path, plan: SegmentPlan, cfg: RenderConfig,
     grade: str | None = None, timeout: float | None = None,
 ) -> Path:
-    run_ffmpeg(build_segment_command(seg, src, out, plan, cfg, grade), timeout=timeout)
+    transforms = measure_shake(seg, src, plan, cfg, out, timeout)
+    run_ffmpeg(build_segment_command(seg, src, out, plan, cfg, grade, transforms), timeout=timeout)
     return out
