@@ -52,9 +52,9 @@ vi.mock("@/hooks/useApi", async (orig) => ({
 import BrandsPage from "@/app/brands/page";
 import TemplatesPage from "@/app/templates/page";
 import VoicesPage from "@/app/voices/page";
-import { ScriptVoicePanel } from "@/components/editor/ScriptVoicePanel";
-import { PerformanceForm, ProjectTools } from "@/components/ProjectTools";
-import { ReviseBox } from "@/components/ReviseBox";
+import { ScriptVoicePanel } from "@/components/organisms/editor/ScriptVoicePanel";
+import { PerformanceForm, ProjectTools } from "@/components/organisms/ProjectTools";
+import { ReviseBox } from "@/components/organisms/ReviseBox";
 import { stashTemplateDraft } from "@/lib/templateDraftHandoff";
 import type { EdlTimeline, Project, Rendering, TemplateInput } from "@/types/api";
 

@@ -7,7 +7,7 @@ for Instagram Reels / YouTube Shorts / TikTok. The AI "brain" is your choice: **
 **AI creative director.** With AI on, one structured call plans every shot (which moment of which clip, where to cut on
 the beat, effect, transition, speed, framing, on-screen text, colour grade, CTA and post copy). A deterministic safety
 layer checks and repairs every value before it touches the Timeline/EDL, which stays the single source of truth; FFmpeg
-renders it. The AI never writes FFmpeg commands. See [docs/ai-upgrade-plan.md](docs/ai-upgrade-plan.md).
+renders it. The AI never writes FFmpeg commands.
 
 ```
 Analyze videos → Analyze music → Detect beats → Select clips → Create timeline
@@ -29,7 +29,7 @@ Analyze videos → Analyze music → Detect beats → Select clips → Create ti
 | 9 | Captions (faster-whisper → ASS → burned in): minimal, bold, karaoke, highlight, luxury | ✅ done (optional dependency) |
 | 10 | Ollama AI: style choice, clip ordering, title/description/hashtags | ✅ done (needs `OLLAMA_MODEL`) |
 | 11 | Vision AI | ✅ local multimodal model (`gemma3:4b` via Ollama) describes keyframes: scene, objects, mood, tags. Cached per clip; ~20 s/clip on CPU |
-| 12 | Trend Mode | ✅ manual presets + `TrendSource` interface; **no live trend feed** |
+| 12 | Trend Mode | ✅ manual presets + `TrendSource` interface; a live feed plugs in with `TREND_FEED_URL` (G8) |
 | A | **Editable timeline (EDL)**: trim, split, move, delete, duplicate, replace clip, speed, transition, effect, framing, music, captions; server-side **undo/redo**; version restore | ✅ done (see `docs/roadmap.md`) |
 | A | **Preview → final**: 360×640 preview in seconds, then the full-quality export | ✅ done |
 | A | **Quality check + Auto Fix** (repeats, short shots, duration, captions; black frames, silence, clipping, abrupt music end in the rendered file) | ✅ done |
@@ -43,6 +43,19 @@ Analyze videos → Analyze music → Detect beats → Select clips → Create ti
 | F | **AI model picker** in Settings: list installed Ollama models (vision / reasoning badges), choose one, and *test it* on this computer | ✅ done |
 | G | **Product Reel Director** (from photos): understands each product photo, plans a beat-synced micro-timeline (hook, curiosity, reveal, hero, detail, macro, payoff, call to action), then renders every frame with real camera moves, light sweeps, sparkles on genuine reflections, glow, light leaks, purposeful transitions and animated text; quality-checks its own plan; can loop | ✅ done (see "Product Reels" below for exactly what it does and does not do) |
 | H | **Accent-aware editing**: strong individual drum hits inside a long shot get a quick punch on the beat (the footage carries on, nothing repeats) | ✅ done: on a real song the picture answers 43% of the strong hits, up from 24% |
+| 2.1 | **Music intelligence**: song parts (intro, build, drop, chorus, verse, bridge, outro), what cuts land on in each part, loudness / brightness / rhythmic-density curves, estimated vocal presence, a per-beat timeline (section, energy, beat strength, phrase position) | ✅ done: vocal presence is an estimate (no source separation). Phase 2 plan: [docs/phase2-plan.md](docs/phase2-plan.md) |
+| 2.2 | **Video intelligence**: shot size (close / medium / wide), composition, subject clarity, camera vs subject motion, empty frames, best moments (action peak, camera arrives, face appears, focus lands, subject fills the frame, reveal) and ready-made best segments per clip; product visibility for product clips | ✅ done: heuristics on the analysis frames (Haar faces, saliency), not an object detector |
+| 2.3-2.5 | **Creative Director**: a project brief inferred from what you gave (nothing to fill in), a Creative Plan (concept, hook, story beats, pacing, music reading, text / effects strategy) decided before the shots, three concepts (Viral, Cinematic, Premium) planned separately, and a hook engine with up to 5 typed, scored openings | ✅ done: with AI the concept comes in the same call as the shots (no extra cost) |
+| 2.6-2.8 | **Brand look, AI review, self-correction**: the brand kit's look is used automatically; every final Reel gets ten measured scores (hook, story, pacing, music sync, visual quality, brand fit, text, audio, ending, retention); below 70 it is corrected, re-rendered and re-scored (at most 3 reviews, kept only if better) | ✅ done: scores are measured, an optional AI reviewer only names fixes |
+| 2.9-2.11 | **Tell the director, your edits are safe, it learns**: "change the hook", "use the drop for the reveal", "show the product earlier" as edit patches on the current edit; shots you edit by hand are locked against automatic changes; reference Reels summed up as creative traits; your preferred concept learned; every generation logged | ✅ done |
+| G1 | **Production on Cloudflare**: user accounts (email + password, each user sees only their own data), one app container behind a Worker, uploads and Reels in R2, render queue (`MAX_CONCURRENT_JOBS`), hourly cron for auto-delete and scheduled posts | ✅ built: see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md). Not deployed yet |
+| G2 | **Mobile and sharing**: installable app (PWA icons), Share button (phone share sheet), download without music + where to start the song | ✅ done |
+| G3 | **Talking-to-camera mode**: cuts pauses and filler words (um, uh), word-by-word captions | ✅ done (needs faster-whisper) |
+| G4 | **Long video → several Reels**: finds the best parts (whole sentences for talks, strongest moments otherwise) and makes 2-5 Reels as versions | ✅ done |
+| G5 | **Quality**: stabilisation of shaky clips, smooth slow motion, sharper upscaling, automatic exposure fix | ✅ done (final export only) |
+| G6 | **Natural AI voices** (Gemini TTS, many languages) next to the offline Windows voices | ✅ done (needs a Gemini key) |
+| G7 | **Post and schedule** to Instagram Reels, TikTok, YouTube Shorts through their official APIs | ✅ ready for keys: shows "Not connected" until the keys are set |
+| G8 | **Live trends** from a licensed trend-data feed (`TREND_FEED_URL`), shown above the built-in presets, cached hourly, outage-safe | ✅ ready for a feed: no scraping |
 
 The larger vision in `adv_requirement.md` (multi-agent AI director, semantic video understanding, voice/script/hooks,
 brand + template engine, media library, repurposing) is mapped section by section in **[docs/roadmap.md](docs/roadmap.md)**
@@ -76,51 +89,32 @@ Known limitations, stated plainly:
 * **Face-aware crop** uses OpenCV Haar cascades: good for frontal faces, not a substitute for a detector model.
 * **Custom style** uses balanced defaults; the API accepts `customStyle` parameters but the UI has no controls yet.
 * **Slow motion** repeats frames (no optical-flow interpolation), so it can look steppy on 30 fps footage.
-* **No auth / users** (the `users` collection is reserved); one local user. **Storage** is the local disk (S3/R2 slot in via
-  `StorageBackend`). **Rate limiting** is in-process (single worker).
+* **Accounts are off by default** (`AUTH_ENABLED=false`): one local user. **Storage** is the local disk. Jobs run in the
+  one server process (`MAX_CONCURRENT_JOBS`).
 * **Docker files are written but were not run on the machine used to build this** (Docker was not installed).
   Everything else was run and tested; see "Testing".
 
 ## Quick start (no Docker)
 
-**Run everything with one command (Windows):** double-click `start.bat` (or run it in a terminal). It checks MongoDB, starts the API on `127.0.0.1:8000` and the website on `127.0.0.1:3100`, waits until both answer and opens the browser. Stop both with `scripts\stop.bat`. Logs: `backend.log`, `backend.err.log`, `frontend.log`. It only listens on this computer.
+Start MongoDB first (the Windows service, or `mongod`), then run the app as below: website and API are one Next.js server.
 
-Requirements: **Python 3.10+**, **Node 20+**, **FFmpeg + FFprobe** on `PATH`, **MongoDB** running locally.
-
-```powershell
-# Windows PowerShell (5.1 has no `&&`; run these one per line)
-copy .env.example .env                 # edit as needed (never commit .env)
-
-cd backend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install -r requirements-captions.txt   # optional: enables captions
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
-
-# second terminal
-cd frontend
-npm install
-npm run dev -- --port 3000             # http://localhost:3000
-```
+Requirements: **Node 22+**, **FFmpeg + FFprobe** on `PATH`, **MongoDB** running locally.
 
 ```bash
-# macOS / Linux
-cp .env.example .env
-cd backend && python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt && pip install -r requirements-captions.txt   # captions optional
-uvicorn app.main:app --port 8000
-# second terminal: cd frontend && npm install && npm run dev -- --port 3000
+cp .env.example .env                   # Windows: copy .env.example .env   (edit as needed; never commit .env)
+cd frontend
+npm install
+npm install @huggingface/transformers  # optional: local captions (otherwise the OpenAI API, when a key is set)
+npm run dev -- --port 3100             # http://localhost:3100
 ```
 
-`GET http://localhost:8000/api/health` tells you whether MongoDB, FFmpeg and the AI model are reachable
+`GET http://localhost:3100/api/health` tells you whether MongoDB, FFmpeg and the AI model are reachable
 (the same info is on the **Settings** page).
-
-If your frontend runs on a port other than 3000, add it to `CORS_ORIGINS` in `.env`.
 
 ### Installing FFmpeg / MongoDB
 
 * Windows: `winget install Gyan.FFmpeg`; MongoDB Community from mongodb.com (or the portable zip).
-  The backend also finds a winget-installed FFmpeg even if `PATH` is stale; override with `FFMPEG_BIN`/`FFPROBE_BIN`.
+  The server also finds a winget-installed FFmpeg even if `PATH` is stale; override with `FFMPEG_BIN`/`FFPROBE_BIN`.
 * macOS: `brew install ffmpeg mongodb-community`. Linux: `apt install ffmpeg` + MongoDB packages.
 
 ### AI provider: Gemini, OpenAI or local Ollama
@@ -128,7 +122,7 @@ If your frontend runs on a port other than 3000, add it to `CORS_ORIGINS` in `.e
 Pick the provider in **Settings → AI provider** (text model, vision model, fallback, budget, test, usage), or in `.env`:
 
 ```bash
-# .env  (API keys live ONLY here, on the backend; the browser never sees them)
+# .env  (API keys live ONLY here, on the server; the browser never sees them)
 AI_PROVIDER=gemini                 # ollama | openai | gemini
 GEMINI_API_KEY=...                 # https://aistudio.google.com
 GEMINI_TEXT_MODEL=<model>          # e.g. listed in Settings once the key is set
@@ -142,7 +136,7 @@ AI_FALLBACK_PROVIDER=openai        # ... try this one (never for refusals or bad
 * **LOCAL AI** (Ollama): no media leaves the machine. **CLOUD AI** (Gemini/OpenAI): only compact analysis numbers and a
   few small, distinct keyframes per clip are sent (`VISION_MAX_FRAMES_PER_CLIP`, `VISION_MAX_IMAGE_SIZE`,
   `VISION_DETAIL_LEVEL`); whole videos are never uploaded. The project page shows "AI: Gemini" and the badge.
-* Every AI answer is schema-constrained (OpenAI/Gemini) or JSON + schema (Ollama), validated with Pydantic, repaired once,
+* Every AI answer is schema-constrained (OpenAI/Gemini) or JSON + schema (Ollama), validated with zod, repaired once,
   and otherwise ignored (the rule-based path is used, with a warning).
 * **Usage and cost**: every call is logged (`ai_usage` collection: provider, model, task, project, latency, tokens,
   estimated cost, fallback, error code; never keys). Costs come from the prices you set in `AI_MODEL_PRICES` (USD per
@@ -157,15 +151,10 @@ default with AI assist) lets the AI plan every shot; turn it off to keep the rul
 and clip names or a few small keyframes (never the whole video), its answers are validated, and if it is down or misbehaves
 the Reel is still rendered with a visible warning. Choosing the **Auto** style lets it pick between the built-in styles.
 
-## Docker
+## Deploying (Cloudflare)
 
-```bash
-docker compose up --build          # frontend :3000, API :8000, MongoDB internal
-```
-
-Ollama stays on the host (`OLLAMA_BASE_URL=http://host.docker.internal:11434`). `NEXT_PUBLIC_API_URL` is the URL the
-*browser* uses to reach the API and is baked in at build time (`docker compose build --build-arg NEXT_PUBLIC_API_URL=...`).
-Build the backend without captions using `WITH_CAPTIONS=0`.
+The app runs on Cloudflare as one container (website, API and FFmpeg) with uploads and Reels in an R2 bucket: see
+[docs/deploy-cloudflare.md](docs/deploy-cloudflare.md).
 
 ## Using it
 
@@ -230,26 +219,9 @@ What it does **not** do (and does not pretend to):
 
 ## Using it from your phone
 
-> The in-app "send from your phone" card and QR code were removed. Phone mode below is still available as an **opt-in, off-by-default** option (start it only with the script). The simplest way to get phone clips in is option 2 (cable, Phone Link, Quick Share, cloud drive). To undo the Windows changes phone mode needs, run `scripts\undo-phone-mode-firewall.ps1` as Administrator.
-
-Your clips are on your phone and the app runs on your computer. Two ways to get them in:
-
-1. **Phone mode (upload straight from the phone's gallery).** With the phone and the computer on the **same Wi-Fi**, run
-   `powershell -ExecutionPolicy Bypass -File scripts\start-phone-mode.ps1`, then open the address it prints (for example
-   `http://192.168.1.20:3100`) in the phone's browser. **Create Reel** opens the phone's gallery for videos and its music files for the song, and the
-   upload goes over your Wi-Fi. iPhone clips (HEVC/H.265 `.mov`, stored with a rotation flag) are handled: they come out upright.
-   * **There is no login.** While phone mode runs, anyone on that Wi-Fi who knows the address can use the app. It is off unless you start it this way
-     (`CORS_ALLOW_LAN` is `false` by default); close the two windows to turn it off. Do not use it on a public or shared network.
-   * If the QR code does not appear, an older copy of the app is probably still running on port 8000 and answering first. The script now stops with a message when it finds one: close that terminal and run the script again.
-   * **Phone mode needs a shared Wi-Fi *router*.** If the computer gets its internet from the phone's own hotspot, the phone is the hotspot and usually cannot open the addresses of devices connected to it (an Android limitation: the browser says "connection was interrupted"). Put the phone and the computer on the same router's Wi-Fi, or use option 2 below.
-   * **Not sure what is wrong?** On the phone open `http://<computer address>:8000/phone-check` (for example `http://172.20.10.10:8000/phone-check`). It is a tiny page with no app code: if you see "Your phone reached this computer", the network and firewall are fine; it also tells you whether the phone can reach the app port (3100).
-   * **If the phone cannot open the address**, Windows Firewall is blocking it (typical when the network is marked *Public*, or an earlier pop-up was cancelled, which creates "Block" rules for Node.js and Python). Run **once, as Administrator**: `powershell -ExecutionPolicy Bypass -File scripts\allow-phone-mode-firewall.ps1`. It shows what it will change and asks first: it marks the current network *Private* and adds one inbound rule for ports 3100 and 8000 on Private networks only. `start-phone-mode.ps1` warns when the network is Public.
-   * Phone browsers upload big videos slowly on weak Wi-Fi; the per-file limit is 500 MB.
-2. **No setup:** copy the clips to the computer first (USB cable: on a Samsung Galaxy unlock the phone, choose *File transfer* and copy from `DCIM/Camera`; or Microsoft *Phone Link*, Samsung *Quick Share* to Windows, Google Drive/OneDrive, Nearby Share / Quick Share, AirDrop for a Mac, or your own
-   messaging app's "save to files"), then upload them from the computer as usual.
-
-Not built: a native mobile app or a "Share to Reel Maker" entry in the phone's share sheet (that needs an installable app; the browser cannot register
-one for videos). Untested on an actual phone: this was checked with automated tests of the network settings and a real render of a phone-style clip, not with a physical device.
+Once the app is live, open its address on the phone: **Create Reel** opens the phone's gallery for videos and its music
+files for the song. iPhone clips (HEVC/H.265 `.mov`, stored with a rotation flag) are handled: they come out upright.
+On the live app a video can be at most 95 MB (uploads pass through Cloudflare's Worker).
 
 ## API (all under `/api`)
 
@@ -294,21 +266,18 @@ one for videos). Untested on an actual phone: this was checked with automated te
 
 Errors always look like `{"error": {"code", "message", "details"}}` (e.g. `FFMPEG_RENDER_FAILED`, `FILE_TOO_LARGE`,
 `UNSUPPORTED_MEDIA`, `CORRUPTED_MEDIA`, `NO_AUDIO`, `INSUFFICIENT_DISK_SPACE`, `RENDER_TIMEOUT`, `OLLAMA_UNAVAILABLE`, …).
-Interactive docs: `http://localhost:8000/docs`.
 
 ## Project layout
 
 ```
-backend/app/
-  api/        REST routers            core/      config, errors, ffmpeg wrapper, db, rate limit
-  audio/      bpm, beat_detector, analyzer      video/   analyzer, timeline, cropper, cutter,
-  ai/         provider, ollama, prompts,                 transitions, composer, renderer
-              clip_selector, copywriter, vision
-  captions/   transcriber, cues, ass            styles/  data-only editing styles (+ registry)
-  trends/     presets + TrendSource             jobs/    pipeline (sync) + manager (async, persisted)
-  storage/    StorageBackend + LocalStorage     models/, schemas/, services/
-frontend/     Next.js app router, components, hooks (React Query), lib/api.ts
-docs/         architecture + extension guide
+frontend/
+  app/          pages (App Router) and app/api/**/route.ts: the REST API
+  server/       everything on the server: core (config, db, auth, errors, ffmpeg), audio (Essentia analysis),
+                video (analysis, render engine), director, ai (providers), jobs (pipeline + manager), product,
+                story, revise, trends, voice, publish, credits, accounts
+  components/   UI (atomic design)   hooks/ (React Query)   lib/api.ts (the client)
+  tests/        Vitest
+docs/           architecture + extension guide
 ```
 
 More: [docs/architecture.md](docs/architecture.md), [docs/extending.md](docs/extending.md).
@@ -316,17 +285,9 @@ More: [docs/architecture.md](docs/architecture.md), [docs/extending.md](docs/ext
 ## Testing
 
 ```bash
-cd backend  && pytest -m "not live"   # real FFmpeg renders (marked `slow`), MongoDB mocked, AI providers mocked
-cd frontend && npm test               # Vitest + React Testing Library
+cd frontend && npm test               # Vitest: audio analysis on synthetic songs with known answers, the timeline and render helpers, the UI
 cd frontend && npm run typecheck && npx eslint .
 ```
-
-The backend tests generate their own media (FFmpeg `lavfi` clips, a 120 BPM click-track MP3) and render real
-reels: the acceptance test renders 5 clips + MP3 + 15 s + Fast Trending, then checks codec, 1080×1920, duration,
-that every frame decodes with zero errors, and that temp files are cleaned up.
-`pytest -m "not slow"` skips the render tests. The AI provider contract tests (`tests/test_ai_providers.py`) run the
-same checks against Ollama, OpenAI and Gemini with mocked transports; no key is needed. Real provider calls are opt-in:
-`LIVE_GEMINI_API_KEY=... LIVE_GEMINI_MODEL=... pytest tests/integration -m live` (also `LIVE_OPENAI_*`, `LIVE_OLLAMA_MODEL`).
 
 ## Security notes
 

@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Dropzone } from "@/components/Dropzone";
-import { ProgressStages } from "@/components/ProgressStages";
-import { ReelPreview } from "@/components/ReelPreview";
-import { DurationSelector, StyleSelector } from "@/components/StyleSelector";
-import { StatusBadge } from "@/components/ui";
-import { VideoList } from "@/components/VideoList";
+import { Dropzone } from "@/components/molecules/Dropzone";
+import { ProgressStages } from "@/components/molecules/ProgressStages";
+import { ReelPreview } from "@/components/organisms/ReelPreview";
+import { DurationSelector, StyleSelector } from "@/components/organisms/StyleSelector";
+import { StatusBadge } from "@/components/atoms";
+import { VideoList } from "@/components/molecules/VideoList";
 import type { Job, Rendering } from "@/types/api";
 
 const file = (name: string) => new File(["x"], name, { type: "video/mp4" });

@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { CaptionsPanel, MusicControls } from "@/components/editor/AudioCaptionsPanel";
-import { Inspector } from "@/components/editor/Inspector";
-import { QualityPanel } from "@/components/editor/QualityPanel";
-import { TimelineTracks } from "@/components/editor/TimelineTracks";
+import { CaptionsPanel, MusicControls } from "@/components/organisms/editor/AudioCaptionsPanel";
+import { Inspector } from "@/components/organisms/editor/Inspector";
+import { QualityPanel } from "@/components/organisms/editor/QualityPanel";
+import { TimelineTracks } from "@/components/organisms/editor/TimelineTracks";
 import { op } from "@/lib/ops";
 import type { EdlSegment, EdlTimeline, Media, QualityReport } from "@/types/api";
 

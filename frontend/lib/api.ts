@@ -1,5 +1,9 @@
+import { tracked } from "./activity";
+import { adminHeaders } from "./admin";
 import type {
   ApiErrorBody,
+  DirectorProfile,
+  FeedbackReason,
   GenerateOptions,
   Health,
   Job,
@@ -8,6 +12,13 @@ import type {
   ProjectSettings,
   ProjectStatus,
   ProjectSummary,
+  SongParts,
+  BeatMap,
+  SongAnalysis,
+  PreviewHints,
+  BeatMarkers,
+  MarkerDensity,
+  PlanRow,
   Rendering,
   StyleInfo,
   TrendPreset,
@@ -44,8 +55,7 @@ import type {
   Template,
   TemplateInput,
   VoiceProfile,
-  VoiceProfileInput,
-} from "@/types/api";
+  VoiceProfileInput, Connections, Platform, Post, CheckoutOrder, Credits, Pricing, ReferenceReelInfo, SiteInfo, Retention, Story, StoryOptions } from "@/types/api";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -67,8 +77,10 @@ export function resolveApiUrl(configured: string, pageHostname?: string): string
   }
 }
 
+// The API is this same Next.js server ("" = same origin; it passes paths not moved yet on to Python, next.config.ts).
+// NEXT_PUBLIC_API_URL still points the app at another API when set.
 export const API_URL = resolveApiUrl(
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000",
+  process.env.NEXT_PUBLIC_API_URL ?? "",
   typeof window === "undefined" ? undefined : window.location.hostname,
 );
 
@@ -101,29 +113,57 @@ async function parseError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, { code: "HTTP_ERROR", message: `Request failed (${res.status}).` });
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/** No request may hang forever: without an answer in time it fails with a clear message (the server may be down). */
+const DEFAULT_TIMEOUT_MS = 45_000;
+const AI_TIMEOUT_MS = 240_000; // story planning / a scene picture: one AI call, can take a minute or two
+
+async function request<T>(path: string, init?: RequestInit, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  return method === "GET" ? send<T>(path, init, timeoutMs) : tracked(send<T>(path, init, timeoutMs)); // actions light up the activity bar
+}
+
+async function send<T>(path: string, init: RequestInit | undefined, timeoutMs: number): Promise<T> {
   let res: Response;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     res = await fetch(`${API_URL}${path}`, {
       ...init,
-      headers: { ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...init?.headers },
+      signal: init?.signal ?? ctrl.signal,
+      credentials: "include", // the session cookie (accounts on)
+      headers: { ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...adminHeaders(), ...init?.headers },
     });
   } catch {
+    clearTimeout(timer);
+    if (ctrl.signal.aborted) {
+      throw new ApiError(0, {
+        code: "SERVER_TIMEOUT",
+        message: `The server did not answer within ${Math.round(timeoutMs / 1000)} seconds. It may be busy or restarting: wait a moment and try again.`,
+      });
+    }
     throw new ApiError(0, {
       code: "NETWORK_ERROR",
       message: "Cannot reach the server. Is the backend running?",
     });
   }
-  if (!res.ok) throw await parseError(res);
+  clearTimeout(timer);
+  if (!res.ok) {
+    const err = await parseError(res);
+    // out of credits: the app shows "Top up or choose a plan" wherever it happened
+    if (err.code === "INSUFFICIENT_CREDITS" && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("credits:needed", { detail: err.message }));
+    throw err;
+  }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
 /** Multipart upload with progress (fetch has no upload progress events). */
 function upload<T>(path: string, form: FormData, onProgress?: (fraction: number) => void): Promise<T> {
-  return new Promise((resolve, reject) => {
+  return tracked(new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_URL}${path}`);
+    xhr.withCredentials = true; // the session cookie (accounts on)
+    for (const [k, v] of Object.entries(adminHeaders())) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
     xhr.onerror = () =>
       reject(new ApiError(0, { code: "NETWORK_ERROR", message: "Cannot reach the server. Is the backend running?" }));
@@ -139,7 +179,7 @@ function upload<T>(path: string, form: FormData, onProgress?: (fraction: number)
       reject(new ApiError(xhr.status, err ?? { code: "HTTP_ERROR", message: `Upload failed (${xhr.status}).` }));
     };
     xhr.send(form);
-  });
+  }));
 }
 
 export interface UploadResult {
@@ -149,6 +189,24 @@ export interface UploadResult {
 
 export const api = {
   health: () => request<Health>("/api/health"),
+  me: () => request<{ authEnabled: boolean; user: { id: string; email: string } | null }>("/api/auth/me"),
+  login: (email: string, password: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  register: (email: string, password: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
+  logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  forgotPassword: (email: string) => request<{ ok: boolean }>("/api/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
+  resetPassword: (token: string, password: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/reset", { method: "POST", body: JSON.stringify({ token, password }) }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>("/api/auth/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
+  logoutEverywhere: () => request<{ ok: boolean }>("/api/auth/logout-everywhere", { method: "POST" }),
+  deleteAccount: (password: string, confirm: string) =>
+    request<{ ok: boolean }>("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),
+  site: () => request<SiteInfo>("/api/site"),
+  /** Is this browser in admin mode? (required = the server has an admin key; without one everyone is admin) */
+  adminSession: (key?: string) =>
+    request<{ admin: boolean; required: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined),
   styles: () => request<StyleInfo[]>("/api/styles"),
   trends: () => request<TrendPreset[]>("/api/trends"),
 
@@ -160,6 +218,12 @@ export const api = {
   updateProject: (id: string, patch: Partial<ProjectSettings> & { name?: string }) =>
     request<Project>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteProject: (id: string) => request<void>(`/api/projects/${id}`, { method: "DELETE" }),
+  feedback: (id: string, verdict: "accepted" | "rejected", reason?: FeedbackReason, renderingId?: string) =>
+    request<DirectorProfile>(`/api/projects/${id}/feedback`, { method: "POST", body: JSON.stringify({ verdict, reason, renderingId }) }),
+  purgeMedia: (id: string) => request<{ deleted: number }>(`/api/projects/${id}/purge-media`, { method: "POST" }),
+  directorProfile: () => request<DirectorProfile>("/api/director/profile"),
+  setDirectorProfile: (enabled: boolean) => request<DirectorProfile>("/api/director/profile", { method: "PUT", body: JSON.stringify({ enabled }) }),
+  resetDirectorProfile: () => request<DirectorProfile>("/api/director/profile", { method: "DELETE" }),
 
   uploadVideos: (id: string, files: File[], onProgress?: (f: number) => void) => {
     const form = new FormData();
@@ -179,12 +243,69 @@ export const api = {
   generate: (id: string, options: GenerateOptions = {}) =>
     request<Job>(`/api/projects/${id}/generate`, { method: "POST", body: JSON.stringify(options) }),
   analyze: (id: string) => request<Job>(`/api/projects/${id}/analyze`, { method: "POST" }),
+  /** The best parts of the project's song for a Reel of `duration` seconds, best first (the first = the automatic choice). */
+  beatPlan: (id: string, start: number, duration: number, everyBeat = false, minClip = 0.35, hardHits = false) =>
+    request<{ start: number; duration: number; rows: PlanRow[] }>(`/api/projects/${id}/beat-plan?start=${start}&duration=${duration}&every_beat=${everyBeat}&min_clip=${minClip}&hard_hits=${hardHits}`, undefined, 240_000),
+  beatMap: (id: string) => request<BeatMap>(`/api/projects/${id}/beat-map`, undefined, 240_000), // analyses the song once (cached)
+  /** The song analysis document (librosa: beats, onsets, frame features, events). Analysed once per song. */
+  /** Schema 1.0 (small: beats, energy curve, sections, candidate events). full = the whole internal document. */
+  songAnalysis: (id: string, includeOnsets = false, full = false) => {
+    const body = new FormData();
+    body.append("project_id", id);
+    body.append("onsets", String(includeOnsets));
+    body.append("full", String(full));
+    return request<SongAnalysis>("/api/v1/audio/analyze", { method: "POST", body }, 300_000); // step 1 of the v1 pipeline
+  },
+  songParts: (id: string, duration: number, count = 5) =>
+    request<SongParts>(`/api/projects/${id}/song-parts?duration=${duration}&count=${count}`, undefined, 240_000), // analyses the song: can take a while
   getJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}`),
   cancelJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}/cancel`, { method: "POST" }),
   renderings: (id: string) => request<Rendering[]>(`/api/projects/${id}/renderings`),
+  plans: () => request<Pricing>("/api/plans"),
+  credits: () => request<Credits>("/api/credits"),
+  createOrder: (item: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item }) }),
+  verifyPayment: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
+    request<Credits>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
+  setPricing: (body: { plans: { id: string; monthly: number; credits: number; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
+    request<Pricing>("/api/admin/pricing", { method: "PUT", body: JSON.stringify(body) }),
+  storyOptions: () => request<StoryOptions>("/api/story/options"),
+  createStory: (body: { text: string; language: string; artStyle: string; scenes: number; seconds: number }) =>
+    request<Story>("/api/story", { method: "POST", body: JSON.stringify(body) }, AI_TIMEOUT_MS),
+  replanStory: (id: string) => request<Story>(`/api/projects/${id}/story/replan`, { method: "POST" }, AI_TIMEOUT_MS),
+  getStory: (id: string) => request<Story>(`/api/projects/${id}/story`),
+  editStory: (id: string, body: { title: string; scenes: { id: string; narration: string; visual: string }[] }) =>
+    request<Story>(`/api/projects/${id}/story`, { method: "PUT", body: JSON.stringify(body) }),
+  scenePicture: (id: string, sceneId: string, another = false) =>
+    request<Story>(`/api/projects/${id}/story/scenes/${sceneId}/picture`, { method: "POST", body: JSON.stringify({ another }) }, AI_TIMEOUT_MS),
+  uploadScenePicture: (id: string, sceneId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return upload<Story>(`/api/projects/${id}/story/scenes/${sceneId}/upload`, form);
+  },
+  renderStory: (id: string, body: { voiceId: string | null; quality: "preview" | "final" }) =>
+    request<Job>(`/api/projects/${id}/story/render`, { method: "POST", body: JSON.stringify(body) }),
+  retention: () => request<Retention>("/api/retention"),
+  setRetention: (body: Retention) => request<Retention>("/api/admin/retention", { method: "PUT", body: JSON.stringify(body) }),
+  runRetention: () => request<{ uploads: number; projects: number }>("/api/admin/retention/run", { method: "POST" }),
+  connections: () => request<Connections>("/api/publish/connections"),
+  publish: (id: string, renderingId: string, body: { platforms: Platform[]; caption: string; at?: string | null }) =>
+    request<Post>(`/api/projects/${id}/renderings/${renderingId}/publish`, { method: "POST", body: JSON.stringify(body) }),
+  posts: (id: string) => request<Post[]>(`/api/projects/${id}/posts`),
+  cancelPost: (postId: string) => request<{ ok: boolean }>(`/api/posts/${postId}`, { method: "DELETE" }),
 
   // --- editor ---
   timeline: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline`),
+  /** How the renderer frames, corrects and grades each shot: the live preview shows the same picture. */
+  /** The Reel's real beat markers: every beat with its kind, the drops, and the person's own markers. */
+  timelineMarkers: (id: string) => request<BeatMarkers>(`/api/projects/${id}/timeline/markers`, undefined, 120_000),
+  editMarkers: (id: string, add: number[], remove: number[]) =>
+    request<BeatMarkers>(`/api/projects/${id}/timeline/markers`, { method: "POST", body: JSON.stringify({ add, remove }) }, 120_000),
+  /** Re-cut the Reel's clips onto the markers of a density (one undoable edit). */
+  autoCut: (id: string, density: MarkerDensity, minClip = 0.4) =>
+    request<TimelineState>(`/api/projects/${id}/timeline/auto-cut`, { method: "POST", body: JSON.stringify({ density, minClip }) }, 300_000),
+  previewHints: (id: string) => request<PreviewHints>(`/api/projects/${id}/timeline/preview-hints`, undefined, 120_000),
+  startEditing: (id: string, fresh = false) => request<TimelineState>(`/api/projects/${id}/timeline/start${fresh ? "?fresh=true" : ""}`, { method: "POST" }),
+  editorCatalog: () => request<{ transitions: string[]; effects: string[]; looks: { id: string; label: string; hint: string }[] }>("/api/editor/catalog"),
   editTimeline: (id: string, ops: object[], label?: string) =>
     request<TimelineState>(`/api/projects/${id}/timeline/ops`, { method: "POST", body: JSON.stringify({ ops, label }) }),
   undo: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline/undo`, { method: "POST" }),
@@ -288,6 +409,22 @@ export const api = {
 
   // --- my trends (learned from reference Reels) ---
   references: () => request<LearnedTrend[]>("/api/references"),
+  referenceReel: (id: string) => request<ReferenceReelInfo | null>(`/api/projects/${id}/reference-reel`),
+  setReferenceReel: (id: string, file: File, useAudio = true) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("use_audio", useAudio ? "true" : "false");
+    return upload<ReferenceReelInfo>(`/api/projects/${id}/reference-reel`, form);
+  },
+  removeReferenceReel: (id: string) => request<void>(`/api/projects/${id}/reference-reel`, { method: "DELETE" }),
+  trendLibrary: () => request<{ count: number; lastAdded: string | null; styles: number }>("/api/trend-library"),
+  learnTrends: (files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    return upload<{ learned: string[]; failed: { name: string; error: string }[]; total: number }>("/api/trend-library/learn", form);
+  },
+  groupTrends: () => request<LearnedTrend[]>("/api/trend-library/group", { method: "POST" }, AI_TIMEOUT_MS),
+  clearTrendLibrary: () => request<void>("/api/trend-library", { method: "DELETE" }),
   createReference: (name: string, notes: string, files: File[], onProgress?: (f: number) => void) => {
     const form = new FormData();
     form.append("name", name);
@@ -332,6 +469,9 @@ export const api = {
 
   // --- variations, workspace ---
   strategies: () => request<Strategy[]>("/api/variation-strategies"),
+  /** One long video -> several Reels from its best parts (they appear as versions). */
+  split: (id: string, count: number, seconds: number) =>
+    request<Job>(`/api/projects/${id}/split`, { method: "POST", body: JSON.stringify({ count, seconds }) }),
   variations: (id: string, strategies?: string[]) =>
     request<Job>(`/api/projects/${id}/variations`, { method: "POST", body: JSON.stringify({ strategies }) }),
   duplicate: (id: string, body: { name?: string; variant?: "copy" | "language"; language?: string }) =>

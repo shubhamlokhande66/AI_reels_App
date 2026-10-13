@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/projects" }));
 
-import { AppShell } from "@/components/AppShell";
+import { AppShell } from "@/components/templates/AppShell";
 
 describe("AppShell navigation", () => {
   it("lists Beat Sync as its own item, alongside Projects and Create Reel", () => {

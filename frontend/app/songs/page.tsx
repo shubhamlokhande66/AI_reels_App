@@ -1,7 +1,7 @@
 "use client";
 
-import { PageHeader } from "@/components/ui";
-import { SongsPage } from "@/components/Songs";
+import { PageHeader } from "@/components/molecules";
+import { SongsPage } from "@/components/organisms/Songs";
 
 export default function Songs() {
   return (

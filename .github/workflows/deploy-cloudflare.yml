@@ -1,0 +1,23 @@
+# Deploy Reel Maker to Cloudflare (Worker + Container) from GitHub: the container image is built here, so no Docker is
+# needed on your computer. Run it from the Actions tab ("Run workflow").
+# Repository secrets needed: CLOUDFLARE_API_TOKEN (Workers + Containers edit) and CLOUDFLARE_ACCOUNT_ID.
+# The app's own secrets (MONGODB_URI, R2 keys, ...) are set once with `npx wrangler secret put` (docs/deploy-cloudflare.md).
+name: Deploy to Cloudflare
+on:
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

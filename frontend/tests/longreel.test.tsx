@@ -49,9 +49,9 @@ vi.mock("@/hooks/useApi", async (orig) => ({
   useHealth: () => ({ data: { mongodb: true, ffmpeg: true, ai: { provider: "ollama", available: true, model: "gemma3:4b", detail: "ready" } }, isLoading: false, error: null }),
 }));
 
-import { AudioRangePicker, parseTime } from "@/components/AudioRangePicker";
-import { ProjectTools } from "@/components/ProjectTools";
-import { DurationSelector, formatLength } from "@/components/StyleSelector";
+import { AudioRangePicker, parseTime } from "@/components/molecules/AudioRangePicker";
+import { ProjectTools } from "@/components/organisms/ProjectTools";
+import { DurationSelector, formatLength } from "@/components/organisms/StyleSelector";
 import SettingsPage from "@/app/settings/page";
 import type { Project } from "@/types/api";
 

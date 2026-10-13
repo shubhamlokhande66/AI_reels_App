@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CaptionsPanel, MusicControls } from "@/components/editor/AudioCaptionsPanel";
-import { BrandAudioPanel } from "@/components/editor/BrandAudioPanel";
-import { Inspector } from "@/components/editor/Inspector";
-import { QualityPanel } from "@/components/editor/QualityPanel";
-import { ScriptVoicePanel } from "@/components/editor/ScriptVoicePanel";
-import { TimelineTracks } from "@/components/editor/TimelineTracks";
-import { ProgressBar } from "@/components/ProgressStages";
-import { btnDanger, btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { CaptionsPanel, MusicControls } from "@/components/organisms/editor/AudioCaptionsPanel";
+import { BrandAudioPanel } from "@/components/organisms/editor/BrandAudioPanel";
+import { Inspector } from "@/components/organisms/editor/Inspector";
+import { QualityPanel } from "@/components/organisms/editor/QualityPanel";
+import { ScriptVoicePanel } from "@/components/organisms/editor/ScriptVoicePanel";
+import { TimelineTracks } from "@/components/organisms/editor/TimelineTracks";
+import { ProgressBar } from "@/components/molecules/ProgressStages";
+import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { keys, useJob, useProject, useRenderTimeline, useTimeline, useTimelineActions } from "@/hooks/useApi";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { formatBytes, styleLabel } from "@/lib/format";
@@ -213,7 +214,7 @@ export default function EditorPage() {
           </div>
           {job.data && (job.data.status === "queued" || job.data.status === "processing") && (
             <div>
-              <ProgressBar value={job.data.progress} label="Render progress" />
+              <ProgressBar value={job.data.progress} label="Render progress" showEta />
               <p className="mt-1 text-xs text-muted">{job.data.status === "queued" ? "Waiting in the render queue…" : `Rendering ${job.data.progress}%`}</p>
             </div>
           )}

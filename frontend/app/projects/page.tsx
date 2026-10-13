@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { ProjectCard } from "@/components/ProjectCard";
-import { EmptyState, ErrorBanner, LinkButton, PageHeader, Spinner } from "@/components/ui";
+import { ProjectCard } from "@/components/molecules/ProjectCard";
+import { LinkButton, Spinner } from "@/components/atoms";
+import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { useProjects } from "@/hooks/useApi";
 import { errorMessage } from "@/lib/api";
 import type { ProjectStatus } from "@/types/api";

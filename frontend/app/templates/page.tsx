@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnDanger, btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { useStyles, useTrends } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { STYLE_LABELS } from "@/lib/format";
@@ -97,10 +98,15 @@ export default function TemplatesPage() {
   const rest = list.filter((t) => !t.favorite);
 
   const card = (t: Template) => (
-    <Card key={t.id}>
+    <Card key={t.id} className="relative transition-colors hover:border-accent/50">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="truncate font-semibold">{t.name}</h3>
+          <h3 className="truncate font-semibold">
+            {/* the whole card opens Create with this template (the buttons below stay separate) */}
+            <Link href={`/projects/new?template=${t.id}`} className="after:absolute after:inset-0 after:rounded-[inherit] hover:text-accent">
+              {t.name}
+            </Link>
+          </h3>
           <p className="mt-0.5 text-xs text-muted">
             {t.builtin ? "Built-in" : "Yours"} · {t.duration}s · {STYLE_LABELS[t.style] ?? t.style} · {t.pace}
             {t.uses > 0 ? ` · used ${t.uses}×` : ""}
@@ -111,7 +117,7 @@ export default function TemplatesPage() {
           aria-pressed={t.favorite}
           aria-label={t.favorite ? `Remove ${t.name} from favorites` : `Add ${t.name} to favorites`}
           onClick={() => fav.mutate({ id: t.id, favorite: !t.favorite })}
-          className="text-lg leading-none"
+          className="relative z-10 text-lg leading-none hover:text-accent"
         >
           {t.favorite ? "★" : "☆"}
         </button>
@@ -122,7 +128,7 @@ export default function TemplatesPage() {
         {t.captions ? ` · ${t.captionStyle} captions` : " · no captions"}
         {t.ai ? " · AI assisted" : ""}
       </p>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="relative z-10 mt-3 flex flex-wrap gap-2">
         <Link href={`/projects/new?template=${t.id}`} className={btnPrimary}>
           Use template
         </Link>
@@ -287,11 +293,16 @@ export default function TemplatesPage() {
         <h2 className="mb-2 font-semibold">Editing styles</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {styles.data?.map((s) => (
-            <Card key={s.id}>
-              <h3 className="font-medium">{s.name}</h3>
-              <p className="mt-1 text-sm text-muted">{s.description}</p>
-              <p className="mt-3 text-xs text-muted">Default captions: {s.captionStyle}</p>
-            </Card>
+            <Link key={s.id} href={`/projects/new?style=${s.id}`} className="group block">
+              <Card className="h-full transition-colors group-hover:border-accent/50">
+                <h3 className="font-medium group-hover:text-accent">{s.name}</h3>
+                <p className="mt-1 text-sm text-muted">{s.description}</p>
+                <p className="mt-3 flex items-center justify-between text-xs text-muted">
+                  <span>Default captions: {s.captionStyle}</span>
+                  <span className="text-accent">Use this style →</span>
+                </p>
+              </Card>
+            </Link>
           ))}
         </div>
       </section>
@@ -299,17 +310,20 @@ export default function TemplatesPage() {
       <section className="mt-8">
         <h2 className="mb-2 font-semibold">Trend presets</h2>
         <p className="mb-3 text-sm text-muted">
-          Manually configured presets. A live trend feed (from a legitimate API) is a TODO.
+          Proven pacing for popular Reel formats. Tap one to start a Reel with it.
         </p>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {trends.data?.map((t) => (
-            <Card key={t.id}>
-              <h3 className="font-medium">{t.trendName}</h3>
-              <p className="mt-1 text-sm text-muted">{t.description}</p>
-              <p className="mt-3 text-xs text-muted">
-                {t.recommendedDuration}s · {t.cutFrequency} cuts · {t.transitionStyle} transitions · {t.captionStyle} captions
-              </p>
-            </Card>
+            <Link key={t.id} href={`/projects/new?trend=${t.id}`} className="group block">
+              <Card className="h-full transition-colors group-hover:border-accent/50">
+                <h3 className="font-medium group-hover:text-accent">{t.trendName}</h3>
+                <p className="mt-1 text-sm text-muted">{t.description}</p>
+                <p className="mt-3 text-xs text-muted">
+                  {t.recommendedDuration}s · {t.cutFrequency} cuts · {t.transitionStyle} transitions · {t.captionStyle} captions
+                </p>
+                <p className="mt-2 text-xs text-accent">Use this trend →</p>
+              </Card>
+            </Link>
           ))}
         </div>
       </section>

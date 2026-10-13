@@ -8,6 +8,7 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), useSearchParams: () => new URLSearchParams() }));
 
 vi.mock("@/hooks/useApi", () => ({
+  useAdmin: () => ({ admin: true, required: false, loading: false }),
   useTrends: () => ({
     data: [{ id: "cinematic_story", trendName: "Cinematic Story", recommendedDuration: 30, cutFrequency: "slow",
       transitionStyle: "smooth", captionStyle: "luxury", description: "" }],
@@ -27,7 +28,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api }));
 
-import { CreateReelForm } from "@/components/CreateReelForm";
+import { CreateReelForm } from "@/components/organisms/CreateReelForm";
 
 function renderForm() {
   return render(
@@ -91,7 +92,7 @@ describe("CreateReelForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Generate Reel" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
-    expect(api.createProject).toHaveBeenCalledWith("My reel", { duration: 30, style: "luxury", pace: "auto", sequence: "mixed", captions: false, captionStyle: "minimal", ai: true, aiDirector: true, audioMode: "music", language: "en", brief: "", reference: "auto" });
+    expect(api.createProject).toHaveBeenCalledWith("My reel", { duration: 30, style: "luxury", pace: "auto", sequence: "mixed", captions: false, captionStyle: "minimal", ai: true, aiDirector: true, autoReview: true, soundEffects: false, deleteMediaAfterRender: false, audioMode: "music", language: "en", brief: "", reference: "auto" });
     expect(api.uploadVideos.mock.calls[0][1].map((f: File) => f.name)).toEqual(["a.mp4", "b.mov"]);
     expect(api.uploadAudio.mock.calls[0][1].name).toBe("song.mp3");
     expect(api.generate).toHaveBeenCalledWith("p1");

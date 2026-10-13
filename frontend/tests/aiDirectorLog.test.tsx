@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { AiDirectorSection } from "@/components/ReelPlanPanel";
+import { AiDirectorSection } from "@/components/organisms/ReelPlanPanel";
 import type { AiDirectorLog } from "@/types/api";
 
 const log: AiDirectorLog = {

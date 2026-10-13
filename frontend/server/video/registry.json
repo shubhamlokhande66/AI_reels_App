@@ -1,0 +1,273 @@
+{
+ "effects": [
+  "none",
+  "zoom_in",
+  "zoom_out",
+  "punch",
+  "punch_out",
+  "zoom_pulse",
+  "beat_stutter",
+  "beat_punch",
+  "pan_left",
+  "pan_right",
+  "pan_up",
+  "pan_down",
+  "ken_burns",
+  "crash_zoom",
+  "shake",
+  "roll",
+  "flash",
+  "black_white",
+  "beat_flash",
+  "freeze",
+  "vignette",
+  "glow",
+  "sharpen"
+ ],
+ "transitions": [
+  "cut",
+  "fade",
+  "dissolve",
+  "zoom",
+  "slide",
+  "blur",
+  "flash",
+  "speed_ramp",
+  "wipe_left",
+  "wipe_right",
+  "wipe_up",
+  "wipe_down",
+  "wipe_tl",
+  "wipe_tr",
+  "wipe_bl",
+  "wipe_br",
+  "slide_left",
+  "slide_right",
+  "slide_down",
+  "smooth_left",
+  "smooth_right",
+  "smooth_up",
+  "smooth_down",
+  "circle_open",
+  "circle_close",
+  "circle_crop",
+  "rect_crop",
+  "vert_open",
+  "vert_close",
+  "horz_open",
+  "horz_close",
+  "distance",
+  "radial",
+  "pixelize",
+  "diag_tl",
+  "diag_tr",
+  "diag_bl",
+  "diag_br",
+  "slice_h_left",
+  "slice_h_right",
+  "slice_v_up",
+  "slice_v_down",
+  "squeeze_h",
+  "squeeze_v",
+  "wind_left",
+  "wind_right",
+  "cover_left",
+  "cover_right",
+  "cover_up",
+  "cover_down",
+  "reveal_left",
+  "reveal_right",
+  "reveal_up",
+  "reveal_down",
+  "fade_grays"
+ ],
+ "grades": [
+  "natural",
+  "clean",
+  "warm",
+  "cinematic",
+  "luxury",
+  "high_contrast",
+  "soft",
+  "vintage",
+  "black_white",
+  "sepia",
+  "cool",
+  "golden_hour",
+  "faded_film",
+  "noir",
+  "neon",
+  "retro",
+  "crisp",
+  "dreamy",
+  "emerald",
+  "rose"
+ ],
+ "looks": [
+  {
+   "id": "natural",
+   "label": "Natural",
+   "hint": "true-to-life colour, any content"
+  },
+  {
+   "id": "clean",
+   "label": "Clean",
+   "hint": "bright, crisp product and tutorial footage"
+  },
+  {
+   "id": "warm",
+   "label": "Warm",
+   "hint": "food, lifestyle, golden-hour, cosy moods"
+  },
+  {
+   "id": "cinematic",
+   "label": "Cinematic",
+   "hint": "story-driven, travel, dramatic moods (teal shadows, warm highlights)"
+  },
+  {
+   "id": "luxury",
+   "label": "Luxury",
+   "hint": "jewellery, fashion, premium products: deep contrast, warm highlights, soft vignette"
+  },
+  {
+   "id": "high_contrast",
+   "label": "High contrast",
+   "hint": "energetic, sports, bold trending edits"
+  },
+  {
+   "id": "soft",
+   "label": "Soft",
+   "hint": "calm, beauty, wellness: lifted and gentle"
+  },
+  {
+   "id": "vintage",
+   "label": "Vintage",
+   "hint": "nostalgic, throwback, memories"
+  },
+  {
+   "id": "black_white",
+   "label": "Black & white",
+   "hint": "timeless, dramatic, fashion"
+  },
+  {
+   "id": "sepia",
+   "label": "Sepia",
+   "hint": "old photos, history, heritage"
+  },
+  {
+   "id": "cool",
+   "label": "Cool",
+   "hint": "tech, winter, calm blue moods"
+  },
+  {
+   "id": "golden_hour",
+   "label": "Golden hour",
+   "hint": "sunsets, travel, romance"
+  },
+  {
+   "id": "faded_film",
+   "label": "Faded film",
+   "hint": "indie, aesthetic, lifted blacks"
+  },
+  {
+   "id": "noir",
+   "label": "Noir",
+   "hint": "mystery, bold black and white"
+  },
+  {
+   "id": "neon",
+   "label": "Neon",
+   "hint": "nightlife, gaming, party"
+  },
+  {
+   "id": "retro",
+   "label": "Retro",
+   "hint": "70s look, warm and faded"
+  },
+  {
+   "id": "crisp",
+   "label": "Crisp",
+   "hint": "sharp detail, products, food close-ups"
+  },
+  {
+   "id": "dreamy",
+   "label": "Dreamy",
+   "hint": "weddings, soft romance"
+  },
+  {
+   "id": "emerald",
+   "label": "Emerald",
+   "hint": "nature, forest, fresh"
+  },
+  {
+   "id": "rose",
+   "label": "Rose",
+   "hint": "beauty, fashion, soft pink"
+  }
+ ],
+ "exportPresets": [
+  {
+   "id": "instagram_reel",
+   "name": "Instagram Reel",
+   "width": 1080,
+   "height": 1920,
+   "fps": 30,
+   "aspect": "9:16",
+   "maxSeconds": 180
+  },
+  {
+   "id": "youtube_short",
+   "name": "YouTube Short",
+   "width": 1080,
+   "height": 1920,
+   "fps": 30,
+   "aspect": "9:16",
+   "maxSeconds": 180
+  },
+  {
+   "id": "tiktok",
+   "name": "TikTok",
+   "width": 1080,
+   "height": 1920,
+   "fps": 30,
+   "aspect": "9:16",
+   "maxSeconds": 600
+  },
+  {
+   "id": "instagram_story",
+   "name": "Instagram Story",
+   "width": 1080,
+   "height": 1920,
+   "fps": 30,
+   "aspect": "9:16",
+   "maxSeconds": 60
+  },
+  {
+   "id": "instagram_post",
+   "name": "Instagram Post (4:5)",
+   "width": 1080,
+   "height": 1350,
+   "fps": 30,
+   "aspect": "4:5",
+   "maxSeconds": 180
+  },
+  {
+   "id": "square",
+   "name": "Square (1:1)",
+   "width": 1080,
+   "height": 1080,
+   "fps": 30,
+   "aspect": "1:1",
+   "maxSeconds": 180
+  },
+  {
+   "id": "youtube",
+   "name": "YouTube (16:9)",
+   "width": 1920,
+   "height": 1080,
+   "fps": 30,
+   "aspect": "16:9",
+   "maxSeconds": null
+  }
+ ]
+}

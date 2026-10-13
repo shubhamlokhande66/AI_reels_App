@@ -31,7 +31,7 @@ result. That foundation is Phase A; everything else plugs into it.
 | 6, 8 | Smart shot selection, story engine | ✅ relevance to the brief and semantic importance in the scorer; story planner returns JSON that becomes an *order hint* (hook → build → payoff), never executed code |
 | 3, 4 | AI editor agent + multi-agent orchestrator | ✅ orchestrator picks the minimum set of small agents (analyst, story planner, style director …); each returns validated JSON; failures degrade to deterministic behaviour with a visible warning |
 | 9 | Variation engine | ✅ Version A-E = different style / pace / order / caption look, analysed once |
-| 10 | Audio intelligence | 🟡 downbeats, sections, drops, energy exist; voice-activity segmentation ⬜ |
+| 10 | Audio intelligence | ✅ downbeats, bars, phrases, drops, energy, plus (Phase 2.1) labelled song parts (intro/build/drop/chorus/verse/bridge/outro) with a cut strategy each, loudness / brightness / rhythmic-density curves and an *estimated* vocal presence (no source separation). See [phase2-plan.md](phase2-plan.md) |
 
 ## Phase C: Voice, script, hooks, captions (built and tested)
 

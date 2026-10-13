@@ -8,7 +8,7 @@ export interface ApiErrorBody {
 }
 
 export interface ProjectSettings {
-  reelType?: "edit" | "product";
+  reelType?: "edit" | "product" | "story";
   productStyle?: string;
   hookText?: string;
   taglineText?: string;
@@ -31,6 +31,11 @@ export interface ProjectSettings {
   audioMode?: "music" | "voice_music" | "voice" | "original" | "none";
   language?: string;
   brief?: string;
+  /** Optional brief fields; empty = inferred by the Creative Director. */
+  objective?: string;
+  audience?: string;
+  /** Creative direction: auto, or one of the three concepts. */
+  concept?: Concept;
   brandId?: string | null;
   voiceProfileId?: string | null;
   captions: boolean;
@@ -38,9 +43,22 @@ export interface ProjectSettings {
   ai: boolean;
   /** With AI on: the AI director plans every shot (validated before use). Off = AI only assists the rule-based editor. */
   aiDirector?: boolean;
+  /** cut exactly by the song's beat map plan (its cuts, effects, flashes and fades) */
+  beatPlan?: boolean;
+  /** with beatPlan: a cut and a transition on every beat */
+  cutEveryBeat?: boolean;
+  hardHitsOnly?: boolean;
+  /** with beatPlan: the shortest shot in seconds; faster beats are grouped */
+  minClip?: MinClip;
   trendId: string | null;
   /** Edit like a learned trend: "auto" (the AI picks from My trends), "none", or a trend id. */
   reference?: string;
+  /** The Quality Reviewer scores the edit and revises it (up to 2 rounds) before rendering. */
+  autoReview?: boolean;
+  /** Whooshes on moving transitions, a riser + impact on the drop, pops under text (synthesised locally). */
+  soundEffects?: boolean;
+  /** Privacy: delete the uploaded clips and music once a final Reel is rendered (the Reels are kept). */
+  deleteMediaAfterRender?: boolean;
 }
 
 /** What was measured in a trending Reel (or averaged over a trend's Reels). Seconds unless noted. */
@@ -82,6 +100,7 @@ export interface LearnedTrend {
   notes: string;
   profile: TrendProfile;
   videos: TrendProfile[];
+  auto?: boolean; // sorted out of the learned Reels automatically
   createdAt: string;
   updatedAt: string;
 }
@@ -94,6 +113,16 @@ export interface ClipSummary {
   sharpnessScore: number;
   flags: string[];
   usable: boolean;
+  /** Seconds of this clip the editor can really use (good parts only); absent before the analysis. */
+  goodSeconds?: number;
+  /** Shot intelligence (video analysis v3); absent on older analyses. */
+  compositionScore?: number;
+  subjectScore?: number;
+  /** Only when the vision model says the clip shows a product. */
+  productVisibility?: number | null;
+  /** Share of usable footage per shot size, e.g. { close: 0.6, wide: 0.4 }. */
+  shotSizes?: Record<string, number>;
+  bestSegments?: { start: number; end: number; score: number }[];
 }
 
 export interface Media {
@@ -109,6 +138,8 @@ export interface Media {
   analysis: ClipSummary | null;
   url: string;
   thumbnailUrl: string | null;
+  /** Deleted for privacy after rendering (the Reels are kept). */
+  purged?: boolean;
 }
 
 export interface Rendering {
@@ -150,7 +181,7 @@ export interface JobStage {
 export interface Job {
   id: string;
   projectId: string;
-  type: "analyze" | "generate" | "render" | "variations" | "product";
+  type: "analyze" | "generate" | "render" | "variations" | "split" | "product";
   status: JobStatus;
   progress: number;
   stage: string;
@@ -185,7 +216,7 @@ export interface Project {
     audio?: { bpm: number; duration: number; beatCount: number };
   } | null;
   timeline: {
-    duration: number; bpm: number; warnings: string[]; notes?: string[]; segments: TimelineSegment[];
+    duration: number; bpm: number; audioStart?: number; warnings: string[]; notes?: string[]; segments: TimelineSegment[];
     colorGrade?: string | null;
     overlays?: { id: string; text: string; start: number; end: number; role: string }[];
     /** Which AI made the creative decisions ("AI: Gemini"). */
@@ -238,7 +269,7 @@ export interface Health {
   ai: { provider: string; model: string | null; available: boolean; detail: string; local?: boolean; fallback?: string | null };
 }
 
-export type AiProviderId = "ollama" | "openai" | "gemini";
+export type AiProviderId = "ollama" | "openai" | "gemini" | "claude";
 
 export interface AiProviderInfo {
   id: AiProviderId;
@@ -337,7 +368,111 @@ export interface AiUsage {
   budget: AiBudgetState & { daily: number; monthly: number; override: boolean };
 }
 
-export type Sequence = "mixed" | "steps";
+export type Sequence = "mixed" | "steps" | "talk";
+
+export interface SongPart {
+  start: number;
+  end: number;
+  score: number;
+  reasons: string[];
+}
+
+export interface SongParts {
+  songSeconds: number;
+  bpm: number;
+  duration: number;
+  parts: SongPart[];
+  tooShort: boolean;
+}
+/** One moment of the song's beat map (backend audio/beatmap.py). */
+export interface BeatEvent {
+  t: number;
+  kind: "major" | "beat" | "sub";
+  strength: number;
+  /** beats only (backend audio/accents.py): 4 bar start with a hard kick, 3 bar start, 2 backbeat, 1 other */
+  level?: number;
+  /** beats only: an estimated bar start */
+  downbeat?: boolean;
+  effect: string;
+  effectLabel: string;
+  why: string;
+  section: string;
+}
+export interface BeatTrend {
+  kind: "rise" | "fall";
+  start: number;
+  end: number;
+  change: number;
+  effect: string;
+  effectLabel: string;
+  why: string;
+}
+/** One row of the cut plan: a new shot ("cut"), or a hard hit marked inside a shot: a flash, a speed ramp into the
+ * next cut, or a quick zoom-in out of the last one (for hits under 0.25 s from a cut). */
+export interface PlanRow {
+  t: number;
+  end: number;
+  kind: "cut" | "flash" | "ramp" | "zoom" | "hit";
+  shot: string;
+  effect: string;
+  effectLabel: string;
+  transition: string;
+  /** the transition's length (s); it lands on the beat */
+  tdur?: number;
+  transitionLabel?: string;
+  why: string;
+  /** on a cut: the beats the shot holds over (it pulses on each) */
+  pulses?: number[];
+  /** on a cut: the keyframe motion the shot gets from the music (backend director/plan_motion.py), in words */
+  motion?: string[];
+  /** on a cut: a speed ramp, if any: into_drop | out_of_drop | slow_hit */
+  ramp?: string;
+  keyframes?: Keyframe[];
+}
+export type MinClip = 0.25 | 0.35 | 0.4 | 0.6;
+/** The song analysis, schema 1.0 (backend audio/analysis_json.video_shape): what video editing needs, no decisions. */
+export interface SongAnalysisEvent {
+  type: string;
+  time_sec: number | null;
+  start_sec: number | null;
+  end_sec: number | null;
+  strength: number | null;
+  confidence: number | null;
+}
+export interface SongAnalysis {
+  schema_version: string;
+  status: "completed" | "failed";
+  audio: { duration_sec: number; sample_rate: number; channels_analyzed: number };
+  tempo: { bpm: number | null; alternative_bpm: number | null; beat_interval_sec: number | null; confidence?: number;
+           sections: { start_sec: number; end_sec: number; bpm: number; confidence: number }[] };
+  beats: { time_sec: number; strength: number | null; downbeat: boolean; beat_in_bar: number | null }[];
+  onsets: { time_sec: number; strength: number | null }[];
+  energy_curve: { sample_interval_sec: number; values: number[] };
+  sections: { type: string; start_sec: number; end_sec: number; energy_level: string; energy: number; confidence: number }[];
+  candidate_events: SongAnalysisEvent[];
+  errors: string[];
+}
+export interface BeatMap {
+  bpm: number;
+  /** the beat tracker's own tempo (can be double the beats listed) */
+  trackerBpm: number;
+  plan: PlanRow[];
+  rolls: { start: number; end: number; count: number; perSecond: number }[];
+  seconds: number;
+  beatSeconds: number;
+  beatConfidence: number;
+  /** how sure the bar starts are, 0..1 */
+  downbeatConfidence?: number;
+  counts: { major: number; beat: number; sub: number; hardSub: number; rolls: number; drops: number; rises: number; falls: number; cuts: number };
+  events: BeatEvent[];
+  trends: BeatTrend[];
+  sections: { label: string; start: number; end: number; energy: number; cutOn: string }[];
+  drops: number[];
+  curveStep: number;
+  energy: number[];
+  rhythm: number[];
+}
+export type Concept = "auto" | "viral" | "cinematic" | "premium";
 
 export interface GenerateOptions {
   sequence?: Sequence;
@@ -346,6 +481,7 @@ export interface GenerateOptions {
   orderMode?: "auto" | "manual";
   audioMode?: string;
   brief?: string;
+  concept?: Concept;
   language?: string;
   style?: string;
   pace?: "auto" | "calm" | "balanced" | "fast";
@@ -373,6 +509,25 @@ export interface EdlSegment {
   effect: string;
   transitionIn: { type: string; duration: number };
   crop: { framing: Framing; focusX: number | null; focusY: number | null };
+  /** keyframe animation of the shot (backend video/keyframes.py) */
+  keyframes?: Keyframe[];
+  /** colour looks on top of the movement (glow, black_white, vignette...) */
+  looks?: string[];
+}
+
+export type Ease = "linear" | "ease_in" | "ease_out" | "ease_in_out" | "hold";
+export interface Keyframe {
+  t: number;
+  zoom?: number | null;
+  x?: number | null;
+  y?: number | null;
+  rotation?: number | null;
+  opacity?: number | null;
+  blur?: number | null;
+  brightness?: number | null;
+  /** a speed ramp: playback speed at this moment (0.25..4) */
+  speed?: number | null;
+  ease: Ease;
 }
 
 export interface EdlCaption {
@@ -395,10 +550,62 @@ export interface EdlTimeline {
   musicVolume: number;
   musicFadeIn: number | null;
   musicFadeOut: number | null;
+  colorGrade?: string | null;
+  overlays?: EdlOverlay[];
+  /** the song's hits (song time) the beat effects follow */
+  musicHits?: number[];
+  /** fade from / to black at the start / end (s) */
+  pictureFade?: number | null;
   warnings: string[];
   notes: string[];
 }
 
+/** On-screen text layer (the manual editor's Text tool). */
+export interface EdlOverlay {
+  id?: string;
+  text: string;
+  start: number;
+  end: number;
+  role?: "hook" | "benefit" | "product" | "emotion" | "cta" | "text";
+  position: "top" | "center" | "bottom";
+  animation: "fade" | "slide_up" | "scale" | "type_on" | "blur_sharp" | "mask_reveal";
+  size: "small" | "medium" | "large";
+}
+
+/** A beat marker in the editor (backend services/markers.py), in Reel time. */
+/** strong / medium beats on their real hits (weak beats are not markers), drops, the person's own */
+export type MarkerKind = "strong" | "medium" | "drop" | "custom";
+export type MarkerDensity = "both" | "strong" | "drops";
+export interface BeatMarker {
+  t: number;
+  kind: MarkerKind;
+  level: number;
+  /** a strong beat that also starts a bar */
+  barStart?: boolean;
+}
+export interface BeatMarkers {
+  markers: BeatMarker[];
+  /** the Reel's part of the song: loudest level per 1/perSecond s, 0..1 */
+  waveform?: { perSecond: number; peaks: number[] };
+  barConfidence: number;
+  bpm: number;
+  audioStart: number;
+  duration: number;
+  own: { added: number; removed: number };
+}
+
+/** The renderer's own framing and correction per shot (backend services/preview_hints.py), for the live preview. */
+export interface ShotHint {
+  mode: "fill" | "fit";
+  crop: { x: number; y: number; w: number; h: number };
+  lift: number;
+  gamma: number;
+  stabilized: boolean;
+}
+export interface PreviewHints {
+  segments: Record<string, ShotHint>;
+  grade: { contrast?: number; saturation?: number; brightness?: number };
+}
 export interface TimelineState {
   timeline: EdlTimeline | null;
   version: number;
@@ -524,6 +731,8 @@ export interface Brand {
   scriptTone: string;
   captionStyle: string;
   style: string;
+  /** The brand look the Creative Director uses whenever a project style is auto. */
+  visualStyle?: BrandVisualStyle | null;
   pace: "calm" | "balanced" | "fast";
   trendId: string | null;
   musicStyle: string;
@@ -532,6 +741,8 @@ export interface Brand {
   logoUrl: string | null;
 }
 export type BrandInput = Omit<Brand, "id" | "hasLogo" | "logoUrl">;
+export const BRAND_VISUAL_STYLES = ["luxury", "cinematic", "viral", "minimal", "energetic", "storytelling", "product_focus", "social_native"] as const;
+export type BrandVisualStyle = (typeof BRAND_VISUAL_STYLES)[number];
 
 export interface Template {
   id: string;
@@ -667,6 +878,8 @@ export interface ReelPlanShot {
   mayTrigger: string;
   energy: string;
   importance: number | null;
+  /** Why the director chose this shot here, in plain words. */
+  why?: string | null;
 }
 
 export interface ReelPlanCheck {
@@ -692,6 +905,10 @@ export interface ReelPlan {
     drops: number[];
     pauses: { start: number; end: number }[];
     energyCurve: { start: number; end: number; level: string }[];
+    /** Labelled song parts inside the Reel and what cuts land on there. */
+    sections?: { start: number; end: number; label: string; energy: number; vocal: number; density: number; cutOn: string; confidence: number }[];
+    /** One point per beat: section, energy, beat strength, position in the musical phrase. */
+    timeline?: { time: number; section: string | null; energy: number; beatStrength: number; phrasePosition: number }[];
     notDetected: string[];
   };
   hook: { asset: string; start: number; end: number; kind: string };
@@ -704,7 +921,130 @@ export interface ReelPlan {
   aiDirector?: AiDirectorLog;
   /** Set when the AI director was asked for but the rule-based editor made this Reel (and why). */
   directorFallback?: { reason: string };
+  /** The Quality Reviewer's verdict on the final edit, with the revisions it made before rendering. */
+  review?: CreativeReview;
+  /** The strongest possible openings the director compared (best first). */
+  hookCandidates?: HookCandidate[];
+  /** The single strongest moment of the footage, kept for the music's peak. */
+  heroMoment?: { clipId: string; asset: string; start: number; end: number; score: number } | null;
+  /** Phase 2: the project brief (who / what / why), with the fields the app inferred. */
+  brief?: ProjectBrief;
+  /** Phase 2: the Creative Plan this edit carries out. */
+  creativePlan?: CreativePlan;
+  /** Phase 2: the hook engine's typed, scored openings (best first). */
+  hooks?: HookOption[];
+  /** Phase 2: the Reviewer's ten measured scores. */
+  scorecard?: Scorecard;
+  /** Phase 2: review -> correct -> re-render rounds after the first render. */
+  selfCorrection?: { iteration: number; scoreBefore: number; scoreAfter: number | null; changes: string[]; kept: boolean; aiSummary: string }[];
 }
+
+export interface ProjectBrief {
+  platform: string;
+  duration: number;
+  objective: string;
+  contentType: string;
+  audience: string;
+  style: string;
+  tone: string;
+  cta: string;
+  brand: string;
+  language: string;
+  inferred: string[];
+}
+
+export interface CreativePlan {
+  concept: string;
+  direction: "auto" | "viral" | "cinematic" | "premium";
+  logline: string;
+  hook: { type?: string; clipId?: string; asset?: string; start?: number; duration?: number; why?: string };
+  story: string[];
+  pacing: string;
+  visualEnergy: string;
+  musicInterpretation: string;
+  textStrategy: string;
+  effectsStrategy: string;
+  transitionStrategy: string;
+  ending: string;
+  source: "rules" | "ai";
+}
+
+export interface HookOption {
+  clipId: string;
+  asset: string;
+  start: number;
+  end: number;
+  type: string;
+  hookScore: number;
+  clarity: number;
+  curiosity: number;
+  visualStrength: number;
+  reason: string;
+  text: string;
+}
+
+export interface Scorecard {
+  overallScore: number;
+  hook: number;
+  story: number;
+  pacing: number;
+  musicSync: number;
+  visualQuality: number;
+  brandFit: number;
+  textReadability: number;
+  audio: number;
+  ending: number;
+  retention: number;
+  issues: string[];
+  threshold: number;
+  measured: boolean;
+}
+
+export interface CreativeIssue {
+  timestamp: number;
+  problem: string;
+  severity: "high" | "medium" | "low";
+  category: string;
+  fix: string | null;
+}
+
+export interface CreativeReview {
+  overallScore: number;
+  target: number;
+  categories: Record<string, number>;
+  issues: CreativeIssue[];
+  iterations: { round: number; changes: string[]; scoreBefore: number; scoreAfter: number; kept: boolean }[];
+}
+
+export interface HookCandidate {
+  clipId: string;
+  asset: string;
+  start: number;
+  end: number;
+  score: number;
+  parts: Record<string, number>;
+  reason: string;
+}
+
+export interface DirectorProfile {
+  ready: boolean;
+  enabled: boolean;
+  evidence: number;
+  minEvidence: number;
+  preferences: {
+    avgShotSeconds?: number | null;
+    duration?: number;
+    style?: string;
+    pace?: "calm" | "balanced" | "fast";
+    transitions?: "minimal" | "more" | "as styled";
+    effects?: "minimal" | "as styled";
+    hook?: "aggressive" | "balanced";
+    text?: "minimal" | "as styled";
+  };
+  counts: Record<string, number>;
+}
+
+export type FeedbackReason = "opening" | "pacing" | "music" | "clips" | "text" | "effects" | "other";
 
 export interface AiDirectorShotLog {
   shot: number;
@@ -824,4 +1164,126 @@ export interface SongList {
   songs: Song[];
   /** Folders watched for new songs (SONG_IMPORT_FOLDERS in the backend .env). */
   folders: string[];
+}
+
+/** Publishing (official platform APIs; keys on the server). */
+export type Platform = "instagram" | "tiktok" | "youtube";
+export type Connections = Record<Platform, { connected: boolean; missing: string[] }>;
+export interface Post {
+  id: string;
+  renderingId: string;
+  platforms: Platform[];
+  caption: string;
+  at: string;
+  status: "scheduled" | "publishing" | "done" | "failed" | "cancelled";
+  results: Partial<Record<Platform, { ok: boolean; postId: string | null; url: string; error: string | null }>>;
+  error: string | null;
+  createdAt: string;
+}
+
+/** Automatic deletion (admin setting). */
+export interface Retention {
+  enabled: boolean;
+  uploadsHours: number;
+  projectsHours: number;
+}
+
+/** Story -> Reel. */
+export type PictureSource = "library" | "public_domain" | "free_ai" | "paid_ai" | "upload";
+export interface StoryScene {
+  id: string;
+  narration: string;
+  visual: string;
+  keywords: string[];
+  characters: string[];
+  shot: "wide" | "medium" | "close";
+  mood: string;
+  source: PictureSource | null;
+  credit: string;
+  imageUrl: string | null;
+}
+export interface Story {
+  projectId: string;
+  title: string;
+  language: string;
+  artStyle: string;
+  characters: { name: string; look: string }[];
+  scenes: StoryScene[];
+  postCopy: { title: string; description: string; hashtags: string[] } | null;
+  plannedBy: "ai" | "simple";
+}
+export interface StoryOptions {
+  artStyles: { id: string; name: string; paintings: boolean; sources: string[] }[];
+  narrators: { id: string; name: string }[];
+  freeAi: boolean;
+  paidAi: boolean;
+}
+
+/** Plans and credits (pricing page). */
+export interface Pricing {
+  currency: string;
+  yearlyMonthsCharged: number;
+  plans: {
+    id: string;
+    name: string;
+    monthly: number;
+    yearly: number;
+    credits: number;
+    creditsNote: string;
+    tagline: string;
+    highlight: boolean;
+    features: string[];
+  }[];
+  topUps: { id: string; credits: number; price: number }[];
+  creditCosts: { id: string; action: string; credits: number }[];
+  costs: Record<string, number>;
+  paymentsOpen: boolean;
+  billingEnabled: boolean;
+}
+
+/** The signed-in user's credits (billing on). */
+export type Credits =
+  | { enabled: false }
+  | {
+      enabled: true;
+      balance: number;
+      monthly: number;
+      extra: number;
+      plan: string;
+      planName: string;
+      period: "monthly" | "yearly" | null;
+      planEnds: string | null;
+      renews: string | null;
+      history: { delta: number; reason: string; at: string; balance: number | null }[];
+    };
+export interface CheckoutOrder {
+  orderId: string;
+  keyId: string;
+  amount: number;
+  currency: string;
+  label: string;
+  email: string;
+}
+
+/** Business details for the legal and contact pages. */
+export interface SiteInfo {
+  businessName: string;
+  supportEmail: string;
+  supportPhone: string;
+  businessAddress: string;
+  legalUpdated: string;
+}
+
+/** "Make it like this Reel": the measured reference (only numbers are kept). */
+export interface ReferenceReelInfo {
+  name: string;
+  seconds: number;
+  shots: number;
+  avgShot?: number;
+  hookSeconds?: number;
+  onBeatShare?: number | null;
+  bpm?: number;
+  summary: string;
+  /** its own music is this project's song (same song, same point: the cuts line up with the original) */
+  usesAudio?: boolean;
 }

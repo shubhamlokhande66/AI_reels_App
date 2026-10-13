@@ -51,9 +51,15 @@ export function formatRelative(iso: string, now: Date = new Date()): string {
 }
 
 export const STYLE_LABELS: Record<string, string> = {
-  fast_trending: "Fast Trending",
+  viral: "Viral",
   cinematic: "Cinematic",
   luxury: "Luxury",
+  energetic: "Energetic",
+  storytelling: "Storytelling",
+  product_focus: "Product Focus",
+  social_native: "Social Native",
+  fast_trending: "Fast Trending",
+  minimal: "Minimal",
   food: "Food",
   travel: "Travel",
   custom: "Custom",
@@ -65,7 +71,7 @@ export function styleLabel(id: string): string {
 }
 
 export const ACCEPTED_VIDEO = ".mp4,.mov,.m4v,.webm,.mkv,.avi";
-export const ACCEPTED_AUDIO = ".mp3,.wav,.m4a,.aac,.ogg,.flac";
+export const ACCEPTED_AUDIO = ".mp3,.mpeg,.mpga,.mp2,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.amr,.wma,.aif,.aiff,.caf,.weba"; // same list as the backend (AUDIO_EXTS)
 // For the file picker: the wildcard types make phones open the photo/video gallery and the music files directly.
 // (Files are still checked by extension after they are chosen.)
 export const ACCEPTED_IMAGE = ".jpg,.jpeg,.png,.webp,.bmp,.tif,.tiff";
@@ -84,3 +90,11 @@ export const isAudioFile = (f: File) => AUDIO_EXT.has(ext(f.name));
 const IMAGE_EXT = new Set(ACCEPTED_IMAGE.split(","));
 export const isImageFile = (f: File) => IMAGE_EXT.has(ext(f.name));
 export const isHeic = (f: File) => [".heic", ".heif"].includes(ext(f.name));
+
+/** Upload limits (the same as the backend defaults: MAX_VIDEO_SIZE_MB, MAX_AUDIO_SIZE_MB). */
+export const MAX_VIDEO_MB = 500;
+export const MAX_AUDIO_MB = 50;
+/** The files over `mb` megabytes, as "name (612 MB)" for a message. */
+export function tooBig(files: File[], mb: number): string[] {
+  return files.filter((x) => x.size > mb * 1024 * 1024).map((x) => `${x.name} (${Math.round(x.size / 1024 / 1024)} MB)`);
+}

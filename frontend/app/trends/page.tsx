@@ -2,9 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dropzone } from "@/components/Dropzone";
-import { ProgressBar } from "@/components/ProgressStages";
-import { btnDanger, btnPrimary, btnSecondary, Card, EmptyState, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { Dropzone } from "@/components/molecules/Dropzone";
+import { TrendLibrary } from "@/components/organisms/TrendLibrary";
+import { ProgressBar } from "@/components/molecules/ProgressStages";
+import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { PICKER_VIDEO, isVideoFile } from "@/lib/format";
 import type { LearnedTrend, TrendLook, TrendProfile } from "@/types/api";
@@ -95,7 +97,7 @@ function LearnForm() {
         </ul>
       )}
       {error && <ErrorBanner title="Could not learn this trend" message={error} />}
-      {busy && <ProgressBar value={pct * 100} label={pct < 1 ? "Uploading" : "Measuring the Reels"} />}
+      {busy && <ProgressBar value={pct * 100} label={pct < 1 ? "Uploading" : "Measuring the Reels"} showEta />}
       {busy && pct >= 1 && <p className="text-xs text-muted">Measuring the cuts, the music and the look… about 10-30 s per Reel.</p>}
       <button type="button" className={btnPrimary} disabled={busy || !name.trim() || files.length === 0} onClick={() => { setError(null); learn.mutate(); }}>
         {busy ? "Learning…" : "Learn this trend"}
@@ -126,7 +128,10 @@ function TrendCard({ t }: { t: LearnedTrend }) {
           </div>
         ) : (
           <div>
-            <h3 className="font-medium">{t.name}</h3>
+            <h3 className="font-medium">
+              {t.name}
+              {t.auto && <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-normal text-accent">auto style</span>}
+            </h3>
             <p className="text-xs text-muted">
               Learned from {t.videos.length} Reel{t.videos.length === 1 ? "" : "s"}{t.notes ? ` · “${t.notes}”` : ""}
             </p>
@@ -172,6 +177,7 @@ export default function TrendsPage() {
     <>
       <PageHeader title="My trends" subtitle="Show the AI trending Reels you like; it edits your videos with the same rhythm and feel." />
       <div className="space-y-6">
+        <TrendLibrary />
         <LearnForm />
         {q.isLoading && <Spinner label="Loading your trends…" />}
         {q.error && <ErrorBanner message={errorMessage(q.error)} />}

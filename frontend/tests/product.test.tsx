@@ -24,10 +24,10 @@ vi.mock("@/hooks/useApi", async (orig) => ({
   useDeleteProject: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { NewReel } from "@/components/NewReel";
-import { ProductProjectView } from "@/components/ProductProjectView";
-import { ProductReelForm } from "@/components/ProductReelForm";
-import { ShotList } from "@/components/ShotList";
+import { NewReel } from "@/components/molecules/NewReel";
+import { ProductProjectView } from "@/components/organisms/ProductProjectView";
+import { ProductReelForm } from "@/components/organisms/ProductReelForm";
+import { ShotList } from "@/components/molecules/ShotList";
 
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
 const STYLES = [
@@ -253,7 +253,7 @@ describe("ProductProjectView", () => {
       stages: [{ name: "understanding_images", label: "Understanding the photos", status: "completed", progress: 100 }, { name: "planning_shots", label: "Planning the shots", status: "running", progress: 40 }] };
     wrap(<ProductProjectView project={project({ status: "processing", latestJob: job as never })} />);
     expect(screen.getByText("Directing your Reel…")).toBeInTheDocument();
-    expect(screen.getByText("Planning the shots")).toBeInTheDocument();
+    expect(screen.getAllByText("Planning the shots").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Direct again/ })).not.toBeInTheDocument();
   });
 

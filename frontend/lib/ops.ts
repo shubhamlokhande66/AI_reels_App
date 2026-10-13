@@ -12,6 +12,9 @@ export const op = {
   speed: (segmentId: string, speed: number) => ({ type: "set_speed", segmentId, speed }),
   transition: (segmentId: string, transition: string, duration?: number) => ({ type: "set_transition", segmentId, transition, duration }),
   effect: (segmentId: string, effect: string) => ({ type: "set_effect", segmentId, effect }),
+  /** the shot's keyframe animation, replaced as a whole (the server makes it safe) */
+  keyframes: (segmentId: string, keyframes: object[]) => ({ type: "set_keyframes", segmentId, keyframes }),
+  looks: (segmentId: string, looks: string[]) => ({ type: "set_looks", segmentId, looks }),
   framing: (segmentId: string, framing: Framing) => ({ type: "set_crop", segmentId, crop: { framing } }),
   music: (m: { volume?: number; fadeIn?: number; fadeOut?: number; audioStart?: number }) => ({ type: "set_music", ...m }),
   addCaption: (start: number, end: number, text: string) => ({ type: "add_caption", start, end, text }),

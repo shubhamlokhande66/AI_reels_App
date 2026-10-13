@@ -8,7 +8,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api }));
 
-import { SongPicker, SongsPage } from "@/components/Songs";
+import { SongPicker, SongsPage } from "@/components/organisms/Songs";
 import type { Song } from "@/types/api";
 
 const song = (over: Partial<Song> = {}): Song => ({

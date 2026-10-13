@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ProjectCard } from "@/components/ProjectCard";
-import { Card, EmptyState, ErrorBanner, LinkButton, PageHeader, Spinner } from "@/components/ui";
+import { ProjectCard } from "@/components/molecules/ProjectCard";
+import { Card, LinkButton, Spinner } from "@/components/atoms";
+import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { useProjects } from "@/hooks/useApi";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { styleLabel } from "@/lib/format";
