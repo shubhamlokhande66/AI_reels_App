@@ -6,7 +6,7 @@ import { db, ObjectId } from "@/server/core/db";
 import { env, settings } from "@/server/core/config";
 import { AppError, UnsupportedMedia, ValidationFailed } from "@/server/core/errors";
 import { probe, runFfmpeg } from "@/server/core/ffmpeg";
-import { ensureProject, localPath } from "@/server/storage/local";
+import { ensureProject, localPath, moveFile } from "@/server/storage/local";
 import { audioFacts, videoFacts } from "./probe";
 import { tooLarge, type UploadedFile } from "./upload";
 
@@ -43,7 +43,7 @@ function place(tmp: string, key: string) {
   const dest = localPath(key);
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   try {
-    fs.renameSync(tmp, dest);
+    moveFile(tmp, dest);
   } catch {
     fs.copyFileSync(tmp, dest); // another drive: copy
     fs.rmSync(tmp, { force: true });

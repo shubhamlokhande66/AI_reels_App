@@ -22,3 +22,7 @@ songs/
 frontend/tests/server/manual/*.json
 frontend/tests/server/manual/compare.txt
 frontend/tests/server/manual/profile.txt
+
+# Cloudflare (Wrangler) local state
+.wrangler/
+.dev.vars

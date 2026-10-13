@@ -10,7 +10,7 @@ import { AppError } from "./errors";
  * and `db()` then shows only that user's documents. Same password hashes and tokens as the Python backend. */
 
 export const COOKIE = "reel_session", SESSION_DAYS = 30;
-const PUBLIC_PATHS = ["/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/", "/api/plans", "/api/site"];
+const PUBLIC_PATHS = ["/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/", "/api/plans", "/api/site", "/api/cron"]; // /api/cron: its own key (CRON_SECRET)
 const userCtx = new AsyncLocalStorage<string | null>();
 export const currentUser = (): string | null => userCtx.getStore() ?? null;
 export const withUser = <T>(uid: string | null, fn: () => T): T => userCtx.run(uid, fn);

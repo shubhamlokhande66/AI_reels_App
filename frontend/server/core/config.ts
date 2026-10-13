@@ -1,5 +1,6 @@
 import "server-only";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 /** Settings, from the same `.env` at the repo root that the Python backend read (backend/app/core/config.py), so
@@ -43,6 +44,14 @@ export const settings = {
   mongodbDb: env("MONGODB_DB", "ai_reel_maker"),
   /** relative paths are from the repo root (where the data has always been) */
   storagePath: path.resolve(REPO_ROOT, env("STORAGE_PATH", "./storage")),
+  /** STORAGE_PATH is a mounted bucket (Cloudflare R2 through FUSE): temporary work stays on the local disk (SCRATCH_PATH) and
+   * FFmpeg writes locally before a file is copied into the bucket */
+  storageMounted: bool("STORAGE_MOUNTED", false),
+  /** Cloudflare: the scheduler calls /api/cron with this key; KEEP_ALIVE_URL is pinged while jobs run so the container
+   * does not go to sleep in the middle of a render */
+  cronSecret: env("CRON_SECRET", ""),
+  keepAliveUrl: env("KEEP_ALIVE_URL", ""),
+  scratchPath: path.resolve(env("SCRATCH_PATH", path.join(os.tmpdir(), "reel-scratch"))),
   maxVideoSizeMb: num("MAX_VIDEO_SIZE_MB", 500),
   maxAudioSizeMb: num("MAX_AUDIO_SIZE_MB", 50),
   maxVideosPerProject: num("MAX_VIDEOS_PER_PROJECT", 0),

@@ -1,6 +1,7 @@
 import "server-only";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { moveFile } from "@/server/storage/local";
 import path from "node:path";
 import { FFmpegError } from "@/server/core/errors";
 import { findBinary } from "@/server/core/ffmpeg";
@@ -384,7 +385,7 @@ export async function renderReel(plan: ProductReelPlan, images: string[], style:
     maker.fx.dispose();
     for (const w of worlds) w.dispose();
   }
-  fs.renameSync(tmpOut, outPath);
+  moveFile(tmpOut, outPath);
   o.progress?.(1);
   return outPath;
 }

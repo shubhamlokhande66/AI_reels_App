@@ -160,6 +160,8 @@ docker compose up --build          # the app :3000 (website and API), MongoDB in
 Ollama stays on the host (`OLLAMA_BASE_URL=http://host.docker.internal:11434`). The browser calls the API on the same
 address as the website, so nothing needs to be baked in at build time.
 
+**Cloudflare** (Workers + Containers + R2, the same image): see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md).
+
 ## Using it
 
 1. **Create Reel** → name it, drop clips (reorder/remove), drop a song, choose 15/30/60 s and a style

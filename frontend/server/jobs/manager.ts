@@ -56,6 +56,9 @@ async function slot(): Promise<() => void> {
   return () => { s.active--; s.waiting.shift()?.(); };
 }
 
+/** How many jobs this server is running or has queued (a sleeping container must stay awake while it is > 0). */
+export const busyJobs = () => state().running.size;
+
 /** Ask a queued / running job to stop at its next progress tick. False when this server is not running it. */
 export function requestCancel(jobId: string): boolean {
   const r = state().running.get(jobId);

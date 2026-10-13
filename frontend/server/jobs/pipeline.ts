@@ -21,7 +21,7 @@ import { projectKey } from "@/server/media/service";
 import type { ProjectSettings } from "@/server/projects/settings";
 import { checkRenderFile, finalCheck } from "@/server/quality/checker";
 import * as shared from "@/server/services/analysisCache";
-import { localPath } from "@/server/storage/local";
+import { localPath, moveFile } from "@/server/storage/local";
 import { AUTO_STYLE, applyPace, getStyle, listStyles, withOverrides, type EditingStyle } from "@/server/styles";
 import { analyzeVideos, findDuplicateVideos, type VideoRef } from "@/server/video/clips";
 import { goodSeconds } from "@/server/video/analyzer";
@@ -538,7 +538,7 @@ async function scoreAndCorrect(inp: PipelineInput, tlIn: Timeline, inputs: ClipI
     rnd.scoreAfter = m2.card.overallScore;
     if (m2.card.overallScore <= card.overallScore) { fs.rmSync(localPath(key2), { force: true }); break; }
     rnd.kept = true;
-    fs.renameSync(localPath(key2), localPath(res.outputKey!));
+    moveFile(localPath(key2), localPath(res.outputKey!));
     res.render = { ...render2, path: localPath(res.outputKey!) };
     timeline = cand; review = m2.rv; fileIssues = m2.fi; card = m2.card; rendered = rendered2;
   }

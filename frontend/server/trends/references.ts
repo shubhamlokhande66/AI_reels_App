@@ -1,5 +1,6 @@
 import "server-only";
 import fs from "node:fs";
+import { moveFile } from "@/server/storage/local";
 import os from "node:os";
 import path from "node:path";
 import { ObjectId } from "mongodb";
@@ -219,7 +220,7 @@ async function measureFiles(files: UploadedFile[]): Promise<Prof[]> {
     if (!VIDEO_EXTS.includes(ext)) throw new UnsupportedMedia(`${name} is not a supported video file.`, { code: "UNSUPPORTED_MEDIA" });
     if (f.tooLarge) throw new ValidationFailed(`${name} is larger than 300 MB.`, { code: "FILE_TOO_LARGE" });
     const named = `${f.tmp}${ext}`;
-    fs.renameSync(f.tmp, named);
+    moveFile(f.tmp, named);
     f.tmp = named;
     try { out.push(await profileVideo(named, name)); }
     catch (e) { throw new ValidationFailed(`${name} could not be read as a video (${(e as Error).message}).`, { code: "UNREADABLE_VIDEO" }); }
@@ -348,7 +349,7 @@ export async function setReferenceReel(projectId: string, req: Request) {
     if (!VIDEO_EXTS.includes(ext)) throw new UnsupportedMedia(`${name} is not a supported video file.`, { code: "UNSUPPORTED_MEDIA" });
     if (f.tooLarge) throw new ValidationFailed(`${name} is larger than 300 MB.`, { code: "FILE_TOO_LARGE" });
     const file = `${f.tmp}${ext}`;
-    fs.renameSync(f.tmp, file);
+    moveFile(f.tmp, file);
     f.tmp = file;
     let prof: Prof;
     try { prof = await profileVideo(file, name, true); } catch (e) { throw new ValidationFailed(`${name} could not be read as a video (${(e as Error).message}).`, { code: "UNREADABLE_VIDEO" }); }

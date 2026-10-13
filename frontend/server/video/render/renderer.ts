@@ -1,5 +1,6 @@
 import "server-only";
 import fs from "node:fs";
+import { moveFile } from "@/server/storage/local";
 import path from "node:path";
 import { FFmpegError, InsufficientStorage, RenderTimeout, ValidationFailed } from "@/server/core/errors";
 import { probe, renderFfmpeg } from "@/server/core/ffmpeg";
@@ -160,7 +161,7 @@ export async function renderTimeline(r: RenderIn): Promise<RenderResult> {
       console.warn(`hardware encoder ${cfg.encoder} failed; retrying with the CPU encoder`);
       await compose({ ...cfg, encoder: "libx264" });
     }
-    fs.renameSync(tmpOut, r.outPath);
+    moveFile(tmpOut, r.outPath);
   } finally {
     fs.rmSync(r.workDir, { recursive: true, force: true }); // never leave intermediates behind
   }

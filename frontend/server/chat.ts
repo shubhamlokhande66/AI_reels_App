@@ -1,5 +1,6 @@
 import "server-only";
 import fs from "node:fs";
+import { moveFile } from "@/server/storage/local";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
@@ -134,13 +135,13 @@ export async function chatFile(req: Request) {
     const base = { name: display, sizeBytes: f.size, text: null as string | null, images: [] as string[], truncated: false };
     if (VIDEO_EXTS.includes(ext)) {
       tooBig(MAX_VIDEO_BYTES);
-      const named = `${f.tmp}${ext}`; fs.renameSync(f.tmp, named); f.tmp = named;
+      const named = `${f.tmp}${ext}`; moveFile(f.tmp, named); f.tmp = named;
       const [text, images] = await readVideo(named, display);
       return { ...base, kind: "video", mime: f.mimeType || "video/mp4", text, images };
     }
     if (AUDIO_EXTS.includes(ext)) {
       tooBig(MAX_AUDIO_BYTES);
-      const named = `${f.tmp}${ext}`; fs.renameSync(f.tmp, named); f.tmp = named;
+      const named = `${f.tmp}${ext}`; moveFile(f.tmp, named); f.tmp = named;
       return { ...base, kind: "audio", mime: f.mimeType || "audio/mpeg", text: await readAudio(named, display) };
     }
     tooBig(MAX_UPLOAD_BYTES);
