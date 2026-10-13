@@ -7,7 +7,7 @@ for Instagram Reels / YouTube Shorts / TikTok. The AI "brain" is your choice: **
 **AI creative director.** With AI on, one structured call plans every shot (which moment of which clip, where to cut on
 the beat, effect, transition, speed, framing, on-screen text, colour grade, CTA and post copy). A deterministic safety
 layer checks and repairs every value before it touches the Timeline/EDL, which stays the single source of truth; FFmpeg
-renders it. The AI never writes FFmpeg commands. See [docs/ai-upgrade-plan.md](docs/ai-upgrade-plan.md).
+renders it. The AI never writes FFmpeg commands.
 
 ```
 Analyze videos → Analyze music → Detect beats → Select clips → Create timeline
@@ -48,7 +48,7 @@ Analyze videos → Analyze music → Detect beats → Select clips → Create ti
 | 2.3-2.5 | **Creative Director**: a project brief inferred from what you gave (nothing to fill in), a Creative Plan (concept, hook, story beats, pacing, music reading, text / effects strategy) decided before the shots, three concepts (Viral, Cinematic, Premium) planned separately, and a hook engine with up to 5 typed, scored openings | ✅ done: with AI the concept comes in the same call as the shots (no extra cost) |
 | 2.6-2.8 | **Brand look, AI review, self-correction**: the brand kit's look is used automatically; every final Reel gets ten measured scores (hook, story, pacing, music sync, visual quality, brand fit, text, audio, ending, retention); below 70 it is corrected, re-rendered and re-scored (at most 3 reviews, kept only if better) | ✅ done: scores are measured, an optional AI reviewer only names fixes |
 | 2.9-2.11 | **Tell the director, your edits are safe, it learns**: "change the hook", "use the drop for the reveal", "show the product earlier" as edit patches on the current edit; shots you edit by hand are locked against automatic changes; reference Reels summed up as creative traits; your preferred concept learned; every generation logged | ✅ done |
-| G1 | **Production on one server**: user accounts (email + password, private studios: each user in their own database), HTTPS via Caddy, `docker-compose.prod.yml`, render queue (`MAX_CONCURRENT_JOBS`), scheduled-post runner | ✅ done: see [docs/deploy.md](docs/deploy.md). Files stay on the server disk (a Docker volume), not S3 |
+| G1 | **Production on Cloudflare**: user accounts (email + password, each user sees only their own data), one app container behind a Worker, uploads and Reels in R2, render queue (`MAX_CONCURRENT_JOBS`), hourly cron for auto-delete and scheduled posts | ✅ built: see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md). Not deployed yet |
 | G2 | **Mobile and sharing**: installable app (PWA icons), Share button (phone share sheet), download without music + where to start the song | ✅ done |
 | G3 | **Talking-to-camera mode**: cuts pauses and filler words (um, uh), word-by-word captions | ✅ done (needs faster-whisper) |
 | G4 | **Long video → several Reels**: finds the best parts (whole sentences for talks, strongest moments otherwise) and makes 2-5 Reels as versions | ✅ done |
@@ -96,7 +96,7 @@ Known limitations, stated plainly:
 
 ## Quick start (no Docker)
 
-**Run everything with one command (Windows):** double-click `start.bat` (or run it in a terminal). It checks MongoDB, starts the app (website and API in one Next.js server) on `127.0.0.1:3100`, waits until it answers and opens the browser. Stop it with `scripts\stop.bat`. Logs: `frontend.log`, `frontend.err.log`. It only listens on this computer.
+Start MongoDB first (the Windows service, or `mongod`), then run the app as below: website and API are one Next.js server.
 
 Requirements: **Node 22+**, **FFmpeg + FFprobe** on `PATH`, **MongoDB** running locally.
 
@@ -151,16 +151,10 @@ default with AI assist) lets the AI plan every shot; turn it off to keep the rul
 and clip names or a few small keyframes (never the whole video), its answers are validated, and if it is down or misbehaves
 the Reel is still rendered with a visible warning. Choosing the **Auto** style lets it pick between the built-in styles.
 
-## Docker
+## Deploying (Cloudflare)
 
-```bash
-docker compose up --build          # the app :3000 (website and API), MongoDB internal
-```
-
-Ollama stays on the host (`OLLAMA_BASE_URL=http://host.docker.internal:11434`). The browser calls the API on the same
-address as the website, so nothing needs to be baked in at build time.
-
-**Cloudflare** (Workers + Containers + R2, the same image): see [docs/deploy-cloudflare.md](docs/deploy-cloudflare.md).
+The app runs on Cloudflare as one container (website, API and FFmpeg) with uploads and Reels in an R2 bucket: see
+[docs/deploy-cloudflare.md](docs/deploy-cloudflare.md).
 
 ## Using it
 
@@ -225,26 +219,9 @@ What it does **not** do (and does not pretend to):
 
 ## Using it from your phone
 
-> The in-app "send from your phone" card and QR code were removed. Phone mode below is still available as an **opt-in, off-by-default** option (start it only with the script). The simplest way to get phone clips in is option 2 (cable, Phone Link, Quick Share, cloud drive). To undo the Windows changes phone mode needs, run `scripts\undo-phone-mode-firewall.ps1` as Administrator.
-
-Your clips are on your phone and the app runs on your computer. Two ways to get them in:
-
-1. **Phone mode (upload straight from the phone's gallery).** With the phone and the computer on the **same Wi-Fi**, run
-   `powershell -ExecutionPolicy Bypass -File scripts\start-phone-mode.ps1`, then open the address it prints (for example
-   `http://192.168.1.20:3100`) in the phone's browser. **Create Reel** opens the phone's gallery for videos and its music files for the song, and the
-   upload goes over your Wi-Fi. iPhone clips (HEVC/H.265 `.mov`, stored with a rotation flag) are handled: they come out upright.
-   * **There is no login.** While phone mode runs, anyone on that Wi-Fi who knows the address can use the app. It is off unless you start it this way;
-     close the app window to turn it off. Do not use it on a public or shared network.
-   * If the QR code does not appear, an older copy of the app is probably still running on port 3100 for this computer only and answering first. The script now stops with a message when it finds one: close that terminal and run the script again.
-   * **Phone mode needs a shared Wi-Fi *router*.** If the computer gets its internet from the phone's own hotspot, the phone is the hotspot and usually cannot open the addresses of devices connected to it (an Android limitation: the browser says "connection was interrupted"). Put the phone and the computer on the same router's Wi-Fi, or use option 2 below.
-   * **Not sure what is wrong?** On the phone open `http://<computer address>:3100/api/health` (for example `http://172.20.10.10:3100/api/health`): if a short JSON answer appears, the network and firewall are fine.
-   * **If the phone cannot open the address**, Windows Firewall is blocking it (typical when the network is marked *Public*, or an earlier pop-up was cancelled, which creates "Block" rules for Node.js). Run **once, as Administrator**: `powershell -ExecutionPolicy Bypass -File scripts\allow-phone-mode-firewall.ps1`. It shows what it will change and asks first: it marks the current network *Private* and adds one inbound rule for port 3100 on Private networks only. `start-phone-mode.ps1` warns when the network is Public.
-   * Phone browsers upload big videos slowly on weak Wi-Fi; the per-file limit is 500 MB.
-2. **No setup:** copy the clips to the computer first (USB cable: on a Samsung Galaxy unlock the phone, choose *File transfer* and copy from `DCIM/Camera`; or Microsoft *Phone Link*, Samsung *Quick Share* to Windows, Google Drive/OneDrive, Nearby Share / Quick Share, AirDrop for a Mac, or your own
-   messaging app's "save to files"), then upload them from the computer as usual.
-
-Not built: a native mobile app or a "Share to Reel Maker" entry in the phone's share sheet (that needs an installable app; the browser cannot register
-one for videos). Untested on an actual phone: this was checked with automated tests of the network settings and a real render of a phone-style clip, not with a physical device.
+Once the app is live, open its address on the phone: **Create Reel** opens the phone's gallery for videos and its music
+files for the song. iPhone clips (HEVC/H.265 `.mov`, stored with a rotation flag) are handled: they come out upright.
+On the live app a video can be at most 95 MB (uploads pass through Cloudflare's Worker).
 
 ## API (all under `/api`)
 

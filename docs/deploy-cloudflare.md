@@ -1,7 +1,7 @@
 # Deploying to Cloudflare (Workers + Containers + R2)
 
-The whole app (website, API, FFmpeg, analysis, rendering) runs in **one Cloudflare Container**: the same Docker image as
-`docker compose`. A small Worker (`cloudflare/`) sends every request to it. Uploads and Reels are kept in an **R2 bucket**,
+The whole app (website, API, FFmpeg, analysis, rendering) runs in **one Cloudflare Container**, built from
+`docker/frontend.Dockerfile`. A small Worker (`cloudflare/`) sends every request to it. Uploads and Reels are kept in an **R2 bucket**,
 mounted inside the container at `/data/storage` (the container's own disk is temporary). The database is your MongoDB
 (Atlas).
 
