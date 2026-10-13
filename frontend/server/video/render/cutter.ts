@@ -143,7 +143,7 @@ function timeFilters(seg: Segment, cfg: RenderConfig): string[] {
   return [`setpts=(PTS-STARTPTS)/${fixed(seg.speed, 4)}`, ...(cfg.smoothSlowmo && seg.speed < SLOWMO_SMOOTH_BELOW ? MINTERP(cfg.fps) : [`fps=${cfg.fps}`])];
 }
 
-function framing(seg: Segment, src: SourceClip, cfg: RenderConfig): [string, string, [number, number]] {
+export function framing(seg: Segment, src: SourceClip, cfg: RenderConfig): [string, string, [number, number]] {
   const [cx, cy, cw, ch] = src.content ?? [0, 0, src.width, src.height];
   const mode = seg.crop.framing === "fill" || seg.crop.framing === "fit" ? seg.crop.framing : chooseFraming(cw, ch, cfg);
   if (mode !== "fill") return [mode, `crop=${cw}:${ch}:${cx}:${cy}`, [cw, ch]];

@@ -290,7 +290,7 @@ const goodWindows = (c: ClipInput) => joined(c.analysis.windows, EDGE).filter((w
 const askedFrom = (s: Shot) => Math.min(s.source_start || 0, s.source_end || 0);
 const speedOf = (s: Shot) => Math.min(Math.max(Number.isFinite(s.speed) ? s.speed : 1, SPEED_MIN), SPEED_MAX);
 
-function pickFootage(clipIn: ClipInput, askedIn: number, length: number, speed: number, used: Used, clips: ClipInput[], uses: Map<string, number>): [ClipInput, number, number, number, string[]] {
+export function pickFootage(clipIn: ClipInput, askedIn: number, length: number, speed: number, used: Used, clips: ClipInput[], uses: Map<string, number>): [ClipInput, number, number, number, string[]] {
   const why: string[] = [], need = length * speed;
   let asked = Number.isFinite(askedIn) ? askedIn : 0;
   const clip = clipIn, windows = goodWindows(clip), u = (id: string) => used.get(id) ?? [];
