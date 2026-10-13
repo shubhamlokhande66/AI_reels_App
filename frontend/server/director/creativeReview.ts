@@ -128,7 +128,7 @@ export function reviewEdit(tl: Timeline, clips: ClipInput[], mm: MusicMap | null
   return { overallScore: round(Math.min(Math.max(score, 0), 100)), categories, issues, iterations: [] };
 }
 
-function peakIndex(tl: Timeline, mm: MusicMap | null): number | null {
+export function peakIndex(tl: Timeline, mm: MusicMap | null): number | null {
   const segs = tl.segments;
   if (!mm || segs.length < 3) return null;
   const middle = Array.from({ length: segs.length - 2 }, (_, i) => i + 1);
