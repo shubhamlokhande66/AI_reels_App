@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 137 of 171
+## Endpoints (171) - [x] = served by Next.js: 142 of 171
 
 ### admin (4)
 
@@ -162,7 +162,7 @@ frontend/
 
 ### posts (1)
 
-- [ ] `DELETE /api/posts/{post_id}`
+- [x] `DELETE /api/posts/{post_id}`
 
 ### product (1)
 
@@ -247,7 +247,7 @@ frontend/
 
 ### projects/posts (1)
 
-- [ ] `GET /api/projects/{project_id}/posts`
+- [x] `GET /api/projects/{project_id}/posts`
 
 ### projects/preview (1)
 
@@ -285,7 +285,7 @@ frontend/
 - [x] `GET /api/projects/{project_id}/renderings`
 - [x] `GET /api/projects/{project_id}/renderings/{rendering_id}/file`
 - [x] `PUT /api/projects/{project_id}/renderings/{rendering_id}/performance`
-- [ ] `POST /api/projects/{project_id}/renderings/{rendering_id}/publish`
+- [x] `POST /api/projects/{project_id}/renderings/{rendering_id}/publish`
 - [x] `POST /api/projects/{project_id}/renderings/{rendering_id}/restore`
 
 ### projects/revise (1)
@@ -356,11 +356,11 @@ frontend/
 ### public (2)
 
 - [ ] `POST /api/public/billing/webhook`
-- [ ] `GET /api/public/reels/{token}`
+- [x] `GET /api/public/reels/{token}`
 
 ### publish (1)
 
-- [ ] `GET /api/publish/connections`
+- [x] `GET /api/publish/connections`
 
 ### queue (1)
 
