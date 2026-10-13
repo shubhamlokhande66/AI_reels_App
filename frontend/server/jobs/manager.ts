@@ -2,7 +2,7 @@ import "server-only";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { settings as env } from "@/server/core/config";
-import { db } from "@/server/core/db";
+import { db, mainDb } from "@/server/core/db";
 import { AppError, ConflictError, NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { round } from "@/server/core/py";
 import { DEFAULT_SET, getStrategy } from "@/server/director/creative";
@@ -18,6 +18,7 @@ import { clipSummary } from "@/server/video/analyzer";
 import type { VideoRef } from "@/server/video/clips";
 import * as pl from "./pipeline";
 import { runSplit } from "./split";
+import * as credits from "@/server/credits";
 import { getProductStyle } from "@/server/product/director";
 import { runProduct } from "@/server/product";
 import { getStory, runStory } from "@/server/story";
@@ -68,10 +69,11 @@ export async function recoverStaleJobs() {
   const s = state();
   if (s.recovered) return;
   s.recovered = true;
-  const d = await db(), err = { code: "JOB_INTERRUPTED", message: "The server restarted while this job was running.", details: null };
+  const d = await mainDb(), err = { code: "JOB_INTERRUPTED", message: "The server restarted while this job was running.", details: null };
   for (const j of await d.collection("jobs").find({ status: { $in: ["queued", "processing"] }, runner: "next" }).toArray()) {
     if (s.running.has(String(j._id))) continue;
     await d.collection("jobs").updateOne({ _id: j._id }, { $set: { status: "failed", error: err, updatedAt: now() } });
+    await credits.refund(String(j._id)).catch(() => 0); // interrupted by a restart: the credits come back
     await d.collection("projects").updateOne({ _id: j.projectId, status: "processing" }, { $set: { status: "failed", error: err, updatedAt: now() } });
   }
 }
@@ -112,9 +114,10 @@ export async function loadBrand(brandId: string | null | undefined): Promise<Rec
   return Object.fromEntries(["name", "colors", "headingFont", "captionFont", "cta", "scriptTone", "style", "visualStyle", "pace", "language"].filter((k) => d[k] !== undefined && d[k] !== null).map((k) => [k, d[k]]));
 }
 
-async function newJob(doc: Doc, type: string, stage: string, stages: unknown[], setOnProject: Record<string, unknown> = {}) {
+async function newJob(doc: Doc, type: string, stage: string, stages: unknown[], setOnProject: Record<string, unknown> = {}, cost: [string, string, number?] | null = null) {
   if (doc.status === "processing") throw new ConflictError("This project is already being processed.", { code: "PROJECT_BUSY" });
   const t = now(), jobId = new ObjectId();
+  if (cost) await credits.charge(cost[0], String(jobId), cost[1], cost[2] ?? 1); // 402 before anything starts; refunded if the job fails
   const job = { _id: jobId, projectId: doc._id, type, status: "queued", progress: 0, stage, stages, error: null, renderingId: null, runner: "next", createdAt: t, updatedAt: t };
   const d = await db();
   await d.collection("jobs").insertOne(job);
@@ -145,7 +148,7 @@ export async function submit(projectId: string, jobType: "analyze" | "generate",
   const ps = ProjectSettings.parse(settings);
   if (jobType === "generate" && !audio && ["music", "voice_music"].includes(ps.audioMode)) throw new ValidationFailed("Upload a music file first (or choose an audio mode that does not need music).", { code: "NO_AUDIO" });
   const renderingId = new ObjectId();
-  const job = await newJob(doc, jobType, pl.stageNames(jobType)[0], initialStages(jobType, ps.captions, ps.ai), { settings: ps });
+  const job = await newJob(doc, jobType, pl.stageNames(jobType)[0], initialStages(jobType, ps.captions, ps.ai), { settings: ps }, jobType === "generate" ? ["clip_reel", "Reel from your clips"] : null);
   const inp = pl.pipelineInput({
     projectId: String(doc._id), jobType, videos: videos.map(ref), audio: audio ? ref(audio) : null, settings: ps, renderingId: String(renderingId), seed, projectName: doc.name as string,
     revision, references: await loadReferences(ps.reference), profile: jobType === "generate" ? await loadProfile() : null, brand: await loadBrand(ps.brandId),
@@ -168,7 +171,7 @@ export async function submitRender(projectId: string, quality: string = "final",
   ensureNotPurged([...videos, audio]);
   if (!videos.length || (!audio && ["music", "voice_music"].includes(ps.audioMode) && !timeline.voice)) throw new ValidationFailed("The project needs its videos (and music, for this audio mode) to render.", { code: "NO_MEDIA" });
   const renderingId = new ObjectId();
-  const job = await newJob(doc, "render", "rendering", initialStages("render"));
+  const job = await newJob(doc, "render", "rendering", initialStages("render"), {}, [quality === "final" ? "version" : "preview", "Re-render"]);
   const inp = pl.pipelineInput({ projectId: String(doc._id), jobType: "render", videos: videos.map(ref), audio: audio ? ref(audio) : null, settings: ps, renderingId: String(renderingId),
     projectName: doc.name as string, kind: quality as "final" | "preview", timeline });
   spawn(job._id, doc._id, inp, renderingId, doc.latestRenderingId ? "completed" : "draft", label);
@@ -189,7 +192,7 @@ export async function submitVariations(projectId: string, strategyIds: string[] 
   ensureNotPurged([...videos, audio]);
   if (!audio && ["music", "voice_music"].includes(ps.audioMode)) throw new ValidationFailed("Upload a music file first (or choose an audio mode that does not need music).", { code: "NO_AUDIO" });
   const base = doc.timeline ? TimelineSchema.parse(ensureIds(doc.timeline as Record<string, unknown>)) : null;
-  const job = await newJob(doc, "variations", "analyzing_videos", initialStages("variations", false, ps.ai));
+  const job = await newJob(doc, "variations", "analyzing_videos", initialStages("variations", false, ps.ai), {}, ["version", "New versions", ids.length]);
   const inp = pl.pipelineInput({ projectId: String(doc._id), jobType: "variations", videos: videos.map(ref), audio: audio ? ref(audio) : null, settings: ps, renderingId: String(new ObjectId()),
     seed, projectName: doc.name as string, kind: "final", timeline: base, strategies: ids, variantIds: ids.map(() => String(new ObjectId())), brand: await loadBrand(ps.brandId),
     references: await loadReferences(ps.reference) });
@@ -220,7 +223,7 @@ export async function submitProduct(projectId: string, overrides: Record<string,
   const doc0 = (await getProjectDoc(projectId)) as Doc;
   if (doc0.status === "processing") throw new ConflictError("This project is already being processed.", { code: "PROJECT_BUSY" });
   const { doc, inp } = await productInput(projectId, overrides, quality, seed, audioAuto);
-  const job = await newJob(doc, "product", pl.stageNames("product")[0], initialStages("product"), { settings: inp.settings });
+  const job = await newJob(doc, "product", pl.stageNames("product")[0], initialStages("product"), { settings: inp.settings }, [quality === "final" ? "clip_reel" : "preview", "Product Reel"]);
   spawn(job._id, doc._id, inp, new ObjectId(inp.renderingId), doc.latestRenderingId ? "completed" : "draft", label);
   return job;
 }
@@ -236,7 +239,7 @@ export async function submitStory(projectId: string, voiceId: string | null, qua
   const ps = ProjectSettings.parse(doc.settings);
   const inp = pl.pipelineInput({ projectId: String(doc._id), jobType: "story", videos: [], audio: audio && !audio.purged ? ref(audio) : null, settings: ps, renderingId: String(new ObjectId()),
     projectName: doc.name as string, kind: quality === "preview" ? "preview" : "final", story: doc.story as Record<string, unknown>, voiceId, template: (doc.referenceReel as Record<string, unknown>) ?? null });
-  const job = await newJob(doc, "story", "voicing", initialStages("story"));
+  const job = await newJob(doc, "story", "voicing", initialStages("story"), {}, [quality === "preview" ? "preview" : "story_render", "Story Reel"]);
   spawn(job._id, doc._id, inp, new ObjectId(inp.renderingId), doc.latestRenderingId ? "completed" : "draft", label);
   return job;
 }
@@ -251,7 +254,7 @@ export async function submitSplit(projectId: string, count: number, seconds: num
   if (!videos.length) throw new ValidationFailed("Upload the long video first.", { code: "NO_VIDEOS" });
   ensureNotPurged([...videos, audio]);
   const ps = ProjectSettings.parse({ ...(doc.settings as Record<string, unknown>), duration: seconds });
-  const job = await newJob(doc, "split", "analyzing_videos", initialStages("split", false, ps.ai));
+  const job = await newJob(doc, "split", "analyzing_videos", initialStages("split", false, ps.ai), {}, ["clip_reel", `${count} Reels from a long video`, count]);
   const inp = pl.pipelineInput({ projectId: String(doc._id), jobType: "split", videos: videos.map(ref), audio: audio ? ref(audio) : null, settings: ps, renderingId: String(new ObjectId()),
     projectName: doc.name as string, kind: "final", strategies: Array.from({ length: count }, (_, i) => `part${i + 1}`), variantIds: Array.from({ length: count }, () => String(new ObjectId())),
     brand: await loadBrand(ps.brandId) });
@@ -299,6 +302,7 @@ async function run(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput,
       await updateJob(jobId, { status: cancelled ? "cancelled" : "failed", error: err, stages: stages.map((s) => (s.status === "running" ? { ...s, status: "failed" } : { ...s })) });
       const status = cancelled || ["render", "variations", "split"].includes(inp.jobType) || (inp.jobType === "product" && inp.kind === "preview") ? priorStatus : "failed";
       await (await db()).collection("projects").updateOne({ _id: projectOid }, { $set: { status, error: cancelled ? null : err, updatedAt: now() } });
+      await credits.refund(String(jobId)).catch(() => 0); // the Reel was not made: its credits come back
       deletePrefix(`projects/${inp.projectId}/temp/render_${inp.renderingId}`);
       return;
     }

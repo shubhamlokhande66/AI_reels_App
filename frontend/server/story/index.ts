@@ -5,6 +5,7 @@ import path from "node:path";
 import { ObjectId } from "mongodb";
 import sharp from "sharp";
 import { getProvider } from "@/server/ai";
+import { charge } from "@/server/credits";
 import { settings as cfg } from "@/server/core/config";
 import { db } from "@/server/core/db";
 import { AppError, NotFoundError, ValidationFailed } from "@/server/core/errors";
@@ -283,6 +284,7 @@ export async function findScenePicture(doc: Doc, sceneId: string, another = fals
   let pic: Picture;
   try { pic = await findPicture(plan, scene, skip, used); } catch (e) { if (e instanceof NoPicture) throw new ValidationFailed(e.message, { code: "NO_PICTURE" }); throw e; }
   await checkImage(pic.data);
+  if (pic.source === "free_ai" || pic.source === "paid_ai") await charge(pic.source === "paid_ai" ? "paid_picture" : "ai_picture", `picture_${doc._id}_${scene.id}_${crypto.randomUUID().slice(0, 6)}`, "AI picture for a story scene"); // made just now (the library and paintings are free)
   const libId = await libraryRemember(pic.source !== "public_domain" ? key : `pd_${crypto.createHash("sha1").update(pic.ref).digest("hex").slice(0, 20)}`, plan.art_style, scene, pic);
   scene.image_key = storeScenePicture(String(doc._id), scene, pic.data, pic.ext);
   Object.assign(scene, { source: pic.source, credit: pic.credit, library_id: libId });
