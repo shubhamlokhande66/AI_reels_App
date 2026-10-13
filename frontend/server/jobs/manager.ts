@@ -18,6 +18,8 @@ import { clipSummary } from "@/server/video/analyzer";
 import type { VideoRef } from "@/server/video/clips";
 import * as pl from "./pipeline";
 import { runSplit } from "./split";
+import { getProductStyle } from "@/server/product/director";
+import { runProduct } from "@/server/product";
 
 /** Background jobs (was jobs/manager.py): a job document per request, the pipeline run in the background with at most
  * MAX_CONCURRENT_JOBS at once, progress written to the job as it goes, cancel, and the results stored on the project.
@@ -194,6 +196,34 @@ export async function submitVariations(projectId: string, strategyIds: string[] 
   return job;
 }
 
+/** The settings, photos and music of a product project, checked and ready to plan or render. */
+export async function productInput(projectId: string, overrides: Record<string, unknown> = {}, quality = "final", seed = 0, audioAuto = false) {
+  if (!["preview", "final"].includes(quality)) throw new ValidationFailed("Quality must be 'preview' or 'final'.", { code: "INVALID_QUALITY" });
+  const doc = (await getProjectDoc(projectId)) as Doc;
+  const s: Record<string, unknown> = { ...(doc.settings as Record<string, unknown>), ...Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== null && v !== undefined)) };
+  if (audioAuto) s.audioStart = null;
+  if (s.reelType !== "product") throw new ValidationFailed("This project is not a product Reel project.", { code: "NOT_A_PRODUCT_PROJECT" });
+  getProductStyle(String(s.productStyle ?? "luxury_jewelry"));
+  const ps = ProjectSettings.parse(s), d = await db();
+  const media = new Map((await d.collection("media").find({ projectId: doc._id }).toArray()).map((m) => [String(m._id), m]));
+  const images = ((doc.imageOrder as unknown[]) ?? []).map((i) => media.get(String(i))).filter((m) => m !== undefined);
+  const audio = doc.audioId ? media.get(String(doc.audioId)) : undefined;
+  if (!images.length) throw new ValidationFailed("Add at least one product photo first.", { code: "NO_IMAGES" });
+  const inp = pl.pipelineInput({ projectId: String(doc._id), jobType: "product", videos: [], audio: audio ? ref(audio) : null, settings: ps, renderingId: String(new ObjectId()), seed,
+    projectName: doc.name as string, kind: quality as "final" | "preview", images: images.map(ref) });
+  return { doc, inp };
+}
+/** Direct and render a Reel from the project's photos (and music, if any). */
+export async function submitProduct(projectId: string, overrides: Record<string, unknown> = {}, quality = "final", label = "", seed = 0, audioAuto = false) {
+  await recoverStaleJobs();
+  const doc0 = (await getProjectDoc(projectId)) as Doc;
+  if (doc0.status === "processing") throw new ConflictError("This project is already being processed.", { code: "PROJECT_BUSY" });
+  const { doc, inp } = await productInput(projectId, overrides, quality, seed, audioAuto);
+  const job = await newJob(doc, "product", pl.stageNames("product")[0], initialStages("product"), { settings: inp.settings });
+  spawn(job._id, doc._id, inp, new ObjectId(inp.renderingId), doc.latestRenderingId ? "completed" : "draft", label);
+  return job;
+}
+
 /** One long video -> `count` Reels of about `seconds` each, from its best parts (saved as versions). */
 export async function submitSplit(projectId: string, count: number, seconds: number) {
   await recoverStaleJobs();
@@ -242,7 +272,7 @@ async function run(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput,
     let result: pl.PipelineResult;
     try {
       await updateJob(jobId, { status: "processing" }, true);
-      const fn = inp.jobType === "render" ? pl.runRender : inp.jobType === "variations" ? pl.runVariations : inp.jobType === "split" ? runSplit : pl.runPipeline;
+      const fn = inp.jobType === "render" ? pl.runRender : inp.jobType === "variations" ? pl.runVariations : inp.jobType === "split" ? runSplit : inp.jobType === "product" ? runProduct : pl.runPipeline;
       result = await fn(inp, onProgress);
       await pending;
     } catch (e) {
@@ -250,7 +280,7 @@ async function run(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput,
       const cancelled = controller.signal.aborted || (e instanceof AppError && e.code === "JOB_CANCELLED");
       const err = cancelled ? { code: "JOB_CANCELLED", message: "Cancelled by you.", details: null } : errorDoc(e);
       await updateJob(jobId, { status: cancelled ? "cancelled" : "failed", error: err, stages: stages.map((s) => (s.status === "running" ? { ...s, status: "failed" } : { ...s })) });
-      const status = cancelled || ["render", "variations", "split"].includes(inp.jobType) ? priorStatus : "failed";
+      const status = cancelled || ["render", "variations", "split"].includes(inp.jobType) || (inp.jobType === "product" && inp.kind === "preview") ? priorStatus : "failed";
       await (await db()).collection("projects").updateOne({ _id: projectOid }, { $set: { status, error: cancelled ? null : err, updatedAt: now() } });
       deletePrefix(`projects/${inp.projectId}/temp/render_${inp.renderingId}`);
       return;
@@ -283,7 +313,17 @@ async function maybePurge(projectOid: ObjectId, inp: pl.PipelineInput) {
 
 async function finish(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput, result: pl.PipelineResult, renderingId: ObjectId, priorStatus: string, label: string) {
   const d = await db(), t = now();
-  if (inp.jobType === "render") {
+  if (inp.jobType === "product" || inp.jobType === "story") {
+    const r = result.render!;
+    await d.collection("renderings").insertOne({ _id: renderingId, projectId: projectOid, jobId, style: inp.settings.productStyle, kind: inp.kind, duration: round(r.duration, 3), width: r.width, height: r.height,
+      size: r.size, storedKey: result.outputKey, label, plan: result.productPlan, settings: inp.settings, postCopy: result.postCopy, createdAt: t });
+    const update: Record<string, unknown> = { updatedAt: t, error: null, status: priorStatus, productPlan: result.productPlan };
+    if (inp.kind === "preview") update.previewRenderingId = renderingId;
+    else Object.assign(update, { latestRenderingId: renderingId, status: "completed" });
+    await d.collection("projects").updateOne({ _id: projectOid }, { $set: update });
+    await maybePurge(projectOid, inp);
+    await updateJob(jobId, { status: "completed", progress: 100, stage: "rendering", renderingId, stages: initialStages(inp.jobType).map((s) => ({ ...s, status: "completed", progress: 100 })) });
+  } else if (inp.jobType === "render") {
     const proj = (await d.collection("projects").findOne({ _id: projectOid })) ?? ({} as Record<string, unknown>);
     const r = result.render!;
     await d.collection("renderings").insertOne({ _id: renderingId, projectId: projectOid, jobId, style: result.timeline!.style, kind: inp.kind, timelineVersion: proj.timelineVersion ?? 1,

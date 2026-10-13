@@ -86,4 +86,18 @@ export class PyRandom {
     }
     return out;
   }
+
+  /** random.randrange(n) (Python's _randbelow_with_getrandbits). */
+  randrange(n: number): number {
+    if (n <= 0) throw new Error("empty range for randrange()");
+    const k = Math.floor(Math.log2(n)) + 1;
+    let r = this.getrandbits(k);
+    while (r >= n) r = this.getrandbits(k);
+    return r;
+  }
+
+  /** random.choice(seq) */
+  choice<T>(seq: readonly T[]): T {
+    return seq[this.randrange(seq.length)];
+  }
 }
