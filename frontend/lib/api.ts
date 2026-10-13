@@ -244,8 +244,8 @@ export const api = {
     request<Job>(`/api/projects/${id}/generate`, { method: "POST", body: JSON.stringify(options) }),
   analyze: (id: string) => request<Job>(`/api/projects/${id}/analyze`, { method: "POST" }),
   /** The best parts of the project's song for a Reel of `duration` seconds, best first (the first = the automatic choice). */
-  beatPlan: (id: string, start: number, duration: number, everyBeat = false, minClip = 0.35) =>
-    request<{ start: number; duration: number; rows: PlanRow[] }>(`/api/projects/${id}/beat-plan?start=${start}&duration=${duration}&every_beat=${everyBeat}&min_clip=${minClip}`, undefined, 240_000),
+  beatPlan: (id: string, start: number, duration: number, everyBeat = false, minClip = 0.35, hardHits = false) =>
+    request<{ start: number; duration: number; rows: PlanRow[] }>(`/api/projects/${id}/beat-plan?start=${start}&duration=${duration}&every_beat=${everyBeat}&min_clip=${minClip}&hard_hits=${hardHits}`, undefined, 240_000),
   beatMap: (id: string) => request<BeatMap>(`/api/projects/${id}/beat-map`, undefined, 240_000), // analyses the song once (cached)
   /** The song analysis document (librosa: beats, onsets, frame features, events). Analysed once per song. */
   /** Schema 1.0 (small: beats, energy curve, sections, candidate events). full = the whole internal document. */

@@ -419,7 +419,7 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
     if (settings.stepLabels && settings.captions) timeline.notes.push("Step numbers were not added because song captions are on (they share the same text track).");
   } else {
     timeline = await buildTimeline(audio, inputs, settings.duration, style, { seed: inp.seed, orderHint, brief: settings.brief, audioStart: settings.audioStart, template: tpl, beatPlan: followPlan,
-      everyBeat: settings.cutEveryBeat, minClip: settings.minClip });
+      everyBeat: settings.cutEveryBeat, minClip: settings.minClip, hardHitsOnly: settings.hardHitsOnly });
     if (followPlan) {
       timeline.pictureFade = 0.4;
       const flashes = timeline.segments.filter((s) => s.effect === "beat_flash").length;
@@ -455,7 +455,7 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
   if (inp.audio) {
     timeline.musicHits = songHits(audio);
     if (settings.beatPlan && timeline.pictureFade !== null && timeline.pictureFade !== undefined) {
-      const rows = cutPlan(audio, null, null, timeline.audioStart, timeline.audioStart + timeline.duration, null, settings.cutEveryBeat, settings.minClip);
+      const rows = cutPlan(audio, null, null, timeline.audioStart, timeline.audioStart + timeline.duration, null, settings.cutEveryBeat && !settings.hardHitsOnly, settings.minClip, settings.hardHitsOnly);
       timeline.musicHits = [...new Set([...timeline.musicHits, ...planHits(rows)])].sort((a, b) => a - b);
     }
   }
