@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 31 of 171
+## Endpoints (171) - [x] = served by Next.js: 39 of 171
 
 ### admin (4)
 
@@ -182,7 +182,7 @@ frontend/
 
 ### projects/analysis-json (1)
 
-- [ ] `GET /api/projects/{project_id}/analysis-json`
+- [x] `GET /api/projects/{project_id}/analysis-json`
 
 ### projects/analyze (1)
 
@@ -202,11 +202,11 @@ frontend/
 
 ### projects/beat-map (1)
 
-- [ ] `GET /api/projects/{project_id}/beat-map`
+- [x] `GET /api/projects/{project_id}/beat-map`
 
 ### projects/beat-plan (1)
 
-- [ ] `GET /api/projects/{project_id}/beat-plan`
+- [x] `GET /api/projects/{project_id}/beat-plan`
 
 ### projects/duplicate (1)
 
@@ -306,7 +306,7 @@ frontend/
 
 ### projects/song-parts (1)
 
-- [ ] `GET /api/projects/{project_id}/song-parts`
+- [x] `GET /api/projects/{project_id}/song-parts`
 
 ### projects/split (1)
 
@@ -325,9 +325,9 @@ frontend/
 ### projects/timeline (9)
 
 - [x] `GET /api/projects/{project_id}/timeline`
-- [ ] `POST /api/projects/{project_id}/timeline/auto-cut`
-- [ ] `GET /api/projects/{project_id}/timeline/markers`
-- [ ] `POST /api/projects/{project_id}/timeline/markers`
+- [x] `POST /api/projects/{project_id}/timeline/auto-cut`
+- [x] `GET /api/projects/{project_id}/timeline/markers`
+- [x] `POST /api/projects/{project_id}/timeline/markers`
 - [x] `POST /api/projects/{project_id}/timeline/ops`
 - [ ] `GET /api/projects/{project_id}/timeline/preview-hints`
 - [x] `POST /api/projects/{project_id}/timeline/redo`
@@ -425,7 +425,7 @@ frontend/
 
 ### v1 (5)
 
-- [ ] `POST /api/v1/audio/analyze`
+- [x] `POST /api/v1/audio/analyze`
 - [ ] `POST /api/v1/reels/plan`
 - [ ] `POST /api/v1/reels/render`
 - [ ] `GET /api/v1/reels/{reel_id}/status`

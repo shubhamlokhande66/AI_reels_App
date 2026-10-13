@@ -107,6 +107,11 @@ export function findSections(y: Float32Array, sr: number, beats: number[], durat
 }
 
 export async function analyzeAudio(file: string, onStage: StageFn = () => {}, maxSeconds = MAX_SECONDS): Promise<AudioAnalysis> {
+  return (await analyzeWithSignal(file, onStage, maxSeconds)).analysis;
+}
+
+/** The analysis and the decoded song it came from (the analysis JSON reads both). */
+export async function analyzeWithSignal(file: string, onStage: StageFn = () => {}, maxSeconds = MAX_SECONDS): Promise<{ analysis: AudioAnalysis; y: Float32Array; env: Float64Array }> {
   onStage("analyzing_music", 0);
   const [y, y44] = await Promise.all([decode(file, SR, maxSeconds), decode(file, ESSENTIA_SR, maxSeconds)]);
   checkAudio(y, SR);
@@ -132,7 +137,7 @@ export async function analyzeAudio(file: string, onStage: StageFn = () => {}, ma
   const labelled = labelSections(structuralParts(y, SR, beat.beats, duration, e, ENERGY_HOP, drops), e, ENERGY_HOP, drops, curves);
   const acc = accentAnalysis(y, SR, beat.beats, labelled.slice(1).map((r) => r.start));
   const exact = acc.beats && acc.beats.length === beat.beats.length ? acc.beats : beat.beats; // beats on their real hits
-  return withDefaults({
+  const analysis = withDefaults({
     bpm: beat.bpm, duration: round(duration, 3), beats: exact, mediumBeats: acc.mediumBeats ?? [], beatConfidence: beat.confidence,
     strongBeats: acc.strongBeats.length ? acc.strongBeats : beat.strongBeats, onsets: beat.onsets, accents, accentStrengths: strengths,
     analysisVersion: ANALYSIS_VERSION, highEnergySections: hi, sections, drops, energyHop: ENERGY_HOP, energy: e.map((v) => round(v, 3)),
@@ -140,6 +145,7 @@ export async function analyzeAudio(file: string, onStage: StageFn = () => {}, ma
     tempoSections: beat.tempoSections, beatConfidences: beat.beatConfidences, downbeats: acc.downbeats.length ? acc.downbeats : beat.downbeats,
     downbeatConfidence: acc.downbeats.length ? acc.downbeatConfidence : beat.downbeatConfidence, beatLevels: acc.levels, beatKick: acc.kick, events,
   });
+  return { analysis, y, env };
 }
 
 const audioKey = (projectId: string, mediaId: string) => `projects/${projectId}/analysis/audio_${mediaId}.json`;
