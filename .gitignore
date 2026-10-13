@@ -8,7 +8,7 @@ node_modules/
 *.log
 # local app data (uploaded songs, saved settings) and personal footage: never in the repository
 /storage/
-reels/
+/reels/
 *.tsbuildinfo
 
 # production secrets (the .example file is committed)
@@ -18,7 +18,7 @@ reels/
 *.log.err
 
 # local test songs (copyrighted music, large files)
-songs/
+/songs/
 frontend/tests/server/manual/*.json
 frontend/tests/server/manual/compare.txt
 frontend/tests/server/manual/profile.txt
