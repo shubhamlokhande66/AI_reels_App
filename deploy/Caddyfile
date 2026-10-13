@@ -2,19 +2,12 @@
 {$DOMAIN} {
 	encode zstd gzip
 
-	# the API (and media files, uploads): the Python backend
-	handle /api/* {
-		reverse_proxy backend:8000 {
-			transport http {
-				read_timeout 15m   # long uploads
-				write_timeout 15m  # large downloads
-			}
+	# the app: the website and the API (with media files and uploads) in one Next.js server
+	reverse_proxy app:3000 {
+		transport http {
+			read_timeout 15m   # long uploads
+			write_timeout 15m  # large downloads
 		}
-	}
-
-	# everything else: the website
-	handle {
-		reverse_proxy frontend:3000
 	}
 
 	header {

@@ -4,7 +4,7 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\undo-phone-mode-firewall.ps1
 #
 # It asks before every change:
-#   1. removes the firewall rule "Reel Maker phone mode" (ports 3100 and 8000)
+#   1. removes the firewall rule "Reel Maker phone mode" (port 3100)
 #   2. for each network that is currently Private, asks whether to set it back to Public.
 #      Answer y only for a network that was Public before (for example the "iPhone" hotspot).
 #      Answer n for networks you always kept Private (for example your home Wi-Fi).

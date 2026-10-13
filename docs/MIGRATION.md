@@ -3,17 +3,12 @@
 Branch: `feat/nextjs-fullstack`. Goal: the whole backend (171 API endpoints, jobs, rendering, music and video
 analysis, AI) runs inside the Next.js app; the Python backend is deleted at the end.
 
-## How it works while the move runs
+## Status: done
 
-- **Same URLs.** Next.js route handlers in `frontend/app/api/**/route.ts` answer the same `/api/...` paths with the
-  same JSON (field for field, checked against the Python responses), so the screens do not change.
-- **Python as the fallback.** Any `/api` path without a route handler is passed on to Python
-  (`next.config.ts` -> `rewrites().fallback`). A route file takes over *every* method of its path, so methods not
-  moved yet on a moved path are forwarded explicitly (`toPython` in `server/core/http.ts`).
-- **Uploads stream.** A rewrite buffers the request body and cuts it at 10 MB, so every upload path has a route file
-  that streams the body on (`forwardAll`) until it is moved.
-- **The app calls its own server** (`lib/api.ts`: `API_URL` = same origin). This also fixes phones on the same Wi-Fi.
-- **Each area is cut over when it is rebuilt and tested**; when nothing is forwarded any more, `backend/` is deleted.
+Every `/api` endpoint is a Next.js route handler (`frontend/app/api/**/route.ts`) answering the same paths with the
+same JSON, so the screens did not change. The Python fallback (`next.config.ts` rewrites, `toPython` / `forwardAll`) and
+`backend/` were removed in phase 8; background work (stale-job recovery, auto-delete, scheduled posts) starts in
+`frontend/instrumentation.ts`. The Python code is in this branch's history if a detail ever needs checking.
 
 ## Layout
 

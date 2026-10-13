@@ -3,11 +3,11 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\start-phone-mode.ps1
 #
 # Read this first: the app has no login. While phone mode is running, anyone on your Wi-Fi who knows the address can
-# use it. Use it on your home network, not on a public or shared one. Close both windows to switch it off.
+# use it. Use it on your home network, not on a public or shared one. Close the app window to switch it off.
 #
-# It does not change your firewall. If the phone cannot connect, Windows is probably blocking it: allow Node.js and
-# Python on PRIVATE networks when Windows asks (or run, as administrator:
-#   New-NetFirewallRule -DisplayName "Reel Maker phone mode" -Direction Inbound -Protocol TCP -LocalPort 3100,8000 -Profile Private -Action Allow )
+# It does not change your firewall. If the phone cannot connect, Windows is probably blocking it: allow Node.js on
+# PRIVATE networks when Windows asks (or run, as administrator:
+#   New-NetFirewallRule -DisplayName "Reel Maker phone mode" -Direction Inbound -Protocol TCP -LocalPort 3100 -Profile Private -Action Allow )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -44,23 +44,11 @@ function Get-PortState($port) {
     if (@($l | Where-Object { $_.LocalAddress -in @("0.0.0.0", "::") }).Count -gt 0) { return "network" }
     return "local-only"
 }
-$api = Get-PortState 8000
 $web = Get-PortState 3100
-if ($api -eq "local-only" -or $web -eq "local-only") {
-    Write-Host "An older copy of the app is running for this computer only (port 8000 or 3100), and would hide phone mode." -ForegroundColor Red
+if ($web -eq "local-only") {
+    Write-Host "An older copy of the app is running for this computer only (port 3100), and would hide phone mode." -ForegroundColor Red
     Write-Host "Close it (Ctrl+C in the terminal that runs it), then run this script again." -ForegroundColor Red
     exit 1
-}
-
-if ($api -eq "network") {
-    Write-Host "API on port 8000 is already running for the network: keeping it." -ForegroundColor DarkGray
-} else {
-    # Backend: listen on the network and accept pages opened from private addresses.
-    $backend = Join-Path $root "backend"
-    $py = Join-Path $backend ".venv\Scripts\python.exe"
-    $env:CORS_ALLOW_LAN = "true"
-    Start-Process -FilePath $py -WorkingDirectory $backend -ArgumentList "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"
-    Write-Host "Started the API window (port 8000)."
 }
 
 if ($web -eq "network") {

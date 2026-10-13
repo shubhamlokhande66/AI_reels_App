@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { rng } from "../parity";
+import { rng } from "../rng";
 
 /** Synthetic songs with known answers (were backend/tests/conftest.make_click_track and tests/bar_song.py). */
 

@@ -13,7 +13,7 @@ import type { AudioAnalysis } from "@/server/models/analysis";
 import { meanEnergy } from "@/server/models/analysis";
 import { AppError } from "@/server/core/errors";
 import { barSong, makeClickTrack, SR, writeWav } from "./fixtures";
-import { rng } from "../parity";
+import { rng } from "../rng";
 
 /** The music analysis on songs with known answers (were backend/tests/test_audio.py), now with Essentia's beats. */
 
@@ -156,7 +156,7 @@ describe("strong beats, bar starts and exact hits", () => {
     expect(r.strongBeats.length / beats.length).toBeGreaterThanOrEqual(0.18);
     expect(r.strongBeats.length / beats.length).toBeLessThanOrEqual(0.35);
     // at least a third of the bar starts are among the strong beats (this song's snare noise differs from the Python
-    // test's; on this exact signal the Python code gives the same count: tests/server/accents.parity.test.ts)
+    // test's)
     expect(r.strongBeats.filter((s) => downs.some((d) => Math.abs(s - d) < 0.03)).length).toBeGreaterThanOrEqual(Math.floor(downs.length / 3));
     expect([3, 4]).toContain(r.levels[2]);
     expect(r.levels[3]).toBe(2);

@@ -1,6 +1,6 @@
 # Deploying to a server (VPS)
 
-One machine runs the website, the Python API with its render queue, and Caddy (HTTPS) with Docker. The database is
+One machine runs the app (website and API with its render queue, one Next.js server) and Caddy (HTTPS) with Docker. The database is
 MongoDB Atlas (the free 512 MB cluster is enough: only small records are stored; videos stay on the server disk).
 
 ## 1. The server
@@ -19,7 +19,7 @@ nano .env.production        # DOMAIN, MONGODB_URI, SECRET_KEY, ADMIN_KEY, GEMINI
 connection string (*Connect → Drivers*) into `MONGODB_URI`. All users share one database; each record carries its
 owner, so users only ever see their own projects.
 
-`SECRET_KEY` and `ADMIN_KEY`: long random strings (`python3 -c "import secrets; print(secrets.token_urlsafe(48))"`).
+`SECRET_KEY` and `ADMIN_KEY`: long random strings (`openssl rand -base64 48`).
 
 ## 3. Start
 ```
@@ -30,7 +30,7 @@ unlock AI settings in that browser.
 
 ## 4. Operate
 - Update: `git pull && docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build`
-- Logs: `docker compose -f docker-compose.prod.yml logs -f backend`
+- Logs: `docker compose -f docker-compose.prod.yml logs -f app`
 - Backups: Atlas free clusters have no automatic backups; export when needed with
   `mongodump --uri "$MONGODB_URI"`. Uploads and Reels are on the `storage-data` volume (and are deleted automatically
   when auto-delete is on).
@@ -41,8 +41,7 @@ unlock AI settings in that browser.
 ## What runs where
 | Part | Reached at | Notes |
 |---|---|---|
-| Website (Next.js) | `https://DOMAIN/` | |
-| API (Python) | `https://DOMAIN/api/...` | no auto-reload in production; one process (it holds the job queue) |
+| App (Next.js: website + API) | `https://DOMAIN/`, `https://DOMAIN/api/...` | one process (it holds the job queue) |
 | MongoDB Atlas | `MONGODB_URI` | one database; every record tagged with its owner |
 | Caddy | ports 80/443 | automatic HTTPS certificates |
 
@@ -84,7 +83,7 @@ invoices from your accounting tool (or enable Razorpay's invoices) until in-app 
 ## Accounts, email and legal pages
 - **Password reset** emails go through any SMTP service: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and
   `SMTP_FROM` (e.g. Brevo's free plan, Zoho Mail, Amazon SES, or a Gmail app password). Without them the reset link is
-  written to the backend log.
+  written to the app log.
 - **Legal pages** (`/terms`, `/privacy`, `/refunds`, `/contact`) use `BUSINESS_NAME`, `SUPPORT_EMAIL`, `SUPPORT_PHONE`,
   `BUSINESS_ADDRESS` and `LEGAL_UPDATED`. Razorpay checks that these pages exist before it approves live payments. The texts
   describe how the app works (credits, refunds, auto-delete); have them reviewed before launch.

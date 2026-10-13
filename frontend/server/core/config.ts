@@ -140,5 +140,4 @@ export const settings = {
   songImportFolders: env("SONG_IMPORT_FOLDERS", ""),
   rateLimitPerMinute: num("RATE_LIMIT_PER_MINUTE", 60),
   /** the Python backend, for every endpoint not moved to Next.js yet (see docs/MIGRATION.md) */
-  pythonUrl: env("PYTHON_BACKEND_URL", "http://127.0.0.1:8000"),
 };

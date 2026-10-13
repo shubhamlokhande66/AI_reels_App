@@ -89,51 +89,32 @@ Known limitations, stated plainly:
 * **Face-aware crop** uses OpenCV Haar cascades: good for frontal faces, not a substitute for a detector model.
 * **Custom style** uses balanced defaults; the API accepts `customStyle` parameters but the UI has no controls yet.
 * **Slow motion** repeats frames (no optical-flow interpolation), so it can look steppy on 30 fps footage.
-* **No auth / users** (the `users` collection is reserved); one local user. **Storage** is the local disk (S3/R2 slot in via
-  `StorageBackend`). **Rate limiting** is in-process (single worker).
+* **Accounts are off by default** (`AUTH_ENABLED=false`): one local user. **Storage** is the local disk. Jobs run in the
+  one server process (`MAX_CONCURRENT_JOBS`).
 * **Docker files are written but were not run on the machine used to build this** (Docker was not installed).
   Everything else was run and tested; see "Testing".
 
 ## Quick start (no Docker)
 
-**Run everything with one command (Windows):** double-click `start.bat` (or run it in a terminal). It checks MongoDB, starts the API on `127.0.0.1:8000` and the website on `127.0.0.1:3100`, waits until both answer and opens the browser. Stop both with `scripts\stop.bat`. Logs: `backend.log`, `backend.err.log`, `frontend.log`. It only listens on this computer.
+**Run everything with one command (Windows):** double-click `start.bat` (or run it in a terminal). It checks MongoDB, starts the app (website and API in one Next.js server) on `127.0.0.1:3100`, waits until it answers and opens the browser. Stop it with `scripts\stop.bat`. Logs: `frontend.log`, `frontend.err.log`. It only listens on this computer.
 
-Requirements: **Python 3.10+**, **Node 20+**, **FFmpeg + FFprobe** on `PATH`, **MongoDB** running locally.
-
-```powershell
-# Windows PowerShell (5.1 has no `&&`; run these one per line)
-copy .env.example .env                 # edit as needed (never commit .env)
-
-cd backend
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install -r requirements-captions.txt   # optional: enables captions
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
-
-# second terminal
-cd frontend
-npm install
-npm run dev -- --port 3000             # http://localhost:3000
-```
+Requirements: **Node 22+**, **FFmpeg + FFprobe** on `PATH`, **MongoDB** running locally.
 
 ```bash
-# macOS / Linux
-cp .env.example .env
-cd backend && python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt && pip install -r requirements-captions.txt   # captions optional
-uvicorn app.main:app --port 8000
-# second terminal: cd frontend && npm install && npm run dev -- --port 3000
+cp .env.example .env                   # Windows: copy .env.example .env   (edit as needed; never commit .env)
+cd frontend
+npm install
+npm install @huggingface/transformers  # optional: local captions (otherwise the OpenAI API, when a key is set)
+npm run dev -- --port 3100             # http://localhost:3100
 ```
 
-`GET http://localhost:8000/api/health` tells you whether MongoDB, FFmpeg and the AI model are reachable
+`GET http://localhost:3100/api/health` tells you whether MongoDB, FFmpeg and the AI model are reachable
 (the same info is on the **Settings** page).
-
-If your frontend runs on a port other than 3000, add it to `CORS_ORIGINS` in `.env`.
 
 ### Installing FFmpeg / MongoDB
 
 * Windows: `winget install Gyan.FFmpeg`; MongoDB Community from mongodb.com (or the portable zip).
-  The backend also finds a winget-installed FFmpeg even if `PATH` is stale; override with `FFMPEG_BIN`/`FFPROBE_BIN`.
+  The server also finds a winget-installed FFmpeg even if `PATH` is stale; override with `FFMPEG_BIN`/`FFPROBE_BIN`.
 * macOS: `brew install ffmpeg mongodb-community`. Linux: `apt install ffmpeg` + MongoDB packages.
 
 ### AI provider: Gemini, OpenAI or local Ollama
@@ -141,7 +122,7 @@ If your frontend runs on a port other than 3000, add it to `CORS_ORIGINS` in `.e
 Pick the provider in **Settings → AI provider** (text model, vision model, fallback, budget, test, usage), or in `.env`:
 
 ```bash
-# .env  (API keys live ONLY here, on the backend; the browser never sees them)
+# .env  (API keys live ONLY here, on the server; the browser never sees them)
 AI_PROVIDER=gemini                 # ollama | openai | gemini
 GEMINI_API_KEY=...                 # https://aistudio.google.com
 GEMINI_TEXT_MODEL=<model>          # e.g. listed in Settings once the key is set
@@ -155,7 +136,7 @@ AI_FALLBACK_PROVIDER=openai        # ... try this one (never for refusals or bad
 * **LOCAL AI** (Ollama): no media leaves the machine. **CLOUD AI** (Gemini/OpenAI): only compact analysis numbers and a
   few small, distinct keyframes per clip are sent (`VISION_MAX_FRAMES_PER_CLIP`, `VISION_MAX_IMAGE_SIZE`,
   `VISION_DETAIL_LEVEL`); whole videos are never uploaded. The project page shows "AI: Gemini" and the badge.
-* Every AI answer is schema-constrained (OpenAI/Gemini) or JSON + schema (Ollama), validated with Pydantic, repaired once,
+* Every AI answer is schema-constrained (OpenAI/Gemini) or JSON + schema (Ollama), validated with zod, repaired once,
   and otherwise ignored (the rule-based path is used, with a warning).
 * **Usage and cost**: every call is logged (`ai_usage` collection: provider, model, task, project, latency, tokens,
   estimated cost, fallback, error code; never keys). Costs come from the prices you set in `AI_MODEL_PRICES` (USD per
@@ -173,12 +154,11 @@ the Reel is still rendered with a visible warning. Choosing the **Auto** style l
 ## Docker
 
 ```bash
-docker compose up --build          # frontend :3000, API :8000, MongoDB internal
+docker compose up --build          # the app :3000 (website and API), MongoDB internal
 ```
 
-Ollama stays on the host (`OLLAMA_BASE_URL=http://host.docker.internal:11434`). `NEXT_PUBLIC_API_URL` is the URL the
-*browser* uses to reach the API and is baked in at build time (`docker compose build --build-arg NEXT_PUBLIC_API_URL=...`).
-Build the backend without captions using `WITH_CAPTIONS=0`.
+Ollama stays on the host (`OLLAMA_BASE_URL=http://host.docker.internal:11434`). The browser calls the API on the same
+address as the website, so nothing needs to be baked in at build time.
 
 ## Using it
 
@@ -251,12 +231,12 @@ Your clips are on your phone and the app runs on your computer. Two ways to get 
    `powershell -ExecutionPolicy Bypass -File scripts\start-phone-mode.ps1`, then open the address it prints (for example
    `http://192.168.1.20:3100`) in the phone's browser. **Create Reel** opens the phone's gallery for videos and its music files for the song, and the
    upload goes over your Wi-Fi. iPhone clips (HEVC/H.265 `.mov`, stored with a rotation flag) are handled: they come out upright.
-   * **There is no login.** While phone mode runs, anyone on that Wi-Fi who knows the address can use the app. It is off unless you start it this way
-     (`CORS_ALLOW_LAN` is `false` by default); close the two windows to turn it off. Do not use it on a public or shared network.
-   * If the QR code does not appear, an older copy of the app is probably still running on port 8000 and answering first. The script now stops with a message when it finds one: close that terminal and run the script again.
+   * **There is no login.** While phone mode runs, anyone on that Wi-Fi who knows the address can use the app. It is off unless you start it this way;
+     close the app window to turn it off. Do not use it on a public or shared network.
+   * If the QR code does not appear, an older copy of the app is probably still running on port 3100 for this computer only and answering first. The script now stops with a message when it finds one: close that terminal and run the script again.
    * **Phone mode needs a shared Wi-Fi *router*.** If the computer gets its internet from the phone's own hotspot, the phone is the hotspot and usually cannot open the addresses of devices connected to it (an Android limitation: the browser says "connection was interrupted"). Put the phone and the computer on the same router's Wi-Fi, or use option 2 below.
-   * **Not sure what is wrong?** On the phone open `http://<computer address>:8000/phone-check` (for example `http://172.20.10.10:8000/phone-check`). It is a tiny page with no app code: if you see "Your phone reached this computer", the network and firewall are fine; it also tells you whether the phone can reach the app port (3100).
-   * **If the phone cannot open the address**, Windows Firewall is blocking it (typical when the network is marked *Public*, or an earlier pop-up was cancelled, which creates "Block" rules for Node.js and Python). Run **once, as Administrator**: `powershell -ExecutionPolicy Bypass -File scripts\allow-phone-mode-firewall.ps1`. It shows what it will change and asks first: it marks the current network *Private* and adds one inbound rule for ports 3100 and 8000 on Private networks only. `start-phone-mode.ps1` warns when the network is Public.
+   * **Not sure what is wrong?** On the phone open `http://<computer address>:3100/api/health` (for example `http://172.20.10.10:3100/api/health`): if a short JSON answer appears, the network and firewall are fine.
+   * **If the phone cannot open the address**, Windows Firewall is blocking it (typical when the network is marked *Public*, or an earlier pop-up was cancelled, which creates "Block" rules for Node.js). Run **once, as Administrator**: `powershell -ExecutionPolicy Bypass -File scripts\allow-phone-mode-firewall.ps1`. It shows what it will change and asks first: it marks the current network *Private* and adds one inbound rule for port 3100 on Private networks only. `start-phone-mode.ps1` warns when the network is Public.
    * Phone browsers upload big videos slowly on weak Wi-Fi; the per-file limit is 500 MB.
 2. **No setup:** copy the clips to the computer first (USB cable: on a Samsung Galaxy unlock the phone, choose *File transfer* and copy from `DCIM/Camera`; or Microsoft *Phone Link*, Samsung *Quick Share* to Windows, Google Drive/OneDrive, Nearby Share / Quick Share, AirDrop for a Mac, or your own
    messaging app's "save to files"), then upload them from the computer as usual.
@@ -307,21 +287,18 @@ one for videos). Untested on an actual phone: this was checked with automated te
 
 Errors always look like `{"error": {"code", "message", "details"}}` (e.g. `FFMPEG_RENDER_FAILED`, `FILE_TOO_LARGE`,
 `UNSUPPORTED_MEDIA`, `CORRUPTED_MEDIA`, `NO_AUDIO`, `INSUFFICIENT_DISK_SPACE`, `RENDER_TIMEOUT`, `OLLAMA_UNAVAILABLE`, …).
-Interactive docs: `http://localhost:8000/docs`.
 
 ## Project layout
 
 ```
-backend/app/
-  api/        REST routers            core/      config, errors, ffmpeg wrapper, db, rate limit
-  audio/      bpm, beat_detector, analyzer      video/   analyzer, timeline, cropper, cutter,
-  ai/         provider, ollama, prompts,                 transitions, composer, renderer
-              clip_selector, copywriter, vision
-  captions/   transcriber, cues, ass            styles/  data-only editing styles (+ registry)
-  trends/     presets + TrendSource             jobs/    pipeline (sync) + manager (async, persisted)
-  storage/    StorageBackend + LocalStorage     models/, schemas/, services/
-frontend/     Next.js app router, components, hooks (React Query), lib/api.ts
-docs/         architecture + extension guide
+frontend/
+  app/          pages (App Router) and app/api/**/route.ts: the REST API
+  server/       everything on the server: core (config, db, auth, errors, ffmpeg), audio (Essentia analysis),
+                video (analysis, render engine), director, ai (providers), jobs (pipeline + manager), product,
+                story, revise, trends, voice, publish, credits, accounts
+  components/   UI (atomic design)   hooks/ (React Query)   lib/api.ts (the client)
+  tests/        Vitest
+docs/           architecture + extension guide
 ```
 
 More: [docs/architecture.md](docs/architecture.md), [docs/extending.md](docs/extending.md).
@@ -329,17 +306,9 @@ More: [docs/architecture.md](docs/architecture.md), [docs/extending.md](docs/ext
 ## Testing
 
 ```bash
-cd backend  && pytest -m "not live"   # real FFmpeg renders (marked `slow`), MongoDB mocked, AI providers mocked
-cd frontend && npm test               # Vitest + React Testing Library
+cd frontend && npm test               # Vitest: audio analysis on synthetic songs with known answers, the timeline and render helpers, the UI
 cd frontend && npm run typecheck && npx eslint .
 ```
-
-The backend tests generate their own media (FFmpeg `lavfi` clips, a 120 BPM click-track MP3) and render real
-reels: the acceptance test renders 5 clips + MP3 + 15 s + Fast Trending, then checks codec, 1080×1920, duration,
-that every frame decodes with zero errors, and that temp files are cleaned up.
-`pytest -m "not slow"` skips the render tests. The AI provider contract tests (`tests/test_ai_providers.py`) run the
-same checks against Ollama, OpenAI and Gemini with mocked transports; no key is needed. Real provider calls are opt-in:
-`LIVE_GEMINI_API_KEY=... LIVE_GEMINI_MODEL=... pytest tests/integration -m live` (also `LIVE_OPENAI_*`, `LIVE_OLLAMA_MODEL`).
 
 ## Security notes
 

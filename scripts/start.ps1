@@ -1,17 +1,15 @@
-# Start the whole app (API + website) with ONE command, for this computer only.
+# Start the whole app (one Next.js server: website and API) with ONE command, for this computer only.
 #
 #   start.bat                      (double-click it, or run it in a terminal)
-#   scripts\stop.bat               (stops both)
+#   scripts\stop.bat               (stops it)
 #
-# Backend  http://127.0.0.1:8000   (FastAPI)      log: backend.log / backend.err.log
-# Website  http://127.0.0.1:3100   (Next.js)      log: frontend.log
+# App  http://127.0.0.1:3100   (Next.js: website and API)      log: frontend.log / frontend.err.log
 #
 # Nothing here is exposed to your network. MongoDB is started automatically if it is not running (see below);
 # Ollama is optional (AI assist).
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$backend = Join-Path $root "backend"
 $frontend = Join-Path $root "frontend"
 
 function Test-Port($port) { @(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue).Count -gt 0 }
@@ -72,12 +70,6 @@ if (-not (Test-Port 27017)) {
 }
 
 # --- what it needs -----------------------------------------------------------------------------------------------
-$py = Join-Path $backend ".venv\Scripts\python.exe"
-if (-not (Test-Path $py)) {
-    Write-Host "The backend is not set up yet: $py is missing." -ForegroundColor Red
-    Write-Host "  cd backend; python -m venv .venv; .venv\Scripts\pip install -r requirements.txt" -ForegroundColor Yellow
-    exit 1
-}
 if (-not (Test-Path (Join-Path $frontend "node_modules"))) {
     Write-Host "The website is not set up yet: run  cd frontend; npm install  once." -ForegroundColor Red
     exit 1
@@ -86,18 +78,7 @@ if (-not (Test-Port 11434)) {
     Write-Host "Ollama is not running: the app works, but AI assist (content understanding, 'change it with words') will say it is unavailable." -ForegroundColor Yellow
 }
 
-# --- backend -----------------------------------------------------------------------------------------------------
-if (Test-Port 8000) {
-    Write-Host "API already running on port 8000: keeping it." -ForegroundColor DarkGray
-} else {
-    # --reload: a code change restarts the API by itself (a render running at that moment is stopped; generate it again)
-    Start-Process -FilePath $py -ArgumentList @("-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload", "--reload-dir", "app") `
-        -WorkingDirectory $backend -WindowStyle Hidden `
-        -RedirectStandardOutput (Join-Path $root "backend.log") -RedirectStandardError (Join-Path $root "backend.err.log")
-    Write-Host "Starting the API..."
-}
-
-# --- website -----------------------------------------------------------------------------------------------------
+# --- the app (website and API in one Next.js server) -------------------------------------------------------------
 if (Test-Port 3100) {
     Write-Host "Website already running on port 3100: keeping it." -ForegroundColor DarkGray
 } else {
@@ -108,12 +89,10 @@ if (Test-Port 3100) {
     Write-Host "Starting the website..."
 }
 
-# --- wait until both answer, then open the browser ---------------------------------------------------------------
-$apiOk = Wait-Url "http://127.0.0.1:8000/api/health" 60
-$webOk = Wait-Url "http://127.0.0.1:3100" 90
-if (-not $apiOk) { Write-Host "The API did not answer in time. See backend.err.log in $root" -ForegroundColor Red }
-if (-not $webOk) { Write-Host "The website did not answer in time. See frontend.err.log in $root" -ForegroundColor Red }
-if ($apiOk -and $webOk) {
+# --- wait until it answers, then open the browser ----------------------------------------------------------------
+$webOk = Wait-Url "http://127.0.0.1:3100/api/health" 120
+if (-not $webOk) { Write-Host "The app did not answer in time. See frontend.err.log in $root" -ForegroundColor Red }
+if ($webOk) {
     Write-Host ""
     Write-Host "Ready:  http://127.0.0.1:3100" -ForegroundColor Green
     Write-Host "Stop with:  scripts\stop.bat" -ForegroundColor DarkGray
