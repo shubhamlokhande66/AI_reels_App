@@ -29,6 +29,13 @@ export const PayloadTooLarge = kind(413, "FILE_TOO_LARGE");
 export const UnsupportedMedia = kind(415, "UNSUPPORTED_MEDIA");
 export const RateLimited = kind(429, "RATE_LIMITED");
 export const AIUnavailable = kind(503, "AI_UNAVAILABLE");
+export const InsufficientStorage = kind(507, "INSUFFICIENT_DISK_SPACE");
+// the media pipeline's errors (raised inside jobs, surfaced as job.error)
+export const CorruptedMedia = kind(400, "CORRUPTED_MEDIA");
+export const FFmpegError = kind(500, "FFMPEG_RENDER_FAILED");
+export const RenderTimeout = kind(504, "RENDER_TIMEOUT");
+/** Raised inside a running job when the user cancels it (checked at every progress tick). */
+export const JobCancelled = kind(409, "JOB_CANCELLED");
 
 export function errorBody(code: string, message: string, details: unknown = null) {
   return { error: { code, message, details } };

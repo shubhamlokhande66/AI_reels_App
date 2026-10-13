@@ -1,9 +1,9 @@
 import "server-only";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { settings } from "./config";
-import { AppError } from "./errors";
+import { AppError, FFmpegError, RenderTimeout } from "./errors";
 
 /** FFmpeg / FFprobe (was backend/app/core/ffmpeg.py): the configured binary, or the one on PATH, or winget's install. */
 
@@ -68,6 +68,63 @@ export function run(bin: string, args: string[], timeoutMs = 300_000): Promise<{
 }
 
 export const runFfmpeg = (args: string[], timeoutMs?: number) => run(findBinary("ffmpeg"), ["-hide_banner", "-loglevel", "error", "-y", ...args], timeoutMs);
+
+export interface RenderRun {
+  /** seconds; default RENDER_TIMEOUT_SECONDS */
+  timeout?: number;
+  /** seconds of output expected: progress is reported as a share of it */
+  expectedDuration?: number;
+  onProgress?: (fraction: number) => void;
+  errorCode?: string;
+  /** stops the run (a cancelled job) */
+  signal?: AbortSignal;
+}
+
+/** A render step (was core/ffmpeg.run_ffmpeg): an argument list (never a shell string), a hard timeout, progress from
+ * FFmpeg's -progress output, and a failure turned into a clear error code (disk full, codec, corrupted source). */
+export function renderFfmpeg(args: string[], opts: RenderRun = {}): Promise<void> {
+  const timeout = opts.timeout ?? settings.renderTimeoutSeconds;
+  const cmd = ["-hide_banner", "-nostdin", "-y", "-loglevel", "error"];
+  if (settings.ffmpegThreads) cmd.push("-threads", String(settings.ffmpegThreads));
+  cmd.push("-progress", "pipe:1", "-nostats", ...args);
+  return new Promise((resolve, reject) => {
+    const p = spawn(findBinary("ffmpeg"), cmd, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    const tail: string[] = [];
+    let timedOut = false, out = "";
+    const timer = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, Math.max(timeout, 1) * 1000);
+    const abort = () => p.kill("SIGKILL");
+    opts.signal?.addEventListener("abort", abort);
+    p.stderr.setEncoding("utf8").on("data", (d: string) => {
+      for (const line of d.split(/\r?\n/)) if (line.trim()) tail.push(line.trimEnd());
+      if (tail.length > 40) tail.splice(0, tail.length - 40);
+    });
+    p.stdout.setEncoding("utf8").on("data", (d: string) => {
+      out += d;
+      const lines = out.split("\n");
+      out = lines.pop() ?? "";
+      if (!opts.onProgress || !opts.expectedDuration) return;
+      for (const line of lines) {
+        const m = /^out_time_us=(\d+)/.exec(line.trim());
+        if (m) opts.onProgress(Math.max(0, Math.min(Number(m[1]) / 1e6 / opts.expectedDuration, 1)));
+      }
+    });
+    p.on("error", (e) => { clearTimeout(timer); reject(new FFmpegError(`FFmpeg could not start: ${e.message}`)); });
+    p.on("close", (code) => {
+      clearTimeout(timer);
+      opts.signal?.removeEventListener("abort", abort);
+      if (timedOut) return reject(new RenderTimeout(`Rendering exceeded the ${Math.trunc(timeout)}s time limit.`, { details: tail.join("\n") }));
+      if (opts.signal?.aborted) return reject(new AppError("The job was cancelled.", { code: "JOB_CANCELLED", status: 409 }));
+      if (code === 0) return resolve();
+      const details = tail.join("\n") || `ffmpeg exited with code ${code} without any message (crash)`;
+      const low = details.toLowerCase();
+      let errCode = opts.errorCode ?? "FFMPEG_RENDER_FAILED", message = "Video rendering failed.";
+      if (low.includes("no space left")) [errCode, message] = ["INSUFFICIENT_DISK_SPACE", "Not enough disk space to render."];
+      else if (low.includes("unknown encoder") || low.includes("unsupported codec") || (low.includes("decoder") && low.includes("not found"))) [errCode, message] = ["UNSUPPORTED_CODEC", "A video or audio codec is not supported."];
+      else if (low.includes("invalid data found") || low.includes("moov atom not found")) [errCode, message] = ["CORRUPTED_MEDIA", "A source file appears to be corrupted."];
+      reject(new FFmpegError(message, { code: errCode, details: details.slice(-1500) }));
+    });
+  });
+}
 
 export interface ProbeInfo {
   streams?: Record<string, unknown>[];

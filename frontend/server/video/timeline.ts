@@ -74,7 +74,7 @@ export function rankMusicWindows(audio: AudioAnalysis, duration: number, k = 5):
 }
 
 // ---------------------------------------------------------------- cut planning
-function gridBeats(audio: AudioAnalysis, start: number, duration: number): number[] {
+export function gridBeats(audio: AudioAnalysis, start: number, duration: number): number[] {
   let rel = audio.beats.filter((b) => b - start >= -0.03 && b - start <= duration + 0.03).map((b) => round(b - start, 3));
   const period = audio.bpm > 0 ? 60 / audio.bpm : 0.5;
   if (rel.length < 0.6 * (duration / period) || rel.length < 3) rel = Array.from({ length: Math.trunc(duration / period) + 1 }, (_, i) => round(i * period, 3));
@@ -84,7 +84,7 @@ function gridBeats(audio: AudioAnalysis, start: number, duration: number): numbe
   return [...new Set(rel)].sort((a, b) => a - b);
 }
 
-function snapToAccent(t: number, accents: [number, number][], tol = ACCENT_SNAP_TOL, minStrength = ACCENT_SNAP_MIN): number {
+export function snapToAccent(t: number, accents: [number, number][], tol = ACCENT_SNAP_TOL, minStrength = ACCENT_SNAP_MIN): number {
   const near = accents.filter(([a, s]) => Math.abs(a - t) <= tol && s >= minStrength);
   return near.length ? near.reduce((x, p) => (Math.abs(p[0] - t) < Math.abs(x[0] - t) ? p : x), near[0])[0] : t;
 }

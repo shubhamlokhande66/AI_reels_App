@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 40 of 171
+## Endpoints (171) - [x] = served by Next.js: 52 of 171
 
 ### admin (4)
 
@@ -144,7 +144,7 @@ frontend/
 
 ### jobs (1)
 
-- [ ] `GET /api/jobs/{job_id}`
+- [x] `GET /api/jobs/{job_id}`
 
 ### library (3)
 
@@ -186,7 +186,7 @@ frontend/
 
 ### projects/analyze (1)
 
-- [ ] `POST /api/projects/{project_id}/analyze`
+- [x] `POST /api/projects/{project_id}/analyze`
 
 ### projects/apply-brand (1)
 
@@ -218,7 +218,7 @@ frontend/
 
 ### projects/generate (1)
 
-- [ ] `POST /api/projects/{project_id}/generate`
+- [x] `POST /api/projects/{project_id}/generate`
 
 ### projects/generations (1)
 
@@ -232,9 +232,9 @@ frontend/
 
 ### projects/jobs (3)
 
-- [ ] `GET /api/projects/{project_id}/jobs`
-- [ ] `GET /api/projects/{project_id}/jobs/{job_id}`
-- [ ] `POST /api/projects/{project_id}/jobs/{job_id}/cancel`
+- [x] `GET /api/projects/{project_id}/jobs`
+- [x] `GET /api/projects/{project_id}/jobs/{job_id}`
+- [x] `POST /api/projects/{project_id}/jobs/{job_id}/cancel`
 
 ### projects/media (2)
 
@@ -243,7 +243,7 @@ frontend/
 
 ### projects/output (1)
 
-- [ ] `GET /api/projects/{project_id}/output`
+- [x] `GET /api/projects/{project_id}/output`
 
 ### projects/posts (1)
 
@@ -278,11 +278,11 @@ frontend/
 
 ### projects/render (1)
 
-- [ ] `POST /api/projects/{project_id}/render`
+- [x] `POST /api/projects/{project_id}/render`
 
 ### projects/renderings (5)
 
-- [ ] `GET /api/projects/{project_id}/renderings`
+- [x] `GET /api/projects/{project_id}/renderings`
 - [x] `GET /api/projects/{project_id}/renderings/{rendering_id}/file`
 - [ ] `PUT /api/projects/{project_id}/renderings/{rendering_id}/performance`
 - [ ] `POST /api/projects/{project_id}/renderings/{rendering_id}/publish`
@@ -336,11 +336,11 @@ frontend/
 
 ### projects/understand (1)
 
-- [ ] `POST /api/projects/{project_id}/understand`
+- [x] `POST /api/projects/{project_id}/understand`
 
 ### projects/variations (1)
 
-- [ ] `POST /api/projects/{project_id}/variations`
+- [x] `POST /api/projects/{project_id}/variations`
 
 ### projects/videos (3)
 
@@ -433,7 +433,7 @@ frontend/
 
 ### variation-strategies (1)
 
-- [ ] `GET /api/variation-strategies`
+- [x] `GET /api/variation-strategies`
 
 ### voices (6)
 

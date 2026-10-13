@@ -107,7 +107,7 @@ function fitSource(seg: Segment, clipDur: number | undefined): void {
   seg.sourceEnd = round(seg.sourceStart + span, 3);
 }
 
-function wordsFor(text: string, start: number, end: number): CaptionWord[] {
+export function wordsFor(text: string, start: number, end: number): CaptionWord[] {
   const parts = text.split(/\s+/).filter(Boolean);
   if (!parts.length) return [];
   const step = (end - start) / parts.length;

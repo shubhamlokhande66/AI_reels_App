@@ -91,6 +91,7 @@ export const TextOverlay = z.object({
 export type TextOverlay = z.infer<typeof TextOverlay>;
 
 export const SoundEffect = z.object({ type: z.enum(["whoosh", "impact", "riser", "pop"]), at: num.min(0), volume: num.min(0).max(1).default(0.6) });
+export type SoundEffect = z.infer<typeof SoundEffect>;
 
 export const AIInfo = z.object({
   provider: z.string(), model: z.string().default(""), local: z.boolean().default(true), tasks: z.array(z.string()).default([]),
