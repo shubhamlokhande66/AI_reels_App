@@ -2,10 +2,11 @@
 
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Dropzone } from "@/components/Dropzone";
-import { TrendLibrary } from "@/components/TrendLibrary";
-import { ProgressBar } from "@/components/ProgressStages";
-import { btnDanger, btnPrimary, btnSecondary, Card, EmptyState, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { Dropzone } from "@/components/molecules/Dropzone";
+import { TrendLibrary } from "@/components/organisms/TrendLibrary";
+import { ProgressBar } from "@/components/molecules/ProgressStages";
+import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { PICKER_VIDEO, isVideoFile } from "@/lib/format";
 import type { LearnedTrend, TrendLook, TrendProfile } from "@/types/api";

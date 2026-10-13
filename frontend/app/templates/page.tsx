@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnDanger, btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { useStyles, useTrends } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { STYLE_LABELS } from "@/lib/format";

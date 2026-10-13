@@ -5,9 +5,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAdmin } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { setAdminKey } from "@/lib/admin";
-import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader } from "@/components/ui";
-import { RetentionSettings } from "@/components/RetentionSettings";
-import { PricingSettings } from "@/components/PricingSettings";
+import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { RetentionSettings } from "@/components/organisms/RetentionSettings";
+import { PricingSettings } from "@/components/organisms/PricingSettings";
 
 /** Unlock (or leave) admin mode in this browser with the server's ADMIN_KEY. */
 export default function AdminPage() {

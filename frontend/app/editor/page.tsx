@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { useProjects } from "@/hooks/useApi";
-import { btnPrimary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { btnPrimary, Card, Spinner } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
 
 const PRO = ["55 transitions", "22 effects", "20 filters", "Animated text", "Speed & slow motion", "Beat markers", "Captions", "HD export"];
 

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader } from "@/components/ui";
+import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
 import { stashTemplateDraft } from "@/lib/templateDraftHandoff";

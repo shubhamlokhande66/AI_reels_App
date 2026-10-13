@@ -2,7 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnDanger, btnPrimary, btnSecondary, Card, EmptyState, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { STYLE_LABELS } from "@/lib/format";
 import { BRAND_VISUAL_STYLES, LANGUAGES, type Brand, type BrandInput, type Language } from "@/types/api";

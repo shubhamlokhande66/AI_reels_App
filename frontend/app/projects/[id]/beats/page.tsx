@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BeatSyncReview } from "@/components/editor/BeatSyncReview";
-import { TimelineTracks } from "@/components/editor/TimelineTracks";
-import { ProgressStages } from "@/components/ProgressStages";
-import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { BeatSyncReview } from "@/components/organisms/editor/BeatSyncReview";
+import { TimelineTracks } from "@/components/organisms/editor/TimelineTracks";
+import { ProgressStages } from "@/components/molecules/ProgressStages";
+import { btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { useProject, useTimeline, useTimelineActions } from "@/hooks/useApi";
 import { assetUrl, errorMessage } from "@/lib/api";
 

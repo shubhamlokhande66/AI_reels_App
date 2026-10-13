@@ -3,12 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { AudioRangePicker } from "@/components/AudioRangePicker";
-import { Dropzone } from "@/components/Dropzone";
-import { ProgressBar } from "@/components/ProgressStages";
-import { DurationSelector } from "@/components/StyleSelector";
-import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader } from "@/components/ui";
-import { VideoList, type LocalVideo } from "@/components/VideoList";
+import { AudioRangePicker } from "@/components/molecules/AudioRangePicker";
+import { Dropzone } from "@/components/molecules/Dropzone";
+import { ProgressBar } from "@/components/molecules/ProgressStages";
+import { DurationSelector } from "@/components/organisms/StyleSelector";
+import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { VideoList, type LocalVideo } from "@/components/molecules/VideoList";
 import { api, errorMessage } from "@/lib/api";
 import { PICKER_AUDIO, PICKER_VIDEO, formatBytes, isAudioFile, isVideoFile } from "@/lib/format";
 

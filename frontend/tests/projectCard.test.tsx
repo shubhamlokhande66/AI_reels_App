@@ -7,7 +7,7 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...r }: { href: string
 const api = vi.hoisted(() => ({ deleteProject: vi.fn() }));
 vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api }));
 
-import { ProjectCard } from "@/components/ProjectCard";
+import { ProjectCard } from "@/components/molecules/ProjectCard";
 import type { ProjectSummary } from "@/types/api";
 
 const project = (over: Partial<ProjectSummary> = {}) =>

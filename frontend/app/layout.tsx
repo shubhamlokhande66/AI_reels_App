@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist_Mono, Manrope } from "next/font/google";
 import "./globals.css";
-import { AppShell } from "@/components/AppShell";
-import { Providers } from "@/components/Providers";
+import { AppShell } from "@/components/templates/AppShell";
+import { Providers } from "@/components/templates/Providers";
 import { THEME_SCRIPT } from "@/lib/theme";
 
 // Display serif for headings, a clean geometric sans for everything else.

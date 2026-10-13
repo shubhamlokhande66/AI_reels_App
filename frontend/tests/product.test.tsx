@@ -24,10 +24,10 @@ vi.mock("@/hooks/useApi", async (orig) => ({
   useDeleteProject: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { NewReel } from "@/components/NewReel";
-import { ProductProjectView } from "@/components/ProductProjectView";
-import { ProductReelForm } from "@/components/ProductReelForm";
-import { ShotList } from "@/components/ShotList";
+import { NewReel } from "@/components/molecules/NewReel";
+import { ProductProjectView } from "@/components/organisms/ProductProjectView";
+import { ProductReelForm } from "@/components/organisms/ProductReelForm";
+import { ShotList } from "@/components/molecules/ShotList";
 
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
 const STYLES = [

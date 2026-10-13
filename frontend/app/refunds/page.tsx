@@ -1,6 +1,6 @@
 "use client";
 
-import { LegalPage } from "@/components/Legal";
+import { LegalPage } from "@/components/molecules/Legal";
 
 export default function RefundsPage() {
   return (

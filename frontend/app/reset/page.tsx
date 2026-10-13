@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { btnPrimary, ErrorBanner } from "@/components/ui";
+import { btnPrimary } from "@/components/atoms";
+import { ErrorBanner } from "@/components/molecules";
 
 const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2.5 outline-none focus:border-accent";
 

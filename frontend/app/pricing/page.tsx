@@ -7,7 +7,8 @@ import { api, errorMessage } from "@/lib/api";
 import { useCredits, useMe } from "@/hooks/useApi";
 import { pay } from "@/lib/razorpay";
 import type { Credits, Pricing } from "@/types/api";
-import { btnPrimary, btnSecondary, ErrorBanner, Spinner } from "@/components/ui";
+import { btnPrimary, btnSecondary, Spinner } from "@/components/atoms";
+import { ErrorBanner } from "@/components/molecules";
 
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");

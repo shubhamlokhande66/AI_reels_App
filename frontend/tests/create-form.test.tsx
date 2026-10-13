@@ -27,7 +27,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api }));
 
-import { CreateReelForm } from "@/components/CreateReelForm";
+import { CreateReelForm } from "@/components/organisms/CreateReelForm";
 
 function renderForm() {
   return render(

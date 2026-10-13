@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { btnPrimary, ErrorBanner } from "@/components/ui";
-import { LegalFooter } from "@/components/Legal";
+import { btnPrimary } from "@/components/atoms";
+import { ErrorBanner } from "@/components/molecules";
+import { LegalFooter } from "@/components/molecules/Legal";
 import Link from "next/link";
 
 const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2.5 outline-none focus:border-accent";

@@ -77,8 +77,10 @@ export function resolveApiUrl(configured: string, pageHostname?: string): string
   }
 }
 
+// The API is this same Next.js server ("" = same origin; it passes paths not moved yet on to Python, next.config.ts).
+// NEXT_PUBLIC_API_URL still points the app at another API when set.
 export const API_URL = resolveApiUrl(
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000",
+  process.env.NEXT_PUBLIC_API_URL ?? "",
   typeof window === "undefined" ? undefined : window.location.hostname,
 );
 

@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { btnPrimary, Card, ErrorBanner, PageHeader } from "@/components/ui";
-import { TaskLog } from "@/components/TaskLog";
+import { btnPrimary, Card } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { TaskLog } from "@/components/molecules/TaskLog";
 
 const LANGS = [
   ["hi", "हिन्दी Hindi"],

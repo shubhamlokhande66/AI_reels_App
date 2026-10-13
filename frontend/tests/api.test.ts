@@ -43,8 +43,8 @@ describe("api client", () => {
     await expect(api.deleteProject("x")).resolves.toBeUndefined();
   });
 
-  it("builds absolute asset URLs", () => {
-    expect(assetUrl("/api/x")).toMatch(/^http.*\/api\/x$/);
+  it("builds asset URLs on the app's own server (same origin; Next.js serves the API)", () => {
+    expect(assetUrl("/api/x")).toBe("/api/x");
     expect(assetUrl("https://cdn/x.mp4")).toBe("https://cdn/x.mp4");
     expect(assetUrl(null)).toBeUndefined();
   });

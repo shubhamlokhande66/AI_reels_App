@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { LegalPage } from "@/components/Legal";
+import { LegalPage } from "@/components/molecules/Legal";
 
 export default function TermsPage() {
   return (

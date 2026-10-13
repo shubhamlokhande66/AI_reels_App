@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_URL, api, errorMessage } from "@/lib/api";
-import { btnPrimary, btnSecondary, Card, ErrorBanner, PageHeader, Spinner } from "@/components/ui";
+import { btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { useHealth } from "@/hooks/useApi";
-import { AiSettingsSection } from "@/components/AiSettings";
-import { DirectorProfileSection } from "@/components/DirectorFeedback";
+import { AiSettingsSection } from "@/components/organisms/AiSettings";
+import { DirectorProfileSection } from "@/components/organisms/DirectorFeedback";
 import type { AiModels, ModelTestResult } from "@/types/api";
 
 function Row({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
