@@ -1,6 +1,7 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
+import "@/server/ai/pipelineImpl";
 import { pipelineAi, type DirectedReel } from "@/server/ai/pipelineAi";
 import { analyzeMusic } from "@/server/audio/analyzer";
 import { cutPlan, planHits } from "@/server/audio/beatmap";
@@ -402,7 +403,7 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
   const hooks = hooksFor(direction, generateHooks(inputs, settings.brief, settings.hookText));
   let directed: DirectedReel | null = null, directorError: string | null = null;
   if (useDirector) {
-    try { directed = await pipelineAi().directReel({ clips: inputs, audio, style, duration: settings.duration, brief, hooks, direction, seed: inp.seed, settings }); }
+    try { directed = await pipelineAi().directReel({ clips: inputs, audio, style, duration: settings.duration, brief, hooks, direction, seed: inp.seed, settings: { ...settings, projectId: inp.projectId, template: inp.template, references: inp.references, brand: inp.brand } }); }
     catch (e) { if (!(e instanceof AppError)) throw e; directorError = e.message; res.warnings.push(`The AI director was skipped: ${e.message}`); }
   }
   let timeline: Timeline;
@@ -622,7 +623,7 @@ export async function runVariations(inpIn: PipelineInput, progress: StageProgres
     const warns: string[] = [], aiTasks: string[] = [];
     if (direction && settings.ai && settings.aiDirector && settings.sequence !== "steps" && !base?.voice) {
       try {
-        const d = await pipelineAi().directReel({ clips: inputs, audio, style: await resolveStyle(settings), duration, brief, hooks: vHooks, direction, seed: inp.seed + i * 101, settings });
+        const d = await pipelineAi().directReel({ clips: inputs, audio, style: await resolveStyle(settings), duration, brief, hooks: vHooks, direction, seed: inp.seed + i * 101, settings: { ...settings, projectId: inp.projectId, template: null, references: inp.references, brand: inp.brand } });
         if (d) { tl = d.timeline; cplan = d.creative; tl.ai = pipelineAi().info(aiTasks, true); }
       } catch (e) { if (!(e instanceof AppError)) throw e; warns.push(`The AI director was skipped: ${e.message}`); }
     }
