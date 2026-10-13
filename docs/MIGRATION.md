@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 89 of 171
+## Endpoints (171) - [x] = served by Next.js: 100 of 171
 
 ### admin (4)
 
@@ -95,13 +95,13 @@ frontend/
 
 ### brands (7)
 
-- [ ] `GET /api/brands`
-- [ ] `POST /api/brands`
-- [ ] `DELETE /api/brands/{brand_id}`
-- [ ] `GET /api/brands/{brand_id}`
-- [ ] `PATCH /api/brands/{brand_id}`
-- [ ] `GET /api/brands/{brand_id}/logo`
-- [ ] `POST /api/brands/{brand_id}/logo`
+- [x] `GET /api/brands`
+- [x] `POST /api/brands`
+- [x] `DELETE /api/brands/{brand_id}`
+- [x] `GET /api/brands/{brand_id}`
+- [x] `PATCH /api/brands/{brand_id}`
+- [x] `GET /api/brands/{brand_id}/logo`
+- [x] `POST /api/brands/{brand_id}/logo`
 
 ### chat (2)
 
@@ -148,9 +148,9 @@ frontend/
 
 ### library (3)
 
-- [ ] `GET /api/library`
-- [ ] `POST /api/library/search`
-- [ ] `PATCH /api/library/{media_id}`
+- [x] `GET /api/library`
+- [x] `POST /api/library/search`
+- [x] `PATCH /api/library/{media_id}`
 
 ### phone (1)
 
@@ -190,7 +190,7 @@ frontend/
 
 ### projects/apply-brand (1)
 
-- [ ] `POST /api/projects/{project_id}/apply-brand`
+- [x] `POST /api/projects/{project_id}/apply-brand`
 
 ### projects/apply-template (1)
 

@@ -1,4 +1,5 @@
-import { forwardAll } from "@/server/core/http";
+import { route, sendFile } from "@/server/core/http";
+import { logoFile, uploadLogo } from "@/server/brands";
 
-// An upload, streamed on to the Python backend until this endpoint is moved (docs/MIGRATION.md).
-export const { GET, POST, PUT, PATCH, DELETE } = forwardAll;
+export const GET = route<{ brandId: string }>(async (req, { brandId }) => sendFile(req, await logoFile(brandId), "image/png"));
+export const POST = route<{ brandId: string }>(async (req, { brandId }) => uploadLogo(brandId, req));
