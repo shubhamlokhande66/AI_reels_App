@@ -67,7 +67,25 @@ def dsp_case(c: dict) -> dict:
     }
 
 
-KINDS = {"ops": ops_case, "keyframes": keyframes_case, "dsp": dsp_case}
+def analyze_case(c: dict) -> dict:
+    from pathlib import Path as P
+
+    from app.audio.analyzer import analyze_audio
+
+    return analyze_audio(P(c["path"])).to_doc()
+
+
+def accents_case(c: dict) -> dict:
+    import numpy as np
+
+    from app.audio import accents
+
+    y = np.asarray(c["y"], dtype=np.float32)
+    r = accents.analyze(y, 22050, c["beats"], c.get("sections") or [])
+    return {"downbeats": r.downbeats, "conf": r.downbeat_confidence, "strong": r.strong_beats, "levels": r.levels, "kick": r.kick, "beats": r.beats, "medium": r.medium_beats}
+
+
+KINDS = {"accents": accents_case, "ops": ops_case, "keyframes": keyframes_case, "dsp": dsp_case, "analyze": analyze_case}
 
 if __name__ == "__main__":
     cases = json.load(sys.stdin)

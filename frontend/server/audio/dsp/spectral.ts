@@ -1,4 +1,4 @@
-import { autocorrelate, fft, isPow2 } from "./fft";
+import { autocorrelate, isPow2, rfftMag } from "./fft";
 import { argmax, clip, linspace, Mat, max as vmax, mean, median, medianFilter1d, percentile, TINY32, vec, type Vec } from "./util";
 
 /** librosa 1.0's spectral features, reproduced (backend/.venv/.../librosa): same windows, padding, filterbanks,
@@ -26,30 +26,38 @@ export function hann(n: number): Float64Array {
   return w;
 }
 
-/** |stft(y)|**power (center, zero padding, periodic Hann): bins (n_fft/2+1) x frames (1 + len(y) // hop). */
+const stftCache = new WeakMap<object, Map<string, Mat>>();
+
+/** |stft(y)|**power (center, zero padding, periodic Hann): bins (n_fft/2+1) x frames (1 + len(y) // hop). The magnitude
+ * is kept per signal (one analysis computes the same spectrogram for several features); treat the result as read-only. */
 export function stftMag(y: ArrayLike<number>, nFft = 2048, hop = 512, power = 1): Mat {
   if (!isPow2(nFft)) throw new Error("n_fft must be a power of two");
-  const pad = nFft / 2;
-  const nFrames = 1 + Math.floor((y.length + 2 * pad - nFft) / hop);
-  const bins = nFft / 2 + 1;
-  const S = new Mat(bins, nFrames);
-  const w = hann(nFft);
-  const re = new Float64Array(nFft), im = new Float64Array(nFft);
-  for (let t = 0; t < nFrames; t++) {
-    const off = t * hop - pad;
-    for (let i = 0; i < nFft; i++) {
-      const k = off + i;
-      // librosa's frames are float32 (the window product is computed in float64, then stored as complex64)
-      re[i] = k >= 0 && k < y.length ? y[k] * w[i] : 0;
-      im[i] = 0;
+  const key = `${nFft}:${hop}`;
+  let perSignal = stftCache.get(y as object);
+  if (!perSignal) stftCache.set(y as object, (perSignal = new Map()));
+  let S = perSignal.get(key);
+  if (!S) {
+    const pad = nFft / 2;
+    const nFrames = 1 + Math.floor((y.length + 2 * pad - nFft) / hop);
+    const bins = nFft / 2 + 1;
+    S = new Mat(bins, nFrames);
+    const w = hann(nFft);
+    const frame = new Float64Array(nFft), mag = new Float64Array(bins);
+    const re = new Float64Array(nFft / 2), im = new Float64Array(nFft / 2);
+    for (let t = 0; t < nFrames; t++) {
+      const off = t * hop - pad;
+      for (let i = 0; i < nFft; i++) {
+        const k = off + i;
+        frame[i] = k >= 0 && k < y.length ? y[k] * w[i] : 0;
+      }
+      rfftMag(frame, mag, re, im);
+      // librosa stores complex64: the magnitude in float32
+      for (let f = 0; f < bins; f++) S.data[f * nFrames + t] = Math.fround(mag[f]);
     }
-    fft(re, im);
-    for (let f = 0; f < bins; f++) {
-      const mag = Math.fround(Math.hypot(Math.fround(re[f]), Math.fround(im[f])));
-      S.data[f * nFrames + t] = power === 1 ? mag : power === 2 ? mag * mag : mag ** power;
-    }
+    perSignal.set(key, S);
   }
-  return S;
+  if (power === 1) return S;
+  return S.map((v) => (power === 2 ? v * v : v ** power));
 }
 
 /** numpy.fft.rfftfreq(n_fft, 1/sr). */
@@ -147,7 +155,7 @@ export function onsetStrengthS(S: Mat, nFft = 2048, hop = 512, lag = 1): Vec {
 }
 
 /** librosa.onset.onset_strength(y=y): on the mel spectrogram in dB. */
-export const onsetStrength = (y: ArrayLike<number>, sr = SR, hop = 512) => onsetStrengthS(powerToDb(melspectrogram(y, sr, 2048, hop)), 2048, hop);
+export const onsetStrength = (y: ArrayLike<number>, sr = SR, hop = 512, nFft = 2048) => onsetStrengthS(powerToDb(melspectrogram(y, sr, nFft, hop)), nFft, hop);
 
 /** librosa.util.peak_pick (greedy). */
 export function peakPick(x: ArrayLike<number>, preMax: number, postMax: number, preAvg: number, postAvg: number, delta: number, wait: number): number[] {
