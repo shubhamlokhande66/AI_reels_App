@@ -67,7 +67,7 @@ export interface PipelineResult {
   renderCheck: Record<string, unknown> | null; postCopy: Record<string, unknown> | null; semantics: Map<string, ClipSemantic>; variants: VariantResult[];
   productPlan: Record<string, unknown> | null; reelPlan: Record<string, unknown> | null;
 }
-const newResult = (): PipelineResult => ({ clips: new Map(), audio: null, timeline: null, render: null, outputKey: null, warnings: [], renderCheck: null, postCopy: null,
+export const newResult = (): PipelineResult => ({ clips: new Map(), audio: null, timeline: null, render: null, outputKey: null, warnings: [], renderCheck: null, postCopy: null,
   semantics: new Map(), variants: [], productPlan: null, reelPlan: null });
 
 // ------------------------------------------------------------------ stages and progress
@@ -551,7 +551,7 @@ async function scoreAndCorrect(inp: PipelineInput, tlIn: Timeline, inputs: ClipI
 // ------------------------------------------------------------------ talking head
 const transcriptKey = (pid: string, mid: string) => projectKey(pid, "analysis", `transcript_${mid}.json`);
 
-async function transcribeClips(inp: PipelineInput, inputs: ClipInput[], progress: StageProgress, warnings: string[]): Promise<Map<string, Word[]>> {
+export async function transcribeClips(inp: PipelineInput, inputs: ClipInput[], progress: StageProgress, warnings: string[]): Promise<Map<string, Word[]>> {
   const out = new Map<string, Word[]>(), n = Math.max(inputs.length, 1), ver = `${env.whisperModel}_${env.whisperLanguage || "auto"}_1`;
   for (const [i, c] of inputs.entries()) {
     progress("selecting_clips", i / n);

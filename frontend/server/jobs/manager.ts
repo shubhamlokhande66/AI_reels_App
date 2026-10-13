@@ -17,6 +17,7 @@ import { validateStyleId } from "@/server/styles";
 import { clipSummary } from "@/server/video/analyzer";
 import type { VideoRef } from "@/server/video/clips";
 import * as pl from "./pipeline";
+import { runSplit } from "./split";
 
 /** Background jobs (was jobs/manager.py): a job document per request, the pipeline run in the background with at most
  * MAX_CONCURRENT_JOBS at once, progress written to the job as it goes, cancel, and the results stored on the project.
@@ -193,6 +194,24 @@ export async function submitVariations(projectId: string, strategyIds: string[] 
   return job;
 }
 
+/** One long video -> `count` Reels of about `seconds` each, from its best parts (saved as versions). */
+export async function submitSplit(projectId: string, count: number, seconds: number) {
+  await recoverStaleJobs();
+  if (count < 1 || count > 5) throw new ValidationFailed("Choose between 1 and 5 Reels.", { code: "INVALID_COUNT" });
+  const doc = (await getProjectDoc(projectId)) as Doc;
+  if (doc.status === "processing") throw new ConflictError("This project is already being processed.", { code: "PROJECT_BUSY" });
+  const { videos, audio } = await projectMedia(doc);
+  if (!videos.length) throw new ValidationFailed("Upload the long video first.", { code: "NO_VIDEOS" });
+  ensureNotPurged([...videos, audio]);
+  const ps = ProjectSettings.parse({ ...(doc.settings as Record<string, unknown>), duration: seconds });
+  const job = await newJob(doc, "split", "analyzing_videos", initialStages("split", false, ps.ai));
+  const inp = pl.pipelineInput({ projectId: String(doc._id), jobType: "split", videos: videos.map(ref), audio: audio ? ref(audio) : null, settings: ps, renderingId: String(new ObjectId()),
+    projectName: doc.name as string, kind: "final", strategies: Array.from({ length: count }, (_, i) => `part${i + 1}`), variantIds: Array.from({ length: count }, () => String(new ObjectId())),
+    brand: await loadBrand(ps.brandId) });
+  spawn(job._id, doc._id, inp, new ObjectId(), doc.latestRenderingId ? "completed" : "draft", "");
+  return job;
+}
+
 // ------------------------------------------------------------------ run
 function spawn(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput, renderingId: ObjectId, priorStatus: string, label: string) {
   const controller = new AbortController();
@@ -223,7 +242,7 @@ async function run(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput,
     let result: pl.PipelineResult;
     try {
       await updateJob(jobId, { status: "processing" }, true);
-      const fn = inp.jobType === "render" ? pl.runRender : inp.jobType === "variations" ? pl.runVariations : pl.runPipeline;
+      const fn = inp.jobType === "render" ? pl.runRender : inp.jobType === "variations" ? pl.runVariations : inp.jobType === "split" ? runSplit : pl.runPipeline;
       result = await fn(inp, onProgress);
       await pending;
     } catch (e) {
@@ -276,7 +295,7 @@ async function finish(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInp
     await d.collection("projects").updateOne({ _id: projectOid }, { $set: update });
     await maybePurge(projectOid, inp);
     await updateJob(jobId, { status: "completed", progress: 100, stage: "rendering", renderingId, stages: initialStages("render").map((s) => ({ ...s, status: "completed", progress: 100 })) });
-  } else if (inp.jobType === "variations") {
+  } else if (inp.jobType === "variations" || inp.jobType === "split") {
     const proj = (await d.collection("projects").findOne({ _id: projectOid })) ?? ({} as Record<string, unknown>);
     const ids: ObjectId[] = [];
     for (const v of result.variants) {
@@ -289,7 +308,7 @@ async function finish(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInp
     const update: Record<string, unknown> = { updatedAt: t, error: null, status: priorStatus };
     if (!proj.latestRenderingId && ids.length) Object.assign(update, { latestRenderingId: ids[0], status: "completed" });
     await d.collection("projects").updateOne({ _id: projectOid }, { $set: update });
-    await updateJob(jobId, { status: "completed", progress: 100, stage: "rendering", renderingId: ids[0] ?? null, stages: initialStages("variations", false, inp.settings.ai).map((s) => ({ ...s, status: "completed", progress: 100 })) });
+    await updateJob(jobId, { status: "completed", progress: 100, stage: "rendering", renderingId: ids[0] ?? null, stages: initialStages(inp.jobType, false, inp.settings.ai).map((s) => ({ ...s, status: "completed", progress: 100 })) });
   } else {
     for (const [mid, a] of result.clips) await d.collection("media").updateOne({ _id: new ObjectId(mid) }, { $set: { analysisSummary: clipSummary(a) } });
     for (const [mid, sem] of result.semantics) await d.collection("media").updateOne({ _id: new ObjectId(mid) }, { $set: { semantic: sem, tags: sem.tags, category: sem.scene } });
@@ -313,7 +332,7 @@ async function finish(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInp
     const done = initialStages(inp.jobType, inp.settings.captions, inp.settings.ai).map((s) => ({ ...s, status: "completed", progress: 100 }));
     await updateJob(jobId, { status: "completed", progress: 100, stage: done[done.length - 1].name, stages: done, ...jobFields });
   }
-  if (["generate", "variations", "render"].includes(inp.jobType) && (result.timeline || result.variants.length)) await recordGeneration(projectOid, jobId, inp, renderingId, result, label);
+  if (["generate", "variations", "split", "render"].includes(inp.jobType) && (result.timeline || result.variants.length)) await recordGeneration(projectOid, jobId, inp, renderingId, result, label);
 }
 
 /** One record per generation, for debugging and tuning (never breaks a job). */
