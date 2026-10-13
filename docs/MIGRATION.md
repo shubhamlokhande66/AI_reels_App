@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 154 of 171
+## Endpoints (171) - [x] = served by Next.js: 163 of 171
 
 ### admin (4)
 
@@ -77,15 +77,15 @@ frontend/
 
 ### auth (9)
 
-- [ ] `POST /api/auth/delete-account`
-- [ ] `POST /api/auth/forgot`
-- [ ] `POST /api/auth/login`
-- [ ] `POST /api/auth/logout`
-- [ ] `POST /api/auth/logout-everywhere`
-- [ ] `GET /api/auth/me`
-- [ ] `POST /api/auth/password`
-- [ ] `POST /api/auth/register`
-- [ ] `POST /api/auth/reset`
+- [x] `POST /api/auth/delete-account`
+- [x] `POST /api/auth/forgot`
+- [x] `POST /api/auth/login`
+- [x] `POST /api/auth/logout`
+- [x] `POST /api/auth/logout-everywhere`
+- [x] `GET /api/auth/me`
+- [x] `POST /api/auth/password`
+- [x] `POST /api/auth/register`
+- [x] `POST /api/auth/reset`
 
 ### billing (3)
 

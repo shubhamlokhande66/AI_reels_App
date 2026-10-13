@@ -3,7 +3,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import { ObjectId } from "mongodb";
 import { settings } from "@/server/core/config";
-import { db, parseId } from "@/server/core/db";
+import { withUser } from "@/server/core/auth";
+import { db, mainDb, parseId } from "@/server/core/db";
 import { NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { getProjectDoc } from "@/server/projects/service";
 import { localPath } from "@/server/storage/local";
@@ -114,12 +115,12 @@ export async function runPost(postId: ObjectId) {
 }
 /** Start every scheduled post whose time has come (claimed one at a time, so none is published twice). */
 export async function runDuePosts(): Promise<number> {
-  const d = await db();
+  const d = await mainDb();
   let ran = 0;
   for (;;) {
     const post = await d.collection("posts").findOneAndUpdate({ status: "scheduled", at: { $lte: new Date() } }, { $set: { status: "publishing", updatedAt: new Date() } });
     if (!post) break;
-    await runPost(post._id);
+    await withUser((post.ownerId as string) ?? null, () => runPost(post._id)); // published as its owner: their Reel, their records
     ran++;
   }
   return ran;
