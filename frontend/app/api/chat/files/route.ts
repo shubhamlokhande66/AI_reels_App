@@ -1,4 +1,5 @@
-import { forwardAll } from "@/server/core/http";
+import { route } from "@/server/core/http";
+import { chatFile } from "@/server/chat";
 
-// An upload, streamed on to the Python backend until this endpoint is moved (docs/MIGRATION.md).
-export const { GET, POST, PUT, PATCH, DELETE } = forwardAll;
+/** Read an attachment for the chat (nothing is saved). */
+export const POST = route(async (req) => chatFile(req));

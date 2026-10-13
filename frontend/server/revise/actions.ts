@@ -213,7 +213,7 @@ const SYSTEM = "You translate a video editor's change request into a JSON list o
   '{"action":"framing","value":"fit|fill"}   {"action":"watermark_off"}   {"action":"voice_off"}   {"action":"voice_volume","factor":1.2}\n{"action":"pace","value":"calm|balanced|fast"}   {"action":"style","value":"<style id>"}   {"action":"reshuffle"}\n' +
   'Answer as {"actions":[...],"unclear":"<the part you could not map, or an empty string>"}. Shots are numbered from 1. Return ONLY actions the request clearly asks for, usually one or two. Never add actions that were not requested. ' +
   "If a request is vague or cannot be expressed with these actions, return an empty actions list and put it in unclear.";
-function systemPrompt() {
+export function revisionSystemPrompt() {
   const featured = ["cut", "fade", "dissolve", "zoom", "slide", "blur", "flash", "speed_ramp", "wipe_left", "circle_open"].filter((t) => TRANSITION_TYPES.includes(t));
   return SYSTEM.replace("none|zoom_in|zoom_out|punch", EFFECT_TYPES.join("|")).replace("cut|fade|dissolve|zoom|slide|blur|flash|speed_ramp", featured.join("|")).replace('Answer as {"actions"',
     `{"action":"grade","value":"${GRADES.join("|")}"}   {"action":"text_off"}   {"action":"text_less"}\n{"action":"cta","value":"<new call to action, max 6 words>"}   {"action":"hook_text","value":"<opening text, max 6 words>"}\nShots may carry "shows": what the clip shows. Use it to find a shot the user describes (e.g. "the product"). Answer as {"actions"`);
@@ -282,7 +282,7 @@ export async function planRevision(text: string, tl: Timeline, settings: Record<
   if (unknown.length && provider) {
     const styleIds = new Set(listStyles().map((s) => s.id));
     try {
-      const data = await provider.structured(systemPrompt(), JSON.stringify({ request: unknown.join(" , "), reel: summaryForAi(tl, settings, shows), styles: [...styleIds].sort() }), RevisionAnswer, { task: "revision", temperature: 0.2 });
+      const data = await provider.structured(revisionSystemPrompt(), JSON.stringify({ request: unknown.join(" , "), reel: summaryForAi(tl, settings, shows), styles: [...styleIds].sort() }), RevisionAnswer, { task: "revision", temperature: 0.2 });
       const [extra, dropped] = parseAiActions(data as Record<string, unknown>, tl.segments.length, styleIds, unknown.join(" , "));
       plan.usedAi = true;
       if (dropped.length && !extra.length) plan.aiNote = `The AI model's suggestion did not match what you asked, so it was ignored: ${dropped.slice(0, 2).join("; ")}.`;
