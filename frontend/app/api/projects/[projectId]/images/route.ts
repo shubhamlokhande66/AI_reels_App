@@ -1,4 +1,5 @@
-import { forwardAll } from "@/server/core/http";
+import { route } from "@/server/core/http";
+import { uploadImages } from "@/server/projects/media";
 
-// An upload, streamed on to the Python backend until this endpoint is moved (docs/MIGRATION.md).
-export const { GET, POST, PUT, PATCH, DELETE } = forwardAll;
+/** Product photos (decoded to check them, turned upright, with thumbnails). */
+export const POST = route<{ projectId: string }>(async (req, { projectId }) => Response.json(await uploadImages(projectId, req), { status: 201 }));

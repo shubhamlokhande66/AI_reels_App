@@ -1,6 +1,8 @@
-import { route, toPython } from "@/server/core/http";
+import { body } from "@/server/core/body";
+import { route } from "@/server/core/http";
 import { ValidationFailed } from "@/server/core/errors";
-import { listProjects } from "@/server/projects/service";
+import { ProjectCreate } from "@/server/projects/settings";
+import { createProject, listProjects, projectOut } from "@/server/projects/service";
 
 const STATUSES = new Set(["draft", "processing", "completed", "failed"]);
 
@@ -14,5 +16,8 @@ export const GET = route(async (req) => {
   return listProjects(status, limit);
 });
 
-// not moved yet: creating a project (needs the settings rules) - see docs/MIGRATION.md
-export const POST = toPython;
+/** A new project (201) with its settings checked: style, export preset and trend must exist. */
+export const POST = route(async (req) => {
+  const p = await body(req, ProjectCreate);
+  return Response.json(await projectOut(await createProject(p.name, p.settings)), { status: 201 });
+});

@@ -1,4 +1,5 @@
-import { forwardAll } from "@/server/core/http";
+import { route } from "@/server/core/http";
+import { uploadAudio } from "@/server/projects/media";
 
-// An upload, streamed on to the Python backend until this endpoint is moved (docs/MIGRATION.md).
-export const { GET, POST, PUT, PATCH, DELETE } = forwardAll;
+/** The project's song (replaces the previous one; joins the song library). */
+export const POST = route<{ projectId: string }>(async (req, { projectId }) => Response.json(await uploadAudio(projectId, req), { status: 201 }));

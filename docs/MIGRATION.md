@@ -46,7 +46,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js
+## Endpoints (171) - [x] = served by Next.js: 31 of 171
 
 ### admin (4)
 
@@ -115,11 +115,11 @@ frontend/
 
 ### editor (1)
 
-- [ ] `GET /api/editor/catalog`
+- [x] `GET /api/editor/catalog`
 
 ### export-presets (1)
 
-- [ ] `GET /api/export-presets`
+- [x] `GET /api/export-presets`
 
 ### hardware (1)
 
@@ -162,10 +162,10 @@ frontend/
 ### projects (5)
 
 - [x] `GET /api/projects`
-- [ ] `POST /api/projects`
+- [x] `POST /api/projects`
 - [x] `DELETE /api/projects/{project_id}`
 - [x] `GET /api/projects/{project_id}`
-- [ ] `PATCH /api/projects/{project_id}`
+- [x] `PATCH /api/projects/{project_id}`
 
 ### projects/ai-timeline (1)
 
@@ -189,7 +189,7 @@ frontend/
 
 ### projects/audio (1)
 
-- [ ] `POST /api/projects/{project_id}/audio`
+- [x] `POST /api/projects/{project_id}/audio`
 
 ### projects/beat-map (1)
 
@@ -217,9 +217,9 @@ frontend/
 
 ### projects/images (3)
 
-- [ ] `POST /api/projects/{project_id}/images`
-- [ ] `PUT /api/projects/{project_id}/images/order`
-- [ ] `DELETE /api/projects/{project_id}/images/{media_id}`
+- [x] `POST /api/projects/{project_id}/images`
+- [x] `PUT /api/projects/{project_id}/images/order`
+- [x] `DELETE /api/projects/{project_id}/images/{media_id}`
 
 ### projects/jobs (3)
 
@@ -242,7 +242,7 @@ frontend/
 
 ### projects/preview (1)
 
-- [ ] `GET /api/projects/{project_id}/preview`
+- [x] `GET /api/projects/{project_id}/preview`
 
 ### projects/product (2)
 
@@ -277,7 +277,7 @@ frontend/
 - [x] `GET /api/projects/{project_id}/renderings/{rendering_id}/file`
 - [ ] `PUT /api/projects/{project_id}/renderings/{rendering_id}/performance`
 - [ ] `POST /api/projects/{project_id}/renderings/{rendering_id}/publish`
-- [ ] `POST /api/projects/{project_id}/renderings/{rendering_id}/restore`
+- [x] `POST /api/projects/{project_id}/renderings/{rendering_id}/restore`
 
 ### projects/revise (1)
 
@@ -315,15 +315,15 @@ frontend/
 
 ### projects/timeline (9)
 
-- [ ] `GET /api/projects/{project_id}/timeline`
+- [x] `GET /api/projects/{project_id}/timeline`
 - [ ] `POST /api/projects/{project_id}/timeline/auto-cut`
 - [ ] `GET /api/projects/{project_id}/timeline/markers`
 - [ ] `POST /api/projects/{project_id}/timeline/markers`
-- [ ] `POST /api/projects/{project_id}/timeline/ops`
+- [x] `POST /api/projects/{project_id}/timeline/ops`
 - [ ] `GET /api/projects/{project_id}/timeline/preview-hints`
-- [ ] `POST /api/projects/{project_id}/timeline/redo`
-- [ ] `POST /api/projects/{project_id}/timeline/start`
-- [ ] `POST /api/projects/{project_id}/timeline/undo`
+- [x] `POST /api/projects/{project_id}/timeline/redo`
+- [x] `POST /api/projects/{project_id}/timeline/start`
+- [x] `POST /api/projects/{project_id}/timeline/undo`
 
 ### projects/understand (1)
 
@@ -335,9 +335,9 @@ frontend/
 
 ### projects/videos (3)
 
-- [ ] `POST /api/projects/{project_id}/videos`
-- [ ] `PUT /api/projects/{project_id}/videos/order`
-- [ ] `DELETE /api/projects/{project_id}/videos/{media_id}`
+- [x] `POST /api/projects/{project_id}/videos`
+- [x] `PUT /api/projects/{project_id}/videos/order`
+- [x] `DELETE /api/projects/{project_id}/videos/{media_id}`
 
 ### projects/voice (2)
 
@@ -355,7 +355,7 @@ frontend/
 
 ### queue (1)
 
-- [ ] `GET /api/queue`
+- [x] `GET /api/queue`
 
 ### references (6)
 
@@ -376,12 +376,12 @@ frontend/
 
 ### songs (6)
 
-- [ ] `GET /api/songs`
-- [ ] `POST /api/songs`
-- [ ] `POST /api/songs/import`
-- [ ] `DELETE /api/songs/{song_id}`
-- [ ] `GET /api/songs/{song_id}/file`
-- [ ] `POST /api/songs/{song_id}/used`
+- [x] `GET /api/songs`
+- [x] `POST /api/songs`
+- [x] `POST /api/songs/import`
+- [x] `DELETE /api/songs/{song_id}`
+- [x] `GET /api/songs/{song_id}/file`
+- [x] `POST /api/songs/{song_id}/used`
 
 ### story (2)
 

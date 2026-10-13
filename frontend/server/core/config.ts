@@ -26,7 +26,8 @@ function readDotEnv(file: string): Record<string, string> {
 }
 
 const fileEnv = readDotEnv(path.join(REPO_ROOT, ".env"));
-const env = (key: string, fallback = ""): string => process.env[key] ?? fileEnv[key] ?? fallback;
+/** A setting by its .env name (real environment variables win over the file). */
+export const env = (key: string, fallback = ""): string => process.env[key] ?? fileEnv[key] ?? fallback;
 const num = (key: string, fallback: number) => {
   const v = Number(env(key, String(fallback)));
   return Number.isFinite(v) ? v : fallback;

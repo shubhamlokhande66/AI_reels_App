@@ -1,8 +1,14 @@
 import "server-only";
 import type { Document, ObjectId } from "mongodb";
 import { db, parseId } from "@/server/core/db";
-import { ConflictError, NotFoundError } from "@/server/core/errors";
-import { deletePrefix } from "@/server/storage/local";
+import { ConflictError, NotFoundError, ValidationFailed } from "@/server/core/errors";
+import { recordSettingsChange } from "@/server/services/feedback";
+import { deletePrefix, ensureProject } from "@/server/storage/local";
+import { validateStyleId } from "@/server/styles";
+import { getTrend } from "@/server/trends";
+import REGISTRY from "@/server/video/registry.json";
+import { ObjectId as OID } from "mongodb";
+import { ProjectSettings, type ProjectUpdate } from "./settings";
 import SETTINGS_DEFAULTS from "./settings-defaults.json";
 
 /** Projects: reading, listing, deleting, and the JSON the app gets for them - field for field what the Python backend
@@ -109,4 +115,49 @@ export async function deleteProject(projectId: string) {
   await Promise.all(["media", "jobs", "renderings"].map((c) => d.collection(c).deleteMany({ projectId: doc._id })));
   await d.collection("projects").deleteOne({ _id: doc._id });
   deletePrefix(`projects/${projectId}`);
+}
+
+export function validatePresetId(id: string) {
+  if (id && id !== "custom" && !REGISTRY.exportPresets.some((p) => p.id === id)) { // "custom" = OUTPUT_WIDTH / HEIGHT / FPS from .env
+    throw new ValidationFailed(`Unknown export preset '${id}'.`, { code: "UNKNOWN_PRESET", details: { available: [...REGISTRY.exportPresets.map((p) => p.id), "custom"] } });
+  }
+}
+
+export async function validateTrendId(id: string | null | undefined) {
+  if (id && !(await getTrend(id))) throw new ValidationFailed(`Unknown trend '${id}'.`, { code: "UNKNOWN_TREND" });
+}
+
+export async function createProject(name: string, settings: ProjectSettings): Promise<Doc> {
+  validateStyleId(settings.style);
+  validatePresetId(settings.exportPreset);
+  await validateTrendId(settings.trendId);
+  const now = new Date();
+  const doc = {
+    _id: new OID(), name, status: "draft", settings, videoOrder: [], audioId: null, analysis: null, timeline: null,
+    latestRenderingId: null, latestJobId: null, error: null, createdAt: now, updatedAt: now,
+  };
+  await (await db()).collection("projects").insertOne(doc);
+  ensureProject(String(doc._id));
+  return doc as Doc;
+}
+
+/** Only the fields sent change; the result must still be valid settings (like ProjectSettings.model_validate). */
+export async function updateProject(projectId: string, fields: ProjectUpdate): Promise<Doc> {
+  const doc = await getProjectDoc(projectId);
+  if (doc.status === "processing") throw new ConflictError("The project is being processed; try again when it finishes.", { code: "PROJECT_BUSY" });
+  const before = { ...(doc.settings ?? {}) };
+  const settings: Record<string, unknown> = { ...before };
+  const update: Record<string, unknown> = { updatedAt: new Date() };
+  const { name, ...rest } = fields;
+  if (name !== undefined && name !== null) update.name = name;
+  for (const [k, v] of Object.entries(rest)) settings[k] = v;
+  if (rest.style !== undefined && rest.style !== null) validateStyleId(rest.style);
+  await recordSettingsChange(doc._id, before, Object.fromEntries(["duration", "style", "pace"].filter((k) => k in rest).map((k) => [k, (rest as Record<string, unknown>)[k]])));
+  if (rest.exportPreset) validatePresetId(rest.exportPreset);
+  if (rest.trendId) await validateTrendId(rest.trendId);
+  const check = ProjectSettings.safeParse(settings); // final consistency check
+  if (!check.success) throw new ValidationFailed("Request validation failed.", { details: check.error.issues.map((i) => ({ loc: ["body", ...i.path.map(String)], msg: i.message })) });
+  update.settings = settings;
+  await (await db()).collection("projects").updateOne({ _id: doc._id }, { $set: update });
+  return getProjectDoc(projectId);
 }
