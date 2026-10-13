@@ -55,14 +55,14 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 59 of 171
+## Endpoints (171) - [x] = served by Next.js: 89 of 171
 
 ### admin (4)
 
-- [ ] `PUT /api/admin/pricing`
-- [ ] `PUT /api/admin/retention`
-- [ ] `POST /api/admin/retention/run`
-- [ ] `GET /api/admin/session`
+- [x] `PUT /api/admin/pricing`
+- [x] `PUT /api/admin/retention`
+- [x] `POST /api/admin/retention/run`
+- [x] `GET /api/admin/session`
 
 ### ai (8)
 
@@ -114,13 +114,13 @@ frontend/
 
 ### dashboard (1)
 
-- [ ] `GET /api/dashboard`
+- [x] `GET /api/dashboard`
 
 ### director (3)
 
-- [ ] `DELETE /api/director/profile`
-- [ ] `GET /api/director/profile`
-- [ ] `PUT /api/director/profile`
+- [x] `DELETE /api/director/profile`
+- [x] `GET /api/director/profile`
+- [x] `PUT /api/director/profile`
 
 ### editor (1)
 
@@ -136,11 +136,11 @@ frontend/
 
 ### health (1)
 
-- [ ] `GET /api/health`
+- [x] `GET /api/health`
 
 ### insights (1)
 
-- [ ] `GET /api/insights`
+- [x] `GET /api/insights`
 
 ### jobs (1)
 
@@ -154,11 +154,11 @@ frontend/
 
 ### phone (1)
 
-- [ ] `GET /api/phone`
+- [x] `GET /api/phone`
 
 ### plans (1)
 
-- [ ] `GET /api/plans`
+- [x] `GET /api/plans`
 
 ### posts (1)
 
@@ -194,7 +194,7 @@ frontend/
 
 ### projects/apply-template (1)
 
-- [ ] `POST /api/projects/{project_id}/apply-template`
+- [x] `POST /api/projects/{project_id}/apply-template`
 
 ### projects/audio (1)
 
@@ -210,11 +210,11 @@ frontend/
 
 ### projects/duplicate (1)
 
-- [ ] `POST /api/projects/{project_id}/duplicate`
+- [x] `POST /api/projects/{project_id}/duplicate`
 
 ### projects/feedback (1)
 
-- [ ] `POST /api/projects/{project_id}/feedback`
+- [x] `POST /api/projects/{project_id}/feedback`
 
 ### projects/generate (1)
 
@@ -222,7 +222,7 @@ frontend/
 
 ### projects/generations (1)
 
-- [ ] `GET /api/projects/{project_id}/generations`
+- [x] `GET /api/projects/{project_id}/generations`
 
 ### projects/images (3)
 
@@ -260,7 +260,7 @@ frontend/
 
 ### projects/purge-media (1)
 
-- [ ] `POST /api/projects/{project_id}/purge-media`
+- [x] `POST /api/projects/{project_id}/purge-media`
 
 ### projects/quality-check (1)
 
@@ -284,7 +284,7 @@ frontend/
 
 - [x] `GET /api/projects/{project_id}/renderings`
 - [x] `GET /api/projects/{project_id}/renderings/{rendering_id}/file`
-- [ ] `PUT /api/projects/{project_id}/renderings/{rendering_id}/performance`
+- [x] `PUT /api/projects/{project_id}/renderings/{rendering_id}/performance`
 - [ ] `POST /api/projects/{project_id}/renderings/{rendering_id}/publish`
 - [x] `POST /api/projects/{project_id}/renderings/{rendering_id}/restore`
 
@@ -377,11 +377,11 @@ frontend/
 
 ### retention (1)
 
-- [ ] `GET /api/retention`
+- [x] `GET /api/retention`
 
 ### site (1)
 
-- [ ] `GET /api/site`
+- [x] `GET /api/site`
 
 ### songs (6)
 
@@ -399,18 +399,18 @@ frontend/
 
 ### styles (2)
 
-- [ ] `GET /api/styles`
-- [ ] `GET /api/styles/{style_id}`
+- [x] `GET /api/styles`
+- [x] `GET /api/styles/{style_id}`
 
 ### templates (7)
 
-- [ ] `GET /api/templates`
-- [ ] `POST /api/templates`
-- [ ] `POST /api/templates/generate`
-- [ ] `POST /api/templates/generate-from-chat`
-- [ ] `DELETE /api/templates/{template_id}`
-- [ ] `PATCH /api/templates/{template_id}`
-- [ ] `PUT /api/templates/{template_id}/favorite`
+- [x] `GET /api/templates`
+- [x] `POST /api/templates`
+- [x] `POST /api/templates/generate`
+- [x] `POST /api/templates/generate-from-chat`
+- [x] `DELETE /api/templates/{template_id}`
+- [x] `PATCH /api/templates/{template_id}`
+- [x] `PUT /api/templates/{template_id}/favorite`
 
 ### trend-library (4)
 
@@ -421,7 +421,7 @@ frontend/
 
 ### trends (1)
 
-- [ ] `GET /api/trends`
+- [x] `GET /api/trends`
 
 ### v1 (5)
 
