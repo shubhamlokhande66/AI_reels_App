@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 123 of 171
+## Endpoints (171) - [x] = served by Next.js: 136 of 171
 
 ### admin (4)
 
@@ -272,9 +272,9 @@ frontend/
 
 ### projects/reference-reel (3)
 
-- [ ] `DELETE /api/projects/{project_id}/reference-reel`
-- [ ] `GET /api/projects/{project_id}/reference-reel`
-- [ ] `POST /api/projects/{project_id}/reference-reel`
+- [x] `DELETE /api/projects/{project_id}/reference-reel`
+- [x] `GET /api/projects/{project_id}/reference-reel`
+- [x] `POST /api/projects/{project_id}/reference-reel`
 
 ### projects/render (1)
 
@@ -368,12 +368,12 @@ frontend/
 
 ### references (6)
 
-- [ ] `GET /api/references`
-- [ ] `POST /api/references`
-- [ ] `DELETE /api/references/{ref_id}`
-- [ ] `PATCH /api/references/{ref_id}`
-- [ ] `POST /api/references/{ref_id}/videos`
-- [ ] `DELETE /api/references/{ref_id}/videos/{index}`
+- [x] `GET /api/references`
+- [x] `POST /api/references`
+- [x] `DELETE /api/references/{ref_id}`
+- [x] `PATCH /api/references/{ref_id}`
+- [x] `POST /api/references/{ref_id}/videos`
+- [x] `DELETE /api/references/{ref_id}/videos/{index}`
 
 ### retention (1)
 
@@ -414,10 +414,10 @@ frontend/
 
 ### trend-library (4)
 
-- [ ] `DELETE /api/trend-library`
-- [ ] `GET /api/trend-library`
-- [ ] `POST /api/trend-library/group`
-- [ ] `POST /api/trend-library/learn`
+- [x] `DELETE /api/trend-library`
+- [x] `GET /api/trend-library`
+- [x] `POST /api/trend-library/group`
+- [x] `POST /api/trend-library/learn`
 
 ### trends (1)
 

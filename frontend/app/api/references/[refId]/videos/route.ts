@@ -1,4 +1,4 @@
-import { forwardAll } from "@/server/core/http";
+import { route } from "@/server/core/http";
+import { addVideos } from "@/server/trends/references";
 
-// An upload, streamed on to the Python backend until this endpoint is moved (docs/MIGRATION.md).
-export const { GET, POST, PUT, PATCH, DELETE } = forwardAll;
+export const POST = route<{ refId: string }>(async (req, { refId }) => addVideos(refId, req));

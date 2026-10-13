@@ -1,4 +1,5 @@
-import { forwardAll } from "@/server/core/http";
+import { route } from "@/server/core/http";
+import { learn } from "@/server/trends/references";
 
-// An upload, streamed on to the Python backend until this endpoint is moved (docs/MIGRATION.md).
-export const { GET, POST, PUT, PATCH, DELETE } = forwardAll;
+/** Measure a few more trending Reels into the learning library. */
+export const POST = route(async (req) => learn(req));
