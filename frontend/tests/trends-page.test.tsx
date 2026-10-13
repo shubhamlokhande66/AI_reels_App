@@ -53,7 +53,7 @@ describe("My trends", () => {
     const btn = screen.getByRole("button", { name: "Learn this trend" });
     expect(btn).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Trend name"), "Party");
-    fireEvent.change(document.querySelector("input[type=file]:not([hidden])") as HTMLInputElement, {
+    fireEvent.change(document.querySelector("input[type=file].sr-only") as HTMLInputElement, {
       target: { files: [new File(["v"], "reel.mp4", { type: "video/mp4" })] },
     });
     await waitFor(() => expect(btn).toBeEnabled());
