@@ -26,3 +26,4 @@ frontend/tests/server/manual/profile.txt
 # Cloudflare (Wrangler) local state
 .wrangler/
 .dev.vars
+.env.backup
