@@ -50,12 +50,12 @@ frontend/
 | 2 | Music analysis | beats (Essentia, essentia.js), exact hits, strong/medium beats, drops, sections, events, analysis JSON, waveform, markers | rebuilding the librosa math on Essentia algorithms; same results as the tests |
 | 3 | Timeline & editor | timeline model + ops, undo/redo, auto-cut, keyframes, preview hints | many ops; port the Python tests |
 | 4 | Jobs & rendering | job queue (worker threads), Remotion compositions shared with the editor preview, FFmpeg pre-passes (stabilise, interpolate), final check | render speed, long jobs, progress, cancel |
-| 5 | Video analysis | shake, framing, scenes, quality (OpenCV today) | FFmpeg filters (scdet, vidstab, signalstats) or opencv.js |
+| 5 | Video analysis | done: opencv.js (WebAssembly) + FFmpeg frame decoding - padding, exposure, sharpness, motion, phase-correlation camera shift, Haar faces (worker pool), saliency, shot size, composition, moments, best segments, duplicate uploads | speed: ~36 s for a 15 s 1080p clip on 4 cores (Haar is slow in WebAssembly; YuNet would be faster); clip understanding (vision model) waits for phase 6 |
 | 6 | AI | providers (OpenAI, Gemini, Claude, Ollama), director, AI timeline, captions (Whisper), voices | Whisper: whisper.cpp or a transcription API |
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 39 of 171
+## Endpoints (171) - [x] = served by Next.js: 40 of 171
 
 ### admin (4)
 
@@ -429,7 +429,7 @@ frontend/
 - [ ] `POST /api/v1/reels/plan`
 - [ ] `POST /api/v1/reels/render`
 - [ ] `GET /api/v1/reels/{reel_id}/status`
-- [ ] `POST /api/v1/video/analyze`
+- [x] `POST /api/v1/video/analyze`
 
 ### variation-strategies (1)
 
