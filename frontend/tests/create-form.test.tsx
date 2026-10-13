@@ -8,6 +8,7 @@ const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), useSearchParams: () => new URLSearchParams() }));
 
 vi.mock("@/hooks/useApi", () => ({
+  useAdmin: () => ({ admin: true, required: false, loading: false }),
   useTrends: () => ({
     data: [{ id: "cinematic_story", trendName: "Cinematic Story", recommendedDuration: 30, cutFrequency: "slow",
       transitionStyle: "smooth", captionStyle: "luxury", description: "" }],

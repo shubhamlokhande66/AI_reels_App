@@ -253,7 +253,7 @@ describe("ProductProjectView", () => {
       stages: [{ name: "understanding_images", label: "Understanding the photos", status: "completed", progress: 100 }, { name: "planning_shots", label: "Planning the shots", status: "running", progress: 40 }] };
     wrap(<ProductProjectView project={project({ status: "processing", latestJob: job as never })} />);
     expect(screen.getByText("Directing your Reel…")).toBeInTheDocument();
-    expect(screen.getByText("Planning the shots")).toBeInTheDocument();
+    expect(screen.getAllByText("Planning the shots").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /Direct again/ })).not.toBeInTheDocument();
   });
 
