@@ -32,6 +32,15 @@ frontend/
   lib/ hooks/ types/   client helpers, react-query hooks, API types
 ```
 
+## Decisions
+
+- **Music analysis: Essentia** (essentia.js, in the Node server) tracks the beats; the feature maths the tuned rules
+  use (onset strength, RMS, chroma, MFCC, spectra) is a TypeScript port of librosa's, checked against librosa.
+- **Rendering: Remotion + FFmpeg helpers** (chosen 2026-10-13). Remotion renders the Reel from the same React
+  components as the editor preview, so the preview is the export. FFmpeg stays only where Remotion cannot do the job:
+  stabilising shaky clips (vid.stab), smooth slow motion (frame interpolation), probing uploads, thumbnails, decoding
+  songs. Note: Remotion needs a paid company license for companies with more than 3 employees.
+
 ## Phases
 
 | # | Area | What moves | Hard parts |
@@ -40,7 +49,7 @@ frontend/
 | 1 | Projects & media | create/patch (settings rules), uploads + ffprobe + thumbnails, clip order, delete media | settings validation (zod) |
 | 2 | Music analysis | beats (Essentia, essentia.js), exact hits, strong/medium beats, drops, sections, events, analysis JSON, waveform, markers | rebuilding the librosa math on Essentia algorithms; same results as the tests |
 | 3 | Timeline & editor | timeline model + ops, undo/redo, auto-cut, keyframes, preview hints | many ops; port the Python tests |
-| 4 | Jobs & rendering | job queue (worker threads), FFmpeg filter graphs (cutter, keyframes, stabilisation), renderer, final check | long jobs, progress, cancel |
+| 4 | Jobs & rendering | job queue (worker threads), Remotion compositions shared with the editor preview, FFmpeg pre-passes (stabilise, interpolate), final check | render speed, long jobs, progress, cancel |
 | 5 | Video analysis | shake, framing, scenes, quality (OpenCV today) | FFmpeg filters (scdet, vidstab, signalstats) or opencv.js |
 | 6 | AI | providers (OpenAI, Gemini, Claude, Ollama), director, AI timeline, captions (Whisper), voices | Whisper: whisper.cpp or a transcription API |
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
