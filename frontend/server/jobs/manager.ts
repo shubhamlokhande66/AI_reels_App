@@ -20,6 +20,7 @@ import * as pl from "./pipeline";
 import { runSplit } from "./split";
 import { getProductStyle } from "@/server/product/director";
 import { runProduct } from "@/server/product";
+import { getStory, runStory } from "@/server/story";
 
 /** Background jobs (was jobs/manager.py): a job document per request, the pipeline run in the background with at most
  * MAX_CONCURRENT_JOBS at once, progress written to the job as it goes, cancel, and the results stored on the project.
@@ -224,6 +225,22 @@ export async function submitProduct(projectId: string, overrides: Record<string,
   return job;
 }
 
+/** Narrate and render a story project (every scene needs its picture). */
+export async function submitStory(projectId: string, voiceId: string | null, quality = "final", label = "") {
+  await recoverStaleJobs();
+  const doc = (await getProjectDoc(projectId)) as Doc;
+  if (doc.status === "processing") throw new ConflictError("This project is already being processed.", { code: "PROJECT_BUSY" });
+  const plan = getStory(doc), missing = plan.scenes.map((sc, i) => (sc.image_key ? "" : String(i + 1))).filter(Boolean);
+  if (missing.length) throw new ValidationFailed(`Give every scene a picture first (missing: scene ${missing.join(", ")}).`, { code: "STORY_PICTURES_MISSING" });
+  const audio = doc.audioId ? await (await db()).collection("media").findOne({ _id: doc.audioId as ObjectId }) : null;
+  const ps = ProjectSettings.parse(doc.settings);
+  const inp = pl.pipelineInput({ projectId: String(doc._id), jobType: "story", videos: [], audio: audio && !audio.purged ? ref(audio) : null, settings: ps, renderingId: String(new ObjectId()),
+    projectName: doc.name as string, kind: quality === "preview" ? "preview" : "final", story: doc.story as Record<string, unknown>, voiceId, template: (doc.referenceReel as Record<string, unknown>) ?? null });
+  const job = await newJob(doc, "story", "voicing", initialStages("story"));
+  spawn(job._id, doc._id, inp, new ObjectId(inp.renderingId), doc.latestRenderingId ? "completed" : "draft", label);
+  return job;
+}
+
 /** One long video -> `count` Reels of about `seconds` each, from its best parts (saved as versions). */
 export async function submitSplit(projectId: string, count: number, seconds: number) {
   await recoverStaleJobs();
@@ -272,7 +289,7 @@ async function run(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput,
     let result: pl.PipelineResult;
     try {
       await updateJob(jobId, { status: "processing" }, true);
-      const fn = inp.jobType === "render" ? pl.runRender : inp.jobType === "variations" ? pl.runVariations : inp.jobType === "split" ? runSplit : inp.jobType === "product" ? runProduct : pl.runPipeline;
+      const fn = inp.jobType === "render" ? pl.runRender : inp.jobType === "variations" ? pl.runVariations : inp.jobType === "split" ? runSplit : inp.jobType === "product" ? runProduct : inp.jobType === "story" ? runStory : pl.runPipeline;
       result = await fn(inp, onProgress);
       await pending;
     } catch (e) {

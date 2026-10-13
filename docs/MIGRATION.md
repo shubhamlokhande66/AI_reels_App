@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 145 of 171
+## Endpoints (171) - [x] = served by Next.js: 154 of 171
 
 ### admin (4)
 
@@ -314,13 +314,13 @@ frontend/
 
 ### projects/story (7)
 
-- [ ] `GET /api/projects/{project_id}/story`
-- [ ] `PUT /api/projects/{project_id}/story`
-- [ ] `POST /api/projects/{project_id}/story/render`
-- [ ] `POST /api/projects/{project_id}/story/replan`
-- [ ] `GET /api/projects/{project_id}/story/scenes/{scene_id}/image`
-- [ ] `POST /api/projects/{project_id}/story/scenes/{scene_id}/picture`
-- [ ] `POST /api/projects/{project_id}/story/scenes/{scene_id}/upload`
+- [x] `GET /api/projects/{project_id}/story`
+- [x] `PUT /api/projects/{project_id}/story`
+- [x] `POST /api/projects/{project_id}/story/render`
+- [x] `POST /api/projects/{project_id}/story/replan`
+- [x] `GET /api/projects/{project_id}/story/scenes/{scene_id}/image`
+- [x] `POST /api/projects/{project_id}/story/scenes/{scene_id}/picture`
+- [x] `POST /api/projects/{project_id}/story/scenes/{scene_id}/upload`
 
 ### projects/timeline (9)
 
@@ -394,8 +394,8 @@ frontend/
 
 ### story (2)
 
-- [ ] `POST /api/story`
-- [ ] `GET /api/story/options`
+- [x] `POST /api/story`
+- [x] `GET /api/story/options`
 
 ### styles (2)
 
