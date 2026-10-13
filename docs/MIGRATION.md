@@ -55,7 +55,7 @@ frontend/
 | 7 | The rest | auth, billing, publish, brands, templates, trends, story, product, songs, admin | many small endpoints |
 | 8 | Delete Python | remove the fallback, `backend/`, Python docs and scripts | - |
 
-## Endpoints (171) - [x] = served by Next.js: 100 of 171
+## Endpoints (171) - [x] = served by Next.js: 113 of 171
 
 ### admin (4)
 
@@ -294,11 +294,11 @@ frontend/
 
 ### projects/script (5)
 
-- [ ] `GET /api/projects/{project_id}/script`
-- [ ] `PUT /api/projects/{project_id}/script`
-- [ ] `POST /api/projects/{project_id}/script/generate`
-- [ ] `POST /api/projects/{project_id}/script/hooks`
-- [ ] `POST /api/projects/{project_id}/script/revise`
+- [x] `GET /api/projects/{project_id}/script`
+- [x] `PUT /api/projects/{project_id}/script`
+- [x] `POST /api/projects/{project_id}/script/generate`
+- [x] `POST /api/projects/{project_id}/script/hooks`
+- [x] `POST /api/projects/{project_id}/script/revise`
 
 ### projects/song-analysis (1)
 
@@ -350,8 +350,8 @@ frontend/
 
 ### projects/voice (2)
 
-- [ ] `DELETE /api/projects/{project_id}/voice`
-- [ ] `POST /api/projects/{project_id}/voice/generate`
+- [x] `DELETE /api/projects/{project_id}/voice`
+- [x] `POST /api/projects/{project_id}/voice/generate`
 
 ### public (2)
 
@@ -437,9 +437,9 @@ frontend/
 
 ### voices (6)
 
-- [ ] `GET /api/voices`
-- [ ] `POST /api/voices`
-- [ ] `GET /api/voices/system`
-- [ ] `DELETE /api/voices/{voice_id}`
-- [ ] `PATCH /api/voices/{voice_id}`
-- [ ] `POST /api/voices/{voice_id}/preview`
+- [x] `GET /api/voices`
+- [x] `POST /api/voices`
+- [x] `GET /api/voices/system`
+- [x] `DELETE /api/voices/{voice_id}`
+- [x] `PATCH /api/voices/{voice_id}`
+- [x] `POST /api/voices/{voice_id}/preview`
