@@ -32,6 +32,8 @@
     "AUTH_ENABLED": "true",
     "COOKIE_SECURE": "true",
     "AI_PROVIDER": "openai",
+    "OPENAI_TEXT_MODEL": "gpt-5.6-luna",
+    "GEMINI_TEXT_MODEL": "gemini-3.5-flash-lite",
     "MAX_CONCURRENT_JOBS": "1",
     // uploads pass through the Worker, which accepts request bodies up to 100 MB on the Free and Pro plans
     "MAX_VIDEO_SIZE_MB": "95"
