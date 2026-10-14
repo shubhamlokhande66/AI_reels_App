@@ -183,7 +183,44 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
       setPps((v) => Math.min(Math.max(v * Math.exp(-e.deltaY * 0.01), 10), 240));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+
+    // phones: a two-finger pinch on the clips or the music zooms the timeline around the fingers, never the page
+    let pinch: { distance: number; pps: number } | null = null;
+    const fingers = (e: TouchEvent) => {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      return { distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mid: (a.clientX + b.clientX) / 2 };
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return;
+      pinch = { distance: Math.max(fingers(e).distance, 1), pps: ppsNow.current };
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      fitted.current = true;
+      const { distance, mid } = fingers(e);
+      const offset = mid - el.getBoundingClientRect().left;
+      anchor.current = { t: Math.max((el.scrollLeft + offset - HEAD - GAP) / ppsNow.current, 0), offset };
+      setPps(Math.min(Math.max(pinch.pps * (distance / pinch.distance), 10), 240));
+    };
+    const onTouchEnd = (e: TouchEvent) => { if (e.touches.length < 2) pinch = null; };
+    // iPhone Safari zooms the page with its own gesture events: stop them over the timeline
+    const onGesture = (e: Event) => e.preventDefault();
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    el.addEventListener("gesturestart", onGesture, { passive: false });
+    el.addEventListener("gesturechange", onGesture, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+      el.removeEventListener("gesturestart", onGesture);
+      el.removeEventListener("gesturechange", onGesture);
+    };
   }, []);
 
   // after a zoom: the anchored time back under the same spot (so zooming never jumps to the start)
@@ -247,6 +284,8 @@ export function ProTimeline({ tl, selectedId, onSelect, playhead, onSeek, thumbs
       </div>
       <div
         ref={area}
+        // one finger scrolls; a pinch is the timeline's own zoom (handled above), not the browser's page zoom
+        style={{ touchAction: "pan-x pan-y" }}
         className="relative overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-background"
       >
         <div className="relative" style={{ width: width + HEAD + GAP }}>

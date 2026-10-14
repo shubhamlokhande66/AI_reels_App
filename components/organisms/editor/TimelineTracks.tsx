@@ -170,7 +170,7 @@ export function TimelineTracks({
   }
 
   return (
-    <div ref={containerRef} className="overflow-x-auto rounded-2xl border border-border bg-surface p-3" aria-label="Timeline">
+    <div ref={containerRef} style={interactive ? { touchAction: "pan-x pan-y" } : undefined} className="overflow-x-auto rounded-2xl border border-border bg-surface p-3" aria-label="Timeline">
       {interactive && (
         <div className="mb-2 flex items-center justify-between gap-2 px-1">
           <span aria-live="polite" className="text-[11px] tabular-nums text-muted">
