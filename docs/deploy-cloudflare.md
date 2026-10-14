@@ -39,8 +39,9 @@ Any other setting from `.env.example` can be added the same way (a secret) or un
 ## 3. Deploy
 Building the container image needs Docker. Either:
 - **From GitHub (no Docker on your computer):** push the repo, add the repository secrets `CLOUDFLARE_API_TOKEN`
-  (a token with *Workers Scripts* and *Containers* edit rights) and `CLOUDFLARE_ACCOUNT_ID`, then run the
-  **Deploy to Cloudflare** workflow from the Actions tab (`.github/workflows/deploy-cloudflare.yml`).
+  (a token with *Workers Scripts* and *Containers* edit rights) and `CLOUDFLARE_ACCOUNT_ID`. Every push to `main`
+  then deploys by itself (docs-only changes do not); you can also run the **Deploy to Cloudflare** workflow from the
+  Actions tab (`.github/workflows/deploy-cloudflare.yml`).
 - **From your computer:** install Docker Desktop, then `cd cloudflare && npx wrangler deploy`.
 
 Open the address it prints, create the first account, then `/admin` with `ADMIN_KEY`.
