@@ -90,18 +90,6 @@ export function snapToAccent(t: number, accents: [number, number][], tol = ACCEN
 }
 
 /** Cut points on beats (snapped onto a real accent nearby); pace follows the music energy and the style. */
-/** Slots for a "hard hits only" edit: a cut only on drops, comebacks after a break, dropouts, major beats and stand-out
- * hits (normal and weak beats are ignored); a shot holds while nothing hits. */
-export async function hardHitSlots(audio: AudioAnalysis, audioStart: number, duration: number, style: EditingStyle): Promise<Slot[]> {
-  const { hardCuts } = await import("@/server/audio/beatmap");
-  const minShot = Math.max(style.minSegment, 0.3), { cuts, kinds } = hardCuts(audio, audioStart, audioStart + duration - minShot, minShot);
-  const bounds = [0, ...cuts.map((c) => round(c - audioStart, 3)), round(duration, 3)];
-  return bounds.slice(0, -1).map((a, k) => {
-    const kind = k > 0 ? kinds.get(cuts[k - 1]) : undefined;
-    return { index: k, start: a, end: bounds[k + 1], energy: meanEnergy(audio, audioStart + a, audioStart + bounds[k + 1]), onStrong: kind === "drop" || kind === "comeback" || kind === "major" };
-  });
-}
-
 export function planSlots(audio: AudioAnalysis, audioStart: number, duration: number, style: EditingStyle): Slot[] {
   const beats = gridBeats(audio, audioStart, duration);
   const strongRel = new Set(audio.strongBeats.map((b) => round(b - audioStart, 3)));
@@ -486,7 +474,7 @@ export function usableFootageSeconds(clips: ClipInput[]): number {
 // ---------------------------------------------------------------- entry point
 export interface BuildOptions {
   seed?: number; orderHint?: Record<string, number> | null; brief?: string; audioStart?: number | null;
-  template?: { cuts?: number[]; seconds?: number; on_beat_share?: number | null; use_audio?: boolean } | null; beatPlan?: boolean; everyBeat?: boolean; minClip?: number | null; hardHitsOnly?: boolean;
+  template?: { cuts?: number[]; seconds?: number; on_beat_share?: number | null; use_audio?: boolean } | null; beatPlan?: boolean; everyBeat?: boolean; minClip?: number | null;
 }
 
 export async function buildTimeline(audio: AudioAnalysis, clips: ClipInput[], duration: number, style: EditingStyle, o: BuildOptions = {}): Promise<Timeline> {
@@ -502,11 +490,9 @@ export async function buildTimeline(audio: AudioAnalysis, clips: ClipInput[], du
     slots = templateSlots(audio, audioStart, eff, o.template.cuts, o.template.seconds || eff, o.template.on_beat_share ?? null, style, Boolean(o.template.use_audio));
   } else if (o.beatPlan) {
     const { cutPlan } = await import("@/server/audio/beatmap");
-    const moments = clips.reduce((s, c) => s + Math.max(1, Math.trunc(usableFootageSeconds([c]) / (o.everyBeat && !o.hardHitsOnly ? 0.6 : 1.6))), 0);
-    planRows = cutPlan(audio, null, null, audioStart, audioStart + eff, Math.max(moments, 3), Boolean(o.everyBeat) && !o.hardHitsOnly, o.minClip || undefined, Boolean(o.hardHitsOnly)) as Row[];
+    const moments = clips.reduce((s, c) => s + Math.max(1, Math.trunc(usableFootageSeconds([c]) / (o.everyBeat ? 0.6 : 1.6))), 0);
+    planRows = cutPlan(audio, null, null, audioStart, audioStart + eff, Math.max(moments, 3), Boolean(o.everyBeat), o.minClip || undefined) as Row[];
     slots = planRowsToSlots(audio, audioStart, eff, planRows);
-  } else if (o.hardHitsOnly) {
-    slots = await hardHitSlots(audio, audioStart, eff, style);
   } else {
     slots = planSlots(audio, audioStart, eff, style);
   }

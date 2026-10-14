@@ -2,6 +2,7 @@
 // must never block the server. Input: { task, samples (Float32Array, mono 44.1 kHz) }. Output: plain numbers.
 //   task "beats":  RhythmExtractor2013 "multifeature" - five onset functions, the beats they agree on (+ confidence 0..5.32)
 //   task "onsets": SuperFluxExtractor - note / hit onsets (seconds)
+//   task "bpm":    PercivalBpmEstimator - a second, independent tempo estimate (compared with RhythmExtractor2013's)
 /* eslint-disable @typescript-eslint/no-require-imports -- a plain Node worker, loaded outside the Next.js bundle */
 "use strict";
 
@@ -19,6 +20,8 @@ parentPort.on("message", ({ id, task, samples }) => {
     if (task === "beats") {
       const r = e.RhythmExtractor2013(signal, 208, "multifeature", 40);
       out = { bpm: r.bpm, beats: Array.from(e.vectorToArray(r.ticks)), confidence: r.confidence, estimates: Array.from(e.vectorToArray(r.estimates)) };
+    } else if (task === "bpm") {
+      out = { bpm: e.PercivalBpmEstimator(signal).bpm };
     } else if (task === "onsets") {
       const r = e.SuperFluxExtractor(signal);
       out = { onsets: Array.from(e.vectorToArray(r.onsets)) };

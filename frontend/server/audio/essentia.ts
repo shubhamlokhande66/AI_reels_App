@@ -14,7 +14,7 @@ export interface EssentiaBeats {
   estimates: number[];
 }
 
-type Task = "beats" | "onsets";
+type Task = "beats" | "onsets" | "bpm";
 const g = globalThis as unknown as { __essentia?: Partial<Record<Task, Worker>>; __essentiaSeq?: number };
 
 function worker(task: Task): Worker {
@@ -50,3 +50,6 @@ export const essentiaBeats = (samples44k: Float32Array) => run<EssentiaBeats>("b
 
 /** Onsets (s) of mono 44.1 kHz samples (SuperFlux). */
 export const essentiaOnsets = async (samples44k: Float32Array) => (await run<{ onsets: number[] }>("onsets", samples44k)).onsets;
+
+/** A second, independent tempo estimate (PercivalBpmEstimator) of mono 44.1 kHz samples. */
+export const essentiaPercivalBpm = async (samples44k: Float32Array) => (await run<{ bpm: number }>("bpm", samples44k)).bpm;

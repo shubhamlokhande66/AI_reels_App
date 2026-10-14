@@ -6,26 +6,27 @@ import type { AudioAnalysis, Section } from "@/server/models/analysis";
 import { withDefaults } from "@/server/models/analysis";
 import * as cache from "@/server/services/analysisCache";
 import { localPath } from "@/server/storage/local";
-import { analyze as accentAnalysis } from "./accents";
 import { detectBeats } from "./beats";
 import { checkAudio, decode } from "./decode";
 import { detectEvents, dropsFrom, measurements } from "./drops";
 import { agglomerative } from "./dsp/segment";
 import * as sp from "./dsp/spectral";
 import { argsortDesc, percentile, uniformFilter1d, vec } from "./dsp/util";
-import { essentiaBeats, essentiaOnsets } from "./essentia";
+import { essentiaBeats, essentiaOnsets, essentiaPercivalBpm } from "./essentia";
 import { computeCurves, CURVE_HOP, labelSections, structuralParts } from "./structure";
+import { detectTransients, mergedHits } from "./transients";
 
-/** The whole song analysis (was backend/app/audio/analyzer.py): decode, energy, Essentia's beats and onsets, drops,
- * sections, accents, curves, labelled parts, strong / medium beats on their real hits. Cached by the song's content. */
+/** The whole song analysis: decode, energy, Essentia's beats (kept exactly as detected), two independent tempo estimates,
+ * SuperFlux onsets, transients per band, drops, sections, curves and labelled parts. Beats, onsets and transients are
+ * separate lists: a transient is not a beat, and an onset is not necessarily an attack. Cached by the song's content. */
 
 export const SR = 22050;
 export const ESSENTIA_SR = 44100;
 export const MAX_SECONDS = 600;
 export const ENERGY_HOP = 0.1;
-/** 9 = beats from Essentia (RhythmExtractor2013 multifeature) and onsets from SuperFlux; 8 = beats on their real hits +
- * medium beats (older caches are redone) */
-export const ANALYSIS_VERSION = 9;
+/** 10 = Essentia's beats never changed afterwards, PercivalBpmEstimator as a second tempo estimate, transients per band
+ * (impacts), bars only with evidence; 9 = beats moved onto nearby hits (older caches are redone) */
+export const ANALYSIS_VERSION = 10;
 
 export type StageFn = (stage: string, progress: number) => void;
 
@@ -65,9 +66,10 @@ export function highEnergySections(energy: Float64Array, dt = ENERGY_HOP): Secti
 const nearest = (xs: number[], t: number) => xs.reduce((best, b) => (Math.abs(b - t) < Math.abs(best - t) ? b : best), xs[0]);
 
 /** Moments where energy jumps sharply (the fallback when the drop detector has too little song). */
-export function findDrops(energy: Float64Array, beats: number[], dt = ENERGY_HOP): number[] {
+/** [cut points (the nearest beat), measured times] of sudden energy rises */
+export function findDrops(energy: Float64Array, beats: number[], dt = ENERGY_HOP): [number[], number[]] {
   const w = Math.trunc(2 / dt);
-  if (energy.length < 2 * w + 1) return [];
+  if (energy.length < 2 * w + 1) return [[], []];
   const c = vec(energy.length + 1);
   for (let i = 0; i < energy.length; i++) c[i + 1] = c[i] + energy[i];
   const idx = Array.from({ length: energy.length - 2 * w }, (_, k) => k + w);
@@ -78,7 +80,8 @@ export function findDrops(energy: Float64Array, beats: number[], dt = ENERGY_HOP
     const t = idx[i] * dt;
     if (drops.every((d) => Math.abs(t - d) > 8)) drops.push(t);
   }
-  return drops.sort((a, b) => a - b).map((t) => (beats.length ? round(nearest(beats, t), 3) : round(t, 2)));
+  drops.sort((a, b) => a - b);
+  return [drops.map((t) => (beats.length ? round(nearest(beats, t), 3) : round(t, 2))), drops.map((t) => round(t, 2))];
 }
 
 /** Individual strong hits: onset peaks well above their surroundings, strength against a typical strong hit (97th pct). */
@@ -118,6 +121,7 @@ export async function analyzeWithSignal(file: string, onStage: StageFn = () => {
   // Essentia's beat tracker and onsets run in their own threads while this one measures the rest
   const essBeats = essentiaBeats(y44);
   const essOnsets = essentiaOnsets(y44);
+  const essPercival = essentiaPercivalBpm(y44).catch(() => null); // a second opinion only: the analysis goes on without it
   const duration = y.length / SR;
   onStage("analyzing_music", 0.4);
   const energy = computeEnergy(y, SR);
@@ -125,25 +129,25 @@ export async function analyzeWithSignal(file: string, onStage: StageFn = () => {
   const hi = highEnergySections(energy);
   onStage("analyzing_music", 1);
   onStage("detecting_beats", 0);
-  const beat = detectBeats(await essBeats, await essOnsets, env, duration);
+  const beat = detectBeats(await essBeats, await essOnsets, env, duration, await essPercival, { y, sr: SR });
+  const transients = detectTransients(y, SR);
   onStage("detecting_beats", 0.6);
   const events = detectEvents(measurements(y, SR, env, beat.onsets), beat.beats);
-  const drops = events.length ? dropsFrom(events) : findDrops(energy, beat.beats);
+  const [drops, dropTimes] = events.length ? [dropsFrom(events), dropsFrom(events)] : findDrops(energy, beat.beats); // events are measured times
   const sections = findSections(y, SR, beat.beats, duration);
   onStage("detecting_beats", 1);
-  const [accents, strengths] = findAccents(env, SR);
+  const [accents, strengths] = mergedHits(transients); // impacts: the attacks found in any band
   const curves = computeCurves(y, SR, beat.onsets);
   const e = Array.from(energy);
   const labelled = labelSections(structuralParts(y, SR, beat.beats, duration, e, ENERGY_HOP, drops), e, ENERGY_HOP, drops, curves);
-  const acc = accentAnalysis(y, SR, beat.beats, labelled.slice(1).map((r) => r.start));
-  const exact = acc.beats && acc.beats.length === beat.beats.length ? acc.beats : beat.beats; // beats on their real hits
   const analysis = withDefaults({
-    bpm: beat.bpm, duration: round(duration, 3), beats: exact, mediumBeats: acc.mediumBeats ?? [], beatConfidence: beat.confidence,
-    strongBeats: acc.strongBeats.length ? acc.strongBeats : beat.strongBeats, onsets: beat.onsets, accents, accentStrengths: strengths,
-    analysisVersion: ANALYSIS_VERSION, highEnergySections: hi, sections, drops, energyHop: ENERGY_HOP, energy: e.map((v) => round(v, 3)),
+    bpm: beat.bpm, duration: round(duration, 3), beats: beat.beats, beatConfidence: beat.confidence, beatSource: beat.beatSource,
+    essentiaConfidence: beat.essentiaConfidence, bpmEstimates: beat.bpmEstimates, bpmAgreement: beat.bpmAgreement, meter: beat.meter,
+    // the bar starts, only when the bar phase is clear (no per-beat strong / medium labels)
+    strongBeats: beat.downbeats, onsets: beat.onsets, transients, accents, accentStrengths: strengths,
+    analysisVersion: ANALYSIS_VERSION, highEnergySections: hi, sections, drops, dropTimes, energyHop: ENERGY_HOP, energy: e.map((v) => round(v, 3)),
     curveHop: CURVE_HOP, loudnessDb: curves.loudnessDb, brightness: curves.brightness, density: curves.density, vocal: curves.vocal, songSections: labelled,
-    tempoSections: beat.tempoSections, beatConfidences: beat.beatConfidences, downbeats: acc.downbeats.length ? acc.downbeats : beat.downbeats,
-    downbeatConfidence: acc.downbeats.length ? acc.downbeatConfidence : beat.downbeatConfidence, beatLevels: acc.levels, beatKick: acc.kick, events,
+    tempoSections: beat.tempoSections, beatConfidences: beat.beatConfidences, downbeats: beat.downbeats, downbeatConfidence: beat.downbeatConfidence, events,
   });
   return { analysis, y, env };
 }

@@ -3,9 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { analyze as accents, snapToHits } from "@/server/audio/accents";
 import { analyzeAudio, ANALYSIS_VERSION, computeEnergy, findAccents, findDrops, highEnergySections } from "@/server/audio/analyzer";
-import { fillHalfTime } from "@/server/audio/beats";
 import { bpmFromBeats, foldBpm } from "@/server/audio/bpm";
 import { timeToFrames } from "@/server/audio/dsp/spectral";
 import { median, percentile } from "@/server/audio/dsp/util";
@@ -105,7 +103,9 @@ describe("tempo and section helpers", () => {
 
   it("finds a drop and the loud section", () => {
     const e = Float64Array.from({ length: 400 }, (_, i) => (i < 200 ? 0.1 : 0.95));
-    expect(findDrops(e, Array.from({ length: 80 }, (_, i) => i * 0.5)).some((d) => Math.abs(d - 20) < 1.5)).toBe(true);
+    const [cuts, measured] = findDrops(e, Array.from({ length: 80 }, (_, i) => i * 0.37));
+    expect(measured.some((d) => Math.abs(d - 20) < 0.2)).toBe(true); // the measured time, not moved
+    expect(cuts.every((c) => Number.isInteger(Math.round(c / 0.37 * 1000) / 1000))).toBe(true); // the cut point is a beat
     const secs = highEnergySections(e);
     expect(secs.length && secs[0].start >= 19).toBeTruthy();
     const r = rng(1);
@@ -124,59 +124,5 @@ describe("tempo and section helpers", () => {
     expect(times.length).toBeGreaterThan(60);
     expect(strengths.filter((x) => x >= 0.55).length).toBeGreaterThan(60);
     expect(Math.max(...strengths)).toBe(1);
-  });
-
-  it("adds half-time beats only where the music hits between them, at the hit", () => {
-    const beats: number[] = [];
-    for (let t = 1; t < 20; t += 0.86) beats.push(t);
-    const env = new Float64Array(timeToFrames(22)).fill(0.7);
-    for (const b of beats) {
-      env[timeToFrames(b)] = 8.7;
-      if (b >= 10) env[timeToFrames(b + 0.45)] = 3.4;
-    }
-    const r3 = (x: number) => Math.round(x * 1000) / 1000;
-    const set = new Set(beats.map(r3));
-    const added = [...new Set(fillHalfTime(beats, env).map(r3))].filter((t) => !set.has(t)).sort((a, b) => a - b);
-    expect(added.length && added.every((t) => t > 10)).toBeTruthy();
-    expect(added.every((t) => beats.some((b) => Math.abs(t - (b + 0.45)) < 0.03))).toBe(true);
-    expect(added.length).toBe(beats.slice(0, -1).filter((b) => b >= 10).length);
-    const quiet = new Float64Array(timeToFrames(22)).fill(0.7);
-    for (const b of beats) quiet[timeToFrames(b)] = 8.7;
-    expect(fillHalfTime(beats, quiet).length).toBe(beats.length);
-  });
-});
-
-describe("strong beats, bar starts and exact hits", () => {
-  it("finds the bar starts from the kick, chords and bass", { timeout: 120_000 }, () => {
-    const { y, downs, beats } = barSong(120, 16, 2);
-    const r = accents(y, SR, beats);
-    const found = downs.filter((d) => r.downbeats.some((x) => Math.abs(d - x) < 0.03)).length;
-    expect(found).toBe(downs.length);
-    expect(r.downbeatConfidence).toBeGreaterThanOrEqual(0.6);
-    expect(r.strongBeats.length / beats.length).toBeGreaterThanOrEqual(0.18);
-    expect(r.strongBeats.length / beats.length).toBeLessThanOrEqual(0.35);
-    // at least a third of the bar starts are among the strong beats (this song's snare noise differs from the Python
-    // test's)
-    expect(r.strongBeats.filter((s) => downs.some((d) => Math.abs(s - d) < 0.03)).length).toBeGreaterThanOrEqual(Math.floor(downs.length / 3));
-    expect([3, 4]).toContain(r.levels[2]);
-    expect(r.levels[3]).toBe(2);
-    expect(r.levels[0]).toBe(1);
-    expect(r.levels.length).toBe(beats.length);
-    expect(r.kick.length).toBe(beats.length);
-  });
-
-  it("moves beats onto their real hits; weak beats are not medium", { timeout: 120_000 }, () => {
-    const { y, beats } = barSong(120, 16, 0);
-    const off = beats.map((b) => b + 0.025);
-    const [exact, clear] = snapToHits(y, SR, off);
-    const err = exact.map((t, i) => Math.abs(t - beats[i])).slice(1);
-    expect(clear.filter(Boolean).length / clear.length).toBeGreaterThan(0.9);
-    expect(median(err)).toBeLessThan(0.003);
-    expect(Math.max(...err)).toBeLessThan(0.012);
-    const acc = accents(y, SR, off);
-    expect(Math.abs(acc.beats![4] - beats[4])).toBeLessThan(0.006);
-    const strong = new Set(acc.strongBeats), medium = new Set(acc.mediumBeats ?? []);
-    expect([...strong].some((s) => medium.has(s))).toBe(false);
-    expect(strong.size + medium.size).toBeLessThan(beats.length);
   });
 });

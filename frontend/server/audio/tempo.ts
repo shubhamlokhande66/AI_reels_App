@@ -192,13 +192,3 @@ export function beatConfidence(beats: number[], env: Float64Array, sections: Tem
   });
 }
 
-/** [bar starts, confidence 0..1]: the 4-beat phase whose beats hit hardest (an estimate; see accents.ts). */
-export function downbeats(beats: number[], env: Float64Array, perBar = 4): [number[], number] {
-  if (beats.length < perBar * 2) return [[], 0];
-  const hit = beats.map((t) => peakAt(env, frameOf(env, t)));
-  const scores = Array.from({ length: perBar }, (_, p) => mean(hit.filter((_, i) => i % perBar === p)));
-  const order = argsortDesc(scores);
-  const best = scores[order[0]], second = scores[order[1]];
-  const conf = clip(((best - second) / Math.max(best, 1e-6)) * 3, 0, 1);
-  return [beats.filter((_, i) => i % perBar === order[0]), round(conf, 2)];
-}

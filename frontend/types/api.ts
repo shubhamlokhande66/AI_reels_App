@@ -64,7 +64,6 @@ export interface ProjectSettings {
   beatPlan?: boolean;
   /** with beatPlan: a cut and a transition on every beat */
   cutEveryBeat?: boolean;
-  hardHitsOnly?: boolean;
   /** with beatPlan: the shortest shot in seconds; faster beats are grouped */
   minClip?: MinClip;
   trendId: string | null;

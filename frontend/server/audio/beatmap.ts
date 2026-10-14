@@ -45,15 +45,11 @@ function near(sorted: number[], t: number, tol: number): boolean {
 }
 const pyMedian = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); const n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
 
-/** [beat times, seconds between beats]; a steady grid is carried on to the end of the song. */
+/** [beat times, seconds between beats]: only the beats that were detected (none are added after the last one). */
 export function beatGrid(a: AudioAnalysis): [number[], number] {
   const beats = [...a.beats].sort((x, y) => x - y);
   if (beats.length < 2) return [beats, a.bpm > 0 ? 60 / a.bpm : 0.5];
-  const period = pyMedian(beats.slice(1).map((y, i) => y - beats[i]));
-  if (a.beatConfidence >= 0.6 && period > 0.2) {
-    for (let t = beats[beats.length - 1] + period; t <= a.duration - 0.15; t += period) beats.push(round(t, 3));
-  }
-  return [beats, period];
+  return [beats, pyMedian(beats.slice(1).map((y, i) => y - beats[i]))];
 }
 
 function curve(a: AudioAnalysis, hop: number, values: number[]): number[] {
@@ -251,84 +247,16 @@ function preDropRolls(s: Song, dropCuts: number[]): number[] {
   return out;
 }
 
-// ------------------------------------------------------------------ hard hits only
-/** A moment that really hits: the drop, the music slamming back in after a break ("comeback"), the music cutting out
- * ("dropout"), a major beat, or a hard hit that stands out between beats. Normal and weak beats are not in this list. */
-export interface HardHit { t: number; kind: "drop" | "comeback" | "dropout" | "major" | "hit"; strength: number }
-const HIT_RANK: Record<HardHit["kind"], number> = { drop: 4, comeback: 4, dropout: 3, major: 2, hit: 1 };
-export const HOLD_MAX = 4; // with hard hits only, a shot holds while nothing hits, but never longer than this
-const DIP_BEFORE = 0.6, DIP_AFTER = 0.4, DIP_GAP = 1.0;
-
-/** Where the energy falls away suddenly (dropout) or comes back hard after a dip (comeback), from the energy curve. */
-export function energyMoments(a: AudioAnalysis): { t: number; kind: "dropout" | "comeback"; score: number }[] {
-  const hop = a.energyHop || 0.1, raw = a.energy, n = raw.length;
-  if (n < 10) return [];
-  const e = raw.map((_, i) => (raw[Math.max(i - 1, 0)] + raw[i] + raw[Math.min(i + 1, n - 1)]) / 3);
-  const sorted = [...e].sort((x, y) => x - y), ref = Math.max(sorted[Math.trunc(n * 0.9)], 1e-6);
-  const pre = Math.max(Math.round(DIP_BEFORE / hop), 2), post = Math.max(Math.round(DIP_AFTER / hop), 2);
-  const avg = (i: number, j: number) => { let s = 0; for (let k = i; k < j; k++) s += e[k]; return s / Math.max(j - i, 1); };
-  const cands: { t: number; kind: "dropout" | "comeback"; score: number }[] = [];
-  for (let i = pre; i + post <= n; i++) {
-    const before = avg(i - pre, i), after = avg(i, i + post);
-    const lowest = Math.min(...e.slice(i - pre, i));
-    if (after >= 0.5 * ref && after >= 1.8 * Math.max(before, 1e-6) && lowest <= 0.35 * ref) cands.push({ t: i * hop, kind: "comeback", score: after / Math.max(before, 1e-6) });
-    else if (before >= 0.5 * ref && after <= 0.45 * before) cands.push({ t: i * hop, kind: "dropout", score: before / Math.max(after, 1e-6) });
-  }
-  const out: typeof cands = []; // the strongest of each kind within a second
-  for (const c of [...cands].sort((x, y) => y.score - x.score)) if (!out.some((o) => o.kind === c.kind && Math.abs(o.t - c.t) < DIP_GAP)) out.push(c);
-  // onto the exact attack: the nearest onset just around the moment
-  return out.map((c) => {
-    const near = a.onsets.filter((o) => Math.abs(o - c.t) <= 0.12).sort((x, y) => Math.abs(x - c.t) - Math.abs(y - c.t))[0];
-    return { ...c, t: round(near ?? c.t, 3) };
-  }).sort((x, y) => x.t - y.t);
-}
-/** Every hard hit between `start` and `end` (song time), strongest first when two fall within 0.12 s. */
-export function hardHits(a: AudioAnalysis, start = 0, end = a.duration, song: Song | null = null): HardHit[] {
-  const s = song ?? new Song(a), inside = (t: number) => start <= t && t <= end, all: HardHit[] = [];
-  for (const d of s.drops) if (inside(d)) all.push({ t: d, kind: "drop", strength: 1 });
-  for (const m of energyMoments(a)) if (inside(m.t)) all.push({ t: m.t, kind: m.kind, strength: m.kind === "comeback" ? 1 : 0.85 });
-  for (const b of s.beats) if (inside(b) && s.isMajor(b)) all.push({ t: b, kind: "major", strength: Math.max(s.hit(b), near(s.strong, b, 0.06) ? 0.8 : 0) });
-  for (const h of s.hardSubs(start, end)) all.push({ t: h, kind: "hit", strength: s.hit(h, 0.06) });
-  const out: HardHit[] = [];
-  for (const h of all.sort((x, y) => HIT_RANK[y.kind] - HIT_RANK[x.kind] || y.strength - x.strength)) if (!out.some((o) => Math.abs(o.t - h.t) < 0.12)) out.push({ ...h, t: round(h.t, 3) });
-  return out.sort((x, y) => x.t - y.t);
-}
-/** The cuts of a "hard hits only" edit: a cut on every hard hit (a stronger hit replaces a weaker one that came just
- * before it), nothing on normal beats; a shot holds while nothing hits, split on the strongest moment after HOLD_MAX. */
-export function hardCuts(a: AudioAnalysis, start: number, end: number, minShot: number, song: Song | null = null, holdMax = HOLD_MAX): { cuts: number[]; kinds: Map<number, HardHit["kind"]> } {
-  const s = song ?? new Song(a), kinds = new Map<number, HardHit["kind"]>(), cuts: HardHit[] = [];
-  for (const h of hardHits(a, start + minShot, end, s)) {
-    const prev = cuts[cuts.length - 1], since = h.t - (prev?.t ?? start);
-    if (since >= minShot) cuts.push(h);
-    else if (prev && (HIT_RANK[h.kind] > HIT_RANK[prev.kind] || (HIT_RANK[h.kind] === HIT_RANK[prev.kind] && h.strength > prev.strength)) && h.t - (cuts[cuts.length - 2]?.t ?? start) >= minShot) cuts[cuts.length - 1] = h;
-  }
-  const times = cuts.map((c) => c.t);
-  for (const c of cuts) kinds.set(c.t, c.kind);
-  // nothing hits for a long time: split on the strongest beat in the gap (closest to its middle on a tie)
-  for (let k = 0; k <= times.length; k++) {
-    const a0 = k === 0 ? start : times[k - 1], b0 = k === times.length ? end : times[k];
-    if (b0 - a0 <= holdMax) continue;
-    const mid = (a0 + b0) / 2, opts = s.beats.filter((b) => b - a0 >= minShot && b0 - b >= minShot);
-    const pick = opts.length ? opts.reduce((m, b) => (s.hit(b) > s.hit(m) || (s.hit(b) === s.hit(m) && Math.abs(b - mid) < Math.abs(m - mid)) ? b : m)) : mid;
-    times.splice(k, 0, round(pick, 3));
-    k--; // look at the first half again
-  }
-  return { cuts: times, kinds };
-}
-
-/** The edit, moment by moment, for the song from `start` to `end` (song time); see the Python docstring.
- * hardOnly: cuts only on hard hits (drops, comebacks, dropouts, major beats, stand-out hits); normal beats are ignored. */
+/** The edit, moment by moment, for the song from `start` to `end` (song time): cuts on the beats, effects on the hits. */
 export function cutPlan(a: AudioAnalysis, song: Song | null = null, trendsIn: Trend[] | null = null, start = 0, endIn: number | null = null,
-                        maxShots: number | null = null, everyBeat = false, minShot = MIN_SHOT, hardOnly = false): Row[] {
+                        maxShots: number | null = null, everyBeat = false, minShot = MIN_SHOT): Row[] {
   const s = song ?? new Song(a);
   const end = endIn === null ? a.duration : Math.min(endIn, a.duration);
   const tr = trendsIn ?? songTrends(a);
   const trendAt = (t: number) => tr.find((x) => x.start <= t && t < x.end)?.kind ?? "";
   const pace = pr.paceFor(s.period);
-  if (hardOnly) everyBeat = false;
-  const hard = hardOnly ? hardCuts(a, start, end - ENDING, minShot, s) : null;
-  const grid = hard ? [] : s.beats.filter((b) => start + minShot <= b && b <= end - ENDING);
-  const cuts: number[] = hard ? [...hard.cuts] : [];
+  const grid = s.beats.filter((b) => start + minShot <= b && b <= end - ENDING);
+  const cuts: number[] = [];
   let last = start;
   for (const b of grid) {
     const t = trendAt(b), loud = s.loud(b);
@@ -349,7 +277,7 @@ export function cutPlan(a: AudioAnalysis, song: Song | null = null, trendsIn: Tr
   else if (cuts.length) hero = cuts[cuts.length - 1];
 
   if (maxShots && cuts.length + 1 > maxShots) {
-    const weight = (c: number) => (s.isDrop(c) || hard?.kinds.get(c) === "comeback" ? 3 : s.isMajor(c) || hard?.kinds.has(c) ? 2 : 1);
+    const weight = (c: number) => (s.isDrop(c) ? 3 : s.isMajor(c) ? 2 : 1);
     while (cuts.length + 1 > maxShots) {
       const removable = cuts.map((c, k) => [c, k] as const).filter(([c]) => c !== hero && weight(c) < 3).map(([, k]) => k);
       if (!removable.length) break;
@@ -368,11 +296,8 @@ export function cutPlan(a: AudioAnalysis, song: Song | null = null, trendsIn: Tr
   const used: Record<string, number> = {};
   const rows: Row[] = [{ t: round(start, 3), kind: "cut", shot: "Black → soft fade-in: an establishing shot", effect: "none", effectLabel: "Fade in", transition: "fade_in", why: "the opening" }];
   for (const c of cuts) {
-    const hk = hard?.kinds.get(c);
-    const key = hk === "comeback" ? "drop" : hk === "dropout" ? "major_soft" : s.key(c);
+    const key = s.key(c);
     let [effect, label, why] = EFFECTS[key];
-    if (hk === "comeback") why = "the music slams back in";
-    else if (hk === "dropout") why = "the music cuts out";
     const t = trendAt(c);
     let shot: string;
     if (c === hero) [shot, effect, label, why] = ["Hero shot + your logo / text, then fade out", "zoom_in", "Slow zoom-in, fade out", "the ending"];
@@ -454,7 +379,7 @@ export function cutPlan(a: AudioAnalysis, song: Song | null = null, trendsIn: Tr
   const bounds = [...cutTimes, end];
   for (let k = 0; k + 1 < bounds.length; k++) {
     const a0 = bounds[k], b0 = bounds[k + 1];
-    if (hardOnly || rows.some((r) => a0 < r.t && r.t < b0 && r.kind !== "cut")) continue; // hard hits only: medium accents are ignored
+    if (rows.some((r) => a0 < r.t && r.t < b0 && r.kind !== "cut")) continue;
     const cands = s.subs.filter((t) => a0 + FLASH_MARGIN <= t && t <= b0 - FLASH_MARGIN && MEDIUM_SUB <= s.hit(t, 0.06) && s.hit(t, 0.06) < HARD_SUB && !s.groove(t) && !near(punches, t, PUNCH_GAP));
     if (cands.length) {
       const t = cands.reduce((best, x) => (s.hit(x, 0.06) > s.hit(best, 0.06) ? x : best), cands[0]);
@@ -468,7 +393,7 @@ export function cutPlan(a: AudioAnalysis, song: Song | null = null, trendsIn: Tr
     sh.end = round(k + 1 < shots.length ? shots[k + 1].t : end, 3);
     const lastShot = k + 1 === shots.length;
     const shEnd = sh.end as number;
-    const beatsIn = hardOnly ? [] : s.beats.filter((b) => sh.t + CLOSE_HIT < b && b < (lastShot ? shEnd + 1e-6 : shEnd - CLOSE_HIT)); // hard hits only: normal beats are ignored
+    const beatsIn = s.beats.filter((b) => sh.t + CLOSE_HIT < b && b < (lastShot ? shEnd + 1e-6 : shEnd - CLOSE_HIT));
     const hitsIn = ordered.filter((r) => ["hit", "ramp", "zoom"].includes(r.kind) && sh.t < r.t && r.t < shEnd).map((r) => r.t);
     const inside = [...new Set([...beatsIn.map((b) => round(b, 3)), ...hitsIn])].sort((x, y) => x - y);
     if (inside.length) {
