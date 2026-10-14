@@ -9,7 +9,7 @@ import { loudLimit, snapPoints, type MusicMap } from "@/server/director/musicMap
 import type { HookOption } from "@/server/director/creative";
 import type { AudioAnalysis } from "@/server/models/analysis";
 import { direction as windowDirection, type ClipInput, type UsableWindow } from "@/server/models/clip";
-import { OVERLAY_MAX_WORDS, Timeline as TimelineSchema, type Segment, type TextOverlay, type Timeline } from "@/server/models/timeline";
+import { AI_TEXT_MAX_WORDS, Timeline as TimelineSchema, type Segment, type TextOverlay, type Timeline } from "@/server/models/timeline";
 import type { EditingStyle } from "@/server/styles";
 import { freeSpans, isFresh, joined, longestFree, MIN_SLOW, place, REPLAY_SPEED } from "@/server/video/footage";
 import { normalize, tidyText } from "@/server/video/overlays";
@@ -119,7 +119,7 @@ LOOK
 - style: one of allowed.styles; keep reel.style when it is not "choose". grade: ONE of allowed.grades for the whole Reel. Match both to the content and to the style (for example clean and premium for luxury, warm for food).
 - music_volume: null unless the music clearly needs to be louder or quieter (0.3-1.5).
 TEXT (overlays)
-- Optional and short: at most ${OVERLAY_MAX_WORDS} words each, never two on screen at once, none before 0.3 s, never covering the key moment of a shot.
+- Optional and short: at most ${AI_TEXT_MAX_WORDS} words each, never two on screen at once, none before 0.3 s, never covering the key moment of a shot.
 - Text the user asks for in reel.instructions is used as written (still within the word limit).
 - Use reel.hook_text as the hook (role "hook", within the first 2 s) and reel.call_to_action as the CTA (role "cta", at the end) when they are given. Without them you may write a short, factual hook or CTA from what the clips show and the brief; never facts, prices, discounts or claims that are not in the data. No suitable text: no overlays.
 - position: top, center or bottom; animation: one of allowed.text_animations; role: hook, benefit, product, emotion, cta or text.

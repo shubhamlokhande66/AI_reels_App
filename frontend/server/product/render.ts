@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { moveFile } from "@/server/storage/local";
 import path from "node:path";
 import { FFmpegError } from "@/server/core/errors";
+import { fontFor, needsShaping } from "@/server/core/fonts";
 import { findBinary } from "@/server/core/ffmpeg";
 import { PyRandom } from "@/server/core/random";
 import { opencv, type CV, type Mat } from "@/server/video/cv";
@@ -331,9 +332,14 @@ function layerEvents(t: TextLayer, w: number, h: number): [number, number, strin
   return out;
 }
 export function writeTextAss(layers: TextLayer[], style: ProductStyle, file: string, w: number, h: number): string | null {
-  const events = layers.flatMap((l) => layerEvents(l, w, h));
+  const font = style.font.replace(/[^A-Za-z0-9 \-_.]/g, "").slice(0, 40) || "Arial";
+  // a Marathi / Hindi line gets a font that has its letters, and no letter spacing (it would break the joined letters)
+  const events = layers.flatMap((l) => {
+    const tags = needsShaping(l.text) ? `\\fn${fontFor(l.text, font).replace(/[^A-Za-z0-9 \-_.]/g, "")}\\fsp0` : "";
+    return layerEvents(l, w, h).map(([a, b, body]) => [a, b, body.startsWith("{") ? `{${tags}${body.slice(1)}` : `{${tags}}${body}`] as [number, number, string]);
+  });
   if (!events.length) return null;
-  const font = style.font.replace(/[^A-Za-z0-9 \-_.]/g, "").slice(0, 40) || "Arial", spacing = layers.some((l) => /[ऀ-෿]/.test(l.text)) ? "0" : "1.5";
+  const spacing = layers.some((l) => /[ऀ-෿]/.test(l.text)) ? "0" : "1.5";
   const lines = ["[Script Info]", "ScriptType: v4.00+", `PlayResX: ${w}`, `PlayResY: ${h}`, "WrapStyle: 2", "ScaledBorderAndShadow: yes", "", "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
     `Style: Default,${font},${Math.trunc(0.065 * h)},${assColor(style.textColor)},${assColor(style.textColor)},${assColor(style.textOutline)},&H64000000&,${style.bold ? -1 : 0},0,0,0,100,100,${spacing},0,1,${Math.max(2, Math.trunc(h / 640))},${Math.max(1, Math.trunc(h / 960))},5,20,20,20,1`,

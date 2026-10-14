@@ -11,9 +11,13 @@ export function cleanText(text: string, limit = 80): string {
   return text.replace(/[\x00-\x1f\x7f{}\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
-/** Clean, at most OVERLAY_MAX_WORDS words and OVERLAY_MAX_CHARS characters (cut at a word boundary). */
+const EMOJI = /[🀀-🫿☀-➿⬀-⯿️‍󠀠-󠁿]/gu;
+/** Emoji out: the video text engine draws them as grey outlines, not in colour. They belong in the post caption. */
+export const stripEmoji = (text: string) => text.replace(EMOJI, "").replace(/s+/g, " ").trim();
+
+/** Clean, no emoji, at most OVERLAY_MAX_WORDS words and OVERLAY_MAX_CHARS characters (cut at a word boundary). */
 export function tidyText(text: string): string {
-  const words = cleanText(text, 200).split(" ").filter(Boolean).slice(0, OVERLAY_MAX_WORDS);
+  const words = cleanText(stripEmoji(text), 200).split(" ").filter(Boolean).slice(0, OVERLAY_MAX_WORDS);
   let out = "";
   for (const w of words) {
     const next = `${out} ${w}`.trim();

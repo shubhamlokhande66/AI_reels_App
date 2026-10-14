@@ -2,11 +2,11 @@ import "server-only";
 import { z } from "zod";
 import type { ManagedProvider } from "@/server/ai";
 import { AppError } from "@/server/core/errors";
-import { CropSpec, EFFECT_TYPES, GRADES, TextOverlay, TRANSITION_TYPES, type Timeline } from "@/server/models/timeline";
+import { CropSpec, EFFECT_TYPES, GRADES, OVERLAY_MAX_CHARS, TextOverlay, TRANSITION_TYPES, type Timeline } from "@/server/models/timeline";
 import { MAX_DURATION, MIN_DURATION } from "@/server/projects/settings";
 import { listStyles } from "@/server/styles";
 import { MAX_SPEED, MIN_SPEED, type Operation } from "@/server/timeline/ops";
-import { tidyText } from "@/server/video/overlays";
+import { stripEmoji, tidyText } from "@/server/video/overlays";
 
 /** From words to edits (was revise/actions.py): a phrase parser, plus the AI for what it did not understand; edit
  * actions become ordinary timeline operations, rebuild actions become settings for a fresh edit. */
@@ -105,9 +105,9 @@ const CTA_RE = new RegExp(String.raw`\b(?:cta|call to action)\b[^a-z0-9]*(?:to|:
 const HOOK_RE = new RegExp(String.raw`\bhook(?: text)?\b[^a-z0-9]*(?:to|:|=|says?|reads?)\s*["']?(?<t>[^"']{2,60})["']?$`);
 const rText: Rule = (c) => {
   let m = CTA_RE.exec(c);
-  if (m && has(c, String.raw`\b(?:change|set|make|use|update|replace|cta|call to action)\b`) && !["", "the", "it"].includes(m.groups!.t.trim())) return [act("cta", { value: m.groups!.t.trim().replace(/^\.+|\.+$/g, "").slice(0, 42) })];
+  if (m && has(c, String.raw`\b(?:change|set|make|use|update|replace|cta|call to action)\b`) && !["", "the", "it"].includes(m.groups!.t.trim())) return [act("cta", { value: m.groups!.t.trim().replace(/^\.+|\.+$/g, "").slice(0, OVERLAY_MAX_CHARS) })];
   m = HOOK_RE.exec(c);
-  if (m) return [act("hook_text", { value: m.groups!.t.trim().replace(/^\.+|\.+$/g, "").slice(0, 42) })];
+  if (m) return [act("hook_text", { value: m.groups!.t.trim().replace(/^\.+|\.+$/g, "").slice(0, OVERLAY_MAX_CHARS) })];
   if (!has(c, String.raw`\b${TEXT}\b`)) return null;
   if (has(c, String.raw`${NEG}\b.*\b${TEXT}\b|\bno ${TEXT}\b|\b${TEXT}\b.*\b(?:off|away)\b`)) return [act("text_off")];
   if (has(c, String.raw`\b(?:less|fewer|reduce|minimal|too much|too many|cleaner)\b.*\b${TEXT}\b|\b${TEXT}\b.*\b(?:less|fewer|too much)\b`)) return [act("text_less")];
@@ -188,14 +188,82 @@ const RULES: Rule[] = [rDirector, rWatermark, rVoice, rCaptions, rText, rMusic, 
 const SPLIT = /[.;!\n]+|,|\bplus\b|\balso\b|\bthen\b|\band\b|\bbut\b|\bafter that\b|\bmake sure\b|\bplease\b|\bwith\b|&/i;
 const clauses = (text: string) => text.toLowerCase().replace(/\bblack\s*(?:and|&)\s*white\b/g, "monochrome").split(SPLIT).map((p) => p.replace(/^[ \-–—:]+|[ \-–—:]+$/g, "")).filter((p) => p.length > 1);
 
-export function parseRules(text: string): [Action[], string[]] {
+// Asking for on-screen text, in English, Marathi or Hindi ("add this text", "हा मजकूर टाका", "ये लिखो" ...)
+const ADD = "(?:add|put|write|show|use|set|change|place|display|लिहा|लिही|टाका|टाक|जोडा|घाला|दाखवा|लिखो|लिखें|लिख|डालो|डालें|जोड़ो|जोड़ें|लगाओ|दिखाओ)";
+const TEXT_WORD = "(?:text|texts|line|words|title|heading|hook|caption line|cta|call to action|मजकूर|टेक्स्ट|ओळ|शब्द|लाइन|शब्दों)";
+const QUOTED = /["“”«»]\s*(?<t>[^"“”«»]{2,})\s*["“”«»]|(?<![A-Za-z])'(?<s>[^']{2,})'(?![A-Za-z])/;
+const THIS = "(?:this|these|the following|following|that|हा|हे|ही|ये|यह)";
+const ROLE = "(?:(?:opening|hook|closing|ending|end)\\s+)";
+const SEP = "(?=\\s|[:=\\-–—]|$)"; // a word end that also works after Devanagari vowel signs (where \b does not)
+const ON_SCREEN = "(?:on screen|on the video|in the video|स्क्रीनवर|व्हिडिओमध्ये|वीडियो में)";
+const WHERE = "(?:at the (?:end|start|beginning)|in the (?:end|beginning)|शेवटी|सुरुवातीला|अंत में|शुरू में)";
+const TEXT_PATTERNS = [
+  // add this text: X / add text X / write this X (English order)
+  new RegExp(`^\\s*${ADD}\\s+(?:(?:the|a|an|my|new)\\s+)*(?<det>${THIS}\\s+)?${ROLE}?(?<tw>${TEXT_WORD})?${SEP}\\s*(?:${ON_SCREEN}\\s*)?(?:${WHERE}\\s*)?(?:as|to|that says|saying|reading|is)?\\s*(?<colon>[:=\\-–—])?\\s*(?<t>.+?)\\s*$`, "is"),
+  // text: X / hook text = X
+  new RegExp(`^\\s*(?:(?:the|my|new)\\s+)?${ROLE}?(?<tw>${TEXT_WORD})${SEP}\\s*(?:as|to|is)?\\s*(?<colon>[:=\\-–—])?\\s*(?<t>.+?)\\s*$`, "is"),
+  // हा टेक्स्ट टाका: X / ये लिखो X (Marathi/Hindi order: the command first)
+  new RegExp(`^\\s*(?:${WHERE}\\s+)?(?:${THIS}\\s+)?(?<tw>${TEXT_WORD}\\s+)?${ADD}\\s*(?<colon>[:=\\-–—])?\\s*(?<t>.+?)\\s*$`, "is"),
+  // X add this text / X हा मजकूर टाका / X ये लिखो (the text first)
+  new RegExp(`^\\s*(?<t>.+?)\\s*[:,\\-–—]?\\s*(?:${THIS}\\s+)?(?:${TEXT_WORD}\\s+)?${ADD}(?:\\s+(?:${THIS}|it|as|म्हणून))*(?:\\s+${TEXT_WORD})?(?:\\s+${ON_SCREEN})?\\s*[.!]*\\s*$`, "is"),
+];
+const NOT_TEXT = /^(?:and|then|also|bigger|smaller|larger|bold|less|more|off|at|in|on|to|from|for|captions?)\b/i;
+const THEN_MORE = /^(?<keep>[^A-Za-z]*?)\s*(?:,|\band\b|\bthen\b|\balso\b|\bplus\b)\s+(?<more>[A-Za-z].*)$/is;
+const END_WORDS = /\b(?:cta|call to action|closing|ending|at the end|end)\b|शेवटी|अंत में|आखिर में/i;
+/** Letters of a non-Latin script (Marathi, Hindi ...). */
+const foreign = (text: string) => [...text].some((ch) => ch.codePointAt(0)! > 0x2ff && /\p{L}/u.test(ch));
+/** Is the captured part really the user's words? Marathi/Hindi words are; English only after a colon or "this text". */
+function accept(m: RegExpMatchArray): boolean {
+  const g = m.groups ?? {}, t = g.t;
+  if (NOT_TEXT.test(t)) return false;
+  if (foreign(t)) return true;
+  return Boolean(g.tw) && Boolean(g.colon || g.det);
+}
+/** The user's own on-screen words, taken EXACTLY as typed (any language, punctuation kept), before the request is split
+ * into clauses; the AI never rewrites them. [hook_text / cta action or null, the rest of the request]. A Marathi/Hindi
+ * sentence on its own is NOT assumed to be screen text (it may be a command): the AI reads it, and may only copy words
+ * that are really in the request (see parseAiActions). */
+export function literalText(text: string): [Action | null, string] {
+  let lit: string | null = null, rest = text;
+  const q = QUOTED.exec(text);
+  if (q) {
+    lit = (q.groups?.t ?? q.groups?.s ?? "").trim();
+    rest = `${text.slice(0, q.index)} ${text.slice(q.index + q[0].length)}`.trim();
+  } else {
+    for (const pat of TEXT_PATTERNS) {
+      const m = pat.exec(text);
+      if (m && accept(m)) {
+        const t = m.groups!.t, at = m.index + m[0].lastIndexOf(t);
+        lit = t.trim();
+        rest = `${text.slice(0, at)} ${text.slice(at + t.length)}`.trim();
+        break;
+      }
+    }
+  }
+  if (!lit) return [null, text];
+  if (foreign(lit)) { // "<Marathi words> and make the music louder": the English request after them is a separate change
+    let last = -1;
+    [...lit].forEach((ch, i) => { if (ch.codePointAt(0)! > 0x2ff && /\p{L}/u.test(ch)) last = i; });
+    const chars = [...lit], more = THEN_MORE.exec(chars.slice(last + 1).join(""));
+    if (more) { rest = `${rest} , ${more.groups!.more}`; lit = chars.slice(0, last + 1).join("") + more.groups!.keep; }
+  }
+  lit = lit.replace(/^[ "'“”«»,]+|[ "'“”«»,]+$/g, "");
+  const kind = END_WORDS.test(rest) ? "cta" : "hook_text";
+  rest = rest.replace(new RegExp(`(?<![\\p{L}\\p{N}_])${ADD}(?![\\p{L}\\p{N}_])|(?<![\\p{L}\\p{N}_])${TEXT_WORD}(?![\\p{L}\\p{N}_])|\\b(?:this|the|as|at|in|on screen|opening|hook|closing|ending|end|start|beginning)\\b`, "giu"), " ");
+  rest = rest.replace(/(?:^|\s)(?:हा|हे|ही|ये|यह|म्हणून|शेवटी|सुरुवातीला)(?=\s|$)/g, " ").replace(/\s+/g, " ").replace(/^[ ,.:;\-–—]+|[ ,.:;\-–—]+$/g, "");
+  return [act(kind, { value: lit.slice(0, OVERLAY_MAX_CHARS * 2), text: text.trim().slice(0, 200) }), rest];
+}
+
+export function parseRules(textIn: string): [Action[], string[]] {
   const actions: Action[] = [], unknown: string[] = [];
+  const [said, text] = literalText(textIn);
+  if (said) actions.push(said);
   for (const clause of clauses(text)) {
     let found: Action[] | null = null;
     for (const rule of RULES) if ((found = rule(clause))) break;
     if (found) { for (const a of found) a.text = clause; actions.push(...found); } else unknown.push(clause);
   }
-  for (const a of actions) if ((a.kind === "cta" || a.kind === "hook_text") && typeof a.value === "string") { const at = text.toLowerCase().indexOf(a.value.toLowerCase()); if (at >= 0) a.value = text.slice(at, at + a.value.length); }
+  for (const a of actions) if ((a.kind === "cta" || a.kind === "hook_text") && typeof a.value === "string" && a !== said) { const at = text.toLowerCase().indexOf(a.value.toLowerCase()); if (at >= 0) a.value = text.slice(at, at + a.value.length); }
   const seen = new Set<string>(), unique: Action[] = [];
   for (const a of actions) {
     const key = JSON.stringify([a.kind, isRebuild(a) ? a.value : null, a.scope, a.shot]);
@@ -216,8 +284,10 @@ const SYSTEM = "You translate a video editor's change request into a JSON list o
 export function revisionSystemPrompt() {
   const featured = ["cut", "fade", "dissolve", "zoom", "slide", "blur", "flash", "speed_ramp", "wipe_left", "circle_open"].filter((t) => TRANSITION_TYPES.includes(t));
   return SYSTEM.replace("none|zoom_in|zoom_out|punch", EFFECT_TYPES.join("|")).replace("cut|fade|dissolve|zoom|slide|blur|flash|speed_ramp", featured.join("|")).replace('Answer as {"actions"',
-    `{"action":"grade","value":"${GRADES.join("|")}"}   {"action":"text_off"}   {"action":"text_less"}\n{"action":"cta","value":"<new call to action, max 6 words>"}   {"action":"hook_text","value":"<opening text, max 6 words>"}\nShots may carry "shows": what the clip shows. Use it to find a shot the user describes (e.g. "the product"). Answer as {"actions"`);
+    `{"action":"grade","value":"${GRADES.join("|")}"}   {"action":"text_off"}   {"action":"text_less"}\n{"action":"cta","value":"<the closing words EXACTLY as the user wrote them>"}   {"action":"hook_text","value":"<the opening words EXACTLY as the user wrote them>"}\nOn-screen text is copied character for character from the request, in its own language and script: never translate, shorten, correct or rewrite it. If the request asks for text but gives no words, put it in unclear.\nShots may carry "shows": what the clip shows. Use it to find a shot the user describes (e.g. "the product"). Answer as {"actions"`);
 }
+/** For comparing words: case, spaces, quotes and punctuation do not matter. */
+const squash = (text: string) => text.replace(/[\s"'“”«».,!?:;…\-–—]+/g, "").toLowerCase();
 const num = (v: unknown, lo: number, hi: number) => { const f = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN; return Number.isNaN(f) ? null : Math.min(Math.max(f, lo), hi); };
 const REMOVAL = String.raw`\b(?:remove|delete|drop|cut out|cut|skip|get rid of|take out|without|discard|trim out)\b`, FIRST = String.raw`\b(?:first|opening|intro|start|beginning|1st)\b`, LAST = String.raw`\b(?:last|end|ending|final|outro|closing|finish)\b`;
 function grounded(kind: string, sc: string, shot: number | null, text: string): string | null {
@@ -252,7 +322,13 @@ export function parseAiActions(data: Record<string, unknown>, shots: number, sty
     else if (kind === "music_fade") a.value = num(value, 0.5, 10) || 2.0;
     else if (kind === "duration") { a.value = num(value, MIN_DURATION, MAX_DURATION); a.factor = a.value === null ? num(it.factor, 0.3, 3) : null; if (a.value === null && a.factor === null) continue; }
     else if (kind === "grade" && str(value) && GRADES.includes(value as string)) a.value = value;
-    else if ((kind === "cta" || kind === "hook_text") && str(value) && (value as string).trim()) a.value = (value as string).trim().slice(0, 42);
+    else if ((kind === "cta" || kind === "hook_text") && str(value) && (value as string).trim()) {
+      if (requestText !== null && !squash(requestText).includes(squash(value as string))) { // on-screen text is the user's own words
+        dropped.push(`${kind}: the AI changed your words to "${(value as string).trim().slice(0, 40)}"; put the exact text in quotes`);
+        continue;
+      }
+      a.value = (value as string).trim().slice(0, OVERLAY_MAX_CHARS);
+    }
     else if (kind === "text_off" || kind === "text_less") { /* no value */ }
     else if (["grade", "cta", "hook_text"].includes(kind)) { dropped.push(`${kind}: unsupported value '${String(value).slice(0, 20)}'`); continue; }
     else if (kind === "caption_style" && CAPTION_STYLES.includes(value as string)) a.value = value;
@@ -332,8 +408,10 @@ export function describe(a: Action): string {
     case "grade": return `Colour grade: ${v}`;
     case "text_off": return "Remove all on-screen text";
     case "text_less": return "Less text: keep only the hook and the call to action";
-    case "cta": return `Call to action: "${v}"`;
-    case "hook_text": return `Opening text: "${v}"`;
+    case "cta": case "hook_text": {
+      const raw = String(v ?? ""), note = stripEmoji(raw) !== raw.trim() ? " (emoji are left out of the video text: it cannot draw them in colour; add them to the post caption)" : "";
+      return `${k === "cta" ? "Call to action" : "Opening text"}: "${tidyText(raw)}"${note}`;
+    }
   }
   return DIRECTOR_DESC[k] ?? "Different clip selection and order (rebuilds the edit)";
 }

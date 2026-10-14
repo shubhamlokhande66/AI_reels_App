@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fontFor, needsShaping } from "@/server/core/fonts";
 import { fixed, g, round } from "@/server/core/py";
 import type { Caption, TextOverlay, Timeline } from "@/server/models/timeline";
 import { cleanText, normalize } from "@/server/video/overlays";
@@ -123,6 +124,8 @@ export function buildAss(cues: Cue[], styleName: string, width = 1080, height = 
   let st = STYLES[styleName] ?? STYLES.minimal;
   if (font) { const safe = font.replace(/[^A-Za-z0-9 \-_.]/g, "").trim().slice(0, 60); if (safe) st = { ...st, font: safe }; }
   if (color) st = { ...st, primary: assColour(color), secondary: st.mode !== "karaoke" ? assColour(color) : st.secondary, highlight: st.mode === "highlight" ? assColour(color) : st.highlight };
+  const sample = cues.flatMap((c) => c.words.map((w) => w.text)).join(" ");
+  if (needsShaping(sample)) st = { ...st, font: fontFor(sample, st.font), spacing: 0 }; // Hindi/Marathi lyrics or voice-over: a font with the letters, and no spacing (it breaks shaping)
   const word = (t: string) => (st.uppercase ? escapeText(t).toUpperCase() : escapeText(t));
   const side = Math.trunc(width * 0.08);
   const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: ${width}\nPlayResY: ${height}\nWrapStyle: 0\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\n` +
@@ -169,31 +172,56 @@ export function lookFor(tl: Timeline): TextLook {
 }
 const fitSize = (text: string, requested: number, w: number, h: number) => round(Math.min(requested, (MAX_WIDTH * w) / (Math.max(text.length, 1) * CHAR_WIDTH) / h), 4);
 
-export const toLayers = (overlays: TextOverlay[], hasCaptions: boolean, w: number, h: number): TextLayer[] => overlays.map((o) => ({
-  id: o.id, text: o.text, start: o.start, end: o.end, x: 0.5, y: o.position === "bottom" && hasCaptions ? Y_BOTTOM_WITH_CAPTIONS : Y[o.position],
-  size: fitSize(o.text, SIZES[o.size], w, h), animationIn: o.animation, animationOut: "fade", role: o.role === "cta" ? "cta" : o.role === "hook" ? "hook" : "tagline",
-}));
+const WRAP_AT = 22; // characters: a longer text is set on two or three balanced lines
+/** One line when it fits, else 2-3 lines of about equal length, split between words: a long text on one line would be
+ * shrunk until it fits the width; on several lines it stays big enough to read on a phone. */
+export function wrapLines(text: string, maxLine = WRAP_AT, maxLines = 3): string[] {
+  const words = text.split(" ").filter(Boolean), n = Math.min(Math.max(Math.ceil(text.length / maxLine), 1), maxLines, words.length);
+  if (n <= 1) return [text];
+  let best: string[] = [text];
+  const longest = (ls: string[]) => Math.max(...ls.map((l) => l.length));
+  const tryCuts = (cuts: number[]) => {
+    const edges = [0, ...cuts, words.length], lines = edges.slice(1).map((b, i) => words.slice(edges[i], b).join(" "));
+    if (best.length === 1 || longest(lines) < longest(best)) best = lines;
+  };
+  for (let a = 1; a < words.length; a++) {
+    if (n === 2) tryCuts([a]);
+    else for (let b = a + 1; b < words.length; b++) tryCuts([a, b]);
+  }
+  return best;
+}
+export const toLayers = (overlays: TextOverlay[], hasCaptions: boolean, w: number, h: number): TextLayer[] => overlays.map((o) => {
+  const lines = wrapLines(o.text), size = fitSize(lines.reduce((m, l) => (l.length > m.length ? l : m), ""), SIZES[o.size], w, h);
+  const half = size * (0.75 + 0.6 * (lines.length - 1)); // half the text block's height (see textBox)
+  const y0 = o.position === "bottom" && hasCaptions ? Y_BOTTOM_WITH_CAPTIONS : Y[o.position];
+  const y = Math.min(Math.max(y0, SAFE_TOP + half), (hasCaptions ? Y_BOTTOM_WITH_CAPTIONS + 0.1 : 1 - SAFE_BOTTOM) - half); // more lines: keep the block inside
+  return { id: o.id, text: lines.join("\n"), start: o.start, end: o.end, x: 0.5, y, size, animationIn: o.animation, animationOut: "fade", role: o.role === "cta" ? "cta" : o.role === "hook" ? "hook" : "tagline" };
+});
 /** (left, top, right, bottom) fractions of the frame the text covers. */
 export function textBox(l: TextLayer, w: number, h: number): [number, number, number, number] {
-  const half = (l.text.length * CHAR_WIDTH * l.size * h) / w / 2;
-  return [l.x - half, l.y - l.size * 0.75, l.x + half, l.y + l.size * 0.75];
+  const lines = l.text.split("\n"), halfW = (Math.max(...lines.map((x) => x.length)) * CHAR_WIDTH * l.size * h) / w / 2, halfH = l.size * (0.75 + 0.6 * (lines.length - 1));
+  return [l.x - halfW, l.y - halfH, l.x + halfW, l.y + halfH];
 }
 
 const bgr = (hex: string) => { let h = hex.replace(/^#/, ""); if (!/^[0-9A-Fa-f]{6}$/.test(h)) h = "FFFFFF"; return `&H00${h.slice(4, 6)}${h.slice(2, 4)}${h.slice(0, 2)}&`; };
 const INDIC = /[\u0900-\u0DFF]/;
 
+const LINE_BREAK = "\\N"; // an ASS hard line break
+const BOX_COLOUR = "&H50000000&"; // the box behind boxed text: black, about 70% opaque
 export function layerEvents(t: TextLayer, w: number, h: number): [number, number, string][] {
-  const text = cleanText(t.text);
+  const text = t.text.split("\n").map((x) => cleanText(x)).filter(Boolean).join(LINE_BREAK); // a newline becomes a real line break
   if (!text) return [];
   const x = t.x * w, y = t.y * h, size = t.size * h, fadeOut = t.animationOut === "fade" ? 250 : 0, dur = t.end - t.start;
   const pos = `\\an5\\pos(${fixed(x, 0)},${fixed(y, 0)})\\fs${fixed(size, 0)}`, outTag = fadeOut ? `\\fad(0,${fadeOut})` : "";
-  switch (t.animationIn) {
+  // typing letter by letter would split joined letters (or a line break) in half
+  const anim = t.animationIn === "type_on" && (needsShaping(text) || text.includes(LINE_BREAK)) ? "fade" : t.animationIn;
+  switch (anim) {
     case "fade": return [[t.start, t.end, `{${pos}\\fad(350,${fadeOut})}${text}`]];
     case "slide_up": return [[t.start, t.end, `{\\an5\\fs${fixed(size, 0)}\\move(${fixed(x, 0)},${fixed(y + 0.03 * h, 0)},${fixed(x, 0)},${fixed(y, 0)},0,380)\\fad(300,${fadeOut})}${text}`]];
     case "scale": return [[t.start, t.end, `{${pos}\\fscx72\\fscy72\\t(0,320,\\fscx100\\fscy100)\\fad(200,${fadeOut})}${text}`]];
     case "blur_sharp": return [[t.start, t.end, `{${pos}\\blur14\\alpha&HFF&\\t(0,520,\\blur0\\alpha&H00&)${outTag}}${text}`]];
     case "mask_reveal": {
-      const bw = Math.max(text.length, 3) * size * 0.62 * 1.15, x0 = fixed(x - bw / 2, 0), x1 = fixed(x + bw / 2, 0), y0 = fixed(y - size, 0), y1 = fixed(y + size, 0);
+      const bw = Math.max(Math.max(...text.split(LINE_BREAK).map((x) => x.length)), 3) * size * 0.62 * 1.15, x0 = fixed(x - bw / 2, 0), x1 = fixed(x + bw / 2, 0), y0 = fixed(y - size, 0), y1 = fixed(y + size, 0);
       return [[t.start, t.end, `{${pos}\\clip(${x0},${y0},${x0},${y1})\\t(0,520,\\clip(${x0},${y0},${x1},${y1}))${outTag}}${text}`]];
     }
   }
@@ -204,15 +232,20 @@ export function layerEvents(t: TextLayer, w: number, h: number): [number, number
   });
 }
 
-/** The animated text file, or null when there is no text. */
-export function writeTextAss(layers: TextLayer[], look: TextLook, file: string, w: number, h: number): string | null {
-  const events = layers.flatMap((l) => layerEvents(l, w, h));
-  if (!events.length) return null;
+/** The animated text file, or null when there is no text. boxed: the text sits on a soft dark box, readable over busy
+ * video. Text in a complex script (Marathi, Hindi ...) gets a font that has its letters and no letter spacing. */
+export function writeTextAss(layers: TextLayer[], look: TextLook, file: string, w: number, h: number, boxed = false): string | null {
   const font = look.font.replace(/[^A-Za-z0-9 \-_.]/g, "").slice(0, 40) || "Arial";
+  const events = layers.flatMap((l) => {
+    const tags = needsShaping(l.text) ? `\\fn${fontFor(l.text, font).replace(/[^A-Za-z0-9 \-_.]/g, "")}\\fsp0` : "";
+    return layerEvents(l, w, h).map(([a, b, body]) => [a, b, body.startsWith("{") ? `{${tags}${body.slice(1)}` : `{${tags}}${body}`] as [number, number, string]);
+  });
+  if (!events.length) return null;
   const spacing = layers.some((l) => INDIC.test(l.text)) ? "0" : "1.5";
+  const look2 = boxed ? `0,3,${Math.max(8, Math.floor(h / 110))},0` : `0,1,${Math.max(2, Math.floor(h / 640))},${Math.max(1, Math.floor(h / 960))}`; // BorderStyle 3: an opaque box padded by Outline
   const lines = ["[Script Info]", "ScriptType: v4.00+", `PlayResX: ${w}`, `PlayResY: ${h}`, "WrapStyle: 2", "ScaledBorderAndShadow: yes", "", "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Default,${font},${Math.trunc(0.065 * h)},${bgr(look.textColor)},${bgr(look.textColor)},${bgr(look.textOutline)},&H64000000&,${look.bold ? -1 : 0},0,0,0,100,100,${spacing},0,1,${Math.max(2, Math.floor(h / 640))},${Math.max(1, Math.floor(h / 960))},5,20,20,20,1`,
+    `Style: Default,${font},${Math.trunc(0.065 * h)},${bgr(look.textColor)},${bgr(look.textColor)},${boxed ? BOX_COLOUR : bgr(look.textOutline)},&H64000000&,${look.bold ? -1 : 0},0,0,0,100,100,${spacing},${look2},5,20,20,20,1`,
     "", "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ...events.map((e, i) => [e, i] as const).sort((a, b) => a[0][0] - b[0][0] || a[1] - b[1]).map(([[a, b, body]]) => `Dialogue: 0,${ts(a)},${ts(b)},Default,,0,0,0,,${body}`)];
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -222,5 +255,5 @@ export function writeTextAss(layers: TextLayer[], look: TextLook, file: string, 
 
 export function writeOverlaysAss(tl: Timeline, file: string, w: number, h: number): string | null {
   const [overlays] = normalize(tl.overlays, tl.duration);
-  return overlays.length ? writeTextAss(toLayers(overlays, tl.captions.length > 0, w, h), lookFor(tl), file, w, h) : null;
+  return overlays.length ? writeTextAss(toLayers(overlays, tl.captions.length > 0, w, h), lookFor(tl), file, w, h, true) : null;
 }

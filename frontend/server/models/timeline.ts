@@ -76,8 +76,9 @@ export const Watermark = z.object({
 });
 export type Watermark = z.infer<typeof Watermark>;
 
-export const OVERLAY_MAX_CHARS = 42;
-export const OVERLAY_MAX_WORDS = 7;
+export const OVERLAY_MAX_CHARS = 66; // your own text is kept whole: up to 3 lines of about 22 characters
+export const OVERLAY_MAX_WORDS = 12;
+export const AI_TEXT_MAX_WORDS = 7; // text the AI writes itself stays short (a hook is read in a second)
 export const TextOverlay = z.object({
   id: z.string().default(newId),
   text: z.string().max(OVERLAY_MAX_CHARS),
