@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // (Only matters when the dev server is started with -H 0.0.0.0.)
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*"],
   // the native/WASM packages the server uses stay plain Node requires (not bundled)
-  serverExternalPackages: ["mongodb", "essentia.js", "@techstark/opencv-js", "sharp", "nodemailer", "unpdf"],
+  serverExternalPackages: ["mongodb", "essentia.js", "onnxruntime-node", "@techstark/opencv-js", "sharp", "nodemailer", "unpdf"],
 };
 
 export default nextConfig;

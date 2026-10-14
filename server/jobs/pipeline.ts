@@ -30,6 +30,7 @@ import * as ig from "@/server/platforms/instagram";
 import { renderConfig, type RenderConfig, type SourceClip } from "@/server/video/render/cutter";
 import { pickEncoder } from "@/server/video/render/parts";
 import { renderTimeline, type RenderResult } from "@/server/video/render/renderer";
+import { cutsOnKeyBeats } from "@/server/video/keyCuts";
 import { ensureTransitions } from "@/server/video/transitions";
 import { assFilter, captionsToCues, cuesToCaptions, groupWords, writeAss, writeOverlaysAss, type Word } from "@/server/video/render/text";
 import { buildStepsTimeline, buildTalkingTimeline, orderClips } from "@/server/video/steps";
@@ -445,6 +446,10 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
     timeline.warnings.unshift(`Not enough good footage: about ${fixed(good, 0)}s of usable video for a ${g(timeline.duration)}s Reel (about ${fixed(FOOTAGE_HEADROOM * timeline.duration, 0)}s is needed to pick the best moments without slowing shots down or showing moments twice). Add clips, or make the Reel shorter.`);
   timeline.notes = [...timeline.notes, ...notes];
   if (ig.forInstagram(settings)) timeline.notes.push(...ig.polishTimeline(timeline, settings.hookText, settings.ctaText));
+  if (inp.audio) { // strict: every cut ON a key beat (or a beat, for "every beat"), whatever planned the edit
+    const moved = cutsOnKeyBeats(timeline, audio, Boolean(settings.cutEveryBeat));
+    if (moved) timeline.notes.push(`${moved} cut(s) were moved onto ${settings.cutEveryBeat ? "a beat" : "a key beat"} (or merged) so every cut lands on the music.`);
+  }
   ensureTransitions(timeline, audio); // every cut is entered with a transition (none left as a plain cut)
   res.timeline = timeline;
   progress("creating_timeline", 1);

@@ -399,16 +399,22 @@ export interface SongParts {
   duration: number;
   parts: SongPart[];
   tooShort: boolean;
+  /** every beat of the song (seconds): a start chosen by hand is moved onto the nearest one */
+  beats?: number[];
+  /** the key beats (seconds): the Reel starts on one and every cut is on one */
+  keyBeats?: number[];
 }
 /** One moment of the song's beat map (backend audio/beatmap.py). */
 export interface BeatEvent {
   t: number;
-  kind: "major" | "beat" | "sub";
+  kind: "major" | "beat";
   strength: number;
-  /** beats only (backend audio/accents.py): 4 bar start with a hard kick, 3 bar start, 2 backbeat, 1 other */
+  /** 3 = a key beat (bar start, drop, new part of the song), 1 = any other beat */
   level?: number;
-  /** beats only: an estimated bar start */
+  /** a bar start (from the beat tracker) */
   downbeat?: boolean;
+  /** the beat's place in its bar, 1 = the bar start (null when the bars are unknown) */
+  position?: number | null;
   effect: string;
   effectLabel: string;
   why: string;
@@ -473,13 +479,12 @@ export interface BeatMap {
   /** the beat tracker's own tempo (can be double the beats listed) */
   trackerBpm: number;
   plan: PlanRow[];
-  rolls: { start: number; end: number; count: number; perSecond: number }[];
   seconds: number;
   beatSeconds: number;
   beatConfidence: number;
   /** how sure the bar starts are, 0..1 */
   downbeatConfidence?: number;
-  counts: { major: number; beat: number; sub: number; hardSub: number; rolls: number; drops: number; rises: number; falls: number; cuts: number };
+  counts: { major: number; beat: number; bars: number; drops: number; rises: number; falls: number; cuts: number };
   events: BeatEvent[];
   trends: BeatTrend[];
   sections: { label: string; start: number; end: number; energy: number; cutOn: string }[];

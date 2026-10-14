@@ -18,6 +18,7 @@ export function SongPartPicker({ projectId, file, seconds, value, onChange }: {
   value: number | null;
   onChange: (start: number | null) => void;
 }) {
+  const [snapped, setSnapped] = useState<{ from: number; to: number } | null>(null); // a hand-chosen start moved onto a beat
   const parts = useQuery({ queryKey: ["songParts", projectId, seconds], queryFn: () => api.songParts(projectId, seconds, 6) });
   const [i, setI] = useState(0);
   const [manual, setManual] = useState(false);
@@ -94,7 +95,22 @@ export function SongPartPicker({ projectId, file, seconds, value, onChange }: {
       )}
       {manual && (
         <Card className="space-y-2">
-          <AudioRangePicker bare source={file} duration={seconds} start={value} onChange={onChange} />
+          <AudioRangePicker bare source={file} duration={seconds} start={value} onChange={onChange}/>
+        {/* // (t) => {
+          //   const beats = parts.data?.keyBeats?.length ? parts.data.keyBeats : parts.data?.beats ?? []; // key beats: the cuts are on them
+          //   if (t === null || !beats.length) { setSnapped(null); return onChange(t); }
+          //   const latest = (parts.data?.songSeconds ?? Infinity) - seconds;
+          //   const fits = beats.filter((b) => b <= latest);
+          //   const on = (fits.length ? fits : beats).reduce((best, b) => (Math.abs(b - t) < Math.abs(best - t) ? b : best));
+          //   setSnapped(Math.abs(on - t) >= 0.01 ? { from: t, to: on } : null);
+          //   onChange(on);
+          // }} />
+          // {snapped && (
+          //   <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300" role="status">
+          //     {snapped.from.toFixed(2)} s is not a key beat, and every cut is on a key beat: the Reel starts on the nearest key beat
+          //     instead, at {snapped.to.toFixed(2)} s.
+          //   </p>
+          // )} */}
           <button type="button" className="text-sm text-accent hover:underline" onClick={() => setManual(false)}>
             ‹ Back to the suggested parts
           </button>

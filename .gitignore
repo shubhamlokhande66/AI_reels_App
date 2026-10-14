@@ -41,3 +41,9 @@ tests/server/manual/out/
 .DS_Store
 *.pem
 .vercel
+
+# local test songs and reference analyses (copyrighted audio)
+/TestFile/
+
+# downloaded ML models (Beat This!, ~190 MB; fetched and checksum-checked on first use)
+/models/

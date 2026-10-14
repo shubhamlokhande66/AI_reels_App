@@ -85,6 +85,12 @@ const INSTRUCTION_IDEAS = [
 
 let keySeq = 0;
 
+/** Where the cuts land (sent as cutEveryBeat). */
+const CUT_ON = [
+  { id: "key", every: false, label: "Key beats (recommended)", hint: "Bar starts, the drop and each new part of the song: about one cut per bar, clean and on the music." },
+  { id: "every", every: true, label: "Every beat", hint: "A new shot on every beat: very fast and energetic. Beats closer than the shortest shot are grouped." },
+] as const;
+
 export function CreateReelForm() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -134,7 +140,7 @@ export function CreateReelForm() {
   const [refFile, setRefFile] = useState<File | null>(null);
   const [refUseMusic, setRefUseMusic] = useState(true);
   const [beatPlan, setBeatPlan] = useState(true); // cut exactly by the beat map's plan
-  const [everyBeat, setEveryBeat] = useState(true); // with the plan: a cut + transition on every beat
+  const [everyBeat, setEveryBeat] = useState(false); // where cuts land: key beats (false) or every beat (true)
   const [minClip, setMinClip] = useState<MinClip>(0.35); // with the plan: the shortest shot; faster beats are grouped
   const [refMusic, setRefMusic] = useState<string | null>(null); // the reference Reel's music is the song (its name)
   const [refError, setRefError] = useState<string | null>(null); // "make it like this Reel": studied when the clips are checked
@@ -148,6 +154,9 @@ export function CreateReelForm() {
   const beatMap = audio ? beatMapQ.data : undefined;
   // the song analysis document (Essentia beats and onsets, transients, frame features, events), made when the song is added
   const analysisQ = useQuery({ queryKey: ["songAnalysis", pid], queryFn: () => api.songAnalysis(pid!), enabled: songReady && !!pid, staleTime: Infinity });
+  // the part the app picks when the user leaves it to the app (the best suggestion): the plan below shows that part
+  const partsQ = useQuery({ queryKey: ["songParts", pid, duration], queryFn: () => api.songParts(pid!, duration, 6), enabled: songReady && !!pid && !!audio, staleTime: Infinity });
+  const planStart = audioStart ?? partsQ.data?.parts[0]?.start ?? null;
   const songAnalysis = audio ? analysisQ.data : undefined;
   const audioUrl = useMemo(() => (audio ? audioBlobUrl(audio) : ""), [audio]);
   useEffect(() => () => { if (audioUrl) URL.revokeObjectURL(audioUrl); }, [audioUrl]);
@@ -378,7 +387,7 @@ export function CreateReelForm() {
       addLine("Analysing the music: beats, key beats (where cuts go), hits, build-ups, breakdowns, drops and the song's parts");
       const map = await api.beatMap(id);
       qc.setQueryData(["beatMap", id], map);
-      addLine(`${map.bpm} BPM · ${map.counts.major} key beats · ${map.counts.beat} beats · ${map.counts.sub} sub-beats · ${map.counts.drops} drops · ${map.counts.rises} build-ups · ${map.counts.falls} breakdowns`);
+      addLine(`${map.bpm} BPM · ${map.counts.major} key beats · ${map.counts.beat} beats · ${map.counts.bars} bars · ${map.counts.drops} drops · ${map.counts.rises} build-ups · ${map.counts.falls} breakdowns`);
       addLine("Song analysis (Essentia): beats, onsets, transients and events");
       const analysis = await api.songAnalysis(id);
       qc.setQueryData(["songAnalysis", id], analysis);
@@ -704,32 +713,31 @@ export function CreateReelForm() {
             <SongPartPicker projectId={pid} file={audio} seconds={duration} value={audioStart} onChange={setAudioStart} />
           </Card>
         )}
-        {audio && usesMusic && songReady && pid && audioStart !== null && (
+        {audio && usesMusic && songReady && pid && (
           <Card className="space-y-3">
+            <h3 className="text-sm font-medium">Where should cuts land?</h3>
+            <div role="radiogroup" aria-label="Where should cuts land?" className="grid gap-2 sm:grid-cols-2">
+              {CUT_ON.map((o) => (
+                <button key={o.id} type="button" role="radio" aria-checked={everyBeat === o.every} disabled={busy} onClick={() => setEveryBeat(o.every)}
+                  className={`rounded-xl border px-4 py-3 text-left ${everyBeat === o.every ? "border-accent bg-accent/15" : "border-border bg-surface hover:border-accent/50"}`}>
+                  <span className="block text-sm font-medium">{o.label}</span>
+                  <span className="block text-xs text-muted">{o.hint}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted">Every cut gets a transition.</p>
             <label className="flex cursor-pointer items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={beatPlan} disabled={busy} onChange={(e) => setBeatPlan(e.target.checked)} />
               <span>
-                <span className="font-medium">Cut by the beat map</span>
+                <span className="font-medium">Follow the beat map exactly</span>
                 <span className="block text-xs text-muted">
-                  Your Reel follows this plan exactly: a cut on its beats, impacts on the drop and strong hits, flashes on hard hits, a
-                  fade-in and a hero shot that fades out. Off: the AI director plans the cuts itself.
+                  The cuts follow the plan below to the beat, with an impact on the drop, a fade-in and a hero shot that fades out.
+                  Off: the AI director chooses the shots and timing itself, still cutting only where you chose above.
                 </span>
               </span>
             </label>
-            {beatPlan && (
-              <label className="flex cursor-pointer items-start gap-2 pl-6 text-sm">
-                <input type="checkbox" className="mt-1" checked={everyBeat} disabled={busy} onChange={(e) => setEveryBeat(e.target.checked)} />
-                <span>
-                  <span className="font-medium">A cut + transition on every beat</span>
-                  <span className="block text-xs text-muted">
-                    Every beat gets a new shot, and each transition lands exactly on its beat. Hits between beats get an instant
-                    flash, punch or pulse. Off: a cut every 1-2 beats with pulses in between (calmer).
-                  </span>
-                </span>
-              </label>
-            )}
-            {beatPlan && (
-              <label className="flex items-center gap-2 pl-6 text-sm">
+            {everyBeat && (
+              <label className="flex items-center gap-2 text-sm">
                 <span className="font-medium">Shortest shot</span>
                 <select className="rounded-lg border border-border bg-surface px-2 py-1 text-sm" value={minClip} disabled={busy}
                   onChange={(e) => setMinClip(Number(e.target.value) as MinClip)}>
@@ -741,7 +749,7 @@ export function CreateReelForm() {
                 <span className="text-xs text-muted">Beats faster than this are grouped: no cut is shorter.</span>
               </label>
             )}
-            {beatPlan && <ChosenPartPlan projectId={pid} start={audioStart} seconds={duration} everyBeat={everyBeat} minClip={minClip} />}
+            {beatPlan && planStart !== null && <ChosenPartPlan projectId={pid} start={planStart} seconds={duration} everyBeat={everyBeat} minClip={minClip} />}
           </Card>
         )}
         <div className="flex flex-wrap items-center gap-3">
@@ -1117,15 +1125,11 @@ function ChosenPartPlan({ projectId, start, seconds, everyBeat, minClip }: { pro
   if (q.isLoading) return <Spinner label="Planning the cuts…" />;
   if (!q.data) return null;
   const cuts = q.data.rows.filter((r) => r.kind === "cut").length;
-  const flashes = q.data.rows.filter((r) => r.kind === "flash").length;
-  const close = q.data.rows.filter((r) => r.kind === "ramp" || r.kind === "zoom").length;
-  const punches = q.data.rows.filter((r) => r.kind === "hit").length;
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted">
-        Your {seconds}s Reel: {cuts} shots, {flashes} flash{flashes === 1 ? "" : "es"}
-        {close ? `, ${close} speed ramp${close === 1 ? "" : "s"} / quick zooms on hits right next to a cut` : ""}
-        {punches ? `, ${punches} punch${punches === 1 ? "" : "es"} on the small hits` : ""}{": every beat and every hit is marked. "}Times are from the start of the Reel.
+        Your {seconds}s Reel: {cuts} shots, cut on {everyBeat ? "every beat" : "the key beats"}, each with its transition. Times are from the start
+        of the Reel; your clips are placed in the shots after you add them.
       </p>
       <PlanTable rows={q.data.rows} offset={start} />
     </div>

@@ -37,6 +37,8 @@ const impl: PipelineAi = {
     const windowWarnings: string[] = [];
     const [audioStart, eff] = chooseMusicWindow(o.audio, ps.duration, windowWarnings, ps.audioStart);
     const mm = buildMusicMap(o.audio, audioStart, eff);
+    // "every beat": every beat is a place the AI may cut (key beats only otherwise)
+    if (ps.cutEveryBeat) for (const b of mm.beats) b.level = Math.max(b.level, 3);
     const styles = Object.fromEntries(listStyles().filter((s) => !["custom", AUTO_STYLE].includes(s.id)).map((s) => [s.id, s.description]));
     const keepStyle = ps.style !== AUTO_STYLE;
     const brief = o.brief as ProjectBrief | null, hooks = (o.hooks as HookOption[] | null) ?? [];
@@ -44,7 +46,7 @@ const impl: PipelineAi = {
     const tpl = ps.template as { cuts?: number[]; seconds?: number; on_beat_share?: number | null; use_audio?: boolean } | null | undefined;
     let suggested: number[] = [];
     try {
-      suggested = (tpl?.cuts?.length ? templateSlots(o.audio, audioStart, eff, tpl.cuts, tpl.seconds || eff, tpl.on_beat_share ?? null, o.style, Boolean(tpl.use_audio)) : planSlots(o.audio, audioStart, eff, o.style)).slice(1).map((s) => s.start);
+      suggested = (tpl?.cuts?.length ? templateSlots(o.audio, audioStart, eff, tpl.cuts, tpl.seconds || eff, tpl.on_beat_share ?? null, o.style, Boolean(tpl.use_audio)) : planSlots(o.audio, audioStart, eff, o.style, { everyBeat: ps.cutEveryBeat, minClip: ps.minClip })).slice(1).map((s) => s.start);
     } catch { /* a rhythm hint is optional */ }
     const [facts, alias] = buildRequest(o.clips, o.audio, mm, audioStart, eff, styles, { brief: ps.brief, language: ps.language, styleHint: keepStyle ? o.style.id : null, captions: ps.captions,
       cta: ps.ctaText, hook: ps.hookText, pace: ps.pace, suggestedCuts: suggested, references: ps.references ?? [], projectBrief: brief ? { ...brief, notes: undefined } : null,

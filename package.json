@@ -19,6 +19,7 @@
     "mongodb": "^6.21.0",
     "next": "16.3.5",
     "nodemailer": "^6.9.16",
+    "onnxruntime-node": "1.29.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",

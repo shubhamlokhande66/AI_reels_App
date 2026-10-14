@@ -15,10 +15,10 @@ import { resolveTransition } from "./render/text";
  * Shots the user locked are left as they are. */
 
 export type Moment = "drop" | "section" | "loud" | "calm";
-const PALETTE: Record<Moment, string[]> = {
+export const PALETTE: Record<Moment, string[]> = {
   drop: ["flash", "zoom"],
   section: ["zoom", "smooth_left", "dissolve"],
-  loud: ["zoom", "smooth_left", "slide_up", "smooth_right", "slide_left"],
+  loud: ["zoom", "smooth_left", "cover_up", "smooth_right", "slide_left"],
   calm: ["dissolve", "smooth_up", "blur", "fade_grays"],
 };
 const SECONDS: Record<string, number> = { flash: 0.18, zoom: 0.3, dissolve: 0.45, blur: 0.35, fade: 0.5, fade_grays: 0.45, speed_ramp: 0.3 };

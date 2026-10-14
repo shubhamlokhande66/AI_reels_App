@@ -10,23 +10,21 @@ export function beatTime(t: number): string {
   return `${m}:${s.toFixed(2).padStart(5, "0")}`;
 }
 
-const KIND_LABEL: Record<BeatEvent["kind"], string> = { major: "Major beat", beat: "Beat", sub: "Sub-beat" };
+const KIND_LABEL: Record<BeatEvent["kind"], string> = { major: "Key beat", beat: "Beat" };
 const KIND_STYLE: Record<BeatEvent["kind"], string> = {
   major: "bg-accent/20 text-accent border-accent/50",
   beat: "bg-surface text-foreground border-border",
-  sub: "bg-surface/60 text-muted border-border",
 };
 const SECTION_FILL: Record<string, string> = {
   intro: "#64748b", build: "#f59e0b", drop: "#ef4444", chorus: "#d4b07a", verse: "#6366f1", bridge: "#14b8a6", outro: "#64748b",
 };
 
-type Filter = "plan" | "all" | "major" | "beat" | "sub" | "drops" | "trends";
+type Filter = "plan" | "all" | "major" | "beat" | "drops" | "trends";
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "plan", label: "Cut plan" },
   { id: "all", label: "Everything" },
-  { id: "major", label: "Major beats" },
+  { id: "major", label: "Key beats" },
   { id: "beat", label: "Beats" },
-  { id: "sub", label: "Sub-beats" },
   { id: "drops", label: "Drops" },
   { id: "trends", label: "Build-ups & breakdowns" },
 ];
@@ -51,7 +49,7 @@ export function BeatMap({ data, src }: { data: BeatMapData; src: string }) {
   }, [clicks]);
   const ctx = useRef<AudioContext | null>(null);
   const lastT = useRef(0);
-  const beats = useMemo(() => data.events.filter((e) => e.kind !== "sub"), [data]);
+  const beats = data.events;
 
   /** A short tick: high on a bar start, medium on a strong beat, soft on the other beats. */
   function tickSound(e: BeatEvent) {
@@ -134,23 +132,18 @@ export function BeatMap({ data, src }: { data: BeatMapData; src: string }) {
       effect: tr.effectLabel, why: tr.why,
       badgeStyle: tr.kind === "rise" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40" : "bg-sky-500/15 text-sky-400 border-sky-500/40",
     }));
-    const rolls: Row[] = data.rolls.map((r) => ({
-      t: r.start, end: r.end, badge: "Fast hits", strength: Math.min(r.perSecond / 8, 1), section: "",
-      effect: `${r.count} small hits (${r.perSecond}/s)`, why: "hi-hats or a roll: keep the shot moving", badgeStyle: "bg-violet-500/15 text-violet-300 border-violet-500/40",
-    }));
     let list: Row[];
     if (filter === "trends") list = trends;
-    else if (filter === "sub") list = [...data.events.filter((e) => e.kind === "sub").map(fromEvent), ...rolls].sort((a, b) => a.t - b.t);
     else if (filter === "drops") list = data.events.filter((e) => e.effect === "crash_zoom").map(fromEvent);
-    else if (filter === "all") list = [...data.events.map(fromEvent), ...trends, ...rolls].sort((a, b) => a.t - b.t);
+    else if (filter === "all") list = [...data.events.map(fromEvent), ...trends].sort((a, b) => a.t - b.t);
     else list = data.events.filter((e) => e.kind === filter).map(fromEvent);
     return list;
   }, [data, filter]);
 
   const c = data.counts;
   const chips: [string, number | string][] = [
-    ["BPM", data.bpm], ["s between beats", data.beatSeconds.toFixed(2)], ["major beats", c.major], ["beats", c.beat],
-    ["sub-beats", c.sub], ["hard hits (flash)", c.hardSub], ["drops", c.drops], ["build-ups", c.rises], ["breakdowns", c.falls], ["cuts in the plan", c.cuts],
+    ["BPM", data.bpm], ["s between beats", data.beatSeconds.toFixed(2)], ["key beats", c.major], ["beats", c.beat],
+    ["bars", c.bars], ["drops", c.drops], ["build-ups", c.rises], ["breakdowns", c.falls], ["cuts in the plan", c.cuts],
   ];
 
   return (
@@ -247,9 +240,8 @@ export function BeatMap({ data, src }: { data: BeatMapData; src: string }) {
         <span><span className="text-accent">•</span> strong beat</span>
         <span><span className="text-accent">━</span> energy</span>
         <span><span className="text-violet-400">━</span> rhythm</span>
-        <span><span className="text-accent">┃</span> major beat</span>
+        <span><span className="text-accent">┃</span> key beat (bar start, drop, new part)</span>
         <span>│ beat</span>
-        <span className="opacity-70">╎ sub-beat</span>
         <span><span className="text-red-500">◆</span> drop</span>
         <span><span className="text-emerald-400">▇</span> build-up</span>
         <span><span className="text-sky-400">▇</span> breakdown</span>
@@ -311,23 +303,9 @@ export function BeatMap({ data, src }: { data: BeatMapData; src: string }) {
   );
 }
 
-const TRANSITION_LABEL: Record<string, string> = { fade_in: "Fade in", flash: "Flash cut", cut: "Cut", "": "" };
-
-/** The edit, shot by shot: when each cut lands, what shot to put there, its effect and its way in. */
-/** The plan with every beat on a row of its own: a beat a shot holds over (it pulses on it) is listed too, not only
- * counted in the shot's effect. */
-function everyBeat(plan: PlanRow[]): PlanRow[] {
-  const listed = plan.map((r) => r.t);
-  const beats: PlanRow[] = plan.flatMap((r) => (r.kind === "cut" ? r.pulses ?? [] : [])
-    .filter((p) => !listed.some((t) => Math.abs(t - p) <= 0.06))
-    .map((p) => ({ t: p, end: p, kind: "hit" as const, shot: "♪ Beat: pulse (same shot)", effect: "zoom_pulse", effectLabel: "Soft pulse",
-      transition: "", why: "a beat inside the shot" })));
-  return [...plan, ...beats].sort((a, b) => a.t - b.t);
-}
-
+/** The edit, cut by cut: when each cut lands, the transition into the new shot, and why it is there. */
 export function PlanTable({ rows: plan, now, onSeek, offset = 0 }: { rows: PlanRow[]; now?: number; onSeek?: (t: number) => void; offset?: number }) {
-  const rows = useMemo(() => everyBeat(plan), [plan]);
-  const numbers = rows.map((_, i) => rows.slice(0, i + 1).filter((r) => r.kind === "cut").length); // shot number of each row
+  const cuts = useMemo(() => plan.filter((r) => r.kind === "cut"), [plan]);
   return (
     <div className="overflow-hidden rounded-2xl border border-border">
       <div className="max-h-96 overflow-y-auto">
@@ -336,38 +314,21 @@ export function PlanTable({ rows: plan, now, onSeek, offset = 0 }: { rows: PlanR
             <tr>
               <th className="px-3 py-2 font-medium">#</th>
               <th className="px-3 py-2 font-medium">Time</th>
-              <th className="px-3 py-2 font-medium">Shot</th>
-              <th className="px-3 py-2 font-medium">Effect</th>
-              <th className="hidden px-3 py-2 font-medium sm:table-cell">In</th>
-              <th className="px-3 py-2 font-medium">Motion</th>
-              <th className="hidden px-3 py-2 font-medium md:table-cell">Why</th>
+              <th className="px-3 py-2 font-medium">Transition</th>
+              <th className="px-3 py-2 font-medium">Why</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => {
-              const cut = r.kind === "cut";
-              const current = now !== undefined && now >= r.t && now < (cut ? r.end : r.t + 0.15);
-              const big = r.transition === "flash" || r.effect === "crash_zoom";
+            {cuts.map((r, i) => {
+              const current = now !== undefined && now >= r.t && now < r.end;
+              const label = r.transition === "fade_in" ? "Fade in" : r.transitionLabel ?? r.transition;
               return (
-                <tr key={i} className={`border-t border-border/60 ${onSeek ? "cursor-pointer hover:bg-surface/60" : ""} ${current ? "bg-accent/10" : ""} ${cut ? "" : "text-muted"}`}
+                <tr key={i} className={`border-t border-border/60 ${onSeek ? "cursor-pointer hover:bg-surface/60" : ""} ${current ? "bg-accent/10" : ""}`}
                   onClick={() => onSeek?.(r.t)}>
-                  <td className="px-3 py-1.5 tabular-nums">{cut ? numbers[i] : "↯"}</td>
-                  <td className="px-3 py-1.5 font-mono tabular-nums">{beatTime(r.t - offset)}{big ? " 🔥" : ""}</td>
-                  <td className="px-3 py-1.5">{r.shot}</td>
-                  <td className="px-3 py-1.5 font-medium">{r.effectLabel}</td>
-                  <td className="hidden px-3 py-1.5 sm:table-cell">{r.transitionLabel ?? TRANSITION_LABEL[r.transition] ?? r.transition}{r.tdur && r.kind === "cut" && r.transition !== "fade_in" ? ` · lands on the beat` : ""}</td>
-                  <td className="px-3 py-1.5">
-                    {r.motion?.length ? (
-                      <span className="flex flex-wrap gap-1">
-                        {r.motion.map((m, j) => (
-                          <span key={j} className={`rounded px-1.5 py-0.5 text-[10px] ${m.startsWith("Ramp") || m.startsWith("Fast") || m.startsWith("Slow motion") ? "bg-accent/20 text-accent" : "bg-surface text-muted"}`}>
-                            {m.startsWith("Ramp") || m.startsWith("Fast") || m.startsWith("Slow motion") ? "⚡ " : ""}{m}
-                          </span>
-                        ))}
-                      </span>
-                    ) : <span className="text-muted">-</span>}
-                  </td>
-                  <td className="hidden px-3 py-1.5 text-muted md:table-cell">{r.why}</td>
+                  <td className="px-3 py-1.5 tabular-nums">{i + 1}</td>
+                  <td className="px-3 py-1.5 font-mono tabular-nums">{beatTime(r.t - offset)}</td>
+                  <td className="px-3 py-1.5 font-medium">{label}{r.tdur && r.transition !== "fade_in" ? <span className="text-muted"> · {r.tdur.toFixed(2)} s</span> : null}</td>
+                  <td className="px-3 py-1.5 text-muted">{r.why}</td>
                 </tr>
               );
             })}

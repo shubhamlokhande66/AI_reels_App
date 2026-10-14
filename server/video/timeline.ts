@@ -34,7 +34,18 @@ export function chooseMusicWindow(audio: AudioAnalysis, duration: number, warnin
   }
   if (start !== null) {
     const latest = round(audio.duration - duration - 0.05, 3);
-    const chosen = Math.min(Math.max(start, 0), latest);
+    let chosen = Math.min(Math.max(start, 0), latest);
+    // the Reel starts ON a key beat (the key beats never move: the cuts are on them), so a start anywhere else moves onto
+    // the nearest key beat that still fits; any beat only when the song has no key beats
+    const keys = keyBeats(audio).map((k) => k.t).filter((b) => b <= latest);
+    const fits = keys.length ? keys : audio.beats.filter((b) => b <= latest);
+    if (fits.length) {
+      const on = nearest(fits, chosen);
+      if (Math.abs(on - chosen) >= 0.01) {
+        warnings.push(`The part of the song you chose starts at ${fixed(chosen, 2)}s, which is not a key beat; it starts on the nearest key beat instead, at ${fixed(on, 2)}s, so every cut lands on a key beat.`);
+        chosen = on;
+      }
+    }
     if (chosen < start - 0.05) {
       warnings.push(`The part of the song you chose starts at ${fixed(start, 1)}s, but a ${g(duration)}s Reel needs to start by ${fixed(latest, 1)}s to fit inside the ${fixed(audio.duration, 1)}s song, so it starts at ${fixed(chosen, 1)}s.`);
     }
@@ -45,14 +56,14 @@ export function chooseMusicWindow(audio: AudioAnalysis, duration: number, warnin
   return [parts.length ? parts[0].start : 0, duration];
 }
 
-function windowScore(audio: AudioAnalysis, b: number, duration: number, strong: Set<number>): [number, string[]] {
+function windowScore(audio: AudioAnalysis, b: number, duration: number, strong: Set<number>, firstBeat = false): [number, string[]] {
   const e = meanEnergy(audio, b, b + duration);
   let score = e;
   const why = [`${e >= 0.75 ? "very high" : e >= 0.55 ? "high" : e >= 0.35 ? "medium" : "low"} energy`];
   if (strong.has(b)) { score += 0.03; why.push("starts on a strong beat"); }
   const drop = audio.drops.find((d) => b <= d && d <= b + duration * 0.4);
   if (drop !== undefined) { score += 0.1; why.push(`the drop hits ${fixed(drop - b, 1)}s in`); }
-  if (b < 0.3) { score += 0.05; why.push("the start of the song"); }
+  if (firstBeat) { score += 0.05; why.push("the start of the song (its first key beat)"); }
   const sec = audio.songSections.length ? sectionAt(audio, b + duration / 2) : null;
   if (sec) why.push(`mostly the ${sec.label}`);
   return [score, why];
@@ -63,10 +74,14 @@ export interface MusicWindow { start: number; end: number; score: number; reason
 /** The best parts of the song for a `duration`-second Reel, best first, each clearly different from the others. */
 export function rankMusicWindows(audio: AudioAnalysis, duration: number, k = 5): MusicWindow[] {
   if (audio.duration - duration < 1 || !audio.beats.length) return [{ start: 0, end: round(Math.min(duration, audio.duration), 3), score: 0, reasons: ["the whole song"] }];
-  const candidates = audio.beats.filter((b) => b + duration <= audio.duration - 0.05);
-  if (!candidates.includes(0)) candidates.unshift(0);
+  // the Reel starts exactly ON a key beat (a bar start, the drop, a new part of the song), never between beats, so its
+  // 0:00 is a beat and every beat after it keeps its place; any beat when the song has no key beats
+  const fits = (b: number) => b + duration <= audio.duration - 0.05;
+  const keys = keyBeats(audio).map((k) => k.t).filter(fits);
+  const candidates = keys.length ? keys : audio.beats.filter(fits);
   const strong = new Set(audio.strongBeats);
-  const scored = candidates.map((b, i) => { const [sc, why] = windowScore(audio, b, duration, strong); return { sc, i, b, why }; });
+  const first = candidates[0];
+  const scored = candidates.map((b, i) => { const [sc, why] = windowScore(audio, b, duration, strong, b === first); return { sc, i, b, why }; });
   scored.sort((x, y) => -x.sc - -y.sc || x.i - y.i);
   const out: MusicWindow[] = [];
   for (const { b, why, sc } of scored) {
@@ -95,16 +110,19 @@ export function snapToAccent(t: number, accents: [number, number][], tol = ACCEN
 /** Cut points on KEY beats only (drops, new song parts, bar starts, the hardest hits: server/audio/keyBeats.ts), never on
  * every beat: a shot lasts about a bar in loud music and two bars in calm music (at least the style's own pace), within
  * the style's shortest / longest shot. Drops always get a cut when one fits. */
-export function planSlots(audio: AudioAnalysis, audioStart: number, duration: number, style: EditingStyle): Slot[] {
+export function planSlots(audio: AudioAnalysis, audioStart: number, duration: number, styleIn: EditingStyle, o: { everyBeat?: boolean; minClip?: number | null } = {}): Slot[] {
   const beats = gridBeats(audio, audioStart, duration);
-  const key = keyBeats(audio, audioStart - 0.03, audioStart + duration + 0.03).map((k) => ({ t: round(k.t - audioStart, 3), score: k.score, why: k.why }));
+  // every beat (when asked): every beat is a cut point, one beat per shot, never shorter than the shortest shot
+  const style = o.everyBeat ? { ...styleIn, cutBeatsHigh: 1, cutBeatsLow: 1, minSegment: o.minClip ?? 0.35, sectionPacing: false } : styleIn;
+  const key = o.everyBeat ? beats.slice(1).map((t) => ({ t, score: 1, why: "beat" }))
+    : keyBeats(audio, audioStart - 0.03, audioStart + duration + 0.03).map((k) => ({ t: round(k.t - audioStart, 3), score: k.score, why: k.why }));
   const dropsRel = (audio.dropTimes?.length ? audio.dropTimes : audio.drops).map((d) => d - audioStart);
   const period = audio.bpm > 0 ? 60 / audio.bpm : 0.5;
   const slots: Slot[] = [];
   let t = 0;
   while (duration - t > 1e-3) {
     const e = meanEnergy(audio, audioStart + t, audioStart + Math.min(t + 2 * period, duration));
-    let n = e >= HIGH_ENERGY ? Math.max(style.cutBeatsHigh, KEY_BEATS_LOUD) : Math.max(style.cutBeatsLow, KEY_BEATS_CALM);
+    let n = o.everyBeat ? 1 : e >= HIGH_ENERGY ? Math.max(style.cutBeatsHigh, KEY_BEATS_LOUD) : Math.max(style.cutBeatsLow, KEY_BEATS_CALM);
     const sec = audio.songSections.length ? sectionAt(audio, audioStart + t) : null;
     if (sec && style.sectionPacing && ["intro", "outro", "bridge"].includes(sec.label)) n *= 2;
     const target = n * period;
@@ -115,8 +133,8 @@ export function planSlots(audio: AudioAnalysis, audioStart: number, duration: nu
     if (opening) {
       // the opening shot ends on the last key beat (else beat) before hookCut: the picture changes before people scroll on
       const first = Math.max(style.minSegment * 0.75, 0.4), cap = style.hookCut!;
-      const ks = key.filter((k) => first <= k.t && k.t <= cap), bs = beats.filter((x) => first <= x && x <= cap);
-      end = ks.length ? ks[ks.length - 1].t : bs.length ? bs[bs.length - 1] : Math.min(cap, duration);
+      const ks = key.filter((k) => first <= k.t && k.t <= cap);
+      end = ks.length ? ks[ks.length - 1].t : key.find((k) => k.t > t + 1e-3)?.t ?? duration; // no key beat that early: the first one
     } else {
       // a key beat (or the drop) just past the style's longest shot is better than a plain beat before it
       const reach = t + (hi - t) * REACH;
@@ -125,14 +143,12 @@ export function planSlots(audio: AudioAnalysis, audioStart: number, duration: nu
       if (drop !== undefined) end = key.find((k) => Math.abs(k.t - drop) <= period / 2)?.t ?? drop;
       else if (inRange.length) end = inRange.reduce((best, k) => (pick(k, t, target) > pick(best, t, target) ? k : best)).t;
       else if (next) end = next.t;
-      else {
-        const bs = beats.filter((x) => lo <= x && x <= hi); // no key beat in reach: the beat closest to the target length
-        end = bs.length ? bs.reduce((x, y) => (Math.abs(y - t - target) < Math.abs(x - t - target) ? y : x)) : Math.min(t + target, duration);
-      }
+      // no key beat in reach: the shot holds until the next key beat (a cut is never put anywhere else), or to the end
+      else end = key.find((k) => k.t > lo - 1e-3)?.t ?? key.find((k) => k.t > t + 1e-3)?.t ?? duration;
     }
     end = Math.min(end, duration);
-    if (end - t < 0.2) end = Math.min(t + Math.max(style.minSegment, 0.2), duration);
-    if (duration - end < style.minSegment) end = duration;
+    if (end - t < 0.05) end = key.find((k) => k.t > t + 0.05)?.t ?? duration; // never a zero-length shot
+    if (duration - end < Math.min(style.minSegment, 0.3)) end = duration;
     const onStrong = key.some((k) => Math.abs(k.t - t) < 0.03) || dropsRel.some((d) => Math.abs(t - d) < 0.15);
     slots.push({ index: slots.length, start: round(t, 3), end: round(end, 3), energy: meanEnergy(audio, audioStart + t, audioStart + end), onStrong });
     t = end;
@@ -494,7 +510,7 @@ export async function buildTimeline(audio: AudioAnalysis, clips: ClipInput[], du
     planRows = cutPlan(audio, null, null, audioStart, audioStart + eff, Math.max(moments, 3), Boolean(o.everyBeat), o.minClip || undefined) as Row[];
     slots = planRowsToSlots(audio, audioStart, eff, planRows);
   } else {
-    slots = planSlots(audio, audioStart, eff, style);
+    slots = planSlots(audio, audioStart, eff, style, { everyBeat: o.everyBeat, minClip: o.minClip });
   }
   const segments = await selectSegments(slots, clips, style, rng, o.orderHint ?? null, warnings, o.brief ?? "");
   assignEffects(segments, slots, style, rng);

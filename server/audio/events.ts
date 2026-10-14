@@ -2,7 +2,7 @@ import { round } from "@/server/core/py";
 import type { AudioAnalysis } from "@/server/models/analysis";
 import { songTrends } from "./beatmap";
 import * as sp from "./dsp/spectral";
-import { clip, Mat, max as vmax, mean, median, percentile } from "./dsp/util";
+import { clip, Mat, max as vmax, mean, percentile } from "./dsp/util";
 
 /** Every audio event of a song in the editor's vocabulary (was backend/app/audio/events.py): beats by strength
  * (STRONG / MAIN / WEAK, DOWNBEAT tag), SUB_BEAT, IMPACT, BASS_HIT, PERCUSSION_HIT, ONSET, and stretches (SILENCE,
@@ -10,7 +10,7 @@ import { clip, Mat, max as vmax, mean, median, percentile } from "./dsp/util";
  * PAUSE). Downbeats, phrases and vocals are estimates, each with its confidence. */
 
 export const HIT_TYPES = ["STRONG_BEAT", "MAIN_BEAT", "WEAK_BEAT", "SUB_BEAT", "IMPACT", "BASS_HIT", "PERCUSSION_HIT", "ONSET"];
-const HOP = 512, DEDUP = 0.05, SUB_TOL = 0.045, STRONG = 1.25, WEAK = 0.6, STRENGTH_PCT = 99, IMPACT_PCT = 97, IMPACT_RISE = 0.25;
+const HOP = 512, DEDUP = 0.05, STRENGTH_PCT = 99, IMPACT_PCT = 97, IMPACT_RISE = 0.25;
 const BASS_HZ = 150, BASS_SHARE = 0.75, PERC_SHARE = 0.5, PERC_HOP = 1024, FILL_GAP = 0.25, FILL_HITS = 4, SILENCE_DB = -50, SILENCE_MIN = 1;
 const TAIL_MIN = 0.6, TAIL_DB = 6, VOCAL_ON = 0.55, VOCAL_OFF = 0.3, VOCAL_HOLD = 1, PHRASE_BARS = 4;
 
@@ -87,29 +87,17 @@ function hitEvents(a: AudioAnalysis, sig: Signal): SongEvent[] {
   const conf = a.beatConfidences.length === beats.length ? a.beatConfidences : beats.map(() => a.beatConfidence);
   const strength = beats.map((t) => sig.onset(t));
   const out: SongEvent[] = [];
+  // every beat as the tracker found it: a bar start (STRONG_BEAT, tagged DOWNBEAT) or a beat (MAIN_BEAT); no weak / strong
+  // guessing from loudness, no sub-beats
   beats.forEach((t, k) => {
-    const around = strength.slice(Math.max(k - 4, 0), k + 5);
-    const typical = around.length ? median(around) : 0;
-    const rel = typical > 0 ? strength[k] / typical : 1;
-    const marked = a.strongBeats.length > 0 && Math.min(...a.strongBeats.map((s) => Math.abs(s - t))) <= DEDUP && strength[k] >= 0.5;
-    const kind = rel >= STRONG || marked ? "STRONG_BEAT" : rel <= WEAK || strength[k] < 0.15 ? "WEAK_BEAT" : "MAIN_BEAT";
-    const tags = [...(down.has(r3(t)) ? ["DOWNBEAT"] : []), ...extraTags(sig, t)];
-    const c = tags.includes("DOWNBEAT") && kind !== "WEAK_BEAT" ? conf[k] * (0.5 + 0.5 * a.downbeatConfidence) : conf[k];
-    out.push(hitEvent(sig, t, kind, c, tags, false, { strength_vs_neighbours: rel }));
+    const bar = down.has(r3(t));
+    out.push(hitEvent(sig, t, bar ? "STRONG_BEAT" : "MAIN_BEAT", conf[k], bar ? ["DOWNBEAT"] : [], false, { position: a.beatPositions[k] ?? null, strength: strength[k] }));
   });
+  // between the beats only the real impacts (a hit that stands out), not every small onset
   for (const t of a.onsets) {
     if (beats.length && Math.min(...beats.map((b) => Math.abs(b - t))) <= DEDUP) continue;
-    let k = 0;
-    while (k < beats.length && beats[k] < t) k++;
-    let sub = false;
-    if (k > 0 && k < beats.length) {
-      const gap = beats[k] - beats[k - 1];
-      const frac = (t - beats[k - 1]) / gap;
-      sub = [0.25, 0.5, 0.75].some((q) => Math.abs(frac - q) * gap <= SUB_TOL);
-    }
     const tags = extraTags(sig, t);
-    const kind = tags.includes("IMPACT") ? "IMPACT" : sub ? "SUB_BEAT" : tags.includes("BASS_HIT") ? "BASS_HIT" : tags.includes("PERCUSSION_HIT") ? "PERCUSSION_HIT" : "ONSET";
-    out.push(hitEvent(sig, t, kind, 0.4 + 0.6 * sig.onset(t), tags.filter((x) => x !== kind), sub, { percussive_share: sig.percussive(t), bass: sig.bass(t) }));
+    if (tags.includes("IMPACT")) out.push(hitEvent(sig, t, "IMPACT", 0.4 + 0.6 * sig.onset(t), tags.filter((x) => x !== "IMPACT"), false, { percussive_share: sig.percussive(t), bass: sig.bass(t) }));
   }
   return out;
 }
