@@ -27,11 +27,13 @@
     "STORAGE_PATH": "/data/storage",
     "R2_BUCKET": "smgroup",
     "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",
-    "PUBLIC_BASE_URL": "https://<your domain or reel-maker.<subdomain>.workers.dev>",
-    "KEEP_ALIVE_URL": "https://<the same address>/api/health",
+    "PUBLIC_BASE_URL": "https://reel-maker.shubhlokhande850.workers.dev",
+    "KEEP_ALIVE_URL": "https://reel-maker.shubhlokhande850.workers.dev/api/health",
     "AUTH_ENABLED": "true",
     "COOKIE_SECURE": "true",
     "AI_PROVIDER": "openai",
+    "OPENAI_TEXT_MODEL": "gpt-5.6-luna",
+    "GEMINI_TEXT_MODEL": "gemini-3.5-flash-lite",
     "MAX_CONCURRENT_JOBS": "1",
     // uploads pass through the Worker, which accepts request bodies up to 100 MB on the Free and Pro plans
     "MAX_VIDEO_SIZE_MB": "95"
