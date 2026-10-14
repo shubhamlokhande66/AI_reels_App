@@ -219,6 +219,7 @@ function structureGuide(styleId: string | null, duration: number, clips: ClipInp
 export function buildRequest(clips: ClipInput[], audio: AudioAnalysis, mm: MusicMap, audioStart: number, duration: number, styles: Record<string, string>, o: {
   brief: string; language: string; styleHint: string | null; captions: boolean; cta: string; hook: string; pace: string; suggestedCuts?: number[]; references?: Record<string, unknown>[];
   projectBrief?: Record<string, unknown> | null; creative?: Record<string, unknown> | null; hooks?: HookOption[] | null; brand?: Record<string, unknown> | null;
+  platformRules?: string[] | null;
 }): [Record<string, unknown>, Record<string, string>] {
   const [rows, alias] = clipFacts(clips);
   const back = Object.fromEntries(Object.entries(alias).map(([k, v]) => [v, k]));
@@ -236,6 +237,7 @@ export function buildRequest(clips: ClipInput[], audio: AudioAnalysis, mm: Music
     clips: rows, footage: footageBudget(clips, duration, o.pace),
     ...(refs.length ? { reference_edits: refs.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !["chosen", "id"].includes(k)))) } : {}),
     music: musicFacts(audio, mm, audioStart, duration),
+    ...(o.platformRules?.length ? { platform: { name: "instagram", rules: o.platformRules, note: "how Instagram ranks Reels; follow these unless reel.instructions say otherwise" } } : {}),
     rhythm: { suggested_cuts: (o.suggestedCuts ?? []).map((t) => r2(t)).slice(0, 200), note: "beat-aligned cut times that follow the music energy (shorter shots when it is loud). Use them as the rhythm, merging or splitting them where the story needs; vary shot lengths, never a constant length." },
     story_shape: structureGuide(o.styleHint, duration, clips), openings,
     ...(hero && back[hero.clipId] ? { hero_moment: { clip: back[hero.clipId], from: r2(hero.start, 1), to: r2(hero.end, 1), score: r2(hero.score) } } : {}),

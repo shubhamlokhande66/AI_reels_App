@@ -10,7 +10,11 @@ export interface EditingStyle {
   cutBeatsHigh: number; cutBeatsLow: number; minSegment: number; maxSegment: number;
   transitions: Record<string, number>; transitionDuration: number; maxTransitionRatio: number;
   effects: Record<string, number>; slowMotionChance: number; slowMotionSpeed: number;
-  motionPreference: number; opening: "establishing" | null; closing: "reveal" | null; preferLandscape: boolean;
+  motionPreference: number; opening: "establishing" | "hook" | null; closing: "reveal" | null; preferLandscape: boolean;
+  /** the first cut comes no later than this (s): something changes before the 3 s skip decision (Instagram mode) */
+  hookCut?: number | null;
+  /** the last shot looks like the first, so the replay of a looping Reel feels seamless (Instagram mode) */
+  loopEnd?: boolean;
   gradeFilter: string | null; captionStyle: string; audioFadeIn: number; audioFadeOut: number; fadeInOut: number;
   accentHits: boolean; sectionPacing: boolean; hookPriority: number; subjectPriority: number; shakeTolerance: number;
 }

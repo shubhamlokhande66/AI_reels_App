@@ -118,8 +118,8 @@ export async function understandClip(p: ManagedProvider, file: string, clip: Cli
 
 // ------------------------------------------------------------------ post copy
 const CopyAnswer = z.object({ title: z.string().describe("max 60 characters"), description: z.string().describe("max 200 characters, 1-2 sentences"), hashtags: z.array(Text).describe("5 to 8 hashtags without #") });
-export async function postCopy(p: ManagedProvider, o: { projectName: string; style: string; bpm: number; duration: number; clipNames: string[] }) {
-  const user = `A ${Math.round(o.duration)}s Instagram Reel titled "${clean(o.projectName)}" in the "${o.style}" style, ${Math.round(o.bpm)} BPM music, made from clips: ${JSON.stringify(o.clipNames.map((n) => clean(n, 40)))}.\nWrite post copy. Do not invent facts, prices or claims about products.\nReturn JSON: {"title": "<max 60 chars>", "description": "<max 200 chars, 1-2 sentences>", "hashtags": ["<5 to 8 hashtags without #>"]}.`;
+export async function postCopy(p: ManagedProvider, o: { projectName: string; style: string; bpm: number; duration: number; clipNames: string[]; brief?: string; platformRules?: string }) {
+  const user = `A ${Math.round(o.duration)}s Instagram Reel titled "${clean(o.projectName)}" in the "${o.style}" style, ${Math.round(o.bpm)} BPM music, made from clips: ${JSON.stringify(o.clipNames.map((n) => clean(n, 40)))}.\n${o.brief?.trim() ? `What it is about: ${clean(o.brief, 600)}\n` : ""}${o.platformRules ? `${o.platformRules}\n` : ""}Write post copy. Do not invent facts, prices or claims about products.\nReturn JSON: {"title": "<max 60 chars>", "description": "<max 200 chars, 1-2 sentences>", "hashtags": ["<5 to 8 hashtags without #>"]}.`;
   const d = await p.structured(SYSTEM_EDITOR, user, CopyAnswer, { task: "copy", temperature: 0.6 });
   const title = clean(d.title, 60), description = clean(d.description, 200), tags: string[] = [];
   for (const t of d.hashtags) { const tag = String(t).replace(/[^0-9A-Za-z_]/g, "").slice(0, 30); if (tag && !tags.some((x) => x.toLowerCase() === tag.toLowerCase())) tags.push(tag); }

@@ -25,7 +25,7 @@ import { DurationSelector, OrderModeSelector, PaceSelector, SequenceSelector, St
 import { btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { LocalVideo, VideoList } from "@/components/molecules/VideoList";
-import { LANGUAGES, type Concept, type Language, type MinClip, type Project, type Sequence, type Template } from "@/types/api";
+import { LANGUAGES, type Concept, type Language, type MinClip, type Project, type ReelPlatform, type Sequence, type Template } from "@/types/api";
 
 const AUDIO_MODES = [
   ["music", "Music only"],
@@ -50,6 +50,20 @@ const STEP_LABEL: Record<Step, string> = {
 type Stage = "song" | "length" | "clips" | "rest"; // music first: the song decides the edit
 
 const CAPTION_STYLES = ["minimal", "bold", "karaoke", "highlight", "luxury"];
+
+const PLATFORMS: { id: ReelPlatform; label: string; hint: string }[] = [
+  { id: "instagram", label: "Instagram Reels", hint: "Edited and checked for how Instagram ranks Reels" },
+  { id: "none", label: "General", hint: "The editor's own defaults, no platform rules" },
+];
+// What Instagram mode changes, in plain words (each line maps to a rule in server/platforms/instagram.ts)
+const INSTAGRAM_RULES = [
+  "Opens on your most eye-catching moment and cuts by 1.8 s, before people decide to scroll on.",
+  "Your hook text is on screen from the first frame, and the music starts right away (most people watch muted at first).",
+  "A new shot every 1-3.5 s to keep people watching, and an ending that loops back into the start for rewatches.",
+  "No fade to black. A brand logo shows only in the last 2 s (Reels with a logo on screen are recommended less).",
+  "Caption with searchable words, at most 5 specific hashtags, a line asking people to send it, and alt text.",
+  "A ranking check after the render: what passes, what to fix, and how to post it.",
+];
 
 // The creative direction, the one choice that shapes the whole Reel (director/creative.py DIRECTIONS).
 const DIRECTIONS: { id: Concept; label: string; blurb: string }[] = [
@@ -110,6 +124,9 @@ export function CreateReelForm() {
   const [trendId, setTrendId] = useState("");
   const [audioMode, setAudioMode] = useState<AudioModeId>("music");
   const [language, setLanguage] = useState<Language>("en");
+  const [platform, setPlatform] = useState<ReelPlatform>("instagram"); // where it will be posted: Instagram tunes the edit and checks it
+  const [hookText, setHookText] = useState("");
+  const [ctaText, setCtaText] = useState("");
   const [brief, setBrief] = useState("");
   const [brandId, setBrandId] = useState("");
   const [reference, setReference] = useState("auto"); // edit like a learned trend: the AI picks one unless the user does
@@ -407,7 +424,7 @@ export function CreateReelForm() {
     }
     setGate(null);
     try {
-      const settings = { duration, style, pace, concept, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, beatPlan: beatPlan && !!audio, cutEveryBeat: everyBeat && !hardHits, hardHitsOnly: hardHits, minClip, autoReview, soundEffects, deleteMediaAfterRender: deleteMedia, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) };
+      const settings = { duration, style, pace, concept, sequence, ...(sequence === "steps" ? { teaser, stepLabels, orderMode } : {}), captions: FEATURES.captions && captions, captionStyle, ai: FEATURES.ai && ai, aiDirector, beatPlan: beatPlan && !!audio, cutEveryBeat: everyBeat && !hardHits, hardHitsOnly: hardHits, platform, ...(platform === "instagram" ? { exportPreset: "instagram_reel", hookText: hookText.trim(), ctaText: ctaText.trim() } : {}), minClip, autoReview, soundEffects, deleteMediaAfterRender: deleteMedia, audioMode, language, brief: brief.trim(), reference, ...(trendId ? { trendId } : {}), ...(audio && usesMusic && audioStart !== null ? { audioStart } : {}) };
       if (!done.current.projectId) {
         setStep("creating");
         const p = await api.createProject(name.trim() || "Untitled Reel", settings);
@@ -754,6 +771,44 @@ export function CreateReelForm() {
       )}
 
       {stage === "rest" && (<>
+      <section className="space-y-3" aria-label="Social media">
+        <h2 className="text-sm font-medium">Where will you post it?</h2>
+        <div role="radiogroup" aria-label="Social media" className="grid gap-2 sm:grid-cols-2">
+          {PLATFORMS.map((p) => (
+            <button key={p.id} type="button" role="radio" aria-checked={platform === p.id} disabled={busy} onClick={() => setPlatform(p.id)}
+              className={`rounded-xl border px-4 py-3 text-left ${platform === p.id ? "border-accent bg-accent/15" : "border-border bg-surface hover:border-accent/50"}`}>
+              <span className="block text-sm font-medium">{p.label}</span>
+              <span className="block text-xs text-muted">{p.hint}</span>
+            </button>
+          ))}
+        </div>
+        {platform === "instagram" && (
+          <Card className="space-y-4">
+            <ul className="list-disc space-y-1 pl-5 text-xs text-muted" aria-label="What Instagram mode does">
+              {INSTAGRAM_RULES.map((r) => <li key={r}>{r}</li>)}
+            </ul>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm">
+                <span className="mb-1.5 block font-medium">Hook text <span className="font-normal text-muted">(recommended)</span></span>
+                <input aria-label="Hook text" value={hookText} maxLength={66} disabled={busy} onChange={(e) => setHookText(e.target.value)}
+                  placeholder="e.g. 3 mistakes every new runner makes" className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent" />
+                <span className="mt-1 block text-xs text-muted">The first words on screen: a question or a promise. Short works best (up to 7 words); longer text wraps onto more lines. Marathi and Hindi work too.</span>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block font-medium">Closing line <span className="font-normal text-muted">(optional)</span></span>
+                <input aria-label="Closing line" value={ctaText} maxLength={66} disabled={busy} onChange={(e) => setCtaText(e.target.value)}
+                  placeholder="e.g. Save this for your next run" className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent" />
+                <span className="mt-1 block text-xs text-muted">Shown on the last 2 seconds.</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted">
+              Tip: in the instructions below, say who the Reel is for and the one thing it shows. Reels made for a specific person get sent to them, and
+              sends are what Instagram uses most to reach new people.
+            </p>
+          </Card>
+        )}
+      </section>
+
       <section className="space-y-3" aria-label="Creative direction">
         <h2 className="text-sm font-medium">Creative direction</h2>
         <div role="radiogroup" aria-label="Creative direction" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -191,7 +191,7 @@ const clauses = (text: string) => text.toLowerCase().replace(/\bblack\s*(?:and|&
 // Asking for on-screen text, in English, Marathi or Hindi ("add this text", "हा मजकूर टाका", "ये लिखो" ...)
 const ADD = "(?:add|put|write|show|use|set|change|place|display|लिहा|लिही|टाका|टाक|जोडा|घाला|दाखवा|लिखो|लिखें|लिख|डालो|डालें|जोड़ो|जोड़ें|लगाओ|दिखाओ)";
 const TEXT_WORD = "(?:text|texts|line|words|title|heading|hook|caption line|cta|call to action|मजकूर|टेक्स्ट|ओळ|शब्द|लाइन|शब्दों)";
-const QUOTED = /["“”«»]\s*(?<t>[^"“”«»]{2,})\s*["“”«»]|(?<![A-Za-z])'(?<s>[^']{2,})'(?![A-Za-z])/;
+const QUOTED = new RegExp(String.raw`["“”«»]\s*(?<t>[^"“”«»]{2,})\s*["“”«»]|(?<![A-Za-z])'(?<s>[^']{2,})'(?![A-Za-z])`);
 const THIS = "(?:this|these|the following|following|that|हा|हे|ही|ये|यह)";
 const ROLE = "(?:(?:opening|hook|closing|ending|end)\\s+)";
 const SEP = "(?=\\s|[:=\\-–—]|$)"; // a word end that also works after Devanagari vowel signs (where \b does not)
@@ -208,7 +208,7 @@ const TEXT_PATTERNS = [
   new RegExp(`^\\s*(?<t>.+?)\\s*[:,\\-–—]?\\s*(?:${THIS}\\s+)?(?:${TEXT_WORD}\\s+)?${ADD}(?:\\s+(?:${THIS}|it|as|म्हणून))*(?:\\s+${TEXT_WORD})?(?:\\s+${ON_SCREEN})?\\s*[.!]*\\s*$`, "is"),
 ];
 const NOT_TEXT = /^(?:and|then|also|bigger|smaller|larger|bold|less|more|off|at|in|on|to|from|for|captions?)\b/i;
-const THEN_MORE = /^(?<keep>[^A-Za-z]*?)\s*(?:,|\band\b|\bthen\b|\balso\b|\bplus\b)\s+(?<more>[A-Za-z].*)$/is;
+const THEN_MORE = new RegExp(String.raw`^(?<keep>[^A-Za-z]*?)\s*(?:,|\band\b|\bthen\b|\balso\b|\bplus\b)\s+(?<more>[A-Za-z].*)$`, "is");
 const END_WORDS = /\b(?:cta|call to action|closing|ending|at the end|end)\b|शेवटी|अंत में|आखिर में/i;
 /** Letters of a non-Latin script (Marathi, Hindi ...). */
 const foreign = (text: string) => [...text].some((ch) => ch.codePointAt(0)! > 0x2ff && /\p{L}/u.test(ch));

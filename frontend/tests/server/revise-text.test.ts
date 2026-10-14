@@ -41,6 +41,7 @@ describe("the user's own words", () => {
 
   it("leaves emoji out of the video text and says so", () => {
     expect(tidyText(`${MR} 🥹❤️`)).toBe(MR);
+    expect(tidyText("Save this for your friends 🎉")).toBe("Save this for your friends"); // English letters (and spaces) untouched
     expect(describeAction(act("hook_text", { value: `${MR} 🥹❤️` }))).toContain("emoji are left out");
   });
 });

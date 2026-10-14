@@ -35,13 +35,13 @@ export const GenerateRequest = z.object({
   stepLabels: z.boolean().nullish(), orderMode: z.string().nullish(), exportPreset: z.string().nullish(), brief: z.string().max(1000).nullish(), audioMode: z.string().nullish(),
   language: z.string().nullish(), duration: z.number().int().min(5).max(600).nullish(), audioStart: z.number().min(0).max(36000).nullish(), audioAuto: z.boolean().default(false),
   captions: z.boolean().nullish(), captionStyle: z.string().nullish(), ai: z.boolean().nullish(), aiDirector: z.boolean().nullish(), beatPlan: z.boolean().nullish(),
-  cutEveryBeat: z.boolean().nullish(), hardHitsOnly: z.boolean().nullish(), minClip: z.union([z.literal(0.25), z.literal(0.35), z.literal(0.4), z.literal(0.6)]).nullish(), autoReview: z.boolean().nullish(),
+  cutEveryBeat: z.boolean().nullish(), platform: z.enum(["none", "instagram"]).nullish(), hardHitsOnly: z.boolean().nullish(), minClip: z.union([z.literal(0.25), z.literal(0.35), z.literal(0.4), z.literal(0.6)]).nullish(), autoReview: z.boolean().nullish(),
   soundEffects: z.boolean().nullish(), trendId: z.string().nullish(), reference: z.string().max(40).nullish(), concept: z.enum(["auto", "viral", "cinematic", "premium"]).nullish(),
   objective: z.string().max(60).nullish(), audience: z.string().max(60).nullish(), seed: z.number().int().nullish(), label: z.string().max(60).nullish(),
 });
 export type GenerateRequest = z.infer<typeof GenerateRequest>;
 const OVERRIDES = ["style", "pace", "sequence", "teaser", "stepLabels", "orderMode", "exportPreset", "brief", "audioMode", "language", "duration", "audioStart", "captions", "captionStyle", "ai",
-  "aiDirector", "beatPlan", "cutEveryBeat", "hardHitsOnly", "minClip", "autoReview", "soundEffects", "trendId", "reference", "concept", "objective", "audience"] as const;
+  "aiDirector", "beatPlan", "cutEveryBeat", "platform", "hardHitsOnly", "minClip", "autoReview", "soundEffects", "trendId", "reference", "concept", "objective", "audience"] as const;
 
 // ------------------------------------------------------------------ the queue
 interface Running { controller: AbortController }

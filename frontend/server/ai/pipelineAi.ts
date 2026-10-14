@@ -26,7 +26,7 @@ export interface PipelineAi {
   /** The whole edit planned by the AI director; null = it found no usable plan. */
   directReel(o: { clips: ClipInput[]; audio: AudioAnalysis; style: EditingStyle; duration: number; brief: unknown; hooks: unknown; direction: string | null; seed: number; settings: unknown }): Promise<DirectedReel | null>;
   /** Title, description and hashtags. */
-  writeCopy(o: { projectName: string; style: string; bpm: number; duration: number; clipNames: string[] }): Promise<Record<string, unknown>>;
+  writeCopy(o: { projectName: string; style: string; bpm: number; duration: number; clipNames: string[]; brief?: string; platformRules?: string }): Promise<Record<string, unknown>>;
   /** Pick one of the ranked song parts: index into `candidates`, with a reason. */
   chooseSongPart(o: { duration: number; brief: string; concept: string | null; footage: string; newVersion: boolean; candidates: unknown[] }): Promise<{ pick: number; reason: string }>;
   /** The style for "auto". */

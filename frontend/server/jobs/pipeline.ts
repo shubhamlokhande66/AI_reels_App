@@ -26,6 +26,7 @@ import { AUTO_STYLE, applyPace, getStyle, listStyles, withOverrides, type Editin
 import { analyzeVideos, findDuplicateVideos, type VideoRef } from "@/server/video/clips";
 import { goodSeconds } from "@/server/video/analyzer";
 import { productVisibility } from "@/server/video/moments";
+import * as ig from "@/server/platforms/instagram";
 import { renderConfig, type RenderConfig, type SourceClip } from "@/server/video/render/cutter";
 import { pickEncoder } from "@/server/video/render/parts";
 import { renderTimeline, type RenderResult } from "@/server/video/render/renderer";
@@ -281,6 +282,10 @@ export async function renderEdl(inp: PipelineInput, tl: Timeline, clips: Map<str
   let style: EditingStyle;
   try { style = getStyle(tl.style); } catch { style = getStyle("custom"); }
   if (tl.pictureFade !== null && tl.pictureFade !== undefined) style = withOverrides(style, { fadeInOut: tl.pictureFade });
+  if (ig.forInstagram(inp.settings)) { // no fade to black (skip / loop seam); a brand logo only on the closing seconds; hook text from frame one
+    style = ig.renderStyle(style);
+    tl = { ...tl, watermark: ig.endOnlyWatermark(tl.watermark, tl.duration), overlays: ig.hookFromFirstFrame(tl.overlays) };
+  }
   const encoder = preview ? "libx264" : await pickEncoder();
   let cfg = configFor(inp.settings.exportPreset, preview ? "preview" : "final", encoder);
   const [mode, note] = resolveAudioMode(inp.settings.audioMode, tl.voice !== null, inp.audio !== null);
@@ -394,6 +399,7 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
     [style, profileNotes] = applyProfile(style, settings.pace, inp.profile);
     notes.push(...profileNotes);
   }
+  if (ig.forInstagram(settings)) style = ig.tuneStyle(style); // hook-first opening, a cut by 1.8 s, short shots, a looping ending
   progress("selecting_clips", 1);
   progress("creating_timeline", 0);
   let direction: string | null = settings.concept !== "auto" ? settings.concept : null;
@@ -437,11 +443,13 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
   if (good < FOOTAGE_HEADROOM * timeline.duration)
     timeline.warnings.unshift(`Not enough good footage: about ${fixed(good, 0)}s of usable video for a ${g(timeline.duration)}s Reel (about ${fixed(FOOTAGE_HEADROOM * timeline.duration, 0)}s is needed to pick the best moments without slowing shots down or showing moments twice). Add clips, or make the Reel shorter.`);
   timeline.notes = [...timeline.notes, ...notes];
+  if (ig.forInstagram(settings)) timeline.notes.push(...ig.polishTimeline(timeline, settings.hookText, settings.ctaText));
   res.timeline = timeline;
   progress("creating_timeline", 1);
   if (settings.ai && !res.postCopy && directorError === null) {
     progress("writing_copy", 0);
-    try { res.postCopy = await pipelineAi().writeCopy({ projectName: inp.projectName, style: timeline.style, bpm: audio.bpm, duration: timeline.duration, clipNames: inp.videos.map((v) => v.name) }); aiTasks.push("copy"); }
+    try { res.postCopy = await pipelineAi().writeCopy({ projectName: inp.projectName, style: timeline.style, bpm: audio.bpm, duration: timeline.duration, clipNames: inp.videos.map((v) => v.name),
+      ...(ig.forInstagram(settings) ? { brief: settings.brief, platformRules: ig.COPY_RULES } : {}) }); aiTasks.push("copy"); }
     catch (e) { if (!(e instanceof AppError)) throw e; timeline.warnings.push(`Title/description were skipped: ${e.message}`); }
     progress("writing_copy", 1);
   } else if (settings.ai) progress("writing_copy", 1);
@@ -497,6 +505,13 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
   });
   if (directed?.aiLog) plan.aiDirector = directed.aiLog;
   else if (useDirector && !directed) plan.directorFallback = { reason: directorError ?? "no clip the AI could use" };
+  if (ig.forInstagram(settings)) { // Instagram-ready caption and the ranking check
+    const usedClips = new Set(timeline.segments.map((s) => s.clipId));
+    res.postCopy = ig.finalizeCopy(res.postCopy, { name: inp.projectName, brief: settings.brief, language: settings.language, subjects: inputs.filter((c) => c.semantic && usedClips.has(c.clipId)).map((c) => String(c.semantic!.summary || c.semantic!.scene || "")) });
+    const r = res.render;
+    plan.instagram = ig.buildReport(timeline, res.clips, { audioMode: resolveAudioMode(settings.audioMode, timeline.voice !== null, inp.audio !== null)[0], brief: settings.brief, ctaText: settings.ctaText,
+      postCopy: res.postCopy, render: r ? [r.width, r.height, r.size, r.duration] : null, preview: inp.kind === "preview" });
+  }
   res.reelPlan = plan;
   for (const w of checks.filter((c) => !c.ok).map((c) => `Quality check: ${c.name}. ${c.detail}`.trim())) if (!timeline.warnings.includes(w)) timeline.warnings.push(w);
   return res;
@@ -629,7 +644,7 @@ export async function runVariations(inpIn: PipelineInput, progress: StageProgres
     }
     if (!tl) {
       const order = direction ? DIRECTIONS[direction].order : st.order;
-      tl = await buildTimeline(audio, inputs, duration, await resolveStyle(settings), { seed: inp.seed + i * 101, orderHint: order === "chronological" ? chronologicalHint(inp.videos.map((v) => v.id)) : null,
+      tl = await buildTimeline(audio, inputs, duration, ig.forInstagram(settings) ? ig.tuneStyle(await resolveStyle(settings)) : await resolveStyle(settings), { seed: inp.seed + i * 101, orderHint: order === "chronological" ? chronologicalHint(inp.videos.map((v) => v.id)) : null,
         brief: inp.settings.brief, audioStart: inp.settings.audioStart });
     }
     tl.warnings = [...res.warnings, ...warns, ...tl.warnings];

@@ -1,6 +1,21 @@
 export type ProjectStatus = "draft" | "processing" | "completed" | "failed";
 export type JobStatus = "queued" | "processing" | "completed" | "failed" | "cancelled";
 
+/** The social network a Reel is made for (its editing rules); publishing targets are `Platform`. */
+export type ReelPlatform = "none" | "instagram";
+
+/** Post copy for a rendering. Instagram Reels also get a line asking for the send and alt text. */
+export interface PostCopyData {
+  title: string;
+  description: string;
+  hashtags: string[];
+  sendPrompt?: string;
+  altText?: string;
+  platform?: ReelPlatform;
+  /** "template" = made from the project name and instructions without AI. */
+  source?: string;
+}
+
 export interface ApiErrorBody {
   code: string;
   message: string;
@@ -19,6 +34,8 @@ export interface ProjectSettings {
   audioStart?: number | null;
   style: string;
   exportPreset?: string;
+  /** The social network the Reel is made for: "instagram" tunes the edit, checks and caption to how Instagram ranks Reels. */
+  platform?: ReelPlatform;
   pace: "auto" | "calm" | "balanced" | "fast";
   /** mixed = best moments in any order; steps = every clip once, in the order it happened (recipes, tutorials). */
   sequence?: Sequence;
@@ -156,7 +173,7 @@ export interface Rendering {
   downloadUrl: string;
   kind?: "final" | "preview";
   timelineVersion?: number;
-  postCopy: { title: string; description: string; hashtags: string[] } | null;
+  postCopy: PostCopyData | null;
   performance?: PerformanceInput | null;
 }
 
@@ -921,6 +938,8 @@ export interface ReelPlan {
   aiDirector?: AiDirectorLog;
   /** Set when the AI director was asked for but the rule-based editor made this Reel (and why). */
   directorFallback?: { reason: string };
+  /** Present for Reels made for Instagram: how the Reel scores against Instagram's ranking signals. */
+  instagram?: InstagramReport;
   /** The Quality Reviewer's verdict on the final edit, with the revisions it made before rendering. */
   review?: CreativeReview;
   /** The strongest possible openings the director compared (best first). */
@@ -1209,7 +1228,7 @@ export interface Story {
   artStyle: string;
   characters: { name: string; look: string }[];
   scenes: StoryScene[];
-  postCopy: { title: string; description: string; hashtags: string[] } | null;
+  postCopy: PostCopyData | null;
   plannedBy: "ai" | "simple";
 }
 export interface StoryOptions {
@@ -1286,4 +1305,26 @@ export interface ReferenceReelInfo {
   summary: string;
   /** its own music is this project's song (same song, same point: the cuts line up with the original) */
   usesAudio?: boolean;
+}
+
+export type InstagramSignal = "hook" | "watch_time" | "rewatch" | "shares" | "eligibility" | "discovery";
+export interface InstagramCheck {
+  id: string;
+  signal: InstagramSignal;
+  name: string;
+  /** info = advice the app cannot measure (not scored). */
+  status: "pass" | "warn" | "fail" | "info";
+  detail: string;
+  tip: string;
+}
+export interface InstagramReport {
+  platform: "instagram";
+  score: number;
+  verdict: string;
+  /** Recommendation rules this Reel breaks (it is not shown to new viewers until they are fixed). */
+  blocked: string[];
+  signals: { id: InstagramSignal; label: string; score: number | null }[];
+  checks: InstagramCheck[];
+  postingTips: string[];
+  note: string;
 }

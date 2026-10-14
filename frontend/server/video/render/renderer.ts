@@ -55,7 +55,7 @@ function watermarkFilter(idx: number, wm: Watermark, cfg: RenderConfig): string 
   const fill = (s: string) => s.replace("{mx}", String(Math.trunc(cfg.width * 0.04))).replace("{my}", String(Math.trunc(cfg.height * 0.16))).replace("{mt}", String(Math.trunc(cfg.height * 0.07)));
   const [x, y] = WM[wm.position].map(fill);
   const w = Math.max(Math.floor(Math.trunc(cfg.width * wm.scale) / 2) * 2, 8);
-  return `[${idx}:v]format=rgba,scale=${w}:-2,colorchannelmixer=aa=${fixed(wm.opacity, 2)}[wm];[vp][wm]overlay=x=${x}:y=${y}:shortest=1[v]`;
+  return `[${idx}:v]format=rgba,scale=${w}:-2,colorchannelmixer=aa=${fixed(wm.opacity, 2)}[wm];[vp][wm]overlay=x=${x}:y=${y}:shortest=1${wm.showFrom ? `:enable='gte(t,${fixed(wm.showFrom, 3)})'` : ""}[v]`; // showFrom: the logo only on the closing seconds
 }
 
 export interface ComposeIn {

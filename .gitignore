@@ -27,3 +27,4 @@ frontend/tests/server/manual/profile.txt
 .wrangler/
 .dev.vars
 .env.backup
+frontend/tests/server/manual/out/

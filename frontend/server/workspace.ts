@@ -321,8 +321,12 @@ export async function duplicateProject(projectId: string, req: z.infer<typeof Du
   const d = await db(), doc = (await getProjectDoc(projectId)) as Doc;
   if (doc.status === "processing") throw new ConflictError("The project is being processed; try again when it finishes.", { code: "PROJECT_BUSY" });
   const newId = new ObjectId(), ids = new Map<string, string>(), newMedia: Record<string, unknown>[] = [];
+  const media = await d.collection("media").find({ projectId: doc._id }).toArray();
+  // every file must be here before anything is copied (a project made on another server, or whose uploads were deleted)
+  if (media.some((m) => m.purged || !fs.existsSync(localPath(m.storedKey as string))))
+    throw new ValidationFailed("Some of this project's files are not available here (deleted for privacy, or stored on another server), so it cannot be copied.", { code: "MEDIA_MISSING" });
   fs.mkdirSync(localPath(`projects/${newId}/input`), { recursive: true });
-  for (const m of await d.collection("media").find({ projectId: doc._id }).toArray()) {
+  for (const m of media) {
     const nid = new ObjectId();
     ids.set(String(m._id), String(nid));
     const sk = m.storedKey as string, key = `projects/${newId}/input/${nid}${sk.includes(".") ? "." + sk.split(".").pop() : ""}`;

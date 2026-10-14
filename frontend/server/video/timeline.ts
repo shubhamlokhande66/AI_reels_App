@@ -136,6 +136,15 @@ export function planSlots(audio: AudioAnalysis, audioStart: number, duration: nu
       const lim = Math.max(style.minSegment * 0.75, 0.2);
       if (snapped - t >= lim && duration - snapped >= lim) end = snapped;
     }
+    if (!slots.length && style.hookCut && end > style.hookCut && duration > style.hookCut + style.minSegment) {
+      // the opening shot ends on the last beat (or strong accent) before hookCut: the picture changes before people scroll on
+      const lo = Math.max(style.minSegment * 0.75, 0.4), hi = style.hookCut;
+      const cands = [...beats.filter((b) => lo <= b && b <= hi), ...accentsRel.filter(([a, s]) => lo <= a && a <= hi && s >= ACCENT_SNAP_MIN).map(([a]) => a)];
+      if (cands.length) {
+        end = round(Math.max(...cands), 3);
+        if (beats.length && beats[0] <= end) j = beats.reduce((m, b, k) => (b <= end + 1e-3 ? k : m), j);
+      }
+    }
     if (duration - end < style.minSegment) end = duration;
     const onStrong = strongRel.has(round(t, 3)) || dropsRel.some((d) => Math.abs(t - d) < 0.15);
     slots.push({ index: slots.length, start: round(t, 3), end: round(end, 3), energy: meanEnergy(audio, audioStart + t, audioStart + end), onStrong });
@@ -257,6 +266,7 @@ export async function selectSegments(slots: Slot[], clips: ClipInput[], style: E
   const segments: Segment[] = [];
   let prev: [ClipInput, UsableWindow] | null = null;
   const nSlots = slots.length;
+  let firstSig: number[] = [];
   let reusedWarned = false, slowWarned = false;
   const terms = briefTerms(brief);
   for (const slot of slots) {
@@ -268,6 +278,7 @@ export async function selectSegments(slots: Slot[], clips: ClipInput[], style: E
     let span = L * speed;
     let tgt = targetMotion(slot.energy, style.motionPreference);
     if (isFirst && style.opening === "establishing") tgt = 0.2;
+    else if (isFirst && style.opening === "hook") tgt = Math.max(tgt, 0.75); // the scroll-stopping opening moves, whatever the music does there
     let cands: Cand[] = [];
     for (const clip of pool) {
       for (const w of windowsOf(clip)) {
@@ -334,12 +345,15 @@ export async function selectSegments(slots: Slot[], clips: ClipInput[], style: E
         else if (slot.index === peak) score += 0.4 * onHero;
       }
       if (slot.index === peak) score += 0.2 * intel.heroValue(clip, w, c.start, c.end);
+      if (isFirst && style.opening === "hook") score += 0.15 * w.quality + 0.25 * motion + 0.1 * Math.min(w.brightness, 0.8) + (w.face ? 0.08 : 0); // the frame that decides the scroll
+      if (isLast && style.loopEnd && firstSig.length) score += 0.25 * intersection(w.signature, firstSig); // colours like the opening: the replay feels seamless
       if (isLast && style.closing === "reveal") score += 0.3 * w.sharpness * Math.max(w.brightness, 0.2) + 0.1 * (1 - motion);
       if (orderHint && clip.clipId in orderHint) score += 0.15 * (1 - Math.abs(slot.index / Math.max(nSlots - 1, 1) - orderHint[clip.clipId]));
       score += rng.uniform(-0.03, 0.03);
       c.score = score;
     }
     const chosen = cands.reduce((best, c) => (c.score > best.score ? c : best), cands[0]);
+    if (isFirst) firstSig = chosen.window.signature;
     if (replay) {
       speed = footage.REPLAY_SPEED;
       chosen.end = chosen.start + L * speed;

@@ -1,4 +1,5 @@
 import "server-only";
+import { DIRECTOR_RULES, forInstagram } from "@/server/platforms/instagram";
 import fs from "node:fs";
 import path from "node:path";
 import { draftPlan, mergeAi, type CreativePlan, type HookOption, type ProjectBrief } from "@/server/director/creative";
@@ -47,7 +48,7 @@ const impl: PipelineAi = {
     } catch { /* a rhythm hint is optional */ }
     const [facts, alias] = buildRequest(o.clips, o.audio, mm, audioStart, eff, styles, { brief: ps.brief, language: ps.language, styleHint: keepStyle ? o.style.id : null, captions: ps.captions,
       cta: ps.ctaText, hook: ps.hookText, pace: ps.pace, suggestedCuts: suggested, references: ps.references ?? [], projectBrief: brief ? { ...brief, notes: undefined } : null,
-      creative: draft as unknown as Record<string, unknown>, hooks, brand: brandFacts(ps.brand ?? null) });
+      creative: draft as unknown as Record<string, unknown>, hooks, brand: brandFacts(ps.brand ?? null), platformRules: forInstagram(ps) ? DIRECTOR_RULES : null });
     if (!Object.keys(alias).length) return null;
     const provider = getProvider("director"), key = cacheKey(facts, provider.model, o.seed);
     const file = ps.projectId ? localPath(projectKey(ps.projectId, "analysis", `director_${key}.json`)) : null;

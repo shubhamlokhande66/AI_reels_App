@@ -73,6 +73,9 @@ export type VoiceTrack = z.infer<typeof VoiceTrack>;
 export const Watermark = z.object({
   logoKey: z.string(), position: z.enum(["br", "bl", "tr", "tl", "center"]).default("br"),
   opacity: num.min(0.05).max(1).default(0.85), scale: num.min(0.04).max(0.6).default(0.16),
+  // null = on every frame; a time = the logo appears only from that second on (Instagram recommends fewer Reels with a logo
+  // on screen, so a Reel made for Instagram shows the brand only on its closing seconds)
+  showFrom: num.min(0).nullable().default(null),
 });
 export type Watermark = z.infer<typeof Watermark>;
 

@@ -56,6 +56,7 @@ export const ProjectSettings = z.object({
   aiDirector: z.boolean().default(true),
   beatPlan: z.boolean().default(false),
   cutEveryBeat: z.boolean().default(false),
+  platform: z.enum(["none", "instagram"]).default("none"), // instagram = edit, check and write copy for how Instagram ranks Reels (server/platforms)
   hardHitsOnly: z.boolean().default(false), // cut only on hard hits (drops, comebacks, dropouts, major beats); normal beats ignored
   minClip: MinClip.default(0.35),
   autoReview: z.boolean().default(true),
@@ -104,6 +105,7 @@ export const ProjectUpdate = z.object({
   aiDirector: z.boolean().nullable(),
   beatPlan: z.boolean().nullable(),
   cutEveryBeat: z.boolean().nullable(),
+  platform: z.enum(["none", "instagram"]).nullable(),
   hardHitsOnly: z.boolean().nullable(),
   minClip: MinClip.nullable(),
   autoReview: z.boolean().nullable(),

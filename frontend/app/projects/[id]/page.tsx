@@ -13,6 +13,7 @@ import { PublishPanel } from "@/components/organisms/PublishPanel";
 import { RetentionNotice } from "@/components/organisms/RetentionSettings";
 import { PerformanceForm, ProjectTools } from "@/components/organisms/ProjectTools";
 import { ReelPlanPanel } from "@/components/organisms/ReelPlanPanel";
+import { InstagramReport } from "@/components/organisms/InstagramReport";
 import { CreativeDirectorPanel } from "@/components/organisms/CreativeDirectorPanel";
 import { ProjectFootageGate, checkProject } from "@/components/molecules/ProjectFootageGate";
 import type { FootageCheck } from "@/lib/footage";
@@ -299,6 +300,9 @@ export default function ProjectPage() {
         </Card>
       </section>
 
+      {project.status !== "processing" && project.reelPlan?.instagram && (
+        <InstagramReport report={project.reelPlan.instagram} stale={(project.reelPlan.timelineVersion ?? 0) < (project.timelineVersion ?? 0)} />
+      )}
       {admin && project.status !== "processing" && project.reelPlan && (
         <ReelPlanPanel plan={project.reelPlan} stale={(project.reelPlan.timelineVersion ?? 0) < (project.timelineVersion ?? 0)} />
       )}

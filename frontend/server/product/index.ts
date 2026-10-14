@@ -14,6 +14,7 @@ import { newResult, type PipelineInput, type PipelineResult, type StageProgress 
 import { projectKey } from "@/server/media/service";
 import type { AudioAnalysis } from "@/server/models/analysis";
 import { localPath } from "@/server/storage/local";
+import { finalizeCopy, forInstagram } from "@/server/platforms/instagram";
 import { chooseMusicWindow } from "@/server/video/timeline";
 import { applyDirection, getProductStyle, planReel, type AiDirection, type Direction, type ImageUnderstanding, type ProductReelPlan, type ProductStyle } from "./director";
 import { FINAL, PREVIEW, renderReel } from "./render";
@@ -122,7 +123,7 @@ export async function runProduct(inp: PipelineInput, progress: StageProgress): P
   const res = newResult(), [plan, style] = await makeProductPlan(inp, progress);
   res.productPlan = plan as unknown as Record<string, unknown>;
   res.warnings = plan.warnings;
-  res.postCopy = plan.postCopy;
+  res.postCopy = forInstagram(inp.settings) ? finalizeCopy(plan.postCopy, { name: inp.projectName, brief: inp.settings.brief, language: inp.settings.language }) : plan.postCopy;
   const outKey = projectKey(inp.projectId, "output", `${inp.kind === "preview" ? "preview_" : ""}${inp.renderingId}.mp4`), work = localPath(projectKey(inp.projectId, "temp", `product_${inp.renderingId}`));
   const files = plan.images.map((mid) => localPath(inp.images.find((im) => im.id === mid)!.key));
   try {

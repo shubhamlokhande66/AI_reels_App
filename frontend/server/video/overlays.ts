@@ -11,9 +11,11 @@ export function cleanText(text: string, limit = 80): string {
   return text.replace(/[\x00-\x1f\x7f{}\\]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
 
-const EMOJI = /[🀀-🫿☀-➿⬀-⯿️‍󠀠-󠁿]/gu;
+// pictographs, symbols and dingbats, the emoji variation selector, the zero-width joiner and flag tag characters
+// (written as surrogate pairs, without the u flag: the build's older JavaScript target mangles \u{...} ranges)
+const EMOJI = /(?:\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDC00-\uDEFF]|\uDB40[\uDC20-\uDC7F]|[☀-➿⬀-⯿️‍])/g;
 /** Emoji out: the video text engine draws them as grey outlines, not in colour. They belong in the post caption. */
-export const stripEmoji = (text: string) => text.replace(EMOJI, "").replace(/s+/g, " ").trim();
+export const stripEmoji = (text: string) => text.replace(EMOJI, "").replace(/\s+/g, " ").trim();
 
 /** Clean, no emoji, at most OVERLAY_MAX_WORDS words and OVERLAY_MAX_CHARS characters (cut at a word boundary). */
 export function tidyText(text: string): string {
