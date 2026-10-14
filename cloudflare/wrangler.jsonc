@@ -19,11 +19,11 @@
   ],
   "durable_objects": { "bindings": [{ "name": "APP", "class_name": "ReelApp" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReelApp"] }],
-  // hourly: auto-delete and scheduled posts. Each run wakes the container (billed for about SLEEP_AFTER), so keep it rare.
+  // hourly: auto-delete and scheduled posts. Each run wakes the container briefly (about SLEEP_AFTER plus the start-up).
   "triggers": { "crons": ["0 * * * *"] },
   "vars": {
     "NODE_ENV": "production",
-    "SLEEP_AFTER": "15m",
+    "SLEEP_AFTER": "30s", // stops 30 s after the last request (an upload or download in progress counts; a running job pings itself)
     "STORAGE_PATH": "/data/storage",
     "R2_BUCKET": "smgroup",
     "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",

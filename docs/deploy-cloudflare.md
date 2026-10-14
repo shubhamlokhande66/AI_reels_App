@@ -47,7 +47,7 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
 
 ## 4. How it behaves
 - **One container** (2 vCPU, 8 GB: `instance_type` in `wrangler.jsonc`), because the job queue lives in it. It **sleeps**
-  after 15 minutes without requests (`SLEEP_AFTER`) and wakes on the next one: the **first request after a sleep takes
+  30 seconds after the last request (`SLEEP_AFTER`; an upload or download in progress counts) and wakes on the next one: the **first request after a sleep takes
   some seconds** (the container starts and mounts R2). While a Reel is being made, the app pings itself so it stays awake.
 - **Cost**: you pay for the time the container is awake (CPU, memory, disk) beyond what the Workers Paid plan includes.
   The hourly cron wakes it briefly; make the cron rarer (or remove it) in `wrangler.jsonc` to save more.

@@ -13,6 +13,6 @@ export async function register() {
   if (settings.keepAliveUrl) {
     setInterval(() => {
       if (busyJobs() > 0) fetch(settings.keepAliveUrl, { signal: AbortSignal.timeout(20_000) }).catch(() => {});
-    }, 60_000).unref?.();
+    }, 10_000).unref?.(); // well inside SLEEP_AFTER (30 s on Cloudflare)
   }
 }

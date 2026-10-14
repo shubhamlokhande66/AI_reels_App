@@ -14,7 +14,7 @@ interface Env {
 
 export class ReelApp extends Container<Env> {
   defaultPort = 3000;
-  sleepAfter = "15m";
+  sleepAfter = "30s";
   constructor(ctx: ConstructorParameters<typeof Container<Env>>[0], env: Env) {
     super(ctx, env);
     if (typeof env.SLEEP_AFTER === "string" && env.SLEEP_AFTER) this.sleepAfter = env.SLEEP_AFTER;
