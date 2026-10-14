@@ -21,7 +21,7 @@ function save(name: string, data: unknown) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** The song analysis document (librosa), as measured: tempo, beats, onsets, events, silences, changes. */
+/** The song analysis document (Essentia), as measured: tempo, beats, onsets, events, silences, changes. */
 export function SongAnalysis({ projectId, data }: { projectId: string; data: SongAnalysisData }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +46,7 @@ export function SongAnalysis({ projectId, data }: { projectId: string; data: Son
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-medium">Song analysis (librosa)</h3>
+          <h3 className="text-sm font-medium">Song analysis (Essentia)</h3>
           <p className="text-xs text-muted">
             Schema {data.schema_version} · {data.tempo.bpm} BPM (or {data.tempo.alternative_bpm}) · {data.beats.length} beats ·{" "}
             {data.beats.filter((b) => b.downbeat).length} bar starts · {data.candidate_events.length} events · {data.audio.duration_sec}s

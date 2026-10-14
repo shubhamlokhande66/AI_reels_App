@@ -1,4 +1,5 @@
 import { round } from "@/server/core/py";
+import { KEY_SCORE, scoreBeats } from "@/server/audio/keyBeats";
 import { energyAt, meanEnergy, type AudioAnalysis } from "@/server/models/analysis";
 
 /** The song as an editor reads it (was director/music_map.py): beat levels, bars, phrases, pauses, energy curve, all in
@@ -7,7 +8,7 @@ import { energyAt, meanEnergy, type AudioAnalysis } from "@/server/models/analys
 export const LEVEL_NAMES: Record<number, string> = { 1: "subtle", 2: "normal", 3: "strong", 4: "major" };
 export const LEVEL_ACTION: Record<number, string> = { 1: "micro movement", 2: "camera movement", 3: "cut / zoom / text", 4: "reveal / major transition" };
 const ENERGY_LEVELS: [number, string][] = [[0.85, "very_high"], [0.6, "high"], [0.35, "medium"], [0, "low"]];
-const PAUSE_LEVEL = 0.08, PAUSE_MIN = 0.35, ACCENT_NEAR = 0.09, ACCENT_NORMAL = 0.55, ACCENT_STRONG = 0.9, DROP_NEAR = 0.15;
+const PAUSE_LEVEL = 0.08, PAUSE_MIN = 0.35, ACCENT_NEAR = 0.09, DROP_NEAR = 0.15;
 
 export interface Beat { t: number; level: number; downbeat: boolean }
 export interface MusicMap {
@@ -23,8 +24,9 @@ export function levelAt(mm: MusicMap, t: number, tol = 0.06): number {
   const b = mm.beats.reduce((best, x) => (Math.abs(x.t - t) < Math.abs(best.t - t) ? x : best), mm.beats[0]);
   return Math.abs(b.t - t) <= tol ? b.level : 1;
 }
-/** Beat-grid times plus real strong accents: what "on the beat" means to a human editor. */
-export const snapPoints = (mm: MusicMap) => [...new Set([...mm.beats.map((b) => b.t), ...mm.accents.filter(([, s]) => s >= 0.6).map(([a]) => a)])].sort((a, b) => a - b);
+/** Where a cut may land: the key beats (level 3-4: drops, new song parts, bar starts, the hardest hits) and the drops.
+ * Never every beat, and never a hit between beats. */
+export const snapPoints = (mm: MusicMap) => [...new Set([...mm.beats.filter((b) => b.level >= 3).map((b) => b.t), ...mm.drops])].sort((a, b) => a - b);
 export function energyAtMap(mm: MusicMap, t: number): string {
   for (const [a, b, n] of mm.energyCurve) if (a - 1e-6 <= t && t < b) return n;
   return mm.energyCurve.length ? mm.energyCurve[mm.energyCurve.length - 1][2] : "medium";
@@ -84,11 +86,12 @@ export function buildMusicMap(audio: AudioAnalysis, start: number, duration: num
   const strong = new Set(audio.strongBeats.filter(inside).map(rel));
   const drops = audio.drops.filter(inside).map(rel);
   const accents: [number, number][] = audio.accents.map((t, i) => [t, audio.accentStrengths[i]] as [number, number]).filter(([t]) => inside(t)).map(([t, s]) => [rel(t), s]);
+  const scored = scoreBeats(audio);
   const beats: Beat[] = audio.beats.filter(inside).map((b) => {
     const t = Math.max(rel(b), 0);
-    const near = accents.filter(([a]) => Math.abs(a - t) <= ACCENT_NEAR).map(([, s]) => s);
-    const hit = near.length ? Math.max(...near) : 0;
-    const level = drops.some((d) => Math.abs(d - t) <= DROP_NEAR) ? 4 : strong.has(t) || strong.has(rel(b)) || hit >= ACCENT_STRONG ? 3 : hit >= ACCENT_NORMAL ? 2 : 1;
+    // the level is the key-beat score (audio/keyBeats.ts): 4 = drop / new part, 3 = key beat (bar start, hardest hit)
+    const k = scored.find((x) => Math.abs(x.t - b) <= 0.001);
+    const level = drops.some((d) => Math.abs(d - t) <= DROP_NEAR) || k?.why === "drop" || k?.why === "section" ? 4 : (k?.score ?? 0) >= KEY_SCORE ? 3 : (k?.score ?? 0) >= 0.3 ? 2 : 1;
     return { t: round(t, 3), level, downbeat: strong.has(rel(b)) };
   });
   const bars = beats.filter((b) => b.downbeat).map((b) => b.t), phrases = bars.filter((_, i) => i % 4 === 0);

@@ -3,11 +3,14 @@ import { annotatePlan } from "@/server/director/planMotion";
 import * as pr from "@/server/director/paceRules";
 import type { AudioAnalysis } from "@/server/models/analysis";
 import { energyAt, meanEnergy, sectionAt } from "@/server/models/analysis";
+import { beatScore, KEY_SCORE } from "./keyBeats";
 
 /** The song's beat map and cut plan (was backend/app/audio/beatmap.py): beats, strong hits, hits between beats, rolls,
  * rises / falls, and the edit cut by cut - from the cached analysis, no AI. Effect names are the renderer's own. */
 
 export const CURVE_STEP = 0.25;
+/** a shot lasts at least this many beats unless every beat was asked for (about a bar loud, two calm) */
+const KEY_BEATS_LOUD = 4, KEY_BEATS_CALM = 8;
 const TREND_WINDOW = 4, TREND_MIN = 0.12, MIN_TREND_SECONDS = 2, MAJOR_HIT = 0.95, HARD_SUB = 0.9, MIN_SHOT = 0.35, PUNCH_GAP = 3;
 const TRANSITIONS: Record<string, [string[], number]> = {
   drop: [["flash"], 0.2], major_loud: [["slide_left", "cover_up", "slide_right", "cover_down"], 0.24], beat_loud: [["slide_up", "slide_left", "slide_down", "slide_right"], 0.2],
@@ -142,7 +145,8 @@ export class Song {
     return LOUD_PARTS.has(this.part(t)) || meanEnergy(this.a, Math.max(t - 2, 0), t + 2) >= this.loudCut;
   }
   isDrop(t: number) { return near(this.drops, t, this.period * 0.5); }
-  isMajor(t: number) { return near(this.strong, t, 0.06) || this.hit(t) >= MAJOR_HIT; }
+  /** a key beat (audio/keyBeats.ts): a drop, a new part, a bar start or one of the hardest hits around it */
+  isMajor(t: number) { return beatScore(this.a, t) >= KEY_SCORE; }
   key(t: number): string {
     if (this.isDrop(t)) return "drop";
     return (this.isMajor(t) ? "major_" : "beat_") + (this.loud(t) ? "loud" : "soft");
@@ -255,16 +259,17 @@ export function cutPlan(a: AudioAnalysis, song: Song | null = null, trendsIn: Tr
   const tr = trendsIn ?? songTrends(a);
   const trendAt = (t: number) => tr.find((x) => x.start <= t && t < x.end)?.kind ?? "";
   const pace = pr.paceFor(s.period);
-  const grid = s.beats.filter((b) => start + minShot <= b && b <= end - ENDING);
+  // cuts only on key beats (drops, new parts, bar starts, the hardest hits), unless every beat was asked for
+  const grid = s.beats.filter((b) => start + minShot <= b && b <= end - ENDING && (everyBeat || s.isMajor(b) || s.isDrop(b)));
   const cuts: number[] = [];
   let last = start;
   for (const b of grid) {
     const t = trendAt(b), loud = s.loud(b);
     const inDrop = s.drops.some((d) => b - d >= 0 && b - d <= pr.DROP_BARS * 4 * s.period);
-    let step = pr.cutStep(pace, s.period, loud, t, inDrop, minShot);
+    let step = Math.max(pr.cutStep(pace, s.period, loud, t, inDrop, minShot), loud ? KEY_BEATS_LOUD : KEY_BEATS_CALM);
     if (everyBeat) step = s.period < minShot ? Math.max(1, round(minShot / s.period + 0.49)) : 1;
     const since = round((b - last) / s.period);
-    const due = since >= step && (near(s.strong, b, 0.06) || since >= step + 1 || step === 1);
+    const due = since >= step || (everyBeat && step === 1);
     const first = !cuts.length && s.isMajor(b) && b - start <= 2.5;
     if ((s.isDrop(b) || first || due) && b - last >= minShot) {
       cuts.push(b);

@@ -11,8 +11,9 @@ import { localPath } from "@/server/storage/local";
 /** The project's song, analysed once (the music endpoints and the editor read this; was api/jobs._project_song_analysis
  * and services/music_reel.song_document). */
 
-/** 5 = Essentia beats; 4 = bar starts / strong beats from accents; raise when analysisJson changes what it returns. */
-export const ANALYSIS_JSON_VERSION = 5;
+/** 6 = beats exactly as Essentia detected them, transients, bars only with evidence; 5 = Essentia beats; raise when
+ * analysisJson changes what it returns. */
+export const ANALYSIS_JSON_VERSION = 6;
 
 export async function projectSong(projectId: string) {
   const doc = await getProjectDoc(projectId);

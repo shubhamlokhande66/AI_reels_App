@@ -197,7 +197,7 @@ export async function planStory(p: ManagedProvider, brief: string, language: str
 // ------------------------------------------------------------------ reviewer
 export const FIXES: Record<string, string> = {
   replace_opening: "open on a stronger shot (the hook is weak)", hero_on_drop: "put the strongest moment on the music's drop / peak", strengthen_middle: "replace a weak shot in the middle (give the time in seconds)",
-  strengthen_ending: "end on a stronger shot", swap_repetitive: "replace a shot that looks like the one before it (give the time)", calm_transitions: "turn unnecessary transitions into clean cuts",
+  strengthen_ending: "end on a stronger shot", swap_repetitive: "replace a shot that looks like the one before it (give the time)", add_transitions: "give a plain cut a transition (every cut has one)",
   split_long_shot: "split a shot that drags in a loud part (give the time)", match_motion: "replace a shot whose movement reverses the one before (give the time)", fade_out_music: "fade the music out at the end",
   lower_music: "lower the music (it is too loud or clips)",
 };

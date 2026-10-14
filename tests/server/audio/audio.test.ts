@@ -5,12 +5,11 @@ import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { analyzeAudio, ANALYSIS_VERSION, computeEnergy, findAccents, findDrops, highEnergySections } from "@/server/audio/analyzer";
 import { bpmFromBeats, foldBpm } from "@/server/audio/bpm";
-import { timeToFrames } from "@/server/audio/dsp/spectral";
 import { median, percentile } from "@/server/audio/dsp/util";
 import type { AudioAnalysis } from "@/server/models/analysis";
 import { meanEnergy } from "@/server/models/analysis";
 import { AppError } from "@/server/core/errors";
-import { barSong, makeClickTrack, SR, writeWav } from "./fixtures";
+import { makeClickTrack, SR, writeWav } from "./fixtures";
 import { rng } from "../rng";
 
 /** The music analysis on songs with known answers (were backend/tests/test_audio.py), now with Essentia's beats. */

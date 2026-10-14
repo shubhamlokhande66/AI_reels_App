@@ -146,7 +146,7 @@ export function CreateReelForm() {
   const pid = project?.id ?? songProjectId;
   const beatMapQ = useQuery({ queryKey: ["beatMap", pid], queryFn: () => api.beatMap(pid!), enabled: songReady && !!pid, staleTime: Infinity });
   const beatMap = audio ? beatMapQ.data : undefined;
-  // the song analysis document (librosa measurements: beats, onsets, frame features, events), made when the song is added
+  // the song analysis document (Essentia beats and onsets, transients, frame features, events), made when the song is added
   const analysisQ = useQuery({ queryKey: ["songAnalysis", pid], queryFn: () => api.songAnalysis(pid!), enabled: songReady && !!pid, staleTime: Infinity });
   const songAnalysis = audio ? analysisQ.data : undefined;
   const audioUrl = useMemo(() => (audio ? audioBlobUrl(audio) : ""), [audio]);
@@ -375,11 +375,11 @@ export function CreateReelForm() {
       await api.uploadAudio(id, file, (f) => setBar(f * 100));
       done.current.audio = true;
       setBar(null);
-      addLine("Analysing every beat: major beats, beats, sub-beats, build-ups, breakdowns, drops and the song's parts");
+      addLine("Analysing the music: beats, key beats (where cuts go), hits, build-ups, breakdowns, drops and the song's parts");
       const map = await api.beatMap(id);
       qc.setQueryData(["beatMap", id], map);
-      addLine(`${map.bpm} BPM · ${map.counts.major} major beats · ${map.counts.beat} beats · ${map.counts.sub} sub-beats · ${map.counts.drops} drops · ${map.counts.rises} build-ups · ${map.counts.falls} breakdowns`);
-      addLine("Song analysis (librosa): beats, onsets, frame features and events");
+      addLine(`${map.bpm} BPM · ${map.counts.major} key beats · ${map.counts.beat} beats · ${map.counts.sub} sub-beats · ${map.counts.drops} drops · ${map.counts.rises} build-ups · ${map.counts.falls} breakdowns`);
+      addLine("Song analysis (Essentia): beats, onsets, transients and events");
       const analysis = await api.songAnalysis(id);
       qc.setQueryData(["songAnalysis", id], analysis);
       addLine(analysis.status === "completed"

@@ -6,11 +6,14 @@ import { meanEnergy, sectionAt } from "@/server/models/analysis";
 import { motionBetween, semanticTerms, windowDefaults, windowLength, type ClipInput, type UsableWindow } from "@/server/models/clip";
 import { parseTimeline, Segment, segLength, type Timeline, type Transition } from "@/server/models/timeline";
 import type { EditingStyle } from "@/server/styles";
+import { keyBeats } from "@/server/audio/keyBeats";
 import * as footage from "./footage";
 
 /** The editing engine: beats + clip analyses + style -> Timeline (was backend/app/video/timeline.py). Pure functions;
  * the same seed gives the same edit (Python's own random generator), a different seed another version. */
 
+/** a shot lasts at least this many beats (about a bar in loud music, two in calm music), whatever the style says */
+const KEY_BEATS_LOUD = 4, KEY_BEATS_CALM = 8, REACH = 1.5;
 const MIN_SLOW_SPEED = 0.4, HIGH_ENERGY = 0.6, START_STEPS = 6, ACCENT_MIN_STRENGTH = 0.55, ACCENT_MIN_SHOT = 1.4, ACCENT_EDGE = 0.45, ACCENT_GAP = 0.8;
 const ACCENT_FRAME = 1 / 24, ACCENT_SNAP_TOL = 0.12, ACCENT_SNAP_MIN = 0.6;
 export const FLASH_MARGIN = 0.25;
@@ -89,59 +92,56 @@ export function snapToAccent(t: number, accents: [number, number][], tol = ACCEN
   return near.length ? near.reduce((x, p) => (Math.abs(p[0] - t) < Math.abs(x[0] - t) ? p : x), near[0])[0] : t;
 }
 
-/** Cut points on beats (snapped onto a real accent nearby); pace follows the music energy and the style. */
+/** Cut points on KEY beats only (drops, new song parts, bar starts, the hardest hits: server/audio/keyBeats.ts), never on
+ * every beat: a shot lasts about a bar in loud music and two bars in calm music (at least the style's own pace), within
+ * the style's shortest / longest shot. Drops always get a cut when one fits. */
 export function planSlots(audio: AudioAnalysis, audioStart: number, duration: number, style: EditingStyle): Slot[] {
   const beats = gridBeats(audio, audioStart, duration);
-  const strongRel = new Set(audio.strongBeats.map((b) => round(b - audioStart, 3)));
-  const dropsRel = audio.drops.map((d) => d - audioStart);
-  const accentsRel = audio.accents.map((t, i) => [round(t - audioStart, 3), audio.accentStrengths[i]] as [number, number]);
+  const key = keyBeats(audio, audioStart - 0.03, audioStart + duration + 0.03).map((k) => ({ t: round(k.t - audioStart, 3), score: k.score, why: k.why }));
+  const dropsRel = (audio.dropTimes?.length ? audio.dropTimes : audio.drops).map((d) => d - audioStart);
   const period = audio.bpm > 0 ? 60 / audio.bpm : 0.5;
-  const tAt = (i: number) => (i < beats.length ? beats[i] : beats[beats.length - 1] + (i - beats.length + 1) * period);
   const slots: Slot[] = [];
-  let i = 0, t = 0;
+  let t = 0;
   while (duration - t > 1e-3) {
     const e = meanEnergy(audio, audioStart + t, audioStart + Math.min(t + 2 * period, duration));
-    let n = e >= HIGH_ENERGY ? style.cutBeatsHigh : style.cutBeatsLow;
+    let n = e >= HIGH_ENERGY ? Math.max(style.cutBeatsHigh, KEY_BEATS_LOUD) : Math.max(style.cutBeatsLow, KEY_BEATS_CALM);
     const sec = audio.songSections.length ? sectionAt(audio, audioStart + t) : null;
-    if (sec && style.sectionPacing) {
-      if (["intro", "outro", "bridge"].includes(sec.label)) n *= 2;
-      else if (sec.label === "drop" && n >= 2) n = Math.floor(n / 2);
-    }
-    n = Math.max(n, 1);
-    let bestJ = i + n, bestPen = 1;
-    for (const j of [i + n, i + n - 1, i + n + 1]) {
-      if (j <= i) continue;
-      const length = tAt(j) - t;
-      if (length < style.minSegment * 0.9 || length > style.maxSegment * 1.1) continue;
-      const pen = (strongRel.has(round(tAt(j), 3)) ? 0 : 0.5) + Math.abs(j - (i + n)) * 0.25;
-      if (pen < bestPen) { bestJ = j; bestPen = pen; }
-    }
-    let j = bestJ;
-    while (tAt(j) - t < style.minSegment && j < i + 64) j++;
-    let end = Math.min(tAt(j), duration);
-    if (end < duration - 1e-6) {
-      const snapped = snapToAccent(end, accentsRel);
-      const lim = Math.max(style.minSegment * 0.75, 0.2);
-      if (snapped - t >= lim && duration - snapped >= lim) end = snapped;
-    }
-    if (!slots.length && style.hookCut && end > style.hookCut && duration > style.hookCut + style.minSegment) {
-      // the opening shot ends on the last beat (or strong accent) before hookCut: the picture changes before people scroll on
-      const lo = Math.max(style.minSegment * 0.75, 0.4), hi = style.hookCut;
-      const cands = [...beats.filter((b) => lo <= b && b <= hi), ...accentsRel.filter(([a, s]) => lo <= a && a <= hi && s >= ACCENT_SNAP_MIN).map(([a]) => a)];
-      if (cands.length) {
-        end = round(Math.max(...cands), 3);
-        if (beats.length && beats[0] <= end) j = beats.reduce((m, b, k) => (b <= end + 1e-3 ? k : m), j);
+    if (sec && style.sectionPacing && ["intro", "outro", "bridge"].includes(sec.label)) n *= 2;
+    const target = n * period;
+    const lo = t + Math.max(style.minSegment, Math.min(0.75 * target, style.maxSegment * 0.6));
+    const hi = t + Math.max(Math.min(style.maxSegment, 1.5 * target), lo - t);
+    const opening = !slots.length && style.hookCut && duration > style.hookCut + style.minSegment;
+    let end: number;
+    if (opening) {
+      // the opening shot ends on the last key beat (else beat) before hookCut: the picture changes before people scroll on
+      const first = Math.max(style.minSegment * 0.75, 0.4), cap = style.hookCut!;
+      const ks = key.filter((k) => first <= k.t && k.t <= cap), bs = beats.filter((x) => first <= x && x <= cap);
+      end = ks.length ? ks[ks.length - 1].t : bs.length ? bs[bs.length - 1] : Math.min(cap, duration);
+    } else {
+      // a key beat (or the drop) just past the style's longest shot is better than a plain beat before it
+      const reach = t + (hi - t) * REACH;
+      const drop = dropsRel.find((d) => t + style.minSegment <= d && d <= reach);
+      const inRange = key.filter((k) => lo <= k.t && k.t <= hi), next = key.find((k) => hi < k.t && k.t <= reach);
+      if (drop !== undefined) end = key.find((k) => Math.abs(k.t - drop) <= period / 2)?.t ?? drop;
+      else if (inRange.length) end = inRange.reduce((best, k) => (pick(k, t, target) > pick(best, t, target) ? k : best)).t;
+      else if (next) end = next.t;
+      else {
+        const bs = beats.filter((x) => lo <= x && x <= hi); // no key beat in reach: the beat closest to the target length
+        end = bs.length ? bs.reduce((x, y) => (Math.abs(y - t - target) < Math.abs(x - t - target) ? y : x)) : Math.min(t + target, duration);
       }
     }
+    end = Math.min(end, duration);
+    if (end - t < 0.2) end = Math.min(t + Math.max(style.minSegment, 0.2), duration);
     if (duration - end < style.minSegment) end = duration;
-    const onStrong = strongRel.has(round(t, 3)) || dropsRel.some((d) => Math.abs(t - d) < 0.15);
+    const onStrong = key.some((k) => Math.abs(k.t - t) < 0.03) || dropsRel.some((d) => Math.abs(t - d) < 0.15);
     slots.push({ index: slots.length, start: round(t, 3), end: round(end, 3), energy: meanEnergy(audio, audioStart + t, audioStart + end), onStrong });
     t = end;
-    i = j;
   }
   slots[slots.length - 1].end = round(duration, 3);
   return slots;
 }
+/** How good a key beat is as the end of a shot that started at t: its score, less how far it is from the target length. */
+const pick = (k: { t: number; score: number }, t: number, target: number) => k.score - 0.35 * Math.abs(k.t - t - target) / Math.max(target, 1e-6);
 
 function bestStart(inner: number[], refDuration: number, duration: number): number {
   const bounds = [0, ...inner, refDuration];

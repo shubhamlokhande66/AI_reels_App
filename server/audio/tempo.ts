@@ -1,7 +1,7 @@
 import { round } from "@/server/core/py";
 import { autocorrelate } from "./dsp/fft";
 import { tempo as tempoOf, timeToFrames } from "./dsp/spectral";
-import { argsortDesc, clip, diff, max, mean, median, percentile } from "./dsp/util";
+import { clip, diff, max, mean, median, percentile } from "./dsp/util";
 
 /** Tempo that may change through the song, how sure each beat is, and the bar starts (was backend/app/audio/tempo.py).
  * The song is read in overlapping windows; each window's tempo is measured from the beats and, independently, from the

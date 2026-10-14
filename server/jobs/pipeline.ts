@@ -30,6 +30,7 @@ import * as ig from "@/server/platforms/instagram";
 import { renderConfig, type RenderConfig, type SourceClip } from "@/server/video/render/cutter";
 import { pickEncoder } from "@/server/video/render/parts";
 import { renderTimeline, type RenderResult } from "@/server/video/render/renderer";
+import { ensureTransitions } from "@/server/video/transitions";
 import { assFilter, captionsToCues, cuesToCaptions, groupWords, writeAss, writeOverlaysAss, type Word } from "@/server/video/render/text";
 import { buildStepsTimeline, buildTalkingTimeline, orderClips } from "@/server/video/steps";
 import { buildTimeline, rankMusicWindows, referenceWindow } from "@/server/video/timeline";
@@ -444,6 +445,7 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
     timeline.warnings.unshift(`Not enough good footage: about ${fixed(good, 0)}s of usable video for a ${g(timeline.duration)}s Reel (about ${fixed(FOOTAGE_HEADROOM * timeline.duration, 0)}s is needed to pick the best moments without slowing shots down or showing moments twice). Add clips, or make the Reel shorter.`);
   timeline.notes = [...timeline.notes, ...notes];
   if (ig.forInstagram(settings)) timeline.notes.push(...ig.polishTimeline(timeline, settings.hookText, settings.ctaText));
+  ensureTransitions(timeline, audio); // every cut is entered with a transition (none left as a plain cut)
   res.timeline = timeline;
   progress("creating_timeline", 1);
   if (settings.ai && !res.postCopy && directorError === null) {

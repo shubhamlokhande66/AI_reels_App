@@ -5,6 +5,7 @@ import { isFresh, overlapSeconds } from "@/server/video/footage";
 import { beatDistance, briefTerms, cutMoments, windowsOf } from "@/server/video/timeline";
 import * as intel from "./intelligence";
 import { energyAtMap, levelAt, loudLimit, snapPoints, type MusicMap } from "./musicMap";
+import { chooseTransition, ensureTransitions } from "@/server/video/transitions";
 import type { Check } from "./review";
 
 /** The Quality Reviewer (was director/creative_review.py): scores an edit 0-100 with timestamped issues and repairs what
@@ -97,10 +98,10 @@ export function reviewEdit(tl: Timeline, clips: ClipInput[], mm: MusicMap | null
   const q = wins.filter((w): w is UsableWindow => w !== null).map((w) => w.quality);
   cat.visual = q.length ? q.reduce((a, b) => a + b, 0) / q.length : 0.5;
   segs.forEach((s, i) => { const w = wins[i]; if (w && w.quality < 0.35) issues.push(issue(s.timelineStart, `low-quality footage (${fixed(w.quality, 2)}) from ${s.video}`, "low", "visual", "swap_repetitive")); });
-  const nonCut = segs.slice(1).filter((s) => s.transitionIn.type !== "cut").length, ratio = nonCut / Math.max(n - 1, 1);
-  const allowed = Math.max(Math.min(o.maxTransitionRatio ?? 0.5, 0.9), 0.1);
-  cat.transitions = ratio <= allowed ? 1 : Math.max(0, 1 - (ratio - allowed) * 2);
-  if (ratio > allowed + 1e-6) issues.push(issue(n > 1 ? segs[1].timelineStart : 0, `too many transitions (${nonCut} of ${n - 1} cuts); clean cuts read better`, "medium", "transitions", "calm_transitions"));
+  // every cut is entered with a transition (video/transitions.ts): a plain cut is a gap to fill
+  const plain = segs.slice(1).filter((s) => s.transitionIn.type === "cut").length;
+  cat.transitions = n > 1 ? 1 - plain / (n - 1) : 1;
+  if (plain) issues.push(issue(segs.slice(1).find((s) => s.transitionIn.type === "cut")!.timelineStart, `${plain} of ${n - 1} cuts have no transition`, "medium", "transitions", "add_transitions"));
   let reversals = 0;
   for (let i = 1; i < n; i++) {
     if (wins[i - 1] && wins[i] && intel.motionMatch(wins[i - 1], wins[i]!) < 0 && segs[i].clipId !== segs[i - 1].clipId) {
@@ -228,13 +229,9 @@ export function reviseOnce(tl: Timeline, review: CreativeReview, clips: ClipInpu
     if (pick && intel.motionMatch(prevW, pick[2]) >= 0 && placeFootage(tl, i, pick[0], pick[1], pick[2], `Continues the movement of the shot before (${prevW ? direction(prevW) : "still"}) instead of reversing it.`))
       done.push(`smoothed a direction change at ${fixed(t, 1)}s`);
   }
-  if (fixes.has("calm_transitions")) {
-    const n = tl.segments.length, allowed = Math.trunc((o.maxTransitionRatio ?? 0.5) * Math.max(n - 1, 1));
-    const fancy = tl.segments.slice(1).filter((s) => s.transitionIn.type !== "cut" && !s.locked), extra = fancy.length - allowed;
-    if (extra > 0) {
-      for (const s of fancy.map((s, i) => [s, i] as const).sort((a, b) => (mm ? levelAt(mm, a[0].timelineStart) : 1) - (mm ? levelAt(mm, b[0].timelineStart) : 1) || a[1] - b[1]).slice(0, extra)) s[0].transitionIn = { type: "cut", duration: 0 };
-      done.push(`turned ${extra} transition(s) into clean cuts`);
-    }
+  if (fixes.has("add_transitions")) {
+    const k = ensureTransitions(tl);
+    if (k) done.push(`gave ${k} cut(s) a transition`);
   }
   if (fixes.has("split_long_shot")) done.push(...splitLong(tl, review, mm));
   return done;
@@ -254,7 +251,7 @@ function splitLong(tl: Timeline, review: CreativeReview, mm: MusicMap | null): s
     second.id = s.id.length >= 8 ? s.id.slice(0, 6) + "s" + s.id.slice(7) : s.id + "s";
     second.timelineStart = round(cut, 3);
     second.sourceStart = round(s.sourceStart + (cut - s.timelineStart) * s.speed, 3);
-    second.transitionIn = { type: "cut", duration: 0 };
+    second.transitionIn = chooseTransition("loud", s.transitionIn.type);
     second.effect = s.effect === "none" ? "punch" : s.effect;
     second.reason = `${s.video}: Split on a strong beat so the shot keeps up with the loud music (same footage, no repeat).`;
     s.timelineEnd = round(cut, 3);
@@ -274,7 +271,7 @@ export function autoRevise(tl: Timeline, clips: ClipInput[], mm: MusicMap | null
   for (let k = 0; k < MAX_REVISIONS; k++) {
     const mustOnly = best.overallScore >= TARGET_SCORE;
     let todo = best.issues.filter((i) => i.fix && (MUST_FIX.has(i.fix) || !mustOnly));
-    if (o.steps) todo = todo.filter((i) => i.fix === "calm_transitions" || MUST_FIX.has(i.fix!));
+    if (o.steps) todo = todo.filter((i) => i.fix === "add_transitions" || MUST_FIX.has(i.fix!));
     if (!todo.length) break;
     const cand = structuredClone(bestTl);
     const changes = reviseOnce(cand, { ...best, issues: todo }, clips, mm, o);

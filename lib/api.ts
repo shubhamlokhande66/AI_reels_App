@@ -247,7 +247,7 @@ export const api = {
   beatPlan: (id: string, start: number, duration: number, everyBeat = false, minClip = 0.35) =>
     request<{ start: number; duration: number; rows: PlanRow[] }>(`/api/projects/${id}/beat-plan?start=${start}&duration=${duration}&every_beat=${everyBeat}&min_clip=${minClip}`, undefined, 240_000),
   beatMap: (id: string) => request<BeatMap>(`/api/projects/${id}/beat-map`, undefined, 240_000), // analyses the song once (cached)
-  /** The song analysis document (librosa: beats, onsets, frame features, events). Analysed once per song. */
+  /** The song analysis document (Essentia: beats, onsets, transients, frame features, events). Analysed once per song. */
   /** Schema 1.0 (small: beats, energy curve, sections, candidate events). full = the whole internal document. */
   songAnalysis: (id: string, includeOnsets = false, full = false) => {
     const body = new FormData();

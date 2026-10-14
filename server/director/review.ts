@@ -6,6 +6,7 @@ import { semanticTerms } from "@/server/models/clip";
 import { segLength, type Segment, type SoundEffect, type Timeline } from "@/server/models/timeline";
 import { beatDistance, cutMoments, cutPoints, windowsOf } from "@/server/video/timeline";
 import { LEVEL_ACTION, LEVEL_NAMES, energyAtMap, levelAt, loudLimit, musicMapDoc, snapPoints, type MusicMap } from "./musicMap";
+import { ensureTransitions } from "@/server/video/transitions";
 
 /** Quality control before rendering - check the timeline and repair what can be repaired (was director/review.py) -
  * plus the checks on the rendered file, the story order (story.py), the readable Reel plan (plan.py) and where sound
@@ -93,19 +94,13 @@ function lengthenEnding(tl: Timeline, clips: Map<string, ClipInput>, mm: MusicMa
   return true;
 }
 
+/** The first shot has nothing to come from (a cut); every later shot gets a transition that fits it, never the same one
+ * twice in a row (video/transitions.ts). */
 function tidyTransitions(tl: Timeline): number {
-  let changed = 0, prev = "cut";
-  tl.segments.forEach((s, i) => {
-    const t = s.transitionIn;
-    if (i === 0) { if (t.type !== "cut") { s.transitionIn = { type: "cut", duration: 0 }; changed++; } return; }
-    const limit = 0.4 * Math.min(segLength(s), segLength(tl.segments[i - 1]));
-    if (t.type !== "cut" && (t.type === prev || t.duration > limit + 1e-6)) {
-      s.transitionIn = t.type === prev || limit < 0.06 ? { type: "cut", duration: 0 } : { type: t.type, duration: round(limit, 3) };
-      changed++;
-    }
-    prev = s.transitionIn.type;
-  });
-  return changed;
+  let changed = 0;
+  const first = tl.segments[0]?.transitionIn;
+  if (first && first.type !== "cut") { tl.segments[0].transitionIn = { type: "cut", duration: 0 }; changed++; }
+  return changed + ensureTransitions(tl);
 }
 
 export function energyCheck(tl: Timeline, mm: MusicMap, pace: string, steps = false): Check {

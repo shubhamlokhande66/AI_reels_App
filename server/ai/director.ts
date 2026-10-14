@@ -65,7 +65,7 @@ CREATIVE PLAN (decide WHAT Reel to make before placing shots)
 - brief says who the Reel is for: platform, objective, content_type, audience, style, tone, cta, brand. Fields listed in brief.inferred were guessed by the app: treat them as defaults, not orders. brand (when present) is the brand kit: keep its tone, visual_style and colours; its cta is the call to action.
 - creative_direction is a draft plan: concept, hook (the kind of opening), story beats, pacing, visual_energy, music_interpretation, text_strategy, effects_strategy, transition_strategy, ending. When it has a direction other than "auto" it is one of several versions the user will compare: keep that direction clearly (its kind of hook, pacing, shot_order, music reading, text and effects), so the versions really differ. Then openings[0] is this version's own opening, chosen so the versions start differently: open on it. Otherwise improve on it freely.
 - Answer \`concept\` first (concept name, logline, hook_type, story beats, pacing, visual_energy, music_interpretation, text_strategy, effects_strategy, transition_strategy, ending), then plan the shots so they carry it out: each story beat gets the shots that tell it, in that order.
-- Optimise for attention in the first second, clarity, story, visual quality, retention, brand consistency and music sync. Hard cuts are the default: any other transition needs a reason in that shot's why. Effects only when the footage or a beat calls for them; never load the Reel with effects.
+- Optimise for attention in the first second, clarity, story, visual quality, retention, brand consistency and music sync. Every cut after shot 1 is entered with a transition (never a plain "cut"): pick one that suits the moment. Effects only when the footage or a beat calls for them; never load the Reel with effects.
 REFERENCE EDITS (the user's learned trends)
 - reference_edits (when present) are measured from real trending Reels the user uploaded: pace, avg_shot, hook_seconds, cuts_per_10s, on_beat_share (share of cuts on a beat), beats_per_shot, loud_avg_shot / calm_avg_shot (seconds per shot in loud / calm music), look (brightness and saturation 0..1) and described (framing, text, effects, transitions, colour). traits sums each up as creative characteristics (pacing, average_shot_duration, energy_curve, transition_style, text_density, music_sync, color_mood, story_structure): use them as creative guidance, never copy the reference's content.
 - reel.reference = a name: edit like that one with the user's own footage: similar shot lengths in loud and calm parts, the same hook length, as many cuts on the beat, similar effects, transitions and text habits (allowed names only) and the grade closest to its colour. Answer its pace in "pace".
@@ -78,7 +78,7 @@ WHAT YOU GET
 GOAL
 A polished, intentional, beat-driven edit: a hook in the first 1-2 seconds, a clear visual story that builds to a hero or reveal moment, cuts on strong musical moments, faster cutting in energetic music and calmer, longer shots in calm music, variety of subject, framing and motion, and a satisfying ending.
 TIME
-- Every music time (beats, strong_beats, strong_hits, bars, drops, energy, rhythm.suggested_cuts) is in seconds FROM THE START OF THE REEL (0.0 = the Reel's first frame), already inside the chosen part of the song. music.song_part_starts_at is only for information; never add it to any time.
+- Every music time (beats, key_beats, biggest_moments, strong_hits, bars, drops, energy, rhythm.suggested_cuts) is in seconds FROM THE START OF THE REEL (0.0 = the Reel's first frame), already inside the chosen part of the song. music.song_part_starts_at is only for information; never add it to any time.
 - Clip times (source_start, source_end, usable_windows, best_moments, scene_cuts) are seconds inside that clip.
 HOOK
 - Shot 1 is the strongest suitable visual: prefer a clip with hook_candidate true, high importance, high quality and sharpness, good brightness and low shake. It must grab attention in the first second.
@@ -88,13 +88,13 @@ STORY
 - hero_moment is the single strongest moment of all the footage: put it on the music's peak (a drop, else the loudest strong beat in the middle) and do not show it earlier. Weaker moments come before it, so the Reel builds.
 - Build to the hero/reveal moment (a drop is ideal for it) and end on the strongest ending visual: prefer ending_candidate true, a clean hero/product or beauty shot, landing on the final strong beat. Never end on a weak, shaky or dark moment.
 RHYTHM
-- Start shots on the times in rhythm.suggested_cuts / beats; use strong_beats, strong_hits and drops for important changes.
-- Do not cut mechanically on every beat: let calm parts breathe, cut faster in high-energy parts, vary shot lengths.
+- Cut ONLY on music.key_beats (drops, new song parts, bar starts and the hardest hits) and drops; rhythm.suggested_cuts are already key beats. Any other cut time is moved to the nearest key beat.
+- Never cut on every beat: a shot lasts about one bar (4 beats) in loud music and about two bars in calm music; vary shot lengths around that.
 - Match the picture to the music's energy (music.energy): in high / very_high parts use short shots and clips or windows with high motion; in low parts use longer, steady, low-motion moments. A shot longer than about 1.5 s in a loud part should react to the hits between cuts: effect zoom_pulse (subtle), beat_punch (clear) or beat_flash (drops only).
 - music.sections names each part of the song (intro, build, drop, chorus, verse, bridge, outro) and its cut_on: what the cuts in that part should land on (phrase = every 4 bars, bar, beat, accent = the strong hits). Intro and outro breathe (cut on phrases/bars), a build tightens toward its end (half beats in its last bar are fine), the drop lands the hero moment exactly on its first beat and cuts on accents, a bridge is a calm contrast. Where vocals is true, avoid cutting in the middle of a sung phrase. You may intentionally cut off the beat or hold over a cut point when the story needs it.
-- Many strong_hits close together (under 0.4 s apart) are not all cuts: cut on every 2nd-4th one and let a beat-reactive effect show the others.
-- Follow reel.pace (see reel.pace_meaning) and answer the pace you used in "pace" (calm, balanced or fast): rhythm.suggested_cuts follow the style's normal rhythm, so merge them for a calm pace and split them on beats for a fast one.
-- beat_alignment says what the cut INTO a shot lands on: "strong" for key moments, "beat" normally, "free" only when a cut must not move.
+- strong_hits are for beat-reactive effects inside a shot (punch, pulse, flash), not for cuts.
+- Follow reel.pace (see reel.pace_meaning) and answer the pace you used in "pace" (calm, balanced or fast): rhythm.suggested_cuts follow the style's normal rhythm, so merge them for a calm pace; for a fast pace use more of the key_beats, never plain beats.
+- beat_alignment says what the cut INTO a shot lands on: "strong" for the biggest moments (a drop or a new part of the song), "beat" for any key beat, "free" only when a cut must not move.
 SHOTS (one entry per shot, in order)
 - clip: an alias from clips (c1, c2 ...).
 - source_start / source_end: inside ONE usable_window of that clip: source_start >= the window's start, source_end <= its end, source_start < source_end. A clip's footage ends at its \`seconds\`; a moment near the end of a window must start early enough for the whole shot.
@@ -107,11 +107,11 @@ SHOTS (one entry per shot, in order)
 - speed: 1.0 normally; 0.5-0.75 only for a deliberate slow-motion moment; up to 2.0 for a quick speed-up. Never slow a shot down just to fill time: add shots instead.
 - purpose: one of allowed.purposes (hook, context, buildup, reveal, main, detail, lifestyle, payoff, cta).
 - effect: one of allowed.effects; it must serve the footage and the music, not distract from the subject.
-- transition: one of allowed.transitions (how this shot is entered). Shot 1 uses "cut". Mostly cuts in beat-driven parts; use other transitions selectively, never the same non-cut transition on two consecutive shots.
+- transition: one of allowed.transitions (how this shot is entered). Shot 1 uses "cut"; EVERY later shot uses a real transition (not "cut"): flash or zoom on a drop, zoom / smooth / slide in loud parts, dissolve / blur in calm parts. Never the same transition on two consecutive shots.
 - crop: "auto" normally; "fill" with focus_x / focus_y (0..1, the subject's position) to frame a subject; "fit" to show the whole frame.
 - Do not put visually similar shots back to back when better alternatives exist.
 - Motion matching: usable_windows give each part's on-screen movement (direction left|right|up|down|still). When two moving shots follow each other, keep the same direction (a natural match cut); never reverse it (left then right) unless the story needs a jolt. Fast movement belongs on strong beats, slow movement in calm parts.
-- Do not cut on every beat: in calm or emotional parts a shot may run over several beats, and the hero moment may be held longer than the rhythm suggests when that serves the story.
+- In calm or emotional parts a shot may run over several bars, and the hero moment may be held longer than the rhythm suggests when that serves the story.
 - why: one short, plain sentence a non-editor understands (e.g. "the sharpest close-up, saved for the drop").
 LENGTH
 - The shot durations must add up to reel.seconds EXACTLY. Use at least footage.min_shots shots. When footage is short, use more clips and more good parts of the long clips, never longer or slowed-down shots.
@@ -130,7 +130,7 @@ CHECK BEFORE ANSWERING
 2. Every clip alias exists; every [source_start, source_end] is inside one usable_window, never past the clip's end.
 3. Every duration is 0.4-5.0 s and <= that clip's longest_shot_seconds; source_end - source_start = duration x speed.
 4. No moment is shown twice (except a slow-motion replay with speed <= 0.75).
-5. Only names from the allowed lists; shot 1 is a cut; no non-cut transition twice in a row.
+5. Only names from the allowed lists; shot 1 is a cut, every other shot has a transition, never the same one twice in a row; every cut is on a key beat.
 6. Cuts land on the supplied beats; the hook is strong, the story builds, the ending is strong.
 7. Text: word limit, one at a time, none before 0.3 s, nothing invented.
 Reply with ONE JSON object in the requested schema only: no Markdown, no code fences, no explanations.`;
@@ -139,7 +139,7 @@ Reply with ONE JSON object in the requested schema only: no Markdown, no code fe
 const r2 = (x: number, n = 2) => round(x, n);
 const down = (x: number) => Math.floor(x * 10 + 1e-6) / 10, up = (x: number) => Math.ceil(x * 10 - 1e-6) / 10;
 const PACE_SHOT_SECONDS: Record<string, number> = { calm: 5, balanced: 3.5, fast: 2, auto: 5 };
-const PACE_MEANING = "calm = long, flowing shots (about 4-8 beats, 2.5-5 s each); balanced = the style's own rhythm (about 2-4 beats, 1.5-3.5 s); fast = quick cuts (1-2 beats, 0.5-2 s) on strong beats; auto = choose the pace from reel.instructions, the style and the music energy";
+const PACE_MEANING = "calm = long, flowing shots (about 8 beats, 3-6 s each); balanced = about one bar per shot in loud parts, two in calm parts (4-8 beats, 2-4 s); fast = a cut on every key beat in loud parts (about 4 beats, 1.5-2.5 s); auto = choose the pace from reel.instructions, the style and the music energy";
 const wlen = (w: UsableWindow) => w.end - w.start;
 
 function footageBudget(clips: ClipInput[], duration: number, pace: string) {
@@ -189,7 +189,8 @@ export function clipFacts(clips: ClipInput[]): [Record<string, unknown>[], Recor
 function musicFacts(audio: AudioAnalysis, mm: MusicMap, audioStart: number, duration: number) {
   let beats = mm.beats.map((b) => r2(b.t));
   if (beats.length > 160) beats = beats.filter((_, i) => i % Math.max(Math.floor(beats.length / 160), 2) === 0);
-  return { reel_seconds: r2(duration), bpm: r2(audio.bpm, 1), beats, strong_beats: mm.beats.filter((b) => b.level >= 3).map((b) => r2(b.t)).slice(0, 300),
+  return { reel_seconds: r2(duration), bpm: r2(audio.bpm, 1), beats, key_beats: mm.beats.filter((b) => b.level >= 3).map((b) => r2(b.t)).slice(0, 300),
+    biggest_moments: mm.beats.filter((b) => b.level >= 4).map((b) => r2(b.t)).slice(0, 60),
     strong_hits: mm.accents.filter(([, s]) => s >= 0.6).map(([t]) => r2(t)).slice(0, 400), bars: mm.bars.map((t) => r2(t)).slice(0, 60), drops: mm.drops.map((t) => r2(t)),
     energy: mm.energyCurve.map(([a, b, n]) => ({ start: r2(a, 1), end: r2(b, 1), level: n })),
     sections: mm.sections.map((s) => ({ from: r2(s.start as number, 1), to: r2(s.end as number, 1), part: s.label, cut_on: s.cutOn, energy: r2(s.energy as number), vocals: (s.vocal as number) >= 0.35 })),
@@ -238,7 +239,7 @@ export function buildRequest(clips: ClipInput[], audio: AudioAnalysis, mm: Music
     ...(refs.length ? { reference_edits: refs.map((r) => Object.fromEntries(Object.entries(r).filter(([k]) => !["chosen", "id"].includes(k)))) } : {}),
     music: musicFacts(audio, mm, audioStart, duration),
     ...(o.platformRules?.length ? { platform: { name: "instagram", rules: o.platformRules, note: "how Instagram ranks Reels; follow these unless reel.instructions say otherwise" } } : {}),
-    rhythm: { suggested_cuts: (o.suggestedCuts ?? []).map((t) => r2(t)).slice(0, 200), note: "beat-aligned cut times that follow the music energy (shorter shots when it is loud). Use them as the rhythm, merging or splitting them where the story needs; vary shot lengths, never a constant length." },
+    rhythm: { suggested_cuts: (o.suggestedCuts ?? []).map((t) => r2(t)).slice(0, 200), note: "cut times on key beats that follow the music energy (about a bar per shot when it is loud, two when calm). Use them as the rhythm, merging them where the story needs; vary shot lengths, never a constant length." },
     story_shape: structureGuide(o.styleHint, duration, clips), openings,
     ...(hero && back[hero.clipId] ? { hero_moment: { clip: back[hero.clipId], from: r2(hero.start, 1), to: r2(hero.end, 1), score: r2(hero.score) } } : {}),
     allowed: registries(styles),
@@ -246,10 +247,10 @@ export function buildRequest(clips: ClipInput[], audio: AudioAnalysis, mm: Music
       total_duration: "the shot durations must add up to reel.seconds EXACTLY (check the sum before answering); plan at least footage.min_shots shots, and use more clips / more good parts of the long clips rather than stretching a shot",
       clip_end: "source_end can never be later than the end of its usable_window (a clip's footage ends at its `seconds`); a moment near the end of a window must start early enough for the whole shot",
       fit: "each shot's [source_start, source_end] must lie fully inside ONE usable_window of its clip, with source_end - source_start = duration x speed; never give a clip a shot longer than its longest_shot_seconds",
-      no_repeats: "never use the same moment of a clip twice (the only exception: a slow-motion replay with speed <= 0.75)", transitions: "never use the same transition (other than cut) on two consecutive shots",
-      cuts: "put each cut on a beat; strong_beats, strong_hits and drops for important moments",
+      no_repeats: "never use the same moment of a clip twice (the only exception: a slow-motion replay with speed <= 0.75)", transitions: "every shot after the first has a transition (not cut); never the same transition on two consecutive shots",
+      cuts: "put each cut on a key beat (music.key_beats) or a drop, never on other beats; about one bar per shot in loud parts, two in calm parts",
       moments: "choose source_start at the most interesting moment of a usable window (see best_moments and best_segments), NOT 0.0 by default: the first second of a phone clip is often the camera settling",
-      shot_length: "0.4 to 5 seconds; faster cutting when energy is high; varied, not all equal", story_shape: "a guide scaled to this Reel's length: adapt it to the footage you have",
+      shot_length: "about one bar (4 beats) in loud parts and two bars in calm parts, within 1 to 6 seconds; varied, not all equal", story_shape: "a guide scaled to this Reel's length: adapt it to the footage you have",
       text: "optional; hook text in the first 2 s, a call to action at the end if one is given", hook: "open on openings[0] unless the instructions, the creative direction or the story clearly need another of the openings",
       concept: "decide the concept first (answer `concept`), then plan shots that carry it out; follow creative_direction when given (it may be one of several versions: keep its hook type, pacing, music reading, text and effects strategy), improving it where the footage allows",
       hero: "put hero_moment on the music's peak (a drop) and not before it", motion: "consecutive moving shots keep the same direction; never reverse it without a reason", style: "keep reel.style when it is not 'choose'",
@@ -431,7 +432,7 @@ export function planToTimeline(plan: ReelDirectorPlan, alias: Record<string, str
   if (Math.abs(scale - 1) > 0.03) fixes.push(`Shot lengths were scaled by ${fixed(scale, 2)} so the Reel is exactly ${g(duration)}s (${scale > 1 ? "the extra time went to shots whose clips have spare good footage" : "every shot was shortened evenly"}).`);
   if (Math.max(...lengths) > MAX_SHOT * 1.25) throw new DirectorPlanRejected("The AI plan had too few shots for this Reel length.");
   const pointsAll = [...new Set([...snapPoints(mm), ...mm.drops])].sort((a, b) => a - b);
-  const pointsStrong = [...new Set([...mm.beats.filter((b) => b.level >= 3).map((b) => b.t), ...mm.accents.filter(([, s]) => s >= 0.6).map(([t]) => t), ...mm.drops])].sort((a, b) => a - b);
+  const pointsStrong = [...new Set([...mm.beats.filter((b) => b.level >= 4).map((b) => b.t), ...mm.drops])].sort((a, b) => a - b);
   const cs = caps(shots), rest = Array.from({ length: cs.length + 1 }, (_, k) => cs.slice(k).reduce((a, b) => a + b, 0));
   const bounds = [0], fitted = [0];
   let t = 0, snapped = 0;

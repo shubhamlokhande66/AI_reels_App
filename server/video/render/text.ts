@@ -39,8 +39,8 @@ const EFFECT_ALIASES: Record<string, string> = Object.fromEntries(Object.entries
 }).flatMap(([target, names]) => names.split(" ").map((n) => [n, target])));
 EFFECT_ALIASES[""] = "none";
 const TRANSITION_ALIASES: Record<string, string> = Object.fromEntries(Object.entries({
-  dissolve: "crossfade cross_dissolve cross_fade mix", fade: "fade_black fade_to_black dip_to_black fade_through_black", flash: "fade_white white_flash dip_to_white light_leak flash_cut",
-  cut: "hard_cut jump_cut match_cut none", zoom: "zoom_in zoom_transition", slide_left: "whip whip_pan swipe", slide: "slide_up push", wipe_left: "wipe", pixelize: "glitch",
+  dissolve: "crossfade cross_dissolve cross_fade mix fade_in fade_out fadein fadeout soft_fade", fade: "fade_black fade_to_black dip_to_black fade_through_black", flash: "fade_white white_flash dip_to_white light_leak flash_cut",
+  cut: "hard_cut jump_cut match_cut none", zoom: "zoom_in zoom_out zoom_transition punch_in", radial: "spin spin_transition", circle_open: "iris iris_open", slide_left: "whip whip_pan swipe push_left", slide: "slide_up push", wipe_left: "wipe", pixelize: "glitch",
   blur: "blur_transition focus_pull", speed_ramp: "ramp speedramp",
 }).flatMap(([target, names]) => names.split(" ").map((n) => [n, target])));
 TRANSITION_ALIASES[""] = "cut";
@@ -64,7 +64,8 @@ export function resolveEffect(name: string): [string, boolean] {
   return ["none", true];
 }
 
-/** (registered transition, whether it had to be mapped). Unknown -> cut. */
+/** (registered transition, whether it had to be mapped). Unknown -> cut (ensureTransitions in video/transitions.ts then
+ * picks a real one for it). */
 export function resolveTransition(name: string): [string, boolean] {
   const n = norm(name);
   if (getTransition(n).name === n) return [n, false];
