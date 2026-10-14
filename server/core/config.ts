@@ -3,11 +3,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-/** Settings, from the same `.env` at the repo root that the Python backend read (backend/app/core/config.py), so
- * both servers agree while the migration runs. Next.js itself only loads `frontend/.env*`; the root file is read
- * here once. Real environment variables win over the file. */
+/** Settings, from the `.env` at the project root (read here once). Real environment variables win over the file. */
 
-export const REPO_ROOT = path.resolve(process.cwd(), "..");
+export const REPO_ROOT = process.cwd();
 
 function readDotEnv(file: string): Record<string, string> {
   try {

@@ -10,7 +10,7 @@
   "containers": [
     {
       "class_name": "ReelApp",
-      "image": "../docker/frontend.Dockerfile",
+      "image": "../docker/Dockerfile",
       "image_build_context": "..",
       // 2 vCPU, 8 GB, 16 GB disk: rendering and video analysis. Billed only while the container is awake.
       "instance_type": "standard-3",

@@ -11,3 +11,7 @@
 # your data stays out of the image (on Cloudflare it lives in R2)
 storage
 songs
+# not part of the app image
+cloudflare
+docs
+.claude

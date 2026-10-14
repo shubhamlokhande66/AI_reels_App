@@ -1,16 +1,16 @@
 # The whole app (website and API in one Next.js server). Build from the repo root:
-#   docker build -f docker/frontend.Dockerfile -t reel-app .
+#   docker build -f docker/Dockerfile -t reel-app .
 # Debian (not Alpine) so the native packages (sharp) and FFmpeg match; fonts with Devanagari for captions and story text.
 # On Cloudflare Containers the R2 bucket is mounted at STORAGE_PATH by docker/start.sh (tigrisfs, FUSE).
 FROM node:22-bookworm-slim AS deps
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY frontend/ ./
+COPY . ./
 RUN npm run build
 
 FROM node:22-bookworm-slim AS run

@@ -1,10 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Self-contained server output, used by docker/frontend.Dockerfile
+  // Self-contained server output, used by docker/Dockerfile
   output: "standalone",
   // Phone mode: let a phone on the same Wi-Fi load the dev server through this computer's private address.
-  // (Only matters when the dev server is started with -H 0.0.0.0; see scripts/start-phone-mode.ps1.)
+  // (Only matters when the dev server is started with -H 0.0.0.0.)
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*"],
   // the native/WASM packages the server uses stay plain Node requires (not bundled)
   serverExternalPackages: ["mongodb", "essentia.js", "@techstark/opencv-js", "sharp", "nodemailer", "unpdf"],

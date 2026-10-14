@@ -102,7 +102,6 @@ Requirements: **Node 22+**, **FFmpeg + FFprobe** on `PATH`, **MongoDB** running 
 
 ```bash
 cp .env.example .env                   # Windows: copy .env.example .env   (edit as needed; never commit .env)
-cd frontend
 npm install
 npm install @huggingface/transformers  # optional: local captions (otherwise the OpenAI API, when a key is set)
 npm run dev -- --port 3100             # http://localhost:3100
@@ -270,14 +269,15 @@ Errors always look like `{"error": {"code", "message", "details"}}` (e.g. `FFMPE
 ## Project layout
 
 ```
-frontend/
-  app/          pages (App Router) and app/api/**/route.ts: the REST API
-  server/       everything on the server: core (config, db, auth, errors, ffmpeg), audio (Essentia analysis),
+app/            pages (App Router) and app/api/**/route.ts: the REST API
+server/         everything on the server: core (config, db, auth, errors, ffmpeg), audio (Essentia analysis),
                 video (analysis, render engine), director, ai (providers), jobs (pipeline + manager), product,
                 story, revise, trends, voice, publish, credits, accounts
-  components/   UI (atomic design)   hooks/ (React Query)   lib/api.ts (the client)
-  tests/        Vitest
-docs/           architecture + extension guide
+components/     UI (atomic design)   hooks/ (React Query)   lib/api.ts (the client)
+tests/          Vitest
+docker/         the image (Dockerfile) and its start script
+cloudflare/     the Worker that sends requests to the container
+docs/           architecture, deploy and extension guides
 ```
 
 More: [docs/architecture.md](docs/architecture.md), [docs/extending.md](docs/extending.md).
@@ -285,8 +285,8 @@ More: [docs/architecture.md](docs/architecture.md), [docs/extending.md](docs/ext
 ## Testing
 
 ```bash
-cd frontend && npm test               # Vitest: audio analysis on synthetic songs with known answers, the timeline and render helpers, the UI
-cd frontend && npm run typecheck && npx eslint .
+npm test               # Vitest: audio analysis on synthetic songs with known answers, the timeline and render helpers, the UI
+npm run typecheck && npx eslint .
 ```
 
 ## Security notes

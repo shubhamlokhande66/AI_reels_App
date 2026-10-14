@@ -1,30 +1,43 @@
-.env
-.venv/
-__pycache__/
-.pytest_cache/
+# dependencies
 node_modules/
+/.pnp
+.pnp.*
+
+# Next.js build output
 .next/
-/storage/projects/
-*.log
+/out/
+/build
+/coverage
+next-env.d.ts
+*.tsbuildinfo
+
+# env files: secrets stay local (the .example file is committed)
+.env
+.env.*
+!.env.example
+.dev.vars
+
 # local app data (uploaded songs, saved settings) and personal footage: never in the repository
 /storage/
 /reels/
-*.tsbuildinfo
-
-# production secrets (the .example file is committed)
-.env.production
-
-# local dev server output
-*.log.err
-
 # local test songs (copyrighted music, large files)
 /songs/
-frontend/tests/server/manual/*.json
-frontend/tests/server/manual/compare.txt
-frontend/tests/server/manual/profile.txt
+
+# logs
+*.log
+*.log.err
+npm-debug.log*
+
+# manual test output
+tests/server/manual/*.json
+tests/server/manual/compare.txt
+tests/server/manual/profile.txt
+tests/server/manual/out/
 
 # Cloudflare (Wrangler) local state
 .wrangler/
-.dev.vars
-.env.backup
-frontend/tests/server/manual/out/
+
+# misc
+.DS_Store
+*.pem
+.vercel

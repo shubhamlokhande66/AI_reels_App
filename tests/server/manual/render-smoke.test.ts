@@ -6,7 +6,7 @@ import { getStyle, listStyles } from "@/server/styles";
 import { renderConfig } from "@/server/video/render/cutter";
 import { renderTimeline } from "@/server/video/render/renderer";
 
-const P = "../storage/projects/6acd06852255322076e1e5fe/input/";
+const P = "storage/projects/6acd06852255322076e1e5fe/input/";
 it.runIf(process.env.RUN_RENDER)("renders", async () => {
   const seg = (i: number, clip: string, t0: number, t1: number, effect: string, tr = { type: "cut", duration: 0 }) =>
     ({ clipId: clip, video: clip, sourceStart: 1, sourceEnd: 1 + t1 - t0, timelineStart: t0, timelineEnd: t1, effect, transitionIn: tr, looks: i === 2 ? ["vignette"] : [] });

@@ -275,5 +275,5 @@ export async function transcribe(file: string, start: number, duration: number, 
     progress(1);
     return (body.words ?? []).map((w) => ({ text: w.word.trim(), start: w.start, end: w.end })).filter((w) => w.text);
   }
-  throw new CaptionsUnavailable("Captions need speech recognition: install the optional local Whisper package (npm install @huggingface/transformers in the frontend folder) or set OPENAI_API_KEY.");
+  throw new CaptionsUnavailable("Captions need speech recognition: install the optional local Whisper package (npm install @huggingface/transformers in the project folder) or set OPENAI_API_KEY.");
 }

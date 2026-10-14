@@ -9,7 +9,7 @@ import * as tempo from "@/server/audio/tempo";
 
 describe.runIf(process.env.RUN_SONGS)("profile tempo", () => {
   it("parts of detectBeats", { timeout: 600_000 }, async () => {
-    const songs = path.resolve(__dirname, "../../../../songs");
+    const songs = path.resolve(__dirname, "../../../songs");
     const y = await decode(path.join(songs, fs.readdirSync(songs)[0]), SR);
     const env = sp.onsetStrength(y);
     const a = JSON.parse(fs.readFileSync(path.join(__dirname, "ts_0.json"), "utf8"));
