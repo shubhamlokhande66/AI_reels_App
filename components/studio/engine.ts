@@ -593,7 +593,7 @@ async function findScenes(v, src, S, H, LM){
       const m = (a+b)>>1, A = LM[a], B = LM[b], M = LM[m];
       let dA=0, dB=0; for(let k=0;k<M.length;k++){ dA += Math.abs(M[k]-A[k]); dB += Math.abs(M[k]-B[k]); }
       let be = Infinity; for(let al=0.05; al<0.96; al+=0.05){ let e=0; for(let k=0;k<M.length;k++) e += Math.abs(M[k] - (al*A[k] + (1-al)*B[k])); be = Math.min(be, e); }
-      if(be < 0.5*Math.min(dA, dB)) out.push({t0:S[a].t - gap*0.5, t1:S[b].t + gap*0.5, kind:'dissolve'});
+      if(be < 0.5*Math.min(dA, dB)) out.push({t0:S[a].t - gap, t1:S[b].t + gap, kind:'dissolve'});   // a full sample of margin: its first / last frames are faint
     }
     i = j;
   }
@@ -713,7 +713,7 @@ async function readVideo(src){
 }
 function finishAdding(){
   updateQ(); $('clearv').hidden = !$('clips').children.length;
-  if(sources.length){ $('s2').classList.add('done'); if(buf) makeEdit(); }
+  if(sources.length){ $('s2').classList.add('done'); if(buf) makeEdit(); aiRun(); }
 }
 function removeVideo(src){
   if(recording) return;
@@ -872,6 +872,119 @@ function keyframesFor(e){
 }
 
 let dupCount = 0;
+/* ---- optional AI: which moment goes where ----
+   The phone sends a few small frames per clip; a vision model scores each moment like a pro editor (strength, what it
+   suits, what is wrong, where the subject is). Timing stays with the music analysis; the AI only steers the choice of
+   moment and the framing. Scores are cached per clip (also across visits), so re-edits cost nothing. */
+let aiOn = false, aiBusy = false, aiInfo = null;
+const aiCache = new Map();
+const fpOf = src => [src.name, src.file ? src.file.size : 0, src.file ? src.file.lastModified : 0].join('|');
+function aiStat(t, err){ const el = $('aistat'); el.hidden = !t; el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
+// The AI's view of footage [a,b]: frames nearby (same scene only), weighted by distance
+function aiAt(src, a, b){
+  if(!aiOn || !src.ai || !src.ai.frames.length) return null;
+  const F = src.ai.frames, sg = Math.max(0.6, 0.45*src.dur/F.length);
+  let w = 0, s = 0, bw = 0, best = null; const R = {};
+  for(const f of F){
+    const d = f.t < a ? a-f.t : f.t > b ? f.t-b : 0;
+    if(d > 0 && crossesScene(src, Math.min(f.t,a), Math.max(f.t,b))) continue;   // another scene says nothing about this one
+    const k = Math.exp(-0.5*(d/sg)**2); if(k < 0.02) continue;
+    w += k; s += k*f.score; f.roles.forEach(r=>{ R[r] = (R[r]||0) + k; }); if(k > bw){ bw = k; best = f; }
+  }
+  if(w < 0.05) return null;
+  const roles = {}; for(const r in R) roles[r] = R[r]/w;
+  return { score: s/w, conf: Math.min(1, w), roles, note: best ? best.note : '' };
+}
+// how much the AI's opinion adds to a candidate moment for this slot
+function aiBonus(ai, slot, last){
+  const role = slot==='hook' ? 'hook' : (slot==='drop' || slot==='hit') ? 'action' : slot==='break' ? 'calm' : last ? 'ending' : null;
+  let fit = 0;
+  if(role) fit = 0.6*(ai.roles[role] || 0) + (role==='hook' ? 0.3*(ai.roles.action || 0) : 0);
+  if(last && role!=='ending') fit += 0.3*(ai.roles.ending || 0);
+  return ai.conf * (2.2*(ai.score - 0.5) + fit);
+}
+// which moments to show: evenly over the clip, the sharpest well-lit moment of each part, never on a scene change
+function aiTimes(src){
+  const n = Math.max(3, Math.min(8, Math.round(src.dur/2.5))), out = [];
+  for(let k=0;k<n;k++){
+    const a = src.dur*k/n, b = src.dur*(k+1)/n, c0 = a+(b-a)*0.2, c1 = a+(b-a)*0.8;
+    let best = null, bs = -1;
+    for(const s of src.samples){ if(s.t < c0 || s.t > c1 || s.cut || crossesScene(src, s.t-0.2, s.t+0.2)) continue;
+      const v = s.sh * (s.b > 0.08 ? 1 : 0.2); if(v > bs){ bs = v; best = s.t; } }
+    out.push(Math.min(src.dur-0.05, best ?? (a+b)/2));
+  }
+  return out;
+}
+async function aiFrames(src){
+  const v = makeVideo(src.url); await waitEv(v,'loadeddata');
+  const sc = Math.min(1, 384/Math.max(src.w, src.h)), w = Math.max(2, Math.round(src.w*sc)), h = Math.max(2, Math.round(src.h*sc));
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
+  const out = [];
+  for(const t of aiTimes(src)){
+    v.currentTime = t; try{ await waitEv(v,'seeked',3000); }catch(e){ continue; }
+    g.drawImage(v, 0, 0, w, h); const url = c.toDataURL('image/jpeg', 0.72);
+    out.push({ t: +t.toFixed(2), image: url.slice(url.indexOf(',')+1) });
+  }
+  v.removeAttribute('src'); v.load();
+  return out;
+}
+function aiRestore(src){
+  const fp = fpOf(src); let c = aiCache.get(fp);
+  if(!c){ try{ const j = localStorage.getItem('brs-ai:'+fp); if(j) c = JSON.parse(j); }catch(e){} }
+  if(c && Array.isArray(c.frames)) src.ai = c;
+}
+async function aiRun(){
+  if(!aiOn || aiBusy || !sources.length) return;
+  sources.forEach(s=>{ if(!s.ai) aiRestore(s); });
+  const need = sources.filter(s=>!s.ai && !s.aiFailed && !s.removed);
+  if(!need.length){ aiDone(); return; }
+  aiBusy = true; aiStat('AI is looking at ' + need.length + (need.length>1 ? ' clips…' : ' clip…'));
+  let charged = 0, failed = 0;
+  try{
+    const jobs = [];
+    for(const s of need){ const frames = await aiFrames(s); if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
+    for(let k=0; k<jobs.length; k+=12){
+      const part = jobs.slice(k, k+12);
+      const r = await fetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: ac.signal,
+        body: JSON.stringify({ clips: part.map(j=>({ id:j.id, name:j.src.name, frames:j.frames })) }) });
+      const res = await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI step failed (' + r.status + ').'));
+      charged += res.charged || 0;
+      for(const c of res.clips || []){ const j = part.find(x=>x.id===c.id); if(!j) continue;
+        j.src.ai = { frames: c.frames, summary: c.summary, mood: c.mood }; const fp = fpOf(j.src); aiCache.set(fp, j.src.ai);
+        try{ localStorage.setItem('brs-ai:'+fp, JSON.stringify(j.src.ai)); }catch(e){} }
+      for(const f of res.failed || []){ const j = part.find(x=>x.id===f.id); if(j){ j.src.aiFailed = true; failed++; } }
+    }
+    aiBusy = false;
+    if(sources.some(s=>!s.ai && !s.aiFailed && !s.removed) && !pending) return aiRun();   // clips added meanwhile
+    aiDone(charged, failed);
+  }catch(e){
+    aiBusy = false;
+    if(e && e.name === 'AbortError') return;
+    aiStat('AI picks are not available right now: ' + (e && e.message ? e.message : e) + ' The edit uses the on-device picks.', true);
+  }
+}
+function aiDone(charged, failed){
+  const withAi = sources.filter(s=>s.ai), n = withAi.reduce((q,s)=>q+s.ai.frames.length, 0);
+  aiStat('AI scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' could not be read)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
+  if(buf && sources.length && !recording) makeEdit();
+}
+(async () => {   // is the AI step set up on this server?
+  try{
+    const r = await fetch('/api/studio/rank-shots', ac ? { signal: ac.signal } : undefined); if(!r.ok) return;
+    aiInfo = await r.json(); if(!aiInfo || !aiInfo.available) return;
+    $('aiwrap').hidden = false;
+    try{ aiOn = localStorage.getItem('brs-ai') === '1'; }catch(e){}
+    $('aipick').checked = aiOn;
+    if(aiInfo.credits) $('aiwrap').title = 'Uses ' + aiInfo.credits + ' credit' + (aiInfo.credits>1?'s':'') + ' per Reel';
+    if(aiOn && sources.length) aiRun();
+  }catch(e){}
+})();
+$('aipick').addEventListener('change', e=>{
+  aiOn = e.target.checked; try{ localStorage.setItem('brs-ai', aiOn ? '1' : '0'); }catch(err){}
+  if(aiOn){ sources.forEach(s=>{ s.aiFailed = false; }); aiRun(); }
+  else { aiStat(''); if(buf && sources.length && !recording) makeEdit(); }
+});
 /* ---- virtual camera: the crop follows the subject smoothly ----
    Like a camera operator: hold still while the subject stays near the middle (a locked-off shot looks professional),
    pan smoothly when it moves away, never twitch. Positions come from the tracked face, else from what moves on its own
@@ -893,8 +1006,11 @@ function camPath(src, a, b, cw, ch){
     // what moves on its own, and what stands out in the picture (it may stand still)
     const M = (src.samples||[]).filter(s=>s.t>=a-0.3 && s.t<=b+0.3 && !s.cut);
     const O = []; M.forEach(s=>{ if(s.sw > 0.12) O.push({t:s.t, x:s.sx, y:s.sy, w:s.sw}); if(s.aw > 0.15) O.push({t:s.t, x:s.ax, y:s.ay, w:0.8*s.aw}); });
+    // the AI's subject box (when AI picks are on): it knows WHAT the subject is, so it weighs the most
+    if(aiOn && src.ai) src.ai.frames.forEach(f=>{ if(f.subject && f.t>=a-0.8 && f.t<=b+0.8 && !crossesScene(src, Math.min(f.t,a), Math.max(f.t,a)))
+      O.push({t:f.t, x:f.subject.x+f.subject.w/2, y:f.subject.y+f.subject.h*(f.person?0.35:0.5), w:1.5, ai:true}); });
     const wsum = O.reduce((q,o)=>q+o.w, 0);
-    if(O.length >= 3 && wsum > 0.8){ obs = O; mode = 'subject'; sigma = 0.3; }
+    if((O.length >= 3 && wsum > 0.8) || O.some(o=>o.ai)){ obs = O; mode = 'subject'; sigma = 0.3; }
   }
   if(!obs.length) return still(clampX(st.face>0.3 ? st.fx : 0.5+(st.cx-0.5)*0.8), clampY(st.face>0.3 ? st.fy + 0.1*ch : 0.45), 'none');
   // outliers: far from the median of their neighbours (a false face, a bird crossing the frame)
@@ -924,7 +1040,7 @@ function camPath(src, a, b, cw, ch){
 // where the camera looks at this moment of the shot (fraction of the source frame); built once per shot and format
 function camAt(e, local){
   const src = sources[e.src]; if(!src) return [0.5, 0.5];
-  const L = e.end - e.start, key = aspect+'|'+e.src+'|'+e.in+'|'+e.scaleR+'|'+e.sp.label+'|'+L;
+  const L = e.end - e.start, key = aspect+'|'+e.src+'|'+e.in+'|'+e.scaleR+'|'+e.sp.label+'|'+L+'|'+(aiOn && src.ai ? 1 : 0);
   if(!e.cam || e.cam.key !== key){
     const [W,H] = SIZES[aspect], base = Math.max(W/src.w, H/src.h);
     e.cam = camPath(src, e.in, srcPos(e, L), Math.min(1, W/(src.w*base)), Math.min(1, H/(src.h*base))); e.cam.key = key;
@@ -947,7 +1063,8 @@ function makeEdit(){
   stopAll(); plan = adaptPlan(); styleEdit();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
-  const order = plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return pr[plan[a].type]-pr[plan[b].type] || a-b; });
+  // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
+  const order = plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return (a===0?-1:pr[plan[a].type]) - (b===0?-1:pr[plan[b].type]) || a-b; });
   const res = new Array(plan.length); dupCount = 0;
   const pick = (i, allowNeighbour, allowOverlap, anyScene) => {
     const s = plan[i], len = s.end - s.start;
@@ -973,8 +1090,9 @@ function makeEdit(){
         if(sharp < 0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5, sharp);   // blurry / shaky footage is avoided
         sc += st.face * ((s.type==='drop'||s.type==='hit'||i===0) ? 0.8 : 0.45);   // people make shots stronger
         sc -= 5*ov/need;
+        const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : s.type, i===plan.length-1);
         sc += rng()*0.15;
-        if(sc>bs){ bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : st.cx, cy: st.face>0.3 ? st.fy : 0.45, face: st.face, fs: st.fs, mot: m, ov}; }
+        if(sc>bs){ bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : st.cx, cy: st.face>0.3 ? st.fy : 0.45, face: st.face, fs: st.fs, mot: m, ov, aiNote: ai ? ai.note : ''}; }
       }
     });
     return best;
@@ -1006,7 +1124,7 @@ function captureLoop(){
 }
 function kfSummary(e){
   const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
-  const notes = [e.why, cam].filter(Boolean).join(' · ');
+  const notes = [e.aiNote && aiOn ? 'AI: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
   const why = notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '';
   const s = e.kf && e.kf.scale; if(!s || s.length<2) return why;
   const a=s[0], b=s[s.length-1];
@@ -1037,7 +1155,8 @@ function repick(i, avoidCurrent){
       let sc = e.type==='drop' ? 2.2*m : e.type==='hit' ? 1.5*m : e.type==='break' ? 1-Math.abs(m-0.18)*2 : 1-Math.abs(m-0.55);
       if(st.b < 0.08) sc -= 1; const sharp = st.sh/(src.shMed||1); if(sharp<0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5,sharp);
       sc += st.face*0.6 + rng()*0.3;
-      if(sc>bs){ bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : 0.5+(st.cx-0.5)*0.8, cy: st.face>0.3 ? st.fy : 0.45, face:st.face, fs: st.fs, mot: m}; }
+      const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : e.type, i===edit.length-1);
+      if(sc>bs){ bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : 0.5+(st.cx-0.5)*0.8, cy: st.face>0.3 ? st.fy : 0.45, face:st.face, fs: st.fs, mot: m, aiNote: ai ? ai.note : ''}; }
     }
   });
   if(!best) return false;

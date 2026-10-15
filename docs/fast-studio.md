@@ -104,3 +104,26 @@ measure on your target phones before promising numbers.
 - `components/studio/engine.ts`: the editor (plain JS ported from the standalone prototype, `@ts-nocheck`)
 - `components/studio/markup.ts`, `components/studio/studio.css`: its markup and styles (scoped under `.brs`, app theme tokens)
 - `public/vendor/tracking/`: tracking.js 1.1.3 and its face classifier
+
+## AI picks the best moments (optional)
+
+A switch under Style, shown only when the server has a vision model set up (Settings → AI; the task is "Fast Studio: AI
+shot picking", so it can use its own provider). It is remembered per device.
+
+- The phone sends 3-8 small frames per clip (384 px JPEG, about 7 KB each; the sharpest well-lit moment of each part of
+  the clip, never on a scene change). One request per Reel, clips scored in parallel on the server through the app's AI
+  layer (provider routing, fallback, budget limit, usage log).
+- For each frame the model says how strong it is as a Reel shot (0-1), what it suits (hook, action, calm, detail, ending),
+  what is wrong (blur, dark, eyes closed, view blocked…), where the subject is and a short note. Answers are bounded and
+  checked before use (`server/studio/rankShots.ts`).
+- The phone keeps every timing decision. The AI's opinion is added to each candidate moment (same scene only): strong
+  moments win, the hook slot prefers "hook" moments, drops and hits "action", breaks "calm", the last shot "ending". The
+  subject box also steers the camera crop. The edit list shows the AI's note per shot.
+- The opening shot is now chosen first (before drops and hits), so it gets the best moment.
+- Scores are cached per clip on the device: switching it off and on, a new mix or a new style cost nothing.
+- If the AI is unavailable the edit simply stays on the on-device picks, with a message.
+- Cost: one request per Reel (about 20-40 small low-detail images): roughly ₹0.3-1 with a small vision model. Credits per
+  Reel are set in the admin pricing (`studio_ai`, 0 by default).
+
+Measured with a stand-in model that knows which footage is good (3 runs): opening / drop / hit shots on the good footage
+70-86% with AI against 27-45% without; the opening shot was a top moment every time; 23 frames in one 212 KB request.

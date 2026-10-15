@@ -135,7 +135,7 @@ export async function runStructured<S extends z.ZodType>(provider: Generator, re
 // ------------------------------------------------------------------ tasks
 export interface TaskSpec { id: string; kind: "text" | "vision"; essential: boolean; label: string }
 export const TASKS: Record<string, TaskSpec> = Object.fromEntries(([
-  ["clip_understanding", "vision", false, "Clip understanding"], ["product_understanding", "vision", false, "Product photo understanding"], ["style", "text", false, "Style selection"],
+  ["clip_understanding", "vision", false, "Clip understanding"], ["shot_ranking", "vision", false, "Fast Studio: AI shot picking"], ["product_understanding", "vision", false, "Product photo understanding"], ["style", "text", false, "Style selection"],
   ["story", "text", false, "Story planning"], ["order", "text", false, "Shot order"], ["director", "text", false, "Creative director"], ["product_director", "text", false, "Product creative director"],
   ["copy", "text", false, "Post copy"], ["music", "text", false, "Song part choice"], ["reviewer", "text", false, "Reel reviewer"], ["library_search", "text", false, "Library search"],
   ["hooks", "text", true, "Hook generation"], ["script", "text", true, "Script writing"], ["revision", "text", true, "Natural-language revision"], ["template", "text", true, "Template drafts"],
