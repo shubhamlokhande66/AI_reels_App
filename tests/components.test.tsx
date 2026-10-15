@@ -88,7 +88,7 @@ describe("ProgressStages", () => {
     render(<ProgressStages job={job} />);
     expect(screen.getByRole("progressbar", { name: "Overall progress" })).toHaveAttribute("aria-valuenow", "62");
     expect(screen.getByRole("progressbar", { name: "Rendering video" })).toHaveAttribute("aria-valuenow", "40");
-    expect(screen.getByText(/Analyzing videos/)).toHaveTextContent("✓");
+    expect(screen.getByText("Analyzing videos").closest("li")).toHaveTextContent("✓"); // its step is ticked
   });
 
   it("has no Cancel button when onCancel is not given", () => {
@@ -137,7 +137,8 @@ describe("ReelPreview", () => {
     expect(screen.getByText("1080×1920")).toBeInTheDocument();
     expect(screen.getByText("5.0 MB")).toBeInTheDocument();
     expect(screen.getByText("0:15")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Download/ })).toHaveAttribute("href", expect.stringContaining("download=1"));
+    expect(screen.getByRole("link", { name: "Download MP4" })).toHaveAttribute("href", expect.stringContaining("download=1"));
+    expect(screen.getByRole("link", { name: "Download without music" })).toHaveAttribute("href", expect.stringContaining("music=false"));
   });
   it("regenerates, changes style/duration and creates versions", async () => {
     const onGenerate = vi.fn();
