@@ -201,3 +201,21 @@ still chooses the moments; the AI director stays out (the reference is the plan)
 Scored with `scripts/studio-style` (four reference Reels with known cuts, transitions and grades): cuts found 96-100% of
 78, transition type right 99-100%, pace 4/4, no false zooms; applied, the transition shares are within a few percent
 (100% dissolves stay 100%) and the rendered look lands within about 0.01-0.05 of the reference's numbers.
+
+## Text: the hook on the beat, captions of the song
+
+- **Hook text** now appears word by word, one word on each beat from the start, each popping in, and pulses on the
+  beats while it is up.
+- **Captions** (shown when the server has speech recognition: local Whisper, or OpenAI's Whisper API with
+  `OPENAI_API_KEY`): the words of the song (lyrics or speech), word by word on the times they are sung. The phone sends
+  the song once as a small 16 kHz mono WAV of the vocal band (`/api/studio/transcribe`, language: detect, Hindi,
+  Marathi, English, …), the words are cached per song and language, and broken into short lines at pauses.
+- **Styles**: Pop (each word pops in when sung), Karaoke (the line is shown, the sung word lights up), Box (words on
+  coloured boxes), Clean.
+- **Placement**: inside Instagram's safe area (its top 220 px and bottom 450 px of 1920 are its UI); captions move up
+  when a face is in their band (the tracked face of the shot); Hindi / Marathi are drawn in Devanagari with a font that
+  shapes them. The text is part of the frame, so the export has it.
+- Credits per song: `studio_captions` in the admin pricing (0 by default).
+
+Checked with `scripts/studio-text/check-text.cjs` on the rendered frames: text only while a line is sung, a word more
+on each beat for the hook, the Devanagari line drawn, captions moved above a face.

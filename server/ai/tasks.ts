@@ -240,7 +240,7 @@ type Asr = (audio: Float32Array, o: Record<string, unknown>) => Promise<{ chunks
 const g = globalThis as unknown as { __asr?: Promise<Asr> };
 
 /** Word timings (seconds from `start`): local Whisper (@huggingface/transformers, optional), else OpenAI's API. */
-export async function transcribe(file: string, start: number, duration: number, progress: (f: number) => void = () => {}): Promise<Word[]> {
+export async function transcribe(file: string, start: number, duration: number, progress: (f: number) => void = () => {}, language: string = settings.whisperLanguage): Promise<Word[]> {
   let asr: Asr | null = null;
   try {
     g.__asr ??= (async () => {
@@ -253,7 +253,7 @@ export async function transcribe(file: string, start: number, duration: number, 
   }
   if (asr) {
     const samples = await decode16k(file, start, duration);
-    const out = await asr(samples, { return_timestamps: "word", chunk_length_s: 30, ...(settings.whisperLanguage ? { language: settings.whisperLanguage } : {}) });
+    const out = await asr(samples, { return_timestamps: "word", chunk_length_s: 30, ...(language ? { language } : {}) });
     progress(1);
     return (out.chunks ?? []).map((c) => ({ text: c.text.trim(), start: c.timestamp[0], end: c.timestamp[1] ?? c.timestamp[0] + 0.3 })).filter((w) => w.text);
   }
@@ -268,7 +268,7 @@ export async function transcribe(file: string, start: number, duration: number, 
     form.append("model", "whisper-1");
     form.append("response_format", "verbose_json");
     form.append("timestamp_granularities[]", "word");
-    if (settings.whisperLanguage) form.append("language", settings.whisperLanguage);
+    if (language) form.append("language", language);
     const r = await fetch(`${(settings.openaiBaseUrl || "https://api.openai.com/v1").replace(/\/+$/, "")}/audio/transcriptions`, { method: "POST", headers: { authorization: `Bearer ${settings.openaiApiKey}` }, body: form, signal: AbortSignal.timeout(300_000) });
     if (!r.ok) throw new CaptionsUnavailable(`Speech recognition failed (OpenAI ${r.status}).`);
     const body = await r.json() as { words?: { word: string; start: number; end: number }[] };
