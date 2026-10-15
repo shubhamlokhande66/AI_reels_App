@@ -91,6 +91,13 @@ describe("ProgressStages", () => {
     expect(screen.getByText("Analyzing videos").closest("li")).toHaveTextContent("✓"); // its step is ticked
   });
 
+  it("says where a waiting Reel is in line", () => {
+    const { rerender } = render(<ProgressStages job={{ ...job, status: "queued", progress: 0, queuePosition: 3 }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting in line: 2 Reels ahead of yours.");
+    rerender(<ProgressStages job={{ ...job, status: "queued", progress: 0, queuePosition: 1 }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Yours is next");
+  });
+
   it("has no Cancel button when onCancel is not given", () => {
     render(<ProgressStages job={job} />);
     expect(screen.queryByRole("button", { name: /Cancel/ })).not.toBeInTheDocument();

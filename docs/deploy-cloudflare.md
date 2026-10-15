@@ -47,7 +47,10 @@ Building the container image needs Docker. Either:
 Open the address it prints, create the first account, then `/admin` with `ADMIN_KEY`.
 
 ## 4. How it behaves
-- **One container** (2 vCPU, 8 GB: `instance_type` in `wrangler.jsonc`), because the job queue lives in it. It **sleeps**
+- **One container** (2 vCPU, 8 GB: `instance_type` in `wrangler.jsonc`). The job queue is in MongoDB, not in the
+  container: a job waits there with its whole input, the container takes waiting jobs one at a time (`MAX_CONCURRENT_JOBS`),
+  and a job interrupted by a restart or deploy is queued again once (then failed, credits refunded). People see their place
+  in line while they wait. This is the base for extra render containers (`APP_ROLE=worker`), not set up yet. It **sleeps**
   30 seconds after the last request (`SLEEP_AFTER`; an upload or download in progress counts) and wakes on the next one: the **first request after a sleep takes
   some seconds** (the container starts and mounts R2). While a Reel is being made, the app pings itself so it stays awake.
 - **Cost**: you pay for the time the container is awake (CPU, memory, disk) beyond what the Workers Paid plan includes.

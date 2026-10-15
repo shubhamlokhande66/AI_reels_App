@@ -1,7 +1,10 @@
 import "server-only";
+import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
-import { settings as env } from "@/server/core/config";
+import { env as readEnv, settings as env } from "@/server/core/config";
+import { withUser } from "@/server/core/auth";
+import { OWNER } from "@/server/core/db";
 import { db, mainDb } from "@/server/core/db";
 import { AppError, ConflictError, NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { round } from "@/server/core/py";
@@ -44,41 +47,138 @@ const OVERRIDES = ["style", "pace", "sequence", "teaser", "stepLabels", "orderMo
   "aiDirector", "beatPlan", "cutEveryBeat", "platform", "minClip", "autoReview", "soundEffects", "trendId", "reference", "concept", "objective", "audience"] as const;
 
 // ------------------------------------------------------------------ the queue
+/* Jobs wait in MongoDB, not in this server's memory, so any app instance can run them and none is lost on a restart:
+ * submitting stores the job with its whole input (status "queued"); an instance that runs jobs (APP_ROLE all | worker)
+ * claims the oldest queued one in a single atomic update (two instances can never take the same job), runs at most
+ * MAX_CONCURRENT_JOBS at once, and beats a heartbeat while it works. A job whose instance stopped beating (a crash, a
+ * restart, a deploy) is queued again once, then failed cleanly with its credits refunded. Cancelling is a flag on the
+ * job, seen by whichever instance runs it. APP_ROLE=web answers requests and runs no jobs. */
 interface Running { controller: AbortController }
-type JobState = { running: Map<string, Running>; active: number; waiting: (() => void)[]; recovered: boolean };
+type JobState = { running: Map<string, Running>; active: number; pumping: boolean; recovered: boolean; lastSweep: number; instance: string };
 const g = globalThis as unknown as { __jobs?: JobState };
-const state = (): JobState => (g.__jobs ??= { running: new Map(), active: 0, waiting: [], recovered: false });
+const state = (): JobState => (g.__jobs ??= { running: new Map(), active: 0, pumping: false, recovered: false, lastSweep: 0, instance: crypto.randomUUID() });
 
-async function slot(): Promise<() => void> {
-  const s = state();
-  if (s.active >= Math.max(env.maxConcurrentJobs, 1)) await new Promise<void>((r) => s.waiting.push(r));
-  s.active++;
-  return () => { s.active--; s.waiting.shift()?.(); };
-}
+const HEARTBEAT_MS = 10_000, STALE_MS = 90_000, SWEEP_MS = 30_000, MAX_ATTEMPTS = 2;
+export const appRole = () => readEnv("APP_ROLE", "all").toLowerCase() as "all" | "web" | "worker";
+export const runsJobs = () => appRole() !== "web";
 
-/** How many jobs this server is running or has queued (a sleeping container must stay awake while it is > 0). */
+/** How many jobs this server is running. */
 export const busyJobs = () => state().running.size;
 
-/** Ask a queued / running job to stop at its next progress tick. False when this server is not running it. */
-export function requestCancel(jobId: string): boolean {
-  const r = state().running.get(jobId);
-  if (!r) return false;
-  r.controller.abort();
-  return true;
+/** Is there work for this instance: a job it runs, or (when it runs jobs) one waiting in the queue? A sleeping container
+ * must stay awake meanwhile. */
+export async function hasWork(): Promise<boolean> {
+  if (state().running.size > 0) return true;
+  if (!runsJobs()) return false;
+  return (await (await mainDb()).collection("jobs").countDocuments({ status: "queued", runner: "next", claimedBy: null }, { limit: 1 })) > 0;
 }
 
-/** Jobs left "processing" by an earlier server run can never finish: fail them cleanly (once per server start). */
-export async function recoverStaleJobs() {
+interface QueuedWork { input: string; renderingId: string; priorStatus: string; label: string; attempts: number }
+
+/** The job, ready for any instance to run: its whole input stored on it, then this instance looks for work. */
+async function enqueue(jobId: ObjectId, inp: pl.PipelineInput, renderingId: ObjectId, priorStatus: string, label: string) {
+  const { signal: _signal, ...plain } = inp;
+  void _signal;
+  const queue: QueuedWork = { input: JSON.stringify(plain), renderingId: String(renderingId), priorStatus, label, attempts: 0 };
+  await (await db()).collection("jobs").updateOne({ _id: jobId }, { $set: { queue, claimedBy: null, heartbeatAt: null, cancelRequested: false } });
+  void pump();
+}
+
+/** Takes queued jobs while this instance has free slots; each runs as the user who started it. */
+export async function pump() {
   const s = state();
-  if (s.recovered) return;
-  s.recovered = true;
-  const d = await mainDb(), err = { code: "JOB_INTERRUPTED", message: "The server restarted while this job was running.", details: null };
-  for (const j of await d.collection("jobs").find({ status: { $in: ["queued", "processing"] }, runner: "next" }).toArray()) {
-    if (s.running.has(String(j._id))) continue;
-    await d.collection("jobs").updateOne({ _id: j._id }, { $set: { status: "failed", error: err, updatedAt: now() } });
-    await credits.refund(String(j._id)).catch(() => 0); // interrupted by a restart: the credits come back
-    await d.collection("projects").updateOne({ _id: j.projectId, status: "processing" }, { $set: { status: "failed", error: err, updatedAt: now() } });
+  if (!runsJobs() || s.pumping) return;
+  s.pumping = true;
+  try {
+    while (s.active < Math.max(env.maxConcurrentJobs, 1)) {
+      const t = now();
+      const job = await (await mainDb()).collection("jobs").findOneAndUpdate(
+        { status: "queued", runner: "next", queue: { $exists: true }, claimedBy: null },
+        { $set: { claimedBy: s.instance, claimedAt: t, heartbeatAt: t } },
+        { sort: { createdAt: 1 }, returnDocument: "after" },
+      );
+      if (!job) break;
+      s.active++;
+      void runClaimed(job as Doc).catch((e) => console.error("queued job could not run", e)).finally(() => { s.active--; void pump(); });
+    }
+  } catch (e) {
+    console.warn("job queue:", e);
+  } finally {
+    s.pumping = false;
   }
+}
+
+async function runClaimed(job: Doc) {
+  const q = job.queue as QueuedWork, jobId = job._id, key = String(jobId), s = state();
+  const owner = (job[OWNER] as string | undefined) ?? null;
+  const controller = new AbortController();
+  s.running.set(key, { controller });
+  const beat = setInterval(() => {
+    void mainDb().then((d) => d.collection("jobs").findOneAndUpdate({ _id: jobId, claimedBy: s.instance }, { $set: { heartbeatAt: now() } }))
+      .then((j) => { if (j?.cancelRequested) controller.abort(); }).catch(() => {});
+  }, HEARTBEAT_MS);
+  beat.unref?.();
+  try {
+    const inp = { ...(JSON.parse(q.input) as pl.PipelineInput), signal: controller.signal };
+    await withUser(owner, () => run(jobId, job.projectId as ObjectId, inp, new ObjectId(q.renderingId), q.priorStatus, q.label, controller));
+  } finally {
+    clearInterval(beat);
+    s.running.delete(key);
+  }
+}
+
+/** Ask a queued / running job to stop. A queued one stops at once; a running one at its next progress tick, on whichever
+ * instance runs it. False when the job is no longer active. */
+export async function requestCancel(jobId: string): Promise<boolean> {
+  const local = state().running.get(jobId);
+  if (local) { local.controller.abort(); return true; }
+  if (!ObjectId.isValid(jobId)) return false;
+  const d = await db(), _id = new ObjectId(jobId);
+  const waiting = await d.collection("jobs").findOneAndUpdate({ _id, status: "queued", claimedBy: null },
+    { $set: { status: "cancelled", error: { code: "JOB_CANCELLED", message: "Cancelled by you.", details: null }, updatedAt: now() } });
+  if (waiting) {
+    const prior = (waiting.queue as QueuedWork | undefined)?.priorStatus ?? "draft";
+    await d.collection("projects").updateOne({ _id: waiting.projectId, status: "processing" }, { $set: { status: prior, updatedAt: now() } });
+    await credits.refund(jobId).catch(() => 0);
+    return true;
+  }
+  const r = await d.collection("jobs").updateOne({ _id, status: { $in: ["queued", "processing"] } }, { $set: { cancelRequested: true } });
+  return r.matchedCount > 0;
+}
+
+/** Interrupted jobs: once per server start, the jobs of the earlier in-memory queue (no stored input) are failed; and every
+ * SWEEP_MS, a job whose instance stopped beating is queued again (once) or failed, its credits refunded. */
+export async function recoverStaleJobs() {
+  const s = state(), d = await mainDb(), jobs = d.collection("jobs");
+  const fail = async (j: Doc, message: string) => {
+    const err = { code: "JOB_INTERRUPTED", message, details: null };
+    const r = await jobs.updateOne({ _id: j._id, status: { $in: ["queued", "processing"] } }, { $set: { status: "failed", error: err, updatedAt: now() } });
+    if (!r.modifiedCount) return;
+    await credits.refund(String(j._id)).catch(() => 0); // interrupted: the credits come back
+    await d.collection("projects").updateOne({ _id: j.projectId as ObjectId, status: "processing" }, { $set: { status: "failed", error: err, updatedAt: now() } });
+  };
+  if (!s.recovered) {
+    s.recovered = true;
+    for (const j of await jobs.find({ status: { $in: ["queued", "processing"] }, runner: "next", queue: { $exists: false } }).toArray()) {
+      if (!s.running.has(String(j._id))) await fail(j as Doc, "The server restarted while this job was running.");
+    }
+  }
+  if (Date.now() - s.lastSweep < SWEEP_MS) return;
+  s.lastSweep = Date.now();
+  const cutoff = new Date(Date.now() - STALE_MS);
+  for (const j of await jobs.find({ status: { $in: ["queued", "processing"] }, runner: "next", queue: { $exists: true }, claimedBy: { $ne: null }, heartbeatAt: { $lt: cutoff } }).toArray()) {
+    const attempts = ((j.queue as QueuedWork).attempts ?? 0) + 1;
+    if (attempts >= MAX_ATTEMPTS || j.cancelRequested) { await fail(j as Doc, "The server running this job stopped twice; press Retry."); continue; }
+    await jobs.updateOne({ _id: j._id, claimedBy: j.claimedBy, heartbeatAt: j.heartbeatAt }, // only if nobody took it meanwhile
+      { $set: { status: "queued", claimedBy: null, heartbeatAt: null, "queue.attempts": attempts, progress: 0, updatedAt: now() } });
+  }
+  void pump();
+}
+
+/** Where a queued job is in line (1 = next), or null when it is not waiting. */
+export async function queuePosition(job: Doc): Promise<number | null> {
+  if (job.status !== "queued" || job.claimedBy) return null;
+  return (await (await mainDb()).collection("jobs").countDocuments({ status: "queued", runner: "next", claimedBy: null, createdAt: { $lt: job.createdAt as Date } })) + 1;
 }
 
 const initialStages = (jobType: string, captions = false, ai = false) => {
@@ -266,14 +366,12 @@ export async function submitSplit(projectId: string, count: number, seconds: num
 }
 
 // ------------------------------------------------------------------ run
-function spawn(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput, renderingId: ObjectId, priorStatus: string, label: string) {
-  const controller = new AbortController();
-  state().running.set(String(jobId), { controller });
-  void run(jobId, projectOid, { ...inp, signal: controller.signal }, renderingId, priorStatus, label, controller).finally(() => state().running.delete(String(jobId)));
+/** The job goes into the queue (MongoDB); an instance with a free slot runs it. */
+function spawn(jobId: ObjectId, _projectOid: ObjectId, inp: pl.PipelineInput, renderingId: ObjectId, priorStatus: string, label: string) {
+  void enqueue(jobId, inp, renderingId, priorStatus, label).catch((e) => console.error("job could not be queued", e));
 }
 
 async function run(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput, renderingId: ObjectId, priorStatus: string, label: string, controller: AbortController) {
-  const release = await slot();
   const caps = inp.settings.captions, ai = inp.settings.ai;
   const stages = initialStages(inp.jobType, caps, ai), names = stages.map((s) => s.name);
   let last = -1, pending: Promise<void> = Promise.resolve();
@@ -314,8 +412,6 @@ async function run(jobId: ObjectId, projectOid: ObjectId, inp: pl.PipelineInput,
     console.error("job could not be finished", e);
     await updateJob(jobId, { status: "failed", error: errorDoc(e) }).catch(() => {});
     await (await db()).collection("projects").updateOne({ _id: projectOid }, { $set: { status: priorStatus, updatedAt: now() } }).catch(() => {});
-  } finally {
-    release();
   }
 }
 

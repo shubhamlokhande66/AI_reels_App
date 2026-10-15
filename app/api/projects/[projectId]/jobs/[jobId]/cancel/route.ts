@@ -7,6 +7,6 @@ import { jobOut } from "@/server/projects/service";
 export const POST = route<{ projectId: string; jobId: string }>(async (_req, { projectId, jobId }) => {
   const doc = await jobDoc(jobId, projectId);
   if (!["queued", "processing"].includes(doc.status as string)) throw new ConflictError("This job has already finished, so there is nothing to cancel.", { code: "JOB_NOT_ACTIVE" });
-  if (!requestCancel(jobId)) throw new ConflictError("This job can no longer be cancelled from here (the server may have restarted since it started).", { code: "JOB_NOT_CANCELLABLE" });
+  if (!(await requestCancel(jobId))) throw new ConflictError("This job has already finished, so there is nothing to cancel.", { code: "JOB_NOT_ACTIVE" });
   return Response.json(jobOut(await jobDoc(jobId, projectId)), { status: 202 });
 });

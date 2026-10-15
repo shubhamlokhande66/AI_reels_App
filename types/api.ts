@@ -206,6 +206,8 @@ export interface Job {
   renderingId: string | null;
   createdAt: string;
   updatedAt: string;
+  /** while it waits for a free server: its place in line (1 = next) */
+  queuePosition?: number | null;
 }
 
 export interface TimelineSegment {

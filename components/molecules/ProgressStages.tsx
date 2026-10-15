@@ -115,7 +115,14 @@ export function ProgressStages({ job, onCancel, cancelling }: Props) {
       <div className="mt-4">
         <ProgressBar value={job.progress} label="Overall progress" size="lg" />
       </div>
-      <div className="mt-2">{job.status === "processing" && <JobEstimate job={job} />}</div>
+      <div className="mt-2">
+        {job.status === "processing" && <JobEstimate job={job} />}
+        {job.status === "queued" && job.queuePosition ? (
+          <p className="text-sm text-muted" role="status">
+            {job.queuePosition === 1 ? "Yours is next: it starts as soon as a server is free." : `Waiting in line: ${job.queuePosition - 1} Reel${job.queuePosition === 2 ? "" : "s"} ahead of yours.`}
+          </p>
+        ) : null}
+      </div>
       <ol className="mt-6 space-y-3">
         {job.stages.map((s) => {
           const running = s.status === "running";
