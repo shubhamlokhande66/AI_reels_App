@@ -260,9 +260,9 @@ export function resolveAudioMode(wanted: string, hasVoice: boolean, hasMusic: bo
 // ------------------------------------------------------------------ export presets (video/presets.py)
 export interface ExportPreset { id: string; name: string; width: number; height: number; fps: number; crf: number; maxBitrate: string; audioBitrate: string; maxSeconds: number | null }
 const PRESETS = new Map((REGISTRY.exportPresets as { id: string; name: string; width: number; height: number; fps: number; maxSeconds?: number | null }[]).map((p) =>
-  [p.id, { crf: 18, maxBitrate: p.id === "youtube" ? "16M" : "12M", audioBitrate: "192k", maxSeconds: p.maxSeconds ?? null, ...p } as ExportPreset]));
+  [p.id, { crf: 17, maxBitrate: p.id === "youtube" ? "16M" : "12M", audioBitrate: "192k", maxSeconds: p.maxSeconds ?? null, ...p } as ExportPreset])); // crf 17 with the fast preset: the same look as 18 with "medium", in half the time
 export function getPreset(id: string | null | undefined): ExportPreset {
-  if (!id || id === "custom") return { id: "custom", name: "Custom", width: env.outputWidth, height: env.outputHeight, fps: env.outputFps, crf: 18, maxBitrate: "12M", audioBitrate: "192k", maxSeconds: null };
+  if (!id || id === "custom") return { id: "custom", name: "Custom", width: env.outputWidth, height: env.outputHeight, fps: env.outputFps, crf: 17, maxBitrate: "12M", audioBitrate: "192k", maxSeconds: null };
   const p = PRESETS.get(id);
   if (!p) throw new ValidationFailed(`Unknown export preset '${id}'.`, { code: "UNKNOWN_PRESET", details: { available: [...PRESETS.keys(), "custom"] } });
   return p;
@@ -552,6 +552,10 @@ async function scoreAndCorrect(inp: PipelineInput, tlIn: Timeline, inputs: ClipI
     const [cand, changes] = correct(timeline, review, fileIssues ?? [], aiFixes, inputs, mm, { brief: kw.brief, maxTransitionRatio: kw.maxTransitionRatio });
     rnd.changes = changes;
     if (!changes.length) break;
+    // a whole new render takes minutes: only when the corrected edit, scored on its plan with this render's file checks,
+    // would really score higher
+    const guess = scorecard(reviewEdit(cand, inputs, mm, { ...kw, renderChecks: rendered }), { timeline: cand, fileIssues, brief: cand.brief, brand: inp.brand, expectAudio, threshold: env.reviewThreshold });
+    if (guess.overallScore <= card.overallScore) { rnd.changes.push("(not rendered: the corrections would not raise the score)"); break; }
     let render2: RenderResult, key2: string;
     try { [render2, key2] = await renderEdl({ ...inp, renderingId: `${inp.renderingId}_fix${it}` }, cand, res.clips, () => {}); }
     catch (e) { if (!(e instanceof AppError)) throw e; rnd.changes.push(`(not applied: the corrected render failed: ${e.message})`); break; }
@@ -563,6 +567,7 @@ async function scoreAndCorrect(inp: PipelineInput, tlIn: Timeline, inputs: ClipI
     await moveFileAsync(localPath(key2), localPath(res.outputKey!));
     res.render = { ...render2, path: localPath(res.outputKey!) };
     timeline = cand; review = m2.rv; fileIssues = m2.fi; card = m2.card; rendered = rendered2;
+    break; // at most one re-render: the next would cost as much again for a smaller gain
   }
   const kept = rounds.filter((r) => r.kept);
   if (kept.length) timeline.notes.push(`Reviewer: ${first} -> ${card.overallScore}/100 after ${kept.length} correction(s) and re-render(s): ` + kept.flatMap((r) => r.changes).join("; ").slice(0, 300));

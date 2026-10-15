@@ -21,7 +21,7 @@ let analyzeClip: typeof import("@/server/video/analyzer").analyzeClip;
 let mainDb: typeof import("@/server/core/db").mainDb, ObjectId: typeof import("@/server/core/db").ObjectId;
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60_000 } }); // slow to start while other tests run
   storage = fs.mkdtempSync(path.join(os.tmpdir(), "storage_"));
   Object.assign(process.env, { MONGODB_URI: mongo.getUri(), MONGODB_DB: "device_analysis", STORAGE_PATH: storage, STORAGE_MOUNTED: "false" });
   clips = await import("@/server/video/clips");

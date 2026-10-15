@@ -1,5 +1,6 @@
 import "server-only";
 import path from "node:path";
+import { env } from "@/server/core/config";
 import { RenderTimeout } from "@/server/core/errors";
 import { renderFfmpeg } from "@/server/core/ffmpeg";
 import { fixed, round } from "@/server/core/py";
@@ -24,7 +25,7 @@ export interface RenderConfig {
 }
 export const renderConfig = (c: Partial<RenderConfig> = {}): RenderConfig => ({
   width: 1080, height: 1920, fps: 30, cropStrategy: "smart", framing: "auto", fitLossThreshold: 0.35, segmentCrf: 14, segmentPreset: "veryfast",
-  finalCrf: 18, finalPreset: "medium", maxBitrate: "12M", audioBitrate: "192k", targetLufs: -14, encoder: "libx264", audioMode: "music",
+  finalCrf: 17, finalPreset: "veryfast", maxBitrate: "12M", audioBitrate: "192k", targetLufs: -14, encoder: "libx264", audioMode: "music",
   smoothSlowmo: true, stabilize: true, ...c,
 });
 
@@ -132,7 +133,11 @@ function qualityFilters(src: SourceClip, cfg: RenderConfig, transforms: string |
   return out;
 }
 
-const MINTERP = (fps: number) => ["format=yuv444p,format=yuv420p", `minterpolate=fps=${fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1`];
+/** Slowed-down footage made smooth: neighbouring frames blended into the missing ones (fast). SLOWMO_SMOOTHING=mci invents
+ * them by motion estimation instead: smoother on big movement, but about a minute per slowed shot on two cores. */
+const MINTERP = (fps: number) => (env("SLOWMO_SMOOTHING", "blend").toLowerCase() === "mci"
+  ? ["format=yuv444p,format=yuv420p", `minterpolate=fps=${fps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1`]
+  : [`minterpolate=fps=${fps}:mi_mode=blend`]);
 
 function timeFilters(seg: Segment, cfg: RenderConfig): string[] {
   const length = seg.timelineEnd - seg.timelineStart;

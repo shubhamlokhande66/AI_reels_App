@@ -26,7 +26,7 @@ let mainDb: typeof import("@/server/core/db").mainDb;
 let ObjectId: typeof import("@/server/core/db").ObjectId;
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 60_000 } }); // slow to start while other tests run
   process.env.MONGODB_URI = mongo.getUri();
   process.env.MONGODB_DB = "queue_test";
   process.env.MAX_CONCURRENT_JOBS = "1";

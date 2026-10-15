@@ -129,14 +129,24 @@ export async function renderTimeline(r: RenderIn): Promise<RenderResult> {
   const xfade = await xfadeTransitions(); // a transition this FFmpeg lacks becomes the closest one it has
   const cutShare = SEGMENT_SHARE - (chunked ? CHUNK_SHARE : 0);
   try {
-    let files: string[] = [];
-    for (const [i, seg] of tl.segments.entries()) {
-      const out = path.join(r.workDir, `seg_${String(i).padStart(3, "0")}.mp4`), src = sources.get(seg.clipId)!;
-      const transforms = await measureShake(seg, src, plans[i], cfg, out, remaining(), r.signal);
-      await renderFfmpeg(buildSegmentCommand(seg, src, out, plans[i], cfg, grade, transforms), { timeout: remaining(), expectedDuration: outLength(plans[i]), signal: r.signal });
-      files.push(out);
-      report((cutShare * (i + 1)) / n);
-    }
+    // shots are cut RENDER_PARALLEL at a time: part of every shot's filtering runs on one core, so two keep both busy
+    let files: string[] = new Array(n), next = 0, cut = 0, failed = false;
+    const cutShots = async () => {
+      while (!failed && next < n) {
+        const i = next++, seg = tl.segments[i];
+        const out = path.join(r.workDir, `seg_${String(i).padStart(3, "0")}.mp4`), src = sources.get(seg.clipId)!;
+        try {
+          const transforms = await measureShake(seg, src, plans[i], cfg, out, remaining(), r.signal);
+          await renderFfmpeg(buildSegmentCommand(seg, src, out, plans[i], cfg, grade, transforms), { timeout: remaining(), expectedDuration: outLength(plans[i]), signal: r.signal });
+        } catch (e) {
+          failed = true; // the others stop taking new shots
+          throw e;
+        }
+        files[i] = out;
+        report((cutShare * ++cut) / n);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(Math.max(Number(env("RENDER_PARALLEL", "2")) || 1, 1), n) }, cutShots));
     let segs = tl.segments, cplans = plans;
     if (chunked) {
       const outFiles: string[] = [], supSegs: Segment[] = [], supPlans: SegmentPlan[] = [];
