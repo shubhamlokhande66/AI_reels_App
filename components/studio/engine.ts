@@ -28,6 +28,13 @@ const TCOL = {drop:'--drop', hit:'--hit', cut:'--cut', break:'--break'};
 const TNAME = {drop:'DROP', hit:'HIT', cut:'CUT', break:'BREAK'};
 
 /* =============== MUSIC ENGINE =============== */
+// Self-contained on purpose: its source is also run in a Web Worker, so the page never freezes while a song is analysed.
+function songAnalysis(monoIn, sampleRate){
+  const DRUM_MIN = 0.7;
+  const buf = { sampleRate, length: monoIn.length, duration: monoIn.length/sampleRate, numberOfChannels: 1, getChannelData: () => monoIn };
+  let mono = null, period = 0, phase = 0, hopSec = 0, rmsF = null, hitsStr = [], barOff = 0, beatLvl = [];
+  let onEnv = null, onFps = 0, onOff = 0, hitsRaw = [], cutFx = [], pfArr = null;
+  let beats = [], beatsDP = [], cuts = [], cutType = [], peaks = [], peakS = [];
 /* ---------- FFT ---------- */
 function makeFFT(n){
   const lev = Math.log2(n), rev = new Uint32Array(n), cos = new Float64Array(n/2), sin = new Float64Array(n/2);
@@ -43,6 +50,92 @@ function makeFFT(n){
       }
     }
   };
+}
+
+/* ---------- Beat tracking ---------- */
+// 1) global tempo from the autocorrelation of the onset envelope; 2) the metrical level: a slow song is not heard at double
+// speed when the off-beats are only hi-hats, a fast one (drum & bass) keeps its snare on 2 and 4; 3) local tempo every
+// second (windowed autocorrelation + a smooth path), so drifting and changing tempos are followed; 4) Ellis' dynamic
+// programming places each beat on the strongest onsets at that local spacing.
+function trackBeats(env, bodyEnv, fps, kickEnv){
+  const n = env.length;
+  if(n < fps*2) return { beats: [], period: fps*0.5 };
+  const mean = a => { let s=0; for(const v of a) s+=v; return s/Math.max(1,a.length); };
+  const sd = (a, m) => { let s=0; for(const v of a) s+=(v-m)*(v-m); return Math.sqrt(s/Math.max(1,a.length)) || 1; };
+  const em = mean(env), es = sd(env, em), E = Float64Array.from(env, v => v/es), Z = Float64Array.from(env, v => (v-em)/es);   // Z: zero-mean, for autocorrelation
+  const acAt = (a, L, i0, i1) => { let s=0, c=0; for(let i=i0; i+L<i1; i++){ s+=a[i]*a[i+L]; c++; } return c ? s/c : 0; };
+  // 1) tempo per 8 s window (40–240 BPM, broad preference around 115 BPM), each checked for the right level (2),
+  //    then the median: a song that changes tempo is not averaged into a tempo it never has
+  const lmin = Math.max(2, Math.floor(60*fps/240)), lmax = Math.min(n-2, Math.ceil(60*fps/40));
+  const bpmOf = q => 60*fps/q;
+  // 2) metrical level, judged on the low end (kick, snare body; hi-hats left out)
+  //    too fast? every other "beat" is weak (only hats/fills): the real beat is twice as long;
+  //    too slow? a real hit (the snare of drum & bass) lands halfway between: the real beat is half as long.
+  const levelStats = (a, q, i0, i1) => { let best = -1, res = null;
+    for(let ph=0; ph<q; ph+=0.5){ let ev=0, od=0, mid=0, ce=0, co=0, k=0;
+      for(let x=i0+ph; x<i1; x+=q, k++){ const v=a[Math.round(x)]||0, m=a[Math.round(x+q/2)]||0; if(k%2){ od+=v; co++; } else { ev+=v; ce++; } mid+=m; }
+      ev/=Math.max(1,ce); od/=Math.max(1,co); mid/=Math.max(1,ce+co); const on=(ev+od)/2;
+      if(on>best){ best=on; res={on, alt: Math.min(ev,od)/Math.max(ev,od,1e-9), mid: mid/Math.max(on,1e-9)}; } }
+    return res || {on:0, alt:1, mid:0}; };
+  const tempoIn = (i0, i1) => {
+    const ac = new Float64Array(lmax+2);
+    for(let L=lmin-1; L<=lmax+1; L++) ac[L] = acAt(Z, L, i0, i1);
+    let L0 = lmin, bv = -Infinity;
+    for(let L=lmin; L<=lmax; L++){ const w = ac[L]*Math.exp(-0.5*Math.pow(Math.log2(bpmOf(L)/115)/1.0, 2)); if(w > bv){ bv = w; L0 = L; } }
+    const y0=ac[L0-1]||0, y1=ac[L0]||0, y2=ac[L0+1]||0, d=y0-2*y1+y2;
+    const q = L0 + (d!==0 ? Math.max(-0.5, Math.min(0.5, 0.5*(y0-y2)/d)) : 0);
+    return { q, i0, i1, strength: Math.max(0, bv) };
+  };
+  const wl = Math.round(8*fps), est = [];
+  if(n <= wl*1.25) est.push(tempoIn(0, n));
+  else for(let c=0; c+wl<=n; c+=Math.round(2*fps)) est.push(tempoIn(c, c+wl));
+  const qs = est.filter(e=>e.strength>0).map(e=>e.q).sort((a,b)=>a-b);
+  let P = qs.length ? qs[Math.floor(qs.length/2)] : tempoIn(0, n).q;
+  // every window on the same level as the median (a real change like 95 -> 128 stays; a stray double / half is folded)
+  est.forEach(e=>{ e.q = [e.q/2, e.q, 2*e.q].reduce((b,x)=>Math.abs(Math.log(x/P)) < Math.abs(Math.log(b/P)) ? x : b, e.q); });
+  // one level decision for the whole song, from the averages over all windows (single windows are noisy)
+  { let alt = 0, mid = 0, c = 0;
+    est.forEach(e=>{ const s = levelStats(bodyEnv, e.q, e.i0, e.i1); alt += s.alt; mid += s.mid; c++; });
+    alt /= Math.max(1,c); mid /= Math.max(1,c);
+    let f = 1;
+    if(bpmOf(2*P) >= 55 && alt < 0.38) f = 2;            // every other "beat" is only hats / fills: the beat is twice as long
+    else if(bpmOf(P/2) <= 200 && mid > 0.42) f = 0.5;    // a real hit halfway (drum & bass snare): the beat is half as long
+    if(f !== 1){ P *= f; est.forEach(e=>{ e.q *= f; }); } }
+  // 3) local period: the window estimates themselves (kept on the same level as the median, so a stray window cannot
+  //    double or halve the tempo, while real changes like 95 -> 128 are followed), median-smoothed, interpolated per frame
+  const step = Math.round(2*fps), cen = [], val = [];
+  if(n <= wl*1.25){ cen.push(n/2); val.push(P); }
+  else est.forEach((e,k)=>{ let q = e.q; const c2 = [q/2, q, 2*q]; q = c2.reduce((b,x)=>Math.abs(Math.log(x/P)) < Math.abs(Math.log(b/P)) ? x : b, q);
+    cen.push(k*step + wl/2); val.push(q); });
+  const sm = val.map((v,k)=>{ const w=[val[k-1]??v, v, val[k+1]??v].sort((a,b)=>a-b); return w[1]; });
+  const per = new Float64Array(n);
+  for(let i=0, k=0; i<n; i++){
+    while(k+1 < cen.length && cen[k+1] <= i) k++;
+    if(i <= cen[0]) per[i] = sm[0];
+    else if(k+1 >= cen.length) per[i] = sm[sm.length-1];
+    else { const w2 = (i-cen[k])/(cen[k+1]-cen[k]); per[i] = sm[k]*(1-w2) + sm[k+1]*w2; }
+  }
+  const pathL = sm;
+  // 4) dynamic programming (tightness 100, like Ellis 2007 / librosa)
+  const bm = mean(bodyEnv), bs = sd(bodyEnv, bm), km = mean(kickEnv), ks = sd(kickEnv, km);
+  const S = Float64Array.from(E, (v,i) => 0.25*v + 0.5*bodyEnv[i]/bs + 1.2*kickEnv[i]/ks);   // beats sit on the kick, then snare, more than on hats
+  const score = new Float64Array(n), back = new Int32Array(n).fill(-1), tight = 100;
+  for(let i=0;i<n;i++){
+    const p = per[i], a0 = Math.max(0, i - Math.round(2*p)), a1 = i - Math.max(1, Math.round(p/2));
+    let b = -Infinity, bi = -1;
+    for(let j=a0; j<=a1; j++){ const r = Math.log((i-j)/p), v = score[j] - tight*r*r; if(v > b){ b = v; bi = j; } }
+    score[i] = S[i] + (bi >= 0 ? Math.max(b, 0) : 0); back[i] = bi >= 0 && b > 0 ? bi : -1;
+  }
+  // last beat: the best score in the final beat period; then follow the links back
+  let end = n-1; { const p = per[n-1]; let b = -Infinity; for(let i=Math.max(0, n-1-Math.round(p*1.5)); i<n; i++) if(score[i] > b){ b = score[i]; end = i; } }
+  const out = []; for(let i=end; i>=0; i=back[i]){ out.push(i); if(back[i] < 0) break; }
+  out.reverse();
+  // the chain may stop early (silence at the start): extend it backwards at the local spacing
+  while(out.length && out[0] - per[out[0]] > per[out[0]]*0.3){ const f = out[0] - per[out[0]]; let bf = Math.round(f), bs = -1;
+    for(let j=Math.max(0, Math.round(f-3)); j<=Math.min(n-1, Math.round(f+3)); j++) if(S[j] > bs){ bs = S[j]; bf = j; }
+    if(bf >= out[0]) break; out.unshift(bf); }
+  const ints = []; for(let i=1;i<out.length;i++) ints.push(out[i]-out[i-1]); ints.sort((a,b)=>a-b);
+  return { beats: out, period: ints.length ? ints[Math.floor(ints.length/2)] : P };
 }
 
 /* ---------- Beat analysis ---------- */
@@ -75,17 +168,17 @@ function analyse(){
   // 3) onset strength of the drum part only
   //    plus bass/808 hits (below 300 Hz) and new synth/instrument attacks (above 300 Hz)
   pfArr = new Float32Array(frames);
-  const flux = new Float64Array(frames), fLow = new Float64Array(frames), fHi = new Float64Array(frames);
-  const prev = new Float64Array(B), prevF = new Float64Array(B), kSplit = Math.round(300*N/sr);
+  const flux = new Float64Array(frames), fLow = new Float64Array(frames), fHi = new Float64Array(frames), fBody = new Float64Array(frames), fKick = new Float64Array(frames);
+  const prev = new Float64Array(B), prevF = new Float64Array(B), kSplit = Math.round(300*N/sr), kBody = Math.round(800*N/sr), kKick = Math.max(2, Math.round(150*N/sr));
   for(let f=0;f<frames;f++){
-    let s=0, sl=0, sh=0, pn=0, pdn=0;
+    let s=0, sl=0, sh=0, pn=0, pdn=0, sb=0, sk=0;
     for(let k=1;k<B;k++){
       const i=f*B+k, p2=Pm[i]*Pm[i], h2=Hm[i]*Hm[i], m=Math.log1p(100*Mag[i]*p2/(p2+h2+1e-12)), e2=Mag[i]*Mag[i];
       pn += e2*p2/(p2+h2+1e-12); pdn += e2;
-      const d=m-prev[k]; if(d>0&&f>0) s+=d; prev[k]=m;
+      const d=m-prev[k]; if(d>0&&f>0){ s+=d; if(k<kBody) sb+=d; if(k<=kKick) sk+=d; } prev[k]=m;
       const mf=Math.log1p(100*Mag[i]), df=mf-prevF[k]; if(df>0&&f>0){ if(k<kSplit) sl+=df; else sh+=df; } prevF[k]=mf;
     }
-    flux[f]=s; fLow[f]=sl; fHi[f]=sh; pfArr[f]=pdn>0 ? pn/pdn : 0;
+    flux[f]=s; fLow[f]=sl; fHi[f]=sh; fBody[f]=sb; fKick[f]=sk; pfArr[f]=pdn>0 ? pn/pdn : 0;
   }
   // local-mean subtract
   const env = new Float64Array(frames), W=8;
@@ -94,25 +187,16 @@ function analyse(){
   rmsF = new Float32Array(frames);
   for(let f=0;f<frames;f++){ let s=0; const o=f*H; for(let i=0;i<N;i+=2){ const v=mono[o+i]||0; s+=v*v; } rmsF[f]=Math.sqrt(s/(N/2)); }
   const fps = sr/H;
-  // autocorrelation tempo (70–180 BPM, prior around 120)
-  const lmin = Math.floor(60*fps/180), lmax = Math.ceil(60*fps/70);
-  const ac = new Float64Array(lmax+2);
-  for(let L=lmin-1; L<=lmax+1; L++){ let s=0; for(let i=0;i+L<frames;i++) s+=env[i]*env[i+L]; ac[L]=s/(frames-L); }
-  let best=lmin, bv=-1;
-  for(let L=lmin; L<=lmax; L++){ const bpm=60*fps/L, w=ac[L]*Math.exp(-0.5*Math.pow(Math.log2(bpm/120)/0.9,2)); if(w>bv){bv=w;best=L;} }
-  const y0=ac[best-1], y1=ac[best], y2=ac[best+1], den=y0-2*y1+y2;
-  let P = best + (den!==0 ? 0.5*(y0-y2)/den : 0);
-  // joint fine search of period and phase on a constant grid
-  let bestScore=-1, bp=P, bph=0;
-  for(let j=-20;j<=20;j++){
-    const p = P*(1+j*0.0005);
-    for(let ph=0; ph<p; ph+=0.25){
-      let s=0, n=0;
-      for(let t=ph; t<frames; t+=p){ s+=env[Math.round(t)]||0; n++; }
-      s/=n; if(s>bestScore){ bestScore=s; bp=p; bph=ph; }
-    }
-  }
-  period = bp*H/sr; phase = bph*H/sr + (N/2)/sr; hopSec = H/sr;
+  // ---- beats: the right tempo level, a tempo that may drift or change, dynamic programming ----
+  const bodyEnv = new Float64Array(frames);
+  { const cb = new Float64Array(frames+1); for(let i=0;i<frames;i++) cb[i+1]=cb[i]+fBody[i];
+    for(let i=0;i<frames;i++){ const a=Math.max(0,i-W), b=Math.min(frames,i+W+1); bodyEnv[i]=Math.max(0, fBody[i]-(cb[b]-cb[a])/(b-a)); } }
+  const kickEnv = new Float64Array(frames);
+  { const ck = new Float64Array(frames+1); for(let i=0;i<frames;i++) ck[i+1]=ck[i]+fKick[i];
+    for(let i=0;i<frames;i++){ const a=Math.max(0,i-W), b=Math.min(frames,i+W+1); kickEnv[i]=Math.max(0, fKick[i]-(ck[b]-ck[a])/(b-a)); } }
+  const trk = trackBeats(env, bodyEnv, fps, kickEnv);
+  beatsDP = trk.beats.map(f => f/fps + (N/2)/sr);
+  period = trk.period/fps; phase = beatsDP.length ? beatsDP[0] : 0; hopSec = H/sr;
   // accent strength = drums + bass + instrument attacks (voice counts only half)
   const detrend = a => { const c=new Float64Array(frames+1); for(let i=0;i<frames;i++) c[i+1]=c[i]+a[i]; const o=new Float64Array(frames);
     for(let i=0;i<frames;i++){ const lo=Math.max(0,i-W), hi=Math.min(frames,i+W+1); o[i]=Math.max(0,a[i]-(c[hi]-c[lo])/(hi-lo)); }
@@ -151,8 +235,8 @@ function snap(t, w){
 }
 function rebuild(){
   const p = period, dur = buf.duration;
-  const first = mod(phase, p);
-  beats = []; for(let t=first; t<dur-0.02; t+=p) beats.push(t);
+  beats = beatsDP.filter(t => t >= 0 && t < dur-0.02);
+  const first = beats.length ? beats[0] : 0;
   barOff = 0;
   // loudness every 5 ms; a cut only where the sound suddenly jumps UP or suddenly falls DOWN
   const sr = buf.sampleRate, hop = Math.round(0.005*sr), win = Math.round(0.02*sr);
@@ -195,7 +279,8 @@ function rebuild(){
     [...forced].sort((a,b)=>rank(b)-rank(a)).forEach(x=>{ if(keep.every(y=>Math.abs(y.t-x.t)>=0.25)) keep.push(x); });
     forced.length=0; keep.sort((a,b)=>a.t-b.t).forEach(x=>forced.push(x)); }
   // 3) candidates = every real hit, scored by strength, bonus when it sits on the beat grid
-  const onGrid = tt => { const k=Math.round((tt-first)/p); return Math.abs(tt-(first+k*p)) < 0.05; };
+  const onGrid = tt => { let lo=0, hi=beats.length; while(lo<hi){ const m=(lo+hi)>>1; if(beats[m]<tt) lo=m+1; else hi=m; }
+    return (lo<beats.length && Math.abs(beats[lo]-tt) < 0.05) || (lo>0 && Math.abs(beats[lo-1]-tt) < 0.05); };
   // only real beats are candidates: if it is just voice or a held note, no cut there
   const cands = peaks.map((pt,k)=>({t:pt, sc: peakS[k]*(onGrid(pt)?1.4:1)})).filter(c=>drumness(c.t) >= DR-0.1);
   ups.forEach(u=>{ if(drumness(u.t) >= DR-0.1) cands.push({t:u.t, sc: u.s/4 + (onGrid(u.t)?1:0)}); });
@@ -236,8 +321,37 @@ function rebuild(){
 
 
 
+
+  analyse();
+  return { period, phase, hopSec, rmsF, onEnv, onFps, onOff, hitsRaw, hitsStr, pfArr, beats, cuts, cutType, cutFx, peaks, peakS, barOff };
+}
+function analyseInWorker(m, sr){
+  return new Promise((resolve, reject) => {
+    let url = null, w = null;
+    try{
+      const code = 'const songAnalysis = ' + songAnalysis.toString() + ';\n' +
+        'onmessage = e => { try{ postMessage({ ok: true, r: songAnalysis(e.data.mono, e.data.sr) }); } catch(err){ postMessage({ ok: false, err: String(err && err.message || err) }); } };';
+      url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }));
+      w = new Worker(url);
+      const done = () => { try{ w.terminate(); }catch(err){} URL.revokeObjectURL(url); };
+      w.onmessage = ev => { done(); ev.data.ok ? resolve(ev.data.r) : reject(new Error(ev.data.err)); };
+      w.onerror = ev => { done(); reject(new Error(ev.message || 'worker failed')); };
+      const copy = m.slice(); w.postMessage({ mono: copy, sr }, [copy.buffer]);
+    }catch(err){ if(url) URL.revokeObjectURL(url); reject(err); }
+  });
+}
+// the page keeps these for the edit (same as inside songAnalysis)
+const mod = (a,n) => ((a%n)+n)%n;
+function drumness(t){ const c=Math.round((t-onOff)*onFps); let m=0; for(let j=c-2;j<=c+4;j++) if(j>=0 && j<pfArr.length && pfArr[j]>m) m=pfArr[j]; return m; }
+function snap(t, w){
+  let best=t, bs=0;
+  let lo=0, hi=peaks.length; while(lo<hi){ const m=(lo+hi)>>1; if(peaks[m]<t-w) lo=m+1; else hi=m; }
+  for(let i=lo; i<peaks.length && peaks[i]<=t+w; i++){ const sc = peakS[i]*(1-Math.abs(peaks[i]-t)/(w*1.5)); if(sc>bs){ bs=sc; best=peaks[i]; } }
+  return best;
+}
+
 /* =============== STEP 1: MUSIC =============== */
-let plan = [], basePlan = [], normGain = 1, mode = 'auto';
+let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0;
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
 function adaptPlan(){
   if(mode==='smooth'){
@@ -290,11 +404,19 @@ function drawMusic(){
 }
 async function loadMusic(arrayBuf, name){
   stopAll();
-  $('s1st').textContent = 'Analysing…'; $('mname').textContent = name; $('s1').classList.remove('done');
+  $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
   try{ buf = await getCtx().decodeAudioData(arrayBuf); }
   catch(e){ $('s1st').textContent = 'Could not read this file. Use MP3, WAV, M4A or MP4.'; return; }
-  await new Promise(r=>setTimeout(r,30));
-  analyse(); buildPlan(); drawMusic();
+  const token = ++musicToken;
+  { const ch = buf.numberOfChannels, len = buf.length; mono = new Float32Array(len);
+    for(let c=0;c<ch;c++){ const d = buf.getChannelData(c); for(let i=0;i<len;i++) mono[i] += d[i]/ch; } }
+  drawMusic();
+  let r;
+  try{ r = await analyseInWorker(mono, buf.sampleRate); }
+  catch(err){ console.warn('song analysis worker unavailable, analysing on the page', err); await new Promise(rr=>setTimeout(rr,30)); r = songAnalysis(mono, buf.sampleRate); }
+  if(token !== musicToken) return;   // another song was chosen meanwhile
+  ({ period, phase, hopSec, rmsF, onEnv, onFps, onOff, hitsRaw, hitsStr, pfArr, beats, cuts, cutType, cutFx, peaks, peakS, barOff } = r);
+  buildPlan(); drawMusic();
   { let s=0,n=0; for(let i=0;i<mono.length;i+=64){ const v=mono[i]; if(Math.abs(v)>0.003){ s+=v*v; n++; } }
     const rms = 10*Math.log10(s/Math.max(1,n)+1e-12); normGain = Math.pow(10, Math.max(-6, Math.min(9, -14 - rms))/20); }
   $('mdur').textContent = fmt(buf.duration); $('mbpm').textContent = (60/period).toFixed(0);
@@ -348,6 +470,7 @@ async function scanMotion(src, onProgress){
     setTimeout(finish, Math.max(20000, src.dur/ v.playbackRate*1000*3));
   });
   v.removeAttribute('src'); v.load();
+  out.sort((a,b)=>a.t-b.t);
   if(out.length>1) out[0].m = out[1].m;
   // smooth motion a little
   src.samples = out.map((s,i)=>({...s, m: (out[Math.max(0,i-1)].m + s.m + out[Math.min(out.length-1,i+1)].m)/3}));
@@ -471,14 +594,28 @@ $('aspect').addEventListener('click', e=>{ const b=e.target.closest('button'); i
 /* =============== STEP 3: AUTO-EDIT =============== */
 let edit = [], seed = 1;
 function rng(){ seed = (seed*16807) % 2147483647; return (seed-1)/2147483646; }
+// Window statistics in O(log n): prefix sums over the clip's samples and faces (built once per clip). The edit scores
+// thousands of windows, so a plain loop here froze the page on long videos.
+function statsIndex(src){
+  if(src._st) return src._st;
+  const S = src.samples, n = S.length, T = new Float64Array(n), cm = new Float64Array(n+1), cb = new Float64Array(n+1), cc = new Float64Array(n+1), cs = new Float64Array(n+1);
+  for(let i=0;i<n;i++){ T[i]=S[i].t; cm[i+1]=cm[i]+S[i].m; cb[i+1]=cb[i]+S[i].b; cc[i+1]=cc[i]+S[i].cx*S[i].m; cs[i+1]=cs[i]+S[i].sh; }
+  const F = src.faces || [], k = F.length, FT = new Float64Array(k), cn = new Float64Array(k+1), cfx = new Float64Array(k+1), cfy = new Float64Array(k+1), cfs = new Float64Array(k+1);
+  for(let i=0;i<k;i++){ const f=F[i], on=f.n?1:0; FT[i]=f.t; cn[i+1]=cn[i]+on; cfx[i+1]=cfx[i]+(on?f.fx:0); cfy[i+1]=cfy[i]+(on?f.fy:0); cfs[i+1]=cfs[i]+(on?f.fs:0); }
+  return (src._st = {T, cm, cb, cc, cs, FT, cn, cfx, cfy, cfs});
+}
+const lowerB = (A, x) => { let lo=0, hi=A.length; while(lo<hi){ const m=(lo+hi)>>1; if(A[m]<x) lo=m+1; else hi=m; } return lo; };
+const upperB = (A, x) => { let lo=0, hi=A.length; while(lo<hi){ const m=(lo+hi)>>1; if(A[m]<=x) lo=m+1; else hi=m; } return lo; };
+const TAIL = 0.15;   // seconds of clip kept free after a shot's window
 function windowStats(src, a, b){
-  let m=0, br=0, cx=0, sh=0, n=0;
-  for(const s of src.samples){ if(s.t<a) continue; if(s.t>b) break; m+=s.m; br+=s.b; cx+=s.cx*s.m; sh+=s.sh; n++; }
-  if(!n){ const s = src.samples.reduce((p,c)=>Math.abs(c.t-a)<Math.abs(p.t-a)?c:p, src.samples[0]); m=s.m; br=s.b; cx=s.cx*s.m; sh=s.sh; n=1; }
-  let fN=0, fT=0, fx=0, fy=0, fs=0;
-  (src.faces||[]).forEach(f=>{ if(f.t < a-0.5 || f.t > b+0.5) return; fT++; if(f.n){ fN++; fx+=f.fx; fy+=f.fy; fs+=f.fs; } });
-  const face = fT ? fN/fT : 0;
-  return {m:m/n, b:br/n, cx: m>1e-6 ? cx/m : 0.5, sh: sh/n, face, fx: fN ? fx/fN : 0.5, fy: fN ? fy/fN : 0.5, fs: fN ? fs/fN : 0};
+  const X = statsIndex(src);
+  let i0 = lowerB(X.T, a), i1 = upperB(X.T, b), n = i1 - i0, m, br, cx, sh;
+  if(n > 0){ m = X.cm[i1]-X.cm[i0]; br = X.cb[i1]-X.cb[i0]; cx = X.cc[i1]-X.cc[i0]; sh = X.cs[i1]-X.cs[i0]; }
+  else { const k = Math.min(Math.max(i0,0), src.samples.length-1), k2 = Math.max(0, k-1), s = Math.abs(src.samples[k2].t-a) < Math.abs(src.samples[k].t-a) ? src.samples[k2] : src.samples[k];
+    m = s.m; br = s.b; cx = s.cx*s.m; sh = s.sh; n = 1; }
+  const f0 = lowerB(X.FT, a-0.5), f1 = upperB(X.FT, b+0.5), fT = f1-f0, fN = X.cn[f1]-X.cn[f0];
+  return { m: m/n, b: br/n, cx: m>1e-6 ? cx/m : 0.5, sh: sh/n, face: fT ? fN/fT : 0,
+    fx: fN ? (X.cfx[f1]-X.cfx[f0])/fN : 0.5, fy: fN ? (X.cfy[f1]-X.cfy[f0])/fN : 0.5, fs: fN ? (X.cfs[f1]-X.cfs[f0])/fN : 0 };
 }
 /* ---- editing style: transition in, effect during, speed ---- */
 const SPEED = {
@@ -600,10 +737,10 @@ function makeEdit(){
     let best=null, bs=-Infinity;
     sources.forEach((src,si)=>{
       let need = s.sp.pos(len), scaleR = 1;
-      if(need > src.dur){ scaleR = src.dur/need*0.98; need *= scaleR; }
+      if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
       if(!allowNeighbour && sources.length>1 && [res[i-1],res[i+1]].some(x=>x && x.src===si)) return;
       const stepT = Math.max(0.1, Math.min(0.5, src.dur/120));
-      for(let a=0; a<=src.dur-need+1e-6; a+=stepT){
+      for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=stepT){
         let ov = 0; used[si].forEach(([u0,u1])=>{ ov += Math.max(0, Math.min(u1,a+need)-Math.max(u0,a)); });
         if(!allowOverlap && ov > 0.001) continue;          // a moment of footage is used only once
         const st = windowStats(src, a, a+need), m = st.m/gmax;
@@ -671,8 +808,8 @@ function repick(i, avoidCurrent){
   let best=null, bs=-Infinity;
   sources.forEach((src,si)=>{
     if(sources.length>1 && [edit[i-1],edit[i+1]].some(x=>x && x.src===si)) return;
-    let need = e.sp.pos(len), scaleR = 1; if(need > src.dur){ scaleR = src.dur/need*0.98; need *= scaleR; }
-    for(let a=0; a<=src.dur-need+1e-6; a+=Math.max(0.1, Math.min(0.5, src.dur/120))){
+    let need = e.sp.pos(len), scaleR = 1; if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
+    for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=Math.max(0.1, Math.min(0.5, src.dur/120))){
       if(avoidCurrent && si===e.src && Math.abs(a-e.in) < Math.max(0.3, need*0.5)) continue;
       if(used[si].some(([u0,u1])=>Math.min(u1,a+need)-Math.max(u0,a) > 0.001)) continue;
       const st = windowStats(src, a, a+need), m = st.m/gmax;
@@ -734,7 +871,11 @@ $('remix').onclick = () => { seed = (seed*7919 + 13) % 2147483647 || 7; makeEdit
 
 /* =============== RENDERER =============== */
 const out = $('out'), og = out.getContext('2d');
-function setCanvas(){ const [w,h]=SIZES[aspect]; if(out.width!==w||out.height!==h){ out.width=w; out.height=h; loopImg=null; } }
+// The live preview draws at half size (540×960 for a Reel): a quarter of the pixels, so it stays smooth on phones.
+// Export and the cover switch to the full 1080p size.
+const PREVIEW_SCALE = 0.5;
+function setCanvas(full){ const [W0,H0]=SIZES[aspect], s = full ? 1 : PREVIEW_SCALE, w = Math.round(W0*s/2)*2, h = Math.round(H0*s/2)*2;
+  if(out.width!==w||out.height!==h){ out.width=w; out.height=h; loopImg=null; } }
 function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(edit[m].start<=t+1e-4){ r=m; lo=m+1; } else hi=m-1; } return r; }
 async function prepare(i, t){
   const e = edit[i]; if(!e) return;
@@ -1105,6 +1246,7 @@ let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
   const c = getCtx(); await c.resume();
+  edit.forEach(x=>{ x._cued = false; });
   curIdx = segAt(from); if(edit[curIdx-1]) await prepare(curIdx-1, edit[curIdx-1].end-0.01); await prepare(curIdx, from); if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
   const s = c.createBufferSource(); s.buffer = buf;
   // loudness: bring the song to about -14 LUFS (social media level), limiter stops clipping, tiny fades stop clicks
@@ -1132,8 +1274,15 @@ async function startPlayback(from, destNode){
     } else {
       const e = edit[i], l = t-e.start, r = rateAt(e, l), want = srcPos(e, l);
       if(r===0){ if(!e.el.paused) e.el.pause(); if(Math.abs(e.el.currentTime-want) > 0.05) e.el.currentTime = want; }   // freeze frame
-      else { if(e.el.playbackRate !== r) e.el.playbackRate = r; if(e.el.paused) e.el.play().catch(()=>{});   // speed ramps
-        if(Math.abs(e.el.currentTime-want) > 0.2) e.el.currentTime = want; }   // drift fix
+      else {   // speed ramps + gentle catch-up: nudge the speed a little instead of jumping (a jump shows as a hitch)
+        const diff = want - e.el.currentTime;
+        if(Math.abs(diff) > 0.45) e.el.currentTime = want;
+        const nr = Math.max(0.0625, Math.min(16, r * (1 + Math.max(-0.2, Math.min(0.2, diff*1.2)))));
+        if(Math.abs(e.el.playbackRate - nr) > 0.01) e.el.playbackRate = nr;
+        if(e.el.paused) e.el.play().catch(()=>{}); }
+      // the shot after next is cued once this one's transition is over (its player may be the one that transition used)
+      const n2 = edit[i+2];
+      if(n2 && !n2._cued && l > (TR_DUR[e.tr]||0) + 0.05){ n2._cued = true; prepare(i+2, n2.start); }
     }
     drawFrame(t);
   };
@@ -1162,6 +1311,7 @@ async function recordExport(){
   const mime = pickMime();
   if(!mime || !out.captureStream){ showMsg('This browser cannot make videos. Use Chrome, Edge or a recent Safari.', true); return; }
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
+  setCanvas(true); await captureLoop();
   showMsg('Recording in real time (this browser has no fast encoder): '+fmt(buf.duration)+'). Keep this tab open.');
   const c = getCtx(); await c.resume();
   const dest = c.createMediaStreamDestination();
@@ -1177,6 +1327,7 @@ async function recordExport(){
   const ext = mime.includes('mp4') ? 'mp4' : 'webm';
   const blob = new Blob(chunks, {type: mime.split(';')[0]});
   const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
+  setCanvas(false); captureLoop();
   saveFile(blob, name); showMsg('Video saved: '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
 
 // Fast export: every frame is decoded (WebCodecs, through mediabunny), drawn and encoded off-screen, faster than real
@@ -1184,7 +1335,7 @@ async function recordExport(){
 async function fastExport(){
   if(!window.VideoEncoder || !window.AudioEncoder || !window.OfflineAudioContext) return false;
   const mb = await loadMediabunny();
-  const W = out.width, H = out.height, fps = 30, dur = buf.duration;
+  const [W, H] = SIZES[aspect], fps = 30, dur = buf.duration;
   // H.264 + AAC in MP4 (what Instagram wants); browsers without an H.264 encoder get VP9 + Opus in WebM
   const vcodec = await mb.getFirstEncodableVideoCodec(['avc', 'vp9', 'av1'], {width:W, height:H});
   if(!vcodec) return false;
@@ -1193,6 +1344,7 @@ async function fastExport(){
   if(!acodec) return false;
   stopAll();
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
+  setCanvas(true); await captureLoop();   // full size; the loop-back frame at full size too
   const t0 = performance.now();
   showMsg('Exporting… 0%');
   const inputs = [];
@@ -1226,7 +1378,8 @@ async function fastExport(){
         const s = sources[si], input = new mb.Input({ source: new mb.BlobSource(s.file), formats: mb.ALL_FORMATS }); inputs.push(input);
         const track = await input.getPrimaryVideoTrack();
         const r = Math.min(1, Math.max(W/s.w, H/s.h)*1.3);
-        sinks.set(si, { sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s.w*r/2)*2), height: Math.max(16, Math.round(s.h*r/2)*2), fit: 'fill' }), first: await track.getFirstTimestamp() });
+        let sfps = 30; try{ const stt = await track.computePacketStats(90); if(stt && stt.averagePacketRate > 1) sfps = stt.averagePacketRate; }catch(err){}
+        sinks.set(si, { sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s.w*r/2)*2), height: Math.max(16, Math.round(s.h*r/2)*2), fit: 'fill' }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
       }
       return sinks.get(si);
     };
@@ -1234,14 +1387,18 @@ async function fastExport(){
     const total = Math.round(dur*fps);
     let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0 }; let tq = performance.now();
     for(let i=0; i<edit.length; i++){
-      const e = edit[i], { sink, first } = await sinkFor(e.src), sdur = sources[e.src].dur;
-      const fEnd = i+1 < edit.length ? Math.round(edit[i+1].start*fps) : total;
+      const e = edit[i], { sink, first, half } = await sinkFor(e.src), sdur = sources[e.src].dur;
+      const fEnd = i+1 < edit.length ? Math.min(total, Math.ceil(edit[i+1].start*fps - 1e-6)) : total;   // same rule as drawFrame: a frame belongs to the shot showing at its time
       const ts = [];
-      for(let k=f; k<fEnd; k++){ const v = first + Math.min(Math.max(0, srcPos(e, Math.max(0, k/fps - e.start))), sdur - 0.04); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
+      for(let k=f; k<fEnd; k++){ const v = first + half + Math.min(Math.max(0, srcPos(e, Math.max(0, k/fps - e.start))), sdur - 2*half - 0.01); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
       let k = f;
       for await (const wc of sink.canvasesAtTimestamps(ts)){
         const ta = performance.now(); prof.decode += ta - tq;
         if(wc) e.fc = wc.canvas;
+        else if(!e.fc){   // no frame for this time (variable frame rate, an edit list gap): take the nearest real one, never the previous shot
+          const g = (await sink.getCanvas(ts[k-f] + 0.05)) || (await sink.getCanvas(first + 0.02));
+          if(g) e.fc = g.canvas;
+        }
         drawFrame(k/fps);
         const tb = performance.now(); prof.draw += tb - ta;
         await vs.add(k/fps, 1/fps);
@@ -1264,7 +1421,7 @@ async function fastExport(){
     exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; });
     inputs.forEach(x=>{ try{ x.dispose(); }catch(err){} });
     recording = false; latencyOn = true; ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
-    if(edit.length) captureLoop();
+    setCanvas(false); if(edit.length) captureLoop();
   }
 }
 $('export').onclick = async () => {
@@ -1292,8 +1449,8 @@ $('mode').addEventListener('click', e=>{ const b=e.target.closest('button'); if(
 $('cover').onclick = async () => {
   // cover: the best drop shot (or the hook) with the hook text, full frame
   const d = edit.find(x=>x.type==='drop') || edit[0], tt = d.start + Math.min(0.6, (d.end-d.start)*0.6);
-  coverMode = true; const i = segAt(tt); await prepare(i, tt); drawFrame(tt);
-  const blob = await new Promise(r=>out.toBlob(r,'image/jpeg',0.92)); coverMode = false; redraw();
+  setCanvas(true); coverMode = true; const i = segAt(tt); await prepare(i, tt); drawFrame(tt);
+  const blob = await new Promise(r=>out.toBlob(r,'image/jpeg',0.92)); coverMode = false; setCanvas(false); captureLoop();
   saveFile(blob, 'reel-cover.jpg'); showMsg('Cover saved. Pick it under "Edit cover" when you post.');
 };
 
