@@ -18,6 +18,7 @@ const GROUPS: { title: string; admin?: boolean; items: { href: string; label: st
     items: [
       { href: "/", label: "Dashboard", icon: "◇" },
       { href: "/projects/new", label: "Create Reel", icon: "✦" },
+      { href: "/studio", label: "Fast Studio", icon: "⚡" },
       { href: "/story/new", label: "Story → Reel", icon: "❦" },
       { href: "/editor", label: "Editor", icon: "✂" },
       { href: "/projects", label: "Projects", icon: "▤" },
