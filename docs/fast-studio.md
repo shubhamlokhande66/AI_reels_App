@@ -29,21 +29,39 @@ It sits next to the existing server pipeline; nothing in `server/` changes.
 
 ## Beat accuracy
 
-Beats come from a tracker that follows the tempo (not one fixed grid): tempo per 8 s window, one decision for the whole
-song on the metrical level (a 72 BPM song is not heard at 144 when the in-between hits are only hi-hats; drum & bass keeps
-174 because its snare lands half-way), then dynamic programming (Ellis 2007) anchored on the kick, then snare.
-Scored with `scripts/studio-beats` (F-measure, ±70 ms):
+Two beat trackers, each strong where the other is weak, both on the phone:
 
-| Test song | before | now |
-|---|---|---|
-| Drums 100 / drums + melody 128 / off-beat 140 | 98-99% | 100% |
-| Tempo change 95 -> 128 | 64% | 100% |
-| Live feel, drift 108 -> 114 | 59% | 100% |
-| Slow 72 (was heard as 144) | 65% | 100% |
-| Fast 174 (was heard as 87) | 65% | 100% |
-| Unseen set: 4-on-the-floor 124, swung hip-hop 90, reggaeton 95, trap 70, piano only 100, drift 120 -> 126, change 140 -> 100 | - | 100% each |
+1. **The studio's own tracker** (instant, in a worker): tempo per 8 s window with one song-wide metrical-level decision,
+   then dynamic programming on the kick / low end / drums that follows that local tempo firmly (tightness 1600: the
+   tempo is accurate, so the beats keep it through syncopated fills), then every beat is moved onto its own attack: a
+   fine onset function (2.9 ms steps, whole spectrum) aligns the grid locally (at most 12% of a beat, so never onto the
+   next triplet or 16th) and snaps each beat within 25 ms. Leading / trailing stretches with no pulse (a free-time
+   intro) get no beats.
+2. **Beat This!** (Foscarin, Schlueter & Widmer, ISMIR 2024), the neural network the server already uses, now also on
+   the phone: the same 8-bit model (23 MB, downloaded once and kept in the browser) and the same pre- / post-processing
+   code (`lib/beatThis/core.ts`, shared with `server/audio/beatThis.ts`), run with ONNX Runtime WebAssembly in a worker
+   (`lib/beatThis/beatThis.worker.ts`). On the phone it gives the server's beats exactly (50/50 and 141/141 within one
+   frame on the two real songs). The studio page is cross-origin isolated (`next.config.ts`) so it can use several cores
+   (1.8x faster on 2 threads; up to 4 on a phone).
 
-These are synthetic songs; real mixes are harder, so keep comparing against the server (Beat This!) on real music.
+The edit is made at once with (1); (2) runs in the background and the analysis then keeps whichever beats land on
+stronger hits (every band, hats at half weight) with a steadier pulse; when the two count at 2:1, the in-between beats
+of the faster one decide (real hits there, like a snare on 2 and 4, make it the beat). The edit follows if it changed.
+Devices without WebAssembly SIMD or with under 2 GB of memory keep (1).
+
+Why both: on the real songs (no annotation; essentia's multi-feature tracker, librosa and Beat This! compared, and where
+the hits actually are measured per band) the old tracker was 55% / 49%: on ReelAudio its grid sat a third of a beat
+early (an 808 that plays on and off the beat pulled it), where all three references agreed. Beat This! gets that song
+right (99%) but on Video-454 it follows a syncopated pattern irregularly (60%) while the steady 120 BPM grid is right;
+on garba 6/8 and bhangra swing it counts 1.5x too fast. Together they cover each other. Scored with `scripts/studio-beats`
+(23 synthetic songs with known beats, each also degraded as a phone hears it; F-measure, ±70 ms):
+
+| | set 1 | set 2 | set 3 (Indian rhythms) | sets 1 / 2 / 3, phone audio | real songs |
+|---|---|---|---|---|---|
+| before | 100% | 100% | 83.4% | - | 55% / 49% |
+| **now** | **99.7%** | **100%** | **99.7%** | **98.5% / 89.1% / 99.7%** | **100% / 99%** |
+
+Synthetic songs are still not real mixes; keep comparing on real music (the edit list and the waveform show the beats).
 
 ## Scene changes inside a clip
 
@@ -104,6 +122,8 @@ measure on your target phones before promising numbers.
 - `components/studio/engine.ts`: the editor (plain JS ported from the standalone prototype, `@ts-nocheck`)
 - `components/studio/markup.ts`, `components/studio/studio.css`: its markup and styles (scoped under `.brs`, app theme tokens)
 - `public/vendor/tracking/`: tracking.js 1.1.3 and its face classifier
+- `lib/beatThis/`: Beat This! shared core (also used by the server), the worker and its client; `app/api/studio/model/`
+  serves the model; `scripts/copy-ort.mjs` puts ONNX Runtime's WebAssembly in `public/vendor/ort/` before dev / build
 
 ## AI picks the best moments (optional)
 

@@ -37,7 +37,12 @@ export default function FastStudioPage() {
         for (const src of SCRIPTS) await loadScript(src);
         const { initStudio } = await import("@/components/studio/engine");
         if (cancelled || !root.current) return;
-        cleanup = initStudio(root.current, { loadMediabunny: () => import("mediabunny") });
+        cleanup = initStudio(root.current, {
+          loadMediabunny: () => import("mediabunny"),
+          // the on-device AI beat tracker (Beat This!, ONNX Runtime WebAssembly, in a worker); loaded only when a song is
+          beatThis: (mono: Float32Array, sr: number, onProgress?: (stage: "download" | "run", p: number) => void) =>
+            import("@/lib/beatThis/client").then((m) => m.beatThisOnDevice(mono, sr, onProgress)),
+        });
       } catch (e) {
         setFailed(e instanceof Error ? e.message : String(e));
       }
