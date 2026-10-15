@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Geist_Mono, Manrope } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AppShell } from "@/components/templates/AppShell";
 import { Providers } from "@/components/templates/Providers";
 import { THEME_SCRIPT } from "@/lib/theme";
 
 // Display serif for headings, a clean geometric sans for everything else.
-const display = Cormorant_Garamond({ variable: "--font-display", subsets: ["latin"], weight: ["500", "600", "700"] });
-const body = Manrope({ variable: "--font-body", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// Self-hosted (latin variable fonts from Google Fonts in app/fonts): the build never fetches fonts over the network.
+const display = localFont({ src: "./fonts/cormorant-garamond.woff2", variable: "--font-display", weight: "500 700", display: "swap" });
+const body = localFont({ src: "./fonts/manrope.woff2", variable: "--font-body", weight: "200 800", display: "swap" });
+const geistMono = localFont({ src: "./fonts/geist-mono.woff2", variable: "--font-geist-mono", weight: "100 900", display: "swap" });
 
 // phones: use the whole screen (the bottom bar keeps clear of the home indicator with safe-area padding)
 export const viewport: Viewport = {
