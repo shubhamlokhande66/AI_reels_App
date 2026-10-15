@@ -8,7 +8,7 @@ import { addMotion } from "@/server/director/planMotion";
 import type { AudioAnalysis } from "@/server/models/analysis";
 import { Segment, type Timeline } from "@/server/models/timeline";
 import { projectSongAnalysis } from "@/server/services/music";
-import { localPath } from "@/server/storage/local";
+import { mediaPath } from "@/server/storage/local";
 import { contextFor, currentTimeline, load, replace } from "@/server/timeline/service";
 
 /** Beat markers in the editor and auto-cut (was backend/app/services/markers.py): the strong and medium beats of the
@@ -73,7 +73,7 @@ export async function markers(projectId: string) {
   const [doc, tl, analysis, key] = await context(projectId);
   const own = (doc.beatMarkers ?? {}) as { added?: number[]; removed?: number[] };
   const ms = songMarkers(analysis, tl.audioStart, tl.audioStart + tl.duration, own);
-  const peaks = await songPeaks(localPath(key));
+  const peaks = await songPeaks(await mediaPath(key));
   const i0 = Math.trunc(tl.audioStart * PEAKS_PER_SECOND);
   return {
     waveform: { perSecond: PEAKS_PER_SECOND, peaks: peaks.slice(i0, i0 + Math.trunc(tl.duration * PEAKS_PER_SECOND) + 1) },

@@ -1,21 +1,21 @@
 # The whole app (website and API in one Next.js server). Build from the repo root:
 #   docker build -f docker/Dockerfile -t reel-app .
-# Debian (not Alpine) so the native packages (sharp) and FFmpeg match; fonts with Devanagari for captions and story text.
+# Debian trixie (not Alpine) so the native packages (sharp) match and FFmpeg is 7.1 (bookworm's 5.1 lacks newer transitions); fonts with Devanagari for captions and story text.
 # On Cloudflare Containers the R2 bucket is mounted at STORAGE_PATH by docker/start.sh (tigrisfs, FUSE).
-FROM node:22-bookworm-slim AS deps
+FROM node:22-trixie-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 # onnxruntime-node: the CPU runtime only (its install script would otherwise fetch the CUDA add-on on Linux)
 ENV npm_config_onnxruntime_node_install=skip
 RUN npm ci
 
-FROM node:22-bookworm-slim AS build
+FROM node:22-trixie-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . ./
 RUN npm run build
 
-FROM node:22-bookworm-slim AS run
+FROM node:22-trixie-slim AS run
 ARG TIGRISFS_VERSION=1.2.1
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core fonts-noto-core fontconfig fuse3 ca-certificates curl \

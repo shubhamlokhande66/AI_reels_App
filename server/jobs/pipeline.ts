@@ -21,7 +21,7 @@ import { projectKey } from "@/server/media/service";
 import type { ProjectSettings } from "@/server/projects/settings";
 import { checkRenderFile, finalCheck } from "@/server/quality/checker";
 import * as shared from "@/server/services/analysisCache";
-import { localPath, moveFile } from "@/server/storage/local";
+import { localPath, mediaPath, moveFileAsync } from "@/server/storage/local";
 import { AUTO_STYLE, applyPace, getStyle, listStyles, withOverrides, type EditingStyle } from "@/server/styles";
 import { analyzeVideos, findDuplicateVideos, type VideoRef } from "@/server/video/clips";
 import { goodSeconds } from "@/server/video/analyzer";
@@ -106,7 +106,7 @@ async function understandClips(inp: PipelineInput, clips: Map<string, ClipAnalys
     if (cached && (cached.version ?? 0) >= SEMANTIC_VERSION) { out.set(v.id, semanticDefaults({ ...cached, clipId: v.id })); continue; }
     try {
       const a = clips.get(v.id)!;
-      const sem = await pipelineAi().understandClip(localPath(v.key), { clipId: v.id, name: v.name, analysis: a, semantic: null }, inp.settings.language);
+      const sem = await pipelineAi().understandClip(await mediaPath(v.key), { clipId: v.id, name: v.name, analysis: a, semantic: null }, inp.settings.language);
       writeJson(semanticKey(inp.projectId, v.id), sem);
       out.set(v.id, sem);
     } catch (e) {
@@ -299,7 +299,7 @@ export async function renderEdl(inp: PipelineInput, tl: Timeline, clips: Map<str
     const a = clips.get(v.id);
     if (!a) continue;
     const wl = a.windows.reduce((s, w) => s + (w.end - w.start), 0);
-    sources.set(v.id, { path: localPath(v.key), width: a.metadata.width, height: a.metadata.height, name: v.name, content: a.contentRect as [number, number, number, number] | null,
+    sources.set(v.id, { path: await mediaPath(v.key), width: a.metadata.width, height: a.metadata.height, name: v.name, content: a.contentRect as [number, number, number, number] | null,
       hasAudio: a.metadata.hasAudio, shaky: a.shakeScore > 0.35, brightness: a.windows.length ? a.windows.reduce((s, w) => s + w.brightness * (w.end - w.start), 0) / Math.max(wl, 1e-6) : 0.5 });
   }
   const outKey = projectKey(inp.projectId, "output", `${preview ? "preview_" : ""}${inp.renderingId}.mp4`);
@@ -460,7 +460,7 @@ export async function runPipeline(inpIn: PipelineInput, progress: StageProgress)
     catch (e) { if (!(e instanceof AppError)) throw e; timeline.warnings.push(`Title/description were skipped: ${e.message}`); }
     progress("writing_copy", 1);
   } else if (settings.ai) progress("writing_copy", 1);
-  if (settings.captions && inp.audio) await buildCaptions(inp, timeline, localPath(inp.audio.key), progress);
+  if (settings.captions && inp.audio) await buildCaptions(inp, timeline, await mediaPath(inp.audio.key), progress);
   if (settings.ai && aiTasks.length) timeline.ai = pipelineAi().info(aiTasks, directed !== null);
   const steps = settings.sequence === "steps";
   const order = steps ? (settings.orderMode === "manual" ? inputs.map((c) => c.clipId) : orderForFood(orderClips([...inputs], [])).clips.map((c) => c.clipId)) : null;
@@ -560,7 +560,7 @@ async function scoreAndCorrect(inp: PipelineInput, tlIn: Timeline, inputs: ClipI
     rnd.scoreAfter = m2.card.overallScore;
     if (m2.card.overallScore <= card.overallScore) { fs.rmSync(localPath(key2), { force: true }); break; }
     rnd.kept = true;
-    moveFile(localPath(key2), localPath(res.outputKey!));
+    await moveFileAsync(localPath(key2), localPath(res.outputKey!));
     res.render = { ...render2, path: localPath(res.outputKey!) };
     timeline = cand; review = m2.rv; fileIssues = m2.fi; card = m2.card; rendered = rendered2;
   }
@@ -582,7 +582,7 @@ export async function transcribeClips(inp: PipelineInput, inputs: ClipInput[], p
     const digest = await shared.contentHash(ref.key);
     let doc = readJson<{ words: [string, number, number][] }>(transcriptKey(inp.projectId, c.clipId)) ?? shared.load<{ words: [string, number, number][] }>(digest, "transcript", ver);
     if (!doc) {
-      const words = await pipelineAi().transcribe(localPath(ref.key), 0, c.analysis.metadata.duration, (f) => progress("selecting_clips", (i + f) / n));
+      const words = await pipelineAi().transcribe(await mediaPath(ref.key), 0, c.analysis.metadata.duration, (f) => progress("selecting_clips", (i + f) / n));
       doc = { words: words.map((w) => [w.text, w.start, w.end]) };
       shared.save(digest, "transcript", ver, doc);
     }

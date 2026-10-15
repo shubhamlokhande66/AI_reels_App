@@ -1,6 +1,6 @@
 import "server-only";
 import fs from "node:fs";
-import { moveFile } from "@/server/storage/local";
+import { moveFileAsync } from "@/server/storage/local";
 import { runFfmpeg } from "@/server/core/ffmpeg";
 
 /** Songs in a type the browser plays, from the file's content, not its name: a WhatsApp ".mpeg" song is an MP3 that
@@ -30,7 +30,7 @@ export async function playableAudio(file: string): Promise<[string, string]> {
   if (!fs.existsSync(copy) || fs.statSync(copy).mtimeMs < fs.statSync(file).mtimeMs) {
     const tmp = `${file}.tmp.mp3`;
     await runFfmpeg(["-i", file, "-vn", "-c:a", "libmp3lame", "-b:a", "160k", tmp], 300_000);
-    moveFile(tmp, copy);
+    await moveFileAsync(tmp, copy);
   }
   return [copy, "audio/mpeg"];
 }

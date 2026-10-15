@@ -5,7 +5,7 @@ import { fixed, round } from "@/server/core/py";
 import { projectKey } from "@/server/media/service";
 import type { ClipAnalysis } from "@/server/models/clip";
 import type { ProjectSettings } from "@/server/projects/settings";
-import { localPath } from "@/server/storage/local";
+import { localPath, mediaPath } from "@/server/storage/local";
 import { analyzeVideos, type VideoRef } from "@/server/video/clips";
 import type { Word } from "@/server/video/render/text";
 import { speechSpans } from "@/server/video/steps";
@@ -63,7 +63,7 @@ export async function runSplit(inp: PipelineInput, progress: StageProgress): Pro
   const speech = Boolean(words && words.length >= 20), n = ranges.length;
   for (const [i, [start, end, why]] of ranges.entries()) {
     const rid = inp.variantIds[i], key = projectKey(inp.projectId, "input", `part_${rid}.mp4`);
-    await renderFfmpeg(["-ss", start.toFixed(3), "-i", localPath(src.key), "-t", (end - start).toFixed(3), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k", localPath(key)], { timeout: 600, signal: inp.signal });
+    await renderFfmpeg(["-ss", start.toFixed(3), "-i", await mediaPath(src.key), "-t", (end - start).toFixed(3), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k", localPath(key)], { timeout: 600, signal: inp.signal });
     const part: VideoRef = { id: `${src.id}_part${i + 1}_${rid.slice(-6)}`, name: `${src.name} part ${i + 1}`, key, width: src.width, height: src.height };
     const mode = speech ? "talk" : inp.settings.sequence !== "talk" ? inp.settings.sequence : "mixed";
     const audioMode = mode !== "talk" && inp.audio ? inp.settings.audioMode : "original";

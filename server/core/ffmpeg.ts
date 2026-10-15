@@ -3,7 +3,7 @@ import { execFile, spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { inBucket, moveFile } from "@/server/storage/local";
+import { inBucket, moveFileAsync } from "@/server/storage/local";
 import { settings } from "./config";
 import { AppError, FFmpegError, RenderTimeout } from "./errors";
 
@@ -71,19 +71,19 @@ export function run(bin: string, args: string[], timeoutMs = 300_000): Promise<{
 
 /** The output file (the last argument) on the local disk while FFmpeg writes it, moved into the bucket when it is done
  * (a mounted bucket is slow at, or cannot do, the seeking writes of an MP4 with +faststart). [args, finish, cleanup]. */
-function viaScratch(args: string[]): [string[], () => void, () => void] {
+function viaScratch(args: string[]): [string[], () => Promise<void>, () => void] {
   const out = args[args.length - 1];
-  if (!out || out.startsWith("-") || out.startsWith("pipe:") || !inBucket(out)) return [args, () => {}, () => {}];
+  if (!out || out.startsWith("-") || out.startsWith("pipe:") || !inBucket(out)) return [args, async () => {}, () => {}];
   const tmp = path.join(settings.scratchPath, "ffmpeg", `${crypto.randomUUID()}${path.extname(out)}`);
   fs.mkdirSync(path.dirname(tmp), { recursive: true });
-  return [[...args.slice(0, -1), tmp], () => moveFile(tmp, out), () => fs.rmSync(tmp, { force: true })];
+  return [[...args.slice(0, -1), tmp], () => moveFileAsync(tmp, out), () => fs.rmSync(tmp, { force: true })];
 }
 
 export async function runFfmpeg(args: string[], timeoutMs?: number) {
   const [a, finish, cleanup] = viaScratch(args);
   try {
     const r = await run(findBinary("ffmpeg"), ["-hide_banner", "-loglevel", "error", "-y", ...a], timeoutMs);
-    finish();
+    await finish();
     return r;
   } catch (e) { cleanup(); throw e; }
 }
@@ -103,7 +103,7 @@ export interface RenderRun {
  * FFmpeg's -progress output, and a failure turned into a clear error code (disk full, codec, corrupted source). */
 export async function renderFfmpeg(args: string[], opts: RenderRun = {}): Promise<void> {
   const [a, finish, cleanup] = viaScratch(args);
-  try { await renderFfmpegRaw(a, opts); finish(); } catch (e) { cleanup(); throw e; }
+  try { await renderFfmpegRaw(a, opts); await finish(); } catch (e) { cleanup(); throw e; }
 }
 function renderFfmpegRaw(args: string[], opts: RenderRun = {}): Promise<void> {
   const timeout = opts.timeout ?? settings.renderTimeoutSeconds;

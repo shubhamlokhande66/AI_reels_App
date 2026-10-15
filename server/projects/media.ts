@@ -22,7 +22,7 @@ export function ensureEditable(doc: Doc) {
   if (doc.status === "processing") throw new ConflictError("The project is being processed; try again when it finishes.", { code: "PROJECT_BUSY" });
 }
 
-async function touchAfterMediaChange(doc: Doc, extra: Record<string, unknown> = {}) {
+export async function touchAfterMediaChange(doc: Doc, extra: Record<string, unknown> = {}) {
   await (await db()).collection("projects").updateOne({ _id: doc._id }, { $set: { analysis: null, updatedAt: new Date(), ...extra } });
 }
 

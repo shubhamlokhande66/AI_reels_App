@@ -29,13 +29,42 @@ describe("api client", () => {
     expect(err.message).toContain("502");
   });
 
-  it("reports an unreachable server clearly", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => {
+  it("reports an unreachable server clearly (after retrying the read)", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async () => {
       throw new TypeError("Failed to fetch");
-    }));
-    const err = await api.health().catch((e) => e);
+    });
+    vi.stubGlobal("fetch", fetch);
+    const pending = api.health().catch((e) => e);
+    await vi.runAllTimersAsync();
+    const err = await pending;
+    vi.useRealTimers();
     expect(err.code).toBe("NETWORK_ERROR");
     expect(err.message).toMatch(/backend/i);
+    expect(fetch).toHaveBeenCalledTimes(4); // the first try and 3 retries
+  });
+
+  it("retries a read that failed once, so a busy moment is not an error", async () => {
+    vi.useFakeTimers();
+    let calls = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      if (calls++ === 0) throw new TypeError("Failed to fetch");
+      return new Response(JSON.stringify({ id: "p" }), { status: 200 });
+    }));
+    const pending = api.getProject("p");
+    await vi.runAllTimersAsync();
+    expect(await pending).toEqual({ id: "p" });
+    vi.useRealTimers();
+  });
+
+  it("never repeats an action (it could run twice)", async () => {
+    const fetch = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    vi.stubGlobal("fetch", fetch);
+    const err = await api.analyze("p").catch((e) => e);
+    expect(err.code).toBe("NETWORK_ERROR");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("handles 204 responses", async () => {

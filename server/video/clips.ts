@@ -9,7 +9,7 @@ import { projectKey } from "@/server/media/service";
 import { clipDefaults, semanticDefaults, type ClipAnalysis, type ClipInput, type ClipSemantic } from "@/server/models/clip";
 import { getProjectDoc } from "@/server/projects/service";
 import * as shared from "@/server/services/analysisCache";
-import { localPath } from "@/server/storage/local";
+import { localPath, mediaPath } from "@/server/storage/local";
 import { analyzeClip, VIDEO_ANALYSIS_VERSION } from "./analyzer";
 import { findDuplicates, thumbnails } from "./duplicates";
 import { joined } from "./footage";
@@ -72,7 +72,7 @@ export async function analyzeVideos(projectId: string, videos: VideoRef[], progr
       progress((i + 1) / n);
       continue;
     }
-    const a = await analyzeClip(localPath(v.key), v.id, (f) => progress((i + f) / n));
+    const a = await analyzeClip(await mediaPath(v.key), v.id, (f) => progress((i + f) / n));
     writeJson(clipKey(projectId, v.id), a);
     shared.save(digest, "clip", VIDEO_ANALYSIS_VERSION, a);
     out.set(v.id, a);
@@ -106,7 +106,7 @@ export async function findDuplicateVideos(projectId: string, videos: VideoRef[])
   if (Array.isArray(found)) return found;
   try {
     const thumbs = [];
-    for (const v of videos) thumbs.push([v.id, await thumbnails(localPath(v.key))] as [string, Awaited<ReturnType<typeof thumbnails>>]);
+    for (const v of videos) thumbs.push([v.id, await thumbnails(await mediaPath(v.key))] as [string, Awaited<ReturnType<typeof thumbnails>>]);
     const dups = findDuplicates(thumbs);
     writeJson(key, dups);
     return dups;

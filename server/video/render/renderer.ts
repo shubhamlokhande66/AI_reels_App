@@ -1,6 +1,6 @@
 import "server-only";
 import fs from "node:fs";
-import { moveFile } from "@/server/storage/local";
+import { moveFileAsync } from "@/server/storage/local";
 import path from "node:path";
 import { FFmpegError, InsufficientStorage, RenderTimeout, ValidationFailed } from "@/server/core/errors";
 import { probe, renderFfmpeg } from "@/server/core/ffmpeg";
@@ -8,7 +8,7 @@ import { fixed } from "@/server/core/py";
 import type { Segment, Timeline, VoiceTrack, Watermark } from "@/server/models/timeline";
 import type { EditingStyle } from "@/server/styles";
 import { buildSegmentCommand, measureShake, outLength, planSegments, type RenderConfig, type SegmentPlan, type SourceClip } from "./cutter";
-import { buildAudioGraph, encoderArgs, getTransition, gradeFilter, originalAudioGraph, STEREO } from "./parts";
+import { buildAudioGraph, encoderArgs, getTransition, gradeFilter, originalAudioGraph, STEREO, xfadeName, xfadeTransitions } from "./parts";
 import { synthTrack } from "./sfx";
 
 /** Timeline -> a real MP4 (were video/renderer.py and composer.py): every shot cut to an intermediate, then joined
@@ -19,14 +19,14 @@ const NORM = (fps: number) => `settb=AVTB,setpts=PTS-STARTPTS,fps=${fps},format=
 
 export interface RenderResult { path: string; duration: number; width: number; height: number; size: number }
 
-/** Joins [0:v]..[n-1:v] into [vjoin]: (graph, joined length). */
-export function buildVideoGraph(segments: Segment[], plans: SegmentPlan[], cfg: RenderConfig): [string, number] {
+/** Joins [0:v]..[n-1:v] into [vjoin]: (graph, joined length). `xfade` = this FFmpeg's transitions (null = use names as given). */
+export function buildVideoGraph(segments: Segment[], plans: SegmentPlan[], cfg: RenderConfig, xfade: Set<string> | null = null): [string, number] {
   const parts = segments.map((_, i) => `[${i}:v]${NORM(cfg.fps)}[s${i}]`);
   let cur = "[s0]", len = outLength(plans[0]);
   for (let i = 1; i < segments.length; i++) {
     const t = segments[i].transitionIn, spec = getTransition(t.type), label = `[j${i}]`;
     if (spec.kind === "xfade" && t.duration > 0) {
-      parts.push(`${cur}[s${i}]xfade=transition=${spec.xfade}:duration=${fixed(t.duration, 3)}:offset=${fixed(len - t.duration, 3)},settb=AVTB,fps=${cfg.fps}${label}`);
+      parts.push(`${cur}[s${i}]xfade=transition=${xfadeName(spec.xfade!, xfade)}:duration=${fixed(t.duration, 3)}:offset=${fixed(len - t.duration, 3)},settb=AVTB,fps=${cfg.fps}${label}`);
       len += outLength(plans[i]) - t.duration;
     } else {
       parts.push(`${cur}[s${i}]concat=n=2:v=1:a=0,settb=AVTB,fps=${cfg.fps}${label}`);
@@ -38,8 +38,8 @@ export function buildVideoGraph(segments: Segment[], plans: SegmentPlan[], cfg: 
   return [parts.join(";"), len];
 }
 
-function chunkCommand(segments: Segment[], plans: SegmentPlan[], files: string[], out: string, cfg: RenderConfig, withAudio: boolean): [string[], number] {
-  const [g0, length] = buildVideoGraph(segments, plans, cfg);
+function chunkCommand(segments: Segment[], plans: SegmentPlan[], files: string[], out: string, cfg: RenderConfig, withAudio: boolean, xfade: Set<string> | null): [string[], number] {
+  const [g0, length] = buildVideoGraph(segments, plans, cfg, xfade);
   let graph = g0;
   graph += ";[vjoin]format=yuv420p[v]";
   const args = files.flatMap((f) => ["-i", f]);
@@ -61,11 +61,11 @@ function watermarkFilter(idx: number, wm: Watermark, cfg: RenderConfig): string 
 export interface ComposeIn {
   segments: Segment[]; plans: SegmentPlan[]; files: string[]; audioPath: string | null; audioStart: number; duration: number; style: EditingStyle;
   cfg: RenderConfig; out: string; videoPost?: string[]; volume?: number; fadeIn?: number | null; fadeOut?: number | null; voice?: VoiceTrack | null;
-  voicePath?: string | null; watermark?: Watermark | null; watermarkPath?: string | null; sfxPath?: string | null;
+  voicePath?: string | null; watermark?: Watermark | null; watermarkPath?: string | null; sfxPath?: string | null; xfade?: Set<string> | null;
 }
 
 export function buildComposeCommand(c: ComposeIn): string[] {
-  let [graph] = buildVideoGraph(c.segments, c.plans, c.cfg);
+  let [graph] = buildVideoGraph(c.segments, c.plans, c.cfg, c.xfade ?? null);
   const post = [...(c.videoPost ?? [])];
   if (c.style.fadeInOut > 0) {
     const f = Math.min(c.style.fadeInOut, c.duration / 4);
@@ -118,6 +118,7 @@ export async function renderTimeline(r: RenderIn): Promise<RenderResult> {
   const hits = ["music", "voice_music"].includes(cfg.audioMode) ? tl.musicHits.map((h) => h - tl.audioStart) : [];
   const plans = planSegments(tl.segments, hits);
   const n = tl.segments.length, grade = gradeFilter(tl.colorGrade, r.style.gradeFilter), chunked = n > CHUNK_AT;
+  const xfade = await xfadeTransitions(); // a transition this FFmpeg lacks becomes the closest one it has
   const cutShare = SEGMENT_SHARE - (chunked ? CHUNK_SHARE : 0);
   try {
     let files: string[] = [];
@@ -135,7 +136,7 @@ export async function renderTimeline(r: RenderIn): Promise<RenderResult> {
       const bounds = Array.from({ length: Math.ceil(n / CHUNK_SIZE) }, (_, k) => [k * CHUNK_SIZE, Math.min((k + 1) * CHUNK_SIZE, n)]);
       for (const [k, [a, b]] of bounds.entries()) {
         const out = path.join(r.workDir, `chunk_${String(k).padStart(3, "0")}.mp4`);
-        const [cmd, length] = chunkCommand(tl.segments.slice(a, b), plans.slice(a, b), files.slice(a, b), out, cfg, cfg.audioMode === "original");
+        const [cmd, length] = chunkCommand(tl.segments.slice(a, b), plans.slice(a, b), files.slice(a, b), out, cfg, cfg.audioMode === "original", xfade);
         await renderFfmpeg(cmd, { timeout: remaining(), expectedDuration: length, signal: r.signal });
         for (const f of files.slice(a, b)) fs.rmSync(f, { force: true });
         const lastPlan = plans[b - 1], plan: SegmentPlan = { length: Number((length - lastPlan.tail).toFixed(4)), tail: lastPlan.tail, ramp: lastPlan.ramp, hits: [] };
@@ -152,7 +153,7 @@ export async function renderTimeline(r: RenderIn): Promise<RenderResult> {
     const compose = (c: RenderConfig) => renderFfmpeg(buildComposeCommand({
       segments: segs, plans: cplans, files, audioPath: r.audioPath, audioStart: tl.audioStart, duration: tl.duration, style: r.style, cfg: c, out: tmpOut,
       videoPost: r.videoPost, volume: tl.musicVolume, fadeIn: tl.musicFadeIn, fadeOut: tl.musicFadeOut, voice: tl.voice, voicePath: r.voicePath,
-      watermark: tl.watermark, watermarkPath: r.watermarkPath, sfxPath,
+      watermark: tl.watermark, watermarkPath: r.watermarkPath, sfxPath, xfade,
     }), { timeout: remaining(), expectedDuration: tl.duration, onProgress: (f) => report(finalFrom + (1 - finalFrom) * f), signal: r.signal });
     try {
       await compose(cfg);
@@ -161,7 +162,7 @@ export async function renderTimeline(r: RenderIn): Promise<RenderResult> {
       console.warn(`hardware encoder ${cfg.encoder} failed; retrying with the CPU encoder`);
       await compose({ ...cfg, encoder: "libx264" });
     }
-    moveFile(tmpOut, r.outPath);
+    await moveFileAsync(tmpOut, r.outPath);
   } finally {
     fs.rmSync(r.workDir, { recursive: true, force: true }); // never leave intermediates behind
   }

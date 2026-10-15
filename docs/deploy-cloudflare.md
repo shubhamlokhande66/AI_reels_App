@@ -53,9 +53,23 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
 - **Cost**: you pay for the time the container is awake (CPU, memory, disk) beyond what the Workers Paid plan includes.
   The hourly cron wakes it briefly; make the cron rarer (or remove it) in `wrangler.jsonc` to save more.
   Scheduled posts are published when the app is awake: at the latest by the next cron run.
-- **Uploads**: requests pass through the Worker, which accepts bodies up to **100 MB** (Free/Pro plans), so a video can
-  be at most **95 MB** (`MAX_VIDEO_SIZE_MB`). Larger files would need direct uploads to R2 (not built yet).
+- **Uploads**: clips go **from the browser straight into R2** in parallel 8 MB parts (each retried on its own); they never
+  pass through the Worker or the container, so its 100 MB request limit does not apply (`MAX_DIRECT_VIDEO_SIZE_MB`,
+  default 4096). Before that the browser shrinks 4K or very high-bitrate footage to 1080p (a Reel is 1080x1920), which
+  makes such a clip several times smaller. Then the container joins the parts, reads the clip once onto its own disk
+  and checks it. Songs, photos and reference Reels still go through the Worker (at most **95 MB**, `MAX_VIDEO_SIZE_MB`).
+  `DIRECT_UPLOADS=off` sends clips through the Worker as well.
+- **R2 setup for direct uploads (once)**: R2 → your bucket → Settings →
+  - **CORS policy** (the browser may PUT parts, and must see each part's ETag):
+    ```json
+    [{ "AllowedOrigins": ["https://reel-maker.<your-subdomain>.workers.dev"], "AllowedMethods": ["PUT"],
+       "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3600 }]
+    ```
+    (add your own domain too if the app has one). Without `ExposeHeaders: ETag` an upload stops with a clear message.
+  - **Object lifecycle rule**: *Abort incomplete multipart uploads* after 1 day (parts of uploads someone abandoned).
 - **Storage**: everything under `STORAGE_PATH` is in R2; render work happens on the container's local disk
-  (`SCRATCH_PATH`) and the finished file is copied into R2. A deploy or restart interrupts a running job (it is marked
+  (`SCRATCH_PATH`) and the finished file is copied into R2 (in the background: the app keeps answering meanwhile).
+  Analysis and renders read clips and songs from local copies on the container's disk (`MEDIA_CACHE_GB`), fetched from
+  R2 once, not through the mounted folder. A deploy or restart interrupts a running job (it is marked
   failed with a clear message; press Retry).
 - **Logs**: Cloudflare dashboard → Workers → reel-maker → Logs (observability is on).

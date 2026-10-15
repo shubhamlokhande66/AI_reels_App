@@ -117,9 +117,26 @@ async function parseError(res: Response): Promise<ApiError> {
 const DEFAULT_TIMEOUT_MS = 45_000;
 const AI_TIMEOUT_MS = 240_000; // story planning / a scene picture: one AI call, can take a minute or two
 
+/** A read that timed out or lost the connection is asked again this many times (a busy server usually answers the next one). */
+const GET_RETRIES = 3;
+const RETRYABLE = new Set(["SERVER_TIMEOUT", "NETWORK_ERROR"]);
+
 async function request<T>(path: string, init?: RequestInit, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
-  return method === "GET" ? send<T>(path, init, timeoutMs) : tracked(send<T>(path, init, timeoutMs)); // actions light up the activity bar
+  return method === "GET" ? readWithRetry<T>(path, init, timeoutMs) : tracked(send<T>(path, init, timeoutMs)); // actions light up the activity bar
+}
+
+/** Reads change nothing on the server, so they are safe to repeat: a slow or dropped one is retried before it is an error. */
+async function readWithRetry<T>(path: string, init: RequestInit | undefined, timeoutMs: number): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await send<T>(path, init, timeoutMs);
+    } catch (e) {
+      const retryable = e instanceof ApiError && RETRYABLE.has(e.code) && !init?.signal?.aborted;
+      if (!retryable || attempt >= GET_RETRIES) throw e;
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt)); // 1 s, 2 s, 4 s
+    }
+  }
 }
 
 async function send<T>(path: string, init: RequestInit | undefined, timeoutMs: number): Promise<T> {
@@ -187,6 +204,107 @@ export interface UploadResult {
   failed: { name: string; error: ApiErrorBody }[];
 }
 
+// ------------------------------------------------------------------ clip uploads (shrunk in the browser, straight to storage)
+type DirectStart = { direct: false } | { direct: true; files: { mediaId: string; name: string; partSize: number; parts: { n: number; url: string }[] }[] };
+const PARALLEL_PARTS = 6, PART_TRIES = 4, CLIPS_AT_ONCE = 2, SHRINK_SHARE = 0.4;
+
+/** One part PUT to its presigned URL; resolves to the ETag storage gave it (needed to join the parts). */
+function putPart(url: string, blob: Blob, onBytes: (loaded: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.upload.onprogress = (e) => onBytes(e.loaded);
+    xhr.onerror = () => reject(new ApiError(0, { code: "NETWORK_ERROR", message: "The connection dropped while uploading." }));
+    xhr.onload = () => {
+      const etag = xhr.getResponseHeader("ETag");
+      if (xhr.status >= 200 && xhr.status < 300 && etag) return resolve(etag);
+      reject(new ApiError(xhr.status, etag || xhr.status >= 300
+        ? { code: "UPLOAD_PART_FAILED", message: `Storage refused part of the upload (${xhr.status}).` }
+        : { code: "STORAGE_CORS", message: "Storage did not return the part's ETag: its CORS rule must expose the ETag header." }));
+    };
+    xhr.send(blob);
+  });
+}
+
+/** One clip sent straight to storage in parallel parts, each retried on its own, then joined and added to the project.
+ * null = this server has no direct uploads (the caller uses the normal route). */
+async function uploadOneDirect(id: string, file: File, onProgress: (f: number) => void): Promise<Media | null> {
+  const start = await request<DirectStart>(`/api/projects/${id}/videos/direct`, { method: "POST", body: JSON.stringify({ files: [{ name: file.name, size: file.size, type: file.type }] }) });
+  if (!start.direct) return null;
+  const { mediaId, partSize, parts } = start.files[0];
+  const loaded = new Map<number, number>(), etags: { n: number; etag: string }[] = [];
+  const report = () => onProgress(Math.min([...loaded.values()].reduce((a, b) => a + b, 0) / (file.size || 1), 1));
+  let next = 0;
+  const worker = async () => {
+    while (next < parts.length) {
+      const p = parts[next++], from = (p.n - 1) * partSize, to = Math.min(p.n * partSize, file.size);
+      for (let attempt = 1; ; attempt++) {
+        try {
+          etags.push({ n: p.n, etag: await putPart(p.url, file.slice(from, to), (b) => { loaded.set(p.n, b); report(); }) });
+          loaded.set(p.n, to - from);
+          report();
+          break;
+        } catch (e) {
+          loaded.set(p.n, 0);
+          if (attempt >= PART_TRIES || (e instanceof ApiError && e.code === "STORAGE_CORS")) throw e;
+          await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
+        }
+      }
+    }
+  };
+  try {
+    await Promise.all(Array.from({ length: Math.min(PARALLEL_PARTS, parts.length) }, worker));
+  } catch (e) {
+    await request<void>(`/api/projects/${id}/videos/direct/${mediaId}`, { method: "DELETE" }).catch(() => {});
+    throw e;
+  }
+  return request<Media>(`/api/projects/${id}/videos/direct/${mediaId}`, { method: "POST", body: JSON.stringify({ parts: etags }) }, 300_000);
+}
+
+let shrinking: Promise<unknown> = Promise.resolve();
+/** One clip shrunk at a time (a phone has one hardware encoder); the next one shrinks while this one uploads. */
+function shrinkInTurn(file: File, onProgress: (f: number) => void): Promise<File> {
+  const run = shrinking.then(() => import("./shrinkVideo")).then((m) => m.shrinkVideo(file, onProgress));
+  shrinking = run.catch(() => {});
+  return run.catch(() => file);
+}
+
+/** Clips added to a project: each shrunk in the browser when that saves upload time, then sent straight to storage
+ * (or through the server where direct uploads are off). A clip that fails is in `failed`; the others still finish. */
+async function uploadClips(id: string, files: File[], onProgress?: (f: number) => void): Promise<UploadResult> {
+  const total = files.reduce((a, f) => a + f.size, 0) || 1, done = files.map(() => 0);
+  const report = () => onProgress?.(Math.min(files.reduce((a, f, i) => a + done[i] * f.size, 0) / total, 1));
+  const uploaded: (Media | undefined)[] = [], failed: UploadResult["failed"] = [];
+  let next = 0, viaServer = false;
+  const worker = async () => {
+    while (next < files.length) {
+      const i = next++, original = files[i];
+      try {
+        const file = await shrinkInTurn(original, (p) => { done[i] = SHRINK_SHARE * p; report(); });
+        const base = file === original ? 0 : SHRINK_SHARE, sent = (p: number) => { done[i] = base + (1 - base) * p; report(); };
+        let media = viaServer ? null : await uploadOneDirect(id, file, sent);
+        if (!media) {
+          viaServer = true;
+          const form = new FormData();
+          form.append("files", file);
+          const r = await upload<UploadResult>(`/api/projects/${id}/videos`, form, sent);
+          if (!r.uploaded.length) throw new ApiError(0, r.failed[0]?.error ?? { code: "UPLOAD_FAILED", message: "The clip could not be uploaded." });
+          media = r.uploaded[0];
+        }
+        uploaded[i] = media;
+        done[i] = 1;
+        report();
+      } catch (e) {
+        failed.push({ name: original.name, error: e instanceof ApiError ? { code: e.code, message: e.message, details: e.details } : { code: "UPLOAD_FAILED", message: errorMessage(e) } });
+      }
+    }
+  };
+  await tracked(Promise.all(Array.from({ length: Math.min(CLIPS_AT_ONCE, files.length) }, worker)));
+  const result = { uploaded: uploaded.filter((m): m is Media => !!m), failed }; // in the order the clips were picked
+  if (!result.uploaded.length && failed.length) throw new ApiError(0, failed[0].error);
+  return result;
+}
+
 export const api = {
   health: () => request<Health>("/api/health"),
   me: () => request<{ authEnabled: boolean; user: { id: string; email: string } | null }>("/api/auth/me"),
@@ -225,11 +343,8 @@ export const api = {
   setDirectorProfile: (enabled: boolean) => request<DirectorProfile>("/api/director/profile", { method: "PUT", body: JSON.stringify({ enabled }) }),
   resetDirectorProfile: () => request<DirectorProfile>("/api/director/profile", { method: "DELETE" }),
 
-  uploadVideos: (id: string, files: File[], onProgress?: (f: number) => void) => {
-    const form = new FormData();
-    files.forEach((f) => form.append("files", f));
-    return upload<UploadResult>(`/api/projects/${id}/videos`, form, onProgress);
-  },
+  /** Shrunk in the browser when that saves time, then straight to storage (parallel parts) or through the server. */
+  uploadVideos: (id: string, files: File[], onProgress?: (f: number) => void) => uploadClips(id, files, onProgress),
   uploadAudio: (id: string, file: File, onProgress?: (f: number) => void) => {
     const form = new FormData();
     form.append("file", file);

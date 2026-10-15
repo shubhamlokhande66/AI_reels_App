@@ -40,6 +40,45 @@ export const RAMP_SECONDS = 0.3, RAMP_FACTOR = 2.5;
 export const getTransition = (name: string) => TRANSITIONS.get(name) ?? TRANSITIONS.get("cut")!;
 export const isOverlapping = (name: string) => getTransition(name).kind === "xfade";
 
+/** Older FFmpeg builds lack the newer xfade transitions (cover/reveal/wind...) and refuse the whole render over one;
+ * each falls back to the closest older look, and "fade" (in every build) is the last resort. */
+const XFADE_FALLBACK: Record<string, string> = {
+  coverleft: "slideleft", coverright: "slideright", coverup: "slideup", coverdown: "slidedown",
+  revealleft: "wipeleft", revealright: "wiperight", revealup: "wipeup", revealdown: "wipedown",
+  hlwind: "smoothleft", hrwind: "smoothright", vuwind: "smoothup", vdwind: "smoothdown", fadefast: "fade", fadeslow: "fade",
+};
+
+/** The transition names listed in `ffmpeg -h filter=xfade` (the lines under the "transition" option). */
+export function parseXfadeHelp(out: string): Set<string> {
+  const names = new Set<string>();
+  let inside = false;
+  for (const line of out.split(/\r?\n/)) {
+    if (/^\s+transition\s+<int>/.test(line)) { inside = true; continue; }
+    if (!inside) continue;
+    const m = /^\s{4,}([a-z]+)\s+-?\d+\s/.exec(line);
+    if (!m) break;
+    names.add(m[1]);
+  }
+  return names;
+}
+
+let xfadeSupport: Promise<Set<string> | null> | null = null;
+/** This machine's xfade transitions (asked once per process; null = could not tell, names are used as given). */
+export function xfadeTransitions(): Promise<Set<string> | null> {
+  xfadeSupport ??= exec(["-hide_banner", "-h", "filter=xfade"], 15000).then(({ out }) => {
+    const names = parseXfadeHelp(out);
+    return names.size ? names : null;
+  });
+  return xfadeSupport;
+}
+
+/** The xfade name to give FFmpeg: the wanted one when this build has it, else its fallback, else "fade". */
+export function xfadeName(wanted: string, supported: Set<string> | null): string {
+  if (!supported || supported.has(wanted)) return wanted;
+  const alt = XFADE_FALLBACK[wanted];
+  return alt && supported.has(alt) ? alt : "fade";
+}
+
 // ------------------------------------------------------------------ grades
 const G: [string, string, string, string][] = [
   ["natural", "Natural", "true-to-life colour, any content", "eq=contrast=1.02:saturation=1.03"],

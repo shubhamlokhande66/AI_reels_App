@@ -200,6 +200,8 @@ async function sampleVideo(file: string, meta: VideoMetadata, progress: ((f: num
       prevGray = gray;
       prevHist = hist;
       progress?.(Math.min(frame.n / total, 1));
+      // buffered frames would otherwise be worked through back to back: let other requests in between frames
+      await new Promise((res) => setImmediate(res));
     }
   } finally {
     prevGray?.delete();

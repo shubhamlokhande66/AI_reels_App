@@ -2,7 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { localPath } from "@/server/storage/local";
+import { localPath, mediaPath } from "@/server/storage/local";
 
 /** The shared analysis cache (was backend/app/services/analysis_cache.py): a clip or song analysed once is never
  * analysed again, in any project - keyed by a hash of the file's content plus the analysis version. Same files
@@ -14,8 +14,8 @@ const hashes = new Map<string, string>();
 export async function contentHash(key: string): Promise<string | null> {
   let file: string, st: fs.Stats;
   try {
-    file = localPath(key);
-    st = fs.statSync(file);
+    file = await mediaPath(key); // hashed from the local disk, not read back over the network
+    st = await fs.promises.stat(file);
   } catch {
     return null;
   }

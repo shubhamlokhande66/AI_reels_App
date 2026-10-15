@@ -5,7 +5,7 @@ import { round } from "@/server/core/py";
 import type { AudioAnalysis, Section } from "@/server/models/analysis";
 import { withDefaults } from "@/server/models/analysis";
 import * as cache from "@/server/services/analysisCache";
-import { localPath } from "@/server/storage/local";
+import { localPath, mediaPath } from "@/server/storage/local";
 import { detectBeats } from "./beats";
 import { checkAudio, decode } from "./decode";
 import { detectEvents, dropsFrom, measurements } from "./drops";
@@ -172,7 +172,7 @@ export async function analyzeMusic(projectId: string, audio: { id: string; key: 
   } catch { /* none yet */ }
   const digest = await cache.contentHash(audio.key);
   const hit = cache.load<AudioAnalysis>(digest, "audio", ANALYSIS_VERSION);
-  const a = hit ? withDefaults(hit) : await analyzeAudio(localPath(audio.key), onStage);
+  const a = hit ? withDefaults(hit) : await analyzeAudio(await mediaPath(audio.key), onStage);
   fs.mkdirSync(path.dirname(own), { recursive: true });
   fs.writeFileSync(own, JSON.stringify(a));
   if (!hit) cache.save(digest, "audio", ANALYSIS_VERSION, a);

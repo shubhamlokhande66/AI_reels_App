@@ -6,7 +6,7 @@ import { analyzeToJson, type AnalysisDoc } from "@/server/audio/analysisJson";
 import type { AudioAnalysis } from "@/server/models/analysis";
 import { getProjectDoc } from "@/server/projects/service";
 import * as cache from "@/server/services/analysisCache";
-import { localPath } from "@/server/storage/local";
+import { mediaPath } from "@/server/storage/local";
 
 /** The project's song, analysed once (the music endpoints and the editor read this; was api/jobs._project_song_analysis
  * and services/music_reel.song_document). */
@@ -34,7 +34,7 @@ export async function songDocument(audioKey: string, frameStep = 10): Promise<An
   const kind = `analysis_json_step${frameStep}`;
   const hit = cache.load<AnalysisDoc>(digest, kind, ANALYSIS_JSON_VERSION);
   if (hit) return hit;
-  const doc = await analyzeToJson(localPath(audioKey), frameStep);
+  const doc = await analyzeToJson(await mediaPath(audioKey), frameStep);
   if (doc.status === "completed") cache.save(digest, kind, ANALYSIS_JSON_VERSION, doc);
   return doc;
 }
