@@ -1,5 +1,5 @@
 import { round } from "@/server/core/py";
-import { withMats, type CV, type Mat } from "./cv";
+import { withMats, type CV, type Mat } from "./cvOps";
 
 /** Shot intelligence on the analyzer's small grey frames (was backend/app/video/shots.py): the subject (a face, or the
  * most salient region - spectral-residual saliency), shot size, composition for the 9:16 output, empty frames, and

@@ -2,8 +2,11 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { db } from "@/server/core/db";
-import { ValidationFailed } from "@/server/core/errors";
+import { z } from "zod";
+import { db, parseId } from "@/server/core/db";
+import { NotFoundError, ValidationFailed } from "@/server/core/errors";
+import { probe } from "@/server/core/ffmpeg";
+import { parseVideoProbe } from "@/server/media/probe";
 import { round } from "@/server/core/py";
 import { projectKey } from "@/server/media/service";
 import { clipDefaults, semanticDefaults, type ClipAnalysis, type ClipInput, type ClipSemantic } from "@/server/models/clip";
@@ -146,4 +149,31 @@ export async function videoReport(projectId: string, videos: VideoRef[], underst
     understood: rows.filter((r) => r.understanding).length,
     errors: [...(dups !== null ? [] : ["The duplicate check could not run."]), ...warnings],
   };
+}
+
+// ---------------------------------------------------------------- analyses made on the person's device
+const DeviceAnalysis = z.object({
+  analysisVersion: z.number(), qualityScore: z.number().min(0).max(1), motionScore: z.number(), brightnessScore: z.number(), sharpnessScore: z.number(),
+  shakeScore: z.number(), usable: z.boolean(), flags: z.array(z.string().max(40)).max(20), sceneChanges: z.array(z.number()).max(2000),
+  contentRect: z.array(z.number()).length(4).nullable(), windows: z.array(z.object({ start: z.number(), end: z.number(), quality: z.number() }).passthrough()).max(500),
+  metadata: z.object({ duration: z.number(), width: z.number().int(), height: z.number().int() }).passthrough(),
+}).passthrough();
+
+/** A clip analysis the browser made (the same code as here, lib/clipAnalysis), kept as this clip's analysis when it is
+ * for this very file: the current analysis version, and the size and length the server reads from the stored file. Its
+ * technical facts are the server's own. False = not used (the server analyses the clip itself, as before). */
+export async function saveDeviceAnalysis(projectId: string, mediaId: string, raw: unknown): Promise<{ used: boolean; reason?: string }> {
+  const doc = await getProjectDoc(projectId);
+  const media = await (await db()).collection("media").findOne({ _id: parseId(mediaId, "Media"), projectId: doc._id, kind: "video" });
+  if (!media) throw new NotFoundError("Video not found.", { code: "MEDIA_NOT_FOUND" });
+  const parsed = DeviceAnalysis.safeParse(raw);
+  if (!parsed.success) return { used: false, reason: "not a clip analysis" };
+  const a = parsed.data;
+  if (a.analysisVersion !== VIDEO_ANALYSIS_VERSION) return { used: false, reason: `analysis version ${a.analysisVersion}, the server's is ${VIDEO_ANALYSIS_VERSION}` };
+  const meta = parseVideoProbe(await probe(await mediaPath(String(media.storedKey))));
+  const sameSize = a.metadata.width === meta.width && a.metadata.height === meta.height;
+  const sameLength = Math.abs(a.metadata.duration - meta.duration) <= Math.max(0.25, meta.duration * 0.02);
+  if (!sameSize || !sameLength) return { used: false, reason: `measured ${a.metadata.width}x${a.metadata.height} ${a.metadata.duration}s, the file is ${meta.width}x${meta.height} ${meta.duration}s` };
+  writeJson(clipKey(String(doc._id), String(media._id)), clipDefaults({ ...(a as unknown as ClipAnalysis), clipId: String(media._id), metadata: meta, analysisVersion: VIDEO_ANALYSIS_VERSION }));
+  return { used: true };
 }

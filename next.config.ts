@@ -8,6 +8,14 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*"],
   // the native/WASM packages the server uses stay plain Node requires (not bundled)
   serverExternalPackages: ["mongodb", "essentia.js", "onnxruntime-node", "@techstark/opencv-js", "sharp", "nodemailer", "unpdf"],
+  // the clip analysis runs OpenCV in the browser too (lib/clipAnalysis): its Node-only branch requires these, never used there
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: "./lib/empty.ts" },
+      path: { browser: "./lib/empty.ts" },
+      crypto: { browser: "./lib/empty.ts" },
+    },
+  },
 };
 
 export default nextConfig;

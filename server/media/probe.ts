@@ -4,10 +4,8 @@ import { round } from "@/server/core/py";
 
 /** What an upload's ffprobe says (was video/analyzer.parse_video_probe and media_service._audio_facts). */
 
-export interface VideoMetadata {
-  duration: number; width: number; height: number; fps: number; codec: string; hasAudio: boolean; rotation: number;
-  bitRate: number | null; orientation: "square" | "landscape" | "portrait";
-}
+import type { VideoMetadata } from "@/server/video/clipAnalysisCore";
+export type { VideoMetadata }; // defined with the shared clip analysis (it runs in the browser too)
 
 const pyMod = (a: number, n: number) => ((a % n) + n) % n;
 

@@ -281,7 +281,12 @@ async function uploadClips(id: string, files: File[], onProgress?: (f: number) =
       const i = next++, original = files[i];
       try {
         const file = await shrinkInTurn(original, (p) => { done[i] = SHRINK_SHARE * p; report(); });
-        const base = file === original ? 0 : SHRINK_SHARE, sent = (p: number) => { done[i] = base + (1 - base) * p; report(); };
+        // measured on this device while it uploads (the server then has nothing to analyse); null = the server does it
+        let up = 0, measured = 0;
+        const base = file === original ? 0 : SHRINK_SHARE;
+        const show = (both: boolean) => { done[i] = base + (1 - base) * (both ? 0.75 * up + 0.25 * measured : up); report(); };
+        const analysis = import("./clipAnalysis").then((m) => (m.canAnalyzeHere() ? m.analyzeInBrowser(file, original.name, (f) => { measured = f; show(true); }) : null)).catch(() => null);
+        const sent = (p: number) => { up = p; show(measured > 0); };
         let media = viaServer ? null : await uploadOneDirect(id, file, sent);
         if (!media) {
           viaServer = true;
@@ -291,6 +296,8 @@ async function uploadClips(id: string, files: File[], onProgress?: (f: number) =
           if (!r.uploaded.length) throw new ApiError(0, r.failed[0]?.error ?? { code: "UPLOAD_FAILED", message: "The clip could not be uploaded." });
           media = r.uploaded[0];
         }
+        const measuredHere = await analysis;
+        if (measuredHere) await request(`/api/projects/${id}/videos/${media.id}/analysis`, { method: "POST", body: JSON.stringify({ analysis: measuredHere }) }).catch(() => null);
         uploaded[i] = media;
         done[i] = 1;
         report();

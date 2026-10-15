@@ -1,4 +1,5 @@
-// Face detection (OpenCV Haar cascades, opencv.js WebAssembly) in a worker thread: about half a second per frame in
+// Face detection (OpenCV Haar cascades, opencv.js WebAssembly) in a worker thread (the browser runs the same steps:
+// server/video/faceFind.ts; keep the two in step): about half a second per frame in
 // WebAssembly, so the analyzer spreads frames over a few of these. Input: { id, gray, bgr, w, h } (bytes of one small
 // frame). Output: { id, ok, box: [x, y, w, h] | null } - the largest frontal face, else a profile facing either way,
 // whose box has skin in it (cascades also fire on foliage and brickwork).

@@ -62,6 +62,11 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
   makes such a clip several times smaller. Then the container joins the parts, reads the clip once onto its own disk
   and checks it. Songs, photos and reference Reels still go through the Worker (at most **95 MB**, `MAX_VIDEO_SIZE_MB`).
   `DIRECT_UPLOADS=off` sends clips through the Worker as well.
+- **Clip analysis on the phone**: while a clip uploads, the browser measures it (light, sharpness, motion, shake, faces,
+  best moments) with the server's own analysis code (`server/video/clipAnalysisCore.ts`, OpenCV in WebAssembly, in a
+  background thread) and sends the result; the container checks it is for that file and skips its own analysis. A
+  browser that cannot do it (no WebCodecs) leaves the clip to the container, as before. The first clip loads about
+  10 MB of OpenCV once (cached afterwards).
 - **R2 setup for direct uploads (once)**: R2 → your bucket → Settings →
   - **CORS policy** (the browser may PUT parts, and must see each part's ETag):
     ```json
