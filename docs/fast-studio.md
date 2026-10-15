@@ -27,6 +27,34 @@ It sits next to the existing server pipeline; nothing in `server/` changes.
    H.264 + AAC in MP4 when the browser can encode them (Chrome / Edge on Windows and macOS, Safari 17+), otherwise VP9 +
    Opus in WebM; browsers without WebCodecs fall back to real-time recording (MediaRecorder).
 
+## Beat accuracy
+
+Beats come from a tracker that follows the tempo (not one fixed grid): tempo per 8 s window, one decision for the whole
+song on the metrical level (a 72 BPM song is not heard at 144 when the in-between hits are only hi-hats; drum & bass keeps
+174 because its snare lands half-way), then dynamic programming (Ellis 2007) anchored on the kick, then snare.
+Scored with `scripts/studio-beats` (F-measure, ±70 ms):
+
+| Test song | before | now |
+|---|---|---|
+| Drums 100 / drums + melody 128 / off-beat 140 | 98-99% | 100% |
+| Tempo change 95 -> 128 | 64% | 100% |
+| Live feel, drift 108 -> 114 | 59% | 100% |
+| Slow 72 (was heard as 144) | 65% | 100% |
+| Fast 174 (was heard as 87) | 65% | 100% |
+| Unseen set: 4-on-the-floor 124, swung hip-hop 90, reggaeton 95, trap 70, piano only 100, drift 120 -> 126, change 140 -> 100 | - | 100% each |
+
+These are synthetic songs; real mixes are harder, so keep comparing against the server (Beat This!) on real music.
+
+## Smoothness
+
+- The song is analysed in a Web Worker: the page never freezes (0 ms main-thread blocking measured; it was one long block).
+- Shot scoring uses prefix sums (O(log n) per window), so long videos no longer stall the edit.
+- The live preview draws at half size (540×960) and catches up gently (small speed nudges instead of jumps); the shot
+  after next is cued in advance. Export and the cover still use the full 1080p.
+- Export: each frame is taken from the middle of its source frame (no duplicated / skipped frames from rounding), a frame
+  belongs to the same shot in decoding and drawing, and every window keeps 0.15 s of clip after it. Measured on a test
+  export: 0 frozen frames in 449 normal-speed frames (was 8), no audio gaps, audio/video offset 6 ms.
+
 ## Speed
 
 Measured in a headless Chromium with no GPU (software WebGL, software VP9): music 22 s analysed in about 2 s, six clips
