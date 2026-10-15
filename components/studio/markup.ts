@@ -76,6 +76,8 @@ export const STUDIO_HTML = `
           <input id="hook" type="text" maxlength="40" placeholder="e.g. WAIT FOR THE DROP">
           <span class="label">Look</span>
           <div class="seg" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button></div>
+          <label class="tog" id="aiwrap" hidden><input type="checkbox" id="aipick"> AI picks the best moments</label>
+          <span class="fname" id="aistat" hidden></span>
           <label class="tog"><input type="checkbox" id="safe" checked> Show Instagram safe zones (preview only)</label>
         </div>
       </div>
