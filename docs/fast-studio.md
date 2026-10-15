@@ -127,3 +127,31 @@ shot picking", so it can use its own provider). It is remembered per device.
 
 Measured with a stand-in model that knows which footage is good (3 runs): opening / drop / hit shots on the good footage
 70-86% with AI against 27-45% without; the opening shot was a top moment every time; 23 frames in one 212 KB request.
+
+## AI director (with AI picks on)
+
+After the AI has scored the clips, one text call (no images, about 10-20 KB) plans the Reel as a story. The music has
+already fixed every cut time; for each cut the phone offers the moment it has now plus up to 2 alternatives taken from
+footage no other cut is offered, so any combination fits together. The director (`server/studio/direct.ts`, task
+"Fast Studio: AI director") picks one moment per cut plus its transition, effect and speed, with a short reason, guided by
+how top Reels editors work (hook first, build to the drops, calm breaks, a satisfying ending, variety, special
+transitions only where they mean something, within a ration).
+
+Every choice is then checked on the phone, and whatever fails keeps the rule choice:
+- the moment must be one that was offered, still free (footage used once), inside one scene, not the same clip as a
+  neighbour; the director's moments are held for their own cuts;
+- transitions must suit the style (Smooth: hard cuts, dissolves, dips), break cuts stay calm, and a final pass over the
+  whole edit keeps special transitions within their ration (the director's first), well inside both shots, and never
+  the same one twice in a row (this pass now also protects the edits made without AI);
+- effects must suit the cut (the hook zoom only on the first shot, a photo snap only on a long drop, slow moves only on
+  shots long enough, Smooth stays soft), and close-ups still get gentle zooms;
+- speeds must fit (Smooth: normal or slow; velocity needs a beat inside; ramp needs a long shot; freeze only with a snap).
+
+The status line says how many of the director's choices were used and how many the rules changed, plus the story in one
+line; the edit list shows the reason per shot. One plan per style / mix / clip set, cached: switching back costs nothing,
+a new mix asks again. If the director is unavailable the edit keeps the AI-scored picks.
+
+Measured with a deliberately pushy stand-in director (whip pans on every hit, an unknown transition, a freeze without a
+snap, glitches and shakes in Smooth): 33/36 moments used in Auto and 13/13 in Smooth, every bad choice corrected, and
+0 footage used twice, 0 scene crossings, 0 same clip back to back, 0 transitions longer than their shot, 0 repeats, rations
+kept; one director call per edit, no retries when it is down.

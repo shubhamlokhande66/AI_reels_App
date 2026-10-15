@@ -456,7 +456,7 @@ async function scanMotion(src, onProgress){
     for(let y=1;y<71;y++) for(let x=1;x<127;x++){ const i=y*128+x, lap = 4*L2[i]-L2[i-1]-L2[i+1]-L2[i-128]-L2[i+128]; sm+=lap; sq+=lap*lap; n++; }
     const sh = sq/n - (sm/n)*(sm/n);
     out.push({t, m: prev ? m/lum.length : 0, b:b/lum.length, cx: m>1e-6 ? mx/m : 0.5, sh,
-      sx: sub ? sub.x : -1, sy: sub ? sub.y : -1, sw: sub ? sub.w : 0, ax: sal.x, ay: sal.y, aw: sal.w});
+      sx: sub ? sub.x : -1, sy: sub ? sub.y : -1, sw: sub ? sub.w : 0, gx: sub ? sub.gx : 0, ax: sal.x, ay: sal.y, aw: sal.w});
     prev = lum;
   };
   // fast enough to read a clip in seconds, slow enough that a sample lands at least every ~0.25 s of footage
@@ -526,11 +526,11 @@ function subjectMotion(prev, cur){
     const r = Math.abs(cur[yy0*SW+x0] - prev[(yy0-bdy)*SW + x0-bdx]) - 0.05; n++;   // 0.05: noise / compression
     if(r > 0){ const px=(x0+0.5)/SW, py=(yy0+0.5)/SH; w+=r; x+=r*px; y+=r*py; xx+=r*px*px; yy+=r*py*py; }
   }
-  if(w < 1e-3) return {x:0.5, y:0.5, w:0};
+  if(w < 1e-3) return {x:0.5, y:0.5, w:0, gx: bdx};
   x/=w; y/=w; const spread = Math.sqrt(Math.max(0, xx/w-x*x + yy/w-y*y));
   // weight: enough moving pixels, and in one place (a whole-frame change is lighting or a fast pan, not a subject)
   const conc = Math.max(0, 1 - spread/0.32);
-  return {x, y, w: Math.min(1, w/n*25) * conc};
+  return {x, y, w: Math.min(1, w/n*25) * conc, gx: bdx};
 }
 // Candidates come from the samples (adaptive threshold: a cut is a spike far above the change around it, a fast pan is
 // not; a flash returns to the same picture and is not a cut). Hard cuts are then pinned to the frame by bisection.
@@ -838,7 +838,7 @@ function styleEdit(){
 }
 const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip:'Whip pan (blur)', zoom:'Zoom-through', glitch:'Glitch RGB', dip:'Dip to black', dissolve:'Dissolve',
   iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur'};
-const FX_NAME = {'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce'};
+const FX_NAME = {'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce'};
 const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2};
 
 /* ---- keyframes: [time, value, ease] per property, local to the shot ---- */
@@ -867,6 +867,7 @@ function keyframesFor(e){
     case 'pan-soft': return {scale:[[0,1.02],[L,1.09,'inOut']], x:[[0,-0.015],[L,0.015,'inOut']]};
     case 'drift': return {scale:[[0,1],[L,1.07,'inOut']], bright:[[0,0.86]], vig:[[0,0.6]]};
     case 'bounce': return {scale:[[0,1.06],[0.25,1,'outCubic']], bounce:[[0,1]]};
+    case 'punch-soft': return {scale:[[0,1.07],[0.3,1,'outCubic']]};
     default: return {};
   }
 }
@@ -969,6 +970,146 @@ function aiDone(charged, failed){
   aiStat('AI scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' could not be read)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
   if(buf && sources.length && !recording) makeEdit();
 }
+/* ---- AI director: one text call plans the Reel as a story ----
+   The cut times are fixed by the music. For every cut the phone offers its 3 best different moments (rules + AI scores);
+   the director picks one per cut plus its transition, effect and speed. Every choice is then checked here: the moment
+   must still be free (no footage twice, no scene crossing, not the same clip as a neighbour), the transition must fit
+   the shot and the style and stay within its ration, effects and speeds must suit the cut. Whatever fails keeps the
+   rule choice. One plan per edit (style, mix and clips); a new mix or style asks again. */
+let director = null, dirBusy = false, dirFailedKey = '', dirCands = null;
+const dirKey = () => [mode, mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
+let mixNo = 0;   // a new mix asks the director again
+const dirSlotOf = i => (aiOn && director && director.key===dirKey() && director.slots[i]) || null;
+const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
+const TR_OK = { smooth: ['hard','dissolve','dip'], auto: Object.keys(TR_DUR).filter(k=>k!=='fadein'), fast: Object.keys(TR_DUR).filter(k=>k!=='fadein') };
+const FX_OK = { smooth: ['none','pan-soft','drift'], auto: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'], fast: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'] };
+// the director's transitions / effects / speeds, each checked; returns how many were used and how many were corrected
+function applyDirectorStyle(){
+  if(!aiOn || !director || director.key !== dirKey()) return null;
+  let used = 0, fixed = 0, asked = 0;
+  plan.forEach((s,i)=>{
+    const d = director.slots[i], len = s.end - s.start;
+    if(!d) return;
+    // transition
+    if(d.tr){ asked++; let tr = d.tr, ok = true;
+      if(i===0) ok = tr==='hard' || tr==='fadein';
+      else {
+        if(!TR_OK[mode].includes(tr)) ok = false;
+        if(s.type==='break' && !['hard','dip','dissolve','flash'].includes(tr)) ok = false;
+      }
+      if(ok){ s.tr = tr; s.trByDir = true; used++; } else fixed++;
+    }
+    // effect
+    if(d.fx){ asked++; let fx = d.fx, ok = (FX_OK[mode]||[]).includes(fx) || (i===0 && fx==='hook');
+      if(fx==='hook' && i!==0) ok = false;
+      if(fx==='snap' && !(s.type==='drop' && len>0.7)) ok = false;
+      if(s.type==='break' && !['none','drift','pan-soft'].includes(fx)) ok = false;
+      if(['pan','pan-soft','drift'].includes(fx) && len < 0.8) ok = false;   // a slow move needs time
+      if(ok){ s.efx = fx; used++; } else fixed++;
+    }
+    // speed
+    if(d.sp){ asked++; let ok = true, sp = null; const bl = beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
+      if(mode==='smooth' && !['normal','slow'].includes(d.sp)) ok = false;
+      if(d.sp==='freeze' && s.efx!=='snap') ok = false;
+      if(d.sp==='ramp' && len < 0.9) ok = false;
+      if(d.sp==='velocity' && (!bl.length || len < 0.9)) ok = false;
+      if(d.sp==='fast' && len > 1.2) ok = false;
+      if(ok) sp = d.sp==='velocity' ? velocitySpeed(len, bl) : d.sp==='ramp' ? rampSpeed(len) : d.sp==='freeze' ? snapSpeed : SPEED[d.sp];
+      if(sp){ s.sp = sp; used++; } else fixed++;
+    }
+    if(s.efx==='snap' && s.sp!==snapSpeed) s.sp = snapSpeed;   // the photo snap is a freeze by definition
+  });
+  const undone = finishTransitions();
+  return {used: used - undone, fixed: fixed + undone, asked};
+}
+// One last pass over every cut, whoever chose it: special transitions stay within their ration (the director's own
+// choices are served first), finish well inside both shots, and the same special one never runs twice in a row.
+// Returns how many of the director's transitions had to become hard cuts.
+function finishTransitions(){
+  const per = Math.max(1, buf.duration/30), left = {snap:Math.round(2*per), whip:Math.round(2*per), spin:Math.round(1*per), glitch:Math.round(2*per), bars:Math.round(2*per), iris:Math.round(3*per), zoom:Math.round(3*per), wipe:Math.round(2*per), dissolve:Math.round(2*per) + (mode==='smooth' ? 99 : 0), flash:Math.round(6*per) + (mode==='fast' ? 99 : 0)};
+  const want = {}; plan.forEach(s=>{ if(s.trByDir && left[s.tr]!==undefined) want[s.tr] = (want[s.tr]||0) + 1; });
+  let undone = 0;
+  plan.forEach((s,i)=>{
+    if(i===0 || s.tr==='hard') return;
+    const len = s.end - s.start, prev = plan[i-1];
+    let ok = TR_DUR[s.tr] <= 0.6*len && TR_DUR[s.tr] <= 0.8*(prev.end-prev.start);
+    if(ok && s.tr===prev.tr && !(s.type==='break' && prev.type==='break')) ok = false;
+    if(ok && left[s.tr]!==undefined){
+      if(s.trByDir){ want[s.tr]--; ok = left[s.tr] > 0; }
+      else ok = left[s.tr] - (want[s.tr]||0) > 0;   // keep room for the director's
+      if(ok) left[s.tr]--;
+    }
+    if(!ok){ if(s.trByDir) undone++; s.tr = 'hard'; }
+  });
+  return undone;
+}
+// For each cut: the moment it has now, plus up to 2 alternatives from footage that no other cut has or is offered, so
+// any combination the director chooses fits together (cuts that matter most get their alternatives first).
+function directorCandidates(){
+  const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
+  const reserved = sources.map(()=>[]);
+  edit.forEach(e=>reserved[e.src].push([e.in, e.in + e.sp.pos(e.end-e.start)*e.scaleR]));
+  const free = (si, a, b) => !reserved[si].some(([u,v])=>Math.min(v,b+0.05)-Math.max(u,a-0.05) > 0);
+  const order = plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return (a===0?-1:pr[plan[a].type]) - (b===0?-1:pr[plan[b].type]) || a-b; });
+  const out = plan.map(()=>[]);
+  const describe = (i, k, si, a, need, w) => { const src = sources[si], S = src.samples.filter(x=>x.t>=a && x.t<=a+need);
+    const gx = S.length ? S.reduce((q,x)=>q+(x.gx||0),0)/S.length : 0, m = w.m;
+    return { id: i + 'abc'[k], si, a, clip: 'c'+(si+1), at: +a.toFixed(2), score: +w.sc.toFixed(2), note: w.ai ? w.ai.note : '',
+      roles: w.ai ? Object.keys(w.ai.roles).filter(r=>w.ai.roles[r] > 0.4) : [], motion: m < 0.08 ? 'still' : m < 0.3 ? 'low' : m < 0.6 ? 'medium' : 'high', people: w.st.face > 0.3,
+      camera: Math.abs(gx) < 0.35 ? 'still' : gx > 0 ? 'pans left' : 'pans right' }; };
+  order.forEach(i=>{
+    const s = plan[i], e = edit[i], len = s.end - s.start, nb = [edit[i-1], edit[i+1]].filter(Boolean).map(x=>x.src);
+    const cur = e.sp.pos(len)*e.scaleR;
+    out[i].push(describe(i, 0, e.src, e.in, cur, scoreWindow(i, sources[e.src], e.in, cur, gmax)));
+    const all = [];
+    sources.forEach((src,si)=>{
+      if(sources.length > 1 && nb.includes(si)) return;   // not the clip of a neighbour
+      let need = s.sp.pos(len); if(need > src.dur-TAIL) need *= Math.max(0.05, (src.dur-TAIL)/need*0.98);
+      const stepT = Math.max(0.2, Math.min(0.5, src.dur/60));
+      for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=stepT){ if(crossesScene(src, a, a+need) || !free(si, a, a+need)) continue; all.push({si, a, need, w: scoreWindow(i, src, a, need, gmax)}); }
+    });
+    all.sort((x,y)=>y.w.sc-x.w.sc);
+    for(const c of all){
+      if(out[i].length === 3) break;
+      if(!free(c.si, c.a, c.a+c.need)) continue;
+      if(out[i].length === 1 && c.si === e.src && all.some(o=>o.si!==e.src && free(o.si,o.a,o.a+o.need) && o.w.sc > c.w.sc-0.6)) continue;   // prefer another clip
+      out[i].push(describe(i, out[i].length, c.si, c.a, c.need, c.w)); reserved[c.si].push([c.a, c.a+c.need]);
+    }
+  });
+  return out;
+}
+function directorMaybe(){
+  if(!aiOn || dirBusy || !edit.length || recording) return;
+  if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed) || !sources.some(s=>s.ai)) return;   // after the AI has seen the clips
+  const key = dirKey(); if((director && director.key===key) || dirFailedKey===key) return;
+  if(dirCache.has(key)){ director = dirCache.get(key); makeEdit(); return; }
+  directorRun(key);
+}
+const dirCache = new Map();
+async function directorRun(key){
+  dirBusy = true; aiStat('AI director is planning the Reel…');
+  try{
+    const cands = directorCandidates(); dirCands = cands;
+    const per = Math.max(1, buf.duration/30);
+    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60),
+      clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
+      budget: {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
+      slots: plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
+        candidates: cands[i].map(({si,a,...c})=>c) })).filter(x=>x.candidates.length) };
+    const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: ac.signal });
+    const res = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI director failed (' + r.status + ').'));
+    if(dirKey() !== key) return;   // the edit changed meanwhile: its own plan will be asked for
+    const slots = [];
+    for(const d of res.slots || []){ const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
+      slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, why: d.why || '' }; }
+    director = { key, slots, story: res.story || '' }; dirCache.set(key, director);
+    dirBusy = false; makeEdit();
+  }catch(e){
+    dirFailedKey = key;
+    if(!(e && e.name==='AbortError')) aiStat('AI director is not available right now: ' + (e && e.message ? e.message : e) + ' The edit keeps the AI-scored picks.', true);
+  }finally{ dirBusy = false; }
+}
 (async () => {   // is the AI step set up on this server?
   try{
     const r = await fetch('/api/studio/rank-shots', ac ? { signal: ac.signal } : undefined); if(!r.ok) return;
@@ -1058,42 +1199,53 @@ function suitFx(e){
   else if((e.mot||0) > 0.75 && e.efx!=='hook'){ e.efx = 'punch-soft'; e.why = 'busy shot: softer zoom'; }
   else if(len > 2.2 && (e.efx==='punch' || e.efx==='tilt')){ e.efx = 'pan'; e.why = 'long shot: slow move instead'; }
 }
+// how good footage [a, a+need] of src is for cut i (the rules, plus the AI's opinion of the moment when it is on)
+function scoreWindow(i, src, a, need, gmax){
+  const s = plan[i], st = windowStats(src, a, a+need), m = st.m/gmax;
+  let sc;
+  if(s.type==='drop') sc = 2.2*m;
+  else if(s.type==='hit') sc = 1.5*m;
+  else if(s.type==='break') sc = 1 - Math.abs(m-0.18)*2;
+  else sc = 1 - Math.abs(m-0.55);
+  if(i===0) sc = 2.4*m;   // hook: the most action-packed moment opens the reel
+  if(st.b < 0.08) sc -= 1;                              // too dark
+  const sharp = st.sh / (src.shMed||1);
+  if(sharp < 0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5, sharp);   // blurry / shaky footage is avoided
+  sc += st.face * ((s.type==='drop'||s.type==='hit'||i===0) ? 0.8 : 0.45);   // people make shots stronger
+  const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : s.type, i===plan.length-1);
+  return {sc, st, m, ai};
+}
 function makeEdit(){
   if(!buf || !sources.length) return;
-  stopAll(); plan = adaptPlan(); styleEdit();
+  stopAll(); plan = adaptPlan(); styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
   // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
   const order = plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return (a===0?-1:pr[plan[a].type]) - (b===0?-1:pr[plan[b].type]) || a-b; });
   const res = new Array(plan.length); dupCount = 0;
+  // the director's chosen moments are held for their own cuts
+  const held = plan.map((s,i)=>{ const d = dirShot(i); return d ? {i, si:d.src, a:d.in, b:d.in + s.sp.pos(s.end-s.start)} : null; }).filter(Boolean);
   const pick = (i, allowNeighbour, allowOverlap, anyScene) => {
-    const s = plan[i], len = s.end - s.start;
+    const s = plan[i], len = s.end - s.start, dir = dirShot(i);
     let best=null, bs=-Infinity;
     sources.forEach((src,si)=>{
       let need = s.sp.pos(len), scaleR = 1;
       if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
       if(!allowNeighbour && sources.length>1 && [res[i-1],res[i+1]].some(x=>x && x.src===si)) return;
       const stepT = Math.max(0.1, Math.min(0.5, src.dur/120));
-      for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=stepT){
+      const tryAt = (a) => {
         let ov = 0; used[si].forEach(([u0,u1])=>{ ov += Math.max(0, Math.min(u1,a+need)-Math.max(u0,a)); });
-        if(!allowOverlap && ov > 0.001) continue;          // a moment of footage is used only once
-        if(!anyScene && crossesScene(src, a, a+need)) continue;   // a shot never runs across a cut inside the clip
-        const st = windowStats(src, a, a+need), m = st.m/gmax;
-        let sc;
-        if(s.type==='drop') sc = 2.2*m;
-        else if(s.type==='hit') sc = 1.5*m;
-        else if(s.type==='break') sc = 1 - Math.abs(m-0.18)*2;
-        else sc = 1 - Math.abs(m-0.55);
-        if(i===0) sc = 2.4*m;   // hook: the most action-packed moment opens the reel
-        if(st.b < 0.08) sc -= 1;                              // too dark
-        const sharp = st.sh / (src.shMed||1);
-        if(sharp < 0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5, sharp);   // blurry / shaky footage is avoided
-        sc += st.face * ((s.type==='drop'||s.type==='hit'||i===0) ? 0.8 : 0.45);   // people make shots stronger
-        sc -= 5*ov/need;
-        const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : s.type, i===plan.length-1);
-        sc += rng()*0.15;
-        if(sc>bs){ bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : st.cx, cy: st.face>0.3 ? st.fy : 0.45, face: st.face, fs: st.fs, mot: m, ov, aiNote: ai ? ai.note : ''}; }
-      }
+        if(!allowOverlap && ov > 0.001) return;          // a moment of footage is used only once
+        if(!allowOverlap && held.some(h=>h.i!==i && h.si===si && !res[h.i] && Math.min(h.b,a+need)-Math.max(h.a,a) > 0.001)) return;
+        if(!anyScene && crossesScene(src, a, a+need)) return;   // a shot never runs across a cut inside the clip
+        const w = scoreWindow(i, src, a, need, gmax);
+        let sc = w.sc - 5*ov/need + rng()*0.15;
+        const isDir = dir && dir.src===si && Math.abs(a-dir.in) < 0.26;
+        if(isDir) sc += 4;   // the director's choice wins whenever the rules allow it
+        if(sc>bs){ const st=w.st; bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : st.cx, cy: st.face>0.3 ? st.fy : 0.45, face: st.face, fs: st.fs, mot: w.m, ov, aiNote: w.ai ? w.ai.note : '', byDir: isDir}; }
+      };
+      for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=stepT) tryAt(a);
+      if(dir && dir.src===si && dir.in <= src.dur-need-TAIL+1e-6) tryAt(dir.in);   // its exact moment too (off the scan grid)
     });
     return best;
   };
@@ -1106,7 +1258,7 @@ function makeEdit(){
   });
   const useCount = sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
   edit = plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
-  edit.forEach(e=>{ e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth') suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
+  edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth') suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
@@ -1114,7 +1266,10 @@ function makeEdit(){
   if(dupCount) showMsg('Your clips have ' + total.toFixed(1) + ' s of footage, the song needs more. ' + dupCount + ' shots had to be reused. Add more clips and nothing repeats.', true);
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
+  if(dirInfo){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
+    aiStat('AI director: ' + (dirInfo.used + kept) + ' of ' + (dirInfo.asked + shots) + ' choices used' + (dirInfo.fixed + shots - kept ? ', ' + (dirInfo.fixed + shots - kept) + ' changed by the safety rules' : '') + (director.story ? '. ' + director.story : '')); }
   captureLoop();
+  directorMaybe();
 }
 function captureLoop(){
   if(!edit.length) return;
@@ -1124,7 +1279,7 @@ function captureLoop(){
 }
 function kfSummary(e){
   const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
-  const notes = [e.aiNote && aiOn ? 'AI: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
+  const notes = [e.dirWhy && aiOn ? 'Director: ' + e.dirWhy : '', e.aiNote && aiOn ? 'AI: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
   const why = notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '';
   const s = e.kf && e.kf.scale; if(!s || s.length<2) return why;
   const a=s[0], b=s[s.length-1];
@@ -1207,7 +1362,7 @@ function drawTimeline(){
 }
 $('tl').addEventListener('click', ev=>{ if(!edit.length) return; const r=$('tl').getBoundingClientRect(), tt=(ev.clientX-r.left)/r.width*buf.duration;
   const i = segAt(tt); if(playing) startPlayback(tt); else { const rows=$('edl').children; rows[i] && rows[i].scrollIntoView({block:'nearest'}); showShot(i); } });
-$('remix').onclick = () => { seed = (seed*7919 + 13) % 2147483647 || 7; makeEdit(); };
+$('remix').onclick = () => { seed = (seed*7919 + 13) % 2147483647 || 7; mixNo++; makeEdit(); };
 
 /* =============== RENDERER =============== */
 const out = $('out'), og = out.getContext('2d');
