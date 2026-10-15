@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { checkFootage, readVideoSeconds, type FootageCheck } from "@/lib/footage";
 import { FootageGate } from "@/components/molecules/FootageGate";
-import { ClipCheckPanel, FLAG_TEXT, clipCheck } from "@/components/organisms/ClipCheckPanel";
+import { ClipCheckPanel, FLAG_TEXT, clipCheck, resolutionNote } from "@/components/organisms/ClipCheckPanel";
 import { TaskLog, type LogLine, type TaskLogState } from "@/components/molecules/TaskLog";
 import { Stepper } from "@/components/molecules/Stepper";
 import { SongPartPicker } from "@/components/molecules/SongPartPicker";
@@ -308,19 +308,22 @@ export function CreateReelForm() {
       const verdict = clipCheck(fresh, seconds, sequence === "talk");
       for (const v of fresh.videos.filter((x) => !x.purged)) {
         const an = v.analysis;
-        const words = (an?.flags ?? []).map((f) => FLAG_TEXT[f]?.text).filter(Boolean);
+        const res = resolutionNote(v);
+        const words = [...(an?.flags ?? []).filter((f) => !(res && f === "low_resolution")).map((f) => FLAG_TEXT[f]?.text).filter(Boolean), ...(res ? [res.text] : [])];
         const bad = !!an && !an.usable;
         addLine(`${v.name}: ${an ? `quality ${Math.round(an.qualityScore * 100)}%` : "not analysed"}${words.length ? ` · ${words.join(" · ")}` : ""}${bad ? " · cannot be used" : ""}`,
           bad ? "error" : words.length ? "warn" : "done");
       }
       const f = verdict.footage;
+      const lowRes = fresh.videos.filter((x) => !x.purged && resolutionNote(x)).length;
+      const resNote = lowRes ? ` ⚠ ${lowRes} clip${lowRes === 1 ? " is" : "s are"} low resolution, so the Reel will look soft: the originals from your phone's camera give a sharp Reel.` : "";
       addLine(`About ${Math.round(f.footage)}s of good footage; a ${seconds}s Reel needs about ${Math.ceil(f.needed)}s${f.ok ? "" : ` (about ${Math.ceil(f.needed - f.footage)}s more, or the Reel would slow shots down and repeat moments)`}`, f.ok ? "done" : "error");
       if (verdict.passed && sequence === "talk") {
-        finishLog("ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}. Their own voice is kept, so no song is needed.`);
+        finishLog(lowRes ? "problem" : "ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}. Their own voice is kept, so no song is needed.${resNote}`);
         setAudioMode("original");
         setStage("rest");
       } else if (verdict.passed) {
-        finishLog("ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}, about ${Math.round(f.footage)}s of footage. Next: style and generate.`);
+        finishLog(lowRes ? "problem" : "ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}, about ${Math.round(f.footage)}s of footage. Next: style and generate.${resNote}`);
         setStage("rest");
       } else {
         const parts = [verdict.blocked.length ? `${verdict.blocked.length} clip${verdict.blocked.length === 1 ? " cannot" : "s cannot"} be used (remove or replace)` : "",

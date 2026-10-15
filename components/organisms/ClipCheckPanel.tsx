@@ -17,6 +17,24 @@ export const FLAG_TEXT: Record<string, { text: string; block?: boolean }> = {
   wrong_orientation: { text: "landscape: it will be cropped to 9:16" },
 };
 
+// ---- resolution: how much a clip is enlarged to fill the Reel (1080x1920, cropped to fill)
+const REEL_W = 1080, REEL_H = 1920;
+export const SOFT_STRETCH = 1.5, BLURRY_STRETCH = 2.5; // up to 1.5x (720p vertical) still looks sharp
+
+/** How many times the clip is enlarged to fill a 1080x1920 Reel (1 = no enlargement); null when its size is unknown. */
+export function stretchOf(v: Pick<Media, "width" | "height">): number | null {
+  if (!v.width || !v.height) return null;
+  return Math.max(REEL_W / v.width, REEL_H / v.height, 1);
+}
+
+/** A plain-words note for a clip that will look soft or blurry in the Reel, else null. */
+export function resolutionNote(v: Pick<Media, "width" | "height">): { text: string; level: "soft" | "blurry" } | null {
+  const s = stretchOf(v);
+  if (s === null || s <= SOFT_STRETCH) return null;
+  const level = s > BLURRY_STRETCH ? "blurry" : "soft";
+  return { level, text: `low resolution (${v.width}×${v.height}): stretched ${s.toFixed(1)}× to fill the Reel, it will look ${level === "blurry" ? "blurry" : "a little soft"}` };
+}
+
 export interface ClipCheckResult {
   blocked: Media[]; // clips that cannot be used: remove (or replace) them
   footage: FootageCheck; // usable footage vs the Reel length
@@ -43,6 +61,8 @@ export function ClipCheckPanel({ project, result, onRemove, busy }: {
 }) {
   const live = project.videos.filter((v) => !v.purged);
   const dupes = (project.analysis?.warnings ?? []).filter((w) => /duplicate|same|identical/i.test(w));
+  const lowRes = live.filter((v) => resolutionNote(v));
+  const worst = lowRes.reduce<(typeof live)[number] | null>((w, v) => (!w || (stretchOf(v) ?? 0) > (stretchOf(w) ?? 0) ? v : w), null);
   return (
     <Card className="space-y-3" >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -51,10 +71,24 @@ export function ClipCheckPanel({ project, result, onRemove, busy }: {
           {result.passed ? "✓ All checks passed" : "Fix the items marked ✗ to continue"}
         </span>
       </div>
+      {worst && (
+        <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm">
+          <p className="font-medium text-warning">
+            ⚠ {lowRes.length} of {live.length} clip{live.length === 1 ? " is" : "s are"} low resolution: the Reel will look {resolutionNote(worst)?.level === "blurry" ? "blurry" : "soft"}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            A Reel is 1080×1920. The smallest clip ({worst.width}×{worst.height}) has to be stretched {stretchOf(worst)?.toFixed(1)}× to fill it, and no
+            editor can add the missing detail. For a sharp Reel, replace them with the original videos from your phone&apos;s camera
+            (1080p or 4K), not copies from WhatsApp, Instagram or a download, which are made much smaller. Large files are fine.
+          </p>
+        </div>
+      )}
       <ul className="space-y-2 text-sm" aria-label="Checked clips">
         {live.map((v) => {
           const a = v.analysis;
-          const flags = (a?.flags ?? []).map((f) => FLAG_TEXT[f]).filter(Boolean);
+          const res = resolutionNote(v);
+          // the measured note replaces the analysis' own low-resolution flag (same thing, with the numbers)
+          const flags = [...(a?.flags ?? []).filter((f) => !(res && f === "low_resolution")).map((f) => FLAG_TEXT[f]).filter(Boolean), ...(res ? [{ text: res.text }] : [])];
           const bad = !!a && !a.usable;
           const warn = !bad && flags.length > 0;
           return (
