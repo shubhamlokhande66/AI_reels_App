@@ -439,63 +439,215 @@ async function scanMotion(src, onProgress){
   const v = makeVideo(src.url); await waitEv(v,'loadeddata');
   const c = document.createElement('canvas'); c.width=SW; c.height=SH; const g = c.getContext('2d', {willReadFrequently:true});
   const c2 = document.createElement('canvas'); c2.width=128; c2.height=72; const g2 = c2.getContext('2d', {willReadFrequently:true});
-  let prev = null; const out = [];
-  const grab = () => {
+  let prev = null; const out = [], hists = [], lums = [];
+  const grab = (t) => {
     g.drawImage(v,0,0,SW,SH); const d = g.getImageData(0,0,SW,SH).data;
     const lum = new Float32Array(SW*SH); let b=0;
     for(let i=0;i<SW*SH;i++){ const y=(d[i*4]*0.3+d[i*4+1]*0.59+d[i*4+2]*0.11)/255; lum[i]=y; b+=y; }
+    hists.push(colorHist(d)); lums.push(lum);
+    const sal = saliency(d);   // what stands out from the picture (a person in red on a grey street), moving or not
     let m=0, mx=0;
     if(prev){ for(let i=0;i<lum.length;i++){ const df=Math.abs(lum[i]-prev[i]); m+=df; mx+=df*((i%SW)+0.5)/SW; } }
+    const sub = prev ? subjectMotion(prev, lum) : null;   // where something moves on its own (camera motion removed)
     // sharpness: how strong the fine edges are (Laplacian variance) - blurry or shaky frames score low
     g2.drawImage(v,0,0,128,72); const d2 = g2.getImageData(0,0,128,72).data, L2 = new Float32Array(128*72);
     for(let i=0;i<L2.length;i++) L2[i] = d2[i*4]*0.3+d2[i*4+1]*0.59+d2[i*4+2]*0.11;
     let sm=0, sq=0, n=0;
     for(let y=1;y<71;y++) for(let x=1;x<127;x++){ const i=y*128+x, lap = 4*L2[i]-L2[i-1]-L2[i+1]-L2[i-128]-L2[i+128]; sm+=lap; sq+=lap*lap; n++; }
     const sh = sq/n - (sm/n)*(sm/n);
-    out.push({t:v.currentTime, m: prev ? m/lum.length : 0, b:b/lum.length, cx: m>1e-6 ? mx/m : 0.5, sh});
+    out.push({t, m: prev ? m/lum.length : 0, b:b/lum.length, cx: m>1e-6 ? mx/m : 0.5, sh,
+      sx: sub ? sub.x : -1, sy: sub ? sub.y : -1, sw: sub ? sub.w : 0, ax: sal.x, ay: sal.y, aw: sal.w});
     prev = lum;
   };
-  v.playbackRate = Math.min(16, Math.max(2, src.dur/6));
+  // fast enough to read a clip in seconds, slow enough that a sample lands at least every ~0.25 s of footage
+  v.playbackRate = Math.min(12, Math.max(2, src.dur/6));
   await new Promise(res=>{
     let done=false; const finish=()=>{ if(!done){ done=true; v.pause(); res(); } };
     const useVFC = 'requestVideoFrameCallback' in v;
     let lastT = -1;
-    const step = () => { if(done) return; if(v.currentTime!==lastT){ lastT=v.currentTime; grab(); onProgress(v.currentTime/src.dur); } if(v.ended || v.currentTime>=src.dur-0.05) return finish(); useVFC ? v.requestVideoFrameCallback(step) : requestAnimationFrame(step); };
+    const step = (now, meta) => { if(done) return; const t = meta && meta.mediaTime!==undefined ? meta.mediaTime : v.currentTime;
+      if(t!==lastT){ lastT=t; grab(t); onProgress(t/src.dur); } if(v.ended || v.currentTime>=src.dur-0.05) return finish(); useVFC ? v.requestVideoFrameCallback(step) : requestAnimationFrame(step); };
     v.addEventListener('ended', finish, {once:true});
     v.play().then(()=>{ useVFC ? v.requestVideoFrameCallback(step) : requestAnimationFrame(step); }).catch(async ()=>{
-      // cannot play fast here: fall back to seeking 4 times a second
-      for(let t=0;t<src.dur;t+=0.25){ v.currentTime=t; try{ await waitEv(v,'seeked',3000); }catch(e){} grab(); onProgress(t/src.dur); }
+      // cannot play fast here: fall back to seeking 5 times a second
+      for(let t=0;t<src.dur;t+=0.2){ v.currentTime=t; try{ await waitEv(v,'seeked',3000); }catch(e){} grab(t); onProgress(t/src.dur); }
       finish();
     });
     setTimeout(finish, Math.max(20000, src.dur/ v.playbackRate*1000*3));
   });
+  // order by time (callbacks can arrive out of order around the end); keep histograms paired with their samples
+  const idx = out.map((s,i)=>i).sort((a,b)=>out[a].t-out[b].t);
+  const S = idx.map(i=>out[i]), H = idx.map(i=>hists[i]), LM = idx.map(i=>lums[i]);
+  if(S.length>1) S[0].m = S[1].m;
+  // scene changes inside the clip (hard cuts, fades through black, dissolves): no shot may cross one
+  src.scenes = await findScenes(v, src, S, H, LM);
   v.removeAttribute('src'); v.load();
-  out.sort((a,b)=>a.t-b.t);
-  if(out.length>1) out[0].m = out[1].m;
+  // a cut inside the clip looks like a burst of "action": the samples at a cut get the motion of their neighbours
+  for(const sc of src.scenes){ S.forEach((s,i)=>{ if(s.t >= sc.t0-0.01 && s.t <= sc.t1+0.3){ const a=S[i-2]||S[i+2]||s; s.m = Math.min(s.m, a.m); s.sw = 0; s.cut = true; } }); }
   // smooth motion a little
-  src.samples = out.map((s,i)=>({...s, m: (out[Math.max(0,i-1)].m + s.m + out[Math.min(out.length-1,i+1)].m)/3}));
+  src.samples = S.map((s,i)=>({...s, m: (S[Math.max(0,i-1)].m + s.m + S[Math.min(S.length-1,i+1)].m)/3}));
+}
+
+/* ---- scene changes inside a clip ---- */
+// colour histogram, 4x4x4 RGB bins, normalised: almost blind to motion, very sensitive to a change of scene
+function colorHist(d){
+  const h = new Float32Array(64); let n = 0;
+  for(let i=0;i<d.length;i+=4){ h[((d[i]>>6)<<4) | ((d[i+1]>>6)<<2) | (d[i+2]>>6)]++; n++; }
+  for(let k=0;k<64;k++) h[k] /= n; return h;
+}
+// Frequency-tuned saliency (Achanta et al. 2009) on the small frame: how far each pixel's colour (in a Lab-like space)
+// is from the picture's average colour. Its centre and how concentrated it is say where the eye goes.
+function saliency(d){
+  const n = SW*SH, L = new Float32Array(n), A = new Float32Array(n), B = new Float32Array(n); let mL=0, mA=0, mB=0;
+  for(let i=0;i<n;i++){ const r=d[i*4]/255, g=d[i*4+1]/255, b=d[i*4+2]/255;
+    L[i] = 0.3*r+0.59*g+0.11*b; A[i] = r-g; B[i] = 0.5*(r+g)-b; mL+=L[i]; mA+=A[i]; mB+=B[i]; }
+  mL/=n; mA/=n; mB/=n;
+  const s = new Float32Array(n); let sm=0, sq=0;
+  for(let i=0;i<n;i++){ const v = Math.hypot(0.6*(L[i]-mL), 1.6*(A[i]-mA), 1.6*(B[i]-mB)); s[i]=v; sm+=v; sq+=v*v; }
+  const mean = sm/n, sd = Math.sqrt(Math.max(0, sq/n-mean*mean)), th = mean + 1.5*sd;
+  let w=0, x=0, y=0, xx=0, yy=0;
+  for(let i=0;i<n;i++){ const r = s[i]-th; if(r>0){ const px=((i%SW)+0.5)/SW, py=(((i/SW)|0)+0.5)/SH; w+=r; x+=r*px; y+=r*py; xx+=r*px*px; yy+=r*py*py; } }
+  if(w < 1e-4 || sd < 0.03) return {x:0.5, y:0.5, w:0};
+  x/=w; y/=w; const spread = Math.sqrt(Math.max(0, xx/w-x*x + yy/w-y*y));
+  return {x, y, w: Math.min(1, sd/0.12) * Math.max(0, 1 - spread/0.25)};   // strong contrast, in one place
+}
+const histD = (a, b) => { let s=0; for(let k=0;k<64;k++) s += Math.abs(a[k]-b[k]); return s/2; };   // 0 = same, 1 = nothing shared
+// camera motion is estimated as one global shift (block matching on the 48x27 frame), what still differs after that
+// shift is the subject: its centre, its weight and how concentrated it is
+function subjectMotion(prev, cur){
+  const R = 3; let best = Infinity, bdx = 0, bdy = 0;
+  for(let dy=-R; dy<=R; dy++) for(let dx=-R; dx<=R; dx++){
+    let s = 0; for(let y=R; y<SH-R; y++){ const o=y*SW, op=(y-dy)*SW-dx; for(let x=R; x<SW-R; x++) s += Math.abs(cur[o+x]-prev[op+x]); }
+    s += 0.002*(dx*dx+dy*dy)*SW*SH;   // prefer "no camera move" when it is a tie
+    if(s < best){ best = s; bdx = dx; bdy = dy; }
+  }
+  let w = 0, x = 0, y = 0, xx = 0, yy = 0, n = 0;
+  for(let yy0=R; yy0<SH-R; yy0++) for(let x0=R; x0<SW-R; x0++){
+    const r = Math.abs(cur[yy0*SW+x0] - prev[(yy0-bdy)*SW + x0-bdx]) - 0.05; n++;   // 0.05: noise / compression
+    if(r > 0){ const px=(x0+0.5)/SW, py=(yy0+0.5)/SH; w+=r; x+=r*px; y+=r*py; xx+=r*px*px; yy+=r*py*py; }
+  }
+  if(w < 1e-3) return {x:0.5, y:0.5, w:0};
+  x/=w; y/=w; const spread = Math.sqrt(Math.max(0, xx/w-x*x + yy/w-y*y));
+  // weight: enough moving pixels, and in one place (a whole-frame change is lighting or a fast pan, not a subject)
+  const conc = Math.max(0, 1 - spread/0.32);
+  return {x, y, w: Math.min(1, w/n*25) * conc};
+}
+// Candidates come from the samples (adaptive threshold: a cut is a spike far above the change around it, a fast pan is
+// not; a flash returns to the same picture and is not a cut). Hard cuts are then pinned to the frame by bisection.
+async function findScenes(v, src, S, H, LM){
+  const n = S.length, out = []; if(n < 3) return out;
+  const c = new Float32Array(n); for(let i=1;i<n;i++) c[i] = histD(H[i-1], H[i]);
+  const isCut = new Uint8Array(n);
+  for(let i=1;i<n;i++){
+    let s=0, k=0; for(let j=Math.max(1,i-5); j<=Math.min(n-1,i+5); j++) if(Math.abs(j-i)>1){ s+=c[j]; k++; }
+    const local = k ? s/k : 0;
+    if(c[i] < 0.28 || c[i] < 2.6*local + 0.08) continue;
+    if(c[i] < c[i-1] || (i+1<n && c[i] < c[i+1])) continue;   // the peak of a two-sample change
+    // a flash or a passing object: the picture soon returns to what it was
+    let back = false; for(let j=i+1; j<n && S[j].t <= S[i].t+0.5; j++) if(histD(H[i-1], H[j]) < 0.45*c[i]){ back = true; break; }
+    if(back) continue;
+    // and the picture well before must differ from the picture well after (coming back from a flash is not a cut)
+    const pre = nearestS(S, S[i-1].t-0.45), post = nearestS(S, S[i].t+0.35);
+    if(histD(H[pre], H[post]) < 0.5*c[i]) continue;
+    isCut[i] = 1;
+  }
+  const grabH = async (t) => { v.currentTime = t; try{ await waitEv(v,'seeked',3000); }catch(e){ return null; }
+    const cv = grabH.cv || (grabH.cv = Object.assign(document.createElement('canvas'), {width:SW, height:SH})), g = cv.getContext('2d', {willReadFrequently:true});
+    g.drawImage(v,0,0,SW,SH); return colorHist(g.getImageData(0,0,SW,SH).data); };
+  for(let i=1;i<n;i++) if(isCut[i]){
+    // bisection between the last sample of the old scene and the first of the new one, to about one frame
+    let lo = S[i-1].t, hi = S[i].t; const hA = H[i-1], hB = H[i];
+    for(let it=0; it<8 && hi-lo > 1/60; it++){
+      const mid = (lo+hi)/2, h = await grabH(mid); if(!h) break;
+      if(histD(h, hA) <= histD(h, hB)) lo = mid; else hi = mid;
+    }
+    out.push({t0:lo, t1:hi, kind:'cut'});
+  }
+  // fade through black (or white): the picture goes to one flat level and comes back. The whole fade is covered: from
+  // where the brightness starts to slide until it stops. A white flash in one scene is not a fade (same picture after).
+  const gap = n > 1 ? (S[n-1].t - S[0].t)/(n-1) : 0.2;
+  for(let i=1;i<n-1;i++){
+    const dark = S[i].b < 0.05, flat = dark || S[i].b > 0.96; if(!flat) continue;
+    const same = j => dark ? S[j].b < 0.05 : S[j].b > 0.96;
+    let a=i; while(a>0 && same(a-1)) a--;
+    let b=i; while(b<n-1 && same(b+1)) b++;
+    if(a>0 && b<n-1){
+      const sl = (j, k) => dark ? S[j].b > S[k].b + 0.004 : S[j].b < S[k].b - 0.004;   // still sliding towards the flat level
+      let a2 = a-1; while(a2>0 && sl(a2-1, a2) && S[a].t - S[a2-1].t < 2) a2--;
+      let b2 = b+1; while(b2<n-1 && sl(b2+1, b2) && S[b2+1].t - S[b].t < 2) b2++;
+      // the picture just before the fade against just after it (a flash returns to the same picture)
+      const pre = nearestS(S, S[a2].t-0.2), post = nearestS(S, S[b2].t+0.2);
+      const changes = histD(H[pre], H[post]) > 0.3, long = dark && S[b].t - S[a].t >= 0.1;
+      if(changes || long) out.push({t0:S[a2].t - gap, t1:S[b2].t + gap, kind:'fade'});
+    }
+    i = b;
+  }
+  // dissolve: a short stretch (0.25-2.2 s) of steady change between two still stretches, ending on a different picture,
+  // where each pixel of the middle frame is a blend of the frames before and after (a camera pan is not a blend)
+  const cs = [...c].slice(1).sort((x,y)=>x-y), base = cs[cs.length>>1] || 0, thr = Math.max(0.03, 2.5*base);
+  for(let i=1;i<n;i++){
+    if(c[i] <= thr) continue;
+    let j = i; while(j+1<n && c[j+1] > thr) j++;
+    const a = i-1, b = j, dur = S[b].t - S[a].t;
+    if(dur >= 0.25 && dur <= 2.2 && histD(H[a], H[b]) >= 0.35){
+      const m = (a+b)>>1, A = LM[a], B = LM[b], M = LM[m];
+      let dA=0, dB=0; for(let k=0;k<M.length;k++){ dA += Math.abs(M[k]-A[k]); dB += Math.abs(M[k]-B[k]); }
+      let be = Infinity; for(let al=0.05; al<0.96; al+=0.05){ let e=0; for(let k=0;k<M.length;k++) e += Math.abs(M[k] - (al*A[k] + (1-al)*B[k])); be = Math.min(be, e); }
+      if(be < 0.5*Math.min(dA, dB)) out.push({t0:S[a].t - gap*0.5, t1:S[b].t + gap*0.5, kind:'dissolve'});
+    }
+    i = j;
+  }
+  // merge what overlaps (a cut found inside a fade is the fade)
+  out.sort((x,y)=>x.t0-y.t0);
+  const merged = [];
+  for(const o of out){ const l = merged[merged.length-1]; if(l && o.t0 <= l.t1 + 0.05){ l.t1 = Math.max(l.t1, o.t1); if(l.kind==='cut') l.kind = o.kind; } else merged.push({...o}); }
+  return merged;
+}
+function nearestS(S, t){ let lo=0, hi=S.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(S[m].t < t) lo=m+1; else hi=m; } return (lo>0 && Math.abs(S[lo-1].t-t) < Math.abs(S[lo].t-t)) ? lo-1 : lo; }
+// does the stretch of footage [a,b] cross a scene change? (a small margin either side)
+function crossesScene(src, a, b){
+  const sc = src.scenes; if(!sc || !sc.length) return false;
+  for(const s of sc){ if(s.t0 > b + 0.06) break; if(s.t1 >= a - 0.03 && s.t0 <= b + 0.06) return true; }
+  return false;
 }
 async function scanFaces(src, onProgress){
-  // AI vision: find faces (where people are) about 40 times across the clip
+  // faces: up to 2.5 looks a second (at most about 60 per clip), then cleaned up over time (see trackFaces)
   src.faces = [];
   if(!window.tracking || !tracking.ViolaJones || !tracking.ViolaJones.classifiers || !tracking.ViolaJones.classifiers.face) return;
   const v = makeVideo(src.url); await waitEv(v,'loadeddata');
   const w = 240, h = Math.round(240*src.h/src.w), c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d', {willReadFrequently:true});
-  const step = Math.min(2, Math.max(0.4, src.dur/40));
+  const step = Math.min(1.5, Math.max(0.4, src.dur/60)), raw = [];
   for(let tt=0.1; tt<src.dur; tt+=step){
     v.currentTime = tt; try{ await waitEv(v,'seeked',3000); }catch(e){ continue; }
     g.drawImage(v,0,0,w,h); const px = g.getImageData(0,0,w,h).data;
     let rects = [];
     try{ rects = tracking.ViolaJones.detect(px, w, h, 1.0, 1.25, 1.5, 0.2, tracking.ViolaJones.classifiers.face) || []; }catch(e){}
-    rects = rects.filter(r=>r.width > w*0.06);
-    if(rects.length){ const big = rects.reduce((a,b)=>a.width>b.width?a:b);
-      src.faces.push({t:tt, n:rects.length, fx:(big.x+big.width/2)/w, fy:(big.y+big.height/2)/h, fs:big.width/w}); }
-    else src.faces.push({t:tt, n:0});
+    raw.push({t:tt, rects: rects.filter(r=>r.width > w*0.06).map(r=>({x:(r.x+r.width/2)/w, y:(r.y+r.height/2)/h, s:r.width/w}))});
     onProgress(tt/src.dur);
     await new Promise(r=>setTimeout(r,0));
   }
   v.removeAttribute('src'); v.load();
+  src.faces = trackFaces(raw);
+}
+// One face is followed through the clip: a detection is kept only when a face is seen at about the same place in a
+// neighbouring look (a lone hit is usually a false face in a pattern), and when there are several faces the one the
+// track already follows wins over a bigger one that would make the crop jump.
+function trackFaces(raw){
+  const near = (a, b) => Math.hypot(a.x-b.x, a.y-b.y) < Math.max(0.12, 1.2*Math.max(a.s, b.s)) && Math.max(a.s,b.s)/Math.min(a.s,b.s) < 1.8;
+  const ok = raw.map((f,i)=>f.rects.filter(r=>{
+    if(r.s > 0.22) return true;   // a big face is reliable on its own
+    for(const j of [i-2,i-1,i+1,i+2]) if(raw[j] && raw[j].rects.some(q=>near(r,q))) return true;
+    return false; }));
+  const out = []; let cur = null;
+  raw.forEach((f,i)=>{
+    const rs = ok[i];
+    if(!rs.length){ out.push({t:f.t, n:0}); if(cur && out.length>2 && !out[out.length-2].n) cur = null; return; }
+    let pick = rs.reduce((a,b)=>a.s>b.s?a:b);
+    if(cur){ const cont = rs.filter(r=>near(r,cur)); if(cont.length) pick = cont.reduce((a,b)=>Math.hypot(a.x-cur.x,a.y-cur.y) < Math.hypot(b.x-cur.x,b.y-cur.y) ? a : b); }
+    cur = pick; out.push({t:f.t, n:rs.length, fx:pick.x, fy:pick.y, fs:pick.s});
+  });
+  return out;
 }
 function drawSpark(src){
   const cv = src.spark; if(!cv || !src.samples) return;
@@ -539,9 +691,14 @@ async function readVideo(src){
     const r = Math.max(320/src.w, 180/src.h); tg.drawImage(v,(320-src.w*r)/2,(180-src.h*r)/2,src.w*r,src.h*r);
     v.removeAttribute('src'); v.load();
     if(src.removed) return;
-    await scanMotion(src, p=>{ dd.textContent = 'finding action ' + Math.round(p*100) + '%'; });
-    if(src.removed) return;
-    await scanFaces(src, p=>{ dd.textContent = 'finding faces ' + Math.round(p*100) + '%'; });
+    // action + scene changes and faces are read at the same time (two decoders): about 40% faster per clip
+    const tq = performance.now(); let pm = 0, pf = 0;
+    const show = () => { dd.textContent = 'reading ' + Math.round((pm*0.6 + pf*0.4)*100) + '%'; };
+    src.readMs = {};
+    await Promise.all([
+      scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); }),
+      scanFaces(src, p=>{ pf = p; show(); }).then(()=>{ src.readMs.faces = Math.round(performance.now()-tq); }),
+    ]);
     if(src.removed) return;
     const nf = src.faces.filter(f=>f.n>0).length, shs = src.samples.map(s=>s.sh).sort((a,b)=>a-b);
     src.shMed = shs[Math.floor(shs.length/2)] || 1;
@@ -715,6 +872,66 @@ function keyframesFor(e){
 }
 
 let dupCount = 0;
+/* ---- virtual camera: the crop follows the subject smoothly ----
+   Like a camera operator: hold still while the subject stays near the middle (a locked-off shot looks professional),
+   pan smoothly when it moves away, never twitch. Positions come from the tracked face, else from what moves on its own
+   (camera motion removed). The path is smoothed in both directions in time (no lag), so it leads the subject a little
+   instead of chasing it. Paths are in footage time, so slow motion and speed ramps follow the same subject. */
+function camPath(src, a, b, cw, ch){
+  const DT = 0.05, n = Math.max(2, Math.ceil((b-a)/DT)+1);
+  const st = windowStats(src, a, Math.max(b, a+0.05));
+  const still = (x, y, mode) => ({a, dt:DT, x:new Float32Array(n).fill(x), y:new Float32Array(n).fill(y), mode});
+  const clampX = x => cw >= 0.999 ? 0.5 : Math.min(1-cw/2, Math.max(cw/2, x));
+  const clampY = y => ch >= 0.999 ? 0.5 : Math.min(1-ch/2, Math.max(ch/2, y));
+  // observations
+  const F = (src.faces||[]).filter(f=>f.t>=a-0.6 && f.t<=b+0.6), Fon = F.filter(f=>f.n>0);
+  let obs = [], mode = 'none', sigma;
+  if(Fon.length && Fon.length >= 0.3*F.length){
+    // a face sits a little above the middle (40% from the top), like a portrait framing
+    obs = Fon.map(f=>({t:f.t, x:f.fx, y:f.fy + 0.1*ch, w:1})); mode = 'face'; sigma = 0.35;
+  } else {
+    // what moves on its own, and what stands out in the picture (it may stand still)
+    const M = (src.samples||[]).filter(s=>s.t>=a-0.3 && s.t<=b+0.3 && !s.cut);
+    const O = []; M.forEach(s=>{ if(s.sw > 0.12) O.push({t:s.t, x:s.sx, y:s.sy, w:s.sw}); if(s.aw > 0.15) O.push({t:s.t, x:s.ax, y:s.ay, w:0.8*s.aw}); });
+    const wsum = O.reduce((q,o)=>q+o.w, 0);
+    if(O.length >= 3 && wsum > 0.8){ obs = O; mode = 'subject'; sigma = 0.3; }
+  }
+  if(!obs.length) return still(clampX(st.face>0.3 ? st.fx : 0.5+(st.cx-0.5)*0.8), clampY(st.face>0.3 ? st.fy + 0.1*ch : 0.45), 'none');
+  // outliers: far from the median of their neighbours (a false face, a bird crossing the frame)
+  const med = arr => { const q=[...arr].sort((x,y)=>x-y); return q[q.length>>1]; };
+  obs = obs.filter(o=>{ const nb = obs.filter(p=>Math.abs(p.t-o.t) <= 0.7); if(nb.length < 3) return true;
+    return Math.abs(o.x - med(nb.map(p=>p.x))) < 0.2 && Math.abs(o.y - med(nb.map(p=>p.y))) < 0.2; });
+  if(!obs.length) return still(clampX(0.5+(st.cx-0.5)*0.8), clampY(0.45), 'none');
+  const smoothAt = (t, sg) => { let sw=0, sx=0, sy=0, nearest=obs[0];
+    for(const o of obs){ const k = o.w*Math.exp(-0.5*((t-o.t)/sg)**2); sw+=k; sx+=k*o.x; sy+=k*o.y; if(Math.abs(o.t-t) < Math.abs(nearest.t-t)) nearest=o; }
+    return sw > 1e-6 ? [sx/sw, sy/sw] : [nearest.x, nearest.y]; };
+  const X = new Float32Array(n), Y = new Float32Array(n), Xs = new Float32Array(n), Ys = new Float32Array(n);
+  for(let k=0;k<n;k++){ const t = a + k*DT, [x,y] = smoothAt(t, sigma), [x2,y2] = smoothAt(t, sigma*2.2);
+    X[k]=clampX(x); Y[k]=clampY(y); Xs[k]=clampX(x2); Ys[k]=clampY(y2); }
+  // 1) locked: one position keeps the subject in the middle 40% of the frame for the whole shot
+  const rng2 = A => { let lo=Infinity, hi=-Infinity; for(const v of A){ if(v<lo) lo=v; if(v>hi) hi=v; } return [lo,hi]; };
+  const [x0,x1] = rng2(X), [y0,y1] = rng2(Y);
+  if(x1-x0 <= 0.4*cw && y1-y0 <= 0.4*ch) return still(clampX((x0+x1)/2), clampY((y0+y1)/2), 'still');
+  // 2) a slow, smooth pan if it keeps the subject within the middle 60%; 3) otherwise the closer follow
+  let dev = 0; for(let k=0;k<n;k++) dev = Math.max(dev, Math.abs(Xs[k]-X[k])/cw, Math.abs(Ys[k]-Y[k])/ch);
+  const useX = dev <= 0.3 ? Xs : X, useY = dev <= 0.3 ? Ys : Y;
+  // a still axis stays still (no drifting up and down while the subject walks sideways)
+  const [ax0,ax1] = rng2(useX), [ay0,ay1] = rng2(useY);
+  if(ax1-ax0 <= 0.4*cw) useX.fill(clampX((ax0+ax1)/2));
+  if(ay1-ay0 <= 0.4*ch) useY.fill(clampY((ay0+ay1)/2));
+  return {a, dt:DT, x:useX, y:useY, mode};
+}
+// where the camera looks at this moment of the shot (fraction of the source frame); built once per shot and format
+function camAt(e, local){
+  const src = sources[e.src]; if(!src) return [0.5, 0.5];
+  const L = e.end - e.start, key = aspect+'|'+e.src+'|'+e.in+'|'+e.scaleR+'|'+e.sp.label+'|'+L;
+  if(!e.cam || e.cam.key !== key){
+    const [W,H] = SIZES[aspect], base = Math.max(W/src.w, H/src.h);
+    e.cam = camPath(src, e.in, srcPos(e, L), Math.min(1, W/(src.w*base)), Math.min(1, H/(src.h*base))); e.cam.key = key;
+  }
+  const c = e.cam, u = Math.max(0, Math.min(c.x.length-1.0001, (srcPos(e, Math.max(0, Math.min(L, local))) - c.a)/c.dt)), k = Math.floor(u), f = u-k;
+  return [c.x[k] + (c.x[k+1]-c.x[k])*f, c.y[k] + (c.y[k+1]-c.y[k])*f];
+}
 // Should this shot get a zoom effect at all? A punch on a big face or on footage that already moves a lot looks messy,
 // and a punch in the middle of a long calm shot is out of place: those get a softer move instead.
 function suitFx(e){
@@ -732,7 +949,7 @@ function makeEdit(){
   const used = sources.map(()=>[]);
   const order = plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return pr[plan[a].type]-pr[plan[b].type] || a-b; });
   const res = new Array(plan.length); dupCount = 0;
-  const pick = (i, allowNeighbour, allowOverlap) => {
+  const pick = (i, allowNeighbour, allowOverlap, anyScene) => {
     const s = plan[i], len = s.end - s.start;
     let best=null, bs=-Infinity;
     sources.forEach((src,si)=>{
@@ -743,6 +960,7 @@ function makeEdit(){
       for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=stepT){
         let ov = 0; used[si].forEach(([u0,u1])=>{ ov += Math.max(0, Math.min(u1,a+need)-Math.max(u0,a)); });
         if(!allowOverlap && ov > 0.001) continue;          // a moment of footage is used only once
+        if(!anyScene && crossesScene(src, a, a+need)) continue;   // a shot never runs across a cut inside the clip
         const st = windowStats(src, a, a+need), m = st.m/gmax;
         let sc;
         if(s.type==='drop') sc = 2.2*m;
@@ -763,7 +981,7 @@ function makeEdit(){
   };
   order.forEach(i=>{
     const len = plan[i].end - plan[i].start;
-    let best = pick(i,false,false) || pick(i,true,false) || pick(i,true,true) || {src:0,in:0,scaleR:1,cx:0.5,cy:0.5,face:0,ov:0};
+    let best = pick(i,false,false) || pick(i,true,false) || pick(i,true,true) || pick(i,true,true,true) || {src:0,in:0,scaleR:1,cx:0.5,cy:0.5,face:0,ov:0};
     if(best.ov > 0.001) dupCount++;
     used[best.src].push([best.in, best.in + plan[i].sp.pos(len)*best.scaleR]);
     res[i] = best;
@@ -771,7 +989,7 @@ function makeEdit(){
   const useCount = sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
   edit = plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
   edit.forEach(e=>{ e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth') suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
-  renderEDL(); setCanvas();
+  setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = edit.length + ' shots · ' + fmt(buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
@@ -787,7 +1005,9 @@ function captureLoop(){
     showSafe=sv; hookText=h; pos=0.3; return prepare(0,0.3); }).then(()=>drawFrame(0.3));
 }
 function kfSummary(e){
-  const why = e.why ? `<br><span style="font:11px var(--body);color:var(--muted)">${e.why}</span>` : '';
+  const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
+  const notes = [e.why, cam].filter(Boolean).join(' · ');
+  const why = notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '';
   const s = e.kf && e.kf.scale; if(!s || s.length<2) return why;
   const a=s[0], b=s[s.length-1];
   return `<br><span style="font:11px var(--mono);color:var(--muted)">◆ scale ${a[1].toFixed(2)}→${b[1].toFixed(2)} · ${(b[0]-a[0]).toFixed(2)}s ${b[2]||''}</span>` + why;
@@ -812,6 +1032,7 @@ function repick(i, avoidCurrent){
     for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=Math.max(0.1, Math.min(0.5, src.dur/120))){
       if(avoidCurrent && si===e.src && Math.abs(a-e.in) < Math.max(0.3, need*0.5)) continue;
       if(used[si].some(([u0,u1])=>Math.min(u1,a+need)-Math.max(u0,a) > 0.001)) continue;
+      if(crossesScene(src, a, a+need)) continue;
       const st = windowStats(src, a, a+need), m = st.m/gmax;
       let sc = e.type==='drop' ? 2.2*m : e.type==='hit' ? 1.5*m : e.type==='break' ? 1-Math.abs(m-0.18)*2 : 1-Math.abs(m-0.55);
       if(st.b < 0.08) sc -= 1; const sharp = st.sh/(src.shMed||1); if(sharp<0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5,sharp);
@@ -820,7 +1041,7 @@ function repick(i, avoidCurrent){
     }
   });
   if(!best) return false;
-  Object.assign(e, best); assignPlayers(); return true;
+  Object.assign(e, best); e.cam = null; assignPlayers(); return true;
 }
 async function showShot(i){ pos = edit[i].start + Math.min(0.4, (edit[i].end-edit[i].start)*0.5);
   await Promise.all([edit[i-1]?prepare(i-1,edit[i-1].end-0.01):0, prepare(i, pos)]); drawFrame(pos); drawTimeline(); }
@@ -828,7 +1049,7 @@ function changed(i, refit){
   stopAll(); const e = edit[i]; e.kf = keyframesFor(e);
   if(refit){ const need = e.sp.pos(e.end-e.start)*e.scaleR, src = sources[e.src];
     const clash = edit.some((x,k)=>k!==i && x.src===e.src && Math.min(x.in+x.sp.pos(x.end-x.start)*x.scaleR, e.in+need)-Math.max(x.in,e.in) > 0.001);
-    if(e.in + need > src.dur || clash) repick(i, false); }
+    if(e.in + need > src.dur || clash || crossesScene(src, e.in, e.in+need)) repick(i, false); }
   renderEDL(true); showShot(i);
 }
 function sel(opts, val, onch){ const s=document.createElement('select'); Object.entries(opts).forEach(([k,v])=>{ const o=document.createElement('option'); o.value=k; o.textContent=v; if(k===val) o.selected=true; s.appendChild(o); });
@@ -907,10 +1128,10 @@ function drawShot(g, e, local, o={}){
   const sh = kf(K.shake,local) || 0;
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); } } }
-  const sw = sources[e.src].w, shh = sources[e.src].h;
+  const sw = sources[e.src].w, shh = sources[e.src].h, [ccx, ccy] = camAt(e, local);
   const r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r;
-  let px = W/2 - e.cx*dw; px = Math.min(0, Math.max(W-dw, px)) + x;
-  let py0 = H/2 - (e.cy ?? 0.5)*dh; py0 = Math.min(0, Math.max(H-dh, py0));
+  let px = W/2 - ccx*dw; px = Math.min(0, Math.max(W-dw, px)) + x;
+  let py0 = H/2 - ccy*dh; py0 = Math.min(0, Math.max(H-dh, py0));
   const py = py0 + y;
   const alpha = o.alpha ?? 1;
   const paint = (gg, a, extra=1, ox=0, oy=0) => {
@@ -1183,9 +1404,9 @@ function layerOf(e, local, o={}){
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
   let expo = o.noFx ? 0 : (kf(K.expo,local) || 0);
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); if(!o.noFx) expo += 0.22*Math.exp(-(local-bt)/0.07); } } }
-  const sw = sources[e.src].w, shh = sources[e.src].h, r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r;
-  let px = W/2 - e.cx*dw; px = Math.min(0, Math.max(W-dw, px)) + x;
-  let py = H/2 - (e.cy ?? 0.5)*dh; py = Math.min(0, Math.max(H-dh, py)) + y;
+  const sw = sources[e.src].w, shh = sources[e.src].h, r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r, [ccx, ccy] = camAt(e, local);
+  let px = W/2 - ccx*dw; px = Math.min(0, Math.max(W-dw, px)) + x;
+  let py = H/2 - ccy*dh; py = Math.min(0, Math.max(H-dh, py)) + y;
   let zb = o.noFx ? 0 : (kf(K.zblur,local) || 0);
   if(!o.noFx && rateAt(e, local) >= 1.8) zb += 0.35;   // motion blur when the shot runs fast
   const br = kf(K.bright,local);
@@ -1206,7 +1427,7 @@ function drawFrameGL(t){
       case 'zoom': S.A = layerOf(pe, pl, {scale:1+0.9*p*p, zb:1.2, noFx:true}); S.B = layerOf(e, local, {scale:1.6-0.6*q, zb:1-q}); S.mode = 1; S.mix = q; break;
       case 'spin': S.A = layerOf(pe, pl, {rot:90*p*p, scale:1+0.5*p, zb:0.8, noFx:true}); S.B = layerOf(e, local, {rot:-90*(1-q), scale:1.5-0.5*q, zb:1-q}); S.mode = 1; S.mix = q; break;
       case 'glitch': S.B = layerOf(e, local, {rgb:22*(1-p)}); S.mode = 5; break;
-      case 'iris': S.mode = 6; S.prog = p; S.iris = [e.cx*W, (e.cy??0.5)*H]; break;
+      case 'iris': { const [px,py,dw,dh] = S.B.rect, [ccx,ccy] = camAt(e, local); S.mode = 6; S.prog = p; S.iris = [px+ccx*dw, py+ccy*dh]; break; }
       case 'wipe': S.mode = 7; S.prog = p; break;
       case 'bars': S.mode = 8; S.prog = p; break;
       case 'dip': S.mode = 2; S.prog = EASE.inOut(p); break;
@@ -1455,7 +1676,8 @@ $('cover').onclick = async () => {
 };
 
 /* =============== START =============== */
-root.__studio = { get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL };
+root.__studio = { get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL,
+  frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
     try{ stopAll(); }catch(err){}

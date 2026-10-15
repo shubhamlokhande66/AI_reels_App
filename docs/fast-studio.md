@@ -9,12 +9,12 @@ It sits next to the existing server pipeline; nothing in `server/` changes.
    filtering (HPSS), tempo, sudden rises and falls in loudness. That gives the shot list: DROP (big jump into a louder
    part), HIT (strong accent, only when the sound there is mostly drums, so a singer's syllable is not a cut), BREAK
    (the sound falls and stays down) and plain cuts, each placed one frame before the beat.
-2. **Clips**: each clip is played fast and sampled: motion and where it happens, brightness, sharpness (Laplacian
+2. **Clips**: each clip is played fast and sampled: motion and where it happens, scene changes, brightness, sharpness (Laplacian
    variance) and faces (tracking.js Viola-Jones, `public/vendor/tracking`, BSD licence). Clips can be added or removed
    at any time; reading is queued.
 3. **Create**: every shot gets the best unused moment for its role (action for drops, calm for breaks, faces and sharp
    footage preferred, dark or blurry footage avoided). No moment of footage is used twice and the same clip is never
-   used twice in a row. The crop follows the face, else the action.
+   used twice in a row. A shot never crosses a scene change in the clip, and a virtual camera follows the subject (see below).
    - **Style**: Auto (the music decides), Smooth (fewer, longer shots, soft camera moves, no flashy effects), Fast (a cut
      on every beat, a transition on every cut, punches and speed changes).
    - A zoom effect is only kept where it suits the shot: a close-up face or footage that already moves a lot gets a
@@ -44,6 +44,42 @@ Scored with `scripts/studio-beats` (F-measure, ±70 ms):
 | Unseen set: 4-on-the-floor 124, swung hip-hop 90, reggaeton 95, trap 70, piano only 100, drift 120 -> 126, change 140 -> 100 | - | 100% each |
 
 These are synthetic songs; real mixes are harder, so keep comparing against the server (Beat This!) on real music.
+
+## Scene changes inside a clip
+
+A long video often holds several scenes. A shot that runs across one shows a flash of the wrong scene, so scene changes
+are found while the clip is read and no shot may cross one (with a few frames of margin):
+
+- **Hard cuts**: colour histogram change between samples, with an adaptive threshold (a spike far above the change
+  around it, so a fast pan is not a cut). A flash or something passing through the frame returns to the same picture
+  and is ignored. Each cut is then pinned to about one frame by seeking (bisection).
+- **Fades** through black or white: the whole fade is covered, from where the brightness starts to slide.
+- **Dissolves**: a short stretch of steady change between two still stretches, where the middle frame is a pixel blend of
+  the two sides (a camera pan is not).
+- The burst of "action" a cut causes in the motion numbers is removed, so a cut is never chosen as the best action moment.
+
+Scored with `scripts/studio-scenes`: 5/5 found, cuts within one frame, no false ones on 7 clips, 0 shots across a boundary.
+
+## Camera that follows the subject
+
+Cropping a landscape clip to 9:16 keeps only a third of the width, so a fixed crop easily loses the subject. Each shot
+now gets a camera path, like a camera operator:
+
+- **Where the subject is**: the face (tracked through the clip: a lone detection is dropped as a false face, and with
+  several faces the one already followed wins), else what moves on its own with the camera's own motion removed (global
+  shift by block matching), plus what stands out in the picture (colour-contrast saliency), so a subject standing still
+  is found too.
+- **How the camera moves**: it stays locked when the subject stays near the middle (most professional shots are locked
+  off), pans slowly and smoothly when it moves away, and never twitches: positions are smoothed in both directions in time,
+  so there is no lag and handheld shake is not copied. Faces sit 40% from the top. The path is in footage time, so slow
+  motion and speed ramps follow the same subject.
+- The edit list says per shot whether the camera follows a face, follows the subject or is locked on it.
+
+Measured on a subject that stands, walks across a landscape frame and stops (9:16 crop): subject in frame 100% of the
+time (the best fixed crop: 12-45% on the shots where it walks), camera jerk about 0.3 px/frame², 2 ms for all 48 paths.
+
+Clip reading now runs the action pass and the face pass at the same time: 5 clips read in 36 s instead of 47 s in the
+test browser.
 
 ## Smoothness
 
