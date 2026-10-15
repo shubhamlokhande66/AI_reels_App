@@ -113,6 +113,19 @@ describe("the job queue", () => {
     expect(doc.error.code).toBe("JOB_INTERRUPTED");
   });
 
+  it("never takes a job whose files live in other storage (a computer running against the live database)", async () => {
+    process.env.APP_ROLE = "web";
+    const j = await m.submit(await project("A"), "analyze");
+    await until(async () => !!(await job(j._id)).queue);
+    await (await mainDb()).collection("jobs").updateOne({ _id: j._id }, { $set: { "queue.storage": "r2:the-live-bucket" } });
+    delete process.env.APP_ROLE;
+    await m.pump();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(gate.calls).toEqual([]);
+    expect((await job(j._id)).claimedBy).toBeNull();
+    expect((await job(j._id)).queue.storage).not.toBe(m.storageId());
+  });
+
   it("cancels a waiting job at once and gives the project back its status", async () => {
     process.env.APP_ROLE = "web";
     const p = await project("A");

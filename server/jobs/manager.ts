@@ -1,5 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
+import os from "node:os";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { env as readEnv, settings as env } from "@/server/core/config";
@@ -59,6 +60,13 @@ const g = globalThis as unknown as { __jobs?: JobState };
 const state = (): JobState => (g.__jobs ??= { running: new Map(), active: 0, pumping: false, recovered: false, lastSweep: 0, instance: crypto.randomUUID() });
 
 const HEARTBEAT_MS = 10_000, STALE_MS = 90_000, SWEEP_MS = 30_000, MAX_ATTEMPTS = 2;
+
+/** Which uploads and Reels an instance can reach: only instances with the same storage take a job (a computer running
+ * the app against the live database never takes the live app's jobs, whose files it does not have). */
+export const storageId = () => {
+  const bucket = readEnv("R2_BUCKET", "");
+  return env.storageMounted && bucket ? `r2:${bucket}` : `local:${os.hostname()}:${env.storagePath}`;
+};
 export const appRole = () => readEnv("APP_ROLE", "all").toLowerCase() as "all" | "web" | "worker";
 export const runsJobs = () => appRole() !== "web";
 
@@ -70,16 +78,16 @@ export const busyJobs = () => state().running.size;
 export async function hasWork(): Promise<boolean> {
   if (state().running.size > 0) return true;
   if (!runsJobs()) return false;
-  return (await (await mainDb()).collection("jobs").countDocuments({ status: "queued", runner: "next", claimedBy: null }, { limit: 1 })) > 0;
+  return (await (await mainDb()).collection("jobs").countDocuments({ status: "queued", runner: "next", "queue.storage": storageId(), claimedBy: null }, { limit: 1 })) > 0;
 }
 
-interface QueuedWork { input: string; renderingId: string; priorStatus: string; label: string; attempts: number }
+interface QueuedWork { input: string; renderingId: string; priorStatus: string; label: string; attempts: number; storage: string }
 
 /** The job, ready for any instance to run: its whole input stored on it, then this instance looks for work. */
 async function enqueue(jobId: ObjectId, inp: pl.PipelineInput, renderingId: ObjectId, priorStatus: string, label: string) {
   const { signal: _signal, ...plain } = inp;
   void _signal;
-  const queue: QueuedWork = { input: JSON.stringify(plain), renderingId: String(renderingId), priorStatus, label, attempts: 0 };
+  const queue: QueuedWork = { input: JSON.stringify(plain), renderingId: String(renderingId), priorStatus, label, attempts: 0, storage: storageId() };
   await (await db()).collection("jobs").updateOne({ _id: jobId }, { $set: { queue, claimedBy: null, heartbeatAt: null, cancelRequested: false } });
   void pump();
 }
@@ -93,7 +101,7 @@ export async function pump() {
     while (s.active < Math.max(env.maxConcurrentJobs, 1)) {
       const t = now();
       const job = await (await mainDb()).collection("jobs").findOneAndUpdate(
-        { status: "queued", runner: "next", queue: { $exists: true }, claimedBy: null },
+        { status: "queued", runner: "next", "queue.storage": storageId(), claimedBy: null },
         { $set: { claimedBy: s.instance, claimedAt: t, heartbeatAt: t } },
         { sort: { createdAt: 1 }, returnDocument: "after" },
       );
@@ -147,7 +155,7 @@ export async function requestCancel(jobId: string): Promise<boolean> {
 }
 
 /** Interrupted jobs: once per server start, the jobs of the earlier in-memory queue (no stored input) are failed; and every
- * SWEEP_MS, a job whose instance stopped beating is queued again (once) or failed, its credits refunded. */
+ * SWEEP_MS, a job of this storage whose instance stopped beating is queued again (once) or failed, its credits refunded. */
 export async function recoverStaleJobs() {
   const s = state(), d = await mainDb(), jobs = d.collection("jobs");
   const fail = async (j: Doc, message: string) => {
@@ -159,14 +167,17 @@ export async function recoverStaleJobs() {
   };
   if (!s.recovered) {
     s.recovered = true;
-    for (const j of await jobs.find({ status: { $in: ["queued", "processing"] }, runner: "next", queue: { $exists: false } }).toArray()) {
-      if (!s.running.has(String(j._id))) await fail(j as Doc, "The server restarted while this job was running.");
+    // jobs of the earlier in-memory queue carry no storage: only the live app (its storage is the bucket) cleans them up
+    if (env.storageMounted) {
+      for (const j of await jobs.find({ status: { $in: ["queued", "processing"] }, runner: "next", queue: { $exists: false } }).toArray()) {
+        if (!s.running.has(String(j._id))) await fail(j as Doc, "The server restarted while this job was running.");
+      }
     }
   }
   if (Date.now() - s.lastSweep < SWEEP_MS) return;
   s.lastSweep = Date.now();
   const cutoff = new Date(Date.now() - STALE_MS);
-  for (const j of await jobs.find({ status: { $in: ["queued", "processing"] }, runner: "next", queue: { $exists: true }, claimedBy: { $ne: null }, heartbeatAt: { $lt: cutoff } }).toArray()) {
+  for (const j of await jobs.find({ status: { $in: ["queued", "processing"] }, runner: "next", "queue.storage": storageId(), claimedBy: { $ne: null }, heartbeatAt: { $lt: cutoff } }).toArray()) {
     const attempts = ((j.queue as QueuedWork).attempts ?? 0) + 1;
     if (attempts >= MAX_ATTEMPTS || j.cancelRequested) { await fail(j as Doc, "The server running this job stopped twice; press Retry."); continue; }
     await jobs.updateOne({ _id: j._id, claimedBy: j.claimedBy, heartbeatAt: j.heartbeatAt }, // only if nobody took it meanwhile
@@ -178,7 +189,8 @@ export async function recoverStaleJobs() {
 /** Where a queued job is in line (1 = next), or null when it is not waiting. */
 export async function queuePosition(job: Doc): Promise<number | null> {
   if (job.status !== "queued" || job.claimedBy) return null;
-  return (await (await mainDb()).collection("jobs").countDocuments({ status: "queued", runner: "next", claimedBy: null, createdAt: { $lt: job.createdAt as Date } })) + 1;
+  const storage = (job.queue as QueuedWork | undefined)?.storage ?? storageId();
+  return (await (await mainDb()).collection("jobs").countDocuments({ status: "queued", runner: "next", "queue.storage": storage, claimedBy: null, createdAt: { $lt: job.createdAt as Date } })) + 1;
 }
 
 const initialStages = (jobType: string, captions = false, ai = false) => {
