@@ -78,3 +78,7 @@
 .brs .btn.primary{background:var(--gold-gradient);color:#1a140c;border-color:transparent}
 .brs .seg button[aria-pressed=true]{background:var(--accent);color:#1a140c}
 .brs .step{background:linear-gradient(180deg,var(--sheen),transparent),var(--surface)}
+
+/* "Copy a Reel": what was read from the reference, and a button to change it */
+.brs .refbox{display:flex;gap:8px;align-items:center;flex-wrap:wrap;grid-column:1/-1}
+.brs .refbox .fname{white-space:normal;line-height:1.4}

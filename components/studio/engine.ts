@@ -464,6 +464,7 @@ function snap(t, w){
 let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0;
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
 function adaptPlan(){
+  if(mode==='copy' && refProfile) return copyPlan();
   if(mode==='smooth'){
     const minLen = Math.min(3, Math.max(1.4, period*4)), outP = [];
     basePlan.forEach(s=>{ const last = outP[outP.length-1];
@@ -592,7 +593,7 @@ async function scanMotion(src, onProgress){
     for(let y=1;y<71;y++) for(let x=1;x<127;x++){ const i=y*128+x, lap = 4*L2[i]-L2[i-1]-L2[i+1]-L2[i-128]-L2[i+128]; sm+=lap; sq+=lap*lap; n++; }
     const sh = sq/n - (sm/n)*(sm/n);
     out.push({t, m: prev ? m/lum.length : 0, b:b/lum.length, cx: m>1e-6 ? mx/m : 0.5, sh,
-      sx: sub ? sub.x : -1, sy: sub ? sub.y : -1, sw: sub ? sub.w : 0, gx: sub ? sub.gx : 0, ax: sal.x, ay: sal.y, aw: sal.w});
+      sx: sub ? sub.x : -1, sy: sub ? sub.y : -1, sw: sub ? sub.w : 0, gx: sub ? sub.gx : 0, gy: sub ? sub.gy : 0, ax: sal.x, ay: sal.y, aw: sal.w});
     prev = lum;
   };
   // fast enough to read a clip in seconds, slow enough that a sample lands at least every ~0.25 s of footage
@@ -625,11 +626,20 @@ async function scanMotion(src, onProgress){
 }
 
 /* ---- scene changes inside a clip ---- */
-// colour histogram, 4x4x4 RGB bins, normalised: almost blind to motion, very sensitive to a change of scene
+// What a scene looks like, for spotting a change of scene: a 4x4x4 RGB colour histogram (blind to motion, very sensitive
+// to new colours), a 16-bin brightness histogram and the brightness of an 8x5 grid of blocks (these two catch the cuts a
+// colour histogram cannot see: black and white footage, night scenes, two shots in the same colours). Normalised.
+const FEAT = 64 + 16 + 40;
 function colorHist(d){
-  const h = new Float32Array(64); let n = 0;
-  for(let i=0;i<d.length;i+=4){ h[((d[i]>>6)<<4) | ((d[i+1]>>6)<<2) | (d[i+2]>>6)]++; n++; }
-  for(let k=0;k<64;k++) h[k] /= n; return h;
+  const h = new Float32Array(FEAT), gs = new Float32Array(40); let n = 0;
+  for(let i=0;i<d.length;i+=4){
+    h[((d[i]>>6)<<4) | ((d[i+1]>>6)<<2) | (d[i+2]>>6)]++;
+    const y = 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; h[64 + Math.min(15, y>>4)]++;
+    const p = i>>2, x = p % SW, yy = (p / SW) | 0; const gi = Math.min(4, (yy*5/SH)|0)*8 + Math.min(7, (x*8/SW)|0); h[80 + gi] += y/255; gs[gi]++;
+    n++; }
+  for(let k=0;k<80;k++) h[k] /= n;
+  for(let k=0;k<40;k++) h[80+k] /= Math.max(1, gs[k]);
+  return h;
 }
 // Frequency-tuned saliency (Achanta et al. 2009) on the small frame: how far each pixel's colour (in a Lab-like space)
 // is from the picture's average colour. Its centre and how concentrated it is say where the eye goes.
@@ -647,7 +657,14 @@ function saliency(d){
   x/=w; y/=w; const spread = Math.sqrt(Math.max(0, xx/w-x*x + yy/w-y*y));
   return {x, y, w: Math.min(1, sd/0.12) * Math.max(0, 1 - spread/0.25)};   // strong contrast, in one place
 }
-const histD = (a, b) => { let s=0; for(let k=0;k<64;k++) s += Math.abs(a[k]-b[k]); return s/2; };   // 0 = same, 1 = nothing shared
+// 0 = the same scene, 1 = nothing shared: the strongest of the three views (colours, brightness, layout)
+// (brightness: the earth mover's distance between the two histograms, i.e. how far the brightness moved, so a change of
+// grain or compression on a flat picture does not count, a jump to a darker or brighter scene does)
+const colourD = (a, b) => { let c=0; for(let k=0;k<64;k++) c += Math.abs(a[k]-b[k]); return c/2; };
+const histD = (a, b) => { let c=0, l=0, ca=0, cb=0, g=0; for(let k=0;k<64;k++) c += Math.abs(a[k]-b[k]);
+  for(let k=64;k<80;k++){ ca += a[k]; cb += b[k]; l += Math.abs(ca-cb); }
+  for(let k=80;k<FEAT;k++) g += Math.abs(a[k]-b[k]);
+  return Math.max(c/2, Math.min(1, 2.5*l/15), Math.min(1, 2.5*g/40)); };
 // camera motion is estimated as one global shift (block matching on the 48x27 frame), what still differs after that
 // shift is the subject: its centre, its weight and how concentrated it is
 function subjectMotion(prev, cur){
@@ -662,11 +679,11 @@ function subjectMotion(prev, cur){
     const r = Math.abs(cur[yy0*SW+x0] - prev[(yy0-bdy)*SW + x0-bdx]) - 0.05; n++;   // 0.05: noise / compression
     if(r > 0){ const px=(x0+0.5)/SW, py=(yy0+0.5)/SH; w+=r; x+=r*px; y+=r*py; xx+=r*px*px; yy+=r*py*py; }
   }
-  if(w < 1e-3) return {x:0.5, y:0.5, w:0, gx: bdx};
+  if(w < 1e-3) return {x:0.5, y:0.5, w:0, gx: bdx, gy: bdy};
   x/=w; y/=w; const spread = Math.sqrt(Math.max(0, xx/w-x*x + yy/w-y*y));
   // weight: enough moving pixels, and in one place (a whole-frame change is lighting or a fast pan, not a subject)
   const conc = Math.max(0, 1 - spread/0.32);
-  return {x, y, w: Math.min(1, w/n*25) * conc, gx: bdx};
+  return {x, y, w: Math.min(1, w/n*25) * conc, gx: bdx, gy: bdy};
 }
 // Candidates come from the samples (adaptive threshold: a cut is a spike far above the change around it, a fast pan is
 // not; a flash returns to the same picture and is not a cut). Hard cuts are then pinned to the frame by bisection.
@@ -713,14 +730,19 @@ async function findScenes(v, src, S, H, LM){
       let b2 = b+1; while(b2<n-1 && sl(b2+1, b2) && S[b2+1].t - S[b].t < 2) b2++;
       // the picture just before the fade against just after it (a flash returns to the same picture)
       const pre = nearestS(S, S[a2].t-0.2), post = nearestS(S, S[b2].t+0.2);
-      const changes = histD(H[pre], H[post]) > 0.3, long = dark && S[b].t - S[a].t >= 0.1;
-      if(changes || long) out.push({t0:S[a2].t - gap, t1:S[b2].t + gap, kind:'fade'});
+      // through white, the colours must change (a camera pan changes the layout, not the colours: a flash in a pan is no cut)
+      const changes = (dark ? histD(H[pre], H[post]) : colourD(H[pre], H[post])) > 0.3, long = dark && S[b].t - S[a].t >= 0.1;
+      if(changes || long) out.push({t0:S[a2].t - gap, t1:S[b2].t + gap, kind:'fade', tc:(S[a].t + S[b].t)/2, white: !dark});   // tc: the darkest / brightest moment
     }
     i = b;
   }
   // dissolve: a short stretch (0.25-2.2 s) of steady change between two still stretches, ending on a different picture,
   // where each pixel of the middle frame is a blend of the frames before and after (a camera pan is not a blend)
   const cs = [...c].slice(1).sort((x,y)=>x-y), base = cs[cs.length>>1] || 0, thr = Math.max(0.03, 2.5*base);
+  // settled: the picture barely changes in the two samples before a (it is where a transition starts) / after b (ends)
+  const calmTh = Math.max(0.06, 1.5*base);
+  const settledBefore = a => { const v = [c[a], c[a-1]].filter(x=>x!==undefined); return !v.length || v.reduce((q,x)=>q+x,0)/v.length < calmTh; };
+  const settledAfter = b => { const v = [c[b+1], c[b+2]].filter(x=>x!==undefined); return !v.length || v.reduce((q,x)=>q+x,0)/v.length < calmTh; };
   for(let i=1;i<n;i++){
     if(c[i] <= thr) continue;
     let j = i; while(j+1<n && c[j+1] > thr) j++;
@@ -730,13 +752,16 @@ async function findScenes(v, src, S, H, LM){
       let dA=0, dB=0; for(let k=0;k<M.length;k++){ dA += Math.abs(M[k]-A[k]); dB += Math.abs(M[k]-B[k]); }
       let be = Infinity; for(let al=0.05; al<0.96; al+=0.05){ let e=0; for(let k=0;k<M.length;k++) e += Math.abs(M[k] - (al*A[k] + (1-al)*B[k])); be = Math.min(be, e); }
       if(be < 0.5*Math.min(dA, dB)) out.push({t0:S[a].t - gap, t1:S[b].t + gap, kind:'dissolve'});   // a full sample of margin: its first / last frames are faint
+      else if(dur <= 0.5 && settledBefore(a) && settledAfter(b)) out.push({t0:S[a].t, t1:S[b].t, kind:'cut'});   // a quick slide / whip / zoom into another scene
+    } else if(dur > 0.05 && dur < 0.25 && histD(H[a], H[b]) >= 0.35 && settledBefore(a) && settledAfter(b) && !out.some(o=>o.t1 >= S[a].t - 0.05 && o.t0 <= S[b].t + 0.05)){
+      out.push({t0:S[a].t, t1:S[b].t, kind:'cut'});
     }
     i = j;
   }
   // merge what overlaps (a cut found inside a fade is the fade)
   out.sort((x,y)=>x.t0-y.t0);
   const merged = [];
-  for(const o of out){ const l = merged[merged.length-1]; if(l && o.t0 <= l.t1 + 0.05){ l.t1 = Math.max(l.t1, o.t1); if(l.kind==='cut') l.kind = o.kind; } else merged.push({...o}); }
+  for(const o of out){ const l = merged[merged.length-1]; if(l && o.t0 <= l.t1 + 0.05){ l.t1 = Math.max(l.t1, o.t1); if(l.kind==='cut'){ l.kind = o.kind; if(o.tc !== undefined){ l.tc = o.tc; l.white = o.white; } } } else merged.push({...o}); }
   return merged;
 }
 function nearestS(S, t){ let lo=0, hi=S.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(S[m].t < t) lo=m+1; else hi=m; } return (lo>0 && Math.abs(S[lo-1].t-t) < Math.abs(S[lo].t-t)) ? lo-1 : lo; }
@@ -971,6 +996,7 @@ function styleEdit(){
     }
     s.tr = tr; s.efx = fx; s.sp = sp; lastTr = tr;
   });
+  if(mode==='copy' && refProfile) copyStyle();
 }
 const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip:'Whip pan (blur)', zoom:'Zoom-through', glitch:'Glitch RGB', dip:'Dip to black', dissolve:'Dissolve',
   iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur'};
@@ -1163,13 +1189,15 @@ function applyDirectorStyle(){
 // Returns how many of the director's transitions had to become hard cuts.
 function finishTransitions(){
   const per = Math.max(1, buf.duration/30), left = {snap:Math.round(2*per), whip:Math.round(2*per), spin:Math.round(1*per), glitch:Math.round(2*per), bars:Math.round(2*per), iris:Math.round(3*per), zoom:Math.round(3*per), wipe:Math.round(2*per), dissolve:Math.round(2*per) + (mode==='smooth' ? 99 : 0), flash:Math.round(6*per) + (mode==='fast' ? 99 : 0)};
+  if(mode==='copy' && copyBudget){ Object.keys(left).forEach(k=>{ left[k] = copyBudget[k] || 0; }); }   // copying a Reel: its own counts are the ration
   const want = {}; plan.forEach(s=>{ if(s.trByDir && left[s.tr]!==undefined) want[s.tr] = (want[s.tr]||0) + 1; });
   let undone = 0;
   plan.forEach((s,i)=>{
     if(i===0 || s.tr==='hard') return;
     const len = s.end - s.start, prev = plan[i-1];
-    let ok = TR_DUR[s.tr] <= 0.6*len && TR_DUR[s.tr] <= 0.8*(prev.end-prev.start);
-    if(ok && s.tr===prev.tr && !(s.type==='break' && prev.type==='break')) ok = false;
+    const fit = (s.tr==='flash' || s.tr==='glitch') ? 0.9 : 0.6;   // a flash / glitch is an overlay: it needs less room than a dissolve
+    let ok = TR_DUR[s.tr] <= fit*len && TR_DUR[s.tr] <= 0.8*(prev.end-prev.start);
+    if(ok && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
     if(ok && left[s.tr]!==undefined){
       if(s.trByDir){ want[s.tr]--; ok = left[s.tr] > 0; }
       else ok = left[s.tr] - (want[s.tr]||0) > 0;   // keep room for the director's
@@ -1215,7 +1243,7 @@ function directorCandidates(){
   return out;
 }
 function directorMaybe(){
-  if(!aiOn || dirBusy || !edit.length || recording) return;
+  if(!aiOn || dirBusy || !edit.length || recording || mode==='copy') return;   // copying a Reel: its style is the plan
   if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed) || !sources.some(s=>s.ai)) return;   // after the AI has seen the clips
   const key = dirKey(); if((director && director.key===key) || dirFailedKey===key) return;
   if(dirCache.has(key)){ director = dirCache.get(key); makeEdit(); return; }
@@ -1406,6 +1434,7 @@ function makeEdit(){
     aiStat('AI director: ' + (dirInfo.used + kept) + ' of ' + (dirInfo.asked + shots) + ' choices used' + (dirInfo.fixed + shots - kept ? ', ' + (dirInfo.fixed + shots - kept) + ' changed by the safety rules' : '') + (director.story ? '. ' + director.story : '')); }
   captureLoop();
   directorMaybe();
+  if(look === 'copy' && refProfile) setTimeout(()=>{ copyLook(); }, 0);
 }
 function captureLoop(){
   if(!edit.length) return;
@@ -1704,7 +1733,7 @@ uniform vec4 rA, rB, bgR, frR;
 uniform float rotA, rotB, zbA, zbB, rgbA, rgbB, exA, exB, brA, brB, alA, hasA;
 uniform vec2 dbA, dbB, irisC;
 uniform float mode, prog, mixv, time, snap, bgDark, border;
-uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix;
+uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix, warm, lift;
 uniform vec3 leak;
 vec2 rotP(vec2 p, float r){ vec2 c=res*0.5; vec2 d=p-c; float cs=cos(-r), sn=sin(-r); return c+vec2(cs*d.x-sn*d.y, sn*d.x+cs*d.y); }
 vec3 tap(sampler2D t, vec2 uv, float ro){ uv=clamp(uv,0.001,0.999);
@@ -1751,12 +1780,14 @@ void main(){
   else if(mode<7.5){ float q=1.-pow(1.-prog,3.); float s=(p.x+p.y*0.6)/(res.x+res.y*0.6); float e=-0.15+q*1.3; float mk=1.-smoothstep(e-0.08,e,s); col=mix(A,B,mk); }
   else { float k=floor(p.x/(res.x/6.)); float pk=clamp(prog*1.6-k*0.12,0.,1.); float hh=res.y*(1.-pow(1.-pk,3.)); float mk = mod(k,2.)>0.5 ? step(p.y,hh) : step(res.y-hh,p.y); col=mix(A,B,mk); }
   // colour grade
+  col = lift + col*(1.-lift);   // lifted blacks (faded / matte)
   col = (col-0.5)*con + 0.5; col *= bri;
   float l = dot(col, vec3(0.299,0.587,0.114));
   col = mix(vec3(l), col, sat);
   if(teal>0.){ vec3 tint = mix(vec3(0.75,1.05,1.12), vec3(1.12,0.98,0.82), smoothstep(0.15,0.85,l)); col = mix(col, col*tint, teal); }
-  col = mix(col, vec3(dot(col,vec3(0.299,0.587,0.114))), mono);
+  col *= vec3(1.+0.12*warm, 1., 1.-0.12*warm);   // white balance: warm (+) / cool (-)
   if(leak.z>0.){ float d = distance(p, leak.xy)/(res.x*0.9); vec3 lc = vec3(1.,0.67,0.35)*leak.z*(1.-smoothstep(0.,1.,d)); col = 1.-(1.-col)*(1.-lc); }
+  col = mix(col, vec3(dot(col,vec3(0.299,0.587,0.114))), mono);   // after the light leak: black and white stays black and white
   col += flash;
   vec2 uvn = p/res-0.5; float vd = length(uvn*vec2(res.x/res.y,1.)*vec2(1.,1.));
   col *= 1. - vig*smoothstep(0.3,0.75,vd);
@@ -1797,7 +1828,7 @@ const GL = (()=>{
       L('B', S.B);
       set('hasA', S.A ? 1 : 0); set('mode', S.mode); set('prog', S.prog); set('mixv', S.mix); set('irisC', S.iris || [c.width/2,c.height/2]);
       set('time', S.time); set('snap', S.snap ? 1 : 0); set('bgR', S.bgR || [0,0,1,1]); set('bgDark', S.bgDark||0); set('frR', S.frR || [0,0,c.width,c.height]); set('border', S.border||0);
-      const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain);
+      const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0);
       set('flash', S.flash||0); set('leak', S.leak || [0,0,0]); set('loopMix', S.loopMix||0);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     }};
@@ -1827,7 +1858,7 @@ function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = TR_DUR[e.tr] || 0, p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
   const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null };
-  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? 0.22);
+  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : 0.22));
   const inTr = p < 1 && (pe || e.tr==='fadein');
   if(inTr && pe) S.A = layerOf(pe, pl, {noFx:true});
   S.B = layerOf(e, local);
@@ -2072,11 +2103,15 @@ const MODE_HELP = {
   auto: 'Auto: the music decides. Calm parts get longer shots, drops and hits get effects.',
   smooth: 'Smooth: fewer, longer shots on the strong beats, soft camera moves, no flashy effects.',
   fast: 'Fast: a cut on every beat, a transition on every cut, punches and speed changes on the hits.',
+  copy: 'Copy a Reel: its pace (in beats), its transitions, its zooms and its colours, on this song and your clips.',
 };
-$('mode').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b || recording) return; mode=b.dataset.m;
-  [...$('mode').children].forEach(x=>x.setAttribute('aria-pressed', x===b)); $('modehelp').textContent = MODE_HELP[mode];
+function setMode(m){ mode = m; [...$('mode').children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.m===m)); $('modehelp').textContent = MODE_HELP[mode];
+  $('refbox').hidden = !refProfile;
   if(buf){ plan = adaptPlan(); drawMusic(); $('mclips').textContent = plan.length; }
-  if(buf && sources.length) makeEdit(); });
+  if(buf && sources.length) makeEdit(); }
+$('mode').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b || recording) return;
+  if(b.dataset.m === 'copy' && !refProfile){ $('reffile').click(); return; }
+  setMode(b.dataset.m); });
 $('cover').onclick = async () => {
   // cover: the best drop shot (or the hook) with the hook text, full frame
   const d = edit.find(x=>x.type==='drop') || edit[0], tt = d.start + Math.min(0.6, (d.end-d.start)*0.6);
@@ -2085,8 +2120,278 @@ $('cover').onclick = async () => {
   saveFile(blob, 'reel-cover.jpg'); showMsg('Cover saved. Pick it under "Edit cover" when you post.');
 };
 
+
+/* =============== COPY A REEL ===============
+   The person uploads a Reel they like. Measured on this device: every cut (the scene-change reader of the clips,
+   frame-accurate), the transition at each cut (flash, fade, whip pan, zoom-through, dissolve or a hard cut, from the
+   frames around it), zooms inside shots, the shot lengths in beats of its own song (so the pace carries over to a song
+   at another tempo), whether it cuts on the beat, its hook, and its colour look (brightness, contrast, saturation,
+   warmth, teal-orange split, black and white, faded blacks, vignette, grain). "Copy a Reel" then cuts the new edit at
+   that pace on this song's beats, uses that mix of transitions and effects, and grades the clips toward that look. */
+let refProfile = null;
+const REF_KINDS = { hard:'hard cuts', dissolve:'dissolves', fade:'fades', flash:'flashes', whip:'whip pans', zoom:'zoom-throughs' };
+// colour statistics of the frame drawn into g (w x h), plus a 1:1 crop for grain
+function lookStats(g, w, h, crop){
+  const d = g.getImageData(0,0,w,h).data, n = w*h, L = new Float32Array(n);
+  let sl=0, sl2=0, ss=0, sw=0, hiW=0, hiN=0, loW=0, loN=0, cen=0, cn=0, cor=0, co=0;
+  for(let i=0;i<n;i++){ const r=d[i*4]/255, gg=d[i*4+1]/255, b=d[i*4+2]/255, l=0.299*r+0.587*gg+0.114*b, mx=Math.max(r,gg,b), mn=Math.min(r,gg,b);
+    L[i]=l; sl+=l; sl2+=l*l; ss += mx>0.04 ? (mx-mn)/mx : 0; const wv=r-b; sw+=wv; if(l>0.6){ hiW+=wv; hiN++; } else if(l<0.35){ loW+=wv; loN++; }
+    const x=(i%w)/w-0.5, y=((i/w)|0)/h-0.5, rr=Math.hypot(x,y)/0.7071; if(rr<0.35){ cen+=l; cn++; } else if(rr>0.85){ cor+=l; co++; } }
+  const mean=sl/n, sorted=Float32Array.from(L).sort();
+  let grain = 0;
+  if(crop){ const cd = crop.getImageData(0,0,96,96).data; let gs=0, gc=0;
+    const Y = i => 0.299*cd[i*4]+0.587*cd[i*4+1]+0.114*cd[i*4+2];
+    for(let y=1;y<95;y++) for(let x=1;x<95;x++){ const i=y*96+x, c=Y(i), avg=(Y(i-1)+Y(i+1)+Y(i-96)+Y(i+96))/4; const grad = Math.abs(Y(i-1)-Y(i+1)) + Math.abs(Y(i-96)-Y(i+96));
+      if(grad < 24){ gs += Math.abs(c-avg); gc++; } }
+    grain = gc ? gs/gc/255 : 0; }
+  return { mean, std: Math.sqrt(Math.max(0, sl2/n-mean*mean)), p5: sorted[Math.floor(n*0.05)], p95: sorted[Math.floor(n*0.95)], sat: ss/n, warm: sw/n,
+    split: (hiN ? hiW/hiN : 0) - (loN ? loW/loN : 0), vig: cn && co ? Math.max(0, 1 - (cor/co)/Math.max(1e-3, cen/cn)) : 0, grain };
+}
+const avgLook = arr => { const o = {}; if(!arr.length) return null; for(const k of Object.keys(arr[0])) o[k] = arr.reduce((q,x)=>q+x[k],0)/arr.length; return o; };
+// colour statistics of one full-size frame (canvas or video): a 96-wide copy for colours, a 1:1 centre crop for grain
+function lookOfImage(img, w, h){
+  const cw = 96, ch = Math.max(2, Math.round(96*h/w)), c = document.createElement('canvas'); c.width=cw; c.height=ch; const g = c.getContext('2d', {willReadFrequently:true}); g.drawImage(img,0,0,cw,ch);
+  const c2 = document.createElement('canvas'); c2.width=96; c2.height=96; const g2 = c2.getContext('2d', {willReadFrequently:true}); g2.drawImage(img, Math.max(0,w/2-48), Math.max(0,h/2-48), 96, 96, 0, 0, 96, 96);
+  return lookStats(g, cw, ch, g2);
+}
+async function frameLook(v, t, w, h){
+  v.currentTime = t; try{ await waitEv(v,'seeked',3000); }catch(e){ return null; }
+  return lookOfImage(v, w, h);
+}
+// Frames of a video at exact times. WebCodecs (through mediabunny) decodes them in one pass, in order; without it the
+// video element seeks to each one (slower, works everywhere).
+async function frameSource(file, v, w, h){
+  const SH2 = Math.max(8, Math.round(64*h/w));
+  try{
+    const mb = await loadMediabunny();
+    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack(); if(!track || !(await track.canDecode())) throw new Error('no decoder');
+    const first = await track.getFirstTimestamp();
+    const small = new mb.CanvasSink(track, { width: 64, height: SH2, fit: 'fill' }), full = new mb.CanvasSink(track, {});
+    const at = async (sink, ts) => { const order = ts.map((t,i)=>[t,i]).sort((x,y)=>x[0]-y[0]), out = new Array(ts.length); let k = 0;
+      for await (const wc of sink.canvasesAtTimestamps(order.map(o=>first + Math.max(0, o[0])))){ out[order[k][1]] = wc ? wc.canvas : null; k++; }
+      return out; };
+    return { small: ts => at(small, ts), full: ts => at(full, ts), close: () => { try{ input.dispose && input.dispose(); }catch(e){} }, fast: true };
+  }catch(e){
+    const grab = async (ts, cw, ch) => { const out = [];
+      for(const t of ts){ v.currentTime = Math.min(Math.max(0.01, t), v.duration-0.02); try{ await waitEv(v,'seeked',3000); }catch(err){ out.push(null); continue; }
+        const c = document.createElement('canvas'); c.width = cw || v.videoWidth; c.height = ch || v.videoHeight; c.getContext('2d').drawImage(v,0,0,c.width,c.height); out.push(c); }
+      return out; };
+    return { small: ts => grab(ts, 64, SH2), full: ts => grab(ts), close: () => {}, fast: false };
+  }
+}
+const CUT_K = 7;   // frames each side of a cut that are looked at (a fade's dark middle and its clean ends both fit)
+function greyOf(canvas){
+  const FW = canvas.width, FH = canvas.height, d = canvas.getContext('2d', {willReadFrequently:true}).getImageData(0,0,FW,FH).data, Y = new Float32Array(FW*FH); let m = 0, gx = 0, gy = 0;
+  for(let i=0;i<Y.length;i++){ Y[i] = (0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2])/255; m += Y[i]; }
+  for(let y=1;y<FH-1;y++) for(let x=1;x<FW-1;x++){ const i=y*FW+x; gx += (Y[i+1]-Y[i-1])**2; gy += (Y[i+FW]-Y[i-FW])**2; }
+  return { Y, FW, FH, mean: m/Y.length, aniso: gx/Math.max(1e-6, gy) };
+}
+// around one cut: brightness, blur direction, the sideways jump and the scale change from one frame to the next
+function cutFramesOf(canvases){
+  const out = canvases.map((c,i)=>c ? {k: i-CUT_K, ...greyOf(c)} : null).filter(Boolean);
+  const shift = (A, B, FW, FH) => { let best = Infinity, bx = 0; for(let dx=-16; dx<=16; dx++) for(let dy=-2; dy<=2; dy++){ let s2 = 0, n = 0;
+      for(let y=4;y<FH-4;y+=2) for(let x=17;x<FW-17;x+=2){ s2 += Math.abs(B[y*FW+x] - A[(y-dy)*FW + x-dx]); n++; } s2 = s2/n + 0.0004*(dx*dx+dy*dy); if(s2 < best){ best = s2; bx = dx; } } return bx; };
+  const scale = (A, B, FW, FH) => { let best = Infinity, bs = 1; for(let sc=0.9; sc<=1.3; sc+=0.02){ let s2 = 0, n = 0;
+      for(let y=FH*0.2;y<FH*0.8;y+=2) for(let x=FW*0.2;x<FW*0.8;x+=2){ const sx = Math.round(FW/2 + (x-FW/2)/sc), sy = Math.round(FH/2 + (y-FH/2)/sc); s2 += Math.abs(B[Math.round(y)*FW+Math.round(x)] - A[sy*FW+sx]); n++; }
+      s2 /= n; if(s2 < best){ best = s2; bs = sc; } } return bs; };
+  for(let i=1;i<out.length;i++){ if(out[i].k - out[i-1].k !== 1) continue; out[i].dx = shift(out[i-1].Y, out[i].Y, out[i].FW, out[i].FH); out[i].sc = scale(out[i-1].Y, out[i].Y, out[i].FW, out[i].FH); }
+  return out;
+}
+// how much a shot zooms between two of its frames (scale and a small shift together: drifting sideways is not zooming)
+function zoomBetween(ca, cb){
+  if(!ca || !cb) return 1;
+  const a = greyOf(ca), b = greyOf(cb), A = a.Y, B = b.Y, FW = a.FW, FH = a.FH; let best = Infinity, zoom = 1;
+  if(Math.abs(a.mean - b.mean) > 0.08) return 1;   // the light changed (a fade, a flash): not a zoom to judge
+  for(let sc=0.85; sc<=1.25; sc+=0.02) for(let dx=-6; dx<=6; dx+=2) for(let dy=-6; dy<=6; dy+=2){ let s2=0, n=0;
+    for(let y=FH*0.25;y<FH*0.75;y+=2) for(let x=FW*0.25;x<FW*0.75;x+=2){ const sx=Math.round(FW/2+(x-FW/2)/sc)+dx, sy=Math.round(FH/2+(y-FH/2)/sc)+dy; if(sx<0||sy<0||sx>=FW||sy>=FH) continue; s2+=Math.abs(B[Math.round(y)*FW+Math.round(x)]-A[sy*FW+sx]); n++; }
+    if(n && s2/n < best){ best = s2/n; zoom = sc; } }
+  return zoom;
+}
+function cutKind(fr, hint){
+  if(fr.length < 6) return hint === 'cut' ? 'hard' : hint;
+  const endF = fr.filter(f=>Math.abs(f.k) >= CUT_K-1), ends = (endF.length >= 2 ? endF : [fr[0], fr[fr.length-1]]).map(f=>f.mean).sort((a,b)=>a-b), endMed = ends[Math.floor((ends.length-1)/2)];
+  const mid = fr.filter(f=>Math.abs(f.k) <= 4), maxB = Math.max(...mid.map(f=>f.mean)), minB = Math.min(...mid.map(f=>f.mean));
+  if(minB < 0.07 && endMed > 0.12) return 'fade';
+  if(maxB > 0.78 && maxB > endMed + 0.22) return 'flash';
+  // the reading may have landed at the end of a flash: a white spike a few frames earlier is the cut
+  const early = fr.filter(f=>f.k < -2 && f.k > -CUT_K), eMax = early.length ? early.reduce((q,f)=>f.mean > q.mean ? f : q, early[0]) : null;
+  if(eMax && eMax.mean > 0.78 && eMax.mean > endMed + 0.22){ fr.shiftTo = eMax.k; return 'flash'; }
+  const before = fr.filter(f=>f.k <= 0 && f.k >= -4 && f.dx !== undefined);
+  if(before.filter(f=>Math.abs(f.dx) >= 5 || f.aniso < 0.3).length >= 2) return 'whip';
+  if(before.filter(f=>f.sc >= 1.06).length >= 2) return 'zoom';
+  if(hint === 'dissolve') return 'dissolve';
+  if(hint === 'fade') return 'fade';
+  return 'hard';
+}
+async function analyzeReference(file, onP){
+  const url = URL.createObjectURL(file);
+  try{
+    const v = makeVideo(url); await waitEv(v,'loadedmetadata'); const dur = v.duration, w = v.videoWidth, h = v.videoHeight;
+    if(!isFinite(dur) || dur <= 1 || !w) throw new Error('This video cannot be read here.');
+    onP(0.02, 'listening to its music');
+    // its music: the beats (shot lengths are measured in beats, so the pace carries over to another tempo)
+    let rb = null;
+    try{ const ab = await getCtx().decodeAudioData(await file.arrayBuffer()); const m = new Float32Array(ab.length);
+      for(let c=0;c<ab.numberOfChannels;c++){ const d = ab.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ab.numberOfChannels; }
+      let r; try{ r = await analyseInWorker(m, ab.sampleRate); }catch(e){ r = songAnalysis(m, ab.sampleRate); }
+      if(r.beats && r.beats.length > 8) rb = r.beats; }catch(e){ /* no soundtrack: pace in seconds */ }
+    // its cuts: the same reading as a clip (scene changes, frame-accurate)
+    const ps = { url, dur, w, h };
+    await scanMotion(ps, p => onP(0.05 + 0.45*p, 'finding its cuts'));
+    const cuts = [];
+    // a cut: its first new frame; a fade / flash: its darkest / brightest moment; a dissolve: its middle
+    for(const sc of ps.scenes || []){ const t = sc.kind === 'cut' ? sc.t1 : sc.tc !== undefined ? sc.tc : (sc.t0 + sc.t1)/2; if(t > 0.15 && t < dur - 0.15 && (!cuts.length || t - cuts[cuts.length-1].t > 0.12)) cuts.push({t, hint: sc.kind}); }
+    const shots = [], looks = [];
+    // what happens at each cut: the frames around it, decoded in one pass
+    onP(0.5, 'reading its transitions');
+    const fs = await frameSource(file, v, w, h);
+    try{
+      const ts = []; cuts.forEach(c=>{ for(let k=-CUT_K;k<=CUT_K;k++) ts.push(Math.min(Math.max(0.005, c.t + k/30 + 0.005), dur-0.02)); });
+      const frames = ts.length ? await fs.small(ts) : [];
+      cuts.forEach((c,i)=>{ const fr = cutFramesOf(frames.slice(i*(2*CUT_K+1), (i+1)*(2*CUT_K+1))); c.kind = cutKind(fr, c.hint); if(fr.shiftTo) c.t += fr.shiftTo/30; });
+      // shots: a zoom inside them (two frames) and the colour look (the middle frame)
+      onP(0.85, 'reading its look');
+      const bounds = [0, ...cuts.map(c=>c.t), dur], sh = [];
+      for(let i=0;i<bounds.length-1 && i<40;i++) sh.push({ a: bounds[i], b: bounds[i+1] });
+      const zt = [], lt = [];
+      // zoom: two frames well inside the shot (clear of its transitions); short shots are not judged
+      sh.forEach(x=>{ const L = x.b - x.a, m = Math.min(0.3, 0.3*L); zt.push(x.a + m, x.b - m); lt.push(x.a + 0.5*L); });
+      const zf = await fs.small(zt), lf = await fs.full(lt);
+      sh.forEach((x,i)=>{ const L = x.b - x.a; shots.push({ a: x.a, b: x.b, zoom: L >= 0.9 ? zoomBetween(zf[2*i], zf[2*i+1]) : 1 }); const lk = lf[i] ? lookOfImage(lf[i], lf[i].width, lf[i].height) : null; if(lk) looks.push(lk); });
+    } finally { fs.close(); }
+    v.removeAttribute('src'); v.load();
+    // pace
+    const P = rb ? (()=>{ const ib = rb.slice(1).map((t,i)=>t-rb[i]).sort((x,y)=>x-y); return ib[ib.length>>1]; })() : 0;
+    const shotSec = shots.map(s=>s.b-s.a), toBeats = x => P ? Math.max(0.5, Math.round(x/P*2)/2) : 0;
+    const shotBeats = P ? shotSec.map(toBeats) : [];
+    const onBeat = rb && cuts.length ? cuts.filter(c=>rb.some(b=>Math.abs(b-c.t) <= 0.07)).length/cuts.length : 0;
+    const med = a => { const q=[...a].sort((x,y)=>x-y); return q.length ? q[q.length>>1] : 0; };
+    const k3 = Math.max(1, Math.floor(shotSec.length/3)), first = shotSec.slice(0,k3), last = shotSec.slice(-k3), mean = a => a.reduce((q,x)=>q+x,0)/Math.max(1,a.length);
+    const energy = shotSec.length < 6 ? 'steady' : mean(last) < 0.75*mean(first) ? 'rising' : mean(last) > 1.33*mean(first) ? 'falling' : 'steady';
+    const trans = {}; cuts.forEach(c=>{ trans[c.kind] = (trans[c.kind]||0) + 1; });
+    Object.keys(trans).forEach(k=>{ trans[k] /= cuts.length; });
+    const look = avgLook(looks);
+    return { name: file.name, dur, w, h, cuts: cuts.map(c=>({t:+c.t.toFixed(3), kind:c.kind})), shotSec, shotBeats, medianBeats: med(shotBeats), medianSec: med(shotSec),
+      hookBeats: shotBeats[0] || 0, hookSec: shotSec[0] || 0, onBeat, energy, trans,
+      zoomShare: shots.filter(s=>s.zoom >= 1.05 || s.zoom <= 0.95).length/Math.max(1, shots.filter(s=>s.b-s.a >= 0.9).length),   // of the shots long enough to judge
+      look, bpm: P ? 60/P : 0 };
+  } finally { setTimeout(()=>URL.revokeObjectURL(url), 1000); }
+}
+function describeRef(R){
+  const L = R.look || {}, words = [];
+  if(L.sat < 0.05) words.push('black & white'); else if(L.sat > 0.42) words.push('saturated'); else if(L.sat < 0.22) words.push('muted colours');
+  if(L.sat >= 0.05){ if(L.warm > 0.07) words.push('warm'); else if(L.warm < -0.05) words.push('cool'); if(L.split > 0.25) words.push('teal-orange'); }
+  if(L.std > 0.25) words.push('high contrast'); if(L.p5 > 0.12) words.push('faded blacks'); if(L.vig > 0.25) words.push('vignette'); if(L.grain > 0.01) words.push('film grain');
+  const tr = Object.entries(R.trans).sort((a,b)=>b[1]-a[1]).map(([k,v])=>Math.round(v*100)+'% '+REF_KINDS[k]).join(', ');
+  const pace = R.medianBeats ? 'a cut every ' + R.medianBeats + ' beat' + (R.medianBeats===1?'':'s') + ' (' + Math.round(R.onBeat*100) + '% on the beat)' : 'a cut every ' + R.medianSec.toFixed(1) + ' s';
+  return R.cuts.length + ' cuts in ' + R.dur.toFixed(0) + ' s · ' + pace + (R.energy !== 'steady' ? ' · pace ' + R.energy : '') + ' · ' + (tr || 'no cuts') +
+    (R.zoomShare > 0.15 ? ' · zooms in ' + Math.round(R.zoomShare*100) + '% of shots' : '') + (words.length ? ' · ' + words.join(', ') : '');
+}
+// the edit's cut points: the reference's sequence of shot lengths (in beats), on this song's beats; its drops and breaks stay
+function copyPlan(){
+  const R = refProfile, dur = buf.duration, P0 = period || 0.5;
+  const bt = beats.map(b=>b-1/30).filter(b=>b>0.2 && b<dur-0.3);
+  const keep = basePlan.filter(s=>s.type==='drop' || s.type==='break').map(s=>s.start);
+  const seq = R.shotBeats.length ? R.shotBeats.slice(1) : [], wantAt = k => R.medianBeats ? (seq.length ? seq[(k) % seq.length] : R.medianBeats) : 0;
+  const typeAt = t => { const b = basePlan.find(s=>Math.abs(s.start - t) < 0.06); return b ? b.type : 'cut'; };
+  const out = []; let start = 0, k = 0;
+  while(start < dur - 0.3){
+    let len = R.medianBeats ? (k === 0 ? (R.hookBeats || wantAt(0)) : wantAt(k-1))*P0 : (k === 0 ? R.hookSec : R.shotSec[k % R.shotSec.length]);
+    // pace curve: a rising Reel gets shorter shots towards the end (already in its sequence when it repeats; scaled here)
+    len = Math.min(3.5, Math.max(0.3, len));
+    let end = start + len;
+    const drop = keep.find(t => t > start + 0.08 && t < end + 0.5*P0);
+    if(drop !== undefined && drop - start < 0.5*len && out.length){ out[out.length-1].end = drop; start = drop; continue; }   // a sliver before a drop joins the shot before it
+    if(drop !== undefined) end = drop;
+    else if(bt.length){ const b = bt.reduce((q,x)=>Math.abs(x-end) < Math.abs(q-end) ? x : q, bt[0]); if(Math.abs(b-end) < 0.6*P0 && b > start + 0.25) end = b; }
+    if(end > dur - 0.35) end = dur;
+    out.push({ start, end, type: k === 0 ? (basePlan[0] ? basePlan[0].type : 'cut') : typeAt(start), fx: 'Hard cut' });
+    start = end; k++;
+  }
+  return out;
+}
+// the reference's mix of transitions and effects, placed where they suit (energetic ones on drops and hits, soft ones
+// on calm, long shots), counted so the shares match
+const REF_TR = { hard:'hard', dissolve:'dissolve', fade:'dip', flash:'flash', whip:'whip', zoom:'zoom' };
+let copyBudget = null;
+function copyStyle(){
+  const R = refProfile, n = plan.length - 1; if(n < 1) return;
+  const kinds = Object.keys(R.trans), want = {};
+  let acc = 0; kinds.forEach(k=>{ want[k] = Math.floor(R.trans[k]*n); acc += want[k]; });
+  kinds.map(k=>[k, R.trans[k]*n - want[k]]).sort((a,b)=>b[1]-a[1]).slice(0, n-acc).forEach(([k])=>{ want[k]++; });
+  const energy = i => { const s = plan[i]; return (s.type==='drop' ? 3 : s.type==='hit' ? 2 : s.type==='break' ? -1 : 0) - 0.3*(s.end-s.start); };
+  const idx = plan.map((s,i)=>i).slice(1), free = new Set(idx);
+  plan.forEach((s,i)=>{ s.tr = i===0 ? 'hard' : 'hard'; s.efx = i===0 ? 'none' : 'none'; s.sp = SPEED.normal; });
+  const place = (k, order) => { let c = want[k] || 0; for(const i of order){ if(!c) break; if(!free.has(i)) continue;
+      if(plan[i-1] && plan[i-1].tr === REF_TR[k] && k !== 'hard') continue; plan[i].tr = REF_TR[k]; free.delete(i); c--; }
+    for(const i of order){ if(!c) break; if(free.has(i)){ plan[i].tr = REF_TR[k]; free.delete(i); c--; } } };
+  const hot = [...idx].sort((a,b)=>energy(b)-energy(a)), calm = [...idx].sort((a,b)=>energy(a)-energy(b));
+  ['flash','zoom','whip'].forEach(k=>place(k, hot)); ['dissolve','fade'].forEach(k=>place(k, calm));
+  // zooms inside shots: on that share of shots, the longest first
+  const longI = [...plan.keys()].filter(i=>plan[i].end-plan[i].start >= 0.9), zn = Math.round(Math.min(1, R.zoomShare)*longI.length);
+  longI.sort((a,b)=>(plan[b].end-plan[b].start)-(plan[a].end-plan[a].start)).slice(0, zn).forEach(i=>{ plan[i].efx = (plan[i].end-plan[i].start) > 1.2 ? 'pan' : 'punch-soft'; });
+  copyBudget = {}; Object.entries(want).forEach(([k,v])=>{ if(k!=='hard') copyBudget[REF_TR[k]] = v; });
+}
+// The copied look, matched on the edit itself (like a colourist with scopes): render a few frames of the edit, measure
+// them exactly as the reference was measured, correct the grade, measure again. The edit's crops, zooms and effects are
+// part of what is measured, so the result lands on the reference's numbers, not just near them.
+let copyLookKey = '', copyLookBusy = false;
+async function renderedLook(){
+  if(!edit.length) return null;
+  const sv = showSafe, h = hookText, res = []; showSafe = false; hookText = '';
+  try{
+    for(const f of [0.06, 0.15, 0.24, 0.33, 0.42, 0.51, 0.6, 0.69, 0.78, 0.87, 0.95]){
+      const e = edit[Math.min(edit.length-1, Math.floor(f*edit.length))], L = e.end - e.start, t = e.start + Math.min(L - 0.03, Math.max(0.75, 0.9*L));   // after the shot's own flash / leak
+      await prepare(segAt(t), t); drawFrame(t); res.push(lookOfImage(out, out.width, out.height));
+    }
+  } finally { showSafe = sv; hookText = h; }
+  return avgLook(res);
+}
+async function copyLook(){
+  const R = refProfile; if(!R || !R.look || copyLookBusy || look !== 'copy') return;
+  const T = R.look, cl = (x,a,b)=>Math.min(b, Math.max(a, x)), mono = T.sat < 0.05 ? 1 : 0;
+  const key = R.name + '|' + R.dur + '|' + sources.map(fpOf).join(';') + '|' + aspect;
+  if(key === copyLookKey && GRADES.copy) return;
+  const G = { con:1, sat:1, bri:1, warm:0, teal:0, mono, lift:0, vig:0, grain:0 };
+  GRADES.copy = { ...G };
+  if(!edit.length || !buf || playing || recording) return;
+  copyLookBusy = true;
+  try{
+    for(let pass=0; pass<4; pass++){
+      const O = await renderedLook(); if(!O) break;
+      const k = pass === 0 ? 1 : 0.85;
+      G.con = cl(G.con * Math.pow(T.std/Math.max(0.02, O.std), k), 0.7, 2.0);
+      if(!mono) G.sat = cl(G.sat * Math.pow(T.sat/Math.max(0.02, O.sat), k), 0.35, 2);
+      G.bri = cl(G.bri * Math.pow(T.mean/Math.max(0.03, O.mean), k), 0.6, 1.4);
+      if(!mono) G.warm = cl(G.warm + k*(T.warm - O.warm)/0.11, -1.6, 1.6);
+      G.vig = cl(G.vig + k*(T.vig - O.vig)*1.4, 0, 0.9);
+      G.lift = cl(G.lift + k*(T.p5 - O.p5), 0, 0.15);
+      G.grain = cl(G.grain + k*(T.grain - O.grain)*3, 0, 0.15);
+      if(pass === 0 && !mono) G.teal = cl((T.split - O.split - 0.1)/0.3, 0, 0.8);   // only a clear split beyond what the clips have
+      GRADES.copy = { ...G };
+    }
+    copyLookKey = key;
+  } finally { copyLookBusy = false; }
+  LOOKS.copy = { name: 'Copied', filter: 'contrast(' + G.con.toFixed(2) + ') saturate(' + (mono ? 0 : G.sat).toFixed(2) + ') brightness(' + G.bri.toFixed(2) + ')', grain: G.grain };
+  if(!playing && !recording) captureLoop();
+}
+$('reffile').addEventListener('change', async e=>{
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if(!f) return;
+  $('refbox').hidden = false; $('refinfo').textContent = 'Reading the Reel…';
+  try{
+    refProfile = await analyzeReference(f, (p, what)=>{ $('refinfo').textContent = 'Reading the Reel: ' + what + ' ' + Math.round(p*100) + '%'; });
+    $('refinfo').textContent = '“' + f.name + '”: ' + describeRef(refProfile);
+    // the copied look is on while it is matched (makeEdit then matches it on the new edit)
+    GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = '';
+    const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = 'copy'; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x===lb));
+    setMode('copy');
+  }catch(err){ $('refinfo').textContent = 'Could not read that Reel: ' + (err && err.message ? err.message : err); }
+});
+$('refchange').addEventListener('click', ()=>$('reffile').click());
+
 /* =============== START =============== */
-root.__studio = { get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; },
+root.__studio = { renderedLook, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

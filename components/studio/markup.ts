@@ -70,12 +70,15 @@ export const STUDIO_HTML = `
             <button data-m="auto" aria-pressed="true">Auto</button>
             <button data-m="smooth" aria-pressed="false">Smooth</button>
             <button data-m="fast" aria-pressed="false">Fast</button>
+            <button data-m="copy" aria-pressed="false" title="Upload a Reel you like: its pace, transitions, effects and colours are copied onto your clips">Copy a Reel</button>
           </div>
+          <input id="reffile" type="file" accept="video/*" hidden>
+          <div class="refbox" id="refbox" hidden><span class="fname" id="refinfo"></span> <button class="btn" id="refchange" type="button">Change Reel</button></div>
           <span class="fname" id="modehelp">Auto: the music decides. Calm parts get longer shots, drops and hits get effects.</span>
           <label class="label" for="hook">Hook text (3-5 words, first 2 seconds)</label>
           <input id="hook" type="text" maxlength="40" placeholder="e.g. WAIT FOR THE DROP">
           <span class="label">Look</span>
-          <div class="seg" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button></div>
+          <div class="seg" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button><button data-l="copy" aria-pressed="false" hidden>Copied</button></div>
           <label class="tog" id="aiwrap" hidden><input type="checkbox" id="aipick"> AI picks the best moments</label>
           <span class="fname" id="aistat" hidden></span>
           <label class="tog"><input type="checkbox" id="safe" checked> Show Instagram safe zones (preview only)</label>

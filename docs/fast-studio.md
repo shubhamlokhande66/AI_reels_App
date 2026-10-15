@@ -175,3 +175,29 @@ Measured with a deliberately pushy stand-in director (whip pans on every hit, an
 snap, glitches and shakes in Smooth): 33/36 moments used in Auto and 13/13 in Smooth, every bad choice corrected, and
 0 footage used twice, 0 scene crossings, 0 same clip back to back, 0 transitions longer than their shot, 0 repeats, rations
 kept; one director call per edit, no retries when it is down.
+
+## Copy a Reel
+
+Style → **Copy a Reel**: upload a Reel you like; it is read on this device and its style is put on your song and clips.
+
+What is read (`analyzeReference`):
+- **Cuts**: the scene-change reader of the clips (now also brightness and layout, so black-and-white and same-colour
+  cuts are found; a change of grain or compression on a flat picture is not a cut), frame-accurate.
+- **Transition at each cut**, from the frames around it, decoded in one pass with WebCodecs: flash (a white spike),
+  fade (through black), whip pan (a big sideways jump and horizontal blur), zoom-through (a fast scale-up), dissolve
+  (the frames between are blends of both pictures), or a hard cut.
+- **Pace in beats of its own song** (so it carries over to a song at another tempo), whether it cuts on the beat, the
+  hook length, and whether the pace rises; **zooms inside shots** (scale measured together with a small shift, so a
+  drifting shot is not a zoom).
+- **Look**: brightness, contrast, saturation, warmth, teal-orange split, black and white, faded blacks, vignette, grain.
+
+How it is applied: the cuts follow its sequence of shot lengths on this song's beats (the drops of this song stay cut
+points); its transitions are used in the same shares (flashes, zooms and whips on the drops and hits, dissolves and
+fades on the calm shots) and its zooms on the same share of shots; the look is **matched on the edit itself**: a few
+frames of the edit are rendered and measured like the reference, the grade (contrast, saturation, brightness, warmth,
+teal-orange, black and white, lifted blacks, vignette, grain) is corrected and measured again. With AI picks on, the AI
+still chooses the moments; the AI director stays out (the reference is the plan).
+
+Scored with `scripts/studio-style` (four reference Reels with known cuts, transitions and grades): cuts found 96-100% of
+78, transition type right 99-100%, pace 4/4, no false zooms; applied, the transition shares are within a few percent
+(100% dissolves stay 100%) and the rendered look lands within about 0.01-0.05 of the reference's numbers.
