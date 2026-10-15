@@ -47,3 +47,6 @@ tests/server/manual/out/
 
 # downloaded ML models (Beat This!, ~190 MB; fetched and checksum-checked on first use)
 /models/
+
+# Full-precision Beat This! model (83 MB): only for comparing with the 8-bit one (BEAT_THIS_MODEL=fp32); not shipped
+server/audio/data/beat-this/beat_this_final0.onnx
