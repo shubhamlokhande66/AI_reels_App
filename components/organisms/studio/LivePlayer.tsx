@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { EdlTimeline, PreviewHints } from "@/types/api";
 import { LOOK_CSS, correctionCss, effectStyle, flashAmount, flashThrough, keyframeStyle, lookCss, rampAt, shotAnimation, transitionStyle } from "@/lib/editorFx";
+import { FEATURES } from "@/lib/features";
 
 interface Props {
   timeline: EdlTimeline;
@@ -45,7 +46,8 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
     musicUrl ? (tl.musicHits ?? []).map((h) => h - tl.audioStart).filter((h) => s.timelineStart + 0.05 < h && h < s.timelineEnd - 0.05).slice(0, 40).map((h) => h - s.timelineStart) : [];
 
   // a shot's picture at ``local`` seconds: its keyframes over its effect (video/keyframes.py), its looks on top
-  function shotStyle(s: (typeof tl.segments)[number], local: number, len: number): { transform: string; filter: string; white: number } {
+  function shotStyle(shot: (typeof tl.segments)[number], local: number, len: number): { transform: string; filter: string; white: number } {
+    const s = FEATURES.effects ? shot : { ...shot, effect: "none", looks: [], keyframes: [] }; // effects off: as the renderer draws it
     const fx = effectStyle(s.effect, local / Math.max(len, 0.01), local, len, hitsFor(s));
     const looks = (s.looks ?? []).map(lookCss).filter(Boolean).join(" ");
     const anim = shotAnimation(s.effect, s.keyframes, len);
@@ -140,7 +142,7 @@ export function LivePlayer({ timeline, clipUrls, musicUrl, playhead, onTime, pla
         if (back) back.style.display = "none";
       }
       const local = Math.max(vis.local, 0);
-      const ramp = rampAt(s.keyframes, local, s.timelineEnd - s.timelineStart); // a speed ramp: the footage follows its speed track
+      const ramp = rampAt(FEATURES.effects ? s.keyframes : [], local, s.timelineEnd - s.timelineStart); // a speed ramp: the footage follows its speed track
       const want = s.effect === "freeze" ? s.sourceStart : s.sourceStart + (ramp ? ramp.source : local * s.speed);
       if (Math.abs(v.currentTime - want) > (play ? (ramp ? 0.12 : 0.25) : 0.04)) v.currentTime = want;
       v.playbackRate = Math.min(Math.max(ramp ? ramp.speed : s.speed, 0.25), 4);

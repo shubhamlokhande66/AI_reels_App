@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Catalog } from "@/components/organisms/studio/Gallery";
+import { FEATURES } from "@/lib/features";
 
 export type LibTab = "media" | "audio" | "text" | "transitions" | "effects" | "looks";
 export const LIB_TABS: { id: LibTab; label: string; icon: string }[] = [
@@ -11,7 +12,7 @@ export const LIB_TABS: { id: LibTab; label: string; icon: string }[] = [
   { id: "transitions", label: "Transitions", icon: "⇄" },
   { id: "effects", label: "Effects", icon: "✧" },
   { id: "looks", label: "Filters", icon: "◐" },
-];
+].filter((t) => FEATURES.effects || t.id !== "effects") as { id: LibTab; label: string; icon: string }[]; // effects off: nothing to pick
 
 const startsWith = (...p: string[]) => (id: string) => p.some((x) => id === x || id.startsWith(`${x}_`) || id.startsWith(x));
 const CATEGORIES: Record<"transitions" | "effects" | "looks", { name: string; match: (id: string) => boolean }[]> = {

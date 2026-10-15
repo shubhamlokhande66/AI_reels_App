@@ -4,6 +4,7 @@ import { moveFileAsync } from "@/server/storage/local";
 import path from "node:path";
 import { FFmpegError, InsufficientStorage, RenderTimeout, ValidationFailed } from "@/server/core/errors";
 import { probe, renderFfmpeg } from "@/server/core/ffmpeg";
+import { env } from "@/server/core/config";
 import { fixed } from "@/server/core/py";
 import type { Segment, Timeline, VoiceTrack, Watermark } from "@/server/models/timeline";
 import type { EditingStyle } from "@/server/styles";
@@ -101,8 +102,15 @@ export interface RenderIn {
   progress?: (f: number) => void; timeout?: number; videoPost?: string[]; voicePath?: string | null; watermarkPath?: string | null; signal?: AbortSignal;
 }
 
+/** NEXT_PUBLIC_EFFECTS=on renders each shot's effect (zoom pulses, punches, shake, flash, glow...), its looks and its
+ * keyframed motion and speed. Off (the default for now): clean shots joined by their transitions, with the colour grade.
+ * The same setting switches them in the editor's live preview (lib/features.ts), so the two always match. */
+export const effectsEnabled = () => env("NEXT_PUBLIC_EFFECTS", "off").toLowerCase() === "on";
+export const withoutEffects = (tl: Timeline): Timeline => ({ ...tl, segments: tl.segments.map((s) => ({ ...s, effect: "none", looks: [], keyframes: [] })) });
+
 export async function renderTimeline(r: RenderIn): Promise<RenderResult> {
-  const { timeline: tl, sources, cfg } = r;
+  const { sources, cfg } = r;
+  const tl = effectsEnabled() ? r.timeline : withoutEffects(r.timeline);
   if (!tl.segments.length) throw new ValidationFailed("The timeline has no segments to render.", { code: "EMPTY_TIMELINE" });
   const missing = [...new Set(tl.segments.map((s) => s.clipId))].filter((id) => !sources.has(id));
   if (missing.length) throw new ValidationFailed(`Missing source clips: ${JSON.stringify(missing.sort())}`, { code: "MISSING_SOURCE" });
