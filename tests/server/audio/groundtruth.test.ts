@@ -66,10 +66,11 @@ beforeAll(async () => {
 }, 600_000);
 
 describe("analysis against ground truth (100 BPM drums, 4/4)", () => {
-  it("keeps Essentia's beats exactly as detected", { timeout: 300_000 }, async () => {
+  it("takes the beats from the neural tracker (Beat This!), with Essentia's tempo kept as a cross-check", { timeout: 300_000 }, async () => {
     const raw = await essentiaBeats(await decode(wav, 44100));
-    expect(analysis.beatSource).toBe("essentia");
-    expect(analysis.beats).toEqual(raw.beats.filter((t) => t >= 0 && t <= analysis.duration + 0.05).map((t) => Math.round(t * 1000) / 1000));
+    expect(analysis.beatSource).toBe("beat_this"); // Essentia's beats are the fallback when the network cannot run
+    expect(analysis.bpmEstimates.rhythmExtractor).toBeCloseTo(raw.bpm, 1);
+    expect(Math.abs(analysis.bpmEstimates.rhythmExtractor - BPM)).toBeLessThan(BPM * 0.02);
   });
 
   it("finds the tempo, with two independent estimates that agree", () => {
