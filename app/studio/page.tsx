@@ -39,6 +39,8 @@ export default function FastStudioPage() {
         if (cancelled || !root.current) return;
         cleanup = initStudio(root.current, {
           loadMediabunny: () => import("mediabunny"),
+          // AAC for the export on browsers whose WebCodecs has no AAC encoder (Safari before 26, i.e. most iPhones today)
+          loadAacEncoder: () => import("@mediabunny/aac-encoder"),
           // the on-device AI beat tracker (Beat This!, ONNX Runtime WebAssembly, in a worker); loaded only when a song is
           beatThis: (mono: Float32Array, sr: number, onProgress?: (stage: "download" | "run", p: number) => void) =>
             import("@/lib/beatThis/client").then((m) => m.beatThisOnDevice(mono, sr, onProgress)),
