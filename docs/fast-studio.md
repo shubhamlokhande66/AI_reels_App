@@ -411,3 +411,16 @@ do not include it.
 Checked: `tests/server/studio-translate.test.ts` (limits, the prompt, answers bounded to the lines asked, one call) and
 `scripts/studio-text/check-translate.cjs` (16 lines in 1 request; the translation drawn under the line, or alone; a 15 s
 part afterwards: no new request).
+
+## My music, and export without the song
+
+- **Recent songs** (under "Choose song"): every song used is kept on the phone (IndexedDB, with the saved Reels' files)
+  with its finished analysis (beats, drops, the AI beat check), so picking it again is instant; up to 12, the oldest go
+  (their file too unless a saved Reel uses it); × removes one. Saved Reels reuse the stored analysis when opened.
+- **Without the song** (next to Export): for adding the same song as Instagram's own sound (trending audio that the app
+  cannot include). Talking videos and voiceovers keep the voice; otherwise the video has no sound track. The message says
+  which song and from where ("start it at 0:17") so the cuts land on its beats.
+
+Checked (`scripts/studio-music/check-mymusic.cjs`): a song analysed and AI-checked in 23.5 s the first time, picked again
+from Recent after reopening the page in 0.31 s with the same beats; two songs listed newest first; the export without the
+song has a video stream only, and its message names the song and 0:17 (the 15 s part's start); removing one works.

@@ -558,7 +558,7 @@ async function decodeAnyAudio(file){
     return out;
   } finally { try{ input.dispose(); }catch(e){} }
 }
-async function loadMusic(file){
+async function loadMusic(file, cached = null){
   const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
   stopAll();
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
@@ -571,15 +571,18 @@ async function loadMusic(file){
   song = { buf: whole, mono: m, r: null, name, file, key: name + '|' + whole.duration.toFixed(2) };
   buf = whole; mono = m; secStart = 0; capWords = null; capLines = null; capAll = null;
   drawMusic();
-  let r;
-  try{ r = await analyseInWorker(m, whole.sampleRate); }
-  catch(err){ console.warn('song analysis worker unavailable, analysing on the page', err); await new Promise(rr=>setTimeout(rr,30)); r = songAnalysis(m, whole.sampleRate); }
+  let r = cached && cached.r;
+  if(!r){
+    try{ r = await analyseInWorker(m, whole.sampleRate); }
+    catch(err){ console.warn('song analysis worker unavailable, analysing on the page', err); await new Promise(rr=>setTimeout(rr,30)); r = songAnalysis(m, whole.sampleRate); }
+  }
   if(token !== musicToken) return;   // another song was chosen meanwhile
-  song.r = r; song.source = 'own';
+  song.r = r; song.source = r.beatSource || 'own';
   await useSection(token);
   if(token !== musicToken) return;
   $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked'); $('lenrow').hidden = kind === 'talk';
-  checkBeatsWithAi(token);
+  if(cached && cached.aiDone){ $('s1st').textContent = 'Ready · beats as checked before'; rememberSong(file, r, true); }
+  else { rememberSong(file, r, false); checkBeatsWithAi(token); }
   if(capsOn) loadCaptions();
 }
 
@@ -709,7 +712,7 @@ async function checkBeatsWithAi(token){
   try{ r = await analyseInWorker(m, sr, { beats: bt.beats }); } catch(err){ r = songAnalysis(m, sr, { beats: bt.beats }); }
   if(token !== musicToken) return;
   beatInfo = { source: r.beatSource, note: '', ms: bt.ms, judge: r.beatJudge, ai: bt };
-  song.r = r; song.source = r.beatSource;
+  song.r = r; song.source = r.beatSource; rememberSong(song.file, r, true);
   const was = playing && !recording;
   await useSection(token);
   if(token !== musicToken) return;
@@ -2767,8 +2770,8 @@ async function recordExport(){
   const done = new Promise(r=>rec.onstop=r);
   rec.start(500);
   onEnd = () => { onEnd=null; setTimeout(()=>rec.stop(), 150); };
-  pos = 0; await startPlayback(0, dest);
-  await done;
+  const keepBuf = buf, keepNorm = normGain; if(noSong){ const sd = exportSound(); buf = sd ? sd.buf : c.createBuffer(2, Math.ceil(keepBuf.duration*c.sampleRate), c.sampleRate); normGain = sd ? sd.gain : 1; }
+  pos = 0; try{ await startPlayback(0, dest); await done; } finally { buf = keepBuf; normGain = keepNorm; }
   recording = false; latencyOn = true; ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   const ext = mime.includes('mp4') ? 'mp4' : 'webm';
   const blob = new Blob(chunks, {type: mime.split(';')[0]});
@@ -2778,6 +2781,24 @@ async function recordExport(){
 
 // Fast export: every frame is decoded (WebCodecs, through mediabunny), drawn and encoded off-screen, faster than real
 // time and frame-accurate (no dropped frames). The sound goes through the same gain + limiter as the preview.
+// "Export without the song": for adding the same song as Instagram's own sound (trending audio, which this app may not
+// include). The voice stays (talking videos, voiceovers); with nothing else there is no sound track at all. The message
+// says which song and from where, so the beat cuts line up when the sound is added in Instagram.
+let noSong = false;
+function exportSound(){
+  if(!noSong) return { buf, gain: normGain };
+  const c = getCtx();
+  const one = (x, sr, g) => { const b = c.createBuffer(2, x.length, sr); for(let k=0;k<2;k++){ const d = b.getChannelData(k); for(let i=0;i<x.length;i++) d[i] = x[i]*g; } return { buf: b, gain: 1 }; };
+  if(kind === 'talk' && talk) return one(talk.voice, talk.sr, 1);
+  if(vo){ let s2 = 0, n = 0; for(let i=0;i<vo.pcm.length;i+=4){ const x = vo.pcm[i]; if(Math.abs(x) > 0.01){ s2 += x*x; n++; } } return one(vo.pcm, vo.sr, 0.2/Math.max(0.003, Math.sqrt(s2/Math.max(1, n)))); }
+  return null;
+}
+function noSongTip(){
+  if(kind === 'talk') return 'your voice is in the video; add any song as Instagram\'s sound, quietly under it.';
+  const nm = song ? song.name.replace(/\.[^.]+$/, '') : 'the song';
+  return 'in Instagram tap "Add audio", choose "' + nm + '" and start it at ' + fmt(secStart).replace(/\.\d+$/, '') + (vo ? ' (your voiceover is in the video)' : '') + ' — the cuts land on its beats.';
+}
+$('nosong').addEventListener('change', e => { noSong = e.target.checked; }, SIG);
 async function fastExport(){
   if(!window.VideoEncoder || !window.OfflineAudioContext) return false;
   const mb = await loadMediabunny();
@@ -2801,14 +2822,15 @@ async function fastExport(){
   const inputs = [];
   try{
     // sound: rendered offline, the same chain as the preview (loudness, limiter, tiny fades)
-    const sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(dur*sr), sr);
-    const sn = oc.createBufferSource(); sn.buffer = buf;
+    const snd = exportSound(), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(dur*sr), sr);
+    const sn = oc.createBufferSource(); sn.buffer = snd ? snd.buf : oc.createBuffer(2, Math.ceil(dur*sr), sr);
     const g = oc.createGain(), lim = oc.createDynamicsCompressor();
     lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.08;
-    g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(normGain, 0.02);
-    g.gain.setValueAtTime(normGain, Math.max(0.03, dur-0.25)); g.gain.linearRampToValueAtTime(0.0001, dur);
+    const eg = snd ? snd.gain : 1;
+    g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(eg, 0.02);
+    g.gain.setValueAtTime(eg, Math.max(0.03, dur-0.25)); g.gain.linearRampToValueAtTime(0.0001, dur);
     sn.connect(g); g.connect(lim); lim.connect(oc.destination); sn.start(0);
-    const audio = await oc.startRendering();
+    const audio = snd ? await oc.startRendering() : null;
     const chunkOf = (k) => { // one second of the sound as its own AudioBuffer (fed in step with the picture)
       const a = Math.round(k*sr), b = Math.min(audio.length, Math.round((k+1)*sr)); if(b<=a) return null;
       const ab = new AudioBuffer({length:b-a, numberOfChannels:2, sampleRate:sr});
@@ -2817,9 +2839,9 @@ async function fastExport(){
 
     const output = new mb.Output({ format: mp4 ? new mb.Mp4OutputFormat({ fastStart: 'in-memory' }) : new mb.WebMOutputFormat(), target: new mb.BufferTarget() });
     const vs = new mb.CanvasSource(out, { codec: vcodec, bitrate: 12e6, keyFrameInterval: 2 });
-    const as = new mb.AudioBufferSource({ codec: acodec, bitrate: 256e3 });
+    const as = audio ? new mb.AudioBufferSource({ codec: acodec, bitrate: 256e3 }) : null;   // no sound at all: no audio track
     output.addVideoTrack(vs, { frameRate: fps });
-    output.addAudioTrack(as);
+    if(as) output.addAudioTrack(as);
     await output.start();
 
     // Two decoders per clip (shots alternate between them), frames scaled to what the output needs (not the full 4K),
@@ -2877,7 +2899,7 @@ async function fastExport(){
         const tb = performance.now(); prof.draw += tb - ta;
         await vs.add(k/fps, 1/fps);
         tq = performance.now(); prof.encode += tq - tb; prof.frames++;
-        while(nextAudio <= k/fps + 1 && nextAudio*1 < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
+        while(as && nextAudio <= k/fps + 1 && nextAudio*1 < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
         k++;
         if(k % 15 === 0){
           const done = k/total, el = (performance.now()-tStart)/1000, left = done > 0.03 ? el/done - el : null;
@@ -2892,11 +2914,12 @@ async function fastExport(){
       { const o = edit[i-2]; if(o && o.fcLast){ o.fcLast.width = o.fcLast.height = 0; o.fcLast = null; } }   // older last frames are not drawn again
     }
     { const p2 = await pre; if(p2 && p2.it.return) try{ await p2.it.return(); }catch(err){} }
-    while(nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
+    while(as && nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
     const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + (mp4 ? 'mp4' : 'webm');
     const sh = saveFile(blob, name);
+    if(noSong){ showMsg(savedMsg(sh, 'Video') + ' without the song: ' + noSongTip()); return true; }
     showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB, made in ' + ((performance.now()-t0)/1000).toFixed(1) + ' s). Ready for Instagram, TikTok and Shorts.');
     return true;
   } finally {
@@ -3356,8 +3379,9 @@ const PDB = 'brs-projects';
 let proj = null, lastSig = '', restoring = false, capKeyNow = '';
 const fileFp = f => f ? [f.name, f.size, f.lastModified].join('|') : '';
 let voF = null; const voFile = () => (voF && voF.name === 'voiceover-' + vo.key + '.f32') ? voF : (voF = new File([vo.raw], 'voiceover-' + vo.key + '.f32', { type: 'application/octet-stream', lastModified: parseInt(vo.key, 36) || 1 }));
-function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB, 1);
-  r.onupgradeneeded = () => { const d = r.result; if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' }); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files'); };
+function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB, 2);
+  r.onupgradeneeded = () => { const d = r.result; if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' }); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files');
+    if(!d.objectStoreNames.contains('songs')) d.createObjectStore('songs', { keyPath: 'fp' }); };
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
 function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => { const t = d.transaction(store, mode), req = fn(t.objectStore(store));
   t.oncomplete = () => { d.close(); res(req && 'result' in req ? req.result : undefined); }; t.onerror = () => { d.close(); rej(t.error); }; t.onabort = () => { d.close(); rej(t.error || new Error('storage full')); }; })); }
@@ -3409,6 +3433,7 @@ async function deleteProject(id){
   const all = await idb('meta', 'readonly', s => s.getAll()) || [], me = all.find(p => p.id === id); if(!me) return;
   const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), st.settings && st.settings.bg, st.vo && st.vo.fp].filter(Boolean).map(fp => 'f:' + fp);
   for(const p of all) for(const k of keysOf(p.state || {})) (p.id === id ? mine : used).add(k);
+  for(const sg of (await idb('songs', 'readonly', s => s.getAll()) || [])) used.add('f:' + sg.fp);   // a recent song keeps its file
   for(const k of mine) if(!used.has(k)) await idb('files', 'readwrite', s => s.delete(k));   // files no other Reel uses
   await idb('meta', 'readwrite', s => s.delete(id));
 }
@@ -3436,7 +3461,7 @@ async function openProject(id){
       if(sec.len && ![15,30,60].includes(sec.len)){ $('slenc').value = sec.len; $('slencw').hidden = false; } $('sauto').hidden = !sec.len; $('lenhint').hidden = !sec.len; $('mwave').classList.toggle('drag', !!sec.len); }
     const clips = []; for(const c of st.clips || []){ const f = await getF(c.fp, c.name); if(f) clips.push(f); }
     const sf = st.song ? await getF(st.song.fp, st.song.name) : null;
-    if(sf) await loadMusic(sf);
+    if(sf){ let cs = null; try{ cs = await idb('songs', 'readonly', s => s.get(st.song.fp)); }catch(e){} await loadMusic(sf, cs && cs.r ? { r: cs.r, aiDone: cs.aiDone } : null); }
     if(clips.length){ addVideos(clips); await addQueue; }
     if(st.kind !== 'talk' && st.edit && st.edit.length && st.edit.length && clips.length === (st.clips || []).length) restoreEdit(st.edit);
     if(S.capsOn && !capsOn){ $('caps').checked = true; capsOn = true; $('caprow').hidden = false; loadCaptions(); }
@@ -3458,7 +3483,49 @@ function restoreEdit(list){
 $('pnew').addEventListener('click', () => { location.href = location.pathname; }, SIG);
 { const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else listProjects(); }
 
-root.__studio = { emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+/* ---- My music: the songs used lately, on this phone, picked again in one tap ----
+ * Each song is kept once (with the saved Reels' files) together with its finished analysis (beats, drops, AI check), so
+ * picking it again is instant. Up to 12; the oldest go (their file too, unless a saved Reel uses it). */
+const RECENT_MAX = 12;
+async function rememberSong(file, r, aiDone){
+  if(typeof indexedDB === 'undefined' || !file) return;
+  try{ await putFile(file); const fp = fileFp(file);
+    await idb('songs', 'readwrite', s => s.put({ fp, name: file.name, type: file.type, dur: song ? song.buf.duration : 0, usedAt: Date.now(), r, aiDone: !!aiDone }));
+    const all = (await idb('songs', 'readonly', s => s.getAll()) || []).sort((a, b) => b.usedAt - a.usedAt);
+    for(const old of all.slice(RECENT_MAX)) await forgetSong(old.fp, true);
+    listRecent();
+  }catch(e){ console.info('recent song not kept:', e && e.message); }
+}
+async function forgetSong(fp, quiet){
+  await idb('songs', 'readwrite', s => s.delete(fp));
+  const metas = await idb('meta', 'readonly', s => s.getAll()) || [];
+  const used = metas.some(p => p.state && ((p.state.song && p.state.song.fp === fp) || (p.state.clips || []).some(c => c.fp === fp)));
+  if(!used) await idb('files', 'readwrite', s => s.delete('f:' + fp));
+  if(!quiet) listRecent();
+}
+async function listRecent(){
+  let all = []; try{ all = (await idb('songs', 'readonly', s => s.getAll()) || []).sort((a, b) => b.usedAt - a.usedAt); }catch(e){ return; }
+  const box = $('rlist'); box.innerHTML = '';
+  for(const sg of all){
+    const d = document.createElement('div'); d.className = 'rsong' + (song && song.file && fileFp(song.file) === sg.fp ? ' cur' : '');
+    d.innerHTML = '<button class="rpick" type="button"><span class="rn"></span><span class="rd"></span></button><button class="rdel" type="button" aria-label="Remove from recent songs" title="Remove">×</button>';
+    d.querySelector('.rn').textContent = '♪ ' + sg.name.replace(/\.[^.]+$/, ''); d.querySelector('.rd').textContent = fmt(sg.dur || 0).replace(/\.\d+$/, '');
+    d.querySelector('.rpick').addEventListener('click', () => pickRecent(sg.fp));
+    d.querySelector('.rdel').addEventListener('click', () => forgetSong(sg.fp));
+    box.appendChild(d);
+  }
+  $('recent').hidden = !all.length;
+}
+async function pickRecent(fp){
+  if(recording) return;
+  const sg = await idb('songs', 'readonly', s => s.get(fp)), b = sg && await idb('files', 'readonly', s => s.get('f:' + fp));
+  if(!sg || !b){ await forgetSong(fp); return; }
+  const f = new File([b], sg.name, { type: sg.type || b.type, lastModified: +fp.split('|').pop() || Date.now() });
+  loadMusic(f, sg.r ? { r: sg.r, aiDone: sg.aiDone } : null);
+}
+listRecent();
+
+root.__studio = { get songR(){ return song && song.r; }, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
