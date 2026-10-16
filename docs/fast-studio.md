@@ -384,3 +384,16 @@ Checked (`scripts/studio-talk/check-denoise.cjs`, a talking clip with traffic ru
 voice): the noise in the pauses went from 12.7 dB to 86 dB under the voice (silence); the voice against the clean
 recording, in the speech: 0.972 without, 0.973 with (no damage to the voice; RNNoise lowers noise most where nobody
 speaks); with Natural pauses in that noise, 100% of the speech kept.
+
+## Captions for talking: key words and zoom punches
+
+In talking videos and voiceovers (captions on, "✨ Key words + zoom" on by default) one word per caption line is the key
+word: the one said hardest (its loudness in the voice) that is not a small word (English, Hindi and Marathi stop words),
+longer words and numbers counting a little more. It is drawn in the accent colour, 16% bigger, with an emoji when one
+fits (money 💰, tip 💡, mistake ❌, पैसा 💰, गणपती 🌺…), and the picture punches in 8% on it (0.12 s in, 0.6 s back). Song
+captions are unchanged.
+
+Checked (`scripts/studio-talk/check-keywords.cjs`): 8 lines, exactly one key word each, never a small word ("three",
+"reels", "tip 💡", "start 👀", "keep", "short ✂️", "captions ✍️", "every"); the zoom 1.08 just after a key word, 1.00 0.9 s
+later and on other words; accent pixels in the caption band at a key word, none before it; switched off: no key words,
+no zoom.
