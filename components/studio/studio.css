@@ -135,3 +135,16 @@
 .brs .learnrow{align-items:center;gap:8px}
 .brs .stdetails{flex-basis:100%;font-size:13px;color:var(--muted)}
 .brs .stdetails ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}
+/* ◆ keyframes */
+.brs .kfbox{border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:grid;gap:8px}
+.brs .kfbox summary{cursor:pointer;font-weight:700}
+.brs .kfbox[open]{display:grid}
+.brs .kfhead{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:6px}
+.brs .kftl{width:100%;height:34px;display:block;touch-action:none;cursor:pointer}
+.brs .kfbtns{gap:6px;flex-wrap:wrap}
+.brs #kfadd.on{background:#FFD54A;color:#111;border-color:#FFD54A}
+.brs .kfsliders{display:grid;gap:4px}
+.brs .kfsl{display:grid;grid-template-columns:5.5em 1fr 3.6em;gap:8px;align-items:center;font-size:13px}
+.brs .kfsl input{width:100%;min-width:0}
+.brs .kfsl b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.brs .kfbox.none .kfsliders,.brs .kfbox.none .kfbtns,.brs .kfbox.none .kftl{opacity:.4;pointer-events:none}

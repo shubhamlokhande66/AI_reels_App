@@ -1208,6 +1208,7 @@ async function buildTalk(){
     shots.push({ si: p.si, in: a, start: t0, end: p.t1 });
   }
   const useCount = sources.map(()=>0); let zoomed = false;
+  const keptUk = ukKeep();
   edit = shots.map((sh, i) => {
     const prev = shots[i-1], sameTake = prev && prev.si === sh.si;
     zoomed = sameTake ? !zoomed : false;
@@ -1229,6 +1230,9 @@ async function buildTalk(){
   $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(capsOn) loadCaptions();
+  ukRestore(keptUk);
+  if(talkKfs && talkKfs.length === edit.length){ edit.forEach((e, k) => { if(talkKfs[k]) e.uk = talkKfs[k].map(q => ({ ...q })); }); }
+  talkKfs = null;
   captureLoop(); editGen++;
 }
 function setKind(k){
@@ -1393,6 +1397,19 @@ function kf(track, l){
     if(l <= t1){ const p=(l-t0)/Math.max(1e-6,t1-t0); return v0 + (v1-v0)*(EASE[ez||'lin'])(p); } }
   return track[track.length-1][1];
 }
+/* ---- the creator's own keyframes (◆): position, zoom, rotation, opacity of a shot or a text, at times local to it.
+   Each keyframe holds all five; the ease of a keyframe shapes the move INTO it. One keyframe = a fixed setting. ---- */
+EASE.hold = x => x < 1 ? 0 : 1;
+const UK0 = {x:0, y:0, s:1, r:0, o:1}, UK_PROPS = ['x','y','s','r','o'];
+function uAt(list, l){
+  if(!list || !list.length) return null;
+  if(l <= list[0].t) return list[0];
+  for(let k=1;k<list.length;k++){ const b = list[k]; if(l <= b.t){ const a = list[k-1], p = (EASE[b.ez||'inOut'] || EASE.inOut)((l-a.t)/Math.max(1e-6, b.t-a.t)), u = {};
+    for(const n of UK_PROPS) u[n] = a[n] + (b[n]-a[n])*p; return u; } }
+  return list[list.length-1];
+}
+// a shot that is moved, made smaller or turned shows black around it (not stretched edge pixels)
+function panClamp(p, W, dw){ return dw <= W + 0.5 ? (W - dw)/2 : Math.min(0, Math.max(W - dw, p)); }
 function keyframesFor(e){
   const L = e.end - e.start;
   switch(e.efx){
@@ -1756,9 +1773,14 @@ function scoreWindow(i, src, a, need, gmax){
   const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : s.type, i===plan.length-1);
   return {sc, st, m, ai};
 }
+// the creator's keyframes stay on their shots when the edit is made again (the AI's scores or the director arriving,
+// New mix): the shots at the same time as before (the music fixes the times) get them back
+function ukKeep(){ return edit.filter(e => e.uk && e.uk.length).map(e => ({ s: e.start, e: e.end, uk: e.uk })); }
+function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.abs(x.start - k.s) < 0.02 && Math.abs(x.end - k.e) < 0.02); if(e) e.uk = k.uk; } }
 function makeEdit(){
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(!buf || !sources.length) return;
+  const keptUk = ukKeep();
   stopAll(); plan = adaptPlan(); styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
@@ -1801,6 +1823,7 @@ function makeEdit(){
   const useCount = sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
   edit = plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
   edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth') suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
+  ukRestore(keptUk);
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
@@ -1816,14 +1839,17 @@ function makeEdit(){
 }
 function captureLoop(){
   if(!edit.length) return;
+  // the edit made again (a late AI answer, New mix): the playhead stays where the creator left it
+  const at = () => pos > 0.31 && buf && pos < buf.duration - 0.05 ? pos : 0.3;
   return prepare(0, 0.6).then(()=>{ loopImg=null; const sv=showSafe, h=hookText; showSafe=false; hookText=''; drawFrame(0.6);
     const c=document.createElement('canvas'); c.width=out.width; c.height=out.height; c.getContext('2d').drawImage(out,0,0); loopImg=c;
-    showSafe=sv; hookText=h; pos=0.3; return prepare(0,0.3); }).then(()=>drawFrame(0.3));
+    showSafe=sv; hookText=h; pos = at(); return prepare(segAt(pos), pos); }).then(()=>{ drawFrame(pos); if(kfOpen()) kfSync(); });
 }
 function kfSummary(e){
   const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
   const notes = [e.dirWhy && aiOn ? 'Director: ' + e.dirWhy : '', e.aiNote && aiOn ? 'AI: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
-  const why = notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '';
+  const why = (notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '')
+    + (e.uk && e.uk.length ? `<br><span style="font:11px var(--body);color:#c99a00">◆ ${e.uk.length} keyframe${e.uk.length > 1 ? 's' : ''} of yours</span>` : '');
   const s = e.kf && e.kf.scale; if(!s || s.length<2) return why;
   const a=s[0], b=s[s.length-1];
   return `<br><span style="font:11px var(--mono);color:var(--muted)">◆ scale ${a[1].toFixed(2)}→${b[1].toFixed(2)} · ${(b[0]-a[0]).toFixed(2)}s ${b[2]||''}</span>` + why;
@@ -1900,7 +1926,8 @@ function drawTimeline(){
   edit.forEach((e,i)=>{ const x0 = e.start/D*w, x1 = e.end/D*w, hue = (e.src*67)%360;
     g.fillStyle = `hsl(${hue} 55% 55%)`; g.fillRect(x0+dpr*0.5, 10*dpr, Math.max(1,x1-x0-dpr), h-12*dpr);
     g.fillStyle = css(TCOL[e.type]); g.fillRect(x0, 0, Math.max(2*dpr, 3*dpr), 8*dpr);
-    if(e.sp.label!=='1×'){ g.fillStyle='rgba(0,0,0,0.35)'; g.fillRect(x0+dpr, h-7*dpr, Math.max(1,x1-x0-2*dpr), 5*dpr); } });
+    if(e.sp.label!=='1×'){ g.fillStyle='rgba(0,0,0,0.35)'; g.fillRect(x0+dpr, h-7*dpr, Math.max(1,x1-x0-2*dpr), 5*dpr); }
+    if(e.uk && e.uk.length){ const cx = (x0+x1)/2, cy = h/2 + 5*dpr, r = 5*dpr; g.beginPath(); g.moveTo(cx, cy-r); g.lineTo(cx+r, cy); g.lineTo(cx, cy+r); g.lineTo(cx-r, cy); g.closePath(); g.fillStyle = '#FFD54A'; g.fill(); g.strokeStyle = '#000'; g.lineWidth = dpr; g.stroke(); } });
   const t = playing ? curTime() : pos; g.fillStyle = css('--ink'); g.fillRect(Math.round(t/D*w)-dpr, 0, 2*dpr, h);
 }
 $('tl').addEventListener('click', ev=>{ if(!edit.length) return; const r=$('tl').getBoundingClientRect(), tt=(ev.clientX-r.left)/r.width*buf.duration;
@@ -1946,14 +1973,17 @@ function drawShot(g, e, local, o={}){
   const sh = kf(K.shake,local) || 0;
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); } } }
+  const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
+  if(u){ scale *= u.s; rot += u.r; }
   const sw = sources[e.src].w, shh = sources[e.src].h, [ccx, ccy] = camAt(e, local);
   const r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r;
-  let px = W/2 - ccx*dw; px = Math.min(0, Math.max(W-dw, px)) + x;
-  let py0 = H/2 - ccy*dh; py0 = Math.min(0, Math.max(H-dh, py0));
+  let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
+  let py0 = H/2 - ccy*dh; py0 = panClamp(py0, H, dh);
   const py = py0 + y;
-  const alpha = o.alpha ?? 1;
+  const alpha = (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1);
   const paint = (gg, a, extra=1, ox=0, oy=0) => {
     gg.save(); gg.globalAlpha = a;
+    if(ux || uy) gg.translate(ux, uy);   // the creator's move: after the turn, so a moved shot turns about its own middle
     if(rot || extra!==1){ gg.translate(W/2,H/2); gg.rotate(rot*Math.PI/180); gg.scale(extra,extra); gg.translate(-W/2,-H/2); }
     gg.filter = LOOKS[look].filter; gg.drawImage(v, px+ox, py+oy, dw, dh); gg.restore(); };
   const rgb = (kf(K.rgb,local) || 0) + (o.rgb||0);
@@ -2183,6 +2213,8 @@ function drawOverlay(g, ov, t){
     else if(ov.anim === 'type'){ const chars = [...txt]; txt = chars.slice(0, Math.max(1, Math.ceil(since/0.05))).join(''); }
     if(ov.emoji) sc *= 1 + 0.05*Math.sin(t*6);   // stickers breathe a little
   }
+  const u = uAt(ov.uk, since);   // the creator's keyframes: moved, sized, turned, faded over its time
+  if(u){ sc *= Math.max(0.01, u.s); alpha *= Math.max(0, Math.min(1, u.o)); }
   g.save(); g.globalAlpha = Math.max(0, alpha);
   g.font = ov.emoji ? `${fs}px "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif` : fontFor(ov.text, fs, ov.style === 'clean' ? 600 : 800);
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
@@ -2190,9 +2222,11 @@ function drawOverlay(g, ov, t){
   const tw = Math.max(...lines.map(l => g.measureText(l).width), fs*0.6), th = lh*lines.length;
   // the place: inside the safe area (top 220 and bottom 450 of 1920 are Instagram's)
   const top = H*(220/1920) + th/2 + fs*0.3, bot = H*(1 - 450/1920) - th/2 - fs*0.3;
-  const cx = Math.max(tw/2 + W*0.05, Math.min(W - tw/2 - W*0.05, ov.x*W)), cy = Math.max(top, Math.min(bot, ov.y*H)) + dy;
-  ov.box = [(cx - tw/2 - fs*0.4)/W, (cy - th/2 - fs*0.3)/H, (tw + fs*0.8)/W, (th + fs*0.6)/H];
-  g.translate(cx, cy); g.scale(sc, sc);
+  let cx = Math.max(tw/2 + W*0.05, Math.min(W - tw/2 - W*0.05, ov.x*W)), cy = Math.max(top, Math.min(bot, ov.y*H)) + dy;
+  if(u){ cx += u.x*W; cy += u.y*H; }
+  const bs = u ? Math.max(0.2, u.s) : 1;
+  ov.box = [(cx - (tw/2 + fs*0.4)*bs)/W, (cy - (th/2 + fs*0.3)*bs)/H, (tw + fs*0.8)*bs/W, (th + fs*0.6)*bs/H];
+  g.translate(cx, cy); if(u && u.r) g.rotate(u.r*Math.PI/180); g.scale(sc, sc);
   const dark = c => { const n = parseInt(c.slice(1), 16); return ((n>>16)*0.299 + ((n>>8)&255)*0.587 + (n&255)*0.114) < 140; };
   if(!ov.emoji && (ov.style === 'box' || ov.style === 'tag')){
     const tag = ov.style === 'tag', pw = tw + fs*(tag ? 1.05 : 0.6), ph = th + fs*0.36, r = tag ? fs*0.5 : fs*0.2;
@@ -2249,7 +2283,8 @@ function renderOvList(){
     row.addEventListener('focusin', () => { if(ovSel !== i){ ovSel = i; [...box.children].forEach((r, k) => r.classList.toggle('sel', k === i)); redraw(); } });
     box.appendChild(row);
   });
-  $('ovhint').hidden = !overlays.length; out.classList.toggle('ovdrag', overlays.length > 0);   // drag texts; otherwise the page scrolls over the preview
+  $('ovhint').hidden = !overlays.length; out.classList.toggle('ovdrag', overlays.length > 0 || kfOpen());
+  if(typeof kfSync === 'function') kfSync();   // drag texts; otherwise the page scrolls over the preview
 }
 $('ovtext').addEventListener('click', () => { const ov = addOverlay({ text: 'Your text', style: 'bold', color: '#FFFFFF', y: 0.4 }); const inp = $('ovlist').lastElementChild.querySelector('.ovt'); inp.focus(); inp.select(); }, SIG);
 $('ovsticker').addEventListener('click', () => { $('emojis').hidden = !$('emojis').hidden; }, SIG);
@@ -2260,17 +2295,122 @@ $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.va
 { let drag = null;
   const at = ev => { const r = out.getBoundingClientRect(); return [(ev.clientX - r.left)/r.width, (ev.clientY - r.top)/r.height]; };
   out.addEventListener('pointerdown', ev => {
-    if(recording || !overlays.length) return;
+    if(recording) return;
     const [x, y] = at(ev), t = playing ? curTime() : pos || 0;
     for(let i = overlays.length - 1; i >= 0; i--){ const ov = overlays[i], [a, b] = ovTiming(ov); if(!ov.box || !(t >= a && t < b)) continue;
       const [bx, by, bw, bh] = ov.box; if(x >= bx && x <= bx + bw && y >= by && y <= by + bh){
         drag = { i, dx: x - ov.x, dy: y - ov.y }; ovSel = i; out.setPointerCapture(ev.pointerId); renderOvList(); ev.preventDefault(); redraw(); return; } }
     if(ovSel >= 0){ ovSel = -1; renderOvList(); redraw(); }
+    if(kfOpen() && edit.length){   // the keyframe panel is open: dragging the picture moves the shot (a keyframe at the playhead)
+      if(playing){ pos = curTime(); stopAll(); }
+      const T = kfTarget(), u = T && (uAt(T.obj.uk, kfLocal(T)) || UK0);
+      if(T){ drag = { shot: true, x0: x, y0: y, ux: u.x, uy: u.y }; out.setPointerCapture(ev.pointerId); ev.preventDefault(); kfSync(); }
+    }
   }, SIG);
-  out.addEventListener('pointermove', ev => { if(!drag) return; const [x, y] = at(ev), ov = overlays[drag.i]; if(!ov) return;
+  out.addEventListener('pointermove', ev => { if(!drag) return; const [x, y] = at(ev);
+    if(drag.shot){ kfSet({ x: drag.ux + x - drag.x0, y: drag.uy + y - drag.y0 }); return; }
+    const ov = overlays[drag.i]; if(!ov) return;
     ov.x = Math.max(0.05, Math.min(0.95, x - drag.dx)); ov.y = Math.max(0.05, Math.min(0.95, y - drag.dy)); redraw(); }, SIG);
   const end = () => { drag = null; };
   out.addEventListener('pointerup', end, SIG); out.addEventListener('pointercancel', end, SIG); }
+
+/* ---- ◆ Keyframes: the creator animates a shot or a text: position, zoom, rotation, opacity, with an ease ----
+ * The target is the selected text / sticker, else the shot under the playhead. Moving a slider (or dragging the picture)
+ * writes a keyframe at the playhead, as in the big editors: on a keyframe it changes it, between keyframes it adds one
+ * holding the in-between values. The shot or text moves from keyframe to keyframe; each keyframe's ease shapes the move
+ * into it. Ready-made moves fill the keyframes in one tap. Saved with the Reel. */
+let talkKfs = null, kfTimer = 0, kfLast = 0;
+const KF_NEAR = 0.04;
+const KF_SL = { x: { min: -1, max: 1, step: 0.005, show: v => Math.round(v*100) + '%' }, y: { min: -1, max: 1, step: 0.005, show: v => Math.round(v*100) + '%' },
+  s: { min: 0.1, max: 4, step: 0.01, show: v => v.toFixed(2) + '×' }, r: { min: -360, max: 360, step: 1, show: v => Math.round(v) + '°' }, o: { min: 0, max: 1, step: 0.01, show: v => Math.round(v*100) + '%' } };
+const KF_NAME = { x: 'Move ↔', y: 'Move ↕', s: 'Zoom', r: 'Rotate', o: 'Opacity' };
+const KF_EASE = { inOut: 'Smooth', lin: 'Linear', outCubic: 'Ease out', inQuad: 'Ease in', outBack: 'Overshoot', outExpo: 'Fast stop', hold: 'Hold (jump)' };
+const kq = (t, v = {}, ez) => ({ ...UK0, ...v, t, ...(ez ? { ez } : {}) });
+const KF_PRESETS = {
+  zoomin: { name: 'Slow zoom in', make: d => [kq(0), kq(d, { s: 1.3 }, 'lin')] },
+  zoomout: { name: 'Slow zoom out', make: d => [kq(0, { s: 1.3 }), kq(d, {}, 'outCubic')] },
+  panlr: { name: 'Pan left → right', make: d => [kq(0, { s: 1.3, x: 0.1 }), kq(d, { s: 1.3, x: -0.1 }, 'inOut')] },
+  panud: { name: 'Pan up', make: d => [kq(0, { s: 1.3, y: -0.08 }), kq(d, { s: 1.3, y: 0.08 }, 'inOut')] },
+  punch: { name: 'Zoom punch', make: d => [kq(0, { s: 1.3 }), kq(Math.min(0.3, d), {}, 'outBack')] },
+  popin: { name: 'Pop in', make: d => [kq(0, { s: 0.2, o: 0 }), kq(Math.min(0.35, d), {}, 'outBack')] },
+  spinin: { name: 'Spin in', make: d => [kq(0, { s: 0.3, r: -180, o: 0 }), kq(Math.min(0.5, d), {}, 'outCubic')] },
+  slidein: { name: 'Slide in from left', make: d => [kq(0, { x: -1 }), kq(Math.min(0.4, d), {}, 'outExpo')] },
+  rise: { name: 'Rise in', make: d => [kq(0, { y: 0.12, o: 0 }), kq(Math.min(0.4, d), {}, 'outCubic')] },
+  fade: { name: 'Fade in + out', make: d => { const f = Math.min(0.3, d/3); return [kq(0, { o: 0 }), kq(f, {}, 'inOut'), kq(d - f), kq(d, { o: 0 }, 'inOut')]; } },
+  tilt: { name: 'Tilt + zoom', make: d => [kq(0, { s: 1.15, r: -6 }), kq(d, { s: 1.15, r: 6 }, 'inOut')] },
+};
+function kfOpen(){ const b = $('kfbox'); return !!(b && b.open); }
+function kfNow(){ return Math.max(0, playing ? curTime() : pos || 0); }
+function kfTarget(){
+  if(!edit.length) return null;
+  if(ovSel >= 0 && overlays[ovSel]){ const ov = overlays[ovSel], [a, b] = ovTiming(ov);
+    return { what: 'text', obj: ov, a, b: Math.max(a + 0.05, b), name: ov.emoji ? 'Sticker ' + ov.text : 'Text “' + (ov.text.length > 22 ? ov.text.slice(0, 21) + '…' : ov.text) + '”' }; }
+  const i = segAt(kfNow()), e = edit[i];
+  return { what: 'shot', obj: e, i, a: e.start, b: e.end, name: 'Shot ' + (i + 1) + ' · ' + sources[e.src].name.replace(/\.[^.]+$/, '') };
+}
+function kfLocal(T){ return Math.max(0, Math.min(T.b - T.a - 0.01, kfNow() - T.a)); }
+function kfAtHead(T){ const l = kfLocal(T); return (T.obj.uk || []).find(q => Math.abs(q.t - l) < KF_NEAR) || null; }
+function kfSeek(t){
+  if(playing){ stopAll(); }
+  pos = Math.max(0, Math.min(buf.duration - 0.01, t)); const i = segAt(pos); kfSync();   // the panel follows at once, the picture once decoded
+  return Promise.all([edit[i-1] ? prepare(i-1, edit[i-1].end - 0.01) : 0, prepare(i, pos)]).then(() => { drawFrame(pos); drawTimeline(); kfSync(); });
+}
+// write values at the playhead: change the keyframe there, or add one holding the in-between values
+function kfSet(vals){
+  const T = kfTarget(); if(!T) return;
+  if(playing){ pos = curTime(); stopAll(); }
+  const L = T.obj.uk || (T.obj.uk = []), l = kfLocal(T);
+  let k = kfAtHead(T);
+  if(!k){ const u = uAt(L, l) || UK0; k = { x: u.x, y: u.y, s: u.s, r: u.r, o: u.o, t: l, ez: 'inOut' }; L.push(k); L.sort((p, q) => p.t - q.t); }
+  for(const [n, v] of Object.entries(vals)){ const c = KF_SL[n]; k[n] = Math.max(c.min, Math.min(c.max, v)); }
+  redraw(); kfSync(); kfListSoon();
+}
+let kfListT = 0; function kfListSoon(){ clearTimeout(kfListT); kfListT = setTimeout(() => { if(!playing) renderEDL(true); }, 400); }
+function kfSoon(){ const now = performance.now(); if(now - kfLast > 120){ kfLast = now; kfSync(); } else if(!kfTimer) kfTimer = setTimeout(() => { kfTimer = 0; kfLast = performance.now(); kfSync(); }, 130); }
+function kfSync(){
+  if(!kfOpen()) return;
+  const T = kfTarget(), box = $('kfbox');
+  box.classList.toggle('none', !T);
+  if(!T){ $('kftarget').textContent = 'Make the edit first'; return; }
+  $('kftarget').textContent = T.name + ' · ' + fmt(T.a) + ' → ' + fmt(T.b);
+  const L = T.obj.uk || [], l = kfLocal(T), u = uAt(L, l) || UK0, k = kfAtHead(T);
+  for(const n of UK_PROPS){ const inp = $('kf_' + n); if(document.activeElement !== inp) inp.value = u[n]; $('kfv_' + n).textContent = KF_SL[n].show(u[n]); }
+  $('kfadd').textContent = k ? '◆ On a keyframe' : '◇ Add keyframe'; $('kfadd').classList.toggle('on', !!k);
+  $('kfdel').disabled = !k; $('kfease').disabled = !k || L.indexOf(k) === 0; $('kfease').value = k ? (k.ez || 'inOut') : 'inOut';
+  $('kfprev').disabled = !L.some(q => q.t < l - KF_NEAR); $('kfnext').disabled = !L.some(q => q.t > l + KF_NEAR); $('kfclear').disabled = !L.length;
+  $('kfinfo').textContent = !L.length ? 'No keyframes: move a slider (or drag the picture) to add one here.'
+    : L.length === 1 ? '1 keyframe: a fixed setting. Move the playhead and change something to animate.' : L.length + ' keyframes';
+  // the strip: the target's time, its keyframes (◆) and the playhead
+  const cv = $('kftl'), dpr = window.devicePixelRatio || 1, w = Math.max(1, Math.round(cv.clientWidth*dpr)), h = Math.round(34*dpr), D = T.b - T.a;
+  cv.width = w; cv.height = h; const g = cv.getContext('2d'); g.clearRect(0, 0, w, h);
+  g.fillStyle = css('--line') || '#333'; g.fillRect(0, h/2 - 3*dpr, w, 6*dpr);
+  for(let k2 = 1; k2 < L.length; k2++){ const x0 = L[k2-1].t/D*w, x1 = L[k2].t/D*w; g.fillStyle = 'rgba(255,213,74,0.55)'; g.fillRect(x0, h/2 - 3*dpr, x1 - x0, 6*dpr); }
+  const ph = l/D*w;
+  for(const q of L){ const x = Math.min(w - 7*dpr, Math.max(7*dpr, q.t/D*w)), r = 7*dpr; g.beginPath(); g.moveTo(x, h/2 - r); g.lineTo(x + r, h/2); g.lineTo(x, h/2 + r); g.lineTo(x - r, h/2); g.closePath();
+    g.fillStyle = q === k ? '#FFD54A' : '#fff'; g.fill(); g.lineWidth = 1.5*dpr; g.strokeStyle = '#000'; g.stroke(); }
+  g.fillStyle = css('--hot') || '#ff3d6e'; g.fillRect(Math.round(ph) - dpr, 0, 2*dpr, h);
+}
+for(const n of UK_PROPS){ const c = KF_SL[n], row = document.createElement('label'); row.className = 'kfsl';
+  row.innerHTML = `<span>${KF_NAME[n]}</span><input type="range" id="kf_${n}" min="${c.min}" max="${c.max}" step="${c.step}" aria-label="${KF_NAME[n]}"><b id="kfv_${n}"></b>`;
+  row.querySelector('input').addEventListener('input', ev => kfSet({ [n]: +ev.target.value }), SIG);
+  row.querySelector('input').addEventListener('dblclick', () => kfSet({ [n]: UK0[n] }), SIG);   // double-tap: back to normal
+  $('kfsliders').appendChild(row); }
+Object.entries(KF_EASE).forEach(([k, v]) => $('kfease').add(new Option(v, k)));
+Object.entries(KF_PRESETS).forEach(([k, v]) => $('kfpreset').add(new Option(v.name, k)));
+$('kfbox').addEventListener('toggle', () => { out.classList.toggle('ovdrag', overlays.length > 0 || kfOpen()); kfSync(); }, SIG);
+$('kfadd').addEventListener('click', () => { const T = kfTarget(); if(T && !kfAtHead(T)) kfSet({}); }, SIG);
+$('kfdel').addEventListener('click', () => { const T = kfTarget(), k = T && kfAtHead(T); if(!k) return; T.obj.uk.splice(T.obj.uk.indexOf(k), 1); if(!T.obj.uk.length) delete T.obj.uk; redraw(); kfSync(); kfListSoon(); }, SIG);
+$('kfclear').addEventListener('click', () => { const T = kfTarget(); if(T){ delete T.obj.uk; redraw(); kfSync(); kfListSoon(); } }, SIG);
+$('kfease').addEventListener('change', ev => { const T = kfTarget(), k = T && kfAtHead(T); if(k){ k.ez = ev.target.value; redraw(); kfSync(); } }, SIG);
+$('kfprev').addEventListener('click', () => { const T = kfTarget(); if(!T) return; const l = kfLocal(T), q = (T.obj.uk || []).filter(x => x.t < l - KF_NEAR).pop(); if(q) kfSeek(T.a + q.t); }, SIG);
+$('kfnext').addEventListener('click', () => { const T = kfTarget(); if(!T) return; const l = kfLocal(T), q = (T.obj.uk || []).find(x => x.t > l + KF_NEAR); if(q) kfSeek(T.a + q.t); }, SIG);
+$('kfpreset').addEventListener('change', ev => { const p = KF_PRESETS[ev.target.value]; ev.target.value = ''; const T = kfTarget(); if(!p || !T) return;
+  T.obj.uk = p.make(Math.max(0.05, T.b - T.a - 0.01)); kfSeek(T.a + 0.001); kfListSoon(); }, SIG);
+// the strip: tap to move the playhead inside the shot or text (a tap near a keyframe lands on it)
+$('kftl').addEventListener('pointerdown', ev => { const T = kfTarget(); if(!T) return; const r = $('kftl').getBoundingClientRect(), D = T.b - T.a;
+  let l = Math.max(0, Math.min(1, (ev.clientX - r.left)/r.width))*D;
+  const near = (T.obj.uk || []).find(q => Math.abs(q.t - l)/D*r.width < 12); if(near) l = near.t;
+  kfSeek(T.a + Math.min(l, D - 0.01)); }, SIG);
 
 /* ---- the background behind the person: blurred, a colour, a photo; and text behind the person ----
  * The person is found in every frame (MediaPipe Selfie Segmentation in a worker) on the finished picture, just before the
@@ -2492,8 +2632,8 @@ const GLSL_F = `precision highp float;
 uniform sampler2D tA, tB, tL;
 uniform vec2 res;
 uniform vec4 rA, rB, bgR, frR;
-uniform float rotA, rotB, zbA, zbB, rgbA, rgbB, exA, exB, brA, brB, alA, hasA;
-uniform vec2 dbA, dbB, irisC;
+uniform float rotA, rotB, zbA, zbB, rgbA, rgbB, exA, exB, brA, brB, alA, alB, clA, clB, hasA;
+uniform vec2 dbA, dbB, irisC, offA, offB;
 uniform float mode, prog, mixv, time, snap, bgDark, border;
 uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix, warm, lift;
 uniform vec3 leak;
@@ -2514,11 +2654,13 @@ vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb,
 }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 void main(){
-  vec2 p = vec2(gl_FragCoord.x, res.y-gl_FragCoord.y);
+  vec2 p0 = vec2(gl_FragCoord.x, res.y-gl_FragCoord.y);
+  vec2 p = p0 - offB, pA = p0 - offA;   // the creator's keyframed move of each layer
   float inA=0., inB=0.;
   vec3 A = vec3(0.);
-  if(hasA>0.5){ A = layer(tA,p,rA,rotA,zbA,dbA,rgbA,inA); A = (A + A*exA)*brA*alA; }
+  if(hasA>0.5){ A = layer(tA,pA,rA,rotA,zbA,dbA,rgbA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
   vec3 B = layer(tB,p,rB,rotB,zbB,dbB,rgbB,inB);
+  B *= mix(1.,inB,clB)*alB;
   if(snap>0.5){
     vec2 q = rotP(p,rotB);
     bool inFrame = q.x>frR.x && q.x<frR.x+frR.z && q.y>frR.y && q.y<frR.y+frR.w;
@@ -2533,14 +2675,14 @@ void main(){
   else if(mode<2.5) col = prog<0.5 ? A*(1.-2.*prog) : B*(2.*prog-1.);
   else if(mode<3.5) col = inB>0.5 ? B : A;
   else if(mode<5.5){
-    float band = floor(p.y/(res.y/10.)); float h = hash(vec2(band, floor(time*70.)));
-    if(h<0.3 && hasA>0.5){ vec4 ra=rA; ra.x += (hash(vec2(band,1.))-0.5)*0.14*res.x; float ia; col = layer(tA,p,ra,rotA,0.,vec2(0.),0.,ia); }
+    float band = floor(p0.y/(res.y/10.)); float h = hash(vec2(band, floor(time*70.)));
+    if(h<0.3 && hasA>0.5){ vec4 ra=rA; ra.x += (hash(vec2(band,1.))-0.5)*0.14*res.x; float ia; col = layer(tA,pA,ra,rotA,0.,vec2(0.),0.,ia); }
     else if(h<0.5){ vec4 rb=rB; rb.x += (hash(vec2(band,2.))-0.5)*0.14*res.x; float ib2; col = layer(tB,p,rb,rotB,0.,vec2(0.),rgbB,ib2); }
     else col = B;
   }
-  else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p,irisC)); col=mix(A,B,mk); }
-  else if(mode<7.5){ float q=1.-pow(1.-prog,3.); float s=(p.x+p.y*0.6)/(res.x+res.y*0.6); float e=-0.15+q*1.3; float mk=1.-smoothstep(e-0.08,e,s); col=mix(A,B,mk); }
-  else { float k=floor(p.x/(res.x/6.)); float pk=clamp(prog*1.6-k*0.12,0.,1.); float hh=res.y*(1.-pow(1.-pk,3.)); float mk = mod(k,2.)>0.5 ? step(p.y,hh) : step(res.y-hh,p.y); col=mix(A,B,mk); }
+  else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p0,irisC)); col=mix(A,B,mk); }
+  else if(mode<7.5){ float q=1.-pow(1.-prog,3.); float s=(p0.x+p0.y*0.6)/(res.x+res.y*0.6); float e=-0.15+q*1.3; float mk=1.-smoothstep(e-0.08,e,s); col=mix(A,B,mk); }
+  else { float k=floor(p0.x/(res.x/6.)); float pk=clamp(prog*1.6-k*0.12,0.,1.); float hh=res.y*(1.-pow(1.-pk,3.)); float mk = mod(k,2.)>0.5 ? step(p0.y,hh) : step(res.y-hh,p0.y); col=mix(A,B,mk); }
   // colour grade
   col = lift + col*(1.-lift);   // lifted blacks (faded / matte)
   col = (col-0.5)*con + 0.5; col *= bri;
@@ -2548,13 +2690,13 @@ void main(){
   col = mix(vec3(l), col, sat);
   if(teal>0.){ vec3 tint = mix(vec3(0.75,1.05,1.12), vec3(1.12,0.98,0.82), smoothstep(0.15,0.85,l)); col = mix(col, col*tint, teal); }
   col *= vec3(1.+0.12*warm, 1., 1.-0.12*warm);   // white balance: warm (+) / cool (-)
-  if(leak.z>0.){ float d = distance(p, leak.xy)/(res.x*0.9); vec3 lc = vec3(1.,0.67,0.35)*leak.z*(1.-smoothstep(0.,1.,d)); col = 1.-(1.-col)*(1.-lc); }
+  if(leak.z>0.){ float d = distance(p0, leak.xy)/(res.x*0.9); vec3 lc = vec3(1.,0.67,0.35)*leak.z*(1.-smoothstep(0.,1.,d)); col = 1.-(1.-col)*(1.-lc); }
   col = mix(col, vec3(dot(col,vec3(0.299,0.587,0.114))), mono);   // after the light leak: black and white stays black and white
   col += flash;
-  vec2 uvn = p/res-0.5; float vd = length(uvn*vec2(res.x/res.y,1.)*vec2(1.,1.));
+  vec2 uvn = p0/res-0.5; float vd = length(uvn*vec2(res.x/res.y,1.)*vec2(1.,1.));
   col *= 1. - vig*smoothstep(0.3,0.75,vd);
-  if(grain>0.) col += (hash(p*0.73 + fract(time*7.)*vec2(97.,13.))-0.5)*grain*0.6;
-  if(loopMix>0.) col = mix(col, texture2D(tL, p/res).rgb, loopMix);
+  if(grain>0.) col += (hash(p0*0.73 + fract(time*7.)*vec2(97.,13.))-0.5)*grain*0.6;
+  if(loopMix>0.) col = mix(col, texture2D(tL, p0/res).rgb, loopMix);
   gl_FragColor = vec4(clamp(col,0.,1.),1.);
 }`;
 // WebGL renderer. Phones can take the GPU context away (memory pressure, the app in the background): then frames are
@@ -2593,9 +2735,10 @@ const GL = (()=>{
       if(S.A) upload(0, S.A.el); upload(1, S.B.el);
       if(S.loopImg && S.loopImg!==loopSrc){ upload(2, S.loopImg); loopSrc = S.loopImg; }
       set('res',[c.width,c.height]);
-      const L = (pre, X) => { set('r'+pre, X.rect); set('rot'+pre, X.rot); set('zb'+pre, X.zb); set('db'+pre, X.db); set('rgb'+pre, X.rgb); set('ex'+pre, X.expo); set('br'+pre, X.bright); };
-      if(S.A){ L('A', S.A); set('alA', S.A.alpha ?? 1); }
-      L('B', S.B);
+      const L = (pre, X) => { set('r'+pre, X.rect); set('rot'+pre, X.rot); set('zb'+pre, X.zb); set('db'+pre, X.db); set('rgb'+pre, X.rgb); set('ex'+pre, X.expo); set('br'+pre, X.bright);
+        set('off'+pre, X.off || [0,0]); set('cl'+pre, X.clip || 0); };
+      if(S.A){ L('A', S.A); set('alA', S.A.alpha ?? 1); } else { set('offA', [0,0]); set('clA', 0); }
+      L('B', S.B); set('alB', S.B.uo ?? 1);
       set('hasA', S.A ? 1 : 0); set('mode', S.mode); set('prog', S.prog); set('mixv', S.mix); set('irisC', S.iris || [c.width/2,c.height/2]);
       set('time', S.time); set('snap', S.snap ? 1 : 0); set('bgR', S.bgR || [0,0,1,1]); set('bgDark', S.bgDark||0); set('frR', S.frR || [0,0,c.width,c.height]); set('border', S.border||0);
       const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0);
@@ -2615,14 +2758,17 @@ function layerOf(e, local, o={}){
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
   let expo = o.noFx ? 0 : (kf(K.expo,local) || 0);
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); if(!o.noFx) expo += 0.22*Math.exp(-(local-bt)/0.07); } } }
+  const u = uAt(e.uk, local);
+  if(u){ scale *= u.s; rot += u.r; }
   const sw = sources[e.src].w, shh = sources[e.src].h, r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r, [ccx, ccy] = camAt(e, local);
-  let px = W/2 - ccx*dw; px = Math.min(0, Math.max(W-dw, px)) + x;
-  let py = H/2 - ccy*dh; py = Math.min(0, Math.max(H-dh, py)) + y;
+  let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
+  let py = H/2 - ccy*dh; py = panClamp(py, H, dh) + y;
   let zb = o.noFx ? 0 : (kf(K.zblur,local) || 0);
   if(!o.noFx && rateAt(e, local) >= 1.8) zb += 0.35;   // motion blur when the shot runs fast
   const br = kf(K.bright,local);
   return { el:texOf(e), rect:[px,py,dw,dh], rot: rot*Math.PI/180, zb: zb + (o.zb||0), db: o.db || [0,0], rgb: (o.noFx ? 0 : (kf(K.rgb,local)||0)) + (o.rgb||0),
-    expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1), alpha: o.alpha ?? 1 };
+    expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1), alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
+    off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1 };
 }
 function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
@@ -2638,7 +2784,7 @@ function drawFrameGL(t){
       case 'zoom': S.A = layerOf(pe, pl, {scale:1+0.9*p*p, zb:1.2, noFx:true}); S.B = layerOf(e, local, {scale:1.6-0.6*q, zb:1-q}); S.mode = 1; S.mix = q; break;
       case 'spin': S.A = layerOf(pe, pl, {rot:90*p*p, scale:1+0.5*p, zb:0.8, noFx:true}); S.B = layerOf(e, local, {rot:-90*(1-q), scale:1.5-0.5*q, zb:1-q}); S.mode = 1; S.mix = q; break;
       case 'glitch': S.B = layerOf(e, local, {rgb:22*(1-p)}); S.mode = 5; break;
-      case 'iris': { const [px,py,dw,dh] = S.B.rect, [ccx,ccy] = camAt(e, local); S.mode = 6; S.prog = p; S.iris = [px+ccx*dw, py+ccy*dh]; break; }
+      case 'iris': { const [px,py,dw,dh] = S.B.rect, [ccx,ccy] = camAt(e, local); S.mode = 6; S.prog = p; S.iris = [px+ccx*dw+S.B.off[0], py+ccy*dh+S.B.off[1]]; break; }
       case 'wipe': S.mode = 7; S.prog = p; break;
       case 'bars': S.mode = 8; S.prog = p; break;
       case 'dip': S.mode = 2; S.prog = EASE.inOut(p); break;
@@ -2669,7 +2815,8 @@ function drawFrameGL(t){
   if(!exporting){ $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
     const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); } }
 }
-function drawFrame(t){ if(!edit.length){ og.fillStyle='#000'; og.fillRect(0,0,out.width,out.height); return; } if(GL && !GL.lost) drawFrameGL(t); else drawFrame2D(t); }
+function drawFrame(t){ if(!edit.length){ og.fillStyle='#000'; og.fillRect(0,0,out.width,out.height); return; } if(GL && !GL.lost) drawFrameGL(t); else drawFrame2D(t);
+  if(!exporting && !recording && kfOpen()) kfSoon(); }
 
 let coverMode=false;
 let playing=false, src=null, startedAt=0, startOff=0, pos=0, curIdx=-1, timer=0, recording=false, latencyOn=true;
@@ -3444,7 +3591,8 @@ function stateOf(){
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
     settings: { trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
-    edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs })),
+    edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined })),
+    kfs: kind === 'talk' && edit.some(e => e.uk && e.uk.length) ? edit.map(e => e.uk && e.uk.length ? e.uk : null) : undefined,
     caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
 }
 async function putFile(f){ const k = 'f:' + fileFp(f); if(await idb('files', 'readonly', s => s.getKey(k)) === undefined) await idb('files', 'readwrite', s => s.put(f, k)); }
@@ -3499,6 +3647,7 @@ async function openProject(id){
     const st = p.state, getF = async (fp, name) => { const b = fp ? await idb('files', 'readonly', s => s.get('f:' + fp)) : null; return b ? new File([b], name || b.name || 'file', { type: b.type, lastModified: +fp.split('|').pop() || Date.now() }) : null; };
     say('Opening "' + p.name + '"…'); proj = { id: p.id, created: p.created };
     const S = st.settings || {};
+    talkKfs = st.kind === 'talk' && st.kfs ? st.kfs : null;
     if(st.kind === 'talk') setKind('talk');
     press('aspect', 'a', S.aspect); press('look', 'l', S.look); press('tstyle', 't', S.textStyle); if(S.mode && S.mode !== 'auto') press('mode', 'm', S.mode);
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
@@ -3579,7 +3728,7 @@ async function pickRecent(fp){
 }
 listRecent();
 
-root.__studio = { get songR(){ return song && song.r; }, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get songR(){ return song && song.r; }, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

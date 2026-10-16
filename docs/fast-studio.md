@@ -446,3 +446,27 @@ stay with their creator, nobody deletes another's style. `scripts/studio-style/c
 in): a real reference Reel saved as a 1,070-byte fingerprint (46% whip, 46% zoom, 8% hard: its truth is half whips, half
 zooms); a learned dance style used: median shot 0.50 s = 1 beat, transitions 46% flash / 35% whip / 20% hard (learned
 45/35/20); a changed transition sent as a correction.
+
+## ◆ Keyframes: move, zoom, turn, fade a shot or a text
+
+- **Panel** "◆ Keyframes" under the preview. The target is the selected text / sticker, otherwise the shot under the
+  playhead. Five sliders: Move ↔, Move ↕ (share of the frame), Zoom (0.1-4×), Rotate (±360°), Opacity.
+- **Like the big editors**: moving a slider (or dragging the picture while the panel is open) writes a keyframe at the
+  playhead: on a keyframe it changes it, between keyframes it adds one holding the in-between values. One keyframe is a
+  fixed setting; two or more animate. The strip shows the target's time, its keyframes (◆) and the playhead (tap to move
+  it, a tap near a ◆ lands on it); ◀◆ / ◆▶ jump between keyframes; Delete ◆, Clear all; double-tap a slider resets it.
+- **Ease** of each keyframe shapes the move into it: Smooth, Linear, Ease out, Ease in, Overshoot, Fast stop, Hold (jump).
+- **Ready-made moves**: slow zoom in / out, pan left → right, pan up, zoom punch, pop in, spin in, slide in, rise in,
+  fade in + out, tilt + zoom (filled across the shot's or text's time).
+- **Rendering**: on top of the automatic effects, in both the GPU and the 2D renderer and the export (the same code). A
+  moved shot turns about its own middle; a shot made smaller, moved or turned shows black around it, not stretched edges.
+  Shots with keyframes get a ◆ in the timeline and the edit list. Saved with the Reel (also for talking videos).
+- Keyframes stay on their shots when the edit is made again at the same times (the AI's scores or the director
+  arriving later, New mix); another mode or length makes new shots (new times), without them.
+
+Checked (`scripts/studio-keyframes/check-keyframes.cjs`, a bright bar on a dark clip measured in rendered frames), the
+same on the GPU and the 2D renderer: linear move half way 0.100 / -0.050 (set 0.100 / -0.050), smooth ease at 25% 0.030
+(0.029), zoom 1.5× area 2.233 (2.25), zoom 0.5× area 0.244 (0.25), rotate 30.0° (30°), opacity 50% brightness 0.502, hold
+0.000. The panel: two keyframes written by the sliders, the in-between values shown half way, ◀◆ / ◆▶, ease, delete;
+dragging the picture 10% moved the shot 0.100; a text moved 0.200 and sized 1.500× (set 0.2, 1.5×); saved with the Reel;
+the exported 1080p video: bar at 0.700, 0.500 and 20.0° against the preview's 0.699, 0.499 and 20.0°.
