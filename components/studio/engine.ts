@@ -275,7 +275,10 @@ function analyse(){
   const trk = trackBeats(env, bodyEnv, fps, kickEnv, midEnv);
   let own = trk.beats.map(f => f/fps + (N/2)/sr), ownPeriod = trk.period/fps;
   beatSource = 'own';
-  if(opts.beats && opts.beats.length >= 8){
+  if(opts.forceBeats && opts.forceBeats.length >= 4){
+    // a part of a song: its beats come from the whole song's analysis (more music to judge from, the same grid)
+    own = opts.forceBeats.slice(); const ib = own.slice(1).map((t,i)=>t-own[i]).sort((x,y)=>x-y); ownPeriod = ib[ib.length>>1] || ownPeriod; beatSource = opts.forceSource || 'own';
+  } else if(opts.beats && opts.beats.length >= 8){
     // two trackers: this one and the neural network (Beat This!). Keep the one whose beats land on stronger hits (every
     // band, hats at half weight) and keep a steady pulse; each misses different songs (see scripts/studio-beats).
     const bandsA = [[fKick, 1], [fBody, 1], [fMid, 1], [fTop, 0.5]].map(([a, w]) => { let m = 0; for(const v of a) m += v; m = m/Math.max(1, a.length) || 1; return [a, w/m]; });
@@ -306,7 +309,7 @@ function analyse(){
     }
     if(pickAi){ const ib = opts.beats.slice(1).map((t,i)=>t-opts.beats[i]).sort((x,y)=>x-y); own = opts.beats.slice(); ownPeriod = ib[ib.length>>1]; beatSource = 'ai'; }
   }
-  beatsDP = trimNoPulse(refineBeats(own, ownPeriod), t => { const f = Math.round((t - (N/2)/sr)*fps); let m = 0; for(let j=f-3;j<=f+3;j++) if(env[j] > m) m = env[j]; return m; });
+  beatsDP = opts.forceBeats && opts.forceBeats.length >= 4 ? own.slice() : trimNoPulse(refineBeats(own, ownPeriod), t => { const f = Math.round((t - (N/2)/sr)*fps); let m = 0; for(let j=f-3;j<=f+3;j++) if(env[j] > m) m = env[j]; return m; });
   period = ownPeriod; phase = beatsDP.length ? beatsDP[0] : 0; hopSec = H/sr;
   // accent strength = drums + bass + instrument attacks (voice counts only half)
   const detrend = a => { const c=new Float64Array(frames+1); for(let i=0;i<frames;i++) c[i+1]=c[i]+a[i]; const o=new Float64Array(frames);
@@ -509,10 +512,15 @@ function buildPlan(){
 function drawMusic(){
   const cv = $('mwave'), dpr = window.devicePixelRatio||1, w = Math.max(1,Math.round(cv.clientWidth*dpr)), h = Math.round(84*dpr);
   cv.width = w; cv.height = h; const g = cv.getContext('2d'); g.clearRect(0,0,w,h);
-  if(!mono) return;
-  const spp = mono.length/w; g.fillStyle = css('--wave');
-  for(let x=0;x<w;x++){ let mx=0; const a=Math.floor(x*spp), b=Math.min(mono.length,Math.floor((x+1)*spp)); for(let i=a;i<b;i+=4){ const v=Math.abs(mono[i]); if(v>mx) mx=v; } const bh=Math.max(1,mx*h*0.9); g.fillRect(x,(h-bh)/2,1,bh); }
-  plan.forEach(s=>{ g.fillStyle = css(TCOL[s.type]); g.fillRect(Math.round(s.start/buf.duration*w),0,Math.max(2,dpr*1.5),h); });
+  const M = song ? song.mono : mono; if(!M) return;
+  const D = song ? song.buf.duration : buf.duration, part = song && sec.len && buf !== song.buf;
+  const a0 = part ? Math.round((dragStart ?? secStart)/D*w) : 0, a1 = part ? Math.round(((dragStart ?? secStart) + (dragStart != null ? secLenNow() : buf.duration))/D*w) : w;
+  const spp = M.length/w, wave = css('--wave');
+  for(let x=0;x<w;x++){ let mx=0; const a=Math.floor(x*spp), b=Math.min(M.length,Math.floor((x+1)*spp)); for(let i=a;i<b;i+=4){ const v=Math.abs(M[i]); if(v>mx) mx=v; } const bh=Math.max(1,mx*h*0.9);
+    g.globalAlpha = (x >= a0 && x <= a1) ? 1 : 0.28; g.fillStyle = wave; g.fillRect(x,(h-bh)/2,1,bh); }
+  g.globalAlpha = 1;
+  if(part){ g.strokeStyle = css('--accent') || css('--drop'); g.lineWidth = 2*dpr; g.strokeRect(a0+dpr, dpr, Math.max(2, a1-a0-2*dpr), h-2*dpr); }
+  if(dragStart == null) plan.forEach(s=>{ g.fillStyle = css(TCOL[s.type]); g.fillRect(Math.round((secStart + s.start)/D*w),0,Math.max(2,dpr*1.5),h); });
 }
 // The sound of any file: the browser's own decoder first (MP3, M4A, WAV, AAC, MP4 ...). Safari cannot decode the sound of a
 // QuickTime .MOV (every iPhone video) that way, and decoding a big video whole would need it all in memory: for those,
@@ -551,29 +559,132 @@ async function decodeAnyAudio(file){
   } finally { try{ input.dispose(); }catch(e){} }
 }
 async function loadMusic(file){
-  const name = file.name;
+  const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
   stopAll();
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
-  try{ buf = await decodeAnyAudio(file); }
-  catch(e){ console.warn('song not readable', e); $('s1st').textContent = 'Could not read the sound of this file. Use MP3, M4A, WAV or a video with sound. (Songs in the Apple Music app are protected and cannot be opened by websites.)'; return; }
-  const token = ++musicToken;
-  musicKey = name + '|' + buf.duration.toFixed(2); capWords = null; capLines = null;
-  { const ch = buf.numberOfChannels, len = buf.length; mono = new Float32Array(len);
-    for(let c=0;c<ch;c++){ const d = buf.getChannelData(c); for(let i=0;i<len;i++) mono[i] += d[i]/ch; } }
+  let whole;
+  try{ whole = await decodeAnyAudio(file); }
+  catch(e){ if(token !== musicToken) return; console.warn('song not readable', e); $('s1st').textContent = 'Could not read the sound of this file. Use MP3, M4A, WAV or a video with sound. (Songs in the Apple Music app are protected and cannot be opened by websites.)'; return; }
+  if(token !== musicToken) return;
+  const m = new Float32Array(whole.length);
+  { const ch = whole.numberOfChannels; for(let c=0;c<ch;c++){ const d = whole.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ch; } }
+  song = { buf: whole, mono: m, r: null, name, key: name + '|' + whole.duration.toFixed(2) };
+  buf = whole; mono = m; secStart = 0; capWords = null; capLines = null; capAll = null;
   drawMusic();
   let r;
-  try{ r = await analyseInWorker(mono, buf.sampleRate); }
-  catch(err){ console.warn('song analysis worker unavailable, analysing on the page', err); await new Promise(rr=>setTimeout(rr,30)); r = songAnalysis(mono, buf.sampleRate); }
+  try{ r = await analyseInWorker(m, whole.sampleRate); }
+  catch(err){ console.warn('song analysis worker unavailable, analysing on the page', err); await new Promise(rr=>setTimeout(rr,30)); r = songAnalysis(m, whole.sampleRate); }
   if(token !== musicToken) return;   // another song was chosen meanwhile
-  applyAnalysis(r);
-  { let s=0,n=0; for(let i=0;i<mono.length;i+=64){ const v=mono[i]; if(Math.abs(v)>0.003){ s+=v*v; n++; } }
-    const rms = 10*Math.log10(s/Math.max(1,n)+1e-12); normGain = Math.pow(10, Math.max(-6, Math.min(9, -14 - rms))/20); }
-  $('mdur').textContent = fmt(buf.duration);
-  $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked');
-  if(sources.length) makeEdit();
+  song.r = r; song.source = 'own';
+  await useSection(token);
+  if(token !== musicToken) return;
+  $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked'); $('lenrow').hidden = false;
   checkBeatsWithAi(token);
   if(capsOn) loadCaptions();
 }
+
+/* ---- how much of the song: the whole song, or a part of 15 s / 30 s / 1 min / any length ----
+ * The whole song is analysed once (its beats are judged on all of its music); a part is cut out of it on whole beats,
+ * so the cut lands on the grid of the whole song. "Best part" picks the part itself: full and loud, the drop early (a
+ * hook in the first seconds), no quiet start; dragging on the waveform picks it by hand (snapped to the nearest beat). */
+let song = null, sec = { len: 0, auto: true, start: 0 }, secStart = 0, dragStart = null, secBusy = 0;
+const secLenNow = () => partBeats(sec.len).len;
+// whole beats nearest to the length asked (never longer by more than a few hundredths), whole bars when that costs at
+// most one beat; no steady beat: the length as asked
+function partBeats(L){
+  const r = song && song.r, p = r && r.period;
+  if(!p || !r.beats || r.beats.length < 8) return { n: 0, len: L };
+  let n = Math.floor((L + 0.05)/p); if(n % 4 && (n - n % 4) >= 4 && (n % 4) <= 1) n -= n % 4;
+  return { n: Math.max(4, n), len: Math.max(4, n)*p };
+}
+function bestPart(L){
+  const r = song.r, D = song.buf.duration, bt = r.beats || [], hs = r.hopSec, E = r.rmsF;
+  if(D <= L + 0.5) return 0;
+  const starts = bt.length >= 8 ? bt.filter(t => t + L <= D - 0.05) : Array.from({length: Math.floor((D-L)/0.5)+1}, (_,i)=>i*0.5);
+  if(!starts.length) return 0;
+  const eAt = (a, b) => { const fa = Math.max(0, Math.floor(a/hs)), fb = Math.min(E.length, Math.ceil(b/hs)); let s2 = 0; for(let f=fa; f<fb; f++) s2 += E[f]; return s2/Math.max(1, fb-fa); };
+  let eMax = 1e-9; const ew = starts.map(t => { const v = eAt(t, t+L); if(v > eMax) eMax = v; return v; });
+  const drops = (r.cuts || []).filter((c,k)=>r.cutType[k] === 'drop'), brk = (r.cuts || []).filter((c,k)=>r.cutType[k] === 'break');
+  // how hard each beat hits (a bar's first beat usually hits hardest): a part starts best on a strong one
+  const hit = t => eAt(t, t + 0.12), hMax = Math.max(1e-9, ...starts.map(hit));
+  let best = 0, bs = -Infinity;
+  starts.forEach((t, i) => {
+    const full = ew[i]/eMax, head = eAt(t, t + Math.min(2, L*0.15));
+    let sc = full;
+    // a drop on the part's first beat counts (it is found a few ms before or after its beat)
+    if(drops.some(d => d >= t - 0.12 && d <= t + 0.4*L)) sc += 0.35; else if(drops.some(d => d > t + 0.4*L && d < t + L)) sc += 0.12;
+    if(head < 0.55*ew[i]) sc -= 0.3;                                   // quiet start: no hook
+    if(brk.some(b => b > t && b < t + 0.25*L)) sc -= 0.15;              // a break right away
+    sc += 0.12*hit(t)/hMax - 0.04*t/D;                                  // a strong first beat; the first chorus over a later one
+    if(sc > bs){ bs = sc; best = t; }
+  });
+  return best;
+}
+function snapToBeat(t){ const bt = song.r.beats || []; if(bt.length < 8) return Math.max(0, t); let b = bt[0]; for(const x of bt) if(Math.abs(x - t) < Math.abs(b - t)) b = x; return b; }
+async function useSection(token = musicToken){
+  if(!song || !song.r) return;
+  const run = ++secBusy, W = song.buf, D = W.duration, sr = W.sampleRate;
+  let r;
+  if(!sec.len || sec.len >= D - 0.3){
+    buf = W; mono = song.mono; secStart = 0; r = song.r;
+  } else {
+    const pb = partBeats(sec.len), L = Math.min(pb.len, D);
+    let st = sec.auto ? bestPart(L) : snapToBeat(sec.start);
+    st = Math.max(0, Math.min(st, D - L)); sec.start = st;
+    const a = Math.round(st*sr), n = Math.min(W.length - a, Math.round(L*sr));
+    const part = getCtx().createBuffer(W.numberOfChannels, n, sr), fi = Math.round(0.006*sr), fo = Math.round(Math.min(0.35, L*0.05)*sr);
+    for(let c=0;c<W.numberOfChannels;c++){ const d = part.getChannelData(c); d.set(W.getChannelData(c).subarray(a, a+n));
+      for(let i=0;i<fi;i++) d[i] *= i/fi; for(let i=0;i<fo;i++) d[n-1-i] *= i/fo; }   // no click in, a short fade out
+    const m = song.mono.slice(a, a+n);
+    const given = (song.r.beats || []).filter(t => t >= st - 0.01 && t < st + L - 0.02).map(t => Math.max(0, t - st));
+    const opts = given.length >= 4 ? { forceBeats: given, forceSource: song.source } : {};
+    try{ r = await analyseInWorker(m, sr, opts); }catch(err){ r = songAnalysis(m, sr, opts); }
+    if(run !== secBusy || token !== musicToken) return;
+    // drops and breaks are judged on the whole song (a drop needs what came before it, which the part may not have; a
+    // part's own edges look like breaks): each cut of the part takes the kind of the whole song's cut at the same
+    // moment; one the whole song does not have is a plain cut; a part that starts on a drop starts with one
+    { const W2 = (song.r.cuts || []).map((c,k)=>({ t: c - st, ty: song.r.cutType[k], fx: song.r.cutFx[k] })).filter(c => c.t > -0.15 && c.t < L + 0.15);
+      const near = t => { let b = null, bd = 0.12; for(const c of W2){ const d = Math.abs(c.t - t); if(d < bd){ bd = d; b = c; } } return b; };
+      r = { ...r, cuts: r.cuts.slice(), cutType: r.cutType.slice(), cutFx: r.cutFx.slice() };
+      r.cuts.forEach((t,k)=>{ const w = near(t);
+        if(w){ r.cutType[k] = w.ty; r.cutFx[k] = w.fx; }
+        else if(r.cutType[k] === 'drop' || r.cutType[k] === 'break'){ r.cutType[k] = 'cut'; r.cutFx[k] = 'Hard cut'; } });
+      const d0 = W2.find(c => c.ty === 'drop' && Math.abs(c.t) < 0.12);
+      if(d0 && !(r.cuts.length && r.cuts[0] < 0.12)){ r.cuts.unshift(0); r.cutType.unshift('drop'); r.cutFx.unshift(d0.fx); } }
+    buf = part; mono = m; secStart = st;
+  }
+  musicKey = song.key + (secStart || buf !== W ? '@' + secStart.toFixed(2) + '+' + buf.duration.toFixed(2) : '');
+  applyAnalysis(r);
+  { let s=0,n=0; for(let i=0;i<mono.length;i+=64){ const v=mono[i]; if(Math.abs(v)>0.003){ s+=v*v; n++; } }
+    const rms = 10*Math.log10(s/Math.max(1,n)+1e-12); normGain = Math.pow(10, Math.max(-6, Math.min(9, -14 - rms))/20); }
+  $('mdur').textContent = fmt(buf.duration) + (buf !== W ? ' of ' + fmt(D) : '');
+  $('sinfo').textContent = sec.len && buf === W ? 'the song is ' + fmt(D).replace(/\.\d+$/,'') + ' long: all of it is used' : buf !== W ? fmt(secStart).replace(/\.\d+$/,'') + ' – ' + fmt(secStart + buf.duration).replace(/\.\d+$/,'') + (sec.auto ? ' · best part' : ' · your pick') : '';
+  pos = 0;
+  if(capsOn){ if(capAll && (secStart < capAll.from || secStart + buf.duration > capAll.from + 180)) loadCaptions(); else shiftCaptions(); }
+  if(sources.length && !recording) makeEdit();
+}
+function setLen(L){
+  if(recording) return;
+  sec.len = L; sec.auto = true;
+  [...$('slen').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === (L === 0 ? '0' : [15,30,60].includes(L) ? String(L) : 'c'))));
+  $('slencw').hidden = $('slen').querySelector('[data-l="c"]').getAttribute('aria-pressed') !== 'true';
+  $('sauto').hidden = !L; $('lenhint').hidden = !L; $('mwave').classList.toggle('drag', !!L);
+  if(playing) stopAll();
+  useSection();
+}
+$('slen').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return;
+  setLen(b.dataset.l === 'c' ? Math.max(5, Math.min(180, +$('slenc').value || 45)) : +b.dataset.l); }, SIG);
+$('slenc').addEventListener('change', () => setLen(Math.max(5, Math.min(180, +$('slenc').value || 45))), SIG);
+$('sauto').addEventListener('click', () => { sec.auto = true; if(playing) stopAll(); useSection(); }, SIG);
+// drag on the waveform: the part follows the finger, and is cut when let go
+{ const cv = $('mwave'); let grab = 0;
+  const tAt = ev => { const rc = cv.getBoundingClientRect(); return (ev.clientX - rc.left)/Math.max(1, rc.width)*song.buf.duration; };
+  cv.addEventListener('pointerdown', ev => { if(!song || !song.r || !sec.len || recording) return; const t = tAt(ev), L = secLenNow();
+    grab = (t >= secStart && t <= secStart + L) ? t - secStart : L/2; dragStart = Math.max(0, Math.min(song.buf.duration - L, t - grab));
+    cv.setPointerCapture(ev.pointerId); if(playing) stopAll(); drawMusic(); ev.preventDefault(); }, SIG);
+  cv.addEventListener('pointermove', ev => { if(dragStart == null) return; const L = secLenNow(); dragStart = Math.max(0, Math.min(song.buf.duration - L, tAt(ev) - grab)); drawMusic(); }, SIG);
+  const end = () => { if(dragStart == null) return; sec.start = dragStart; sec.auto = false; dragStart = null; useSection(); };
+  cv.addEventListener('pointerup', end, SIG); cv.addEventListener('pointercancel', end, SIG); }
 let beatInfo = { source: 'own', note: '' };
 function applyAnalysis(r){
   ({ period, phase, hopSec, rmsF, onEnv, onFps, onOff, hitsRaw, hitsStr, pfArr, beats, cuts, cutType, cutFx, peaks, peakS, barOff } = r);
@@ -585,8 +696,8 @@ function applyAnalysis(r){
 // device in the background; the analysis then keeps whichever beats land on stronger hits with a steadier pulse (each
 // tracker misses different songs) and the edit follows. The page stays usable; the first edit never waits for it.
 async function checkBeatsWithAi(token){
-  if(!aiBeats || !buf) return;
-  const sr = buf.sampleRate, m = mono, base = 'Ready';
+  if(!aiBeats || !song) return;
+  const sr = song.buf.sampleRate, m = song.mono, base = 'Ready';
   const say = t => { if(token === musicToken) $('s1st').textContent = t; };
   say(base + ' · checking the beats with the on-device AI…');
   let bt;
@@ -597,9 +708,12 @@ async function checkBeatsWithAi(token){
   try{ r = await analyseInWorker(m, sr, { beats: bt.beats }); } catch(err){ r = songAnalysis(m, sr, { beats: bt.beats }); }
   if(token !== musicToken) return;
   beatInfo = { source: r.beatSource, note: '', ms: bt.ms, judge: r.beatJudge, ai: bt };
-  applyAnalysis(r);
+  song.r = r; song.source = r.beatSource;
+  const was = playing && !recording;
+  await useSection(token);
+  if(token !== musicToken) return;
   say(base + (r.beatSource === 'ai' ? ' · beats confirmed by the on-device AI (Beat This!)' : ' · beats double-checked: the AI agrees or fits less well, kept'));
-  if(sources.length && !recording){ const was = playing; makeEdit(); if(was) showMsg('The beats were refined, the edit follows them. Press Preview again.'); }
+  if(sources.length && was) showMsg('The beats were refined, the edit follows them. Press Preview again.');
 }
 $('mpick').onclick = () => $('mfile').click();
 $('mfile').addEventListener('change', e=>{ const f=e.target.files[0]; e.target.value=''; if(f) loadMusic(f); });
@@ -1764,9 +1878,9 @@ function drawCaptions(t){
 }
 function drawText(t){ drawHook(t); drawCaptions(t); }
 // the song as speech recognition wants it: 16 kHz mono, the vocal band (drums and bass mostly out), normalised, as WAV
-async function songWav(){
-  const sr = buf.sampleRate, len = Math.min(mono.length, Math.round(180*sr)), n16 = Math.max(1, Math.ceil(len*16000/sr));
-  const oc = new OfflineAudioContext(1, n16, 16000), b = oc.createBuffer(1, len, sr); b.copyToChannel(mono.slice(0, len), 0);
+async function songWav(src = mono, sr = buf.sampleRate, from = 0){
+  const a = Math.round(from*sr), len = Math.min(src.length - a, Math.round(180*sr)), n16 = Math.max(1, Math.ceil(len*16000/sr));
+  const oc = new OfflineAudioContext(1, n16, 16000), b = oc.createBuffer(1, len, sr); b.copyToChannel(src.slice(a, a + len), 0);
   const s2 = oc.createBufferSource(); s2.buffer = b;
   const hp = oc.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 150;
   const lp = oc.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
@@ -1778,20 +1892,30 @@ async function songWav(){
   for(let i=0;i<y.length;i++) dv.setInt16(44 + i*2, Math.max(-32768, Math.min(32767, Math.round(y[i]*gain*32767))), true);
   return dv.buffer;
 }
-const capCache = new Map(); let musicKey = '';
+const capCache = new Map(); let musicKey = '', capAll = null;
+// The words are transcribed once for the whole song (up to 3 minutes, from where the part starts if it starts later)
+// and the part's words are taken from them: changing the part costs nothing and the words keep their sung timing.
+function shiftCaptions(){
+  if(!capAll) return;
+  const a = secStart - capAll.from, L = buf.duration;
+  capWords = capAll.words.filter(w => w.end > a + 0.05 && w.start < a + L - 0.05).map(w => ({ ...w, start: Math.max(0, w.start - a), end: Math.min(L, w.end - a) }));
+  capLines = buildCapLines(capWords); redraw();
+}
 function capStat(t, err){ const el = $('capstat'); el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
 async function loadCaptions(){
   if(!capsOn || !buf) return;
-  const lang = $('caplang').value, key = musicKey + '|' + lang, token = musicToken;
-  if(capCache.has(key)){ capWords = capCache.get(key); capLines = buildCapLines(capWords); capStat(capWords.length + ' words'); redraw(); return; }
+  const W = song ? song.buf : buf, M = song ? song.mono : mono, sr = W.sampleRate;
+  const from = secStart + buf.duration > 179 ? secStart : 0;   // a part past 3 minutes: from where it starts
+  const lang = $('caplang').value, key = (song ? song.key : musicKey) + '|' + from.toFixed(2) + '|' + lang, token = musicToken;
+  if(capCache.has(key)){ capAll = capCache.get(key); shiftCaptions(); capStat(capWords.length + ' words'); return; }
   capStat('Listening to the words of the song…');
   try{
-    const wav = await songWav();
+    const wav = await songWav(M, sr, from);
     const r = await fetch('/api/studio/transcribe?lang=' + encodeURIComponent(lang), { method:'POST', headers:{'Content-Type':'audio/wav'}, body: wav, signal: ac.signal });
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Captions failed (' + r.status + ').'));
     if(token !== musicToken) return;
-    capWords = Array.isArray(res.words) ? res.words : []; capCache.set(key, capWords); capLines = buildCapLines(capWords);
+    capAll = { from, words: Array.isArray(res.words) ? res.words : [] }; capCache.set(key, capAll); shiftCaptions();
     capStat(capWords.length ? capWords.length + ' words found' + (res.language && res.language !== 'auto' ? ' (' + res.language + ')' : '') + (res.charged ? ' · ' + res.charged + ' credit' + (res.charged > 1 ? 's' : '') : '') : 'No words in this song (instrumental?)');
     redraw();
   }catch(err){ if(!(err && err.name === 'AbortError')) capStat('Captions are not available right now: ' + (err && err.message ? err.message : err), true); }
@@ -2648,7 +2772,7 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
-root.__studio = { get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
