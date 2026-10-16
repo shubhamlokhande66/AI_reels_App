@@ -108,6 +108,14 @@ export const STUDIO_HTML = `
           <input id="hook" type="text" maxlength="40" placeholder="e.g. WAIT FOR THE DROP">
           <span class="label">Text style</span>
           <div class="seg" id="tstyle"><button data-t="pop" aria-pressed="true">Pop</button><button data-t="karaoke" aria-pressed="false">Karaoke</button><button data-t="box" aria-pressed="false">Box</button><button data-t="clean" aria-pressed="false">Clean</button></div>
+          <span class="label">Text &amp; stickers</span>
+          <div class="row ovadd">
+            <button class="btn" id="ovtext" type="button">+ Text</button><button class="btn" id="ovsticker" type="button">+ Sticker</button>
+            <select id="ovpreset" aria-label="Ready-made text"><option value="">+ Ready-made…</option><option value="price">Price tag ₹</option><option value="follow">Follow for more</option><option value="save">Save this</option><option value="step1">Step 1</option><option value="before">BEFORE</option><option value="after">AFTER</option><option value="ganpati">गणपती बाप्पा मोरया</option><option value="diwali">शुभ दीपावली</option><option value="hdiwali">Happy Diwali</option></select>
+          </div>
+          <div class="emojis" id="emojis" hidden></div>
+          <div class="ovlist" id="ovlist"></div>
+          <p class="hint" id="ovhint" hidden>Drag a text or sticker on the preview to move it. Pause the preview where it should start or end.</p>
           <label class="tog" id="capwrap" hidden><input type="checkbox" id="caps"> Captions: the words of the song, word by word</label>
           <div class="row" id="caprow" hidden><select id="caplang" aria-label="Language of the song"><option value="">Language: detect</option><option value="hi">Hindi</option><option value="mr">Marathi</option><option value="en">English</option><option value="gu">Gujarati</option><option value="pa">Punjabi</option><option value="bn">Bengali</option><option value="ta">Tamil</option><option value="te">Telugu</option></select><span class="fname" id="capstat"></span></div>
           <span class="label">Look</span>

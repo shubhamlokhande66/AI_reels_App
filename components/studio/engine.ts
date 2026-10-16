@@ -2015,7 +2015,140 @@ function drawCaptions(t){
     drawWord(og, w, fs, textStyle, state, a, sc);
   });
 }
-function drawText(t){ drawHook(t); drawCaptions(t); }
+function drawText(t){ drawHook(t); drawCaptions(t); drawOverlays(t); }
+/* ---- text & stickers: anything the creator writes on the Reel ----
+ * Each item: text or an emoji, a style (bold outline / box / neon / clean / tag), a colour, an entrance (pop / fade /
+ * slide up / typewriter / none, with a short fade out), a time (from / to, or the whole Reel), a place (dragged on the
+ * preview, kept inside Instagram's safe area) and a size. Drawn into the frame, so the export has them; Hindi and Marathi
+ * are shaped by the Devanagari font stack. Ready-made: a price tag, a follow / save prompt, steps, before / after,
+ * festival greetings. */
+let overlays = [], ovSeq = 0, ovSel = -1;
+const OV_COLORS = ['#FFFFFF', '#FFD54A', '#FF4D4D', '#3DDC84', '#4DA3FF', '#FF6FD8', '#111111'];
+const OV_STYLES = { bold: 'Bold', box: 'Box', neon: 'Neon', clean: 'Clean', tag: 'Tag' };
+const OV_ANIMS = { pop: 'Pop', fade: 'Fade', slide: 'Slide up', type: 'Typewriter', none: 'None' };
+const OV_EMOJI = ['🔥','😂','😍','👇','👉','✅','❌','⭐','💯','🎉','❤️','👀','🙏','🪔','🌺','🎵','📍','💰','⚡','😱'];
+const OV_PRESETS = {
+  price:   { text: '₹999 only', style: 'tag', color: '#FFD54A', y: 0.62, size: 1 },
+  follow:  { text: 'Follow for more 👉', style: 'box', color: '#FF4D4D', y: 0.66, size: 0.85, end: true },
+  save:    { text: 'Save this for later 📌', style: 'box', color: '#4DA3FF', y: 0.66, size: 0.85, end: true },
+  step1:   { text: 'Step 1', style: 'box', color: '#FFD54A', y: 0.2, size: 0.9 },
+  before:  { text: 'BEFORE', style: 'box', color: '#111111', y: 0.2, size: 0.9 },
+  after:   { text: 'AFTER', style: 'box', color: '#3DDC84', y: 0.2, size: 0.9 },
+  ganpati: { text: 'गणपती बाप्पा मोरया 🌺', style: 'neon', color: '#FFD54A', y: 0.28, size: 1, all: true },
+  diwali:  { text: 'शुभ दीपावली 🪔', style: 'neon', color: '#FFD54A', y: 0.28, size: 1, all: true },
+  hdiwali: { text: 'Happy Diwali 🪔', style: 'neon', color: '#FFD54A', y: 0.28, size: 1, all: true },
+};
+const reelLen = () => (buf ? buf.duration : 0);
+function addOverlay(o){
+  const L = reelLen(), now = Math.max(0, Math.min(L - 0.5, (playing ? curTime() : pos) || 0));
+  const t0 = o.all ? 0 : o.end ? Math.max(0, L - 3) : now, t1 = o.all ? L : o.end ? L : Math.min(L, t0 + 3);
+  const ov = { id: ++ovSeq, text: o.text || '', emoji: !!o.emoji, style: o.style || 'bold', color: o.color || '#FFFFFF', anim: o.anim || (o.emoji ? 'pop' : 'pop'),
+    t0, t1, x: o.x ?? 0.5, y: o.y ?? 0.4, size: o.size || 1, all: !!o.all };
+  overlays.push(ov); ovSel = overlays.length - 1; renderOvList(); redraw();
+  return ov;
+}
+function ovTiming(ov){ const L = reelLen(); return ov.all ? [0, L] : [Math.max(0, Math.min(ov.t0, L)), Math.max(0, Math.min(ov.t1, L))]; }
+// one item at time t; its box is kept (fractions of the frame) for picking it on the preview
+function drawOverlay(g, ov, t){
+  const [a, b] = ovTiming(ov); if(!(t >= a && t < b)) return;
+  const W = out.width, H = out.height, base = Math.min(W, H*0.5625), since = t - a, left = b - t;
+  const fs = Math.round(base*(ov.emoji ? 0.16 : 0.075)*ov.size);
+  let alpha = Math.min(1, left/0.15), sc = 1, dy = 0, txt = ov.emoji ? ov.text : (isIndic(ov.text) ? ov.text : ov.text);
+  if(!coverMode){
+    if(ov.anim === 'pop'){ const q = Math.min(1, since/0.22); sc = 0.6 + 0.4*EASE.outBack(q); alpha *= Math.min(1, since/0.08); }
+    else if(ov.anim === 'fade') alpha *= Math.min(1, since/0.35);
+    else if(ov.anim === 'slide'){ const q = Math.min(1, since/0.3); dy = (1 - EASE.outCubic(q))*fs*1.2; alpha *= q; }
+    else if(ov.anim === 'type'){ const chars = [...txt]; txt = chars.slice(0, Math.max(1, Math.ceil(since/0.05))).join(''); }
+    if(ov.emoji) sc *= 1 + 0.05*Math.sin(t*6);   // stickers breathe a little
+  }
+  g.save(); g.globalAlpha = Math.max(0, alpha);
+  g.font = ov.emoji ? `${fs}px "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif` : fontFor(ov.text, fs, ov.style === 'clean' ? 600 : 800);
+  g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  const lines = ov.emoji ? [txt] : wrapLines(g, txt, W*0.82), lh = fs*1.18;
+  const tw = Math.max(...lines.map(l => g.measureText(l).width), fs*0.6), th = lh*lines.length;
+  // the place: inside the safe area (top 220 and bottom 450 of 1920 are Instagram's)
+  const top = H*(220/1920) + th/2 + fs*0.3, bot = H*(1 - 450/1920) - th/2 - fs*0.3;
+  const cx = Math.max(tw/2 + W*0.05, Math.min(W - tw/2 - W*0.05, ov.x*W)), cy = Math.max(top, Math.min(bot, ov.y*H)) + dy;
+  ov.box = [(cx - tw/2 - fs*0.4)/W, (cy - th/2 - fs*0.3)/H, (tw + fs*0.8)/W, (th + fs*0.6)/H];
+  g.translate(cx, cy); g.scale(sc, sc);
+  const dark = c => { const n = parseInt(c.slice(1), 16); return ((n>>16)*0.299 + ((n>>8)&255)*0.587 + (n&255)*0.114) < 140; };
+  if(!ov.emoji && (ov.style === 'box' || ov.style === 'tag')){
+    const tag = ov.style === 'tag', pw = tw + fs*(tag ? 1.05 : 0.6), ph = th + fs*0.36, r = tag ? fs*0.5 : fs*0.2;
+    g.fillStyle = ov.color; g.beginPath(); g.roundRect ? g.roundRect(-pw/2, -ph/2, pw, ph, r) : g.rect(-pw/2, -ph/2, pw, ph); g.fill();
+    if(tag){ g.fillStyle = dark(ov.color) ? '#fff' : '#111'; g.beginPath(); g.arc(-pw/2 + fs*0.36, 0, fs*0.1, 0, Math.PI*2); g.fill(); g.translate(fs*0.24, 0); }   // the tag's hole, left of the text
+    g.fillStyle = dark(ov.color) ? '#fff' : '#111';
+    lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh + fs*0.03));
+  } else if(!ov.emoji && ov.style === 'neon'){
+    g.shadowColor = ov.color; g.shadowBlur = fs*0.6; g.fillStyle = '#fff';
+    lines.forEach((l, k) => { const y = (k - (lines.length-1)/2)*lh; g.fillText(l, 0, y); g.fillText(l, 0, y); });
+    g.shadowBlur = 0; g.lineWidth = fs*0.04; g.strokeStyle = ov.color; lines.forEach((l, k) => g.strokeText(l, 0, (k - (lines.length-1)/2)*lh));
+  } else if(!ov.emoji && ov.style === 'clean'){
+    g.shadowColor = 'rgba(0,0,0,0.55)'; g.shadowBlur = fs*0.25; g.fillStyle = ov.color;
+    lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh));
+  } else {
+    if(!ov.emoji){ g.lineWidth = fs*0.16; g.strokeStyle = dark(ov.color) ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.88)'; lines.forEach((l, k) => g.strokeText(l, 0, (k - (lines.length-1)/2)*lh)); }
+    g.shadowColor = 'rgba(0,0,0,0.4)'; g.shadowBlur = fs*0.18; g.fillStyle = ov.color;
+    lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh));
+  }
+  g.restore();
+  if(ovSel >= 0 && overlays[ovSel] === ov && !recording && !exporting && !coverMode){   // the one being edited: a dashed frame
+    const [bx, by, bw, bh] = ov.box; g.save(); g.setLineDash([10, 8]); g.lineWidth = 3; g.strokeStyle = 'rgba(255,213,74,0.95)'; g.strokeRect(bx*W, by*H, bw*W, bh*H); g.restore(); }
+}
+function drawOverlays(t){ for(const ov of overlays) drawOverlay(og, ov, t); }
+// the list under "Text & stickers": edit the words, style, colour, entrance, size, when it shows
+function renderOvList(){
+  const box = $('ovlist'); box.innerHTML = '';
+  overlays.forEach((ov, i) => {
+    const row = document.createElement('div'); row.className = 'ov' + (i === ovSel ? ' sel' : '');
+    const [a, b] = ovTiming(ov);
+    row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Remove" aria-label="Remove">×</button></div>
+      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ova" aria-label="Entrance"></select><span class="ovc"></span>
+      <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
+      <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label></div>`;
+    const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
+    ti.addEventListener('input', () => { ov.text = ti.value; redraw(); });
+    const ss = row.querySelector('.ovs'), sa = row.querySelector('.ova');
+    if(ov.emoji) ss.hidden = true;
+    Object.entries(OV_STYLES).forEach(([k, v]) => ss.add(new Option(v, k, false, k === ov.style)));
+    Object.entries(OV_ANIMS).forEach(([k, v]) => sa.add(new Option(v, k, false, k === ov.anim)));
+    ss.addEventListener('change', () => { ov.style = ss.value; redraw(); }); sa.addEventListener('change', () => { ov.anim = sa.value; redraw(); });
+    const cs = row.querySelector('.ovc'); if(ov.emoji) cs.hidden = true;
+    OV_COLORS.forEach(c => { const b2 = document.createElement('button'); b2.className = 'sw' + (c === ov.color ? ' on' : ''); b2.style.background = c; b2.title = c; b2.setAttribute('aria-label', 'Colour ' + c);
+      b2.addEventListener('click', () => { ov.color = c; [...cs.children].forEach(x => x.classList.toggle('on', x === b2)); redraw(); }); cs.appendChild(b2); });
+    const sz = row.querySelector('.ovsz input'); sz.value = ov.size; sz.addEventListener('input', () => { ov.size = +sz.value; redraw(); });
+    const tm = row.querySelector('.ovtm'), showT = () => { const [x, y] = ovTiming(ov); tm.textContent = ov.all ? 'whole Reel' : fmt(x) + ' → ' + fmt(y); };
+    showT();
+    const now = () => Math.max(0, Math.min(reelLen(), playing ? curTime() : pos || 0));
+    row.querySelector('.ovfrom').addEventListener('click', () => { ov.all = false; ov.t0 = now(); if(ov.t1 <= ov.t0 + 0.3) ov.t1 = Math.min(reelLen(), ov.t0 + 3); row.querySelector('.ovall').checked = false; showT(); redraw(); });
+    row.querySelector('.ovto').addEventListener('click', () => { ov.all = false; ov.t1 = Math.max(now(), ov.t0 + 0.3); row.querySelector('.ovall').checked = false; showT(); redraw(); });
+    const al = row.querySelector('.ovall'); al.checked = ov.all; al.addEventListener('change', () => { ov.all = al.checked; showT(); redraw(); });
+    row.querySelector('.ovdel').addEventListener('click', () => { overlays.splice(i, 1); ovSel = -1; renderOvList(); redraw(); });
+    row.addEventListener('focusin', () => { if(ovSel !== i){ ovSel = i; [...box.children].forEach((r, k) => r.classList.toggle('sel', k === i)); redraw(); } });
+    box.appendChild(row);
+  });
+  $('ovhint').hidden = !overlays.length; out.classList.toggle('ovdrag', overlays.length > 0);   // drag texts; otherwise the page scrolls over the preview
+}
+$('ovtext').addEventListener('click', () => { const ov = addOverlay({ text: 'Your text', style: 'bold', color: '#FFFFFF', y: 0.4 }); const inp = $('ovlist').lastElementChild.querySelector('.ovt'); inp.focus(); inp.select(); }, SIG);
+$('ovsticker').addEventListener('click', () => { $('emojis').hidden = !$('emojis').hidden; }, SIG);
+OV_EMOJI.forEach(em => { const b = document.createElement('button'); b.textContent = em; b.className = 'em'; b.setAttribute('aria-label', 'Sticker ' + em);
+  b.addEventListener('click', () => { addOverlay({ text: em, emoji: true, y: 0.5, x: 0.72, size: 1 }); $('emojis').hidden = true; }); $('emojis').appendChild(b); });
+$('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.value]; e.target.value = ''; if(p) addOverlay(p); }, SIG);
+// drag on the preview: the item under the finger moves with it (a tap selects it)
+{ let drag = null;
+  const at = ev => { const r = out.getBoundingClientRect(); return [(ev.clientX - r.left)/r.width, (ev.clientY - r.top)/r.height]; };
+  out.addEventListener('pointerdown', ev => {
+    if(recording || !overlays.length) return;
+    const [x, y] = at(ev), t = playing ? curTime() : pos || 0;
+    for(let i = overlays.length - 1; i >= 0; i--){ const ov = overlays[i], [a, b] = ovTiming(ov); if(!ov.box || !(t >= a && t < b)) continue;
+      const [bx, by, bw, bh] = ov.box; if(x >= bx && x <= bx + bw && y >= by && y <= by + bh){
+        drag = { i, dx: x - ov.x, dy: y - ov.y }; ovSel = i; out.setPointerCapture(ev.pointerId); renderOvList(); ev.preventDefault(); redraw(); return; } }
+    if(ovSel >= 0){ ovSel = -1; renderOvList(); redraw(); }
+  }, SIG);
+  out.addEventListener('pointermove', ev => { if(!drag) return; const [x, y] = at(ev), ov = overlays[drag.i]; if(!ov) return;
+    ov.x = Math.max(0.05, Math.min(0.95, x - drag.dx)); ov.y = Math.max(0.05, Math.min(0.95, y - drag.dy)); redraw(); }, SIG);
+  const end = () => { drag = null; };
+  out.addEventListener('pointerup', end, SIG); out.addEventListener('pointercancel', end, SIG); }
+
 // the song as speech recognition wants it: 16 kHz mono, the vocal band (drums and bass mostly out), normalised, as WAV
 async function songWav(src = mono, sr = buf.sampleRate, from = 0){
   const a = Math.round(from*sr), len = Math.min(src.length - a, Math.round(180*sr)), n16 = Math.max(1, Math.ceil(len*16000/sr));
@@ -2911,7 +3044,7 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
-root.__studio = { get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get overlays(){ return overlays; }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
