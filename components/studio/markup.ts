@@ -7,6 +7,11 @@ export const STUDIO_HTML = `
       the best moments (sharp, faces, action) are picked, effects run on the GPU, and you export a 1080p MP4. Nothing is uploaded.</p>
   </header>
 
+  <div class="projects" id="projects" hidden>
+    <div class="row"><span class="label">Your Reels (saved on this phone)</span><button class="btn mini" id="pnew" type="button">+ New Reel</button><span class="fname" id="psaved"></span></div>
+    <div class="plist" id="plist"></div>
+  </div>
+
   <div class="row kindrow">
     <span class="label">What are you making?</span>
     <div class="seg" id="kind" role="group" aria-label="Kind of Reel">

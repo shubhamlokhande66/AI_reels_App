@@ -332,3 +332,16 @@ face in 15/15 looks in both clips, 1.1% and 0.6% of the width from the true cent
 and 6.0%). Green background: 100% of the background corners green, 0% of the face, the face's pixels unchanged; blur:
 the corners' detail 5 → 0.2, the face unchanged; a text across the face: 41% visible over the face in front, 0% behind
 the person, the same beside it; the exported video: corners green, face not.
+
+## Saved Reels (on the phone)
+
+Every Reel is saved on the phone a few seconds after anything changes (IndexedDB, which every browser has; nothing is
+uploaded): its song and clips (each file once, shared by the Reels that use it), the settings, the exact edit (each
+shot's moment, transition, effect and speed; talking videos are rebuilt from their settings), the texts, the part of the
+song and the captions already transcribed. "Your Reels" lists them with a thumbnail; opening one reloads the page into
+it; × deletes it and the files no other Reel uses. The browser is asked to keep the storage (`navigator.storage.persist`).
+Note: iPhone Safari may clear a website's storage after 7 days without a visit unless the site is added to the home screen.
+
+Checked (`scripts/studio-projects`): a Reel with a hand-picked 15 s part, the Cinematic look, a text, a transition changed
+by hand and captions, left and opened again: the same 21 shots, the same transition, text, part and look, the same picture
+at 3.3 s (pixel hash), no new transcription; deleted: no Reels and 0 files left.

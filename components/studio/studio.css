@@ -110,3 +110,12 @@
 .brs .ovsz input{width:90px}
 .brs .btn.mini{padding:6px 10px;font-size:13px}
 .brs #out.ovdrag{touch-action:none}
+.brs .projects{display:grid;gap:8px;margin:0 0 14px}
+.brs .plist{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+.brs .proj{position:relative;flex:0 0 auto}
+.brs .popen{display:grid;gap:4px;width:118px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer;text-align:left}
+.brs .proj.cur .popen{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.brs .popen img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:6px;background:var(--chip)}
+.brs .pname{font:600 13px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brs .pmeta{font-size:11px;color:var(--muted)}
+.brs .pdel{position:absolute;top:2px;right:2px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer}
