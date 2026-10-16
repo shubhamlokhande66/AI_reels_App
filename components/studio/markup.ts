@@ -107,6 +107,13 @@ export const STUDIO_HTML = `
           <button class="btn" id="cover" disabled>Cover image</button>
         </div>
         <div class="row vorow" id="vorow" style="justify-content:center"><button class="btn" id="vorec" type="button">🎙 Record voiceover</button><button class="btn mini" id="vodel" type="button" hidden>Remove voiceover</button><label class="tog"><input type="checkbox" id="dn2" checked> 🧹 Clean up noise</label><span class="fname" id="vostat"></span></div>
+        <details class="kfbox" id="kfbox"><summary>◆ Keyframes: move, zoom, turn, fade a shot or a text</summary>
+          <div class="kfhead"><span class="fname" id="kftarget"></span><select id="kfpreset" aria-label="Ready-made move"><option value="">Ready-made move…</option></select></div>
+          <canvas id="kftl" class="kftl" aria-label="Keyframes of the shot or text; tap to move the playhead"></canvas>
+          <div class="row kfbtns"><button class="btn mini" id="kfprev" type="button" aria-label="Previous keyframe">◀ ◆</button><button class="btn mini" id="kfadd" type="button">◇ Add keyframe</button><button class="btn mini" id="kfnext" type="button" aria-label="Next keyframe">◆ ▶</button><select id="kfease" aria-label="Ease into this keyframe"></select><button class="btn mini" id="kfdel" type="button">Delete ◆</button><button class="btn mini" id="kfclear" type="button">Clear all</button></div>
+          <div class="kfsliders" id="kfsliders"></div>
+          <p class="hint"><span id="kfinfo"></span>. Tap a text or sticker to animate it, otherwise the shot under the playhead. Pause where the move starts and set it; move the playhead and set it again. Drag the picture to move it. Double-tap a slider to reset it.</p>
+        </details>
         <div class="msg" id="xmsg" hidden></div>
         <div class="row" id="saverow" hidden style="justify-content:center"><button class="btn hot" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
         <div class="opts">
