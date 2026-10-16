@@ -424,3 +424,25 @@ part afterwards: no new request).
 Checked (`scripts/studio-music/check-mymusic.cjs`): a song analysed and AI-checked in 23.5 s the first time, picked again
 from Recent after reopening the page in 0.31 s with the same beats; two songs listed newest first; the export without the
 song has a video stream only, and its message names the song and 0:17 (the 15 s part's start); removing one works.
+
+## Style library: learning from reference Reels
+
+- **Save a style**: after "Copy a Reel" reads a Reel, "Save to my styles" under a kind (wedding, travel, festival, dance,
+  talking, product, food, fitness, vlog, birthday, other), optionally shared. Only the measured fingerprint is stored
+  (MongoDB `studio_styles`, ~1 KB: pace in beats, shot-by-shot beats, hook, transition mix, zoom share, colour look,
+  length), never the video. Mine are private (the user's view of the database); shared ones also teach everyone's.
+- **Learned style**: "Learned style" → a kind → Mine / With shared → Use. The server learns what the Reels of the kind
+  share (`server/studio/styles.ts`): typical numbers (medians), the average transition mix and look, and the rhythm of the
+  most typical Reel among them; the phone then copies it like a reference Reel (pace, transitions, zooms, matched look).
+- **Corrections**: every transition / effect / speed changed in the edit list is sent (`studio_style_edits`), and the
+  creator's own transition changes move the learned mix toward what they pick.
+- **Accuracy**: leave-one-out: each Reel of the kind is predicted from the others and compared (pace, transitions, zooms,
+  look), next to the app's default style; shown with the style ("predicts a new dance Reel 91% (default 42%)").
+
+Checked: `tests/server/studio-styles.test.ts` (7): synthetic wedding and dance Reels, learned styles 0.85-0.96 against the
+default's 0.34-0.45 (3 to 30 Reels), 400/400 new Reels closer to their own kind's style, corrections move the mix,
+fingerprints validated (no video, known kinds, bounded sizes), storage: mine private, shared ones teach others, corrections
+stay with their creator, nobody deletes another's style. `scripts/studio-style/check-library.cjs` (phone, server stood
+in): a real reference Reel saved as a 1,070-byte fingerprint (46% whip, 46% zoom, 8% hard: its truth is half whips, half
+zooms); a learned dance style used: median shot 0.50 s = 1 beat, transitions 46% flash / 35% whip / 20% hard (learned
+45/35/20); a changed transition sent as a correction.
