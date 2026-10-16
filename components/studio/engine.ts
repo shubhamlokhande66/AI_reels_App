@@ -1938,7 +1938,7 @@ function drawShot(g, e, local, o={}){
   const W=out.width, H=out.height, v=texOf(e), L=e.end-e.start;
   if(!v || v.readyState<2) return;
   const K = e.kf || {};
-  let scale = (kf(K.scale,local) ?? 1) * (o.scale||1);
+  let scale = (kf(K.scale,local) ?? 1) * (o.scale||1) * (o.noFx ? 1 : emphAt(e.start + local));
   let x = (kf(K.x,local) ?? 0)*W + (o.dx||0), y = (o.dy||0), rot = (kf(K.rot,local) ?? 0) + (o.rot||0);
   const sh = kf(K.shake,local) || 0;
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
@@ -2058,17 +2058,52 @@ function drawCaptions(t){
   const hookUp = hookText && t < 2.6, fy = faceYOnScreen(t);
   let cy = H*(H>W ? 0.70 : 0.78);                                                  // above Instagram's caption / username
   if(fy !== null && fy > 0.52 && fy < 0.86 && !hookUp) cy = H*(H>W ? 0.36 : 0.3);  // a face is there: move up
-  const L = layoutWords(og, line.words.map(w=>({t:w.text, s:w.start, e:w.end})), fs, W*0.78, cy, fs*1.25);
+  const L = layoutWords(og, line.words.map(w=>({t: w.key && w.emoji ? w.text + ' ' + w.emoji : w.text, s:w.start, e:w.end, key: w.key})), fs, W*0.78, cy, fs*1.25);
   const lineIn = Math.min(1, (t - line.a)/0.12), lineOut = Math.max(0, (t - (line.b - 0.15))/0.15), la = lineIn*(1-lineOut);
   L.forEach(w=>{
-    const sung = t >= w.s, cur = sung && t < Math.max(w.e, w.s + 0.12), state = cur ? 1 : sung ? 2 : 0;
-    let a = la, sc = 1;
+    const sung = t >= w.s, cur = sung && t < Math.max(w.e, w.s + 0.12), state = w.key && sung ? 1 : cur ? 1 : sung ? 2 : 0;
+    let a = la, sc = w.key && sung ? 1.16 : 1;
     if(textStyle === 'pop'){ if(!sung) return; const since = t - w.s; a *= Math.min(1, since/0.06); sc = 0.7 + 0.3*EASE.outBack(Math.min(1, since/0.16)); }
     else if(textStyle === 'karaoke' && cur) sc = 1.08;
     drawWord(og, w, fs, textStyle, state, a, sc);
   });
 }
 function drawText(t){ drawHook(t); drawCaptions(t); drawOverlays(t); }
+/* ---- captions for talking: the key word of each line, highlighted, and a zoom punch on it ----
+ * In talking videos and voiceovers one word per caption line is the key word: the one said hardest (its loudness against
+ * the line's) that is not a small word, numbers and long words counting a little more. It is drawn in the accent colour,
+ * bigger, with an emoji when one fits, and the picture punches in on it (8% over 0.12 s, eased back over 0.6 s). */
+let keyOn = true;
+const STOP = new Set('a an the and or but so to of in on at for with from by is are was were be been am i you he she it we they me my your our this that these those do does did not no yes just very really then than if as up out about into over also can will would there here what when how why who all any some more most much many one'.split(' ')
+  .concat('है हैं था थी थे और या के की का को में से पर यह वह ये वो तो भी ही ना न हाँ आणि हे ते ती तो आहे आहेत होता होती चा ची चे ला ने मध्ये पण तर ही'.split(' ')));
+const EMOJI = [[/money|paisa|rupee|₹|पैसा|पैसे|रुपये/i, '💰'], [/love|pyaar|प्यार|प्रेम/i, '❤️'], [/tip|idea|trick|hack|secret/i, '💡'], [/fire|hot|viral/i, '🔥'],
+  [/fast|quick|speed|जल्दी|लवकर/i, '⚡'], [/food|eat|recipe|खाना|जेवण/i, '🍲'], [/win|best|top|great|amazing|बेस्ट/i, '🏆'], [/wrong|mistake|never|गलत|चूक/i, '❌'], [/right|correct|always|सही|बरोबर/i, '✅'],
+  [/time|minute|second|समय|वेळ/i, '⏰'], [/hook|start|first/i, '👀'], [/short|small/i, '✂️'], [/caption|text|write/i, '✍️'], [/ganpati|bappa|गणपती|बाप्पा/i, '🌺'], [/diwali|दिवाळी|दीवाली|दिवाली/i, '🪔']];
+function speakingVoice(){ if(kind === 'talk' && talk) return { x: talk.voice, sr: talk.sr }; if(vo) return { x: vo.pcm, sr: vo.sr }; return null; }
+function markKeyWords(lines){
+  const V = speakingVoice(); if(!lines) return;
+  const loud = w => { if(!V) return 0; const a = Math.max(0, Math.floor(w.start*V.sr)), b = Math.min(V.x.length, Math.ceil(Math.max(w.end, w.start + 0.08)*V.sr)); let s2 = 0; for(let i=a;i<b;i+=4) s2 += V.x[i]*V.x[i]; return Math.sqrt(s2/Math.max(1, (b-a)/4)); };
+  for(const L of lines){
+    L.words.forEach(w => { w.key = false; w.emoji = ''; });
+    if(!keyOn || !V) continue;
+    const cands = L.words.map(w => { const t = String(w.text).replace(/[.,!?।"'“”]/g, ''), low = t.toLowerCase();
+      if(!t || STOP.has(low) || (t.length < 3 && !/\d/.test(t))) return null;
+      return { w, sc: loud(w)*(1 + 0.08*Math.min(8, [...t].length)) * (/\d|₹/.test(t) ? 1.4 : 1) }; }).filter(Boolean);
+    if(!cands.length) continue;
+    const top = cands.reduce((q, c) => c.sc > q.sc ? c : q, cands[0]);
+    top.w.key = true; const em = EMOJI.find(([re]) => re.test(top.w.text)); top.w.emoji = em ? em[1] : '';
+  }
+}
+// the zoom punch at time t: 1 when there is none
+function emphAt(t){
+  if(!keyOn || !capsOn || !capLines || !speakingVoice()) return 1;
+  let z = 1;
+  for(const L of capLines){ if(L.a > t + 0.01 || L.b < t - 1) continue; for(const w of L.words){ if(!w.key) continue; const d = t - w.start; if(d < 0 || d > 0.72) continue;
+    z = Math.max(z, d < 0.12 ? 1 + 0.08*EASE.outCubic(d/0.12) : 1 + 0.08*(1 - EASE.inOut((d - 0.12)/0.6))); } }
+  return z;
+}
+$('kwon').addEventListener('change', e => { keyOn = e.target.checked; markKeyWords(capLines); redraw(); }, SIG);
+
 /* ---- text & stickers: anything the creator writes on the Reel ----
  * Each item: text or an emoji, a style (bold outline / box / neon / clean / tag), a colour, an entrance (pop / fade /
  * slide up / typewriter / none, with a short fade out), a time (from / to, or the whole Reel), a place (dragged on the
@@ -2280,7 +2315,7 @@ function shiftCaptions(){
   if(!capAll) return;
   const a = (vo && kind !== 'talk') ? 0 : secStart - capAll.from, L = buf.duration;
   capWords = capAll.words.filter(w => w.end > a + 0.05 && w.start < a + L - 0.05).map(w => ({ ...w, start: Math.max(0, w.start - a), end: Math.min(L, w.end - a) }));
-  capLines = buildCapLines(capWords); redraw();
+  capLines = buildCapLines(capWords); markKeyWords(capLines); redraw();
 }
 function capStat(t, err){ const el = $('capstat'); el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
 async function loadCaptions(){
@@ -2540,7 +2575,7 @@ const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivi
 // the same keyframed motion as the 2D path, expressed as numbers for the shader
 function layerOf(e, local, o={}){
   const W=out.width, H=out.height, K=e.kf||{};
-  let scale = (kf(K.scale,local) ?? 1)*(o.scale||1);
+  let scale = (kf(K.scale,local) ?? 1)*(o.scale||1)*(o.noFx ? 1 : emphAt(e.start + local));
   let x = (kf(K.x,local) ?? 0)*W + (o.dx||0), y = o.dy||0, rot = (kf(K.rot,local) ?? 0) + (o.rot||0);
   const sh = kf(K.shake,local) || 0;
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
@@ -3391,7 +3426,7 @@ function restoreEdit(list){
 $('pnew').addEventListener('click', () => { location.href = location.pathname; }, SIG);
 { const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else listProjects(); }
 
-root.__studio = { get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
