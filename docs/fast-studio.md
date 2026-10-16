@@ -358,3 +358,17 @@ Checked (`scripts/studio-voiceover`, Chromium with a WAV as the microphone): 14.
 measured at 0.29 of its level while the voice speaks and 0.64 in the pauses; captions sent the 14.98 s of voice; the
 exported sound matches the Reel's mix (correlation 0.994, 6 ms: the Opus encoder's delay); saved and opened again:
 the same voiceover.
+
+## Templates
+
+"Or start from a template": 🗣 Talking head, 📚 Tutorial, 🍲 Recipe, ✨ Before / After, 🛍 Product, ⚡ Beat montage,
+🧳 Travel, 🌺 Ganpati, 🪔 Diwali. One tap sets the kind (music edit / talking), the edit's pace, the look, the text style,
+the length of the song (15 s / 30 s), captions (talking), pauses and music level (talking), and places the template's texts
+on the finished edit at its final length: steps at the thirds of a tutorial, BEFORE / AFTER at the halves, the price
+(from 35% of the Reel) and "DM to order" (the last 3 s) on a product, a greeting for the whole festival Reel. Chosen
+before the media, it is applied when the edit exists; choosing another replaces its texts. Everything stays editable.
+
+Checked (`scripts/studio-templates`): Product chosen before the media → a 15 s Reel with "New arrival" 0-2.4 s, the price
+5.24-11.98 s, "DM to order" 11.98-14.98 s; Before / After on that edit → BEFORE 0-7.49 s, AFTER 7.49-14.98 s (the
+product texts gone); Recipe → 30 s (29.95), smooth, box style, its two texts; Tutorial with talking clips → talking, tight
+pauses, Step 1 / 2 / 3 at the thirds of the 20.84 s talk.
