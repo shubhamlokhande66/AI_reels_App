@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 // Captions and the beat hook, checked on the rendered frames (a stand-in transcriber returns known words, Devanagari
 // included).   BASE=http://localhost:3000 SONG=/path/song.mp3 CLIPS=a.mp4,b.mp4 node check-text.cjs
 const fs=require('fs');const {chromium}=require('playwright');(async()=>{

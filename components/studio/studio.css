@@ -91,3 +91,22 @@
 .brs .kindrow{margin:0 0 14px;align-items:center;gap:10px}
 .brs .talkrow{align-items:center;gap:10px}
 .brs.talkmode #s1 .legend,.brs.talkmode #s1 .stats span:not(:first-child){display:none}
+.brs .ovadd{gap:8px;align-items:center}
+.brs .ovadd select,.brs .ov select{font:600 13px var(--body);padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);max-width:100%}
+.brs .emojis{display:flex;flex-wrap:wrap;gap:4px}
+.brs .emojis .em{font-size:24px;line-height:1;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
+.brs .ovlist{display:grid;gap:8px}
+.brs .ov{display:grid;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.brs .ov.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.brs .ovtop{display:flex;gap:6px}
+.brs .ovt{flex:1;min-width:0;font:600 15px var(--body);padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.brs .ovt.emoji{font-size:22px;padding:4px 8px}
+.brs .ovdel{border:0;background:transparent;color:var(--muted);font-size:22px;cursor:pointer;padding:0 6px}
+.brs .ovctl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.brs .ovc{display:inline-flex;gap:4px}
+.brs .sw{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.brs .sw.on{outline:2px solid var(--accent);outline-offset:1px}
+.brs .ovsz{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.brs .ovsz input{width:90px}
+.brs .btn.mini{padding:6px 10px;font-size:13px}
+.brs #out.ovdrag{touch-action:none}

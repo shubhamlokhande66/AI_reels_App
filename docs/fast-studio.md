@@ -297,3 +297,18 @@ Natural, 14% Tight, 30% Relaxed); 41.7 s of clips → 29.5 s of talk; voice and 
 on every shot); music 17 dB under the voice (Medium); captions get the 29.5 s voice; export 29.56 s. Silero alone: 96.6% /
 99.7% / 99.0% of the speech found (English / Hindi / Marathi), under 0.1 s for 19 s of sound. Safari's engine (WebKitGTK,
 iPhone media rules): the same edit (29.6 s, 9 shots, AI detector). Not yet checked on real phones or real voices.
+
+## Text & stickers
+
+"+ Text", "+ Sticker" (20 emoji) and ready-made items: a price tag (₹), Follow / Save prompts (the last 3 s), Step 1,
+BEFORE / AFTER, गणपती बाप्पा मोरया, शुभ दीपावली, Happy Diwali (the whole Reel). Each item has its words, a style
+(Bold outline, Box, Neon, Clean, Tag), one of 7 colours (the text on a box picks black or white for contrast), an entrance
+(Pop, Fade, Slide up, Typewriter, None; a 0.15 s fade out), a size, and a time: "Start here" / "End here" at the paused
+preview, or the whole Reel. Drag an item on the preview to move it; it is kept inside Instagram's safe area. Drawn into
+the frame (the export has it); Devanagari through the same font stack as captions. The preview only takes touches for
+dragging when there are items, so the page still scrolls over it otherwise.
+
+Checked (`scripts/studio-text/check-overlays.cjs`): a Marathi box text set to 1.0-4.0 s draws only then (ink 0 at 0.5 and
+4.3 s, 0.88-0.89 between); dragged a quarter of the screen down, it moved by exactly 0.25; pushed to the bottom it stops
+at 0.766 of the height (Instagram's bar starts at 1 - 450/1920 = 0.766); the price tag's yellow fills 57% of its box in
+the exported video's frames.
