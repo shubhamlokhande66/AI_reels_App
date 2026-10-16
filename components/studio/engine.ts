@@ -519,6 +519,7 @@ async function loadMusic(arrayBuf, name){
   try{ buf = await getCtx().decodeAudioData(arrayBuf); }
   catch(e){ $('s1st').textContent = 'Could not read this file. Use MP3, WAV, M4A or MP4.'; return; }
   const token = ++musicToken;
+  musicKey = name + '|' + buf.duration.toFixed(2); capWords = null; capLines = null;
   { const ch = buf.numberOfChannels, len = buf.length; mono = new Float32Array(len);
     for(let c=0;c<ch;c++){ const d = buf.getChannelData(c); for(let i=0;i<len;i++) mono[i] += d[i]/ch; } }
   drawMusic();
@@ -533,6 +534,7 @@ async function loadMusic(arrayBuf, name){
   $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked');
   if(sources.length) makeEdit();
   checkBeatsWithAi(token);
+  if(capsOn) loadCaptions();
 }
 let beatInfo = { source: 'own', note: '' };
 function applyAnalysis(r){
@@ -1600,22 +1602,139 @@ function drawShot(g, e, local, o={}){
 }
 function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let cur='';
   words.forEach(w=>{ const tryL = cur ? cur+' '+w : w; if(g.measureText(tryL).width > maxW && cur){ lines.push(cur); cur=w; } else cur=tryL; }); if(cur) lines.push(cur); return lines; }
+/* ---- text: the hook word by word on the beats, captions of the song word by word ----
+   Styles: pop (each word pops in on its beat / when it is sung), karaoke (the line is shown, the sung word lights up),
+   box (words on coloured boxes), clean (calm, small). Everything stays inside Instagram's safe area (the top 220 px and
+   the bottom 450 px of 1920 are its UI), captions move up when a face is in their way, and Hindi / Marathi (Devanagari)
+   are drawn with a font that shapes them. Drawn into the frame itself, so the export has it too. */
+let textStyle = 'pop', capsOn = false, capWords = null, capLines = null;
+const ACCENT = '#FFD54A';
+const isIndic = s2 => /[ऀ-෿]/.test(s2);
+const fontFor = (txt, px, weight=800) => isIndic(txt) ? `${weight} ${px}px "Noto Sans Devanagari", "Nirmala UI", "Mangal", "Kohinoor Devanagari", sans-serif` : `${weight} ${px}px "Bricolage Grotesque", "Arial Black", system-ui, sans-serif`;
+const shown = txt => isIndic(txt) ? txt : txt.toUpperCase();
+// words laid out in lines centred on (W/2, cy): [{word, x, y, w}], wrapped to maxW
+function layoutWords(g, words, fs, maxW, cy, lh){
+  const rows = [[]]; let rw = 0; const sp = fs*0.3;
+  words.forEach((w,i)=>{ g.font = fontFor(w.t, fs); const ww = g.measureText(shown(w.t)).width;
+    if(rows[rows.length-1].length && rw + sp + ww > maxW){ rows.push([]); rw = 0; }
+    rows[rows.length-1].push({...w, i, w: ww}); rw += (rows[rows.length-1].length > 1 ? sp : 0) + ww; });
+  const W = out.width, outL = [];
+  rows.forEach((r,k)=>{ const total = r.reduce((q,x)=>q+x.w,0) + sp*(r.length-1); let x = W/2 - total/2; const y = cy + (k-(rows.length-1)/2)*lh;
+    r.forEach(x2=>{ outL.push({...x2, x: x + x2.w/2, y}); x += x2.w + sp; }); });
+  return outL;
+}
+function drawWord(g, L, fs, style, state, a, sc){   // state: 0 not yet, 1 current, 2 done
+  const txt = shown(L.t); g.save(); g.globalAlpha = a; g.translate(L.x, L.y); g.scale(sc, sc);
+  g.font = fontFor(L.t, fs); g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  if(style === 'box'){
+    const pw = L.w + fs*0.36, ph = fs*1.18, r = fs*0.18;
+    g.fillStyle = state === 1 ? ACCENT : 'rgba(0,0,0,0.62)'; g.beginPath(); g.roundRect ? g.roundRect(-pw/2, -ph/2, pw, ph, r) : g.rect(-pw/2, -ph/2, pw, ph); g.fill();
+    g.fillStyle = state === 1 ? '#111' : '#fff'; g.fillText(txt, 0, fs*0.03);
+  } else if(style === 'clean'){
+    g.shadowColor = 'rgba(0,0,0,0.55)'; g.shadowBlur = fs*0.25; g.fillStyle = state === 0 ? 'rgba(255,255,255,0.55)' : '#fff'; g.fillText(txt, 0, 0);
+  } else {
+    g.lineWidth = fs*0.14; g.strokeStyle = 'rgba(0,0,0,0.85)'; g.strokeText(txt, 0, 0);
+    g.shadowColor = 'rgba(0,0,0,0.4)'; g.shadowBlur = fs*0.2;
+    g.fillStyle = style === 'karaoke' ? (state === 1 ? ACCENT : state === 2 ? '#fff' : 'rgba(255,255,255,0.55)') : (state === 1 && style === 'pop' ? ACCENT : '#fff');
+    g.fillText(txt, 0, 0);
+  }
+  g.restore();
+}
+// the hook: one word per beat from the start (first word at once), each pops in; the hook stays until a little after its
+// last word and pulses on the beats while it is up
 function drawHook(t){
   if(!hookText) return;
-  const W=out.width, H=out.height, T=2.2; if(t > T && !coverMode) return;
-  const inP = coverMode ? 1 : Math.min(1, t/0.28), outP = coverMode ? 0 : Math.max(0, (t-(T-0.25))/0.25);
-  const sc = 0.6 + 0.4*EASE.outBack(inP), a = Math.min(1, inP*1.5)*(1-outP);
-  const fs = Math.round(Math.min(W,H*0.5625)*0.1);
-  og.save(); og.globalAlpha=a; og.font = `800 ${fs}px "Bricolage Grotesque", "Arial Black", system-ui, sans-serif`;
-  og.textAlign='center'; og.textBaseline='middle';
-  const lines = wrapLines(og, hookText.toUpperCase(), W*0.8), lh = fs*1.08;
-  const cy = H*(H>W ? 0.27 : 0.3);   // upper third, below Instagram's top UI
-  og.translate(W/2, cy); og.scale(sc, sc);
-  lines.forEach((ln,k)=>{ const y=(k-(lines.length-1)/2)*lh;
-    og.lineJoin='round'; og.lineWidth=fs*0.14; og.strokeStyle='rgba(0,0,0,0.85)'; og.strokeText(ln,0,y);
-    og.shadowColor='rgba(0,0,0,0.4)'; og.shadowBlur=fs*0.2; og.fillStyle='#fff'; og.fillText(ln,0,y); og.shadowBlur=0; });
-  og.restore();
+  const W=out.width, H=out.height, words = hookText.split(/\s+/).filter(Boolean).slice(0, 8);
+  const bt = beats.filter(b=>b > 0.15).slice(0, words.length);
+  const at = words.map((w,k)=> k === 0 ? 0.05 : (bt[k-1] ?? (0.05 + 0.35*k)));
+  const T = Math.max(2.2, at[at.length-1] + 1.1); if(t > T && !coverMode) return;
+  const outP = coverMode ? 0 : Math.max(0, (t-(T-0.25))/0.25);
+  const fs = Math.round(Math.min(W,H*0.5625)*(textStyle === 'clean' ? 0.075 : 0.1)), cy = H*(H>W ? 0.27 : 0.3);
+  const L = layoutWords(og, words.map((w,k)=>({t:w, at:at[k]})), fs, W*0.8, cy, fs*1.12);
+  const pulse = beats.reduce((q,b)=> t >= b && t-b < 0.2 ? Math.max(q, 1 - (t-b)/0.2) : q, 0);
+  L.forEach(w=>{ const since = coverMode ? 9 : t - w.at; if(since < 0) return;
+    const pin = Math.min(1, since/0.18), sc = (textStyle === 'clean' ? 1 : 0.65 + 0.35*EASE.outBack(pin)) * (1 + 0.04*pulse), a = Math.min(1, since/0.08)*(1-outP);
+    const cur = !coverMode && since < 0.45; drawWord(og, w, fs, textStyle, textStyle === 'karaoke' ? 2 : (cur ? 1 : 2), a, sc); });
 }
+// lines of the song's words: a new line at a pause, after 4 words, or when it gets long
+function buildCapLines(words){
+  const lines = []; let cur = [];
+  const flush = () => { if(cur.length) lines.push(cur); cur = []; };
+  words.forEach((w,i)=>{ const prev = cur[cur.length-1], chars = cur.reduce((q,x)=>q+x.text.length+1,0) + w.text.length;
+    if(prev && (w.start - prev.end > 0.45 || cur.length >= 4 || chars > (isIndic(w.text) ? 20 : 24) || /[.,!?।]$/.test(prev.text))) flush();
+    cur.push(w); });
+  flush();
+  return lines.map((ws,k)=>({ words: ws, a: ws[0].start - 0.12, b: ws[ws.length-1].end + 0.3 })).map((l,k,arr)=>({ ...l, b: arr[k+1] ? Math.min(l.b, arr[k+1].a - 0.02) : l.b }));
+}
+// where a face is on the screen at t (fraction of the height), if the shot follows one
+function faceYOnScreen(t){
+  if(!edit.length) return null;
+  const e = edit[segAt(t)], src = sources[e.src]; if(!src || !src.faces) return null;
+  const st = srcPos(e, Math.max(0, t - e.start)), near = src.faces.filter(f=>f.n && Math.abs(f.t - st) < 0.6);
+  if(!near.length) return null;
+  const f = near.reduce((q,x)=>Math.abs(x.t-st) < Math.abs(q.t-st) ? x : q, near[0]);
+  const W=out.width, H=out.height, r = Math.max(W/src.w, H/src.h), dh = src.h*r, [, ccy] = camAt(e, t - e.start);
+  let py = H/2 - ccy*dh; py = Math.min(0, Math.max(H-dh, py));
+  return (py + f.fy*dh)/H;
+}
+function drawCaptions(t){
+  if(!capsOn || !capLines) return;
+  const line = capLines.find(l => t >= l.a && t < l.b); if(!line) return;
+  const W=out.width, H=out.height, fs = Math.round(Math.min(W,H*0.5625)*(textStyle === 'clean' ? 0.06 : 0.072));
+  const hookUp = hookText && t < 2.6, fy = faceYOnScreen(t);
+  let cy = H*(H>W ? 0.70 : 0.78);                                                  // above Instagram's caption / username
+  if(fy !== null && fy > 0.52 && fy < 0.86 && !hookUp) cy = H*(H>W ? 0.36 : 0.3);  // a face is there: move up
+  const L = layoutWords(og, line.words.map(w=>({t:w.text, s:w.start, e:w.end})), fs, W*0.78, cy, fs*1.25);
+  const lineIn = Math.min(1, (t - line.a)/0.12), lineOut = Math.max(0, (t - (line.b - 0.15))/0.15), la = lineIn*(1-lineOut);
+  L.forEach(w=>{
+    const sung = t >= w.s, cur = sung && t < Math.max(w.e, w.s + 0.12), state = cur ? 1 : sung ? 2 : 0;
+    let a = la, sc = 1;
+    if(textStyle === 'pop'){ if(!sung) return; const since = t - w.s; a *= Math.min(1, since/0.06); sc = 0.7 + 0.3*EASE.outBack(Math.min(1, since/0.16)); }
+    else if(textStyle === 'karaoke' && cur) sc = 1.08;
+    drawWord(og, w, fs, textStyle, state, a, sc);
+  });
+}
+function drawText(t){ drawHook(t); drawCaptions(t); }
+// the song as speech recognition wants it: 16 kHz mono, the vocal band (drums and bass mostly out), normalised, as WAV
+async function songWav(){
+  const sr = buf.sampleRate, len = Math.min(mono.length, Math.round(180*sr)), n16 = Math.max(1, Math.ceil(len*16000/sr));
+  const oc = new OfflineAudioContext(1, n16, 16000), b = oc.createBuffer(1, len, sr); b.copyToChannel(mono.slice(0, len), 0);
+  const s2 = oc.createBufferSource(); s2.buffer = b;
+  const hp = oc.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 150;
+  const lp = oc.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 4200;
+  s2.connect(hp); hp.connect(lp); lp.connect(oc.destination); s2.start();
+  const y = (await oc.startRendering()).getChannelData(0); let pk = 0; for(let i=0;i<y.length;i++) if(Math.abs(y[i]) > pk) pk = Math.abs(y[i]);
+  const gain = pk > 0 ? 0.9/pk : 1, dv = new DataView(new ArrayBuffer(44 + y.length*2)), str = (o, x) => { for(let i=0;i<x.length;i++) dv.setUint8(o+i, x.charCodeAt(i)); };
+  str(0,'RIFF'); dv.setUint32(4, 36 + y.length*2, true); str(8,'WAVE'); str(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,16000,true); dv.setUint32(28,32000,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); str(36,'data'); dv.setUint32(40, y.length*2, true);
+  for(let i=0;i<y.length;i++) dv.setInt16(44 + i*2, Math.max(-32768, Math.min(32767, Math.round(y[i]*gain*32767))), true);
+  return dv.buffer;
+}
+const capCache = new Map(); let musicKey = '';
+function capStat(t, err){ const el = $('capstat'); el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
+async function loadCaptions(){
+  if(!capsOn || !buf) return;
+  const lang = $('caplang').value, key = musicKey + '|' + lang, token = musicToken;
+  if(capCache.has(key)){ capWords = capCache.get(key); capLines = buildCapLines(capWords); capStat(capWords.length + ' words'); redraw(); return; }
+  capStat('Listening to the words of the song…');
+  try{
+    const wav = await songWav();
+    const r = await fetch('/api/studio/transcribe?lang=' + encodeURIComponent(lang), { method:'POST', headers:{'Content-Type':'audio/wav'}, body: wav, signal: ac.signal });
+    const res = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('Captions failed (' + r.status + ').'));
+    if(token !== musicToken) return;
+    capWords = Array.isArray(res.words) ? res.words : []; capCache.set(key, capWords); capLines = buildCapLines(capWords);
+    capStat(capWords.length ? capWords.length + ' words found' + (res.language && res.language !== 'auto' ? ' (' + res.language + ')' : '') + (res.charged ? ' · ' + res.charged + ' credit' + (res.charged > 1 ? 's' : '') : '') : 'No words in this song (instrumental?)');
+    redraw();
+  }catch(err){ if(!(err && err.name === 'AbortError')) capStat('Captions are not available right now: ' + (err && err.message ? err.message : err), true); }
+}
+(async () => {   // is speech recognition set up on this server?
+  try{ const r = await fetch('/api/studio/transcribe', { signal: ac.signal }); if(!r.ok) return; const j = await r.json(); if(!j || !j.available) return;
+    $('capwrap').hidden = false; if(j.credits) $('capwrap').title = 'Uses ' + j.credits + ' credit' + (j.credits > 1 ? 's' : '') + ' per song'; }catch(e){}
+})();
+$('caps').addEventListener('change', e=>{ capsOn = e.target.checked; $('caprow').hidden = !capsOn; if(capsOn) loadCaptions(); else { capStat(''); redraw(); } });
+$('caplang').addEventListener('change', ()=>{ if(capsOn) loadCaptions(); });
+$('tstyle').addEventListener('click', e=>{ const b = e.target.closest('button'); if(!b) return; textStyle = b.dataset.t; [...$('tstyle').children].forEach(x=>x.setAttribute('aria-pressed', x===b)); redraw(); });
 function drawSafe(){
   const W=out.width, H=out.height; if(aspect!=='9:16') return;
   og.save(); og.fillStyle='rgba(255,40,80,0.18)';
@@ -1718,7 +1837,7 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
-  drawHook(t);
+  drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
   $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
   const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); }
@@ -1893,7 +2012,7 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
-  drawHook(t);
+  drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
   $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
   const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); }
@@ -2391,7 +2510,7 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
-root.__studio = { renderedLook, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
