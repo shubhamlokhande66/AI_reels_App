@@ -131,3 +131,7 @@
 .brs .rn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brs .rd{font:12px var(--mono);color:var(--muted)}
 .brs .rdel{border:0;background:transparent;color:var(--muted);font-size:16px;padding:0 10px 0 4px;cursor:pointer}
+
+.brs .learnrow{align-items:center;gap:8px}
+.brs .stdetails{flex-basis:100%;font-size:13px;color:var(--muted)}
+.brs .stdetails ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}

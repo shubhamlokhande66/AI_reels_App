@@ -118,7 +118,10 @@ export const STUDIO_HTML = `
             <button data-m="copy" aria-pressed="false" title="Upload a Reel you like: its pace, transitions, effects and colours are copied onto your clips">Copy a Reel</button>
           </div>
           <input id="reffile" type="file" accept="video/*,.mov,.mp4,.m4v" hidden>
-          <div class="refbox" id="refbox" hidden><span class="fname" id="refinfo"></span> <button class="btn" id="refchange" type="button">Change Reel</button></div>
+          <div class="refbox" id="refbox" hidden><span class="fname" id="refinfo"></span> <button class="btn" id="refchange" type="button">Change Reel</button>
+            <div class="row" id="stsaverow" hidden><select id="stcat" aria-label="Kind of Reel"><option value="wedding">Wedding</option><option value="travel">Travel</option><option value="festival">Festival</option><option value="dance">Dance</option><option value="talking">Talking</option><option value="product">Product</option><option value="food">Food</option><option value="fitness">Fitness</option><option value="vlog">Vlog</option><option value="birthday">Birthday</option><option value="other">Other</option></select><label class="tog"><input type="checkbox" id="stshare"> Share (helps everyone's styles)</label><button class="btn mini" id="stsave" type="button">Save to my styles</button><span class="fname" id="ststat"></span></div></div>
+          <div class="row learnrow" id="learnrow" hidden><span class="label">Learned style</span><select id="lcat" aria-label="Kind of Reel"></select><div class="seg" id="lscope"><button data-s="mine" aria-pressed="false">Mine</button><button data-s="all" aria-pressed="true">With shared</button></div><button class="btn mini" id="luse" type="button">Use</button><span class="fname" id="linfo"></span>
+            <details class="stdetails"><summary>My saved styles</summary><ul id="stlist"></ul></details></div>
           <span class="fname" id="modehelp">Auto: the music decides. Calm parts get longer shots, drops and hits get effects.</span>
           <label class="label" for="hook">Hook text (3-5 words, first 2 seconds)</label>
           <input id="hook" type="text" maxlength="40" placeholder="e.g. WAIT FOR THE DROP">

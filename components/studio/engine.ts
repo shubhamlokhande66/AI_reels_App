@@ -1881,10 +1881,10 @@ function renderEDL(keepScroll){
     const rb = document.createElement('button'); rb.className='mini'; rb.textContent='↻ other moment'; rb.title='Use a different moment here (never a repeat)';
     rb.addEventListener('click', ev=>{ ev.stopPropagation(); stopAll(); if(repick(i, true)){ renderEDL(true); showShot(i); } else showMsg('No unused footage left for this shot. Add more clips.', true); });
     cc.appendChild(document.createElement('br')); cc.appendChild(rb);
-    tr.children[3].appendChild(sel(TR_NAME, e.tr, v=>{ e.tr=v; changed(i,false); }));
-    const fxc = tr.children[4]; fxc.appendChild(sel(FX_NAME, e.efx, v=>{ e.efx=v; if(v==='snap'){ e.sp=snapSpeed; changed(i,true); } else { if(e.sp===snapSpeed) e.sp=SPEED.normal; changed(i,true); } }));
+    tr.children[3].appendChild(sel(TR_NAME, e.tr, v=>{ noteEdit(e.type, 'tr', e.tr, v); e.tr=v; changed(i,false); }));
+    const fxc = tr.children[4]; fxc.appendChild(sel(FX_NAME, e.efx, v=>{ noteEdit(e.type, 'efx', e.efx, v); e.efx=v; if(v==='snap'){ e.sp=snapSpeed; changed(i,true); } else { if(e.sp===snapSpeed) e.sp=SPEED.normal; changed(i,true); } }));
     fxc.insertAdjacentHTML('beforeend', kfSummary(e));
-    tr.children[5].appendChild(sel(SPEED_KEYS, speedKey(e.sp), v=>{ e.sp = speedFor(v, e); changed(i,true); }));
+    tr.children[5].appendChild(sel(SPEED_KEYS, speedKey(e.sp), v=>{ noteEdit(e.type, 'sp', speedKey(e.sp), v); e.sp = speedFor(v, e); changed(i,true); }));
     tr.addEventListener('click', ()=>{ if(playing) startPlayback(e.start); else showShot(i); });
     tb.appendChild(tr);
   });
@@ -3139,7 +3139,7 @@ function describeRef(R){
   if(L.std > 0.25) words.push('high contrast'); if(L.p5 > 0.12) words.push('faded blacks'); if(L.vig > 0.25) words.push('vignette'); if(L.grain > 0.01) words.push('film grain');
   const tr = Object.entries(R.trans).sort((a,b)=>b[1]-a[1]).map(([k,v])=>Math.round(v*100)+'% '+REF_KINDS[k]).join(', ');
   const pace = R.medianBeats ? 'a cut every ' + R.medianBeats + ' beat' + (R.medianBeats===1?'':'s') + ' (' + Math.round(R.onBeat*100) + '% on the beat)' : 'a cut every ' + R.medianSec.toFixed(1) + ' s';
-  return R.cuts.length + ' cuts in ' + R.dur.toFixed(0) + ' s · ' + pace + (R.energy !== 'steady' ? ' · pace ' + R.energy : '') + ' · ' + (tr || 'no cuts') +
+  return (R.learned ? 'typically ' : R.cuts.length + ' cuts in ' + R.dur.toFixed(0) + ' s · ') + pace + (R.energy !== 'steady' ? ' · pace ' + R.energy : '') + ' · ' + (tr || 'no cuts') +
     (R.zoomShare > 0.15 ? ' · zooms in ' + Math.round(R.zoomShare*100) + '% of shots' : '') + (words.length ? ' · ' + words.join(', ') : '');
 }
 // the edit's cut points: the reference's sequence of shot lengths (in beats), on this song's beats; its drops and breaks stay
@@ -3235,7 +3235,7 @@ $('reffile').addEventListener('change', async e=>{
   $('refbox').hidden = false; $('refinfo').textContent = 'Reading the Reel…';
   try{
     refProfile = await analyzeReference(f, (p, what)=>{ $('refinfo').textContent = 'Reading the Reel: ' + what + ' ' + Math.round(p*100) + '%'; });
-    $('refinfo').textContent = '“' + f.name + '”: ' + describeRef(refProfile);
+    $('refinfo').textContent = '“' + f.name + '”: ' + describeRef(refProfile); $('stsaverow').hidden = false; $('ststat').textContent = ''; learnedKind = '';
     // the copied look is on while it is matched (makeEdit then matches it on the new edit)
     GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = '';
     const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = 'copy'; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x===lb));
@@ -3243,6 +3243,60 @@ $('reffile').addEventListener('change', async e=>{
   }catch(err){ $('refinfo').textContent = 'Could not read that Reel: ' + (err && err.message ? err.message : err); }
 });
 $('refchange').addEventListener('click', ()=>$('reffile').click());
+/* ---- style library: reference Reels kept as styles, learned styles, and learning from corrections ----
+ * A Reel read by "Copy a Reel" can be saved to the creator's style library under a kind (wedding, travel, festival...);
+ * only its measured fingerprint goes to the server (never the video). "Use a learned style" asks the server what the
+ * Reels of a kind have in common (mine, or with everyone's shared ones) and copies that like a reference Reel. Every
+ * change made to a shot's transition, effect or speed is sent too, so the learned styles follow the creator's taste. */
+const STYLE_KINDS = { wedding: 'Wedding', travel: 'Travel', festival: 'Festival', dance: 'Dance', talking: 'Talking', product: 'Product', food: 'Food', fitness: 'Fitness', vlog: 'Vlog', birthday: 'Birthday', other: 'Other' };
+let learnedKind = '', editsQ = [], editsT = 0;
+const clip = (x, a, b) => Math.min(b, Math.max(a, Number.isFinite(x) ? x : a));
+function fingerprintOf(R){
+  const tr = {}; for(const [k, v] of Object.entries(R.trans || {})) if(['hard','flash','fade','whip','zoom','dissolve'].includes(k)) tr[k] = clip(v, 0, 1);
+  const L = R.look || null, look = L ? Object.fromEntries(['mean','std','sat','warm','p5','p95','vig','grain','split'].filter(k => Number.isFinite(L[k])).map(k => [k, clip(L[k], k === 'warm' || k === 'vig' || k === 'split' ? -1 : 0, k === 'sat' ? 2 : 1)])) : null;
+  return { dur: clip(R.dur, 1, 600), bpm: clip(R.bpm || 0, 0, 300), medianBeats: clip(R.medianBeats || 0, 0, 64), medianSec: clip(R.medianSec || 0, 0, 60), hookBeats: clip(R.hookBeats || 0, 0, 64), hookSec: clip(R.hookSec || 0, 0, 60),
+    onBeat: clip(R.onBeat || 0, 0, 1), energy: ['steady','rising','falling'].includes(R.energy) ? R.energy : 'steady', zoomShare: clip(R.zoomShare || 0, 0, 1), trans: tr, look,
+    shotBeats: (R.shotBeats || []).slice(0, 300).map(x => clip(x, 0, 64)), shotSec: (R.shotSec || []).slice(0, 300).map(x => clip(x, 0, 60)) };
+}
+async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts }); const j = await r.json().catch(() => ({}));
+  if(r.status === 401) throw new Error('sign in to keep a style library'); if(!r.ok) throw new Error((j.error && j.error.message) || ('error ' + r.status)); return j; }
+$('stsave').addEventListener('click', async () => {
+  if(!refProfile || refProfile.learned) return;
+  $('ststat').textContent = 'Saving…';
+  try{ const r = await api('/api/studio/styles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: (refProfile.name || 'Reel').slice(0, 120), category: $('stcat').value, shared: $('stshare').checked, fp: fingerprintOf(refProfile) }) });
+    $('ststat').textContent = 'Saved to your ' + STYLE_KINDS[r.category] + ' styles ✓'; loadKinds(); }
+  catch(err){ $('ststat').textContent = 'Not saved: ' + (err && err.message || err); }
+}, SIG);
+async function loadKinds(){
+  try{ const r = await api('/api/studio/styles'); const sel = $('lcat'), keep = sel.value; sel.innerHTML = '';
+    for(const [k, name] of Object.entries(STYLE_KINDS)){ const c = r.categories[k] || { mine: 0, shared: 0 }; const o = new Option(name + ' (' + c.mine + ' mine' + (c.shared ? ', ' + c.shared + ' shared' : '') + ')', k); o.disabled = !c.mine && !c.shared; sel.add(o); }
+    if(keep) sel.value = keep; $('learnrow').hidden = false;
+    $('stlist').innerHTML = ''; for(const s of r.mine.slice(0, 40)){ const li = document.createElement('li'); li.textContent = STYLE_KINDS[s.category] + ': ' + s.name + ' · ' + s.pace + (s.trans ? ' · ' + s.trans : '') + (s.shared ? ' · shared' : '') + ' ';
+      const del = document.createElement('button'); del.className = 'btn mini'; del.textContent = 'Delete'; del.addEventListener('click', async () => { try{ await api('/api/studio/styles/' + s.id, { method: 'DELETE' }); loadKinds(); }catch(e){} }); li.appendChild(del); $('stlist').appendChild(li); }
+  }catch(err){ $('learnrow').hidden = true; }
+}
+$('luse').addEventListener('click', async () => {
+  const k = $('lcat').value; if(!k) return; $('linfo').textContent = 'Learning…';
+  try{ const scope = $('lscope').querySelector('[aria-pressed="true"]').dataset.s, r = await api('/api/studio/styles/learned?category=' + encodeURIComponent(k) + '&scope=' + scope);
+    if(!r.fp){ $('linfo').textContent = 'No Reels of this kind yet.'; return; }
+    learnedKind = k;
+    refProfile = { ...r.fp, name: 'Learned ' + STYLE_KINDS[k] + ' style', cuts: [], learned: true };
+    GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = '';
+    const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = refProfile.look ? 'copy' : look; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.l === look));
+    $('linfo').textContent = 'Learned from ' + r.n + ' Reel' + (r.n > 1 ? 's' : '') + (r.accuracy ? ' · predicts a new ' + STYLE_KINDS[k].toLowerCase() + ' Reel ' + Math.round(r.accuracy.learned*100) + '% (default style ' + Math.round(r.accuracy.baseline*100) + '%)' : '') + (r.corrections ? ' · ' + r.corrections + ' of your changes' : '');
+    setMode('copy'); $('refinfo').textContent = refProfile.name + ': ' + describeRef(refProfile); $('stsaverow').hidden = true;
+  }catch(err){ $('linfo').textContent = 'Not available: ' + (err && err.message || err); }
+}, SIG);
+$('lscope').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; [...$('lscope').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); }, SIG);
+// corrections: what the creator changes, a few seconds later in one request
+function noteEdit(type, field, from, to){
+  if(from === to) return;
+  editsQ.push({ type: ['drop','hit','cut','break'].includes(type) ? type : 'cut', field, from: String(from).slice(0, 24), to: String(to).slice(0, 24) });
+  clearTimeout(editsT); editsT = setTimeout(() => { const q = editsQ.splice(0, 100); if(!q.length) return;
+    api('/api/studio/styles/edits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: learnedKind || 'general', edits: q }) }).catch(() => {}); }, 3000);
+}
+loadKinds();
+
 
 /* =============== START =============== */
 /* ---- voiceover: your voice recorded over the Reel while it plays ----
