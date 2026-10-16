@@ -465,7 +465,7 @@ function snap(t, w){
 }
 
 /* =============== STEP 1: MUSIC =============== */
-let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0;
+let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0, editGen = 0;
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
 function adaptPlan(){
   if(mode==='copy' && refProfile) return copyPlan();
@@ -1086,6 +1086,7 @@ async function readVideo(src){
 function finishAdding(){
   updateQ(); $('clearv').hidden = !$('clips').children.length;
   if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk') aiRun(); }
+  if(tplWaiting){ tplNeed = false; tplApplySoon(); }
 }
 /* =============== TALKING VIDEOS (talking head, vlog, tutorial) ===============
  * The clips' own voice is the sound of the Reel. Where people speak is found on the phone (Silero VAD; loudness when it
@@ -1200,7 +1201,7 @@ async function buildTalk(){
   $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(capsOn) loadCaptions();
-  captureLoop();
+  captureLoop(); editGen++;
 }
 function setKind(k){
   if(recording || k === kind) return;
@@ -1779,7 +1780,7 @@ function makeEdit(){
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(dirInfo){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
     aiStat('AI director: ' + (dirInfo.used + kept) + ' of ' + (dirInfo.asked + shots) + ' choices used' + (dirInfo.fixed + shots - kept ? ', ' + (dirInfo.fixed + shots - kept) + ' changed by the safety rules' : '') + (director.story ? '. ' + director.story : '')); }
-  captureLoop();
+  captureLoop(); editGen++;
   directorMaybe();
   if(look === 'copy' && refProfile) setTimeout(()=>{ copyLook(); }, 0);
 }
@@ -3195,6 +3196,60 @@ function afterVo(){
 $('vorec').addEventListener('click', () => { if(!recording) recordVoiceover(); }, SIG);
 $('vodel').addEventListener('click', () => { if(voRec) return; vo = null; applyVo(); afterVo(); }, SIG);
 
+/* ---- templates: one tap sets a Reel up for its kind ----
+ * Each template chooses the kind (music edit / talking), the edit's pace, the look, the length of the song, captions,
+ * the background, and places its texts on the edit when there is one: steps at the thirds of a tutorial, BEFORE / AFTER
+ * at the halves, the price and a follow card on a product, a greeting on a festival Reel. Everything stays editable. */
+const TEMPLATES = {
+  talking:  { kind: 'talk', look: 'natural', pace: 'natural', music: 0.05, caps: true, style: 'karaoke', bg: 'none' },
+  tutorial: { kind: 'talk', look: 'natural', pace: 'tight', music: 0.05, caps: true, style: 'box',
+              texts: L => [ { text: 'Step 1', style: 'box', color: '#FFD54A', y: 0.2, at: [0, L/3] }, { text: 'Step 2', style: 'box', color: '#FFD54A', y: 0.2, at: [L/3, 2*L/3] }, { text: 'Step 3', style: 'box', color: '#FFD54A', y: 0.2, at: [2*L/3, L] }, { text: 'Save this for later 📌', style: 'box', color: '#4DA3FF', y: 0.66, size: 0.85, at: [L - 3, L] } ] },
+  recipe:   { kind: 'music', mode: 'smooth', look: 'vivid', len: 30, style: 'box',
+              texts: L => [ { text: 'Easy recipe in 30 seconds', style: 'box', color: '#FFD54A', y: 0.22, at: [0, 2.6] }, { text: 'Save this recipe 📌', style: 'box', color: '#FF4D4D', y: 0.66, size: 0.85, at: [L - 3, L] } ] },
+  beforeafter: { kind: 'music', mode: 'auto', look: 'vivid', len: 15, style: 'pop',
+              texts: L => [ { text: 'BEFORE', style: 'box', color: '#111111', y: 0.2, at: [0, L/2] }, { text: 'AFTER', style: 'box', color: '#3DDC84', y: 0.2, at: [L/2, L] } ] },
+  product:  { kind: 'music', mode: 'auto', look: 'vivid', len: 15, style: 'pop',
+              texts: L => [ { text: 'New arrival ✨', style: 'neon', color: '#FFD54A', y: 0.22, at: [0, 2.4] }, { text: '₹999 only', style: 'tag', color: '#FFD54A', y: 0.62, at: [L*0.35, L - 3] }, { text: 'DM to order 👉', style: 'box', color: '#FF4D4D', y: 0.66, size: 0.85, at: [L - 3, L] } ] },
+  montage:  { kind: 'music', mode: 'fast', look: 'cine', len: 15, style: 'pop', hook: 'WAIT FOR THE DROP' },
+  travel:   { kind: 'music', mode: 'smooth', look: 'cine', len: 30, style: 'clean',
+              texts: L => [ { text: '📍 Your place', style: 'clean', color: '#FFFFFF', y: 0.25, at: [0, 3] } ] },
+  ganpati:  { kind: 'music', mode: 'auto', look: 'vivid', len: 30, style: 'pop',
+              texts: L => [ { text: 'गणपती बाप्पा मोरया 🌺', style: 'neon', color: '#FFD54A', y: 0.26, all: true } ] },
+  diwali:   { kind: 'music', mode: 'smooth', look: 'cine', len: 30, style: 'pop',
+              texts: L => [ { text: 'शुभ दीपावली 🪔', style: 'neon', color: '#FFD54A', y: 0.26, all: true } ] },
+};
+let tplWaiting = null, tplGen = 0, tplNeed = false;
+function placeTemplateTexts(t){
+  const L = reelLen(); if(!t.texts || !L) return;
+  overlays = overlays.filter(o => !o.tpl);   // texts of an earlier template go
+  for(const x of t.texts(L)){ const ov = addOverlay({ ...x, all: !!x.all }); ov.tpl = true; if(x.at){ ov.t0 = Math.max(0, x.at[0]); ov.t1 = Math.min(L, x.at[1]); ov.all = false; } }
+  ovSel = -1; renderOvList(); redraw();
+}
+function useTemplate(name){
+  const t = TEMPLATES[name]; if(!t || recording) return;
+  [...$('tpl').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === name)));
+  setKind(t.kind);
+  if(t.look) press('look', 'l', t.look);
+  if(t.style) press('tstyle', 't', t.style);
+  if(t.mode) press('mode', 'm', t.mode);
+  if(t.kind === 'talk'){ press('tpace', 'p', t.pace); press('tmusic', 'v', String(t.music)); }
+  if(t.bg) press('bgmode', 'b', t.bg);
+  if(t.hook !== undefined){ hookText = t.hook; $('hook').value = t.hook; }
+  if(t.caps && !capsOn && !$('capwrap').hidden){ $('caps').checked = true; capsOn = true; $('caprow').hidden = false; loadCaptions(); }
+  const gen0 = editGen, kind0 = kind;
+  if(t.kind === 'music' && t.len !== undefined && song) setLen(t.len); else if(t.kind === 'music' && t.len !== undefined){ sec.len = t.len; sec.auto = true; }
+  tplWaiting = t; tplGen = gen0; tplNeed = sources.length > 0 && (editGen === gen0 ? (t.len !== undefined && !!song) || kind0 !== kind || kind === 'talk' : false);
+  $('tplhelp').textContent = edit.length ? '' : 'Now add ' + (t.kind === 'talk' ? 'your talking clips' : 'a song and your clips') + ': the template is applied to the edit.';
+  tplApplySoon();
+}
+// the texts go on once the edit has its final length (after the song part and the clips are in)
+function tplApplySoon(){
+  clearTimeout(tplApplySoon.h);
+  tplApplySoon.h = setTimeout(() => { if(!tplWaiting) return; if(!edit.length || pending || (tplNeed && editGen === tplGen) || (kind === 'talk' && /Finding/.test($('s3st').textContent))){ tplApplySoon(); return; }
+    placeTemplateTexts(tplWaiting); tplWaiting = null; $('tplhelp').textContent = ''; }, 600);
+}
+$('tpl').addEventListener('click', e => { const b = e.target.closest('button'); if(b) useTemplate(b.dataset.t); }, SIG);
+
 /* =============== SAVED REELS ===============
  * Every Reel is kept on this phone (IndexedDB, which every browser has; nothing is uploaded): its song and clips (each
  * file once, shared between Reels), the settings, the exact edit (every shot's moment, transition, effect, speed), the
@@ -3299,13 +3354,13 @@ function restoreEdit(list){
   stopAll(); const uc = sources.map(() => 0);
   edit = list.map(x => { const e = { ...x, el: sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
   plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx }));
-  setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop();
+  setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop(); editGen++;
   return true;
 }
 $('pnew').addEventListener('click', () => { location.href = location.pathname; }, SIG);
 { const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else listProjects(); }
 
-root.__studio = { get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
