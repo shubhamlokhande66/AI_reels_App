@@ -660,7 +660,7 @@ async function useSection(token = musicToken){
     const rms = 10*Math.log10(s/Math.max(1,n)+1e-12); normGain = Math.pow(10, Math.max(-6, Math.min(9, -14 - rms))/20); }
   $('mdur').textContent = fmt(buf.duration) + (buf !== W ? ' of ' + fmt(D) : '');
   $('sinfo').textContent = sec.len && buf === W ? 'the song is ' + fmt(D).replace(/\.\d+$/,'') + ' long: all of it is used' : buf !== W ? fmt(secStart).replace(/\.\d+$/,'') + ' – ' + fmt(secStart + buf.duration).replace(/\.\d+$/,'') + (sec.auto ? ' · best part' : ' · your pick') : '';
-  pos = 0;
+  pos = 0; baseBuf = buf; baseNorm = normGain; if(vo) applyVo();
   if(capsOn){ if(capAll && (secStart < capAll.from || secStart + buf.duration > capAll.from + 180)) loadCaptions(); else shiftCaptions(); }
   if(sources.length && !recording) makeEdit();
 }
@@ -2250,16 +2250,16 @@ const capCache = new Map(); let musicKey = '', capAll = null;
 // and the part's words are taken from them: changing the part costs nothing and the words keep their sung timing.
 function shiftCaptions(){
   if(!capAll) return;
-  const a = secStart - capAll.from, L = buf.duration;
+  const a = (vo && kind !== 'talk') ? 0 : secStart - capAll.from, L = buf.duration;
   capWords = capAll.words.filter(w => w.end > a + 0.05 && w.start < a + L - 0.05).map(w => ({ ...w, start: Math.max(0, w.start - a), end: Math.min(L, w.end - a) }));
   capLines = buildCapLines(capWords); redraw();
 }
 function capStat(t, err){ const el = $('capstat'); el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
 async function loadCaptions(){
   if(!capsOn || !buf) return;
-  const tk = kind === 'talk' && talk, W = tk ? null : song ? song.buf : buf, M = tk ? talk.voice : song ? song.mono : mono, sr = tk ? talk.sr : W.sampleRate;
-  const from = !tk && secStart + buf.duration > 179 ? secStart : 0;   // a part past 3 minutes: from where it starts
-  const lang = $('caplang').value, key = (tk ? 'talk|' + talk.sig : song ? song.key : musicKey) + '|' + from.toFixed(2) + '|' + lang, token = musicToken;
+  const tk = kind === 'talk' && talk, vk = !tk && vo, W = tk || vk ? null : song ? song.buf : buf, M = tk ? talk.voice : vk ? vo.pcm : song ? song.mono : mono, sr = tk ? talk.sr : vk ? vo.sr : W.sampleRate;
+  const from = !tk && !vk && secStart + buf.duration > 179 ? secStart : 0;   // a part past 3 minutes: from where it starts
+  const lang = $('caplang').value, key = (tk ? 'talk|' + talk.sig : vk ? 'vo|' + vo.key : song ? song.key : musicKey) + '|' + from.toFixed(2) + '|' + lang, token = musicToken;
   if(capCache.has(key)){ capAll = capCache.get(key); capKeyNow = key; shiftCaptions(); capStat(capWords.length + ' words'); return; }
   capStat('Listening to the words of the song…');
   try{
@@ -3128,6 +3128,73 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
+/* ---- voiceover: your voice recorded over the Reel while it plays ----
+ * The microphone goes through an AudioWorklet in the same audio clock as the song, so every captured block knows when
+ * it was heard; the voice is placed on the Reel at that moment minus the time the sound took to reach the speaker (what
+ * you reacted to). While recording the song plays softer; in the Reel it steps back under the voice (80 ms down, 400 ms
+ * up). The voice is brought to one loudness; captions, when on, are made from it. Saved with the Reel. */
+let vo = null, voRec = null, baseBuf = null, baseNorm = 1;
+const VO_WORKLET = `class R extends AudioWorkletProcessor{constructor(){super();this.on=false;this.b=new Float32Array(4096);this.n=0;this.t=0;this.port.onmessage=e=>{this.on=e.data.on;if(!this.on&&this.n){this.port.postMessage({t:this.t,d:this.b.slice(0,this.n)});this.n=0;}};}
+process(inp){const ch=inp[0]&&inp[0][0];if(this.on&&ch){if(!this.n)this.t=currentTime;this.b.set(ch,this.n);this.n+=ch.length;if(this.n+128>this.b.length){this.port.postMessage({t:this.t,d:this.b.slice(0,this.n)});this.n=0;}}return true;}}
+registerProcessor('vo-rec',R);`;
+let voWorkletReady = null;
+function voStat(t){ $('vostat').textContent = t; }
+function applyVo(){   // the song part (baseBuf, set with its loudness by useSection) with the voiceover on it, or alone
+  if(kind === 'talk' || !baseBuf) return;
+  if(!vo){ buf = baseBuf; normGain = baseNorm; return; }
+  const B = baseBuf, sr = B.sampleRate, N = B.length, v = vo.pcm, vr = vo.sr;
+  // voice loudness: its speaking parts at about -14 dBFS
+  let s2 = 0, n = 0; for(let i=0;i<v.length;i+=4){ const x = v[i]; if(Math.abs(x) > 0.01){ s2 += x*x; n++; } }
+  const gv = 0.2/Math.max(0.003, Math.sqrt(s2/Math.max(1, n)));
+  const mix = getCtx().createBuffer(2, N, sr), dn = Math.exp(-1/(0.08*sr)), up = Math.exp(-1/(0.4*sr)), win = Math.round(0.03*sr);
+  let env = 1, lv = 0;
+  for(let c=0;c<2;c++){ const src = B.getChannelData(Math.min(c, B.numberOfChannels-1)), d = mix.getChannelData(c); env = 1; lv = 0;
+    for(let i=0;i<N;i++){
+      const j = Math.floor(i*vr/sr), x = (v[j] || 0)*gv;
+      lv = Math.max(Math.abs(x), lv*0.9995);                                   // a follower of the voice
+      const target = lv > 0.04 ? 0.22 : 0.75; env = target < env ? target + (env - target)*dn : target + (env - target)*up;
+      d[i] = src[i]*baseNorm*env + x;
+    } }
+  buf = mix; normGain = 1;
+}
+async function recordVoiceover(){
+  if(voRec){ voRec.stop(); return; }
+  if(!edit.length || kind === 'talk') return;
+  const c = getCtx(); await c.resume();
+  let stream;
+  try{ stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch(err){ voStat('The microphone is not available (' + (err && err.name || err) + '). Allow it for this site and try again.'); return; }
+  try{ voWorkletReady ??= c.audioWorklet.addModule(URL.createObjectURL(new Blob([VO_WORKLET], { type: 'text/javascript' }))); await voWorkletReady; }
+  catch(err){ voWorkletReady = null; stream.getTracks().forEach(t => t.stop()); voStat('Recording is not supported in this browser.'); return; }
+  // record over the song alone (no older voice), softer
+  const hadVo = vo; vo = null; applyVo(); const keepNorm = normGain; normGain = keepNorm*0.45;
+  const mic = c.createMediaStreamSource(stream), node = new AudioWorkletNode(c, 'vo-rec'), sink = c.createGain(); sink.gain.value = 0;
+  mic.connect(node); node.connect(sink); sink.connect(c.destination);
+  const blocks = []; node.port.onmessage = e => blocks.push(e.data);
+  let done; const finished = new Promise(r => done = r);
+  voRec = { stop: () => { if(playing){ pos = curTime(); stopAll(); } done(); } };
+  $('vorec').textContent = '■ Stop recording'; voStat('Recording… speak now (headphones keep the song out of your voice)');
+  pos = 0; await startPlayback(0);
+  const t0 = startedAt, lat = (c.outputLatency || c.baseLatency || 0) + 0.015;
+  node.port.postMessage({ on: true });
+  onEnd = () => { onEnd = null; done(); };
+  await finished;
+  node.port.postMessage({ on: false }); await new Promise(r => setTimeout(r, 120));
+  mic.disconnect(); node.disconnect(); sink.disconnect(); stream.getTracks().forEach(t => t.stop());
+  normGain = keepNorm; voRec = null; $('vorec').textContent = '🎙 Record voiceover';
+  const sr = c.sampleRate, L = Math.round(buf.duration*sr), pcm = new Float32Array(L); let got = 0;
+  for(const b of blocks){ const at = Math.round((b.t - t0 - lat)*sr); for(let i=0;i<b.d.length;i++){ const k = at + i; if(k >= 0 && k < L){ pcm[k] = b.d[i]; got++; } } }
+  if(got < sr*0.5){ vo = hadVo; applyVo(); voStat('Nothing was recorded.'); return; }
+  vo = { pcm, sr, key: Date.now().toString(36) };
+  applyVo(); afterVo();
+}
+function afterVo(){
+  voStat(vo ? 'Voiceover ✓ ' + fmt(vo.pcm.length/vo.sr).replace(/\.\d+$/, '') + ' · the song steps back while you speak' : '');
+  $('vodel').hidden = !vo; capAll = null; capWords = null; capLines = null; if(capsOn) loadCaptions(); redraw();
+}
+$('vorec').addEventListener('click', () => { if(!recording) recordVoiceover(); }, SIG);
+$('vodel').addEventListener('click', () => { if(voRec) return; vo = null; applyVo(); afterVo(); }, SIG);
+
 /* =============== SAVED REELS ===============
  * Every Reel is kept on this phone (IndexedDB, which every browser has; nothing is uploaded): its song and clips (each
  * file once, shared between Reels), the settings, the exact edit (every shot's moment, transition, effect, speed), the
@@ -3136,6 +3203,7 @@ $('refchange').addEventListener('click', ()=>$('reffile').click());
 const PDB = 'brs-projects';
 let proj = null, lastSig = '', restoring = false, capKeyNow = '';
 const fileFp = f => f ? [f.name, f.size, f.lastModified].join('|') : '';
+let voF = null; const voFile = () => (voF && voF.name === 'voiceover-' + vo.key + '.f32') ? voF : (voF = new File([vo.pcm], 'voiceover-' + vo.key + '.f32', { type: 'application/octet-stream', lastModified: parseInt(vo.key, 36) || 1 }));
 function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB, 1);
   r.onupgradeneeded = () => { const d = r.result; if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' }); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files'); };
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
@@ -3147,7 +3215,7 @@ function stateOf(){
     settings: { mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs })),
-    caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null };
+    caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
 }
 async function putFile(f){ const k = 'f:' + fileFp(f); if(await idb('files', 'readonly', s => s.getKey(k)) === undefined) await idb('files', 'readwrite', s => s.put(f, k)); }
 function thumbOf(){ if(!edit.length) return ''; const c = document.createElement('canvas'), H = 240, W = Math.round(H*out.width/out.height); c.width = W; c.height = H; c.getContext('2d').drawImage(out, 0, 0, W, H); try{ return c.toDataURL('image/jpeg', 0.7); }catch(e){ return ''; } }
@@ -3159,6 +3227,7 @@ async function saveProject(st, sig){
     if(song && song.file) await putFile(song.file);
     for(const s of sources) if(s.file) await putFile(s.file);
     if(bgFile) await putFile(bgFile);
+    if(vo) await putFile(voFile());
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -3186,7 +3255,7 @@ async function listProjects(){
 }
 async function deleteProject(id){
   const all = await idb('meta', 'readonly', s => s.getAll()) || [], me = all.find(p => p.id === id); if(!me) return;
-  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), st.settings && st.settings.bg].filter(Boolean).map(fp => 'f:' + fp);
+  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), st.settings && st.settings.bg, st.vo && st.vo.fp].filter(Boolean).map(fp => 'f:' + fp);
   for(const p of all) for(const k of keysOf(p.state || {})) (p.id === id ? mine : used).add(k);
   for(const k of mine) if(!used.has(k)) await idb('files', 'readwrite', s => s.delete(k));   // files no other Reel uses
   await idb('meta', 'readwrite', s => s.delete(id));
@@ -3205,6 +3274,7 @@ async function openProject(id){
     hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1;
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
     if(st.caps && st.caps.key) capCache.set(st.caps.key, st.caps.all);
+    if(st.vo && st.vo.fp){ const vf = await getF(st.vo.fp, 'voiceover-' + st.vo.key + '.f32'); if(vf){ vo = { pcm: new Float32Array(await vf.arrayBuffer()), sr: st.vo.sr, key: st.vo.key }; } }
     if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }
     bgColor = S.bgColor || bgColor; if(S.bgMode && S.bgMode !== 'none') press('bgmode', 'b', S.bgMode);
     overlays = (st.overlays || []).map(o => ({ ...o })); ovSeq = overlays.reduce((q, o) => Math.max(q, o.id || 0), 0); renderOvList();
@@ -3217,6 +3287,7 @@ async function openProject(id){
     if(clips.length){ addVideos(clips); await addQueue; }
     if(st.kind !== 'talk' && st.edit && st.edit.length && st.edit.length && clips.length === (st.clips || []).length) restoreEdit(st.edit);
     if(S.capsOn && !capsOn){ $('caps').checked = true; capsOn = true; $('caprow').hidden = false; loadCaptions(); }
+    if(vo) afterVo();
     redrawFrame();
     const missing = (st.clips || []).length - clips.length + (st.song && !sf ? 1 : 0);
     say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : 'Opened "' + p.name + '" · saved on this phone');
@@ -3234,7 +3305,7 @@ function restoreEdit(list){
 $('pnew').addEventListener('click', () => { location.href = location.pathname; }, SIG);
 { const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else listProjects(); }
 
-root.__studio = { get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

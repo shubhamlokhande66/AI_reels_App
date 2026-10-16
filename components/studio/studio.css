@@ -119,3 +119,4 @@
 .brs .pname{font:600 13px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brs .pmeta{font-size:11px;color:var(--muted)}
 .brs .pdel{position:absolute;top:2px;right:2px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer}
+.brs.talkmode #vorow{display:none}

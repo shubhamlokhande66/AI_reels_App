@@ -96,6 +96,7 @@ export const STUDIO_HTML = `
           <button class="btn hot" id="export" disabled>⬇ Export 1080p MP4</button>
           <button class="btn" id="cover" disabled>Cover image</button>
         </div>
+        <div class="row vorow" id="vorow" style="justify-content:center"><button class="btn" id="vorec" type="button">🎙 Record voiceover</button><button class="btn mini" id="vodel" type="button" hidden>Remove voiceover</button><span class="fname" id="vostat"></span></div>
         <div class="msg" id="xmsg" hidden></div>
         <div class="row" id="saverow" hidden style="justify-content:center"><button class="btn hot" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
         <div class="opts">
