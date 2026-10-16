@@ -7,7 +7,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', OUT = __dirname + '/ou
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await (await b.newContext({ viewport: { width: 1300, height: 1000 } })).newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.click('#kind button[data-k="talk"]'); await p.click('#tpace button[data-p="off"]');
   await p.setInputFiles('#vfile', [OUT + 'talk_0_noisy.webm']);
   const ready = () => p.waitForFunction(() => /of talk/.test(document.getElementById('s3st').textContent), null, { timeout: 300000 }).then(() => p.waitForTimeout(500));

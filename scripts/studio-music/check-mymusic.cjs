@@ -7,7 +7,7 @@ const BASE = process.env.BASE || 'http://localhost:3000';
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await (await b.newContext({ viewport: { width: 1300, height: 1000 } })).newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  const open = async () => { await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 }); };
+  const open = async () => { await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 }); };
   const ready = () => p.waitForFunction(() => /confirmed|double-checked|as checked before|^Ready$/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
   const beatsSig = () => p.evaluate(() => { const r = document.querySelector('.brs').__studio.songR; return r.beats.length + ':' + r.beats.slice(0, 50).map(x => x.toFixed(3)).join(','); });
   await open();

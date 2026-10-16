@@ -14,7 +14,7 @@ const WORDS = 'we light up the night together tonight feel the beat in your hear
   await ctx.route('**/api/studio/translate', async route => { const d = JSON.parse(route.request().postData()); tr++; asked.push(d.lines.length);
     return route.fulfill({ json: { to: d.to, lines: d.lines.map(l => ({ i: l.i, text: 'मराठी ओळ ' + (l.i + 1) })) } }); });
   const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.setInputFiles('#mfile', process.env.SONG); await p.waitForFunction(() => /^Ready/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
   await p.setInputFiles('#vfile', process.env.CLIPS.split(',')); await p.waitForFunction(() => !document.getElementById('play').disabled && document.getElementById('qinfo').textContent === '', null, { timeout: 300000 });
   await p.evaluate(() => { const s = document.getElementById('safe'); if (s.checked) s.click(); });

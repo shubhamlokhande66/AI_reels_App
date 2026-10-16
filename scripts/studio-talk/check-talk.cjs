@@ -14,7 +14,7 @@ const CLIPS = Object.keys(T).map(n => OUT + n + '.webm');
     const body = r.postDataBuffer(); capReq = { secs: (body.length - 44) / 2 / 16000 };
     return route.fulfill({ json: { words: [{ text: 'hello', start: 0.3, end: 0.8 }], duration: capReq.secs, language: 'auto', charged: 0 } }); });
   const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.click('#kind button[data-k="talk"]');
   const t0 = Date.now();
   await p.setInputFiles('#vfile', CLIPS);

@@ -12,7 +12,7 @@ const TEXT = 'here are three simple tips for better reels tip number one always 
     const secs = (r.postDataBuffer().length - 44) / 2 / 16000, step = (secs - 1) / TEXT.length;
     return route.fulfill({ json: { words: TEXT.map((w, i) => ({ text: w, start: 0.4 + i * step, end: 0.4 + i * step + step * 0.8 })), duration: secs, language: 'en', charged: 0 } }); });
   const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.click('#kind button[data-k="talk"]');
   await p.setInputFiles('#vfile', [OUT + 'talk_0.webm']); await p.waitForFunction(() => /of talk/.test(document.getElementById('s3st').textContent), null, { timeout: 300000 });
   await p.evaluate(() => { const s = document.getElementById('safe'); if (s.checked) s.click(); });

@@ -5,7 +5,7 @@ const b=await chromium.launch({args:['--autoplay-policy=no-user-gesture-required
 const p=await (await b.newContext({viewport:{width:1300,height:1000}})).newPage();
 p.on('pageerror',e=>console.log('ERR',e.message));
 await p.addInitScript(()=>{ window.__long=[]; new PerformanceObserver(l=>{ for(const e of l.getEntries()) window.__long.push(Math.round(e.duration)); }).observe({type:'longtask', buffered:true}); });
-await p.goto((process.env.BASE||'http://localhost:3000')+'/studio');
+await p.goto((process.env.BASE||'http://localhost:3000')+'/studio?view=all');
 await p.waitForFunction(()=>document.querySelector('.brs') && document.querySelector('.brs').__studio,null,{timeout:60000});
 const fc=p.waitForEvent('filechooser'); await p.click('#mpick'); await (await fc).setFiles(process.env.SONG);
 await p.waitForFunction(()=>document.getElementById('s1st').textContent==='Ready',null,{timeout:90000});

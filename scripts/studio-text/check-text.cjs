@@ -13,7 +13,7 @@ await ctx.route('**/api/studio/transcribe**', async route=>{ const r=route.reque
   const body=r.postDataBuffer(); req={bytes:body.length, riff:body.toString('ascii',0,4), wave:body.toString('ascii',8,12), sr:body.readUInt32LE(24), ch:body.readUInt16LE(22), bits:body.readUInt16LE(34), lang:new URL(r.url()).searchParams.get('lang')};
   return route.fulfill({json:{words:WORDS, duration:22, language:'auto', charged:0}}); });
 const p=await ctx.newPage(); p.on('pageerror',e=>console.log('ERR',e.message));
-await p.goto((process.env.BASE||'http://localhost:3000')+'/studio'); await p.waitForFunction(()=>document.querySelector('.brs') && document.querySelector('.brs').__studio,null,{timeout:60000});
+await p.goto((process.env.BASE||'http://localhost:3000')+'/studio?view=all'); await p.waitForFunction(()=>document.querySelector('.brs') && document.querySelector('.brs').__studio,null,{timeout:60000});
 const fc=p.waitForEvent('filechooser'); await p.click('#mpick'); await (await fc).setFiles(process.env.SONG);
 await p.waitForFunction(()=>/^Ready/.test(document.getElementById('s1st').textContent),null,{timeout:120000});
 const fc2=p.waitForEvent('filechooser'); await p.click('#addv'); await (await fc2).setFiles(process.env.CLIPS.split(','));

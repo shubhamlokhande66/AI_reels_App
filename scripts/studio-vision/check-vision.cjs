@@ -9,7 +9,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', OUT = __dirname + '/ou
     const ctx = await b.newContext({ viewport: { width: 1300, height: 1000 } });
     if (noBlaze) await ctx.route('**/api/studio/model/face_detection_short_range.onnx', r => r.fulfill({ status: 404, body: '' }));
     const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-    await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+    await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
     await p.setInputFiles('#mfile', process.env.SONG); await p.waitForFunction(() => /^Ready/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
     await p.setInputFiles('#vfile', Object.keys(T).map(n => OUT + n + '.webm'));
     await p.waitForFunction(() => !document.getElementById('play').disabled && document.getElementById('qinfo').textContent === '', null, { timeout: 300000 });

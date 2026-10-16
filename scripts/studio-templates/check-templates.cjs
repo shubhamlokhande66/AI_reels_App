@@ -7,7 +7,7 @@ const BASE = process.env.BASE || 'http://localhost:3000';
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const page = async () => { const p = await (await b.newContext({ viewport: { width: 1300, height: 1000 } })).newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-    await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 }); return p; };
+    await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 }); return p; };
   const state = p => p.evaluate(() => { const s = document.querySelector('.brs').__studio, L = s.audio ? s.audio.duration : 0, pr = id => { const x = document.querySelector('#' + id + ' [aria-pressed="true"]'); return x ? Object.values(x.dataset)[0] : '-'; };
     return { kind: s.kind, mode: pr('mode'), look: pr('look'), style: pr('tstyle'), len: +L.toFixed(2), texts: s.overlays.map(o => o.text + ' ' + (o.all ? '[whole]' : '[' + o.t0.toFixed(2) + '-' + o.t1.toFixed(2) + ']')) }; });
   const settle = (p, first) => p.waitForFunction((first) => !document.querySelector('#tplhelp').textContent && document.querySelector('.brs').__studio.overlays.some(o => o.text === first), first, { timeout: 600000 }).then(() => p.waitForTimeout(800));
