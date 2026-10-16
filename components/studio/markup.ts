@@ -15,6 +15,16 @@ export const STUDIO_HTML = `
       <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
     </div>
     <canvas class="wave" id="mwave"></canvas>
+    <div class="row lenrow" id="lenrow" hidden>
+      <span class="label">Reel length</span>
+      <div class="seg" id="slen" role="group" aria-label="How much of the song">
+        <button data-l="0" aria-pressed="true">Full song</button><button data-l="15" aria-pressed="false">15 s</button><button data-l="30" aria-pressed="false">30 s</button><button data-l="60" aria-pressed="false">1 min</button><button data-l="c" aria-pressed="false">Custom</button>
+      </div>
+      <label class="lenc" hidden id="slencw"><input id="slenc" type="number" inputmode="numeric" min="5" max="180" step="1" value="45"> s</label>
+      <button class="btn" id="sauto" hidden title="Pick the strongest part of the song again">✨ Best part</button>
+      <span class="sinfo" id="sinfo"></span>
+    </div>
+    <p class="hint" id="lenhint" hidden>Drag on the waveform to choose the part yourself.</p>
     <div class="stats">
       <span>Length <b id="mdur">—</b></span>
       <span>Tempo <b id="mbpm">—</b> BPM</span>

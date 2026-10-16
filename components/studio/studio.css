@@ -82,3 +82,9 @@
 /* "Copy a Reel": what was read from the reference, and a button to change it */
 .brs .refbox{display:flex;gap:8px;align-items:center;flex-wrap:wrap;grid-column:1/-1}
 .brs .refbox .fname{white-space:normal;line-height:1.4}
+.brs .lenrow{align-items:center;gap:10px}
+.brs .lenc{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.brs .lenc input{width:70px;font:600 14px var(--mono);padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.brs .sinfo{font:13px var(--mono);color:var(--muted)}
+.brs .hint{margin:0;font-size:13px;color:var(--muted)}
+.brs canvas.wave.drag{touch-action:none;cursor:grab}

@@ -67,3 +67,4 @@ server/audio/data/beat-this/beat_this_final0.onnx
 # Fast Studio iPhone test media and exports
 scripts/studio-iphone/media/
 scripts/studio-iphone/export_*
+scripts/studio-length/out/

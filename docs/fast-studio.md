@@ -261,3 +261,19 @@ Checked in Safari's engine (WebKitGTK 2.52) with the iPhone's media rules switch
 (`scripts/studio-iphone`): every clip read in full (before: a 12 s clip gave 6 samples instead of 360), the cuts inside
 an HEVC 10-bit rotated .MOV found 23 of 23 within 2 frames, a .MOV as the song, and an H.264 + AAC MP4 export with the
 WebAssembly AAC encoder. Chromium: scenes 5/5 exact, 0 crossings, subject in frame 100%. Not yet checked on an iPhone.
+
+## Reel length (a part of the song)
+
+**Full song, 15 s, 30 s, 1 min or any length (5-180 s).** The Reel uses only that part of the song.
+- **Auto ("Best part"):** the part that is full and loud, has the drop in its first 40% (a hook in the first seconds), does not start quietly or on a break, and starts on a hard beat; the earlier of two equal choruses.
+- **By hand:** drag the lit window on the waveform; it snaps to the nearest beat when let go.
+- The whole song is analysed once; a part is cut out on whole beats (whole bars when that costs at most one beat), so it
+  keeps the whole song's beat grid (AI-checked included); drops and breaks keep the whole song's judgement (a part's
+  first beat has nothing before it to be a drop against). 6 ms fade in, a short fade out.
+- Captions: the whole song is transcribed once (up to 3 min, from the part when it starts later) and each part takes
+  its words from that: changing the part sends nothing to the server.
+
+Checked (`scripts/studio-length`, a song with a known structure: quiet intro, verse, drop at 24 s, break, second chorus at
+48 s): 15 s and 30 s start on the drop at 24.0 s; 20 s on the second chorus at 48.0 s; a drag to 50.2 s starts at 50.0 s
+(the beat); the part's first beat at 0.000 s; 1 transcription for all parts; the export of a 15 s part is 15.00 s.
+On a real song with an even loudness, the part chosen (0:17) is among the loudest 15 s windows (0:16-0:18).
