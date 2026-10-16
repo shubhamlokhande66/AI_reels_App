@@ -2058,8 +2058,17 @@ function drawCaptions(t){
   const hookUp = hookText && t < 2.6, fy = faceYOnScreen(t);
   let cy = H*(H>W ? 0.70 : 0.78);                                                  // above Instagram's caption / username
   if(fy !== null && fy > 0.52 && fy < 0.86 && !hookUp) cy = H*(H>W ? 0.36 : 0.3);  // a face is there: move up
-  const L = layoutWords(og, line.words.map(w=>({t: w.key && w.emoji ? w.text + ' ' + w.emoji : w.text, s:w.start, e:w.end, key: w.key})), fs, W*0.78, cy, fs*1.25);
   const lineIn = Math.min(1, (t - line.a)/0.12), lineOut = Math.max(0, (t - (line.b - 0.15))/0.15), la = lineIn*(1-lineOut);
+  const tr = trOf(line);
+  if(tr && trOnly){   // only the translation: the whole line, as one block
+    const TL = layoutWords(og, tr.split(/\s+/).filter(Boolean).map(x => ({t: x})), fs, W*0.8, cy, fs*1.25);
+    TL.forEach(w => drawWord(og, w, fs, textStyle === 'karaoke' ? 'pop' : textStyle, 2, la, 1)); return;
+  }
+  const L = layoutWords(og, line.words.map(w=>({t: w.key && w.emoji ? w.text + ' ' + w.emoji : w.text, s:w.start, e:w.end, key: w.key})), fs, W*0.78, cy, fs*1.25);
+  if(tr){   // both: the translation under the line, smaller and calm
+    const fs2 = Math.round(fs*0.74), y0 = Math.max(...L.map(w => w.y)) + fs*0.62 + fs2*0.62, TL = layoutWords(og, tr.split(/\s+/).filter(Boolean).map(x => ({t: x})), fs2, W*0.84, 0, fs2*1.2);
+    const top = Math.min(...TL.map(w => w.y)); TL.forEach(w => drawWord(og, { ...w, y: w.y - top + y0 }, fs2, 'clean', 2, la, 1));
+  }
   L.forEach(w=>{
     const sung = t >= w.s, cur = sung && t < Math.max(w.e, w.s + 0.12), state = w.key && sung ? 1 : cur ? 1 : sung ? 2 : 0;
     let a = la, sc = w.key && sung ? 1.16 : 1;
@@ -2103,6 +2112,28 @@ function emphAt(t){
   return z;
 }
 $('kwon').addEventListener('change', e => { keyOn = e.target.checked; markKeyWords(capLines); redraw(); }, SIG);
+/* ---- translated captions: each caption line also in another language (or only in it) ----
+ * The lines the phone already has go to the server once (one text call); each translated line is shown for the same
+ * seconds as its original, under it and a little smaller, or alone. Lines already translated are kept (by their text), so
+ * a new part of the song or a style change asks for nothing again. */
+let trTo = '', trOnly = false, trBusy = false; const trCache = new Map();
+const trOf = line => trTo ? trCache.get(trTo + '|' + line.words.map(w => w.text).join(' ')) : null;
+async function translateSoon(){
+  if(!trTo || !capLines || !capLines.length || trBusy) return;
+  const need = capLines.map(l => l.words.map(w => w.text).join(' ')).filter((t, i, a) => t && a.indexOf(t) === i && !trCache.has(trTo + '|' + t)).slice(0, 120);
+  if(!need.length){ redraw(); return; }
+  trBusy = true; const to = trTo; capStat('Translating the captions…');
+  try{
+    const r = await fetch('/api/studio/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, lines: need.map((text, i) => ({ i, text: text.slice(0, 160) })) }), signal: ac.signal });
+    const res = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('Translation failed (' + r.status + ').'));
+    for(const l of res.lines || []) if(need[l.i] !== undefined) trCache.set(to + '|' + need[l.i], l.text);
+    capStat((capWords ? capWords.length + ' words · ' : '') + 'translated');
+  }catch(err){ if(!(err && err.name === 'AbortError')) capStat('Translation is not available right now: ' + (err && err.message || err), true); }
+  finally{ trBusy = false; if(trTo !== to) translateSoon(); redraw(); }
+}
+$('captr').addEventListener('change', e => { trTo = e.target.value; $('trwrap').hidden = !trTo; translateSoon(); redraw(); }, SIG);
+$('tronly').addEventListener('change', e => { trOnly = e.target.checked; redraw(); }, SIG);
 
 /* ---- text & stickers: anything the creator writes on the Reel ----
  * Each item: text or an emoji, a style (bold outline / box / neon / clean / tag), a colour, an entrance (pop / fade /
@@ -2315,7 +2346,7 @@ function shiftCaptions(){
   if(!capAll) return;
   const a = (vo && kind !== 'talk') ? 0 : secStart - capAll.from, L = buf.duration;
   capWords = capAll.words.filter(w => w.end > a + 0.05 && w.start < a + L - 0.05).map(w => ({ ...w, start: Math.max(0, w.start - a), end: Math.min(L, w.end - a) }));
-  capLines = buildCapLines(capWords); markKeyWords(capLines); redraw();
+  capLines = buildCapLines(capWords); markKeyWords(capLines); redraw(); if(trTo) translateSoon();
 }
 function capStat(t, err){ const el = $('capstat'); el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
 async function loadCaptions(){
@@ -3333,7 +3364,7 @@ function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => 
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs })),
     caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
@@ -3394,6 +3425,7 @@ async function openProject(id){
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
     hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1; if(S.denoise === false){ denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
+    if(S.trTo){ for(const [k, v] of S.tr || []) trCache.set(k, v); trTo = S.trTo; trOnly = !!S.trOnly; $('captr').value = trTo; $('tronly').checked = trOnly; $('trwrap').hidden = false; }
     if(st.caps && st.caps.key) capCache.set(st.caps.key, st.caps.all);
     if(st.vo && st.vo.fp){ const vf = await getF(st.vo.fp, 'voiceover-' + st.vo.key + '.f32'); if(vf){ vo = { raw: new Float32Array(await vf.arrayBuffer()), sr: st.vo.sr, key: st.vo.key }; await cleanVo(); } }
     if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }

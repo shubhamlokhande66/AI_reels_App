@@ -397,3 +397,17 @@ Checked (`scripts/studio-talk/check-keywords.cjs`): 8 lines, exactly one key wor
 "reels", "tip 💡", "start 👀", "keep", "short ✂️", "captions ✍️", "every"); the zoom 1.08 just after a key word, 1.00 0.9 s
 later and on other words; accent pixels in the caption band at a key word, none before it; switched off: no key words,
 no zoom.
+
+## Translated captions (bilingual)
+
+Under captions, "Translation": + मराठी, + हिंदी, + English, + Hinglish (Hindi in Latin letters), + ગુજરાતી, বাংলা, தமிழ்,
+తెలుగు, ਪੰਜਾਬੀ; "Only the translation". The caption lines go to `/api/studio/translate` (`server/studio/translate.ts`: one
+text call per batch of up to 120 lines, the `studio_translate` AI task; names, prices, numbers and emoji kept; the answer
+can only fill the lines that were asked); each translated line shows for the same seconds as its original, under it,
+74% of its size in the calm style, or alone in the line's place. Translations are kept by line text, so another part of the
+song or another style asks for nothing again; saved with the Reel. Marathi first: Instagram Edits' bilingual captions
+do not include it.
+
+Checked: `tests/server/studio-translate.test.ts` (limits, the prompt, answers bounded to the lines asked, one call) and
+`scripts/studio-text/check-translate.cjs` (16 lines in 1 request; the translation drawn under the line, or alone; a 15 s
+part afterwards: no new request).
