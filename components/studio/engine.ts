@@ -1839,8 +1839,8 @@ function drawFrame2D(t){
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
   drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
-  $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
-  const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); }
+  if(!exporting){ $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
+    const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); } }
 }
 
 /* =============== GPU RENDERER (WebGL) =============== */
@@ -1914,29 +1914,37 @@ void main(){
   if(loopMix>0.) col = mix(col, texture2D(tL, p/res).rgb, loopMix);
   gl_FragColor = vec4(clamp(col,0.,1.),1.);
 }`;
+// WebGL renderer. Phones can take the GPU context away (memory pressure, the app in the background): then frames are
+// drawn by the 2D renderer until the context comes back, when everything is set up again - never a black frame.
 const GL = (()=>{
   try{
     const c = document.createElement('canvas');
     const gl = c.getContext('webgl', {preserveDrawingBuffer:true, premultipliedAlpha:false, antialias:false});
     if(!gl) return null;
-    const sh = (type, src) => { const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
-    const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER,GLSL_V)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER,GLSL_F)); gl.linkProgram(pr);
-    if(!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
-    gl.useProgram(pr);
-    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(pr,'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
-    const tex = [0,1,2].map(k=>{ const t=gl.createTexture(); gl.activeTexture(gl.TEXTURE0+k); gl.bindTexture(gl.TEXTURE_2D,t);
-      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
-      gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255])); return t; });
-    const U = {}; const n = gl.getProgramParameter(pr, gl.ACTIVE_UNIFORMS);
-    for(let i=0;i<n;i++){ const info=gl.getActiveUniform(pr,i); U[info.name]=gl.getUniformLocation(pr,info.name); }
-    gl.uniform1i(U.tA,0); gl.uniform1i(U.tB,1); gl.uniform1i(U.tL,2);
-    let loopSrc = null;
+    let lost = false, tex = [], U = {}, loopSrc = null;
+    const init = () => {
+      const sh = (type, src) => { const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s); if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+      const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER,GLSL_V)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER,GLSL_F)); gl.linkProgram(pr);
+      if(!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+      gl.useProgram(pr);
+      const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+      const loc = gl.getAttribLocation(pr,'a'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,2,gl.FLOAT,false,0,0);
+      tex = [0,1,2].map(k=>{ const t=gl.createTexture(); gl.activeTexture(gl.TEXTURE0+k); gl.bindTexture(gl.TEXTURE_2D,t);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255])); return t; });
+      U = {}; const n = gl.getProgramParameter(pr, gl.ACTIVE_UNIFORMS);
+      for(let i=0;i<n;i++){ const info=gl.getActiveUniform(pr,i); U[info.name]=gl.getUniformLocation(pr,info.name); }
+      gl.uniform1i(U.tA,0); gl.uniform1i(U.tB,1); gl.uniform1i(U.tL,2);
+      loopSrc = null;
+    };
+    init();
+    c.addEventListener('webglcontextlost', e=>{ e.preventDefault(); lost = true; });
+    c.addEventListener('webglcontextrestored', ()=>{ try{ init(); lost = false; }catch(err){ console.warn('WebGL could not be restored:', err && err.message); } });
     const upload = (k, src) => { if(!src) return; if(src.readyState!==undefined && src.readyState<2) return; gl.activeTexture(gl.TEXTURE0+k); gl.bindTexture(gl.TEXTURE_2D,tex[k]);
       try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src); }catch(e){} };
     const set = (name, v) => { const l=U[name]; if(!l) return; if(typeof v==='number') gl.uniform1f(l,v); else if(v.length===2) gl.uniform2fv(l,v); else if(v.length===3) gl.uniform3fv(l,v); else gl.uniform4fv(l,v); };
-    return { canvas:c, render(S){
+    return { canvas:c, gl, get lost(){ return lost || gl.isContextLost(); }, render(S){
       if(c.width!==out.width || c.height!==out.height){ c.width=out.width; c.height=out.height; }
       gl.viewport(0,0,c.width,c.height);
       if(S.A) upload(0, S.A.el); upload(1, S.B.el);
@@ -2014,10 +2022,10 @@ function drawFrameGL(t){
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
   drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
-  $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
-  const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); }
+  if(!exporting){ $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
+    const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); } }
 }
-function drawFrame(t){ if(!edit.length){ og.fillStyle='#000'; og.fillRect(0,0,out.width,out.height); return; } if(GL) drawFrameGL(t); else drawFrame2D(t); }
+function drawFrame(t){ if(!edit.length){ og.fillStyle='#000'; og.fillRect(0,0,out.width,out.height); return; } if(GL && !GL.lost) drawFrameGL(t); else drawFrame2D(t); }
 
 let coverMode=false;
 let playing=false, src=null, startedAt=0, startOff=0, pos=0, curIdx=-1, timer=0, recording=false, latencyOn=true;
@@ -2152,45 +2160,70 @@ async function fastExport(){
     output.addAudioTrack(as);
     await output.start();
 
-    // one decoder per clip, frames scaled to what the output needs (not the full 4K)
+    // Two decoders per clip (shots alternate between them), frames scaled to what the output needs (not the full 4K),
+    // each with a small ring of reused canvases. While a shot is drawn, the next shot's decoder already seeks to its
+    // first frame: phone video has a keyframe only every 1-2 s, so that seek is the slow part of a cut.
     const sinks = new Map();
-    const sinkFor = async (si) => {
-      if(!sinks.has(si)){
-        const s = sources[si], input = new mb.Input({ source: new mb.BlobSource(s.file), formats: mb.ALL_FORMATS }); inputs.push(input);
+    const sinkFor = async (si, slot) => {
+      const key = si + ':' + slot;
+      if(!sinks.has(key)){
+        const s0 = sources[si], input = new mb.Input({ source: new mb.BlobSource(s0.file), formats: mb.ALL_FORMATS }); inputs.push(input);
         const track = await input.getPrimaryVideoTrack();
-        const r = Math.min(1, Math.max(W/s.w, H/s.h)*1.3);
+        const r = Math.min(1, Math.max(W/s0.w, H/s0.h)*1.3);
         let sfps = 30; try{ const stt = await track.computePacketStats(90); if(stt && stt.averagePacketRate > 1) sfps = stt.averagePacketRate; }catch(err){}
-        sinks.set(si, { sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s.w*r/2)*2), height: Math.max(16, Math.round(s.h*r/2)*2), fit: 'fill' }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
+        sinks.set(key, { sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: 4 }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
       }
-      return sinks.get(si);
+      return sinks.get(key);
     };
     exporting = true;
     const total = Math.round(dur*fps);
-    let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0 }; let tq = performance.now();
+    // the frames of every shot: a frame belongs to the shot showing at its time (the same rule as drawFrame)
+    const shots = []; { let f0 = 0; edit.forEach((e,i)=>{ const fEnd = i+1 < edit.length ? Math.min(total, Math.ceil(edit[i+1].start*fps - 1e-6)) : total; shots.push({ f0, fEnd }); f0 = fEnd; }); }
+    const open = async (i) => {
+      const e = edit[i], sh = shots[i]; if(!e || sh.fEnd <= sh.f0) return null;
+      const { sink, first, half } = await sinkFor(e.src, i % 2), sdur = sources[e.src].dur, ts = [];
+      for(let k=sh.f0; k<sh.fEnd; k++){ const v = first + half + Math.min(Math.max(0, srcPos(e, Math.max(0, k/fps - e.start))), sdur - 2*half - 0.01); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
+      const it = sink.canvasesAtTimestamps(ts)[Symbol.asyncIterator]();
+      const firstP = it.next(); firstP.catch(()=>{});
+      return { it, firstP, ts, sink, first };
+    };
+    // yield to the page without timers (a hidden tab throttles setTimeout to once a second or less)
+    const yieldNow = () => (globalThis.scheduler && scheduler.yield) ? scheduler.yield() : new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
+    let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0, glLostFrames:0, missing:0 }; let tq = performance.now();
+    const tStart = performance.now();
+    let pre = open(0);
     for(let i=0; i<edit.length; i++){
-      const e = edit[i], { sink, first, half } = await sinkFor(e.src), sdur = sources[e.src].dur;
-      const fEnd = i+1 < edit.length ? Math.min(total, Math.ceil(edit[i+1].start*fps - 1e-6)) : total;   // same rule as drawFrame: a frame belongs to the shot showing at its time
-      const ts = [];
-      for(let k=f; k<fEnd; k++){ const v = first + half + Math.min(Math.max(0, srcPos(e, Math.max(0, k/fps - e.start))), sdur - 2*half - 0.01); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
-      let k = f;
-      for await (const wc of sink.canvasesAtTimestamps(ts)){
+      const e = edit[i], sh = shots[i], cur = await pre; pre = null;
+      if(!cur){ pre = open(i+1); continue; }
+      let k = sh.f0, r = await cur.firstP;
+      pre = open(i+1);   // the next shot starts seeking now, while this one is drawn
+      while(!r.done){
+        const wc = r.value;
         const ta = performance.now(); prof.decode += ta - tq;
-        if(wc) e.fc = wc.canvas;
-        else if(!e.fc){   // no frame for this time (variable frame rate, an edit list gap): take the nearest real one, never the previous shot
-          const g = (await sink.getCanvas(ts[k-f] + 0.05)) || (await sink.getCanvas(first + 0.02));
+        if(wc) e.fc = wc.canvas; else prof.missing++;
+        if(!wc && !e.fc){   // no frame for this time (variable frame rate, an edit list gap): take the nearest real one, never the previous shot
+          const g = (await cur.sink.getCanvas(cur.ts[k-sh.f0] + 0.05)) || (await cur.sink.getCanvas(cur.first + 0.02));
           if(g) e.fc = g.canvas;
         }
+        if(GL && GL.lost) prof.glLostFrames++;
         drawFrame(k/fps);
         const tb = performance.now(); prof.draw += tb - ta;
         await vs.add(k/fps, 1/fps);
         tq = performance.now(); prof.encode += tq - tb; prof.frames++;
         while(nextAudio <= k/fps + 1 && nextAudio*1 < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
         k++;
-        if(k % 15 === 0){ $('xmsg').textContent = 'Exporting… ' + Math.round(k/total*100) + '%'; await new Promise(r=>setTimeout(r,0)); }
+        if(k % 15 === 0){
+          const done = k/total, el = (performance.now()-tStart)/1000, left = done > 0.03 ? el/done - el : null;
+          $('xmsg').textContent = 'Exporting… ' + Math.round(done*100) + '%' + (left !== null ? ' · about ' + (left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left/60) + ' min') + ' left' : '') + (document.hidden ? '' : ' · keep this screen on');
+          $('prog').style.width = (done*100).toFixed(1) + '%';
+          await yieldNow();
+        }
+        r = await cur.it.next();
       }
       if(e.fc){ const c = document.createElement('canvas'); c.width = e.fc.width; c.height = e.fc.height; c.getContext('2d').drawImage(e.fc,0,0); e.fcLast = c; }
-      e.fc = null; f = fEnd;
+      e.fc = null; f = sh.fEnd;
     }
+    { const p2 = await pre; if(p2 && p2.it.return) try{ await p2.it.return(); }catch(err){} }
     while(nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
@@ -2205,12 +2238,22 @@ async function fastExport(){
     setCanvas(false); if(edit.length) captureLoop();
   }
 }
+// While exporting, the screen is kept on (Screen Wake Lock): a phone that dims and locks halfway stops the page and with
+// it the export. The lock is taken again if the page comes back from the background; it is let go at the end.
+let wakeLock = null, exportBusy = false;
+async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', ()=>{ wakeLock = null; }); } }catch(err){ wakeLock = null; } }
+document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
 $('export').onclick = async () => {
-  if(recording) return;
-  let ok = false;
-  try{ ok = await fastExport(); }
-  catch(err){ console.warn('fast export failed', err); showMsg('Fast export failed (' + (err && err.message || err) + '). Recording in real time instead…', true); }
-  if(!ok) await recordExport();
+  if(recording || exportBusy) return;
+  exportBusy = true; await holdScreen();
+  try{
+    let ok = false;
+    try{ ok = await fastExport(); }
+    catch(err){ console.warn('fast export failed', err); showMsg('Fast export failed (' + (err && err.message || err) + '). Recording in real time instead…', true); }
+    if(!ok) await recordExport();
+  } finally {
+    exportBusy = false; if(wakeLock){ try{ await wakeLock.release(); }catch(err){} wakeLock = null; }
+  }
 };
 
 /* ---- options ---- */
@@ -2510,7 +2553,7 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
-root.__studio = { renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

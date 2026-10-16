@@ -219,3 +219,21 @@ Scored with `scripts/studio-style` (four reference Reels with known cuts, transi
 
 Checked with `scripts/studio-text/check-text.cjs` on the rendered frames: text only while a line is sung, a word more
 on each beat for the hook, the Devanagari line drawn, captions moved above a face.
+
+## Export that survives a phone
+
+- **The screen stays on while exporting** (Screen Wake Lock): a phone that dims and locks halfway would stop the page
+  and the export with it. The lock is taken again when the page comes back from the background and let go at the end.
+- **No timers in the export loop**: it yields to the page through a MessageChannel / `scheduler.yield` (a hidden tab
+  throttles `setTimeout` to once a second or less), and the page's own per-frame updates (progress bar, edit list) are
+  skipped during the export; it shows progress and the time left every 15 frames.
+- **The GPU may be taken away** (memory pressure, the app in the background): frames are then drawn by the 2D renderer
+  until the WebGL context is restored, which sets everything up again. Never a black frame.
+- **The next shot is already seeking** while the current one is drawn (two decoders per clip, alternating shots): phone
+  video has a keyframe only every 1-2 s, so the seek is the slow part of a cut. Decoded frames go into a small ring of
+  reused canvases.
+
+Measured in the test browser (software GPU): decoding 15-19 ms per frame instead of 23 ms; the GPU taken away at 25% of
+an export and given back 2 s later: 24 frames drawn by the 2D renderer, 0 black frames, the export completes; no frame
+repeated by the pipeline. Drawing there is software-emulated (~0.5 s per frame); on a phone's GPU it is a few ms, so the
+decode and seek savings are what shows. Not yet timed on a real phone.
