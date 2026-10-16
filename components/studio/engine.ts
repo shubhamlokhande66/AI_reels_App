@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 export function initStudio(root, deps) {
-  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const ac = new AbortController(), SIG = { signal: ac.signal };
@@ -958,7 +958,9 @@ function crossesScene(src, a, b){
 async function scanFaces(src, onProgress){
   // faces: up to 2.5 looks a second (at most about 60 per clip), then cleaned up over time (see trackFaces)
   src.faces = [];
-  if(!window.tracking || !tracking.ViolaJones || !tracking.ViolaJones.classifiers || !tracking.ViolaJones.classifiers.face) return;
+  const vj = window.tracking && tracking.ViolaJones && tracking.ViolaJones.classifiers && tracking.ViolaJones.classifiers.face;
+  let blaze = !!findFaces; src.faceHow = blaze ? 'blazeface' : 'viola-jones';
+  if(!blaze && !vj) return;
   const rd = await clipReader(src, 480);
   const w = 240, h = Math.round(240*src.h/src.w), c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d', {willReadFrequently:true});
@@ -966,14 +968,37 @@ async function scanFaces(src, onProgress){
   for(let tt=0.1; tt<src.dur; tt+=step) ts.push(tt);
   let k = 0;
   try{ for await (const v of rd.frames(ts)){ const tt = ts[k++]; if(!v) continue;
-    g.drawImage(v,0,0,w,h); const px = g.getImageData(0,0,w,h).data;
-    let rects = [];
-    try{ rects = tracking.ViolaJones.detect(px, w, h, 1.0, 1.25, 1.5, 0.2, tracking.ViolaJones.classifiers.face) || []; }catch(e){}
-    raw.push({t:tt, rects: rects.filter(r=>r.width > w*0.06).map(r=>({x:(r.x+r.width/2)/w, y:(r.y+r.height/2)/h, s:r.width/w}))});
+    if(blaze){
+      try{ raw.push({t:tt, rects: await blazeFaces(v, src.w, src.h)}); }
+      catch(err){ console.info('BlazeFace not used:', err && err.message); blaze = false; src.faceHow = 'viola-jones'; if(!vj) break; }
+    }
+    if(!blaze){
+      g.drawImage(v,0,0,w,h); const px = g.getImageData(0,0,w,h).data;
+      let rects = [];
+      try{ rects = tracking.ViolaJones.detect(px, w, h, 1.0, 1.25, 1.5, 0.2, tracking.ViolaJones.classifiers.face) || []; }catch(e){}
+      raw.push({t:tt, rects: rects.filter(r=>r.width > w*0.06).map(r=>({x:(r.x+r.width/2)/w, y:(r.y+r.height/2)/h, s:r.width/w}))});
+    }
     onProgress(tt/src.dur);
     await new Promise(r=>setTimeout(r,0));
   } }catch(err){ console.warn('reading frames for faces failed', err); } finally { rd.close(); }
   src.faces = trackFaces(raw);
+}
+// Faces with BlazeFace (MediaPipe, in a worker): the whole frame fitted into a 128x128 square, and squares as wide as
+// the frame along its long side (top, middle, bottom of a vertical video), where a face is twice as many pixels; the
+// finds of all squares are merged (overlapping boxes: the surer one). Result as {x, y, s}: centre and width, fractions.
+const faceSq = Object.assign(document.createElement('canvas'), {width:128, height:128}), faceG = faceSq.getContext('2d', {willReadFrequently:true});
+async function blazeFaces(img, W, H){
+  const L = Math.max(W, H), S = Math.min(W, H), regions = [[ (W-L)/2, (H-L)/2, L ]];
+  if(L/S > 1.3) for(const f of [0, 0.5, 1]){ const o = (L - S)*f; regions.push(W >= H ? [o, 0, S] : [0, o, S]); }
+  const squares = regions.map(([rx, ry, rs]) => { const k = 128/rs; faceG.fillStyle = '#000'; faceG.fillRect(0,0,128,128);
+    faceG.drawImage(img, -rx*k, -ry*k, W*k, H*k); return faceG.getImageData(0,0,128,128).data; });
+  const found = await findFaces(squares), all = [];
+  found.forEach((list, i) => { const [rx, ry, rs] = regions[i]; for(const [sc, cx, cy, fw] of list) all.push({ sc, x: (rx + cx*rs)/W, y: (ry + cy*rs)/H, s: fw*rs/W }); });
+  all.sort((a,b) => b.sc - a.sc);
+  const keep = [];
+  for(const f of all){ if(f.s < 0.03 || f.x < 0 || f.x > 1 || f.y < 0 || f.y > 1) continue;
+    if(keep.some(k => Math.hypot((k.x - f.x)*W, (k.y - f.y)*H) < 0.5*Math.max(k.s, f.s)*W)) continue; keep.push(f); }
+  return keep.slice(0, 4).map(({x, y, s}) => ({x, y, s}));
 }
 // One face is followed through the clip: a detection is kept only when a face is seen at about the same place in a
 // neighbouring look (a lone hit is usually a false face in a pattern), and when there are several faces the one the
@@ -1875,7 +1900,7 @@ const LOOKS = {
   cine:{name:'Cinematic', filter:'contrast(1.18) saturate(0.9) brightness(0.98)', tint:true, grain:0.08},
   mono:{name:'B&W', filter:'grayscale(1) contrast(1.25)', grain:0.1},
 };
-let look = 'vivid', hookText = '', showSafe = true, loopImg = null;
+let look = 'vivid', hookText = '', showSafe = true, loopImg = null, holdText = false;
 const bufA = document.createElement('canvas'), gA = bufA.getContext('2d');
 const bufB = document.createElement('canvas'), gB = bufB.getContext('2d');
 function fitBufs(){ [bufA,bufB].forEach(b=>{ if(b.width!==out.width||b.height!==out.height){ b.width=out.width; b.height=out.height; } }); }
@@ -2094,7 +2119,7 @@ function drawOverlay(g, ov, t){
   if(ovSel >= 0 && overlays[ovSel] === ov && !recording && !exporting && !coverMode){   // the one being edited: a dashed frame
     const [bx, by, bw, bh] = ov.box; g.save(); g.setLineDash([10, 8]); g.lineWidth = 3; g.strokeStyle = 'rgba(255,213,74,0.95)'; g.strokeRect(bx*W, by*H, bw*W, bh*H); g.restore(); }
 }
-function drawOverlays(t){ for(const ov of overlays) drawOverlay(og, ov, t); }
+function drawOverlays(t){ for(const ov of overlays) if(!ov.behind || !personMask || !bgMask) drawOverlay(og, ov, t); }
 // the list under "Text & stickers": edit the words, style, colour, entrance, size, when it shows
 function renderOvList(){
   const box = $('ovlist'); box.innerHTML = '';
@@ -2104,7 +2129,7 @@ function renderOvList(){
     row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Remove" aria-label="Remove">×</button></div>
       <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ova" aria-label="Entrance"></select><span class="ovc"></span>
       <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
-      <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label></div>`;
+      <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
     const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
     ti.addEventListener('input', () => { ov.text = ti.value; redraw(); });
     const ss = row.querySelector('.ovs'), sa = row.querySelector('.ova');
@@ -2121,6 +2146,7 @@ function renderOvList(){
     const now = () => Math.max(0, Math.min(reelLen(), playing ? curTime() : pos || 0));
     row.querySelector('.ovfrom').addEventListener('click', () => { ov.all = false; ov.t0 = now(); if(ov.t1 <= ov.t0 + 0.3) ov.t1 = Math.min(reelLen(), ov.t0 + 3); row.querySelector('.ovall').checked = false; showT(); redraw(); });
     row.querySelector('.ovto').addEventListener('click', () => { ov.all = false; ov.t1 = Math.max(now(), ov.t0 + 0.3); row.querySelector('.ovall').checked = false; showT(); redraw(); });
+    const bh = row.querySelector('.ovbeh'); bh.checked = !!ov.behind; bh.addEventListener('change', () => { ov.behind = bh.checked; if(bh.checked && !personMask) $('bgstat').textContent = 'Text behind the person needs the background tools'; bgMask = null; bgFrame = -1; redrawFrame(); });
     const al = row.querySelector('.ovall'); al.checked = ov.all; al.addEventListener('change', () => { ov.all = al.checked; showT(); redraw(); });
     row.querySelector('.ovdel').addEventListener('click', () => { overlays.splice(i, 1); ovSel = -1; renderOvList(); redraw(); });
     row.addEventListener('focusin', () => { if(ovSel !== i){ ovSel = i; [...box.children].forEach((r, k) => r.classList.toggle('sel', k === i)); redraw(); } });
@@ -2149,6 +2175,61 @@ $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.va
   const end = () => { drag = null; };
   out.addEventListener('pointerup', end, SIG); out.addEventListener('pointercancel', end, SIG); }
 
+/* ---- the background behind the person: blurred, a colour, a photo; and text behind the person ----
+ * The person is found in every frame (MediaPipe Selfie Segmentation in a worker) on the finished picture, just before the
+ * text: the frame fitted into 256x256 (letterboxed), a soft mask back at full size; the person is drawn over the new
+ * background, and texts marked "behind the person" go between the two. The preview uses the mask of the frame before
+ * (it arrives a few ms later; when paused the frame is drawn again with its own), the export waits for each frame's own. */
+let bgMode = 'none', bgColor = '#1DB954', bgImg = null, bgMask = null, bgBusy = false, bgErr = '', bgFrame = -1;
+const segC = Object.assign(document.createElement('canvas'), {width:256, height:256}), segG = segC.getContext('2d', {willReadFrequently:true});
+const mC = Object.assign(document.createElement('canvas'), {width:256, height:256}), mG = mC.getContext('2d');
+let rawC = null, rawG = null, perC = null, perG = null;
+const bgNeeded = () => bgMode !== 'none' || overlays.some(o => o.behind);
+function segRegion(){ const W = out.width, H = out.height, k = 256/Math.max(W, H); return [W*k, H*k, (256 - W*k)/2, (256 - H*k)/2]; }
+// the finished frame (before text) into the 256x256 letterbox, as RGBA
+function segInput(){ const [w, h, ox, oy] = segRegion(); segG.fillStyle = '#000'; segG.fillRect(0,0,256,256); segG.drawImage(out, ox, oy, w, h); return segG.getImageData(0,0,256,256).data; }
+function setMask(m){ const id = mG.createImageData(256, 256); for(let i=0;i<65536;i++){ const a = Math.max(0, Math.min(1, (m[i] - 0.25)/0.5)); id.data[i*4+3] = Math.round(a*255); } mG.putImageData(id, 0, 0); bgMask = true; }
+async function maskNow(){   // export: this frame's own mask
+  if(!personMask || bgErr) return;
+  try{ setMask(await personMask(segInput())); }catch(err){ bgErr = String(err && err.message || err); bgStat(); }
+}
+function maskSoon(t){   // preview: ask for the next one, use it when it comes (paused: once per frame, then drawn again)
+  const key = playing ? -1 : Math.round(t*1000);
+  if(!personMask || bgBusy || bgErr || (key >= 0 && key === bgFrame)) return;
+  bgBusy = true; const data = segInput();
+  personMask(data).then(m => { setMask(m); bgBusy = false; bgFrame = key; if(!playing && key >= 0) redrawFrame(); }, err => { bgBusy = false; bgErr = String(err && err.message || err); bgStat(); });
+}
+const redrawFrame = () => { if(!playing && edit.length) drawFrame(pos || 0.3); };
+function bgStat(){ $('bgstat').textContent = bgErr ? 'Background tools are not available on this device (' + bgErr + ')' : (bgMode === 'photo' && !bgImg ? 'Choose a photo' : ''); }
+function bgPass(t){
+  if(!bgNeeded() || !personMask) return;
+  if(!exporting) maskSoon(t);
+  if(!bgMask) return;
+  const W = out.width, H = out.height;
+  if(!rawC || rawC.width !== W || rawC.height !== H){ rawC = Object.assign(document.createElement('canvas'), {width:W, height:H}); rawG = rawC.getContext('2d'); perC = Object.assign(document.createElement('canvas'), {width:W, height:H}); perG = perC.getContext('2d'); }
+  rawG.globalCompositeOperation = 'copy'; rawG.drawImage(out, 0, 0); rawG.globalCompositeOperation = 'source-over';
+  // the person: the frame where the mask is (the mask's letterboxed part stretched back over the frame)
+  const [w, h, ox, oy] = segRegion();
+  perG.globalCompositeOperation = 'copy'; perG.drawImage(mC, ox, oy, w, h, 0, 0, W, H);
+  perG.globalCompositeOperation = 'source-in'; perG.drawImage(rawC, 0, 0); perG.globalCompositeOperation = 'source-over';
+  // the background
+  og.save();
+  if(bgMode === 'blur'){ og.filter = `blur(${Math.round(Math.max(W, H)/90)}px)`; og.drawImage(rawC, -W*0.03, -H*0.03, W*1.06, H*1.06); og.filter = 'none'; }
+  else if(bgMode === 'color'){ og.fillStyle = bgColor; og.fillRect(0, 0, W, H); }
+  else if(bgMode === 'photo' && bgImg){ const r = Math.max(W/bgImg.width, H/bgImg.height); og.drawImage(bgImg, (W - bgImg.width*r)/2, (H - bgImg.height*r)/2, bgImg.width*r, bgImg.height*r); }
+  og.restore();
+  for(const ov of overlays) if(ov.behind) drawOverlay(og, ov, t);   // text behind the person
+  og.drawImage(perC, 0, 0);
+}
+$('bgmode').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; bgMode = b.dataset.b;
+  [...$('bgmode').children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  $('bgrow').hidden = bgMode !== 'color' && bgMode !== 'photo'; $('bgcolors').hidden = bgMode !== 'color'; $('bgpick').hidden = bgMode !== 'photo';
+  if(!personMask && bgMode !== 'none') bgErr = 'not built in'; bgStat(); bgMask = null; bgFrame = -1; redrawFrame(); }, SIG);
+['#1DB954','#FFFFFF','#111111','#FFD54A','#FF6FD8','#4DA3FF'].forEach(c => { const b = document.createElement('button'); b.className = 'sw' + (c === bgColor ? ' on' : ''); b.style.background = c; b.setAttribute('aria-label', 'Background ' + c);
+  b.addEventListener('click', () => { bgColor = c; [...$('bgcolors').children].forEach(x => x.classList.toggle('on', x === b)); redrawFrame(); }); $('bgcolors').appendChild(b); });
+$('bgpick').addEventListener('click', () => $('bgfile').click(), SIG);
+$('bgfile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+  const im = new Image(); im.onload = () => { bgImg = im; bgStat(); redrawFrame(); }; im.onerror = () => { $('bgstat').textContent = 'This photo cannot be read here.'; }; im.src = URL.createObjectURL(f); }, SIG);
 // the song as speech recognition wants it: 16 kHz mono, the vocal band (drums and bass mostly out), normalised, as WAV
 async function songWav(src = mono, sr = buf.sampleRate, from = 0){
   const a = Math.round(from*sr), len = Math.min(src.length - a, Math.round(180*sr)), n16 = Math.max(1, Math.ceil(len*16000/sr));
@@ -2301,7 +2382,8 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
-  drawText(t);
+  if(holdText) return;
+  bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
   if(!exporting){ $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
     const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); } }
@@ -2484,7 +2566,8 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
-  drawText(t);
+  if(holdText) return;
+  bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
   if(!exporting){ $('prog').style.width = (t/buf.duration*100).toFixed(2)+'%';
     const rows = $('edl').children; if(rows[i] && !rows[i].classList.contains('cur')){ [...rows].forEach(r=>r.classList.remove('cur')); rows[i].classList.add('cur'); } }
@@ -2695,7 +2778,8 @@ async function fastExport(){
           if(g) e.fc = g.canvas;
         }
         if(GL && GL.lost) prof.glLostFrames++;
-        drawFrame(k/fps);
+        if(bgNeeded() && personMask){ holdText = true; try{ drawFrame(k/fps); } finally { holdText = false; } await maskNow(); bgPass(k/fps); drawText(k/fps); }
+        else drawFrame(k/fps);
         const tb = performance.now(); prof.draw += tb - ta;
         await vs.add(k/fps, 1/fps);
         tq = performance.now(); prof.encode += tq - tb; prof.frames++;
@@ -3044,7 +3128,7 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
-root.__studio = { get overlays(){ return overlays; }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

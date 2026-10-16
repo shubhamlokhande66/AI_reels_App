@@ -46,6 +46,9 @@ export default function FastStudioPage() {
             import("@/lib/beatThis/client").then((m) => m.beatThisOnDevice(mono, sr, onProgress)),
           // where people speak in a clip (Silero VAD in a worker), for cutting the silences of talking videos
           speechProbs: (mono: Float32Array, sr: number) => import("@/lib/vad/client").then((m) => m.speechProbs(mono, sr)),
+          // who is the person (background blur / replace, text behind the person) and where faces are (MediaPipe models)
+          personMask: (rgba: Uint8ClampedArray) => import("@/lib/vision/client").then((m) => m.personMask(rgba)),
+          findFaces: (squares: Uint8ClampedArray[]) => import("@/lib/vision/client").then((m) => m.findFaces(squares)),
         });
       } catch (e) {
         setFailed(e instanceof Error ? e.message : String(e));
