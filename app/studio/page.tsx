@@ -44,6 +44,8 @@ export default function FastStudioPage() {
           // the on-device AI beat tracker (Beat This!, ONNX Runtime WebAssembly, in a worker); loaded only when a song is
           beatThis: (mono: Float32Array, sr: number, onProgress?: (stage: "download" | "run", p: number) => void) =>
             import("@/lib/beatThis/client").then((m) => m.beatThisOnDevice(mono, sr, onProgress)),
+          // where people speak in a clip (Silero VAD in a worker), for cutting the silences of talking videos
+          speechProbs: (mono: Float32Array, sr: number) => import("@/lib/vad/client").then((m) => m.speechProbs(mono, sr)),
         });
       } catch (e) {
         setFailed(e instanceof Error ? e.message : String(e));

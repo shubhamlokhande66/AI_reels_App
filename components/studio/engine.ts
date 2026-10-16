@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 export function initStudio(root, deps) {
-  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const ac = new AbortController(), SIG = { signal: ac.signal };
@@ -578,7 +578,7 @@ async function loadMusic(file){
   song.r = r; song.source = 'own';
   await useSection(token);
   if(token !== musicToken) return;
-  $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked'); $('lenrow').hidden = false;
+  $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked'); $('lenrow').hidden = kind === 'talk';
   checkBeatsWithAi(token);
   if(capsOn) loadCaptions();
 }
@@ -623,6 +623,7 @@ function bestPart(L){
 function snapToBeat(t){ const bt = song.r.beats || []; if(bt.length < 8) return Math.max(0, t); let b = bt[0]; for(const x of bt) if(Math.abs(x - t) < Math.abs(b - t)) b = x; return b; }
 async function useSection(token = musicToken){
   if(!song || !song.r) return;
+  if(kind === 'talk'){ drawMusic(); if(sources.length && !recording && !(talk && talk.songKey === song.key)) buildTalk(); return; }
   const run = ++secBusy, W = song.buf, D = W.duration, sr = W.sampleRate;
   let r;
   if(!sec.len || sec.len >= D - 0.3){
@@ -722,7 +723,7 @@ window.addEventListener('resize', ()=>{ drawMusic(); sources.forEach(drawSpark);
 /* =============== STEP 2: VIDEOS =============== */
 const sources = []; // {name,url,dur,w,h,samples:[{t,m,b,cx}], els:[v,v], use:0}
 const SW = 48, SH = 27;
-function waitEv(el, ev, ms=8000){ return new Promise((res,rej)=>{ const t=setTimeout(()=>{ cleanup(); rej(new Error('timeout '+ev)); }, ms); const ok=()=>{ cleanup(); res(); }; const bad=()=>{ cleanup(); rej(new Error('error')); }; function cleanup(){ clearTimeout(t); el.removeEventListener(ev,ok); el.removeEventListener('error',bad); } el.addEventListener(ev,ok,{once:true}); el.addEventListener('error',bad,{once:true}); }); }
+function waitEv(el, ev, ms=8000){ return new Promise((res,rej)=>{ const t=setTimeout(()=>{ cleanup(); rej(new Error('timeout '+ev)); }, ms); const ok=()=>{ cleanup(); res(); }; const bad=()=>{ cleanup(); const me = el.error; rej(new Error('error' + (me ? ' ' + me.code + (me.message ? ': ' + me.message : '') : ''))); }; function cleanup(){ clearTimeout(t); el.removeEventListener(ev,ok); el.removeEventListener('error',bad); } el.addEventListener(ev,ok,{once:true}); el.addEventListener('error',bad,{once:true}); }); }
 function makeVideo(url){ const v=document.createElement('video'); v.muted=true; v.defaultMuted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline',''); v.setAttribute('muted',''); v.preload='auto'; v.crossOrigin='anonymous'; v.src=url; return v; }
 // A video's pictures, ready to draw. iPhone Safari loads only the metadata of a video nobody has played ('preload' is
 // ignored there), so a video that never played has no picture to draw or seek to; a muted inline video may play without a
@@ -1052,14 +1053,150 @@ async function readVideo(src){
     sources.push(src); drawSpark(src);
   }catch(e){
     if(src.removed) return;
+    console.warn('clip not readable:', src.name, e && e.message || e);
     dd.textContent = 'This video does not play here (format). Remove it with ×.';
     card.style.borderColor = 'var(--drop)';
   }
 }
 function finishAdding(){
   updateQ(); $('clearv').hidden = !$('clips').children.length;
-  if(sources.length){ $('s2').classList.add('done'); if(buf) makeEdit(); aiRun(); }
+  if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk') aiRun(); }
 }
+/* =============== TALKING VIDEOS (talking head, vlog, tutorial) ===============
+ * The clips' own voice is the sound of the Reel. Where people speak is found on the phone (Silero VAD; loudness when it
+ * cannot run); the silences between sentences are cut (tight / natural / relaxed pauses, or none), each take keeps its
+ * order, and a jump cut inside one take is framed closer (a punch-in) so it reads as intended. The voice is brought to
+ * one loudness; the song, if there is one, plays under it and steps back further while someone speaks. That one sound
+ * track becomes the edit's audio, so preview, captions (the voice is what is transcribed) and export work as usual. */
+let kind = 'music', talkPace = 'natural', talkMusic = 0.09, talk = null, talkToken = 0;
+const PACE = { tight: { pre: 0.08, post: 0.12, merge: 0.22 }, natural: { pre: 0.12, post: 0.2, merge: 0.42 }, relaxed: { pre: 0.18, post: 0.3, merge: 0.8 } };
+const VOICE_RMS = 0.12;   // about -18 dBFS of speech: room for the music and the limiter
+async function voiceOf(src){
+  if(src.voice) return src.voice;
+  let ab = null;
+  try{ ab = await decodeAnyAudio(src.file); }catch(e){ ab = null; }
+  if(!ab || ab.duration < 0.3){ src.voice = { has: false }; return src.voice; }
+  const sr = ab.sampleRate, pcm = new Float32Array(ab.length);
+  for(let c=0;c<ab.numberOfChannels;c++){ const d = ab.getChannelData(c); for(let i=0;i<pcm.length;i++) pcm[i] += d[i]/ab.numberOfChannels; }
+  let pk = 0; for(let i=0;i<pcm.length;i+=8) pk = Math.max(pk, Math.abs(pcm[i]));
+  if(pk < 0.003){ src.voice = { has: false }; return src.voice; }   // a silent track
+  let probs = null, hop = 512/16000, how = 'ai';
+  if(speechProbs){ try{ probs = await speechProbs(pcm, sr); }catch(e){ console.info('speech model not used:', e && e.message); } }
+  if(!probs){   // loudness: 10 dB over the quiet floor of the clip counts as speech
+    how = 'level'; const n = Math.floor(pcm.length/(hop*sr)), db = new Float32Array(n), w = Math.round(hop*sr);
+    for(let k=0;k<n;k++){ let s2 = 0; for(let i=k*w;i<(k+1)*w;i+=2) s2 += pcm[i]*pcm[i]; db[k] = 10*Math.log10(s2/(w/2) + 1e-10); }
+    const floor = Float32Array.from(db).sort()[Math.floor(n*0.1)] || -60; probs = db.map(v => v > floor + 10 ? 0.9 : v > floor + 6 ? 0.4 : 0.1);
+  }
+  src.voice = { has: true, pcm, sr, probs, hop, how };
+  return src.voice;
+}
+// speech parts of a clip in seconds: in above 0.5, out after 0.2 s below 0.35, then padded and short pauses kept
+function speechParts(v, dur, pace){
+  if(pace === 'off') return [[0, dur]];
+  const P = PACE[pace] || PACE.natural, out = [], h = v.hop; let on = -1, low = 0;
+  v.probs.forEach((p, k) => { if(on < 0){ if(p > 0.5) on = k; } else if(p < 0.35){ if(++low*h >= 0.2){ out.push([on*h, (k-low+1)*h]); on = -1; low = 0; } } else low = 0; });
+  if(on >= 0) out.push([on*h, v.probs.length*h]);
+  const pad = out.filter(([a,b]) => b - a >= 0.12).map(([a,b]) => [Math.max(0, a - P.pre), Math.min(dur, b + P.post)]), merged = [];
+  for(const s of pad){ const L = merged[merged.length-1]; if(L && s[0] - L[1] < P.merge) L[1] = Math.max(L[1], s[1]); else merged.push(s.slice()); }
+  return merged.filter(([a,b]) => b - a >= 0.25);
+}
+// where to split a long take: the quietest moment (lowest speech probability) 2.5-4.5 s in
+function splitPoint(v, a, b){
+  const h = v.hop; let best = Math.min(b, a + 3.2), bp = Infinity;
+  for(let t = a + 2.5; t <= Math.min(b - 1, a + 4.5); t += h){ const p = v.probs[Math.round(t/h)] ?? 1; if(p < bp){ bp = p; best = t; } }
+  return best;
+}
+function rmsOf(x, gate = 0.01){ let s2 = 0, n = 0; for(let i=0;i<x.length;i+=4){ const v = x[i]; if(Math.abs(v) > gate){ s2 += v*v; n++; } } return Math.sqrt(s2/Math.max(1, n)); }
+async function buildTalk(){
+  const token = ++talkToken;
+  if(!sources.length) return;
+  stopAll();
+  $('s3st').textContent = 'Finding where you speak…';
+  for(const src of sources){ await voiceOf(src); if(token !== talkToken) return; }
+  const parts = [];
+  sources.forEach((src, si) => { if(!src.voice.has) return; for(const [a,b] of speechParts(src.voice, src.dur, talkPace)) parts.push({ si, a, b }); });
+  const mute = sources.filter(s => !s.voice.has).length;
+  if(!parts.length){ $('s3st').textContent = 'No voice found in these clips'; showMsg('None of these clips has a voice to follow. For a music edit, choose "Music edit" at the top.', true); return; }
+  const sr = getCtx().sampleRate, T = parts.reduce((q,p)=>q + p.b - p.a, 0), N = Math.round(T*sr), voice = new Float32Array(N), act = new Float32Array(N);
+  // the voice: the parts end to end, 8 ms fades at every join (no clicks), one loudness for every clip
+  const fade = Math.round(0.008*sr); let o = 0;
+  for(const p of parts){
+    const v = sources[p.si].voice, g = VOICE_RMS/Math.max(0.005, rmsOf(v.pcm)), a = Math.round(p.a*v.sr), n = Math.min(N - o, Math.round((p.b - p.a)*sr));
+    p.t0 = o/sr;
+    for(let i=0;i<n;i++){ const j = a + Math.round(i*v.sr/sr); let x = (v.pcm[j] || 0)*g; if(i < fade) x *= i/fade; else if(i > n - fade) x *= (n - i)/fade; voice[o+i] = x;
+      act[o+i] = (v.probs[Math.floor((p.a + i/sr)/v.hop)] || 0) > 0.5 ? 1 : 0; }
+    o += n; p.t1 = o/sr;
+  }
+  // the music under it: the song's best part as long as the talk (repeated if the talk is longer), at one loudness,
+  // stepping back while someone speaks (80 ms down, 400 ms back up)
+  const mix = getCtx().createBuffer(2, N, sr);
+  for(let c=0;c<2;c++) mix.getChannelData(c).set(voice);
+  if(song && talkMusic > 0){
+    const W = song.buf, st = W.duration > T + 0.5 ? bestPart(T) : 0, gm = talkMusic*VOICE_RMS/Math.max(0.005, rmsOf(song.mono)), ws = W.sampleRate;
+    const dn = Math.exp(-1/(0.08*sr)), up = Math.exp(-1/(0.4*sr)); let env = 1;
+    const chans = [W.getChannelData(0), W.getChannelData(Math.min(1, W.numberOfChannels-1))];
+    for(let i=0;i<N;i++){
+      const target = act[i] ? 1 : 2.2; env = target < env ? target + (env - target)*dn : target + (env - target)*up;
+      let ts = st + i/sr; if(ts >= W.duration) ts = ts % W.duration;
+      const j = Math.floor(ts*ws), edge = Math.min(1, i/(0.3*sr), (N - i)/(0.6*sr));
+      for(let c=0;c<2;c++) mix.getChannelData(c)[i] += chans[c][j]*gm*env*edge;
+    }
+  }
+  if(token !== talkToken) return;
+  buf = mix; mono = new Float32Array(N); { const L = mix.getChannelData(0), R = mix.getChannelData(1); for(let i=0;i<N;i++) mono[i] = (L[i] + R[i])/2; }
+  normGain = 1; secStart = 0; beats = []; period = 0.5; peaks = []; peakS = [];
+  talk = { voice, sr, parts, songKey: song && talkMusic > 0 ? song.key : '', sig: sources.map(s=>fpOf(s)).join(',') + '|' + talkPace + '|' + T.toFixed(2) };
+  // the shots: one per part; a long one is split at its quietest moment; a jump cut inside one take is a punch-in
+  const shots = [];
+  for(const p of parts){
+    const v = sources[p.si].voice; let a = p.a, t0 = p.t0;
+    while(p.b - a > 5){ const m = splitPoint(v, a, p.b); shots.push({ si: p.si, in: a, start: t0, end: t0 + (m - a) }); t0 += m - a; a = m; }
+    shots.push({ si: p.si, in: a, start: t0, end: p.t1 });
+  }
+  const useCount = sources.map(()=>0); let zoomed = false;
+  edit = shots.map((sh, i) => {
+    const prev = shots[i-1], sameTake = prev && prev.si === sh.si;
+    zoomed = sameTake ? !zoomed : false;
+    const src = sources[sh.si], e = { start: sh.start, end: sh.end, type: 'cut', fx: 'Hard cut', tr: 'hard', efx: zoomed ? 'jump' : 'none', sp: SPEED.normal,
+      src: sh.si, in: sh.in, scaleR: 1, cx: 0.5, cy: 0.45, face: 0, fs: 0, mot: 0, ov: 0, el: src.els[(useCount[sh.si]++)%3], dirWhy: '', why: sameTake ? 'jump cut: framed closer' : '' };
+    const fz = (src.faces || []).filter(f => f.n > 0 && f.t >= sh.in && f.t <= sh.in + (sh.end - sh.start));
+    if(fz.length){ e.face = fz.length/Math.max(1, (src.faces || []).filter(f => f.t >= sh.in && f.t <= sh.in + (sh.end - sh.start)).length);
+      e.cx = fz.reduce((q,f)=>q + f.fx, 0)/fz.length; e.cy = fz.reduce((q,f)=>q + f.fy, 0)/fz.length; e.fs = fz.reduce((q,f)=>q + (f.fs || 0), 0)/fz.length; }
+    e.kf = keyframesFor(e); e.beatsIn = [];
+    return e;
+  });
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx }));
+  setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL(); drawMusic();
+  $('s3').classList.remove('locked'); $('s3').classList.add('done');
+  const total = sources.reduce((q,s)=>q + s.dur, 0), how = sources.some(s => s.voice.how === 'level') ? ' (by loudness)' : '';
+  $('s3st').textContent = edit.length + ' shots · ' + fmt(T) + ' of talk from ' + fmt(total) + ' of clips' + (talkPace !== 'off' ? ' · ' + fmt(total - T) + ' of pauses cut' + how : '');
+  $('mdur').textContent = fmt(T);
+  $('tinfo').textContent = mute ? mute + ' clip' + (mute > 1 ? 's' : '') + ' without a voice left out' : '';
+  $('xmsg').hidden = true;
+  ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
+  if(capsOn) loadCaptions();
+  captureLoop();
+}
+function setKind(k){
+  if(recording || k === kind) return;
+  kind = k; if(playing) stopAll();
+  [...$('kind').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === k)));
+  root.classList.toggle('talkmode', k === 'talk');
+  $('s1').querySelector('h2').textContent = k === 'talk' ? 'Music (optional)' : 'Music';
+  $('s2').querySelector('h2').textContent = k === 'talk' ? 'Your talking clips' : 'Clips';
+  $('talkrow').hidden = k !== 'talk'; $('lenrow').hidden = k === 'talk' || !song;
+  if(k === 'talk'){ $('s2').classList.remove('locked'); $('s1st').textContent = song ? 'Plays quietly under the voice' : 'Optional: a song to play quietly under the voice'; }
+  else if(!song) $('s2').classList.add('locked');
+  capAll = null; capWords = null; capLines = null;
+  if(k === 'talk'){ if(sources.length) buildTalk(); }
+  else if(song){ useSection(); } else { edit = []; renderEDL(); drawFrame(0); }
+}
+$('kind').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setKind(b.dataset.k); }, SIG);
+$('tpace').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; talkPace = b.dataset.p;
+  [...$('tpace').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); buildTalk(); }, SIG);
+$('tmusic').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; talkMusic = +b.dataset.v;
+  [...$('tmusic').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); buildTalk(); }, SIG);
+
 function removeVideo(src){
   if(recording) return;
   if(playing){ pos = curTime(); stopAll(); }
@@ -1184,7 +1321,7 @@ function styleEdit(){
 }
 const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip:'Whip pan (blur)', zoom:'Zoom-through', glitch:'Glitch RGB', dip:'Dip to black', dissolve:'Dissolve',
   iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur'};
-const FX_NAME = {'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce'};
+const FX_NAME = {jump:'Punch-in (jump cut)', 'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce'};
 const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2};
 
 /* ---- keyframes: [time, value, ease] per property, local to the shot ---- */
@@ -1214,6 +1351,7 @@ function keyframesFor(e){
     case 'drift': return {scale:[[0,1],[L,1.07,'inOut']], bright:[[0,0.86]], vig:[[0,0.6]]};
     case 'bounce': return {scale:[[0,1.06],[0.25,1,'outCubic']], bounce:[[0,1]]};
     case 'punch-soft': return {scale:[[0,1.07],[0.3,1,'outCubic']]};
+    case 'jump': return {scale:[[0,1.14]]};   // a jump cut inside one take: framed closer, so the cut reads as intended
     default: return {};
   }
 }
@@ -1563,6 +1701,7 @@ function scoreWindow(i, src, a, need, gmax){
   return {sc, st, m, ai};
 }
 function makeEdit(){
+  if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(!buf || !sources.length) return;
   stopAll(); plan = adaptPlan(); styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
@@ -1904,9 +2043,9 @@ function shiftCaptions(){
 function capStat(t, err){ const el = $('capstat'); el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
 async function loadCaptions(){
   if(!capsOn || !buf) return;
-  const W = song ? song.buf : buf, M = song ? song.mono : mono, sr = W.sampleRate;
-  const from = secStart + buf.duration > 179 ? secStart : 0;   // a part past 3 minutes: from where it starts
-  const lang = $('caplang').value, key = (song ? song.key : musicKey) + '|' + from.toFixed(2) + '|' + lang, token = musicToken;
+  const tk = kind === 'talk' && talk, W = tk ? null : song ? song.buf : buf, M = tk ? talk.voice : song ? song.mono : mono, sr = tk ? talk.sr : W.sampleRate;
+  const from = !tk && secStart + buf.duration > 179 ? secStart : 0;   // a part past 3 minutes: from where it starts
+  const lang = $('caplang').value, key = (tk ? 'talk|' + talk.sig : song ? song.key : musicKey) + '|' + from.toFixed(2) + '|' + lang, token = musicToken;
   if(capCache.has(key)){ capAll = capCache.get(key); shiftCaptions(); capStat(capWords.length + ' words'); return; }
   capStat('Listening to the words of the song…');
   try{
@@ -2772,7 +2911,7 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
-root.__studio = { get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

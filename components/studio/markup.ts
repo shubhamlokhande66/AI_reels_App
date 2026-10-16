@@ -7,6 +7,13 @@ export const STUDIO_HTML = `
       the best moments (sharp, faces, action) are picked, effects run on the GPU, and you export a 1080p MP4. Nothing is uploaded.</p>
   </header>
 
+  <div class="row kindrow">
+    <span class="label">What are you making?</span>
+    <div class="seg" id="kind" role="group" aria-label="Kind of Reel">
+      <button data-k="music" aria-pressed="true">🎵 Music edit</button><button data-k="talk" aria-pressed="false">🗣 Talking · vlog · tutorial</button>
+    </div>
+  </div>
+
   <section class="step" id="s1">
     <div class="sh"><span class="num">1</span><h2>Music</h2><span class="st" id="s1st">Choose a song to start</span></div>
     <div class="row">
@@ -50,6 +57,17 @@ export const STUDIO_HTML = `
       <span class="fname" id="qinfo"></span>
     </div>
     <div class="clips" id="clips"></div>
+    <div class="row talkrow" id="talkrow" hidden>
+      <span class="label">Pauses</span>
+      <div class="seg" id="tpace" role="group" aria-label="How much of the pauses to cut">
+        <button data-p="tight" aria-pressed="false">Tight</button><button data-p="natural" aria-pressed="true">Natural</button><button data-p="relaxed" aria-pressed="false">Relaxed</button><button data-p="off" aria-pressed="false">Keep all</button>
+      </div>
+      <span class="label">Music under voice</span>
+      <div class="seg" id="tmusic" role="group" aria-label="Music volume under the voice">
+        <button data-v="0" aria-pressed="false">Off</button><button data-v="0.05" aria-pressed="false">Soft</button><button data-v="0.09" aria-pressed="true">Medium</button><button data-v="0.16" aria-pressed="false">Loud</button>
+      </div>
+      <span class="fname" id="tinfo"></span>
+    </div>
     <div class="row">
       <span class="label">Format</span>
       <div class="seg" id="aspect">

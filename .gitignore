@@ -68,3 +68,4 @@ server/audio/data/beat-this/beat_this_final0.onnx
 scripts/studio-iphone/media/
 scripts/studio-iphone/export_*
 scripts/studio-length/out/
+scripts/studio-talk/out/
