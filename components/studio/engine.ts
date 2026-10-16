@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 export function initStudio(root, deps) {
-  const { loadMediabunny, beatThis: aiBeats = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const ac = new AbortController(), SIG = { signal: ac.signal };
@@ -23,7 +23,8 @@ let onEnv=null, onFps=0, onOff=0, hitsRaw=[];
 let cutFx = [], pfArr = null;
 const DRUM_MIN = 0.7;
 let beats = [], cuts = [], cutType = [], peaks = [], peakS = [];
-function getCtx(){ if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)(); return ctx; }
+// On an iPhone the page's sound is muted by the ring/silent switch unless it says it is playing media (Audio Session API)
+function getCtx(){ if(!ctx){ try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){} ctx = new (window.AudioContext||window.webkitAudioContext)(); } return ctx; }
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const TCOL = {drop:'--drop', hit:'--hit', cut:'--cut', break:'--break'};
 const TNAME = {drop:'DROP', hit:'HIT', cut:'CUT', break:'BREAK'};
@@ -513,11 +514,48 @@ function drawMusic(){
   for(let x=0;x<w;x++){ let mx=0; const a=Math.floor(x*spp), b=Math.min(mono.length,Math.floor((x+1)*spp)); for(let i=a;i<b;i+=4){ const v=Math.abs(mono[i]); if(v>mx) mx=v; } const bh=Math.max(1,mx*h*0.9); g.fillRect(x,(h-bh)/2,1,bh); }
   plan.forEach(s=>{ g.fillStyle = css(TCOL[s.type]); g.fillRect(Math.round(s.start/buf.duration*w),0,Math.max(2,dpr*1.5),h); });
 }
-async function loadMusic(arrayBuf, name){
+// The sound of any file: the browser's own decoder first (MP3, M4A, WAV, AAC, MP4 ...). Safari cannot decode the sound of a
+// QuickTime .MOV (every iPhone video) that way, and decoding a big video whole would need it all in memory: for those,
+// mediabunny copies just the sound track, unchanged, into a small .m4a that the browser's decoder accepts (fast, any
+// browser); a sound that cannot be copied so is decoded with WebCodecs where the browser has an audio decoder.
+async function decodeAnyAudio(file){
+  const c = getCtx(), isVideo = /^video\//.test(file.type) || /\.(mov|mp4|m4v|3gp|webm|mkv)$/i.test(file.name);
+  let firstErr = null;
+  if(!isVideo || file.size < 60e6){
+    try{ return await c.decodeAudioData(await file.arrayBuffer()); }catch(e){ firstErr = e; }
+  }
+  const mb = await loadMediabunny();
+  const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+  try{
+    const track = await input.getPrimaryAudioTrack();
+    if(!track) throw new Error('no sound in this file');
+    try{
+      const output = new mb.Output({ format: new mb.Mp4OutputFormat(), target: new mb.BufferTarget() });
+      const conv = await mb.Conversion.init({ input, output, video: { discard: true }, audio: { forceTranscode: false } });
+      if(conv.isValid){ await conv.execute(); return await c.decodeAudioData(output.target.buffer); }
+    }catch(e){ console.warn('copying the sound track did not work', e); }
+    if(!(await track.canDecode())) throw firstErr || new Error('this sound cannot be read here');
+    // decoded here; a decoder that stops giving sound must not hang the page (8 s without output: give up)
+    const parts = []; let n = 0, sr = track.sampleRate, ch = track.numberOfChannels;
+    const it = new mb.AudioBufferSink(track).buffers();
+    for(;;){
+      let to; const r = await Promise.race([it.next(), new Promise(res=>{ to = setTimeout(()=>res(null), 8000); })]); clearTimeout(to);
+      if(!r){ try{ it.return(); }catch(e){} throw new Error('the audio decoder stopped'); }
+      if(r.done) break;
+      parts.push(r.value.buffer); n += r.value.buffer.length; sr = r.value.buffer.sampleRate; ch = r.value.buffer.numberOfChannels;
+    }
+    if(!n) throw new Error('no sound in this file');
+    const out = c.createBuffer(ch, n, sr);
+    for(let k=0;k<ch;k++){ const d = out.getChannelData(k); let o = 0; for(const p of parts){ d.set(p.getChannelData(Math.min(k, p.numberOfChannels-1)), o); o += p.length; } }
+    return out;
+  } finally { try{ input.dispose(); }catch(e){} }
+}
+async function loadMusic(file){
+  const name = file.name;
   stopAll();
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
-  try{ buf = await getCtx().decodeAudioData(arrayBuf); }
-  catch(e){ $('s1st').textContent = 'Could not read this file. Use MP3, WAV, M4A or MP4.'; return; }
+  try{ buf = await decodeAnyAudio(file); }
+  catch(e){ console.warn('song not readable', e); $('s1st').textContent = 'Could not read the sound of this file. Use MP3, M4A, WAV or a video with sound. (Songs in the Apple Music app are protected and cannot be opened by websites.)'; return; }
   const token = ++musicToken;
   musicKey = name + '|' + buf.duration.toFixed(2); capWords = null; capLines = null;
   { const ch = buf.numberOfChannels, len = buf.length; mono = new Float32Array(len);
@@ -564,22 +602,59 @@ async function checkBeatsWithAi(token){
   if(sources.length && !recording){ const was = playing; makeEdit(); if(was) showMsg('The beats were refined, the edit follows them. Press Preview again.'); }
 }
 $('mpick').onclick = () => $('mfile').click();
-$('mfile').addEventListener('change', async e=>{ const f=e.target.files[0]; e.target.value=''; if(f) loadMusic(await f.arrayBuffer(), f.name); });
+$('mfile').addEventListener('change', e=>{ const f=e.target.files[0]; e.target.value=''; if(f) loadMusic(f); });
 window.addEventListener('resize', ()=>{ drawMusic(); sources.forEach(drawSpark); drawTimeline(); }, SIG);
 
 /* =============== STEP 2: VIDEOS =============== */
 const sources = []; // {name,url,dur,w,h,samples:[{t,m,b,cx}], els:[v,v], use:0}
 const SW = 48, SH = 27;
 function waitEv(el, ev, ms=8000){ return new Promise((res,rej)=>{ const t=setTimeout(()=>{ cleanup(); rej(new Error('timeout '+ev)); }, ms); const ok=()=>{ cleanup(); res(); }; const bad=()=>{ cleanup(); rej(new Error('error')); }; function cleanup(){ clearTimeout(t); el.removeEventListener(ev,ok); el.removeEventListener('error',bad); } el.addEventListener(ev,ok,{once:true}); el.addEventListener('error',bad,{once:true}); }); }
-function makeVideo(url){ const v=document.createElement('video'); v.muted=true; v.playsInline=true; v.preload='auto'; v.crossOrigin='anonymous'; v.src=url; return v; }
+function makeVideo(url){ const v=document.createElement('video'); v.muted=true; v.defaultMuted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline',''); v.setAttribute('muted',''); v.preload='auto'; v.crossOrigin='anonymous'; v.src=url; return v; }
+// A video's pictures, ready to draw. iPhone Safari loads only the metadata of a video nobody has played ('preload' is
+// ignored there), so a video that never played has no picture to draw or seek to; a muted inline video may play without a
+// tap, and a moment of playing brings its pictures in. Other browsers return at once.
+async function videoData(v, ms=12000){
+  if(v.readyState >= 2) return;
+  if(v.readyState < 1) await waitEv(v, 'loadedmetadata', ms);
+  if(v.readyState >= 2) return;
+  const got = waitEv(v, 'loadeddata', ms);
+  const nudge = setTimeout(()=>{ if(v.readyState < 2){ const p = v.play(); if(p && p.then) p.then(()=>v.pause(), ()=>{}); } }, 400);
+  try{ await got; } finally { clearTimeout(nudge); if(!v.paused) v.pause(); }
+}
+// Frames of a clip, for reading it (motion, scene changes, faces, the AI's look): decoded with WebCodecs through mediabunny
+// where the browser can (the same frames on every phone, as fast as the decoder, whatever the browser does with <video>
+// elements), else taken from a video element by seeking. frames(ts) gives one drawable per time (null when there is none),
+// to be used before the next one is asked for; at(t) gives one.
+async function clipReader(src, maxSide){
+  try{
+    const mb = await loadMediabunny();
+    const input = new mb.Input({ source: new mb.BlobSource(src.file), formats: mb.ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack();
+    if(!track || !(await track.canDecode())){ try{ input.dispose(); }catch(e){} throw new Error('no WebCodecs decoder'); }
+    const first = await track.getFirstTimestamp(), sc = Math.min(1, maxSide/Math.max(src.w, src.h));
+    const sink = new mb.CanvasSink(track, { width: Math.max(2, Math.round(src.w*sc/2)*2), height: Math.max(2, Math.round(src.h*sc/2)*2), fit: 'fill', poolSize: 2 });
+    return { fast: true,
+      async *frames(ts){ for await (const wc of sink.canvasesAtTimestamps(ts.map(t=>first + t))) yield wc ? wc.canvas : null; },
+      async at(t){ const wc = await sink.getCanvas(first + t); return wc ? wc.canvas : null; },
+      close(){ try{ input.dispose(); }catch(e){} } };
+  }catch(err){
+    const v = makeVideo(src.url); await videoData(v);
+    const at = async (t) => { t = Math.min(Math.max(0, t), Math.max(0, v.duration - 0.02)); if(Math.abs(v.currentTime - t) < 1e-3) return v;
+      v.currentTime = t; try{ await waitEv(v, 'seeked', 3000); }catch(e){ return null; } return v; };
+    return { fast: false, v,
+      async *frames(ts){ for(const t of ts) yield await at(t); },
+      at,
+      close(){ v.removeAttribute('src'); v.load(); } };
+  }
+}
 
 async function scanMotion(src, onProgress){
-  // play the clip fast (muted) and compare small frames: how much moves, where it moves, how bright
-  const v = makeVideo(src.url); await waitEv(v,'loadeddata');
+  // read the clip's frames (see clipReader) and compare small frames: how much moves, where it moves, how bright
+  const rd = await clipReader(src, 256);
   const c = document.createElement('canvas'); c.width=SW; c.height=SH; const g = c.getContext('2d', {willReadFrequently:true});
   const c2 = document.createElement('canvas'); c2.width=128; c2.height=72; const g2 = c2.getContext('2d', {willReadFrequently:true});
   let prev = null; const out = [], hists = [], lums = [];
-  const grab = (t) => {
+  const grab = (v, t) => {
     g.drawImage(v,0,0,SW,SH); const d = g.getImageData(0,0,SW,SH).data;
     const lum = new Float32Array(SW*SH); let b=0;
     for(let i=0;i<SW*SH;i++){ const y=(d[i*4]*0.3+d[i*4+1]*0.59+d[i*4+2]*0.11)/255; lum[i]=y; b+=y; }
@@ -598,29 +673,21 @@ async function scanMotion(src, onProgress){
       sx: sub ? sub.x : -1, sy: sub ? sub.y : -1, sw: sub ? sub.w : 0, gx: sub ? sub.gx : 0, gy: sub ? sub.gy : 0, ax: sal.x, ay: sal.y, aw: sal.w});
     prev = lum;
   };
-  // fast enough to read a clip in seconds, slow enough that a sample lands at least every ~0.25 s of footage
-  v.playbackRate = Math.min(12, Math.max(2, src.dur/6));
-  await new Promise(res=>{
-    let done=false; const finish=()=>{ if(!done){ done=true; v.pause(); res(); } };
-    const useVFC = 'requestVideoFrameCallback' in v;
-    let lastT = -1;
-    const step = (now, meta) => { if(done) return; const t = meta && meta.mediaTime!==undefined ? meta.mediaTime : v.currentTime;
-      if(t!==lastT){ lastT=t; grab(t); onProgress(t/src.dur); } if(v.ended || v.currentTime>=src.dur-0.05) return finish(); useVFC ? v.requestVideoFrameCallback(step) : requestAnimationFrame(step); };
-    v.addEventListener('ended', finish, {once:true});
-    v.play().then(()=>{ useVFC ? v.requestVideoFrameCallback(step) : requestAnimationFrame(step); }).catch(async ()=>{
-      // cannot play fast here: fall back to seeking 5 times a second
-      for(let t=0;t<src.dur;t+=0.2){ v.currentTime=t; try{ await waitEv(v,'seeked',3000); }catch(e){} grab(t); onProgress(t/src.dur); }
-      finish();
-    });
-    setTimeout(finish, Math.max(20000, src.dur/ v.playbackRate*1000*3));
-  });
+  // a frame every 1/30 s for short clips, sparser for long ones (at most every 0.2 s): about what playing the clip at 2-12x
+  // speed on a 60 Hz screen used to sample, which the thresholds below were tuned on
+  const step = Math.max(1/30, Math.min(12, Math.max(2, src.dur/6))/60), ts = [];
+  for(let t=0; t<src.dur-0.02; t+=step) ts.push(+t.toFixed(4));
+  try{
+    let k = 0;
+    for await (const img of rd.frames(ts)){ const t = ts[k++]; if(img) grab(img, t); if(k % 8 === 0) onProgress(t/src.dur); }
+  }catch(err){ console.warn('reading frames failed', err); }
+  if(!out.length) { rd.close(); throw new Error('no frames could be read'); }
   // order by time (callbacks can arrive out of order around the end); keep histograms paired with their samples
   const idx = out.map((s,i)=>i).sort((a,b)=>out[a].t-out[b].t);
   const S = idx.map(i=>out[i]), H = idx.map(i=>hists[i]), LM = idx.map(i=>lums[i]);
   if(S.length>1) S[0].m = S[1].m;
   // scene changes inside the clip (hard cuts, fades through black, dissolves): no shot may cross one
-  src.scenes = await findScenes(v, src, S, H, LM);
-  v.removeAttribute('src'); v.load();
+  try{ src.scenes = await findScenes(rd, src, S, H, LM); } finally { rd.close(); }
   // a cut inside the clip looks like a burst of "action": the samples at a cut get the motion of their neighbours
   for(const sc of src.scenes){ S.forEach((s,i)=>{ if(s.t >= sc.t0-0.01 && s.t <= sc.t1+0.3){ const a=S[i-2]||S[i+2]||s; s.m = Math.min(s.m, a.m); s.sw = 0; s.cut = true; } }); }
   // smooth motion a little
@@ -689,7 +756,7 @@ function subjectMotion(prev, cur){
 }
 // Candidates come from the samples (adaptive threshold: a cut is a spike far above the change around it, a fast pan is
 // not; a flash returns to the same picture and is not a cut). Hard cuts are then pinned to the frame by bisection.
-async function findScenes(v, src, S, H, LM){
+async function findScenes(rd, src, S, H, LM){
   const n = S.length, out = []; if(n < 3) return out;
   const c = new Float32Array(n); for(let i=1;i<n;i++) c[i] = histD(H[i-1], H[i]);
   const isCut = new Uint8Array(n);
@@ -706,7 +773,7 @@ async function findScenes(v, src, S, H, LM){
     if(histD(H[pre], H[post]) < 0.5*c[i]) continue;
     isCut[i] = 1;
   }
-  const grabH = async (t) => { v.currentTime = t; try{ await waitEv(v,'seeked',3000); }catch(e){ return null; }
+  const grabH = async (t) => { let v; try{ v = await rd.at(t); }catch(e){ return null; } if(!v) return null;
     const cv = grabH.cv || (grabH.cv = Object.assign(document.createElement('canvas'), {width:SW, height:SH})), g = cv.getContext('2d', {willReadFrequently:true});
     g.drawImage(v,0,0,SW,SH); return colorHist(g.getImageData(0,0,SW,SH).data); };
   for(let i=1;i<n;i++) if(isCut[i]){
@@ -777,20 +844,20 @@ async function scanFaces(src, onProgress){
   // faces: up to 2.5 looks a second (at most about 60 per clip), then cleaned up over time (see trackFaces)
   src.faces = [];
   if(!window.tracking || !tracking.ViolaJones || !tracking.ViolaJones.classifiers || !tracking.ViolaJones.classifiers.face) return;
-  const v = makeVideo(src.url); await waitEv(v,'loadeddata');
+  const rd = await clipReader(src, 480);
   const w = 240, h = Math.round(240*src.h/src.w), c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d', {willReadFrequently:true});
-  const step = Math.min(1.5, Math.max(0.4, src.dur/60)), raw = [];
-  for(let tt=0.1; tt<src.dur; tt+=step){
-    v.currentTime = tt; try{ await waitEv(v,'seeked',3000); }catch(e){ continue; }
+  const step = Math.min(1.5, Math.max(0.4, src.dur/60)), raw = [], ts = [];
+  for(let tt=0.1; tt<src.dur; tt+=step) ts.push(tt);
+  let k = 0;
+  try{ for await (const v of rd.frames(ts)){ const tt = ts[k++]; if(!v) continue;
     g.drawImage(v,0,0,w,h); const px = g.getImageData(0,0,w,h).data;
     let rects = [];
     try{ rects = tracking.ViolaJones.detect(px, w, h, 1.0, 1.25, 1.5, 0.2, tracking.ViolaJones.classifiers.face) || []; }catch(e){}
     raw.push({t:tt, rects: rects.filter(r=>r.width > w*0.06).map(r=>({x:(r.x+r.width/2)/w, y:(r.y+r.height/2)/h, s:r.width/w}))});
     onProgress(tt/src.dur);
     await new Promise(r=>setTimeout(r,0));
-  }
-  v.removeAttribute('src'); v.load();
+  } }catch(err){ console.warn('reading frames for faces failed', err); } finally { rd.close(); }
   src.faces = trackFaces(raw);
 }
 // One face is followed through the clip: a detection is kept only when a face is seen at about the same place in a
@@ -846,9 +913,10 @@ async function readVideo(src){
   const card = src.card, dd = card.querySelector('.dd');
   try{
     dd.textContent = 'reading…';
-    const v = makeVideo(src.url); await waitEv(v,'loadedmetadata');
+    const v = makeVideo(src.url); await waitEv(v,'loadedmetadata', 15000);
     src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight;
     if(!isFinite(src.dur) || src.dur<=0 || !src.w) throw new Error('bad');
+    await videoData(v);
     v.currentTime = Math.min(src.dur*0.3, 2); await waitEv(v,'seeked');
     const th = card.querySelector('.th'); th.width=320; th.height=180; const tg=th.getContext('2d');
     const r = Math.max(320/src.w, 180/src.h); tg.drawImage(v,(320-src.w*r)/2,(180-src.h*r)/2,src.w*r,src.h*r);
@@ -1081,16 +1149,15 @@ function aiTimes(src){
   return out;
 }
 async function aiFrames(src){
-  const v = makeVideo(src.url); await waitEv(v,'loadeddata');
+  const rd = await clipReader(src, 768);
   const sc = Math.min(1, 384/Math.max(src.w, src.h)), w = Math.max(2, Math.round(src.w*sc)), h = Math.max(2, Math.round(src.h*sc));
   const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
-  const out = [];
-  for(const t of aiTimes(src)){
-    v.currentTime = t; try{ await waitEv(v,'seeked',3000); }catch(e){ continue; }
+  const out = [], ts = aiTimes(src).slice().sort((a,b)=>a-b);
+  let k = 0;
+  try{ for await (const v of rd.frames(ts)){ const t = ts[k++]; if(!v) continue;
     g.drawImage(v, 0, 0, w, h); const url = c.toDataURL('image/jpeg', 0.72);
     out.push({ t: +t.toFixed(2), image: url.slice(url.indexOf(',')+1) });
-  }
-  v.removeAttribute('src'); v.load();
+  } } finally { rd.close(); }
   return out;
 }
 function aiRestore(src){
@@ -1542,6 +1609,7 @@ function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)
 async function prepare(i, t){
   const e = edit[i]; if(!e) return;
   const local = Math.max(0, t - e.start), target = srcPos(e, local);
+  if(e.el.readyState < 2){ try{ await videoData(e.el, 6000); }catch(err){} }
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
   if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked',4000); }catch(err){} }
 }
@@ -2089,11 +2157,27 @@ function pickMime(){
   return '';
 }
 const _sm=0;
+// On a phone the video goes to the share sheet ("Save Video" puts it in Photos, or straight to Instagram); a download would
+// land in Files on an iPhone, where Instagram cannot see it. Sharing needs a tap, so a button appears for it. Computers
+// download it as before.
+let savedUrl = null;
 function saveFile(blob, name){
-  const url = URL.createObjectURL(blob), a = document.createElement('a');
-  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  const file = new File([blob], name, { type: blob.type });
+  const phone = matchMedia('(pointer: coarse)').matches;
+  let canShare = false; try{ canShare = phone && !!navigator.canShare && navigator.canShare({ files: [file] }); }catch(e){}
+  if(savedUrl) URL.revokeObjectURL(savedUrl);
+  savedUrl = URL.createObjectURL(blob);
+  if(canShare){
+    $('saverow').hidden = false; $('dlvid').href = savedUrl; $('dlvid').download = name;
+    $('savevid').textContent = /^image\//.test(blob.type) ? 'Save to Photos / Share' : 'Save video to Photos / Share';
+    $('savevid').onclick = async () => { try{ await navigator.share({ files: [file], title: name }); }catch(err){ if(err && err.name !== 'AbortError') $('dlvid').click(); } };
+    return true;
+  }
+  const a = document.createElement('a');
+  a.href = savedUrl; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  return false;
 }
+const savedMsg = (shared, what) => shared ? what + ' is ready: tap the button below to save it to Photos or share it.' : what + ' saved';
 function showMsg(t, err){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.classList.toggle('err', !!err); }
 // Real-time recording: only when this browser has no WebCodecs encoder (older Firefox / Safari)
 async function recordExport(){
@@ -2117,13 +2201,18 @@ async function recordExport(){
   const blob = new Blob(chunks, {type: mime.split(';')[0]});
   const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
   setCanvas(false); captureLoop();
-  saveFile(blob, name); showMsg('Video saved: '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
+  const sh = saveFile(blob, name); showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
 
 // Fast export: every frame is decoded (WebCodecs, through mediabunny), drawn and encoded off-screen, faster than real
 // time and frame-accurate (no dropped frames). The sound goes through the same gain + limiter as the preview.
 async function fastExport(){
-  if(!window.VideoEncoder || !window.AudioEncoder || !window.OfflineAudioContext) return false;
+  if(!window.VideoEncoder || !window.OfflineAudioContext) return false;
   const mb = await loadMediabunny();
+  // Safari before 26 (iPhone iOS 16.4-18) encodes video but has no AAC encoder: a small WebAssembly AAC encoder stands in,
+  // so the file is still the H.264 + AAC MP4 Instagram wants
+  if(loadAacEncoder && !(await mb.canEncodeAudio('aac').catch(()=>false))){
+    try{ const m = await loadAacEncoder(); if(!loadAacEncoder.done){ m.registerAacEncoder(); loadAacEncoder.done = true; } }catch(err){ console.warn('AAC encoder unavailable', err); }
+  }
   const [W, H] = SIZES[aspect], fps = 30, dur = buf.duration;
   // H.264 + AAC in MP4 (what Instagram wants); browsers without an H.264 encoder get VP9 + Opus in WebM
   const vcodec = await mb.getFirstEncodableVideoCodec(['avc', 'vp9', 'av1'], {width:W, height:H});
@@ -2163,15 +2252,19 @@ async function fastExport(){
     // Two decoders per clip (shots alternate between them), frames scaled to what the output needs (not the full 4K),
     // each with a small ring of reused canvases. While a shot is drawn, the next shot's decoder already seeks to its
     // first frame: phone video has a keyframe only every 1-2 s, so that seek is the slow part of a cut.
-    const sinks = new Map();
+    // At most a few decoders live at once: each holds a ring of full-size canvases, and iPhone Safari caps the memory all
+    // canvases of a page may use (a Reel from ten clips would pass it); the ones not used for longest are let go.
+    const sinks = new Map(), LIVE = 4;
     const sinkFor = async (si, slot) => {
       const key = si + ':' + slot;
-      if(!sinks.has(key)){
+      if(sinks.has(key)){ const v = sinks.get(key); sinks.delete(key); sinks.set(key, v); }   // most recently used last
+      else {
+        while(sinks.size >= LIVE){ const [k0, old] = sinks.entries().next().value; sinks.delete(k0); try{ old.input.dispose(); }catch(err){} const ii = inputs.indexOf(old.input); if(ii >= 0) inputs.splice(ii, 1); }
         const s0 = sources[si], input = new mb.Input({ source: new mb.BlobSource(s0.file), formats: mb.ALL_FORMATS }); inputs.push(input);
         const track = await input.getPrimaryVideoTrack();
         const r = Math.min(1, Math.max(W/s0.w, H/s0.h)*1.3);
         let sfps = 30; try{ const stt = await track.computePacketStats(90); if(stt && stt.averagePacketRate > 1) sfps = stt.averagePacketRate; }catch(err){}
-        sinks.set(key, { sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: 4 }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
+        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: 4 }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
       }
       return sinks.get(key);
     };
@@ -2222,14 +2315,15 @@ async function fastExport(){
       }
       if(e.fc){ const c = document.createElement('canvas'); c.width = e.fc.width; c.height = e.fc.height; c.getContext('2d').drawImage(e.fc,0,0); e.fcLast = c; }
       e.fc = null; f = sh.fEnd;
+      { const o = edit[i-2]; if(o && o.fcLast){ o.fcLast.width = o.fcLast.height = 0; o.fcLast = null; } }   // older last frames are not drawn again
     }
     { const p2 = await pre; if(p2 && p2.it.return) try{ await p2.it.return(); }catch(err){} }
     while(nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
     const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + (mp4 ? 'mp4' : 'webm');
-    saveFile(blob, name);
-    showMsg('Video saved: ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB, made in ' + ((performance.now()-t0)/1000).toFixed(1) + ' s). Ready for Instagram, TikTok and Shorts.');
+    const sh = saveFile(blob, name);
+    showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB, made in ' + ((performance.now()-t0)/1000).toFixed(1) + ' s). Ready for Instagram, TikTok and Shorts.');
     return true;
   } finally {
     exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; });
@@ -2245,7 +2339,7 @@ async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wa
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
 $('export').onclick = async () => {
   if(recording || exportBusy) return;
-  exportBusy = true; await holdScreen();
+  exportBusy = true; $('saverow').hidden = true; await holdScreen();
   try{
     let ok = false;
     try{ ok = await fastExport(); }
@@ -2279,7 +2373,7 @@ $('cover').onclick = async () => {
   const d = edit.find(x=>x.type==='drop') || edit[0], tt = d.start + Math.min(0.6, (d.end-d.start)*0.6);
   setCanvas(true); coverMode = true; const i = segAt(tt); await prepare(i, tt); drawFrame(tt);
   const blob = await new Promise(r=>out.toBlob(r,'image/jpeg',0.92)); coverMode = false; setCanvas(false); captureLoop();
-  saveFile(blob, 'reel-cover.jpg'); showMsg('Cover saved. Pick it under "Edit cover" when you post.');
+  const sh = saveFile(blob, 'reel-cover.jpg'); showMsg(savedMsg(sh, 'Cover') + '. Pick it under "Edit cover" when you post.');
 };
 
 
@@ -2335,6 +2429,7 @@ async function frameSource(file, v, w, h){
       return out; };
     return { small: ts => at(small, ts), full: ts => at(full, ts), close: () => { try{ input.dispose && input.dispose(); }catch(e){} }, fast: true };
   }catch(e){
+    try{ await videoData(v); }catch(err){}
     const grab = async (ts, cw, ch) => { const out = [];
       for(const t of ts){ v.currentTime = Math.min(Math.max(0.01, t), v.duration-0.02); try{ await waitEv(v,'seeked',3000); }catch(err){ out.push(null); continue; }
         const c = document.createElement('canvas'); c.width = cw || v.videoWidth; c.height = ch || v.videoHeight; c.getContext('2d').drawImage(v,0,0,c.width,c.height); out.push(c); }
@@ -2389,12 +2484,12 @@ function cutKind(fr, hint){
 async function analyzeReference(file, onP){
   const url = URL.createObjectURL(file);
   try{
-    const v = makeVideo(url); await waitEv(v,'loadedmetadata'); const dur = v.duration, w = v.videoWidth, h = v.videoHeight;
+    const v = makeVideo(url); await waitEv(v,'loadedmetadata', 15000); const dur = v.duration, w = v.videoWidth, h = v.videoHeight;
     if(!isFinite(dur) || dur <= 1 || !w) throw new Error('This video cannot be read here.');
     onP(0.02, 'listening to its music');
     // its music: the beats (shot lengths are measured in beats, so the pace carries over to another tempo)
     let rb = null;
-    try{ const ab = await getCtx().decodeAudioData(await file.arrayBuffer()); const m = new Float32Array(ab.length);
+    try{ const ab = await decodeAnyAudio(file); const m = new Float32Array(ab.length);
       for(let c=0;c<ab.numberOfChannels;c++){ const d = ab.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ab.numberOfChannels; }
       let r; try{ r = await analyseInWorker(m, ab.sampleRate); }catch(e){ r = songAnalysis(m, ab.sampleRate); }
       if(r.beats && r.beats.length > 8) rb = r.beats; }catch(e){ /* no soundtrack: pace in seconds */ }

@@ -237,3 +237,27 @@ Measured in the test browser (software GPU): decoding 15-19 ms per frame instead
 an export and given back 2 s later: 24 frames drawn by the 2D renderer, 0 black frames, the export completes; no frame
 repeated by the pipeline. Drawing there is software-emulated (~0.5 s per frame); on a phone's GPU it is a few ms, so the
 decode and seek savings are what shows. Not yet timed on a real phone.
+
+## iPhone
+
+- **Videos from an iPhone are read even though Safari would not load them.** iPhone Safari loads only a video's metadata
+  until it is played (`preload` is ignored), so a clip that never played had no picture: reading it timed out and the
+  clip showed "does not play here (format)". Clips are now read from frames decoded with WebCodecs (mediabunny): the
+  same frames on every browser, HEVC 10-bit and rotated portrait .MOV included, in order, at fixed times (every 1/30 s for
+  short clips, at most every 0.2 s). Without WebCodecs a video element is used, played muted for a moment first, which
+  Safari allows without a tap. The preview's videos get the same treatment before they are drawn.
+- **Any file with sound is a song.** Safari cannot decode the sound of a QuickTime .MOV (every iPhone video, a saved
+  Reel, a screen recording): its sound track is copied, unchanged, into a small .m4a that it can decode. Videos over
+  60 MB are never read whole. Songs in the Apple Music app are protected; websites cannot open them (the message says so).
+- **Sound with the silent switch on**: the page declares it plays media (Audio Session API), so the ring/silent switch
+  does not mute the preview.
+- **Export on iOS 16.4-18** (WebCodecs video, but no AAC encoder): a WebAssembly AAC encoder (`@mediabunny/aac-encoder`,
+  loaded only then) keeps the file an H.264 + AAC MP4. At most 4 decoders are alive during an export, and old last
+  frames are freed: iPhone Safari caps the memory all canvases of a page may use.
+- **Saving on a phone**: a "Save video to Photos / Share" button opens the share sheet (Save Video, Instagram...); a
+  download would land in Files, where Instagram cannot see it.
+
+Checked in Safari's engine (WebKitGTK 2.52) with the iPhone's media rules switched on, on iPhone-style files
+(`scripts/studio-iphone`): every clip read in full (before: a 12 s clip gave 6 samples instead of 360), the cuts inside
+an HEVC 10-bit rotated .MOV found 23 of 23 within 2 frames, a .MOV as the song, and an H.264 + AAC MP4 export with the
+WebAssembly AAC encoder. Chromium: scenes 5/5 exact, 0 crossings, subject in frame 100%. Not yet checked on an iPhone.

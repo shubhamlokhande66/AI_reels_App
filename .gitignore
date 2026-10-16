@@ -63,3 +63,7 @@ server/audio/data/beat-this/beat_this_final0.onnx
 /scripts/studio-beats/deg*/
 /scripts/studio-scenes/out/
 /scripts/studio-style/out/
+
+# Fast Studio iPhone test media and exports
+scripts/studio-iphone/media/
+scripts/studio-iphone/export_*

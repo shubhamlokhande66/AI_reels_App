@@ -11,8 +11,8 @@ export const STUDIO_HTML = `
     <div class="sh"><span class="num">1</span><h2>Music</h2><span class="st" id="s1st">Choose a song to start</span></div>
     <div class="row">
       <button class="btn primary" id="mpick">♬ Choose song</button>
-      <input id="mfile" type="file" accept="audio/*,video/*" hidden>
-      <span class="fname" id="mname">MP3, WAV, M4A or a video's sound</span>
+      <input id="mfile" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.mov,.mp4" hidden>
+      <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
     </div>
     <canvas class="wave" id="mwave"></canvas>
     <div class="stats">
@@ -33,7 +33,7 @@ export const STUDIO_HTML = `
   <section class="step locked" id="s2">
     <div class="sh"><span class="num">2</span><h2>Clips</h2><span class="st" id="s2st">Several clips or one long video</span></div>
     <div class="drop" id="dropzone" role="button" tabindex="0">Drop videos here or click to choose. You can add more at any time.</div>
-    <input id="vfile" type="file" accept="video/*" multiple hidden>
+    <input id="vfile" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden>
     <div class="row">
       <button class="btn primary" id="addv">＋ Add videos</button>
       <button class="btn" id="clearv" hidden>Remove all</button>
@@ -64,6 +64,7 @@ export const STUDIO_HTML = `
           <button class="btn" id="cover" disabled>Cover image</button>
         </div>
         <div class="msg" id="xmsg" hidden></div>
+        <div class="row" id="saverow" hidden style="justify-content:center"><button class="btn hot" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
         <div class="opts">
           <span class="label">Style</span>
           <div class="seg" id="mode">
@@ -72,7 +73,7 @@ export const STUDIO_HTML = `
             <button data-m="fast" aria-pressed="false">Fast</button>
             <button data-m="copy" aria-pressed="false" title="Upload a Reel you like: its pace, transitions, effects and colours are copied onto your clips">Copy a Reel</button>
           </div>
-          <input id="reffile" type="file" accept="video/*" hidden>
+          <input id="reffile" type="file" accept="video/*,.mov,.mp4,.m4v" hidden>
           <div class="refbox" id="refbox" hidden><span class="fname" id="refinfo"></span> <button class="btn" id="refchange" type="button">Change Reel</button></div>
           <span class="fname" id="modehelp">Auto: the music decides. Calm parts get longer shots, drops and hits get effects.</span>
           <label class="label" for="hook">Hook text (3-5 words, first 2 seconds)</label>
