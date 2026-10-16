@@ -34,6 +34,7 @@ export const STUDIO_HTML = `
       <input id="mfile" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.mov,.mp4" hidden>
       <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
     </div>
+    <div class="recent" id="recent" hidden><span class="label">Recent songs</span><div class="rlist" id="rlist"></div></div>
     <canvas class="wave" id="mwave"></canvas>
     <div class="row lenrow" id="lenrow" hidden>
       <span class="label">Reel length</span>
@@ -102,7 +103,7 @@ export const STUDIO_HTML = `
         <div class="row" style="justify-content:center">
           <button class="btn primary" id="play" disabled>▶ Preview</button>
           <button class="btn" id="remix" disabled>↻ New mix</button>
-          <button class="btn hot" id="export" disabled>⬇ Export 1080p MP4</button>
+          <button class="btn hot" id="export" disabled>⬇ Export 1080p MP4</button><label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song</label>
           <button class="btn" id="cover" disabled>Cover image</button>
         </div>
         <div class="row vorow" id="vorow" style="justify-content:center"><button class="btn" id="vorec" type="button">🎙 Record voiceover</button><button class="btn mini" id="vodel" type="button" hidden>Remove voiceover</button><label class="tog"><input type="checkbox" id="dn2" checked> 🧹 Clean up noise</label><span class="fname" id="vostat"></span></div>

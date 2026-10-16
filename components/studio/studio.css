@@ -123,3 +123,11 @@
 .brs .tplrow{margin:0 0 14px;align-items:center;gap:10px}
 .brs .seg.tpl{max-width:100%}
 .brs .seg.tpl button{padding:8px 11px}
+.brs .recent{display:grid;gap:6px}
+.brs .rlist{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.brs .rsong{display:flex;align-items:center;flex:0 0 auto;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+.brs .rsong.cur{border-color:var(--accent)}
+.brs .rpick{display:flex;gap:8px;align-items:baseline;border:0;background:transparent;color:var(--ink);padding:7px 4px 7px 12px;cursor:pointer;font:600 13px var(--body);max-width:220px}
+.brs .rn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brs .rd{font:12px var(--mono);color:var(--muted)}
+.brs .rdel{border:0;background:transparent;color:var(--muted);font-size:16px;padding:0 10px 0 4px;cursor:pointer}
