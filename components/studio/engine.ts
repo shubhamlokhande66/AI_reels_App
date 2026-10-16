@@ -568,7 +568,7 @@ async function loadMusic(file){
   if(token !== musicToken) return;
   const m = new Float32Array(whole.length);
   { const ch = whole.numberOfChannels; for(let c=0;c<ch;c++){ const d = whole.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ch; } }
-  song = { buf: whole, mono: m, r: null, name, key: name + '|' + whole.duration.toFixed(2) };
+  song = { buf: whole, mono: m, r: null, name, file, key: name + '|' + whole.duration.toFixed(2) };
   buf = whole; mono = m; secStart = 0; capWords = null; capLines = null; capAll = null;
   drawMusic();
   let r;
@@ -2180,7 +2180,7 @@ $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.va
  * text: the frame fitted into 256x256 (letterboxed), a soft mask back at full size; the person is drawn over the new
  * background, and texts marked "behind the person" go between the two. The preview uses the mask of the frame before
  * (it arrives a few ms later; when paused the frame is drawn again with its own), the export waits for each frame's own. */
-let bgMode = 'none', bgColor = '#1DB954', bgImg = null, bgMask = null, bgBusy = false, bgErr = '', bgFrame = -1;
+let bgMode = 'none', bgColor = '#1DB954', bgImg = null, bgFile = null, bgMask = null, bgBusy = false, bgErr = '', bgFrame = -1;
 const segC = Object.assign(document.createElement('canvas'), {width:256, height:256}), segG = segC.getContext('2d', {willReadFrequently:true});
 const mC = Object.assign(document.createElement('canvas'), {width:256, height:256}), mG = mC.getContext('2d');
 let rawC = null, rawG = null, perC = null, perG = null;
@@ -2229,7 +2229,7 @@ $('bgmode').addEventListener('click', e => { const b = e.target.closest('button'
   b.addEventListener('click', () => { bgColor = c; [...$('bgcolors').children].forEach(x => x.classList.toggle('on', x === b)); redrawFrame(); }); $('bgcolors').appendChild(b); });
 $('bgpick').addEventListener('click', () => $('bgfile').click(), SIG);
 $('bgfile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if(!f) return;
-  const im = new Image(); im.onload = () => { bgImg = im; bgStat(); redrawFrame(); }; im.onerror = () => { $('bgstat').textContent = 'This photo cannot be read here.'; }; im.src = URL.createObjectURL(f); }, SIG);
+  bgFile = f; const im = new Image(); im.onload = () => { bgImg = im; bgStat(); redrawFrame(); }; im.onerror = () => { $('bgstat').textContent = 'This photo cannot be read here.'; }; im.src = URL.createObjectURL(f); }, SIG);
 // the song as speech recognition wants it: 16 kHz mono, the vocal band (drums and bass mostly out), normalised, as WAV
 async function songWav(src = mono, sr = buf.sampleRate, from = 0){
   const a = Math.round(from*sr), len = Math.min(src.length - a, Math.round(180*sr)), n16 = Math.max(1, Math.ceil(len*16000/sr));
@@ -2260,7 +2260,7 @@ async function loadCaptions(){
   const tk = kind === 'talk' && talk, W = tk ? null : song ? song.buf : buf, M = tk ? talk.voice : song ? song.mono : mono, sr = tk ? talk.sr : W.sampleRate;
   const from = !tk && secStart + buf.duration > 179 ? secStart : 0;   // a part past 3 minutes: from where it starts
   const lang = $('caplang').value, key = (tk ? 'talk|' + talk.sig : song ? song.key : musicKey) + '|' + from.toFixed(2) + '|' + lang, token = musicToken;
-  if(capCache.has(key)){ capAll = capCache.get(key); shiftCaptions(); capStat(capWords.length + ' words'); return; }
+  if(capCache.has(key)){ capAll = capCache.get(key); capKeyNow = key; shiftCaptions(); capStat(capWords.length + ' words'); return; }
   capStat('Listening to the words of the song…');
   try{
     const wav = await songWav(M, sr, from);
@@ -2268,7 +2268,7 @@ async function loadCaptions(){
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Captions failed (' + r.status + ').'));
     if(token !== musicToken) return;
-    capAll = { from, words: Array.isArray(res.words) ? res.words : [] }; capCache.set(key, capAll); shiftCaptions();
+    capAll = { from, words: Array.isArray(res.words) ? res.words : [] }; capCache.set(key, capAll); capKeyNow = key; shiftCaptions();
     capStat(capWords.length ? capWords.length + ' words found' + (res.language && res.language !== 'auto' ? ' (' + res.language + ')' : '') + (res.charged ? ' · ' + res.charged + ' credit' + (res.charged > 1 ? 's' : '') : '') : 'No words in this song (instrumental?)');
     redraw();
   }catch(err){ if(!(err && err.name === 'AbortError')) capStat('Captions are not available right now: ' + (err && err.message ? err.message : err), true); }
@@ -3128,6 +3128,112 @@ $('reffile').addEventListener('change', async e=>{
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 
 /* =============== START =============== */
+/* =============== SAVED REELS ===============
+ * Every Reel is kept on this phone (IndexedDB, which every browser has; nothing is uploaded): its song and clips (each
+ * file once, shared between Reels), the settings, the exact edit (every shot's moment, transition, effect, speed), the
+ * texts, the part of the song and the captions already transcribed. It is saved a few seconds after anything changes;
+ * "Your Reels" opens one again exactly as it was (the page reloads into it). */
+const PDB = 'brs-projects';
+let proj = null, lastSig = '', restoring = false, capKeyNow = '';
+const fileFp = f => f ? [f.name, f.size, f.lastModified].join('|') : '';
+function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB, 1);
+  r.onupgradeneeded = () => { const d = r.result; if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' }); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files'); };
+  r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => { const t = d.transaction(store, mode), req = fn(t.objectStore(store));
+  t.oncomplete = () => { d.close(); res(req && 'result' in req ? req.result : undefined); }; t.onerror = () => { d.close(); rej(t.error); }; t.onabort = () => { d.close(); rej(t.error || new Error('storage full')); }; })); }
+function stateOf(){
+  return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
+    clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
+    settings: { mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
+    edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs })),
+    caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null };
+}
+async function putFile(f){ const k = 'f:' + fileFp(f); if(await idb('files', 'readonly', s => s.getKey(k)) === undefined) await idb('files', 'readwrite', s => s.put(f, k)); }
+function thumbOf(){ if(!edit.length) return ''; const c = document.createElement('canvas'), H = 240, W = Math.round(H*out.width/out.height); c.width = W; c.height = H; c.getContext('2d').drawImage(out, 0, 0, W, H); try{ return c.toDataURL('image/jpeg', 0.7); }catch(e){ return ''; } }
+let saving = false;
+async function saveProject(st, sig){
+  if(saving) return; saving = true;
+  try{
+    if(!proj){ proj = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: Date.now() }; try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){} }
+    if(song && song.file) await putFile(song.file);
+    for(const s of sources) if(s.file) await putFile(s.file);
+    if(bgFile) await putFile(bgFile);
+    const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
+    await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
+    lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }catch(err){ $('psaved').textContent = 'Could not save on this phone (' + (err && err.message || err) + ')'; }
+  finally{ saving = false; }
+}
+setInterval(() => {
+  if(restoring || recording || exporting || pending || (!song && !sources.length) || typeof indexedDB === 'undefined') return;
+  const st = stateOf(), sig = JSON.stringify(st); if(sig !== lastSig) saveProject(st, sig);
+}, 3000);
+async function listProjects(){
+  let all = []; try{ all = await idb('meta', 'readonly', s => s.getAll()) || []; }catch(e){ return; }
+  all.sort((a, b) => b.updated - a.updated);
+  const box = $('plist'); box.innerHTML = '';
+  for(const p of all){
+    const d = document.createElement('div'); d.className = 'proj' + (proj && p.id === proj.id ? ' cur' : '');
+    d.innerHTML = `<button class="popen" type="button"><img alt=""><span class="pname"></span><span class="pmeta"></span></button><button class="pdel" type="button" aria-label="Delete this Reel" title="Delete">×</button>`;
+    const img = d.querySelector('img'); if(p.thumb) img.src = p.thumb; else img.remove();
+    d.querySelector('.pname').textContent = p.name; d.querySelector('.pmeta').textContent = (p.kind === 'talk' ? '🗣 ' : '🎵 ') + fmt(p.dur || 0).replace(/\.\d+$/, '') + ' · ' + new Date(p.updated).toLocaleDateString();
+    d.querySelector('.popen').addEventListener('click', () => { if(!(proj && p.id === proj.id)) location.href = location.pathname + '?p=' + encodeURIComponent(p.id); });
+    d.querySelector('.pdel').addEventListener('click', async () => { if(!confirm('Delete "' + p.name + '" from this phone?')) return; await deleteProject(p.id); if(proj && proj.id === p.id){ location.href = location.pathname; return; } listProjects(); });
+    box.appendChild(d);
+  }
+  $('projects').hidden = !all.length;
+}
+async function deleteProject(id){
+  const all = await idb('meta', 'readonly', s => s.getAll()) || [], me = all.find(p => p.id === id); if(!me) return;
+  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), st.settings && st.settings.bg].filter(Boolean).map(fp => 'f:' + fp);
+  for(const p of all) for(const k of keysOf(p.state || {})) (p.id === id ? mine : used).add(k);
+  for(const k of mine) if(!used.has(k)) await idb('files', 'readwrite', s => s.delete(k));   // files no other Reel uses
+  await idb('meta', 'readwrite', s => s.delete(id));
+}
+const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
+async function openProject(id){
+  restoring = true; const say = t => { $('psaved').textContent = t; };
+  try{
+    const p = await idb('meta', 'readonly', s => s.get(id)); if(!p){ say('That Reel is no longer on this phone.'); return; }
+    const st = p.state, getF = async (fp, name) => { const b = fp ? await idb('files', 'readonly', s => s.get('f:' + fp)) : null; return b ? new File([b], name || b.name || 'file', { type: b.type, lastModified: +fp.split('|').pop() || Date.now() }) : null; };
+    say('Opening "' + p.name + '"…'); proj = { id: p.id, created: p.created };
+    const S = st.settings || {};
+    if(st.kind === 'talk') setKind('talk');
+    press('aspect', 'a', S.aspect); press('look', 'l', S.look); press('tstyle', 't', S.textStyle); if(S.mode && S.mode !== 'auto') press('mode', 'm', S.mode);
+    press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
+    hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1;
+    if(S.caplang !== undefined) $('caplang').value = S.caplang;
+    if(st.caps && st.caps.key) capCache.set(st.caps.key, st.caps.all);
+    if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }
+    bgColor = S.bgColor || bgColor; if(S.bgMode && S.bgMode !== 'none') press('bgmode', 'b', S.bgMode);
+    overlays = (st.overlays || []).map(o => ({ ...o })); ovSeq = overlays.reduce((q, o) => Math.max(q, o.id || 0), 0); renderOvList();
+    if(st.sec){ sec.len = st.sec.len; sec.auto = st.sec.auto; sec.start = st.sec.start;
+      [...$('slen').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === (!sec.len ? '0' : [15,30,60].includes(sec.len) ? String(sec.len) : 'c'))));
+      if(sec.len && ![15,30,60].includes(sec.len)){ $('slenc').value = sec.len; $('slencw').hidden = false; } $('sauto').hidden = !sec.len; $('lenhint').hidden = !sec.len; $('mwave').classList.toggle('drag', !!sec.len); }
+    const clips = []; for(const c of st.clips || []){ const f = await getF(c.fp, c.name); if(f) clips.push(f); }
+    const sf = st.song ? await getF(st.song.fp, st.song.name) : null;
+    if(sf) await loadMusic(sf);
+    if(clips.length){ addVideos(clips); await addQueue; }
+    if(st.kind !== 'talk' && st.edit && st.edit.length && st.edit.length && clips.length === (st.clips || []).length) restoreEdit(st.edit);
+    if(S.capsOn && !capsOn){ $('caps').checked = true; capsOn = true; $('caprow').hidden = false; loadCaptions(); }
+    redrawFrame();
+    const missing = (st.clips || []).length - clips.length + (st.song && !sf ? 1 : 0);
+    say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : 'Opened "' + p.name + '" · saved on this phone');
+  }catch(err){ say('Could not open this Reel (' + (err && err.message || err) + ')'); }
+  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; listProjects(); }
+}
+function restoreEdit(list){
+  if(!list.every(x => sources[x.src])) return false;
+  stopAll(); const uc = sources.map(() => 0);
+  edit = list.map(x => { const e = { ...x, el: sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx }));
+  setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop();
+  return true;
+}
+$('pnew').addEventListener('click', () => { location.href = location.pathname; }, SIG);
+{ const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else listProjects(); }
+
 root.__studio = { get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
