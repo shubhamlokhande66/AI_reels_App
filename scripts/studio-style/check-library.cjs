@@ -17,7 +17,7 @@ const BASE = process.env.BASE || 'http://localhost:3000';
     if (r.method() === 'POST') { sent.save = JSON.parse(r.postData()); return route.fulfill({ json: { id: 'x1', name: sent.save.name, category: sent.save.category, shared: sent.save.shared, pace: '', trans: '' } }); }
     return route.fulfill({ json: { mine: [], categories: { wedding: { mine: 3, shared: 10 }, dance: { mine: 2, shared: 12 } } } }); });
   const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=pro'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.setInputFiles('#mfile', process.env.SONG); await p.waitForFunction(() => /^Ready/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
   await p.setInputFiles('#vfile', process.env.CLIPS.split(',')); await p.waitForFunction(() => !document.getElementById('play').disabled && document.getElementById('qinfo').textContent === '', null, { timeout: 300000 });
   console.log('learned-style row shown:', await p.isVisible('#learnrow'), '| kinds:', await p.$$eval('#lcat option:not([disabled])', o => o.map(x => x.textContent).join(', ')));

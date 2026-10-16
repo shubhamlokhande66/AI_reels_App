@@ -17,7 +17,7 @@ const CLIPS = (process.env.CLIPS || '').split(',').filter(Boolean);
     posts++; const body = r.postDataBuffer(); const secs = (body.length - 44) / 2 / 16000;
     return route.fulfill({ json: { words: WORDS.filter(w => w.start < secs), duration: secs, language: 'auto', charged: 0 } }); });
   const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=pro'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.setInputFiles('#mfile', SONG);
   await p.waitForFunction(() => /confirmed|double-checked|^Ready$/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
   const S = () => p.evaluate(() => { const s = document.querySelector('.brs').__studio, x = s.section; return { start: +x.start.toFixed(3), len: +x.len.toFixed(3), whole: +x.whole.toFixed(2), auto: x.auto, beats: s.beats.slice(0, 4).map(v => +v.toFixed(3)), nb: s.beats.length, info: document.getElementById('sinfo').textContent, dur: document.getElementById('mdur').textContent }; });

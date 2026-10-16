@@ -470,3 +470,22 @@ same on the GPU and the 2D renderer: linear move half way 0.100 / -0.050 (set 0.
 0.000. The panel: two keyframes written by the sliders, the in-between values shown half way, ◀◆ / ◆▶, ease, delete;
 dragging the picture 10% moved the shot 0.100; a text moved 0.200 and sized 1.500× (set 0.2, 1.5×); saved with the Reel;
 the exported 1080p video: bar at 0.700, 0.500 and 20.0° against the preview's 0.699, 0.499 and 20.0°.
+
+## The studio's look: Simple / Editor / Pro, menu, Ivory / Noir
+
+- **Full-screen workspace** (like the editor): its own top bar: the menu (☰), the Reel's name and saved state, the view
+  switch and Export. The app's sidebar and bottom bar are not shown on /studio; the menu has every page of the app.
+- **Three views of the same Reel** (`components/studio/views.ts`; remembered on the device, also `/studio?view=pro`):
+  - **Simple** (default): the steps; once the Reel is made, the song and clips fold into one line each, then the preview,
+    "Make it yours" cards (Style, Text, Look, Music, Captions, Voice, Background; each shows what is chosen and opens its
+    panel), and a "Save video · 1080p" bar with "Without the song".
+  - **Editor**: a tool dock (Shots, Music, Text, Captions, Look, Motion, Background, Voice, Style) shows one panel at a
+    time; on phones the dock sits at the bottom and the preview stays in sight above the panel.
+  - **Pro**: every panel open (keyframes too) beside the preview, the timeline and the edit list across the width.
+- **Menu**: New Reel, "Open my Reels in" Simple / Editor / Pro, Theme Ivory / Noir / Auto (Auto follows the phone), and
+  the app's pages.
+- The panels are the same elements in every view (the engine's ids did not change); only what is shown changes.
+
+Checked: phone (390×844, Noir) and desktop (1440×900, Ivory) in every view, before and after a Reel is made, the menu;
+WebKit (Safari's engine) renders it and switches views; `check-keyframes` (all 16 measurements, panel, drag, New mix,
+export), `check-overlays` and `check-templates` pass in the Pro view (the checks now open `/studio?view=pro`).

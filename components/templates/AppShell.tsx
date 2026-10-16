@@ -12,7 +12,7 @@ import { useAdmin, useCredits, useMe } from "@/hooks/useApi";
 
 // What every user sees: the product. The admin section (settings, diagnostics, experimental tools) appears only in
 // admin mode (lib/admin.ts); the server enforces it for the settings API too.
-const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
+export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
   {
     title: "Studio",
     items: [
@@ -67,7 +67,7 @@ const TABS: { href: string; label: string; icon: string; primary?: boolean }[] =
   { href: "/editor", label: "Editor", icon: "✂" },
 ];
 
-function isActive(pathname: string, href: string): boolean {
+export function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   if (href === "/projects") return pathname === "/projects" || (pathname.startsWith("/projects/") && pathname !== "/projects/new");
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -106,7 +106,7 @@ function CreditPill({ balance }: { balance: number }) {
   );
 }
 
-function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pathname: string; onNavigate?: () => void }) {
+export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pathname: string; onNavigate?: () => void }) {
   return (
     <>
       {groups.map((g) => (
@@ -181,8 +181,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // an admin page opened by address in user mode: say so instead of showing it (the server guards its data too)
   const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => i.href !== "/admin" && isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
-  if (pathname.startsWith("/editor/") && !signedOut) {
-    // the editor is a full-screen workspace (like CapCut): no studio sidebar or bottom bar
+  if ((pathname.startsWith("/editor/") || pathname === "/studio") && !signedOut) {
+    // the editor and Fast Studio are full-screen workspaces (like CapCut): no studio sidebar or bottom bar (Fast Studio
+    // has its own top bar and menu)
     return (
       <main className="min-h-screen">
         <GlobalActivity />

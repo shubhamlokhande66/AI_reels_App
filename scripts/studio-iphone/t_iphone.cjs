@@ -9,7 +9,7 @@ const VIDS = (process.env.VIDS || 'clipA_hevc10_rot.MOV,clipB_h264_rot.MOV,clipC
 (async () => {
   const b = await start();
   try {
-    await b.go('http://localhost:3100/studio');
+    await b.go('http://localhost:3100/studio?view=pro');
     await b.waitFor(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, 90000);
     if (process.env.EMU_IOS_AUDIO) await b.js(() => { window.__emuIosAudio = true; });
     await b.js(() => { window.__errs = []; window.addEventListener('error', e => __errs.push(String(e.message))); window.addEventListener('unhandledrejection', e => __errs.push('rej ' + String(e.reason && e.reason.message || e.reason)));

@@ -2821,7 +2821,13 @@ function drawFrame(t){ if(!edit.length){ og.fillStyle='#000'; og.fillRect(0,0,ou
 let coverMode=false;
 let playing=false, src=null, startedAt=0, startOff=0, pos=0, curIdx=-1, timer=0, recording=false, latencyOn=true;
 function curTime(){ if(!playing) return pos; const lat = latencyOn ? (ctx.outputLatency||ctx.baseLatency||0) : 0; return startOff + ctx.currentTime - startedAt - lat; }
-function stopAll(){ playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); $('play').textContent='▶ Preview'; }
+// button labels: the text beside the button's icon (the icon stays)
+function setLabel(id, t){ const el = $(id); if(!el) return; const sp = el.querySelector('span'); if(sp) sp.textContent = t;
+  else { const tn = [...el.childNodes].reverse().find(n => n.nodeType === 3 && n.textContent.trim()); if(tn) tn.textContent = t; else el.append(t); } }
+const PLAY_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+const PAUSE_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
+function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '<span>' + (on ? 'Pause' : 'Preview') + '</span>'; }
+function stopAll(){ playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
@@ -2839,8 +2845,8 @@ async function startPlayback(from, destNode){
   if(destNode){ lim.connect(destNode); } lim.connect(c.destination);
   s.start(0, from); src = s; startedAt = c.currentTime; startOff = from; playing = true;
   edit[curIdx].el.play().catch(()=>{});
-  $('play').textContent='❚❚ Pause';
-  s.onended = () => { if(src===s){ src=null; playing=false; pos=0; edit.forEach(e=>e.el.pause()); $('play').textContent='▶ Preview'; onEnd && onEnd(); } };
+  setPlayLabel(true);
+  s.onended = () => { if(src===s){ src=null; playing=false; pos=0; edit.forEach(e=>e.el.pause()); setPlayLabel(false); onEnd && onEnd(); } };
   const loop = () => {
     if(!playing) return;
     const t = Math.max(0, curTime()), i = segAt(t);
@@ -3491,7 +3497,7 @@ async function recordVoiceover(){
   const blocks = []; node.port.onmessage = e => blocks.push(e.data);
   let done; const finished = new Promise(r => done = r);
   voRec = { stop: () => { if(playing){ pos = curTime(); stopAll(); } done(); } };
-  $('vorec').textContent = '■ Stop recording'; voStat('Recording… speak now (headphones keep the song out of your voice)');
+  setLabel('vorec', 'Stop recording'); voStat('Recording… speak now (headphones keep the song out of your voice)');
   pos = 0; await startPlayback(0);
   const t0 = startedAt, lat = (c.outputLatency || c.baseLatency || 0) + 0.015;
   node.port.postMessage({ on: true });
@@ -3499,7 +3505,7 @@ async function recordVoiceover(){
   await finished;
   node.port.postMessage({ on: false }); await new Promise(r => setTimeout(r, 120));
   mic.disconnect(); node.disconnect(); sink.disconnect(); stream.getTracks().forEach(t => t.stop());
-  normGain = keepNorm; voRec = null; $('vorec').textContent = '🎙 Record voiceover';
+  normGain = keepNorm; voRec = null; setLabel('vorec', 'Record voiceover');
   const sr = c.sampleRate, L = Math.round(buf.duration*sr), pcm = new Float32Array(L); let got = 0;
   for(const b of blocks){ const at = Math.round((b.t - t0 - lat)*sr); for(let i=0;i<b.d.length;i++){ const k = at + i; if(k >= 0 && k < L){ pcm[k] = b.d[i]; got++; } } }
   if(got < sr*0.5){ vo = hadVo; applyVo(); voStat('Nothing was recorded.'); return; }
