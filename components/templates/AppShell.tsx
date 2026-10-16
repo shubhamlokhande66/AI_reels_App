@@ -12,13 +12,14 @@ import { useAdmin, useCredits, useMe } from "@/hooks/useApi";
 
 // What every user sees: the product. The admin section (settings, diagnostics, experimental tools) appears only in
 // admin mode (lib/admin.ts); the server enforces it for the settings API too.
-const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string }[] }[] = [
+const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
   {
     title: "Studio",
     items: [
       { href: "/", label: "Dashboard", icon: "◇" },
       { href: "/projects/new", label: "Create Reel", icon: "✦" },
-      { href: "/studio", label: "Fast Studio", icon: "⚡" },
+      // a full page load: the studio is cross-origin isolated (next.config.ts) so its AI beat tracker can use several cores
+      { href: "/studio", label: "Fast Studio", icon: "⚡", fullLoad: true },
       { href: "/story/new", label: "Story → Reel", icon: "❦" },
       { href: "/editor", label: "Editor", icon: "✂" },
       { href: "/projects", label: "Projects", icon: "▤" },
@@ -113,8 +114,9 @@ function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pa
           <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.26em] text-muted/70">{g.title}</p>
           {g.items.map((item) => {
             const active = isActive(pathname, item.href);
+            const Tag = item.fullLoad ? "a" : Link;
             return (
-              <Link
+              <Tag
                 key={item.href}
                 href={item.href}
                 onClick={onNavigate}
@@ -130,7 +132,7 @@ function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pa
                   {item.icon}
                 </span>
                 {item.label}
-              </Link>
+              </Tag>
             );
           })}
         </div>
