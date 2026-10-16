@@ -473,19 +473,33 @@ the exported 1080p video: bar at 0.700, 0.500 and 20.0° against the preview's 0
 
 ## The studio's look: Simple / Editor / Pro, menu, Ivory / Noir
 
-- **Full-screen workspace** (like the editor): its own top bar: the menu (☰), the Reel's name and saved state, the view
-  switch and Export. The app's sidebar and bottom bar are not shown on /studio; the menu has every page of the app.
-- **Three views of the same Reel** (`components/studio/views.ts`; remembered on the device, also `/studio?view=pro`):
-  - **Simple** (default): the steps; once the Reel is made, the song and clips fold into one line each, then the preview,
-    "Make it yours" cards (Style, Text, Look, Music, Captions, Voice, Background; each shows what is chosen and opens its
-    panel), and a "Save video · 1080p" bar with "Without the song".
-  - **Editor**: a tool dock (Shots, Music, Text, Captions, Look, Motion, Background, Voice, Style) shows one panel at a
-    time; on phones the dock sits at the bottom and the preview stays in sight above the panel.
-  - **Pro**: every panel open (keyframes too) beside the preview, the timeline and the edit list across the width.
-- **Menu**: New Reel, "Open my Reels in" Simple / Editor / Pro, Theme Ivory / Noir / Auto (Auto follows the phone), and
-  the app's pages.
-- The panels are the same elements in every view (the engine's ids did not change); only what is shown changes.
+Built to the design "D · Combined" (phone: Simple, Menu, Editor, Pro; computer: Home, Pro editor).
 
-Checked: phone (390×844, Noir) and desktop (1440×900, Ivory) in every view, before and after a Reel is made, the menu;
-WebKit (Safari's engine) renders it and switches views; `check-keyframes` (all 16 measurements, panel, drag, New mix,
-export), `check-overlays` and `check-templates` pass in the Pro view (the checks now open `/studio?view=pro`).
+- **Full-screen workspace** with its own top bar. Phone: the menu (☰), the Reel's name and saved state, Export (Editor,
+  Pro), the Simple / Editor / Pro switch. Computer: Reel Maison, Home · My projects · Templates · Style library · My
+  music, the theme button, the account, the switch and Export.
+- **Home**: "What are we making today?", Music Reel / Talking Reel / Copy a Reel, Continue editing (the Reels saved on this
+  device), Your style library (the kinds with saved Reels and how well each is learned; tap one to use it, "+ Teach a
+  new style from a Reel"), templates, then the steps.
+- **Simple**: the preview with "Your Reel is ready", its length, shots and song, New mix; four cards (Style, Text, Look,
+  Music) showing what is chosen, each opening its panels (Text: text + captions, Look: look + background, Music: the song,
+  its part, the clips, the voiceover); "Want to change every shot? Open the Editor view"; the Save video bar with
+  "Without the song". The song and clips steps are out of the way once the Reel is made (the Music card opens them).
+- **Editor**: the preview, the time, cover / play / New mix, the shot strip and the song's line, the current shot
+  ("Shot 1 · Transition / Effect / Speed" as chips, "Use a different moment"), the dock (Shot, Music, Text, Captions,
+  Look, Motion, Background, Voice, Style) at the bottom of a phone.
+- **Pro**: the shot inspector beside the preview (transition, effect, speed), a timeline with Video (shots, keyframes ◆),
+  Text, Voice and Music tracks (tap to move the playhead), keyframes, all shots; tools Shot, Text, Audio, Look,
+  Background. On a computer: the tools in a rail, the preview with previous / play / next, the inspector on the right, the
+  timeline across the bottom.
+- **Menu**: New Reel, Home, My projects, Templates, Style library, My music; Open my Reels in Simple / Editor / Pro;
+  Theme Ivory / Noir / Auto; Settings, Help & tips, Pricing & credits.
+- The engine's controls are the same elements (`components/studio/views.ts` shows, hides and forwards to them).
+  `/studio?view=pro&tool=style` opens a view and a tool; `?view=all` opens every panel (the checks use it).
+- Not in the app yet (drawn in the design): Undo, and Split in Pro.
+
+Checked: screenshots of every design screen (phone Ivory / Noir, computer) against the design; WebKit renders it;
+`scripts/studio-ui/check-views.cjs`: Simple's four cards open text + captions, look + background, music + voice;
+"Add or change clips" opens step 2; an Editor chip changes the shot's transition (hard → fade-in) and lights up; the
+Effect tab shows its 13 choices; the Pro inspector changes the speed; tapping the Pro timeline at 75% moves the playhead
+to 0.75; the menu's Noir and Simple apply and are remembered. `check-keyframes`, `check-overlays`, `check-templates` pass.

@@ -9,7 +9,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', OUT = __dirname + '/ou
 (async () => {
   const b = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', '--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const p = await (await b.newContext({ viewport: { width: 1300, height: 1000 } })).newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio?view=pro'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.setInputFiles('#mfile', process.env.SONG); await p.waitForFunction(() => /^Ready/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
   // no AI scoring (its late answer would make the edit again in the middle of the measurements)
   await p.evaluate(() => { const c = document.getElementById('aipick'); if (c.checked) { c.checked = false; c.dispatchEvent(new Event('change')); } });
@@ -68,7 +68,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', OUT = __dirname + '/ou
   console.table(rows.map(r => ({ renderer: r[0], check: r[1], expected: r[2], measured: r[3] })));
 
   // the panel: open, playhead on the shot, sliders write keyframes (one at the start, one later), the strip shows them
-  await p.evaluate(() => { const d = document.getElementById('kfbox'); if (!d.open) d.open = true; });   // open in the Pro view
+  await p.evaluate(() => { const d = document.getElementById('kfbox'); if (!d.open) d.open = true; });   // open in the all-panels view
   await p.evaluate(s => document.querySelector('.brs').__studio.kfSeek(s.a + 0.05), shot);
   const slide = (id, v) => p.evaluate(([id, v]) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, [id, v]);
   await slide('kf_s', 1.2);

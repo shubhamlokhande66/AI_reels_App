@@ -1917,14 +1917,16 @@ function renderEDL(keepScroll){
   if(keepScroll) box.scrollTop = sc;
   drawTimeline();
 }
+// the clips' colours on the timelines (muted, as in the studio's design)
+const CLIP_COL = ['#6b5540','#46596a','#5a4766','#476452','#6e4a44','#5f5a3c','#3f5d63','#6a5a2e'];
 // timeline strip: one block per shot, coloured by clip, marker colour = shot type
 function drawTimeline(){
   const cv = $('tl'); if(!cv || !buf) return;
   const dpr = window.devicePixelRatio||1, w = Math.max(1,Math.round(cv.clientWidth*dpr)), h = Math.round(46*dpr);
   cv.width=w; cv.height=h; const g=cv.getContext('2d'); g.clearRect(0,0,w,h);
   const D = buf.duration;
-  edit.forEach((e,i)=>{ const x0 = e.start/D*w, x1 = e.end/D*w, hue = (e.src*67)%360;
-    g.fillStyle = `hsl(${hue} 55% 55%)`; g.fillRect(x0+dpr*0.5, 10*dpr, Math.max(1,x1-x0-dpr), h-12*dpr);
+  edit.forEach((e,i)=>{ const x0 = e.start/D*w, x1 = e.end/D*w;
+    g.fillStyle = CLIP_COL[e.src % CLIP_COL.length]; g.fillRect(x0+dpr*0.5, 10*dpr, Math.max(1,x1-x0-dpr), h-12*dpr);
     g.fillStyle = css(TCOL[e.type]); g.fillRect(x0, 0, Math.max(2*dpr, 3*dpr), 8*dpr);
     if(e.sp.label!=='1×'){ g.fillStyle='rgba(0,0,0,0.35)'; g.fillRect(x0+dpr, h-7*dpr, Math.max(1,x1-x0-2*dpr), 5*dpr); }
     if(e.uk && e.uk.length){ const cx = (x0+x1)/2, cy = h/2 + 5*dpr, r = 5*dpr; g.beginPath(); g.moveTo(cx, cy-r); g.lineTo(cx+r, cy); g.lineTo(cx, cy+r); g.lineTo(cx-r, cy); g.closePath(); g.fillStyle = '#FFD54A'; g.fill(); g.strokeStyle = '#000'; g.lineWidth = dpr; g.stroke(); } });
@@ -3630,7 +3632,7 @@ async function listProjects(){
     const d = document.createElement('div'); d.className = 'proj' + (proj && p.id === proj.id ? ' cur' : '');
     d.innerHTML = `<button class="popen" type="button"><img alt=""><span class="pname"></span><span class="pmeta"></span></button><button class="pdel" type="button" aria-label="Delete this Reel" title="Delete">×</button>`;
     const img = d.querySelector('img'); if(p.thumb) img.src = p.thumb; else img.remove();
-    d.querySelector('.pname').textContent = p.name; d.querySelector('.pmeta').textContent = (p.kind === 'talk' ? '🗣 ' : '🎵 ') + fmt(p.dur || 0).replace(/\.\d+$/, '') + ' · ' + new Date(p.updated).toLocaleDateString();
+    d.querySelector('.pname').textContent = p.name; d.querySelector('.pmeta').textContent = (p.kind === 'talk' ? 'Talking · ' : '') + fmt(p.dur || 0).replace(/\.\d+$/, '') + ' · ' + new Date(p.updated).toLocaleDateString();
     d.querySelector('.popen').addEventListener('click', () => { if(!(proj && p.id === proj.id)) location.href = location.pathname + '?p=' + encodeURIComponent(p.id); });
     d.querySelector('.pdel').addEventListener('click', async () => { if(!confirm('Delete "' + p.name + '" from this phone?')) return; await deleteProject(p.id); if(proj && proj.id === p.id){ location.href = location.pathname; return; } listProjects(); });
     box.appendChild(d);
@@ -3734,7 +3736,7 @@ async function pickRecent(fp){
 }
 listRecent();
 
-root.__studio = { get songR(){ return song && song.r; }, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

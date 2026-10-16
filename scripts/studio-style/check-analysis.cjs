@@ -5,7 +5,7 @@ const fs=require('fs');const {chromium}=require('playwright');(async()=>{
 const D=require('path').join(__dirname,'out')+'/', truth=JSON.parse(fs.readFileSync(D+'truth.json'));
 const b=await chromium.launch({args:['--autoplay-policy=no-user-gesture-required','--use-gl=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
 const p=await (await b.newContext({viewport:{width:1300,height:1000}})).newPage(); p.on('pageerror',e=>console.log('ERR',e.message));
-await p.goto(''+(process.env.BASE||'http://localhost:3000')+'/studio?view=pro'); await p.waitForFunction(()=>document.querySelector('.brs') && document.querySelector('.brs').__studio,null,{timeout:60000});
+await p.goto(''+(process.env.BASE||'http://localhost:3000')+'/studio?view=all'); await p.waitForFunction(()=>document.querySelector('.brs') && document.querySelector('.brs').__studio,null,{timeout:60000});
 const conf={}; let tot=0, hit=0, kindOk=0, terr=[];
 for(const [name,T] of Object.entries(truth)){
   const t0=Date.now(); const fc=p.waitForEvent('filechooser');

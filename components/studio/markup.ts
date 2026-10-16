@@ -24,40 +24,62 @@ const IC = {
   save: I('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
   chev: I('<path d="M9 6l6 6-6 6"/>'),
   image: I('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>'),
+  copy: I('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/>'),
+  prev: I('<path d="M6 5v14M19 5v14L8 12z" fill="currentColor"/>'),
+  next: I('<path d="M18 5v14M5 5v14l11-7z" fill="currentColor"/>'),
+  plus: I('<path d="M12 5v14M5 12h14"/>'),
 };
 // a tool: a dock button (Editor), a card (Simple) and the heading of its panel (Pro)
 const TOOLS: [string, string, string][] = [
-  ["shots", "Shots", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
+  ["shots", "Shot", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
   ["look", "Look", IC.look], ["motion", "Motion", IC.motion], ["bg", "Background", IC.bg], ["voice", "Voice", IC.voice], ["style", "Style", IC.style],
 ];
-const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span></button>`).join("");
+// Editor: every tool; Pro: grouped (Shot = the shot + keyframes, Audio = music + voice, Look = look + style)
+const PRO_TOOLS: [string, string, string][] = [["pshot", "Shot", IC.shot], ["text", "Text", IC.text], ["audio", "Audio", IC.music], ["plook", "Look", IC.look], ["bg", "Background", IC.bg]];
+const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool ed" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span></button>`).join("")
+  + PRO_TOOLS.map(([k, n, ic]) => `<button type="button" class="tool pr" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span></button>`).join("");
 const card = (k: string, n: string, ic: string) =>
   `<button type="button" class="card" data-tool="${k}" aria-expanded="false">${ic}<span class="ct"><b>${n}</b><span class="cv" data-cv="${k}"></span></span></button>`;
 const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; return `<h3 class="ph">${t[2]}${t[1]}</h3>`; };
 
 export const STUDIO_HTML = `
 <div class="topbar" id="topbar">
-  <button type="button" class="ibtn" id="menubtn" aria-label="Menu">${IC.menu}</button>
-  <div class="tb-title"><span class="tb-name">Fast Studio</span><span class="tb-sub" id="psaved"></span></div>
+  <button type="button" class="ibtn tb-menu" id="menubtn" aria-label="Menu">${IC.menu}</button>
+  <a class="tb-brand" href="/"><span class="tb-logo">R</span><span>Reel Maison</span></a>
+  <div class="tb-title"><span class="tb-name" id="tbname">Fast Studio</span><span class="tb-sub" id="psaved"></span></div>
+  <nav class="tb-nav" id="tbnav" aria-label="Main"></nav>
+  <span class="tb-gap"></span>
+  <div class="tb-right" id="tbright"></div>
   <div class="views" id="views" role="group" aria-label="View">
     <button type="button" data-view="simple" aria-pressed="true">Simple</button><button type="button" data-view="editor" aria-pressed="false">Editor</button><button type="button" data-view="pro" aria-pressed="false">Pro</button>
   </div>
-  <button type="button" class="btn gold tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
+  <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
 <div class="wrap">
   <header class="hero">
-    <h1>What are we making today?</h1>
-    <p class="sub">Your song and clips become a Reel in seconds, on this device. Nothing is uploaded.</p>
+    <div class="hero-t"><h1>What are we making today?</h1>
+    <p class="sub">Your song and clips become a Reel in seconds, on this device. Nothing is uploaded.</p></div>
+    <button class="btn ink hero-new" id="pnew" type="button">${IC.plus}New Reel</button>
   </header>
 
-  <div class="projects" id="projects" hidden>
-    <div class="row"><span class="label">Continue editing</span><button class="btn mini" id="pnew" type="button">+ New Reel</button></div>
-    <div class="plist" id="plist"></div>
+  <div class="starts">
+    <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
+      <button data-k="music" aria-pressed="true">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
+      <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Pauses cut, captions added</small></span></button>
+    </div>
+    <button type="button" class="copycard" id="copycard">${IC.copy}<span><b>Copy a Reel</b><small>Match a reference's cuts and look</small></span>${IC.chev}</button>
   </div>
 
-  <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
-    <button data-k="music" aria-pressed="true">${IC.music}<span><b>Music Reel</b><small>Cuts on the beat</small></span></button>
-    <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Vlog · tutorial · pauses cut</small></span></button>
+  <div class="homerow">
+    <div class="projects" id="projects" hidden>
+      <div class="hrow"><h2>Continue editing</h2><a href="/projects">All projects</a></div>
+      <div class="plist" id="plist"></div>
+    </div>
+    <aside class="stylelib" id="stylelib" hidden>
+      <div class="hrow"><h2>Your style library</h2><a href="/studio?view=pro&amp;tool=style">Manage</a></div>
+      <div class="slist" id="slist"></div>
+      <button type="button" class="teach" id="teach">+ Teach a new style from a Reel</button>
+    </aside>
   </div>
 
   <div class="tplrow">
@@ -143,13 +165,28 @@ export const STUDIO_HTML = `
     <div class="sh3"><span class="num">3</span><h2>Your Reel</h2><span class="st" id="s3st">The edit appears once there are clips</span></div>
     <div class="create">
       <div class="stage">
-        <canvas id="out" width="1080" height="1920"></canvas>
+        <div class="pv">
+          <div class="pvbox"><canvas id="out" width="1080" height="1920"></canvas>
+            <button type="button" class="playov" id="playov" aria-label="Play preview">${IC.play}</button></div>
+          <div class="summary" id="summary">
+            <h2 class="sumh">Your Reel is ready</h2>
+            <p class="sumi" id="suminfo"></p>
+            <button type="button" class="btn" data-proxy="remix">${IC.mix}<span>New mix</span></button>
+          </div>
+          <div class="inspector" id="inspector"></div>
+        </div>
         <div class="bar"><i id="prog"></i></div>
         <div class="transport">
+          <span class="tc" id="tcur">0:00.0</span>
+          <button class="btn icon" id="pshot" type="button" aria-label="Previous shot">${IC.prev}</button>
+          <button class="btn icon" id="cover" disabled aria-label="Cover image" title="Cover image">${IC.image}<span>Cover</span></button>
           <button class="btn primary" id="play" disabled>${IC.play}<span>Preview</span></button>
-          <button class="btn" id="remix" disabled>${IC.mix}<span>New mix</span></button>
-          <button class="btn" id="cover" disabled>${IC.image}<span>Cover</span></button>
+          <button class="btn icon" id="remix" disabled aria-label="New mix" title="New mix">${IC.mix}<span>New mix</span></button>
+          <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
+          <span class="tc" id="ttot">0:00.0</span>
         </div>
+        <div class="strip"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas><div class="tlmusic" id="tlmusic"></div></div>
+        <canvas class="lanes" id="lanes" aria-label="Timeline: video, text, voice and music; tap to move the playhead"></canvas>
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
         <div class="msg" id="xmsg" hidden></div>
         <div class="row" id="saverow" hidden><button class="btn gold" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
@@ -158,9 +195,8 @@ export const STUDIO_HTML = `
       <div class="tools">
         <nav class="dock" id="dock" aria-label="Tools">${dock}</nav>
         <div class="cards" id="cards">
-          <span class="label">Make it yours</span>
-          <div class="cgrid">${card("style", "Style", IC.style)}${card("text", "Text", IC.text)}${card("look", "Look", IC.look)}${card("music", "Music", IC.music)}${card("captions", "Captions", IC.captions)}${card("voice", "Voice", IC.voice)}${card("bg", "Background", IC.bg)}</div>
-          <button type="button" class="more" data-goview="editor">Want to change every shot or animate it? Open the Editor view ${IC.chev}</button>
+          <div class="cgrid">${card("style", "Style", IC.style)}${card("text", "Text", IC.text)}${card("look", "Look", IC.look)}${card("music", "Music", IC.music)}</div>
+          <button type="button" class="more" data-goview="editor">Want to change every shot? Open the Editor view ${IC.chev}</button>
         </div>
 
         <div class="panels" id="panels">
@@ -182,8 +218,7 @@ export const STUDIO_HTML = `
           </section>
 
           <section class="panel" data-panel="music">${panelHead("music")}
-            <p class="hint">The song, its length and the part used are in step 1.</p>
-            <button type="button" class="btn" data-open-step="s1">${IC.music}Change the song or its part</button>
+            <div class="row"><button type="button" class="btn" data-open-step="s1">${IC.music}Change the song or its part</button><button type="button" class="btn" data-open-step="s2">${IC.plus}Add or change clips</button></div>
           </section>
 
           <section class="panel" data-panel="text">${panelHead("text")}
@@ -232,10 +267,12 @@ export const STUDIO_HTML = `
             </details>
           </section>
 
-          <section class="panel wide" data-panel="shots">${panelHead("shots")}
-            <p class="note">One block per shot (colour = clip). Change any shot's transition, effect or speed, or press ↻ for a different moment. The rest of the edit stays, and no moment of footage is used twice.</p>
-            <canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas>
-            <div class="edl"><table><thead><tr><th>Time</th><th>Type</th><th>Clip</th><th>Transition</th><th>Effect</th><th>Speed</th></tr></thead><tbody id="edl"></tbody></table></div>
+          <section class="panel wide" data-panel="shots">
+            <div class="shotcard" id="shotcard"></div>
+            <details class="allshots" id="allshots"><summary>All shots</summary>
+              <p class="note">One row per shot. Change any shot's transition, effect or speed, or press ↻ for a different moment. The rest of the edit stays, and no moment of footage is used twice.</p>
+              <div class="edl"><table><thead><tr><th>Time</th><th>Type</th><th>Clip</th><th>Transition</th><th>Effect</th><th>Speed</th></tr></thead><tbody id="edl"></tbody></table></div>
+            </details>
           </section>
         </div>
       </div>
@@ -243,6 +280,6 @@ export const STUDIO_HTML = `
   </section>
 </div>
 <div class="savebar" id="savebar">
-  <button class="btn gold big" id="export" disabled>${IC.save}<span>Save video · 1080p</span></button>
+  <button class="btn save big" id="export" disabled>${IC.save}<span>Save video · 1080p</span></button>
   <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
 </div>`;

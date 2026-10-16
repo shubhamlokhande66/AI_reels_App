@@ -13,7 +13,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', CLIPS = (process.env.C
     posts++; return route.fulfill({ json: { words: [{ text: 'hello', start: 0.4, end: 0.9 }, { text: 'world', start: 1.0, end: 1.5 }], duration: 20, language: 'auto', charged: 0 } }); });
   const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
   const ready = async () => { await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 }); };
-  await p.goto(BASE + '/studio?view=pro'); await ready();
+  await p.goto(BASE + '/studio?view=all'); await ready();
   await p.setInputFiles('#mfile', process.env.SONG); await p.waitForFunction(() => /confirmed|double-checked|^Ready$/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
   await p.setInputFiles('#vfile', CLIPS); await p.waitForFunction(() => !document.getElementById('play').disabled && document.getElementById('qinfo').textContent === '', null, { timeout: 300000 });
   // a 15 s part picked by hand, the cinematic look, a text, a transition changed by hand, captions
@@ -33,7 +33,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', CLIPS = (process.env.C
   const A = await snap();
   console.log('made:   ', A.shots, 'shots | shot 3 transition', A.tr3, '| texts', A.overlays, '| part', A.section, '| look', A.look, '| caption words', A.caps, '| transcriptions', posts);
   // leave, come back to a new page, open it from the list
-  await p.goto(BASE + '/studio?view=pro'); await ready(); await p.waitForSelector('#plist .proj', { timeout: 30000 });
+  await p.goto(BASE + '/studio?view=all'); await ready(); await p.waitForSelector('#plist .proj', { timeout: 30000 });
   console.log('list:   ', await p.$$eval('#plist .proj', ds => ds.map(d => d.querySelector('.pname').textContent + ' (' + d.querySelector('.pmeta').textContent + ')' + (d.querySelector('img') ? ' + thumbnail' : '')).join(', ')));
   await p.click('#plist .proj .popen'); await p.waitForURL(/\?p=/); await ready();
   await p.waitForFunction(() => /Opened|no longer|Could not/.test(document.getElementById('psaved').textContent), null, { timeout: 600000 }); await p.waitForTimeout(1500);
@@ -44,7 +44,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', CLIPS = (process.env.C
   // delete it: the list is empty and its files are gone
   const files = () => p.evaluate(() => new Promise(r => { const q = indexedDB.open('brs-projects'); q.onsuccess = () => { const d = q.result, t = d.transaction('files'), c = t.objectStore('files').count(); c.onsuccess = () => { d.close(); r(c.result); }; }; }));
   console.log('files stored:', await files());
-  p.on('dialog', d => d.accept()); await p.goto(BASE + '/studio?view=pro'); await ready(); await p.waitForSelector('#plist .proj');
+  p.on('dialog', d => d.accept()); await p.goto(BASE + '/studio?view=all'); await ready(); await p.waitForSelector('#plist .proj');
   await p.click('#plist .proj .pdel'); await p.waitForTimeout(1500);
   console.log('after delete: Reels', await p.$$eval('#plist .proj', x => x.length), '| files stored', await files(), '| list shown', !(await p.$eval('#projects', e => e.hidden)));
   await b.close();

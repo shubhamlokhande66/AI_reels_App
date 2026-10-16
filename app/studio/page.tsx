@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { STUDIO_HTML } from "@/components/studio/markup";
 import { initViews, type StudioView } from "@/components/studio/views";
@@ -31,6 +32,25 @@ function loadScript(src: string): Promise<void> {
     document.head.appendChild(s);
   });
 }
+
+// the menu's pages (as in the design): the studio's own first, then the rest of the app for admins
+const ICON = (d: string) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={d} />
+  </svg>
+);
+const PAGES: { href: string; label: string; icon: string; full?: boolean }[] = [
+  { href: "/", label: "Home", icon: "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" },
+  { href: "/projects", label: "My projects", icon: "M3 6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 9h18" },
+  { href: "/templates", label: "Templates", icon: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" },
+  { href: "/studio?view=pro&tool=style", label: "Style library", icon: "M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z", full: true },
+  { href: "/songs", label: "My music", icon: "M9 18V5l12-2v13M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" },
+];
+const FOOT: { href: string; label: string }[] = [
+  { href: "/account", label: "Settings" },
+  { href: "/contact", label: "Help & tips" },
+  { href: "/pricing", label: "Pricing & credits" },
+];
 
 const VIEWS: { v: StudioView; label: string }[] = [
   { v: "simple", label: "Simple" },
@@ -69,6 +89,7 @@ export default function FastStudioPage() {
   const [menu, setMenu] = useState(false);
   const [view, setView] = useState<StudioView>("simple");
   const [theme, setTheme] = useState<ThemeChoice>("auto");
+  const [slots, setSlots] = useState<{ nav: HTMLElement; right: HTMLElement } | null>(null);
   const pathname = usePathname() ?? "/studio";
   const { admin } = useAdmin();
   const me = useMe();
@@ -80,6 +101,9 @@ export default function FastStudioPage() {
     let cancelled = false;
     const el = root.current!;
     const v = initViews(el, setView);
+    // the desktop top bar's links and account corner are drawn here, into the studio's own top bar
+    const nav = el.querySelector<HTMLElement>("#tbnav"), right = el.querySelector<HTMLElement>("#tbright");
+    if (nav && right) queueMicrotask(() => setSlots({ nav, right }));
     viewsApi.current = v;
     const openMenu = () => {
       setTheme(themeChoice());
@@ -133,58 +157,120 @@ export default function FastStudioPage() {
   };
   const groups = GROUPS.filter((g) => !g.admin || admin);
 
+  const name = me.data?.user?.email?.split("@")[0] ?? "";
+  const close = () => setMenu(false);
+  const pageLink = (p: (typeof PAGES)[number], cls: string, onClick?: () => void) => {
+    const active = p.href === pathname;
+    const inner = (
+      <>
+        <span className={active ? "text-accent" : "text-muted"}>{ICON(p.icon)}</span>
+        {p.label}
+      </>
+    );
+    return p.full || p.href.startsWith("/studio") ? (
+      <a key={p.href} href={p.href} className={cls} onClick={onClick}>
+        {inner}
+      </a>
+    ) : (
+      <Link key={p.href} href={p.href} className={cls} onClick={onClick} aria-current={active ? "page" : undefined}>
+        {inner}
+      </Link>
+    );
+  };
+
   return (
     <>
       {failed && <p className="m-4 rounded-lg border border-danger p-3 text-sm text-danger">Fast Studio could not start: {failed}</p>}
       <div ref={root} className="brs" dangerouslySetInnerHTML={{ __html: STUDIO_HTML }} />
 
-      {/* the menu: the studio's settings (view, theme) and every page of the app */}
+      {/* computers: the top bar's links (as in the design) and the account corner */}
+      {slots &&
+        createPortal(
+          <>
+            {PAGES.map((p) => pageLink(p, "tbl"))}
+          </>,
+          slots.nav,
+        )}
+      {slots &&
+        createPortal(
+          <>
+            {credits && (
+              <Link href="/pricing" className="tbcred" title="Your credits: plans and top-ups">
+                {credits.balance} credits
+              </Link>
+            )}
+            <button
+              type="button"
+              className="ibtn"
+              aria-label={theme === "dark" || (theme === "auto" && document.documentElement.dataset.theme === "dark") ? "Theme: switch to Ivory" : "Theme: switch to Noir"}
+              onClick={() => {
+                const next: ThemeChoice = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+                pickTheme(next);
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+              </svg>
+            </button>
+            <button type="button" className="tbavatar" aria-label="Menu" onClick={() => { setTheme(themeChoice()); setMenu(true); }}>
+              {(name[0] || "R").toUpperCase()}
+            </button>
+          </>,
+          slots.right,
+        )}
+
+      {/* the menu (as in the design): New Reel, the studio's pages, the view and theme, settings and help */}
       <div className={`fixed inset-0 z-50 ${menu ? "" : "pointer-events-none"}`} aria-hidden={!menu}>
-        <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${menu ? "opacity-100" : "opacity-0"}`} onClick={() => setMenu(false)} />
+        <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${menu ? "opacity-100" : "opacity-0"}`} onClick={close} />
         <aside
           role="dialog"
           aria-modal="true"
           aria-label="Menu"
-          className={`absolute inset-y-0 left-0 flex w-[86%] max-w-sm flex-col border-r border-border bg-background shadow-2xl transition-transform duration-300 ease-out ${
+          className={`absolute inset-y-0 left-0 flex w-[82%] max-w-[320px] flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
             menu ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-[max(1.1rem,env(safe-area-inset-top))]">
-            <Link href="/" className="flex items-center gap-3" onClick={() => setMenu(false)}>
-              <span className="lux-btn-gold grid h-10 w-10 place-items-center rounded-full font-display text-lg font-bold">R</span>
-              <span className="leading-tight">
-                <span className="block font-display text-xl font-semibold tracking-wide">Reel Maison</span>
-                <span className="block text-xs text-muted">
-                  {me.data?.user?.email ?? "Fast Studio"}
-                  {credits ? ` · ${credits.balance} credits` : ""}
-                </span>
+          <div className="flex items-center gap-3 px-5 pb-4 pt-[max(1.4rem,env(safe-area-inset-top))]">
+            <span className="grid h-11 w-11 place-items-center rounded-full bg-accent font-display text-xl font-semibold text-background">R</span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block font-display text-[19px] font-semibold">Reel Maison</span>
+              <span className="block truncate text-[12.5px] text-muted">
+                {name || "Fast Studio"}
+                {credits ? ` · ${credits.balance} credits` : ""}
               </span>
-            </Link>
-            <button
-              type="button"
-              aria-label="Close menu"
-              onClick={() => setMenu(false)}
-              className="grid h-11 w-11 place-items-center rounded-full border border-border transition-colors hover:border-accent/60 hover:text-accent"
-            >
+            </span>
+            <button type="button" aria-label="Close menu" onClick={close} className="grid h-11 w-11 place-items-center rounded-full text-muted hover:text-foreground">
               ✕
             </button>
           </div>
-          <a href="/studio" className="lux-btn-gold mx-5 mb-2 mt-1 flex h-12 items-center justify-center rounded-2xl text-[15px] font-bold">
-            + New Reel
+          <a href="/studio" className="mx-3.5 bg-foreground text-background mb-2 flex h-12 items-center justify-center gap-2 rounded-[14px] text-[15px] font-bold">
+            <span aria-hidden>+</span> New Reel
           </a>
-          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Open my Reels in</p>
-              <Seg label="View" items={VIEWS.map((x) => ({ key: x.v, label: x.label }))} value={view} onPick={(v) => viewsApi.current?.setView(v)} />
+          <div className="flex-1 overflow-y-auto">
+            <nav aria-label="Pages" className="flex flex-col px-2 py-1.5">
+              {PAGES.map((p) => pageLink(p, "flex h-[46px] items-center gap-3.5 rounded-xl px-3 text-[15px] hover:bg-surface-2 aria-[current=page]:bg-surface-2 aria-[current=page]:font-semibold", close))}
+            </nav>
+            <div className="mx-5 mt-2 border-t border-border" />
+            <p className="px-5 pb-2 pt-3.5 text-xs font-bold uppercase tracking-[0.1em] text-muted">Open my Reels in</p>
+            <div className="mx-3.5">
+              <Seg label="Open my Reels in" items={VIEWS.map((x) => ({ key: x.v, label: x.label }))} value={view} onPick={(v) => viewsApi.current?.setView(v)} />
             </div>
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Theme</p>
+            <p className="px-5 pb-2 pt-4 text-xs font-bold uppercase tracking-[0.1em] text-muted">Theme</p>
+            <div className="mx-3.5">
               <Seg label="Theme" items={THEMES.map((x) => ({ key: x.t, label: x.label }))} value={theme} onPick={pickTheme} />
             </div>
-            <div className="lux-hairline" />
-            <nav aria-label="Pages" className="-mx-2 space-y-5">
-              <NavGroups groups={groups} pathname={pathname} onNavigate={() => setMenu(false)} />
-            </nav>
+            {admin && (
+              <nav aria-label="All pages" className="mt-5 space-y-5 px-2">
+                <NavGroups groups={groups} pathname={pathname} onNavigate={close} />
+              </nav>
+            )}
+          </div>
+          <div className="flex flex-col border-t border-border px-2 pb-[max(1.4rem,env(safe-area-inset-bottom))] pt-2">
+            {FOOT.map((f) => (
+              <Link key={f.href} href={f.href} onClick={close} className="flex h-11 items-center rounded-xl px-3 text-[14.5px] hover:bg-surface-2">
+                {f.label}
+              </Link>
+            ))}
           </div>
         </aside>
       </div>

@@ -13,7 +13,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', CLIPS = (process.env.C
     if (r.method() === 'GET') return route.fulfill({ json: { available: true, credits: 0, languages: ['en'] } });
     cap = (r.postDataBuffer().length - 44) / 2 / 16000; return route.fulfill({ json: { words: [{ text: 'here', start: 1, end: 1.3 }], duration: cap, language: 'en', charged: 0 } }); });
   const p = await ctx.newPage(); p.on('pageerror', e => console.log('ERR', e.message));
-  await p.goto(BASE + '/studio?view=pro'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
+  await p.goto(BASE + '/studio?view=all'); await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio, null, { timeout: 60000 });
   await p.setInputFiles('#mfile', process.env.SONG); await p.waitForFunction(() => /confirmed|double-checked|^Ready$/.test(document.getElementById('s1st').textContent), null, { timeout: 300000 });
   await p.click('#slen button[data-l="15"]'); await p.waitForFunction(() => Math.abs(document.querySelector('.brs').__studio.section.len - 15) < 0.6, null, { timeout: 60000 });
   await p.setInputFiles('#vfile', CLIPS); await p.waitForFunction(() => !document.getElementById('play').disabled && document.getElementById('qinfo').textContent === '', null, { timeout: 300000 });
@@ -40,7 +40,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', CLIPS = (process.env.C
   console.log('export vs the Reel\'s mix: correlation', corr.corr, 'at', corr.lagMs, 'ms | the voice (and the step-back) is', Math.round(corr.voiceShareOfMix * 100) + '% of the mix energy');
   // saved and opened again
   await p.waitForTimeout(4000); const h = await p.evaluate(() => { const v = document.querySelector('.brs').__studio.vo; let s = 0; for (let i = 0; i < v.pcm.length; i += 101) s += Math.abs(v.pcm[i]); return v.pcm.length + ':' + s.toFixed(3); });
-  await p.goto(BASE + '/studio?view=pro'); await p.waitForSelector('#plist .proj', { timeout: 30000 }); await p.click('#plist .proj .popen'); await p.waitForURL(/\?p=/);
+  await p.goto(BASE + '/studio?view=all'); await p.waitForSelector('#plist .proj', { timeout: 30000 }); await p.click('#plist .proj .popen'); await p.waitForURL(/\?p=/);
   await p.waitForFunction(() => document.querySelector('.brs') && document.querySelector('.brs').__studio && /Opened|Could not|no longer/.test(document.getElementById('psaved').textContent), null, { timeout: 600000 });
   const h2 = await p.evaluate(() => { const v = document.querySelector('.brs').__studio.vo; if (!v) return null; let s = 0; for (let i = 0; i < v.pcm.length; i += 101) s += Math.abs(v.pcm[i]); return v.pcm.length + ':' + s.toFixed(3); });
   console.log('saved and opened again: same voiceover', h === h2, '|', await p.textContent('#vostat'));
