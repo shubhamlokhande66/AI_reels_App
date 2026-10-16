@@ -372,3 +372,15 @@ Checked (`scripts/studio-templates`): Product chosen before the media → a 15 s
 5.24-11.98 s, "DM to order" 11.98-14.98 s; Before / After on that edit → BEFORE 0-7.49 s, AFTER 7.49-14.98 s (the
 product texts gone); Recipe → 30 s (29.95), smooth, box style, its two texts; Tutorial with talking clips → talking, tight
 pauses, Step 1 / 2 / 3 at the thirds of the 20.84 s talk.
+
+## Voice noise cleanup
+
+"🧹 Clean up voice noise" (talking videos and voiceovers, on by default): RNNoise (Xiph, BSD; the `@shiguredo/rnnoise-wasm`
+WebAssembly build, Apache-2.0, loaded only when needed) over the voice in 10 ms frames at 48 kHz, its one-frame delay
+taken out. Run once per clip and on a voiceover, before the pauses are looked for. The switch changes which voice the
+Reel uses (the original stays); the saved Reel keeps the original recording.
+
+Checked (`scripts/studio-talk/check-denoise.cjs`, a talking clip with traffic rumble, hiss and horns 12 dB under the
+voice): the noise in the pauses went from 12.7 dB to 86 dB under the voice (silence); the voice against the clean
+recording, in the speech: 0.972 without, 0.973 with (no damage to the voice; RNNoise lowers noise most where nobody
+speaks); with Natural pauses in that noise, 100% of the speech kept.

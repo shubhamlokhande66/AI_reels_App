@@ -47,6 +47,8 @@ export default function FastStudioPage() {
           // where people speak in a clip (Silero VAD in a worker), for cutting the silences of talking videos
           speechProbs: (mono: Float32Array, sr: number) => import("@/lib/vad/client").then((m) => m.speechProbs(mono, sr)),
           // who is the person (background blur / replace, text behind the person) and where faces are (MediaPipe models)
+          // voice noise cleanup (RNNoise, WebAssembly), loaded only for talking videos and voiceovers
+          loadRnnoise: () => import("@shiguredo/rnnoise-wasm"),
           personMask: (rgba: Uint8ClampedArray) => import("@/lib/vision/client").then((m) => m.personMask(rgba)),
           findFaces: (squares: Uint8ClampedArray[]) => import("@/lib/vision/client").then((m) => m.findFaces(squares)),
         });

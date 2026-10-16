@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 export function initStudio(root, deps) {
-  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const ac = new AbortController(), SIG = { signal: ac.signal };
@@ -1094,6 +1094,29 @@ function finishAdding(){
  * order, and a jump cut inside one take is framed closer (a punch-in) so it reads as intended. The voice is brought to
  * one loudness; the song, if there is one, plays under it and steps back further while someone speaks. That one sound
  * track becomes the edit's audio, so preview, captions (the voice is what is transcribed) and export work as usual. */
+/* ---- voice noise cleanup: RNNoise (Xiph, BSD; WebAssembly build Apache-2.0) over the voice, 10 ms frames at 48 kHz ----
+ * Traffic, fans, crowd and hiss come down, the voice stays. Run once per clip (and on a voiceover), before speech is looked
+ * for, so finding the pauses works better in noise too. Its 10 ms delay is taken out. */
+let denoiseOn = true, rnP = null;
+async function resampleTo(x, from, to){
+  if(from === to) return x;
+  const n = Math.ceil(x.length*to/from), oc = new OfflineAudioContext(1, n, to), b = oc.createBuffer(1, x.length, from); b.copyToChannel(x, 0);
+  const s = oc.createBufferSource(); s.buffer = b; s.connect(oc.destination); s.start(); return (await oc.startRendering()).getChannelData(0).slice();
+}
+async function denoise(pcm, sr){
+  if(!loadRnnoise) throw new Error('not built in');
+  const R = await (rnP ??= loadRnnoise().then(m => m.Rnnoise.load()).catch(e => { rnP = null; throw e; }));
+  const x = await resampleTo(pcm, sr, 48000), F = R.frameSize, st = R.createDenoiseState(), y = new Float32Array(x.length), fr = new Float32Array(F), D = F;   // RNNoise's delay: one frame
+  try{
+    for(let i=0;i<x.length;i+=F){
+      for(let k=0;k<F;k++) fr[k] = (x[i+k] || 0)*32768;
+      st.processFrame(fr);
+      for(let k=0;k<F;k++){ const o = i + k - D; if(o >= 0 && o < y.length) y[o] = fr[k]/32768; }
+      if((i/F) % 500 === 499) await new Promise(r => setTimeout(r, 0));
+    }
+  } finally { st.destroy(); }
+  return resampleTo(y, 48000, sr);
+}
 let kind = 'music', talkPace = 'natural', talkMusic = 0.09, talk = null, talkToken = 0;
 const PACE = { tight: { pre: 0.08, post: 0.12, merge: 0.22 }, natural: { pre: 0.12, post: 0.2, merge: 0.42 }, relaxed: { pre: 0.18, post: 0.3, merge: 0.8 } };
 const VOICE_RMS = 0.12;   // about -18 dBFS of speech: room for the music and the limiter
@@ -1106,14 +1129,16 @@ async function voiceOf(src){
   for(let c=0;c<ab.numberOfChannels;c++){ const d = ab.getChannelData(c); for(let i=0;i<pcm.length;i++) pcm[i] += d[i]/ab.numberOfChannels; }
   let pk = 0; for(let i=0;i<pcm.length;i+=8) pk = Math.max(pk, Math.abs(pcm[i]));
   if(pk < 0.003){ src.voice = { has: false }; return src.voice; }   // a silent track
+  let clean = null;
+  try{ clean = await denoise(pcm, sr); }catch(e){ console.info('noise cleanup not used:', e && e.message); }
   let probs = null, hop = 512/16000, how = 'ai';
-  if(speechProbs){ try{ probs = await speechProbs(pcm, sr); }catch(e){ console.info('speech model not used:', e && e.message); } }
+  if(speechProbs){ try{ probs = await speechProbs(clean || pcm, sr); }catch(e){ console.info('speech model not used:', e && e.message); } }
   if(!probs){   // loudness: 10 dB over the quiet floor of the clip counts as speech
     how = 'level'; const n = Math.floor(pcm.length/(hop*sr)), db = new Float32Array(n), w = Math.round(hop*sr);
     for(let k=0;k<n;k++){ let s2 = 0; for(let i=k*w;i<(k+1)*w;i+=2) s2 += pcm[i]*pcm[i]; db[k] = 10*Math.log10(s2/(w/2) + 1e-10); }
     const floor = Float32Array.from(db).sort()[Math.floor(n*0.1)] || -60; probs = db.map(v => v > floor + 10 ? 0.9 : v > floor + 6 ? 0.4 : 0.1);
   }
-  src.voice = { has: true, pcm, sr, probs, hop, how };
+  src.voice = { has: true, raw: pcm, clean, get pcm(){ return denoiseOn && this.clean ? this.clean : this.raw; }, sr, probs, hop, how };
   return src.voice;
 }
 // speech parts of a clip in seconds: in above 0.5, out after 0.2 s below 0.35, then padded and short pauses kept
@@ -1171,7 +1196,7 @@ async function buildTalk(){
   if(token !== talkToken) return;
   buf = mix; mono = new Float32Array(N); { const L = mix.getChannelData(0), R = mix.getChannelData(1); for(let i=0;i<N;i++) mono[i] = (L[i] + R[i])/2; }
   normGain = 1; secStart = 0; beats = []; period = 0.5; peaks = []; peakS = [];
-  talk = { voice, sr, parts, songKey: song && talkMusic > 0 ? song.key : '', sig: sources.map(s=>fpOf(s)).join(',') + '|' + talkPace + '|' + T.toFixed(2) };
+  talk = { voice, sr, parts, songKey: song && talkMusic > 0 ? song.key : '', sig: sources.map(s=>fpOf(s)).join(',') + '|' + talkPace + '|' + (denoiseOn ? 'clean' : 'raw') + '|' + T.toFixed(2) };
   // the shots: one per part; a long one is split at its quietest moment; a jump cut inside one take is a punch-in
   const shots = [];
   for(const p of parts){
@@ -1218,6 +1243,8 @@ function setKind(k){
   else if(song){ useSection(); } else { edit = []; renderEDL(); drawFrame(0); }
 }
 $('kind').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setKind(b.dataset.k); }, SIG);
+function setDenoise(on){ denoiseOn = on; $('dn1').checked = on; $('dn2').checked = on; capAll = null; if(kind === 'talk'){ if(sources.length) buildTalk(); } else if(vo){ applyVo(); afterVo(); } }
+$('dn1').addEventListener('change', e => setDenoise(e.target.checked), SIG); $('dn2').addEventListener('change', e => setDenoise(e.target.checked), SIG);
 $('tpace').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; talkPace = b.dataset.p;
   [...$('tpace').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); buildTalk(); }, SIG);
 $('tmusic').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; talkMusic = +b.dataset.v;
@@ -3186,8 +3213,12 @@ async function recordVoiceover(){
   const sr = c.sampleRate, L = Math.round(buf.duration*sr), pcm = new Float32Array(L); let got = 0;
   for(const b of blocks){ const at = Math.round((b.t - t0 - lat)*sr); for(let i=0;i<b.d.length;i++){ const k = at + i; if(k >= 0 && k < L){ pcm[k] = b.d[i]; got++; } } }
   if(got < sr*0.5){ vo = hadVo; applyVo(); voStat('Nothing was recorded.'); return; }
-  vo = { pcm, sr, key: Date.now().toString(36) };
+  vo = { raw: pcm, sr, key: Date.now().toString(36) }; await cleanVo();
   applyVo(); afterVo();
+}
+async function cleanVo(){
+  if(!vo) return; try{ vo.clean = await denoise(vo.raw, vo.sr); }catch(e){ vo.clean = null; }
+  Object.defineProperty(vo, 'pcm', { configurable: true, get(){ return denoiseOn && this.clean ? this.clean : this.raw; } });
 }
 function afterVo(){
   voStat(vo ? 'Voiceover ✓ ' + fmt(vo.pcm.length/vo.sr).replace(/\.\d+$/, '') + ' · the song steps back while you speak' : '');
@@ -3258,7 +3289,7 @@ $('tpl').addEventListener('click', e => { const b = e.target.closest('button'); 
 const PDB = 'brs-projects';
 let proj = null, lastSig = '', restoring = false, capKeyNow = '';
 const fileFp = f => f ? [f.name, f.size, f.lastModified].join('|') : '';
-let voF = null; const voFile = () => (voF && voF.name === 'voiceover-' + vo.key + '.f32') ? voF : (voF = new File([vo.pcm], 'voiceover-' + vo.key + '.f32', { type: 'application/octet-stream', lastModified: parseInt(vo.key, 36) || 1 }));
+let voF = null; const voFile = () => (voF && voF.name === 'voiceover-' + vo.key + '.f32') ? voF : (voF = new File([vo.raw], 'voiceover-' + vo.key + '.f32', { type: 'application/octet-stream', lastModified: parseInt(vo.key, 36) || 1 }));
 function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB, 1);
   r.onupgradeneeded = () => { const d = r.result; if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' }); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files'); };
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
@@ -3267,7 +3298,7 @@ function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => 
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs })),
     caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
@@ -3326,10 +3357,10 @@ async function openProject(id){
     if(st.kind === 'talk') setKind('talk');
     press('aspect', 'a', S.aspect); press('look', 'l', S.look); press('tstyle', 't', S.textStyle); if(S.mode && S.mode !== 'auto') press('mode', 'm', S.mode);
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
-    hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1;
+    hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1; if(S.denoise === false){ denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
     if(st.caps && st.caps.key) capCache.set(st.caps.key, st.caps.all);
-    if(st.vo && st.vo.fp){ const vf = await getF(st.vo.fp, 'voiceover-' + st.vo.key + '.f32'); if(vf){ vo = { pcm: new Float32Array(await vf.arrayBuffer()), sr: st.vo.sr, key: st.vo.key }; } }
+    if(st.vo && st.vo.fp){ const vf = await getF(st.vo.fp, 'voiceover-' + st.vo.key + '.f32'); if(vf){ vo = { raw: new Float32Array(await vf.arrayBuffer()), sr: st.vo.sr, key: st.vo.key }; await cleanVo(); } }
     if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }
     bgColor = S.bgColor || bgColor; if(S.bgMode && S.bgMode !== 'none') press('bgmode', 'b', S.bgMode);
     overlays = (st.overlays || []).map(o => ({ ...o })); ovSeq = overlays.reduce((q, o) => Math.max(q, o.id || 0), 0); renderOvList();
