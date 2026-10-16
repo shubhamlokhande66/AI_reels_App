@@ -4,13 +4,16 @@ import { route, sendFile } from "@/server/core/http";
 import { BEAT_THIS_DIR } from "@/server/audio/beatThis";
 
 /** The model files Fast Studio downloads once (then keeps in the browser): the 8-bit Beat This! beat tracker and its mel
- * filterbank (the same files the server uses), and Silero VAD (speech detection, MIT). Cached for a year; the file name
+ * filterbank (the same files the server uses), Silero VAD (speech detection, MIT), MediaPipe selfie segmentation and BlazeFace (Apache-2.0). Cached for a year; the file name
  * changes with the model. */
 const VAD_DIR = path.join(process.cwd(), "server", "audio", "data", "vad");
+const VISION_DIR = path.join(process.cwd(), "server", "vision", "data");
 const FILES: Record<string, [string, string]> = {
   "beat_this_final0.int8.onnx": [BEAT_THIS_DIR, "application/octet-stream"],
   "mel-filterbank.bin": [BEAT_THIS_DIR, "application/octet-stream"],
   "silero_vad_16k_op15.onnx": [VAD_DIR, "application/octet-stream"],
+  "selfie_segmentation.onnx": [VISION_DIR, "application/octet-stream"],
+  "face_detection_short_range.onnx": [VISION_DIR, "application/octet-stream"],
 };
 
 export const GET = route<{ name: string }>(async (req, { name }) => {

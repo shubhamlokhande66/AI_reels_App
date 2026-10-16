@@ -312,3 +312,23 @@ Checked (`scripts/studio-text/check-overlays.cjs`): a Marathi box text set to 1.
 4.3 s, 0.88-0.89 between); dragged a quarter of the screen down, it moved by exactly 0.25; pushed to the bottom it stops
 at 0.766 of the height (Instagram's bar starts at 1 - 450/1920 = 0.766); the price tag's yellow fills 57% of its box in
 the exported video's frames.
+
+## Faces and the background (MediaPipe models on the phone)
+
+Two Apache-2.0 MediaPipe models, converted to ONNX (`server/vision/data`, see its README) and run by ONNX Runtime Web in a
+worker (`lib/vision`), the runtime the beat and speech models already use:
+- **Faces: BlazeFace short range** (418 KB) instead of the old Viola-Jones finder (kept as the fallback). Each look: the
+  whole frame fitted into 128x128, plus squares as wide as the frame along its long side (top / middle / bottom of a
+  vertical video, where a face has twice the pixels); finds merged. Feeds the subject-following crop, caption placement
+  and talking-video framing as before.
+- **Person mask: Selfie Segmentation** (450 KB; MediaPipe's custom transposed convolution rewritten as ONNX
+  ConvTranspose). "Background": Original / **Blur** / **Colour** (6) / **Photo** (your picture, cover-fitted); and a text
+  can be put **behind the person**. Computed on the finished frame (letterboxed into 256x256, which matched a square
+  photo's mask better than stretching: IoU 0.852 vs 0.832), just before the text. The preview uses the mask of the frame
+  before; the export computes each frame's own.
+
+Checked (`scripts/studio-vision`, vertical clips of a real person with the face's position known): BlazeFace found the
+face in 15/15 looks in both clips, 1.1% and 0.6% of the width from the true centre (Viola-Jones: 46.4%, on a false face,
+and 6.0%). Green background: 100% of the background corners green, 0% of the face, the face's pixels unchanged; blur:
+the corners' detail 5 → 0.2, the face unchanged; a text across the face: 41% visible over the face in front, 0% behind
+the person, the same beside it; the exported video: corners green, face not.

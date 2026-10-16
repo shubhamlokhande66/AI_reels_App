@@ -35,6 +35,9 @@ COPY --from=build /app/server/video/face-worker.cjs ./server/video/face-worker.c
 COPY --from=build /app/server/audio/essentia-worker.cjs ./server/audio/essentia-worker.cjs
 # the beat and bar tracker (Beat This!, 8-bit ONNX, 23 MB) and its runtime (the Linux binary only)
 COPY --from=build /app/server/audio/data/beat-this/beat_this_final0.int8.onnx /app/server/audio/data/beat-this/mel-filterbank.bin ./server/audio/data/beat-this/
+# the models Fast Studio downloads to the phone (served by /api/studio/model): speech detection, person mask, faces
+COPY --from=build /app/server/audio/data/vad ./server/audio/data/vad
+COPY --from=build /app/server/vision/data ./server/vision/data
 COPY --from=deps /app/node_modules/onnxruntime-node ./node_modules/onnxruntime-node
 COPY --from=deps /app/node_modules/onnxruntime-common ./node_modules/onnxruntime-common
 RUN rm -rf ./node_modules/onnxruntime-node/bin/napi-v*/darwin ./node_modules/onnxruntime-node/bin/napi-v*/win32

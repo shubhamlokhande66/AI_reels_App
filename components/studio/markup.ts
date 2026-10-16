@@ -120,6 +120,10 @@ export const STUDIO_HTML = `
           <div class="row" id="caprow" hidden><select id="caplang" aria-label="Language of the song"><option value="">Language: detect</option><option value="hi">Hindi</option><option value="mr">Marathi</option><option value="en">English</option><option value="gu">Gujarati</option><option value="pa">Punjabi</option><option value="bn">Bengali</option><option value="ta">Tamil</option><option value="te">Telugu</option></select><span class="fname" id="capstat"></span></div>
           <span class="label">Look</span>
           <div class="seg" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button><button data-l="copy" aria-pressed="false" hidden>Copied</button></div>
+          <span class="label">Background</span>
+          <div class="seg" id="bgmode" role="group" aria-label="Background behind the person"><button data-b="none" aria-pressed="true">Original</button><button data-b="blur" aria-pressed="false">Blur</button><button data-b="color" aria-pressed="false">Colour</button><button data-b="photo" aria-pressed="false">Photo</button></div>
+          <div class="row" id="bgrow" hidden><span class="ovc" id="bgcolors" hidden></span><button class="btn mini" id="bgpick" type="button" hidden>Choose photo</button><input id="bgfile" type="file" accept="image/*" hidden></div>
+          <span class="fname" id="bgstat"></span>
           <label class="tog" id="aiwrap" hidden><input type="checkbox" id="aipick"> AI picks the best moments</label>
           <span class="fname" id="aistat" hidden></span>
           <label class="tog"><input type="checkbox" id="safe" checked> Show Instagram safe zones (preview only)</label>
