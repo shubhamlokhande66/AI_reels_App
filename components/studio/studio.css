@@ -88,3 +88,6 @@
 .brs .sinfo{font:13px var(--mono);color:var(--muted)}
 .brs .hint{margin:0;font-size:13px;color:var(--muted)}
 .brs canvas.wave.drag{touch-action:none;cursor:grab}
+.brs .kindrow{margin:0 0 14px;align-items:center;gap:10px}
+.brs .talkrow{align-items:center;gap:10px}
+.brs.talkmode #s1 .legend,.brs.talkmode #s1 .stats span:not(:first-child){display:none}

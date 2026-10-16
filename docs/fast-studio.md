@@ -277,3 +277,23 @@ Checked (`scripts/studio-length`, a song with a known structure: quiet intro, ve
 48 s): 15 s and 30 s start on the drop at 24.0 s; 20 s on the second chorus at 48.0 s; a drag to 50.2 s starts at 50.0 s
 (the beat); the part's first beat at 0.000 s; 1 transcription for all parts; the export of a 15 s part is 15.00 s.
 On a real song with an even loudness, the part chosen (0:17) is among the loudest 15 s windows (0:16-0:18).
+
+## Talking videos (talking head, vlog, tutorial)
+
+"What are you making?" → **Talking · vlog · tutorial**. The clips' own voice is the sound of the Reel; a song is optional.
+- **Where people speak**: Silero VAD v6 (MIT, 1.3 MB, `server/audio/data/vad`, served by `/api/studio/model`) in a worker
+  (`lib/vad`), on 16 kHz sound, a probability every 32 ms; loudness (10 dB over the clip's quiet floor) when it cannot run.
+- **Pauses**: Tight / Natural / Relaxed / Keep all. In above 0.5, out after 0.2 s below 0.35; padded (Natural: 0.12 s
+  before, 0.2 s after) and pauses shorter than 0.42 s kept, so sentences breathe.
+- **Shots**: one per spoken part, in the clips' order; parts over 5 s split at their quietest moment; a jump cut inside one
+  take gets a punch-in (framed 14% closer); framing follows the face.
+- **Sound**: the voice parts end to end with 8 ms fades, every clip at one loudness; the song's best part (repeated if the
+  talk is longer) under it at Soft / Medium / Loud, stepping back while someone speaks (80 ms down, 400 ms up). This one
+  track is the edit's audio: preview, captions (the voice alone is transcribed) and export use it.
+
+Checked (`scripts/studio-talk`: English, Hindi and Marathi clips spoken by espeak-ng with known pauses and room noise):
+100% of the speech kept with every setting; the long pauses (≥1 s) cut to the 0.3 s of breathing room (21% left with
+Natural, 14% Tight, 30% Relaxed); 41.7 s of clips → 29.5 s of talk; voice and picture in sync (correlation 1.00 at 0 ms
+on every shot); music 17 dB under the voice (Medium); captions get the 29.5 s voice; export 29.56 s. Silero alone: 96.6% /
+99.7% / 99.0% of the speech found (English / Hindi / Marathi), under 0.1 s for 19 s of sound. Safari's engine (WebKitGTK,
+iPhone media rules): the same edit (29.6 s, 9 shots, AI detector). Not yet checked on real phones or real voices.
