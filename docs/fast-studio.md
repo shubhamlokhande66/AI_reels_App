@@ -345,3 +345,16 @@ Note: iPhone Safari may clear a website's storage after 7 days without a visit u
 Checked (`scripts/studio-projects`): a Reel with a hand-picked 15 s part, the Cinematic look, a text, a transition changed
 by hand and captions, left and opened again: the same 21 shots, the same transition, text, part and look, the same picture
 at 3.3 s (pixel hash), no new transcription; deleted: no Reels and 0 files left.
+
+## Voiceover
+
+"🎙 Record voiceover" (music edits): the Reel plays from the start with the song softer while you speak; the microphone
+(echo cancellation, noise suppression) goes through an AudioWorklet in the same audio clock as the song, so each captured
+block is placed where it was heard (minus the output latency you reacted to). The voice is brought to about -14 dBFS
+while speaking; the song steps back under it (to 0.22 within 80 ms, back to 0.75 over 400 ms). With captions on, the
+voice is what is transcribed. "Remove voiceover" puts the song back. Saved with the Reel.
+
+Checked (`scripts/studio-voiceover`, Chromium with a WAV as the microphone): 14.98 s recorded on a 15 s part; the song
+measured at 0.29 of its level while the voice speaks and 0.64 in the pauses; captions sent the 14.98 s of voice; the
+exported sound matches the Reel's mix (correlation 0.994, 6 ms: the Opus encoder's delay); saved and opened again:
+the same voiceover.
