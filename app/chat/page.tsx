@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { Icon } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { formatBytes } from "@/lib/format";
@@ -140,26 +140,24 @@ export default function ChatPage() {
   }
 
   return (
-    <>
-      <PageHeader title="Chat" subtitle="Ask questions or think out loud with the AI. Nothing here changes any project." />
+    <div className="mx-auto flex h-[calc(100svh-150px)] w-full max-w-3xl flex-col gap-2.5 md:h-[calc(100svh-120px)]">
+      <PageHeader title="Chat" />
+      <p className="sub !mt-0 text-center">Ask questions or think out loud. Nothing here changes any project.</p>
 
-      <Card className="flex h-[70vh] flex-col p-0">
-        <div className="flex-1 space-y-4 overflow-y-auto p-5" aria-label="Conversation" role="log">
+        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto" aria-label="Conversation" role="log">
           {messages.length === 0 && (
             <div className="space-y-3">
-              <p className="text-sm text-muted">
-                Ask about pacing, styles, captions, music choices, shot order — anything you want to think through first, or attach a file (image,
-                video, audio, PDF, text/code) with the paperclip below. It can&apos;t generate or animate video/images and can&apos;t see your
-                project footage unless you attach it here. Once you&apos;re happy with a direction, &quot;💾 Save as Reel template&quot; below turns
-                it into a real, reusable template you can review and start any new Reel from.
+              <p className="mu sm text-center">
+                Ask about pacing, styles, captions, music or shot order, or attach a picture, video, song or document with the paperclip. When
+                you like a direction, save it as a Reel template.
               </p>
-              <div className="flex flex-wrap gap-2" aria-label="Ideas">
+              <div className="chips w justify-center" aria-label="Ideas">
                 {IDEAS.map((i) => (
                   <button
                     key={i}
                     type="button"
                     onClick={() => setText(i)}
-                    className="rounded-full border border-border px-2.5 py-1 text-xs text-muted hover:border-accent/60 hover:text-foreground"
+                    className="chip"
                   >
                     {i}
                   </button>
@@ -168,12 +166,12 @@ export default function ChatPage() {
             </div>
           )}
           {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] space-y-2 rounded-2xl px-3.5 py-2.5 text-sm ${m.role === "user" ? "lux-btn-gold" : "bg-surface-2 text-foreground"}`}>
+            <div key={i} className={`bub ${m.role === "user" ? "me" : "ai"} flex flex-col gap-2`}>
+              <div className="contents">
                 {m.attachments && m.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {m.attachments.map((a) => (
-                      <AttachmentChip key={a.id} file={a} tone={m.role === "user" ? "on-accent" : "default"} />
+                      <AttachmentChip key={a.id} file={a} tone="default" />
                     ))}
                   </div>
                 )}
@@ -182,8 +180,8 @@ export default function ChatPage() {
             </div>
           ))}
           {send.isPending && (
-            <div className="flex justify-start" aria-live="polite">
-              <div className="flex items-center gap-2 rounded-2xl bg-surface-2 px-3.5 py-2.5 text-sm text-muted">
+            <div className="bub ai" aria-live="polite">
+              <div className="mu flex items-center gap-2">
                 <span className="flex gap-1">
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.3s]" />
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.15s]" />
@@ -197,7 +195,7 @@ export default function ChatPage() {
           <div ref={endRef} />
         </div>
 
-        <form onSubmit={submit} className="space-y-2 border-t border-border p-3">
+        <form onSubmit={submit} className="flex flex-col gap-2">
           {(attachments.length > 0 || uploading.length > 0 || attachError) && (
             <div className="space-y-1.5">
               <div className="flex flex-wrap gap-1.5">
@@ -216,7 +214,7 @@ export default function ChatPage() {
               {tooLong && <p className="text-xs text-danger">That&apos;s too much text for one message ({combinedLen.toLocaleString()} / {MAX_MESSAGE_LEN.toLocaleString()} characters) — try a shorter file or message.</p>}
             </div>
           )}
-          <div className="flex items-end gap-2">
+          <div className="row" style={{ gap: 8, padding: 6, border: "1px solid var(--border)", borderRadius: 16, background: "var(--surface)" }}>
             <input
               ref={fileInputRef}
               type="file"
@@ -233,9 +231,9 @@ export default function ChatPage() {
               aria-label="Attach a file"
               title="Attach a file"
               onClick={() => fileInputRef.current?.click()}
-              className="mb-0.5 rounded-xl border border-border px-3 py-2 text-sm text-muted hover:border-accent/60 hover:text-foreground"
+              className="ib plain"
             >
-              📎
+              <Icon name="clip" size={20} />
             </button>
             <textarea
               aria-label="Message"
@@ -244,27 +242,29 @@ export default function ChatPage() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="Ask anything… (Enter to send, Shift+Enter for a new line)"
-              className="max-h-40 min-h-[2.5rem] flex-1 resize-y rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+              placeholder="Ask a question…"
+              className="max-h-40 min-w-0 flex-1 resize-none border-0 bg-transparent py-2.5 text-[14.5px] outline-none"
             />
-            <button type="submit" disabled={!canSend} className={btnPrimary}>
-              {send.isPending ? "Sending…" : "Send"}
+            <button type="submit" disabled={!canSend} className="btn g" aria-label="Send" style={{ width: 44, padding: 0 }}>
+              <Icon name="send" size={18} />
             </button>
+          </div>
+          <div className="chips w justify-center">
             {messages.some((m) => m.role === "assistant") && (
               <button
                 type="button"
                 title="Turn this conversation into a reusable Reel template — you review it before anything is saved"
-                className={btnSecondary}
+                className="chip"
                 disabled={send.isPending || saveTemplate.isPending}
                 onClick={() => saveTemplate.mutate()}
               >
-                {saveTemplate.isPending ? "Drafting…" : "💾 Save as Reel template"}
+                {saveTemplate.isPending ? "Drafting…" : "Save as Reel template"}
               </button>
             )}
             {messages.length > 0 && (
               <button
                 type="button"
-                className={btnSecondary}
+                className="chip"
                 disabled={send.isPending}
                 onClick={() => {
                   setMessages([]);
@@ -279,8 +279,7 @@ export default function ChatPage() {
           </div>
           {saveTemplate.isError && <ErrorBanner message={errorMessage(saveTemplate.error)} />}
         </form>
-      </Card>
-    </>
+    </div>
   );
 }
 

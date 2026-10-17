@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { btnPrimary, btnSecondary, Card, Icon, Spinner } from "@/components/atoms";
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { LANGUAGES, type Language, type VoiceProfile, type VoiceProfileInput } from "@/types/api";
@@ -69,85 +69,75 @@ export default function VoicesPage() {
   const coverage = system.data?.languages;
   const set = <K extends keyof VoiceProfileInput>(k: K, v: VoiceProfileInput[K]) => setEditing((e) => e && { ...e, data: { ...e.data, [k]: v } });
 
+  const startNew = () => setEditing({ id: null, data: EMPTY, pron: "" });
   return (
-    <>
-      <PageHeader
-        title="Voice Profiles"
-        subtitle="How your voice-overs sound. Runs offline on this computer."
-        action={
-          <button type="button" className={btnPrimary} onClick={() => setEditing({ id: null, data: EMPTY, pron: "" })}>
-            ＋ New voice profile
-          </button>
-        }
-      />
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+      <PageHeader title="Voice profiles" subtitle="How your voice-overs sound. Runs offline on this computer." action={(profiles.data?.length ?? 0) > 0 ? <button type="button" className="btn g sm" onClick={startNew}>+ New profile</button> : undefined} />
 
       {system.isLoading && <Spinner />}
       {system.data && (
-        <Card className="mb-6">
-          <h2 className="mb-2 font-medium">Installed voices</h2>
+        <section className="card" aria-label="Installed voices">
+          <span className="h2">Installed voices</span>
           {system.data.available ? (
-            <ul className="mb-3 flex flex-wrap gap-2 text-sm">
-              {system.data.voices.map((v) => (
-                <li key={v.id} className="rounded-full bg-surface-2 px-3 py-1">
-                  {v.name} <span className="text-muted">· {v.language}</span>
-                </li>
-              ))}
-            </ul>
+            system.data.voices.map((v, k) => (
+              <div key={v.id} className="lr" style={{ boxShadow: "none" }}>
+                <span className={`it ${k % 2 ? "b1" : "b6"}`} style={{ width: 36, height: 36 }}>
+                  <Icon name="mic" size={18} />
+                </span>
+                <span className="meta">
+                  <b>{v.name}</b>
+                  <span className="mu xs">{v.language}</span>
+                </span>
+              </div>
+            ))
           ) : (
-            <p className="mb-3 text-sm text-danger">No offline voice engine was found on this computer.</p>
+            <span className="sm text-danger">No offline voice engine was found on this computer.</span>
           )}
           {coverage && (
-            <div className="flex flex-wrap gap-2 text-xs" aria-label="Language coverage">
+            <div className="chips w" aria-label="Language coverage">
               {LANGUAGES.map((l) => (
-                <span key={l.id} className={`rounded-full px-2.5 py-0.5 ${coverage[l.id] ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
-                  {l.label}: {coverage[l.id] ? "voice available" : "no voice installed"}
+                <span key={l.id} className={`badge ${coverage[l.id] ? "b-ok" : "b-run"}`}>
+                  {l.label}: {coverage[l.id] ? "ready" : "no voice yet"}
                 </span>
               ))}
             </div>
           )}
-          {system.data.note && <p className="mt-3 text-xs text-muted">{system.data.note}</p>}
-        </Card>
+          {system.data.note && <span className="mu xs">{system.data.note}</span>}
+        </section>
       )}
 
-      {previewError && <div className="mb-4"><ErrorBanner message={previewError} /></div>}
+      {previewError && <ErrorBanner message={previewError} />}
       {profiles.isLoading && <Spinner />}
       {profiles.error && <ErrorBanner message={errorMessage(profiles.error)} />}
       {profiles.data && profiles.data.length === 0 && !editing && (
-        <EmptyState title="No voice profiles yet" hint="Create one, then choose it in the editor to speak your script." />
+        <EmptyState icon="mic" title="No voice profiles yet" hint="A profile sets the voice, speed and tone for a brand's voice-overs." action={<button type="button" className="btn g" onClick={startNew}>New voice profile</button>} />
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {profiles.data?.map((p) => (
-          <Card key={p.id}>
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="font-medium">{p.name}</h3>
-                <p className="text-xs text-muted">
-                  {LANGUAGES.find((l) => l.id === p.language)?.label} · {p.emotion} · {p.energy} energy · {p.speed}x · {p.pauseStyle} pauses
-                </p>
-              </div>
-              <button type="button" className={btnSecondary} disabled={previewing === p.id} onClick={() => preview(p)} aria-label={`Preview ${p.name}`}>
-                {previewing === p.id ? "…" : "▶ Preview"}
-              </button>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button type="button" className={btnSecondary} onClick={() => setEditing({ id: p.id, data: { ...p }, pron: toLines(p.pronunciations) })}>
-                Edit
-              </button>
-              <button
-                type="button"
-                className={btnDanger}
-                onClick={() => window.confirm(`Delete voice profile "${p.name}"?`) && del.mutate(p.id)}
-              >
-                Delete
-              </button>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {profiles.data?.map((p) => (
+        <div key={p.id} className="lr">
+          <span className="it b6" style={{ width: 36, height: 36 }}>
+            <Icon name="mic" size={18} />
+          </span>
+          <span className="meta">
+            <b>{p.name}</b>
+            <span className="mu xs truncate">
+              {LANGUAGES.find((l) => l.id === p.language)?.label} · {p.emotion} · {p.speed}× speed
+            </span>
+          </span>
+          <button type="button" className="ib plain" disabled={previewing === p.id} onClick={() => preview(p)} aria-label={`Play a sample of ${p.name}`}>
+            <Icon name={previewing === p.id ? "refresh" : "play"} size={18} />
+          </button>
+          <button type="button" className="btn sm" onClick={() => setEditing({ id: p.id, data: { ...p }, pron: toLines(p.pronunciations) })}>
+            Edit
+          </button>
+          <button type="button" className="ib plain" aria-label={`Delete ${p.name}`} onClick={() => window.confirm(`Delete the voice profile "${p.name}"?`) && del.mutate(p.id)}>
+            <Icon name="trash" size={18} />
+          </button>
+        </div>
+      ))}
 
       {editing && (
-        <Card className="mt-6">
+        <Card>
           <form
             aria-label="Voice profile"
             className="space-y-4"
@@ -236,6 +226,6 @@ export default function VoicesPage() {
           </form>
         </Card>
       )}
-    </>
+    </div>
   );
 }

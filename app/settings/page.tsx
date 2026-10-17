@@ -132,10 +132,10 @@ function OllamaModels() {
 export default function SettingsPage() {
   const { data, isLoading, error } = useHealth();
   return (
-    <>
-      <PageHeader title="Settings" subtitle="System status, the AI provider and AI usage. API keys stay in the backend .env file." />
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      <PageHeader title="AI settings" subtitle="Which AI does each job. Changes apply to new Reels." />
       {isLoading && <Spinner />}
-      {error && <ErrorBanner title="Backend unreachable" message={`Could not reach ${API_URL}. Start the API server and reload.`} />}
+      {error && <ErrorBanner title="Backend unreachable" message={`We couldn't reach ${API_URL}. Start the server, then try again.`} onRetry={() => location.reload()} />}
       {data && (
         <div className="space-y-6">
           <Card>
@@ -152,6 +152,6 @@ export default function SettingsPage() {
           <DirectorProfileSection />
         </div>
       )}
-    </>
+    </div>
   );
 }

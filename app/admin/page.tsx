@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAdmin } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { setAdminKey } from "@/lib/admin";
-import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import Link from "next/link";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { RetentionSettings } from "@/components/organisms/RetentionSettings";
 import { PricingSettings } from "@/components/organisms/PricingSettings";
@@ -21,11 +21,11 @@ export default function AdminPage() {
   async function unlock(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!key.trim()) return setError("Enter the admin key.");
+    if (!key.trim()) return setError("Enter the admin password.");
     setBusy(true);
     try {
       const s = await api.adminSession(key.trim());
-      if (!s.admin) return setError("That key is not correct.");
+      if (!s.admin) return setError("That password isn't right.");
       setAdminKey(key.trim());
       setKey("");
       await qc.invalidateQueries();
@@ -42,50 +42,47 @@ export default function AdminPage() {
   }
 
   return (
-    <>
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
       <PageHeader title="Administration" subtitle="Settings and diagnostics are for the administrator." />
-      <Card className="max-w-lg space-y-4">
+      <section className="card" style={{ gap: 12 }} aria-label="Admin sign-in">
+        <span className="h2">Admin sign-in</span>
         {loading ? (
-          <p className="text-sm text-muted">Checking…</p>
+          <span className="mu sm">Checking…</span>
         ) : !required ? (
-          <p className="text-sm text-muted">
-            No admin key is set on this server, so admin mode is open to everyone (fine for local use). For production, set
-            <code className="mx-1 rounded bg-surface-2 px-1">ADMIN_KEY</code> in the backend environment.
-          </p>
+          <span className="mu sm">
+            No admin key is set on this server, so admin mode is open to everyone (fine on your own computer). Online, set
+            <code className="mx-1 rounded bg-surface-2 px-1">ADMIN_KEY</code> on the server.
+          </span>
         ) : admin ? (
-          <>
-            <p className="text-sm">✓ Admin mode is on in this browser: Settings and the diagnostic screens are visible.</p>
-            <button type="button" className={btnSecondary} onClick={() => void leave()}>
-              Leave admin mode
-            </button>
-          </>
+          <span className="sm">Admin mode is on in this browser: settings and checks are visible in the menu.</span>
         ) : (
-          <form onSubmit={unlock} className="space-y-3">
-            <label className="block text-sm">
-              <span className="mb-1.5 block font-medium">Admin key</span>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
-              />
+          <form onSubmit={unlock} className="flex flex-col gap-3">
+            <span className="mu sm">Settings and diagnostics are for the administrator.</span>
+            <label className="f">
+              Admin password
+              <input type="password" autoComplete="current-password" placeholder="••••••••" value={key} onChange={(e) => setKey(e.target.value)} className="inp" />
             </label>
             {error && <ErrorBanner message={error} />}
-            <button type="submit" className={btnPrimary} disabled={busy}>
-              {busy ? "Checking…" : "Unlock admin mode"}
+            <button type="submit" className="btn g" disabled={busy}>
+              {busy ? "Checking…" : "Sign in as admin"}
             </button>
           </form>
         )}
-      </Card>
+      </section>
       {admin && (
-        <div className="mt-6">
+        <>
+          <PricingSettings />
           <RetentionSettings />
-          <div className="mt-6">
-            <PricingSettings />
+          <div className="row sm justify-center" style={{ gap: 16 }}>
+            <Link href="/settings" className="ac font-bold">
+              AI settings
+            </Link>
+            <button type="button" className="ac font-bold" onClick={() => void leave()}>
+              Leave admin mode
+            </button>
           </div>
-        </div>
+        </>
       )}
-    </>
+    </div>
   );
 }
