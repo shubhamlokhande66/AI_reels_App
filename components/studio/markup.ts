@@ -67,7 +67,7 @@ export const STUDIO_HTML = `
 
   <div class="homerow">
     <div class="projects" id="projects" hidden>
-      <div class="hrow"><h2>Continue editing</h2><a href="/projects">All projects</a></div>
+      <div class="hrow"><h2>Continue editing</h2></div>
       <div class="plist" id="plist"></div>
     </div>
     <aside class="stylelib" id="stylelib" hidden>
@@ -277,4 +277,5 @@ export const STUDIO_HTML = `
 <div class="savebar" id="savebar">
   <button class="btn save big" id="export" disabled>${IC.save}<span>Save video · 1080p</span></button>
   <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
-</div>`;
+</div>
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>`;

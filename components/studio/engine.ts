@@ -717,7 +717,7 @@ async function checkBeatsWithAi(token){
   await useSection(token);
   if(token !== musicToken) return;
   say(base + (r.beatSource === 'ai' ? ' · beats confirmed by the on-device AI (Beat This!)' : ' · beats double-checked: the AI agrees or fits less well, kept'));
-  if(sources.length && was) showMsg('The beats were refined, the edit follows them. Press Preview again.');
+  if(sources.length && was) showMsg('Beats fine-tuned: your edit now follows them. Tap Preview to see it.');
 }
 $('mpick').onclick = () => $('mfile').click();
 $('mfile').addEventListener('change', e=>{ const f=e.target.files[0]; e.target.value=''; if(f) loadMusic(f); });
@@ -1170,7 +1170,7 @@ async function buildTalk(){
   const parts = [];
   sources.forEach((src, si) => { if(!src.voice.has) return; for(const [a,b] of speechParts(src.voice, src.dur, talkPace)) parts.push({ si, a, b }); });
   const mute = sources.filter(s => !s.voice.has).length;
-  if(!parts.length){ $('s3st').textContent = 'No voice found in these clips'; showMsg('None of these clips has a voice to follow. For a music edit, choose "Music edit" at the top.', true); return; }
+  if(!parts.length){ $('s3st').textContent = 'No voice found in these clips'; showMsg('We could not hear anyone talking in these clips. For a music Reel, choose "Music Reel" at the top.', true); return; }
   const sr = getCtx().sampleRate, T = parts.reduce((q,p)=>q + p.b - p.a, 0), N = Math.round(T*sr), voice = new Float32Array(N), act = new Float32Array(N);
   // the voice: the parts end to end, 8 ms fades at every join (no clicks), one loudness for every clip
   const fade = Math.round(0.008*sr); let o = 0;
@@ -1518,12 +1518,12 @@ async function aiRun(){
   }catch(e){
     aiBusy = false;
     if(e && e.name === 'AbortError') return;
-    aiStat('AI picks are not available right now: ' + (e && e.message ? e.message : e) + ' The edit uses the on-device picks.', true);
+    console.warn('AI picks not used:', e); aiStat('Your Reel uses the best moments picked on your phone.');
   }
 }
 function aiDone(charged, failed){
   const withAi = sources.filter(s=>s.ai), n = withAi.reduce((q,s)=>q+s.ai.frames.length, 0);
-  aiStat('AI scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' could not be read)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
+  aiStat('AI scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' skipped)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
   if(buf && sources.length && !recording) makeEdit();
 }
 /* ---- AI director: one text call plans the Reel as a story ----
@@ -1665,7 +1665,7 @@ async function directorRun(key){
     dirBusy = false; makeEdit();
   }catch(e){
     dirFailedKey = key;
-    if(!(e && e.name==='AbortError')) aiStat('AI director is not available right now: ' + (e && e.message ? e.message : e) + ' The edit keeps the AI-scored picks.', true);
+    if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('The AI director is busy right now. Your Reel uses its own smart edit.'); }
   }finally{ dirBusy = false; }
 }
 (async () => {   // is the AI step set up on this server?
@@ -1828,11 +1828,11 @@ function makeEdit(){
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = edit.length + ' shots · ' + fmt(buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
-  if(dupCount) showMsg('Your clips have ' + total.toFixed(1) + ' s of footage, the song needs more. ' + dupCount + ' shots had to be reused. Add more clips and nothing repeats.', true);
+  if(dupCount) showMsg('Your clips are a little short for this song, so ' + dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + '. Add more clips to avoid repeats.');
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(dirInfo){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
-    aiStat('AI director: ' + (dirInfo.used + kept) + ' of ' + (dirInfo.asked + shots) + ' choices used' + (dirInfo.fixed + shots - kept ? ', ' + (dirInfo.fixed + shots - kept) + ' changed by the safety rules' : '') + (director.story ? '. ' + director.story : '')); }
+    aiStat('AI director planned your Reel' + (director.story ? ': ' + director.story : '.')); }
   captureLoop(); editGen++;
   directorMaybe();
   if(look === 'copy' && refProfile) setTimeout(()=>{ copyLook(); }, 0);
@@ -2164,7 +2164,7 @@ async function translateSoon(){
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Translation failed (' + r.status + ').'));
     for(const l of res.lines || []) if(need[l.i] !== undefined) trCache.set(to + '|' + need[l.i], l.text);
     capStat((capWords ? capWords.length + ' words · ' : '') + 'translated');
-  }catch(err){ if(!(err && err.name === 'AbortError')) capStat('Translation is not available right now: ' + (err && err.message || err), true); }
+  }catch(err){ if(!(err && err.name === 'AbortError')) { console.warn('translation failed:', err); capStat('Translation did not work this time. Please try again.', true); } }
   finally{ trBusy = false; if(trTo !== to) translateSoon(); redraw(); }
 }
 $('captr').addEventListener('change', e => { trTo = e.target.value; $('trwrap').hidden = !trTo; translateSoon(); redraw(); }, SIG);
@@ -2439,7 +2439,7 @@ function maskSoon(t){   // preview: ask for the next one, use it when it comes (
   personMask(data).then(m => { setMask(m); bgBusy = false; bgFrame = key; if(!playing && key >= 0) redrawFrame(); }, err => { bgBusy = false; bgErr = String(err && err.message || err); bgStat(); });
 }
 const redrawFrame = () => { if(!playing && edit.length) drawFrame(pos || 0.3); };
-function bgStat(){ $('bgstat').textContent = bgErr ? 'Background tools are not available on this device (' + bgErr + ')' : (bgMode === 'photo' && !bgImg ? 'Choose a photo' : ''); }
+function bgStat(){ $('bgstat').textContent = bgErr ? 'Background effects do not work on this phone.' : (bgMode === 'photo' && !bgImg ? 'Choose a photo' : ''); }
 function bgPass(t){
   if(!bgNeeded() || !personMask) return;
   if(!exporting) maskSoon(t);
@@ -2510,7 +2510,7 @@ async function loadCaptions(){
     capAll = { from, words: Array.isArray(res.words) ? res.words : [] }; capCache.set(key, capAll); capKeyNow = key; shiftCaptions();
     capStat(capWords.length ? capWords.length + ' words found' + (res.language && res.language !== 'auto' ? ' (' + res.language + ')' : '') + (res.charged ? ' · ' + res.charged + ' credit' + (res.charged > 1 ? 's' : '') : '') : 'No words in this song (instrumental?)');
     redraw();
-  }catch(err){ if(!(err && err.name === 'AbortError')) capStat('Captions are not available right now: ' + (err && err.message ? err.message : err), true); }
+  }catch(err){ if(!(err && err.name === 'AbortError')) { console.warn('captions failed:', err); capStat('Captions could not be made this time. Please try again.', true); } }
 }
 (async () => {   // is speech recognition set up on this server?
   try{ const r = await fetch('/api/studio/transcribe', { signal: ac.signal }); if(!r.ok) return; const j = await r.json(); if(!j || !j.available) return;
@@ -2909,14 +2909,35 @@ function saveFile(blob, name){
   return false;
 }
 const savedMsg = (shared, what) => shared ? what + ' is ready: tap the button below to save it to Photos or share it.' : what + ' saved';
-function showMsg(t, err){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.classList.toggle('err', !!err); }
+function showMsg(t, err){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.classList.toggle('err', !!err); if(err) notify(t, 'err'); }
+// a short note that pops up at the bottom and goes away by itself (errors stay a little longer)
+function notify(t, kind){
+  const box = $('toasts'); if(!box || !t) return;
+  const n = document.createElement('div'); n.className = 'toast' + (kind ? ' ' + kind : ''); n.textContent = t;
+  box.appendChild(n); while(box.children.length > 3) box.firstChild.remove();
+  requestAnimationFrame(() => n.classList.add('in'));
+  setTimeout(() => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); }, kind === 'err' ? 6000 : 3500);
+}
+// a yes / no question inside the studio (instead of the browser's own box)
+function askConfirm(text, okLabel){
+  return new Promise(res => {
+    const d = document.createElement('div'); d.className = 'askbg';
+    d.innerHTML = '<div class="ask" role="alertdialog" aria-modal="true"><p></p><div class="askrow"><button type="button" class="btn">Cancel</button><button type="button" class="btn danger"></button></div></div>';
+    d.querySelector('p').textContent = text;
+    const [no, yes] = d.querySelectorAll('button'); yes.textContent = okLabel;
+    const key = e => { if(e.key === 'Escape') done(false); };
+    const done = v => { d.remove(); removeEventListener('keydown', key); res(v); };
+    no.onclick = () => done(false); yes.onclick = () => done(true); d.onclick = e => { if(e.target === d) done(false); };
+    addEventListener('keydown', key); root.appendChild(d); yes.focus();
+  });
+}
 // Real-time recording: only when this browser has no WebCodecs encoder (older Firefox / Safari)
 async function recordExport(){
   const mime = pickMime();
-  if(!mime || !out.captureStream){ showMsg('This browser cannot make videos. Use Chrome, Edge or a recent Safari.', true); return; }
+  if(!mime || !out.captureStream){ showMsg('This browser cannot save videos. Please open the studio in Chrome or Safari.', true); return; }
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
   setCanvas(true); await captureLoop();
-  showMsg('Recording in real time (this browser has no fast encoder): '+fmt(buf.duration)+'). Keep this tab open.');
+  showMsg('Saving your Reel in real time on this browser (' + fmt(buf.duration) + '). Please keep this screen open.');
   const c = getCtx(); await c.resume();
   const dest = c.createMediaStreamDestination();
   const stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
@@ -2932,7 +2953,7 @@ async function recordExport(){
   const blob = new Blob(chunks, {type: mime.split(';')[0]});
   const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
   setCanvas(false); captureLoop();
-  const sh = saveFile(blob, name); showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
+  const sh = saveFile(blob, name); notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
 
 // Fast export: every frame is decoded (WebCodecs, through mediabunny), drawn and encoded off-screen, faster than real
 // time and frame-accurate (no dropped frames). The sound goes through the same gain + limiter as the preview.
@@ -3074,8 +3095,8 @@ async function fastExport(){
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
     const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + (mp4 ? 'mp4' : 'webm');
     const sh = saveFile(blob, name);
-    if(noSong){ showMsg(savedMsg(sh, 'Video') + ' without the song: ' + noSongTip()); return true; }
-    showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB, made in ' + ((performance.now()-t0)/1000).toFixed(1) + ' s). Ready for Instagram, TikTok and Shorts.');
+    if(noSong){ notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ' without the song: ' + noSongTip()); return true; }
+    notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB). Ready for Instagram, TikTok and Shorts.');
     return true;
   } finally {
     exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; });
@@ -3095,7 +3116,7 @@ $('export').onclick = async () => {
   try{
     let ok = false;
     try{ ok = await fastExport(); }
-    catch(err){ console.warn('fast export failed', err); showMsg('Fast export failed (' + (err && err.message || err) + '). Recording in real time instead…', true); }
+    catch(err){ console.warn('fast export failed', err); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
     if(!ok) await recordExport();
   } finally {
     exportBusy = false; if(wakeLock){ try{ await wakeLock.release(); }catch(err){} wakeLock = null; }
@@ -3395,7 +3416,7 @@ $('reffile').addEventListener('change', async e=>{
     GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = '';
     const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = 'copy'; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x===lb));
     setMode('copy');
-  }catch(err){ $('refinfo').textContent = 'Could not read that Reel: ' + (err && err.message ? err.message : err); }
+  }catch(err){ console.warn('reference not read:', err); $('refinfo').textContent = 'We could not read that Reel. Please try another video.'; notify('We could not read that Reel. Please try another video.', 'err'); }
 });
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 /* ---- style library: reference Reels kept as styles, learned styles, and learning from corrections ----
@@ -3420,7 +3441,7 @@ $('stsave').addEventListener('click', async () => {
   $('ststat').textContent = 'Saving…';
   try{ const r = await api('/api/studio/styles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: (refProfile.name || 'Reel').slice(0, 120), category: $('stcat').value, shared: $('stshare').checked, fp: fingerprintOf(refProfile) }) });
     $('ststat').textContent = 'Saved to your ' + STYLE_KINDS[r.category] + ' styles ✓'; loadKinds(); }
-  catch(err){ $('ststat').textContent = 'Not saved: ' + (err && err.message || err); }
+  catch(err){ console.warn('style not saved:', err); $('ststat').textContent = 'Could not save your style. Please try again.'; notify('Could not save your style. Please try again.', 'err'); }
 }, SIG);
 async function loadKinds(){
   try{ const r = await api('/api/studio/styles'); const sel = $('lcat'), keep = sel.value; sel.innerHTML = '';
@@ -3440,7 +3461,7 @@ $('luse').addEventListener('click', async () => {
     const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = refProfile.look ? 'copy' : look; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.l === look));
     $('linfo').textContent = 'Learned from ' + r.n + ' Reel' + (r.n > 1 ? 's' : '') + (r.accuracy ? ' · predicts a new ' + STYLE_KINDS[k].toLowerCase() + ' Reel ' + Math.round(r.accuracy.learned*100) + '% (default style ' + Math.round(r.accuracy.baseline*100) + '%)' : '') + (r.corrections ? ' · ' + r.corrections + ' of your changes' : '');
     setMode('copy'); $('refinfo').textContent = refProfile.name + ': ' + describeRef(refProfile); $('stsaverow').hidden = true;
-  }catch(err){ $('linfo').textContent = 'Not available: ' + (err && err.message || err); }
+  }catch(err){ console.warn('learned style:', err); $('linfo').textContent = 'Your learned style is not ready yet.'; }
 }, SIG);
 $('lscope').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; [...$('lscope').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); }, SIG);
 // corrections: what the creator changes, a few seconds later in one request
@@ -3617,7 +3638,7 @@ async function saveProject(st, sig){
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }catch(err){ $('psaved').textContent = 'Could not save on this phone (' + (err && err.message || err) + ')'; }
+  }catch(err){ console.warn('project not saved:', err); $('psaved').textContent = 'Not saved'; notify('Could not save this Reel on your phone. It may be low on space.', 'err'); }
   finally{ saving = false; }
 }
 setInterval(() => {
@@ -3634,7 +3655,7 @@ async function listProjects(){
     const img = d.querySelector('img'); if(p.thumb) img.src = p.thumb; else img.remove();
     d.querySelector('.pname').textContent = p.name; d.querySelector('.pmeta').textContent = (p.kind === 'talk' ? 'Talking · ' : '') + fmt(p.dur || 0).replace(/\.\d+$/, '') + ' · ' + new Date(p.updated).toLocaleDateString();
     d.querySelector('.popen').addEventListener('click', () => { if(!(proj && p.id === proj.id)) location.href = location.pathname + '?p=' + encodeURIComponent(p.id); });
-    d.querySelector('.pdel').addEventListener('click', async () => { if(!confirm('Delete "' + p.name + '" from this phone?')) return; await deleteProject(p.id); if(proj && proj.id === p.id){ location.href = location.pathname; return; } listProjects(); });
+    d.querySelector('.pdel').addEventListener('click', async () => { if(!(await askConfirm('Delete "' + p.name + '"? It is removed from this phone.', 'Delete'))) return; await deleteProject(p.id); if(proj && proj.id === p.id){ location.href = location.pathname; return; } listProjects(); });
     box.appendChild(d);
   }
   $('projects').hidden = !all.length;
@@ -3680,7 +3701,7 @@ async function openProject(id){
     redrawFrame();
     const missing = (st.clips || []).length - clips.length + (st.song && !sf ? 1 : 0);
     say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : 'Opened "' + p.name + '" · saved on this phone');
-  }catch(err){ say('Could not open this Reel (' + (err && err.message || err) + ')'); }
+  }catch(err){ console.warn('project not opened:', err); say('This Reel could not be opened.'); notify('This Reel could not be opened.', 'err'); }
   finally{ lastSig = JSON.stringify(stateOf()); restoring = false; listProjects(); }
 }
 function restoreEdit(list){
