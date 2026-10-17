@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, Icon, LinkButton, photoClass, Spinner, Thumb } from "@/components/atoms";
 import { EmptyState, ErrorBanner } from "@/components/molecules";
 import { useFeatures, useMe, useProjects, useQueue } from "@/hooks/useApi";
 import { linkOn } from "@/lib/features-list";
 import { api, assetUrl, errorMessage } from "@/lib/api";
+import { listCloudReels, type CloudReel } from "@/lib/cloudReels";
+import { clock, useDrafts } from "@/lib/drafts";
 import { styleLabel } from "@/lib/format";
 import type { InsightGroup } from "@/types/api";
 
@@ -39,7 +41,7 @@ function stageText(stage: string | undefined, progress: number): string {
   return progress < 0.1 ? "Starting…" : "Working on it…";
 }
 
-export default function Dashboard() {
+function ServerDashboard() {
   const router = useRouter();
   const me = useMe();
   const features = useFeatures();
@@ -230,4 +232,141 @@ function Group({ title, rows, label = (s: string) => s }: { title: string; rows:
       </ul>
     </Card>
   );
+}
+
+// ---- Home when the app is Fast Studio only (every server part off in Administration -> Features): no server counts or
+// jobs, only what is made on the phone: start a Reel, the drafts on this phone, the Reels saved in My Reels.
+const START = [
+  { href: "/studio?kind=music", icon: "music", tile: "b1", title: "Music Reel", text: "Cuts land on every beat" },
+  { href: "/studio?kind=talk", icon: "mic", tile: "b3", title: "Talking Reel", text: "Pauses cut, captions added" },
+  { href: "/reels?tab=saved", icon: "video", tile: "b4", title: "My Reels", text: "Watch, download or share", page: true },
+];
+
+function useSaved(on: boolean) {
+  const [reels, setReels] = useState<CloudReel[] | null>(null);
+  useEffect(() => {
+    if (!on) return;
+    let live = true;
+    listCloudReels().then(
+      (d) => live && setReels(d.reels),
+      () => live && setReels([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [on]);
+  return reels;
+}
+
+function StudioHome() {
+  const me = useMe();
+  const drafts = useDrafts();
+  const saved = useSaved(!me.data?.authEnabled || !!me.data?.user);
+  const name = me.data?.user?.email?.split("@")[0];
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const tile = (img: string | null | undefined, dur: number | undefined) => (
+    <div className="photo relative aspect-[3/4] w-full overflow-hidden transition-transform group-hover:scale-[1.01]">
+      {/* eslint-disable-next-line @next/next/no-img-element -- a small picture kept with the Reel */}
+      {img && <img src={img} alt="" loading="lazy" className="h-full w-full object-cover" />}
+      <span className="tag">{clock(dur)}</span>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-[14px] md:gap-[22px]">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="eb">
+            {hello}
+            {name ? `, ${name}` : ""}
+          </p>
+          <h1 className="h1">What are we making today?</h1>
+          <p className="sub">Your song and clips become a Reel in seconds, right on your phone.</p>
+        </div>
+      </div>
+
+      <section aria-label="Start a Reel" className="g2 md:!grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:!gap-[14px]">
+        {START.map((m) => {
+          const inner = (
+            <>
+              <span className={`it ${m.tile}`}>
+                <Icon name={m.icon} size={20} />
+              </span>
+              <span className="flex flex-col gap-0.5">
+                <b className="text-[14px] text-foreground">{m.title}</b>
+                <span className="text-[11.5px] leading-snug text-muted md:text-[12px]">{m.text}</span>
+              </span>
+            </>
+          );
+          return m.page ? (
+            <Link key={m.href} href={m.href} className="mk col-span-2 !flex-row !items-center md:col-span-1 md:!flex-col md:!items-start">
+              {inner}
+            </Link>
+          ) : (
+            <a key={m.href} href={m.href} className="mk">
+              {inner}
+            </a>
+          );
+        })}
+      </section>
+
+      <div className="between">
+        <h2 className="ht">Continue editing</h2>
+        {!!drafts?.length && (
+          <Link href="/reels" className="sm ac font-bold">
+            View all
+          </Link>
+        )}
+      </div>
+      {drafts === null ? (
+        <Spinner />
+      ) : drafts.length ? (
+        <div className="grid grid-cols-3 gap-x-2 gap-y-2.5 sm:grid-cols-4 md:gap-x-3.5 md:gap-y-4 lg:grid-cols-6">
+          {drafts.slice(0, 6).map((d) => (
+            <a key={d.id} href={`/studio?p=${encodeURIComponent(d.id)}`} className="group flex flex-col gap-1" title={`Open ${d.name}`}>
+              {tile(d.thumb, d.dur)}
+              <b className="sm truncate group-hover:text-accent">{d.name}</b>
+            </a>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon="video"
+          title="No Reels yet"
+          hint="Pick a song and a few clips: your first Reel is ready in seconds, cut to the beat."
+          action={
+            <a href="/studio" className="btn g">
+              Make your first Reel
+            </a>
+          }
+        />
+      )}
+
+      {!!saved?.length && (
+        <>
+          <div className="between">
+            <h2 className="ht">Saved in My Reels</h2>
+            <Link href="/reels?tab=saved" className="sm ac font-bold">
+              View all
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-x-2 gap-y-2.5 sm:grid-cols-4 md:gap-x-3.5 md:gap-y-4 lg:grid-cols-6">
+            {saved.slice(0, 6).map((r) => (
+              <Link key={r.id} href="/reels?tab=saved" className="group flex flex-col gap-1" title={r.name}>
+                {tile(r.thumb, r.dur)}
+                <b className="sm truncate group-hover:text-accent">{r.name}</b>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Home() {
+  const features = useFeatures();
+  // the server's dashboard (its projects, jobs and insights) only while a part that makes Reels there is on
+  return linkOn("/projects", features) ? <ServerDashboard /> : <StudioHome />;
 }

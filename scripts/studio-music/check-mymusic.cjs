@@ -23,7 +23,7 @@ const BASE = process.env.BASE || 'http://localhost:3000';
   await p.click('#slen button[data-l="15"]'); await p.waitForFunction(() => Math.abs(document.querySelector('.brs').__studio.section.len - 15) < 0.6, null, { timeout: 60000 }); await p.waitForTimeout(1500);
   await p.check('#nosong');
   await p.evaluate(() => { window.__dl = null; const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dl = this.href; return; } return ck.call(this); }; });
-  await p.click('#export'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 1500000 });
+  await p.click('#export'); await p.click('#xgo'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 1500000 });
   console.log('export message:', await p.textContent('#xmsg'));
   const b64 = await p.evaluate(async () => { const u = new Uint8Array(await (await (await fetch(window.__dl)).blob()).arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s); });
   const f = __dirname + '/nosong_export.webm'; fs.writeFileSync(f, Buffer.from(b64, 'base64'));

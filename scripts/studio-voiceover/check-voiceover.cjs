@@ -30,7 +30,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', CLIPS = (process.env.C
   console.log('captions: sent', cap && cap.toFixed(2), 's of the voice');
   // export: the voice is in the video's sound (correlated with the recording)
   await p.evaluate(() => { window.__dl = null; const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dl = this.href; return; } return ck.call(this); }; });
-  await p.click('#export'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 1500000 });
+  await p.click('#export'); await p.click('#xgo'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 1500000 });
   const corr = await p.evaluate(async () => { const s = document.querySelector('.brs').__studio, ab = await new AudioContext({ sampleRate: s.audio.sampleRate }).decodeAudioData(await (await (await fetch(window.__dl)).blob()).arrayBuffer());
     // the export's sound against the Reel's own mix (song + voice), to the sample; and how much of it the voice explains
     const x = ab.getChannelData(0), m = s.audio.getChannelData(0), B = s.base, v = s.vo, sr = ab.sampleRate, a0 = Math.round(1.0 * sr), n = Math.round(6 * sr);

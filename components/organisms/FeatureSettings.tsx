@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toggle } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
-import { ALL_ON, FEATURE_LIST, type FeatureKey } from "@/lib/features-list";
+import { DEFAULTS, FEATURE_LIST, type FeatureKey } from "@/lib/features-list";
 
 /** Administration → Features: show or hide each part of the app for everyone. A hidden part leaves the menus and the
  * dashboard, its page says it is off, and the server refuses its work (for anyone but the administrator). */
@@ -15,7 +15,7 @@ export function FeatureSettings() {
     mutationFn: (p: { key: FeatureKey; on: boolean }) => api.setFeatures({ [p.key]: p.on }),
     onSuccess: (f) => qc.setQueryData(["features"], f),
   });
-  const f = q.data ?? ALL_ON;
+  const f = q.data ?? DEFAULTS;
   const serverOn = FEATURE_LIST.filter((x) => x.server && f[x.key]).length;
   return (
     <section className="card" aria-label="Features">

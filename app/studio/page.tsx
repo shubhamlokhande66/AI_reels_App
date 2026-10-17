@@ -62,6 +62,12 @@ export default function FastStudioPage() {
           // who is the person (background blur / replace, text behind the person) and where faces are (MediaPipe models)
           // voice noise cleanup (RNNoise, WebAssembly), loaded only for talking videos and voiceovers
           loadRnnoise: () => import("@shiguredo/rnnoise-wasm"),
+          // My Reels: "Export & save" keeps the finished Reel in the account (straight to storage, lib/cloudReels.ts)
+          cloud: {
+            usage: () => import("@/lib/cloudReels").then((m) => m.cloudUsage()),
+            save: (blob: Blob, meta: import("@/lib/cloudReels").SaveMeta, onProgress?: (p: number) => void) =>
+              import("@/lib/cloudReels").then((m) => m.saveToCloud(blob, meta, onProgress)),
+          },
           personMask: (rgba: Uint8ClampedArray) => import("@/lib/vision/client").then((m) => m.personMask(rgba)),
           findFaces: (squares: Uint8ClampedArray[]) => import("@/lib/vision/client").then((m) => m.findFaces(squares)),
         });

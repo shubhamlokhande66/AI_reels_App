@@ -476,7 +476,7 @@ the exported 1080p video: bar at 0.700, 0.500 and 20.0° against the preview's 0
 Built to the design "D · Combined" (phone: Simple, Menu, Editor, Pro; computer: Home, Pro editor).
 
 - **Full-screen workspace** with its own top bar. Phone: the menu (☰), the Reel's name and saved state, Export (Editor,
-  Pro), the Simple / Editor / Pro switch. Computer: Reel Maison, Home · My projects · Templates · Style library · My
+  Pro), the Simple / Editor / Pro switch. Computer: Shubix, Home · My projects · Templates · Style library · My
   music, the theme button, the account, the switch and Export.
 - **Home**: "What are we making today?", Music Reel / Talking Reel / Copy a Reel, Continue editing (the Reels saved on this
   device), Your style library (the kinds with saved Reels and how well each is learned; tap one to use it, "+ Teach a

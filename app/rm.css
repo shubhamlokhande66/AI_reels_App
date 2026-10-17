@@ -1,4 +1,4 @@
-/* Reel Maison page design (the "every page" canvas): Noir for the shell, dashboard and editors; Ivory for the inner
+/* Shubix page design (the "every page" canvas): Noir for the shell, dashboard and editors; Ivory for the inner
    pages; champagne gold. Every class is scoped to .rm (the app shell and the sign-in pages), so Fast Studio keeps its
    own styles. In the components layer: a Tailwind utility on the same element still wins. */
 @layer components {

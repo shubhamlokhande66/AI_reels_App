@@ -17,10 +17,15 @@ export const FEATURE_LIST: { key: FeatureKey; label: string; hint: string; serve
 
 export type Features = Record<FeatureKey, boolean>;
 export const ALL_ON: Features = Object.fromEntries(FEATURE_LIST.map((f) => [f.key, true])) as Features;
+/** Until the administrator decides otherwise: only Fast Studio (made on the phone) is on; every part that works on the
+ * server starts off, so the app is fast and puts no load on the server. */
+export const DEFAULTS: Features = Object.fromEntries(FEATURE_LIST.map((f) => [f.key, !f.server])) as Features;
 
 /** The feature a page belongs to (null: always shown). Create Reel is hidden only when both of its kinds are off. */
 export function pageFeature(path: string, f: Features): FeatureKey | null {
   if (path === "/projects/new") return !f.aiReel && !f.productReel ? "aiReel" : null;
+  // the server's projects: shown while any part that makes Reels on the server is on (Fast Studio's are in My Reels)
+  if (path === "/projects" || path.startsWith("/projects/")) return !f.aiReel && !f.productReel && !f.story && !f.editor ? "aiReel" : null;
   for (const x of FEATURE_LIST) if (x.pages.some((p) => path === p || path.startsWith(`${p}/`))) return x.key;
   return null;
 }

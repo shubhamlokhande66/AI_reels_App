@@ -1,19 +1,19 @@
 import "server-only";
 import type { ObjectId } from "mongodb";
-import { ALL_ON, FEATURE_LIST, type FeatureKey, type Features } from "@/lib/features-list";
+import { DEFAULTS, FEATURE_LIST, type FeatureKey, type Features } from "@/lib/features-list";
 import { isAdmin } from "./admin";
 import { db } from "./db";
 import { AppError, ValidationFailed } from "./errors";
 
-/** Which parts of the app are on (Administration → Features), saved in app_settings. Everything is on until the
- * administrator turns something off. Cached for a few seconds: it is read on every guarded request. */
+/** Which parts of the app are on (Administration → Features), saved in app_settings. Only Fast Studio is on until the
+ * administrator turns a server part on (lib/features-list.ts DEFAULTS). Cached for a few seconds: it is read on every guarded request. */
 const ID = "features" as unknown as ObjectId;
 let cache: { at: number; value: Features } | null = null;
 
 export async function getFeatures(): Promise<Features> {
   if (cache && Date.now() - cache.at < 5000) return cache.value;
   const saved = ((await (await db()).collection("app_settings").findOne({ _id: ID })) ?? {}) as Record<string, unknown>;
-  const value = { ...ALL_ON };
+  const value = { ...DEFAULTS };
   for (const f of FEATURE_LIST) if (typeof saved[f.key] === "boolean") value[f.key] = saved[f.key] as boolean;
   cache = { at: Date.now(), value };
   return value;

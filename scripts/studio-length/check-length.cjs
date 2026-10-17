@@ -51,7 +51,7 @@ const CLIPS = (process.env.CLIPS || '').split(',').filter(Boolean);
     const ed = await p.evaluate(() => { const e = document.querySelector('.brs').__studio.edit; return { shots: e.length, end: +e[e.length - 1].end.toFixed(3) }; });
     console.log('edit:', JSON.stringify(ed));
     await p.evaluate(() => { window.__dl = null; const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dl = this.href; return; } return ck.call(this); }; });
-    await p.click('#export');
+    await p.click('#export'); await p.click('#xgo');
     await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 900000 });
     const v = await p.evaluate(async () => { const v = document.createElement('video'); v.src = window.__dl; await new Promise(r => { v.onloadedmetadata = r; setTimeout(r, 10000); });
       if (v.duration === Infinity) { v.currentTime = 1e9; await new Promise(r => { v.ontimeupdate = r; setTimeout(r, 5000); }); } return v.duration; });
