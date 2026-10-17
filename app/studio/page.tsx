@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { STUDIO_HTML } from "@/components/studio/markup";
 import { initViews } from "@/components/studio/views";
+import { initSteps } from "@/components/studio/steps";
+import { useAdmin } from "@/hooks/useApi";
 import { ErrorBanner } from "@/components/molecules";
 import "@/components/studio/studio.css";
 
@@ -31,12 +33,18 @@ function loadScript(src: string): Promise<void> {
 export default function FastStudioPage() {
   const root = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const { admin } = useAdmin();
+  // the style library (teaching the AI new styles) is the administrator's
+  useEffect(() => {
+    root.current?.classList.toggle("admin", admin);
+  }, [admin]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     let cancelled = false;
     const el = root.current!;
     const v = initViews(el, () => {});
+    const stopSteps = initSteps(el);
     (async () => {
       try {
         for (const src of SCRIPTS) await loadScript(src);
@@ -64,6 +72,7 @@ export default function FastStudioPage() {
     return () => {
       cancelled = true;
       v.cleanup();
+      stopSteps();
       cleanup?.();
     };
   }, []);

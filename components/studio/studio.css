@@ -558,3 +558,39 @@
   .brs.made.v-simple .savebar{background:var(--bar)}
 }
 @media (min-width:1000px){ .brs.made.v-pro #out{max-height:calc(100vh - 520px);min-height:220px} }
+
+/* ================= The four steps, one after the other ================= */
+/* step 1 (what are we making) is a step card like the others; its choices in a grid */
+.brs #s0{display:grid}
+.brs.made #s0{display:none}
+.brs .makegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.brs .makegrid .kinds{display:contents}
+.brs .kinds button,.brs .kindx{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:10px;text-align:left;padding:14px;min-height:0;border-radius:16px;
+  border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-family:var(--body);box-shadow:var(--shadow)}
+.brs .kindx svg:first-child,.brs .kinds button svg{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:#1e3a8a}
+.brs .kinds button[data-k="talk"] svg{background:#1f5e4a}
+.brs #photokind svg{background:#8a5a1c}
+.brs #copycard > svg:first-child{background:#6b2a8f}
+.brs .kindx span,.brs .kinds button span{display:grid;gap:2px}
+.brs .kindx b,.brs .kinds button b{font-size:14.5px}
+.brs .kindx small,.brs .kinds button small{font-size:12px;color:var(--muted);line-height:1.35}
+.brs .kindx[aria-pressed=true],.brs .kinds button[aria-pressed=true],:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:var(--surface);color:var(--ink);border:2px solid var(--accent);padding:13px;box-shadow:var(--shadow)}
+.brs .kinds button[aria-pressed=true] small,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:var(--muted)}
+.brs .kinds button[aria-pressed=true] svg,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#fff}
+.brs #s0 .tplrow{margin-top:2px}
+@media (min-width:1000px){
+  .brs .makegrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .brs .kinds button,.brs .kindx{min-height:150px;padding:18px}
+  .brs .kindx[aria-pressed=true],.brs .kinds button[aria-pressed=true]{padding:17px}
+  .brs .copycard{flex-direction:column;align-items:flex-start;justify-content:flex-start}
+}
+/* the next step appears once the one before it is done */
+.brs:not(.made):not(.c1) #s1,.brs:not(.made):not(.c2) #s2,.brs:not(.made):not(.c3) #s3{display:none}
+.brs:not(.made) .step.locked{opacity:1}
+/* photos instead of videos in step 3 */
+.brs .ponly{display:none}
+.brs.photomode .ponly{display:inline}
+.brs.photomode .vonly{display:none}
+/* the style library (teaching the AI new styles) is for the administrator */
+.brs:not(.admin) .stylelib,.brs:not(.admin) #teach{display:none !important}
+.brs:not(.admin) .homerow{grid-template-columns:1fr}

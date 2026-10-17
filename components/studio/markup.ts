@@ -57,14 +57,6 @@ export const STUDIO_HTML = `
     <button class="btn ink hero-new" id="pnew" type="button">${IC.plus}New Reel</button>
   </header>
 
-  <div class="starts">
-    <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
-      <button data-k="music" aria-pressed="true">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
-      <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Pauses cut, captions added</small></span></button>
-    </div>
-    <button type="button" class="copycard" id="copycard">${IC.copy}<span><b>Copy a Reel</b><small>Match a reference's cuts and look</small></span>${IC.chev}</button>
-  </div>
-
   <div class="homerow">
     <div class="projects" id="projects" hidden>
       <div class="hrow"><h2>Continue editing</h2><a href="/projects">All projects</a></div>
@@ -77,21 +69,37 @@ export const STUDIO_HTML = `
     </aside>
   </div>
 
+  <section class="step starts" id="s0">
+    <div class="sh3"><span class="num">1</span><h2>What are we making?</h2><span class="st" id="s0st">Choose one to start</span></div>
+    <div class="sbody">
+    <div class="makegrid">
+      <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
+        <button data-k="music" aria-pressed="false">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
+        <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Pauses cut, captions added</small></span></button>
+      </div>
+      <button type="button" class="kindx" id="photokind" aria-pressed="false">${IC.image}<span><b>Photos to Reel</b><small>Your photos, moving to the music</small></span></button>
+      <button type="button" class="kindx copycard" id="copycard" aria-pressed="false">${IC.copy}<span><b>Copy a Reel</b><small>Match a Reel you like: its cuts and look</small></span></button>
+    </div>
   <div class="tplrow">
-    <span class="label">Templates</span>
+    <span class="label">Or start from a template</span>
     <div class="tpl" id="tpl" role="group" aria-label="Templates">
       <button data-t="talking" aria-pressed="false">Talking head</button><button data-t="tutorial" aria-pressed="false">Tutorial</button><button data-t="recipe" aria-pressed="false">Recipe</button><button data-t="beforeafter" aria-pressed="false">Before / After</button><button data-t="product" aria-pressed="false">Product</button><button data-t="montage" aria-pressed="false">Beat montage</button><button data-t="travel" aria-pressed="false">Travel</button><button data-t="ganpati" aria-pressed="false">Ganpati</button><button data-t="diwali" aria-pressed="false">Diwali</button>
     </div>
     <span class="fname" id="tplhelp"></span>
   </div>
+    </div>
+  </section>
+
+
 
   <section class="step" id="s1">
-    <button type="button" class="sh" aria-expanded="true"><span class="num">1</span><h2>Music</h2><span class="st" id="s1st">Choose a song to start</span></button>
+    <button type="button" class="sh" aria-expanded="true"><span class="num">2</span><h2>Music</h2><span class="st" id="s1st">Choose a song to start</span></button>
     <div class="sbody">
     <div class="row">
       <button class="btn primary" id="mpick">${IC.music}Choose song</button>
       <input id="mfile" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.mov,.mp4" hidden>
       <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
+      <button class="btn ghost" id="skipmusic" type="button" hidden>Continue without music</button>
     </div>
     <div class="recent" id="recent" hidden><span class="label">Recent songs</span><div class="rlist" id="rlist"></div></div>
     <canvas class="wave" id="mwave"></canvas>
@@ -122,12 +130,12 @@ export const STUDIO_HTML = `
   </section>
 
   <section class="step locked" id="s2">
-    <button type="button" class="sh" aria-expanded="true"><span class="num">2</span><h2>Clips</h2><span class="st" id="s2st">Several clips or one long video</span></button>
+    <button type="button" class="sh" aria-expanded="true"><span class="num">3</span><h2>Clips</h2><span class="st" id="s2st">Several clips or one long video</span></button>
     <div class="sbody">
-    <div class="drop" id="dropzone" role="button" tabindex="0">Drop videos here or tap to choose. You can add more at any time.</div>
+    <div class="drop" id="dropzone" role="button" tabindex="0"><span class="vonly">Drop videos here or tap to choose. You can add more at any time.</span><span class="ponly">Drop photos here or tap to choose. Each photo becomes a short moving shot.</span></div>
     <input id="vfile" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden>
     <div class="row">
-      <button class="btn primary" id="addv">+ Add videos</button>
+      <button class="btn primary" id="addv"><span class="vonly">+ Add videos</span><span class="ponly">+ Add photos</span></button>
       <button class="btn" id="clearv" hidden>Remove all</button>
       <span class="fname" id="qinfo"></span>
     </div>
@@ -157,7 +165,7 @@ export const STUDIO_HTML = `
   </section>
 
   <section class="step locked" id="s3">
-    <div class="sh3"><span class="num">3</span><h2>Your Reel</h2><span class="st" id="s3st">The edit appears once there are clips</span></div>
+    <div class="sh3"><span class="num">4</span><h2>Your Reel</h2><span class="st" id="s3st">The edit appears once there are clips</span></div>
     <div class="create">
       <div class="stage">
         <div class="pv">
