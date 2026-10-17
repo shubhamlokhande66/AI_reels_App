@@ -5,10 +5,11 @@
  *   4 Your Reel — shown once there are clips; the engine makes the edit
  * Once the Reel is made every step stays reachable (the engine and views.ts fold them).
  *
- * Photos to Reel: each photo becomes a short moving shot (a slow push-in, recorded in the browser with MediaRecorder),
+ * Photos to Reel: each photo becomes a short moving shot (a slow push-in, encoded in the browser with WebCodecs),
  * then goes into the engine exactly like a video clip. Nothing is uploaded. */
 
 const SHOT_SECONDS = 3;
+const FPS = 30;
 
 export function initSteps(root: HTMLElement): () => void {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!;
@@ -26,9 +27,15 @@ export function initSteps(root: HTMLElement): () => void {
   const setPhoto = (on: boolean) => {
     root.classList.toggle("photomode", on);
     vfile.accept = on ? "image/*,.jpg,.jpeg,.png,.webp,.heic" : VIDEO_ACCEPT;
-    const h = $("s2").querySelector("h2")!;
-    if (on) h.textContent = "Your photos";
-    else if (!root.classList.contains("talkmode")) h.textContent = "Clips";
+    const h = $("s2").querySelector("h2")!, st = $("s2st");
+    const idle = (t: string) => /^(Several clips or one long video|Add your photos.*)$/.test(t);
+    if (on) {
+      h.textContent = "Your photos";
+      if (idle(st.textContent ?? "")) st.textContent = "Add your photos (8 or more look best)";
+    } else {
+      if (!root.classList.contains("talkmode")) h.textContent = "Clips";
+      if (idle(st.textContent ?? "")) st.textContent = "Several clips or one long video";
+    }
   };
   const asMusic = () => {
     if (root.classList.contains("talkmode")) root.querySelector<HTMLButtonElement>('#kind [data-k="music"]')?.click();
@@ -169,45 +176,34 @@ export function initSteps(root: HTMLElement): () => void {
   };
 }
 
-/** A photo as a short video: the whole picture with a slow push-in, recorded in the browser (nothing is uploaded). */
+/** A photo as a short video: the whole picture with a slow push-in, encoded in the browser (WebCodecs, the same
+ * encoder as the studio's export) so the clip has a real length. Nothing is uploaded. */
 async function photoClip(file: File): Promise<File> {
+  const mb = await import("mediabunny");
   const bmp = await createImageBitmap(file);
   const scale = Math.min(1, 1080 / Math.max(bmp.width, bmp.height));
-  const w = Math.max(2, Math.round((bmp.width * scale) / 2) * 2), h = Math.max(2, Math.round((bmp.height * scale) / 2) * 2);
+  const w = Math.max(16, Math.round((bmp.width * scale) / 2) * 2), h = Math.max(16, Math.round((bmp.height * scale) / 2) * 2);
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
   const g = c.getContext("2d")!;
-  const types = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
-  const mime = types.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t));
-  if (!mime) throw new Error("This browser cannot make video from photos.");
-  const stream = c.captureStream(30);
-  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 });
-  const chunks: Blob[] = [];
-  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  const done = new Promise<void>((r) => (rec.onstop = () => r()));
-  const t0 = performance.now();
-  const draw = () => {
-    const p = Math.min(1, (performance.now() - t0) / (SHOT_SECONDS * 1000));
-    const z = 1 + 0.08 * p; // a slow push-in
+  const codec = await mb.getFirstEncodableVideoCodec(["avc", "vp9", "vp8"], { width: w, height: h });
+  if (!codec) throw new Error("This browser cannot make video from photos.");
+  const mp4 = codec === "avc";
+  const output = new mb.Output({ format: mp4 ? new mb.Mp4OutputFormat({ fastStart: "in-memory" }) : new mb.WebMOutputFormat(), target: new mb.BufferTarget() });
+  const vs = new mb.CanvasSource(c, { codec, bitrate: 6e6, keyFrameInterval: 1 });
+  output.addVideoTrack(vs, { frameRate: FPS });
+  await output.start();
+  const frames = SHOT_SECONDS * FPS;
+  for (let k = 0; k < frames; k++) {
+    const z = 1 + 0.08 * (k / (frames - 1)); // a slow push-in
     g.fillStyle = "#000";
     g.fillRect(0, 0, w, h);
     g.drawImage(bmp, (w - w * z) / 2, (h - h * z) / 2, w * z, h * z);
-  };
-  draw();
-  rec.start(250);
-  await new Promise<void>((resolve) => {
-    const tick = () => {
-      draw();
-      if (performance.now() - t0 >= SHOT_SECONDS * 1000) return resolve();
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
-  rec.stop();
-  await done;
-  stream.getTracks().forEach((t) => t.stop());
+    await vs.add(k / FPS, 1 / FPS);
+  }
+  await output.finalize();
   bmp.close();
-  const ext = mime.includes("mp4") ? "mp4" : "webm";
-  return new File(chunks, `${file.name.replace(/\.[^.]+$/, "")}.${ext}`, { type: mime.split(";")[0] });
+  const buf = (output.target as InstanceType<typeof mb.BufferTarget>).buffer!;
+  return new File([buf], `${file.name.replace(/\.[^.]+$/, "")}.${mp4 ? "mp4" : "webm"}`, { type: mp4 ? "video/mp4" : "video/webm" });
 }
