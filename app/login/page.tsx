@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { ErrorBanner } from "@/components/molecules";
+import { LogoTile } from "@/components/atoms";
 import { LegalFooter } from "@/components/molecules/Legal";
 import Link from "next/link";
 
@@ -38,10 +39,8 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-[400px] flex-col justify-center gap-[18px] px-7 py-10">
-      <div className="brand">
-        <span className="avatar mb-2.5 h-14 w-14 font-display text-[26px] font-semibold">R</span>
-        <b>Reel Maison</b>
-        <span>AI creative studio</span>
+      <div className="flex justify-center">
+        <LogoTile height={72} />
       </div>
       <h1 className="ht mt-2 text-center" style={{ fontSize: 26 }}>
         {mode === "signin" ? "Sign in" : "Create your account"}

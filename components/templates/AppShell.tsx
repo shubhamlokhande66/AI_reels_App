@@ -7,9 +7,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { pageTheme } from "@/lib/theme";
 import { Icon } from "@/components/atoms/Icon";
+import { Logo } from "@/components/atoms/Logo";
 import { GlobalActivity } from "@/components/molecules/GlobalActivity";
 import { LegalFooter } from "@/components/molecules/Legal";
 import { EmptyState } from "@/components/molecules/EmptyState";
+import { InstallApp } from "@/components/molecules/InstallApp";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useMe } from "@/hooks/useApi";
 import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
@@ -75,7 +77,7 @@ type Meta = { title: string; back?: string; left?: boolean; credits?: boolean; t
 /** What the phone top bar shows on each page (the designs). */
 function pageMeta(p: string): Meta {
   const fixed: Record<string, Meta> = {
-    "/": { title: "Reel Maison", credits: true, tabs: true },
+    "/": { title: "Shubix", credits: true, tabs: true },
     "/projects": { title: "My Projects", credits: true, tabs: true },
     "/projects/new": { title: "Create a new Reel", back: "/", credits: true },
     "/story/new": { title: "Story → Reel", back: "/", credits: true },
@@ -102,7 +104,7 @@ function pageMeta(p: string): Meta {
   if (fixed[p]) return fixed[p];
   const m = p.match(/^\/projects\/([^/]+)(\/(edit|beats))?$/);
   if (m) return { title: m[3] === "edit" ? "Edit" : "Project", back: m[2] ? `/projects/${m[1]}` : "/projects", left: true };
-  return { title: "Reel Maison" };
+  return { title: "Shubix" };
 }
 
 /** The signed-in user's credits (billing on): tap to see plans and top up. */
@@ -196,8 +198,8 @@ function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: 
         }`}
       >
         <div className="top" style={{ gridTemplateColumns: "1fr 44px" }}>
-          <span className="t l" style={{ fontSize: 22 }}>
-            Reel Maison
+          <span className="flex min-w-0 items-center">
+            <Logo height={34} />
           </span>
           <button type="button" className="ib plain" aria-label="Close menu" onClick={onClose}>
             <Icon name="close" />
@@ -220,6 +222,7 @@ function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: 
             </nav>
           )}
           <div className="flex-1" />
+          <InstallApp className="px-1 pt-2" />
           {credits && (
             <div className="between px-1 py-2.5">
               <span onClick={onClose}>
@@ -358,7 +361,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Icon name="menu" size={22} />
           </button>
         )}
-        <span className={`t ${meta.left ? "l" : ""}`}>{title}</span>
+        <span className={`t ${meta.left ? "l" : ""}`}>{pathname === "/" ? <Logo height={34} className="mx-auto" /> : title}</span>
         <span className="flex items-center justify-end gap-2 [&:has(#rm-top-action:not(:empty))>.dflt]:hidden">
           <span id={TOP_SLOT} className="contents" />
           <span className="dflt contents">
@@ -379,9 +382,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* computers: the Noir sidebar */}
       <aside className="noir hidden border-r border-border bg-[linear-gradient(180deg,#14110e,#0d0b09)] md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px]">
-        <Link href="/" className="flex flex-col">
-          <b className="font-display text-2xl font-semibold">Reel Maison</b>
-          <span className="mu xs uppercase tracking-[.26em]">AI creative studio</span>
+        <Link href="/" className="flex" aria-label="Shubix home">
+          <Logo height={80} className="-mx-1 max-w-full" />
         </Link>
         <Link href="/projects/new" className="btn g">
           + New Reel
@@ -390,6 +392,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavGroups groups={groups} pathname={pathname} />
         </nav>
         <div className="flex-1" />
+        <InstallApp />
         {credits && (
           <div className="between">
             <CreditPill balance={credits.balance} full />

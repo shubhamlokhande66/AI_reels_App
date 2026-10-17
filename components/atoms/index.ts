@@ -6,3 +6,4 @@ export { StatusBadge } from "./StatusBadge";
 export { Icon, photoClass } from "./Icon";
 export { Thumb } from "./Thumb";
 export { Toggle } from "./Toggle";
+export { Logo, LogoTile } from "./Logo";

@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { NewReel } from "@/components/molecules/NewReel";
 import { PageHeader } from "@/components/molecules";
 
-export const metadata = { title: "Create Reel · Reel Maison" };
+export const metadata = { title: "Create Reel" };
 
 export default function NewProjectPage() {
   return (

@@ -18,7 +18,7 @@ export default function ContactPage() {
   const send = (e: React.FormEvent) => {
     e.preventDefault();
     const body = `${text.trim()}\n\n— ${email}`;
-    window.location.href = `mailto:${s.email}?subject=${encodeURIComponent("Help with Reel Maison")}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:${s.email}?subject=${encodeURIComponent("Help with Shubix")}&body=${encodeURIComponent(body)}`;
   };
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
