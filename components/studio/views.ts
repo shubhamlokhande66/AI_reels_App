@@ -264,7 +264,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       wasMade = m;
       openStep("s1", !m); openStep("s2", !m);
       const tpl = root.querySelector(".tplrow")!;
-      if (m) root.querySelector('.panel[data-panel="style"]')!.append(tpl); else $("s1").before(tpl);
+      if (m) root.querySelector('.panel[data-panel="style"]')!.append(tpl); else root.querySelector("#s0 .makegrid")!.after(tpl);
       if (m && !tool) tool = defTool();
       apply();
     }
