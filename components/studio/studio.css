@@ -483,3 +483,78 @@
 
 /* ?view=all: every panel open, the strip shown (for checks and support) */
 .brs.made.v-all .strip{display:grid}
+
+/* ================= Inside the app (design: the Reel Maison pages) =================
+   Fast Studio is a page of the app like the others: the app's sidebar, top bar, menu and footer around it, the
+   Ivory page look, gold buttons, numbered gold steps, cards with the app's corners and shadow. */
+.brs{min-height:0;background:transparent;--ink-btn:var(--gold-gradient);--ink-btn-fg:#1a140c;--chipbg:var(--chip-on)}
+:root[data-theme="light"] .brs{--ink-btn:var(--gold-gradient);--ink-btn-fg:#1a140c}
+.brs .wrap,.brs.made.v-pro .wrap{max-width:none;padding:0 0 24px;gap:14px}
+@media (min-width:760px){ .brs .wrap{padding:0 0 24px} }
+
+/* the Reel's own row: its name and "saved", the Simple / Editor / Pro tabs and Export (the app's top bar is above) */
+.brs .topbar{position:static;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border:0;padding:0 0 4px;gap:10px 14px}
+.brs:not(.made) .topbar{display:none}
+.brs .tb-title{display:grid}
+.brs .tb-name{font-size:26px}
+@media (min-width:1000px){
+  .brs .topbar{padding:0 0 6px;background:transparent}
+  .brs .tb-title{display:grid}
+}
+.brs .views{padding:3px;gap:2px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+.brs .views button{height:34px;border-radius:9px;font:700 12.5px var(--body)}
+.brs .views button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15),inset 0 0 0 1px var(--line)}
+.brs .tb-export,:root:not([data-theme="light"]) .brs .tb-export{background:var(--gold-gradient);color:#1a140c;border-radius:12px;height:44px}
+
+/* home: the app's page title and "make" cards */
+.brs .hero h1{font:600 clamp(30px,6vw,40px)/1.05 var(--display);letter-spacing:.01em}
+.brs .hero .sub{font-size:13.5px;line-height:1.45;margin-top:4px}
+.brs .kinds button,.brs .copycard{border-radius:16px;box-shadow:var(--shadow);gap:12px}
+.brs .kinds button svg,.brs .copycard > svg:first-child{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:#1e3a8a}
+.brs .kinds button[data-k="talk"] svg{background:#1f5e4a}
+.brs .copycard > svg:first-child{background:#6b2a8f}
+.brs .kinds button[aria-pressed=true],:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:var(--surface);color:var(--ink);border:2px solid var(--accent);box-shadow:var(--shadow)}
+.brs .kinds button[aria-pressed=true] svg,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#fff}
+.brs .kinds button[aria-pressed=true] small,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:var(--muted)}
+@media (min-width:1000px){
+  .brs .kinds button,.brs .copycard{min-height:150px}
+  .brs .copycard > svg:first-child{width:42px;height:42px;padding:10px;background:#6b2a8f}
+}
+.brs .popen,.brs .skind,.brs .card,.brs .panel,.brs .shotcard{border-radius:16px;box-shadow:var(--shadow)}
+.brs .hrow h2{font:600 21px var(--display)}
+.brs .label{font-size:11px;letter-spacing:.2em;font-weight:700}
+
+/* steps: the app's numbered gold steps */
+.brs .step{border-radius:16px;box-shadow:var(--shadow);padding:14px}
+.brs .num{width:26px;height:26px;border:0;background:var(--gold-gradient);color:#1a140c;font:800 12px var(--body)}
+.brs .step.done .num{background:var(--success);color:#fff}
+.brs .sh h2{font:700 15px var(--body)}
+
+/* buttons, progress */
+.brs .btn{font:700 14px var(--body)}
+.brs .btn.primary,.brs .btn.hot,.brs .btn.save{background:var(--gold-gradient);color:#1a140c;border-color:transparent;box-shadow:0 10px 22px -14px rgba(169,130,74,.9)}
+.brs .btn.big{border-radius:14px;min-height:52px;font-size:15.5px}
+.brs .bar i{background:var(--gold-gradient)}
+.brs .drop{border:1.5px dashed color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:16px;background:var(--surface)}
+.brs .drop:hover,.brs .drop.over{border-color:var(--accent)}
+.brs canvas.wave{background:var(--surface-2)}
+.brs #play{border-color:var(--accent)}
+.brs.v-pro #play{background:var(--gold-gradient);color:#1a140c}
+
+/* the save bar on phones sits on the page (no app tab bar here) */
+.brs.made.v-simple .savebar{margin:0 -16px;background:color-mix(in srgb,var(--background) 94%,transparent)}
+
+/* Pro on a computer: one big card inside the page */
+@media (min-width:1000px){
+  .brs.made.v-pro .create{height:calc(100vh - 150px);border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
+  .brs.made.v-pro #s1:not(.folded),.brs.made.v-pro #s2:not(.folded){margin:0 0 14px}
+  .brs.made.v-pro .lanes{margin:12px 20px 16px;width:calc(100% - 40px)}
+}
+.brs .fname{font:500 12.5px var(--body);color:var(--muted)}
+.brs .msg{border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}
+.brs .msg.err{border-color:color-mix(in srgb,var(--warning) 45%,var(--line));background:color-mix(in srgb,var(--warning) 7%,var(--surface))}
+@media (max-width:999px){
+  .brs.made.v-editor .dock,.brs.made.v-pro .dock{background:var(--bar)}
+  .brs.made.v-simple .savebar{background:var(--bar)}
+}
+@media (min-width:1000px){ .brs.made.v-pro #out{max-height:calc(100vh - 520px);min-height:220px} }
