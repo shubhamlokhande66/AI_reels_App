@@ -5,10 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ usePathname: () => "/projects", useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 
 const admin = vi.hoisted(() => ({ value: false }));
+const features = vi.hoisted(() => ({ value: { fastStudio: true, aiReel: true, productReel: true, story: true, editor: true, library: true, songs: true, templates: true, brands: true } as Record<string, boolean> }));
 vi.mock("@/hooks/useApi", () => ({
   useAdmin: () => ({ admin: admin.value, required: true, loading: false }),
   useMe: () => ({ data: { authEnabled: true, user: { id: "u", email: "me@example.com" } } }),
   useCredits: () => ({ data: { enabled: false } }),
+  useFeatures: () => features.value,
 }));
 
 import { AppShell } from "@/components/templates/AppShell";
@@ -46,5 +48,17 @@ describe("AppShell navigation", () => {
     expect(nav.getByRole("link", { name: /Chat/ })).toHaveAttribute("href", "/chat");
     const links = nav.getAllByRole("link").map((a) => a.textContent ?? "");
     expect(links.findIndex((t) => t.includes("AI Edit"))).toBeGreaterThan(links.findIndex((t) => t.includes("Create Reel")));
+  });
+});
+
+describe("AppShell: parts the administrator turned off", () => {
+  it("leaves them out of the menu", () => {
+    features.value = { ...features.value, editor: false, songs: false };
+    renderShell();
+    const nav = screen.getAllByRole("navigation", { name: "Main" })[0];
+    expect(within(nav).queryByRole("link", { name: /Editor/ })).toBeNull();
+    expect(within(nav).queryByRole("link", { name: /Songs/ })).toBeNull();
+    expect(within(nav).getByRole("link", { name: /Footage/ })).toBeInTheDocument();
+    features.value = { ...features.value, editor: true, songs: true };
   });
 });
