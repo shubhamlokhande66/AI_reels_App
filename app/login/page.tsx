@@ -4,12 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { btnPrimary } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { LegalFooter } from "@/components/molecules/Legal";
 import Link from "next/link";
-
-const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2.5 outline-none focus:border-accent";
 
 /** Sign in, or create an account (accounts on: AUTH_ENABLED on the server). */
 export default function LoginPage() {
@@ -40,47 +37,48 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center">
-      <div className="lux-card lux-enter w-full max-w-md rounded-3xl p-8">
-        <p className="lux-eyebrow">Reel Maison</p>
-        <h1 className="mt-1 font-display text-4xl">{mode === "signin" ? "Welcome back" : "Create your studio"}</h1>
-        <p className="mt-2 text-sm text-muted">
-          {mode === "signin" ? "Sign in to your AI Reel studio." : "Your projects, brands and songs stay private to your account."}
-        </p>
-        <form onSubmit={submit} className="mt-6 space-y-4">
-          <label className="block text-sm">
-            <span className="mb-1.5 block font-medium">Email</span>
-            <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={FIELD} />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1.5 block font-medium">Password</span>
-            <input
-              type="password"
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={FIELD}
-            />
-            {mode === "signup" && <span className="mt-1 block text-xs text-muted">At least 8 characters.</span>}
-            {mode === "signin" && (
-              <Link href="/forgot" className="mt-1.5 block text-right text-xs text-muted hover:text-accent">
-                Forgot password?
-              </Link>
-            )}
-          </label>
-          {error && <ErrorBanner message={error} />}
-          <button type="submit" className={`${btnPrimary} w-full py-3`} disabled={busy}>
-            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
-          </button>
-        </form>
-        <p className="mt-5 text-center text-sm text-muted">
-          {mode === "signin" ? "New here?" : "Already have an account?"}{" "}
-          <button type="button" className="text-accent hover:underline" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}>
-            {mode === "signin" ? "Create an account" : "Sign in"}
-          </button>
-        </p>
-        <LegalFooter className="mt-6" />
+    <div className="mx-auto flex min-h-svh w-full max-w-[400px] flex-col justify-center gap-[18px] px-7 py-10">
+      <div className="brand">
+        <span className="avatar mb-2.5 h-14 w-14 font-display text-[26px] font-semibold">R</span>
+        <b>Reel Maison</b>
+        <span>AI creative studio</span>
       </div>
+      <h1 className="ht mt-2 text-center" style={{ fontSize: 26 }}>
+        {mode === "signin" ? "Sign in" : "Create your account"}
+      </h1>
+      <form onSubmit={submit} className="flex flex-col gap-[18px]">
+        <label className="f">
+          Email
+          <input type="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="inp" />
+        </label>
+        <label className="f">
+          Password
+          <input
+            type="password"
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            placeholder={mode === "signin" ? "Your password" : "At least 8 characters"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="inp"
+          />
+        </label>
+        {error && <ErrorBanner message={error} />}
+        <button type="submit" className="btn g big" disabled={busy}>
+          {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+        </button>
+      </form>
+      {mode === "signin" && (
+        <Link href="/forgot" className="ac sm text-center font-bold">
+          Forgot your password?
+        </Link>
+      )}
+      <p className="mu sm text-center">
+        {mode === "signin" ? "New here?" : "Already have an account?"}{" "}
+        <button type="button" className="ac font-bold" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}>
+          {mode === "signin" ? "Create an account" : "Sign in"}
+        </button>
+      </p>
+      <LegalFooter className="mt-4" />
     </div>
   );
 }

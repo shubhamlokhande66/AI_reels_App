@@ -1,36 +1,68 @@
 "use client";
 
-import { LegalPage } from "@/components/molecules/Legal";
+import { useState } from "react";
+import { Icon } from "@/components/atoms";
+import { Hero } from "@/components/molecules";
+import { siteOr, useSite } from "@/components/molecules/Legal";
+import { useMe } from "@/hooks/useApi";
 
+/** Contact us (design: "Contact"): email, WhatsApp, and a message that opens in your email app. */
 export default function ContactPage() {
+  const s = siteOr(useSite().data);
+  const me = useMe();
+  const [from, setFrom] = useState("");
+  const [text, setText] = useState("");
+  const email = from || me.data?.user?.email || "";
+  const realEmail = !s.email.startsWith("[");
+  const wa = s.phone.replace(/[^\d]/g, "");
+  const send = (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = `${text.trim()}\n\n— ${email}`;
+    window.location.href = `mailto:${s.email}?subject=${encodeURIComponent("Help with Reel Maison")}&body=${encodeURIComponent(body)}`;
+  };
   return (
-    <LegalPage title="Contact us">
-      {(s) => (
-        <>
-          <p>We are happy to help with your account, payments, refunds or anything about your Reels.</p>
-          <div className="lux-card grid gap-4 rounded-3xl p-6 sm:grid-cols-2">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-muted">Email</p>
-              {s.email.startsWith("[") ? <p>{s.email}</p> : <a href={`mailto:${s.email}`} className="text-accent hover:underline">{s.email}</a>}
-            </div>
-            {s.phone && (
-              <div>
-                <p className="text-xs uppercase tracking-wider text-muted">Phone</p>
-                <a href={`tel:${s.phone.replace(/\s+/g, "")}`} className="text-accent hover:underline">{s.phone}</a>
-              </div>
-            )}
-            <div className="sm:col-span-2">
-              <p className="text-xs uppercase tracking-wider text-muted">Address</p>
-              <p>
-                {s.name}
-                <br />
-                {s.address}
-              </p>
-            </div>
-          </div>
-          <p className="text-sm text-muted">We answer within 3 working days. For a payment question, include the payment date and amount.</p>
-        </>
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
+      <Hero title="We're here to help" subtitle="Questions about a Reel, credits or your account." />
+      <a href={realEmail ? `mailto:${s.email}` : undefined} className="card" style={{ flexDirection: "row", alignItems: "center" }}>
+        <span className="it b1" style={{ width: 38, height: 38 }}>
+          <Icon name="mail" size={18} />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <b>Email</b>
+          <span className="mu sm truncate">{s.email}</span>
+        </span>
+      </a>
+      {s.phone && (
+        <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="card" style={{ flexDirection: "row", alignItems: "center" }}>
+          <span className="it b6" style={{ width: 38, height: 38 }}>
+            <Icon name="chat" size={18} />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <b>WhatsApp</b>
+            <span className="mu sm">{s.phone}</span>
+          </span>
+        </a>
       )}
-    </LegalPage>
+      <form className="card" onSubmit={send} aria-label="Send us a message">
+        <span className="h2">Send us a message</span>
+        <label className="f">
+          Your email
+          <input type="email" required className="inp" placeholder="you@email.com" value={email} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="f">
+          Message
+          <textarea required className="ta" placeholder="How can we help?" value={text} onChange={(e) => setText(e.target.value)} />
+        </label>
+        <button type="submit" className="btn g" disabled={!realEmail || !text.trim()}>
+          Send
+        </button>
+        <span className="mu xs">
+          {realEmail ? "This opens your email app with the message ready. We reply within 3 working days." : "Email is not set up yet for this studio."}
+        </span>
+      </form>
+      <p className="mu xs text-center">
+        {s.name} · {s.address}
+      </p>
+    </div>
   );
 }

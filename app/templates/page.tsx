@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { btnPrimary, btnSecondary, Card, photoClass, Spinner } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { MoreMenu } from "@/components/molecules/MoreMenu";
 import { useStyles, useTrends } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { STYLE_LABELS } from "@/lib/format";
 import { takeTemplateDraft } from "@/lib/templateDraftHandoff";
 import { LANGUAGES, type Language, type Template, type TemplateInput } from "@/types/api";
 
-const FIELD = "w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent";
+const FIELD = "inp";
 const AUDIO_MODES = [
   ["music", "Music only"],
   ["voice_music", "Voice-over + music"],
@@ -84,10 +85,13 @@ export default function TemplatesPage() {
   });
   const del = useMutation({ mutationFn: api.deleteTemplate, onSuccess: refresh });
   const fav = useMutation({ mutationFn: (v: { id: string; favorite: boolean }) => api.favoriteTemplate(v.id, v.favorite), onSuccess: refresh });
+  const [gen, setGen] = useState<{ duration: number; language: Language; captionStyle: string }>({ duration: 30, language: "en", captionStyle: "minimal" });
+  const [tab, setTab] = useState<"styles" | "trends">("styles");
   const generate = useMutation({
     mutationFn: () => api.generateTemplate(prompt.trim()),
     onSuccess: (r) => {
-      setEditing({ id: null, data: toInput(r.template), isDraft: true });
+      // the choices made in the form win over the AI's guesses
+      setEditing({ id: null, data: { ...toInput(r.template), duration: gen.duration, language: gen.language, captionStyle: gen.captionStyle, captions: true }, isDraft: true });
       setDraftNote("This is an AI draft. Review it, change anything you like, then save.");
     },
   });
@@ -97,101 +101,110 @@ export default function TemplatesPage() {
   const favorites = list.filter((t) => t.favorite);
   const rest = list.filter((t) => !t.favorite);
 
-  const card = (t: Template) => (
-    <Card key={t.id} className="relative transition-colors hover:border-accent/50">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h3 className="truncate font-semibold">
-            {/* the whole card opens Create with this template (the buttons below stay separate) */}
-            <Link href={`/projects/new?template=${t.id}`} className="after:absolute after:inset-0 after:rounded-[inherit] hover:text-accent">
-              {t.name}
-            </Link>
-          </h3>
-          <p className="mt-0.5 text-xs text-muted">
-            {t.builtin ? "Built-in" : "Yours"} · {t.duration}s · {STYLE_LABELS[t.style] ?? t.style} · {t.pace}
-            {t.uses > 0 ? ` · used ${t.uses}×` : ""}
-          </p>
-        </div>
-        <button
-          type="button"
-          aria-pressed={t.favorite}
-          aria-label={t.favorite ? `Remove ${t.name} from favorites` : `Add ${t.name} to favorites`}
-          onClick={() => fav.mutate({ id: t.id, favorite: !t.favorite })}
-          className="relative z-10 text-lg leading-none hover:text-accent"
-        >
-          {t.favorite ? "★" : "☆"}
-        </button>
-      </div>
-      {t.description && <p className="mt-2 text-sm text-muted">{t.description}</p>}
-      <p className="mt-2 text-xs text-muted">
-        {AUDIO_MODES.find((m) => m[0] === t.audioMode)?.[1]}
-        {t.captions ? ` · ${t.captionStyle} captions` : " · no captions"}
-        {t.ai ? " · AI assisted" : ""}
-      </p>
-      <div className="relative z-10 mt-3 flex flex-wrap gap-2">
-        <Link href={`/projects/new?template=${t.id}`} className={btnPrimary}>
-          Use template
-        </Link>
-        <button
-          type="button"
-          className={btnSecondary}
-          onClick={() => {
-            setDraftNote(null);
-            setEditing({ id: t.builtin ? null : t.id, data: t.builtin ? { ...toInput(t), name: `${t.name} (copy)` } : toInput(t), isDraft: false });
-          }}
-        >
-          {t.builtin ? "Duplicate" : "Edit"}
-        </button>
-        {!t.builtin && (
-          <button type="button" className={btnDanger} onClick={() => window.confirm(`Delete template "${t.name}"?`) && del.mutate(t.id)}>
-            Delete
-          </button>
-        )}
-      </div>
-    </Card>
+  const tile = (t: Template) => (
+    <Link key={t.id} href={`/projects/new?template=${t.id}`} className="group flex flex-col gap-1">
+      <div className={`photo ${photoClass(t.id)} aspect-[3/4]`} />
+      <b className="xs truncate group-hover:text-accent">{t.name}</b>
+    </Link>
+  );
+  const row = (t: Template) => (
+    <div key={t.id} className="lr">
+      <div className={`photo ${photoClass(t.id)} h-14 w-11 shrink-0`} />
+      <span className="meta">
+        <b>{t.name}</b>
+        <span className="mu sm truncate">
+          {t.duration} s · {STYLE_LABELS[t.style] ?? t.style} · {t.captions ? `${t.captionStyle} captions` : "no captions"}
+          {t.uses > 0 ? ` · used ${t.uses}×` : ""}
+        </span>
+      </span>
+      <Link href={`/projects/new?template=${t.id}`} className="btn sm">
+        Use →
+      </Link>
+      <MoreMenu
+        label={`More for ${t.name}`}
+        items={[
+          { label: t.favorite ? "Remove from favorites" : "Add to favorites", icon: "star", onClick: () => fav.mutate({ id: t.id, favorite: !t.favorite }) },
+          {
+            label: t.builtin ? "Duplicate and change" : "Edit",
+            icon: "copy",
+            onClick: () => {
+              setDraftNote(null);
+              setEditing({ id: t.builtin ? null : t.id, data: t.builtin ? { ...toInput(t), name: `${t.name} (copy)` } : toInput(t), isDraft: false });
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            },
+          },
+          ...(!t.builtin ? [{ label: "Delete", icon: "trash", danger: true, onClick: () => window.confirm(`Delete the template "${t.name}"?`) && del.mutate(t.id) }] : []),
+        ]}
+      />
+    </div>
   );
 
   return (
-    <>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
       <PageHeader
         title="Templates"
         subtitle="Save a way of working once, start every new Reel from it."
         action={
-          <button type="button" className={btnPrimary} onClick={() => { setDraftNote(null); setEditing({ id: null, data: BLANK, isDraft: false }); }}>
-            ＋ New template
+          <button type="button" className="btn sm hidden md:inline-flex" onClick={() => { setDraftNote(null); setEditing({ id: null, data: BLANK, isDraft: false }); }}>
+            + Make one by hand
           </button>
         }
       />
 
-      <Card className="mb-6">
-        <form
-          className="flex flex-wrap items-end gap-3"
-          aria-label="Generate template"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (prompt.trim()) generate.mutate();
-          }}
-        >
-          <label className="min-w-[16rem] flex-1 text-sm">
-            <span className="mb-1 block text-xs text-muted">Describe the template you want (AI drafts it, you review before saving)</span>
-            <input
-              aria-label="Template idea"
-              value={prompt}
-              maxLength={300}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Create a template for luxury jewellery product reels"
-              className={FIELD}
-            />
+      <form
+        className="card"
+        aria-label="Generate template"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (prompt.trim()) generate.mutate();
+        }}
+      >
+        <span className="h2">Generate a template from an idea</span>
+        <div className="g2">
+          <label className="f">
+            Duration
+            <select className="inp" value={gen.duration} onChange={(e) => setGen({ ...gen, duration: Number(e.target.value) })}>
+              {[15, 30, 60].map((d) => (
+                <option key={d} value={d}>
+                  {d} seconds
+                </option>
+              ))}
+            </select>
           </label>
-          <button type="submit" className={btnSecondary} disabled={generate.isPending || !prompt.trim()}>
-            {generate.isPending ? "Drafting…" : "✨ Draft with AI"}
-          </button>
-        </form>
-        {generate.error && <div className="mt-3"><ErrorBanner message={errorMessage(generate.error)} /></div>}
-      </Card>
+          <label className="f">
+            Language
+            <select className="inp" value={gen.language} onChange={(e) => setGen({ ...gen, language: e.target.value as Language })}>
+              {LANGUAGES.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <label className="f">
+          Caption style
+          <select className="inp capitalize" value={gen.captionStyle} onChange={(e) => setGen({ ...gen, captionStyle: e.target.value })}>
+            {CAPTION_STYLES.map((v) => (
+              <option key={v} value={v}>
+                {v[0].toUpperCase() + v.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="f">
+          Description
+          <input aria-label="Template idea" className="inp" value={prompt} maxLength={300} onChange={(e) => setPrompt(e.target.value)} placeholder="e.g. A calm morning routine, soft cuts" />
+        </label>
+        <button type="submit" className="btn g" disabled={generate.isPending || !prompt.trim()}>
+          {generate.isPending ? "Writing your template…" : "Create template"}
+        </button>
+        <span className="mu xs">The AI writes a draft; you check it before it is saved.</span>
+        {generate.error && <ErrorBanner message={errorMessage(generate.error)} />}
+      </form>
 
       {editing && (
-        <Card className="mb-6">
+        <Card>
           <form
             aria-label="Template"
             className="space-y-4"
@@ -204,19 +217,19 @@ export default function TemplatesPage() {
             {draftNote && <p role="status" className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-warning">{draftNote}</p>}
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Name</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Name</span>
                 <input required maxLength={80} className={FIELD} value={editing.data.name} onChange={(e) => set("name", e.target.value)} />
               </label>
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Description</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Description</span>
                 <input maxLength={300} className={FIELD} value={editing.data.description} onChange={(e) => set("description", e.target.value)} />
               </label>
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Duration in seconds (5 to 600)</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Duration in seconds (5 to 600)</span>
                 <input type="number" aria-label="Duration" min={5} max={600} step={1} value={editing.data.duration} onChange={(e) => set("duration", Math.min(Math.max(Number(e.target.value) || 5, 5), 600))} className={FIELD} />
               </label>
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Style</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Style</span>
                 <select className={FIELD} value={editing.data.style} onChange={(e) => set("style", e.target.value)}>
                   {(styles.data ?? []).map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -225,25 +238,25 @@ export default function TemplatesPage() {
                 </select>
               </label>
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Pace</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Pace</span>
                 <select className={FIELD} value={editing.data.pace} onChange={(e) => set("pace", e.target.value as TemplateInput["pace"])}>
                   {["calm", "balanced", "fast"].map((v) => <option key={v}>{v}</option>)}
                 </select>
               </label>
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Audio</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Audio</span>
                 <select className={FIELD} value={editing.data.audioMode} onChange={(e) => set("audioMode", e.target.value)}>
                   {AUDIO_MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </label>
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Caption style</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Caption style</span>
                 <select className={FIELD} value={editing.data.captionStyle} onChange={(e) => set("captionStyle", e.target.value)}>
                   {CAPTION_STYLES.map((v) => <option key={v}>{v}</option>)}
                 </select>
               </label>
               <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Language</span>
+                <span className="mb-1 block text-xs font-bold text-muted">Language</span>
                 <select className={FIELD} value={editing.data.language} onChange={(e) => set("language", e.target.value as Language)}>
                   {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
                 </select>
@@ -279,54 +292,61 @@ export default function TemplatesPage() {
       {templates.error && <ErrorBanner message={errorMessage(templates.error)} onRetry={() => templates.refetch()} />}
 
       {favorites.length > 0 && (
-        <section className="mb-6">
-          <h2 className="mb-3 font-semibold">Favorites</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{favorites.map(card)}</div>
-        </section>
+        <>
+          <div className="between">
+            <h2 className="ht">Favorites</h2>
+            <span className="mu sm">{favorites.length}</span>
+          </div>
+          <div className="g4 sm:!grid-cols-6">{favorites.map(tile)}</div>
+        </>
       )}
-      <section>
-        <h2 className="mb-3 font-semibold">{favorites.length ? "All templates" : "Templates"}</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rest.map(card)}</div>
-      </section>
+      {list.length > 0 && (
+        <>
+          <h2 className="ht">{favorites.length ? "All templates" : "Your templates"}</h2>
+          <div className="flex flex-col gap-2">{[...favorites, ...rest].map(row)}</div>
+        </>
+      )}
 
-      <section className="mt-10">
-        <h2 className="mb-2 font-semibold">Editing styles</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {styles.data?.map((s) => (
-            <Link key={s.id} href={`/projects/new?style=${s.id}`} className="group block">
-              <Card className="h-full transition-colors group-hover:border-accent/50">
-                <h3 className="font-medium group-hover:text-accent">{s.name}</h3>
-                <p className="mt-1 text-sm text-muted">{s.description}</p>
-                <p className="mt-3 flex items-center justify-between text-xs text-muted">
-                  <span>Default captions: {s.captionStyle}</span>
-                  <span className="text-accent">Use this style →</span>
-                </p>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-8">
-        <h2 className="mb-2 font-semibold">Trend presets</h2>
-        <p className="mb-3 text-sm text-muted">
-          Proven pacing for popular Reel formats. Tap one to start a Reel with it.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {trends.data?.map((t) => (
-            <Link key={t.id} href={`/projects/new?trend=${t.id}`} className="group block">
-              <Card className="h-full transition-colors group-hover:border-accent/50">
-                <h3 className="font-medium group-hover:text-accent">{t.trendName}</h3>
-                <p className="mt-1 text-sm text-muted">{t.description}</p>
-                <p className="mt-3 text-xs text-muted">
-                  {t.recommendedDuration}s · {t.cutFrequency} cuts · {t.transitionStyle} transitions · {t.captionStyle} captions
-                </p>
-                <p className="mt-2 text-xs text-accent">Use this trend →</p>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </section>
-    </>
+      <div className="between flex-wrap">
+        <h2 className="ht">Editing styles</h2>
+        <span className="chips" role="tablist" aria-label="Show">
+          <button type="button" role="tab" aria-selected={tab === "styles"} className={`chip ${tab === "styles" ? "on" : ""}`} onClick={() => setTab("styles")}>
+            Styles
+          </button>
+          <button type="button" role="tab" aria-selected={tab === "trends"} className={`chip ${tab === "trends" ? "on" : ""}`} onClick={() => setTab("trends")}>
+            Trend presets
+          </button>
+        </span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {tab === "styles"
+          ? styles.data?.map((x) => (
+              <div key={x.id} className="lr">
+                <div className={`photo ${photoClass(x.id)} h-14 w-11 shrink-0`} />
+                <span className="meta">
+                  <b>{x.name}</b>
+                  <span className="mu sm line-clamp-2">{x.description}</span>
+                </span>
+                <Link href={`/projects/new?style=${x.id}`} className="btn sm">
+                  Use →
+                </Link>
+              </div>
+            ))
+          : trends.data?.map((t) => (
+              <div key={t.id} className="lr">
+                <div className={`photo ${photoClass(t.id)} h-14 w-11 shrink-0`} />
+                <span className="meta">
+                  <b>{t.trendName}</b>
+                  <span className="mu sm truncate">
+                    {t.recommendedDuration} s · {t.cutFrequency} cuts · {t.transitionStyle} transitions
+                  </span>
+                </span>
+                <Link href={`/projects/new?trend=${t.id}`} className="btn sm">
+                  Use →
+                </Link>
+              </div>
+            ))}
+      </div>
+    </div>
   );
 }

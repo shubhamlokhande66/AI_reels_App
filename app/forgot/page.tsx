@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { api, errorMessage } from "@/lib/api";
-import { btnPrimary } from "@/components/atoms";
+import { AuthFrame } from "@/components/molecules/AuthFrame";
 import { ErrorBanner } from "@/components/molecules";
-
-const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2.5 outline-none focus:border-accent";
 
 /** Ask for a password reset link by email. */
 export default function ForgotPage() {
@@ -31,36 +28,31 @@ export default function ForgotPage() {
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center">
-      <div className="lux-card lux-enter w-full max-w-md rounded-3xl p-8">
-        <p className="lux-eyebrow">Reel Maison</p>
-        <h1 className="mt-1 font-display text-4xl">Forgot your password?</h1>
+    <AuthFrame>
+      <div className="card" style={{ gap: 12, padding: 18 }}>
+        <h1 className="ht" style={{ fontSize: 24 }}>
+          Forgot your password?
+        </h1>
         {sent ? (
-          <p className="mt-4 rounded-2xl border border-success/40 bg-success/10 p-4 text-sm">
-            If an account exists for <strong>{email.trim()}</strong>, we sent it a link to choose a new password. It works for one hour.
-            Check your spam folder too.
-          </p>
+          <span className="sm">
+            If an account exists for <strong>{email.trim()}</strong>, we&apos;ve emailed it a link to choose a new password. The link works for one
+            hour. Check your spam folder too.
+          </span>
         ) : (
-          <>
-            <p className="mt-2 text-sm text-muted">Enter your account&apos;s email and we will send you a link to choose a new password.</p>
-            <form onSubmit={submit} className="mt-6 space-y-4">
-              <label className="block text-sm">
-                <span className="mb-1.5 block font-medium">Email</span>
-                <input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={FIELD} />
-              </label>
-              {error && <ErrorBanner message={error} />}
-              <button type="submit" className={`${btnPrimary} w-full py-3`} disabled={busy}>
-                {busy ? "Sending…" : "Send the link"}
-              </button>
-            </form>
-          </>
+          <form onSubmit={submit} className="flex flex-col gap-3">
+            <span className="mu sm">We&apos;ll email you a link to choose a new one.</span>
+            <label className="f">
+              Email
+              <input type="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="inp" />
+            </label>
+            {error && <ErrorBanner message={error} />}
+            <button type="submit" className="btn g" disabled={busy}>
+              {busy ? "Sending…" : "Send reset link"}
+            </button>
+          </form>
         )}
-        <p className="mt-5 text-center text-sm text-muted">
-          <Link href="/login" className="text-accent hover:underline">
-            Back to sign in
-          </Link>
-        </p>
       </div>
-    </div>
+    </AuthFrame>
   );
 }
+

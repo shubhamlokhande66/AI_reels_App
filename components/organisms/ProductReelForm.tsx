@@ -8,7 +8,7 @@ import { PICKER_AUDIO, PICKER_IMAGE, formatBytes, isAudioFile, isHeic, isImageFi
 import type { ProductStyleInfo } from "@/types/api";
 import { AudioRangePicker } from "@/components/molecules/AudioRangePicker";
 import { ProgressBar } from "@/components/molecules/ProgressStages";
-import { Icon } from "@/components/atoms";
+import { Icon, Toggle } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 
 const FALLBACK_STYLES: ProductStyleInfo[] = [
@@ -282,17 +282,3 @@ export function ProductReelForm() {
   );
 }
 
-/** An on / off switch row (design: a label and a gold toggle). */
-export function Toggle({ label, hint, on, onChange, disabled }: { label: string; hint?: string; on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
-  return (
-    <div className="between sm">
-      <span className="min-w-0">
-        <span className="block">{label}</span>
-        {hint && <span className="mu xs block">{hint}</span>}
-      </span>
-      <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} className="tog disabled:opacity-50" onClick={() => onChange(!on)}>
-        <i />
-      </button>
-    </div>
-  );
-}

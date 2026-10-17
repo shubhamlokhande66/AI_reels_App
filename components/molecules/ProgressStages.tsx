@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { estimateProgress } from "@/lib/format";
 import type { Job } from "@/types/api";
-import { btnSecondary } from "@/components/atoms";
+import { Icon } from "@/components/atoms/Icon";
 
 /** A live clock that re-renders every second (so estimates keep moving between polls). */
 function useNow(active: boolean): Date {
@@ -78,13 +78,11 @@ export function ProgressBar({ value, label, showEta = false, size = "md" }: {
 function JobEstimate({ job }: { job: Job }) {
   const now = useNow(true);
   const est = estimateProgress(job.createdAt, job.progress, now);
-  if (!est) return <p className="text-sm text-muted">Measuring how long this takes…</p>;
+  if (!est) return <p className="mu sm">Working out how long this takes…</p>;
   const leftMs = Math.max((now.getTime() - new Date(job.createdAt).getTime()) / Math.max(job.progress, 1) * (100 - job.progress), 0);
   return (
-    <p className="text-sm text-muted">
-      About <span className="text-foreground">{est.remaining}</span> left · ready at{" "}
-      <span className="text-foreground">{clock(new Date(now.getTime() + leftMs))}</span>
-      <span className="ml-2 text-xs">({est.elapsed} so far)</span>
+    <p className="mu sm">
+      About <span className="text-foreground">{est.remaining}</span> left · ready at <span className="text-foreground">{clock(new Date(now.getTime() + leftMs))}</span>
     </p>
   );
 }
@@ -102,60 +100,37 @@ interface Props {
  * running on the server even if this tab is in the background or closed — this is only the live view of it. */
 export function ProgressStages({ job, onCancel, cancelling }: Props) {
   const active = job.status === "queued" || job.status === "processing";
-  const current = job.stages.find((s) => s.status === "running") ?? job.stages.find((s) => s.status === "pending");
   return (
-    <div className="lux-enter">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="lux-eyebrow">{job.status === "queued" ? "In the queue" : active ? "Now" : job.status}</p>
-          <p className="mt-1 font-display text-xl">{active ? current?.label ?? "Working…" : job.status === "completed" ? "Finished" : "Stopped"}</p>
+    <div className="flex flex-col gap-3">
+      <div className="row">
+        <div className="bar flex-1" style={{ height: 8 }} role="progressbar" aria-label="Overall progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={job.progress}>
+          <i style={{ width: `${Math.max(job.progress, 2)}%` }} />
         </div>
-        <span className="lux-gold-text font-display text-5xl leading-none tabular-nums">{job.progress}%</span>
+        <span className="mono sm">{job.progress}%</span>
       </div>
-      <div className="mt-4">
-        <ProgressBar value={job.progress} label="Overall progress" size="lg" />
-      </div>
-      <div className="mt-2">
-        {job.status === "processing" && <JobEstimate job={job} />}
-        {job.status === "queued" && job.queuePosition ? (
-          <p className="text-sm text-muted" role="status">
-            {job.queuePosition === 1 ? "Yours is next: it starts as soon as a server is free." : `Waiting in line: ${job.queuePosition - 1} Reel${job.queuePosition === 2 ? "" : "s"} ahead of yours.`}
-          </p>
-        ) : null}
-      </div>
-      <ol className="mt-6 space-y-3">
+      {job.status === "processing" && <JobEstimate job={job} />}
+      {job.status === "queued" && job.queuePosition ? (
+        <p className="mu sm" role="status">
+          {job.queuePosition === 1 ? "Yours is next: it starts as soon as a spot is free." : `Waiting in line: ${job.queuePosition - 1} Reel${job.queuePosition === 2 ? "" : "s"} ahead of yours.`}
+        </p>
+      ) : null}
+      <ol className="flex flex-col gap-3" aria-label="Steps">
         {job.stages.map((s) => {
-          const running = s.status === "running";
+          const cls = s.status === "completed" ? "done" : s.status === "failed" ? "bad" : s.status === "running" ? "cur" : "todo";
           return (
-            <li key={s.name} className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] ${
-                  s.status === "completed"
-                    ? "border-accent/60 bg-accent/15 text-accent"
-                    : s.status === "failed"
-                      ? "border-danger/50 text-danger"
-                      : running
-                        ? "border-accent text-accent"
-                        : "border-border text-muted"
-                }`}
-              >
-                {s.status === "completed" ? "✓" : s.status === "failed" ? "✕" : running ? <span className="h-2 w-2 animate-ping rounded-full bg-accent" /> : ""}
+            <li key={s.name} className={`chk ${cls}`}>
+              <span className="o" aria-hidden>
+                {s.status === "completed" ? <Icon name="check" size={12} stroke={3} /> : s.status === "failed" ? <Icon name="close" size={11} stroke={3} /> : null}
               </span>
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className={s.status === "pending" ? "text-muted" : running ? "text-foreground" : "text-foreground/80"}>{s.label}</span>
-                  <span className="tabular-nums text-xs text-muted">{s.progress}%</span>
-                </div>
-                <ProgressBar value={s.progress} label={s.label} size="sm" />
-              </div>
+              <span className="min-w-0 flex-1">{s.label}</span>
+              {s.status === "running" && <span className="mono xs mu">{s.progress}%</span>}
             </li>
           );
         })}
       </ol>
       {onCancel && active && (
-        <button type="button" className={`${btnSecondary} mt-6`} disabled={cancelling} onClick={onCancel}>
-          {cancelling ? "Cancelling…" : "Cancel"}
+        <button type="button" className="btn sm self-start" disabled={cancelling} onClick={onCancel}>
+          {cancelling ? "Stopping…" : "Stop making this Reel"}
         </button>
       )}
     </div>

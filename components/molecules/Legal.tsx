@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { SiteInfo } from "@/types/api";
@@ -42,16 +44,54 @@ export function LegalFooter({ className = "" }: { className?: string }) {
   );
 }
 
-/** A readable legal page: title, last-updated date, sections. */
+const LEGAL_TABS = [
+  ["/terms", "Terms"],
+  ["/privacy", "Privacy"],
+  ["/refunds", "Refunds & cancellation"],
+] as const;
+
+/** A readable legal page (design: "Legal"): the three legal pages as chips, the title and date, a list of the sections
+ * (tap to jump), then the text. */
 export function LegalPage({ title, children }: { title: string; children: (s: ReturnType<typeof siteOr>) => React.ReactNode }) {
   const site = useSite();
   const s = siteOr(site.data);
+  const pathname = usePathname();
+  const [toc, setToc] = useState<{ id: string; text: string }[]>([]);
+  const body = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    const heads = Array.from(el.querySelectorAll("h2")).map((h, i) => {
+      if (!h.id) h.id = `s${i + 1}`;
+      return { id: h.id, text: h.textContent ?? "" };
+    });
+    setToc((cur) => (cur.length === heads.length && cur.every((c, i) => c.text === heads[i].text) ? cur : heads));
+  }, []);
   return (
-    <article className="lux-enter mx-auto max-w-3xl">
-      <p className="lux-eyebrow">{s.name}</p>
-      <h1 className="mt-2 font-display text-4xl">{title}</h1>
-      {s.updated && <p className="mt-1 text-sm text-muted">Last updated: {s.updated}</p>}
-      <div className="legal mt-8 space-y-6 text-[15px] leading-relaxed text-foreground/90 [&_h2]:mt-8 [&_h2]:font-display [&_h2]:text-2xl [&_h2]:text-foreground [&_li]:ml-5 [&_li]:list-disc [&_ul]:space-y-1.5">
+    <article className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      {LEGAL_TABS.some(([h]) => h === pathname) && (
+        <nav className="chips" aria-label="Legal pages">
+          {LEGAL_TABS.map(([href, label]) => (
+            <Link key={href} href={href} className={`chip ${href === pathname ? "on" : ""}`} aria-current={href === pathname ? "page" : undefined}>
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
+      <div>
+        <h1 className="h1" style={{ fontSize: "clamp(30px, 6vw, 40px)" }}>
+          {title}
+        </h1>
+        {s.updated && <span className="mu sm">Last updated {s.updated}</span>}
+      </div>
+      {toc.length > 1 && (
+        <nav className="card" style={{ gap: 0, padding: "6px 14px" }} aria-label="Sections">
+          {toc.map((t) => (
+            <a key={t.id} href={`#${t.id}`} className="li">
+              <b className="sm">{t.text}</b>
+            </a>
+          ))}
+        </nav>
+      )}
+      <div ref={body} className="prose flex flex-col gap-3 [&_h2]:scroll-mt-20 [&_li]:ml-5 [&_li]:list-disc [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-1.5 [&_a]:text-accent">
         {children(s)}
       </div>
     </article>

@@ -6,8 +6,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BeatSyncReview } from "@/components/organisms/editor/BeatSyncReview";
 import { TimelineTracks } from "@/components/organisms/editor/TimelineTracks";
 import { ProgressStages } from "@/components/molecules/ProgressStages";
-import { btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
-import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { btnPrimary, btnSecondary, Card, Icon, photoClass, Spinner } from "@/components/atoms";
+import { ErrorBanner, Hero, PageHeader } from "@/components/molecules";
+import { useTopTitle } from "@/components/templates/TopBar";
+
+const WAVE = [10, 30, 16, 22, 36, 12, 20, 40, 14, 26, 34, 18, 10, 38, 22, 16, 30, 12, 24, 36, 14, 20, 32, 10, 18, 40, 22, 12];
 import { useProject, useTimeline, useTimelineActions } from "@/hooks/useApi";
 import { assetUrl, errorMessage } from "@/lib/api";
 
@@ -51,25 +54,36 @@ export default function BeatSyncPage() {
   const state = timeline.data;
   const tl = state?.timeline ?? null;
   const p = project.data;
+  useTopTitle(p?.name);
   const thumbs = useMemo(() => Object.fromEntries((p?.videos ?? []).map((v) => [v.id, v.thumbnailUrl ? assetUrl(v.thumbnailUrl) : undefined])), [p?.videos]);
 
   if (project.isLoading || timeline.isLoading) return <Spinner label="Loading…" />;
   if (project.error || timeline.error || !p) return <ErrorBanner message={errorMessage(project.error ?? timeline.error)} />;
   if (p.status === "processing") {
     return (
-      <>
-        <PageHeader title={`Beat sync: ${p.name}`} subtitle="Splitting your video on the music's beats…" />
-        <Card>
-          {p.latestJob ? <ProgressStages job={p.latestJob} /> : <Spinner label="Starting…" />}
-          <p className="mt-3 text-xs text-muted">This page updates on its own once it&apos;s ready — no need to refresh.</p>
-        </Card>
-      </>
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-[14px]">
+        <Hero title="Splitting your video on the music's beats…" subtitle="You can leave this page. We'll keep working." />
+        <div className="card">{p.latestJob ? <ProgressStages job={p.latestJob} /> : <Spinner label="Starting…" />}</div>
+        <div className="noir-panel flex flex-col gap-2.5">
+          <div className="tl" style={{ height: 52 }}>
+            {(p.videos.length ? p.videos : [{ id: "a" }, { id: "b" }, { id: "c" }]).slice(0, 6).map((v, k) => (
+              <div key={v.id} className={`photo ${photoClass(v.id)}`} style={{ flex: [3, 2, 3, 2, 2, 3][k], borderRadius: 6 }} />
+            ))}
+          </div>
+          <div className="wave" style={{ height: 46, padding: 0 }} aria-hidden>
+            {WAVE.map((h, k) => (
+              <i key={k} className={k % 3 === 1 ? "h" : ""} style={{ height: h }} />
+            ))}
+          </div>
+          <span style={{ fontSize: 11.5 }}>Gold lines: the cuts landing on beats</span>
+        </div>
+      </div>
     );
   }
   if (p.status === "failed") {
     return (
       <>
-        <PageHeader title={`Beat sync: ${p.name}`} />
+        <PageHeader title="Beat sync" />
         <ErrorBanner title="The Reel could not be made" message={p.error?.message ?? "Something went wrong."} code={p.error?.code} />
         <Link href={`/projects/${id}`} className={`${btnPrimary} mt-3 inline-block`}>
           Back to project
@@ -80,7 +94,7 @@ export default function BeatSyncPage() {
   if (!tl || !state) {
     return (
       <>
-        <PageHeader title={`Beat sync: ${p.name}`} />
+        <PageHeader title="Beat sync" />
         <Card>
           <p className="text-sm text-muted">There is nothing to check yet. Generate a Reel first, then come back here.</p>
           <Link href={`/projects/${id}`} className={`${btnPrimary} mt-3`}>
@@ -104,7 +118,7 @@ export default function BeatSyncPage() {
   return (
     <>
       <PageHeader
-        title={`Beat sync: ${p.name}`}
+        title="Beat sync"
         subtitle="Video + audio: check every cut lands on the music before you add transitions or effects."
         action={
           <div className="flex gap-2">
@@ -112,7 +126,7 @@ export default function BeatSyncPage() {
               Back to project
             </Link>
             <Link href={`/projects/${id}/edit`} className={btnSecondary}>
-              ✂ Edit &amp; transitions
+              Edit &amp; transitions
             </Link>
           </div>
         }
@@ -126,14 +140,15 @@ export default function BeatSyncPage() {
 
       <div role="toolbar" aria-label="Beat sync tools" className="mb-3 flex items-center gap-2">
         <button type="button" className={btnPrimary} disabled={!shown} onClick={togglePlay}>
-          {playing ? "⏸ Pause" : "▶ Play"}
+          <Icon name={playing ? "pause" : "play"} size={16} />
+          {playing ? "Pause" : "Play"}
         </button>
         <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
         <button type="button" className={btnSecondary} disabled={!state.canUndo || mutating} onClick={() => undo.mutate()}>
-          ↶ Undo
+          <Icon name="undo" size={16} /> Undo
         </button>
         <button type="button" className={btnSecondary} disabled={!state.canRedo || mutating} onClick={() => redo.mutate()}>
-          ↷ Redo
+          <Icon name="redo" size={16} /> Redo
         </button>
         <span className="text-xs tabular-nums text-muted" aria-live="polite">
           {mutating ? "Saving…" : shown ? `Space to play/pause · ${playhead.toFixed(1)}s` : ""}
