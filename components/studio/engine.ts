@@ -9,10 +9,13 @@
  *  - export: WebCodecs through mediabunny (fast, frame-accurate MP4), MediaRecorder as the fallback
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
+import { createTasks } from './tasks';
+
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
+const tasks = createTasks(root);   // what is happening now, always in view (components/studio/tasks.ts)
 const ac = new AbortController(), SIG = { signal: ac.signal };
 let exporting = false;
 const texOf = e => exporting ? (e.fc || e.fcLast) : e.el;
@@ -562,9 +565,10 @@ async function loadMusic(file, cached = null){
   const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
   stopAll();
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
+  tasks.start('song', 'music', 'Adding your song', 'Reading the sound of ' + name.replace(/\.[^.]+$/, ''));
   let whole;
   try{ whole = await decodeAnyAudio(file); }
-  catch(e){ if(token !== musicToken) return; console.warn('song not readable', e); $('s1st').textContent = 'Could not read the sound of this file. Use MP3, M4A, WAV or a video with sound. (Songs in the Apple Music app are protected and cannot be opened by websites.)'; return; }
+  catch(e){ if(token !== musicToken) return; console.warn('song not readable', e); tasks.fail('song', 'This file has no sound we can read. Try an MP3, M4A or WAV.'); $('s1st').textContent = 'Could not read the sound of this file. Use MP3, M4A, WAV or a video with sound. (Songs in the Apple Music app are protected and cannot be opened by websites.)'; return; }
   if(token !== musicToken) return;
   const m = new Float32Array(whole.length);
   { const ch = whole.numberOfChannels; for(let c=0;c<ch;c++){ const d = whole.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ch; } }
@@ -572,6 +576,7 @@ async function loadMusic(file, cached = null){
   buf = whole; mono = m; secStart = 0; capWords = null; capLines = null; capAll = null;
   drawMusic();
   let r = cached && cached.r;
+  tasks.update('song', null, r ? 'Using the beats found before' : 'Finding the beats, drops and breaks');
   if(!r){
     try{ r = await analyseInWorker(m, whole.sampleRate); }
     catch(err){ console.warn('song analysis worker unavailable, analysing on the page', err); await new Promise(rr=>setTimeout(rr,30)); r = songAnalysis(m, whole.sampleRate); }
@@ -581,6 +586,7 @@ async function loadMusic(file, cached = null){
   await useSection(token);
   if(token !== musicToken) return;
   $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked'); $('lenrow').hidden = kind === 'talk';
+  tasks.done('song', 'Song ready' + (sources.length ? '' : ' · now add your clips'));
   if(cached && cached.aiDone){ $('s1st').textContent = 'Ready · beats as checked before'; rememberSong(file, r, true); }
   else { rememberSong(file, r, false); checkBeatsWithAi(token); }
   if(capsOn) loadCaptions();
@@ -704,9 +710,13 @@ async function checkBeatsWithAi(token){
   const sr = song.buf.sampleRate, m = song.mono, base = 'Ready';
   const say = t => { if(token === musicToken) $('s1st').textContent = t; };
   say(base + ' · checking the beats with the on-device AI…');
+  let beatStage = '';
+  if(token === musicToken) tasks.start('beats', 'ai', 'Checking the beats', 'The AI listens to your song on this phone');
   let bt;
-  try{ bt = await aiBeats(m, sr, (stage, p) => say(base + (stage === 'download' ? ' · getting the AI beat tracker (once) ' : ' · AI beat check ') + Math.round(p*100) + '%')); }
-  catch(err){ beatInfo = { source: 'own', note: String(err && err.message || err) }; say(base); console.info('on-device beat tracker not used:', beatInfo.note); return; }
+  try{ bt = await aiBeats(m, sr, (stage, p) => { say(base + (stage === 'download' ? ' · getting the AI beat tracker (once) ' : ' · AI beat check ') + Math.round(p*100) + '%'); if(token !== musicToken) return;
+      if(stage !== beatStage){ beatStage = stage; tasks.start('beats', 'ai', stage === 'download' ? 'Getting the AI beat tracker' : 'Checking the beats', stage === 'download' ? 'Only the first time · kept on this phone' : 'The AI listens to your song on this phone'); }
+      tasks.update('beats', p, stage === 'download' && p >= 1 ? 'Downloaded · starting the AI' : undefined); }); }
+  catch(err){ beatInfo = { source: 'own', note: String(err && err.message || err) }; say(base); tasks.clear('beats'); console.info('on-device beat tracker not used:', beatInfo.note); return; }
   if(token !== musicToken) return;
   let r;
   try{ r = await analyseInWorker(m, sr, { beats: bt.beats }); } catch(err){ r = songAnalysis(m, sr, { beats: bt.beats }); }
@@ -717,6 +727,7 @@ async function checkBeatsWithAi(token){
   await useSection(token);
   if(token !== musicToken) return;
   say(base + (r.beatSource === 'ai' ? ' · beats confirmed by the on-device AI (Beat This!)' : ' · beats double-checked: the AI agrees or fits less well, kept'));
+  if(token === musicToken) tasks.done('beats', 'Beats checked');
   if(sources.length && was) showMsg('Beats fine-tuned: your edit now follows them. Tap Preview to see it.');
 }
 $('mpick').onclick = () => $('mfile').click();
@@ -1031,14 +1042,16 @@ function drawSpark(src){
   src.samples.forEach(s=>{ const x=Math.round(s.t/src.dur*w), bh=Math.max(1,s.m/mx*h); g.fillRect(x,h-bh,Math.max(1,dpr),bh); });
 }
 // uploads go into a queue: you can add more videos any time, even while others are still being read
-let addQueue = Promise.resolve(), pending = 0;
+let addQueue = Promise.resolve(), pending = 0, batchN = 0, batchDone = 0;
 function addVideos(files){
   const list = [...files].filter(f=>f.type.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv)$/i.test(f.name));
   if(!list.length){ $('s2st').textContent = 'That is not a video. Choose MP4, MOV or WEBM.'; return; }
   if(playing){ pos = curTime(); stopAll(); }   // free the computer so reading is fast
   const jobs = list.map(f=>makeCard(f));
-  pending += jobs.length; updateQ();
-  jobs.forEach(job=>{ addQueue = addQueue.then(()=>readVideo(job)).catch(()=>{}).then(()=>{ pending--; updateQ(); }); });
+  if(!pending){ batchN = 0; batchDone = 0; }
+  batchN += jobs.length; pending += jobs.length; updateQ();
+  tasks.start('clips', 'clips', 'Reading your clips', 'Finding the best moments in ' + batchN + ' clip' + (batchN > 1 ? 's' : ''));
+  jobs.forEach(job=>{ addQueue = addQueue.then(()=>readVideo(job)).catch(()=>{}).then(()=>{ pending--; batchDone++; updateQ(); }); });
   addQueue = addQueue.then(()=>{ if(!pending) finishAdding(); });
 }
 function updateQ(){ $('qinfo').textContent = pending ? pending + ' clips left to read…' : ''; $('s2st').textContent = pending ? 'Reading clips…' : (sources.length + ' clips ready'); }
@@ -1067,7 +1080,8 @@ async function readVideo(src){
     if(src.removed) return;
     // action + scene changes and faces are read at the same time (two decoders): about 40% faster per clip
     const tq = performance.now(); let pm = 0, pf = 0;
-    const show = () => { dd.textContent = 'reading ' + Math.round((pm*0.6 + pf*0.4)*100) + '%'; };
+    const show = () => { const f = pm*0.6 + pf*0.4; dd.textContent = 'reading ' + Math.round(f*100) + '%';
+      tasks.update('clips', (batchDone + f) / Math.max(1, batchN), 'Clip ' + Math.min(batchN, batchDone + 1) + ' of ' + batchN + ' · ' + src.name); };
     src.readMs = {};
     await Promise.all([
       scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); }),
@@ -1088,6 +1102,8 @@ async function readVideo(src){
 }
 function finishAdding(){
   updateQ(); $('clearv').hidden = !$('clips').children.length;
+  if(sources.length) tasks.done('clips', sources.length + ' clip' + (sources.length > 1 ? 's' : '') + ' ready' + (buf || kind === 'talk' ? ' · making your Reel' : ' · now choose a song'));
+  else tasks.fail('clips', 'These videos do not play here. Try MP4 or MOV.');
   if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk') aiRun(); }
   if(tplWaiting){ tplNeed = false; tplApplySoon(); }
 }
@@ -1439,7 +1455,8 @@ let dupCount = 0;
 let aiOn = false, aiBusy = false, aiInfo = null;
 const aiCache = new Map();
 const fpOf = src => [src.name, src.file ? src.file.size : 0, src.file ? src.file.lastModified : 0].join('|');
-function aiStat(t, err){ const el = $('aistat'); el.hidden = !t; el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
+function aiStat(t, err){ const el = $('aistat'); el.hidden = !t; el.textContent = t || '';
+  if(!t) tasks.clear('ai'); else if(/…$/.test(t)) tasks.start('ai', 'ai', 'AI at work', t.replace(/…$/, '')); else if(err) tasks.fail('ai', t); else if(tasks.has('ai')) tasks.done('ai', t); el.style.color = err ? 'var(--drop)' : ''; }
 // The AI's view of footage [a,b]: frames nearby (same scene only), weighted by distance
 function aiAt(src, a, b){
   if(!aiOn || !src.ai || !src.ai.frames.length) return null;
@@ -2495,7 +2512,8 @@ function shiftCaptions(){
   capWords = capAll.words.filter(w => w.end > a + 0.05 && w.start < a + L - 0.05).map(w => ({ ...w, start: Math.max(0, w.start - a), end: Math.min(L, w.end - a) }));
   capLines = buildCapLines(capWords); markKeyWords(capLines); redraw(); if(trTo) translateSoon();
 }
-function capStat(t, err){ const el = $('capstat'); el.textContent = t || ''; el.style.color = err ? 'var(--drop)' : ''; }
+function capStat(t, err){ const el = $('capstat'); el.textContent = t || '';
+  if(!t) tasks.clear('caps'); else if(/…$/.test(t)) tasks.start('caps', 'voice', 'Captions', t.replace(/…$/, '')); else if(err) tasks.fail('caps', t); else if(tasks.has('caps')) tasks.done('caps', t); el.style.color = err ? 'var(--drop)' : ''; }
 async function loadCaptions(){
   if(!capsOn || !buf) return;
   const tk = kind === 'talk' && talk, vk = !tk && vo, W = tk || vk ? null : song ? song.buf : buf, M = tk ? talk.voice : vk ? vo.pcm : song ? song.mono : mono, sr = tk ? talk.sr : vk ? vo.sr : W.sampleRate;
@@ -2942,6 +2960,8 @@ async function recordExport(){
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
   setCanvas(true, XQ[xq.res].scale); await captureLoop();
   showMsg('Saving your Reel in real time on this browser (' + fmt(buf.duration) + '). Please keep this screen open.');
+  tasks.start('export', 'export', 'Exporting your Reel', 'In real time on this browser · keep this screen open');
+  { const t0 = performance.now(), D = buf.duration*1000, tick = setInterval(() => { if(!recording){ clearInterval(tick); return; } tasks.update('export', Math.min(0.99, (performance.now()-t0)/D)); }, 500); }
   const c = getCtx(); await c.resume();
   const dest = c.createMediaStreamDestination();
   const stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
@@ -2957,7 +2977,7 @@ async function recordExport(){
   const blob = new Blob(chunks, {type: mime.split(';')[0]});
   const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
   setCanvas(false); captureLoop();
-  const sh = saveFile(blob, name); notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
+  const sh = saveFile(blob, name); tasks.done('export', 'Your Reel is ready · ' + (blob.size/1e6).toFixed(1) + ' MB'); notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
 
 // Fast export: every frame is decoded (WebCodecs, through mediabunny), drawn and encoded off-screen, faster than real
 // time and frame-accurate (no dropped frames). The sound goes through the same gain + limiter as the preview.
@@ -2979,27 +2999,35 @@ function noSongTip(){
   return 'in Instagram tap "Add audio", choose "' + nm + '" and start it at ' + fmt(secStart).replace(/\.\d+$/, '') + (vo ? ' (your voiceover is in the video)' : '') + ' — the cuts land on its beats.';
 }
 $('nosong').addEventListener('change', e => { noSong = e.target.checked; }, SIG);
+// a check that may never answer on some browsers gets a time limit (then the export takes the other way)
+const inTime = (p, ms, fallback) => Promise.race([Promise.resolve(p).catch(() => fallback), new Promise(r => setTimeout(() => r(fallback), ms))]);
 async function fastExport(){
   if(!window.VideoEncoder || !window.OfflineAudioContext) return false;
+  tasks.update('export', null, 'Getting the encoder ready');
   const mb = await loadMediabunny();
   // Safari before 26 (iPhone iOS 16.4-18) encodes video but has no AAC encoder: a small WebAssembly AAC encoder stands in,
   // so the file is still the H.264 + AAC MP4 Instagram wants
-  if(loadAacEncoder && !(await mb.canEncodeAudio('aac').catch(()=>false))){
-    try{ const m = await loadAacEncoder(); if(!loadAacEncoder.done){ m.registerAacEncoder(); loadAacEncoder.done = true; } }catch(err){ console.warn('AAC encoder unavailable', err); }
+  // asked with the exact settings: some browsers have AAC but not at 256 kbps stereo 48 kHz (then the export used to fail)
+  const AUD = { numberOfChannels: 2, sampleRate: 48000, bitrate: 256e3 };
+  if(loadAacEncoder && !(await inTime(mb.canEncodeAudio('aac', AUD), 8000, false))){
+    try{ const m = await inTime(loadAacEncoder(), 15000, null); if(m && !loadAacEncoder.done){ m.registerAacEncoder(); loadAacEncoder.done = true; } else if(!m) console.warn('AAC encoder did not load in time'); }catch(err){ console.warn('AAC encoder unavailable', err); }
   }
   const [W, H] = exportDims(), fps = xq.fps, dur = buf.duration;
   // H.264 + AAC in MP4 (what Instagram wants); browsers without an H.264 encoder get VP9 + Opus in WebM
-  const vcodec = await mb.getFirstEncodableVideoCodec(['avc', 'vp9', 'av1'], {width:W, height:H});
+  const vcodec = await inTime(mb.getFirstEncodableVideoCodec(['avc', 'vp9', 'av1'], {width:W, height:H}), 10000, null);
   if(!vcodec) return false;
   const mp4 = vcodec === 'avc';
-  const acodec = await mb.getFirstEncodableAudioCodec(mp4 ? ['aac', 'opus'] : ['opus'], {numberOfChannels:2, sampleRate:48000});
-  if(!acodec) return false;
+  const acodec = await inTime(mb.getFirstEncodableAudioCodec(mp4 ? ['aac', 'opus'] : ['opus'], AUD), 10000, null);
+  if(!acodec){ console.warn('fast export: no audio encoder for', vcodec); return false; }
+  console.info('fast export:', vcodec, acodec, W + 'x' + H, fps + ' fps');
   stopAll();
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
   setCanvas(true, XQ[xq.res].scale); await captureLoop();   // export size; the loop-back frame at that size too
   const t0 = performance.now();
   showMsg('Exporting… 0%');
+  tasks.update('export', null, XQ[xq.res].label + ' · ' + xq.fps + ' fps · keep this screen on');
   const inputs = [];
+  let pre = null;   // the next shot's decoder, seeking ahead (finished before the decoders are let go)
   try{
     // sound: rendered offline, the same chain as the preview (loudness, limiter, tiny fades)
     const snd = exportSound(), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(dur*sr), sr);
@@ -3010,7 +3038,9 @@ async function fastExport(){
     g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(eg, 0.02);
     g.gain.setValueAtTime(eg, Math.max(0.03, dur-0.25)); g.gain.linearRampToValueAtTime(0.0001, dur);
     sn.connect(g); g.connect(lim); lim.connect(oc.destination); sn.start(0);
+    tasks.update('export', null, 'Mixing the sound');
     const audio = snd ? await oc.startRendering() : null;
+    tasks.update('export', 0, 'Putting your Reel together · keep this screen on');
     const chunkOf = (k) => { // one second of the sound as its own AudioBuffer (fed in step with the picture)
       const a = Math.round(k*sr), b = Math.min(audio.length, Math.round((k+1)*sr)); if(b<=a) return null;
       const ab = new AudioBuffer({length:b-a, numberOfChannels:2, sampleRate:sr});
@@ -3059,7 +3089,7 @@ async function fastExport(){
     const yieldNow = () => (globalThis.scheduler && scheduler.yield) ? scheduler.yield() : new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
     let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0, glLostFrames:0, missing:0 }; let tq = performance.now();
     const tStart = performance.now();
-    let pre = open(0);
+    pre = open(0);
     for(let i=0; i<edit.length; i++){
       const e = edit[i], sh = shots[i], cur = await pre; pre = null;
       if(!cur){ pre = open(i+1); continue; }
@@ -3085,6 +3115,7 @@ async function fastExport(){
           const done = k/total, el = (performance.now()-tStart)/1000, left = done > 0.03 ? el/done - el : null;
           $('xmsg').textContent = 'Exporting… ' + Math.round(done*100) + '%' + (left !== null ? ' · about ' + (left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left/60) + ' min') + ' left' : '') + (document.hidden ? '' : ' · keep this screen on');
           $('prog').style.width = (done*100).toFixed(1) + '%';
+          tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file');
           await yieldNow();
         }
         r = await cur.it.next();
@@ -3093,17 +3124,20 @@ async function fastExport(){
       e.fc = null; f = sh.fEnd;
       { const o = edit[i-2]; if(o && o.fcLast){ o.fcLast.width = o.fcLast.height = 0; o.fcLast = null; } }   // older last frames are not drawn again
     }
-    { const p2 = await pre; if(p2 && p2.it.return) try{ await p2.it.return(); }catch(err){} }
+    { const p2 = await pre; pre = null; if(p2 && p2.it.return) try{ await p2.it.return(); }catch(err){} }
     while(as && nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
     const name = 'reel-' + aspect.replace(':','x') + '-' + XQ[xq.res].label + (fps > 30 ? '-' + fps + 'fps' : '') + '.' + (mp4 ? 'mp4' : 'webm');
     const sh = saveFile(blob, name);
+    tasks.done('export', 'Your Reel is ready · ' + (blob.size/1e6).toFixed(1) + ' MB');
     if(noSong){ notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ' without the song: ' + noSongTip()); return true; }
     notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB). Ready for Instagram, TikTok and Shorts.');
     return true;
   } finally {
     exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; });
+    // a read-ahead still running (the export stopped early) ends first: letting its decoder go under it fails
+    if(pre){ try{ const p2 = await pre; if(p2 && p2.it.return) await p2.it.return(); }catch(err){} pre = null; }
     inputs.forEach(x=>{ try{ x.dispose(); }catch(err){} });
     recording = false; latencyOn = true; ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
     setCanvas(false); if(edit.length) captureLoop();
@@ -3116,11 +3150,13 @@ async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wa
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
 async function runExport(toCloud){
   if(recording || exportBusy) return;
-  exportBusy = true; $('saverow').hidden = true; lastVideo = null; await holdScreen();
+  exportBusy = true; $('saverow').hidden = true; lastVideo = null;
+  tasks.start('export', 'export', 'Exporting your Reel', 'Getting ready');   // in view at once, whatever comes next
+  await holdScreen();
   try{
     let ok = false;
     try{ ok = await fastExport(); }
-    catch(err){ console.warn('fast export failed', err); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
+    catch(err){ console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
     if(!ok) await recordExport();
     if(toCloud && lastVideo) await saveToMyReels(lastVideo);
   } finally {
@@ -3139,7 +3175,7 @@ function sheetPaint(){
   [...$('xres').children].forEach(b => { b.setAttribute('aria-pressed', b.dataset.r === xq.res); if(b.dataset.r === '4k'){ b.disabled = can4k === false; b.title = can4k === false ? 'This phone cannot make 4K videos' : ''; } });
   [...$('xfps').children].forEach(b => b.setAttribute('aria-pressed', +b.dataset.f === xq.fps));
   const [W, H] = exportDims(), dur = buf ? buf.duration : 0, mb = (XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1) + 256e3) * dur / 8 / 1e6;
-  $('xsize').textContent = W + ' × ' + H + ' · ' + xq.fps + ' fps · about ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
+  $('xsize').textContent = W + ' × ' + H + ' · ' + xq.fps + ' fps · up to ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
   const cb = $('xgocloud'), note = $('xcloudnote');
   cb.hidden = note.hidden = !cloudInfo;
   if(cloudInfo){
@@ -3173,14 +3209,15 @@ async function saveToMyReels(blob){
   const msg = $('xmsg').textContent;
   try{
     showMsg('Saving to My Reels… 0%');
+    tasks.start('cloud', 'cloud', 'Saving to My Reels', (blob.size/1e6).toFixed(1) + ' MB · you can keep editing');
     await cloud.save(blob, { name, dur: buf ? Math.round(buf.duration*10)/10 : 0, width: W, height: H, fps: xq.fps, thumb: thumbOf() || undefined },
-      p => { $('xmsg').textContent = 'Saving to My Reels… ' + Math.round(p*100) + '%'; $('prog').style.width = (p*100).toFixed(1) + '%'; });
+      p => { $('xmsg').textContent = 'Saving to My Reels… ' + Math.round(p*100) + '%'; $('prog').style.width = (p*100).toFixed(1) + '%'; tasks.update('cloud', p); });
+    tasks.done('cloud', 'Saved to My Reels');
     if(cloudInfo) cloudInfo.used++;
-    notify('Saved to My Reels', 'ok');
     showMsg(msg + ' Also saved to My Reels.');
   }catch(err){
     console.warn('My Reels:', err);
-    showMsg(msg); notify(err && err.code ? err.message : 'Your Reel is saved on your phone, but not in My Reels. Please try again.', 'err');
+    showMsg(msg); tasks.fail('cloud', err && err.code ? err.message : 'Your Reel is saved on your phone, but not in My Reels. Please try again.');
   }
 }
 
@@ -3823,7 +3860,7 @@ root.__studio = { get songR(){ return song && song.r; }, get now(){ return playi
 
   return () => {
     try{ stopAll(); }catch(err){}
-    ac.abort();
+    ac.abort(); tasks.dispose();
     sources.forEach(s=>{ (s.els||[]).forEach(v=>{ v.pause(); v.removeAttribute('src'); v.load(); }); URL.revokeObjectURL(s.url); });
     try{ ctx && ctx.close(); }catch(err){}
   };
