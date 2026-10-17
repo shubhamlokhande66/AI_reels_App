@@ -1,32 +1,31 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { Icon } from "@/components/atoms/Icon";
 import { CreateReelForm } from "@/components/organisms/CreateReelForm";
 import { ProductReelForm } from "@/components/organisms/ProductReelForm";
 
 type Kind = "edit" | "product";
-const OPTIONS: { id: Kind; title: string; text: string }[] = [
-  { id: "edit", title: "Edit my video clips", text: "Upload clips and a song; the app cuts them to the beat." },
-  { id: "product", title: "Product Reel from photos", text: "Upload product photos; the app directs camera, light, text and transitions shot by shot." },
+const OPTIONS: { id: Kind; icon: string; tile: string; title: string; text: string }[] = [
+  { id: "edit", icon: "video", tile: "b1", title: "Edit my video clips", text: "Upload clips and a song; we cut them to the beat" },
+  { id: "product", icon: "bag", tile: "b2", title: "Product Reel from photos", text: "The AI directs every shot" },
 ];
 
-/** Choose what to make: a Reel cut from video clips, or one directed from product photos. */
+/** Choose what to make (design: "Create a new Reel"): a Reel cut from video clips, or one directed from product photos. */
 export function NewReel() {
-  const [kind, setKind] = useState<Kind>("edit");
+  const params = useSearchParams();
+  const [kind, setKind] = useState<Kind>(() => (params.get("kind") === "product" ? "product" : "edit"));
   return (
-    <div className="space-y-8">
-      <div role="radiogroup" aria-label="What do you want to make?" className="grid gap-3 sm:grid-cols-2">
+    <div className="flex flex-col gap-[14px]">
+      <div role="radiogroup" aria-label="What do you want to make?" className="g2">
         {OPTIONS.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            aria-checked={kind === o.id}
-            onClick={() => setKind(o.id)}
-            className={`rounded-2xl border p-4 text-left transition-colors ${kind === o.id ? "border-accent bg-accent/10" : "border-border bg-surface hover:border-accent/50"}`}
-          >
-            <span className="block font-medium">{o.title}</span>
-            <span className="mt-1 block text-sm text-muted">{o.text}</span>
+          <button key={o.id} type="button" role="radio" aria-checked={kind === o.id} onClick={() => setKind(o.id)} className={`mk ${kind === o.id ? "on" : ""}`}>
+            <span className={`it ${o.tile}`}>
+              <Icon name={o.icon} size={20} />
+            </span>
+            <b>{o.title}</b>
+            {kind === "edit" && <span>{o.text}</span>}
           </button>
         ))}
       </div>

@@ -7,10 +7,8 @@ import { api, errorMessage } from "@/lib/api";
 import { PICKER_AUDIO, PICKER_IMAGE, formatBytes, isAudioFile, isHeic, isImageFile } from "@/lib/format";
 import type { ProductStyleInfo } from "@/types/api";
 import { AudioRangePicker } from "@/components/molecules/AudioRangePicker";
-import { Dropzone } from "@/components/molecules/Dropzone";
 import { ProgressBar } from "@/components/molecules/ProgressStages";
-import { DurationSelector } from "@/components/organisms/StyleSelector";
-import { btnDanger, btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { Icon } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 
 const FALLBACK_STYLES: ProductStyleInfo[] = [
@@ -32,7 +30,8 @@ const STEP_LABEL: Record<Step, string> = {
   music: "Uploading music…",
   directing: "Directing the Reel…",
 };
-const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60";
+const MAX_PHOTOS = 12;
+const LENGTHS = [15, 20, 30] as const;
 let seq = 0;
 
 /** A Reel directed from product photos: the app plans the shots, camera, light, text and transitions, beat by beat. */
@@ -64,7 +63,7 @@ export function ProductReelForm() {
   useEffect(() => () => latest.current.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
   const busy = step !== "idle";
-  const canSubmit = name.trim().length > 0 && photos.length > 0 && !busy;
+  const canSubmit = photos.length > 0 && !busy;
 
   function addPhotos(files: File[]) {
     setError(null);
@@ -87,7 +86,7 @@ export function ProductReelForm() {
     try {
       if (!done.current.projectId) {
         setStep("creating");
-        const p = await api.createProject(name.trim(), {
+        const p = await api.createProject(name.trim() || hook.trim() || "Product Reel", {
           reelType: "product", productStyle: style, hookText: hook.trim(), taglineText: tagline.trim(), ctaText: cta.trim(), loop, duration, ai: aiDirector, aiDirector,
           ...(audio && audioStart !== null ? { audioStart } : {}),
         });
@@ -118,167 +117,182 @@ export function ProductReelForm() {
     }
   }
 
+  const photoInput = useRef<HTMLInputElement>(null);
+  const songInput = useRef<HTMLInputElement>(null);
+  const pickPhotos = (list: FileList | null) => {
+    if (!list || busy) return;
+    const files = Array.from(list);
+    const bad = files.filter((f) => !(isImageFile(f) || isHeic(f))).map((f) => f.name);
+    if (bad.length) setError({ message: `These files are not photos we can use: ${bad.join(", ")}. Use JPG, PNG or WEBP.`, code: "UNSUPPORTED_MEDIA" });
+    const room = MAX_PHOTOS - photos.length;
+    const ok = files.filter((f) => isImageFile(f) || isHeic(f));
+    if (ok.length > room) setNotice(`A Reel takes up to ${MAX_PHOTOS} photos, so the first ${Math.max(room, 0)} were added.`);
+    if (ok.length && room > 0) addPhotos(ok.slice(0, room));
+    if (photoInput.current) photoInput.current.value = "";
+  };
+  const pickSong = (list: FileList | null) => {
+    const f = list?.[0];
+    if (!f) return;
+    if (!isAudioFile(f)) setError({ message: `${f.name} is not a song we can use. Try MP3, M4A or WAV.`, code: "UNSUPPORTED_MEDIA" });
+    else {
+      setError(null);
+      setAudio(f);
+      setAudioStart(null);
+    }
+    if (songInput.current) songInput.current.value = "";
+  };
+  const chosen = list.find((x) => x.id === style);
+
   return (
-    <form onSubmit={submit} className="space-y-8" aria-label="Create product Reel">
-      <section>
-        <label htmlFor="product-name" className="mb-1.5 block text-sm font-medium">
-          Project name
-        </label>
-        <input id="product-name" value={name} maxLength={120} disabled={busy} onChange={(e) => setName(e.target.value)} placeholder="e.g. Solitaire ring launch" className={FIELD} />
+    <form onSubmit={submit} className="flex flex-col gap-3" aria-label="Create product Reel">
+      <section
+        className="card"
+        aria-label="Product photos"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          pickPhotos(e.dataTransfer.files);
+        }}
+      >
+        <div className="between">
+          <span className="h2">Product photos</span>
+          <span className="mu sm">
+            {photos.length} of {MAX_PHOTOS}
+          </span>
+        </div>
+        <ul className="g4 sm:!grid-cols-6" aria-label="Photos">
+          {photos.map((p) => (
+            <li key={p.key} className="photo relative aspect-square">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.url} alt={p.file.name} />
+              <button
+                type="button"
+                aria-label={`Remove ${p.file.name}`}
+                disabled={busy}
+                onClick={() => removePhoto(p.key)}
+                className="absolute right-1 top-1 z-[1] grid h-6 w-6 place-items-center rounded-full bg-black/65 text-white"
+              >
+                <Icon name="close" size={12} stroke={2.4} />
+              </button>
+            </li>
+          ))}
+          {photos.length < MAX_PHOTOS && (
+            <li>
+              <button
+                type="button"
+                aria-label="Add photos"
+                disabled={busy}
+                onClick={() => photoInput.current?.click()}
+                className="drop grid aspect-square w-full place-items-center"
+              >
+                <Icon name="plus" size={22} />
+              </button>
+            </li>
+          )}
+        </ul>
+        <input ref={photoInput} type="file" accept={PICKER_IMAGE} multiple className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => pickPhotos(e.target.files)} />
+        <span className="mu xs">
+          {photos.length ? "Sharp photos of 1200 pixels or more let the camera move in close." : "One good photo is enough; more give the director more angles. Your product is never redrawn."}
+        </span>
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Product photos</h2>
-        <p className="text-xs text-muted">
-          One good photo is enough; more give the director more angles. Sharp photos of at least 1200 pixels let it move in close. The product is never redrawn or
-          changed: the camera only crops, scales and lights your original photos.
-        </p>
-        <Dropzone
-          label="Drag & drop your product photos here"
-          hint="JPG, PNG, WEBP · up to 40 MB each"
-          accept={PICKER_IMAGE}
-          multiple
-          disabled={busy}
-          validate={(f) => isImageFile(f) || isHeic(f)}
-          onReject={(n) => setError({ message: `Unsupported photo: ${n.join(", ")}`, code: "UNSUPPORTED_MEDIA" })}
-          onFiles={addPhotos}
-        />
-        {photos.length > 0 && (
-          <ul aria-label="Photos" className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-            {photos.map((p) => (
-              <li key={p.key} className="relative overflow-hidden rounded-xl border border-border bg-surface">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.url} alt={p.file.name} className="aspect-square w-full object-cover" />
-                <p className="truncate px-2 py-1 text-[11px] text-muted">
-                  {p.file.name} · {formatBytes(p.file.size)}
-                </p>
-                <button type="button" aria-label={`Remove ${p.file.name}`} disabled={busy} onClick={() => removePhoto(p.key)} className="absolute right-1 top-1 rounded-full bg-black/60 px-2 py-0.5 text-xs">
-                  ✕
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+      <section className="card" aria-label="Song">
+        <div className="row">
+          <span className="it b5" style={{ width: 36, height: 36 }}>
+            <Icon name="music" size={18} />
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <b className="truncate">{audio ? audio.name : "Song"}</b>
+            <span className="mu sm">{audio ? `${formatBytes(audio.size)} · cuts and text land on its beats` : "Drop a song or tap to choose"}</span>
+          </span>
+          {audio ? (
+            <button type="button" disabled={busy} className="btn sm" onClick={() => setAudio(null)}>
+              Remove
+            </button>
+          ) : (
+            <button type="button" disabled={busy} className="btn sm" onClick={() => songInput.current?.click()}>
+              Choose
+            </button>
+          )}
+        </div>
+        <input ref={songInput} type="file" accept={PICKER_AUDIO} className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => pickSong(e.target.files)} />
+        {audio && <AudioRangePicker bare source={audio} duration={duration} start={audioStart} onChange={setAudioStart} />}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Look</h2>
-        <div role="radiogroup" aria-label="Product style" className="grid gap-3 sm:grid-cols-3">
-          {list.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              role="radio"
-              aria-checked={style === s.id}
-              disabled={busy}
-              onClick={() => setStyle(s.id)}
-              className={`rounded-xl border p-3 text-left transition-colors ${style === s.id ? "border-accent bg-accent/10" : "border-border bg-surface hover:border-accent/50"}`}
-            >
-              <span className="block text-sm font-medium">{s.name}</span>
-              <span className="mt-1 block text-xs text-muted">{s.description}</span>
+      <section className="card" aria-label="Length and look">
+        <span className="h2">Length and look</span>
+        <div className="tabs2" role="radiogroup" aria-label="Length">
+          {LENGTHS.map((d) => (
+            <button key={d} type="button" role="radio" aria-checked={duration === d} disabled={busy} className={duration === d ? "on" : ""} onClick={() => setDuration(d)}>
+              {d} s
             </button>
           ))}
         </div>
+        <div className="chips w" role="radiogroup" aria-label="Look">
+          {list.map((x) => (
+            <button key={x.id} type="button" role="radio" aria-checked={style === x.id} disabled={busy} className={`chip ${style === x.id ? "on" : ""}`} onClick={() => setStyle(x.id)}>
+              {x.name}
+            </button>
+          ))}
+        </div>
+        {chosen && <span className="mu xs">{chosen.description}</span>}
       </section>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">
-          On-screen text <span className="font-normal text-muted">(all optional; keep it short)</span>
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="text-xs text-muted">
+      <section className="card" aria-label="Text and settings">
+        <div className="g2">
+          <label className="f">
             Hook line
-            <input aria-label="Hook line" value={hook} maxLength={80} disabled={busy} onChange={(e) => setHook(e.target.value)} placeholder="The Solitaire" className={`${FIELD} mt-1`} />
+            <input aria-label="Hook line" className="inp" value={hook} maxLength={80} disabled={busy} onChange={(e) => setHook(e.target.value)} placeholder="The Solitaire" />
           </label>
-          <label className="text-xs text-muted">
+          <label className="f">
             Tagline
-            <input aria-label="Tagline" value={tagline} maxLength={80} disabled={busy} onChange={(e) => setTagline(e.target.value)} placeholder="Made by hand" className={`${FIELD} mt-1`} />
-          </label>
-          <label className="text-xs text-muted">
-            Call to action
-            <input aria-label="Call to action" value={cta} maxLength={80} disabled={busy} onChange={(e) => setCta(e.target.value)} placeholder="Shop now" className={`${FIELD} mt-1`} />
+            <input aria-label="Tagline" className="inp" value={tagline} maxLength={80} disabled={busy} onChange={(e) => setTagline(e.target.value)} placeholder="Made by hand" />
           </label>
         </div>
-        <p className="text-xs text-muted">The director times each line to a shot and places it where it covers the product least.</p>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">Length</h2>
-        <DurationSelector value={duration} onChange={setDuration} disabled={busy} />
-        <p className="text-xs text-muted">Product Reels work best at 10–20 seconds.</p>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={loop} disabled={busy} onChange={(e) => setLoop(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
-          Make it loop: the last frame returns to the first
+        <label className="f">
+          Call to action
+          <input aria-label="Call to action" className="inp" value={cta} maxLength={80} disabled={busy} onChange={(e) => setCta(e.target.value)} placeholder="Shop now" />
         </label>
-        <label className="flex items-start gap-2 text-sm">
-          <input type="checkbox" aria-label="AI director" checked={aiDirector} disabled={busy} onChange={(e) => setAiDirector(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--accent)]" />
-          <span>
-            AI director
-            <span className="block text-xs text-muted">
-              The AI looks at your photos and plans the story (hook, reveal, hero, detail, call to action), camera moves and texts. Every
-              choice is checked; the product is always rendered from your own photo. Your own texts always win.
-            </span>
-          </span>
+        <label className="f">
+          Name your Reel <span className="font-normal">(optional)</span>
+          <input id="product-name" className="inp" value={name} maxLength={120} disabled={busy} onChange={(e) => setName(e.target.value)} placeholder="e.g. Solitaire ring launch" />
         </label>
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">
-          Music <span className="font-normal text-muted">(optional)</span>
-        </h2>
-        {audio ? (
-          <Card className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{audio.name}</p>
-                <p className="text-xs text-muted">{formatBytes(audio.size)}</p>
-              </div>
-              <button type="button" disabled={busy} className={btnSecondary} onClick={() => setAudio(null)}>
-                Remove music
-              </button>
-            </div>
-            <AudioRangePicker bare source={audio} duration={duration} start={audioStart} onChange={setAudioStart} />
-          </Card>
-        ) : (
-          <Dropzone
-            label="Drop your song here"
-            hint="Every cut, effect and text lands on its beats. Without music the shots follow a steady rhythm."
-            accept={PICKER_AUDIO}
-            disabled={busy}
-            validate={isAudioFile}
-            onReject={(n) => setError({ message: `Unsupported audio file: ${n.join(", ")}`, code: "UNSUPPORTED_MEDIA" })}
-            onFiles={(files) => {
-              setError(null);
-              setAudio(files[0]);
-            }}
-          />
-        )}
+        <Toggle label="AI director plans every shot" on={aiDirector} disabled={busy} onChange={setAiDirector} />
+        <Toggle label="Loop: the end flows back into the start" on={loop} disabled={busy} onChange={setLoop} />
       </section>
 
       {notice && (
-        <p role="status" className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+        <p role="status" className="card sm" style={{ color: "var(--warning)", borderColor: "color-mix(in srgb, var(--warning) 35%, var(--border))" }}>
           {notice}
         </p>
       )}
       {error && <ErrorBanner title="Could not create the Reel" message={error.message} code={error.code} />}
 
-      <div className="space-y-3">
-        {busy && (
-          <div aria-live="polite">
-            <p className="mb-1 text-sm text-muted">{STEP_LABEL[step]}</p>
-            {(step === "photos" || step === "music") && <ProgressBar value={pct * 100} label="Upload progress" showEta />}
-          </div>
-        )}
-        <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>
-          {busy ? "Working…" : "Direct my Reel"}
-        </button>
-        {!canSubmit && !busy && <p className="text-xs text-muted">Add a name and at least one product photo to continue.</p>}
-        {photos.length > 0 && !busy && (
-          <button type="button" className={btnDanger} onClick={() => photos.forEach((p) => removePhoto(p.key))}>
-            Remove all photos
-          </button>
-        )}
-      </div>
+      {busy && (
+        <div aria-live="polite">
+          <p className="mu sm mb-1">{STEP_LABEL[step]}</p>
+          {(step === "photos" || step === "music") && <ProgressBar value={pct * 100} label="Upload progress" showEta />}
+        </div>
+      )}
+      <button type="submit" disabled={!canSubmit} className="btn g big">
+        {busy ? "Working…" : "Create product Reel"}
+      </button>
+      {!canSubmit && !busy && <p className="mu xs text-center">Add at least one product photo to continue.</p>}
     </form>
+  );
+}
+
+/** An on / off switch row (design: a label and a gold toggle). */
+export function Toggle({ label, hint, on, onChange, disabled }: { label: string; hint?: string; on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <div className="between sm">
+      <span className="min-w-0">
+        <span className="block">{label}</span>
+        {hint && <span className="mu xs block">{hint}</span>}
+      </span>
+      <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} className="tog disabled:opacity-50" onClick={() => onChange(!on)}>
+        <i />
+      </button>
+    </div>
   );
 }

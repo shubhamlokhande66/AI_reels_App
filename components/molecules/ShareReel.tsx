@@ -2,7 +2,6 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { assetUrl } from "@/lib/api";
-import { btnSecondary } from "@/components/atoms";
 
 /** Can this device share a video file (the phone's share sheet: Instagram, TikTok, WhatsApp …)? */
 function canShareFiles(): boolean {
@@ -33,8 +32,8 @@ export function ShareReel({ url, name }: { url: string; name: string }) {
   }
 
   return (
-    <button type="button" className={btnSecondary} onClick={() => void share()} disabled={state === "preparing"}>
-      {state === "preparing" ? "Preparing…" : state === "error" ? "Share failed: try again" : "↗ Share"}
+    <button type="button" className="chip" onClick={() => void share()} disabled={state === "preparing"}>
+      {state === "preparing" ? "Preparing…" : state === "error" ? "Share failed: try again" : "Share"}
     </button>
   );
 }

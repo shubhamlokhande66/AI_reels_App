@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { ProjectCard } from "@/components/molecules/ProjectCard";
-import { LinkButton, Spinner } from "@/components/atoms";
+import { Icon, LinkButton, Spinner } from "@/components/atoms";
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { useProjects } from "@/hooks/useApi";
 import { errorMessage } from "@/lib/api";
@@ -19,39 +19,53 @@ const FILTERS: { value: ProjectStatus | undefined; label: string }[] = [
 ];
 const VALID = new Set(["draft", "processing", "completed", "failed"]);
 
+// Design: "My Projects" — status chips, a search, and the Reels as a grid of pictures.
 function ProjectsList() {
-  const raw = useSearchParams().get("status");
+  const params = useSearchParams();
+  const raw = params.get("status");
   const status = raw && VALID.has(raw) ? (raw as ProjectStatus) : undefined;
+  const [q, setQ] = useState(params.get("q") ?? "");
   const { data, isLoading, error, refetch } = useProjects(status);
+  const needle = q.trim().toLowerCase();
+  const shown = (data ?? []).filter((p) => !needle || p.name.toLowerCase().includes(needle));
 
   return (
-    <>
-      <PageHeader title="Projects" action={<LinkButton href="/projects/new">＋ New Project</LinkButton>} />
-      <nav aria-label="Filter by status" className="mb-5 flex flex-wrap gap-2">
+    <div className="flex flex-col gap-3">
+      <PageHeader title="My Projects" subtitle="Every Reel you've made or started." action={<LinkButton href="/projects/new" className="hidden md:inline-flex">+ New Reel</LinkButton>} />
+      <nav aria-label="Filter by status" className="chips">
         {FILTERS.map((f) => (
           <Link
             key={f.label}
             href={f.value ? `/projects?status=${f.value}` : "/projects"}
             aria-current={f.value === status ? "true" : undefined}
-            className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-              f.value === status ? "border-accent bg-accent/15 text-foreground" : "border-border text-muted hover:text-foreground"
-            }`}
+            className={`chip ${f.value === status ? "on" : ""}`}
           >
             {f.label}
           </Link>
         ))}
       </nav>
+      <label className="srch">
+        <Icon name="search" size={16} />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search projects…" aria-label="Search projects" />
+      </label>
       {isLoading && <Spinner />}
       {error && <ErrorBanner message={errorMessage(error)} onRetry={() => refetch()} />}
-      {data && data.length === 0 && <EmptyState title="No projects here" hint="Try another filter or create a new project." />}
-      {data && data.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((p) => (
+      {data && shown.length === 0 && (
+        <EmptyState
+          icon="projects"
+          title={needle ? "Nothing matches your search" : status ? "Nothing here yet" : "No projects yet"}
+          hint={needle ? "Try another word, or clear the search." : status ? "Try another filter, or make a new Reel." : "Add a few clips and a song to make your first Reel."}
+          action={!needle ? <LinkButton href="/projects/new">Create a Reel</LinkButton> : undefined}
+        />
+      )}
+      {shown.length > 0 && (
+        <div className="grid grid-cols-3 gap-x-2 gap-y-2.5 sm:grid-cols-4 md:gap-x-3.5 md:gap-y-4 lg:grid-cols-6">
+          {shown.map((p) => (
             <ProjectCard key={p.id} project={p} />
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 

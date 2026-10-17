@@ -1,9 +1,17 @@
-export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+import { Icon } from "@/components/atoms/Icon";
+
+/** The design's empty card: a round icon, a serif line, a hint and the next step. */
+export function EmptyState({ title, hint, action, icon = "sparkle" }: { title: string; hint?: string; action?: React.ReactNode; icon?: string }) {
   return (
-    <div className="lux-enter rounded-3xl border border-dashed border-accent/25 p-12 text-center">
-      <p className="font-display text-2xl">{title}</p>
-      {hint && <p className="mt-1 text-sm text-muted">{hint}</p>}
-      {action && <div className="mt-4">{action}</div>}
+    <div className="card lux-enter items-center px-4 py-[22px] text-center" style={{ gap: 8 }}>
+      <span className="grid h-[54px] w-[54px] place-items-center rounded-full border-[1.5px] border-border text-accent">
+        <Icon name={icon} size={24} />
+      </span>
+      <b className="ht" style={{ fontSize: 20 }}>
+        {title}
+      </b>
+      {hint && <span className="mu sm max-w-sm">{hint}</span>}
+      {action && <div className="mt-1">{action}</div>}
     </div>
   );
 }
