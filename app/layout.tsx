@@ -16,15 +16,15 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0d0b09" },
-    { media: "(prefers-color-scheme: light)", color: "#f7f1e8" },
-  ],
+  themeColor: "#05060a",
 };
 
 export const metadata: Metadata = {
-  title: "AI Reel Maker",
-  description: "Turn raw clips and a song into a beat-synced 9:16 Reel.",
+  title: { default: "Shubix · Reels video studio", template: "%s · Shubix" },
+  description: "Turn your clips, photos and a song into a beat-synced Reel.",
+  applicationName: "Shubix",
+  appleWebApp: { capable: true, title: "Shubix", statusBarStyle: "black-translucent" },
+  formatDetection: { telephone: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,20 +1,29 @@
 import type { MetadataRoute } from "next";
 
-/** Install on a phone's home screen: opens full screen like an app. */
+/** Shubix as an app: installed on the home screen (phones) or the desktop, it opens full screen with its own icon. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Reel Maison · AI Reel Studio",
-    short_name: "Reel Maison",
-    description: "Give it your clips and a song; the AI creative director makes the Reel.",
-    start_url: "/",
+    id: "/",
+    name: "Shubix · Reels video studio",
+    short_name: "Shubix",
+    description: "Turn your clips, photos and a song into a beat-synced Reel.",
+    start_url: "/?source=app",
+    scope: "/",
     display: "standalone",
-    background_color: "#0a0908",
-    theme_color: "#0a0908",
+    display_override: ["standalone", "minimal-ui"],
+    background_color: "#05060a",
+    theme_color: "#05060a",
     orientation: "portrait",
+    categories: ["photo", "video", "entertainment", "productivity"],
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+    shortcuts: [
+      { name: "Fast Studio", short_name: "Studio", description: "Make a Reel on this phone", url: "/studio", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+      { name: "Create a Reel", short_name: "Create", url: "/projects/new", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+      { name: "My Projects", short_name: "Projects", url: "/projects", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

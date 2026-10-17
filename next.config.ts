@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
     ];
     return [
       { source: "/studio", headers: isolate },
+      // the service worker (installable app): always the newest copy, allowed to look after the whole site
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
+      { source: "/brand/:path*", headers: [{ key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },
+      { source: "/:icon(icon-192.png|icon-512.png|icon-maskable-512.png)", headers: [{ key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },
       { source: "/_next/static/:path*", headers: [{ key: "Cross-Origin-Embedder-Policy", value: "require-corp" }, { key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },
       { source: "/vendor/ort/:path*", headers: [{ key: "Cross-Origin-Embedder-Policy", value: "require-corp" }, { key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },
     ];

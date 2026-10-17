@@ -21,7 +21,7 @@ export function useSite() {
 /** The business details, with a placeholder where the admin has not filled one in yet. */
 export function siteOr(site: SiteInfo | undefined) {
   return {
-    name: site?.businessName || "Reel Maison",
+    name: site?.businessName || "Shubix",
     email: site?.supportEmail || "[support email: set SUPPORT_EMAIL]",
     phone: site?.supportPhone || "",
     address: site?.businessAddress || "[business address: set BUSINESS_ADDRESS]",
