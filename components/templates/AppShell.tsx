@@ -78,6 +78,7 @@ function pageMeta(p: string): Meta {
     "/projects/new": { title: "Create a new Reel", back: "/", credits: true },
     "/story/new": { title: "Story → Reel", back: "/", credits: true },
     "/editor": { title: "Editor", credits: true, tabs: true },
+    "/studio": { title: "Fast Studio", credits: true },
     "/library": { title: "Media Library" },
     "/songs": { title: "My songs" },
     "/templates": { title: "Templates" },
@@ -257,9 +258,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
 
-  // each page's look, as designed (Fast Studio keeps the one chosen in its own menu)
+  // each page's look, as designed
   useEffect(() => {
-    if (pathname !== "/studio") document.documentElement.dataset.theme = pageTheme(pathname);
+    document.documentElement.dataset.theme = pageTheme(pathname);
   }, [pathname]);
   const [navPath, setNavPath] = useState(pathname);
   if (navPath !== pathname) {
@@ -300,10 +301,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // an admin page opened by address in user mode: say so instead of showing it (the server guards its data too)
   const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => i.href !== "/admin" && isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
-  if ((pathname.startsWith("/editor/") || pathname === "/studio") && !signedOut) {
-    // the editor and Fast Studio are full-screen workspaces (like CapCut): no sidebar or bottom bar
+  if (pathname.startsWith("/editor/") && !signedOut) {
+    // the Pro editor is a full-screen workspace (like CapCut): no sidebar or bottom bar
     return (
-      <main className={`min-h-screen ${pathname === "/studio" ? "" : "rm"}`}>
+      <main className="rm min-h-screen">
         <GlobalActivity />
         {children}
       </main>

@@ -44,12 +44,7 @@ const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; ret
 
 export const STUDIO_HTML = `
 <div class="topbar" id="topbar">
-  <button type="button" class="ibtn tb-menu" id="menubtn" aria-label="Menu">${IC.menu}</button>
-  <a class="tb-brand" href="/"><span class="tb-logo">R</span><span>Reel Maison</span></a>
   <div class="tb-title"><span class="tb-name" id="tbname">Fast Studio</span><span class="tb-sub" id="psaved"></span></div>
-  <nav class="tb-nav" id="tbnav" aria-label="Main"></nav>
-  <span class="tb-gap"></span>
-  <div class="tb-right" id="tbright"></div>
   <div class="views" id="views" role="group" aria-label="View">
     <button type="button" data-view="simple" aria-pressed="true">Simple</button><button type="button" data-view="editor" aria-pressed="false">Editor</button><button type="button" data-view="pro" aria-pressed="false">Pro</button>
   </div>

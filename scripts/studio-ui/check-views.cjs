@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // The studio's three views on a phone: what each shows, the Simple cards' panels, the Editor's shot chips and the Pro
-// inspector changing the edit itself, the Pro timeline moving the playhead, the menu's view and theme.
+// inspector changing the edit itself, the Pro timeline moving the playhead, the view tabs, inside the app's own frame.
 //   BASE=http://localhost:3100 SONG=song.mp3 CLIPS=a.webm,b.webm node check-views.cjs
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const BASE = process.env.BASE || 'http://localhost:3000';
@@ -35,8 +35,7 @@ const BASE = process.env.BASE || 'http://localhost:3000';
   if (process.env.DEBUG) console.log('  at the tap:', await p.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e && (e.id || e.className || e.tagName); }, [tx, ty]), JSON.stringify(box));
   await p.mouse.click(tx, ty); await p.waitForTimeout(800);
   console.log('  tap the timeline at 75%: playhead', (await p.evaluate(() => { const s = document.querySelector('.brs').__studio; return s.now / s.dur; })).toFixed(2));
-  await p.click('#menubtn'); await p.waitForTimeout(400);
-  await p.click('[role=dialog] [role=radio]:has-text("Noir")'); await p.click('[role=dialog] [role=radio]:has-text("Simple")'); await p.waitForTimeout(300);
-  console.log('Menu: theme', await p.evaluate(() => document.documentElement.dataset.theme), '| view', await p.evaluate(() => document.querySelector('.brs').className.match(/v-\w+/)[0]), '| remembered', await p.evaluate(() => localStorage.getItem('studio-view') + ', ' + localStorage.getItem('reel-theme')));
+  await p.click('#views [data-view=simple]'); await p.waitForTimeout(300);
+  console.log('Tabs: view', await p.evaluate(() => document.querySelector('.brs').className.match(/v-\w+/)[0]), '| remembered', await p.evaluate(() => localStorage.getItem('studio-view')), '| inside the app shell', await p.evaluate(() => !!document.querySelector('.rm .brs')));
   await b.close();
 })().catch(e => { console.error('FAIL', e.message); process.exit(1); });
