@@ -118,7 +118,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', OUT = __dirname + '/ou
   await setUk(shot.i, [K(0, { x: 0.2, r: 20 })]);
   const pv = await measure(shot.a + shot.L * 0.5);
   await p.evaluate(() => { window.__dl = null; const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dl = this.href; return; } return ck.call(this); }; });
-  await p.click('#export'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 900000 });
+  await p.click('#export'); await p.click('#xgo'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 900000 });
   const b64 = await p.evaluate(async () => { const bl = await (await fetch(window.__dl)).blob(); const u = new Uint8Array(await bl.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s); });
   const f = OUT + 'export.' + (b64.startsWith('GkXf') ? 'webm' : 'mp4'); fs.writeFileSync(f, Buffer.from(b64, 'base64'));
   const W = 1080, H = 1920, raw = execSync(`ffmpeg -v error -ss ${(shot.a + shot.L * 0.5).toFixed(3)} -i ${f} -frames:v 1 -f rawvideo -pix_fmt rgb24 -`, { maxBuffer: 64 << 20 });

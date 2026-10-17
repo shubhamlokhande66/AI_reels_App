@@ -108,3 +108,15 @@ export async function downloadObject(c: R2Config, key: string, dest: string): Pr
   }
   return (await fs.promises.stat(dest)).size;
 }
+
+/** A presigned GET link to an object (the browser plays or downloads it straight from R2, not through this server). */
+export const objectUrl = (c: R2Config, key: string, seconds = 3600, downloadName?: string) =>
+  r2Url(c, "GET", key, downloadName ? { "response-content-disposition": `attachment; filename="${downloadName.replace(/["\\]/g, "")}"` } : {}, seconds);
+
+/** The size of a stored object (null: not there). */
+export async function objectSize(c: R2Config, key: string): Promise<number | null> {
+  const res = await fetch(r2Url(c, "HEAD", key, {}, 300), { method: "HEAD" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new AppError("The storage service could not be reached. Try again in a moment.", { code: "STORAGE_ERROR", status: 502 });
+  return Number(res.headers.get("content-length") ?? 0);
+}

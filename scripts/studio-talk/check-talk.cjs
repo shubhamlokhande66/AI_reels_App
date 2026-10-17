@@ -57,7 +57,7 @@ const CLIPS = Object.keys(T).map(n => OUT + n + '.webm');
   }
   // export: as long as the talk
   await p.evaluate(() => { window.__dl = null; const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dl = this.href; return; } return ck.call(this); }; });
-  await p.click('#export'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 900000 });
+  await p.click('#export'); await p.click('#xgo'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 900000 });
   const v = await p.evaluate(async () => { const v = document.createElement('video'); v.src = window.__dl; await new Promise(r => { v.onloadedmetadata = r; setTimeout(r, 10000); });
     if (v.duration === Infinity) { v.currentTime = 1e9; await new Promise(r => { v.ontimeupdate = r; setTimeout(r, 5000); }); } return v.duration; });
   console.log('exported video:', v.toFixed(2), 's (talk', (await p.evaluate(() => document.querySelector('.brs').__studio.talk.parts.reduce((q, x) => q + x.b - x.a, 0))).toFixed(2), 's)');

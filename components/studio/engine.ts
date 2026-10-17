@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 export function initStudio(root, deps) {
-  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const ac = new AbortController(), SIG = { signal: ac.signal };
@@ -1941,7 +1941,7 @@ const out = $('out'), og = out.getContext('2d');
 // The live preview draws at half size (540×960 for a Reel): a quarter of the pixels, so it stays smooth on phones.
 // Export and the cover switch to the full 1080p size.
 const PREVIEW_SCALE = 0.5;
-function setCanvas(full){ const [W0,H0]=SIZES[aspect], s = full ? 1 : PREVIEW_SCALE, w = Math.round(W0*s/2)*2, h = Math.round(H0*s/2)*2;
+function setCanvas(full, scale = 1){ const [W0,H0]=SIZES[aspect], s = full ? scale : PREVIEW_SCALE, w = Math.round(W0*s/2)*2, h = Math.round(H0*s/2)*2;
   if(out.width!==w||out.height!==h){ out.width=w; out.height=h; loopImg=null; } }
 function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(edit[m].start<=t+1e-4){ r=m; lo=m+1; } else hi=m-1; } return r; }
 async function prepare(i, t){
@@ -2892,7 +2892,9 @@ const _sm=0;
 // land in Files on an iPhone, where Instagram cannot see it. Sharing needs a tap, so a button appears for it. Computers
 // download it as before.
 let savedUrl = null;
+let lastVideo = null;
 function saveFile(blob, name){
+  if(/^video\//.test(blob.type)) lastVideo = blob;
   const file = new File([blob], name, { type: blob.type });
   const phone = matchMedia('(pointer: coarse)').matches;
   let canShare = false; try{ canShare = phone && !!navigator.canShare && navigator.canShare({ files: [file] }); }catch(e){}
@@ -2936,7 +2938,7 @@ async function recordExport(){
   const mime = pickMime();
   if(!mime || !out.captureStream){ showMsg('This browser cannot save videos. Please open the studio in Chrome or Safari.', true); return; }
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
-  setCanvas(true); await captureLoop();
+  setCanvas(true, XQ[xq.res].scale); await captureLoop();
   showMsg('Saving your Reel in real time on this browser (' + fmt(buf.duration) + '). Please keep this screen open.');
   const c = getCtx(); await c.resume();
   const dest = c.createMediaStreamDestination();
@@ -2983,7 +2985,7 @@ async function fastExport(){
   if(loadAacEncoder && !(await mb.canEncodeAudio('aac').catch(()=>false))){
     try{ const m = await loadAacEncoder(); if(!loadAacEncoder.done){ m.registerAacEncoder(); loadAacEncoder.done = true; } }catch(err){ console.warn('AAC encoder unavailable', err); }
   }
-  const [W, H] = SIZES[aspect], fps = 30, dur = buf.duration;
+  const [W, H] = exportDims(), fps = xq.fps, dur = buf.duration;
   // H.264 + AAC in MP4 (what Instagram wants); browsers without an H.264 encoder get VP9 + Opus in WebM
   const vcodec = await mb.getFirstEncodableVideoCodec(['avc', 'vp9', 'av1'], {width:W, height:H});
   if(!vcodec) return false;
@@ -2992,7 +2994,7 @@ async function fastExport(){
   if(!acodec) return false;
   stopAll();
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
-  setCanvas(true); await captureLoop();   // full size; the loop-back frame at full size too
+  setCanvas(true, XQ[xq.res].scale); await captureLoop();   // export size; the loop-back frame at that size too
   const t0 = performance.now();
   showMsg('Exporting… 0%');
   const inputs = [];
@@ -3014,7 +3016,7 @@ async function fastExport(){
       return ab; };
 
     const output = new mb.Output({ format: mp4 ? new mb.Mp4OutputFormat({ fastStart: 'in-memory' }) : new mb.WebMOutputFormat(), target: new mb.BufferTarget() });
-    const vs = new mb.CanvasSource(out, { codec: vcodec, bitrate: 12e6, keyFrameInterval: 2 });
+    const vs = new mb.CanvasSource(out, { codec: vcodec, bitrate: XQ[xq.res].bitrate * (fps > 30 ? 1.5 : 1), keyFrameInterval: 2 });
     const as = audio ? new mb.AudioBufferSource({ codec: acodec, bitrate: 256e3 }) : null;   // no sound at all: no audio track
     output.addVideoTrack(vs, { frameRate: fps });
     if(as) output.addAudioTrack(as);
@@ -3093,7 +3095,7 @@ async function fastExport(){
     while(as && nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
-    const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + (mp4 ? 'mp4' : 'webm');
+    const name = 'reel-' + aspect.replace(':','x') + '-' + XQ[xq.res].label + (fps > 30 ? '-' + fps + 'fps' : '') + '.' + (mp4 ? 'mp4' : 'webm');
     const sh = saveFile(blob, name);
     if(noSong){ notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ' without the song: ' + noSongTip()); return true; }
     notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB). Ready for Instagram, TikTok and Shorts.');
@@ -3110,18 +3112,75 @@ async function fastExport(){
 let wakeLock = null, exportBusy = false;
 async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', ()=>{ wakeLock = null; }); } }catch(err){ wakeLock = null; } }
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
-$('export').onclick = async () => {
+async function runExport(toCloud){
   if(recording || exportBusy) return;
-  exportBusy = true; $('saverow').hidden = true; await holdScreen();
+  exportBusy = true; $('saverow').hidden = true; lastVideo = null; await holdScreen();
   try{
     let ok = false;
     try{ ok = await fastExport(); }
     catch(err){ console.warn('fast export failed', err); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
     if(!ok) await recordExport();
+    if(toCloud && lastVideo) await saveToMyReels(lastVideo);
   } finally {
     exportBusy = false; if(wakeLock){ try{ await wakeLock.release(); }catch(err){} wakeLock = null; }
   }
-};
+}
+
+/* ---- the export sheet: quality, frame rate, the file size, "Export to phone" or "Export & save to My Reels" ---- */
+// bitrates for 30 fps (60 fps gets half as much again); 4K is offered only where this browser can encode it
+const XQ = { '720': { scale: 2/3, bitrate: 6e6, label: '720p' }, '1080': { scale: 1, bitrate: 12e6, label: '1080p' }, '4k': { scale: 2, bitrate: 35e6, label: '4K' } };
+const xq = { res: '1080', fps: 30 };
+try{ const v = JSON.parse(localStorage.getItem('studio-export') || 'null'); if(v && XQ[v.res]) xq.res = v.res; if(v && (v.fps === 30 || v.fps === 60)) xq.fps = v.fps; }catch(e){}
+let can4k = null, cloudInfo = null;
+function exportDims(){ const [W0,H0] = SIZES[aspect], k = XQ[xq.res].scale; return [Math.round(W0*k/2)*2, Math.round(H0*k/2)*2]; }
+function sheetPaint(){
+  [...$('xres').children].forEach(b => { b.setAttribute('aria-pressed', b.dataset.r === xq.res); if(b.dataset.r === '4k'){ b.disabled = can4k === false; b.title = can4k === false ? 'This phone cannot make 4K videos' : ''; } });
+  [...$('xfps').children].forEach(b => b.setAttribute('aria-pressed', +b.dataset.f === xq.fps));
+  const [W, H] = exportDims(), dur = buf ? buf.duration : 0, mb = (XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1) + 256e3) * dur / 8 / 1e6;
+  $('xsize').textContent = W + ' × ' + H + ' · ' + xq.fps + ' fps · about ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
+  const cb = $('xgocloud'), note = $('xcloudnote');
+  cb.hidden = note.hidden = !cloudInfo;
+  if(cloudInfo){
+    const full = cloudInfo.used >= cloudInfo.limit;
+    cb.disabled = full;
+    note.textContent = full ? 'My Reels is full (' + cloudInfo.used + ' of ' + cloudInfo.limit + '). Delete a Reel there to make room.' : 'Also kept in your account, to watch, download or share anywhere · ' + cloudInfo.used + ' of ' + cloudInfo.limit + ' used';
+  }
+}
+function sheetOpen(open){
+  $('xsheet').hidden = !open;
+  if(!open) return;
+  sheetPaint();
+  $('xgo').focus();
+  if(can4k === null) loadMediabunny().then(mb => { const [W0,H0] = SIZES[aspect]; return mb.getFirstEncodableVideoCodec(['avc','vp9','av1'], {width: W0*2, height: H0*2}); })
+    .then(c => { can4k = !!c; if(!can4k && xq.res === '4k') xq.res = '1080'; sheetPaint(); }, () => { can4k = false; sheetPaint(); });
+  if(cloud) cloud.usage().then(u => { cloudInfo = u; sheetPaint(); }, () => {});
+}
+const sheetPick = () => { try{ localStorage.setItem('studio-export', JSON.stringify(xq)); }catch(e){} sheetPaint(); };
+$('xres').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || b.disabled) return; xq.res = b.dataset.r; sheetPick(); }, SIG);
+$('xfps').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; xq.fps = +b.dataset.f; sheetPick(); }, SIG);
+$('xshclose').addEventListener('click', () => sheetOpen(false), SIG);
+$('xsheet').addEventListener('click', e => { if(e.target === $('xsheet')) sheetOpen(false); }, SIG);
+addEventListener('keydown', e => { if(e.key === 'Escape' && !$('xsheet').hidden) sheetOpen(false); }, SIG);
+$('xgo').addEventListener('click', () => { sheetOpen(false); runExport(false); }, SIG);
+$('xgocloud').addEventListener('click', () => { sheetOpen(false); runExport(true); }, SIG);
+$('export').onclick = () => { if(recording || exportBusy) return; sheetOpen(true); };
+
+async function saveToMyReels(blob){
+  if(!cloud) return;
+  const [W, H] = exportDims(), name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
+  const msg = $('xmsg').textContent;
+  try{
+    showMsg('Saving to My Reels… 0%');
+    await cloud.save(blob, { name, dur: buf ? Math.round(buf.duration*10)/10 : 0, width: W, height: H, fps: xq.fps, thumb: thumbOf() || undefined },
+      p => { $('xmsg').textContent = 'Saving to My Reels… ' + Math.round(p*100) + '%'; $('prog').style.width = (p*100).toFixed(1) + '%'; });
+    if(cloudInfo) cloudInfo.used++;
+    notify('Saved to My Reels', 'ok');
+    showMsg(msg + ' Also saved to My Reels.');
+  }catch(err){
+    console.warn('My Reels:', err);
+    showMsg(msg); notify(err && err.code ? err.message : 'Your Reel is saved on your phone, but not in My Reels. Please try again.', 'err');
+  }
+}
 
 /* ---- options ---- */
 const redraw = () => { if(!playing && edit.length) drawFrame(pos || 0.3); };

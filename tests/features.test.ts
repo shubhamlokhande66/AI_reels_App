@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALL_ON, linkOn, pageFeature } from "@/lib/features-list";
+import { ALL_ON, DEFAULTS, FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
 
 describe("feature switches", () => {
   it("knows which part each page belongs to", () => {
@@ -21,5 +21,12 @@ describe("feature switches", () => {
     const f = { ...ALL_ON, aiReel: false, productReel: false };
     expect(linkOn("/projects/new", f)).toBe(false);
     expect(linkOn("/projects/new", { ...f, productReel: true })).toBe(true);
+  });
+  it("starts with only Fast Studio on: every part that works on the server is off until the administrator turns it on", () => {
+    expect(DEFAULTS.fastStudio).toBe(true);
+    for (const f of FEATURE_LIST.filter((x) => x.server)) expect(DEFAULTS[f.key], f.key).toBe(false);
+    expect(linkOn("/projects", DEFAULTS)).toBe(false); // the server's projects; Fast Studio's are in My Reels
+    expect(linkOn("/reels", DEFAULTS)).toBe(true);
+    expect(linkOn("/projects", { ...DEFAULTS, story: true })).toBe(true);
   });
 });

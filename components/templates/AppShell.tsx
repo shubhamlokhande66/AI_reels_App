@@ -25,6 +25,7 @@ export const GROUPS: { title: string; admin?: boolean; items: { href: string; la
       { href: "/projects/new", label: "Create Reel", icon: "plus" },
       // a full page load: the studio is cross-origin isolated (next.config.ts) so its AI beat tracker can use several cores
       { href: "/studio", label: "Fast Studio", icon: "bolt", fullLoad: true },
+      { href: "/reels", label: "My Reels", icon: "video" },
       { href: "/story/new", label: "Story → Reel", icon: "book" },
       { href: "/editor", label: "Editor", icon: "scissors" },
     ],
@@ -241,12 +242,18 @@ function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: 
   );
 }
 
-const TABS = [
+// Create opens Fast Studio when the server's Create Reel is off (Administration -> Features); at most four tabs and More
+const TABS: { href: string; label: string; icon: string; primary?: boolean; full?: boolean }[] = [
   { href: "/", label: "Home", icon: "home" },
-  { href: "/projects", label: "Projects", icon: "projects" },
+  { href: "/reels", label: "My Reels", icon: "video" },
   { href: "/projects/new", label: "Create", icon: "plus", primary: true },
+  { href: "/projects", label: "Projects", icon: "projects" },
   { href: "/editor", label: "Editor", icon: "scissors" },
 ];
+const tabsFor = (f: Parameters<typeof linkOn>[1]) =>
+  TABS.map((t) => (t.primary && !linkOn(t.href, f) ? { ...t, href: "/studio", full: true } : t))
+    .filter((t) => linkOn(t.href, f))
+    .slice(0, 4);
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
@@ -411,10 +418,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* phones: the bottom tab bar (Home, Projects, Editor) */}
       {meta.tabs && (
         <nav aria-label="Quick" className="tabbar fixed inset-x-0 bottom-0 z-40 md:hidden">
-          {TABS.filter((t) => linkOn(t.href, features)).map((t) => {
+          {tabsFor(features).map((t) => {
             const active = isActive(pathname, t.href);
+            const Tag = t.full ? "a" : Link;
             return (
-              <Link key={t.href} href={t.href} aria-label={t.primary ? t.label : undefined} aria-current={active ? "page" : undefined} className={active && !t.primary ? "on" : ""}>
+              <Tag key={t.href} href={t.href} aria-label={t.primary ? t.label : undefined} aria-current={active ? "page" : undefined} className={active && !t.primary ? "on" : ""}>
                 {t.primary ? (
                   <span className="cr">
                     <Icon name="plus" size={22} stroke={2.2} />
@@ -423,7 +431,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Icon name={t.icon} size={22} stroke={1.7} />
                 )}
                 {t.label}
-              </Link>
+              </Tag>
             );
           })}
           <button type="button" onClick={() => setDrawer(true)} className={drawer ? "on" : ""}>

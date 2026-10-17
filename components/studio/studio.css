@@ -572,3 +572,18 @@
 .brs .askrow .btn{justify-content:center;min-height:46px}
 .brs .btn.danger{background:var(--drop);border-color:var(--drop);color:#fff}
 @media (min-width:600px){ .brs .askbg{place-items:center} }
+
+/* the export sheet: a bottom sheet on phones, a centred card on bigger screens */
+.brs .xsheet{position:fixed;inset:0;z-index:85;background:rgba(0,0,0,.5);display:grid;place-items:end center}
+.brs .xsheet[hidden]{display:none}
+.brs .xsh{width:min(100%,460px);background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));display:grid;gap:10px;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
+.brs .xsh-h{display:flex;align-items:center;justify-content:space-between}
+.brs .xsh-h h2{margin:0;font-family:var(--display);font-size:24px}
+.brs .xsh-l{margin:6px 0 0;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.brs .xsh .seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
+.brs .xsh .seg button{min-height:44px}
+.brs .xsh .seg button:disabled{opacity:.4;cursor:not-allowed}
+.brs .xsh-size{margin:4px 0;font-size:13.5px;color:var(--muted)}
+.brs .xsh .btn.big{width:100%;justify-content:center;min-height:52px;font-size:15.5px}
+.brs .xsh-note{margin:-2px 0 0;font-size:12.5px;color:var(--muted);text-align:center}
+@media (min-width:600px){ .brs .xsheet{place-items:center} .brs .xsh{border-radius:22px} }

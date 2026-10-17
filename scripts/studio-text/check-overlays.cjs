@@ -43,7 +43,7 @@ const BASE = process.env.BASE || 'http://localhost:3000', CLIPS = (process.env.C
   // 5. export: the price tag's yellow is in the video's frames at its place
   await p.evaluate(() => { window.__dl = null; const ck = HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click = function () { if (this.download) { window.__dl = this.href; return; } return ck.call(this); }; });
   const pbox = (await inkAt(2, 8)).box;
-  await p.click('#export'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 900000 });
+  await p.click('#export'); await p.click('#xgo'); await p.waitForFunction(() => /saved|ready:/i.test(document.getElementById('xmsg').textContent), null, { timeout: 900000 });
   const b64 = await p.evaluate(async () => { const bl = await (await fetch(window.__dl)).blob(); const u = new Uint8Array(await bl.arrayBuffer()); let s = ''; for (let i = 0; i < u.length; i += 8192) s += String.fromCharCode(...u.subarray(i, i + 8192)); return btoa(s); });
   const f = __dirname + '/out_export.' + (b64.startsWith('GkXf') ? 'webm' : 'mp4'); fs.writeFileSync(f, Buffer.from(b64, 'base64'));
   const W = 1080, H = 1920, x = Math.round((pbox[0] + pbox[2] * 0.5) * W), y = Math.round((pbox[1] + pbox[3] * 0.5) * H);

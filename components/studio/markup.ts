@@ -275,7 +275,20 @@ export const STUDIO_HTML = `
   </section>
 </div>
 <div class="savebar" id="savebar">
-  <button class="btn save big" id="export" disabled>${IC.save}<span>Save video · 1080p</span></button>
+  <button class="btn save big" id="export" disabled>${IC.save}<span>Export</span></button>
   <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
 </div>
-<div class="toasts" id="toasts" role="status" aria-live="polite"></div>`;
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<div class="xsheet" id="xsheet" hidden>
+  <div class="xsh" role="dialog" aria-modal="true" aria-labelledby="xsht">
+    <div class="xsh-h"><h2 id="xsht">Export your Reel</h2><button type="button" class="ibtn" id="xshclose" aria-label="Close">✕</button></div>
+    <p class="xsh-l">Quality</p>
+    <div class="seg" id="xres" role="group" aria-label="Quality"><button type="button" data-r="720">720p</button><button type="button" data-r="1080" aria-pressed="true">1080p</button><button type="button" data-r="4k">4K</button></div>
+    <p class="xsh-l">Frame rate</p>
+    <div class="seg" id="xfps" role="group" aria-label="Frame rate"><button type="button" data-f="30" aria-pressed="true">30 fps</button><button type="button" data-f="60">60 fps</button></div>
+    <p class="xsh-size" id="xsize"></p>
+    <button type="button" class="btn save big" id="xgo">${IC.save}<span>Export to phone</span></button>
+    <button type="button" class="btn big" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>
+    <p class="xsh-note" id="xcloudnote" hidden></p>
+  </div>
+</div>`;
