@@ -350,16 +350,21 @@ body {
   }
 }
 
-/* ---- the manual editor: a graphite pro workspace (CapCut / Filmora style), the studio's gold kept as the accent ---- */
+/* ---- the manual editor (design: Pro editor): a Noir pro workspace, champagne gold accent ---- */
 .pro-workspace {
-  --background: #0e0e10;
-  --surface: #17171a;
-  --surface-2: #212125;
-  --border: #2b2b30;
-  --foreground: #ececee;
-  --muted: #94949c;
-  --track: rgba(255, 255, 255, 0.05);
-  --scrollbar: #34343a;
+  /* design: the Pro editor, Noir */
+  --background: #0a0908;
+  --surface: #141210;
+  --surface-2: #1c1916;
+  --border: #2e2924;
+  --foreground: #f3ede3;
+  --muted: #a69d90;
+  --accent: #d4b07a;
+  --chip-on: rgba(212, 176, 122, 0.16);
+  --shadow: none;
+  --bar: #0d0b09;
+  --track: rgba(255, 240, 215, 0.06);
+  --scrollbar: #3a332b;
   background: var(--background);
   color: var(--foreground);
   color-scheme: dark;

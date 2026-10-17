@@ -173,7 +173,7 @@ export default function EditorPage() {
       ),
     },
   ];
-  const tool = "btn sm !bg-[#1c1916] !border-[#2e2924] !text-[#f3ede3]";
+  const tool = "btn sm shrink-0 !bg-[#1c1916] !border-[#2e2924] !text-[#f3ede3]";
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
@@ -203,7 +203,7 @@ export default function EditorPage() {
           <span className="mono text-[12px]">
             {fmt(playhead)} / {fmt(tl.duration)}
           </span>
-          <div role="toolbar" aria-label="Edit tools" className="row flex-wrap" style={{ gap: 6 }}>
+          <div role="toolbar" aria-label="Edit tools" className="row w-full overflow-x-auto pb-0.5 md:w-auto" style={{ gap: 6, scrollbarWidth: "none" }}>
             <button type="button" className={tool} disabled={!state.canUndo || mutating} onClick={() => undo.mutate()} aria-label="Undo">
               <Icon name="undo" size={16} />
             </button>

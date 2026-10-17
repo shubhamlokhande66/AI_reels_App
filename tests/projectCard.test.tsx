@@ -26,7 +26,7 @@ describe("Project card: delete without opening the project", () => {
     wrap(<ProjectCard project={project()} />);
     await userEvent.click(screen.getByRole("button", { name: "Delete Gold launch" }));
     expect(api.deleteProject).not.toHaveBeenCalled();
-    expect(screen.getByText("Delete this project and all its files?")).toBeInTheDocument();
+    expect(screen.getByText("Delete this Reel and its files?")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Yes, delete" }));
     await waitFor(() => expect(api.deleteProject).toHaveBeenCalledWith("p1"));
   });
@@ -36,7 +36,7 @@ describe("Project card: delete without opening the project", () => {
     const btn = screen.getByRole("button", { name: "Delete Gold launch" });
     expect(btn.closest("a")).toBeNull();
     await userEvent.click(btn);
-    await userEvent.click(screen.getByRole("button", { name: "No" }));
+    await userEvent.click(screen.getByRole("button", { name: "Keep" }));
     expect(screen.getByRole("button", { name: "Delete Gold launch" })).toBeInTheDocument();
     expect(api.deleteProject).not.toHaveBeenCalled();
   });

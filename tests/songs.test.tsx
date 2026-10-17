@@ -33,7 +33,7 @@ describe("Pick a song from the library (Create Reel)", () => {
     api.songFile.mockResolvedValue(file);
     const onPick = vi.fn();
     wrap(<SongPicker onPick={onPick} />);
-    await userEvent.click(screen.getByRole("button", { name: "♬ Pick from my songs" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pick from my songs" }));
     expect(await screen.findByText("Ganpati Bappa")).toBeInTheDocument();
     expect(screen.getByText(/3:05 · from folder/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Use" }));

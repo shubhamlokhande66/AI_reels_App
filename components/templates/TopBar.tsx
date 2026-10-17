@@ -40,11 +40,12 @@ const DESKTOP = "(min-width: 768px)";
 export function useIsDesktop(): boolean {
   return useSyncExternalStore(
     (fn) => {
+      if (typeof window.matchMedia !== "function") return () => {};
       const m = window.matchMedia(DESKTOP);
       m.addEventListener("change", fn);
       return () => m.removeEventListener("change", fn);
     },
-    () => window.matchMedia(DESKTOP).matches,
+    () => typeof window.matchMedia === "function" && window.matchMedia(DESKTOP).matches,
     () => false,
   );
 }
@@ -60,6 +61,7 @@ export function TopAction({ children }: { children: React.ReactNode }) {
     () => false,
   );
   if (desktop) return <>{children}</>;
-  const slot = hydrated ? document.getElementById(TOP_SLOT) : null;
-  return slot ? createPortal(children, slot) : null;
+  if (!hydrated) return null;
+  const slot = document.getElementById(TOP_SLOT);
+  return slot ? createPortal(children, slot) : <>{children}</>; // no top bar (a page on its own): in place
 }

@@ -8,6 +8,7 @@ import { api, assetUrl, errorMessage } from "@/lib/api";
 import { MAX_AUDIO_MB, MAX_VIDEO_MB, PICKER_AUDIO, PICKER_VIDEO, isAudioFile, isVideoFile, tooBig } from "@/lib/format";
 import { keys, useProject, useRenderTimeline, useTimelineActions } from "@/hooks/useApi";
 import { op } from "@/lib/ops";
+import { Icon } from "@/components/atoms/Icon";
 import { LivePlayer } from "@/components/organisms/studio/LivePlayer";
 import { Gallery } from "@/components/organisms/studio/Gallery";
 import { Inspector, type ClipTab } from "@/components/organisms/studio/Inspector";
@@ -27,22 +28,32 @@ const tc = (t: number) => {
   return `${String(m).padStart(2, "0")}:${s.toFixed(2).padStart(5, "0")}`;
 };
 
+// the editor's glyphs drawn as the design's line icons
+const GLYPH: Record<string, string> = {
+  "↶": "undo", "↷": "redo", "✂": "scissors", "⧉": "copy", "←": "back", "→": "chevron", "🗑": "trash", T: "captions",
+  "⇄": "share", "✧": "sparkle", "◐": "palette", "✎": "wand", "⏱": "history", "▦": "image", "♪": "music",
+};
+const glyph = (icon: string, size = 18) => (GLYPH[icon] ? <Icon name={GLYPH[icon]} size={size} /> : <span aria-hidden>{icon}</span>);
+
+/** A tool (design: the Pro editor's toolbar of plain buttons; phones: an icon over its name). */
 function ToolBtn({ icon, label, onClick, disabled, danger, hotkey, compact, named, on }: { icon: string; label: string; onClick: () => void; disabled?: boolean; danger?: boolean; hotkey?: string; compact?: boolean; named?: boolean; on?: boolean }) {
-  if (named)
+  if (named || compact) {
+    const iconOnly = icon === "↶" || icon === "↷";
     return (
-      <button type="button" onClick={onClick} disabled={disabled} title={label} aria-label={label} aria-pressed={on}
-        className={`flex h-7 items-center gap-1 rounded-md px-2 text-[11px] transition-colors disabled:opacity-30 ${on ? "bg-accent/15 text-accent" : "text-muted hover:bg-white/10 hover:text-foreground"}`}>
-        <span aria-hidden className="text-sm">{icon}</span>
-        <span className="hidden xl:inline">{label}</span>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        title={hotkey ? `${label} (${hotkey})` : label}
+        aria-label={label}
+        aria-pressed={named ? on : undefined}
+        className={`btn sm shrink-0 disabled:opacity-30 ${on ? "!border-[var(--accent)] !bg-[var(--chip-on)]" : ""} ${iconOnly ? "!w-9 !px-0" : ""}`}
+        style={danger ? { color: "#e88b7d" } : undefined}
+      >
+        {iconOnly ? glyph(icon, 16) : label}
       </button>
     );
-  if (compact)
-    return (
-      <button type="button" onClick={onClick} disabled={disabled} title={hotkey ? `${label} (${hotkey})` : label} aria-label={label}
-        className={`grid h-7 w-7 place-items-center rounded-md text-sm transition-colors disabled:opacity-30 ${danger ? "text-muted hover:bg-danger/10 hover:text-danger" : "text-muted hover:bg-white/10 hover:text-foreground"}`}>
-        <span aria-hidden>{icon}</span>
-      </button>
-    );
+  }
   return (
     <button
       type="button"
@@ -50,10 +61,10 @@ function ToolBtn({ icon, label, onClick, disabled, danger, hotkey, compact, name
       disabled={disabled}
       title={hotkey ? `${label} (${hotkey})` : label}
       aria-label={label}
-      className={`flex min-w-[44px] flex-col items-center gap-0.5 rounded-lg px-2 py-1 text-[10px] transition-colors disabled:opacity-30 ${danger ? "text-muted hover:text-danger" : "text-muted hover:bg-white/5 hover:text-foreground"}`}
+      className={`flex min-w-[52px] flex-col items-center gap-1 rounded-lg px-2 py-1 text-[11px] transition-colors disabled:opacity-30 ${danger ? "text-muted hover:text-danger" : "text-muted hover:text-foreground"}`}
     >
-      <span aria-hidden className="text-base leading-5">{icon}</span>
-      <span className="hidden sm:block">{label}</span>
+      {glyph(icon, 22)}
+      <span>{label}</span>
     </button>
   );
 }
@@ -287,19 +298,25 @@ export default function StudioEditorPage() {
       <input ref={addVideoInput} type="file" accept={PICKER_VIDEO} multiple hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void addFromTrack("video", f); }} />
       <input ref={addAudioInput} type="file" accept={PICKER_AUDIO} hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void addFromTrack("audio", f); }} />
       {/* top bar */}
-      <header className="flex items-center justify-between gap-2 border-b border-border bg-surface px-3 py-1.5 pt-[max(0.375rem,env(safe-area-inset-top))]">
-        <div className="flex min-w-0 items-center gap-3">
-          <Link href="/editor" className="rounded-lg px-2 py-1 text-sm text-muted hover:bg-white/5 hover:text-foreground" aria-label="Back">
-            ←
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-[#0d0b09] px-4 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
+        <div className="row min-w-0">
+          <Link href="/editor" className="ib plain" aria-label="Back">
+            <Icon name="back" />
           </Link>
-          <h1 className="truncate text-sm font-semibold">{p.name}</h1>
-          <span className="hidden text-xs text-muted xl:inline">· 9:16 · {tl ? `${tl.segments.length} clips` : ""}</span>
+          <b className="truncate font-display text-[20px] font-semibold">{p.name}</b>
+          <span className="mu xs shrink-0">{busy ? "Saving…" : "Saved"}</span>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" className="rounded-lg px-3 py-1.5 text-xs text-muted hover:bg-white/5 hover:text-foreground disabled:opacity-30" disabled={!tl?.segments.length || busy || exporting} onClick={() => exportHd.mutate("preview")}>
-            Quick render
+        <div className="row" style={{ gap: 4 }}>
+          <button type="button" className="ib plain" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!state?.canUndo || busy} onClick={() => undo.mutate()}>
+            <Icon name="undo" size={18} />
           </button>
-          <button type="button" className="lux-btn-gold rounded-lg px-4 py-1.5 text-xs font-semibold disabled:opacity-40" disabled={!tl?.segments.length || busy || exporting} onClick={() => exportHd.mutate("final")}>
+          <button type="button" className="ib plain" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!state?.canRedo || busy} onClick={() => redo.mutate()}>
+            <Icon name="redo" size={18} />
+          </button>
+          <button type="button" className="btn sm hidden sm:inline-flex" disabled={!tl?.segments.length || busy || exporting} onClick={() => exportHd.mutate("preview")}>
+            Quick preview
+          </button>
+          <button type="button" className="btn g sm" disabled={!tl?.segments.length || busy || exporting} onClick={() => exportHd.mutate("final")}>
             {exporting ? "Exporting…" : "Export"}
           </button>
         </div>
@@ -310,7 +327,7 @@ export default function StudioEditorPage() {
           {exporting && p.latestJob && <ProgressStages job={p.latestJob} />}
           {done && (
             <p className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
-              ✓ Your Reel is ready.{" "}
+              Your Reel is ready.{" "}
               <Link href={`/projects/${id}`} className="font-semibold underline">
                 Watch, download or post it
               </Link>
@@ -327,8 +344,8 @@ export default function StudioEditorPage() {
           <aside aria-label={sheet === "clip" ? "Clip" : RAIL.find((r) => r.id === sheet)?.label} className="hidden min-h-0 w-[380px] shrink-0 flex-col border-l border-border bg-surface lg:order-last lg:flex">
             <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
               <h2 className="text-sm font-semibold">{sheet === "clip" ? (seg ? "Clip" : "Project") : RAIL.find((r) => r.id === sheet)?.label}</h2>
-              <button type="button" className="rounded-md px-2 py-0.5 text-xs text-muted hover:bg-white/10 hover:text-foreground" onClick={() => setSheet(null)} aria-label="Close panel">
-                ✕
+              <button type="button" className="ib plain !h-8 !w-8" onClick={() => setSheet(null)} aria-label="Close panel">
+                <Icon name="close" size={16} />
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
@@ -362,22 +379,25 @@ export default function StudioEditorPage() {
                   onPlaying={setPlaying}
                 />
               </div>
-              <div className="flex items-center gap-3">
-                <span className="w-20 text-right text-xs tabular-nums text-accent">{tc(playhead)}</span>
-                <button type="button" className="rounded-lg px-2 py-1 text-muted hover:text-foreground" onClick={() => setPlayhead(0)} aria-label="Back to start">
-                  ⏮
+              <div className="row mono sm">
+                <span className="mu w-20 text-right">{tc(playhead)}</span>
+                <button type="button" className="ib plain" onClick={() => setPlayhead(0)} aria-label="Back to start">
+                  <Icon name="prev" size={16} />
                 </button>
-                <button type="button" className="lux-btn-gold grid h-10 w-10 place-items-center rounded-full" onClick={() => setPlaying((v) => !v)} aria-label={playing ? "Pause" : "Play"} title="Space">
-                  {playing ? "❚❚" : "▶"}
+                <button type="button" className="ib" style={{ background: "#f3ede3", color: "#0a0908", borderColor: "transparent" }} onClick={() => setPlaying((v) => !v)} aria-label={playing ? "Pause" : "Play"} title="Space">
+                  <Icon name={playing ? "pause" : "play"} size={16} />
                 </button>
-                <span className="w-20 text-xs tabular-nums text-muted">{tc(tl.duration)}</span>
+                <button type="button" className="ib plain" onClick={() => { setPlaying(false); setPlayhead(Math.max(0, tl.duration - 0.05)); }} aria-label="To the end">
+                  <Icon name="next" size={16} />
+                </button>
+                <span className="mu w-20">{tc(tl.duration)}</span>
               </div>
             </>
           ) : noClips ? (
             <div className="grid aspect-[9/16] w-full max-w-[300px] place-items-center rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted">
               <div className="space-y-3">
                 <p>Start by adding your clips.</p>
-                <button type="button" className="lux-btn-gold rounded-full px-4 py-2 text-xs font-semibold" onClick={() => openLibrary("media")}>
+                <button type="button" className="btn g sm" onClick={() => openLibrary("media")}>
                   + Add clips
                 </button>
               </div>

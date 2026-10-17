@@ -123,14 +123,18 @@ export function ProgressStages({ job, onCancel, cancelling }: Props) {
                 {s.status === "completed" ? <Icon name="check" size={12} stroke={3} /> : s.status === "failed" ? <Icon name="close" size={11} stroke={3} /> : null}
               </span>
               <span className="min-w-0 flex-1">{s.label}</span>
-              {s.status === "running" && <span className="mono xs mu">{s.progress}%</span>}
+              {s.status === "running" && (
+                <span className="mono xs mu" role="progressbar" aria-label={s.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={s.progress}>
+                  {s.progress}%
+                </span>
+              )}
             </li>
           );
         })}
       </ol>
       {onCancel && active && (
         <button type="button" className="btn sm self-start" disabled={cancelling} onClick={onCancel}>
-          {cancelling ? "Stopping…" : "Stop making this Reel"}
+          {cancelling ? "Cancelling…" : "Cancel"}
         </button>
       )}
     </div>

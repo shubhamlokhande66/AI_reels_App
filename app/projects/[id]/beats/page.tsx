@@ -70,7 +70,7 @@ export default function BeatSyncPage() {
               <div key={v.id} className={`photo ${photoClass(v.id)}`} style={{ flex: [3, 2, 3, 2, 2, 3][k], borderRadius: 6 }} />
             ))}
           </div>
-          <div className="wave" style={{ height: 46, padding: 0 }} aria-hidden>
+          <div className="wave" style={{ height: 46, padding: 0, justifyContent: "space-between" }} aria-hidden>
             {WAVE.map((h, k) => (
               <i key={k} className={k % 3 === 1 ? "h" : ""} style={{ height: h }} />
             ))}

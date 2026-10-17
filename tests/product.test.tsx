@@ -101,30 +101,30 @@ describe("Create Reel: choosing what to make", () => {
 });
 
 describe("ProductReelForm", () => {
-  it("needs a name and a photo, and says so", async () => {
+  it("needs a photo, and says so", async () => {
     wrap(<ProductReelForm />);
-    expect(screen.getByRole("button", { name: "Direct my Reel" })).toBeDisabled();
-    expect(screen.getByText(/Add a name and at least one product photo/)).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Project name"), "Ring");
-    expect(screen.getByRole("button", { name: "Direct my Reel" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create product Reel" })).toBeDisabled();
+    expect(screen.getByText(/Add at least one product photo/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/Name your Reel/), "Ring");
+    expect(screen.getByRole("button", { name: "Create product Reel" })).toBeDisabled();
     addFiles(IMAGE_INPUT, [photo()]);
     expect(await screen.findByAltText("ring.jpg")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Direct my Reel" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create product Reel" })).toBeEnabled();
   });
 
   it("creates the project, uploads photos and music in order, and directs the Reel", async () => {
     wrap(<ProductReelForm />);
-    await userEvent.type(screen.getByLabelText("Project name"), "Ring launch");
+    await userEvent.type(screen.getByLabelText(/Name your Reel/), "Ring launch");
     addFiles(IMAGE_INPUT, [photo("a.jpg"), photo("b.png")]);
     await screen.findByAltText("a.jpg");
     await userEvent.click(await screen.findByRole("radio", { name: /Clean product/ }));
     await userEvent.type(screen.getByLabelText("Hook line"), "The Solitaire");
     await userEvent.type(screen.getByLabelText("Call to action"), "Shop now");
-    await userEvent.click(screen.getByRole("checkbox", { name: /Make it loop/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "30s" }));
+    await userEvent.click(screen.getByRole("switch", { name: /Loop/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "30 s" }));
     addFiles(AUDIO_INPUT, [new File(["a"], "song.mp3")]);
     await screen.findByLabelText("Part of the song");
-    await userEvent.click(screen.getByRole("button", { name: "Direct my Reel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create product Reel" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
     expect(api.createProject).toHaveBeenCalledWith("Ring launch", {
@@ -139,10 +139,10 @@ describe("ProductReelForm", () => {
 
   it("works without music, and keeps the chosen part of the song when there is music", async () => {
     wrap(<ProductReelForm />);
-    await userEvent.type(screen.getByLabelText("Project name"), "No music");
+    await userEvent.type(screen.getByLabelText(/Name your Reel/), "No music");
     addFiles(IMAGE_INPUT, [photo()]);
     await screen.findByAltText("ring.jpg");
-    await userEvent.click(screen.getByRole("button", { name: "Direct my Reel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create product Reel" }));
     await waitFor(() => expect(api.generateProduct).toHaveBeenCalled());
     expect(api.uploadAudio).not.toHaveBeenCalled();
     expect(api.createProject.mock.calls[0][1]).not.toHaveProperty("audioStart");
@@ -168,12 +168,12 @@ describe("ProductReelForm", () => {
   it("shows why it failed, and a retry does not create a second project", async () => {
     api.generateProduct.mockRejectedValueOnce(Object.assign(new Error("The Reel could not be made."), { code: "NO_IMAGES" }));
     wrap(<ProductReelForm />);
-    await userEvent.type(screen.getByLabelText("Project name"), "Ring");
+    await userEvent.type(screen.getByLabelText(/Name your Reel/), "Ring");
     addFiles(IMAGE_INPUT, [photo()]);
     await screen.findByAltText("ring.jpg");
-    await userEvent.click(screen.getByRole("button", { name: "Direct my Reel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create product Reel" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("The Reel could not be made.");
-    await userEvent.click(screen.getByRole("button", { name: "Direct my Reel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create product Reel" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
     expect(api.createProject).toHaveBeenCalledTimes(1);
     expect(api.uploadImages).toHaveBeenCalledTimes(1); // resumed, nothing uploaded twice

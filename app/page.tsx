@@ -139,13 +139,13 @@ export default function Dashboard() {
           <section aria-label="Being made now" className="flex flex-col gap-2.5 md:grid md:grid-cols-[repeat(auto-fit,minmax(240px,1fr))] md:gap-[14px]">
             {processing.map((p) => {
               const job = jobs.get(p.id);
-              const pct = Math.round((job?.progress ?? 0) * 100);
+              const pct = Math.round(job?.progress ?? 0);
               return (
                 <Link key={p.id} href={`/projects/${p.id}`} className="lr transition-colors hover:border-accent/60">
                   <Thumb id={p.id} url={p.thumbnailUrl} className="h-[60px] w-[46px] md:h-[70px] md:w-[70px]" />
                   <span className="meta">
                     <b>{p.name}</b>
-                    <span className="mu xs">{job?.position ? `In line · number ${job.position}` : stageText(job?.stage, job?.progress ?? 0)}</span>
+                    <span className="mu xs">{job?.position ? `In line · number ${job.position}` : stageText(job?.stage, (job?.progress ?? 0) / 100)}</span>
                     <div className="bar">
                       <i style={{ width: `${Math.max(pct, 3)}%` }} />
                     </div>

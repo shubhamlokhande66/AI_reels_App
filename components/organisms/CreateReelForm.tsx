@@ -618,7 +618,9 @@ export function CreateReelForm() {
       {stage === "song" && (
       <section className="space-y-3" aria-label="Song">
         <label className="f" htmlFor="project-name">
-          Name your Reel <span className="font-normal">(optional, you can change it later)</span>
+          <span>
+            Name your Reel <span className="font-normal">(optional, you can change it later)</span>
+          </span>
           <input
             id="project-name"
             value={name}

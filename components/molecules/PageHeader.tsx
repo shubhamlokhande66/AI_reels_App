@@ -6,14 +6,14 @@ import { TopAction } from "@/components/templates/TopBar";
  * the action moves to the top bar's corner; on a computer the serif title, the line and the action sit together. */
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return (
-    <div className="mb-3 md:mb-6">
+    <div className="md:mb-3">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="h1 hidden md:block">{title}</h1>
           {subtitle && <p className="sub !mt-0 md:!mt-1">{subtitle}</p>}
         </div>
         {action && (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2 empty:hidden">
             <TopAction>{action}</TopAction>
           </div>
         )}

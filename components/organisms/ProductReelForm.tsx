@@ -254,7 +254,9 @@ export function ProductReelForm() {
           <input aria-label="Call to action" className="inp" value={cta} maxLength={80} disabled={busy} onChange={(e) => setCta(e.target.value)} placeholder="Shop now" />
         </label>
         <label className="f">
-          Name your Reel <span className="font-normal">(optional)</span>
+          <span>
+            Name your Reel <span className="font-normal">(optional)</span>
+          </span>
           <input id="product-name" className="inp" value={name} maxLength={120} disabled={busy} onChange={(e) => setName(e.target.value)} placeholder="e.g. Solitaire ring launch" />
         </label>
         <Toggle label="AI director plans every shot" on={aiDirector} disabled={busy} onChange={setAiDirector} />

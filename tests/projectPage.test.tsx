@@ -48,7 +48,7 @@ describe("Project page — cancelling a running job", () => {
     api.cancelJob.mockResolvedValue({ ...job, status: "processing" });
     renderPage();
 
-    expect(await screen.findByText("Creating your Reel…")).toBeInTheDocument();
+    expect(await screen.findByText("Making your Reel…")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(api.cancelJob).toHaveBeenCalledWith("p1", "j1"));
   });
@@ -66,7 +66,7 @@ describe("Project page — cancelling a running job", () => {
     api.getProject.mockResolvedValue({ ...project, status: "draft", latestJob: null });
     renderPage();
 
-    await waitFor(() => expect(screen.queryByText("Creating your Reel…")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText("Making your Reel…")).not.toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Cancel/ })).not.toBeInTheDocument();
   });
 });

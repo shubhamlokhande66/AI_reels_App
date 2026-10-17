@@ -60,7 +60,7 @@ async function toClipsWithoutMusic() {
 /** Adds clips; the check runs by itself and, when it passes, the form moves on to style and generate. */
 async function addClipsAndPass(files: File[]) {
   addFiles(VIDEO_INPUT, files);
-  await screen.findByRole("button", { name: /Generate Reel/ });
+  await screen.findByRole("button", { name: "Create Reel" });
 }
 
 beforeEach(() => {
@@ -86,16 +86,16 @@ beforeEach(() => {
 describe("CreateReelForm", { timeout: 30_000 }, () => {
   it("starts with the music, and opens the phone's music and video files", async () => {
     renderForm();
-    expect(screen.getByText(/1 · Music/)).toBeInTheDocument();
+    expect(screen.getByText(/Start with the song/)).toBeInTheDocument();
     expect(document.querySelector(AUDIO_INPUT)?.getAttribute("accept")).toContain("audio/*");
-    expect(screen.queryByRole("button", { name: /Generate Reel/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create Reel" })).toBeDisabled();
     await toClipsWithoutMusic();
     expect(document.querySelector(VIDEO_INPUT)?.getAttribute("accept")).toContain("video/*");
   });
 
   it("uploads and checks the clips as soon as they are added, then generates the Reel with the clips' own sound", async () => {
     renderForm();
-    await userEvent.type(screen.getByLabelText(/Project name/), "  My reel ");
+    await userEvent.type(screen.getByLabelText(/Name your Reel/), "  My reel ");
     await toClipsWithoutMusic();
     await addClipsAndPass([video("a.mp4"), video("b.mov")]);
 
@@ -104,7 +104,7 @@ describe("CreateReelForm", { timeout: 30_000 }, () => {
     expect(api.uploadVideos.mock.calls[0][1].map((f: File) => f.name)).toEqual(["a.mp4", "b.mov"]); // in the order picked
     expect(api.analyze).toHaveBeenCalledWith("p1");
 
-    await userEvent.click(screen.getByRole("button", { name: /Generate Reel/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create Reel" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
     const settings = api.updateProject.mock.calls.at(-1)![1];
     expect(settings).toMatchObject({ name: "My reel", duration: 15, audioMode: "original", platform: "instagram", exportPreset: "instagram_reel" });
@@ -126,7 +126,7 @@ describe("CreateReelForm", { timeout: 30_000 }, () => {
     expect(screen.getByRole("radiogroup", { name: "Where should cuts land?" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Next: your clips" }));
     await addClipsAndPass([video("a.mp4")]);
-    await userEvent.click(screen.getByRole("button", { name: /Generate Reel/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create Reel" }));
 
     await waitFor(() => expect(api.generate).toHaveBeenCalledWith("p1"));
     expect(api.updateProject.mock.calls.at(-1)![1]).toMatchObject({ audioMode: "music", audioStart: 42, beatPlan: true, cutEveryBeat: false });
@@ -140,12 +140,12 @@ describe("CreateReelForm", { timeout: 30_000 }, () => {
     addFiles(VIDEO_INPUT, [video("good.mp4"), video("dark.mp4")]);
     await userEvent.click(await screen.findByRole("button", { name: "Review" })); // the check's popup, then the result under it
     const panel = await screen.findByRole("list", { name: "Checked clips" });
-    expect(screen.queryByRole("button", { name: /Generate Reel/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create Reel" })).toBeDisabled();
 
     api.getProject.mockResolvedValue(projectWith(clip("good", 30)));
     await userEvent.click(within(panel).getByRole("button", { name: "Remove" }));
     expect(api.deleteVideo).toHaveBeenCalledWith("p1", "dark");
-    await screen.findByRole("button", { name: /Generate Reel/ });
+    await screen.findByRole("button", { name: "Create Reel" });
   });
 
   it("says how much footage is missing when the clips are too short for the Reel", async () => {
@@ -154,7 +154,7 @@ describe("CreateReelForm", { timeout: 30_000 }, () => {
     await toClipsWithoutMusic();
     addFiles(VIDEO_INPUT, [video("short.mp4")]);
     expect(await screen.findByText(/more good footage is needed/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Generate Reel/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create Reel" })).toBeDisabled();
   });
 
   it("shows why the check stopped, and Retry carries on without a second project", async () => {
@@ -165,7 +165,7 @@ describe("CreateReelForm", { timeout: 30_000 }, () => {
     expect((await screen.findAllByText("The server did not answer in time.")).length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole("button", { name: /Retry|Try again/ }));
-    await screen.findByRole("button", { name: /Generate Reel/ });
+    await screen.findByRole("button", { name: "Create Reel" });
     expect(api.createProject).toHaveBeenCalledTimes(1);
   });
 
@@ -195,7 +195,7 @@ describe("CreateReelForm", { timeout: 30_000 }, () => {
     await userEvent.click(screen.getByText(/More options/));
     await userEvent.click(screen.getByRole("switch", { name: /Captions/ }));
     await userEvent.click(within(screen.getByRole("radiogroup", { name: "Caption style" })).getByRole("radio", { name: "bold" }));
-    await userEvent.click(screen.getByRole("button", { name: /Generate Reel/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create Reel" }));
 
     await waitFor(() => expect(api.generate).toHaveBeenCalled());
     expect(api.updateProject.mock.calls.at(-1)![1]).toMatchObject({ concept: "cinematic", brief: "Start with the best shot.", captions: true, captionStyle: "bold" });
@@ -223,10 +223,10 @@ describe("CreateReelForm", { timeout: 30_000 }, () => {
     renderForm();
     await toClipsWithoutMusic();
     await addClipsAndPass([video("a.mp4")]);
-    await userEvent.click(screen.getByRole("button", { name: /Generate Reel/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create Reel" }));
     expect(await screen.findByText("The project is being processed.")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /Generate Reel/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create Reel" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
     expect(api.createProject).toHaveBeenCalledTimes(1);
     expect(api.uploadVideos).toHaveBeenCalledTimes(1);

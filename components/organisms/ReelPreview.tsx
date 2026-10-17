@@ -86,6 +86,9 @@ export function ReelPreview({ rendering, currentStyle, currentDuration, versionC
           Post it
         </button>
       </div>
+      <p className="mu xs text-center">
+        MP4 · <span>{`${rendering.width}×${rendering.height}`}</span> · <span>{formatBytes(rendering.size)}</span>
+      </p>
       {songStart != null && (
         <p className="mu xs text-center">
           Adding a trending sound in Instagram? Download with no music and start the song at {formatDuration(songStart)}: the cuts stay on the beat.
@@ -113,10 +116,13 @@ export function ReelPreview({ rendering, currentStyle, currentDuration, versionC
         <div className="between">
           <span className="h2">Make another version</span>
           <span className="mu sm">
-            {styleLabel(rendering.style)} · {formatDuration(rendering.duration)}
+            {styleLabel(rendering.style)} · <span>{formatDuration(rendering.duration)}</span>
           </span>
         </div>
         <div className="chips w">
+          <button type="button" disabled={busy} className="chip" title="The same settings, new choices of shots" onClick={() => onGenerate({ seed: newSeed() })}>
+            Regenerate
+          </button>
           <button type="button" disabled={busy} className="chip" onClick={() => onGenerate({ seed: newSeed(), label: `Version ${versionCount + 1}` })}>
             New version
           </button>

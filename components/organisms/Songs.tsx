@@ -165,7 +165,7 @@ function MySongs() {
             </span>
             {asking === s.id ? (
               <span className="flex shrink-0 gap-1.5">
-                <button type="button" className="btn sm danger fill" onClick={() => { del.mutate(s.id); setAsking(null); }}>Delete</button>
+                <button type="button" className="btn sm danger fill" onClick={() => { del.mutate(s.id); setAsking(null); }}>Yes, delete</button>
                 <button type="button" className="btn sm" onClick={() => setAsking(null)}>Keep</button>
               </span>
             ) : (
@@ -184,7 +184,9 @@ function MySongs() {
         onDrop={(e) => { e.preventDefault(); setOver(false); addFiles(Array.from(e.dataTransfer.files)); }}
       >
         <span className="mu sm">{pct !== null ? `Uploading… ${Math.round(pct * 100)}%` : "Drop MP3, M4A or WAV files here"}</span>
-        {list.data && !list.data.folders.length && <span className="mu xs">Every song you use in a Reel is kept here too.</span>}
+        <span className="mu xs">
+          {list.data?.folders.length ? `New songs in ${list.data.folders.join(", ")} are added automatically. ` : ""}Every song you use in a Reel is kept here too.
+        </span>
       </div>
     </div>
   );

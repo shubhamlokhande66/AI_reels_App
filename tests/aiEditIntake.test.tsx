@@ -29,7 +29,7 @@ const video = (n: string) => new File(["v"], n, { type: "video/mp4" });
 const song = () => new File(["a"], "song.mp3", { type: "audio/mpeg" });
 const VIDEO_INPUT = "input[accept*='.mp4']";
 const AUDIO_INPUT = "input[accept*='.mp3']";
-const SUBMIT = "Create and edit with AI";
+const SUBMIT = "Run AI Edit";
 
 beforeEach(() => {
   vi.clearAllMocks();

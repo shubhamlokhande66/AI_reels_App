@@ -72,7 +72,7 @@ export default function VoicesPage() {
   const startNew = () => setEditing({ id: null, data: EMPTY, pron: "" });
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
-      <PageHeader title="Voice profiles" subtitle="How your voice-overs sound. Runs offline on this computer." action={(profiles.data?.length ?? 0) > 0 ? <button type="button" className="btn g sm" onClick={startNew}>+ New profile</button> : undefined} />
+      <PageHeader title="Voice profiles" subtitle="How your voice-overs sound. Runs offline on this computer." action={(profiles.data?.length ?? 0) > 0 ? <button type="button" className="btn g sm" onClick={startNew}>+ New voice profile</button> : undefined} />
 
       {system.isLoading && <Spinner />}
       {system.data && (
@@ -97,7 +97,7 @@ export default function VoicesPage() {
             <div className="chips w" aria-label="Language coverage">
               {LANGUAGES.map((l) => (
                 <span key={l.id} className={`badge ${coverage[l.id] ? "b-ok" : "b-run"}`}>
-                  {l.label}: {coverage[l.id] ? "ready" : "no voice yet"}
+                  {l.label}: {coverage[l.id] ? "voice available" : "no voice installed"}
                 </span>
               ))}
             </div>

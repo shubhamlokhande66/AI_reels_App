@@ -40,7 +40,7 @@ function CardDelete({ project }: { project: ProjectSummary }) {
           onClick={() => del.mutate(project.id, { onSuccess: () => qc.invalidateQueries({ queryKey: ["dashboard"] }) })}
           className="btn sm danger fill flex-1"
         >
-          {del.isPending ? "Deleting…" : "Delete"}
+          {del.isPending ? "Deleting…" : "Yes, delete"}
         </button>
         <button type="button" disabled={del.isPending} onClick={() => setAsking(false)} className="btn sm flex-1">
           Keep
