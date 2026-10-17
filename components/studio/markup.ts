@@ -67,7 +67,7 @@ export const STUDIO_HTML = `
 
   <div class="homerow">
     <div class="projects" id="projects" hidden>
-      <div class="hrow"><h2>Continue editing</h2></div>
+      <div class="hrow"><h2>Continue editing</h2><a href="/projects">All projects</a></div>
       <div class="plist" id="plist"></div>
     </div>
     <aside class="stylelib" id="stylelib" hidden>
