@@ -1,5 +1,6 @@
 "use client";
 
+import { ALL_ON, type Features } from "@/lib/features-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { GenerateOptions, Job, Project, ProjectStatus, TimelineState } from "@/types/api";
@@ -148,4 +149,10 @@ export function useQueue() {
     refetchInterval: (q) => (q.state.data?.some((j) => j.position !== null) ? 1500 : 8000),
     refetchIntervalInBackground: true,
   });
+}
+
+/** Which parts of the app are on; everything counts as on until the answer arrives (nothing flickers away for most people). */
+export function useFeatures(): Features {
+  const q = useQuery({ queryKey: ["features"], queryFn: api.features, staleTime: 60_000, retry: false });
+  return q.data ?? ALL_ON;
 }

@@ -6,7 +6,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, Icon, LinkButton, photoClass, Spinner, Thumb } from "@/components/atoms";
 import { EmptyState, ErrorBanner } from "@/components/molecules";
-import { useMe, useProjects, useQueue } from "@/hooks/useApi";
+import { useFeatures, useMe, useProjects, useQueue } from "@/hooks/useApi";
+import { linkOn } from "@/lib/features-list";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { styleLabel } from "@/lib/format";
 import type { InsightGroup } from "@/types/api";
@@ -41,6 +42,7 @@ function stageText(stage: string | undefined, progress: number): string {
 export default function Dashboard() {
   const router = useRouter();
   const me = useMe();
+  const features = useFeatures();
   const projects = useProjects();
   const queue = useQueue();
   const stats = useQuery({ queryKey: ["dashboard"], queryFn: api.dashboard });
@@ -103,7 +105,7 @@ export default function Dashboard() {
 
       <h2 className="ht">Create something new</h2>
       <section aria-label="Create something new" className="g2 md:!grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:!gap-[14px]">
-        {MAKE.map((m) => {
+        {MAKE.filter((m) => linkOn(m.href, features) && (m.href !== "/projects/new" || features.aiReel)).map((m) => {
           const inner = (
             <>
               <span className={`it ${m.tile}`}>

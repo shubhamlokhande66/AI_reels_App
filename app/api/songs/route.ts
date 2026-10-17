@@ -1,3 +1,4 @@
+import { requireFeature } from "@/server/core/features";
 import fs from "node:fs";
 import { route } from "@/server/core/http";
 import { extOf, sanitizeFilename } from "@/server/media/service";
@@ -13,6 +14,7 @@ export const GET = route(async (req) => {
 
 /** Songs added to the library (up to 20 at once), each reported on its own. */
 export const POST = route(async (req) => {
+  await requireFeature(req, "songs");
   const up = await readUpload(req, 1024 * 1024 * 1024, 20);
   const out = [], failed = [];
   try {

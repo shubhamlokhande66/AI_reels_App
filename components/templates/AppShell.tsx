@@ -9,8 +9,10 @@ import { pageTheme } from "@/lib/theme";
 import { Icon } from "@/components/atoms/Icon";
 import { GlobalActivity } from "@/components/molecules/GlobalActivity";
 import { LegalFooter } from "@/components/molecules/Legal";
+import { EmptyState } from "@/components/molecules/EmptyState";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
-import { useAdmin, useCredits, useMe } from "@/hooks/useApi";
+import { useAdmin, useCredits, useFeatures, useMe } from "@/hooks/useApi";
+import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
 
 // The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
 // a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. The admin section (settings, diagnostics,
@@ -301,6 +303,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // an admin page opened by address in user mode: say so instead of showing it (the server guards its data too)
   const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => i.href !== "/admin" && isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
+  // a part of the app the administrator turned off: hidden from the menus; its page says so (the admin still sees it)
+  const features = useFeatures();
+  const offKey = pageFeature(pathname, features);
+  const off = offKey && !features[offKey] ? FEATURE_LIST.find((f) => f.key === offKey)! : null;
   if (pathname.startsWith("/editor/") && !signedOut) {
     // the Pro editor is a full-screen workspace (like CapCut): no sidebar or bottom bar
     return (
@@ -320,7 +326,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const groups = GROUPS.filter((g) => !g.admin || admin);
+  const groups = GROUPS.filter((g) => !g.admin || admin).map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features)) }));
   const signOut = me.data?.user
     ? async () => {
         await api.logout();
@@ -405,7 +411,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* phones: the bottom tab bar (Home, Projects, Editor) */}
       {meta.tabs && (
         <nav aria-label="Quick" className="tabbar fixed inset-x-0 bottom-0 z-40 md:hidden">
-          {TABS.map((t) => {
+          {TABS.filter((t) => linkOn(t.href, features)).map((t) => {
             const active = isActive(pathname, t.href);
             return (
               <Link key={t.href} href={t.href} aria-label={t.primary ? t.label : undefined} aria-current={active ? "page" : undefined} className={active && !t.primary ? "on" : ""}>
@@ -481,8 +487,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               </div>
             </div>
+          ) : off && !admin ? (
+            <div className="mx-auto mt-6 max-w-md">
+              <EmptyState
+                icon="lock"
+                title={`${off.label} is turned off`}
+                hint="The studio's administrator has switched this part of the app off. Everything else works as usual."
+                action={
+                  <Link href="/" className="btn g">
+                    Back to Home
+                  </Link>
+                }
+              />
+            </div>
           ) : (
-            children
+            <>
+              {off && (
+                <p role="status" className="card sm mb-3" style={{ color: "var(--warning)" }}>
+                  {off.label} is turned off for everyone else. You see it because you are the administrator.
+                </p>
+              )}
+              {children}
+            </>
           )}
           <LegalFooter className="mt-12 border-t border-border pt-5" />
         </div>

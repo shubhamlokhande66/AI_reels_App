@@ -1,3 +1,4 @@
+import type { Features } from "@/lib/features-list";
 import { tracked } from "./activity";
 import { adminHeaders } from "./admin";
 import type {
@@ -407,6 +408,9 @@ export const api = {
   renderStory: (id: string, body: { voiceId: string | null; quality: "preview" | "final" }) =>
     request<Job>(`/api/projects/${id}/story/render`, { method: "POST", body: JSON.stringify(body) }),
   retention: () => request<Retention>("/api/retention"),
+  /** Which parts of the app are on (Administration → Features). */
+  features: () => request<Features>("/api/features"),
+  setFeatures: (patch: Partial<Features>) => request<Features>("/api/admin/features", { method: "PUT", body: JSON.stringify(patch) }),
   setRetention: (body: Retention) => request<Retention>("/api/admin/retention", { method: "PUT", body: JSON.stringify(body) }),
   runRetention: () => request<{ uploads: number; projects: number }>("/api/admin/retention/run", { method: "POST" }),
   connections: () => request<Connections>("/api/publish/connections"),

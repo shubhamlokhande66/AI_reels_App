@@ -9,6 +9,7 @@ import Link from "next/link";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { RetentionSettings } from "@/components/organisms/RetentionSettings";
 import { PricingSettings } from "@/components/organisms/PricingSettings";
+import { FeatureSettings } from "@/components/organisms/FeatureSettings";
 
 /** Unlock (or leave) admin mode in this browser with the server's ADMIN_KEY. */
 export default function AdminPage() {
@@ -71,6 +72,7 @@ export default function AdminPage() {
       </section>
       {admin && (
         <>
+          <FeatureSettings />
           <PricingSettings />
           <RetentionSettings />
           <div className="row sm justify-center" style={{ gap: 16 }}>

@@ -34,7 +34,7 @@ import { Icon, Spinner, StatusBadge, Thumb } from "@/components/atoms";
 import { EmptyState, ErrorBanner } from "@/components/molecules";
 import { MoreMenu, type MoreItem } from "@/components/molecules/MoreMenu";
 import { TopAction, useTopTitle } from "@/components/templates/TopBar";
-import { useAdmin, useCancelJob, useDeleteProject, useGenerate, useProject, useRenderings, useTimelineActions } from "@/hooks/useApi";
+import { useFeatures, useAdmin, useCancelJob, useDeleteProject, useGenerate, useProject, useRenderings, useTimelineActions } from "@/hooks/useApi";
 import { formatDuration, styleLabel } from "@/lib/format";
 import type { ClipSummary, GenerateOptions } from "@/types/api";
 
@@ -49,6 +49,7 @@ export default function ProjectPage() {
   const renderings = useRenderings(id, project?.status === "completed");
   const { restore } = useTimelineActions(id);
   const { admin } = useAdmin();
+  const features = useFeatures();
   const lastOpts = useRef<GenerateOptions>({}); // what the Retry button repeats after a failed start // the technical internals (plan tables, safety log, diagnostics) are for the administrator
   // not enough footage for the Reel length: asked before anything is generated (add clips, or shorten)
   const [gateFor, setGateFor] = useState<{ check: FootageCheck; opts?: GenerateOptions; run?: () => void } | null>(null);
@@ -108,7 +109,7 @@ export default function ProjectPage() {
   const ig = project.reelPlan?.instagram;
   const igFixes = ig ? ig.checks.filter((c) => (c.status === "fail" || c.status === "warn") && c.tip) : [];
   const more: MoreItem[] = [
-    { label: "Open in the editor", icon: "scissors", href: `/editor/${id}` },
+    ...(features.editor ? [{ label: "Open in the editor", icon: "scissors", href: `/editor/${id}` }] : []),
     ...(project.timeline ? [{ label: "Captions, voice and brand", icon: "captions", href: `/projects/${id}/edit` }] : []),
     ...(admin && project.timeline ? [{ label: "Beat sync check", icon: "wave", href: `/projects/${id}/beats` }] : []),
     { label: "Delete this project", icon: "trash", danger: true, disabled: busy || del.isPending, onClick: deleteProject },
@@ -125,9 +126,11 @@ export default function ProjectPage() {
         </div>
         <div className="row">
           <StatusBadge status={project.status} />
-          <Link href={`/editor/${id}`} className="btn">
-            Open in the editor
-          </Link>
+          {features.editor && (
+            <Link href={`/editor/${id}`} className="btn">
+              Open in the editor
+            </Link>
+          )}
           <MoreMenu items={more} />
         </div>
       </div>
@@ -330,14 +333,14 @@ export default function ProjectPage() {
       {tab === "tools" && (
         <>
           <section className="card" style={{ padding: "4px 12px", gap: 0 }} aria-label="Edit by hand">
-            <Link href={`/editor/${id}`} className="li">
+            {features.editor && <Link href={`/editor/${id}`} className="li">
               <span className="it b4 s">
                 <Icon name="scissors" size={16} />
               </span>
               <b>Open in the editor</b>
               <span className="mu sm">Cut by hand</span>
               <Icon name="chevron" size={18} />
-            </Link>
+            </Link>}
             {project.timeline && (
               <Link href={`/projects/${id}/edit`} className="li">
                 <span className="it b1 s">
