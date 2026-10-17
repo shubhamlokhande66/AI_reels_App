@@ -45,7 +45,7 @@ export async function pay(item: string): Promise<PayResult> {
       amount: order.amount,
       currency: order.currency,
       order_id: order.orderId,
-      name: "Reel Maison",
+      name: "Shubix",
       description: order.label,
       prefill: order.email ? { email: order.email } : undefined,
       theme: { color: "#C9A46A" },

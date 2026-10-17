@@ -106,7 +106,7 @@ describe("Brands page", () => {
     api.createBrand.mockResolvedValue({ id: "b1" });
     wrap(<BrandsPage />);
     await userEvent.click(await screen.findByRole("button", { name: /New brand|Create brand/ }));
-    await userEvent.type(screen.getByPlaceholderText("e.g. Reel Maison"), "NAMORA");
+    await userEvent.type(screen.getByPlaceholderText("e.g. Shubix"), "NAMORA");
     await userEvent.type(screen.getByPlaceholderText("Shop the collection"), "Shop now");
     await userEvent.click(screen.getByRole("button", { name: "Save brand" }));
     await waitFor(() => expect(api.createBrand).toHaveBeenCalled());

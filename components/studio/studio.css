@@ -484,7 +484,7 @@
 /* ?view=all: every panel open, the strip shown (for checks and support) */
 .brs.made.v-all .strip{display:grid}
 
-/* ================= Inside the app (design: the Reel Maison pages) ==========   Fast Studio is a page of the app like the others: the app's sidebar, top bar, menu and footer around it, the
+/* ================= Inside the app (design: the Shubix pages) ==========   Fast Studio is a page of the app like the others: the app's sidebar, top bar, menu and footer around it, the
    Ivory page look, gold buttons, numbered gold steps, cards with the app's corners and shadow. */
 .brs{min-height:0;background:transparent;--ink-btn:var(--gold-gradient);--ink-btn-fg:#1a140c;--chipbg:var(--chip-on)}
 :root[data-theme="light"] .brs{--ink-btn:var(--gold-gradient);--ink-btn-fg:#1a140c}

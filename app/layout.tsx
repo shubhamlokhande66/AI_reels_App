@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "AI Reel Maker",
+  title: "Shubix",
   description: "Turn raw clips and a song into a beat-synced 9:16 Reel.",
 };
 

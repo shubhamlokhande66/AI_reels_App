@@ -1250,6 +1250,8 @@ function setKind(k){
   else if(song){ useSection(); } else { edit = []; renderEDL(); drawFrame(0); }
 }
 $('kind').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setKind(b.dataset.k); }, SIG);
+// /studio?kind=talk (or music): Home's "Talking Reel" / "Music Reel" open the studio on that kind
+{ const k0 = new URLSearchParams(location.search).get('kind'); if(k0 === 'talk' || k0 === 'music') setKind(k0); }
 function setDenoise(on){ denoiseOn = on; $('dn1').checked = on; $('dn2').checked = on; capAll = null; if(kind === 'talk'){ if(sources.length) buildTalk(); } else if(vo){ applyVo(); afterVo(); } }
 $('dn1').addEventListener('change', e => setDenoise(e.target.checked), SIG); $('dn2').addEventListener('change', e => setDenoise(e.target.checked), SIG);
 $('tpace').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; talkPace = b.dataset.p;

@@ -128,7 +128,7 @@ export default function BrandsPage() {
           <span className="h2">{editing.id ? "Brand details" : "New brand"}</span>
           <label className="f">
             Brand name
-            <input required maxLength={80} className="inp" value={editing.data.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Reel Maison" />
+            <input required maxLength={80} className="inp" value={editing.data.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Shubix" />
           </label>
           <div className="between">
             <span className="f">Colours</span>

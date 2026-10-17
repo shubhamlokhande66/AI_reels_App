@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 /** Install on a phone's home screen: opens full screen like an app. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Reel Maison · AI Reel Studio",
-    short_name: "Reel Maison",
+    name: "Shubix · AI Reel Studio",
+    short_name: "Shubix",
     description: "Give it your clips and a song; the AI creative director makes the Reel.",
     start_url: "/",
     display: "standalone",

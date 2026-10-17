@@ -80,7 +80,7 @@ export const settings = {
   adminKey: env("ADMIN_KEY", ""),
   authEnabled: bool("AUTH_ENABLED", false),
   billingEnabled: bool("BILLING_ENABLED", false),
-  businessName: env("BUSINESS_NAME", "Reel Maison"),
+  businessName: env("BUSINESS_NAME", "Shubix"),
   supportEmail: env("SUPPORT_EMAIL", ""),
   supportPhone: env("SUPPORT_PHONE", ""),
   businessAddress: env("BUSINESS_ADDRESS", ""),

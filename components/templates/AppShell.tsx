@@ -76,8 +76,9 @@ type Meta = { title: string; back?: string; left?: boolean; credits?: boolean; t
 /** What the phone top bar shows on each page (the designs). */
 function pageMeta(p: string): Meta {
   const fixed: Record<string, Meta> = {
-    "/": { title: "Reel Maison", credits: true, tabs: true },
+    "/": { title: "Shubix", credits: true, tabs: true },
     "/projects": { title: "My Projects", credits: true, tabs: true },
+    "/reels": { title: "My Reels", credits: true, tabs: true },
     "/projects/new": { title: "Create a new Reel", back: "/", credits: true },
     "/story/new": { title: "Story → Reel", back: "/", credits: true },
     "/editor": { title: "Editor", credits: true, tabs: true },
@@ -103,7 +104,7 @@ function pageMeta(p: string): Meta {
   if (fixed[p]) return fixed[p];
   const m = p.match(/^\/projects\/([^/]+)(\/(edit|beats))?$/);
   if (m) return { title: m[3] === "edit" ? "Edit" : "Project", back: m[2] ? `/projects/${m[1]}` : "/projects", left: true };
-  return { title: "Reel Maison" };
+  return { title: "Shubix" };
 }
 
 /** The signed-in user's credits (billing on): tap to see plans and top up. */
@@ -198,7 +199,7 @@ function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: 
       >
         <div className="top" style={{ gridTemplateColumns: "1fr 44px" }}>
           <span className="t l" style={{ fontSize: 22 }}>
-            Reel Maison
+            Shubix
           </span>
           <button type="button" className="ib plain" aria-label="Close menu" onClick={onClose}>
             <Icon name="close" />
@@ -333,7 +334,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const groups = GROUPS.filter((g) => !g.admin || admin).map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features)) }));
+  const groups = GROUPS.filter((g) => !g.admin || admin)
+    .map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features)) }))
+    .filter((g) => g.items.length); // a heading whose parts are all off is not shown
+  const newReel = linkOn("/projects/new", features) ? "/projects/new" : "/studio"; // Fast Studio when Create Reel is off
   const signOut = me.data?.user
     ? async () => {
         await api.logout();
@@ -387,12 +391,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* computers: the Noir sidebar */}
       <aside className="noir hidden border-r border-border bg-[linear-gradient(180deg,#14110e,#0d0b09)] md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px]">
         <Link href="/" className="flex flex-col">
-          <b className="font-display text-2xl font-semibold">Reel Maison</b>
+          <b className="font-display text-2xl font-semibold">Shubix</b>
           <span className="mu xs uppercase tracking-[.26em]">AI creative studio</span>
         </Link>
-        <Link href="/projects/new" className="btn g">
-          + New Reel
-        </Link>
+        {newReel === "/studio" ? (
+          <a href="/studio" className="btn g">
+            + New Reel
+          </a>
+        ) : (
+          <Link href="/projects/new" className="btn g">
+            + New Reel
+          </Link>
+        )}
         <nav aria-label="Main" className="flex flex-col">
           <NavGroups groups={groups} pathname={pathname} />
         </nav>

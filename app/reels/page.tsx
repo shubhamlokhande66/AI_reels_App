@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { clock, useDrafts } from "@/lib/drafts";
 import { Icon, Spinner } from "@/components/atoms";
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { cloudReelUrl, deleteCloudReel, listCloudReels, shareCloudReel, type CloudReel, type CloudUsage } from "@/lib/cloudReels";
@@ -12,45 +13,6 @@ import { cloudReelUrl, deleteCloudReel, listCloudReels, shareCloudReel, type Clo
  * download, share a link, delete). Only the Saved ones are on the server.
  */
 
-type Draft = { id: string; name: string; kind?: string; dur?: number; updated: number; thumb?: string };
-
-/** Fast Studio's drafts (IndexedDB "brs-projects", components/studio/engine.ts), newest first; read only here. */
-function useDrafts(): Draft[] | null {
-  const [drafts, setDrafts] = useState<Draft[] | null>(null);
-  useEffect(() => {
-    let live = true;
-    const done = (d: Draft[]) => live && setDrafts(d);
-    try {
-      const req = indexedDB.open("brs-projects");
-      req.onupgradeneeded = () => req.transaction?.abort(); // nothing saved yet: the studio creates its store itself
-      req.onerror = () => done([]);
-      req.onsuccess = () => {
-        const dbx = req.result;
-        if (!dbx.objectStoreNames.contains("meta")) {
-          dbx.close();
-          return done([]);
-        }
-        const all = dbx.transaction("meta", "readonly").objectStore("meta").getAll();
-        all.onsuccess = () => {
-          done(((all.result as Draft[]) ?? []).sort((a, b) => b.updated - a.updated));
-          dbx.close();
-        };
-        all.onerror = () => {
-          done([]);
-          dbx.close();
-        };
-      };
-    } catch {
-      done([]);
-    }
-    return () => {
-      live = false;
-    };
-  }, []);
-  return drafts;
-}
-
-const clock = (s = 0) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 const mb = (b: number) => (b < 1e7 ? (b / 1e6).toFixed(1) : String(Math.round(b / 1e6))) + " MB";
 const quality = (r: CloudReel) => (Math.min(r.width, r.height) >= 2000 ? "4K" : Math.min(r.width, r.height) >= 1000 ? "1080p" : "720p") + (r.fps > 30 ? ` · ${r.fps} fps` : "");
 

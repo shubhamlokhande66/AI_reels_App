@@ -10,7 +10,7 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
         Back to sign in
       </Link>
       <div className="brand">
-        <b>Reel Maison</b>
+        <b>Shubix</b>
         <span>AI creative studio</span>
       </div>
       {children}
