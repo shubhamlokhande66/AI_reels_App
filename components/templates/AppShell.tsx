@@ -5,53 +5,56 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { ThemeToggle } from "@/components/atoms/ThemeToggle";
+import { pageTheme } from "@/lib/theme";
+import { Icon } from "@/components/atoms/Icon";
 import { GlobalActivity } from "@/components/molecules/GlobalActivity";
 import { LegalFooter } from "@/components/molecules/Legal";
+import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useMe } from "@/hooks/useApi";
 
-// What every user sees: the product. The admin section (settings, diagnostics, experimental tools) appears only in
-// admin mode (lib/admin.ts); the server enforces it for the settings API too.
+// The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
+// a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. The admin section (settings, diagnostics,
+// experimental tools) appears only in admin mode (lib/admin.ts); the server enforces it for the settings API too.
 export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
   {
     title: "Studio",
     items: [
-      { href: "/", label: "Dashboard", icon: "◇" },
-      { href: "/projects/new", label: "Create Reel", icon: "✦" },
+      { href: "/", label: "Home", icon: "home" },
+      { href: "/projects/new", label: "Create Reel", icon: "plus" },
       // a full page load: the studio is cross-origin isolated (next.config.ts) so its AI beat tracker can use several cores
-      { href: "/studio", label: "Fast Studio", icon: "⚡", fullLoad: true },
-      { href: "/story/new", label: "Story → Reel", icon: "❦" },
-      { href: "/editor", label: "Editor", icon: "✂" },
-      { href: "/projects", label: "Projects", icon: "▤" },
+      { href: "/studio", label: "Fast Studio", icon: "bolt", fullLoad: true },
+      { href: "/story/new", label: "Story → Reel", icon: "book" },
+      { href: "/editor", label: "Editor", icon: "scissors" },
     ],
   },
   {
     title: "Library",
     items: [
-      { href: "/library", label: "Footage", icon: "▦" },
-      { href: "/songs", label: "Songs", icon: "♬" },
-      { href: "/templates", label: "Templates", icon: "◫" },
-      { href: "/brands", label: "Brands", icon: "◈" },
+      { href: "/projects", label: "Projects", icon: "projects" },
+      { href: "/library", label: "Footage", icon: "image" },
+      { href: "/songs", label: "Songs", icon: "music" },
+      { href: "/templates", label: "Templates", icon: "grid" },
+      { href: "/brands", label: "Brands", icon: "star" },
     ],
   },
   {
     title: "Account",
     items: [
-      { href: "/account", label: "My account", icon: "◉" },
-      { href: "/pricing", label: "Plans & pricing", icon: "₹" },
+      { href: "/account", label: "My account", icon: "user" },
+      { href: "/pricing", label: "Pricing & plans", icon: "coins" },
     ],
   },
   {
     title: "Admin",
     admin: true,
     items: [
-      { href: "/settings", label: "AI settings", icon: "⚙" },
-      { href: "/ai-edit/new", label: "AI Edit", icon: "❖" },
-      { href: "/beats/new", label: "Beat Sync check", icon: "♪" },
-      { href: "/chat", label: "Chat", icon: "◌" },
-      { href: "/voices", label: "Voices", icon: "♫" },
-      { href: "/trends", label: "My trends", icon: "↗" },
-      { href: "/admin", label: "Admin mode", icon: "⚿" },
+      { href: "/settings", label: "AI settings", icon: "gear" },
+      { href: "/ai-edit/new", label: "AI Edit", icon: "wand" },
+      { href: "/beats/new", label: "Beat Sync check", icon: "wave" },
+      { href: "/chat", label: "Chat", icon: "chat" },
+      { href: "/voices", label: "Voice profiles", icon: "mic" },
+      { href: "/trends", label: "My trends", icon: "trend" },
+      { href: "/admin", label: "Admin mode", icon: "key" },
     ],
   },
 ];
@@ -59,59 +62,64 @@ export const GROUPS: { title: string; admin?: boolean; items: { href: string; la
 const AUTH_PAGES = ["/login", "/forgot", "/reset"];
 const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact"];
 
-// phones: the bottom bar (everything else is in the drawer behind "More")
-const TABS: { href: string; label: string; icon: string; primary?: boolean }[] = [
-  { href: "/", label: "Home", icon: "◇" },
-  { href: "/projects", label: "Projects", icon: "▤" },
-  { href: "/projects/new", label: "Create", icon: "✦", primary: true },
-  { href: "/editor", label: "Editor", icon: "✂" },
-];
-
 export function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
   if (href === "/projects") return pathname === "/projects" || (pathname.startsWith("/projects/") && pathname !== "/projects/new");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function Brand({ compact = false }: { compact?: boolean }) {
-  return (
-    <Link href="/" className="group flex items-center gap-3">
-      <span
-        className={`lux-btn-gold grid place-items-center rounded-full font-display font-bold ${compact ? "h-9 w-9 text-base" : "h-10 w-10 text-lg"}`}
-      >
-        R
-      </span>
-      <span className="leading-tight">
-        <span className={`block font-display font-semibold tracking-wide ${compact ? "text-lg" : "text-xl"}`}>Reel Maison</span>
-        {!compact && <span className="block text-[10px] uppercase tracking-[0.28em] text-muted">AI creative studio</span>}
-      </span>
-    </Link>
-  );
+type Meta = { title: string; back?: string; left?: boolean; credits?: boolean; tabs?: boolean; admin?: boolean };
+
+/** What the phone top bar shows on each page (the designs). */
+function pageMeta(p: string): Meta {
+  const fixed: Record<string, Meta> = {
+    "/": { title: "Reel Maison", credits: true, tabs: true },
+    "/projects": { title: "My Projects", credits: true, tabs: true },
+    "/projects/new": { title: "Create a new Reel", back: "/", credits: true },
+    "/story/new": { title: "Story → Reel", back: "/", credits: true },
+    "/editor": { title: "Editor", credits: true, tabs: true },
+    "/library": { title: "Media Library" },
+    "/songs": { title: "My songs" },
+    "/templates": { title: "Templates" },
+    "/brands": { title: "My Brands" },
+    "/account": { title: "My account" },
+    "/pricing": { title: "Pricing & plans", credits: true },
+    "/terms": { title: "Legal", back: "/" },
+    "/privacy": { title: "Legal", back: "/" },
+    "/refunds": { title: "Legal", back: "/" },
+    "/contact": { title: "Contact us" },
+    "/settings": { title: "AI settings", admin: true },
+    "/ai-edit/new": { title: "AI Edit", admin: true },
+    "/beats/new": { title: "Beat Sync check", admin: true },
+    "/chat": { title: "Chat", admin: true },
+    "/voices": { title: "Voice profiles", admin: true },
+    "/trends": { title: "My trends", admin: true },
+    "/admin": { title: "Administration" },
+  };
+  if (fixed[p]) return fixed[p];
+  const m = p.match(/^\/projects\/([^/]+)(\/(edit|beats))?$/);
+  if (m) return { title: m[3] === "edit" ? "Edit" : "Project", back: m[2] ? `/projects/${m[1]}` : "/projects", left: true };
+  return { title: "Reel Maison" };
 }
 
 /** The signed-in user's credits (billing on): tap to see plans and top up. */
-function CreditPill({ balance }: { balance: number }) {
+function CreditPill({ balance, full = false }: { balance: number; full?: boolean }) {
   return (
-    <Link
-      href="/pricing"
-      title="Your credits: plans and top-ups"
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors hover:border-accent/70 ${
-        balance <= 2 ? "border-warning/60 text-warning" : "border-accent/40 text-accent"
-      }`}
-    >
-      <span aria-hidden>◆</span>
-      {balance}
-      <span className="sr-only"> credits</span>
+    <Link href="/pricing" title="Your credits: plans and top-ups" className={`cred ${balance <= 2 ? "low" : ""}`}>
+      <i aria-hidden />
+      {balance.toLocaleString("en-IN")}
+      <span className={full ? "" : "sr-only"}> credits</span>
     </Link>
   );
 }
 
+/** The sidebar's and the drawer's page list. */
 export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pathname: string; onNavigate?: () => void }) {
   return (
     <>
       {groups.map((g) => (
-        <div key={g.title} className="space-y-1">
-          <p className="px-3 pb-1 text-[10px] uppercase tracking-[0.26em] text-muted/70">{g.title}</p>
+        <div key={g.title} className="flex flex-col gap-0.5">
+          <span className="eb px-2.5 pb-1 pt-3 first:pt-1">{g.title}</span>
           {g.items.map((item) => {
             const active = isActive(pathname, item.href);
             const Tag = item.fullLoad ? "a" : Link;
@@ -121,16 +129,11 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
-                className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 ${
-                  active
-                    ? "bg-[linear-gradient(90deg,rgba(212,176,122,0.14),rgba(212,176,122,0.02))] text-foreground"
-                    : "text-muted hover:bg-accent/5 hover:text-foreground"
+                className={`flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-[13.5px] transition-colors ${
+                  active ? "bg-[rgba(212,176,122,.12)] font-bold text-foreground" : "text-muted hover:bg-[rgba(212,176,122,.06)] hover:text-foreground"
                 }`}
               >
-                {active && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-accent" />}
-                <span aria-hidden className={`w-4 text-center ${active ? "text-accent" : ""}`}>
-                  {item.icon}
-                </span>
+                <Icon name={item.icon} size={18} stroke={1.7} color={active ? "#d4b07a" : undefined} />
                 {item.label}
               </Tag>
             );
@@ -140,6 +143,107 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
     </>
   );
 }
+
+function Avatar({ email, size = 36 }: { email?: string; size?: number }) {
+  return (
+    <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.42 }} aria-hidden>
+      {(email?.[0] ?? "R").toUpperCase()}
+    </span>
+  );
+}
+
+/** Phones: the Noir drawer with every page (design: Menu). */
+function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: {
+  open: boolean;
+  onClose: () => void;
+  groups: typeof GROUPS;
+  pathname: string;
+  email?: string;
+  credits: { balance: number; planName: string } | null;
+  onSignOut?: () => void;
+}) {
+  // the design's list: the main pages first, then the admin section in admin mode
+  const main = groups.filter((g) => !g.admin).flatMap((g) => g.items).filter((i) => i.href !== "/story/new" && i.href !== "/pricing");
+  const admin = groups.find((g) => g.admin);
+  const link = (item: (typeof main)[number]) => {
+    const active = isActive(pathname, item.href);
+    const Tag = item.fullLoad ? "a" : Link;
+    return (
+      <Tag
+        key={item.href}
+        href={item.href}
+        onClick={onClose}
+        aria-current={active ? "page" : undefined}
+        className={`row min-h-[44px] rounded-xl px-2.5 ${active ? "bg-[rgba(212,176,122,.12)] font-bold" : ""}`}
+      >
+        <Icon name={item.icon} size={20} stroke={1.7} color={active ? "#d4b07a" : "#a69d90"} />
+        {item.label}
+      </Tag>
+    );
+  };
+  return (
+    <div className={`fixed inset-0 z-50 md:hidden ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
+      <div className={`absolute inset-0 bg-black/55 backdrop-blur-sm transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`} onClick={onClose} />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="Menu"
+        className={`noir absolute inset-y-0 left-0 flex w-[86%] max-w-[340px] flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="top" style={{ gridTemplateColumns: "1fr 44px" }}>
+          <span className="t l" style={{ fontSize: 22 }}>
+            Reel Maison
+          </span>
+          <button type="button" className="ib plain" aria-label="Close menu" onClick={onClose}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-4 pt-3">
+          {email && (
+            <div className="row px-1 pb-2.5 pt-1">
+              <Avatar email={email} />
+              <span className="mu sm truncate">{email}</span>
+            </div>
+          )}
+          <nav aria-label="Pages" className="flex flex-col">
+            {main.map(link)}
+          </nav>
+          {admin && (
+            <nav aria-label="Admin pages" className="flex flex-col">
+              <span className="eb px-2.5 pb-1 pt-3">Admin</span>
+              {admin.items.map(link)}
+            </nav>
+          )}
+          <div className="flex-1" />
+          {credits && (
+            <div className="between px-1 py-2.5">
+              <span onClick={onClose}>
+                <CreditPill balance={credits.balance} full />
+              </span>
+              <span className="mu sm">{credits.planName} plan</span>
+            </div>
+          )}
+          {onSignOut && (
+            <button type="button" onClick={onSignOut} className="row mu sm min-h-[44px] px-1 text-left">
+              <Icon name="signout" size={18} />
+              Sign out
+            </button>
+          )}
+          <div className="pb-[env(safe-area-inset-bottom)]" />
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+const TABS = [
+  { href: "/", label: "Home", icon: "home" },
+  { href: "/projects", label: "Projects", icon: "projects" },
+  { href: "/projects/new", label: "Create", icon: "plus", primary: true },
+  { href: "/editor", label: "Editor", icon: "scissors" },
+];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
@@ -151,18 +255,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const creditsQ = useCredits();
   const credits = creditsQ.data?.enabled ? creditsQ.data : null;
   const [needCredits, setNeedCredits] = useState<string | null>(null);
+  const customTitle = useCustomTitle();
+
+  // each page's look, as designed (Fast Studio keeps the one chosen in its own menu)
+  useEffect(() => {
+    if (pathname !== "/studio") document.documentElement.dataset.theme = pageTheme(pathname);
+  }, [pathname]);
+  const [navPath, setNavPath] = useState(pathname);
+  if (navPath !== pathname) {
+    // a new page: the menu closes
+    setNavPath(pathname);
+    setDrawer(false);
+  }
   useEffect(() => {
     const on = (e: Event) => {
-      setNeedCredits((e as CustomEvent<string>).detail || "You are out of credits.");
+      setNeedCredits((e as CustomEvent<string>).detail || "You've used all your credits.");
       void qc.invalidateQueries({ queryKey: ["credits"] });
     };
     window.addEventListener("credits:needed", on);
     return () => window.removeEventListener("credits:needed", on);
   }, [qc]);
   useEffect(() => {
-    if (!drawer) return;
+    if (!drawer && !needCredits) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDrawer(false);
+      if (e.key === "Escape") {
+        setDrawer(false);
+        setNeedCredits(null);
+      }
     };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden"; // the page behind the open drawer does not scroll
@@ -171,7 +290,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [drawer]);
+  }, [drawer, needCredits]);
   const authPage = AUTH_PAGES.includes(pathname); // sign in, forgot / reset password: shown on their own
   const publicPage = PUBLIC_PAGES.includes(pathname); // open to everyone, also before signing in
   const signedOut = !!me.data?.authEnabled && !me.data.user;
@@ -182,214 +301,189 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => i.href !== "/admin" && isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
   if ((pathname.startsWith("/editor/") || pathname === "/studio") && !signedOut) {
-    // the editor and Fast Studio are full-screen workspaces (like CapCut): no studio sidebar or bottom bar (Fast Studio
-    // has its own top bar and menu)
+    // the editor and Fast Studio are full-screen workspaces (like CapCut): no sidebar or bottom bar
     return (
-      <main className="min-h-screen">
+      <main className={`min-h-screen ${pathname === "/studio" ? "" : "rm"}`}>
         <GlobalActivity />
         {children}
       </main>
     );
   }
   if (authPage || (signedOut && !publicPage)) {
-    // the sign-in page stands alone, without the studio around it
+    // the sign-in pages stand alone, without the studio around them
     return (
-      <main className="min-h-screen px-4 py-10">
+      <main className="rm min-h-screen">
         <GlobalActivity />
-        <div className="mx-auto w-full max-w-6xl">{authPage ? children : null}</div>
+        {authPage ? children : null}
       </main>
     );
   }
 
   const groups = GROUPS.filter((g) => !g.admin || admin);
-  const signOut = async () => {
-    await api.logout();
-    await qc.invalidateQueries();
-    router.replace("/login");
-  };
-  const account = (
-    <>
-      {me.data?.user && (
-        <div className="mb-3 flex items-center justify-between gap-2 text-xs text-muted">
-          <span className="truncate" title={me.data.user.email}>
-            {me.data.user.email}
-          </span>
-          <button type="button" className="shrink-0 hover:text-accent" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
-      )}
-      <ThemeToggle className="mb-3 w-full justify-center" />
-    </>
-  );
+  const signOut = me.data?.user
+    ? async () => {
+        await api.logout();
+        await qc.invalidateQueries();
+        router.replace("/login");
+      }
+    : undefined;
+  const meta = pageMeta(pathname);
+  const title = customTitle ?? meta.title;
+  const back = meta.back;
 
   return (
-    <div className="min-h-screen md:flex">
+    <div className="rm min-h-screen md:flex">
       <GlobalActivity />
 
-      {/* phones: a top bar: the menu button on the left (the drawer opens from that side), the logo in the centre */}
-      <header className="lux-sidebar sticky top-0 z-30 grid grid-cols-[2.5rem_1fr_2.5rem] items-center border-b border-border px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] backdrop-blur-md md:hidden">
-        <button
-          type="button"
-          aria-label="Open menu"
-          aria-expanded={drawer}
-          onClick={() => setDrawer(true)}
-          className="grid h-10 w-10 place-items-center rounded-full border border-border text-lg transition-colors hover:border-accent/60 hover:text-accent"
-        >
-          ☰
-        </button>
-        <div className="flex justify-center">
-          <Brand compact />
-        </div>
-        <div className="flex justify-end">{credits ? <CreditPill balance={credits.balance} /> : <span aria-hidden />}</div>
+      {/* phones: the top bar */}
+      <header className="top sticky top-0 z-30 md:hidden">
+        {back ? (
+          <button
+            type="button"
+            className="ib plain"
+            aria-label="Back"
+            onClick={() => (window.history.length > 1 ? router.back() : router.push(back))}
+          >
+            <Icon name="back" />
+          </button>
+        ) : (
+          <button type="button" className="ib plain" aria-label="Open menu" aria-expanded={drawer} onClick={() => setDrawer(true)}>
+            <Icon name="menu" size={22} />
+          </button>
+        )}
+        <span className={`t ${meta.left ? "l" : ""}`}>{title}</span>
+        <span className="flex items-center justify-end gap-2 [&:has(#rm-top-action:not(:empty))>.dflt]:hidden">
+          <span id={TOP_SLOT} className="contents" />
+          <span className="dflt contents">
+            {meta.admin ? <span className="badge b-run">Admin</span> : meta.credits && credits ? <CreditPill balance={credits.balance} /> : null}
+          </span>
+        </span>
       </header>
 
-      {/* phones: the slide-out drawer with every page */}
-      <div className={`fixed inset-0 z-50 md:hidden ${drawer ? "" : "pointer-events-none"}`} aria-hidden={!drawer}>
-        <div
-          className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${drawer ? "opacity-100" : "opacity-0"}`}
-          onClick={() => setDrawer(false)}
-        />
-        <aside
-          role="dialog"
-          aria-modal="true"
-          aria-label="Menu"
-          className={`absolute inset-y-0 left-0 flex w-[82%] max-w-xs flex-col border-r border-border bg-background shadow-2xl transition-transform duration-300 ease-out ${
-            drawer ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="lux-sidebar flex h-full flex-col">
-            <div className="flex items-center justify-between px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
-              <Brand />
-              <button
-                type="button"
-                aria-label="Close menu"
-                onClick={() => setDrawer(false)}
-                className="grid h-9 w-9 place-items-center rounded-full border border-border transition-colors hover:border-accent/60 hover:text-accent"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="lux-hairline mx-5" />
-            <nav aria-label="Menu" className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
-              <NavGroups groups={groups} pathname={pathname} onNavigate={() => setDrawer(false)} />
-            </nav>
-            <div className="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-2">
-              <div className="lux-hairline mb-4" />
-              {account}
-            </div>
-          </div>
-        </aside>
-      </div>
+      <Drawer
+        open={drawer}
+        onClose={() => setDrawer(false)}
+        groups={groups}
+        pathname={pathname}
+        email={me.data?.user?.email}
+        credits={credits}
+        onSignOut={signOut}
+      />
 
-      {/* desktop: the sidebar */}
-      <aside className="lux-sidebar hidden border-r border-border md:sticky md:top-0 md:flex md:h-screen md:w-64 md:shrink-0 md:flex-col md:overflow-y-auto">
-        <div className="px-6 pb-6 pt-8">
-          <Brand />
-        </div>
-        <div className="lux-hairline mx-6" />
-        <nav aria-label="Main" className="flex-1 space-y-6 px-4 py-6">
+      {/* computers: the Noir sidebar */}
+      <aside className="noir hidden border-r border-border bg-[linear-gradient(180deg,#14110e,#0d0b09)] md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px]">
+        <Link href="/" className="flex flex-col">
+          <b className="font-display text-2xl font-semibold">Reel Maison</b>
+          <span className="mu xs uppercase tracking-[.26em]">AI creative studio</span>
+        </Link>
+        <Link href="/projects/new" className="btn g">
+          + New Reel
+        </Link>
+        <nav aria-label="Main" className="flex flex-col">
           <NavGroups groups={groups} pathname={pathname} />
         </nav>
-        <div className="px-6 pb-8 pt-2">
-          <div className="lux-hairline mb-4" />
-          {credits && (
-            <div className="mb-3 flex items-center justify-between text-xs text-muted">
-              <span>{credits.planName} plan</span>
-              <CreditPill balance={credits.balance} />
-            </div>
-          )}
-          {account}
-          <Link href="/projects/new" className="lux-btn-gold flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold">
-            ✦ New Reel
-          </Link>
-        </div>
+        <div className="flex-1" />
+        {credits && (
+          <div className="between">
+            <CreditPill balance={credits.balance} full />
+            <span className="mu xs">{credits.planName} plan</span>
+          </div>
+        )}
+        {me.data?.user && (
+          <div className="between xs mu">
+            <span className="truncate" title={me.data.user.email}>
+              {me.data.user.email}
+            </span>
+            <button type="button" className="shrink-0 font-bold hover:text-accent" onClick={signOut}>
+              Sign out
+            </button>
+          </div>
+        )}
       </aside>
 
-      {/* phones: the bottom tab bar */}
-      <nav
-        aria-label="Quick"
-        className="lux-sidebar fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 items-end border-t border-border px-1 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-md md:hidden"
-      >
-        {TABS.map((t) => {
-          const active = isActive(pathname, t.href);
-          if (t.primary)
+      {/* phones: the bottom tab bar (Home, Projects, Editor) */}
+      {meta.tabs && (
+        <nav aria-label="Quick" className="tabbar fixed inset-x-0 bottom-0 z-40 md:hidden">
+          {TABS.map((t) => {
+            const active = isActive(pathname, t.href);
             return (
-              <Link key={t.href} href={t.href} aria-label={t.label} className="flex flex-col items-center gap-0.5 text-[11px] text-muted">
-                <span className="lux-btn-gold -mt-6 grid h-12 w-12 place-items-center rounded-full text-xl shadow-lg ring-4 ring-background">
-                  ✦
-                </span>
-                <span className={active ? "text-accent" : ""}>{t.label}</span>
+              <Link key={t.href} href={t.href} aria-label={t.primary ? t.label : undefined} aria-current={active ? "page" : undefined} className={active && !t.primary ? "on" : ""}>
+                {t.primary ? (
+                  <span className="cr">
+                    <Icon name="plus" size={22} stroke={2.2} />
+                  </span>
+                ) : (
+                  <Icon name={t.icon} size={22} stroke={1.7} />
+                )}
+                {t.label}
               </Link>
             );
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              aria-current={active ? "page" : undefined}
-              className={`flex flex-col items-center gap-0.5 rounded-xl py-1 text-[11px] transition-colors ${
-                active ? "text-accent" : "text-muted hover:text-foreground"
-              }`}
-            >
-              <span aria-hidden className="text-lg leading-6">
-                {t.icon}
-              </span>
-              {t.label}
-            </Link>
-          );
-        })}
-        <button
-          type="button"
-          onClick={() => setDrawer(true)}
-          className={`flex flex-col items-center gap-0.5 rounded-xl py-1 text-[11px] transition-colors ${
-            drawer ? "text-accent" : "text-muted hover:text-foreground"
-          }`}
-        >
-          <span aria-hidden className="text-lg leading-6">
-            ☰
-          </span>
-          More
-        </button>
-      </nav>
+          })}
+          <button type="button" onClick={() => setDrawer(true)} className={drawer ? "on" : ""}>
+            <Icon name="menu" size={22} stroke={1.7} />
+            More
+          </button>
+        </nav>
+      )}
 
       {needCredits && (
-        <div className="lux-overlay fixed inset-0 z-[90] flex items-center justify-center p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-label="Not enough credits">
-          <div className="lux-card lux-enter w-full max-w-md rounded-3xl p-6 text-center">
-            <p className="lux-eyebrow">Credits</p>
-            <h2 className="mt-1 font-display text-3xl">Not enough credits</h2>
-            <p className="mt-2 text-sm text-muted">{needCredits}</p>
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <Link href="/pricing" onClick={() => setNeedCredits(null)} className="lux-btn-gold rounded-full px-5 py-2.5 text-sm font-semibold">
-                See plans & top-ups
-              </Link>
-              <button type="button" onClick={() => setNeedCredits(null)} className="rounded-full border border-border px-5 py-2.5 text-sm hover:border-accent/60">
-                Not now
-              </button>
-            </div>
+        <div className="noir fixed inset-0 z-[90] grid place-items-center bg-[rgba(5,4,4,.82)] p-5 backdrop-blur-sm" onClick={() => setNeedCredits(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Not enough credits" className="card lux-enter w-full max-w-sm items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "#3a3128" }} onClick={(e) => e.stopPropagation()}>
+            <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[rgba(212,176,122,.12)] text-[#d4b07a]">
+              <Icon name="coins" size={36} stroke={1.5} />
+            </span>
+            <span className="eb">Credits</span>
+            <h2 className="ht" style={{ fontSize: 26 }}>
+              Not enough credits
+            </h2>
+            <span className="mu sm">{needCredits} Top up or choose a plan to keep making Reels.</span>
+            <Link href="/pricing" onClick={() => setNeedCredits(null)} className="btn g big mt-1.5">
+              See plans &amp; top-ups
+            </Link>
+            <button type="button" className="btn w-full" onClick={() => setNeedCredits(null)}>
+              Not now
+            </button>
           </div>
         </div>
       )}
 
-      <main className="min-w-0 flex-1 px-4 pb-28 pt-5 md:px-12 md:py-10">
+      <main className={`min-w-0 flex-1 px-4 pt-4 md:px-8 md:pb-10 md:pt-5 ${meta.tabs ? "pb-28" : "pb-10"}`}>
         <div className="mx-auto w-full max-w-6xl">
+          {back && (
+            <button
+              type="button"
+              onClick={() => (window.history.length > 1 ? router.back() : router.push(back))}
+              className="row mu sm mb-2 hidden font-bold hover:text-accent md:inline-flex"
+            >
+              <Icon name="back" size={16} />
+              Back
+            </button>
+          )}
           {blocked ? (
-            <div className="lux-card lux-enter mx-auto mt-16 max-w-md rounded-3xl p-8 text-center">
-              <p className="lux-eyebrow">Admin only</p>
-              <h1 className="mt-2 font-display text-3xl">This page is for the administrator</h1>
-              <p className="mt-2 text-sm text-muted">Settings and diagnostic tools are managed by the administrator of this studio.</p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
-                <Link href="/" className="lux-btn-gold rounded-full px-5 py-2.5 text-sm font-semibold">
-                  Back to the studio
-                </Link>
-                <Link href="/admin" className="rounded-full border border-border px-5 py-2.5 text-sm hover:border-accent/60">
-                  Admin sign-in
-                </Link>
+            <div className="noir mx-auto mt-10 max-w-sm rounded-[20px] bg-[#050404] p-5">
+              <div role="dialog" aria-label="Admin only" className="card items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "#3a3128" }}>
+                <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[rgba(212,176,122,.12)] text-[#d4b07a]">
+                  <Icon name="shield" size={34} stroke={1.5} />
+                </span>
+                <span className="eb">Admin only</span>
+                <h1 className="ht" style={{ fontSize: 24 }}>
+                  This page is for the administrator
+                </h1>
+                <span className="mu sm">Please sign in with an admin account to continue.</span>
+                <div className="g2 mt-1.5 w-full">
+                  <Link href="/" className="btn">
+                    Back
+                  </Link>
+                  <Link href="/admin" className="btn g">
+                    Admin sign-in
+                  </Link>
+                </div>
               </div>
             </div>
           ) : (
             children
           )}
-          <LegalFooter className="mt-16 border-t border-border pt-6" />
+          <LegalFooter className="mt-12 border-t border-border pt-5" />
         </div>
       </main>
     </div>

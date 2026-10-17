@@ -105,8 +105,8 @@ describe("Brands page", () => {
   it("creates a brand with colours, defaults and no logo", async () => {
     api.createBrand.mockResolvedValue({ id: "b1" });
     wrap(<BrandsPage />);
-    await userEvent.click(await screen.findByRole("button", { name: /New brand/ }));
-    await userEvent.type(screen.getByPlaceholderText("e.g. NAMORA"), "NAMORA");
+    await userEvent.click(await screen.findByRole("button", { name: /New brand|Create brand/ }));
+    await userEvent.type(screen.getByPlaceholderText("e.g. Reel Maison"), "NAMORA");
     await userEvent.type(screen.getByPlaceholderText("Shop the collection"), "Shop now");
     await userEvent.click(screen.getByRole("button", { name: "Save brand" }));
     await waitFor(() => expect(api.createBrand).toHaveBeenCalled());
@@ -123,9 +123,10 @@ describe("Templates page", () => {
     api.templates.mockResolvedValue([builtin]);
     wrap(<TemplatesPage />);
     expect(await screen.findByText("Luxury Product")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Use template" })).toHaveAttribute("href", "/projects/new?template=luxury_product");
-    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Duplicate" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Use →" })[0]).toHaveAttribute("href", "/projects/new?template=luxury_product");
+    await userEvent.click(screen.getByRole("button", { name: "More for Luxury Product" }));
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Duplicate and change" })).toBeInTheDocument();
   });
 
   it("shows an AI draft for review and only saves after the user confirms", async () => {
@@ -135,7 +136,7 @@ describe("Templates page", () => {
     api.createTemplate.mockResolvedValue({});
     wrap(<TemplatesPage />);
     await userEvent.type(await screen.findByLabelText("Template idea"), "luxury jewellery reels");
-    await userEvent.click(screen.getByRole("button", { name: /Draft with AI/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Create template" }));
     expect(await screen.findByText(/This is an AI draft/)).toBeInTheDocument();
     expect(api.createTemplate).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Save template" }));
@@ -268,9 +269,9 @@ describe("ReviseBox (change a Reel with words)", () => {
     api.revise.mockResolvedValue(result());
     wrap(<ReviseBox projectId="p1" busy={false} />);
     const box = screen.getByLabelText("What should change?");
-    expect(screen.getByRole("button", { name: /Regenerate/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
     await userEvent.type(box, "remove the first clip");
-    await userEvent.click(screen.getByRole("button", { name: /Regenerate/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(api.revise).toHaveBeenCalledWith("p1", "remove the first clip", false));
     expect(await screen.findByText("Remove the first shot")).toBeInTheDocument();
     expect(screen.getByText("Changing:")).toBeInTheDocument();
@@ -281,7 +282,7 @@ describe("ReviseBox (change a Reel with words)", () => {
     api.revise.mockResolvedValue(result({ job: null }));
     wrap(<ReviseBox projectId="p1" busy={false} />);
     await userEvent.type(screen.getByLabelText("What should change?"), "remove the first clip");
-    await userEvent.click(screen.getByRole("button", { name: "Check what it will do" }));
+    await userEvent.click(screen.getByRole("button", { name: "Preview what changes" }));
     await waitFor(() => expect(api.revise).toHaveBeenCalledWith("p1", "remove the first clip", true));
     expect(await screen.findByText("This would:")).toBeInTheDocument();
     expect(screen.getByLabelText("What should change?")).toHaveValue("remove the first clip"); // kept so the user can go on
@@ -294,7 +295,7 @@ describe("ReviseBox (change a Reel with words)", () => {
     }));
     wrap(<ReviseBox projectId="p1" busy={false} />);
     await userEvent.type(screen.getByLabelText("What should change?"), "make it dreamy");
-    await userEvent.click(screen.getByRole("button", { name: /Regenerate/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(await screen.findByRole("listitem")).toHaveTextContent("make it dreamy");
     expect(screen.getByText(/only the phrases I know/)).toBeInTheDocument();
     expect(screen.getByText(/Nothing was changed/)).toBeInTheDocument();
@@ -309,7 +310,7 @@ describe("ReviseBox (change a Reel with words)", () => {
     }));
     wrap(<ReviseBox projectId="p1" busy={false} />);
     await userEvent.type(screen.getByLabelText("What should change?"), "make the ending dramatic");
-    await userEvent.click(screen.getByRole("button", { name: /Regenerate/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(await screen.findByText("I think you mean:")).toBeInTheDocument();
     expect(screen.getByText("AI-interpreted")).toBeInTheDocument();
     expect(screen.getByText(/nothing has been changed yet/)).toBeInTheDocument();
@@ -324,6 +325,7 @@ describe("ReviseBox (change a Reel with words)", () => {
 
   it("idea chips build the request and everything is locked while a render runs", async () => {
     wrap(<ReviseBox projectId="p1" busy={false} />);
+    await userEvent.click(screen.getByRole("button", { name: "More ideas" }));
     await userEvent.click(screen.getByRole("button", { name: "Add captions" }));
     await userEvent.click(screen.getByRole("button", { name: "Louder music" }));
     expect(screen.getByLabelText("What should change?")).toHaveValue("Add captions, louder music");

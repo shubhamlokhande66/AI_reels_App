@@ -7,7 +7,7 @@ import { AudioRangePicker } from "@/components/molecules/AudioRangePicker";
 import { Dropzone } from "@/components/molecules/Dropzone";
 import { ProgressBar } from "@/components/molecules/ProgressStages";
 import { DurationSelector } from "@/components/organisms/StyleSelector";
-import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { btnSecondary } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { VideoList, type LocalVideo } from "@/components/molecules/VideoList";
 import { api, errorMessage } from "@/lib/api";
@@ -74,15 +74,12 @@ export default function NewAiEditPage() {
 
   return (
     <>
-      <PageHeader
-        title="AI Edit"
-        subtitle="Drop in your clips and a song, say what you want in your own words, and it builds a Reel and then applies your prompt as a real edit."
-      />
+      <PageHeader title="AI Edit" subtitle="Test an AI-directed edit on clips and a song." />
 
-      <form onSubmit={submit} className="max-w-2xl space-y-6">
-        <label className="block text-sm">
-          <span className="mb-1.5 block font-medium">
-            Name <span className="font-normal text-muted">(optional)</span>
+      <form onSubmit={submit} className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+        <label className="f">
+          <span>
+            Name <span className="font-normal">(optional)</span>
           </span>
           <input
             value={name}
@@ -90,18 +87,18 @@ export default function NewAiEditPage() {
             disabled={busy}
             onChange={(e) => setName(e.target.value)}
             placeholder="AI edit"
-            className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
+            className="inp"
           />
         </label>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">Duration</h2>
+        <section className="card">
+          <h2 className="h2">Duration</h2>
           <DurationSelector value={duration} onChange={setDuration} disabled={busy} />
-          <p className="text-xs text-muted">Choose the length first: below, you pick which part of your song fits it.</p>
+          <p className="mu xs">Choose the length first: below, you pick which part of your song fits it.</p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">Video clips</h2>
+        <section className="card">
+          <h2 className="h2">Video clips</h2>
           <Dropzone
             label="Drag & drop your video clips here"
             hint="MP4, MOV, M4V, WEBM, MKV, AVI"
@@ -118,21 +115,21 @@ export default function NewAiEditPage() {
           <VideoList items={videos} onChange={setVideos} disabled={busy} />
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">Song</h2>
+        <section className="card">
+          <h2 className="h2">Song</h2>
           {audio ? (
-            <Card className="space-y-4">
+            <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{audio.name}</p>
-                  <p className="text-xs text-muted">{formatBytes(audio.size)}</p>
+                  <p className="mu xs">{formatBytes(audio.size)}</p>
                 </div>
                 <button type="button" disabled={busy} className={btnSecondary} onClick={() => setAudio(null)}>
                   Remove music
                 </button>
               </div>
               <AudioRangePicker bare source={audio} duration={duration} start={audioStart} onChange={setAudioStart} />
-            </Card>
+            </div>
           ) : (
             <Dropzone
               label="Drop your song here"
@@ -149,8 +146,8 @@ export default function NewAiEditPage() {
           )}
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">
+        <section className="card">
+          <h2 className="h2">
             Tell the AI what to do <span className="font-normal text-muted">(optional)</span>
           </h2>
           <textarea
@@ -161,27 +158,27 @@ export default function NewAiEditPage() {
             disabled={busy}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g. Make it calmer, remove the first clip, add captions and make the music louder"
-            className="w-full resize-y rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60"
+            className="ta"
           />
-          <div className="flex flex-wrap gap-2" aria-label="Ideas">
+          <div className="chips w" aria-label="Ideas">
             {IDEAS.map((i) => (
               <button
                 key={i}
                 type="button"
                 disabled={busy}
                 onClick={() => add(i)}
-                className="rounded-full border border-border px-2.5 py-1 text-xs text-muted hover:border-accent/60 hover:text-foreground disabled:opacity-50"
+                className="chip"
               >
                 {i}
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted">
+          <p className="mu xs">
             First it builds a plain Reel from your clips and beats, then it applies this as a real edit — same as the &quot;Change this Reel&quot; box on
             any project, just asked up front. If the AI has to interpret part of it, you&apos;ll see exactly what it understood and confirm before anything
             changes.
           </p>
-          <p className="text-xs text-muted">
+          <p className="mu xs">
             This edits your own uploaded clips — trim, speed, order, transitions, captions, music, style. It does not generate new video or
             animate a photo (no AI video/image generation is built in), so a long creative-direction brief mostly won&apos;t be understood; short,
             direct instructions work best.
@@ -193,7 +190,7 @@ export default function NewAiEditPage() {
         <div className="space-y-3">
           {busy && (
             <div aria-live="polite">
-              <p className="mb-1 text-sm text-muted">
+              <p className="mu sm mb-1">
                 {step === "creating" && "Creating…"}
                 {step === "videos" && "Uploading video…"}
                 {step === "audio" && "Uploading song…"}
@@ -202,10 +199,10 @@ export default function NewAiEditPage() {
               {(step === "videos" || step === "audio") && <ProgressBar value={pct * 100} label="Upload progress" showEta />}
             </div>
           )}
-          <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>
-            {busy ? "Working…" : "Create and edit with AI"}
+          <button type="submit" disabled={!canSubmit} className="btn g big">
+            {busy ? "Working…" : "Run AI Edit"}
           </button>
-          {!canSubmit && !busy && <p className="text-xs text-muted">Add at least one video clip and a song to continue.</p>}
+          {!canSubmit && !busy && <p className="mu xs">Add at least one clip and a song to continue.</p>}
         </div>
       </form>
     </>

@@ -11,9 +11,10 @@ import { QualityPanel } from "@/components/organisms/editor/QualityPanel";
 import { ScriptVoicePanel } from "@/components/organisms/editor/ScriptVoicePanel";
 import { TimelineTracks } from "@/components/organisms/editor/TimelineTracks";
 import { ProgressBar } from "@/components/molecules/ProgressStages";
-import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { btnPrimary, Card, Icon, Spinner } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
-import { keys, useJob, useProject, useRenderTimeline, useTimeline, useTimelineActions } from "@/hooks/useApi";
+import { TopAction, useTopTitle } from "@/components/templates/TopBar";
+import { keys, useJob, useProject, useRenderings, useRenderTimeline, useTimeline, useTimelineActions } from "@/hooks/useApi";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { formatBytes, styleLabel } from "@/lib/format";
 import { op } from "@/lib/ops";
@@ -34,7 +35,10 @@ export default function EditorPage() {
   const [fixing, setFixing] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [openRow, setOpenRow] = useState<string | null>(null);
   const job = useJob(id, jobId, !!jobId);
+  const renders = useRenderings(id);
 
   useEffect(() => {
     if (job.data?.status === "completed" || job.data?.status === "failed") {
@@ -56,6 +60,7 @@ export default function EditorPage() {
   const state = timeline.data;
   const tl = state?.timeline ?? null;
   const p = project.data;
+  useTopTitle(p ? `Edit · ${p.name}` : null);
   const thumbs = useMemo(() => Object.fromEntries((p?.videos ?? []).map((v) => [v.id, v.thumbnailUrl ? assetUrl(v.thumbnailUrl) : undefined])), [p?.videos]);
 
   if (project.isLoading || timeline.isLoading) return <Spinner label="Loading editor…" />;
@@ -63,9 +68,9 @@ export default function EditorPage() {
   if (!tl || !state) {
     return (
       <>
-        <PageHeader title={`Edit: ${p.name}`} />
+        <PageHeader title={`Edit · ${p.name}`} />
         <Card>
-          <p className="text-sm text-muted">There is nothing to edit yet. Generate a Reel first, then come back to refine it.</p>
+          <p className="text-sm text-muted">There is nothing to edit yet. Make the Reel first, then come back to fine-tune it.</p>
           <Link href={`/projects/${id}`} className={`${btnPrimary} mt-3`}>
             Back to project
           </Link>
@@ -102,85 +107,174 @@ export default function EditorPage() {
     setJobId(j.id);
   }
 
+  const finals = (renders.data ?? []).filter((r) => (r.kind ?? "final") === "final");
+  const rows: { id: string; icon: string; tile: string; title: string; value: string; body: React.ReactNode }[] = [
+    {
+      id: "captions", icon: "captions", tile: "b1", title: "Captions",
+      value: tl.captions.length ? tl.captionStyle : "Off",
+      body: <CaptionsPanel timeline={tl} playhead={playhead} busy={mutating} onEdit={doEdit} />,
+    },
+    {
+      id: "voice", icon: "mic", tile: "b6", title: "Script & voice", value: tl.voice ? "Voice-over on" : "Off",
+      body: <ScriptVoicePanel projectId={id} timeline={tl} busy={mutating} onEdit={doEdit} onState={set} />,
+    },
+    {
+      id: "brand", icon: "star", tile: "b2", title: "Brand & audio", value: p.audio ? "Music on" : "No music",
+      body: (
+        <div className="flex flex-col gap-3">
+          <MusicControls timeline={tl} busy={mutating} onEdit={doEdit} />
+          <BrandAudioPanel project={p} timeline={tl} busy={mutating} onState={set} />
+        </div>
+      ),
+    },
+    {
+      id: "quality", icon: "check", tile: "b5", title: "Quality", value: report ? (report.ok ? "All good" : `${report.issues.length} to check`) : "Check it",
+      body: (
+        <QualityPanel
+          report={report}
+          checking={check.isPending}
+          fixing={fixing}
+          onCheck={() => check.mutate()}
+          onFix={(code, segmentId) => fix.mutate({ code, segmentId })}
+          error={check.error ? errorMessage(check.error) : fix.error ? errorMessage(fix.error) : null}
+        />
+      ),
+    },
+    {
+      id: "history", icon: "history", tile: "b4", title: "Edit history", value: `${state.history.length} change${state.history.length === 1 ? "" : "s"}`,
+      body: (
+        <ol className="flex flex-col gap-1 sm">
+          {state.history.map((h, i) => (
+            <li key={i} className={i === state.index ? "font-bold" : "mu"}>
+              {i + 1}. {h.label || "Edit"} {i === state.index && <span className="ac">(now)</span>}
+            </li>
+          ))}
+        </ol>
+      ),
+    },
+    {
+      id: "versions", icon: "layers", tile: "b4", title: "Versions", value: String(finals.length),
+      body: finals.length === 0 ? (
+        <p className="mu sm">Every version you render appears here. Restore one to keep editing from there.</p>
+      ) : (
+        <ul className="flex flex-col gap-2 sm">
+          {finals.map((r, i) => (
+            <li key={r.id} className="between">
+              <span className="min-w-0 truncate">
+                Version {finals.length - i}
+                {r.label ? ` · ${r.label}` : ""} <span className="mu">· {r.duration.toFixed(0)} s</span>
+              </span>
+              <button type="button" className="ac font-bold disabled:opacity-50" disabled={mutating} onClick={() => restore.mutate(r.id)} aria-label={`Restore version ${finals.length - i}`}>
+                Restore
+              </button>
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+  ];
+  const tool = "btn sm shrink-0 !bg-[#1c1916] !border-[#2e2924] !text-[#f3ede3]";
+
   return (
-    <>
-      <PageHeader
-        title={`Edit: ${p.name}`}
-        subtitle={`${styleLabel(tl.style)} · ${tl.duration.toFixed(1)}s · ${tl.segments.length} shots · the originals are never changed`}
-        action={
-          <Link href={`/projects/${id}`} className={btnSecondary}>
-            Back to project
-          </Link>
-        }
-      />
-
-      {error && <div className="mb-4"><ErrorBanner message={errorMessage(error)} /></div>}
-      {notice && <p role="status" className="mb-4 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-warning">{notice}</p>}
-
-      {/* toolbar */}
-      <div role="toolbar" aria-label="Edit tools" className="mb-4 flex flex-wrap items-center gap-2">
-        <button type="button" className={btnSecondary} disabled={!state.canUndo || mutating} onClick={() => undo.mutate()}>
-          ↶ Undo
-        </button>
-        <button type="button" className={btnSecondary} disabled={!state.canRedo || mutating} onClick={() => redo.mutate()}>
-          ↷ Redo
-        </button>
-        <span className="mx-1 hidden h-6 w-px bg-border sm:block" />
-        <button type="button" className={btnSecondary} disabled={mutating} onClick={splitAtPlayhead}>
-          ✂ Split at playhead
-        </button>
-        <button type="button" className={btnSecondary} disabled={!selected || mutating} onClick={() => selected && doEdit([op.duplicate(selected.id)], "Duplicate shot")}>
-          Duplicate
-        </button>
-        <button type="button" className={btnSecondary} disabled={!selected || selectedIndex === 0 || mutating} onClick={() => selected && doEdit([op.move(selected.id, selectedIndex - 1)], "Move shot")}>
-          ← Move
-        </button>
-        <button
-          type="button"
-          className={btnSecondary}
-          disabled={!selected || selectedIndex === tl.segments.length - 1 || mutating}
-          onClick={() => selected && doEdit([op.move(selected.id, selectedIndex + 1)], "Move shot")}
-        >
-          Move →
-        </button>
-        <button
-          type="button"
-          className={btnDanger}
-          disabled={!selected || tl.segments.length < 2 || mutating}
-          onClick={() => {
-            if (selected) {
-              doEdit([op.remove(selected.id)], "Delete shot");
-              setSelectedId(null);
-            }
-          }}
-        >
-          Delete
-        </button>
-        <span className="ml-auto text-xs tabular-nums text-muted" aria-live="polite">
-          {mutating ? "Saving…" : `Playhead ${playhead.toFixed(1)}s`}
-        </span>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+      <div className="hidden items-end justify-between gap-4 md:flex">
+        <div>
+          <h1 className="h1">Edit · {p.name}</h1>
+          <p className="sub">
+            {styleLabel(tl.style)} · {tl.duration.toFixed(1)} s · {tl.segments.length} shots · your original clips are never changed
+          </p>
+        </div>
       </div>
+      <TopAction>
+        <button type="button" className="btn g sm" disabled={rendering} onClick={() => startRender("final")}>
+          {rendering ? "Rendering…" : "Render"}
+        </button>
+      </TopAction>
 
-      <TimelineTracks
-        timeline={tl}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        playhead={playhead}
-        onSeek={seek}
-        thumbs={thumbs}
-        musicName={p.audio?.name}
-        // the same hands-on timeline as Beat sync: pinch / Ctrl+scroll zoom, beat markers, drag a shot's edge to trim,
-        // arrow keys to move, and nudging where the song starts
-        music={p.reelPlan?.music}
-        musicStale={(p.reelPlan?.timelineVersion ?? 0) < state.version}
-        interactive
-        onEdit={doEdit}
-        busy={mutating}
-      />
+      {error && <ErrorBanner message={errorMessage(error)} />}
+      {notice && (
+        <p role="status" className="card sm" style={{ color: "var(--warning)" }}>
+          {notice}
+        </p>
+      )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,300px)_1fr]">
-        {/* preview + render */}
-        <div className="space-y-3">
+      <section className="noir noir-panel relative flex flex-col gap-2" aria-label="Timeline" style={{ fontSize: 10.5 }}>
+        <div className="between flex-wrap" style={{ color: "#f3ede3" }}>
+          <span className="mono text-[12px]">
+            {fmt(playhead)} / {fmt(tl.duration)}
+          </span>
+          <div role="toolbar" aria-label="Edit tools" className="row w-full overflow-x-auto pb-0.5 md:w-auto" style={{ gap: 6, scrollbarWidth: "none" }}>
+            <button type="button" className={tool} disabled={!state.canUndo || mutating} onClick={() => undo.mutate()} aria-label="Undo">
+              <Icon name="undo" size={16} />
+            </button>
+            <button type="button" className={tool} disabled={!state.canRedo || mutating} onClick={() => redo.mutate()} aria-label="Redo">
+              <Icon name="redo" size={16} />
+            </button>
+            <button type="button" className={tool} disabled={mutating} onClick={splitAtPlayhead}>
+              Split
+            </button>
+            <button type="button" className={tool} disabled={!selected || mutating} onClick={() => selected && doEdit([op.duplicate(selected.id)], "Duplicate shot")}>
+              Duplicate
+            </button>
+            <button type="button" className={tool} aria-label="Move earlier" disabled={!selected || selectedIndex === 0 || mutating} onClick={() => selected && doEdit([op.move(selected.id, selectedIndex - 1)], "Move shot")}>
+              <Icon name="back" size={16} />
+            </button>
+            <button
+              type="button"
+              className={tool}
+              aria-label="Move later"
+              disabled={!selected || selectedIndex === tl.segments.length - 1 || mutating}
+              onClick={() => selected && doEdit([op.move(selected.id, selectedIndex + 1)], "Move shot")}
+            >
+              <Icon name="chevron" size={16} />
+            </button>
+            <button
+              type="button"
+              className={`${tool} !text-[#e88b7d]`}
+              disabled={!selected || tl.segments.length < 2 || mutating}
+              onClick={() => {
+                if (selected) {
+                  doEdit([op.remove(selected.id)], "Delete shot");
+                  setSelectedId(null);
+                }
+              }}
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              aria-label={playing ? "Pause" : "Play"}
+              disabled={!shown}
+              onClick={() => {
+                const v = videoRef.current;
+                if (v) void (v.paused ? v.play() : v.pause());
+              }}
+              className="ib"
+              style={{ width: 36, height: 36, background: "#1c1916", borderColor: "#2e2924", color: "#f3ede3" }}
+            >
+              <Icon name={playing ? "pause" : "play"} size={16} />
+            </button>
+          </div>
+        </div>
+        <TimelineTracks
+          timeline={tl}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          playhead={playhead}
+          onSeek={seek}
+          thumbs={thumbs}
+          musicName={p.audio?.name}
+          music={p.reelPlan?.music}
+          musicStale={(p.reelPlan?.timelineVersion ?? 0) < state.version}
+          interactive
+          onEdit={doEdit}
+          busy={mutating}
+        />
+        <span aria-live="polite">{mutating ? "Saving…" : "Tap a shot to change it. Drag its edges to trim."}</span>
+      </section>
+
+      <div className="grid gap-3 md:grid-cols-[minmax(0,300px)_1fr]">
+        <div className="flex flex-col gap-2.5">
           {shown ? (
             <video
               key={shown.id}
@@ -190,40 +284,37 @@ export default function EditorPage() {
               playsInline
               preload="metadata"
               onTimeUpdate={(e) => setPlayhead(e.currentTarget.currentTime)}
-              className="aspect-[9/16] w-full rounded-2xl border border-border bg-black"
-              aria-label={p.preview ? "Preview" : "Rendered Reel"}
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              className="mx-auto aspect-[9/16] w-full max-w-[min(100%,calc(55svh*9/16))] rounded-2xl border border-border bg-black"
+              aria-label={p.preview ? "Preview" : "Your Reel"}
             />
           ) : (
-            <div className="grid aspect-[9/16] w-full place-items-center rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted">
-              Render a preview to see your edit
+            <div className="photo p1 grid aspect-[9/16] w-full place-items-center p-4 text-center text-sm text-white/80" style={{ borderRadius: 16 }}>
+              Make a preview to see your edit
             </div>
           )}
-          {stale && (
-            <p role="status" className="rounded-xl border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
-              This preview is out of date. Render a new one to see your latest edits.
-            </p>
-          )}
-          {p.preview && !stale && <p className="text-xs text-muted">Preview · {formatBytes(p.preview.size)} · matches the timeline</p>}
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className={btnPrimary} disabled={rendering} onClick={() => startRender("preview")}>
-              {rendering ? "Rendering…" : "Render preview"}
+          {stale && <p className="sm" style={{ color: "var(--warning)" }}>This preview is older than your edits. Make a new one to see them.</p>}
+          {p.preview && !stale && <p className="mu xs">Preview · {formatBytes(p.preview.size)} · up to date</p>}
+          <div className="g2">
+            <button type="button" className="btn sm" disabled={rendering} onClick={() => startRender("preview")}>
+              Quick preview
             </button>
-            <button type="button" className={btnSecondary} disabled={rendering} onClick={() => startRender("final")}>
-              Export final
+            <button type="button" className="btn g sm" disabled={rendering} onClick={() => startRender("final")}>
+              Render final
             </button>
           </div>
           {job.data && (job.data.status === "queued" || job.data.status === "processing") && (
             <div>
               <ProgressBar value={job.data.progress} label="Render progress" showEta />
-              <p className="mt-1 text-xs text-muted">{job.data.status === "queued" ? "Waiting in the render queue…" : `Rendering ${job.data.progress}%`}</p>
+              <p className="mu xs mt-1">{job.data.status === "queued" ? "Waiting for a free spot…" : `Rendering ${job.data.progress}%`}</p>
             </div>
           )}
-          {job.data?.status === "failed" && <ErrorBanner title="Render failed" message={job.data.error?.message ?? "The render failed."} code={job.data.error?.code} />}
-          {job.data?.status === "completed" && p.output && <p className="text-xs text-success">✓ Render finished.</p>}
+          {job.data?.status === "failed" && <ErrorBanner title="The render stopped" message={job.data.error?.message ?? "Something went wrong while rendering."} code={job.data.error?.code} />}
+          {job.data?.status === "completed" && p.output && <p className="sm text-success">Your Reel is ready.</p>}
         </div>
 
-        {/* inspector + panels */}
-        <div className="space-y-4">
+        <div className="flex min-w-0 flex-col gap-3">
           {selected ? (
             <Inspector
               key={`${selected.id}-${selected.sourceStart}-${selected.sourceEnd}-${selected.transitionIn.type}-${selected.transitionIn.duration}`}
@@ -234,70 +325,31 @@ export default function EditorPage() {
               onEdit={doEdit}
             />
           ) : (
-            <Card>
-              <p className="text-sm text-muted">Select a shot on the timeline to change its speed, effect, transition, framing or trim, or to replace its clip.</p>
-            </Card>
+            <p className="card mu sm">Tap a shot on the timeline to change its speed, effect, transition, framing or trim, or to swap its clip.</p>
           )}
-          <div className="grid gap-4 md:grid-cols-2">
-            <MusicControls timeline={tl} busy={mutating} onEdit={doEdit} />
-            <CaptionsPanel timeline={tl} playhead={playhead} busy={mutating} onEdit={doEdit} />
-          </div>
-          <ScriptVoicePanel projectId={id} timeline={tl} busy={mutating} onEdit={doEdit} onState={set} />
-          <BrandAudioPanel project={p} timeline={tl} busy={mutating} onState={set} />
-          <QualityPanel
-            report={report}
-            checking={check.isPending}
-            fixing={fixing}
-            onCheck={() => check.mutate()}
-            onFix={(code, segmentId) => fix.mutate({ code, segmentId })}
-            error={check.error ? errorMessage(check.error) : fix.error ? errorMessage(fix.error) : null}
-          />
+          <section className="card" style={{ padding: "4px 12px", gap: 0 }} aria-label="More tools">
+            {rows.map((r) => (
+              <div key={r.id} className="border-b border-border last:border-b-0">
+                <button type="button" className="li !border-b-0" aria-expanded={openRow === r.id} onClick={() => setOpenRow(openRow === r.id ? null : r.id)}>
+                  <span className={`it ${r.tile} s`}>
+                    <Icon name={r.icon} size={16} />
+                  </span>
+                  <b>{r.title}</b>
+                  <span className="mu sm max-w-[40%] truncate capitalize">{r.value}</span>
+                  <Icon name={openRow === r.id ? "down" : "chevron"} size={18} />
+                </button>
+                {openRow === r.id && <div className="pb-3">{r.body}</div>}
+              </div>
+            ))}
+          </section>
         </div>
       </div>
-
-      {/* history */}
-      <section className="mt-8 grid gap-6 md:grid-cols-2" aria-label="History">
-        <Card>
-          <h3 className="mb-2 font-medium">Edit history</h3>
-          <ol className="space-y-1 text-sm">
-            {state.history.map((h, i) => (
-              <li key={i} className={i === state.index ? "font-medium text-foreground" : i > state.index ? "text-muted/60" : "text-muted"}>
-                {i + 1}. {h.label || "Edit"} {i === state.index && <span className="text-accent">(current)</span>}
-              </li>
-            ))}
-          </ol>
-        </Card>
-        <VersionList projectId={id} onRestore={(rid) => restore.mutate(rid)} disabled={mutating} />
-      </section>
-    </>
+    </div>
   );
 }
 
-function VersionList({ projectId, onRestore, disabled }: { projectId: string; onRestore: (rid: string) => void; disabled: boolean }) {
-  const q = useMutation({ mutationFn: () => api.renderings(projectId) });
-  useEffect(() => q.mutate(), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const finals = (q.data ?? []).filter((r) => (r.kind ?? "final") === "final");
-  return (
-    <Card>
-      <h3 className="mb-2 font-medium">Versions</h3>
-      {finals.length === 0 ? (
-        <p className="text-sm text-muted">Exported versions appear here. Restore any of them to continue editing from that point.</p>
-      ) : (
-        <ul className="space-y-2 text-sm">
-          {finals.map((r, i) => (
-            <li key={r.id} className="flex items-center justify-between gap-2">
-              <span>
-                Version {finals.length - i}
-                {r.label ? ` · ${r.label}` : ""}
-                <span className="text-muted"> · {styleLabel(r.style)} · {r.duration.toFixed(0)}s</span>
-              </span>
-              <button type="button" className={btnSecondary} disabled={disabled} onClick={() => onRestore(r.id)} aria-label={`Restore version ${finals.length - i}`}>
-                Restore
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
+function fmt(t: number) {
+  const m = Math.floor(t / 60);
+  return `${m}:${(t - m * 60).toFixed(1).padStart(4, "0")}`;
 }
+

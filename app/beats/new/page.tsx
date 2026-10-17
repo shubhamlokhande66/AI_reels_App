@@ -7,7 +7,7 @@ import { AudioRangePicker } from "@/components/molecules/AudioRangePicker";
 import { Dropzone } from "@/components/molecules/Dropzone";
 import { ProgressBar } from "@/components/molecules/ProgressStages";
 import { DurationSelector, PaceSelector, type PaceId } from "@/components/organisms/StyleSelector";
-import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { btnSecondary } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { VideoList, type LocalVideo } from "@/components/molecules/VideoList";
 import { api, errorMessage } from "@/lib/api";
@@ -70,12 +70,12 @@ export default function NewBeatSyncPage() {
 
   return (
     <>
-      <PageHeader title="Check the beat sync" subtitle="Drop in your clips and a song. It splits the video on the music's beats, then shows you the result — nothing else." />
+      <PageHeader title="Beat Sync check" subtitle="Check that cuts land on the beat before a full edit." />
 
-      <form onSubmit={submit} className="max-w-2xl space-y-6">
-        <label className="block text-sm">
-          <span className="mb-1.5 block font-medium">
-            Name <span className="font-normal text-muted">(optional)</span>
+      <form onSubmit={submit} className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+        <label className="f">
+          <span>
+            Name <span className="font-normal">(optional)</span>
           </span>
           <input
             value={name}
@@ -83,18 +83,18 @@ export default function NewBeatSyncPage() {
             disabled={busy}
             onChange={(e) => setName(e.target.value)}
             placeholder="Beat sync check"
-            className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
+            className="inp"
           />
         </label>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">Duration</h2>
+        <section className="card">
+          <h2 className="h2">Duration</h2>
           <DurationSelector value={duration} onChange={setDuration} disabled={busy} />
-          <p className="text-xs text-muted">Choose the length first: below, you pick which part of your song fits it.</p>
+          <p className="mu xs">Choose the length first: below, you pick which part of your song fits it.</p>
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">Video clips</h2>
+        <section className="card">
+          <h2 className="h2">Video clips</h2>
           <Dropzone
             label="Drag & drop your video clips here"
             hint="MP4, MOV, M4V, WEBM, MKV, AVI"
@@ -111,21 +111,21 @@ export default function NewBeatSyncPage() {
           <VideoList items={videos} onChange={setVideos} disabled={busy} />
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">Song</h2>
+        <section className="card">
+          <h2 className="h2">Song</h2>
           {audio ? (
-            <Card className="space-y-4">
+            <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{audio.name}</p>
-                  <p className="text-xs text-muted">{formatBytes(audio.size)}</p>
+                  <p className="mu xs">{formatBytes(audio.size)}</p>
                 </div>
                 <button type="button" disabled={busy} className={btnSecondary} onClick={() => setAudio(null)}>
                   Remove music
                 </button>
               </div>
               <AudioRangePicker bare source={audio} duration={duration} start={audioStart} onChange={setAudioStart} />
-            </Card>
+            </div>
           ) : (
             <Dropzone
               label="Drop your song here"
@@ -142,10 +142,10 @@ export default function NewBeatSyncPage() {
           )}
         </section>
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium">Cut rhythm</h2>
+        <section className="card">
+          <h2 className="h2">Cut rhythm</h2>
           <PaceSelector value={pace} onChange={setPace} disabled={busy} />
-          <p className="text-xs text-muted">
+          <p className="mu xs">
             Calm cuts less often (still lands on a strong beat nearby when there is one) · Fast cuts on every beat, even weak ones.
           </p>
         </section>
@@ -155,7 +155,7 @@ export default function NewBeatSyncPage() {
         <div className="space-y-3">
           {busy && (
             <div aria-live="polite">
-              <p className="mb-1 text-sm text-muted">
+              <p className="mu sm mb-1">
                 {step === "creating" && "Creating…"}
                 {step === "videos" && "Uploading video…"}
                 {step === "audio" && "Uploading song…"}
@@ -164,10 +164,10 @@ export default function NewBeatSyncPage() {
               {(step === "videos" || step === "audio") && <ProgressBar value={pct * 100} label="Upload progress" showEta />}
             </div>
           )}
-          <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>
+          <button type="submit" disabled={!canSubmit} className="btn g big">
             {busy ? "Working…" : "Check the beat sync"}
           </button>
-          {!canSubmit && !busy && <p className="text-xs text-muted">Add at least one video clip and a song to continue.</p>}
+          {!canSubmit && !busy && <p className="mu xs">Add at least one clip and a song to continue.</p>}
         </div>
       </form>
     </>

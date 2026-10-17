@@ -47,7 +47,7 @@ const STEP_LABEL: Record<Step, string> = {
   starting: "Starting the render…",
 };
 // The create flow: 1 clips (checked before anything else), 2 the song (its part chosen), 3 style and generate.
-type Stage = "song" | "length" | "clips" | "rest"; // music first: the song decides the edit
+type Stage = "song" | "length" | "clips" | "style" | "platform"; // music first: the song decides the edit
 
 const CAPTION_STYLES = ["minimal", "bold", "karaoke", "highlight", "luxury"];
 
@@ -66,11 +66,11 @@ const INSTAGRAM_RULES = [
 ];
 
 // The creative direction, the one choice that shapes the whole Reel (director/creative.py DIRECTIONS).
-const DIRECTIONS: { id: Concept; label: string; blurb: string }[] = [
-  { id: "auto", label: "✦ Let the AI decide", blurb: "The director reads your clips, song and words and picks the concept." },
-  { id: "viral", label: "Viral", blurb: "The strongest hook first, fast cuts on the hits, the big moment on the drop." },
-  { id: "cinematic", label: "Cinematic", blurb: "A story in order: shots breathe, slow pushes, a held ending." },
-  { id: "premium", label: "Premium", blurb: "Product and brand first: close-ups, the reveal on the drop, a hero ending." },
+const DIRECTIONS: { id: Concept; label: string; short: string; blurb: string }[] = [
+  { id: "auto", label: "Let the AI decide", short: "AI decides", blurb: "The director reads your clips, song and words and picks the concept." },
+  { id: "viral", label: "Viral", short: "Viral", blurb: "The strongest hook first, fast cuts on the hits, the big moment on the drop." },
+  { id: "cinematic", label: "Cinematic", short: "Cinematic", blurb: "A story in order: shots breathe, slow pushes, a held ending." },
+  { id: "premium", label: "Premium", short: "Premium", blurb: "Product and brand first: close-ups, the reveal on the drop, a hero ending." },
 ];
 
 // Tap-to-add examples for the AI instruction box (plain words, not settings)
@@ -175,6 +175,7 @@ export function CreateReelForm() {
   const canSubmit = (videos.length > 0 || (project?.videos.length ?? 0) > 0) && (audio !== null || refMusic !== null || !needsMusic) && !busy;
   const canCheck = (videos.length > 0 || (project?.videos.length ?? 0) > 0) && !busy;
   const check = project ? clipCheck(project, duration, sequence === "talk") : null;
+  const rest = stage === "style" || stage === "platform"; // the clips passed: style, platform and Create Reel
 
   // Arriving from "Use template" / a style / a trend card: adjust state during render, once the lists have loaded.
   const params = useSearchParams();
@@ -321,10 +322,10 @@ export function CreateReelForm() {
       if (verdict.passed && sequence === "talk") {
         finishLog(lowRes ? "problem" : "ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}. Their own voice is kept, so no song is needed.${resNote}`);
         setAudioMode("original");
-        setStage("rest");
+        setStage("style");
       } else if (verdict.passed) {
         finishLog(lowRes ? "problem" : "ok", `All checks passed: ${names.length} clip${names.length === 1 ? "" : "s"}, about ${Math.round(f.footage)}s of footage. Next: style and generate.${resNote}`);
-        setStage("rest");
+        setStage("style");
       } else {
         const parts = [verdict.blocked.length ? `${verdict.blocked.length} clip${verdict.blocked.length === 1 ? " cannot" : "s cannot"} be used (remove or replace)` : "",
           f.ok ? "" : `about ${Math.ceil(f.needed - f.footage)}s more good footage is needed (add clips, or make the Reel ${f.fits}s)`].filter(Boolean);
@@ -349,7 +350,7 @@ export function CreateReelForm() {
       setProject(fresh);
       const verdict = clipCheck(fresh, duration, sequence === "talk");
       setGate(verdict.footage.ok ? null : verdict.footage);
-      if (verdict.passed && stage === "clips") setStage("rest");
+      if (verdict.passed && stage === "clips") setStage("style");
     } catch (err) {
       setError({ message: errorMessage(err), code: (err as { code?: string }).code });
     }
@@ -362,7 +363,7 @@ export function CreateReelForm() {
     if (!project) return;
     const verdict = clipCheck(project, d, sequence === "talk");
     if (!verdict.footage.ok) setGate(verdict.footage);
-    if (!verdict.passed && stage === "rest") setStage("clips");
+    if (!verdict.passed && rest) setStage("clips");
     setAudioStart(null); // the best song part depends on the length
   }
 
@@ -421,7 +422,7 @@ export function CreateReelForm() {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
-    if (stage !== "rest") return; // steps 1 and 2 come first
+    if (!rest) return; // the song, length and clips come first
     if (!done.current.projectId) {
       // the gate: a Reel can only show as much real footage as the clips have (lengths unknown to the browser are not guessed)
       const lens = videos.map((v) => clipSeconds[v.key]);
@@ -480,7 +481,7 @@ export function CreateReelForm() {
   }
 
   return (
-    <form ref={formRef} onSubmit={submit} className="space-y-8" aria-label="Create Reel">
+    <form ref={formRef} onSubmit={submit} className="flex flex-col gap-[14px]" aria-label="Create Reel">
       {(chosenTemplate || chosenTrend) && (
         <div className="lux-card flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm">
           <p className="min-w-0">
@@ -514,16 +515,16 @@ export function CreateReelForm() {
         current={stage}
         onOpen={(id) => setStage(id as Stage)}
         steps={[
-          { id: "song", title: "Music", done: stage !== "song" && (songReady || !audio),
-            summary: audio && beatMap ? `${audio.name} · ${beatMap.bpm} BPM` : !audio && refMusic ? "the reference Reel's music" : !audio && stage !== "song" ? "no music" : undefined },
-          { id: "length", title: "Length", done: stage === "clips" || stage === "rest",
-            summary: stage === "clips" || stage === "rest" ? `${duration}s${audio && audioStart !== null ? ` · ${formatDuration(audioStart)} – ${formatDuration(audioStart + duration)}` : ""}` : undefined },
-          { id: "clips", title: "Clips", done: !!check?.passed,
-            summary: check?.passed ? `${project?.videos.filter((v) => !v.purged).length} clips · ${Math.round(check.footage.footage)}s of footage` : undefined },
-          { id: "rest", title: "Style & generate", done: false },
+          { id: "song", title: "Song", done: stage !== "song" && (songReady || !audio),
+            badge: audio && beatMap ? `${audio.name.replace(/\.[^.]+$/, "")} · ${beatMap.bpm} BPM` : undefined,
+            summary: !audio && refMusic ? "From the Reel you copy" : !audio && stage !== "song" ? "No music" : undefined },
+          { id: "length", title: "Length", done: stage === "clips" || rest, summary: `${duration} s` },
+          { id: "clips", title: "Your clips", done: !!check?.passed,
+            summary: project ? `${project.videos.filter((v) => !v.purged).length} clips` : videos.length ? `${videos.length} clips` : undefined },
+          { id: "style", title: "Style & direction", done: rest, summary: DIRECTIONS.find((d) => d.id === concept)?.short },
+          { id: "platform", title: "Platform & settings", done: false, summary: platform === "instagram" ? "Instagram" : "General" },
         ]}
-      />
-
+      >
       {stage === "clips" && (<>
 
       {project ? (
@@ -534,8 +535,7 @@ export function CreateReelForm() {
       )}
 
       <section ref={videosRef} className="space-y-3">
-        <h2 className="text-sm font-medium">3 · Your clips</h2>
-        <p className="text-xs text-muted">Add your clips: they are uploaded and checked right away (light, sharpness, shake, resolution, length).</p>
+        <p className="mu sm">Add your clips. We check each one right away for light, sharpness, shake and length.</p>
         <Dropzone
           label="Drag & drop your clips here"
           hint="MP4, MOV, M4V, WEBM, MKV, AVI · up to 500 MB each"
@@ -595,11 +595,6 @@ export function CreateReelForm() {
           onClose={() => setGate(null)}
         />
       )}
-      {stage === "clips" && (
-        <button type="button" className={`${btnSecondary} w-fit`} disabled={busy} onClick={() => setStage("length")}>
-          ‹ Back to length
-        </button>
-      )}
       {stage === "clips" && (videos.length > 0 || project) && !log && (
         <div className="space-y-2">
           <button type="button" className={btnSecondary} disabled={!canCheck} onClick={() => void checkClips()}>
@@ -621,24 +616,22 @@ export function CreateReelForm() {
       </>)}
 
       {stage === "song" && (
-      <section className="space-y-3">
-        <section>
-        <label htmlFor="project-name" className="mb-1.5 block text-sm font-medium">
-          Project name <span className="font-normal text-muted">(optional: you can rename it later)</span>
+      <section className="space-y-3" aria-label="Song">
+        <label className="f" htmlFor="project-name">
+          <span>
+            Name your Reel <span className="font-normal">(optional, you can change it later)</span>
+          </span>
+          <input
+            id="project-name"
+            value={name}
+            maxLength={120}
+            disabled={busy}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Diwali Vibes"
+            className="inp"
+          />
         </label>
-        <input
-          id="project-name"
-          value={name}
-          maxLength={120}
-          disabled={busy}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Namora Luxury Reel"
-          className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
-        />
-      </section>
-        <h2 className="text-sm font-medium">
-          1 · Music <span className="font-normal text-muted">(start here: every beat of the song is analysed, and the edit follows it)</span>
-        </h2>
+        <p className="mu sm">Start with the song: we find every beat, and the cuts follow it.</p>
         {refMusic && !audio && (
           <Card className="space-y-1 border-accent/50">
             <p className="text-sm font-medium"><span className="text-accent">♪</span> Using the music from “{refMusic}”</p>
@@ -706,7 +699,7 @@ export function CreateReelForm() {
       {stage === "length" && (
       <section className="space-y-4">
         <div className="space-y-3">
-          <h2 className="text-sm font-medium">2 · Reel length</h2>
+          <p className="mu sm">How long should your Reel be?</p>
           <DurationSelector value={duration} onChange={changeDuration} disabled={busy} />
           <p className="text-xs text-muted">The part of the song is chosen to fit this length; your clips are then checked against it.</p>
         </div>
@@ -756,10 +749,7 @@ export function CreateReelForm() {
           </Card>
         )}
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("song")}>
-            ‹ Back
-          </button>
-          <button type="button" className={btnPrimary} disabled={busy || (usesMusic && !!audio && audioStart === null)} onClick={() => setStage(check?.passed ? "rest" : "clips")}>
+          <button type="button" className={btnPrimary} disabled={busy || (usesMusic && !!audio && audioStart === null)} onClick={() => setStage(check?.passed ? "style" : "clips")}>
             Next: your clips
           </button>
           {usesMusic && audio && audioStart === null && <span className="text-xs text-muted">Choose a part of the song first (Use this part).</span>}
@@ -767,44 +757,7 @@ export function CreateReelForm() {
       </section>
       )}
 
-      {stage === "rest" && (<>
-      <section className="space-y-3" aria-label="Social media">
-        <h2 className="text-sm font-medium">Where will you post it?</h2>
-        <div role="radiogroup" aria-label="Social media" className="grid gap-2 sm:grid-cols-2">
-          {PLATFORMS.map((p) => (
-            <button key={p.id} type="button" role="radio" aria-checked={platform === p.id} disabled={busy} onClick={() => setPlatform(p.id)}
-              className={`rounded-xl border px-4 py-3 text-left ${platform === p.id ? "border-accent bg-accent/15" : "border-border bg-surface hover:border-accent/50"}`}>
-              <span className="block text-sm font-medium">{p.label}</span>
-              <span className="block text-xs text-muted">{p.hint}</span>
-            </button>
-          ))}
-        </div>
-        {platform === "instagram" && (
-          <Card className="space-y-4">
-            <ul className="list-disc space-y-1 pl-5 text-xs text-muted" aria-label="What Instagram mode does">
-              {INSTAGRAM_RULES.map((r) => <li key={r}>{r}</li>)}
-            </ul>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm">
-                <span className="mb-1.5 block font-medium">Hook text <span className="font-normal text-muted">(recommended)</span></span>
-                <input aria-label="Hook text" value={hookText} maxLength={66} disabled={busy} onChange={(e) => setHookText(e.target.value)}
-                  placeholder="e.g. 3 mistakes every new runner makes" className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent" />
-                <span className="mt-1 block text-xs text-muted">The first words on screen: a question or a promise. Short works best (up to 7 words); longer text wraps onto more lines. Marathi and Hindi work too.</span>
-              </label>
-              <label className="block text-sm">
-                <span className="mb-1.5 block font-medium">Closing line <span className="font-normal text-muted">(optional)</span></span>
-                <input aria-label="Closing line" value={ctaText} maxLength={66} disabled={busy} onChange={(e) => setCtaText(e.target.value)}
-                  placeholder="e.g. Save this for your next run" className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent" />
-                <span className="mt-1 block text-xs text-muted">Shown on the last 2 seconds.</span>
-              </label>
-            </div>
-            <p className="text-xs text-muted">
-              Tip: in the instructions below, say who the Reel is for and the one thing it shows. Reels made for a specific person get sent to them, and
-              sends are what Instagram uses most to reach new people.
-            </p>
-          </Card>
-        )}
-      </section>
+      {stage === "style" && (<>
 
       <section className="space-y-3" aria-label="Creative direction">
         <h2 className="text-sm font-medium">Creative direction</h2>
@@ -1085,8 +1038,51 @@ export function CreateReelForm() {
       )}
         </div>
       </details>
-
+      <button type="button" className="btn w-fit" disabled={busy} onClick={() => setStage("platform")}>
+        Next: where you&apos;ll post it
+      </button>
       </>)}
+
+      {stage === "platform" && (
+      <section className="space-y-3" aria-label="Social media">
+        <h2 className="text-sm font-medium">Where will you post it?</h2>
+        <div role="radiogroup" aria-label="Social media" className="grid gap-2 sm:grid-cols-2">
+          {PLATFORMS.map((p) => (
+            <button key={p.id} type="button" role="radio" aria-checked={platform === p.id} disabled={busy} onClick={() => setPlatform(p.id)}
+              className={`rounded-xl border px-4 py-3 text-left ${platform === p.id ? "border-accent bg-accent/15" : "border-border bg-surface hover:border-accent/50"}`}>
+              <span className="block text-sm font-medium">{p.label}</span>
+              <span className="block text-xs text-muted">{p.hint}</span>
+            </button>
+          ))}
+        </div>
+        {platform === "instagram" && (
+          <Card className="space-y-4">
+            <ul className="list-disc space-y-1 pl-5 text-xs text-muted" aria-label="What Instagram mode does">
+              {INSTAGRAM_RULES.map((r) => <li key={r}>{r}</li>)}
+            </ul>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm">
+                <span className="mb-1.5 block font-medium">Hook text <span className="font-normal text-muted">(recommended)</span></span>
+                <input aria-label="Hook text" value={hookText} maxLength={66} disabled={busy} onChange={(e) => setHookText(e.target.value)}
+                  placeholder="e.g. 3 mistakes every new runner makes" className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent" />
+                <span className="mt-1 block text-xs text-muted">The first words on screen: a question or a promise. Short works best (up to 7 words); longer text wraps onto more lines. Marathi and Hindi work too.</span>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block font-medium">Closing line <span className="font-normal text-muted">(optional)</span></span>
+                <input aria-label="Closing line" value={ctaText} maxLength={66} disabled={busy} onChange={(e) => setCtaText(e.target.value)}
+                  placeholder="e.g. Save this for your next run" className="w-full rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent" />
+                <span className="mt-1 block text-xs text-muted">Shown on the last 2 seconds.</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted">
+              Tip: in the instructions below, say who the Reel is for and the one thing it shows. Reels made for a specific person get sent to them, and
+              sends are what Instagram uses most to reach new people.
+            </p>
+          </Card>
+        )}
+      </section>
+      )}
+      </Stepper>
 
       {log && <TaskLog log={log} onClose={closeLog} onRetry={() => retry.current?.()} reviewLabel="Review" />}
 
@@ -1104,18 +1100,12 @@ export function CreateReelForm() {
             {(step === "videos" || step === "audio") && <ProgressBar value={uploadPct * 100} label="Upload progress" showEta />}
           </div>
         )}
-        {stage === "rest" && (
-          <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className={btnSecondary} disabled={busy} onClick={() => setStage("clips")}>
-              ‹ Back
-            </button>
-            <button type="submit" disabled={!canSubmit} className={`${btnPrimary} w-full py-3 text-base sm:w-auto`}>
-              {busy ? "Working…" : "✦ Generate Reel"}
-            </button>
-          </div>
-        )}
-        {stage === "rest" && !canSubmit && !busy && (
-          <p className="text-xs text-muted">{needsMusic && !audio ? "Add a song in step 2 (or choose an audio mode without music) to continue." : "Add at least one clip in step 1 to continue."}</p>
+        <button type="submit" disabled={!canSubmit || !rest} className="btn g big">
+          {busy ? "Working…" : "Create Reel"}
+        </button>
+        {!busy && !rest && <p className="mu xs text-center">Add your song, choose the length and check your clips first.</p>}
+        {rest && !canSubmit && !busy && (
+          <p className="mu xs text-center">{needsMusic && !audio ? "Add a song in step 1 (or choose a sound setting without music) to continue." : "Add at least one clip in step 3 to continue."}</p>
         )}
       </div>
     </form>

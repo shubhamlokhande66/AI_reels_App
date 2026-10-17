@@ -55,7 +55,7 @@ function LearnForm() {
   return (
     <Card className="space-y-4">
       <div>
-        <h2 className="font-medium">Learn a new trend</h2>
+        <h2 className="h2">Learn a new trend</h2>
         <p className="text-sm text-muted">
           Upload 1-6 trending Reels you like (saved to your phone or computer). The app measures how they are cut: timing on the beat, shot
           lengths in loud and calm parts, the hook and the look. The videos themselves are not kept.
@@ -174,18 +174,20 @@ function TrendCard({ t }: { t: LearnedTrend }) {
 export default function TrendsPage() {
   const q = useQuery({ queryKey: ["references"], queryFn: api.references });
   return (
-    <>
-      <PageHeader title="My trends" subtitle="Show the AI trending Reels you like; it edits your videos with the same rhythm and feel." />
-      <div className="space-y-6">
-        <TrendLibrary />
-        <LearnForm />
-        {q.isLoading && <Spinner label="Loading your trends…" />}
-        {q.error && <ErrorBanner message={errorMessage(q.error)} />}
-        {q.data && q.data.length === 0 && (
-          <EmptyState title="No trends yet" hint="Learn one above. When you create a Reel, the AI picks the trend that fits your instructions, or you choose one." />
-        )}
-        {q.data?.map((t) => <TrendCard key={t.id} t={t} />)}
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+      <PageHeader title="My trends" subtitle="Give a trending Reel; its cuts, pace and look are learned." />
+      <LearnForm />
+      <div className="between">
+        <h2 className="ht">Trend library</h2>
+        {q.data && <span className="mu sm">{q.data.length} trend{q.data.length === 1 ? "" : "s"}</span>}
       </div>
-    </>
+      {q.isLoading && <Spinner label="Loading your trends…" />}
+      {q.error && <ErrorBanner message={errorMessage(q.error)} />}
+      {q.data && q.data.length === 0 && (
+        <EmptyState icon="trend" title="No trends yet" hint="Learn one above. When you make a Reel, the AI picks the trend that fits, or you choose one." />
+      )}
+      {q.data?.map((t) => <TrendCard key={t.id} t={t} />)}
+      <TrendLibrary />
+    </div>
   );
 }

@@ -3,14 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { api, assetUrl, errorMessage } from "@/lib/api";
+import { api, errorMessage } from "@/lib/api";
 import { useProjects } from "@/hooks/useApi";
-import { btnPrimary, Card, Spinner } from "@/components/atoms";
-import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { Icon, Spinner, Thumb } from "@/components/atoms";
+import { ErrorBanner, Hero } from "@/components/molecules";
 
-const PRO = ["55 transitions", "22 effects", "20 filters", "Animated text", "Speed & slow motion", "Beat markers", "Captions", "HD export"];
-
-/** The manual editor's start: a new edit from scratch, or open one of your Reels to edit it by hand. */
+/** The manual editor's start (design: "Editor"): a new edit from scratch, or open one of your Reels to edit by hand. */
 export default function EditorHome() {
   const router = useRouter();
   const projects = useProjects();
@@ -33,60 +31,49 @@ export default function EditorHome() {
   const editable = (projects.data ?? []).filter((p) => p.videoCount > 0); // Reels made from clips (not stories / product photos)
 
   return (
-    <>
-      <PageHeader title="Editor" subtitle="Make a Reel yourself: every professional tool, free." />
-      <Card className="space-y-4 border-accent/40 bg-[linear-gradient(135deg,rgba(212,176,122,0.12),transparent)]">
-        <div>
-          <h2 className="font-display text-2xl">Start a new edit</h2>
-          <p className="mt-1 text-sm text-muted">Upload your clips and a song, then cut, arrange and style everything by hand. Nothing is automatic unless you ask.</p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {PRO.map((f) => (
-            <span key={f} className="rounded-full border border-accent/30 px-2.5 py-1 text-[11px] text-accent">
-              {f}
-            </span>
-          ))}
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            value={name}
-            maxLength={120}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Name your edit (optional)"
-            className="flex-1 rounded-xl border border-border bg-surface px-3 py-2.5 outline-none focus:border-accent"
-          />
-          <button type="button" className={btnPrimary} disabled={busy} onClick={() => void create()}>
-            {busy ? "Opening…" : "✦ Open the editor"}
-          </button>
-        </div>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-[14px]">
+      <Hero title="Make a Reel yourself" subtitle="Every professional tool, free: split, speed, transitions, titles, keyframes." />
+      <form
+        className="noir flex flex-col gap-4 rounded-[18px] bg-[#141210] p-[18px] text-[#f3ede3]"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void create();
+        }}
+      >
+        <span className="row">
+          <span className="it b4" style={{ background: "#1c1916" }}>
+            <Icon name="scissors" size={20} />
+          </span>
+          <span className="flex flex-col">
+            <b className="font-display text-[22px] font-semibold">Start a new edit</b>
+            <span className="text-[12.5px] text-[#a69d90]">Add clips and music, cut by hand</span>
+          </span>
+        </span>
+        <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} placeholder="Name your edit (optional)" className="inp" aria-label="Name your edit" />
+        <button type="submit" className="btn g" disabled={busy}>
+          {busy ? "Opening…" : "Open the editor"}
+        </button>
         {error && <ErrorBanner message={error} />}
-      </Card>
+      </form>
 
-      <h2 className="mb-3 mt-10 font-medium">Or edit one of your Reels by hand</h2>
+      <h2 className="ht">Or edit one of your Reels</h2>
       {projects.isLoading ? (
-        <Spinner label="Loading your projects…" />
+        <Spinner label="Loading your Reels…" />
       ) : editable.length === 0 ? (
-        <p className="text-sm text-muted">Your Reels made from clips will appear here.</p>
+        <p className="mu sm">Reels you make from your clips will show up here.</p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-3 gap-x-2 gap-y-2.5 sm:grid-cols-4 md:gap-x-3.5 lg:grid-cols-6">
           {editable.slice(0, 12).map((p) => (
             <li key={p.id}>
-              <Link href={`/editor/${p.id}`} className="lux-card flex items-center gap-3 rounded-2xl p-3 transition-colors hover:border-accent/50">
-                {p.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={assetUrl(p.thumbnailUrl)} alt="" className="h-16 w-12 shrink-0 rounded-lg object-cover" />
-                ) : (
-                  <span className="h-16 w-12 shrink-0 rounded-lg bg-surface-2" />
-                )}
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">{p.name}</span>
-                  <span className="text-xs text-accent">Open in editor →</span>
-                </span>
+              <Link href={`/editor/${p.id}`} className="group flex flex-col gap-1">
+                <Thumb id={p.id} url={p.thumbnailUrl} className="aspect-[3/4] w-full" />
+                <b className="sm truncate group-hover:text-accent">{p.name}</b>
+                <span className="mu xs">{p.duration < 60 ? `0:${String(p.duration).padStart(2, "0")}` : `${Math.floor(p.duration / 60)}:${String(p.duration % 60).padStart(2, "0")}`}</span>
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </>
+    </div>
   );
 }

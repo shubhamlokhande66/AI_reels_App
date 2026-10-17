@@ -88,7 +88,7 @@ describe("ProgressStages", () => {
     render(<ProgressStages job={job} />);
     expect(screen.getByRole("progressbar", { name: "Overall progress" })).toHaveAttribute("aria-valuenow", "62");
     expect(screen.getByRole("progressbar", { name: "Rendering video" })).toHaveAttribute("aria-valuenow", "40");
-    expect(screen.getByText("Analyzing videos").closest("li")).toHaveTextContent("✓"); // its step is ticked
+    expect(screen.getByText("Analyzing videos").closest("li")).toHaveClass("done"); // its step is ticked
   });
 
   it("says where a waiting Reel is in line", () => {
@@ -143,32 +143,32 @@ describe("ReelPreview", () => {
     render(<ReelPreview rendering={r} currentStyle="luxury" currentDuration={15} versionCount={1} busy={false} onGenerate={() => {}} />);
     expect(screen.getByText("1080×1920")).toBeInTheDocument();
     expect(screen.getByText("5.0 MB")).toBeInTheDocument();
-    expect(screen.getByText("0:15")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Download MP4" })).toHaveAttribute("href", expect.stringContaining("download=1"));
-    expect(screen.getByRole("link", { name: "Download without music" })).toHaveAttribute("href", expect.stringContaining("music=false"));
+    expect(screen.getAllByText("0:15").length).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", expect.stringContaining("download=1"));
+    expect(screen.getByRole("link", { name: "No music" })).toHaveAttribute("href", expect.stringContaining("music=false"));
   });
   it("regenerates, changes style/duration and creates versions", async () => {
     const onGenerate = vi.fn();
     render(<ReelPreview rendering={r} currentStyle="luxury" currentDuration={15} versionCount={2} busy={false} onGenerate={onGenerate} />);
     await userEvent.click(screen.getByRole("button", { name: "Regenerate" }));
     expect(onGenerate).toHaveBeenLastCalledWith({ seed: expect.any(Number) });
-    await userEvent.click(screen.getByRole("button", { name: "Create another version" }));
+    await userEvent.click(screen.getByRole("button", { name: "New version" }));
     expect(onGenerate).toHaveBeenLastCalledWith({ seed: expect.any(Number), label: "Version 3" });
-    await userEvent.click(screen.getByRole("button", { name: "Change style" }));
+    await userEvent.click(screen.getByRole("button", { name: "Style" }));
     await userEvent.click(within(screen.getByRole("radiogroup", { name: "Video style" })).getByRole("radio", { name: /Cinematic/ }));
-    await userEvent.click(screen.getByRole("button", { name: /Re-render in Cinematic/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Make it Cinematic/ }));
     expect(onGenerate).toHaveBeenLastCalledWith(expect.objectContaining({ style: "cinematic" }));
-    await userEvent.click(screen.getByRole("button", { name: "Change duration" }));
+    await userEvent.click(screen.getByRole("button", { name: "Length" }));
     await userEvent.click(screen.getByRole("radio", { name: "30s" }));
-    await userEvent.click(screen.getByRole("button", { name: /Re-render at 30s/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Make it 30 seconds/ }));
     expect(onGenerate).toHaveBeenLastCalledWith(expect.objectContaining({ duration: 30 }));
   });
   it("re-renders with a different pace", async () => {
     const onGenerate = vi.fn();
     render(<ReelPreview rendering={r} currentStyle="luxury" currentDuration={15} versionCount={1} busy={false} onGenerate={onGenerate} />);
-    await userEvent.click(screen.getByRole("button", { name: "Change pace" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pace" }));
     await userEvent.click(screen.getByRole("radio", { name: "Calm" }));
-    await userEvent.click(screen.getByRole("button", { name: /Re-render with calm pace/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Make it calm/ }));
     expect(onGenerate).toHaveBeenLastCalledWith(expect.objectContaining({ pace: "calm" }));
   });
   it("disables actions while busy", () => {

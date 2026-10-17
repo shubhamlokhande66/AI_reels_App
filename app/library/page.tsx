@@ -1,222 +1,260 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
+import { Icon, Spinner, Thumb } from "@/components/atoms";
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
-import { api, assetUrl, errorMessage } from "@/lib/api";
-import { formatDuration } from "@/lib/format";
+import { useProjects } from "@/hooks/useApi";
+import { api, errorMessage } from "@/lib/api";
+import { formatDuration, isVideoFile, PICKER_VIDEO } from "@/lib/format";
 import type { LibraryItem } from "@/types/api";
 
-type Tri = "all" | "yes" | "no";
-const toBool = (v: Tri) => (v === "all" ? undefined : v === "yes");
+type Filter = "all" | "favorites" | "used";
+const UPLOADS = "Library uploads"; // clips uploaded here live in a project of their own
 
+// Design: "Media Library" — a search, filter chips, every clip as a picture, and the chosen clip's details.
 export default function LibraryPage() {
   const qc = useQueryClient();
+  const projects = useProjects();
   const [query, setQuery] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [ai, setAi] = useState(false);
   const [tag, setTag] = useState("");
-  const [favorite, setFavorite] = useState<Tri>("all");
-  const [used, setUsed] = useState<Tri>("all");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [upload, setUpload] = useState<{ pct: number; note?: string } | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const list = useQuery({
-    queryKey: ["library", submitted, ai, tag, favorite, used],
+    queryKey: ["library", submitted, ai, tag, filter],
     queryFn: () =>
       submitted && ai
         ? api.librarySearch(submitted, true)
-        : api.library({ q: submitted, tag, favorite: toBool(favorite), used: toBool(used) }),
+        : api.library({ q: submitted, tag, favorite: filter === "favorites" ? true : undefined, used: filter === "used" ? true : undefined }),
   });
   const patch = useMutation({
     mutationFn: (v: { id: string; favorite?: boolean; tags?: string[] }) => api.patchMedia(v.id, v),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
   });
+  const analyse = useMutation({
+    mutationFn: (projectId: string) => api.analyze(projectId),
+    onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ["library"] }), 4000),
+  });
+
+  async function addClips(files: File[]) {
+    setUploadError(null);
+    const ok = files.filter(isVideoFile);
+    if (!ok.length) return setUploadError("Those files aren't videos we can use. Try MP4, MOV or WEBM.");
+    try {
+      setUpload({ pct: 0 });
+      let id = projects.data?.find((p) => p.name === UPLOADS)?.id;
+      if (!id) id = (await api.createProject(UPLOADS, { duration: 30 })).id;
+      const res = await api.uploadVideos(id, ok, (f) => setUpload({ pct: f }));
+      setUpload({ pct: 1, note: "Looking at what's in your clips so you can search them…" });
+      await api.analyze(id);
+      await qc.invalidateQueries({ queryKey: ["library"] });
+      await qc.invalidateQueries({ queryKey: ["projects"] });
+      if (res.failed.length) setUploadError(`Skipped: ${res.failed.map((f) => `${f.name} (${f.error.message})`).join(", ")}`);
+      setUpload(null);
+      setTimeout(() => qc.invalidateQueries({ queryKey: ["library"] }), 5000);
+    } catch (e) {
+      setUpload(null);
+      setUploadError(errorMessage(e));
+    }
+  }
 
   const items = list.data?.items ?? [];
-  const unanalysed = items.filter((i) => !i.analyzed).length;
+  const chosen = items.find((i) => i.id === picked) ?? null;
 
   return (
-    <>
-      <PageHeader title="Media Library" subtitle="Every clip you have uploaded, searchable by what is in it." />
+    <div className="flex flex-col gap-3">
+      <PageHeader
+        title="Media Library"
+        subtitle="Every clip you've uploaded, searchable by what is in it."
+        action={
+          <button type="button" className="btn g sm" aria-label="Upload clips" disabled={!!upload} onClick={() => fileInput.current?.click()}>
+            {upload ? `${Math.round(upload.pct * 100)}%` : "+ Upload"}
+          </button>
+        }
+      />
+      <input ref={fileInput} type="file" accept={PICKER_VIDEO} multiple className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { void addClips(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+      {upload && (
+        <div className="card" aria-live="polite">
+          <div className="row">
+            <div className="bar flex-1">
+              <i style={{ width: `${Math.max(3, upload.pct * 100)}%` }} />
+            </div>
+            <span className="mono sm">{Math.round(upload.pct * 100)}%</span>
+          </div>
+          <span className="mu sm">{upload.note ?? "Uploading your clips…"}</span>
+        </div>
+      )}
+      {uploadError && <ErrorBanner message={uploadError} />}
 
       <form
         role="search"
-        className="mb-4 flex flex-wrap items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           setSubmitted(query.trim());
         }}
       >
-        <input
-          aria-label="Search clips"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={ai ? 'Ask in plain words, e.g. "close-up jewellery shots"' : "Search names, tags, objects…"}
-          className="min-w-[14rem] flex-1 rounded-xl border border-border bg-surface px-3 py-2 outline-none focus:border-accent"
-        />
-        <label className="flex items-center gap-2 text-sm text-muted">
-          <input type="checkbox" checked={ai} onChange={(e) => setAi(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" />
-          AI search
-        </label>
-        <button type="submit" className={btnPrimary}>
-          Search
-        </button>
-        {submitted && (
-          <button
-            type="button"
-            className={btnSecondary}
-            onClick={() => {
-              setQuery("");
-              setSubmitted("");
+        <label className="srch">
+          <Icon name="search" size={16} />
+          <input
+            type="search"
+            aria-label="Search clips"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (!e.target.value) setSubmitted("");
             }}
-          >
-            Clear
-          </button>
-        )}
+            placeholder={ai ? "Describe it, e.g. close-ups of jewellery" : "Search “sunset”, “dancing”, “faces”…"}
+          />
+        </label>
       </form>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
-        <Select label="Favorites" value={favorite} onChange={setFavorite} />
-        <Select label="Used in a Reel" value={used} onChange={setUsed} />
-        {tag && (
-          <button type="button" className="rounded-full bg-accent/15 px-3 py-1 text-accent" onClick={() => setTag("")}>
-            tag: {tag} ✕
+      <nav className="chips" aria-label="Filter">
+        {(
+          [
+            ["all", "All"],
+            ["favorites", "Favorites"],
+            ["used", "Used in a Reel"],
+          ] as const
+        ).map(([k, l]) => (
+          <button key={k} type="button" className={`chip ${filter === k && !tag ? "on" : ""}`} onClick={() => { setFilter(k); setTag(""); }}>
+            {l}
+          </button>
+        ))}
+        <button type="button" className={`chip ${ai ? "on" : ""}`} aria-pressed={ai} onClick={() => setAi((v) => !v)} title="Search in plain words with AI">
+          <Icon name="sparkle" size={14} />
+          Smart search
+        </button>
+        {(list.data?.tags ?? []).slice(0, 12).map((t) => (
+          <button key={t.tag} type="button" className={`chip ${t.tag === tag ? "on" : ""}`} onClick={() => setTag(t.tag === tag ? "" : t.tag)}>
+            #{t.tag}
+          </button>
+        ))}
+      </nav>
+
+      {list.data?.note && <p role="status" className="card sm" style={{ color: "var(--warning)" }}>{list.data.note}</p>}
+      {list.data?.terms && submitted && ai && <p className="mu xs">Looked for: {list.data.terms.join(", ")}</p>}
+      {list.isLoading && <Spinner />}
+      {list.error && <ErrorBanner message={errorMessage(list.error)} onRetry={() => list.refetch()} />}
+
+      {list.data && items.length === 0 && (
+        <EmptyState
+          icon="image"
+          title={submitted ? "No clips match" : "No clips yet"}
+          hint={submitted ? "Try other words, or turn on Smart search." : "Upload clips here, or add them to a Reel: they all appear in your library."}
+        />
+      )}
+
+      {items.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6" role="listbox" aria-label="Clips">
+          {items.map((it) => (
+            <button
+              key={it.id}
+              type="button"
+              role="option"
+              aria-selected={picked === it.id}
+              aria-label={it.name}
+              onClick={() => setPicked(picked === it.id ? null : it.id)}
+              className={`relative rounded-[12px] ${picked === it.id ? "outline outline-2 outline-offset-2 outline-[var(--accent)]" : ""}`}
+            >
+              <Thumb id={it.id} url={it.thumbnailUrl} className="aspect-[3/4] w-full">
+                <span className="tag">{formatDuration(it.duration)}</span>
+                {it.favorite && (
+                  <span className="absolute right-1.5 top-1.5 z-[1] text-[#f1dcb0]">
+                    <Icon name="star" size={16} />
+                  </span>
+                )}
+              </Thumb>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {chosen && (
+        <ClipDetails
+          key={chosen.id}
+          item={chosen}
+          analysing={analyse.isPending || (analyse.isSuccess && analyse.variables === chosen.projectId && !chosen.analyzed)}
+          onAnalyse={() => analyse.mutate(chosen.projectId)}
+          onFavorite={() => patch.mutate({ id: chosen.id, favorite: !chosen.favorite })}
+          onTag={(tags) => patch.mutate({ id: chosen.id, tags })}
+        />
+      )}
+      {analyse.error && <ErrorBanner message={errorMessage(analyse.error)} />}
+    </div>
+  );
+}
+
+/** The chosen clip (design: the card under the grid): its name, what is in it, tags, and Analyse. */
+function ClipDetails({ item, analysing, onAnalyse, onFavorite, onTag }: { item: LibraryItem; analysing: boolean; onAnalyse: () => void; onFavorite: () => void; onTag: (tags: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+  return (
+    <section className="card" aria-label={`Clip ${item.name}`}>
+      <div className="row">
+        <Thumb id={item.id} url={item.thumbnailUrl} className="h-[52px] w-[52px]" />
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <b className="sm truncate">{item.name}</b>
+          <span className="chips w">
+            {item.tags.length ? (
+              item.tags.map((t) => (
+                <span key={t} className="badge b-run">
+                  {t}
+                  {item.userTags.includes(t) && (
+                    <button type="button" aria-label={`Remove tag ${t}`} onClick={() => onTag(item.userTags.filter((x) => x !== t))}>
+                      <Icon name="close" size={10} stroke={2.6} />
+                    </button>
+                  )}
+                </span>
+              ))
+            ) : (
+              <span className="mu xs">{item.analyzed ? "No tags yet" : "Not looked at yet"}</span>
+            )}
+          </span>
+        </span>
+        {!item.analyzed ? (
+          <button type="button" className="btn sm" disabled={analysing} onClick={onAnalyse}>
+            {analysing ? "Analysing…" : "Analyse"}
+          </button>
+        ) : (
+          <button type="button" className="ib plain" aria-pressed={item.favorite} aria-label={item.favorite ? "Remove from favorites" : "Add to favorites"} onClick={onFavorite}>
+            <Icon name="star" size={20} color={item.favorite ? "#d4b07a" : undefined} />
           </button>
         )}
       </div>
-
-      {list.data?.tags && list.data.tags.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-2" aria-label="Tags">
-          {list.data.tags.slice(0, 16).map((t) => (
-            <button
-              key={t.tag}
-              type="button"
-              onClick={() => setTag(t.tag === tag ? "" : t.tag)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs ${t.tag === tag ? "border-accent bg-accent/15" : "border-border text-muted hover:text-foreground"}`}
-            >
-              {t.tag} <span className="opacity-60">{t.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {list.data?.note && <p role="status" className="mb-4 rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-warning">{list.data.note}</p>}
-      {list.data?.terms && submitted && ai && (
-        <p className="mb-4 text-xs text-muted">Searched for: {list.data.terms.join(", ")}</p>
-      )}
-      {list.isLoading && <Spinner />}
-      {list.error && <ErrorBanner message={errorMessage(list.error)} onRetry={() => list.refetch()} />}
-      {unanalysed > 0 && !submitted && (
-        <p className="mb-4 text-sm text-muted">
-          {unanalysed} clip{unanalysed === 1 ? " has" : "s have"} not been analysed yet. Open its project and choose <em>Analyse content</em> so it can be searched by what it shows.
-        </p>
-      )}
-
-      {list.data && items.length === 0 && (
-        <EmptyState title={submitted ? "No clips match" : "No clips yet"} hint={submitted ? "Try different words, or turn on AI search." : "Clips you upload to a project appear here."} />
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((it) => (
-          <ClipCard key={it.id} item={it} onFavorite={() => patch.mutate({ id: it.id, favorite: !it.favorite })} onTag={(tags) => patch.mutate({ id: it.id, tags })} />
-        ))}
-      </div>
-    </>
-  );
-}
-
-function Select({ label, value, onChange }: { label: string; value: Tri; onChange: (v: Tri) => void }) {
-  return (
-    <label className="flex items-center gap-2 text-muted">
-      {label}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as Tri)}
-        className="rounded-lg border border-border bg-surface px-2 py-1 text-foreground outline-none focus:border-accent"
+      {item.summary && <span className="mu sm">{item.summary}</span>}
+      <form
+        className="row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (draft.trim()) onTag([...item.userTags, draft.trim()]);
+          setDraft("");
+        }}
       >
-        <option value="all">All</option>
-        <option value="yes">Yes</option>
-        <option value="no">No</option>
-      </select>
-    </label>
-  );
-}
-
-function ClipCard({ item, onFavorite, onTag }: { item: LibraryItem; onFavorite: () => void; onTag: (tags: string[]) => void }) {
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState("");
-  const thumb = assetUrl(item.thumbnailUrl);
-  return (
-    <Card className="overflow-hidden !p-0">
-      <div className="relative aspect-video bg-surface-2">
-        {thumb ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
-        ) : (
-          <div className="grid h-full place-items-center text-sm text-muted">No preview</div>
-        )}
-        <button
-          type="button"
-          aria-pressed={item.favorite}
-          aria-label={item.favorite ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
-          onClick={onFavorite}
-          className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-1 text-lg leading-none"
-        >
-          {item.favorite ? "★" : "☆"}
+        <input aria-label="Add a tag" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Add a tag, e.g. beach" className="inp" />
+        <button type="submit" className="btn sm shrink-0" disabled={!draft.trim()}>
+          Add tag
         </button>
-        <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-xs">{formatDuration(item.duration)}</span>
-        <span className={`absolute bottom-2 right-2 rounded px-1.5 py-0.5 text-xs ${item.used ? "bg-success/30 text-success" : "bg-black/60 text-muted"}`}>
-          {item.used ? "used" : "unused"}
+      </form>
+      <div className="between mu xs">
+        <Link href={`/projects/${item.projectId}`} className="truncate font-bold hover:text-accent">
+          From: {item.projectName}
+        </Link>
+        <span>
+          {item.used ? "Used in a Reel" : "Not used yet"}
+          {item.score !== undefined ? ` · ${Math.round(item.score * 100)}% match` : ""}
         </span>
       </div>
-      <div className="space-y-2 p-4">
-        <p className="truncate font-medium" title={item.name}>
-          {item.name}
-        </p>
-        {item.summary ? <p className="text-sm text-muted">{item.summary}</p> : <p className="text-sm text-muted/70">Not analysed yet.</p>}
-        <div className="flex flex-wrap gap-1.5">
-          {item.tags.map((t) => (
-            <span key={t} className={`rounded-full px-2 py-0.5 text-xs ${item.userTags.includes(t) ? "bg-accent/20 text-accent" : "bg-surface-2 text-muted"}`}>
-              {t}
-              {item.userTags.includes(t) && (
-                <button type="button" aria-label={`Remove tag ${t}`} className="ml-1 opacity-70" onClick={() => onTag(item.userTags.filter((x) => x !== t))}>
-                  ✕
-                </button>
-              )}
-            </span>
-          ))}
-          {adding ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (draft.trim()) onTag([...item.userTags, draft.trim()]);
-                setDraft("");
-                setAdding(false);
-              }}
-            >
-              <input
-                autoFocus
-                aria-label="New tag"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={() => setAdding(false)}
-                className="w-24 rounded-full border border-border bg-surface px-2 py-0.5 text-xs outline-none focus:border-accent"
-              />
-            </form>
-          ) : (
-            <button type="button" className="rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted hover:text-foreground" onClick={() => setAdding(true)}>
-              + tag
-            </button>
-          )}
-        </div>
-        <div className="flex items-center justify-between text-xs text-muted">
-          <Link href={`/projects/${item.projectId}`} className="truncate hover:text-accent">
-            {item.projectName}
-          </Link>
-          {item.score !== undefined && <span>match {Math.round(item.score * 100)}%</span>}
-        </div>
-      </div>
-    </Card>
+      {item.analyzed && (
+        <button type="button" className="ac sm self-start font-bold" onClick={onFavorite}>
+          {item.favorite ? "Remove from favorites" : "Add to favorites"}
+        </button>
+      )}
+    </section>
   );
 }

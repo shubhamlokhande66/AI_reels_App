@@ -3,3 +3,6 @@ export { btnDanger, btnPrimary, btnSecondary, LinkButton } from "./Button";
 export { Card } from "./Card";
 export { Spinner } from "./Spinner";
 export { StatusBadge } from "./StatusBadge";
+export { Icon, photoClass } from "./Icon";
+export { Thumb } from "./Thumb";
+export { Toggle } from "./Toggle";

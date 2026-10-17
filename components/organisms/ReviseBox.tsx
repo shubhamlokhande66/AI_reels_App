@@ -5,12 +5,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { keys } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import type { ReviseResult } from "@/types/api";
-import { btnPrimary, btnSecondary, Card } from "@/components/atoms";
+import { btnPrimary } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 
 const IDEAS = [
+  "Make it shorter",
+  "More energy",
   "Make it calmer with longer shots",
-  "Faster cuts, more energy",
   "Remove the first clip",
   "Make it 20 seconds",
   "Add captions",
@@ -39,6 +40,7 @@ export function ReviseBox({ projectId, busy, initialText, autoRun }: Props) {
   const [text, setText] = useState(initialText ?? "");
   const [result, setResult] = useState<{ data: ReviseResult; applied: boolean; sent: string } | null>(null);
   const autoRan = useRef(false);
+  const [showAll, setShowAll] = useState(false);
 
   const run = useMutation({
     mutationFn: (v: { dryRun: boolean; confirm?: { sent: string; actions: Record<string, unknown>[] } }) => {
@@ -69,60 +71,49 @@ export function ReviseBox({ projectId, busy, initialText, autoRun }: Props) {
   }, [autoRun, busy, initialText]);
 
   return (
-    <section className="mt-6" aria-label="Change this Reel">
-      <Card className="space-y-3">
-        <div>
-          <h2 className="font-semibold">Change this Reel</h2>
-          <p className="text-sm text-muted">
-            Say what you want different, then press Regenerate. You get a new version; the old one is kept.
-          </p>
-        </div>
-        <textarea
-          aria-label="What should change?"
-          rows={3}
-          maxLength={3000}
-          value={text}
-          disabled={disabled}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. Make it calmer, remove the first clip, add captions and make the music louder"
-          className="w-full resize-y rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60"
-        />
-        <p className="text-xs text-muted">
-          This edits your own uploaded clips — trim, speed, order, transitions, captions, music, style. It does not generate new video or
-          animate a photo (no AI video/image generation is built in), so a long creative-direction brief mostly won&apos;t be understood; short,
-          direct instructions work best.
-        </p>
-        <div className="flex flex-wrap gap-2" aria-label="Ideas">
-          {IDEAS.map((i) => (
-            <button
-              key={i}
-              type="button"
-              disabled={disabled}
-              onClick={() => add(i)}
-              className="rounded-full border border-border px-2.5 py-1 text-xs text-muted hover:border-accent/60 hover:text-foreground disabled:opacity-50"
-            >
+    <section className="card" aria-label="Change this Reel">
+      <span className="h2">Change this Reel</span>
+      <textarea
+        aria-label="What should change?"
+        maxLength={3000}
+        value={text}
+        disabled={disabled}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="e.g. Faster at the start, more close-ups, louder music"
+        className="ta"
+        style={{ minHeight: 70 }}
+      />
+      <div className="between flex-wrap">
+        <div className="chips min-w-0 flex-1" aria-label="Ideas">
+          {(showAll ? IDEAS : IDEAS.slice(0, 2)).map((i) => (
+            <button key={i} type="button" disabled={disabled} onClick={() => add(i)} className="chip">
               {i}
             </button>
           ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={btnPrimary} disabled={!can} onClick={() => run.mutate({ dryRun: false })}>
-            {run.isPending ? "Working…" : busy ? "Rendering…" : "↻ Regenerate"}
-          </button>
-          <button type="button" className={btnSecondary} disabled={!can} onClick={() => run.mutate({ dryRun: true })}>
-            Check what it will do
+          <button type="button" className="chip mu" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? "Fewer ideas" : "More ideas"}
           </button>
         </div>
-        {run.error && <ErrorBanner message={errorMessage(run.error)} />}
-        {result && (
-          <Outcome
-            data={result.data}
-            applied={result.applied}
-            busy={disabled}
-            onConfirm={() => run.mutate({ dryRun: false, confirm: { sent: result.sent, actions: result.data.actions } })}
-          />
-        )}
-      </Card>
+        <button type="button" className="btn g sm" disabled={!can} onClick={() => run.mutate({ dryRun: false })}>
+          {run.isPending ? "Working…" : busy ? "Rendering…" : "Apply"}
+        </button>
+      </div>
+      <span className="mu xs">
+        You get a new version and the old one is kept. Short, direct instructions work best: we change your own clips (order, speed, cuts,
+        captions, music, style); we don&apos;t create new footage.{" "}
+        <button type="button" className="ac font-bold disabled:opacity-50" disabled={!can} onClick={() => run.mutate({ dryRun: true })}>
+          Preview what changes
+        </button>
+      </span>
+      {run.error && <ErrorBanner message={errorMessage(run.error)} />}
+      {result && (
+        <Outcome
+          data={result.data}
+          applied={result.applied}
+          busy={disabled}
+          onConfirm={() => run.mutate({ dryRun: false, confirm: { sent: result.sent, actions: result.data.actions } })}
+        />
+      )}
     </section>
   );
 }

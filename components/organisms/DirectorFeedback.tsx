@@ -29,35 +29,44 @@ export function DirectorFeedback({ project }: { project: Project }) {
       setAsking(false);
     },
   });
-  if (sent) {
-    return (
-      <p className="mt-3 text-sm text-muted" role="status">
-        Thanks. {sent.ready ? "Your director profile is active and will shape the next Reels you leave on Auto." : `Your director profile has ${sent.evidence} of ${sent.minEvidence} signals it needs before it changes anything.`}
-      </p>
-    );
-  }
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm" aria-label="Feedback on this Reel">
-      <span className="text-muted">Does this Reel work?</span>
-      <button type="button" className={btnSecondary} disabled={send.isPending} onClick={() => send.mutate({ verdict: "accepted" })}>
-        ✓ I&apos;d post it
-      </button>
-      {!asking ? (
-        <button type="button" className={btnSecondary} disabled={send.isPending} onClick={() => setAsking(true)}>
-          ✗ Not quite
-        </button>
-      ) : (
-        <span className="flex flex-wrap gap-1" role="group" aria-label="What was wrong">
-          {REASONS.map((r) => (
-            <button key={r.id} type="button" className="rounded-full border border-border px-3 py-1 text-xs hover:border-accent/60"
-                    disabled={send.isPending} onClick={() => send.mutate({ verdict: "rejected", reason: r.id })}>
-              {r.label}
-            </button>
-          ))}
+    <section className="card" aria-label="Director feedback">
+      <div className="between">
+        <span className="h2">Director feedback</span>
+        <span className="mu sm">Teaches your style</span>
+      </div>
+      {sent ? (
+        <span className="mu sm" role="status">
+          Thanks! {sent.ready ? "Your style is learned and shapes the next Reels you leave on Auto." : `We need ${sent.minEvidence - sent.evidence} more answer${sent.minEvidence - sent.evidence === 1 ? "" : "s"} like this before it changes anything.`}
         </span>
+      ) : (
+        <>
+          <span className="mu sm">{asking ? "What should be better?" : "How did this Reel turn out?"}</span>
+          {!asking ? (
+            <div className="g2">
+              <button type="button" className="btn sm" disabled={send.isPending} onClick={() => send.mutate({ verdict: "accepted" })}>
+                Love it
+              </button>
+              <button type="button" className="btn sm" disabled={send.isPending} onClick={() => setAsking(true)}>
+                Needs work
+              </button>
+            </div>
+          ) : (
+            <div className="chips w" role="group" aria-label="What was wrong">
+              {REASONS.map((r) => (
+                <button key={r.id} type="button" className="chip" disabled={send.isPending} onClick={() => send.mutate({ verdict: "rejected", reason: r.id })}>
+                  {r.label}
+                </button>
+              ))}
+              <button type="button" className="chip mu" onClick={() => setAsking(false)}>
+                Back
+              </button>
+            </div>
+          )}
+        </>
       )}
       {send.error && <ErrorBanner message={errorMessage(send.error)} />}
-    </div>
+    </section>
   );
 }
 

@@ -41,9 +41,8 @@ export function Dropzone({ label, hint, accept, multiple = false, validate, onFi
         setOver(false);
         handle(e.dataTransfer.files);
       }}
-      className={`rounded-2xl border-2 border-dashed p-6 text-center transition-colors ${
-        over ? "border-accent bg-accent/10" : "border-border bg-surface"
-      } ${disabled ? "opacity-50" : ""}`}
+      className={`card items-center text-center transition-colors ${over ? "!border-[var(--accent)] !bg-[var(--chip-on)]" : ""} ${disabled ? "opacity-50" : ""}`}
+      style={{ borderStyle: "dashed", borderWidth: 1.5 }}
     >
       <input
         ref={inputRef}
@@ -55,12 +54,10 @@ export function Dropzone({ label, hint, accept, multiple = false, validate, onFi
         className="sr-only"
         onChange={(e) => handle(e.target.files)}
       />
-      <label htmlFor={inputId} className="cursor-pointer">
-        <span className="block text-sm font-medium">{label}</span>
-        <span className="mt-1 block text-xs text-muted">{hint}</span>
-        <span className="mt-3 inline-block rounded-xl border border-border bg-surface-2 px-3 py-1.5 text-sm hover:border-accent/60">
-          Browse files
-        </span>
+      <label htmlFor={inputId} className="flex cursor-pointer flex-col items-center gap-1.5">
+        <b className="sm">{label}</b>
+        <span className="mu xs">{hint}</span>
+        <span className="btn sm mt-1.5">Choose files</span>
       </label>
     </div>
   );
