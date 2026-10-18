@@ -736,3 +736,7 @@
 .brs .clipsnd .seg{display:flex;width:100%}
 .brs .clipsnd .seg button{flex:1 1 auto;white-space:nowrap}
 .brs .clipsnd .seg button[aria-pressed=true]{background:var(--chipbg,var(--chip-on));color:var(--ink)}
+/* the post's caption, under the save / share buttons */
+.brs .postcap{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.brs .postcap textarea{width:100%;min-height:92px;resize:vertical;font:inherit;font-size:14px;line-height:1.4;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.brs .postcap textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
