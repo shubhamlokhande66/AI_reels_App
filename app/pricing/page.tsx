@@ -1,16 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { useCredits, useMe } from "@/hooks/useApi";
 import { pay } from "@/lib/razorpay";
-import type { Credits, Pricing } from "@/types/api";
-import { Icon, Spinner } from "@/components/atoms";
+import { cn } from "@/lib/cn";
+import type { Credits } from "@/types/api";
+import { Badge, Button, Card, Icon, Spinner } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
+import { PlanAction, PlanCard, rupees } from "@/components/organisms/pricing/PlanCard";
 
-const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 
 const FAQ = [
@@ -23,93 +23,50 @@ const FAQ = [
   ["Is my footage kept?", "Uploaded clips are deleted automatically after a short time for your privacy. Download your Reel before then."],
 ] as const;
 
-type Plan = Pricing["plans"][number];
-
-function PlanCard({ plan, yearly, signedIn, paymentsOpen, current, busy, onBuy }: {
-  plan: Plan;
-  yearly: boolean;
-  signedIn: boolean;
-  paymentsOpen: boolean;
-  current: boolean;
-  busy: boolean;
-  onBuy: () => void;
-}) {
-  const free = plan.monthly === 0;
-  const price = yearly ? plan.yearly : plan.monthly;
-  const perMonth = yearly && !free ? Math.round(plan.yearly / 12) : null;
-  const pop = !!plan.highlight;
-  const priceEl = (
-    <span className="mono whitespace-nowrap">
-      <b style={{ fontSize: pop ? 26 : 22 }}>{free ? "₹0" : rupees(price)}</b>
-      {!free && <span className="mu sm">/{yearly ? "year" : "month"}</span>}
-    </span>
-  );
-  const cls = `btn ${pop ? "g" : "sm"} w-full`;
+/** A section's heading on this page: the title and one line under it. */
+function Heading({ title, sub, center = false }: { title: string; sub?: string; center?: boolean }) {
   return (
-    <div className={`plan ${pop ? "pop" : ""}`}>
-      <div className="between">
-        <b className="ht">{plan.name}</b>
-        {current ? <span className="badge b-ok">Your plan</span> : pop ? <span className="badge b-run">Most popular</span> : null}
-      </div>
-      {priceEl}
-      <span className="mu sm">
-        {plan.credits.toLocaleString("en-IN")} credits · {plan.tagline}
-        {perMonth ? ` · ${rupees(perMonth)} a month` : ""}
-      </span>
-      {plan.features.length > 0 && (
-        <details className="sm">
-          <summary className="ac cursor-pointer font-bold">What&apos;s included</summary>
-          <ul className="mu mt-1.5 flex flex-col gap-1">
-            {plan.creditsNote && <li>{plan.creditsNote}</li>}
-            {plan.features.map((f) => (
-              <li key={f}>· {f}</li>
-            ))}
-          </ul>
-        </details>
-      )}
-      {free ? (
-        <Link href={signedIn ? "/projects/new" : "/login"} className="btn sm w-full">
-          {signedIn ? "Make a Reel" : "Start free"}
-        </Link>
-      ) : !paymentsOpen ? (
-        <button type="button" disabled className={cls} title={current ? "This is your plan" : "Online payment opens soon"}>
-          {current ? "Your current plan" : `Choose ${plan.name}`}
-        </button>
-      ) : !signedIn ? (
-        <Link href="/login" className={cls}>
-          Sign in to choose {plan.name}
-        </Link>
-      ) : (
-        <button type="button" disabled={busy} onClick={onBuy} className={cls}>
-          {busy ? "Opening payment…" : current ? `Extend ${plan.name}` : `Choose ${plan.name}`}
-        </button>
-      )}
+    <div className={cn("flex flex-col gap-1", center && "items-center text-center")}>
+      <h2 className="m-0 font-[family-name:var(--font-display)] text-[22px] font-extrabold tracking-[-0.01em] md:text-[26px]">{title}</h2>
+      {sub && <p className="m-0 max-w-xl text-[14px] text-muted">{sub}</p>}
     </div>
   );
 }
 
 function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
   return (
-    <section className="card" aria-label="Your credits">
-      <div className="between">
-        <span className="h2">Your credits</span>
-        <span className="mono ac">
-          <b>{c.balance.toLocaleString("en-IN")}</b>
-        </span>
-      </div>
-      <span className="mu xs">
-        {c.planName} plan{c.plan !== "free" && c.planEnds ? ` · active until ${day(c.planEnds)}` : ""}
-        {c.plan !== "free" && c.renews ? ` · new credits on ${day(c.renews)}` : ""} · {c.extra.toLocaleString("en-IN")} never expire
-      </span>
-      {c.history.slice(0, 5).map((h, i) => (
-        <div key={i} className="between sm">
-          <span className="mu min-w-0 truncate">{h.reason}</span>
-          <span className="mono shrink-0" style={h.delta > 0 ? { color: "var(--success)" } : undefined}>
-            {h.delta > 0 ? `+${h.delta.toLocaleString("en-IN")}` : `−${Math.abs(h.delta).toLocaleString("en-IN")}`}
+    <Card as="section" aria-label="Your credits" className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col">
+          <span className="text-[13px] font-semibold text-muted">Your credits</span>
+          <span className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[34px] font-extrabold leading-tight tabular-nums">
+            <Icon name="bolt" size={26} stroke={2.2} color="#6d8bff" />
+            {c.balance.toLocaleString("en-IN")}
           </span>
         </div>
-      ))}
-    </section>
+        <Badge tone="brand" className="h-8 px-3 text-[12.5px]">
+          <Icon name="crown" size={14} />
+          {c.planName} plan
+        </Badge>
+      </div>
+      <p className="m-0 text-[12.5px] text-muted">
+        {c.plan !== "free" && c.planEnds ? `Active until ${day(c.planEnds)} · ` : ""}
+        {c.plan !== "free" && c.renews ? `New credits on ${day(c.renews)} · ` : ""}
+        {c.extra.toLocaleString("en-IN")} never expire
+      </p>
+      {c.history.length > 0 && (
+        <ul className="m-0 flex list-none flex-col divide-y divide-border p-0">
+          {c.history.slice(0, 5).map((h, i) => (
+            <li key={i} className="flex items-center justify-between gap-3 py-2 text-[13px]">
+              <span className="min-w-0 truncate text-muted">{h.reason}</span>
+              <span className={cn("shrink-0 font-bold tabular-nums", h.delta > 0 && "text-success")}>
+                {h.delta > 0 ? `+${h.delta.toLocaleString("en-IN")}` : `−${Math.abs(h.delta).toLocaleString("en-IN")}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 
@@ -147,100 +104,153 @@ export default function PricingPage() {
   if (q.error || !q.data) return <ErrorBanner message={errorMessage(q.error ?? new Error("Plans are not available."))} onRetry={() => void q.refetch()} />;
   const p = q.data;
   const period = yearly ? "yearly" : "monthly";
+  const freeMonths = 12 - p.yearlyMonthsCharged;
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-3 md:max-w-4xl">
-      <div className="text-center">
-        <h1 className="h1" style={{ fontSize: "clamp(30px, 6vw, 44px)" }}>
-          Simple plans. Pay for what you make.
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 pb-4 md:gap-16">
+      {/* the hero: what it costs, in one line */}
+      <header className="relative flex flex-col items-center gap-4 pt-4 text-center md:pt-8">
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 -z-10 mx-auto h-64 max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(176,92,255,.28),transparent)] blur-2xl" />
+        <Badge tone="brand" className="h-8 px-3.5 text-[12.5px] uppercase tracking-wider">
+          <Icon name="coins" size={15} />
+          Pricing
+        </Badge>
+        <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(34px,6.5vw,60px)] font-extrabold leading-[1.04] tracking-[-0.035em]">
+          Simple plans. <span className="bg-[linear-gradient(90deg,#c084fc,#e040fb_55%,#ff4fd8)] bg-clip-text text-transparent">Pay for what you make.</span>
         </h1>
-        <p className="sub">Start free. Prices include GST.</p>
-      </div>
-      <div role="radiogroup" aria-label="Billing period" className="tabs2 self-center" style={{ width: 260 }}>
-        {([false, true] as const).map((y) => (
-          <button key={String(y)} type="button" role="radio" aria-checked={yearly === y} className={yearly === y ? "on" : ""} onClick={() => setYearly(y)}>
-            {y ? `Yearly · ${12 - p.yearlyMonthsCharged} months free` : "Monthly"}
-          </button>
-        ))}
-      </div>
+        <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">Start free with {p.plans.find((x) => x.monthly === 0)?.credits ?? 15} credits. No card needed, nothing renews by itself, and every price includes GST.</p>
+
+        {/* Monthly / Yearly */}
+        <div role="radiogroup" aria-label="Billing period" className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-surface p-1.5 shadow-[var(--shadow)]">
+          {([false, true] as const).map((y) => (
+            <button
+              key={String(y)}
+              type="button"
+              role="radio"
+              aria-checked={yearly === y}
+              onClick={() => setYearly(y)}
+              className={cn(
+                "inline-flex h-10 items-center gap-2 rounded-full px-5 text-[14px] font-bold transition-colors",
+                yearly === y ? "text-white [background:var(--gold-gradient)] shadow-[0_8px_20px_-10px_var(--brand-glow)]" : "text-muted hover:text-foreground",
+              )}
+            >
+              {y ? "Yearly" : "Monthly"}
+              {y && freeMonths > 0 && (
+                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-extrabold", yearly ? "bg-white/20 text-white" : "bg-success/15 text-success")}>
+                  {freeMonths} months free
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </header>
+
       {notice && (
-        <p role="status" className="card sm text-center" style={{ color: notice.ok ? "var(--success)" : "var(--danger)" }}>
+        <p role="status" className={cn("m-0 -mt-6 flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-center text-[14px] font-semibold", notice.ok ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger")}>
+          <Icon name={notice.ok ? "check" : "warn"} size={18} stroke={2.2} />
           {notice.text}
         </p>
       )}
 
-      <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4" aria-label="Plans">
+      {/* the plans */}
+      <section aria-label="Plans" className="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
         {p.plans.map((plan) => {
           const item = `plan:${plan.id}:${period}`;
+          const current = !!mine && mine.plan === plan.id && plan.id !== "free";
           return (
             <PlanCard
               key={plan.id}
               plan={plan}
               yearly={yearly}
-              signedIn={signedIn}
-              paymentsOpen={p.paymentsOpen}
-              current={!!mine && mine.plan === plan.id && plan.id !== "free"}
-              busy={buying !== null}
-              onBuy={() => void buy(item, `${plan.name} (${yearly ? "1 year" : "1 month"})`)}
+              action={
+                <PlanAction
+                  plan={plan}
+                  signedIn={signedIn}
+                  paymentsOpen={p.paymentsOpen}
+                  current={current}
+                  busy={buying === item}
+                  onBuy={() => void buy(item, `${plan.name} (${yearly ? "1 year" : "1 month"})`)}
+                />
+              }
             />
           );
         })}
       </section>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      {/* your credits and top-ups */}
+      <section aria-label="Credits" className={cn("grid gap-5", mine && "md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]")}>
         {mine && <MyCredits c={mine} />}
-        <section className="card" aria-label="Top up">
-          <span className="h2">Need more credits?</span>
-          <div className="g3">
-            {p.topUps.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className="btn sm !h-auto flex-col !gap-0 py-2"
-                disabled={!p.paymentsOpen || !signedIn || buying !== null}
-                title={`${t.credits} credits for ${rupees(t.price)}`}
-                onClick={() => void buy(`topup:${t.id}`, `${t.credits} credits`)}
-              >
-                <span>{buying === `topup:${t.id}` ? "Opening…" : `+${t.credits.toLocaleString("en-IN")}`}</span>
-                <span className="mu xs font-semibold">{rupees(t.price)}</span>
-              </button>
+        <Card as="section" aria-label="Top up" className="flex flex-col gap-4">
+          <Heading title="Need more credits?" sub="Top up any time. Top-up credits never expire." />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {p.topUps.map((t) => {
+              const item = `topup:${t.id}`;
+              return (
+                <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 p-4">
+                  <div className="flex flex-col">
+                    <span className="flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[22px] font-extrabold tabular-nums">
+                      <Icon name="bolt" size={18} stroke={2.2} color="#6d8bff" />+{t.credits.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-[12px] text-muted">{rupees(Math.round((t.price / t.credits) * 10) / 10)} a credit</span>
+                  </div>
+                  <Button size="sm" variant="secondary" loading={buying === item} disabled={!p.paymentsOpen || !signedIn || (buying !== null && buying !== item)} title={!p.paymentsOpen ? "Online payment opens soon" : !signedIn ? "Sign in to top up" : undefined} onClick={() => void buy(item, `${t.credits} credits`)}>
+                    {rupees(t.price)}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </section>
+
+      {/* what a credit buys */}
+      <section aria-labelledby="costs-h" className="flex flex-col gap-5">
+        <div id="costs-h">
+          <Heading title="What a credit buys" sub="Previews and most Fast Studio AI work are free. A Reel that fails gives its credits back." center />
+        </div>
+        <Card className="!p-2 md:!p-3">
+          <ul className="m-0 grid list-none gap-x-6 p-0 md:grid-cols-2">
+            {p.creditCosts.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 border-b border-border px-3 py-3.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
+                <span className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
+                    <Icon name={c.credits === 0 ? "sparkle" : "bolt"} size={15} stroke={2} />
+                  </span>
+                  <span className="min-w-0">{c.action}</span>
+                </span>
+                <Badge tone={c.credits === 0 ? "success" : "brand"} className="h-7 shrink-0 px-3 text-[12px]">
+                  {c.credits === 0 ? "Free" : `${c.credits} credit${c.credits > 1 ? "s" : ""}`}
+                </Badge>
+              </li>
             ))}
-          </div>
-          <span className="mu xs">Top-up credits never expire.</span>
-        </section>
-      </div>
-
-      <section className="card" style={{ gap: 0 }} aria-label="What a credit buys">
-        <span className="h2" style={{ marginBottom: 4 }}>
-          What a credit buys
-        </span>
-        {p.creditCosts.map((c) => (
-          <div key={c.id} className="li">
-            <b className="sm">{c.action}</b>
-            <span className="ac sm font-bold">{c.credits === 0 ? "Free" : `${c.credits} credit${c.credits > 1 ? "s" : ""}`}</span>
-          </div>
-        ))}
+          </ul>
+        </Card>
       </section>
 
-      <section className="card" style={{ gap: 0 }} aria-label="Questions">
-        <span className="h2" style={{ marginBottom: 4 }}>
-          Questions
-        </span>
-        {FAQ.map(([q2, a]) => (
-          <details key={q2} className="group border-b border-border last:border-b-0">
-            <summary className="li !border-b-0 cursor-pointer list-none">
-              <b className="sm">{q2}</b>
-              <span className="mu transition-transform group-open:rotate-180">
-                <Icon name="down" size={18} />
-              </span>
-            </summary>
-            <p className="mu sm pb-3">{a}</p>
-          </details>
-        ))}
+      {/* questions */}
+      <section aria-labelledby="faq-h" className="flex flex-col gap-5">
+        <div id="faq-h">
+          <Heading title="Questions" sub="Everything about plans, credits and payments." center />
+        </div>
+        <div className="grid items-start gap-3 md:grid-cols-2">
+          {FAQ.map(([qq, a]) => (
+            <details key={qq} className="group rounded-2xl border border-border bg-surface px-5 shadow-[var(--shadow)] open:border-accent/50">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-[14.5px] font-bold [&::-webkit-details-marker]:hidden">
+                {qq}
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-surface-2 text-muted transition-transform group-open:rotate-180">
+                  <Icon name="down" size={16} />
+                </span>
+              </summary>
+              <p className="m-0 pb-4 text-[14px] leading-relaxed text-muted">{a}</p>
+            </details>
+          ))}
+        </div>
       </section>
-      <span className="mu xs text-center">
-        {p.paymentsOpen ? "Payments are handled securely by Razorpay. We never see your card or UPI details." : "Online payment opens soon"}
-      </span>
+
+      <p className="m-0 flex items-center justify-center gap-2 text-center text-[12.5px] text-muted">
+        <Icon name="lock" size={15} />
+        {p.paymentsOpen ? "Payments are handled securely by Razorpay. We never see your card or UPI details." : "Online payment opens soon."}
+      </p>
     </div>
   );
 }

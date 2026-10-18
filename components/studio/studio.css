@@ -947,7 +947,7 @@
 .brs.fopen .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
 .brs.fopen .step > .sh,.brs.fopen .sh3{flex-wrap:nowrap;align-items:flex-start}
 .brs.fopen .fh{flex:1}
-@media (max-width:1023px){ .brs.fopen [data-tasks]{display:none} }
+/* phones: the progress cards (song, beats, clips, AI) stay in view, above the button pinned at the bottom */
 /* the export sheet (UI/ design: Export Settings): quality and frame rate as cards, each with its line */
 .brs .xsh{gap:12px;border:1px solid var(--line)}
 .brs .xsh-h h2{font:800 22px var(--display)}
@@ -965,3 +965,231 @@
 .brs .xsh .btn.save{background:var(--gold-gradient);color:#fff}
 /* until the flow has written the kind (Talking / Photo words), its place stays empty: never the studio home first */
 .brs.fopen:not(.flive) :is(.fhead,.fintro,.fgrid,.fan){visibility:hidden}
+
+/* ================= Phones: the 10 screens of the design (UI/New folder/AfterClipMusicReelsMobile.png) =================
+   Computers are untouched: every piece below is hidden there, and every rule is inside the phones' breakpoint. */
+.brs :is(.fptitle,.fmob,.fcliplabel,.fadd,.fmore,.fapply,.fsong){display:none}
+.brs .fclipgrid{display:contents}
+.brs .fexp[hidden],.brs .fdone[hidden]{display:none !important}
+@media (max-width:1023px){
+  /* ---- the head (every screen): back, the screen's name, Skip; the step dots under it ---- */
+  body:has(.brs.fpost) header.top{display:none}
+  .brs.fopen .fhead,.brs.fpost .fhead{display:grid !important;grid-template-columns:40px minmax(0,1fr) auto;grid-template-areas:"back title skip" "steps steps steps";align-items:center;row-gap:12px;column-gap:12px;position:sticky;top:0;z-index:20;margin:-16px -16px 0;padding:max(12px,env(safe-area-inset-top)) 16px 12px;background:var(--background);border:0;visibility:visible}
+  .brs.fopen[data-fstep="intro"] .fhead,.brs.fopen[data-fstep="analyse"] .fhead,.brs.fpost:not([data-tool]) .fhead,.brs.fpost[data-tool=""] .fhead{grid-template-areas:"back steps skip"}
+  .brs .fhead .fback{grid-area:back;width:40px;height:40px;border-radius:12px}
+  .brs .fhead .fptitle{grid-area:title;display:block;font:800 17px var(--display);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brs .fhead .fptitle:empty{display:none}
+  .brs .fhead .fskip{grid-area:skip}
+  .brs .fhead .ft{display:none}
+  .brs .fhead .fsteps{grid-area:steps;display:flex;align-items:center;justify-content:center;width:190px;justify-self:center;gap:0}
+  .brs .fhead .fsteps li{display:flex !important;align-items:center;flex:1 1 0;min-width:0;gap:0}
+  .brs .fhead .fsteps li:first-child{flex:0 0 auto}
+  .brs .fhead .fsteps li span{display:none}
+  .brs .fhead .fsteps li + li::before{content:"";position:static;flex:1;width:auto;height:2px;margin:0 6px;background:var(--line);border-radius:2px}
+  .brs .fhead .fsteps li.ok + li::before,.brs .fhead .fsteps li.on::before{background:var(--accent)}
+  .brs .fhead .fsteps i{width:10px;height:10px;font-size:0;border:0;background:color-mix(in srgb,var(--muted) 55%,transparent);flex:none}
+  .brs .fhead .fsteps li.ok i{background:var(--accent)}
+  .brs .fhead .fsteps li.on i{width:30px;height:30px;font:800 13px var(--body);color:#fff;background:var(--gold-gradient);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
+
+  /* ---- the screens are the page itself: no cards, no card headings; the button at the bottom ---- */
+  .brs.fopen .wrap{gap:18px;padding-bottom:104px}
+  .brs.fopen #s1,.brs.fopen #s2{background:none !important;border:0;box-shadow:none;padding:4px 0 0 !important;border-radius:0}
+  .brs.fopen #s1 > .sh,.brs.fopen #s2 > .sh{display:none !important}
+  .brs.fopen :is(.fgo,.fnext){position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));width:auto;z-index:30;min-height:56px;border-radius:16px;font-size:16px;box-shadow:0 14px 30px -12px var(--brand-glow)}
+  .brs.fopen .fnext:disabled{opacity:.55}
+  .brs.fopen .label{font:700 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
+
+  /* 1 Music Reel Start */
+  .brs.fopen .fintro{min-height:calc(100svh - 190px);align-content:start;padding-top:36px;gap:16px}
+  .brs.fopen .fbadge{width:104px;height:104px;border-radius:30px}
+  .brs.fopen .fintro h2{font-size:27px;margin-top:18px}
+  .brs.fopen .fchecks{margin-top:28px;gap:20px;padding:0 6px}
+
+  /* 2 Choose Music: the phone's songs as a list (picture, name, length, + / chosen) */
+  .brs.fopen .fpickrow{display:grid;gap:10px}
+  .brs.fopen #mpick{width:100%;justify-content:flex-start;gap:10px;min-height:48px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);box-shadow:none;font:600 14.5px var(--body);border-radius:14px}
+  .brs.fopen #mpick svg{color:var(--accent)}
+  .brs.fopen #mname{display:none}
+  .brs.fopen #skipmusic{justify-self:start;border:0;background:none;padding:0;color:var(--accent);font:600 13.5px var(--body)}
+  .brs.fopen .recent .label{font:700 13px var(--body);color:var(--muted)}
+  .brs.fopen .rlist{display:grid;grid-template-columns:1fr;gap:4px}
+  .brs.fopen .rsong{display:flex;align-items:center;min-height:0;border:0;border-radius:14px;background:transparent;box-shadow:none !important;padding:6px 0}
+  .brs.fopen .rsong.cur{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+  .brs.fopen .rpick{flex:1;display:grid;grid-template-columns:48px minmax(0,1fr) 34px;grid-template-rows:auto auto;column-gap:12px;align-items:center;padding:0 8px;text-align:left}
+  .brs.fopen .rpick::before{content:"♪";grid-row:1/3;width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:#fff;font:800 20px var(--body);background:linear-gradient(135deg,#e040fb,#7c3aed)}
+  .brs.fopen .rpick::after{content:"+";grid-column:3;grid-row:1/3;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:600 20px/1 var(--body)}
+  .brs.fopen .rsong.cur .rpick::after{content:"✓";background:var(--gold-gradient);border-color:transparent;color:#fff;font-size:15px}
+  .brs.fopen .rsong.cur::after{display:none}
+  .brs.fopen .rn{grid-column:2;font:700 14.5px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .brs.fopen .rn::first-letter{color:transparent;font-size:0}
+  .brs.fopen .rd{grid-column:2;font:500 12.5px var(--body);color:var(--muted)}
+  .brs.fopen .rdel{display:none}
+
+  /* 3 Adjust Music: the song, the waveform with its part, the length, the beats, the suggested part */
+  .brs.fopen .fsong{display:flex;align-items:center;gap:12px}
+  .brs.fopen .fsongic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#e040fb,#7c3aed);flex:none}
+  .brs.fopen .fsongic svg{width:24px;height:24px}
+  .brs.fopen .fsongt{display:grid;min-width:0}
+  .brs.fopen .fsongt b{font:800 16px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brs.fopen .fsongt small{color:var(--muted);font-size:13px}
+  .brs.fopen .fwavebox{border:0;background:transparent;padding:0}
+  .brs.fopen .lenrow{gap:12px}
+  .brs.fopen #slen{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+  .brs.fopen #slen button{padding:11px 4px;border-radius:12px}
+  .brs.fopen .sinfo{display:block;text-align:center;color:var(--muted)}
+
+  /* 4 Add Clips: Videos / Photos, "Tap to Add Videos", the clips three across with a "+" at the end */
+  .brs.fopen .fdesk{display:none !important}
+  .brs.fopen .fmob{display:block}
+  .brs.fopen.photomode .vonly.fmob,.brs.fopen:not(.photomode) .ponly.fmob{display:none}
+  .brs.fopen .ftabs{max-width:none}
+  .brs.fopen .drop{min-height:190px;align-content:center;border-radius:18px;padding:24px 16px}
+  .brs.fopen .drop b.fmob{font:700 16px var(--body)}
+  .brs.fopen #s2 .row:has(#addv),.brs.fopen #s2 .row:has(#aspect){display:none}
+  .brs.fopen #s2:has(.clip) .fcliplabel{display:block;font:700 15px var(--body)}
+  .brs.fopen .fclipgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .brs.fopen .fclipgrid .clips{display:contents}
+  .brs.fopen #s2:has(.clip) .fadd{display:grid;place-items:center;aspect-ratio:1/1;border-radius:14px;border:1.5px dashed var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
+  .brs.fopen .fadd svg{width:28px;height:28px}
+
+  /* 5 AI Analysing: the ring, what is happening, the four lines */
+  .brs.fopen .fan{padding-top:20px;gap:20px}
+  .brs.fopen .fan .aoring{width:170px;height:170px}
+  .brs.fopen .fanList{gap:14px;padding:0 4px}
+
+  /* ---- 6 Reel Preview: "Your Reel is Ready!", the video, the shots, New Mix, the tools, Export ---- */
+  .brs.fpost .wrap{padding-bottom:110px}
+  .brs.fpost .topbar,.brs.fpost #s3 > .sh3,.brs.fpost .lanes,.brs.fpost .tog.safe,.brs.fpost #tlmusic{display:none !important}
+  .brs.fpost #s3{background:none;border:0;box-shadow:none;padding:0}
+  .brs.fpost .create{display:grid;grid-template-columns:1fr;gap:16px}
+  .brs.fpost .stage{display:flex;flex-direction:column;align-items:stretch;gap:12px}
+  .brs.fpost .pv,.brs.fpost .summary{display:contents}
+  .brs.fpost .sumh{order:-3;margin:0;text-align:center;font:800 24px var(--display);letter-spacing:-.02em}
+  .brs.fpost .sumi{order:-2;margin:-6px 0 2px;text-align:center;color:var(--muted);font-size:13.5px}
+  .brs.fpost .sumi b{font-weight:600;color:var(--muted)}
+  .brs.fpost .pvbox{order:-1;align-self:center;border-radius:18px;overflow:hidden}
+  .brs.fpost #out{max-height:46svh;border-radius:18px}
+  .brs.fpost .bar{order:0}
+  .brs.fpost .transport{order:1;display:flex;justify-content:space-between;padding:0 2px}
+  .brs.fpost .transport :is(#pshot,#nshot,#cover,#remix,#play){display:none}
+  .brs.fpost .strip{order:2;display:block}
+  .brs.fpost .tl{height:54px;border-radius:12px}
+  .brs.fpost .summary > .btn{order:3;width:100%;justify-content:center;min-height:48px;border-radius:14px;background:var(--surface-2)}
+  .brs.fpost :is(#xmsg,#saverow){order:4}
+  .brs.fpost .cards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+  .brs.fpost .cgrid{display:contents}
+  .brs.fpost .cards .more{display:none}
+  .brs.fpost .cards .card,.brs.fpost .cards .fmore{display:grid;justify-items:center;align-content:center;gap:6px;min-height:68px;padding:8px 2px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:600 12px var(--body);box-shadow:none;cursor:pointer}
+  .brs.fpost .cards .card svg,.brs.fpost .cards .fmore svg{width:22px;height:22px;margin:0;padding:0;background:none;color:var(--ink)}
+  .brs.fpost .cards .card .ct{display:contents}
+  .brs.fpost .cards .card .ct b{font:600 12px var(--body)}
+  .brs.fpost .cards .card .cv{display:none}
+  .brs.fpost .cards .card[aria-expanded=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent)}
+  .brs.fpost .cards .card[aria-expanded=true] svg{color:var(--accent)}
+  .brs.fpost .savebar{position:fixed;left:0;right:0;bottom:0;z-index:30;margin:0;padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--background) 30%)}
+  .brs.fpost .savebar .tog{display:none}
+  .brs.fpost #export{width:100%;justify-content:center;min-height:56px;border-radius:16px;font-size:16px}
+
+  /* ---- 7 Edit Options: the tools as tabs, the chosen one's choices, Apply ---- */
+  .brs.fpost[data-tool]:not([data-tool=""]) :is(.stage,.savebar){display:none !important}
+  .brs.fpost[data-tool]:not([data-tool=""]) .cards{order:-1}
+  .brs.fpost[data-tool]:not([data-tool=""]) .fapply{display:flex;position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));width:auto;z-index:30;justify-content:center;min-height:56px;border-radius:16px;font-size:16px}
+  .brs.fpost .panels{padding-bottom:84px}
+  .brs.fpost .panel{border:0;background:none;box-shadow:none;padding:4px 0}
+  .brs.fpost .panel .ph{display:none}
+  .brs.fpost #mode{display:grid;grid-template-columns:1fr 1fr;gap:12px;border:0;background:none;overflow:visible}
+  .brs.fpost #mode button{position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;gap:2px;aspect-ratio:4/3;padding:12px;border:1px solid var(--line) !important;border-radius:16px;color:#fff;font:800 15px var(--body);text-align:left;overflow:hidden}
+  .brs.fpost #mode button::after{font:500 11.5px var(--body);color:rgba(255,255,255,.85)}
+  .brs.fpost #mode [data-m="auto"]{background:linear-gradient(160deg,#5fb6ff,#2a6fb0 50%,#123a2e)}
+  .brs.fpost #mode [data-m="auto"]::after{content:"(Recommended)"}
+  .brs.fpost #mode [data-m="smooth"]{background:linear-gradient(160deg,#ffb36b,#b0503a 55%,#2a1208)}
+  .brs.fpost #mode [data-m="smooth"]::after{content:"Cinematic feel"}
+  .brs.fpost #mode [data-m="fast"]{background:linear-gradient(160deg,#c084fc,#6d28d9 55%,#1a0b3d)}
+  .brs.fpost #mode [data-m="fast"]::after{content:"Quick cuts"}
+  .brs.fpost #mode [data-m="copy"]{background:linear-gradient(160deg,#ff7ae0,#d61f7a 55%,#3a0820)}
+  .brs.fpost #mode [data-m="copy"]::after{content:"Match a Reel you like"}
+  .brs.fpost #mode button[aria-pressed=true]{border:2px solid var(--accent) !important;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+  .brs.fpost #mode button[aria-pressed=true]::before{content:"✓";position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:var(--gold-gradient);font-size:13px}
+
+  /* ---- 8 Export Settings: a page of its own ---- */
+  .brs .xsheet{place-items:stretch;background:var(--background)}
+  .brs .xsh{width:100%;min-height:100%;border-radius:0;border:0;box-shadow:none;align-content:start;padding:max(14px,env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));gap:14px;background:var(--background)}
+  .brs .xsh-h{justify-content:flex-start;gap:12px}
+  .brs .xsh-h h2{font:800 18px var(--display)}
+  .brs #xshclose{order:-1;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:transparent;font-size:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a1c9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:20px}
+  .brs .xsh-l{margin-top:10px;font:700 15px var(--body)}
+  .brs .xsh #xres{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .brs .xsh #xfps{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .brs .xsh .seg button{min-height:86px}
+  .brs .xsh #xgo{margin-top:18px;min-height:56px;border-radius:16px}
+
+  /* ---- 9 Exporting and 10 Reel Exported: full screens over the Reel ---- */
+  .brs .fexp,.brs .fdone{position:fixed;inset:0;z-index:96;background:var(--background);color:var(--ink);overflow-y:auto;display:grid;justify-items:center;align-content:start;text-align:center;padding:max(18px,env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))}
+  .brs .fexp{gap:22px;padding-top:max(60px,env(safe-area-inset-top))}
+  .brs .fexp h2,.brs .fdone h2{margin:0;font:800 22px var(--display)}
+  .brs .fexp .aoring{width:190px;height:190px}
+  .brs .fexp .aoring b{font:800 38px var(--body)}
+  .brs .fexp .fanst b{font:800 20px var(--body)}
+  .brs .fexp .fanList{max-width:320px}
+  .brs .fdone{gap:12px}
+  .brs .fdhead{justify-self:stretch;display:flex}
+  .brs .fconf{font-size:30px;line-height:1;margin-top:-30px}
+  .brs .fdvid{width:min(100%,260px);aspect-ratio:9/16;max-height:44svh;border-radius:18px;overflow:hidden;background:#000}
+  .brs .fdvid video{width:100%;height:100%;object-fit:cover;display:block}
+  .brs .fdsaved{display:grid;gap:2px;margin:4px 0}
+  .brs .fdsaved b{font:700 15px var(--body)}
+  .brs .fdsaved small{color:var(--muted);font-size:13px}
+  .brs .fdone > .btn{width:100%;justify-content:center;gap:8px;min-height:52px;border-radius:14px}
+  .brs .fdone > .btn:not(.primary){background:var(--surface);border:1px solid var(--line)}
+  .brs .fdcap{width:100%;display:grid;gap:8px;text-align:left;margin-top:8px}
+  .brs .fdcap > b{font:700 15px var(--body)}
+  .brs .fdcap .postcap{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+  .brs .fdcap .postcap label{display:none}
+  .brs .fdcap textarea{width:100%;border:0;background:transparent;color:var(--ink);font:14px/1.5 var(--body);resize:none}
+  .brs .fdcap:not(:has(.postcap)){display:none}
+}
+/* phones: the flow screens are the whole screen (no legal links under them, as designed) */
+@media (max-width:1023px){ body:has(.brs.fopen) nav[aria-label="Legal"],body:has(.brs.fpost) nav[aria-label="Legal"]{display:none} }
+/* phones: each clip says only how far it is read (%), then a green tick and its length; a clip that cannot play: a red "!" */
+@media (max-width:1023px){
+  .brs.fopen .clip .dd{font-size:0;line-height:1}
+  .brs.fopen .clip .dd::after{content:"…";font:800 11.5px var(--body);color:#fff}
+  .brs.fopen .clip .dd[data-st="read"]::after{content:attr(data-p) "%"}
+  .brs.fopen .clip .dd[data-st="ok"]::after{content:attr(data-len)}
+  .brs.fopen .clip .dd[data-st="bad"]::after{content:"Cannot play"}
+  .brs.fopen .clip:has(.dd[data-st="ok"])::before{content:"✓";position:absolute;top:6px;left:6px;z-index:2;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#22c55e;color:#fff;font:800 12px var(--body);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  .brs.fopen .clip:has(.dd[data-st="bad"]){outline:2px solid var(--danger);outline-offset:-2px}
+}
+@media (max-width:1023px){
+  /* 6: the title and the line over the video (the Simple view would put them beside or under it) */
+  .brs.fpost.made.v-simple .pv,.brs.fpost.made.v-simple .summary{display:contents !important}
+  /* 5: the privacy note in one line */
+  .brs.fopen .fan .fbox{white-space:nowrap;font-size:11.5px;padding:11px 12px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:1023px){
+  /* 5 and 9: each line ends with its state, as designed: a tick when done, a circle while waiting, a turning one now */
+  .brs .fanList li{display:grid;grid-template-columns:auto minmax(0,1fr) 22px;gap:12px}
+  .brs .fanList li.now svg{animation:none;border-style:solid}
+  .brs .fanList li::after{content:"";width:20px;height:20px;border-radius:50%;border:2px solid color-mix(in srgb,var(--muted) 55%,transparent);box-sizing:border-box;justify-self:end}
+  .brs .fanList li.now::after{border-color:var(--accent);border-right-color:transparent;animation:aospin .8s linear infinite}
+  .brs .fanList li.ok::after{border:0;background:#22c55e url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/12px no-repeat}
+}
+@media (max-width:1023px){
+  /* 10: the video sized by its height (a 9:16 box in the column; the buttons stay under it) */
+  .brs .fdvid{height:min(42svh,420px);width:auto;max-height:none;aspect-ratio:9/16}
+}
+/* the export sheet's switches (UI/ design: Remove Watermark, Save to My Reels): icon, words, the switch at the right */
+.brs .xtog{display:flex;align-items:center;gap:12px;min-height:52px;padding:4px 2px;cursor:pointer;font:600 15px var(--body);color:var(--ink)}
+.brs .xtog[hidden]{display:none}
+.brs .xti{display:grid;place-items:center;width:28px;color:var(--muted)}
+.brs .xti svg{width:22px;height:22px}
+.brs .xtt{flex:1;min-width:0}
+.brs .xtog input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.brs .xtog i{position:relative;flex:none;width:50px;height:30px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);transition:background .2s,border-color .2s}
+.brs .xtog i::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .2s}
+.brs .xtog input:checked + i{background:var(--gold-gradient);border-color:transparent}
+.brs .xtog input:checked + i::after{transform:translateX(20px)}
+.brs .xtog input:focus-visible + i{outline:2px solid var(--accent);outline-offset:2px}
+.brs .xtog input:disabled + i{opacity:.45}
+/* the Create flow before it has its words (a moment while the studio starts): the loader in the middle of the screen */
+.brs.fopen:not(.flive)::before{content:"";position:fixed;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 18%,transparent);border-top-color:var(--accent);border-right-color:#e040fb;animation:busy-spin .8s linear infinite;z-index:40}

@@ -72,6 +72,7 @@ export const STUDIO_HTML = `
 <div class="wrap">
   <div class="fhead" id="fhead">
     <button type="button" class="fback" id="fback" aria-label="Back">${IC.back}</button>
+    <b class="fptitle" id="fptitle"></b>
     <div class="ft"><h1 id="ftitle">Music Reel</h1><p id="fsub">Turn your clips into a stunning Reel with music, beats and AI edits.</p></div>
     <ol class="fsteps" id="fsteps" aria-label="Steps">
       <li data-f="1"><i>1</i><span>Music</span></li><li data-f="2"><i>2</i><span>Clips</span></li><li data-f="3"><i>3</i><span>AI Edit</span></li><li data-f="4"><i>4</i><span>Preview &amp; Export</span></li>
@@ -143,6 +144,7 @@ export const STUDIO_HTML = `
     <button type="button" class="btn primary big fnext fchoosenext" data-fnext="1">Next ${IC.arrow}</button>
     </div>
     <div class="fadjust">
+    <div class="fsong" id="fsong"><span class="fsongic">${IC.music}</span><span class="fsongt"><b id="fsongn"></b><small id="fsongd"></small></span></div>
     <div class="fwavebox"><canvas class="wave" id="mwave"></canvas></div>
     <div class="row lenrow" id="lenrow" hidden>
       <span class="label">Reel length</span>
@@ -177,14 +179,15 @@ export const STUDIO_HTML = `
     <button type="button" class="sh" aria-expanded="true"><span class="num">2</span><span class="fh"><h2>Clips</h2><small class="fsh">Add multiple videos or photos. The more clips, the better!</small></span><span class="st" id="s2st">Several clips or one long video</span></button>
     <div class="sbody">
     <div class="ftabs" id="ftabs" role="group" aria-label="Videos or photos"><button type="button" data-ft="videos" aria-pressed="true">Videos</button><button type="button" data-ft="photos" aria-pressed="false">Photos</button></div>
-    <div class="drop" id="dropzone" role="button" tabindex="0">${IC.upload}<b class="vonly">Drag &amp; drop videos here</b><b class="ponly">Drag &amp; drop photos here</b><span class="vonly">or tap to choose · you can add more at any time</span><span class="ponly">or tap to choose · each photo becomes a short moving shot</span><small>Supports MP4, MOV, 3GP, JPG, PNG</small></div>
+    <div class="drop" id="dropzone" role="button" tabindex="0">${IC.upload}<b class="vonly fdesk">Drag &amp; drop videos here</b><b class="ponly fdesk">Drag &amp; drop photos here</b><b class="vonly fmob">Tap to Add Videos</b><b class="ponly fmob">Tap to Add Photos</b><span class="vonly fdesk">or tap to choose · you can add more at any time</span><span class="ponly fdesk">or tap to choose · each photo becomes a short moving shot</span><span class="fmob">or choose from gallery</span><small>Supports MP4, MOV, 3GP, JPG, PNG</small></div>
     <input id="vfile" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden>
     <div class="row">
       <button class="btn primary" id="addv"><span class="vonly">+ Add videos</span><span class="ponly">+ Add photos</span></button>
       <button class="btn" id="clearv" hidden>Remove all</button>
       <span class="fname" id="qinfo"></span>
     </div>
-    <div class="clips" id="clips"></div>
+    <span class="flabel fcliplabel">Selected Clips</span>
+    <div class="fclipgrid"><div class="clips" id="clips"></div><button type="button" class="fadd" id="fadd" aria-label="Add more clips">${IC.plus}</button></div>
     <div class="row talkrow" id="talkrow" hidden>
       <span class="label">Pauses</span>
       <div class="seg" id="tpace" role="group" aria-label="How much of the pauses to cut">
@@ -278,6 +281,7 @@ export const STUDIO_HTML = `
         <div class="cards" id="cards">
           <div class="cgrid">${card("style", "Style", IC.style)}${card("text", "Text", IC.text)}${card("look", "Look", IC.look)}${card("music", "Music", IC.music)}</div>
           <button type="button" class="more" data-goview="editor">Want to change every shot? Open the Editor view ${IC.chev}</button>
+          <button type="button" class="fmore" data-goview="editor">${I('<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>')}<span>More</span></button>
         </div>
 
         <div class="panels" id="panels">
@@ -411,6 +415,7 @@ export const STUDIO_HTML = `
             </details>
           </section>
 
+          <button type="button" class="btn primary big fapply" id="fapply">Apply ${IC.arrow}</button>
           <section class="panel wide" data-panel="shots">
             <div class="shotcard" id="shotcard"></div>
             <details class="allshots" id="allshots"><summary>All shots</summary>
@@ -428,14 +433,33 @@ export const STUDIO_HTML = `
   <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
 </div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<section class="fexp" id="fexp" hidden aria-live="polite" aria-labelledby="fexph">
+  <h2 id="fexph">Exporting</h2>
+  <div class="aoring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="fg" id="fexpring" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"/></svg><b id="fexppct">0%</b></div>
+  <p class="fanst"><b>Making your Reel…</b><small>This may take a few moments. Please keep this screen open.</small></p>
+  <ul class="faiList fanList" id="fexplist"><li data-at="0.02">${IC.scan}<span>Preparing clips</span></li><li data-at="0.3">${IC.spark}<span>Applying effects</span></li><li data-at="0.85">${IC.image}<span>Rendering video</span></li><li data-at="1">${IC.music}<span>Finalizing audio</span></li></ul>
+</section>
+<section class="fdone" id="fdone" hidden aria-labelledby="fdoneh">
+  <div class="fdhead"><button type="button" class="fback" data-fd="close" aria-label="Back to your Reel">${IC.back}</button></div>
+  <span class="fconf" aria-hidden="true">🎉</span>
+  <h2 id="fdoneh">Reel Exported!</h2>
+  <div class="fdvid"><video id="fdvideo" playsinline controls preload="metadata"></video></div>
+  <p class="fdsaved"><b>Saved to your phone</b><small id="fdsize"></small></p>
+  <button type="button" class="btn primary big" data-fd="share">${IC.upload}Share</button>
+  <button type="button" class="btn big" data-fd="save">${IC.save}Save to Photos</button>
+  <button type="button" class="btn big" data-fd="download">${IC.save}Download</button>
+  <div class="fdcap" id="fdcap"><b>Caption for your Post</b></div>
+</section>
 <div class="xsheet" id="xsheet" hidden>
   <div class="xsh" role="dialog" aria-modal="true" aria-labelledby="xsht">
-    <div class="xsh-h"><h2 id="xsht">Export your Reel</h2><button type="button" class="ibtn" id="xshclose" aria-label="Close">✕</button></div>
+    <div class="xsh-h"><h2 id="xsht">Export Reel</h2><button type="button" class="ibtn" id="xshclose" aria-label="Close">✕</button></div>
     <p class="xsh-l">Quality</p>
     <div class="seg" id="xres" role="group" aria-label="Quality"><button type="button" data-r="720">720p</button><button type="button" data-r="1080" aria-pressed="true">1080p</button><button type="button" data-r="4k">4K</button></div>
     <p class="xsh-l">Frame rate</p>
     <div class="seg" id="xfps" role="group" aria-label="Frame rate"><button type="button" data-f="30" aria-pressed="true">30 fps</button><button type="button" data-f="60">60 fps</button></div>
     <p class="xsh-size" id="xsize"></p>
+    <label class="xtog"><span class="xti">${I('<path d="M4 7h16M4 12h10M4 17h7"/><path d="M15 15l5 5M20 15l-5 5"/>')}</span><span class="xtt">Remove Watermark</span><input type="checkbox" id="xwm" role="switch"><i aria-hidden="true"></i></label>
+    <label class="xtog" id="xmyrow" hidden><span class="xti">${I('<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor"/>')}</span><span class="xtt">Save to My Reels</span><input type="checkbox" id="xmy" role="switch" checked><i aria-hidden="true"></i></label>
     <button type="button" class="btn save big" id="xgo">${IC.save}<span>Export to phone</span></button>
     <button type="button" class="btn big" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>
     <p class="xsh-note" id="xcloudnote" hidden></p>

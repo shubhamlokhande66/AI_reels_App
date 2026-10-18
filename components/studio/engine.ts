@@ -20,6 +20,9 @@ const $ = id => root.querySelector('#'+id);
 const tasks = createTasks(root);   // what is happening now, always in view (components/studio/tasks.ts)
 const ac = new AbortController(), SIG = { signal: ac.signal };
 let exporting = false;
+// the Shubix watermark on exported Reels (bottom right), unless "Remove Watermark" is on in the export sheet
+let wmOff = false;
+const wmImg = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: '/brand/shubix-logo-sm.webp' }) : null;
 const texOf = (e, local) => exporting ? (e.fc || e.fcLast) : e.rc && e.cs && e.cs.rev && local !== undefined ? revFrame(e, local) : e.el;
 const fmt = t => { t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(2); };
 let ctx = null, buf = null, mono = null;
@@ -526,6 +529,9 @@ function drawMusic(){
   g.globalAlpha = 1;
   if(part){ g.strokeStyle = css('--accent') || css('--drop'); g.lineWidth = 2*dpr; g.strokeRect(a0+dpr, dpr, Math.max(2, a1-a0-2*dpr), h-2*dpr); }
   if(dragStart == null) plan.forEach(s=>{ g.fillStyle = css(TCOL[s.type]); g.fillRect(Math.round((secStart + s.start)/D*w),0,Math.max(2,dpr*1.5),h); });
+  // where the song's part is playing (or was paused)
+  const ph = song && (partSrc || partPos != null) ? partNow() : null;
+  if(ph != null && dragStart == null){ const x = Math.round(ph/D*w); g.fillStyle = css('--foreground') || '#fff'; g.fillRect(x - dpr, 0, 2*dpr, h); g.beginPath(); g.arc(x, 4*dpr, 4*dpr, 0, Math.PI*2); g.fill(); }
 }
 // The sound of any file: the browser's own decoder first (MP3, M4A, WAV, AAC, MP4 ...). Safari cannot decode the sound of a
 // QuickTime .MOV (every iPhone video) that way, and decoding a big video whole would need it all in memory: for those,
@@ -598,7 +604,7 @@ async function loadMusic(file, cached = null){
  * The whole song is analysed once (its beats are judged on all of its music); a part is cut out of it on whole beats,
  * so the cut lands on the grid of the whole song. "Best part" picks the part itself: full and loud, the drop early (a
  * hook in the first seconds), no quiet start; dragging on the waveform picks it by hand (snapped to the nearest beat). */
-let song = null, sec = { len: 0, auto: true, start: 0 }, secStart = 0, dragStart = null, secBusy = 0;
+let song = null, sec = { len: 0, auto: true, start: 0 }, secStart = 0, dragStart = null, secBusy = 0, partSrc = null, partFrom = 0, partT0 = 0, partPos = null, partRaf = 0;   // part*: the song's part heard on the waveform (playPart)
 const secLenNow = () => partBeats(sec.len).len;
 // whole beats nearest to the length asked (never longer by more than a few hundredths), whole bars when that costs at
 // most one beat; no steady beat: the length as asked
@@ -688,14 +694,42 @@ $('slen').addEventListener('click', e => { const b = e.target.closest('button');
   setLen(b.dataset.l === 'c' ? Math.max(5, Math.min(180, +$('slenc').value || 45)) : +b.dataset.l); }, SIG);
 $('slenc').addEventListener('change', () => setLen(Math.max(5, Math.min(180, +$('slenc').value || 45))), SIG);
 $('sauto').addEventListener('click', () => { sec.auto = true; if(playing) stopAll(); useSection(); }, SIG);
-// drag on the waveform: the part follows the finger, and is cut when let go
-{ const cv = $('mwave'); let grab = 0;
+// the song's part, heard on the waveform: let go of the part and it plays from its start; a tap pauses it and a tap
+// plays it again from there; a line on the waveform shows where it is. It stops when the Reel plays.
+function partNow(){ return partSrc ? partFrom + (getCtx().currentTime - partT0) : partPos; }
+function stopPart(keep){
+  if(partSrc){ const s = partSrc, at = partNow(); partSrc = null; try{ s.stop(); }catch(e){} partPos = keep ? at : null; }
+  else if(!keep) partPos = null;
+  cancelAnimationFrame(partRaf); if(song) drawMusic();
+}
+function playPart(from, base){
+  if(!song || !song.buf) return; stopPart();
+  const D = song.buf.duration, a = base ?? secStart, end = Math.min(D, a + (sec.len ? secLenNow() : D - a));
+  let st = from ?? a; if(st < a || st >= end - 0.15) st = a;
+  const len = end - st; if(len < 0.2) return;
+  const c = getCtx(); if(c.state === 'suspended') c.resume();
+  const s = c.createBufferSource(), g = c.createGain(), t = c.currentTime + 0.02;
+  s.buffer = song.buf; s.connect(g); g.connect(c.destination);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.06); g.gain.setValueAtTime(1, Math.max(t + 0.06, t + len - 0.3)); g.gain.linearRampToValueAtTime(0, t + len);
+  s.onended = () => { if(partSrc !== s) return; partSrc = null; partPos = null; cancelAnimationFrame(partRaf); drawMusic(); };
+  s.start(t, st, len); partSrc = s; partFrom = st; partT0 = t; partPos = null;
+  const tick = () => { if(partSrc !== s) return; drawMusic(); partRaf = requestAnimationFrame(tick); };
+  partRaf = requestAnimationFrame(tick);
+}
+// drag on the waveform: the part follows the finger, and is cut (and heard) when let go
+{ const cv = $('mwave'); let grab = 0, downX = 0, moved = false, down = false, wasPlaying = false;
   const tAt = ev => { const rc = cv.getBoundingClientRect(); return (ev.clientX - rc.left)/Math.max(1, rc.width)*song.buf.duration; };
-  cv.addEventListener('pointerdown', ev => { if(!song || !song.r || !sec.len || recording) return; const t = tAt(ev), L = secLenNow();
-    grab = (t >= secStart && t <= secStart + L) ? t - secStart : L/2; dragStart = Math.max(0, Math.min(song.buf.duration - L, t - grab));
-    cv.setPointerCapture(ev.pointerId); if(playing) stopAll(); drawMusic(); ev.preventDefault(); }, SIG);
-  cv.addEventListener('pointermove', ev => { if(dragStart == null) return; const L = secLenNow(); dragStart = Math.max(0, Math.min(song.buf.duration - L, tAt(ev) - grab)); drawMusic(); }, SIG);
-  const end = () => { if(dragStart == null) return; sec.start = dragStart; sec.auto = false; dragStart = null; useSection(); };
+  cv.addEventListener('pointerdown', ev => { if(!song || !song.r || recording) return;
+    down = true; moved = false; downX = ev.clientX; wasPlaying = !!partSrc;
+    if(sec.len){ const t = tAt(ev), L = secLenNow(); grab = (t >= secStart && t <= secStart + L) ? t - secStart : L/2; }
+    cv.setPointerCapture(ev.pointerId); ev.preventDefault(); }, SIG);
+  cv.addEventListener('pointermove', ev => { if(!down || !sec.len) return;
+    if(!moved && Math.abs(ev.clientX - downX) < 6) return;   // a tap, not a drag (yet)
+    if(!moved){ moved = true; stopPart(); if(playing) stopAll(); }
+    const L = secLenNow(); dragStart = Math.max(0, Math.min(song.buf.duration - L, tAt(ev) - grab)); drawMusic(); }, SIG);
+  const end = () => { if(!down) return; down = false;
+    if(!moved){ if(wasPlaying) stopPart(true); else { const at = partPos; if(playing) stopAll(); playPart(at); } return; }   // a tap: pause, or play (on from where it was)
+    sec.start = dragStart; sec.auto = false; dragStart = null; const st = sec.start; useSection(); playPart(st, st); };
   cv.addEventListener('pointerup', end, SIG); cv.addEventListener('pointercancel', end, SIG); }
 let beatInfo = { source: 'own', note: '' };
 function applyAnalysis(r){
@@ -1096,7 +1130,7 @@ async function readVideo(src){
   if(src.removed) return;
   const card = src.card, dd = card.querySelector('.dd');
   try{
-    dd.textContent = 'reading…';
+    dd.textContent = 'reading…'; dd.dataset.st = 'read'; dd.dataset.p = '0';
     const v = makeVideo(src.url); await waitEv(v,'loadedmetadata', 15000);
     src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight;
     if(!isFinite(src.dur) || src.dur<=0 || !src.w) throw new Error('bad');
@@ -1108,7 +1142,7 @@ async function readVideo(src){
     if(src.removed) return;
     // action + scene changes and faces are read at the same time (two decoders): about 40% faster per clip
     const tq = performance.now(); let pm = 0, pf = 0;
-    const show = () => { const f = pm*0.6 + pf*0.4; dd.textContent = 'reading ' + Math.round(f*100) + '%';
+    const show = () => { const f = pm*0.6 + pf*0.4; dd.textContent = 'reading ' + Math.round(f*100) + '%'; dd.dataset.p = String(Math.round(f*100));
       tasks.update('clips', (batchDone + f) / Math.max(1, batchN), 'Clip ' + Math.min(batchN, batchDone + 1) + ' of ' + batchN + ' · ' + src.name); };
     src.readMs = {};
     const kept = await scanGet(src);   // read before (a saved Reel opened again, or the same clip added again): used as it is
@@ -1124,12 +1158,13 @@ async function readVideo(src){
     const nf = src.faces.filter(f=>f.n>0).length, shs = src.samples.map(s=>s.sh).sort((a,b)=>a-b);
     src.shMed = shs[Math.floor(shs.length/2)] || 1;
     dd.textContent = src.dur.toFixed(1) + ' s · ' + src.w + '×' + src.h + (nf ? ' · faces ' + Math.round(nf/Math.max(1,src.faces.length)*100) + '%' : '');
+    dd.dataset.st = 'ok'; dd.dataset.len = fmt(src.dur).replace(/\.\d+$/, '');
     src.els = [makeVideo(src.url), makeVideo(src.url), makeVideo(src.url)];
     sources.push(src); drawSpark(src);
   }catch(e){
     if(src.removed) return;
     console.warn('clip not readable:', src.name, e && e.message || e);
-    dd.textContent = 'This video does not play here (format). Remove it with ×.';
+    dd.textContent = 'This video does not play here (format). Remove it with ×.'; dd.dataset.st = 'bad';
     card.style.borderColor = 'var(--drop)';
   }
 }
@@ -2572,7 +2607,12 @@ function drawCaptions(t){
     drawWord(og, w, fs, textStyle, state, a, sc);
   });
 }
-function drawText(t){ drawHook(t); drawCaptions(t); drawOverlays(t); }
+function drawText(t){ drawHook(t); drawCaptions(t); drawOverlays(t); if((exporting || recording) && !wmOff) drawWatermark(); }   // both ways of exporting (WebCodecs, or in real time)
+function drawWatermark(){
+  if(!wmImg || !wmImg.complete || !wmImg.naturalWidth) return;
+  const W = out.width, H = out.height, w = Math.round(Math.min(W, H*0.5625)*0.24), h = Math.round(w*wmImg.naturalHeight/wmImg.naturalWidth), m = Math.round(Math.min(W, H)*0.035);
+  og.save(); og.globalAlpha = 0.85; og.drawImage(wmImg, W - w - m, H - h - m*1.6, w, h); og.restore();
+}
 /* ---- captions for talking: the key word of each line, highlighted, and a zoom punch on it ----
  * In talking videos and voiceovers one word per caption line is the key word: the one said hardest (its loudness against
  * the line's) that is not a small word, numbers and long words counting a little more. It is drawn in the accent colour,
@@ -3404,7 +3444,7 @@ function setLabel(id, t){ const el = $(id); if(!el) return; const sp = el.queryS
 const PLAY_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
 const PAUSE_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
 function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '<span>' + (on ? 'Pause' : 'Preview') + '</span>'; }
-function stopAll(){ stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
+function stopAll(){ stopPart(); stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
@@ -3517,8 +3557,9 @@ function saveFile(blob, name){
   let canShare = false; try{ canShare = phone && !!navigator.canShare && navigator.canShare({ files: [file] }); }catch(e){}
   if(savedUrl) URL.revokeObjectURL(savedUrl);
   savedUrl = URL.createObjectURL(blob);
+  $('dlvid').href = savedUrl; $('dlvid').download = name;   // the made file, also for the Create flow's "Reel Exported" screen (flow.ts)
   if(canShare){
-    $('saverow').hidden = false; $('dlvid').href = savedUrl; $('dlvid').download = name;
+    $('saverow').hidden = false;
     $('savevid').textContent = /^image\//.test(blob.type) ? 'Save to Photos / Share' : 'Save video to Photos / Share';
     $('savevid').onclick = async () => {
       // the caption goes along (WhatsApp puts it under the video) and to the clipboard (Instagram: paste it)
@@ -3794,8 +3835,9 @@ async function runExport(toCloud){
 /* ---- the export sheet: quality, frame rate, the file size, "Export to phone" or "Export & save to My Reels" ---- */
 // bitrates for 30 fps (60 fps gets half as much again); 4K is offered only where this browser can encode it
 const XQ = { '720': { scale: 2/3, bitrate: 6e6, label: '720p' }, '1080': { scale: 1, bitrate: 12e6, label: '1080p' }, '4k': { scale: 2, bitrate: 35e6, label: '4K' } };
-const xq = { res: '1080', fps: 30 };
-try{ const v = JSON.parse(localStorage.getItem('studio-export') || 'null'); if(v && XQ[v.res]) xq.res = v.res; if(v && (v.fps === 30 || v.fps === 60)) xq.fps = v.fps; }catch(e){}
+const xq = { res: '1080', fps: 30, nowm: false, my: true };
+try{ const v = JSON.parse(localStorage.getItem('studio-export') || 'null'); if(v && XQ[v.res]) xq.res = v.res; if(v && (v.fps === 30 || v.fps === 60)) xq.fps = v.fps; if(v && typeof v.nowm === 'boolean') xq.nowm = v.nowm; if(v && typeof v.my === 'boolean') xq.my = v.my; }catch(e){}
+wmOff = xq.nowm;
 let can4k = null, cloudInfo = null;
 function exportDims(){ const [W0,H0] = SIZES[aspect], k = XQ[xq.res].scale; return [Math.round(W0*k/2)*2, Math.round(H0*k/2)*2]; }
 function sheetPaint(){
@@ -3803,11 +3845,14 @@ function sheetPaint(){
   [...$('xfps').children].forEach(b => b.setAttribute('aria-pressed', +b.dataset.f === xq.fps));
   const [W, H] = exportDims(), dur = buf ? buf.duration : 0, mb = (XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1) + 256e3) * dur / 8 / 1e6;
   $('xsize').textContent = W + ' × ' + H + ' · ' + xq.fps + ' fps · up to ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
-  const cb = $('xgocloud'), note = $('xcloudnote');
-  cb.hidden = note.hidden = !cloudInfo;
+  // Remove Watermark, and Save to My Reels (when the account has My Reels); "Export to phone" does what they say
+  $('xwm').checked = xq.nowm;
+  const cb = $('xgocloud'), note = $('xcloudnote'), my = $('xmy');
+  cb.hidden = true;
+  $('xmyrow').hidden = note.hidden = !cloudInfo;
   if(cloudInfo){
     const full = cloudInfo.used >= cloudInfo.limit;
-    cb.disabled = full;
+    my.disabled = full; my.checked = xq.my && !full;
     note.textContent = full ? 'My Reels is full (' + cloudInfo.used + ' of ' + cloudInfo.limit + '). Delete a Reel there to make room.' : 'Also kept in your account, to watch, download or share anywhere · ' + cloudInfo.used + ' of ' + cloudInfo.limit + ' used';
   }
 }
@@ -3826,7 +3871,9 @@ $('xfps').addEventListener('click', e => { const b = e.target.closest('button');
 $('xshclose').addEventListener('click', () => sheetOpen(false), SIG);
 $('xsheet').addEventListener('click', e => { if(e.target === $('xsheet')) sheetOpen(false); }, SIG);
 addEventListener('keydown', e => { if(e.key === 'Escape' && !$('xsheet').hidden) sheetOpen(false); }, SIG);
-$('xgo').addEventListener('click', () => { sheetOpen(false); runExport(false); }, SIG);
+$('xwm').addEventListener('change', e => { xq.nowm = e.target.checked; wmOff = xq.nowm; sheetPick(); }, SIG);
+$('xmy').addEventListener('change', e => { xq.my = e.target.checked; sheetPick(); }, SIG);
+$('xgo').addEventListener('click', () => { sheetOpen(false); runExport(!!cloudInfo && cloudInfo.used < cloudInfo.limit && xq.my); }, SIG);
 $('xgocloud').addEventListener('click', () => { sheetOpen(false); runExport(true); }, SIG);
 $('export').onclick = () => { if(recording || exportBusy) return; sheetOpen(true); };
 
