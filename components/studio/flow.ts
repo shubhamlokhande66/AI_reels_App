@@ -34,6 +34,7 @@ export function initFlow(root: HTMLElement): () => void {
   let step: Step = "intro";
   let kind: Kind = "music";
   let pct = 0;
+  let simpleSet = false; // the made Reel opens in the Simple view on phones (once: a later choice stays)
   const lines = new Map<string, "now" | "ok">();
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
 
@@ -108,6 +109,15 @@ export function initFlow(root: HTMLElement): () => void {
   const apply = () => {
     const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
     setClass(root, "fopen", on);
+    // phones, once the Reel is made: "Your Reel is Ready!" (the Simple view under the flow's head, step 4), and its
+    // tools as "Edit Options" (screens 6 and 7 of the design)
+    const post = !on && revealed && made() && !has("autoing") && phone();
+    setClass(root, "fpost", post);
+    if (post) {
+      if (!has("v-simple") && !simpleSet) { simpleSet = true; root.querySelector<HTMLButtonElement>('#views [data-view="simple"]')?.click(); }
+      setText($("fptitle"), root.dataset.tool ? "Edit Options" : "");
+      root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => { setClass(li, "on", li.dataset.f === "4"); setClass(li, "ok", li.dataset.f !== "4"); });
+    }
     if (!on) { if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
     const k = readKind();
     if (k !== kind || !$("ftitle").dataset.k) {
@@ -134,6 +144,10 @@ export function initFlow(root: HTMLElement): () => void {
     const adj = phone() && step === "adjust";
     setText($("s1").querySelector("h2")!, adj ? "Adjust Music" : "Choose Music");
     setText($("s1").querySelector(".fsh")!, adj ? "Trim or select the best part of the song" : "Pick a song or sound for your Reel");
+    // the phones' head names the screen (the intro and Analysing have their own big titles)
+    // Adjust Music (phones): the chosen song in a row at the top
+    if (adj) { setText($("fsongn"), ($("mname").textContent ?? "").replace(/\.[^.]+$/, "")); setText($("fsongd"), "Song · " + ($("mdur").textContent ?? "")); }
+    setText($("fptitle"), { intro: "", choose: "Choose Music", adjust: "Adjust Music", clips: has("photomode") ? "Add Your Photos" : "Add Your Clips", analyse: "" }[step]);
     place(true);
     // the header's steps: Music · Clips · AI Edit · Preview & Export
     const cur = !songOk() ? 1 : !clipsOk() ? 2 : 3;
@@ -171,7 +185,12 @@ export function initFlow(root: HTMLElement): () => void {
     if (step === "clips" && !songOk()) return go("choose"); // a Music Reel without a song yet
     if (i >= 0 && i < o.length - 1) go(o[i + 1]);
   };
+  const closeTool = () => root.querySelector<HTMLButtonElement>(`.card[data-tool="${root.dataset.tool}"]`)?.click();
   const back = () => {
+    if (has("fpost")) {
+      if (root.dataset.tool) return closeTool(); // Edit Options → back to the Reel
+      revealed = false; simpleSet = false; return go("clips"); // the Reel → back to the clips
+    }
     const o = order(), i = o.indexOf(step);
     if (phone() && i > 0) return go(o[i - 1]);
     if (history.length > 1) history.back();
@@ -183,6 +202,10 @@ export function initFlow(root: HTMLElement): () => void {
     const t = e.target as HTMLElement;
     if (t.closest("[data-fnext]")) { e.preventDefault(); next(); return; }
     if (t.closest("#fback")) { back(); return; }
+    if (t.closest("#fadd")) { $("addv").click(); return; } // the "+" tile at the end of the clips
+    if (t.closest("#fapply")) { closeTool(); return; } // Edit Options: Apply (every change is already in the Reel)
+    const fd = t.closest<HTMLElement>("[data-fd]");
+    if (fd) { done10(fd.dataset.fd!); return; }
     if (t.closest("#fskip")) { go(order()[1]); return; }
     if (t.closest("#fgen")) {
       if (made()) { revealed = true; apply(); setTimeout(() => $("s3").scrollIntoView({ behavior: "smooth", block: "start" }), 60); }
@@ -198,6 +221,38 @@ export function initFlow(root: HTMLElement): () => void {
     // a new Reel (the home's "New Reel") starts the flow again
     if (t.closest("#pnew")) { revealed = false; step = "intro"; lines.clear(); pct = 0; delete $("ftitle").dataset.k; if (location.pathname !== "/studio") history.replaceState(history.state, "", "/studio"); setTimeout(apply); }
   }, { capture: true, ...sig });
+
+  // screens 9 and 10 (phones): Exporting, then Reel Exported with the video, Share / Save / Download and the caption
+  const capHome = { box: $("postcap").parentElement!, next: $("postcap").nextElementSibling };
+  const exporting = (p: number) => {
+    const pc = Math.round(Math.max(0, Math.min(1, p)) * 100);
+    setText($("fexppct"), pc + "%");
+    $("fexpring").style.strokeDashoffset = String(326.7 * (1 - pc / 100));
+    root.querySelectorAll<HTMLElement>("#fexplist li").forEach((li) => { const at = +li.dataset.at!; setClass(li, "ok", p >= at); setClass(li, "now", p < at && p >= at - 0.35); });
+  };
+  const showDone = (title?: string) => {
+    const v = $<HTMLVideoElement>("fdvideo"), url = $<HTMLAnchorElement>("dlvid").href;
+    if (url && v.src !== url) v.src = url;
+    setText($("fdsize"), /([\d.]+ ?MB)/.exec(title ?? "")?.[1] ? `Size: ${/([\d.]+ ?MB)/.exec(title ?? "")![1]}` : "");
+    if (!$("postcap").hidden) $("fdcap").append($("postcap"));
+    $("fdone").hidden = false;
+  };
+  const done10 = (what: string) => {
+    const share = $<HTMLButtonElement>("savevid"), dl = $<HTMLAnchorElement>("dlvid");
+    if (what === "close") {
+      $("fdone").hidden = true;
+      $<HTMLVideoElement>("fdvideo").pause();
+      if ($("postcap").parentElement === $("fdcap")) capHome.box.insertBefore($("postcap"), capHome.next);
+    } else if (what === "download" || !share.onclick) dl.click(); // no share sheet here (a computer): the file is saved
+    else share.click(); // the phone's share sheet: Instagram, WhatsApp, "Save Video" to Photos
+  };
+  root.addEventListener("studio-task", (e) => {
+    const d = (e as CustomEvent<TaskEvent>).detail;
+    if (d.id !== "export" || !phone()) return;
+    if (d.state === "start") { $("fdone").hidden = true; exporting(0); $("fexp").hidden = false; }
+    else if (d.state === "progress") exporting(d.p ?? 0);
+    else { $("fexp").hidden = true; if (d.state === "done") showDone(d.title); }
+  }, sig);
 
   // a song that is ready moves the phones on to adjusting it
   let wasSong = done("s1");
@@ -216,7 +271,7 @@ export function initFlow(root: HTMLElement): () => void {
     wasSong = s;
     apply();
   });
-  mo.observe(root, { attributes: true, attributeFilter: ["class"] });
+  mo.observe(root, { attributes: true, attributeFilter: ["class", "data-tool"] });
   ["s1", "s2", "s3", "copycard", "s1st"].forEach((id) => mo.observe($(id), { attributes: true, attributeFilter: ["class", "aria-pressed"], childList: true, characterData: true, subtree: id === "s1st" }));
   window.addEventListener("resize", apply, sig);
   // the waveform appears (or changes size) with the flow's steps: the engine draws it again on a resize
