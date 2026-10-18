@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { RefMoment } from "@/server/studio/direct";
 import { db, mainDb, parseId } from "@/server/core/db";
 import { NotFoundError } from "@/server/core/errors";
 
@@ -11,7 +12,7 @@ import { NotFoundError } from "@/server/core/errors";
  * predicts a new Reel of its kind is measured by leaving each Reel out in turn. */
 
 export const CATEGORIES = ["wedding", "travel", "festival", "dance", "talking", "product", "food", "fitness", "vlog", "birthday", "other"] as const;
-export const KINDS = ["hard", "flash", "fade", "whip", "zoom", "dissolve"] as const;
+export const KINDS = ["hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars"] as const;
 const FIELDS = ["tr", "efx", "sp"] as const;
 const num = (a: number, b: number) => z.number().finite().min(a).max(b);
 export const Look = z.object({ mean: num(0, 1), std: num(0, 1), sat: num(0, 2), warm: num(-1, 1), p5: num(0, 1), p95: num(0, 1), vig: num(-1, 1), grain: num(0, 1), split: num(-1, 1) }).partial();
@@ -20,6 +21,8 @@ export const Fingerprint = z.object({
   onBeat: num(0, 1), energy: z.enum(["steady", "rising", "falling"]), zoomShare: num(0, 1),
   trans: z.partialRecord(z.enum(KINDS), num(0, 1)), look: Look.nullable().default(null),
   shotBeats: z.array(num(0, 64)).max(300).default([]), shotSec: z.array(num(0, 60)).max(300).default([]),
+  /** shot by shot: the transition into it, its zoom and the music under it, so the AI can copy what it does where */
+  moments: z.array(RefMoment).max(60).default([]),
 });
 export type Fingerprint = z.infer<typeof Fingerprint>;
 export const SaveIn = z.object({ name: z.string().trim().min(1).max(120), category: z.enum(CATEGORIES), shared: z.boolean().default(false), fp: Fingerprint });
@@ -47,7 +50,7 @@ export function learn(fps: Fingerprint[]): Fingerprint | null {
   return {
     dur: m("dur"), bpm: m("bpm"), medianBeats: m("medianBeats"), medianSec: m("medianSec"), hookBeats: m("hookBeats"), hookSec: m("hookSec"), onBeat: m("onBeat"),
     energy: energies.reduce((a, e) => (fps.filter((f) => f.energy === e).length > fps.filter((f) => f.energy === a).length ? e : a), "steady" as Fingerprint["energy"]),
-    zoomShare: m("zoomShare"), trans: norm(trans) as Fingerprint["trans"], look: look as Fingerprint["look"], shotBeats: typical.shotBeats, shotSec: typical.shotSec,
+    zoomShare: m("zoomShare"), trans: norm(trans) as Fingerprint["trans"], look: look as Fingerprint["look"], shotBeats: typical.shotBeats, shotSec: typical.shotSec, moments: typical.moments ?? [],
   };
 }
 
@@ -73,7 +76,7 @@ export function distance(p: Fingerprint, r: Fingerprint): { pace: number; trans:
 /** leave each Reel out, learn from the rest, see how close the learned style is to the one left out; against a style
  * that knows nothing (the app's default: a cut every 2 beats, mostly hard cuts, a few zooms, a neutral look) */
 export const DEFAULT_STYLE: Fingerprint = { dur: 15, bpm: 120, medianBeats: 2, medianSec: 1, hookBeats: 4, hookSec: 2, onBeat: 0.8, energy: "steady", zoomShare: 0.2,
-  trans: { hard: 0.8, flash: 0.1, whip: 0.1 }, look: { mean: 0.45, std: 0.22, sat: 0.35, warm: 0 }, shotBeats: [], shotSec: [] };
+  trans: { hard: 0.8, flash: 0.1, whip: 0.1 }, look: { mean: 0.45, std: 0.22, sat: 0.35, warm: 0 }, shotBeats: [], shotSec: [], moments: [] };
 export function accuracy(fps: Fingerprint[]): { n: number; learned: number; baseline: number } | null {
   if (fps.length < 3) return null;
   let a = 0, b = 0;

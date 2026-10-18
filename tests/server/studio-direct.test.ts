@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "@/server/ai";
-import { CHUNK, chunks, direct, DirectIn, LIMITS, pace, PaceIn, parsePace, parsePlan, prompt } from "@/server/studio/direct";
+import { CHUNK, chunks, cleanMove, direct, DirectIn, LIMITS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt } from "@/server/studio/direct";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
 const cand = (id: string, extra = {}) => ({ id, clip: "c1", at: 1.5, score: 1.2, note: "dancer spins", roles: ["action"], motion: "high", people: true, camera: "pans left", ...extra });
@@ -63,8 +63,8 @@ describe("the plan is bounded", () => {
     const res = await direct(req(2), p);
     expect(calls).toHaveLength(1);
     expect(res.slots).toEqual([
-      { i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", keys: [], why: "" },
-      { i: 1, shot: "1b", transition: "flash", effect: "zoomburst", speed: "normal", keys: [], why: "" },
+      { i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", keys: [], move: [], why: "" },
+      { i: 1, shot: "1b", transition: "flash", effect: "zoomburst", speed: "normal", keys: [], move: [], why: "" },
     ]);
   });
 });
@@ -125,5 +125,43 @@ describe("pace", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]).toContain('"starts":"break"');
     expect(res.sections.map((s) => s.every)).toEqual([1, 4]);
+  });
+});
+
+/** Copy a Reel through the AI: the reference shot by shot, the AI's camera keyframes kept safe, the new shapes. */
+const reference = { name: "wedding.mp4", medianBeats: 2, hookBeats: 4, onBeat: 0.9, energy: "rising", zoomShare: 0.4, trans: { hard: 0.5, flash: 0.3, heart: 0.2 },
+  moments: [
+    { beats: 4, sec: 2, tr: "start", zoom: "in", move: [{ f: 0, s: 1, x: 0, y: 0, r: 0 }, { f: 1, s: 1.2, x: 0.02, y: 0, r: 0 }], ease: "outCubic", loud: 0.3, trend: "rising" },
+    { beats: 2, sec: 1, tr: "flash", zoom: "none", drop: true, hit: "dhol", loud: 1, shake: true },
+    { beats: 2, sec: 1, tr: "heart", zoom: "none", freeze: 0.4, voice: 0.8 },
+  ] };
+describe("copy a Reel", () => {
+  it("accepts the reference and puts it, shot by shot, in both prompts", () => {
+    const d = DirectIn.parse({ ...req(2), mode: "copy", reference });
+    const text = prompt(d);
+    expect(text).toContain('"wedding.mp4": a cut every 2 beats (hook 4 beats), 90% of cuts on the beat');
+    expect(text).toContain('"tr":"heart"');
+    expect(text).toContain("COPY THE REFERENCE");
+    expect(pacePrompt(PaceIn.parse({ mode: "copy", duration: 20, bpm: 120, footage: 30, clips: 3, reference,
+      sections: [{ i: 0, t: 0, len: 20, beats: 40, starts: "start", loud: 0.5, trend: "steady", bass: 0.5, drums: 0.5, voice: 0.5, hitRate: 1, now: 2 }] }))).toContain("copy its pace");
+  });
+  it("refuses a reference move out of range or an unknown transition kind", () => {
+    expect(DirectIn.safeParse({ ...req(1), reference: { ...reference, moments: [{ ...reference.moments[0], move: [{ f: 0, s: 9, x: 0, y: 0, r: 0 }] }] } }).success).toBe(false);
+    expect(DirectIn.safeParse({ ...req(1), reference: { ...reference, moments: [{ ...reference.moments[1], tr: "portal" }] } }).success).toBe(false);
+  });
+});
+describe("the AI's camera keyframes", () => {
+  it("are kept inside the shot and in range, with a known ease, starting from as filmed", () => {
+    expect(cleanMove([{ at: 0.5, s: 3, x: 0.9, y: -1, r: 40, ez: "warp" }, { at: 1.2, s: 1, x: 0, y: 0, r: 0, ez: "lin" }, { at: 1, s: 1.1, x: 0, y: 0, r: 0, ez: "outExpo" }]))
+      .toEqual([{ at: 0, s: 1, x: 0, y: 0, r: 0, ez: "inOut" }, { at: 0.5, s: 1.6, x: 0.15, y: -0.15, r: 15, ez: "inOut" }, { at: 1, s: 1.1, x: 0, y: 0, r: 0, ez: "outExpo" }]);
+  });
+  it("drop a 'move' that does not move", () => {
+    expect(cleanMove([{ at: 0, s: 1, x: 0, y: 0, r: 0, ez: "lin" }, { at: 1, s: 1, x: 0, y: 0, r: 0, ez: "lin" }])).toEqual([]);
+  });
+  it("come back from the plan, with the new shape transitions", () => {
+    const out = parsePlan(req(2), { story: "", slots: [{ i: 1, shot: "1a", transition: "Heart", effect: "none", speed: "normal", why: "",
+      move: [{ at: 0, s: 1.3, x: 0, y: 0, r: 0, ez: "lin" }, { at: 0.25, s: 1, x: 0, y: 0, r: 0, ez: "outExpo" }] }] });
+    expect(out.slots[0].transition).toBe("heart");
+    expect(out.slots[0].move).toHaveLength(2);
   });
 });
