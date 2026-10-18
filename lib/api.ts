@@ -1,6 +1,14 @@
 import type { Features } from "@/lib/features-list";
 import { tracked } from "./activity";
 import { adminHeaders } from "./admin";
+
+/** Administration: how the Fast Studio AI director did in the last days (server/studio/brain.ts report) */
+export interface AiDirectorReport {
+  days: number; plans: number; paces: number; failed: number; cuts: number; creators: number; avgSeconds: number | null;
+  choices: { transitions: number; effects: number; keys: number };
+  changed: { transitions: number; effects: number; speeds: number };
+  changeRate: { transitions: number | null; effects: number | null };
+}
 import type {
   ApiErrorBody,
   DirectorProfile,
@@ -410,6 +418,7 @@ export const api = {
   retention: () => request<Retention>("/api/retention"),
   /** Which parts of the app are on (Administration → Features). */
   features: () => request<Features>("/api/features"),
+  aiDirectorReport: () => request<AiDirectorReport>("/api/admin/ai-director"),
   setFeatures: (patch: Partial<Features>) => request<Features>("/api/admin/features", { method: "PUT", body: JSON.stringify(patch) }),
   setRetention: (body: Retention) => request<Retention>("/api/admin/retention", { method: "PUT", body: JSON.stringify(body) }),
   runRetention: () => request<{ uploads: number; projects: number }>("/api/admin/retention/run", { method: "POST" }),

@@ -10,6 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
+import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null } = deps;
@@ -1236,7 +1237,7 @@ async function buildTalk(){
     e.kf = keyframesFor(e); e.beatsIn = [];
     return e;
   });
-  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx }));
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc }));
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL(); drawMusic();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((q,s)=>q + s.dur, 0), how = sources.some(s => s.voice.how === 'level') ? ' (by loudness)' : '';
@@ -1428,6 +1429,19 @@ function uAt(list, l){
 }
 // a shot that is moved, made smaller or turned shows black around it (not stretched edge pixels)
 function panClamp(p, W, dw){ return dw <= W + 0.5 ? (W - dw)/2 : Math.min(0, Math.max(W - dw, p)); }
+// The AI director's keyframes on the hits inside a shot, on top of the shot's own effect: a punch (quick zoom), a shake,
+// a flash of light or a small pulse, each starting exactly on its hit and gone within 0.4 s.
+const ACCENTS = ['punch','shake','flash','pulse'], ACC_T = 0.4;
+function accentAt(e, local){
+  const A = e.acc; if(!A || !A.length) return null;
+  let s = 1, sh = 0, ex = 0, rgb = 0, any = false;
+  for(const a of A){ const d = local - a.at; if(d < 0 || d > ACC_T) continue; any = true;
+    if(a.do==='punch'){ s *= 1 + 0.13*Math.exp(-d/0.1); rgb += 6*Math.exp(-d/0.08); }
+    else if(a.do==='pulse') s *= 1 + 0.05*Math.exp(-d/0.1);
+    else if(a.do==='shake'){ sh += Math.exp(-d/0.12); s *= 1.04; }
+    else if(a.do==='flash') ex += 0.85*Math.exp(-d/0.08); }
+  return any ? {s, sh, ex, rgb} : null;
+}
 function keyframesFor(e){
   const L = e.end - e.start;
   switch(e.efx){
@@ -1565,34 +1579,33 @@ function applyDirectorStyle(){
   plan.forEach((s,i)=>{
     const d = director.slots[i], len = s.end - s.start;
     if(!d) return;
-    // transition
-    if(d.tr){ asked++; let tr = d.tr, ok = true;
-      if(i===0) ok = tr==='hard' || tr==='fadein';
-      else {
-        if(!TR_OK[mode].includes(tr)) ok = false;
-        if(s.type==='break' && !['hard','dip','dissolve','flash'].includes(tr)) ok = false;
-      }
+    // transition: the opener has nothing before it (hard or a fade-in); the user's style (Smooth) is respected
+    if(d.tr){ asked++; const tr = d.tr;
+      const ok = i===0 ? (tr==='hard' || tr==='fadein') : TR_OK[mode].includes(tr);
       if(ok){ s.tr = tr; s.trByDir = true; used++; } else fixed++;
     }
-    // effect
-    if(d.fx){ asked++; let fx = d.fx, ok = (FX_OK[mode]||[]).includes(fx) || (i===0 && fx==='hook');
+    // effect: "hook" is the opener's own; a slow move needs time; the photo snap needs a moment to freeze
+    if(d.fx){ asked++; const fx = d.fx;
+      let ok = (FX_OK[mode]||[]).includes(fx) || (i===0 && fx==='hook');
       if(fx==='hook' && i!==0) ok = false;
-      if(fx==='snap' && !(s.type==='drop' && len>0.7)) ok = false;
-      if(s.type==='break' && !['none','drift','pan-soft'].includes(fx)) ok = false;
-      if(['pan','pan-soft','drift'].includes(fx) && len < 0.8) ok = false;   // a slow move needs time
-      if(ok){ s.efx = fx; used++; } else fixed++;
+      if(fx==='snap' && len <= 0.7) ok = false;
+      if(['pan','pan-soft','drift'].includes(fx) && len < 0.8) ok = false;
+      if(ok){ s.efx = fx; s.fxByDir = true; used++; } else fixed++;
     }
-    // speed
+    // speed: only what the shot can play (and what Smooth allows)
     if(d.sp){ asked++; let ok = true, sp = null; const bl = beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
       if(mode==='smooth' && !['normal','slow'].includes(d.sp)) ok = false;
       if(d.sp==='freeze' && s.efx!=='snap') ok = false;
       if(d.sp==='ramp' && len < 0.9) ok = false;
       if(d.sp==='velocity' && (!bl.length || len < 0.9)) ok = false;
-      if(d.sp==='fast' && len > 1.2) ok = false;
       if(ok) sp = d.sp==='velocity' ? velocitySpeed(len, bl) : d.sp==='ramp' ? rampSpeed(len) : d.sp==='freeze' ? snapSpeed : SPEED[d.sp];
       if(sp){ s.sp = sp; used++; } else fixed++;
     }
     if(s.efx==='snap' && s.sp!==snapSpeed) s.sp = snapSpeed;   // the photo snap is a freeze by definition
+    // keyframes on the hits: inside the shot, not in the first frames of a transition, none in a Smooth Reel
+    s.acc = [];
+    if(d.keys && d.keys.length && mode!=='smooth'){ asked += d.keys.length;
+      for(const k of d.keys){ if(k.at > Math.max(0.04, (i && TR_DUR[s.tr]) || 0) && k.at < len-0.05 && ACCENTS.includes(k.do)){ s.acc.push({at:k.at, do:k.do}); used++; } else fixed++; } }
   });
   const undone = finishTransitions();
   return {used: used - undone, fixed: fixed + undone, asked};
@@ -1610,11 +1623,12 @@ function finishTransitions(){
     const len = s.end - s.start, prev = plan[i-1];
     const fit = (s.tr==='flash' || s.tr==='glitch') ? 0.9 : 0.6;   // a flash / glitch is an overlay: it needs less room than a dissolve
     let ok = TR_DUR[s.tr] <= fit*len && TR_DUR[s.tr] <= 0.8*(prev.end-prev.start);
-    if(ok && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
+    // the AI director's own choices only have to fit in time (its taste decides the mix); the rules' choices are
+    // rationed and never repeat, leaving room for the director's
+    if(ok && !s.trByDir && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
     if(ok && left[s.tr]!==undefined){
-      if(s.trByDir){ want[s.tr]--; ok = left[s.tr] > 0; }
-      else ok = left[s.tr] - (want[s.tr]||0) > 0;   // keep room for the director's
-      if(ok) left[s.tr]--;
+      if(s.trByDir){ want[s.tr]--; left[s.tr]--; }
+      else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
     }
     if(!ok){ if(s.trByDir) undone++; s.tr = 'hard'; }
   });
@@ -1657,35 +1671,95 @@ function directorCandidates(){
 }
 function directorMaybe(){
   if(!aiOn || dirBusy || !edit.length || recording || mode==='copy') return;   // copying a Reel: its style is the plan
-  if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed) || !sources.some(s=>s.ai)) return;   // after the AI has seen the clips
+  if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
+  if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
   const key = dirKey(); if((director && director.key===key) || dirFailedKey===key) return;
   if(dirCache.has(key)){ director = dirCache.get(key); makeEdit(); return; }
   directorRun(key);
 }
 const dirCache = new Map();
+// a request that gives up after ms (the phone's own edit is already on screen, so nobody waits for a slow AI)
+function timeoutSignal(ms){
+  const c = new AbortController(); let late = false;
+  const t = setTimeout(()=>{ late = true; c.abort(); }, ms), stop = () => c.abort();
+  ac.signal.addEventListener('abort', stop);
+  return { signal: c.signal, timedOut: () => late, done: () => { clearTimeout(t); ac.signal.removeEventListener('abort', stop); } };
+}
+/* ---- the sound map: what the AI hears (components/studio/soundmap.ts), measured once per song part ---- */
+let smapKey = '', smapVal = null;
+function getSoundMap(){
+  if(!mono || !buf) return null;
+  if(smapKey !== musicKey){ try{ smapVal = soundMap(mono, buf.sampleRate); }catch(e){ console.warn('sound map:', e); smapVal = null; } smapKey = musicKey; }
+  return smapVal;
+}
+/* ---- the AI's first decision: how fast to cut in each section of the song ----
+   The phone splits the song into sections (at drops, breaks and big changes) and describes each; the AI chooses a cut
+   every 1, 2, 4 or 8 beats per section; the cuts then land on the real beats (repace). The edit on screen does not wait:
+   the phone's own pace shows first and the AI's replaces it when it arrives. */
+let pacing = null, paceBusy = false, paceFailedKey = '';
+const paceCache = new Map();
+const paceKey = () => [musicKey, mode, root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
+const paceUsable = () => aiOn && kind !== 'talk' && mode !== 'copy' && buf && beats.length >= 8 && sources.length && !recording;
+const paceNow = () => (paceUsable() && pacing && pacing.key === paceKey()) ? pacing : null;
+const paceWanted = () => paceUsable() && !paceNow() && paceFailedKey !== paceKey();
+function paceMaybe(){
+  if(paceBusy || !paceWanted()) return;
+  const key = paceKey();
+  if(paceCache.has(key)){ pacing = paceCache.get(key); makeEdit(); return; }
+  paceRun(key);
+}
+async function paceRun(key){
+  const sm = getSoundMap(); if(!sm){ paceFailedKey = key; return; }
+  const secs = sectionsOf(sm, basePlan, beats, period, buf.duration).slice(0, 24);
+  if(!secs.length){ paceFailedKey = key; return; }
+  paceBusy = true; aiStat('AI is listening to the song and choosing the pace…');
+  const tm = timeoutSignal(25000);
+  try{
+    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), clips: sources.filter(s=>!s.removed).length,
+      footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs };
+    const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
+    const res = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI pace failed (' + r.status + ').'));
+    if(paceKey() !== key) return;
+    const every = new Map((res.sections || []).map(x=>[x.i, x.every]));
+    pacing = { key, story: res.story || '', secs: secs.map(s=>({ t: s.t, len: s.len, every: every.get(s.i) || s.now })), why: res.sections || [] };
+    paceCache.set(key, pacing);
+    aiStat('AI chose the pace' + (pacing.story ? ': ' + pacing.story : '') + '. Now planning the shots…');
+    paceBusy = false; makeEdit();
+  }catch(e){
+    paceFailedKey = key;
+    if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI pace not used:', e);
+    paceBusy = false; if(buf && sources.length && !recording) directorMaybe();
+  }finally{ paceBusy = false; tm.done(); }
+}
 async function directorRun(key){
-  dirBusy = true; aiStat('AI director is planning the Reel…');
+  dirBusy = true; aiStat('AI director is choosing every shot, transition and effect…');
+  const tm = timeoutSignal(45000);
   try{
     const cands = directorCandidates(); dirCands = cands;
-    const per = Math.max(1, buf.duration/30);
-    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60),
+    const per = Math.max(1, buf.duration/30), sm = getSoundMap();
+    const cx = { hits: hitsRaw || [], hitStr: hitsStr || [], drops: plan.filter(s=>s.type==='drop').map(s=>s.start), beats };
+    const pc = paceNow();
+    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160),
       clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
       budget: {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
       slots: plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
+        ...(sm ? { music: describeCut(sm, s.start, s.end, cx) } : {}),
         candidates: cands[i].map(({si,a,...c})=>c) })).filter(x=>x.candidates.length) };
-    const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: ac.signal });
+    const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI director failed (' + r.status + ').'));
     if(dirKey() !== key) return;   // the edit changed meanwhile: its own plan will be asked for
     const slots = [];
     for(const d of res.slots || []){ const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
-      slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, why: d.why || '' }; }
+      slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], why: d.why || '' }; }
     director = { key, slots, story: res.story || '' }; dirCache.set(key, director);
     dirBusy = false; makeEdit();
   }catch(e){
     dirFailedKey = key;
-    if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('The AI director is busy right now. Your Reel uses its own smart edit.'); }
-  }finally{ dirBusy = false; }
+    if(tm.timedOut()) aiStat('The AI took too long this time. Your Reel uses the phone\'s own smart edit.');
+    else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('The AI director is busy right now. Your Reel uses the phone\'s own smart edit.'); }
+  }finally{ dirBusy = false; tm.done(); }
 }
 (async () => {   // is the AI step set up on this server?
   try{
@@ -1800,7 +1874,7 @@ function makeEdit(){
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(!buf || !sources.length) return;
   const keptUk = ukKeep();
-  stopAll(); plan = adaptPlan(); styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
+  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = repace(basePlan, pc.secs, beats, buf.duration, mode); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
   // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
@@ -1841,7 +1915,7 @@ function makeEdit(){
   });
   const useCount = sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
   edit = plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
-  edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth') suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
+  edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth' && !e.fxByDir) suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
   ukRestore(keptUk);
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
@@ -1851,9 +1925,10 @@ function makeEdit(){
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(dirInfo){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
-    aiStat('AI director planned your Reel' + (director.story ? ': ' + director.story : '.')); }
+    const keys = edit.reduce((n,e)=>n+((e.acc&&e.acc.length)||0), 0);
+    aiStat('AI director planned your Reel' + (director.story ? ': ' + director.story : '.') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '')); }
   captureLoop(); editGen++;
-  directorMaybe();
+  paceMaybe(); directorMaybe();
   if(look === 'copy' && refProfile) setTimeout(()=>{ copyLook(); }, 0);
 }
 function captureLoop(){
@@ -1868,7 +1943,8 @@ function kfSummary(e){
   const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
   const notes = [e.dirWhy && aiOn ? 'Director: ' + e.dirWhy : '', e.aiNote && aiOn ? 'AI: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
   const why = (notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '')
-    + (e.uk && e.uk.length ? `<br><span style="font:11px var(--body);color:#c99a00">◆ ${e.uk.length} keyframe${e.uk.length > 1 ? 's' : ''} of yours</span>` : '');
+    + (e.uk && e.uk.length ? `<br><span style="font:11px var(--body);color:#c99a00">◆ ${e.uk.length} keyframe${e.uk.length > 1 ? 's' : ''} of yours</span>` : '')
+    + (e.acc && e.acc.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">AI keyframes: ${e.acc.map(a => a.do + ' at ' + a.at.toFixed(2) + ' s').join(', ')}</span>` : '');
   const s = e.kf && e.kf.scale; if(!s || s.length<2) return why;
   const a=s[0], b=s[s.length-1];
   return `<br><span style="font:11px var(--mono);color:var(--muted)">◆ scale ${a[1].toFixed(2)}→${b[1].toFixed(2)} · ${(b[0]-a[0]).toFixed(2)}s ${b[2]||''}</span>` + why;
@@ -1926,10 +2002,10 @@ function renderEDL(keepScroll){
     const rb = document.createElement('button'); rb.className='mini'; rb.textContent='↻ other moment'; rb.title='Use a different moment here (never a repeat)';
     rb.addEventListener('click', ev=>{ ev.stopPropagation(); stopAll(); if(repick(i, true)){ renderEDL(true); showShot(i); } else showMsg('No unused footage left for this shot. Add more clips.', true); });
     cc.appendChild(document.createElement('br')); cc.appendChild(rb);
-    tr.children[3].appendChild(sel(TR_NAME, e.tr, v=>{ noteEdit(e.type, 'tr', e.tr, v); e.tr=v; changed(i,false); }));
-    const fxc = tr.children[4]; fxc.appendChild(sel(FX_NAME, e.efx, v=>{ noteEdit(e.type, 'efx', e.efx, v); e.efx=v; if(v==='snap'){ e.sp=snapSpeed; changed(i,true); } else { if(e.sp===snapSpeed) e.sp=SPEED.normal; changed(i,true); } }));
+    tr.children[3].appendChild(sel(TR_NAME, e.tr, v=>{ noteEdit(e.type, 'tr', e.tr, v, e.trByDir); e.tr=v; e.trByDir=false; changed(i,false); }));
+    const fxc = tr.children[4]; fxc.appendChild(sel(FX_NAME, e.efx, v=>{ noteEdit(e.type, 'efx', e.efx, v, e.fxByDir); e.efx=v; e.fxByDir=false; if(v==='snap'){ e.sp=snapSpeed; changed(i,true); } else { if(e.sp===snapSpeed) e.sp=SPEED.normal; changed(i,true); } }));
     fxc.insertAdjacentHTML('beforeend', kfSummary(e));
-    tr.children[5].appendChild(sel(SPEED_KEYS, speedKey(e.sp), v=>{ noteEdit(e.type, 'sp', speedKey(e.sp), v); e.sp = speedFor(v, e); changed(i,true); }));
+    tr.children[5].appendChild(sel(SPEED_KEYS, speedKey(e.sp), v=>{ noteEdit(e.type, 'sp', speedKey(e.sp), v, e.dirWhy && aiOn); e.sp = speedFor(v, e); changed(i,true); }));
     tr.addEventListener('click', ()=>{ if(playing) startPlayback(e.start); else showShot(i); });
     tb.appendChild(tr);
   });
@@ -1994,6 +2070,8 @@ function drawShot(g, e, local, o={}){
   const sh = kf(K.shake,local) || 0;
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); } } }
+  const ac = o.noFx ? null : accentAt(e, local);
+  if(ac){ scale *= ac.s; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
   const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
   if(u){ scale *= u.s; rot += u.r; }
   const sw = sources[e.src].w, shh = sources[e.src].h, [ccx, ccy] = camAt(e, local);
@@ -2007,7 +2085,7 @@ function drawShot(g, e, local, o={}){
     if(ux || uy) gg.translate(ux, uy);   // the creator's move: after the turn, so a moved shot turns about its own middle
     if(rot || extra!==1){ gg.translate(W/2,H/2); gg.rotate(rot*Math.PI/180); gg.scale(extra,extra); gg.translate(-W/2,-H/2); }
     gg.filter = LOOKS[look].filter; gg.drawImage(v, px+ox, py+oy, dw, dh); gg.restore(); };
-  const rgb = (kf(K.rgb,local) || 0) + (o.rgb||0);
+  const rgb = (kf(K.rgb,local) || 0) + (o.rgb||0) + (ac ? ac.rgb : 0);
   if(rgb > 0.5 && !o.noFx){
     // chromatic aberration: red and blue channels pushed apart
     fitBufs(); gB.globalCompositeOperation='source-over'; gB.fillStyle='#000'; gB.fillRect(0,0,W,H);
@@ -2021,7 +2099,7 @@ function drawShot(g, e, local, o={}){
   // zoom blur: faint bigger copies
   const zb = (kf(K.zblur,local) || 0) + (o.zblur||0);
   if(zb > 0.02 && !o.noFx) for(let k=1;k<=3;k++) paint(g, 0.22*zb*alpha, 1 + 0.045*k*zb);
-  let expo = kf(K.expo,local) || 0;
+  let expo = (kf(K.expo,local) || 0) + (ac ? ac.ex : 0);
   if(K.bounce && e.beatsIn && !o.noFx){ for(const bt of e.beatsIn){ if(local>=bt) expo += 0.22*Math.exp(-(local-bt)/0.07); } }   // light pulse on each beat
   if(!o.noFx && e.sp && rateAt(e, local) >= 1.8) for(let k=1;k<=2;k++) paint(g, 0.16*alpha, 1 + 0.012*k);   // motion blur when fast
   if(expo > 0.01 && !o.noFx){ g.save(); g.globalCompositeOperation='lighter'; paint(g, Math.min(1,expo)*alpha); g.restore(); }
@@ -2780,6 +2858,8 @@ function layerOf(e, local, o={}){
   if(sh){ x += Math.sin(local*97)*0.03*W*sh; y += Math.cos(local*71)*0.025*H*sh; rot += Math.sin(local*53)*2.2*sh; }
   let expo = o.noFx ? 0 : (kf(K.expo,local) || 0);
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); if(!o.noFx) expo += 0.22*Math.exp(-(local-bt)/0.07); } } }
+  const ac = o.noFx ? null : accentAt(e, local);
+  if(ac){ scale *= ac.s; expo += ac.ex; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
   const u = uAt(e.uk, local);
   if(u){ scale *= u.s; rot += u.r; }
   const sw = sources[e.src].w, shh = sources[e.src].h, r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r, [ccx, ccy] = camAt(e, local);
@@ -2788,7 +2868,7 @@ function layerOf(e, local, o={}){
   let zb = o.noFx ? 0 : (kf(K.zblur,local) || 0);
   if(!o.noFx && rateAt(e, local) >= 1.8) zb += 0.35;   // motion blur when the shot runs fast
   const br = kf(K.bright,local);
-  return { el:texOf(e), rect:[px,py,dw,dh], rot: rot*Math.PI/180, zb: zb + (o.zb||0), db: o.db || [0,0], rgb: (o.noFx ? 0 : (kf(K.rgb,local)||0)) + (o.rgb||0),
+  return { el:texOf(e), rect:[px,py,dw,dh], rot: rot*Math.PI/180, zb: zb + (o.zb||0), db: o.db || [0,0], rgb: (o.noFx ? 0 : (kf(K.rgb,local)||0)) + (o.rgb||0) + (ac ? ac.rgb : 0),
     expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1), alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
     off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1 };
 }
@@ -3563,9 +3643,9 @@ $('luse').addEventListener('click', async () => {
 }, SIG);
 $('lscope').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; [...$('lscope').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); }, SIG);
 // corrections: what the creator changes, a few seconds later in one request
-function noteEdit(type, field, from, to){
+function noteEdit(type, field, from, to, byAi){
   if(from === to) return;
-  editsQ.push({ type: ['drop','hit','cut','break'].includes(type) ? type : 'cut', field, from: String(from).slice(0, 24), to: String(to).slice(0, 24) });
+  editsQ.push({ type: ['drop','hit','cut','break'].includes(type) ? type : 'cut', field, from: String(from).slice(0, 24), to: String(to).slice(0, 24), ...(byAi ? { ai: true } : {}) });
   clearTimeout(editsT); editsT = setTimeout(() => { const q = editsQ.splice(0, 100); if(!q.length) return;
     api('/api/studio/styles/edits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category: learnedKind || 'general', edits: q }) }).catch(() => {}); }, 3000);
 }
@@ -3718,7 +3798,7 @@ function stateOf(){
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
     settings: { trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
-    edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined })),
+    edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined, acc: e.acc && e.acc.length ? e.acc : undefined })),
     kfs: kind === 'talk' && edit.some(e => e.uk && e.uk.length) ? edit.map(e => e.uk && e.uk.length ? e.uk : null) : undefined,
     caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
 }
@@ -3806,7 +3886,7 @@ function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
   stopAll(); const uc = sources.map(() => 0);
   edit = list.map(x => { const e = { ...x, el: sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
-  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx }));
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc }));
   setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop(); editGen++;
   return true;
 }
