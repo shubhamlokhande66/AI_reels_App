@@ -49,7 +49,7 @@ export default function PrivacyPage() {
           <p>
             You can see and download your Reels, correct your details, and delete your account and all its data at any time from the
             Account page. Under India&apos;s Digital Personal Data Protection Act you may also ask us about your data or raise a
-            concern: write to {s.email}.
+            concern: write to {s.reach}.
           </p>
 
           <h2>Security</h2>
@@ -57,7 +57,8 @@ export default function PrivacyPage() {
 
           <h2>Contact</h2>
           <p>
-            {s.name}, {s.address}. Email: {s.email}
+            {s.name}
+            {s.address ? `, ${s.address}` : ""}. {s.email ? `Email: ${s.email}` : "Write to us from the Contact page"}
             {s.phone ? `. Phone: ${s.phone}` : ""}.
           </p>
         </>

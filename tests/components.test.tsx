@@ -141,11 +141,15 @@ describe("ReelPreview", () => {
   };
   it("shows real metadata and a download link", () => {
     render(<ReelPreview rendering={r} currentStyle="luxury" currentDuration={15} versionCount={1} busy={false} onGenerate={() => {}} />);
-    expect(screen.getByText("1080×1920")).toBeInTheDocument();
-    expect(screen.getByText("5.0 MB")).toBeInTheDocument();
+    expect(screen.getByText("MP4 · 1080×1920 · 5.0 MB")).toBeInTheDocument();
     expect(screen.getAllByText("0:15").length).toBeGreaterThan(0);
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", expect.stringContaining("download=1"));
     expect(screen.getByRole("link", { name: "No music" })).toHaveAttribute("href", expect.stringContaining("music=false"));
+  });
+  it("never shows an unknown size as undefined", () => {
+    render(<ReelPreview rendering={{ ...r, width: undefined as unknown as number, height: undefined as unknown as number }} currentStyle="luxury" currentDuration={15} versionCount={1} busy={false} onGenerate={() => {}} />);
+    expect(screen.getByText("MP4 · 5.0 MB")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("undefined");
   });
   it("regenerates, changes style/duration and creates versions", async () => {
     const onGenerate = vi.fn();

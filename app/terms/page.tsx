@@ -73,8 +73,9 @@ export default function TermsPage() {
 
           <h2>8. Law and contact</h2>
           <p>
-            These terms are governed by the laws of India. Questions: {s.email}
-            {s.phone ? `, ${s.phone}` : ""}. {s.name}, {s.address}.
+            These terms are governed by the laws of India. Questions: {s.email || "write to us from the Contact page"}
+            {s.phone ? `, ${s.phone}` : ""}. {s.name}
+            {s.address ? `, ${s.address}` : ""}.
           </p>
         </>
       )}

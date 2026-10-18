@@ -49,9 +49,9 @@ function PlanCard({ plan, yearly, signedIn, paymentsOpen, current, busy, onBuy }
     <div className={`plan ${pop ? "pop" : ""}`}>
       <div className="between">
         <b className="ht">{plan.name}</b>
-        {current ? <span className="badge b-ok">Your plan</span> : pop ? <span className="badge b-run">Most popular</span> : priceEl}
+        {current ? <span className="badge b-ok">Your plan</span> : pop ? <span className="badge b-run">Most popular</span> : null}
       </div>
-      {(pop || current) && priceEl}
+      {priceEl}
       <span className="mu sm">
         {plan.credits.toLocaleString("en-IN")} credits · {plan.tagline}
         {perMonth ? ` · ${rupees(perMonth)} a month` : ""}
@@ -72,8 +72,8 @@ function PlanCard({ plan, yearly, signedIn, paymentsOpen, current, busy, onBuy }
           {signedIn ? "Make a Reel" : "Start free"}
         </Link>
       ) : !paymentsOpen ? (
-        <button type="button" disabled className={cls} title="Online payment opens soon">
-          Choose {plan.name}
+        <button type="button" disabled className={cls} title={current ? "This is your plan" : "Online payment opens soon"}>
+          {current ? "Your current plan" : `Choose ${plan.name}`}
         </button>
       ) : !signedIn ? (
         <Link href="/login" className={cls}>

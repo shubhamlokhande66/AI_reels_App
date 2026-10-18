@@ -378,6 +378,15 @@
   .rm .chips.w:not(.brs *) {
     flex-wrap: wrap;
   }
+  /* a row that scrolls sideways fades at its right edge, so it is clear there is more; the extra room at the end
+     lets the last chip scroll fully clear of the fade (and the fade covers only that room when nothing scrolls) */
+  @media (max-width: 767px) {
+    .rm .chips:not(.w):not(.brs *) {
+      padding-right: 28px;
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    }
+  }
   .rm .tabs2:not(.brs *) {
     display: grid;
     grid-auto-flow: column;

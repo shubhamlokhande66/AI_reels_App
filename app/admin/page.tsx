@@ -11,6 +11,7 @@ import { RetentionSettings } from "@/components/organisms/RetentionSettings";
 import { PricingSettings } from "@/components/organisms/PricingSettings";
 import { FeatureSettings } from "@/components/organisms/FeatureSettings";
 import { AiDirectorReport } from "@/components/organisms/AiDirectorReport";
+import { SiteSetupNotice } from "@/components/organisms/SiteSetupNotice";
 
 /** Unlock (or leave) admin mode in this browser with the server's ADMIN_KEY. */
 export default function AdminPage() {
@@ -73,6 +74,7 @@ export default function AdminPage() {
       </section>
       {admin && (
         <>
+          <SiteSetupNotice />
           <FeatureSettings />
           <AiDirectorReport />
           <PricingSettings />

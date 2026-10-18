@@ -107,7 +107,7 @@ function ServerDashboard() {
 
       <h2 className="ht">Create something new</h2>
       <section aria-label="Create something new" className="g2 md:!grid-cols-[repeat(auto-fit,minmax(200px,1fr))] md:!gap-[14px]">
-        {MAKE.filter((m) => linkOn(m.href, features) && (m.href !== "/projects/new" || features.aiReel)).map((m) => {
+        {MAKE.filter((m) => linkOn(m.href, features) && (m.href !== "/projects/new" || features.aiReel)).map((m, k, all) => {
           const inner = (
             <>
               <span className={`it ${m.tile}`}>
@@ -119,7 +119,8 @@ function ServerDashboard() {
               </span>
             </>
           );
-          const cls = "mk md:!flex-row md:!items-center md:!border-0 md:!bg-[linear-gradient(135deg,#f6e7c8,#e6cc98)]";
+          // an odd last tile takes the whole row on a phone (no half-empty row)
+          const cls = `mk md:!flex-row md:!items-center md:!border-0 md:!bg-[linear-gradient(135deg,#f6e7c8,#e6cc98)] ${all.length % 2 && k === all.length - 1 ? "col-span-2 md:col-span-1" : ""}`;
           return m.full ? (
             <a key={m.href} href={m.href} className={cls}>
               {inner}
@@ -174,7 +175,7 @@ function ServerDashboard() {
             {d.recentlyGenerated.map((r) => (
               <li key={r.id} className="flex flex-col gap-1">
                 <div className={`photo ${photoClass(r.projectId)} aspect-[9/16]`}>
-                  <video src={assetUrl(r.url)} preload="metadata" muted playsInline controls aria-label={`${r.projectName} ${r.label}`.trim()} />
+                  <video src={`${assetUrl(r.url)}#t=0.1`} preload="metadata" muted playsInline controls aria-label={`${r.projectName} ${r.label}`.trim()} />
                 </div>
                 <Link href={`/projects/${r.projectId}`} className="sm truncate font-bold hover:text-accent">
                   {r.projectName}

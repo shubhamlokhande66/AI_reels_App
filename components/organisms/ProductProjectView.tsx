@@ -73,7 +73,7 @@ export function ProductProjectView({ project }: { project: Project }) {
               <>
                 <video key={shown.id} src={assetUrl(shown.url)} controls playsInline preload="metadata" className="aspect-[9/16] w-full rounded-2xl border border-border bg-black" aria-label={previewNewer ? "Preview" : "Generated Reel"} />
                 <p className="mt-2 text-xs text-muted">
-                  {previewNewer ? "Fast preview (lower quality)" : "Final"} · {formatDuration(shown.duration)} · {shown.width}×{shown.height} · {formatBytes(shown.size)}
+                  {[previewNewer ? "Fast preview (lower quality)" : "Final", formatDuration(shown.duration), shown.width && shown.height ? `${shown.width}×${shown.height}` : "", shown.size ? formatBytes(shown.size) : ""].filter(Boolean).join(" · ")}
                 </p>
                 <a href={assetUrl(shown.downloadUrl)} download className={`${btnSecondary} mt-2 w-full`}>
                   Download MP4
