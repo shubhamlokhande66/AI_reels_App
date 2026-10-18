@@ -30,8 +30,8 @@
   --bar: #0d0b09;
 }
 
-/* Ivory: warm paper, deeper gold for contrast. The inner pages use it; the dashboard, menu and editors stay Noir
-   (lib/theme.ts pageTheme). .noir / .ivory pin one part of a page to a look. */
+/* Ivory: warm paper, deeper gold for contrast. The whole app is Ivory or Noir, as the person chooses (lib/theme.ts:
+   Light / Dark / same as the phone). .noir / .ivory pin one part of a page to a look (the editors' timeline). */
 :root[data-theme="light"],
 .ivory {
   --background: #f7f3ec;
