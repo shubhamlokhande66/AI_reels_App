@@ -1794,8 +1794,11 @@ function scoreWindow(i, src, a, need, gmax){
 }
 // the creator's keyframes stay on their shots when the edit is made again (the AI's scores or the director arriving,
 // New mix): the shots at the same time as before (the music fixes the times) get them back
-function ukKeep(){ return edit.filter(e => e.uk && e.uk.length).map(e => ({ s: e.start, e: e.end, uk: e.uk })); }
-function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.abs(x.start - k.s) < 0.02 && Math.abs(x.end - k.e) < 0.02); if(e) e.uk = k.uk; } }
+// (their clip settings too: on the same shot, or else on the shot playing at the old shot's middle)
+function ukKeep(){ return edit.filter(e => (e.uk && e.uk.length) || e.cs).map(e => ({ s: e.start, e: e.end, uk: e.uk, cs: e.cs })); }
+function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.abs(x.start - k.s) < 0.02 && Math.abs(x.end - k.e) < 0.02);
+  if(e && k.uk && k.uk.length) e.uk = k.uk;
+  if(k.cs){ const m = (k.s + k.e)/2, c = e || edit.find(x => x.start <= m && x.end > m); if(c && !c.cs) c.cs = k.cs; } } }
 function makeEdit(){
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(!buf || !sources.length) return;
