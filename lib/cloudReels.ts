@@ -47,8 +47,9 @@ export const cloudReelUrl = (id: string, download = false) => `/api/studio/reels
 export async function cloudUsage(): Promise<CloudUsage | null> {
   try {
     return (await listCloudReels()).usage;
-  } catch {
-    return null; // signed out or offline: the studio just does not offer it
+  } catch (e) {
+    console.warn("My Reels not offered:", e); // signed out or offline: the studio just does not offer it
+    return null;
   }
 }
 
