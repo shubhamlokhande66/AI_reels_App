@@ -12,7 +12,7 @@ import { NotFoundError } from "@/server/core/errors";
  * predicts a new Reel of its kind is measured by leaving each Reel out in turn. */
 
 export const CATEGORIES = ["wedding", "travel", "festival", "dance", "talking", "product", "food", "fitness", "vlog", "birthday", "other"] as const;
-export const KINDS = ["hard", "flash", "fade", "whip", "zoom", "dissolve"] as const;
+export const KINDS = ["hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars"] as const;
 const FIELDS = ["tr", "efx", "sp"] as const;
 const num = (a: number, b: number) => z.number().finite().min(a).max(b);
 export const Look = z.object({ mean: num(0, 1), std: num(0, 1), sat: num(0, 2), warm: num(-1, 1), p5: num(0, 1), p95: num(0, 1), vig: num(-1, 1), grain: num(0, 1), split: num(-1, 1) }).partial();

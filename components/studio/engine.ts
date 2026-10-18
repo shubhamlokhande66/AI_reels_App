@@ -11,6 +11,7 @@
  */
 import { createTasks } from './tasks';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
+import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
@@ -1241,7 +1242,7 @@ async function buildTalk(){
     e.kf = keyframesFor(e); e.beatsIn = [];
     return e;
   });
-  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc }));
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak }));
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL(); drawMusic();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((q,s)=>q + s.dur, 0), how = sources.some(s => s.voice.how === 'level') ? ' (by loudness)' : '';
@@ -1404,9 +1405,9 @@ function styleEdit(){
   if(mode==='copy' && refProfile) copyStyle();
 }
 const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip:'Whip pan (blur)', zoom:'Zoom-through', glitch:'Glitch RGB', dip:'Dip to black', dissolve:'Dissolve',
-  iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur'};
+  iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur', diamond:'Mask: diamond', heart:'Mask: heart', star:'Mask: star'};
 const FX_NAME = {jump:'Punch-in (jump cut)', 'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce'};
-const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2};
+const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2, diamond:0.36, heart:0.42, star:0.4};
 
 /* ---- keyframes: [time, value, ease] per property, local to the shot ---- */
 const EASE = {
@@ -1571,12 +1572,13 @@ function aiDone(charged, failed){
    the shot and the style and stay within its ration, effects and speeds must suit the cut. Whatever fails keeps the
    rule choice. One plan per edit (style, mix and clips); a new mix or style asks again. */
 let director = null, dirBusy = false, dirFailedKey = '', dirCands = null;
-const dirKey = () => [mode, mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
+const dirKey = () => [mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
 let mixNo = 0;   // a new mix asks the director again
 const dirSlotOf = i => (aiOn && director && director.key===dirKey() && director.slots[i]) || null;
 const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
-const TR_OK = { smooth: ['hard','dissolve','dip'], auto: Object.keys(TR_DUR).filter(k=>k!=='fadein'), fast: Object.keys(TR_DUR).filter(k=>k!=='fadein') };
+const TR_OK = { smooth: ['hard','dissolve','dip','iris','diamond','heart','star','wipe'], auto: Object.keys(TR_DUR).filter(k=>k!=='fadein'), fast: Object.keys(TR_DUR).filter(k=>k!=='fadein'), copy: Object.keys(TR_DUR).filter(k=>k!=='fadein') };
 const FX_OK = { smooth: ['none','pan-soft','drift'], auto: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'], fast: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'] };
+FX_OK.copy = FX_OK.auto;
 // the director's transitions / effects / speeds, each checked; returns how many were used and how many were corrected
 function applyDirectorStyle(){
   if(!aiOn || !director || director.key !== dirKey()) return null;
@@ -1607,6 +1609,13 @@ function applyDirectorStyle(){
       if(sp){ s.sp = sp; used++; } else fixed++;
     }
     if(s.efx==='snap' && s.sp!==snapSpeed) s.sp = snapSpeed;   // the photo snap is a freeze by definition
+    // the camera moves inside the shot: the AI's keyframes (at = fraction of the shot), on top of the shot's framing;
+    // its effect steps aside (a zoom effect and a zoom keyframe would fight)
+    s.ak = [];
+    if(d.move && d.move.length >= 2 && len >= 0.3){ asked++;
+      s.ak = d.move.map(k=>({ t: +(k.at*len).toFixed(3), s: k.s, x: k.x, y: k.y, r: k.r, o: 1, ez: k.ez || 'inOut' }));
+      if(!['snap','hook'].includes(s.efx) && !(d.fx && d.fx !== 'none')) s.efx = 'none';
+      used++; }
     // keyframes on the hits: inside the shot, not in the first frames of a transition, none in a Smooth Reel
     s.acc = [];
     if(d.keys && d.keys.length && mode!=='smooth'){ asked += d.keys.length;
@@ -1675,7 +1684,7 @@ function directorCandidates(){
   return out;
 }
 function directorMaybe(){
-  if(!aiOn || dirBusy || !edit.length || recording || mode==='copy') return;   // copying a Reel: its style is the plan
+  if(!aiOn || dirBusy || !edit.length || recording) return;
   if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
   if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
   const key = dirKey(); if((director && director.key===key) || dirFailedKey===key) return;
@@ -1703,10 +1712,30 @@ function getSoundMap(){
    the phone's own pace shows first and the AI's replaces it when it arrives. */
 let pacing = null, paceBusy = false, paceFailedKey = '';
 const paceCache = new Map();
-const paceKey = () => [musicKey, mode, root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
-const paceUsable = () => aiOn && kind !== 'talk' && mode !== 'copy' && buf && beats.length >= 8 && sources.length && !recording;
+const paceKey = () => [musicKey, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
+const paceUsable = () => aiOn && kind !== 'talk' && buf && beats.length >= 8 && sources.length && !recording;
 const paceNow = () => (paceUsable() && pacing && pacing.key === paceKey()) ? pacing : null;
 const paceWanted = () => paceUsable() && !paceNow() && paceFailedKey !== paceKey();
+// a reference's shots, kept inside what the server accepts (numbers in range, known words only)
+function cleanMoments(list){
+  const c = (v, a, b) => Math.min(b, Math.max(a, Number.isFinite(+v) ? +v : 0)), KINDS = ['start', ...Object.keys(REF_KINDS)];
+  return (list || []).slice(0, 40).map(m => { const o = { beats: c(m.beats, 0, 64), sec: c(m.sec, 0, 60), tr: KINDS.includes(m.tr) ? m.tr : 'hard', zoom: ['in','out','none'].includes(m.zoom) ? m.zoom : 'none' };
+    for(const k of ['loud','drums','bass','voice']) if(m[k] !== undefined) o[k] = c(m[k], 0, 1);
+    if(['rising','falling','steady'].includes(m.trend)) o.trend = m.trend;
+    if(['kick','dhol','snare','hat'].includes(m.hit)) o.hit = m.hit;
+    if(m.drop) o.drop = true; if(m.shake) o.shake = true; if(m.freeze !== undefined && m.freeze !== null) o.freeze = c(m.freeze, 0, 1);
+    if(Array.isArray(m.move) && m.move.length >= 2){ o.move = m.move.slice(0, 5).map(k => ({ f: c(k.f, 0, 1), s: c(k.s, 0.4, 2.5), x: c(k.x, -0.6, 0.6), y: c(k.y, -0.6, 0.6), r: c(k.r, -60, 60) }));
+      if(['lin','inOut','outCubic','outExpo','outBack'].includes(m.ease)) o.ease = m.ease; }
+    return o; });
+}
+// "Copy a Reel" / a saved or learned style, for the AI: its numbers and, shot by shot, what it does on which music
+function refContext(){
+  if(mode !== 'copy' || !refProfile) return undefined;
+  const R = refProfile, c01 = v => Math.min(1, Math.max(0, +v || 0));
+  const trans = {}; for(const [k, v] of Object.entries(R.trans || {})) trans[k] = +c01(v).toFixed(3);
+  return { name: String(R.name || '').slice(0, 80), medianBeats: Math.min(64, +R.medianBeats || 0), hookBeats: Math.min(64, +R.hookBeats || 0), onBeat: c01(R.onBeat),
+    energy: ['rising','falling','steady'].includes(R.energy) ? R.energy : 'steady', zoomShare: c01(R.zoomShare), trans, moments: cleanMoments(R.moments) };
+}
 function paceMaybe(){
   if(paceBusy || !paceWanted()) return;
   const key = paceKey();
@@ -1721,7 +1750,7 @@ async function paceRun(key){
   const tm = timeoutSignal(25000);
   try{
     const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), clips: sources.filter(s=>!s.removed).length,
-      footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs };
+      footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext() };
     const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI pace failed (' + r.status + ').'));
@@ -1745,9 +1774,9 @@ async function directorRun(key){
     const per = Math.max(1, buf.duration/30), sm = getSoundMap();
     const cx = { hits: hitsRaw || [], hitStr: hitsStr || [], drops: plan.filter(s=>s.type==='drop').map(s=>s.start), beats };
     const pc = paceNow();
-    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160),
+    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
       clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
-      budget: {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
+      budget: mode === 'copy' && copyBudget ? copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
       slots: plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
         ...(sm ? { music: describeCut(sm, s.start, s.end, cx) } : {}),
         candidates: cands[i].map(({si,a,...c})=>c) })).filter(x=>x.candidates.length) };
@@ -1757,7 +1786,7 @@ async function directorRun(key){
     if(dirKey() !== key) return;   // the edit changed meanwhile: its own plan will be asked for
     const slots = [];
     for(const d of res.slots || []){ const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
-      slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], why: d.why || '' }; }
+      slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], why: d.why || '' }; }
     director = { key, slots, story: res.story || '' }; dirCache.set(key, director);
     dirBusy = false; makeEdit();
   }catch(e){
@@ -1951,12 +1980,23 @@ function captureLoop(){
     const c=document.createElement('canvas'); c.width=out.width; c.height=out.height; c.getContext('2d').drawImage(out,0,0); loopImg=c;
     showSafe=sv; hookText=h; pos = at(); return prepare(segAt(pos), pos); }).then(()=>{ drawFrame(pos); if(kfOpen()) kfSync(); });
 }
+// an AI camera move in words: "zoom 1.00→1.18, slides right, turns 4°, fast then settles"
+function moveWords(K){
+  const a = K[0], b = K[K.length-1], w = [];
+  if(Math.abs(b.s - a.s) > 0.02) w.push('zoom ' + a.s.toFixed(2) + '→' + b.s.toFixed(2));
+  if(Math.abs(b.x - a.x) > 0.01) w.push(b.x > a.x ? 'slides right' : 'slides left');
+  if(Math.abs(b.y - a.y) > 0.01) w.push(b.y > a.y ? 'slides down' : 'slides up');
+  if(Math.abs(b.r - a.r) >= 1) w.push('turns ' + Math.round(b.r - a.r) + '°');
+  const ez = { outExpo: 'fast then settles', outCubic: 'quick then eases', outBack: 'overshoots', inOut: 'smooth', lin: 'steady' }[b.ez];
+  return (w.join(', ') || 'moves') + (ez ? ' · ' + ez : '') + ' · ' + K.length + ' keyframes';
+}
 function kfSummary(e){
   const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
   const notes = [e.dirWhy && aiOn ? 'Director: ' + e.dirWhy : '', e.aiNote && aiOn ? 'AI: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
   const why = (notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '')
     + (e.uk && e.uk.length ? `<br><span style="font:11px var(--body);color:#c99a00">◆ ${e.uk.length} keyframe${e.uk.length > 1 ? 's' : ''} of yours</span>` : '')
-    + (e.acc && e.acc.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">AI keyframes: ${e.acc.map(a => a.do + ' at ' + a.at.toFixed(2) + ' s').join(', ')}</span>` : '');
+    + (e.acc && e.acc.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">AI keyframes: ${e.acc.map(a => a.do + ' at ' + a.at.toFixed(2) + ' s').join(', ')}</span>` : '')
+    + (e.ak && e.ak.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">AI camera move: ${moveWords(e.ak)}</span>` : '');
   const s = e.kf && e.kf.scale; if(!s || s.length<2) return why;
   const a=s[0], b=s[s.length-1];
   return `<br><span style="font:11px var(--mono);color:var(--muted)">◆ scale ${a[1].toFixed(2)}→${b[1].toFixed(2)} · ${(b[0]-a[0]).toFixed(2)}s ${b[2]||''}</span>` + why;
@@ -2176,6 +2216,7 @@ const LOOKS = {
   vivid:{name:'Vivid', filter:'contrast(1.15) saturate(1.12) brightness(1.02)', grain:0.04},
   cine:{name:'Cinematic', filter:'contrast(1.18) saturate(0.9) brightness(0.98)', tint:true, grain:0.08},
   mono:{name:'B&W', filter:'grayscale(1) contrast(1.25)', grain:0.1},
+  copy:{name:'Copied', filter:'none', grain:0},   // until the copied look is matched (copyLook sets it)
 };
 let look = 'vivid', hookText = '', showSafe = true, loopImg = null, holdText = false;
 const bufA = document.createElement('canvas'), gA = bufA.getContext('2d');
@@ -2194,6 +2235,8 @@ function drawShot(g, e, local, o={}){
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); } } }
   const ac = o.noFx ? null : accentAt(e, local);
   if(ac){ scale *= ac.s; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
+  const am = uAt(e.ak, local);   // the AI director's camera keyframes
+  if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
   if(u){ scale *= u.s; rot += u.r; }
   const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
@@ -2924,6 +2967,13 @@ function maskReveal(e, local, p, kind){
     const gr = gA.createLinearGradient(0,0,W,H*0.6); const a=Math.min(1,Math.max(0,(edge-f)/span)), b=Math.min(1,Math.max(0,edge/span));
     gr.addColorStop(0,'#000'); gr.addColorStop(Math.max(0,Math.min(a,0.999)),'#000'); gr.addColorStop(Math.max(b,Math.min(a,0.999)+0.001),'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,0)');
     gA.fillStyle=gr; gA.fillRect(0,0,W,H);
+  } else if(kind==='diamond' || kind==='heart' || kind==='star'){
+    const cx = e.cx*W, cy = H/2, R = Math.hypot(Math.max(cx,W-cx), H/2)*EASE.inOut(p)*SHAPE_REACH[kind], path = new Path2D(), N = 72;
+    for(let k=0;k<N;k++){ const a = k/N*Math.PI*2; let r = 1;
+      // the edge of the unit shape along this direction (refread.shapeInside), by bisection
+      let lo = 0, hi = 2.5; for(let it=0; it<14; it++){ const m = (lo+hi)/2; if(shapeInside(kind, Math.cos(a)*m, Math.sin(a)*m)) lo = m; else hi = m; } r = lo;
+      const x = cx + Math.cos(a)*r*R, y = cy + Math.sin(a)*r*R; k ? path.lineTo(x, y) : path.moveTo(x, y); }
+    path.closePath(); gA.fillStyle='#000'; gA.fill(path);
   } else if(kind==='bars'){
     const n=6, bw=W/n; gA.fillStyle='#000';
     for(let k=0;k<n;k++){ const pk = Math.min(1,Math.max(0,(p*1.6 - k*0.12))); const hh = H*EASE.outCubic(pk); gA.fillRect(k*bw-0.5, k%2 ? 0 : H-hh, bw+1, hh); }
@@ -2963,7 +3013,7 @@ function drawFrame2D(t){
           og.save(); og.beginPath(); og.rect(0, k*sh, W, sh*0.7); og.clip();
           drawShot(og, k%2 ? pe : e, k%2 ? pl : local, {dx:((k*37)%11-5)*0.015*W, noFx:true}); og.restore(); }
         break; }
-      case 'iris': case 'wipe': case 'bars': drawShot(og, pe, pl, {noFx:true}); maskReveal(e, local, p, e.tr); break;
+      case 'iris': case 'wipe': case 'bars': case 'diamond': case 'heart': case 'star': drawShot(og, pe, pl, {noFx:true}); maskReveal(e, local, p, e.tr); break;
       case 'dip':
         if(p<0.5){ drawShot(og, pe, pl); og.fillStyle=`rgba(0,0,0,${EASE.inOut(p*2)})`; og.fillRect(0,0,W,H); }
         else { drawShot(og, e, local); og.fillStyle=`rgba(0,0,0,${1-EASE.inOut((p-0.5)*2)})`; og.fillRect(0,0,W,H); }
@@ -3069,6 +3119,11 @@ void main(){
   }
   else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p0,irisC)); col=mix(A,B,mk); }
   else if(mode<7.5){ float q=1.-pow(1.-prog,3.); float s=(p0.x+p0.y*0.6)/(res.x+res.y*0.6); float e=-0.15+q*1.3; float mk=1.-smoothstep(e-0.08,e,s); col=mix(A,B,mk); }
+  else if(mode>8.5){ float q=prog*prog*(3.-2.*prog);   // smooth in and out: the shape is seen growing vec2 far=max(irisC,res-irisC); float L=length(far); vec2 d=p0-irisC; float mk;
+    if(mode<9.5){ float R=L*1.45*q+1e-3; float v=(abs(d.x)+abs(d.y))/R; mk=1.-smoothstep(0.93,1.,v); }
+    else if(mode<10.5){ float R=L*1.9*q+1e-3; vec2 u=d/R; float X=u.x*1.15; float Y=-u.y*1.15+0.3; float a=X*X+Y*Y-1.; float h=a*a*a-X*X*Y*Y*Y; mk=1.-smoothstep(-0.03,0.03,h); }
+    else { float R=L*1.85*q+1e-3; float r=length(d)/R; float an=atan(d.y,d.x); float lim=0.55+0.45*pow(0.5+0.5*cos(5.*an+1.5708),3.); mk=1.-smoothstep(lim-0.05,lim,r); }
+    col=mix(A,B,mk); }
   else { float k=floor(p0.x/(res.x/6.)); float pk=clamp(prog*1.6-k*0.12,0.,1.); float hh=res.y*(1.-pow(1.-pk,3.)); float mk = mod(k,2.)>0.5 ? step(p0.y,hh) : step(res.y-hh,p0.y); col=mix(A,B,mk); }
   // colour grade
   col = lift + col*(1.-lift);   // lifted blacks (faded / matte)
@@ -3170,6 +3225,8 @@ function layerOf(e, local, o={}){
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); if(!o.noFx) expo += 0.22*Math.exp(-(local-bt)/0.07); } } }
   const ac = o.noFx ? null : accentAt(e, local);
   if(ac){ scale *= ac.s; expo += ac.ex; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
+  const am = uAt(e.ak, local);   // the AI director's camera keyframes
+  if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local);
   if(u){ scale *= u.s; rot += u.r; }
   const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
@@ -3255,6 +3312,7 @@ function drawFrameGL(t){
       case 'iris': { const [px,py,dw,dh] = S.B.rect, [ccx,ccy] = camAt(e, local); S.mode = 6; S.prog = p; S.iris = [px+ccx*dw+S.B.off[0], py+ccy*dh+S.B.off[1]]; break; }
       case 'wipe': S.mode = 7; S.prog = p; break;
       case 'bars': S.mode = 8; S.prog = p; break;
+      case 'diamond': case 'heart': case 'star': { const [px,py,dw,dh] = S.B.rect, [ccx,ccy] = camAt(e, local); S.mode = {diamond:9, heart:10, star:11}[e.tr]; S.prog = p; S.iris = [px+ccx*dw+S.B.off[0], py+ccy*dh+S.B.off[1]]; break; }
       case 'dip': S.mode = 2; S.prog = EASE.inOut(p); break;
       case 'dissolve': S.mode = 1; S.mix = EASE.inOut(p); break;
       case 'fadein': S.mode = 1; S.mix = q; if(!pe) S.A = null; break;
@@ -3699,7 +3757,7 @@ const MODE_HELP = {
   auto: 'Auto: the music decides. Calm parts get longer shots, drops and hits get effects.',
   smooth: 'Smooth: fewer, longer shots on the strong beats, soft camera moves, no flashy effects.',
   fast: 'Fast: a cut on every beat, a transition on every cut, punches and speed changes on the hits.',
-  copy: 'Copy a Reel: its pace (in beats), its transitions, its zooms and its colours, on this song and your clips.',
+  copy: 'Copy a Reel: its pace, transitions and shapes, camera moves, speed and colours, on this song and your clips. With AI on, the AI copies what it does on each kind of music moment.',
 };
 function setMode(m){ mode = m; [...$('mode').children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.m===m)); $('modehelp').textContent = MODE_HELP[mode];
   $('refbox').hidden = !refProfile;
@@ -3725,7 +3783,8 @@ $('cover').onclick = async () => {
    warmth, teal-orange split, black and white, faded blacks, vignette, grain). "Copy a Reel" then cuts the new edit at
    that pace on this song's beats, uses that mix of transitions and effects, and grades the clips toward that look. */
 let refProfile = null;
-const REF_KINDS = { hard:'hard cuts', dissolve:'dissolves', fade:'fades', flash:'flashes', whip:'whip pans', zoom:'zoom-throughs' };
+const REF_KINDS = { hard:'hard cuts', dissolve:'dissolves', fade:'fades', flash:'flashes', whip:'whip pans', zoom:'zoom-throughs', glitch:'glitches', spin:'spins',
+  iris:'circle reveals', diamond:'diamond reveals', heart:'heart reveals', star:'star reveals', wipe:'wipes', bars:'bar reveals' };
 // colour statistics of the frame drawn into g (w x h), plus a 1:1 crop for grain
 function lookStats(g, w, h, crop){
   const d = g.getImageData(0,0,w,h).data, n = w*h, L = new Float32Array(n);
@@ -3805,16 +3864,31 @@ function zoomBetween(ca, cb){
     if(n && s2/n < best){ best = s2/n; zoom = sc; } }
   return zoom;
 }
+// a glitch: the red and blue of a frame pushed sideways apart (measured on the small colour frame)
+function rgbShiftOf(canvas){
+  if(!canvas) return 0;
+  const W2 = canvas.width, H2 = canvas.height, d = canvas.getContext('2d', {willReadFrequently:true}).getImageData(0,0,W2,H2).data;
+  let best = 0, bv = Infinity, base = 0;
+  for(let sh=-6; sh<=6; sh++){ let s2 = 0, n = 0;
+    for(let y=2;y<H2-2;y+=2) for(let x=8;x<W2-8;x++){ const i=(y*W2+x)*4, j=(y*W2+x+sh)*4; s2 += Math.abs(d[i]-d[j+2]); n++; }
+    const v = s2/Math.max(1,n); if(sh===0) base = v; if(v < bv){ bv = v; best = sh; } }
+  return Math.abs(best) >= 2 && bv < 0.8*base ? Math.abs(best) : 0;
+}
 function cutKind(fr, hint){
   if(fr.length < 6) return hint === 'cut' ? 'hard' : hint;
   const endF = fr.filter(f=>Math.abs(f.k) >= CUT_K-1), ends = (endF.length >= 2 ? endF : [fr[0], fr[fr.length-1]]).map(f=>f.mean).sort((a,b)=>a-b), endMed = ends[Math.floor((ends.length-1)/2)];
   const mid = fr.filter(f=>Math.abs(f.k) <= 4), maxB = Math.max(...mid.map(f=>f.mean)), minB = Math.min(...mid.map(f=>f.mean));
   if(minB < 0.07 && endMed > 0.12) return 'fade';
-  if(maxB > 0.78 && maxB > endMed + 0.22) return 'flash';
+  // a flash is brighter than BOTH shots around it (a cut into a bright shot is not a flash)
+  const endOf = side => { const q = fr.filter(f=>side < 0 ? f.k <= -(CUT_K-1) : f.k >= CUT_K-1).map(f=>f.mean); return q.length ? q.reduce((a,b)=>a+b,0)/q.length : endMed; };
+  const brighter = maxB - Math.max(endOf(-1), endOf(1));
+  if(maxB > 0.78 && maxB > endMed + 0.22 && brighter > 0.15) return 'flash';
   // the reading may have landed at the end of a flash: a white spike a few frames earlier is the cut
   const early = fr.filter(f=>f.k < -2 && f.k > -CUT_K), eMax = early.length ? early.reduce((q,f)=>f.mean > q.mean ? f : q, early[0]) : null;
-  if(eMax && eMax.mean > 0.78 && eMax.mean > endMed + 0.22){ fr.shiftTo = eMax.k; return 'flash'; }
+  if(eMax && eMax.mean > 0.78 && eMax.mean > endMed + 0.22 && eMax.mean - Math.max(endOf(-1), endOf(1)) > 0.15){ fr.shiftTo = eMax.k; return 'flash'; }
   const before = fr.filter(f=>f.k <= 0 && f.k >= -4 && f.dx !== undefined);
+  if(fr.spin) return 'spin';
+  if(fr.glitch) return 'glitch';
   if(before.filter(f=>Math.abs(f.dx) >= 5 || f.aniso < 0.3).length >= 2) return 'whip';
   if(before.filter(f=>f.sc >= 1.06).length >= 2) return 'zoom';
   if(hint === 'dissolve') return 'dissolve';
@@ -3828,11 +3902,12 @@ async function analyzeReference(file, onP){
     if(!isFinite(dur) || dur <= 1 || !w) throw new Error('This video cannot be read here.');
     onP(0.02, 'listening to its music');
     // its music: the beats (shot lengths are measured in beats, so the pace carries over to another tempo)
-    let rb = null;
+    let rb = null, rr = null, rmap = null;
     try{ const ab = await decodeAnyAudio(file); const m = new Float32Array(ab.length);
       for(let c=0;c<ab.numberOfChannels;c++){ const d = ab.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ab.numberOfChannels; }
       let r; try{ r = await analyseInWorker(m, ab.sampleRate); }catch(e){ r = songAnalysis(m, ab.sampleRate); }
-      if(r.beats && r.beats.length > 8) rb = r.beats; }catch(e){ /* no soundtrack: pace in seconds */ }
+      if(r.beats && r.beats.length > 8) rb = r.beats;
+      rr = r; try{ rmap = soundMap(m, ab.sampleRate); }catch(e){ rmap = null; } }catch(e){ /* no soundtrack: pace in seconds */ }
     // its cuts: the same reading as a clip (scene changes, frame-accurate)
     const ps = { url, dur, w, h };
     await scanMotion(ps, p => onP(0.05 + 0.45*p, 'finding its cuts'));
@@ -3846,16 +3921,30 @@ async function analyzeReference(file, onP){
     try{
       const ts = []; cuts.forEach(c=>{ for(let k=-CUT_K;k<=CUT_K;k++) ts.push(Math.min(Math.max(0.005, c.t + k/30 + 0.005), dur-0.02)); });
       const frames = ts.length ? await fs.small(ts) : [];
-      cuts.forEach((c,i)=>{ const fr = cutFramesOf(frames.slice(i*(2*CUT_K+1), (i+1)*(2*CUT_K+1))); c.kind = cutKind(fr, c.hint); if(fr.shiftTo) c.t += fr.shiftTo/30; });
+      cuts.forEach((c,i)=>{ const cv = frames.slice(i*(2*CUT_K+1), (i+1)*(2*CUT_K+1)), fr = cutFramesOf(cv);
+        const at = k => fr.find(f=>f.k===k);
+        // a spin: the picture turns over the frames before the cut
+        { let turned = 0; for(let k=-4;k<0;k++){ const a = at(k), b = at(k+1); if(a && b && Math.abs(motionBetween(a.Y, b.Y, a.FW, a.FH).r) >= 6) turned++; } fr.spin = turned >= 2; }
+        // a glitch: red and blue pulled apart on two frames or more around the cut
+        fr.glitch = cv.slice(CUT_K-3, CUT_K+4).filter(x=>rgbShiftOf(x) >= 2).length >= 2;
+        c.kind = cutKind(fr, c.hint); if(fr.shiftTo) c.t += fr.shiftTo/30;
+        // a reveal through a shape (circle, diamond, heart, star, wipe, bars): the frames in the middle of the transition
+        if(['hard','dissolve','fade'].includes(c.kind)){ const A = at(-CUT_K), B = at(CUT_K);
+          if(A && B) for(const k of [0,-1,1,-2,2,-3,3]){ const F = at(k); if(!F) continue; const sh = revealShape(A.Y, B.Y, F.Y, A.FW, A.FH); if(sh){ c.kind = sh; break; } } } });
       // shots: a zoom inside them (two frames) and the colour look (the middle frame)
       onP(0.85, 'reading its look');
       const bounds = [0, ...cuts.map(c=>c.t), dur], sh = [];
       for(let i=0;i<bounds.length-1 && i<40;i++) sh.push({ a: bounds[i], b: bounds[i+1] });
-      const zt = [], lt = [];
-      // zoom: two frames well inside the shot (clear of its transitions); short shots are not judged
-      sh.forEach(x=>{ const L = x.b - x.a, m = Math.min(0.3, 0.3*L); zt.push(x.a + m, x.b - m); lt.push(x.a + 0.5*L); });
+      const zt = [], zi = [], lt = [];
+      // the camera move: frames every ~0.12 s inside the shot (clear of its transitions), at most 9; short shots are not judged
+      sh.forEach((x,i)=>{ const L = x.b - x.a, m = Math.min(0.2, 0.15*L), n = L >= 0.5 ? Math.max(3, Math.min(9, Math.round((L-2*m)/0.12)+1)) : 0;
+        for(let k=0;k<n;k++){ const t = x.a + m + (L-2*m)*k/(n-1); zt.push(t); zi.push([i, (t - x.a)/L]); } lt.push(x.a + 0.5*L); });
       const zf = await fs.small(zt), lf = await fs.full(lt);
-      sh.forEach((x,i)=>{ const L = x.b - x.a; shots.push({ a: x.a, b: x.b, zoom: L >= 0.9 ? zoomBetween(zf[2*i], zf[2*i+1]) : 1 }); const lk = lf[i] ? lookOfImage(lf[i], lf[i].width, lf[i].height) : null; if(lk) looks.push(lk); });
+      sh.forEach((x,i)=>{ const L = x.b - x.a, mine = zi.map((z,k)=>[z,k]).filter(([z])=>z[0]===i), gr = mine.map(([,k])=>zf[k] ? greyOf(zf[k]) : null);
+        let move = null;
+        if(gr.length >= 3 && gr.every(Boolean)) move = shotMove(gr.map(g=>g.Y), mine.map(([z])=>z[1]), gr[0].FW, gr[0].FH);
+        shots.push({ a: x.a, b: x.b, zoom: move ? (move.zoom === 'in' ? 1.06 : move.zoom === 'out' ? 0.94 : 1) : 1, move });
+        const lk = lf[i] ? lookOfImage(lf[i], lf[i].width, lf[i].height) : null; if(lk) looks.push(lk); });
     } finally { fs.close(); }
     v.removeAttribute('src'); v.load();
     // pace
@@ -3869,7 +3958,17 @@ async function analyzeReference(file, onP){
     const trans = {}; cuts.forEach(c=>{ trans[c.kind] = (trans[c.kind]||0) + 1; });
     Object.keys(trans).forEach(k=>{ trans[k] /= cuts.length; });
     const look = avgLook(looks);
-    return { name: file.name, dur, w, h, cuts: cuts.map(c=>({t:+c.t.toFixed(3), kind:c.kind})), shotSec, shotBeats, medianBeats: med(shotBeats), medianSec: med(shotSec),
+    const drops = rr ? (rr.cuts || []).filter((c,k)=>rr.cutType[k] === 'drop') : [];
+    const moments = shots.slice(0, 40).map((s,i)=>{
+      const mm = { beats: shotBeats[i] || 0, sec: +shotSec[i].toFixed(2), tr: i ? (cuts[i-1] ? cuts[i-1].kind : 'hard') : 'start', zoom: s.zoom > 1.03 ? 'in' : s.zoom < 0.97 ? 'out' : 'none' };
+      if(s.move){ if(s.move.keys.length >= 2 && (s.move.zoom !== 'none' || s.move.keys.some(k=>Math.abs(k.x) > 0.02 || Math.abs(k.y) > 0.02 || Math.abs(k.r) >= 2))){ mm.move = s.move.keys; mm.ease = s.move.ease; }
+        if(s.move.shake) mm.shake = true; if(s.move.freeze !== null) mm.freeze = +s.move.freeze.toFixed(2); }
+      if(rmap && rr){ const dm = describeCut(rmap, s.a, s.b, { hits: rr.hitsRaw || [], hitStr: rr.hitsStr || [], drops, beats: rr.beats || [] });
+        Object.assign(mm, { loud: dm.loud, trend: dm.trend, drums: dm.drums, bass: dm.bass, voice: dm.voice });
+        if(dm.hits && dm.hits.length) mm.hit = dm.hits.slice().sort((x,y)=>y.p-x.p)[0].k;
+        if(drops.some(d=>Math.abs(d - s.a) < 0.15)) mm.drop = true; }
+      return mm; });
+    return { name: file.name, dur, w, h, moments, cuts: cuts.map(c=>({t:+c.t.toFixed(3), kind:c.kind})), shotSec, shotBeats, medianBeats: med(shotBeats), medianSec: med(shotSec),
       hookBeats: shotBeats[0] || 0, hookSec: shotSec[0] || 0, onBeat, energy, trans,
       zoomShare: shots.filter(s=>s.zoom >= 1.05 || s.zoom <= 0.95).length/Math.max(1, shots.filter(s=>s.b-s.a >= 0.9).length),   // of the shots long enough to judge
       look, bpm: P ? 60/P : 0 };
@@ -3910,7 +4009,7 @@ function copyPlan(){
 }
 // the reference's mix of transitions and effects, placed where they suit (energetic ones on drops and hits, soft ones
 // on calm, long shots), counted so the shares match
-const REF_TR = { hard:'hard', dissolve:'dissolve', fade:'dip', flash:'flash', whip:'whip', zoom:'zoom' };
+const REF_TR = { hard:'hard', dissolve:'dissolve', fade:'dip', flash:'flash', whip:'whip', zoom:'zoom', glitch:'glitch', spin:'spin', iris:'iris', diamond:'diamond', heart:'heart', star:'star', wipe:'wipe', bars:'bars' };
 let copyBudget = null;
 function copyStyle(){
   const R = refProfile, n = plan.length - 1; if(n < 1) return;
@@ -3924,7 +4023,7 @@ function copyStyle(){
       if(plan[i-1] && plan[i-1].tr === REF_TR[k] && k !== 'hard') continue; plan[i].tr = REF_TR[k]; free.delete(i); c--; }
     for(const i of order){ if(!c) break; if(free.has(i)){ plan[i].tr = REF_TR[k]; free.delete(i); c--; } } };
   const hot = [...idx].sort((a,b)=>energy(b)-energy(a)), calm = [...idx].sort((a,b)=>energy(a)-energy(b));
-  ['flash','zoom','whip'].forEach(k=>place(k, hot)); ['dissolve','fade'].forEach(k=>place(k, calm));
+  ['flash','zoom','whip','glitch','spin'].forEach(k=>place(k, hot)); ['dissolve','fade','iris','diamond','heart','star','wipe','bars'].forEach(k=>place(k, calm));
   // zooms inside shots: on that share of shots, the longest first
   const longI = [...plan.keys()].filter(i=>plan[i].end-plan[i].start >= 0.9), zn = Math.round(Math.min(1, R.zoomShare)*longI.length);
   longI.sort((a,b)=>(plan[b].end-plan[b].start)-(plan[a].end-plan[a].start)).slice(0, zn).forEach(i=>{ plan[i].efx = (plan[i].end-plan[i].start) > 1.2 ? 'pan' : 'punch-soft'; });
@@ -3995,11 +4094,12 @@ const STYLE_KINDS = { wedding: 'Wedding', travel: 'Travel', festival: 'Festival'
 let learnedKind = '', editsQ = [], editsT = 0;
 const clip = (x, a, b) => Math.min(b, Math.max(a, Number.isFinite(x) ? x : a));
 function fingerprintOf(R){
-  const tr = {}; for(const [k, v] of Object.entries(R.trans || {})) if(['hard','flash','fade','whip','zoom','dissolve'].includes(k)) tr[k] = clip(v, 0, 1);
+  const tr = {}; for(const [k, v] of Object.entries(R.trans || {})) if(Object.keys(REF_KINDS).includes(k)) tr[k] = clip(v, 0, 1);
   const L = R.look || null, look = L ? Object.fromEntries(['mean','std','sat','warm','p5','p95','vig','grain','split'].filter(k => Number.isFinite(L[k])).map(k => [k, clip(L[k], k === 'warm' || k === 'vig' || k === 'split' ? -1 : 0, k === 'sat' ? 2 : 1)])) : null;
   return { dur: clip(R.dur, 1, 600), bpm: clip(R.bpm || 0, 0, 300), medianBeats: clip(R.medianBeats || 0, 0, 64), medianSec: clip(R.medianSec || 0, 0, 60), hookBeats: clip(R.hookBeats || 0, 0, 64), hookSec: clip(R.hookSec || 0, 0, 60),
     onBeat: clip(R.onBeat || 0, 0, 1), energy: ['steady','rising','falling'].includes(R.energy) ? R.energy : 'steady', zoomShare: clip(R.zoomShare || 0, 0, 1), trans: tr, look,
-    shotBeats: (R.shotBeats || []).slice(0, 300).map(x => clip(x, 0, 64)), shotSec: (R.shotSec || []).slice(0, 300).map(x => clip(x, 0, 60)) };
+    shotBeats: (R.shotBeats || []).slice(0, 300).map(x => clip(x, 0, 64)), shotSec: (R.shotSec || []).slice(0, 300).map(x => clip(x, 0, 60)),
+    moments: cleanMoments(R.moments) };
 }
 async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts }); const j = await r.json().catch(() => ({}));
   if(r.status === 401) throw new Error('sign in to keep a style library'); if(!r.ok) throw new Error((j.error && j.error.message) || ('error ' + r.status)); return j; }
@@ -4423,7 +4523,7 @@ function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB,
 function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => { const t = d.transaction(store, mode), req = fn(t.objectStore(store));
   t.oncomplete = () => { d.close(); res(req && 'result' in req ? req.result : undefined); }; t.onerror = () => { d.close(); rej(t.error); }; t.onabort = () => { d.close(); rej(t.error || new Error('storage full')); }; })); }
 function editOf(){
-  return kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined, acc: e.acc && e.acc.length ? e.acc : undefined, cs: e.cs ? JSON.parse(JSON.stringify(e.cs)) : undefined }));
+  return kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined, acc: e.acc && e.acc.length ? e.acc : undefined, ak: e.ak && e.ak.length ? e.ak : undefined, cs: e.cs ? JSON.parse(JSON.stringify(e.cs)) : undefined }));
 }
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
@@ -4525,7 +4625,7 @@ function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
   stopAll(); const uc = sources.map(() => 0);
   edit = list.map(x => { const e = { ...x, el: sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
-  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc }));
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak }));
   setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop(); editGen++;
   return true;
 }
