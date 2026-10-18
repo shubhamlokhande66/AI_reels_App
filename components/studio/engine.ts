@@ -1955,6 +1955,34 @@ function shotOp(op, arg){
   }
   return false;
 }
+// the current shot's clip settings: read, change (a patch; null resets them all)
+function shotCs(){ return edit.length && kind !== 'talk' ? { ...csOf(edit[segAt(pos)]), i: segAt(pos) } : null; }
+function shotSet(patch){
+  if(!edit.length || kind === 'talk' || exporting || recording) return;
+  const e = edit[segAt(pos)]; e.cs = patch === null ? undefined : { ...(e.cs || {}), ...patch };
+  if(e.cs) for(const k of Object.keys(e.cs)) if(JSON.stringify(e.cs[k]) === JSON.stringify(CS0[k])) delete e.cs[k];
+  if(e.cs && !Object.keys(e.cs).length) e.cs = undefined;
+  if(!playing) redrawFrame();
+}
+// slip: the same shot, an earlier or later moment of its clip (the shot's place in the song stays)
+function shotSlip(d){
+  if(!edit.length || kind === 'talk') return false; stopAll();
+  const i = segAt(pos), e = edit[i], need = e.sp.pos(e.end - e.start)*e.scaleR, max = Math.max(0, sources[e.src].dur - need - TAIL);
+  const v = Math.max(0, Math.min(max, e.in + d)); if(Math.abs(v - e.in) < 1e-3){ notify(d < 0 ? 'This is the start of the clip.' : 'This is the end of the clip.'); return false; }
+  e.in = v; e.cam = null; e.kf = keyframesFor(e); renderEDL(true); showShot(i); editGen++; return true;
+}
+// trim: the shot's end moves one beat (the next shot starts there), so the cuts stay on the beat
+function shotTrim(dir){
+  if(!edit.length || kind === 'talk') return false; stopAll();
+  const i = segAt(pos), e = edit[i], nx = edit[i+1];
+  if(!nx){ notify('The last shot ends with the song.'); return false; }
+  const grid = beats.length ? beats : [];
+  const to = dir > 0 ? grid.find(b => b > e.end + 0.05 && b < nx.end - MIN_SHOT) : [...grid].reverse().find(b => b < e.end - 0.05 && b > e.start + MIN_SHOT);
+  if(to == null){ notify(dir > 0 ? 'The next shot is too short to give a beat.' : 'This shot is already as short as it can be.'); return false; }
+  const L = editOf(), d = to - L[i+1].start; L[i].end = to; L[i+1].start = to;
+  if(L[i+1].uk) L[i+1].uk = L[i+1].uk.map(k => ({ ...k, t: k.t - d })).filter(k => k.t >= 0);
+  if(!restoreEdit(L)) return false; changed(i, true); changed(i+1, true); pos = edit[i].start + 0.05; showShot(i); return true;
+}
 // Undo / Redo: a step is kept each time the edit or the texts change (any control, a new mix, a split…). The list starts
 // again when the song or the clips change, because an older edit would not fit them.
 const hist = { u: [], r: [], cur: null, cand: '', base: '' };
@@ -2072,8 +2100,7 @@ function drawShot(g, e, local, o={}){
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); } } }
   const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
   if(u){ scale *= u.s; rot += u.r; }
-  const sw = sources[e.src].w, shh = sources[e.src].h, [ccx, ccy] = camAt(e, local);
-  const r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r;
+  const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py0 = H/2 - ccy*dh; py0 = panClamp(py0, H, dh);
   const py = py0 + y;
@@ -2082,18 +2109,26 @@ function drawShot(g, e, local, o={}){
     gg.save(); gg.globalAlpha = a;
     if(ux || uy) gg.translate(ux, uy);   // the creator's move: after the turn, so a moved shot turns about its own middle
     if(rot || extra!==1){ gg.translate(W/2,H/2); gg.rotate(rot*Math.PI/180); gg.scale(extra,extra); gg.translate(-W/2,-H/2); }
-    gg.filter = LOOKS[look].filter; gg.drawImage(v, px+ox, py+oy, dw, dh); gg.restore(); };
+    gg.filter = LOOKS[look].filter + csFilter(c); csDraw(gg, v, c, px+ox, py+oy, dw, dh); gg.restore(); };
+  // a fitted picture: its canvas (blurred copy or a colour) and border, under the picture
+  const canvasBg = (g, alpha) => { if(!c.fit) return;
+    g.save(); g.globalAlpha = alpha;
+    if(ux || uy) g.translate(ux, uy);
+    if(c.bg === 'blur'){ const rb = Math.max(W/G.sw, H/G.sh)*1.12; g.filter = 'blur(' + Math.round(W*0.03) + 'px) brightness(0.62)'; csDraw(g, v, c, W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb); g.filter = 'none'; }
+    else { g.fillStyle = c.bgc; g.fillRect(-W, -H, 3*W, 3*H); }
+    if(c.bd > 0){ const b = c.bd*0.04*W; if(rot){ g.translate(W/2,H/2); g.rotate(rot*Math.PI/180); g.translate(-W/2,-H/2); } g.fillStyle = c.bdc; g.fillRect(px-b, py-b, dw+2*b, dh+2*b); }
+    g.restore(); };
   const rgb = (kf(K.rgb,local) || 0) + (o.rgb||0);
   if(rgb > 0.5 && !o.noFx){
     // chromatic aberration: red and blue channels pushed apart
     fitBufs(); gB.globalCompositeOperation='source-over'; gB.fillStyle='#000'; gB.fillRect(0,0,W,H);
-    const chan = (col, ox) => { gA.globalCompositeOperation='source-over'; gA.clearRect(0,0,W,H); paint(gA,1,1,ox,0);
+    const chan = (col, ox) => { gA.globalCompositeOperation='source-over'; gA.clearRect(0,0,W,H); canvasBg(gA,1); paint(gA,1,1,ox,0);
       gA.globalCompositeOperation='multiply'; gA.fillStyle=col; gA.fillRect(0,0,W,H);
       gB.globalCompositeOperation='lighter'; gB.drawImage(bufA,0,0); };
     chan('#f00', -rgb); chan('#0f0', 0); chan('#00f', rgb);
     gB.globalCompositeOperation='source-over';
     g.save(); g.globalAlpha = alpha; g.drawImage(bufB,0,0); g.restore();
-  } else paint(g, alpha);
+  } else { canvasBg(g, alpha); paint(g, alpha); }
   // zoom blur: faint bigger copies
   const zb = (kf(K.zblur,local) || 0) + (o.zblur||0);
   if(zb > 0.02 && !o.noFx) for(let k=1;k<=3;k++) paint(g, 0.22*zb*alpha, 1 + 0.045*k*zb);
@@ -2101,8 +2136,27 @@ function drawShot(g, e, local, o={}){
   if(K.bounce && e.beatsIn && !o.noFx){ for(const bt of e.beatsIn){ if(local>=bt) expo += 0.22*Math.exp(-(local-bt)/0.07); } }   // light pulse on each beat
   if(!o.noFx && e.sp && rateAt(e, local) >= 1.8) for(let k=1;k<=2;k++) paint(g, 0.16*alpha, 1 + 0.012*k);   // motion blur when fast
   if(expo > 0.01 && !o.noFx){ g.save(); g.globalCompositeOperation='lighter'; paint(g, Math.min(1,expo)*alpha); g.restore(); }
-  const br = kf(K.bright,local);
-  if(br !== undefined && br < 1){ g.fillStyle=`rgba(0,0,0,${(1-br)*alpha})`; g.fillRect(0,0,W,H); }
+  const br = (kf(K.bright,local) ?? 1) * csFade(c, local, L);
+  if(br < 1){ g.fillStyle=`rgba(0,0,0,${(1-br)*alpha})`; g.fillRect(0,0,W,H); }
+}
+// the shot's colour as a canvas filter (the shader's adj(); warmth as a sepia / hue nudge)
+function csFilter(c){ if(!c.bri && !c.con && !c.sat && !c.warm) return '';
+  return ` brightness(${(1+c.bri*0.5).toFixed(3)}) contrast(${(1+c.con).toFixed(3)}) saturate(${(1+c.sat).toFixed(3)})` + (c.warm ? (c.warm > 0 ? ` sepia(${(c.warm*0.25).toFixed(3)})` : ` hue-rotate(${(c.warm*-12).toFixed(1)}deg)`) : ''); }
+// the picture in its display rect: turned, then mirrored / flipped
+function csDraw(g, v, c, x, y, w, h){
+  if(!c.rot && !c.fh && !c.fv){ g.drawImage(v, x, y, w, h); return; }
+  const odd = (c.rot/90)&1; g.save(); g.translate(x + w/2, y + h/2); g.scale(c.fh ? -1 : 1, c.fv ? -1 : 1); g.rotate(c.rot*Math.PI/180);
+  const sw = odd ? h : w, sh = odd ? w : h; g.drawImage(v, -sw/2, -sh/2, sw, sh); g.restore();
+}
+// mosaic and magnifier on the 2D canvas (the shader does them in its own pass)
+function lensPass2D(g, e){
+  const c = csOf(e); if(!c.mz && !c.mg) return; const W = out.width, H = out.height, Z = lensOf(e); fitBufs();
+  gA.globalCompositeOperation = 'source-over'; gA.clearRect(0,0,W,H); gA.drawImage(out, 0, 0);
+  if(c.mz){ const [x,y,w,h] = Z.mz, tw = Math.max(1, Math.round(w/Z.mzc)), th = Math.max(1, Math.round(h/Z.mzc));
+    gB.clearRect(0,0,W,H); gB.drawImage(bufA, x, y, w, h, 0, 0, tw, th); g.save(); g.imageSmoothingEnabled = false; g.drawImage(bufB, 0, 0, tw, th, x, y, w, h); g.restore();
+    gA.clearRect(0,0,W,H); gA.drawImage(out, 0, 0); }
+  if(c.mg){ const [cx,cy,R,z] = Z.mg; g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 2*Math.PI); g.clip(); g.drawImage(bufA, cx-R/z, cy-R/z, 2*R/z, 2*R/z, cx-R, cy-R, 2*R, 2*R); g.restore();
+    g.save(); g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = Math.max(2, W*0.004); g.beginPath(); g.arc(cx, cy, R, 0, 2*Math.PI); g.stroke(); g.restore(); }
 }
 function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let cur='';
   words.forEach(w=>{ const tryL = cur ? cur+' '+w : w; if(g.measureText(tryL).width > maxW && cur){ lines.push(cur); cur=w; } else cur=tryL; }); if(cur) lines.push(cur); return lines; }
@@ -2705,6 +2759,7 @@ function drawFrame2D(t){
       default: drawShot(og, e, local);
     }
   } else drawMain(e, local);
+  lensPass2D(og, e);
   if(e.type==='drop' && local < 0.7){   // warm light leak sweeping across on drops
     const q = local/0.7, lx = -0.3*W + q*1.6*W, gr = og.createRadialGradient(lx, H*0.35, 0, lx, H*0.35, W*0.9);
     gr.addColorStop(0, `rgba(255,170,90,${0.38*(1-q)})`); gr.addColorStop(1,'rgba(255,120,60,0)');
@@ -2735,13 +2790,16 @@ uniform vec2 dbA, dbB, irisC, offA, offB;
 uniform float mode, prog, mixv, time, snap, bgDark, border;
 uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix, warm, lift;
 uniform vec3 leak;
+uniform vec4 tfA, tfB, bgA, bgB, bgrA, bgrB, bdA, bdB, adA, adB, mz, mg;
+uniform float mzc;
 vec2 rotP(vec2 p, float r){ vec2 c=res*0.5; vec2 d=p-c; float cs=cos(-r), sn=sin(-r); return c+vec2(cs*d.x-sn*d.y, sn*d.x+cs*d.y); }
 vec3 tap(sampler2D t, vec2 uv, float ro){ uv=clamp(uv,0.001,0.999);
   if(ro<0.0001) return texture2D(t,uv).rgb;
   return vec3(texture2D(t,clamp(uv+vec2(ro,0.),0.001,0.999)).r, texture2D(t,uv).g, texture2D(t,clamp(uv-vec2(ro,0.),0.001,0.999)).b); }
-vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, out float inside){
+vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, out float inside){
   vec2 q = rotP(p, rot); vec2 uv = (q-r.xy)/r.zw;
   inside = step(0.,uv.x)*step(uv.x,1.)*step(0.,uv.y)*step(uv.y,1.);
+  uv = vec2(dot(tf.xy, uv-0.5), dot(tf.zw, uv-0.5)) + 0.5;   // turned / mirrored / flipped
   float ro = rgb/r.z; vec3 c = tap(t,uv,ro);
   if(zb>0.01 || length(db)>0.5){
     vec3 acc=c; vec2 du = db/r.zw;
@@ -2750,21 +2808,33 @@ vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb,
   }
   return c;
 }
+// a shot with its clip settings: border and canvas around a fitted picture, then its own colour
+vec3 adj(vec3 c, vec4 a){ c *= 1.+a.x*0.5; c = (c-0.5)*(1.+a.y)+0.5; float l = dot(c, vec3(0.299,0.587,0.114)); c = mix(vec3(l), c, 1.+a.z); return c*vec3(1.+0.15*a.w, 1., 1.-0.15*a.w); }
+vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, vec4 bg, vec4 bgr, vec4 bd, vec4 ad, out float inside){
+  vec3 c = layer(t,p,r,rot,zb,db,rgb,tf,inside);
+  if(inside<0.5 && bd.w>0.){ vec2 q = rotP(p,rot); if(q.x>r.x-bd.w && q.x<r.x+r.z+bd.w && q.y>r.y-bd.w && q.y<r.y+r.w+bd.w){ c = bd.rgb; inside = 1.; } }
+  if(inside<0.5 && bg.w>-0.5){ float ib; c = bg.w>0.5 ? layer(t,p,bgr,0.,1.,vec2(0.),0.,tf,ib)*0.62 : bg.rgb; inside = 1.; }
+  return adj(c, ad);
+}
 float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 void main(){
   vec2 p0 = vec2(gl_FragCoord.x, res.y-gl_FragCoord.y);
+  // mosaic (blocks) and magnifier (a round lens) of the shot, on screen
+  if(mz.z>0. && p0.x>mz.x && p0.x<mz.x+mz.z && p0.y>mz.y && p0.y<mz.y+mz.w) p0 = mz.xy + (floor((p0-mz.xy)/mzc)+0.5)*mzc;
+  float ring = 0.;
+  if(mg.z>0.){ float dd = distance(p0, mg.xy); ring = smoothstep(mg.z-5., mg.z-2., dd)*(1.-smoothstep(mg.z, mg.z+2., dd)); if(dd<mg.z) p0 = mg.xy + (p0-mg.xy)/mg.w; }
   vec2 p = p0 - offB, pA = p0 - offA;   // the creator's keyframed move of each layer
   float inA=0., inB=0.;
   vec3 A = vec3(0.);
-  if(hasA>0.5){ A = layer(tA,pA,rA,rotA,zbA,dbA,rgbA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
-  vec3 B = layer(tB,p,rB,rotB,zbB,dbB,rgbB,inB);
+  if(hasA>0.5){ A = shotL(tA,pA,rA,rotA,zbA,dbA,rgbA,tfA,bgA,bgrA,bdA,adA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
+  vec3 B = shotL(tB,p,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,inB);
   B *= mix(1.,inB,clB)*alB;
   if(snap>0.5){
     vec2 q = rotP(p,rotB);
     bool inFrame = q.x>frR.x && q.x<frR.x+frR.z && q.y>frR.y && q.y<frR.y+frR.w;
     bool inBorder = q.x>frR.x-border && q.x<frR.x+frR.z+border && q.y>frR.y-border && q.y<frR.y+frR.w+border;
     float ib;
-    if(!inFrame) B = inBorder ? vec3(1.) : layer(tB,p,bgR,0.,0.7,vec2(0.),0.,ib)*(1.-bgDark);
+    if(!inFrame) B = inBorder ? vec3(1.) : layer(tB,p,bgR,0.,0.7,vec2(0.),0.,tfB,ib)*(1.-bgDark);
   }
   B = (B + B*exB)*brB;
   vec3 col;
@@ -2774,8 +2844,8 @@ void main(){
   else if(mode<3.5) col = inB>0.5 ? B : A;
   else if(mode<5.5){
     float band = floor(p0.y/(res.y/10.)); float h = hash(vec2(band, floor(time*70.)));
-    if(h<0.3 && hasA>0.5){ vec4 ra=rA; ra.x += (hash(vec2(band,1.))-0.5)*0.14*res.x; float ia; col = layer(tA,pA,ra,rotA,0.,vec2(0.),0.,ia); }
-    else if(h<0.5){ vec4 rb=rB; rb.x += (hash(vec2(band,2.))-0.5)*0.14*res.x; float ib2; col = layer(tB,p,rb,rotB,0.,vec2(0.),rgbB,ib2); }
+    if(h<0.3 && hasA>0.5){ vec4 ra=rA; ra.x += (hash(vec2(band,1.))-0.5)*0.14*res.x; float ia; col = layer(tA,pA,ra,rotA,0.,vec2(0.),0.,tfA,ia); }
+    else if(h<0.5){ vec4 rb=rB; rb.x += (hash(vec2(band,2.))-0.5)*0.14*res.x; float ib2; col = layer(tB,p,rb,rotB,0.,vec2(0.),rgbB,tfB,ib2); }
     else col = B;
   }
   else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p0,irisC)); col=mix(A,B,mk); }
@@ -2794,6 +2864,7 @@ void main(){
   vec2 uvn = p0/res-0.5; float vd = length(uvn*vec2(res.x/res.y,1.)*vec2(1.,1.));
   col *= 1. - vig*smoothstep(0.3,0.75,vd);
   if(grain>0.) col += (hash(p0*0.73 + fract(time*7.)*vec2(97.,13.))-0.5)*grain*0.6;
+  col = mix(col, vec3(1.), ring*0.9);   // the magnifier's rim
   if(loopMix>0.) col = mix(col, texture2D(tL, p0/res).rgb, loopMix);
   gl_FragColor = vec4(clamp(col,0.,1.),1.);
 }`;
@@ -2834,13 +2905,15 @@ const GL = (()=>{
       if(S.loopImg && S.loopImg!==loopSrc){ upload(2, S.loopImg); loopSrc = S.loopImg; }
       set('res',[c.width,c.height]);
       const L = (pre, X) => { set('r'+pre, X.rect); set('rot'+pre, X.rot); set('zb'+pre, X.zb); set('db'+pre, X.db); set('rgb'+pre, X.rgb); set('ex'+pre, X.expo); set('br'+pre, X.bright);
-        set('off'+pre, X.off || [0,0]); set('cl'+pre, X.clip || 0); };
+        set('off'+pre, X.off || [0,0]); set('cl'+pre, X.clip || 0);
+        set('tf'+pre, X.tf || [1,0,0,1]); set('bg'+pre, X.bg || [0,0,0,-1]); set('bgr'+pre, X.bgr || [0,0,1,1]); set('bd'+pre, X.bd || [0,0,0,0]); set('ad'+pre, X.ad || [0,0,0,0]); };
       if(S.A){ L('A', S.A); set('alA', S.A.alpha ?? 1); } else { set('offA', [0,0]); set('clA', 0); }
       L('B', S.B); set('alB', S.B.uo ?? 1);
       set('hasA', S.A ? 1 : 0); set('mode', S.mode); set('prog', S.prog); set('mixv', S.mix); set('irisC', S.iris || [c.width/2,c.height/2]);
       set('time', S.time); set('snap', S.snap ? 1 : 0); set('bgR', S.bgR || [0,0,1,1]); set('bgDark', S.bgDark||0); set('frR', S.frR || [0,0,c.width,c.height]); set('border', S.border||0);
       const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0);
       set('flash', S.flash||0); set('leak', S.leak || [0,0,0]); set('loopMix', S.loopMix||0);
+      const LZ = S.lens || { mz:[0,0,0,0], mzc:1, mg:[0,0,0,1] }; set('mz', LZ.mz); set('mzc', LZ.mzc); set('mg', LZ.mg);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     }};
   }catch(err){ console.warn('WebGL off:', err && err.message); return null; }
@@ -2848,6 +2921,26 @@ const GL = (()=>{
 const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivid:{con:1.14,sat:1.14,bri:1.02,teal:0,mono:0,grain:0.035},
   cine:{con:1.16,sat:0.92,bri:0.98,teal:0.55,mono:0,grain:0.07}, mono:{con:1.25,sat:1,bri:1.0,teal:0,mono:1,grain:0.09} };
 // the same keyframed motion as the 2D path, expressed as numbers for the shader
+/* ---- Clip tools: each shot's own settings (e.cs), drawn the same by both renderers and in the export.
+ * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
+ * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
+ * (0..1 of the frame). The AI can set the same fields. ---- */
+const CS0 = { rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
+const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
+const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
+// display uv -> source uv: the picture is turned, then mirrored / flipped
+function csMat(c){ const R = ROTI[(c.rot/90)&3], fx = c.fh ? -1 : 1, fy = c.fv ? -1 : 1; return [R[0]*fx, R[1]*fy, R[2]*fx, R[3]*fy]; }
+// a point of the source (0..1) on the display
+function csFwd(c, x, y){ const R = ROTI[(c.rot/90)&3], sx = x-0.5, sy = y-0.5; return [(R[0]*sx + R[2]*sy)*(c.fh?-1:1) + 0.5, (R[1]*sx + R[3]*sy)*(c.fv?-1:1) + 0.5]; }
+const hexRgb = h => { const n = parseInt(String(h).replace('#',''), 16) || 0; return [(n>>16&255)/255, (n>>8&255)/255, (n&255)/255]; };
+// the picture's size on the display (turned a quarter: width and height swap) and its scale (fill or fit)
+function csGeom(e, scale){
+  const W=out.width, H=out.height, c = csOf(e), odd = (c.rot/90)&1, s0 = sources[e.src];
+  const sw = odd ? s0.h : s0.w, sh = odd ? s0.w : s0.h, r = (c.fit ? Math.min(W/sw, H/sh) : Math.max(W/sw, H/sh))*scale;
+  return { c, odd, sw, sh, dw: sw*r, dh: sh*r };
+}
+const csFade = (c, local, L) => Math.min(c.fin > 0 ? Math.min(1, local/c.fin) : 1, c.fout > 0 ? Math.min(1, Math.max(0, (L-local)/c.fout)) : 1);
+function csCam(e, local, c){ const [x, y] = camAt(e, local); return c.rot || c.fh || c.fv ? csFwd(c, x, y) : [x, y]; }
 function layerOf(e, local, o={}){
   const W=out.width, H=out.height, K=e.kf||{};
   let scale = (kf(K.scale,local) ?? 1)*(o.scale||1)*(o.noFx ? 1 : emphAt(e.start + local));
@@ -2858,20 +2951,27 @@ function layerOf(e, local, o={}){
   if(K.bounce && e.beatsIn){ for(const bt of e.beatsIn){ if(local>=bt){ scale *= 1 + 0.045*Math.exp(-(local-bt)/0.11); if(!o.noFx) expo += 0.22*Math.exp(-(local-bt)/0.07); } } }
   const u = uAt(e.uk, local);
   if(u){ scale *= u.s; rot += u.r; }
-  const sw = sources[e.src].w, shh = sources[e.src].h, r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r, [ccx, ccy] = camAt(e, local);
+  const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py = H/2 - ccy*dh; py = panClamp(py, H, dh) + y;
+  const rb = Math.max(W/G.sw, H/G.sh)*1.12, fade = csFade(c, local, e.end - e.start);
   let zb = o.noFx ? 0 : (kf(K.zblur,local) || 0);
   if(!o.noFx && rateAt(e, local) >= 1.8) zb += 0.35;   // motion blur when the shot runs fast
   const br = kf(K.bright,local);
   return { el:texOf(e), rect:[px,py,dw,dh], rot: rot*Math.PI/180, zb: zb + (o.zb||0), db: o.db || [0,0], rgb: (o.noFx ? 0 : (kf(K.rgb,local)||0)) + (o.rgb||0),
-    expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1), alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
-    off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1 };
+    expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1) * fade, alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
+    off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1,
+    tf: csMat(c), bg: !c.fit ? [0,0,0,-1] : c.bg === 'blur' ? [0,0,0,1] : [...hexRgb(c.bgc), 0], bgr: [W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb],
+    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm] };
 }
+// mosaic and magnifier of the shot on screen: pixels (shared by both renderers)
+function lensOf(e){ const c = csOf(e), W = out.width, H = out.height;
+  return { mz: c.mz ? [c.mz.x*W, c.mz.y*H, c.mz.w*W, c.mz.h*H] : [0,0,0,0], mzc: c.mz ? Math.max(3, (c.mz.s || 0.035)*W) : 1,
+    mg: c.mg ? [c.mg.x*W, c.mg.y*H, c.mg.r*W, Math.max(1.1, c.mg.z || 2)] : [0,0,0,1] }; }
 function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = TR_DUR[e.tr] || 0, p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
-  const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null };
+  const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null, lens: lensOf(e) };
   S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : 0.22));
   const inTr = p < 1 && (pe || e.tr==='fadein');
   if(inTr && pe) S.A = layerOf(pe, pl, {noFx:true});
@@ -3790,7 +3890,7 @@ function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB,
 function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => { const t = d.transaction(store, mode), req = fn(t.objectStore(store));
   t.oncomplete = () => { d.close(); res(req && 'result' in req ? req.result : undefined); }; t.onerror = () => { d.close(); rej(t.error); }; t.onabort = () => { d.close(); rej(t.error || new Error('storage full')); }; })); }
 function editOf(){
-  return kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined }));
+  return kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined, cs: e.cs ? JSON.parse(JSON.stringify(e.cs)) : undefined }));
 }
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
@@ -3935,7 +4035,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, get canUndo(){ return hist.u.length > 0; }, get canRedo(){ return hist.r.length > 0; },
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, get canUndo(){ return hist.u.length > 0; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
