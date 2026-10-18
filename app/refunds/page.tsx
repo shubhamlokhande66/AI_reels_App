@@ -30,7 +30,7 @@ export default function RefundsPage() {
 
           <h2>How to ask</h2>
           <p>
-            Write to {s.email} from your account&apos;s email with the payment date and amount. We answer within 3 working days.
+            Write to {s.reach} from your account&apos;s email with the payment date and amount. We answer within 3 working days.
             Approved refunds go back to the original payment method through Razorpay, usually within 5–7 working days.
           </p>
 

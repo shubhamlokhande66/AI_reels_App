@@ -254,6 +254,7 @@
 /* templates: one row of chips (in the Style panel once the Reel is made) */
 .brs .tplrow{display:grid;gap:8px;margin:0;min-width:0}
 .brs .tpl{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+@media (max-width:767px){.brs .tpl,.brs .chips{padding-right:28px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}}   /* more to the right */
 .brs .tpl::-webkit-scrollbar{display:none}
 .brs .tpl button{flex:0 0 auto;height:40px;padding:0 16px;border-radius:20px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 13.5px var(--body);cursor:pointer}
 .brs .tpl button[aria-pressed=true]{border-color:var(--accent);background:var(--chipbg)}
@@ -649,6 +650,7 @@
 .brs #s0 .tplrow{margin-top:2px}
 @media (min-width:1000px){
   .brs .makegrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+  .brs .autocard,.brs .storycard{grid-column:span 2}   /* side by side above the four kinds */
   .brs .kinds button,.brs .kindx{min-height:150px;padding:18px}
   .brs .kindx[aria-pressed=true],.brs .kinds button[aria-pressed=true]{padding:17px}
   .brs .copycard{flex-direction:column;align-items:flex-start;justify-content:flex-start}

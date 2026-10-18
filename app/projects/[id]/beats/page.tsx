@@ -122,7 +122,8 @@ export default function BeatSyncPage() {
         subtitle="Video + audio: check every cut lands on the music before you add transitions or effects."
         action={
           <div className="flex gap-2">
-            <Link href={`/projects/${id}`} className={btnSecondary}>
+            {/* on a phone the top bar's back arrow already goes back to the project */}
+            <Link href={`/projects/${id}`} className={`${btnSecondary} hidden md:inline-flex`}>
               Back to project
             </Link>
             <Link href={`/projects/${id}/edit`} className={btnSecondary}>

@@ -37,6 +37,8 @@ export function ReelPreview({ rendering, currentStyle, currentDuration, versionC
   const video = useRef<HTMLVideoElement>(null);
   const perf = rendering.performance;
   const engagement = perf && perf.views > 0 ? ((perf.likes + perf.comments + perf.shares + perf.saves) / perf.views) * 100 : null;
+  // "MP4 · 1080×1920 · 8.0 MB": only what is known (an older or still-processing file may lack its size)
+  const specs = ["MP4", rendering.width && rendering.height ? `${rendering.width}×${rendering.height}` : "", rendering.size ? formatBytes(rendering.size) : ""].filter(Boolean).join(" · ");
   const noMusic = assetUrl(`${rendering.downloadUrl}${rendering.downloadUrl.includes("?") ? "&" : "?"}music=false`);
 
   return (
@@ -75,7 +77,7 @@ export function ReelPreview({ rendering, currentStyle, currentDuration, versionC
       </div>
 
       <div className="g3 mx-auto w-full md:max-w-[560px]">
-        <a href={assetUrl(rendering.downloadUrl)} download className="btn sm" title={`MP4 · ${rendering.width}×${rendering.height} · ${formatBytes(rendering.size)}`}>
+        <a href={assetUrl(rendering.downloadUrl)} download className="btn sm" title={specs}>
           <Icon name="download" size={16} />
           Download
         </a>
@@ -87,7 +89,7 @@ export function ReelPreview({ rendering, currentStyle, currentDuration, versionC
         </button>
       </div>
       <p className="mu xs text-center">
-        MP4 · <span>{`${rendering.width}×${rendering.height}`}</span> · <span>{formatBytes(rendering.size)}</span>
+        {specs}
       </p>
       {songStart != null && (
         <p className="mu xs text-center">

@@ -18,26 +18,35 @@ export function useSite() {
   return useQuery({ queryKey: ["site"], queryFn: api.site, staleTime: 3_600_000 });
 }
 
-/** The business details, with a placeholder where the admin has not filled one in yet. */
+/** The business details. What the administrator has not filled in yet is left out for people (never a placeholder on
+ * screen); `reach` is how to reach us in a sentence: the email, else the Contact page. The administrator page lists
+ * what is missing (missingSite). */
 export function siteOr(site: SiteInfo | undefined) {
+  const email = site?.supportEmail || "";
   return {
     name: site?.businessName || "Shubix",
-    email: site?.supportEmail || "[support email: set SUPPORT_EMAIL]",
+    email,
     phone: site?.supportPhone || "",
-    address: site?.businessAddress || "[business address: set BUSINESS_ADDRESS]",
+    address: site?.businessAddress || "",
+    reach: email || "us from the Contact page",
     updated: site?.legalUpdated || "",
   };
+}
+/** the business details still to set on the server (shown to the administrator only) */
+export function missingSite(site: SiteInfo | undefined): string[] {
+  if (!site) return [];
+  return [!site.supportEmail && "SUPPORT_EMAIL (support email)", !site.businessAddress && "BUSINESS_ADDRESS (registered address)", !site.supportPhone && "SUPPORT_PHONE (phone / WhatsApp, optional)"].filter(Boolean) as string[];
 }
 
 export function LegalFooter({ className = "" }: { className?: string }) {
   return (
     <nav aria-label="Legal" className={`flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted ${className}`}>
       {LEGAL_LINKS.map(([href, label]) => (
-        <Link key={href} href={href} className="hover:text-accent">
+        <Link key={href} href={href} className="inline-block py-1.5 hover:text-accent">
           {label}
         </Link>
       ))}
-      <Link href="/pricing" className="hover:text-accent">
+      <Link href="/pricing" className="inline-block py-1.5 hover:text-accent">
         Pricing
       </Link>
     </nav>
