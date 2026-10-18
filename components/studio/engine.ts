@@ -3467,10 +3467,48 @@ const _sm=0;
 // land in Files on an iPhone, where Instagram cannot see it. Sharing needs a tap, so a button appears for it. Computers
 // download it as before.
 let savedUrl = null;
+/* ---- the post's caption: a first line and hashtags that fit the Reel (its template, song, hook), ready to paste ----
+ * Made on the phone from what the Reel already is; the person can change it, and what they write is kept while they stay. */
+const CAP_TPL = {
+  montage: ['', '#reels #reelsinstagram #trending #beatsync #explorepage'],
+  beforeafter: ['Wait for the after ✨', '#beforeandafter #transformation #reels #reelsinstagram'],
+  talking: ['', '#reels #creator #reelsindia #talkinghead'],
+  tutorial: ['Save this for later 📌', '#tutorial #howto #learnoninstagram #reels'],
+  product: ['New arrival ✨ DM to order 📩', '#newarrival #shopnow #smallbusiness #dmtoorder #reels'],
+  recipe: ['Easy recipe 🍳 Save it for later!', '#recipe #easyrecipe #foodreels #homecooking #reels'],
+  travel: ['📍', '#travel #travelreels #explore #wanderlust #reels'],
+  ganpati: ['गणपती बाप्पा मोरया 🌺', '#ganpati #ganeshchaturthi #ganpatibappamorya #bappa #reels'],
+  diwali: ['शुभ दीपावली 🪔', '#diwali #happydiwali #festivaloflights #reels'],
+};
+let tplName = '', capEdited = false;
+function captionOf(){
+  const t = CAP_TPL[tplName] || ['', kind === 'talk' ? '#reels #creator #reelsindia' : '#reels #reelsinstagram #trending #explorepage'];
+  const tplHook = tplName && TEMPLATES[tplName] ? TEMPLATES[tplName].hook : undefined;
+  const hook = hookText && hookText !== tplHook ? hookText.trim() : '';
+  const songName = kind !== 'talk' && song && song.name ? song.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() : '';
+  const lines = [];
+  if(hook) lines.push(hook === hook.toUpperCase() ? hook.charAt(0) + hook.slice(1).toLowerCase() : hook);   // the screen's CAPITALS read as shouting in a caption
+  if(t[0]) lines.push(t[0]);
+  if(songName && !/^(audio|song|track|music|rec|recording|voice)\s*\d*$/i.test(songName)) lines.push('🎵 ' + songName);
+  if(!lines.length) lines.push('✨');
+  return lines.join('\n') + '\n\n' + t[1];
+}
+function fillCaption(){
+  const box = $('postcap'); if(!box) return;
+  box.hidden = false; if(!capEdited) $('postcapt').value = captionOf(); $('postcapst').textContent = '';
+}
+async function copyCaption(text, sharing){
+  let ok = false;
+  try{ await navigator.clipboard.writeText(text); ok = true; }catch(e){
+    try{ const ta = $('postcapt'); ta.focus(); ta.select(); ok = document.execCommand('copy'); }catch(e2){} }
+  $('postcapst').textContent = ok ? (sharing ? 'Caption copied: paste it in Instagram' : 'Copied ✓') : 'Select the text and copy it';
+  if(ok && sharing) notify('Caption copied: paste it when you post', 'ok');
+  return ok;
+}
 let lastVideo = null;
 let exportKeep = false, exportP = 0, lastName = '';
 function saveFile(blob, name){
-  if(/^video\//.test(blob.type)) lastVideo = blob;
+  if(/^video\//.test(blob.type)){ lastVideo = blob; fillCaption(); }
   if(exportKeep){ lastName = name; return false; }
   const file = new File([blob], name, { type: blob.type });
   const phone = matchMedia('(pointer: coarse)').matches;
@@ -3480,7 +3518,18 @@ function saveFile(blob, name){
   if(canShare){
     $('saverow').hidden = false; $('dlvid').href = savedUrl; $('dlvid').download = name;
     $('savevid').textContent = /^image\//.test(blob.type) ? 'Save to Photos / Share' : 'Save video to Photos / Share';
-    $('savevid').onclick = async () => { try{ await navigator.share({ files: [file], title: name }); }catch(err){ if(err && err.name !== 'AbortError') $('dlvid').click(); } };
+    $('savevid').onclick = async () => {
+      // the caption goes along (WhatsApp puts it under the video) and to the clipboard (Instagram: paste it)
+      const isVid = /^video\//.test(blob.type), text = isVid ? $('postcapt').value.trim() : '';
+      if(text){ copyCaption(text, true); }
+      const data = text ? { files: [file], title: name, text } : { files: [file], title: name };
+      try{ await navigator.share(data); }
+      catch(err){
+        if(err && err.name === 'AbortError') return;
+        if(text){ try{ await navigator.share({ files: [file], title: name }); return; }catch(e2){ if(e2 && e2.name === 'AbortError') return; } }   // an app that takes no text with a file
+        $('dlvid').click();
+      }
+    };
     return true;
   }
   const a = document.createElement('a');
@@ -4537,6 +4586,7 @@ function placeTemplateTexts(t){
 }
 function useTemplate(name){
   const t = TEMPLATES[name]; if(!t || recording) return;
+  tplName = name;
   [...$('tpl').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.t === name)));
   setKind(t.kind);
   if(t.look) press('look', 'l', t.look);
@@ -4559,6 +4609,8 @@ function tplApplySoon(){
     placeTemplateTexts(tplWaiting); tplWaiting = null; $('tplhelp').textContent = ''; }, 600);
 }
 $('tpl').addEventListener('click', e => { const b = e.target.closest('button'); if(b) useTemplate(b.dataset.t); }, SIG);
+$('postcapt').addEventListener('input', () => { capEdited = true; $('postcapst').textContent = ''; }, SIG);
+$('postcopy').addEventListener('click', () => copyCaption($('postcapt').value.trim()), SIG);
 
 /* =============== SAVED REELS ===============
  * Every Reel is kept on this phone (IndexedDB, which every browser has; nothing is uploaded): its song and clips (each

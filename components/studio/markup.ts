@@ -198,6 +198,11 @@ export const STUDIO_HTML = `
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
         <div class="msg" id="xmsg" hidden></div>
         <div class="row" id="saverow" hidden><button class="btn gold" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
+        <div class="postcap" id="postcap" hidden>
+          <label class="fname" for="postcapt">Caption for your post</label>
+          <textarea id="postcapt" rows="4" spellcheck="true"></textarea>
+          <div class="row"><button class="btn mini" id="postcopy" type="button">Copy caption</button><span class="fname" id="postcapst"></span></div>
+        </div>
       </div>
 
       <div class="tools">
