@@ -85,6 +85,14 @@ async function giveExtra(userId: string, credits: number, reason: string, ref: s
   const res = await (await col("wallets")).findOneAndUpdate({ _id: userId }, { $inc: { extra: credits }, $set: { updatedAt: new Date() } }, { returnDocument: "after" });
   await log(userId, credits, reason, ref, res);
 }
+/** The administrator gives credits (to `extra`, never expiring) or takes them back (from `extra`, then `monthly`, never below 0). */
+export async function adjustCredits(userId: string, credits: number, reason: string) {
+  const w = await wallet(userId), monthly = Number(w.monthly ?? 0), extra = Number(w.extra ?? 0);
+  if (credits > 0) return giveExtra(userId, credits, reason, "admin");
+  const take = Math.min(-credits, monthly + extra), fromExtra = Math.min(extra, take);
+  const res = await (await col("wallets")).findOneAndUpdate({ _id: userId }, { $set: { extra: extra - fromExtra, monthly: monthly - (take - fromExtra), updatedAt: new Date() } }, { returnDocument: "after" });
+  await log(userId, -take, reason, "admin", res);
+}
 export async function summary(userId: string) {
   const w = await wallet(userId), plans = await plansById();
   const history = (await (await col("credit_ledger")).find({ userId }).sort({ at: -1 }).limit(30).toArray()).map((e) => ({ delta: e.delta, reason: e.reason, at: e.at, balance: e.balance ?? null }));

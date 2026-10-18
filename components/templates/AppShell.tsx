@@ -17,11 +17,12 @@ import { EmptyState } from "@/components/molecules/EmptyState";
 import { InstallApp } from "@/components/molecules/InstallApp";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useMe } from "@/hooks/useApi";
+import { usePresence } from "@/lib/usePresence";
 import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
 
 // The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
-// a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. The admin section (settings, diagnostics,
-// experimental tools) appears only in admin mode (lib/admin.ts); the server enforces it for the settings API too.
+// a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. An administrator sees one Admin dashboard
+// button (server/core/admin.ts decides who); the admin tools below are listed in the dashboard, not in the menu.
 export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
   {
     title: "Studio",
@@ -62,7 +63,6 @@ export const GROUPS: { title: string; admin?: boolean; items: { href: string; la
       { href: "/chat", label: "Chat", icon: "chat" },
       { href: "/voices", label: "Voice profiles", icon: "mic" },
       { href: "/trends", label: "My trends", icon: "trend" },
-      { href: "/admin", label: "Admin mode", icon: "key" },
     ],
   },
 ];
@@ -163,18 +163,28 @@ function Avatar({ email, size = 36 }: { email?: string; size?: number }) {
 }
 
 /** Phones: the Noir drawer with every page (design: Menu). */
-function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: {
+/** Only an administrator sees it: opens the admin dashboard. */
+export function AdminButton({ onClick }: { onClick?: () => void }) {
+  return (
+    <Link href="/admin" onClick={onClick} className="btn w-full" style={{ borderColor: "var(--accent)" }}>
+      <Icon name="admin" size={18} color="var(--accent)" />
+      Admin dashboard
+    </Link>
+  );
+}
+
+function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSignOut }: {
   open: boolean;
   onClose: () => void;
   groups: typeof GROUPS;
   pathname: string;
+  admin: boolean;
   email?: string;
   credits: { balance: number; planName: string } | null;
   onSignOut?: () => void;
 }) {
-  // the design's list: the main pages first, then the admin section in admin mode
+  // the design's list: the main pages, then the Admin dashboard button for an administrator
   const main = groups.filter((g) => !g.admin).flatMap((g) => g.items).filter((i) => i.href !== "/story/new" && i.href !== "/pricing");
-  const admin = groups.find((g) => g.admin);
   const link = (item: (typeof main)[number]) => {
     const active = isActive(pathname, item.href);
     const Tag = item.fullLoad ? "a" : Link;
@@ -220,13 +230,8 @@ function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: 
           <nav aria-label="Pages" className="flex flex-col">
             {main.map(link)}
           </nav>
-          {admin && (
-            <nav aria-label="Admin pages" className="flex flex-col">
-              <span className="eb px-2.5 pb-1 pt-3">Admin</span>
-              {admin.items.map(link)}
-            </nav>
-          )}
           <div className="flex-1" />
+          {admin && <AdminButton onClick={onClose} />}
           <ThemeToggle className="mt-2" />
           <InstallApp className="px-1 pt-2" />
           {credits && (
@@ -275,6 +280,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const credits = creditsQ.data?.enabled ? creditsQ.data : null;
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
+  usePresence(pathname); // "online now" on the admin dashboard
 
   // one look for every page: the person's choice (Light / Dark / same as the phone), kept on this device
   const { pref } = useTheme();
@@ -318,7 +324,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (signedOut && !authPage && !publicPage) router.replace("/login"); // accounts on and nobody signed in: the sign-in page
   }, [signedOut, authPage, publicPage, router]);
   // an admin page opened by address in user mode: say so instead of showing it (the server guards its data too)
-  const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => i.href !== "/admin" && isActive(pathname, i.href)));
+  const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
   // a part of the app the administrator turned off: hidden from the menus; its page says so (the admin still sees it)
   const features = useFeatures();
@@ -333,6 +339,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
     );
   }
+  if (pathname.startsWith("/admin") && !signedOut) {
+    // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
+    return (
+      <main className="rm min-h-screen">
+        <GlobalActivity />
+        <ConfirmHost />
+        {children}
+      </main>
+    );
+  }
   if (authPage || (signedOut && !publicPage)) {
     // the sign-in pages stand alone, without the studio around them
     return (
@@ -343,7 +359,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const groups = GROUPS.filter((g) => !g.admin || admin)
+  const groups = GROUPS.filter((g) => !g.admin)
     .map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features)) }))
     .filter((g) => g.items.length); // a heading whose parts are all off is not shown
   const newReel = linkOn("/projects/new", features) ? "/projects/new" : "/studio"; // Fast Studio when Create Reel is off
@@ -393,6 +409,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClose={() => setDrawer(false)}
         groups={groups}
         pathname={pathname}
+        admin={admin}
         email={me.data?.user?.email}
         credits={credits}
         onSignOut={signOut}
@@ -416,6 +433,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavGroups groups={groups} pathname={pathname} />
         </nav>
         <div className="flex-1" />
+        {admin && <AdminButton />}
         <ThemeToggle />
         <InstallApp />
         {credits && (

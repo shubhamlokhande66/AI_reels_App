@@ -1,22 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAdmin } from "@/hooks/useApi";
+import { Logo, Spinner } from "@/components/atoms";
+import { ErrorBanner } from "@/components/molecules";
+import { AdminDashboard } from "@/components/organisms/admin/AdminDashboard";
+import { useAdmin, useMe } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { setAdminKey } from "@/lib/admin";
-import Link from "next/link";
-import { ErrorBanner, PageHeader } from "@/components/molecules";
-import { RetentionSettings } from "@/components/organisms/RetentionSettings";
-import { PricingSettings } from "@/components/organisms/PricingSettings";
-import { FeatureSettings } from "@/components/organisms/FeatureSettings";
-import { AiDirectorReport } from "@/components/organisms/AiDirectorReport";
-import { SiteSetupNotice } from "@/components/organisms/SiteSetupNotice";
 
-/** Unlock (or leave) admin mode in this browser with the server's ADMIN_KEY. */
+/** The admin dashboard for an administrator (an ADMIN_EMAILS account, or this browser unlocked with the ADMIN_KEY);
+ * anyone else sees that it is for the administrator, with the key sign-in. */
 export default function AdminPage() {
+  const { admin, loading } = useAdmin();
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center">
+        <Spinner label="Checking…" />
+      </div>
+    );
+  }
+  return admin ? <AdminDashboard /> : <AdminSignIn />;
+}
+
+function AdminSignIn() {
   const qc = useQueryClient();
-  const { admin, required, loading } = useAdmin();
+  const me = useMe();
   const [key, setKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,56 +49,30 @@ export default function AdminPage() {
     }
   }
 
-  async function leave() {
-    setAdminKey(null);
-    await qc.invalidateQueries();
-  }
-
+  const email = me.data?.user?.email;
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
-      <PageHeader title="Administration" subtitle="Settings and diagnostics are for the administrator." />
-      <section className="card" style={{ gap: 12 }} aria-label="Admin sign-in">
-        <span className="h2">Admin sign-in</span>
-        {loading ? (
-          <span className="mu sm">Checking…</span>
-        ) : !required ? (
-          <span className="mu sm">
-            No admin key is set on this server, so admin mode is open to everyone (fine on your own computer). Online, set
-            <code className="mx-1 rounded bg-surface-2 px-1">ADMIN_KEY</code> on the server.
-          </span>
-        ) : admin ? (
-          <span className="sm">Admin mode is on in this browser: settings and checks are visible in the menu.</span>
-        ) : (
-          <form onSubmit={unlock} className="flex flex-col gap-3">
-            <span className="mu sm">Settings and diagnostics are for the administrator.</span>
-            <label className="f">
-              Admin password
-              <input type="password" autoComplete="current-password" placeholder="••••••••" value={key} onChange={(e) => setKey(e.target.value)} className="inp" />
-            </label>
-            {error && <ErrorBanner message={error} />}
-            <button type="submit" className="btn g" disabled={busy}>
-              {busy ? "Checking…" : "Sign in as admin"}
-            </button>
-          </form>
-        )}
+    <div className="grid min-h-screen place-items-center px-4 py-10">
+      <section className="card w-full max-w-sm" style={{ gap: 12 }} aria-label="Admin sign-in">
+        <Logo height={40} />
+        <span className="eb">Administration</span>
+        <span className="h2">This part is for the administrator</span>
+        <span className="mu sm">
+          {email ? `${email} is not an administrator account.` : "Sign in with an administrator account."} An administrator can also unlock this browser with the admin password.
+        </span>
+        <form onSubmit={unlock} className="flex flex-col gap-3">
+          <label className="f">
+            Admin password
+            <input type="password" autoComplete="current-password" placeholder="••••••••" value={key} onChange={(e) => setKey(e.target.value)} className="inp" />
+          </label>
+          {error && <ErrorBanner message={error} />}
+          <button type="submit" className="btn g" disabled={busy}>
+            {busy ? "Checking…" : "Unlock admin"}
+          </button>
+        </form>
+        <Link href="/" className="ac sm text-center font-bold">
+          Back to the studio
+        </Link>
       </section>
-      {admin && (
-        <>
-          <SiteSetupNotice />
-          <FeatureSettings />
-          <AiDirectorReport />
-          <PricingSettings />
-          <RetentionSettings />
-          <div className="row sm justify-center" style={{ gap: 16 }}>
-            <Link href="/settings" className="ac font-bold">
-              AI settings
-            </Link>
-            <button type="button" className="ac font-bold" onClick={() => void leave()}>
-              Leave admin mode
-            </button>
-          </div>
-        </>
-      )}
     </div>
   );
 }

@@ -10,6 +10,9 @@ export interface AiDirectorReport {
   changeRate: { transitions: number | null; effects: number | null };
 }
 import type {
+  AdminOverview,
+  AdminUserDetail,
+  AdminUserRow,
   ApiErrorBody,
   DirectorProfile,
   FeedbackReason,
@@ -422,6 +425,13 @@ export const api = {
   setFeatures: (patch: Partial<Features>) => request<Features>("/api/admin/features", { method: "PUT", body: JSON.stringify(patch) }),
   setRetention: (body: Retention) => request<Retention>("/api/admin/retention", { method: "PUT", body: JSON.stringify(body) }),
   runRetention: () => request<{ uploads: number; projects: number }>("/api/admin/retention/run", { method: "POST" }),
+  adminOverview: () => request<AdminOverview>("/api/admin/overview"),
+  adminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
+  adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
+  adminGiveCredits: (id: string, credits: number, note: string) =>
+    request<AdminUserDetail>(`/api/admin/users/${id}/credits`, { method: "POST", body: JSON.stringify({ credits, note }) }),
+  /** This tab is still open (the admin dashboard's "online now"); quiet: no activity bar, no retries. */
+  ping: (visitor: string, path: string) => send<{ ok: boolean }>("/api/public/ping", { method: "POST", body: JSON.stringify({ visitor, path }) }, 10_000),
   connections: () => request<Connections>("/api/publish/connections"),
   publish: (id: string, renderingId: string, body: { platforms: Platform[]; caption: string; at?: string | null }) =>
     request<Post>(`/api/projects/${id}/renderings/${renderingId}/publish`, { method: "POST", body: JSON.stringify(body) }),
