@@ -23,7 +23,7 @@ export const SPEEDS = ["normal", "slow", "fast", "velocity", "ramp", "freeze"] a
 /** keyframes the AI places at a moment inside a shot (on a hit) */
 export const ACCENTS = ["punch", "shake", "flash", "pulse"] as const;
 export const HIT_KINDS = ["kick", "dhol", "snare", "hat"] as const;
-export const MODES = ["auto", "smooth", "fast"] as const;
+export const MODES = ["auto", "smooth", "fast", "copy"] as const;
 export const PACES = [1, 2, 4, 8] as const;
 /** cuts per AI call: longer Reels are planned in parts, at the same time */
 export const CHUNK = 60;
@@ -32,6 +32,21 @@ export const LIMITS = { slots: 150, candidates: 3, clips: 30, sections: 24, acce
 const word = (n: number) => z.string().max(n).default("");
 const lvl = z.number().min(0).max(1);
 const Trend = z.enum(["rising", "falling", "steady"]);
+/** A Reel the creator wants theirs to feel like ("Copy a Reel" or a saved / learned style), measured on the phone:
+ * its pace, its transition mix, and shot by shot: how long, the transition into it, whether it zooms, and the music
+ * under it. The AI copies its behaviour (what it does on which kind of musical moment), not just its order. */
+const RefKind = z.enum(["start", "hard", "flash", "fade", "whip", "zoom", "dissolve"]);
+export const RefMoment = z.object({
+  beats: z.number().min(0).max(64), sec: z.number().min(0).max(60), tr: RefKind, zoom: z.enum(["in", "out", "none"]),
+  loud: lvl.optional(), trend: Trend.optional(), drums: lvl.optional(), bass: lvl.optional(), voice: lvl.optional(),
+  hit: z.enum(HIT_KINDS).optional(), drop: z.boolean().optional(),
+});
+export const Reference = z.object({
+  name: word(80), medianBeats: z.number().min(0).max(64), hookBeats: z.number().min(0).max(64), onBeat: lvl,
+  energy: Trend, zoomShare: lvl, trans: z.record(z.string().max(12), lvl).default({}),
+  moments: z.array(RefMoment).max(60).default([]),
+});
+export type Reference = z.infer<typeof Reference>;
 const Candidate = z.object({
   id: z.string().min(1).max(8).regex(/^[0-9]+[a-c]$/),
   clip: z.string().max(8),
@@ -58,6 +73,7 @@ export const DirectIn = z.object({
   budget: z.record(z.string().max(12), z.number().int().min(0).max(50)).default({}),
   /** the pace the AI chose for each section (from pace()), so the plan tells the same story */
   story: word(160),
+  reference: Reference.optional(),
   slots: z.array(z.object({
     i: z.number().int().min(0).max(LIMITS.slots - 1),
     t: z.number().min(0).max(600), len: z.number().min(0.05).max(60),
@@ -105,12 +121,20 @@ export function chunks(d: DirectIn): DirectIn[] {
   return out;
 }
 
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+/** the reference as the AI reads it: its numbers, then its shots in order with the music under each */
+export function referenceText(r: Reference) {
+  const mix = Object.entries(r.trans).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${pct(v)} ${k}`).join(", ");
+  return `"${clean(r.name, 80) || "the reference"}": ${r.medianBeats ? `a cut every ${r.medianBeats} beats (hook ${r.hookBeats} beats), ${pct(r.onBeat)} of cuts on the beat` : "pace in seconds"}, pace ${r.energy}, transitions ${mix || "hard cuts"}, zooms in ${pct(r.zoomShare)} of shots.${r.moments.length ? `\nIts shots in order (tr = transition INTO the shot; zoom inside it; the music under it, 0-1; hit = its strongest hit; drop = it starts on a drop): ${JSON.stringify(r.moments)}` : ""}`;
+}
+const COPY_GUIDE = `COPY THE REFERENCE: the creator wants this Reel to feel like the reference Reel. Find what it does in each musical situation and do the same here: the transition it uses into drops, into calm parts, on drum hits (e.g. it flashes into every drop, whips on snare hits, dissolves when the voice holds); how many shots zoom (zoom in -> punch-soft or pan, zoom out -> drift) and on which moments; its hook length; its mix of transitions (the budget follows it). Where the reference and the general rules disagree, the reference wins.`;
+
 export function prompt(d: DirectIn, taste = "") {
   const first = d.slots[0].i, last = d.slots[d.slots.length - 1].i;
   return `Plan this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s.${d.hook ? ` On-screen hook text: "${clean(d.hook, 60)}".` : ""}${d.story ? ` The story so far: "${clean(d.story, 160)}".` : ""}${first > 0 ? ` These are cuts ${first}-${last} of a longer Reel (the hook is not in this part).` : ""}
 Clips: ${JSON.stringify(d.clips.map((c) => ({ alias: c.alias, summary: clean(c.summary, 140), mood: clean(c.mood, 20) })))}
 Suggested most special transitions for this Reel: ${JSON.stringify(d.budget)}.
-${taste ? `This creator's taste (from the changes they made to earlier edits; follow it): ${clean(taste, 400)}\n` : ""}Cuts (fixed times on the beats; for each, pick ONE of its candidate moments by id): ${JSON.stringify(d.slots.map((s) => ({ i: s.i, t: +s.t.toFixed(2), len: +s.len.toFixed(2), type: s.type, beats: s.beats,
+${d.reference ? `Reference Reel: ${referenceText(d.reference)}\n${COPY_GUIDE}\n` : ""}${taste ? `This creator's taste (from the changes they made to earlier edits; follow it): ${clean(taste, 400)}\n` : ""}Cuts (fixed times on the beats; for each, pick ONE of its candidate moments by id): ${JSON.stringify(d.slots.map((s) => ({ i: s.i, t: +s.t.toFixed(2), len: +s.len.toFixed(2), type: s.type, beats: s.beats,
     ...(s.music ? { music: s.music } : {}),
     candidates: s.candidates.map((c) => ({ id: c.id, clip: c.clip, at: +c.at.toFixed(1), score: +c.score.toFixed(2), note: clean(c.note, 60), roles: c.roles, motion: c.motion, people: c.people, camera: c.camera })) })))}
 ${GUIDE}
@@ -170,6 +194,7 @@ export const PaceIn = z.object({
   footage: z.number().min(0).max(36_000),
   clips: z.number().int().min(0).max(200),
   kind: z.enum(["music", "photo", "template"]).default("music"),
+  reference: Reference.optional(),
   sections: z.array(z.object({
     i: z.number().int().min(0).max(LIMITS.sections - 1),
     t: z.number().min(0).max(600), len: z.number().min(0.1).max(600), beats: z.number().int().min(0).max(2000),
@@ -180,12 +205,12 @@ export const PaceIn = z.object({
 });
 export type PaceIn = z.infer<typeof PaceIn>;
 const PaceAnswer = z.object({ sections: z.array(z.object({ i: z.coerce.number(), every: z.coerce.number(), why: z.string().default("") })), story: z.string().default("") });
-export const PACE_OK: Record<(typeof MODES)[number], number[]> = { auto: [1, 2, 4, 8], smooth: [2, 4, 8], fast: [1, 2] };
+export const PACE_OK: Record<(typeof MODES)[number], number[]> = { auto: [1, 2, 4, 8], smooth: [2, 4, 8], fast: [1, 2], copy: [1, 2, 4, 8] };
 
 export function pacePrompt(d: PaceIn, taste = "") {
   return `Choose the pace of this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s (one beat = ${(60 / d.bpm).toFixed(2)} s). Footage: ${d.clips} ${d.kind === "photo" ? "photos" : "clips"}, ${Math.round(d.footage)} s in all.
 ${taste ? `This creator's taste: ${clean(taste, 400)}\n` : ""}Sections of the song (loud/bass/drums/voice 0-1 for this song; hitRate = strong hits per second; starts = what opens the section; now = beats per cut the phone's rules would use): ${JSON.stringify(d.sections)}
-For each section choose "every": a cut every 1, 2, 4 or 8 beats. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
+${d.reference ? `Reference Reel (copy its pace by musical situation: how many beats its shots last on loud / quiet parts, drops and build-ups, and its hook): ${referenceText(d.reference)}\n` : ""}For each section choose "every": a cut every 1, 2, 4 or 8 beats. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
 Return JSON: {"sections": [{"i": 0, "every": 2, "why": "<max 8 words>"}], "story": "<one sentence: how the Reel's energy moves>"} with one entry per section.`;
 }
 export function parsePace(d: PaceIn, a: z.infer<typeof PaceAnswer>) {
