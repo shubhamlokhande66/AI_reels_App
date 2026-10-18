@@ -1883,12 +1883,12 @@ function speedFor(key, e){
 const speedKey = sp => (Object.keys(SPEED_KEYS).find(k=>SPEED_KEYS[k]===sp.label) || (sp.label.startsWith('Ramp') ? 'ramp' : 'normal'));
 function assignPlayers(){ const uc = sources.map(()=>0); edit.forEach(e=>{ e.el = sources[e.src].els[(uc[e.src]++)%3]; }); }
 // pick another moment of footage for shot i: never one already used, never the same clip as its neighbours
-function repick(i, avoidCurrent){
+function repick(i, avoidCurrent, onlySrc){
   const e = edit[i], len = e.end-e.start, gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]); edit.forEach((x,k)=>{ if(k!==i) used[x.src].push([x.in, x.in + x.sp.pos(x.end-x.start)*x.scaleR]); });
   let best=null, bs=-Infinity;
   sources.forEach((src,si)=>{
-    if(sources.length>1 && [edit[i-1],edit[i+1]].some(x=>x && x.src===si)) return;
+    if(onlySrc != null ? si !== onlySrc : sources.length>1 && [edit[i-1],edit[i+1]].some(x=>x && x.src===si)) return;
     let need = e.sp.pos(len), scaleR = 1; if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
     for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=Math.max(0.1, Math.min(0.5, src.dur/120))){
       if(avoidCurrent && si===e.src && Math.abs(a-e.in) < Math.max(0.3, need*0.5)) continue;
@@ -1914,6 +1914,82 @@ function changed(i, refit){
     if(e.in + need > src.dur || clash || crossesScene(src, e.in, e.in+need)) repick(i, false); }
   renderEDL(true); showShot(i);
 }
+/* ---- shot tools (as in every editor): split, duplicate, delete, replace. The song's timing stays: a shot's time goes to
+ * its neighbours, so the Reel keeps its length and every cut stays on the beat. ---- */
+const MIN_SHOT = 0.3;
+function shotOp(op, arg){
+  if(kind === 'talk' || !edit.length || exporting || recording) return false;
+  stopAll();
+  const i = segAt(pos), e = edit[i], L = editOf(), x = L[i];
+  const done = (list, j, msg) => { if(!restoreEdit(list)) return false; j = Math.min(j, edit.length - 1); pos = edit[j].start + 0.05; showShot(j); if(msg) notify(msg); return true; };
+  if(op === 'split' || op === 'dup'){
+    // split: where the playhead is (on a beat when one is close); duplicate: in the middle, and the moment plays twice
+    let t = op === 'dup' ? (e.start + e.end) / 2 : pos;
+    const nb = beats.filter(b => b > e.start + MIN_SHOT && b < e.end - MIN_SHOT).sort((a, b) => Math.abs(a - t) - Math.abs(b - t))[0];
+    if(nb != null && Math.abs(nb - t) < (op === 'dup' ? (e.end - e.start) / 4 : 0.15)) t = nb;
+    if(t - e.start < MIN_SHOT || e.end - t < MIN_SHOT){ notify(op === 'dup' ? 'This shot is too short to play twice.' : 'Move the playhead inside the shot to split it there.'); return false; }
+    const at = t - e.start, uk = x.uk || [];
+    const ua = uk.filter(k => k.t < at), ub = op === 'dup' ? ua.map(k => ({ ...k })) : uk.filter(k => k.t >= at).map(k => ({ ...k, t: k.t - at }));
+    const a = { ...x, end: t, uk: ua.length ? ua : undefined };
+    const b = { ...x, start: t, uk: ub.length ? ub : undefined, in: op === 'dup' ? x.in : srcPos(e, at),
+      tr: op === 'dup' ? (x.tr === 'hard' ? 'flash' : x.tr) : 'hard' };   // a replay reads better with a little transition
+    L.splice(i, 1, a, b);
+    return done(L, i + 1, op === 'dup' ? 'Shot ' + (i + 1) + ' now plays twice.' : 'Shot ' + (i + 1) + ' split in two.');
+  }
+  if(op === 'delete'){
+    if(L.length < 2){ notify('A Reel needs at least one shot.'); return false; }
+    // its time goes to the shot before (the first shot's to the next one), which then gets enough footage
+    const j = i > 0 ? i - 1 : 1, y = L[j];
+    if(i > 0) y.end = x.end;
+    else { const d = y.start - x.start; y.start = x.start; y.tr = x.tr; if(y.uk) y.uk = y.uk.map(k => ({ ...k, t: k.t + d })); }
+    L.splice(i, 1);
+    const k = i > 0 ? i - 1 : 0;
+    if(!done(L, k, 'Shot ' + (i + 1) + ' deleted.')) return false;
+    changed(k, true); return true;
+  }
+  if(op === 'replace'){
+    const si = +arg; if(!sources[si]) return false;
+    if(!repick(i, si === e.src, si)){ notify('Every moment of that clip is already in the Reel. Pick another clip.'); return false; }
+    e.kf = keyframesFor(e); renderEDL(true); showShot(i); editGen++;
+    notify('Shot ' + (i + 1) + ' now uses ' + sources[si].name.replace(/\.[^.]+$/, '') + '.'); return true;
+  }
+  return false;
+}
+// Undo / Redo: a step is kept each time the edit or the texts change (any control, a new mix, a split…). The list starts
+// again when the song or the clips change, because an older edit would not fit them.
+const hist = { u: [], r: [], cur: null, cand: '', base: '' };
+const HIST_MAX = 60;
+function histSnap(){ const ov = overlays.map(o => { const c = { ...o }; delete c.box; return c; }), ed = editOf(); return { ed, ov, sig: JSON.stringify([ed, ov]) }; }
+function histBase(){ return kind + '|' + sources.map(s => s.name + s.dur).join() + '|' + (buf ? buf.duration.toFixed(2) : ''); }
+function histTick(){
+  if(restoring || exporting || recording || pending || playing) return;
+  const base = histBase();
+  if(base !== hist.base){ hist.base = base; hist.u = []; hist.r = []; hist.cur = edit.length || overlays.length ? histSnap() : null; hist.cand = ''; histUI(); return; }
+  if(!edit.length && !overlays.length) return;
+  const now = histSnap(); if(!hist.cur){ hist.cur = now; return; }
+  if(now.sig === hist.cur.sig){ hist.cand = ''; return; }
+  if(now.sig !== hist.cand){ hist.cand = now.sig; return; }   // kept once it stops changing (a drag is one step)
+  hist.u.push(hist.cur); if(hist.u.length > HIST_MAX) hist.u.shift(); hist.r = []; hist.cur = now; hist.cand = ''; histUI();
+}
+function histGo(back){
+  if(exporting || recording || restoring) return;
+  const now = histSnap(); if(hist.cur && now.sig !== hist.cur.sig){ hist.u.push(hist.cur); hist.r = []; hist.cur = now; }
+  const from = back ? hist.u : hist.r, to = back ? hist.r : hist.u; if(!from.length || !hist.cur) return;
+  to.push(hist.cur); const s = from.pop(); hist.cand = '';
+  if(kind !== 'talk' && s.ed.length) restoreEdit(s.ed);
+  overlays = s.ov.map(o => ({ ...o })); ovSel = -1; renderOvList();
+  if(edit.length) showShot(Math.min(segAt(pos), edit.length - 1)); else redrawFrame();
+  hist.cur = histSnap(); histUI(); notify(back ? 'Undone' : 'Redone');
+}
+function histUI(){ const u = $('undo'), r = $('redo'); if(u) u.disabled = !hist.u.length; if(r) r.disabled = !hist.r.length; }
+setInterval(histTick, 500);
+$('undo').addEventListener('click', () => histGo(true), SIG);
+$('redo').addEventListener('click', () => histGo(false), SIG);
+addEventListener('keydown', ev => {
+  if(!(ev.ctrlKey || ev.metaKey) || ev.altKey) return; const k = ev.key.toLowerCase(); if(k !== 'z' && k !== 'y') return;
+  const t = ev.target; if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;   // their own undo
+  if(!root.isConnected) return; ev.preventDefault(); histGo(k === 'z' && !ev.shiftKey);
+}, SIG);
 function sel(opts, val, onch){ const s=document.createElement('select'); Object.entries(opts).forEach(([k,v])=>{ const o=document.createElement('option'); o.value=k; o.textContent=v; if(k===val) o.selected=true; s.appendChild(o); });
   s.addEventListener('click', ev=>ev.stopPropagation()); s.addEventListener('change', ()=>onch(s.value)); return s; }
 function renderEDL(keepScroll){
@@ -3713,12 +3789,15 @@ function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB,
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
 function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => { const t = d.transaction(store, mode), req = fn(t.objectStore(store));
   t.oncomplete = () => { d.close(); res(req && 'result' in req ? req.result : undefined); }; t.onerror = () => { d.close(); rej(t.error); }; t.onabort = () => { d.close(); rej(t.error || new Error('storage full')); }; })); }
+function editOf(){
+  return kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined }));
+}
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
     settings: { trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
-    edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined })),
+    edit: editOf(),
     kfs: kind === 'talk' && edit.some(e => e.uk && e.uk.length) ? edit.map(e => e.uk && e.uk.length ? e.uk : null) : undefined,
     caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
 }
@@ -3856,6 +3935,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+  shotOp, get canUndo(){ return hist.u.length > 0; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

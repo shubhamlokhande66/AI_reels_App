@@ -28,6 +28,8 @@ const IC = {
   prev: I('<path d="M6 5v14M19 5v14L8 12z" fill="currentColor"/>'),
   next: I('<path d="M18 5v14M5 5v14l11-7z" fill="currentColor"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
+  undo: I('<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
+  redo: I('<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>'),
 };
 // a tool: a dock button (Editor), a card (Simple) and the heading of its panel (Pro)
 const TOOLS: [string, string, string][] = [
@@ -48,6 +50,7 @@ export const STUDIO_HTML = `
   <div class="views" id="views" role="group" aria-label="View">
     <button type="button" data-view="simple" aria-pressed="true">Simple</button><button type="button" data-view="editor" aria-pressed="false">Editor</button><button type="button" data-view="pro" aria-pressed="false">Pro</button>
   </div>
+  <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
 <div class="wrap">

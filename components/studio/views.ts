@@ -14,6 +14,7 @@ type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean
 type Studio = {
   now: number; playing: boolean; dur: number; songName: string; title: string; hook: string; capsOn: boolean;
   edit: Shot[]; overlays: Ov[]; vo: unknown; kind: string; editGen: number;
+  sources: { name: string }[]; shotOp: (op: "split" | "dup" | "delete" | "replace", arg?: number) => boolean;
   section: { start: number; len: number; whole: number; auto: boolean };
   segAt: (t: number) => number; kfSeek: (t: number) => Promise<void>;
 };
@@ -159,15 +160,25 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const chips = !s0 ? "" : `<div class="chips">${[...s0.options].map((o) => `<button type="button" class="chip" data-c="${shotTab}" data-v="${esc(o.value)}" aria-pressed="${o.value === s0.value}">${esc(o.text)}</button>`).join("")}</div>`;
     const selects = sels.map((s, k) => !s ? "" : `<label class="isel"><span>${names[k]}</span><select data-c="${k}">${[...s.options].map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? " selected" : ""}>${esc(o.text)}</option>`).join("")}</select></label>`).join("");
     const other = `<button type="button" class="btn ghost" data-other="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg><span>Use a different moment</span></button>`;
-    $("shotcard").innerHTML = head + chips + other;
-    $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other;
+    // split, duplicate, delete, replace (the music's timing stays; see the engine's shotOp)
+    const clipName = (n: string) => esc(n.replace(/\.[^.]+$/, ""));
+    const tools = st.kind === "talk" ? "" : `<div class="shtools" role="group" aria-label="Shot tools">`
+      + `<button type="button" class="btn ghost" data-op="split" title="Split this shot where the playhead is">Split</button>`
+      + `<button type="button" class="btn ghost" data-op="dup" title="Play this moment twice">Duplicate</button>`
+      + `<button type="button" class="btn ghost" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
+      + (st.sources.length > 1 ? `<select data-rep="1" aria-label="Replace with a moment from"><option value="">Replace with…</option>${st.sources.map((s, k) => `<option value="${k}">${clipName(s.name)}${k === e.src ? " (this clip)" : ""}</option>`).join("")}</select>` : "")
+      + `</div>`;
+    $("shotcard").innerHTML = head + chips + other + tools;
+    $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;
   };
   const forward = (c: number, v: string) => { const st = S(); if (!st) return; const s = rowOf(st.segAt(st.now))?.children[c + 3]?.querySelector("select") as HTMLSelectElement | null; if (s && s.value !== v) { s.value = v; s.dispatchEvent(new Event("change")); } };
   const other = () => { const st = S(); if (!st) return; rowOf(st.segAt(st.now))?.children[2]?.querySelector<HTMLButtonElement>("button")?.click(); };
   for (const id of ["shotcard", "inspector"]) {
     $(id).addEventListener("click", (e) => { const t = e.target as HTMLElement; const c = t.closest<HTMLButtonElement>(".chip"), tb = t.closest<HTMLButtonElement>(".shtab");
-      if (c) forward(+c.dataset.c!, c.dataset.v!); else if (tb) { shotTab = +tb.dataset.tab!; shotKey = ""; } else if (t.closest("[data-other]")) other(); }, sig);
-    $(id).addEventListener("change", (e) => { const s = e.target as HTMLSelectElement; if (s.dataset.c) forward(+s.dataset.c, s.value); }, sig);
+      if (c) forward(+c.dataset.c!, c.dataset.v!); else if (tb) { shotTab = +tb.dataset.tab!; shotKey = ""; } else if (t.closest("[data-other]")) other();
+      else { const op = t.closest<HTMLButtonElement>("[data-op]"); if (op) { S()?.shotOp(op.dataset.op as "split" | "dup" | "delete"); shotKey = ""; } } }, sig);
+    $(id).addEventListener("change", (e) => { const s = e.target as HTMLSelectElement; if (s.dataset.c) forward(+s.dataset.c, s.value);
+      else if (s.dataset.rep && s.value !== "") { S()?.shotOp("replace", +s.value); shotKey = ""; } }, sig);
   }
 
   // Pro: the multi-track timeline (video with keyframes, text, voice, music); tap to move the playhead
