@@ -12,7 +12,7 @@
 import { createTasks } from './tasks';
 
 export function initStudio(root, deps) {
-  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const tasks = createTasks(root);   // what is happening now, always in view (components/studio/tasks.ts)
@@ -3781,18 +3781,50 @@ async function clipPcm(si){
   return s.pcm;
 }
 const clipVoiced = () => kind !== 'talk' && edit.some(e => e.cs && e.cs.vol > 0);
+/* ---- text to speech (on the phone, Piper voices): each piece of speech starts at its time and is mixed like the
+ * voiceover (the voice changer works on it too; the song steps back while it speaks) ---- */
+let ttsClips = [], ttsSeq = 0;
+const ttsPcm = (c) => { if(!c.pcm) return null; if(au.vfx === 'none') return c.pcm; const k = 'tts' + c.id + '|' + au.vfx; if(!fxCache.has(k)) fxCache.set(k, voiceFx(c.pcm, c.sr, au.vfx)); return fxCache.get(k); };
+async function ttsMake(c, quiet){
+  if(c.pcm || !tts) return; const id = 'tts' + c.id;
+  if(!quiet) tasks.start(id, 'voice', 'Making the voice', '"' + c.text.slice(0, 40) + (c.text.length > 40 ? '…' : '') + '"');
+  try{ const r = await tts.speak(c.text, c.voice, (pr) => { if(!quiet) tasks.update(id, pr.p, pr.stage === 'download' ? 'Getting the voice (once, about 60 MB)' : 'Speaking'); });
+    c.pcm = r.pcm; c.sr = r.sr; if(!quiet) tasks.done(id, 'Voice ready'); }
+  catch(err){ console.warn('tts', err); if(!quiet) tasks.fail(id, 'Could not make the voice. Check the internet for the first download and try again.'); throw err; }
+}
+async function ttsAdd(){
+  const text = $('ttstext').value.trim(), voice = $('ttsvoice').value; if(!text || !voice) return;
+  if(!tts){ notify('Text to speech is not available here.', 'err'); return; }
+  const c = { id: ++ttsSeq, text, voice, at: edit.length ? Math.max(0, Math.min(pos, (buf ? buf.duration : 0) - 0.5)) : 0 };
+  $('ttsadd').disabled = true;
+  try{ await ttsMake(c); ttsClips.push(c); $('ttstext').value = ''; ttsList(); applyVo(); clipMixKey = ''; if(!playing) redrawFrame(); notify('Speech added at ' + fmt(c.at).replace(/\.\d+$/, '') + '.'); }
+  catch(e){} finally{ $('ttsadd').disabled = false; }
+}
+function ttsList(){
+  const box = $('ttslist'); box.innerHTML = '';
+  for(const c of ttsClips){ const d = document.createElement('div'); d.className = 'ttsitem';
+    d.innerHTML = '<span class="tt"></span><span class="tm"></span><button type="button" class="btn mini" aria-label="Remove this speech">×</button>';
+    d.querySelector('.tt').textContent = '"' + c.text + '"'; d.querySelector('.tm').textContent = fmt(c.at).replace(/\.\d+$/, '') + ' · ' + ((tts && tts.voices.find(v => v.key === c.voice) || {}).label || c.voice) + (c.pcm ? ' · ' + (c.pcm.length/c.sr).toFixed(1) + ' s' : ' · not made yet');
+    d.querySelector('button').addEventListener('click', () => { ttsClips = ttsClips.filter(x => x !== c); ttsList(); applyVo(); clipMixKey = ''; });
+    box.appendChild(d); }
+}
+if(tts){ $('ttsvoice').innerHTML = tts.voices.map(v => `<option value="${v.key}">${v.label}</option>`).join(''); }
+else $('ttsbox').hidden = true;
+$('ttsadd').addEventListener('click', ttsAdd, SIG);
 // the mix is made again only when something in it changed (called before playing and exporting)
 async function ensureMix(){
   if(kind === 'talk' || !baseBuf) return;
   const shots = clipVoiced() ? edit.filter(e => e.cs && e.cs.vol > 0) : [];
   for(const e of shots) await clipPcm(e.src);
-  const key = JSON.stringify([au, vo && vo.key, denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
+  for(const c of ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
+  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
   if(key !== clipMixKey){ clipMixKey = key; applyVo(); }
 }
 function applyVo(){   // (the name stays: everything that changes the sound calls it)
   if(kind === 'talk' || !baseBuf) return;
   const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
-  const plain = !vo && !shots.length && au.mvol === 1 && !au.mfin && !au.mfout;
+  const speech = ttsClips.filter(c => c.pcm);
+  const plain = !vo && !shots.length && !speech.length && au.mvol === 1 && !au.mfin && !au.mfout;
   if(plain){ buf = baseBuf; normGain = baseNorm; return; }
   const B = baseBuf, sr = B.sampleRate, N = B.length, v = voPcm() || new Float32Array(0), vr = vo ? vo.sr : sr;
   // voice loudness: its speaking parts at about -14 dBFS
@@ -3811,6 +3843,10 @@ function applyVo(){   // (the name stays: everything that changes the sound call
       const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
       const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
       cs[i] += P.x[k]*gain*edge; } }
+  // text to speech: each at its time, at the voiceover's loudness (resampled with a straight line between samples)
+  for(const c of speech){ const P = ttsPcm(c), a = Math.round(c.at*sr), r = c.sr/sr; let q2 = 0, qn = 0;
+    for(let k=0;k<P.length;k+=4){ if(Math.abs(P[k]) > 0.01){ q2 += P[k]*P[k]; qn++; } } const g = 0.2/Math.max(0.003, Math.sqrt(q2/Math.max(1, qn)));
+    for(let i=a;i<N;i++){ const t = (i - a)*r, k = Math.floor(t); if(k + 1 >= P.length) break; cs[i] += (P[k] + (P[k+1] - P[k])*(t - k))*g; } }
   let env = 1, lv = 0;
   for(let c=0;c<2;c++){ const src = B.getChannelData(Math.min(c, B.numberOfChannels-1)), d = mix.getChannelData(c); env = 1; lv = 0;
     for(let i=0;i<N;i++){
@@ -3979,7 +4015,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au, trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     edit: editOf(),
     kfs: kind === 'talk' && edit.some(e => e.uk && e.uk.length) ? edit.map(e => e.uk && e.uk.length ? e.uk : null) : undefined,
@@ -4042,6 +4078,7 @@ async function openProject(id){
     press('aspect', 'a', S.aspect); press('look', 'l', S.look); press('tstyle', 't', S.textStyle); if(S.mode && S.mode !== 'auto') press('mode', 'm', S.mode);
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
     if(S.au) au = { ...AU0, ...S.au }; auUI();
+    if(S.tts && S.tts.length){ ttsClips = S.tts.map(c => ({ ...c })); ttsSeq = ttsClips.reduce((q, c) => Math.max(q, c.id), 0); ttsList(); }
     hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1; if(S.denoise === false){ denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
     if(S.trTo){ for(const [k, v] of S.tr || []) trCache.set(k, v); trTo = S.trTo; trOnly = !!S.trOnly; $('captr').value = trTo; $('tronly').checked = trOnly; $('trwrap').hidden = false; }

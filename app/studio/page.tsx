@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { STUDIO_HTML } from "@/components/studio/markup";
 import { initViews } from "@/components/studio/views";
 import { initSteps } from "@/components/studio/steps";
+import { TTS_VOICES } from "@/lib/tts/voices";
 import { useAdmin } from "@/hooks/useApi";
 import { ErrorBanner } from "@/components/molecules";
 import "@/components/studio/studio.css";
@@ -62,6 +63,12 @@ export default function FastStudioPage() {
           // who is the person (background blur / replace, text behind the person) and where faces are (MediaPipe models)
           // voice noise cleanup (RNNoise, WebAssembly), loaded only for talking videos and voiceovers
           loadRnnoise: () => import("@shiguredo/rnnoise-wasm"),
+          // text to speech on the phone (Piper voices in a worker, lib/tts); each voice downloaded once
+          tts: {
+            voices: TTS_VOICES,
+            speak: (text: string, voice: string, onProgress?: (p: import("@/lib/tts/client").TtsProgress) => void) =>
+              import("@/lib/tts/client").then((m) => m.speak(text, voice, onProgress)),
+          },
           // My Reels: "Export & save" keeps the finished Reel in the account (straight to storage, lib/cloudReels.ts)
           cloud: {
             usage: () => import("@/lib/cloudReels").then((m) => m.cloudUsage()),
