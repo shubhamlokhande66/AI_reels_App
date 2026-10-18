@@ -15,7 +15,9 @@ export function initSteps(root: HTMLElement): () => void {
   const $ = (id: string) => root.querySelector<HTMLElement>(`#${id}`)!;
   const ac = new AbortController();
   const sig = { signal: ac.signal };
-  let chosen = false, skip = false;
+  let chosen = false, skip = false, kindNow: "music" | "talk" | "photo" | "copy" | null = null;
+  // Music Reel with no song: the clips' own sound becomes the song (or, when people talk in them, a talking Reel)
+  let clipSound = false, clipSoundAsked = false;
   const vfile = $("vfile") as HTMLInputElement;
   const VIDEO_ACCEPT = vfile.accept;
 
@@ -41,7 +43,7 @@ export function initSteps(root: HTMLElement): () => void {
     if (root.classList.contains("talkmode")) root.querySelector<HTMLButtonElement>('#kind [data-k="music"]')?.click();
   };
   const choose = (which: "music" | "talk" | "photo" | "copy", label: string) => {
-    chosen = true;
+    chosen = true; kindNow = which;
     setPhoto(which === "photo");
     // after the engine has handled the same click
     setTimeout(() => {
@@ -78,12 +80,13 @@ export function initSteps(root: HTMLElement): () => void {
       }
       if (t.closest("#skipmusic")) {
         skip = true;
+        if (kindNow === "music") { clipSound = true; $("s2").classList.remove("locked"); $("s1st").textContent = "No song: your clips' own sound will be used"; }
         update();
         return;
       }
       if (t.closest("#pnew")) {
         // a new Reel starts at step 1 again
-        chosen = skip = false;
+        chosen = skip = clipSound = clipSoundAsked = false; kindNow = null;
         setPhoto(false);
         setTimeout(() => {
           press(null);
@@ -153,7 +156,15 @@ export function initSteps(root: HTMLElement): () => void {
       c2: made || (chosen && ($("s1").classList.contains("done") || skip)),
       c3: made || (chosen && (!$("s3").classList.contains("locked") || $("s2").classList.contains("done"))),
     };
-    $("skipmusic").hidden = !(talk && chosen && !$("s1").classList.contains("done") && !skip);
+    // no song: a talking Reel goes on without music; a Music Reel uses the clips' own sound
+    const noSongOk = talk || kindNow === "music";
+    $("skipmusic").hidden = !(noSongOk && chosen && !$("s1").classList.contains("done") && !skip);
+    $("skipmusic").textContent = talk ? "Continue without music" : "No song? Use my clips' own sound";
+    if (clipSound && !clipSoundAsked && !talk && $("s2").classList.contains("done") && !$("s1").classList.contains("done")) {
+      clipSoundAsked = true;
+      const st = (root as unknown as { __studio?: { autoSound?: () => Promise<"talk" | "extract" | "none"> } }).__studio;
+      void st?.autoSound?.().then((r) => { if (r === "none") { $("s2st").textContent = "These clips have no sound. Add a song in step 2."; clipSound = skip = clipSoundAsked = false; update(); } });
+    }
     for (const k of ["c1", "c2", "c3"] as const) {
       if (next[k] === flags[k]) continue;
       flags[k] = next[k];

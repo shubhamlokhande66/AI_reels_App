@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({ usePathname: () => "/projects", useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 
 const admin = vi.hoisted(() => ({ value: false }));
-const features = vi.hoisted(() => ({ value: { fastStudio: true, aiReel: true, productReel: true, story: true, editor: true, library: true, songs: true, templates: true, brands: true } as Record<string, boolean> }));
+const features = vi.hoisted(() => ({ value: { fastStudio: true, studioAI: true, aiReel: true, productReel: true, story: true, editor: true, library: true, songs: true, templates: true, brands: true } as Record<string, boolean> }));
 vi.mock("@/hooks/useApi", () => ({
   useAdmin: () => ({ admin: admin.value, required: true, loading: false }),
   useMe: () => ({ data: { authEnabled: true, user: { id: "u", email: "me@example.com" } } }),

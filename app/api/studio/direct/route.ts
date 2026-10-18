@@ -1,4 +1,5 @@
 import { body } from "@/server/core/body";
+import { requireFeature } from "@/server/core/features";
 import { route } from "@/server/core/http";
 import { recordRun, taste } from "@/server/studio/brain";
 import { direct, DirectIn } from "@/server/studio/direct";
@@ -6,6 +7,7 @@ import { direct, DirectIn } from "@/server/studio/direct";
 /** Fast Studio's AI director: for every cut, which offered moment, its transition, effect, speed and the keyframes on
  * its hits, decided from the music map and the footage. The phone checks that each choice can be played. */
 export const POST = route(async (req) => {
+  await requireFeature(req, "studioAI");
   const d = await body(req, DirectIn), t0 = Date.now();
   try {
     const res = await direct(d, undefined, await taste());
