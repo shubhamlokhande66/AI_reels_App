@@ -334,6 +334,7 @@
 .brs:not(.talkmode) .talkonly{display:none}
 .brs.talkmode .musiconly{display:none}
 .brs .ttsbox{display:grid;gap:8px;margin:12px 0}
+.brs .aitog{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;font-size:13px;color:var(--muted)}
 .brs .lylist{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
 .brs .lyitem{display:grid;text-align:left;gap:2px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:13px var(--body)}
 .brs .lyitem[aria-pressed=true]{border-color:var(--accent);background:var(--chipbg)}

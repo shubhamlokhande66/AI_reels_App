@@ -1795,7 +1795,9 @@ function scoreWindow(i, src, a, need, gmax){
 // the creator's keyframes stay on their shots when the edit is made again (the AI's scores or the director arriving,
 // New mix): the shots at the same time as before (the music fixes the times) get them back
 // (their clip settings too: on the same shot, or else on the shot playing at the old shot's middle)
-function ukKeep(){ return edit.filter(e => (e.uk && e.uk.length) || e.cs).map(e => ({ s: e.start, e: e.end, uk: e.uk, cs: e.cs })); }
+function ukKeep(){ return edit.filter(e => (e.uk && e.uk.length) || e.cs).map(e => { let cs = e.cs;
+  if(cs && cs.auto){ cs = { ...cs }; for(const k of cs.auto) delete cs[k]; delete cs.auto; if(!Object.keys(cs).length) cs = undefined; }
+  return { s: e.start, e: e.end, uk: e.uk, cs }; }); }
 function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.abs(x.start - k.s) < 0.02 && Math.abs(x.end - k.e) < 0.02);
   if(e && k.uk && k.uk.length) e.uk = k.uk;
   if(k.cs){ const m = (k.s + k.e)/2, c = e || edit.find(x => x.start <= m && x.end > m); if(c && !c.cs) c.cs = k.cs; } } }
@@ -1847,6 +1849,7 @@ function makeEdit(){
   edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth') suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
   ukRestore(keptUk);
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
+  autoTools(); speechScan();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = edit.length + ' shots · ' + fmt(buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
@@ -1964,6 +1967,7 @@ function shotCs(){ return edit.length && kind !== 'talk' ? { ...csOf(edit[segAt(
 function shotSet(patch){
   if(!edit.length || kind === 'talk' || exporting || recording) return;
   const e = edit[segAt(pos)]; e.cs = patch === null ? undefined : { ...(e.cs || {}), ...patch };
+  if(e.cs && e.cs.auto){ e.cs.auto = e.cs.auto.filter(k => !(k in patch)); if(!e.cs.auto.length) delete e.cs.auto; }
   if(e.cs) for(const k of Object.keys(e.cs)) if(JSON.stringify(e.cs[k]) === JSON.stringify(CS0[k])) delete e.cs[k];
   if(e.cs && !Object.keys(e.cs).length) e.cs = undefined;
   if(!playing) redrawFrame();
@@ -3959,7 +3963,8 @@ function voStat(t){ $('vostat').textContent = t; }
 /* ---- the Reel's sound: one mix that the preview and the export both play ----
  * the song part (baseBuf, with its loudness from useSection) at the music volume with its fades, the voiceover (through
  * the voice changer; the song steps back while it speaks) and each shot's own sound at its volume (cs.vol). ---- */
-const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none' };
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true };
+const musicOut = () => au.mfout || (au.ai ? 0.8 : 0);
 let au = { ...AU0 }, clipMixKey = '';
 const fxCache = new Map();
 function voPcm(){ if(!vo) return null; if(au.vfx === 'none') return vo.pcm;
@@ -4018,7 +4023,7 @@ function applyVo(){   // (the name stays: everything that changes the sound call
   const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
   const lyVoiced = layers.filter(L => L.vol > 0 && lmedia[L.m] && lmedia[L.m].pcm);
   const speech = ttsClips.filter(c => c.pcm);
-  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !au.mfout;
+  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !musicOut();
   if(plain){ buf = baseBuf; normGain = baseNorm; return; }
   const B = baseBuf, sr = B.sampleRate, N = B.length, v = voPcm() || new Float32Array(0), vr = vo ? vo.sr : sr;
   // voice loudness: its speaking parts at about -14 dBFS
@@ -4026,7 +4031,7 @@ function applyVo(){   // (the name stays: everything that changes the sound call
   const gv = 0.2/Math.max(0.003, Math.sqrt(s2/Math.max(1, n)));
   const mix = getCtx().createBuffer(2, N, sr), dn = Math.exp(-1/(0.08*sr)), up = Math.exp(-1/(0.4*sr));
   // the music's volume with its fade in / out
-  const fi = Math.round(au.mfin*sr), fo = Math.round(au.mfout*sr), mv = (i) => au.mvol * (fi && i < fi ? i/fi : 1) * (fo && i > N - fo ? Math.max(0, (N - i)/fo) : 1);
+  const fi = Math.round(au.mfin*sr), fo = Math.round(musicOut()*sr), mv = (i) => au.mvol * (fi && i < fi ? i/fi : 1) * (fo && i > N - fo ? Math.max(0, (N - i)/fo) : 1);
   // the shots' own sound (mono), placed where each shot plays, at its speed; silent while a shot is frozen
   const cs = new Float32Array(N);
   for(const e of shots){ const P = sources[e.src].pcm, c = csOf(e), a = Math.round(e.start*sr), b = Math.min(N, Math.round(e.end*sr)), L = e.end - e.start;
@@ -4077,6 +4082,52 @@ function voiceFx(x, sr, fx){
   if(fx === 'echo'){ const d = Math.round(0.24*sr); for(let i=0;i<x.length;i++) y[i] = x[i] + (i >= d ? y[i-d]*0.42 : 0); return y; }
   return x;
 }
+
+/* ---- AI touch-ups: after the edit is made, the AI uses the same clip tools a person would ----
+ * - a clip that would lose most of its picture to the crop (a landscape clip in a Reel) and has no face to follow is
+ *   fitted whole on a blurred copy of itself
+ * - a dark shot gets brighter (a very bright one a little darker)
+ * - a shot where someone speaks keeps its own sound under the music (the music steps back)
+ * - one strong hit or drop, past the opening, plays backwards
+ * - the last shot fades out with the music
+ * What the AI set is listed in cs.auto; anything the creator changes is theirs and stays. Off: au.ai = false. ---- */
+function csAutoSet(e, patch){
+  e.cs = e.cs || {}; const auto = e.cs.auto || [];
+  for(const k in patch){ if(k in e.cs && !auto.includes(k)) continue; e.cs[k] = patch[k]; if(!auto.includes(k)) auto.push(k); }
+  if(auto.length) e.cs.auto = auto; if(!Object.keys(e.cs).length) e.cs = undefined;
+}
+function csAutoClear(e){ if(!e.cs || !e.cs.auto) return; for(const k of e.cs.auto) delete e.cs[k]; delete e.cs.auto; if(!Object.keys(e.cs).length) e.cs = undefined; }
+function speechShare(s, a, b){ const S = s.speech; if(!S) return 0; const i0 = Math.max(0, Math.floor(a/S.hop)), i1 = Math.min(S.p.length, Math.ceil(b/S.hop)); let n = 0; for(let i=i0;i<i1;i++) if(S.p[i] > 0.5) n++; return i1 > i0 ? n/(i1 - i0) : 0; }
+function autoTools(){
+  if(kind === 'talk' || !edit.length) return;
+  edit.forEach(csAutoClear);
+  if(!au.ai) return;
+  const W = out.width, H = out.height;
+  edit.forEach((e) => {
+    const s = sources[e.src]; if(!s || !s.w) return;
+    const keep = Math.min(W/s.w, H/s.h)/Math.max(W/s.w, H/s.h);   // the share of the picture a filled frame keeps
+    if(keep < 0.5 && !(e.face > 0.3)) csAutoSet(e, { fit: true, bg: 'blur' });
+    const need = e.sp.pos(e.end - e.start)*e.scaleR, st = s.samples && s.samples.length ? windowStats(s, e.in, e.in + need) : null;
+    if(st && st.b < 0.3) csAutoSet(e, { bri: +Math.min(0.4, (0.42 - st.b)*1.4).toFixed(2), con: 0.08 });
+    else if(st && st.b > 0.82) csAutoSet(e, { bri: -0.12 });
+    if(speechShare(s, e.in, e.in + need) > 0.4) csAutoSet(e, { vol: 0.9 });
+  });
+  const cand = edit.map((e, i) => ({ e, i })).filter(({ e, i }) => i > 2 && e.start > 3 && (e.type === 'drop' || e.type === 'hit') && e.end - e.start >= 0.5 && e.end - e.start <= 1.6
+    && (e.mot || 0) > 0.45 && e.sp.label === '1×' && e.efx !== 'snap' && !(e.cs && 'rev' in e.cs));
+  if(cand.length) csAutoSet(cand[Math.floor(cand.length/2)].e, { rev: true });
+  const last = edit[edit.length - 1]; csAutoSet(last, { fout: +Math.min(0.6, (last.end - last.start)*0.5).toFixed(2) });
+  clipMixKey = ''; renderEDL(true); if(!playing) redrawFrame();
+}
+// where people speak in each clip (Silero VAD on the phone): read in the background once the clips are in
+let speechBusy = false;
+async function speechScan(){
+  if(speechBusy || !speechProbs || kind === 'talk' || !au.ai) return; speechBusy = true; let found = false;
+  try{ for(const s of sources){ if(s.speech !== undefined || s.removed) continue;
+      const P = await clipPcm(sources.indexOf(s)); if(!P){ s.speech = null; continue; }
+      try{ const p = await speechProbs(P.x, P.sr); s.speech = { p, hop: 512/16000 }; found = found || p.some(x => x > 0.5); }catch(e){ s.speech = null; } }
+  } finally { speechBusy = false; }
+  if(found && edit.length) autoTools();
+}
 // Extract audio: a clip's own sound becomes the Reel's song (its beats lead the cuts, as with any song)
 async function extractAudio(si){
   const s = sources[si]; if(!s || !s.file) return;
@@ -4087,11 +4138,12 @@ async function extractAudio(si){
 function auUI(){
   const set = (id, v, t) => { const el = $(id); if(el){ el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = t; } };
   set('mvol', au.mvol, Math.round(au.mvol*100) + '%'); set('mfin', au.mfin, au.mfin.toFixed(1) + ' s'); set('mfout', au.mfout, au.mfout.toFixed(1) + ' s');
-  [...$('vfx').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === au.vfx)));
+  [...$('vfx').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === au.vfx))); $('aitouch').checked = au.ai !== false;
   const ex = $('xclip'); if(ex){ const k = ex.value; ex.innerHTML = '<option value="">Use a clip\'s sound as the song…</option>' + sources.map((s, i) => `<option value="${i}">${s.name.replace(/[<&"]/g, '')}</option>`).join(''); ex.value = k && sources[+k] ? '' : ''; }
 }
 const auSet = (patch) => { au = { ...au, ...patch }; auUI(); applyVo(); if(!playing) redrawFrame(); };
 for(const [id, k] of [['mvol','mvol'], ['mfin','mfin'], ['mfout','mfout']]) $(id).addEventListener('input', e => auSet({ [k]: +e.target.value }), SIG);
+$('aitouch').addEventListener('change', e => { au = { ...au, ai: e.target.checked }; autoTools(); if(au.ai) speechScan(); applyVo(); clipMixKey = ''; }, SIG);
 $('vfx').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; if(!vo) notify('Record a voiceover first; the voice changer works on it.'); auSet({ vfx: b.dataset.f }); }, SIG);
 $('xclip').addEventListener('focus', auUI, SIG);
 $('xclip').addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if(v !== '') extractAudio(+v); }, SIG);

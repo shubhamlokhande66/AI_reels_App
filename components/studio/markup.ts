@@ -257,6 +257,7 @@ export const STUDIO_HTML = `
           </section>
 
           <section class="panel" data-panel="look">${panelHead("look")}
+            <label class="tog aitog"><input type="checkbox" id="aitouch" checked> AI touch-ups: fit wide clips, fix dark shots, keep voices, one reversed drop, fade out at the end</label>
             <div class="seg" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button><button data-l="copy" aria-pressed="false" hidden>Copied</button></div>
           </section>
 
