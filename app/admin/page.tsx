@@ -10,6 +10,7 @@ import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { RetentionSettings } from "@/components/organisms/RetentionSettings";
 import { PricingSettings } from "@/components/organisms/PricingSettings";
 import { FeatureSettings } from "@/components/organisms/FeatureSettings";
+import { AiDirectorReport } from "@/components/organisms/AiDirectorReport";
 
 /** Unlock (or leave) admin mode in this browser with the server's ADMIN_KEY. */
 export default function AdminPage() {
@@ -73,6 +74,7 @@ export default function AdminPage() {
       {admin && (
         <>
           <FeatureSettings />
+          <AiDirectorReport />
           <PricingSettings />
           <RetentionSettings />
           <div className="row sm justify-center" style={{ gap: 16 }}>

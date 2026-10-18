@@ -222,7 +222,7 @@ export const STUDIO_HTML = `
             <div class="row learnrow" id="learnrow" hidden><span class="label">Learned style</span><select id="lcat" aria-label="Kind of Reel"></select><div class="seg" id="lscope"><button data-s="mine" aria-pressed="false">Mine</button><button data-s="all" aria-pressed="true">With shared</button></div><button class="btn mini" id="luse" type="button">Use</button><span class="fname" id="linfo"></span>
               <details class="stdetails"><summary>My saved styles</summary><ul id="stlist"></ul></details></div>
             <span class="fname" id="modehelp">Auto: the music decides. Calm parts get longer shots, drops and hits get effects.</span>
-            <label class="tog" id="aiwrap" hidden><input type="checkbox" id="aipick"> AI picks the best moments</label>
+            <label class="tog" id="aiwrap" hidden title="The AI listens to the song and looks at your clips, then chooses the pace, every shot, transition, effect and the zooms on the beats. You can still change anything."><input type="checkbox" id="aipick"> AI edits my Reel</label>
             <span class="fname" id="aistat" hidden></span>
           </section>
 

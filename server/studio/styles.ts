@@ -24,7 +24,9 @@ export const Fingerprint = z.object({
 export type Fingerprint = z.infer<typeof Fingerprint>;
 export const SaveIn = z.object({ name: z.string().trim().min(1).max(120), category: z.enum(CATEGORIES), shared: z.boolean().default(false), fp: Fingerprint });
 export const EditsIn = z.object({ category: z.enum([...CATEGORIES, "general"] as [string, ...string[]]),
-  edits: z.array(z.object({ type: z.enum(["drop", "hit", "cut", "break"]), field: z.enum(FIELDS), from: z.string().max(24), to: z.string().max(24) })).min(1).max(100) });
+  edits: z.array(z.object({ type: z.enum(["drop", "hit", "cut", "break"]), field: z.enum(FIELDS), from: z.string().max(24), to: z.string().max(24),
+    /** the choice that was changed was the AI director's (how often people undo the AI is how good it is) */
+    ai: z.boolean().optional() })).min(1).max(100) });
 
 const median = (a: number[]) => { const q = a.filter(Number.isFinite).sort((x, y) => x - y); if (!q.length) return 0; const m = q.length >> 1; return q.length % 2 ? q[m] : (q[m - 1] + q[m]) / 2; };
 const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / Math.max(1, a.length);

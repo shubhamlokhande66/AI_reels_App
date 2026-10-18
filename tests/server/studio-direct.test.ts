@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "@/server/ai";
-import { direct, DirectIn, LIMITS, parsePlan, prompt } from "@/server/studio/direct";
+import { CHUNK, chunks, direct, DirectIn, LIMITS, pace, PaceIn, parsePace, parsePlan, prompt } from "@/server/studio/direct";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
 const cand = (id: string, extra = {}) => ({ id, clip: "c1", at: 1.5, score: 1.2, note: "dancer spins", roles: ["action"], motion: "high", people: true, camera: "pans left", ...extra });
@@ -63,8 +63,67 @@ describe("the plan is bounded", () => {
     const res = await direct(req(2), p);
     expect(calls).toHaveLength(1);
     expect(res.slots).toEqual([
-      { i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "" },
-      { i: 1, shot: "1b", transition: "flash", effect: "zoomburst", speed: "normal", why: "" },
+      { i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", keys: [], why: "" },
+      { i: 1, shot: "1b", transition: "flash", effect: "zoomburst", speed: "normal", keys: [], why: "" },
     ]);
+  });
+});
+
+/** The AI is the brain: it hears the music map, places keyframes on the hits, and chooses the pace of each section. */
+const music = { loud: 0.8, trend: "rising" as const, bass: 0.6, drums: 0.9, voice: 0.3, vox: "goes up" as const,
+  hits: [{ at: 0.4, k: "dhol" as const, p: 3 }, { at: 1.2, k: "snare" as const, p: 2 }], toDrop: 2 };
+const withMusic = () => { const d = req(3); d.slots[0].music = music; return d; };
+
+describe("the music map and keyframes", () => {
+  it("sends each cut's music to the AI and explains how to read it", () => {
+    const text = prompt(withMusic(), "on drops they choose transition \"flash\" (3x)");
+    expect(text).toContain('"music":{"loud":0.8,"trend":"rising"');
+    expect(text).toContain('"k":"dhol"');
+    expect(text).toContain("dhol (dhol/tom");
+    expect(text).toContain("Keyframes");
+    expect(text).toContain("creator's taste");
+  });
+  it("rejects a music map with unknown hit kinds or levels out of range", () => {
+    const d = req(1);
+    expect(DirectIn.safeParse({ ...d, slots: [{ ...d.slots[0], music: { ...music, hits: [{ at: 0.4, k: "gong", p: 1 }] } }] }).success).toBe(false);
+    expect(DirectIn.safeParse({ ...d, slots: [{ ...d.slots[0], music: { ...music, loud: 4 } }] }).success).toBe(false);
+  });
+  it("keeps keyframes inside the shot, on the nearest hit, known kinds only, at most four", () => {
+    const out = parsePlan(withMusic(), { story: "", slots: [{ i: 0, shot: "0a", transition: "hard", effect: "hook", speed: "normal", why: "",
+      keys: [{ at: 0.45, do: "Punch" }, { at: 1.15, do: "shake" }, { at: 0.5, do: "flash" }, { at: 1.9, do: "pulse" }, { at: 3, do: "punch" }, { at: 0.8, do: "explode" }] }] });
+    expect(out.slots[0].keys).toEqual([{ at: 0.4, do: "punch" }, { at: 1.2, do: "shake" }, { at: 1.9, do: "pulse" }]);   // 0.5 lands on the 0.4 hit (taken), 3 s is past the shot
+  });
+});
+
+describe("long Reels", () => {
+  it("are planned in parts at the same time, each part told where it sits", async () => {
+    const d = req(LIMITS.slots);
+    expect(chunks(d).map((c) => c.slots.length)).toEqual([CHUNK, CHUNK, LIMITS.slots - 2 * CHUNK]);
+    expect(prompt(chunks(d)[1])).toContain(`cuts ${CHUNK}-${2 * CHUNK - 1} of a longer Reel`);
+    const calls: string[] = [];
+    const p = { name: "fake", model: "m", visionModel: "", async structured(_s: string, user: string, schema: { parse: (v: unknown) => unknown }) {
+      calls.push(user); const first = Number(/"i":(\d+)/.exec(user.split("Cuts (fixed")[1])![1]);
+      return schema.parse({ slots: [{ i: first, shot: `${first}a` }], story: calls.length === 1 ? "arc" : "" }); } };
+    const res = await direct(d, p as unknown as ManagedProvider);
+    expect(calls).toHaveLength(3);
+    expect(res.slots.map((s) => s.i)).toEqual([0, CHUNK, 2 * CHUNK]);
+  });
+});
+
+describe("pace", () => {
+  const sec = (i: number, extra = {}) => ({ i, t: i * 8, len: 8, beats: 16, starts: i ? "drop" : "start", loud: 0.5, trend: "steady", bass: 0.5, drums: 0.5, voice: 0.5, hitRate: 1, now: 2, ...extra });
+  const pin = (mode = "auto") => PaceIn.parse({ mode, duration: 24, bpm: 120, footage: 60, clips: 6, sections: [sec(0), sec(1), sec(2, { starts: "break" })] });
+  it("keeps one pace per known section, nearest allowed value for the style", () => {
+    const out = parsePace(pin("smooth"), { story: "builds", sections: [{ i: 0, every: 1, why: "" }, { i: 1, every: 3, why: "drop" }, { i: 1, every: 8, why: "dup" }, { i: 9, every: 2, why: "" }] });
+    expect(out.sections).toEqual([{ i: 0, every: 2, why: "" }, { i: 1, every: 2, why: "drop" }]);
+    expect(parsePace(pin("fast"), { story: "", sections: [{ i: 2, every: 8, why: "" }] }).sections[0].every).toBe(2);
+  });
+  it("refuses an answer with no usable section, and asks the model once", async () => {
+    expect(() => parsePace(pin(), { story: "", sections: [{ i: 7, every: 2, why: "" }] })).toThrow();
+    const { p, calls } = fake({ sections: [{ i: 0, every: 1 }, { i: 2, every: 4 }], story: "calm end" });
+    const res = await pace(pin(), p);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('"starts":"break"');
+    expect(res.sections.map((s) => s.every)).toEqual([1, 4]);
   });
 });
