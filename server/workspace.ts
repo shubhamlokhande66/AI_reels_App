@@ -67,7 +67,7 @@ const DEFAULT_PRICING = {
   topUps: [{ id: "topup_30", credits: 30, price: 199 }, { id: "topup_100", credits: 100, price: 599 }],
   costs: { clip_reel: 1, version: 1, story_render: 2, ai_picture: 1, paid_picture: 3, preview: 0, studio_ai: 0, studio_captions: 0 } as Record<string, number>,
 };
-const COST_LABELS: Record<string, string> = { clip_reel: "Reel from your own clips", version: "New version / re-render", story_render: "Story Reel: narrate and render", ai_picture: "AI picture for a story scene", paid_picture: "Premium HD AI picture", preview: "Quick previews", studio_ai: "Fast Studio: AI picks the best moments (per Reel)", studio_captions: "Fast Studio: captions from the song (per song)" };
+const COST_LABELS: Record<string, string> = { clip_reel: "Reel from your own clips", version: "New version / re-render", story_render: "Story Reel: narrate and render", ai_picture: "AI picture for a story scene", paid_picture: "Premium HD AI picture", preview: "Quick previews", studio_ai: "Fast Studio: AI edits the Reel (per Reel)", studio_captions: "Fast Studio: captions from the song (per song)" };
 export type Pricing = typeof DEFAULT_PRICING;
 
 export async function getPricing(): Promise<Pricing> {
