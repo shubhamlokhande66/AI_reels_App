@@ -1072,6 +1072,26 @@ function makeCard(f){
   card.__src = src; card.querySelector('.del').addEventListener('click', ()=>removeVideo(src));
   return src;
 }
+/* ---- what was found in a clip, kept on this phone next to the clip's file ----
+ * Reading a clip (action, scene changes, faces; where people speak) takes the longest part of making a Reel, and gives the
+ * same answer for the same file every time. So it is kept in the saved Reels' file store ("a:"/"v:" + the file's
+ * fingerprint): opening a draft again, or adding the same clip again, uses it at once. SCAN_V: raise it when the reading
+ * changes so old results are read again. They go with their clip's file (deleteProject; keptSweep for leftovers). */
+const SCAN_V = 1;
+async function keptGet(pre, f){ if(typeof indexedDB === 'undefined' || !f) return null; try{ return await idb('files', 'readonly', s => s.get(pre + fileFp(f))) || null; }catch(e){ return null; } }
+function keptPut(pre, f, val){ if(typeof indexedDB === 'undefined' || !f) return; idb('files', 'readwrite', s => s.put(val, pre + fileFp(f))).catch(e => console.info('clip reading not kept:', e && e.message)); }
+async function scanGet(src){
+  const k = await keptGet('a:', src.file);
+  return k && k.v === SCAN_V && Math.abs((k.dur || 0) - src.dur) < 0.05 && k.w === src.w && Array.isArray(k.samples) && k.samples.length ? k : null;
+}
+function scanPut(src){ keptPut('a:', src.file, { v: SCAN_V, dur: src.dur, w: src.w, scenes: src.scenes || [], samples: src.samples, faces: src.faces || [], faceHow: src.faceHow }); }
+// results whose file is gone (its Reels deleted from Fast Studio or from My Reels): removed now and then
+async function keptSweep(){
+  try{ const keys = await idb('files', 'readonly', s => s.getAllKeys()) || [], have = new Set(keys.filter(k => String(k).startsWith('f:')).map(k => String(k).slice(2)));
+    const old = keys.filter(k => /^[av]:/.test(String(k)) && !have.has(String(k).slice(2)));
+    if(old.length) await idb('files', 'readwrite', s => { old.forEach(k => s.delete(k)); });
+  }catch(e){}
+}
 async function readVideo(src){
   if(src.removed) return;
   const card = src.card, dd = card.querySelector('.dd');
@@ -1091,10 +1111,15 @@ async function readVideo(src){
     const show = () => { const f = pm*0.6 + pf*0.4; dd.textContent = 'reading ' + Math.round(f*100) + '%';
       tasks.update('clips', (batchDone + f) / Math.max(1, batchN), 'Clip ' + Math.min(batchN, batchDone + 1) + ' of ' + batchN + ' · ' + src.name); };
     src.readMs = {};
-    await Promise.all([
-      scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); }),
-      scanFaces(src, p=>{ pf = p; show(); }).then(()=>{ src.readMs.faces = Math.round(performance.now()-tq); }),
-    ]);
+    const kept = await scanGet(src);   // read before (a saved Reel opened again, or the same clip added again): used as it is
+    if(kept){ src.scenes = kept.scenes; src.samples = kept.samples; src.faces = kept.faces; src.faceHow = kept.faceHow; src.readMs.kept = true; pm = pf = 1; show(); }
+    else {
+      await Promise.all([
+        scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); }),
+        scanFaces(src, p=>{ pf = p; show(); }).then(()=>{ src.readMs.faces = Math.round(performance.now()-tq); }),
+      ]);
+      if(!src.removed) scanPut(src);
+    }
     if(src.removed) return;
     const nf = src.faces.filter(f=>f.n>0).length, shs = src.samples.map(s=>s.sh).sort((a,b)=>a-b);
     src.shMed = shs[Math.floor(shs.length/2)] || 1;
@@ -1178,7 +1203,9 @@ async function voiceOf(src){
   let clean = null;
   try{ clean = await denoise(pcm, sr); }catch(e){ console.info('noise cleanup not used:', e && e.message); }
   let probs = null, hop = 512/16000, how = 'ai';
-  if(speechProbs){ try{ probs = await speechProbs(clean || pcm, sr); }catch(e){ console.info('speech model not used:', e && e.message); } }
+  const keptV = await keptGet('v:', src.file);   // where people speak, found before for this clip
+  if(keptV && keptV.v === SCAN_V && keptV.probs){ probs = keptV.probs; hop = keptV.hop; }
+  else if(speechProbs){ try{ probs = await speechProbs(clean || pcm, sr); if(probs) keptPut('v:', src.file, { v: SCAN_V, probs, hop }); }catch(e){ console.info('speech model not used:', e && e.message); } }
   if(!probs){   // loudness: 10 dB over the quiet floor of the clip counts as speech
     how = 'level'; const n = Math.floor(pcm.length/(hop*sr)), db = new Float32Array(n), w = Math.round(hop*sr);
     for(let k=0;k<n;k++){ let s2 = 0; for(let i=k*w;i<(k+1)*w;i+=2) s2 += pcm[i]*pcm[i]; db[k] = 10*Math.log10(s2/(w/2) + 1e-10); }
@@ -4601,6 +4628,7 @@ async function deleteProject(id){
   for(const sg of (await idb('songs', 'readonly', s => s.getAll()) || [])) used.add('f:' + sg.fp);   // a recent song keeps its file
   for(const k of mine) if(!used.has(k)) await idb('files', 'readwrite', s => s.delete(k));   // files no other Reel uses
   await idb('meta', 'readwrite', s => s.delete(id));
+  await keptSweep();   // and what was read in those clips
 }
 const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
 async function openProject(id){
@@ -4652,7 +4680,7 @@ function restoreEdit(list){
   return true;
 }
 $('pnew').addEventListener('click', () => { location.href = location.pathname; }, SIG);
-{ const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else listProjects(); }
+{ const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else { listProjects(); keptSweep(); } }
 
 /* ---- My music: the songs used lately, on this phone, picked again in one tap ----
  * Each song is kept once (with the saved Reels' files) together with its finished analysis (beats, drops, AI check), so
