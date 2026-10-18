@@ -5,7 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { pageTheme } from "@/lib/theme";
+import { applyTheme } from "@/lib/theme";
+import { useTheme } from "@/lib/useTheme";
+import { ThemeToggle } from "@/components/molecules/ThemeToggle";
 import { Icon } from "@/components/atoms/Icon";
 import { Logo } from "@/components/atoms/Logo";
 import { GlobalActivity } from "@/components/molecules/GlobalActivity";
@@ -195,7 +197,7 @@ function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: 
         role="dialog"
         aria-modal="true"
         aria-label="Menu"
-        className={`noir absolute inset-y-0 left-0 flex w-[86%] max-w-[340px] flex-col bg-background shadow-2xl transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 left-0 flex w-[86%] max-w-[340px] flex-col bg-background text-foreground shadow-2xl transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -224,6 +226,7 @@ function Drawer({ open, onClose, groups, pathname, email, credits, onSignOut }: 
             </nav>
           )}
           <div className="flex-1" />
+          <ThemeToggle className="mt-2" />
           <InstallApp className="px-1 pt-2" />
           {credits && (
             <div className="between px-1 py-2.5">
@@ -271,10 +274,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
 
-  // each page's look, as designed
+  // one look for every page: the person's choice (Light / Dark / same as the phone), kept on this device
+  const { pref } = useTheme();
   useEffect(() => {
-    document.documentElement.dataset.theme = pageTheme(pathname);
-  }, [pathname]);
+    applyTheme(pref);
+  }, [pref, pathname]);
   const [navPath, setNavPath] = useState(pathname);
   if (navPath !== pathname) {
     // a new page: the menu closes
@@ -392,7 +396,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       />
 
       {/* computers: the Noir sidebar */}
-      <aside className="noir hidden border-r border-border bg-[linear-gradient(180deg,#14110e,#0d0b09)] md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px]">
+      <aside className="hidden border-r border-border text-foreground [background:var(--sidebar)] md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px]">
         <Link href="/" className="flex" aria-label="Shubix home">
           <Logo height={80} className="-mx-1 max-w-full" />
         </Link>
@@ -409,6 +413,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavGroups groups={groups} pathname={pathname} />
         </nav>
         <div className="flex-1" />
+        <ThemeToggle />
         <InstallApp />
         {credits && (
           <div className="between">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ThemeChoice } from "@/components/molecules/ThemeToggle";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -139,6 +140,7 @@ export default function AccountPage() {
       <div className="mx-auto w-full max-w-xl">
         <PageHeader title="My account" />
         <p className="card mu sm">This studio runs without accounts, so there is nothing to manage here.</p>
+        <ThemeChoice />
       </div>
     );
   const user = me.data.user;
@@ -206,6 +208,7 @@ export default function AccountPage() {
         </section>
       )}
       {tab === "delete" && <DeleteAccount email={user.email} />}
+      <ThemeChoice />
     </div>
   );
 }
