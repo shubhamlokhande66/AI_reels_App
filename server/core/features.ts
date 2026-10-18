@@ -32,7 +32,7 @@ export async function setFeatures(patch: Partial<Features>): Promise<Features> {
 
 /** A hidden feature's work is refused (the administrator can still use it, e.g. to check it before turning it on). */
 export async function requireFeature(req: Request, key: FeatureKey) {
-  if ((await getFeatures())[key] || isAdmin(req)) return;
+  if ((await getFeatures())[key] || (await isAdmin(req))) return;
   const label = FEATURE_LIST.find((f) => f.key === key)?.label ?? key;
   throw new AppError(`${label} is turned off in this studio.`, { code: "FEATURE_OFF", status: 403 });
 }

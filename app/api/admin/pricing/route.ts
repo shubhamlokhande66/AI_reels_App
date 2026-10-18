@@ -8,7 +8,7 @@ const PricingIn = z.object({ plans: z.array(z.record(z.string(), z.unknown())), 
 
 /** Admin: prices, credits per plan, top-ups and credit costs. */
 export const PUT = route(async (req) => {
-  requireAdmin(req);
+  await requireAdmin(req);
   const p = await body(req, PricingIn);
   return setPricing(p.plans, p.topUps, p.costs);
 });

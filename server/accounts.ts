@@ -56,7 +56,7 @@ export async function register(email0: string, password: string) {
   checkPassword(password);
   const col = await users();
   if (await col.findOne({ email })) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
-  const u = { _id: new ObjectId(), email, password: hashPassword(password), sessionVersion: 0, createdAt: new Date() };
+  const now = new Date(), u = { _id: new ObjectId(), email, password: hashPassword(password), sessionVersion: 0, createdAt: now, lastLoginAt: now, loginCount: 1 };
   await col.insertOne(u);
   return withCookie({ user: userOut(u) }, sessionCookie(u), 201);
 }
@@ -64,6 +64,7 @@ export async function login(email: string, password: string) {
   needAccounts();
   const u = await (await users()).findOne({ email: email.trim().toLowerCase() });
   if (!u || !verifyPassword(password, String(u.password))) throw new AuthRequired("The email or password is not correct.", "BAD_CREDENTIALS");
+  await (await users()).updateOne({ _id: u._id }, { $set: { lastLoginAt: new Date() }, $inc: { loginCount: 1 } }); // for the admin dashboard
   return withCookie({ user: userOut(u) }, sessionCookie(u));
 }
 export const logout = () => withCookie({ ok: true }, clearCookie());

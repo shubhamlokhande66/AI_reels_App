@@ -78,6 +78,7 @@ export const settings = {
   aiMaxRetries: num("AI_MAX_RETRIES", 2),
   reviewThreshold: num("REVIEW_THRESHOLD", 70),
   adminKey: env("ADMIN_KEY", ""),
+  adminEmails: env("ADMIN_EMAILS", ""),
   authEnabled: bool("AUTH_ENABLED", false),
   billingEnabled: bool("BILLING_ENABLED", false),
   businessName: env("BUSINESS_NAME", "Shubix"),

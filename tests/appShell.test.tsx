@@ -13,6 +13,8 @@ vi.mock("@/hooks/useApi", () => ({
   useFeatures: () => features.value,
 }));
 
+vi.mock("@/lib/usePresence", () => ({ usePresence: () => {} }));
+
 import { AppShell } from "@/components/templates/AppShell";
 
 function renderShell() {
@@ -35,19 +37,17 @@ describe("AppShell navigation", () => {
     expect(screen.getAllByText("me@example.com").length).toBeGreaterThan(0); // the sidebar and the phone menu
   });
 
-  it("keeps the admin tools (AI Edit, Beat Sync check, Chat) out of the menu outside admin mode", () => {
+  it("shows no admin tools and no Admin dashboard button to people", () => {
     const nav = renderShell();
     for (const name of ["AI Edit", "Beat Sync check", "Chat", "AI settings"]) expect(nav.queryByRole("link", { name: new RegExp(name) })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Admin dashboard/ })).toBeNull();
   });
 
-  it("lists the admin tools in admin mode, after the product items", () => {
+  it("gives an administrator one Admin dashboard button (the tools live in the dashboard)", () => {
     admin.value = true;
     const nav = renderShell();
-    expect(nav.getByRole("link", { name: /AI Edit/ })).toHaveAttribute("href", "/ai-edit/new");
-    expect(nav.getByRole("link", { name: /Beat Sync check/ })).toHaveAttribute("href", "/beats/new");
-    expect(nav.getByRole("link", { name: /Chat/ })).toHaveAttribute("href", "/chat");
-    const links = nav.getAllByRole("link").map((a) => a.textContent ?? "");
-    expect(links.findIndex((t) => t.includes("AI Edit"))).toBeGreaterThan(links.findIndex((t) => t.includes("Create Reel")));
+    expect(nav.queryByRole("link", { name: /AI Edit/ })).toBeNull();
+    for (const link of screen.getAllByRole("link", { name: /Admin dashboard/ })) expect(link).toHaveAttribute("href", "/admin"); // the sidebar and the phone menu
   });
 });
 

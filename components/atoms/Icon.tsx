@@ -98,6 +98,12 @@ const P: Record<string, React.ReactNode> = {
       <path d="M17 14.5v3M15.5 16h3" />
     </>
   ),
+  admin: (
+    <>
+      <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  ),
   shield: (
     <>
       <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" />

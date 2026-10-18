@@ -11,7 +11,7 @@ import { settings } from "./config";
 
 const g = globalThis as unknown as { __mongo?: Promise<MongoClient> };
 export const OWNER = "ownerId";
-export const UNSCOPED = new Set(["users", "app_settings", "story_images", "wallets", "credit_ledger", "payments"]);
+export const UNSCOPED = new Set(["users", "app_settings", "story_images", "wallets", "credit_ledger", "payments", "presence"]);
 
 export function client(): Promise<MongoClient> {
   g.__mongo ??= new MongoClient(settings.mongodbUri, { serverSelectionTimeoutMS: 5000, maxPoolSize: 20 }).connect();

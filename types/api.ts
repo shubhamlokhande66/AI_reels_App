@@ -1334,3 +1334,34 @@ export interface InstagramReport {
   postingTips: string[];
   note: string;
 }
+
+/** Administration → Overview (server/adminDashboard.ts). Dates arrive as ISO strings. */
+export interface AdminVisitor { id: string; email: string | null; path: string; device: string; at: string; since: string }
+export interface AdminOverview {
+  billing: boolean;
+  users: { total: number; today: number; week: number; buyers: number };
+  visitors: { online: number; onlineSignedIn: number; onlineGuests: number; today: number; week: number };
+  online: AdminVisitor[];
+  revenue: { total: number; month: number; payments: number };
+  credits: { left: number; used30d: number };
+  projects: { total: number; byStatus: Record<string, number> };
+  plans: { plan: string; name: string; users: number }[];
+  signupsByDay: { day: string; users: number }[];
+  revenueByMonth: { month: string; rupees: number }[];
+  recentUsers: { id: string; email: string; createdAt: string | null }[];
+  recentPayments: { id: string; email: string; label: string; rupees: number; paidAt: string | null }[];
+}
+/** Administration → Users: one row per account. credits = null before the person's wallet exists. */
+export interface AdminUserRow {
+  id: string; email: string; createdAt: string | null; lastLoginAt: string | null; lastSeenAt: string | null; logins: number; online: boolean;
+  plan: string; planName: string; planEnds: string | null; credits: number | null; creditsUsed: number;
+  spent: number; purchases: number; lastPurchase: string | null; reels: number;
+}
+export interface AdminUserDetail {
+  id: string; email: string; createdAt: string | null; lastLoginAt: string | null; lastSeenAt: string | null; logins: number;
+  wallet: { plan: string; planName: string; period: string | null; monthly: number; extra: number; balance: number; planEnds: string | null; renews: string | null } | null;
+  payments: { id: string; label: string; rupees: number; status: string; createdAt: string | null; paidAt: string | null; via: string | null }[];
+  history: { delta: number; reason: string; at: string | null; balance: number | null; refunded: boolean }[];
+  reels: { id: string; name: string; status: string; createdAt: string | null }[];
+  devices: { device: string; path: string; at: string | null; online: boolean }[];
+}
