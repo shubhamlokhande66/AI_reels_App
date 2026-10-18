@@ -227,6 +227,13 @@ export const STUDIO_HTML = `
 
           <section class="panel" data-panel="music">${panelHead("music")}
             <div class="row"><button type="button" class="btn" data-open-step="s1">${IC.music}Change the song or its part</button><button type="button" class="btn" data-open-step="s2">${IC.plus}Add or change clips</button></div>
+            <div class="clipsnd" id="clipsnd" hidden>
+            <b>Your clips have their own sound</b>
+            <small>Wind, traffic, people talking… Choose what the Reel keeps under the song.</small>
+            <div class="seg" id="csnd" role="group" aria-label="The clips' own sound">
+            <button data-c="mute" aria-pressed="true">Mute it</button><button data-c="voices" aria-pressed="false">Keep voices only</button><button data-c="all" aria-pressed="false">Keep all</button>
+            </div>
+            </div>
             <div class="ausliders musiconly">
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
             <label class="cslide"><span>Fade in</span><input type="range" id="mfin" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>

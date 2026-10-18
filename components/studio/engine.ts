@@ -1108,8 +1108,27 @@ async function readVideo(src){
     card.style.borderColor = 'var(--drop)';
   }
 }
+// Do the clips have a sound of their own? Then the person chooses what the Reel keeps (Mute it is the default).
+let clipSoundTold = false;
+async function clipSoundCheck(){
+  const box = $('clipsnd'); if(!box) return;
+  if(kind === 'talk' || !sources.length){ box.hidden = true; return; }
+  let any = false;
+  for(let i=0;i<sources.length && !any;i++){ const P = await clipPcm(i); if(!P) continue; let q = 0, n = 0; for(let k=0;k<P.x.length;k+=64){ q += P.x[k]*P.x[k]; n++; } if(Math.sqrt(q/Math.max(1,n)) > 0.004) any = true; }
+  const was = !box.hidden;
+  box.hidden = !any || kind === 'talk';
+  // said once: what happens to it, and where to change it
+  if(!box.hidden && !was && !clipSoundTold){ clipSoundTold = true; notify((au.clip || 'mute') === 'mute' ? "Your clips' own sound is muted under the song. Change it in Music." : "Your clips' own sound: change it in Music."); }
+  [...$('csnd').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === (au.clip || 'mute'))));
+}
+$('csnd').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return;
+  au = { ...au, clip: b.dataset.c }; [...$('csnd').children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  if(au.clip === 'voices') speechScan();
+  autoTools(); applyVo(); clipMixKey = ''; if(!playing) redrawFrame();
+  notify(au.clip === 'mute' ? "The clips' own sound is muted." : au.clip === 'voices' ? 'Only the voices in your clips are kept.' : "All of your clips' sound is kept, under the song.");
+}, SIG);
 function finishAdding(){
-  updateQ(); $('clearv').hidden = !$('clips').children.length;
+  updateQ(); $('clearv').hidden = !$('clips').children.length; clipSoundCheck();
   if(sources.length) tasks.done('clips', sources.length + ' clip' + (sources.length > 1 ? 's' : '') + ' ready' + (buf || kind === 'talk' ? ' · making your Reel' : ' · now choose a song'));
   else tasks.fail('clips', 'These videos do not play here. Try MP4 or MOV.');
   if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk') aiRun(); }
@@ -1270,6 +1289,7 @@ function setKind(k){
   if(k === 'talk'){ $('s2').classList.remove('locked'); $('s1st').textContent = song ? 'Plays quietly under the voice' : 'Optional: a song to play quietly under the voice'; }
   else if(!song) $('s2').classList.add('locked');
   capAll = null; capWords = null; capLines = null;
+  clipSoundCheck();   // a talking Reel's sound is its clips' own: no choice to make
   if(k === 'talk'){ if(sources.length) buildTalk(); }
   else if(song){ useSection(); } else { edit = []; renderEDL(); drawFrame(0); }
 }
@@ -4154,7 +4174,9 @@ function voStat(t){ $('vostat').textContent = t; }
 /* ---- the Reel's sound: one mix that the preview and the export both play ----
  * the song part (baseBuf, with its loudness from useSection) at the music volume with its fades, the voiceover (through
  * the voice changer; the song steps back while it speaks) and each shot's own sound at its volume (cs.vol). ---- */
-const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true };
+// clip: the clips' own sound under the song: mute (the default: no wind, traffic or chatter), voices (only where
+// people speak), all (every shot's sound, a little under the song)
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute' };
 const musicOut = () => au.mfout || (au.ai ? 0.8 : 0);
 let au = { ...AU0 }, clipMixKey = '';
 const fxCache = new Map();
@@ -4292,7 +4314,7 @@ function speechShare(s, a, b){ const S = s.speech; if(!S) return 0; const i0 = M
 function autoTools(){
   if(kind === 'talk' || !edit.length) return;
   edit.forEach(csAutoClear);
-  if(!au.ai) return;
+  if(!au.ai){ if(au.clip === 'all') edit.forEach(e => csAutoSet(e, { vol: 0.7 })); clipMixKey = ''; return; }
   const W = out.width, H = out.height;
   edit.forEach((e) => {
     const s = sources[e.src]; if(!s || !s.w) return;
@@ -4301,7 +4323,9 @@ function autoTools(){
     const need = e.sp.pos(e.end - e.start)*e.scaleR, st = s.samples && s.samples.length ? windowStats(s, e.in, e.in + need) : null;
     if(st && st.b < 0.3) csAutoSet(e, { bri: +Math.min(0.4, (0.42 - st.b)*1.4).toFixed(2), con: 0.08 });
     else if(st && st.b > 0.82) csAutoSet(e, { bri: -0.12 });
-    if(speechShare(s, e.in, e.in + need) > 0.4) csAutoSet(e, { vol: 0.9 });
+    // the clips' own sound, as chosen (a shot's own volume set by hand always stays)
+    if(au.clip === 'all') csAutoSet(e, { vol: 0.7 });
+    else if(au.clip === 'voices' && speechShare(s, e.in, e.in + need) > 0.4) csAutoSet(e, { vol: 0.9 });
   });
   const cand = edit.map((e, i) => ({ e, i })).filter(({ e, i }) => i > 2 && e.start > 3 && (e.type === 'drop' || e.type === 'hit') && e.end - e.start >= 0.5 && e.end - e.start <= 1.6
     && (e.mot || 0) > 0.45 && e.sp.label === '1×' && e.efx !== 'snap' && !(e.cs && 'rev' in e.cs));
