@@ -729,7 +729,7 @@
   .brs .autoov > .aodone{width:min(900px,100%)}
   .brs .aodonebox{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start}
 }
-/* the clips' own sound under the song (Music Reel, step 3) */
+/* the clips' own sound under the song (Fast Studio -> Music) */
 .brs .clipsnd{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--background)}
 .brs .clipsnd b{font:700 14px var(--body)}
 .brs .clipsnd small{color:var(--muted);font-size:12.5px}
