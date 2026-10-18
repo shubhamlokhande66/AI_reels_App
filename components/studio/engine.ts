@@ -13,13 +13,13 @@ import { createTasks } from './tasks';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 
 export function initStudio(root, deps) {
-  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const tasks = createTasks(root);   // what is happening now, always in view (components/studio/tasks.ts)
 const ac = new AbortController(), SIG = { signal: ac.signal };
 let exporting = false;
-const texOf = e => exporting ? (e.fc || e.fcLast) : e.el;
+const texOf = (e, local) => exporting ? (e.fc || e.fcLast) : e.rc && e.cs && e.cs.rev && local !== undefined ? revFrame(e, local) : e.el;
 const fmt = t => { t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(2); };
 let ctx = null, buf = null, mono = null;
 let period = 0, phase = 0, hopSec = 0, rmsF = null, hitsStr = [], barOff = 0, beatLvl = [];
@@ -706,8 +706,12 @@ function applyAnalysis(r){
 // Second opinion on the beats: Beat This! (a neural network trained on thousands of hand-annotated songs) runs on this
 // device in the background; the analysis then keeps whichever beats land on stronger hits with a steadier pulse (each
 // tracker misses different songs) and the edit follows. The page stays usable; the first edit never waits for it.
+let beatsBusy = false;
 async function checkBeatsWithAi(token){
   if(!aiBeats || !song) return;
+  beatsBusy = true; try{ await checkBeatsInner(token); } finally { beatsBusy = false; }
+}
+async function checkBeatsInner(token){
   const sr = song.buf.sampleRate, m = song.mono, base = 'Ready';
   const say = t => { if(token === musicToken) $('s1st').textContent = t; };
   say(base + ' · checking the beats with the on-device AI…');
@@ -1836,7 +1840,7 @@ function camAt(e, local){
   const L = e.end - e.start, key = aspect+'|'+e.src+'|'+e.in+'|'+e.scaleR+'|'+e.sp.label+'|'+L+'|'+(aiOn && src.ai ? 1 : 0);
   if(!e.cam || e.cam.key !== key){
     const [W,H] = SIZES[aspect], base = Math.max(W/src.w, H/src.h);
-    e.cam = camPath(src, e.in, srcPos(e, L), Math.min(1, W/(src.w*base)), Math.min(1, H/(src.h*base))); e.cam.key = key;
+    e.cam = camPath(src, e.in, srcPosF(e, L), Math.min(1, W/(src.w*base)), Math.min(1, H/(src.h*base))); e.cam.key = key;
   }
   const c = e.cam, u = Math.max(0, Math.min(c.x.length-1.0001, (srcPos(e, Math.max(0, Math.min(L, local))) - c.a)/c.dt)), k = Math.floor(u), f = u-k;
   return [c.x[k] + (c.x[k+1]-c.x[k])*f, c.y[k] + (c.y[k+1]-c.y[k])*f];
@@ -1869,10 +1873,16 @@ function scoreWindow(i, src, a, need, gmax){
 }
 // the creator's keyframes stay on their shots when the edit is made again (the AI's scores or the director arriving,
 // New mix): the shots at the same time as before (the music fixes the times) get them back
-function ukKeep(){ return edit.filter(e => e.uk && e.uk.length).map(e => ({ s: e.start, e: e.end, uk: e.uk })); }
-function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.abs(x.start - k.s) < 0.02 && Math.abs(x.end - k.e) < 0.02); if(e) e.uk = k.uk; } }
+// (their clip settings too: on the same shot, or else on the shot playing at the old shot's middle)
+function ukKeep(){ return edit.filter(e => (e.uk && e.uk.length) || e.cs).map(e => { let cs = e.cs;
+  if(cs && cs.auto){ cs = { ...cs }; for(const k of cs.auto) delete cs[k]; delete cs.auto; if(!Object.keys(cs).length) cs = undefined; }
+  return { s: e.start, e: e.end, uk: e.uk, cs }; }); }
+function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.abs(x.start - k.s) < 0.02 && Math.abs(x.end - k.e) < 0.02);
+  if(e && k.uk && k.uk.length) e.uk = k.uk;
+  if(k.cs){ const m = (k.s + k.e)/2, c = e || edit.find(x => x.start <= m && x.end > m); if(c && !c.cs) c.cs = k.cs; } } }
 function makeEdit(){
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
+  if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
   const keptUk = ukKeep();
   stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = repace(basePlan, pc.secs, beats, buf.duration, mode); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
@@ -1919,6 +1929,7 @@ function makeEdit(){
   edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth' && !e.fxByDir) suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
   ukRestore(keptUk);
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
+  autoTools(); speechScan();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = edit.length + ' shots · ' + fmt(buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
@@ -1960,12 +1971,12 @@ function speedFor(key, e){
 const speedKey = sp => (Object.keys(SPEED_KEYS).find(k=>SPEED_KEYS[k]===sp.label) || (sp.label.startsWith('Ramp') ? 'ramp' : 'normal'));
 function assignPlayers(){ const uc = sources.map(()=>0); edit.forEach(e=>{ e.el = sources[e.src].els[(uc[e.src]++)%3]; }); }
 // pick another moment of footage for shot i: never one already used, never the same clip as its neighbours
-function repick(i, avoidCurrent){
+function repick(i, avoidCurrent, onlySrc){
   const e = edit[i], len = e.end-e.start, gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]); edit.forEach((x,k)=>{ if(k!==i) used[x.src].push([x.in, x.in + x.sp.pos(x.end-x.start)*x.scaleR]); });
   let best=null, bs=-Infinity;
   sources.forEach((src,si)=>{
-    if(sources.length>1 && [edit[i-1],edit[i+1]].some(x=>x && x.src===si)) return;
+    if(onlySrc != null ? si !== onlySrc : sources.length>1 && [edit[i-1],edit[i+1]].some(x=>x && x.src===si)) return;
     let need = e.sp.pos(len), scaleR = 1; if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
     for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=Math.max(0.1, Math.min(0.5, src.dur/120))){
       if(avoidCurrent && si===e.src && Math.abs(a-e.in) < Math.max(0.3, need*0.5)) continue;
@@ -1991,6 +2002,114 @@ function changed(i, refit){
     if(e.in + need > src.dur || clash || crossesScene(src, e.in, e.in+need)) repick(i, false); }
   renderEDL(true); showShot(i);
 }
+/* ---- shot tools (as in every editor): split, duplicate, delete, replace. The song's timing stays: a shot's time goes to
+ * its neighbours, so the Reel keeps its length and every cut stays on the beat. ---- */
+const MIN_SHOT = 0.3;
+function shotOp(op, arg){
+  if(kind === 'talk' || !edit.length || exporting || recording) return false;
+  stopAll();
+  const i = segAt(pos), e = edit[i], L = editOf(), x = L[i];
+  const done = (list, j, msg) => { if(!restoreEdit(list)) return false; j = Math.min(j, edit.length - 1); pos = edit[j].start + 0.05; showShot(j); if(msg) notify(msg); return true; };
+  if(op === 'split' || op === 'dup'){
+    // split: where the playhead is (on a beat when one is close); duplicate: in the middle, and the moment plays twice
+    let t = op === 'dup' ? (e.start + e.end) / 2 : pos;
+    const nb = beats.filter(b => b > e.start + MIN_SHOT && b < e.end - MIN_SHOT).sort((a, b) => Math.abs(a - t) - Math.abs(b - t))[0];
+    if(nb != null && Math.abs(nb - t) < (op === 'dup' ? (e.end - e.start) / 4 : 0.15)) t = nb;
+    if(t - e.start < MIN_SHOT || e.end - t < MIN_SHOT){ notify(op === 'dup' ? 'This shot is too short to play twice.' : 'Move the playhead inside the shot to split it there.'); return false; }
+    const at = t - e.start, uk = x.uk || [];
+    const ua = uk.filter(k => k.t < at), ub = op === 'dup' ? ua.map(k => ({ ...k })) : uk.filter(k => k.t >= at).map(k => ({ ...k, t: k.t - at }));
+    const a = { ...x, end: t, uk: ua.length ? ua : undefined };
+    if(x.cs && x.cs.rev && op === 'split') a.in = srcPos(e, at);
+    const b = { ...x, start: t, uk: ub.length ? ub : undefined, in: op === 'dup' ? x.in : x.cs && x.cs.rev ? x.in : srcPosF(e, at),
+      tr: op === 'dup' ? (x.tr === 'hard' ? 'flash' : x.tr) : 'hard' };   // a replay reads better with a little transition
+    L.splice(i, 1, a, b);
+    return done(L, i + 1, op === 'dup' ? 'Shot ' + (i + 1) + ' now plays twice.' : 'Shot ' + (i + 1) + ' split in two.');
+  }
+  if(op === 'delete'){
+    if(L.length < 2){ notify('A Reel needs at least one shot.'); return false; }
+    // its time goes to the shot before (the first shot's to the next one), which then gets enough footage
+    const j = i > 0 ? i - 1 : 1, y = L[j];
+    if(i > 0) y.end = x.end;
+    else { const d = y.start - x.start; y.start = x.start; y.tr = x.tr; if(y.uk) y.uk = y.uk.map(k => ({ ...k, t: k.t + d })); }
+    L.splice(i, 1);
+    const k = i > 0 ? i - 1 : 0;
+    if(!done(L, k, 'Shot ' + (i + 1) + ' deleted.')) return false;
+    changed(k, true); return true;
+  }
+  if(op === 'replace'){
+    const si = +arg; if(!sources[si]) return false;
+    if(!repick(i, si === e.src, si)){ notify('Every moment of that clip is already in the Reel. Pick another clip.'); return false; }
+    e.kf = keyframesFor(e); renderEDL(true); showShot(i); editGen++;
+    notify('Shot ' + (i + 1) + ' now uses ' + sources[si].name.replace(/\.[^.]+$/, '') + '.'); return true;
+  }
+  return false;
+}
+// the current shot's clip settings: read, change (a patch; null resets them all)
+function shotCs(){ return edit.length && kind !== 'talk' ? { ...csOf(edit[segAt(pos)]), i: segAt(pos) } : null; }
+function shotSet(patch){
+  if(!edit.length || kind === 'talk' || exporting || recording) return;
+  const e = edit[segAt(pos)]; e.cs = patch === null ? undefined : { ...(e.cs || {}), ...patch };
+  if(e.cs && e.cs.auto){ e.cs.auto = e.cs.auto.filter(k => !(k in patch)); if(!e.cs.auto.length) delete e.cs.auto; }
+  if(e.cs) for(const k of Object.keys(e.cs)) if(JSON.stringify(e.cs[k]) === JSON.stringify(CS0[k])) delete e.cs[k];
+  if(e.cs && !Object.keys(e.cs).length) e.cs = undefined;
+  if(!playing) redrawFrame();
+}
+// slip: the same shot, an earlier or later moment of its clip (the shot's place in the song stays)
+function shotSlip(d){
+  if(!edit.length || kind === 'talk') return false; stopAll();
+  const i = segAt(pos), e = edit[i], need = e.sp.pos(e.end - e.start)*e.scaleR, max = Math.max(0, sources[e.src].dur - need - TAIL);
+  const v = Math.max(0, Math.min(max, e.in + d)); if(Math.abs(v - e.in) < 1e-3){ notify(d < 0 ? 'This is the start of the clip.' : 'This is the end of the clip.'); return false; }
+  e.in = v; e.cam = null; e.kf = keyframesFor(e); renderEDL(true); showShot(i); editGen++; return true;
+}
+// trim: the shot's end moves one beat (the next shot starts there), so the cuts stay on the beat
+function shotTrim(dir){
+  if(!edit.length || kind === 'talk') return false; stopAll();
+  const i = segAt(pos), e = edit[i], nx = edit[i+1];
+  if(!nx){ notify('The last shot ends with the song.'); return false; }
+  const grid = beats.length ? beats : [];
+  const to = dir > 0 ? grid.find(b => b > e.end + 0.05 && b < nx.end - MIN_SHOT) : [...grid].reverse().find(b => b < e.end - 0.05 && b > e.start + MIN_SHOT);
+  if(to == null){ notify(dir > 0 ? 'The next shot is too short to give a beat.' : 'This shot is already as short as it can be.'); return false; }
+  const L = editOf(), d = to - L[i+1].start; L[i].end = to; L[i+1].start = to;
+  if(L[i+1].uk) L[i+1].uk = L[i+1].uk.map(k => ({ ...k, t: k.t - d })).filter(k => k.t >= 0);
+  if(!restoreEdit(L)) return false; changed(i, true); changed(i+1, true); pos = edit[i].start + 0.05; showShot(i); return true;
+}
+// Undo / Redo: a step is kept each time the edit or the texts change (any control, a new mix, a split…). The list starts
+// again when the song or the clips change, because an older edit would not fit them.
+const hist = { u: [], r: [], cur: null, cand: '', base: '' };
+const HIST_MAX = 60;
+const lyOf = () => layers.map(L => { const c = JSON.parse(JSON.stringify({ ...L, fc: undefined })); return c; });
+function histSnap(){ const ov = overlays.map(o => { const c = { ...o }; delete c.box; return c; }), ed = editOf(), ly = lyOf(); return { ed, ov, ly, sig: JSON.stringify([ed, ov, ly]) }; }
+function histBase(){ return kind + '|' + sources.map(s => s.name + s.dur).join() + '|' + (buf ? buf.duration.toFixed(2) : ''); }
+function histTick(){
+  if(restoring || exporting || recording || pending || playing) return;
+  const base = histBase();
+  if(base !== hist.base){ hist.base = base; hist.u = []; hist.r = []; hist.cur = edit.length || overlays.length ? histSnap() : null; hist.cand = ''; histUI(); return; }
+  if(!edit.length && !overlays.length && !layers.length) return;
+  const now = histSnap(); if(!hist.cur){ hist.cur = now; return; }
+  if(now.sig === hist.cur.sig){ hist.cand = ''; return; }
+  if(now.sig !== hist.cand){ hist.cand = now.sig; return; }   // kept once it stops changing (a drag is one step)
+  hist.u.push(hist.cur); if(hist.u.length > HIST_MAX) hist.u.shift(); hist.r = []; hist.cur = now; hist.cand = ''; histUI();
+}
+function histGo(back){
+  if(exporting || recording || restoring) return;
+  const now = histSnap(); if(hist.cur && now.sig !== hist.cur.sig){ hist.u.push(hist.cur); hist.r = []; hist.cur = now; }
+  const from = back ? hist.u : hist.r, to = back ? hist.r : hist.u; if(!from.length || !hist.cur) return;
+  to.push(hist.cur); const s = from.pop(); hist.cand = '';
+  if(kind !== 'talk' && s.ed.length) restoreEdit(s.ed);
+  overlays = s.ov.map(o => ({ ...o })); ovSel = -1; renderOvList();
+  if(s.ly){ layers = s.ly.map(L => ({ ...L })); lySel = Math.min(lySel, layers.length - 1); lyUI(); clipMixKey = ''; }
+  if(edit.length) showShot(Math.min(segAt(pos), edit.length - 1)); else redrawFrame();
+  hist.cur = histSnap(); histUI(); notify(back ? 'Undone' : 'Redone');
+}
+function histUI(){ const u = $('undo'), r = $('redo'); if(u) u.disabled = !hist.u.length; if(r) r.disabled = !hist.r.length; }
+setInterval(histTick, 500);
+$('undo').addEventListener('click', () => histGo(true), SIG);
+$('redo').addEventListener('click', () => histGo(false), SIG);
+addEventListener('keydown', ev => {
+  if(!(ev.ctrlKey || ev.metaKey) || ev.altKey) return; const k = ev.key.toLowerCase(); if(k !== 'z' && k !== 'y') return;
+  const t = ev.target; if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;   // their own undo
+  if(!root.isConnected) return; ev.preventDefault(); histGo(k === 'z' && !ev.shiftKey);
+}, SIG);
 function sel(opts, val, onch){ const s=document.createElement('select'); Object.entries(opts).forEach(([k,v])=>{ const o=document.createElement('option'); o.value=k; o.textContent=v; if(k===val) o.selected=true; s.appendChild(o); });
   s.addEventListener('click', ev=>ev.stopPropagation()); s.addEventListener('change', ()=>onch(s.value)); return s; }
 function renderEDL(keepScroll){
@@ -2042,12 +2161,14 @@ function setCanvas(full, scale = 1){ const [W0,H0]=SIZES[aspect], s = full ? sca
 function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(edit[m].start<=t+1e-4){ r=m; lo=m+1; } else hi=m-1; } return r; }
 async function prepare(i, t){
   const e = edit[i]; if(!e) return;
+  if(layers.length && !playing) await prepLayers(t);
   const local = Math.max(0, t - e.start), target = srcPos(e, local);
   if(e.el.readyState < 2){ try{ await videoData(e.el, 6000); }catch(err){} }
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
   if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked',4000); }catch(err){} }
 }
-const srcPos = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
+const srcPosF = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
+const srcPos = (e, l) => e.cs && e.cs.rev ? e.in + (e.sp.pos(e.end - e.start) - e.sp.pos(l))*e.scaleR : srcPosF(e, l);
 const rateAt = (e, l) => { const r = e.sp.at(l)*e.scaleR; return r<=0 ? 0 : Math.max(0.0625, Math.min(16, r)); };
 const ease = x => 1 - Math.pow(1-Math.min(1,Math.max(0,x)),3);
 const LOOKS = {
@@ -2063,7 +2184,7 @@ function fitBufs(){ [bufA,bufB].forEach(b=>{ if(b.width!==out.width||b.height!==
 
 // draw one shot with its keyframed properties into context g
 function drawShot(g, e, local, o={}){
-  const W=out.width, H=out.height, v=texOf(e), L=e.end-e.start;
+  const W=out.width, H=out.height, v=texOf(e, local), L=e.end-e.start;
   if(!v || v.readyState<2) return;
   const K = e.kf || {};
   let scale = (kf(K.scale,local) ?? 1) * (o.scale||1) * (o.noFx ? 1 : emphAt(e.start + local));
@@ -2075,8 +2196,7 @@ function drawShot(g, e, local, o={}){
   if(ac){ scale *= ac.s; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
   const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
   if(u){ scale *= u.s; rot += u.r; }
-  const sw = sources[e.src].w, shh = sources[e.src].h, [ccx, ccy] = camAt(e, local);
-  const r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r;
+  const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py0 = H/2 - ccy*dh; py0 = panClamp(py0, H, dh);
   const py = py0 + y;
@@ -2085,18 +2205,26 @@ function drawShot(g, e, local, o={}){
     gg.save(); gg.globalAlpha = a;
     if(ux || uy) gg.translate(ux, uy);   // the creator's move: after the turn, so a moved shot turns about its own middle
     if(rot || extra!==1){ gg.translate(W/2,H/2); gg.rotate(rot*Math.PI/180); gg.scale(extra,extra); gg.translate(-W/2,-H/2); }
-    gg.filter = LOOKS[look].filter; gg.drawImage(v, px+ox, py+oy, dw, dh); gg.restore(); };
+    gg.filter = LOOKS[look].filter + csFilter(c); csDraw(gg, v, c, px+ox, py+oy, dw, dh); gg.restore(); };
+  // a fitted picture: its canvas (blurred copy or a colour) and border, under the picture
+  const canvasBg = (g, alpha) => { if(!c.fit) return;
+    g.save(); g.globalAlpha = alpha;
+    if(ux || uy) g.translate(ux, uy);
+    if(c.bg === 'blur'){ const rb = Math.max(W/G.sw, H/G.sh)*1.12; g.filter = 'blur(' + Math.round(W*0.03) + 'px) brightness(0.62)'; csDraw(g, v, c, W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb); g.filter = 'none'; }
+    else { g.fillStyle = c.bgc; g.fillRect(-W, -H, 3*W, 3*H); }
+    if(c.bd > 0){ const b = c.bd*0.04*W; if(rot){ g.translate(W/2,H/2); g.rotate(rot*Math.PI/180); g.translate(-W/2,-H/2); } g.fillStyle = c.bdc; g.fillRect(px-b, py-b, dw+2*b, dh+2*b); }
+    g.restore(); };
   const rgb = (kf(K.rgb,local) || 0) + (o.rgb||0) + (ac ? ac.rgb : 0);
   if(rgb > 0.5 && !o.noFx){
     // chromatic aberration: red and blue channels pushed apart
     fitBufs(); gB.globalCompositeOperation='source-over'; gB.fillStyle='#000'; gB.fillRect(0,0,W,H);
-    const chan = (col, ox) => { gA.globalCompositeOperation='source-over'; gA.clearRect(0,0,W,H); paint(gA,1,1,ox,0);
+    const chan = (col, ox) => { gA.globalCompositeOperation='source-over'; gA.clearRect(0,0,W,H); canvasBg(gA,1); paint(gA,1,1,ox,0);
       gA.globalCompositeOperation='multiply'; gA.fillStyle=col; gA.fillRect(0,0,W,H);
       gB.globalCompositeOperation='lighter'; gB.drawImage(bufA,0,0); };
     chan('#f00', -rgb); chan('#0f0', 0); chan('#00f', rgb);
     gB.globalCompositeOperation='source-over';
     g.save(); g.globalAlpha = alpha; g.drawImage(bufB,0,0); g.restore();
-  } else paint(g, alpha);
+  } else { canvasBg(g, alpha); paint(g, alpha); }
   // zoom blur: faint bigger copies
   const zb = (kf(K.zblur,local) || 0) + (o.zblur||0);
   if(zb > 0.02 && !o.noFx) for(let k=1;k<=3;k++) paint(g, 0.22*zb*alpha, 1 + 0.045*k*zb);
@@ -2104,9 +2232,150 @@ function drawShot(g, e, local, o={}){
   if(K.bounce && e.beatsIn && !o.noFx){ for(const bt of e.beatsIn){ if(local>=bt) expo += 0.22*Math.exp(-(local-bt)/0.07); } }   // light pulse on each beat
   if(!o.noFx && e.sp && rateAt(e, local) >= 1.8) for(let k=1;k<=2;k++) paint(g, 0.16*alpha, 1 + 0.012*k);   // motion blur when fast
   if(expo > 0.01 && !o.noFx){ g.save(); g.globalCompositeOperation='lighter'; paint(g, Math.min(1,expo)*alpha); g.restore(); }
-  const br = kf(K.bright,local);
-  if(br !== undefined && br < 1){ g.fillStyle=`rgba(0,0,0,${(1-br)*alpha})`; g.fillRect(0,0,W,H); }
+  const br = (kf(K.bright,local) ?? 1) * csFade(c, local, L);
+  if(br < 1){ g.fillStyle=`rgba(0,0,0,${(1-br)*alpha})`; g.fillRect(0,0,W,H); }
 }
+// the shot's colour as a canvas filter (the shader's adj(); warmth as a sepia / hue nudge)
+function csFilter(c){ if(!c.bri && !c.con && !c.sat && !c.warm) return '';
+  return ` brightness(${(1+c.bri*0.5).toFixed(3)}) contrast(${(1+c.con).toFixed(3)}) saturate(${(1+c.sat).toFixed(3)})` + (c.warm ? (c.warm > 0 ? ` sepia(${(c.warm*0.25).toFixed(3)})` : ` hue-rotate(${(c.warm*-12).toFixed(1)}deg)`) : ''); }
+// the picture in its display rect: turned, then mirrored / flipped
+function csDraw(g, v, c, x, y, w, h){
+  if(!c.rot && !c.fh && !c.fv){ g.drawImage(v, x, y, w, h); return; }
+  const odd = (c.rot/90)&1; g.save(); g.translate(x + w/2, y + h/2); g.scale(c.fh ? -1 : 1, c.fv ? -1 : 1); g.rotate(c.rot*Math.PI/180);
+  const sw = odd ? h : w, sh = odd ? w : h; g.drawImage(v, -sw/2, -sh/2, sw, sh); g.restore();
+}
+// mosaic and magnifier on the 2D canvas (the shader does them in its own pass)
+function lensPass2D(g, e){
+  const c = csOf(e); if(!c.mz && !c.mg) return; const W = out.width, H = out.height, Z = lensOf(e); fitBufs();
+  gA.globalCompositeOperation = 'source-over'; gA.clearRect(0,0,W,H); gA.drawImage(out, 0, 0);
+  if(c.mz){ const [x,y,w,h] = Z.mz, tw = Math.max(1, Math.round(w/Z.mzc)), th = Math.max(1, Math.round(h/Z.mzc));
+    gB.clearRect(0,0,W,H); gB.drawImage(bufA, x, y, w, h, 0, 0, tw, th); g.save(); g.imageSmoothingEnabled = false; g.drawImage(bufB, 0, 0, tw, th, x, y, w, h); g.restore();
+    gA.clearRect(0,0,W,H); gA.drawImage(out, 0, 0); }
+  if(c.mg){ const [cx,cy,R,z] = Z.mg; g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 2*Math.PI); g.clip(); g.drawImage(bufA, cx-R/z, cy-R/z, 2*R/z, 2*R/z, cx-R, cy-R, 2*R, 2*R); g.restore();
+    g.save(); g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = Math.max(2, W*0.004); g.beginPath(); g.arc(cx, cy, R, 0, 2*Math.PI); g.stroke(); g.restore(); }
+}
+
+/* =============== OVERLAY TRACK: videos and photos on top of the Reel ===============
+ * Each layer: a video or photo (lmedia) shown from t0 to t1, placed at x / y (its middle, 0..1 of the frame), s wide
+ * (0..1 of the frame), turned r degrees, op opacity, cropped (crop l/t/r/b, 0..1 of the picture), mirrored / flipped,
+ * masked (mask: none / circle / rect / line / mirror, with mk size, angle, feather, invert), faded in / out, and for a
+ * video its own sound (vol). Drawn over the shot, under texts and captions, the same way in the preview and the export
+ * (where each video layer has its own decoder). Saved with the Reel; Undo keeps them. Layouts place a layer in one tap. */
+let lmedia = [], layers = [], lySeq = 0, lySel = -1;
+const LY0 = { x:0.5, y:0.5, s:0.5, r:0, op:1, fh:false, fv:false, crop:{l:0,t:0,r:0,b:0}, mask:'none', mk:{w:0.8,h:0.8,a:0,f:0.12,inv:false}, fin:0, fout:0, vol:0, rad:0 };
+let lyBuf = null, lyG = null;
+async function addLayerMedia(file){
+  const url = URL.createObjectURL(file), photo = /^image\//.test(file.type) || /\.(jpe?g|png|webp|heic|gif)$/i.test(file.name);
+  if(photo){ const img = new Image(); img.src = url; await img.decode(); return { kind:'photo', file, url, img, w: img.naturalWidth, h: img.naturalHeight, dur: Infinity, name: file.name }; }
+  const el = document.createElement('video'); el.muted = true; el.playsInline = true; el.preload = 'auto'; el.src = url;
+  await new Promise((res, rej) => { el.onloadedmetadata = res; el.onerror = () => rej(new Error('This video cannot be opened.')); });
+  return { kind:'video', file, url, el, w: el.videoWidth, h: el.videoHeight, dur: el.duration, name: file.name };
+}
+async function layerAdd(files){
+  if(!edit.length){ notify('Make the Reel first, then add videos or photos on top.'); return; }
+  for(const f of files){
+    let M; try{ M = await addLayerMedia(f); }catch(err){ notify(String(err.message || err), 'err'); continue; }
+    lmedia.push(M); const D = buf.duration, t0 = Math.min(pos, Math.max(0, D - 1)), len = M.kind === 'video' ? Math.min(M.dur, D - t0) : Math.min(3, D - t0);
+    layers.push({ id: ++lySeq, m: lmedia.length - 1, t0, t1: t0 + Math.max(0.5, len), in: 0, ...JSON.parse(JSON.stringify(LY0)), x: 0.68, y: 0.3, s: 0.45 });
+    lySel = layers.length - 1;
+  }
+  lyUI(); await prepLayers(pos); redrawFrame();
+}
+const lyOn = (L, t) => t >= L.t0 && t < L.t1;
+const lyTime = (L, t) => L.in + (t - L.t0);
+// the layer's picture, cropped, masked and faded, in its own canvas; then placed on the frame
+function drawLayers(g, t){
+  for(const L of layers){ if(!lyOn(L, t)) continue; const M = lmedia[L.m]; if(!M) continue;
+    const src = M.kind === 'photo' ? M.img : exporting ? L.fc : M.el;
+    if(!src || (M.kind === 'video' && !exporting && M.el.readyState < 2)) continue;
+    const W = out.width, H = out.height, c = L.crop, sw0 = src.videoWidth || src.naturalWidth || src.width, sh0 = src.videoHeight || src.naturalHeight || src.height;
+    const sx = sw0*c.l, sy = sh0*c.t, sw = Math.max(2, sw0*(1 - c.l - c.r)), sh = Math.max(2, sh0*(1 - c.t - c.b));
+    const dw = Math.max(2, Math.round(L.s*W)), dh = Math.max(2, Math.round(dw*sh/sw*(M.h && M.w ? (M.w/M.h)/(sw0/sh0) : 1)));
+    if(!lyBuf){ lyBuf = document.createElement('canvas'); lyG = lyBuf.getContext('2d'); }
+    if(lyBuf.width !== dw || lyBuf.height !== dh){ lyBuf.width = dw; lyBuf.height = dh; }
+    const q = lyG; q.save(); q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, dw, dh); q.drawImage(src, sx, sy, sw, sh, 0, 0, dw, dh);
+    if(L.mask !== 'none' || L.rad > 0){ layerMask(q, L, dw, dh); }
+    q.restore();
+    const life = t - L.t0, left = L.t1 - t, a = L.op * Math.min(L.fin > 0 ? Math.min(1, life/L.fin) : 1, L.fout > 0 ? Math.min(1, left/L.fout) : 1);
+    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
+    g.drawImage(lyBuf, -dw/2, -dh/2); g.restore();
+    if(L === layers[lySel] && !exporting && !recording && !playing){   // the chosen layer: a thin frame (preview only)
+      g.save(); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.strokeStyle = 'rgba(212,176,122,0.95)'; g.lineWidth = Math.max(2, W*0.004); g.setLineDash([W*0.012, W*0.008]); g.strokeRect(-dw/2, -dh/2, dw, dh); g.restore(); }
+  }
+}
+// keep only the mask's shape (or cut it out, inverted); soft edges with a blur
+function layerMask(q, L, w, h){
+  const k = L.mk, f = Math.max(0, k.f)*Math.min(w, h)*0.5;
+  q.globalCompositeOperation = k.inv && L.mask !== 'none' ? 'destination-out' : 'destination-in';
+  q.filter = f > 0.5 ? 'blur(' + f.toFixed(1) + 'px)' : 'none'; q.fillStyle = '#000'; q.beginPath();
+  const cx = w/2, cy = h/2;
+  if(L.mask === 'circle') q.ellipse(cx, cy, Math.max(1, k.w*w/2 - f), Math.max(1, k.h*h/2 - f), k.a*Math.PI/180, 0, 2*Math.PI);
+  else if(L.mask === 'rect'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const rw = k.w*w - 2*f, rh = k.h*h - 2*f; if(q.roundRect) q.roundRect(-rw/2, -rh/2, rw, rh, L.rad*Math.min(rw, rh)/2); else q.rect(-rw/2, -rh/2, rw, rh); }
+  else if(L.mask === 'line'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const R = Math.hypot(w, h); q.rect(-R, -R, 2*R, R + (k.h - 0.5)*h); }
+  else if(L.mask === 'mirror'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const R = Math.hypot(w, h), bh = k.h*h; q.rect(-R, -bh/2, 2*R, bh); }
+  else { const r = L.rad*Math.min(w, h)/2; if(q.roundRect) q.roundRect(0, 0, w, h, r); else q.rect(0, 0, w, h); }   // rounded corners only
+  q.fill(); q.filter = 'none';
+}
+// video layers follow the playhead: paused (seek and wait) or playing (kept in step)
+async function prepLayers(t){
+  const waits = [];
+  for(const L of layers){ const M = lmedia[L.m]; if(!M || M.kind !== 'video') continue;
+    if(!lyOn(L, t)){ M.el.pause(); continue; }
+    M.el.pause(); const want = Math.min(M.dur - 0.05, lyTime(L, t));
+    if(Math.abs(M.el.currentTime - want) > 0.04){ M.el.currentTime = want; waits.push(waitEv(M.el, 'seeked', 3000).catch(()=>{})); } }
+  await Promise.all(waits);
+}
+function syncLayers(t){
+  for(const L of layers){ const M = lmedia[L.m]; if(!M || M.kind !== 'video') continue;
+    if(!lyOn(L, t)){ if(!M.el.paused) M.el.pause(); continue; }
+    const want = lyTime(L, t); if(want >= M.dur - 0.05){ if(!M.el.paused) M.el.pause(); continue; }
+    if(Math.abs(M.el.currentTime - want) > 0.25) M.el.currentTime = want;
+    if(M.el.paused) M.el.play().catch(()=>{}); }
+}
+const stopLayers = () => lmedia.forEach(M => M.el && M.el.pause());
+// layouts: one tap places the chosen layer
+const LAYOUTS = { tl:{x:0.27,y:0.2,s:0.42}, tr:{x:0.73,y:0.2,s:0.42}, bl:{x:0.27,y:0.78,s:0.42}, br:{x:0.73,y:0.78,s:0.42}, top:'top', bottom:'bottom', left:'left', right:'right', full:'full' };
+function layoutLayer(L, k){
+  const M = lmedia[L.m], W = out.width, H = out.height, ar = M ? M.w/M.h : 1; L.r = 0;
+  const P = LAYOUTS[k]; if(typeof P === 'object'){ Object.assign(L, P); L.crop = {l:0,t:0,r:0,b:0}; return; }
+  // a half or the whole frame: cropped to fill it exactly
+  const box = k === 'full' ? [0.5, 0.5, 1, 1] : k === 'top' ? [0.5, 0.25, 1, 0.5] : k === 'bottom' ? [0.5, 0.75, 1, 0.5] : k === 'left' ? [0.25, 0.5, 0.5, 1] : [0.75, 0.5, 0.5, 1];
+  const want = box[2]*W/(box[3]*H);   // the box's own shape
+  L.crop = {l:0,t:0,r:0,b:0}; if(ar > want){ const cut = (1 - want/ar)/2; L.crop.l = L.crop.r = cut; } else { const cut = (1 - ar/want)/2; L.crop.t = L.crop.b = cut; }
+  L.x = box[0]; L.y = box[1]; L.s = box[2];
+}
+function lyUI(){
+  const box = $('lylist'); if(!box) return; box.innerHTML = '';
+  layers.forEach((L, i) => { const M = lmedia[L.m], b = document.createElement('button'); b.type = 'button'; b.className = 'lyitem'; b.setAttribute('aria-pressed', String(i === lySel));
+    b.innerHTML = '<span class="ln"></span><span class="lt"></span>'; b.querySelector('.ln').textContent = (M ? (M.kind === 'photo' ? '🖼 ' : '🎬 ') + M.name.replace(/\.[^.]+$/, '') : 'Missing file');
+    b.querySelector('.lt').textContent = fmt(L.t0).replace(/\.\d+$/, '') + '–' + fmt(L.t1).replace(/\.\d+$/, '');
+    b.addEventListener('click', () => { lySel = i; lyUI(); pos = Math.max(pos, L.t0); if(!lyOn(L, pos)) pos = L.t0 + 0.05; prepare(segAt(pos), pos).then(() => prepLayers(pos)).then(redrawFrame); });
+    box.appendChild(b); });
+  const L = layers[lySel], ed = $('lyedit'); ed.hidden = !L; if(!L) return;
+  const M = lmedia[L.m];
+  for(const el of ed.querySelectorAll('[data-ly]')){ const k = el.dataset.ly, v = k.includes('.') ? L[k.split('.')[0]][k.split('.')[1]] : L[k];
+    if(el.type === 'checkbox') el.checked = !!v; else el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = lyFmt(k, +v); }
+  [...$('lymask').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === L.mask)));
+  $('lymaskopts').hidden = L.mask === 'none'; $('lyvolrow').hidden = !M || M.kind !== 'video';
+  $('lytime').textContent = fmt(L.t0) + ' – ' + fmt(L.t1);
+}
+const lyFmt = (k, v) => /^(x|y|s|op|crop|mk\.(w|h|f)|vol)/.test(k) ? Math.round(v*100) + '%' : /^(r|mk\.a)$/.test(k) ? Math.round(v) + '°' : /^(fin|fout|rad)$/.test(k) ? (k === 'rad' ? Math.round(v*100) + '%' : v.toFixed(1) + ' s') : String(v);
+function lySet(k, v){ const L = layers[lySel]; if(!L) return;
+  if(k.includes('.')){ const [a, b] = k.split('.'); L[a] = { ...L[a], [b]: v }; } else L[k] = v;
+  if(k === 'vol') clipMixKey = '';
+  if(!playing) redrawFrame(); }
+$('lyadd').addEventListener('click', () => $('lyfile').click(), SIG);
+$('lyfile').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; if(f.length) layerAdd(f); }, SIG);
+$('lyedit').addEventListener('input', e => { const el = e.target, k = el.dataset && el.dataset.ly; if(!k) return; const v = el.type === 'checkbox' ? el.checked : +el.value; lySet(k, v); const o = el.parentElement.querySelector('output'); if(o && el.type !== 'checkbox') o.textContent = lyFmt(k, v); }, SIG);
+$('lyedit').addEventListener('click', e => { const t = e.target.closest('button'); if(!t) return; const L = layers[lySel]; if(!L) return;
+  if(t.dataset.m){ L.mask = t.dataset.m; lyUI(); redrawFrame(); }
+  else if(t.dataset.lay){ layoutLayer(L, t.dataset.lay); lyUI(); redrawFrame(); }
+  else if(t.dataset.lyt === 'start'){ L.t0 = Math.min(pos, L.t1 - 0.3); lyUI(); redrawFrame(); }
+  else if(t.dataset.lyt === 'end'){ L.t1 = Math.max(pos, L.t0 + 0.3); lyUI(); redrawFrame(); }
+  else if(t.dataset.lyt === 'all'){ L.t0 = 0; L.t1 = buf.duration; lyUI(); redrawFrame(); }
+  else if(t.dataset.lyf){ L[t.dataset.lyf] = !L[t.dataset.lyf]; redrawFrame(); }
+  else if(t.dataset.lydel){ layers.splice(lySel, 1); lySel = Math.min(lySel, layers.length - 1); clipMixKey = ''; lyUI(); redrawFrame(); }
+}, SIG);
 function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let cur='';
   words.forEach(w=>{ const tryL = cur ? cur+' '+w : w; if(g.measureText(tryL).width > maxW && cur){ lines.push(cur); cur=w; } else cur=tryL; }); if(cur) lines.push(cur); return lines; }
 /* ---- text: the hook word by word on the beats, captions of the song word by word ----
@@ -2708,6 +2977,7 @@ function drawFrame2D(t){
       default: drawShot(og, e, local);
     }
   } else drawMain(e, local);
+  lensPass2D(og, e);
   if(e.type==='drop' && local < 0.7){   // warm light leak sweeping across on drops
     const q = local/0.7, lx = -0.3*W + q*1.6*W, gr = og.createRadialGradient(lx, H*0.35, 0, lx, H*0.35, W*0.9);
     gr.addColorStop(0, `rgba(255,170,90,${0.38*(1-q)})`); gr.addColorStop(1,'rgba(255,120,60,0)');
@@ -2720,6 +2990,7 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
+  if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -2738,13 +3009,16 @@ uniform vec2 dbA, dbB, irisC, offA, offB;
 uniform float mode, prog, mixv, time, snap, bgDark, border;
 uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix, warm, lift;
 uniform vec3 leak;
+uniform vec4 tfA, tfB, bgA, bgB, bgrA, bgrB, bdA, bdB, adA, adB, mz, mg;
+uniform float mzc;
 vec2 rotP(vec2 p, float r){ vec2 c=res*0.5; vec2 d=p-c; float cs=cos(-r), sn=sin(-r); return c+vec2(cs*d.x-sn*d.y, sn*d.x+cs*d.y); }
 vec3 tap(sampler2D t, vec2 uv, float ro){ uv=clamp(uv,0.001,0.999);
   if(ro<0.0001) return texture2D(t,uv).rgb;
   return vec3(texture2D(t,clamp(uv+vec2(ro,0.),0.001,0.999)).r, texture2D(t,uv).g, texture2D(t,clamp(uv-vec2(ro,0.),0.001,0.999)).b); }
-vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, out float inside){
+vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, out float inside){
   vec2 q = rotP(p, rot); vec2 uv = (q-r.xy)/r.zw;
   inside = step(0.,uv.x)*step(uv.x,1.)*step(0.,uv.y)*step(uv.y,1.);
+  uv = vec2(dot(tf.xy, uv-0.5), dot(tf.zw, uv-0.5)) + 0.5;   // turned / mirrored / flipped
   float ro = rgb/r.z; vec3 c = tap(t,uv,ro);
   if(zb>0.01 || length(db)>0.5){
     vec3 acc=c; vec2 du = db/r.zw;
@@ -2753,21 +3027,33 @@ vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb,
   }
   return c;
 }
+// a shot with its clip settings: border and canvas around a fitted picture, then its own colour
+vec3 adj(vec3 c, vec4 a){ c *= 1.+a.x*0.5; c = (c-0.5)*(1.+a.y)+0.5; float l = dot(c, vec3(0.299,0.587,0.114)); c = mix(vec3(l), c, 1.+a.z); return c*vec3(1.+0.15*a.w, 1., 1.-0.15*a.w); }
+vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, vec4 bg, vec4 bgr, vec4 bd, vec4 ad, out float inside){
+  vec3 c = layer(t,p,r,rot,zb,db,rgb,tf,inside);
+  if(inside<0.5 && bd.w>0.){ vec2 q = rotP(p,rot); if(q.x>r.x-bd.w && q.x<r.x+r.z+bd.w && q.y>r.y-bd.w && q.y<r.y+r.w+bd.w){ c = bd.rgb; inside = 1.; } }
+  if(inside<0.5 && bg.w>-0.5){ float ib; c = bg.w>0.5 ? layer(t,p,bgr,0.,1.,vec2(0.),0.,tf,ib)*0.62 : bg.rgb; inside = 1.; }
+  return adj(c, ad);
+}
 float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 void main(){
   vec2 p0 = vec2(gl_FragCoord.x, res.y-gl_FragCoord.y);
+  // mosaic (blocks) and magnifier (a round lens) of the shot, on screen
+  if(mz.z>0. && p0.x>mz.x && p0.x<mz.x+mz.z && p0.y>mz.y && p0.y<mz.y+mz.w) p0 = mz.xy + (floor((p0-mz.xy)/mzc)+0.5)*mzc;
+  float ring = 0.;
+  if(mg.z>0.){ float dd = distance(p0, mg.xy); ring = smoothstep(mg.z-5., mg.z-2., dd)*(1.-smoothstep(mg.z, mg.z+2., dd)); if(dd<mg.z) p0 = mg.xy + (p0-mg.xy)/mg.w; }
   vec2 p = p0 - offB, pA = p0 - offA;   // the creator's keyframed move of each layer
   float inA=0., inB=0.;
   vec3 A = vec3(0.);
-  if(hasA>0.5){ A = layer(tA,pA,rA,rotA,zbA,dbA,rgbA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
-  vec3 B = layer(tB,p,rB,rotB,zbB,dbB,rgbB,inB);
+  if(hasA>0.5){ A = shotL(tA,pA,rA,rotA,zbA,dbA,rgbA,tfA,bgA,bgrA,bdA,adA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
+  vec3 B = shotL(tB,p,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,inB);
   B *= mix(1.,inB,clB)*alB;
   if(snap>0.5){
     vec2 q = rotP(p,rotB);
     bool inFrame = q.x>frR.x && q.x<frR.x+frR.z && q.y>frR.y && q.y<frR.y+frR.w;
     bool inBorder = q.x>frR.x-border && q.x<frR.x+frR.z+border && q.y>frR.y-border && q.y<frR.y+frR.w+border;
     float ib;
-    if(!inFrame) B = inBorder ? vec3(1.) : layer(tB,p,bgR,0.,0.7,vec2(0.),0.,ib)*(1.-bgDark);
+    if(!inFrame) B = inBorder ? vec3(1.) : layer(tB,p,bgR,0.,0.7,vec2(0.),0.,tfB,ib)*(1.-bgDark);
   }
   B = (B + B*exB)*brB;
   vec3 col;
@@ -2777,8 +3063,8 @@ void main(){
   else if(mode<3.5) col = inB>0.5 ? B : A;
   else if(mode<5.5){
     float band = floor(p0.y/(res.y/10.)); float h = hash(vec2(band, floor(time*70.)));
-    if(h<0.3 && hasA>0.5){ vec4 ra=rA; ra.x += (hash(vec2(band,1.))-0.5)*0.14*res.x; float ia; col = layer(tA,pA,ra,rotA,0.,vec2(0.),0.,ia); }
-    else if(h<0.5){ vec4 rb=rB; rb.x += (hash(vec2(band,2.))-0.5)*0.14*res.x; float ib2; col = layer(tB,p,rb,rotB,0.,vec2(0.),rgbB,ib2); }
+    if(h<0.3 && hasA>0.5){ vec4 ra=rA; ra.x += (hash(vec2(band,1.))-0.5)*0.14*res.x; float ia; col = layer(tA,pA,ra,rotA,0.,vec2(0.),0.,tfA,ia); }
+    else if(h<0.5){ vec4 rb=rB; rb.x += (hash(vec2(band,2.))-0.5)*0.14*res.x; float ib2; col = layer(tB,p,rb,rotB,0.,vec2(0.),rgbB,tfB,ib2); }
     else col = B;
   }
   else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p0,irisC)); col=mix(A,B,mk); }
@@ -2797,6 +3083,7 @@ void main(){
   vec2 uvn = p0/res-0.5; float vd = length(uvn*vec2(res.x/res.y,1.)*vec2(1.,1.));
   col *= 1. - vig*smoothstep(0.3,0.75,vd);
   if(grain>0.) col += (hash(p0*0.73 + fract(time*7.)*vec2(97.,13.))-0.5)*grain*0.6;
+  col = mix(col, vec3(1.), ring*0.9);   // the magnifier's rim
   if(loopMix>0.) col = mix(col, texture2D(tL, p0/res).rgb, loopMix);
   gl_FragColor = vec4(clamp(col,0.,1.),1.);
 }`;
@@ -2837,13 +3124,15 @@ const GL = (()=>{
       if(S.loopImg && S.loopImg!==loopSrc){ upload(2, S.loopImg); loopSrc = S.loopImg; }
       set('res',[c.width,c.height]);
       const L = (pre, X) => { set('r'+pre, X.rect); set('rot'+pre, X.rot); set('zb'+pre, X.zb); set('db'+pre, X.db); set('rgb'+pre, X.rgb); set('ex'+pre, X.expo); set('br'+pre, X.bright);
-        set('off'+pre, X.off || [0,0]); set('cl'+pre, X.clip || 0); };
+        set('off'+pre, X.off || [0,0]); set('cl'+pre, X.clip || 0);
+        set('tf'+pre, X.tf || [1,0,0,1]); set('bg'+pre, X.bg || [0,0,0,-1]); set('bgr'+pre, X.bgr || [0,0,1,1]); set('bd'+pre, X.bd || [0,0,0,0]); set('ad'+pre, X.ad || [0,0,0,0]); };
       if(S.A){ L('A', S.A); set('alA', S.A.alpha ?? 1); } else { set('offA', [0,0]); set('clA', 0); }
       L('B', S.B); set('alB', S.B.uo ?? 1);
       set('hasA', S.A ? 1 : 0); set('mode', S.mode); set('prog', S.prog); set('mixv', S.mix); set('irisC', S.iris || [c.width/2,c.height/2]);
       set('time', S.time); set('snap', S.snap ? 1 : 0); set('bgR', S.bgR || [0,0,1,1]); set('bgDark', S.bgDark||0); set('frR', S.frR || [0,0,c.width,c.height]); set('border', S.border||0);
       const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0);
       set('flash', S.flash||0); set('leak', S.leak || [0,0,0]); set('loopMix', S.loopMix||0);
+      const LZ = S.lens || { mz:[0,0,0,0], mzc:1, mg:[0,0,0,1] }; set('mz', LZ.mz); set('mzc', LZ.mzc); set('mg', LZ.mg);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     }};
   }catch(err){ console.warn('WebGL off:', err && err.message); return null; }
@@ -2851,6 +3140,26 @@ const GL = (()=>{
 const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivid:{con:1.14,sat:1.14,bri:1.02,teal:0,mono:0,grain:0.035},
   cine:{con:1.16,sat:0.92,bri:0.98,teal:0.55,mono:0,grain:0.07}, mono:{con:1.25,sat:1,bri:1.0,teal:0,mono:1,grain:0.09} };
 // the same keyframed motion as the 2D path, expressed as numbers for the shader
+/* ---- Clip tools: each shot's own settings (e.cs), drawn the same by both renderers and in the export.
+ * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
+ * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
+ * (0..1 of the frame). The AI can set the same fields. ---- */
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
+const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
+const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
+// display uv -> source uv: the picture is turned, then mirrored / flipped
+function csMat(c){ const R = ROTI[(c.rot/90)&3], fx = c.fh ? -1 : 1, fy = c.fv ? -1 : 1; return [R[0]*fx, R[1]*fy, R[2]*fx, R[3]*fy]; }
+// a point of the source (0..1) on the display
+function csFwd(c, x, y){ const R = ROTI[(c.rot/90)&3], sx = x-0.5, sy = y-0.5; return [(R[0]*sx + R[2]*sy)*(c.fh?-1:1) + 0.5, (R[1]*sx + R[3]*sy)*(c.fv?-1:1) + 0.5]; }
+const hexRgb = h => { const n = parseInt(String(h).replace('#',''), 16) || 0; return [(n>>16&255)/255, (n>>8&255)/255, (n&255)/255]; };
+// the picture's size on the display (turned a quarter: width and height swap) and its scale (fill or fit)
+function csGeom(e, scale){
+  const W=out.width, H=out.height, c = csOf(e), odd = (c.rot/90)&1, s0 = sources[e.src];
+  const sw = odd ? s0.h : s0.w, sh = odd ? s0.w : s0.h, r = (c.fit ? Math.min(W/sw, H/sh) : Math.max(W/sw, H/sh))*scale*(c.zoom || 1);
+  return { c, odd, sw, sh, dw: sw*r, dh: sh*r };
+}
+const csFade = (c, local, L) => Math.min(c.fin > 0 ? Math.min(1, local/c.fin) : 1, c.fout > 0 ? Math.min(1, Math.max(0, (L-local)/c.fout)) : 1);
+function csCam(e, local, c){ if(c.cx != null && c.cy != null) return [c.cx, c.cy]; const [x, y] = camAt(e, local); return c.rot || c.fh || c.fv ? csFwd(c, x, y) : [x, y]; }
 function layerOf(e, local, o={}){
   const W=out.width, H=out.height, K=e.kf||{};
   let scale = (kf(K.scale,local) ?? 1)*(o.scale||1)*(o.noFx ? 1 : emphAt(e.start + local));
@@ -2863,20 +3172,76 @@ function layerOf(e, local, o={}){
   if(ac){ scale *= ac.s; expo += ac.ex; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
   const u = uAt(e.uk, local);
   if(u){ scale *= u.s; rot += u.r; }
-  const sw = sources[e.src].w, shh = sources[e.src].h, r = Math.max(W/sw, H/shh)*scale, dw = sw*r, dh = shh*r, [ccx, ccy] = camAt(e, local);
+  const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py = H/2 - ccy*dh; py = panClamp(py, H, dh) + y;
+  const rb = Math.max(W/G.sw, H/G.sh)*1.12, fade = csFade(c, local, e.end - e.start);
   let zb = o.noFx ? 0 : (kf(K.zblur,local) || 0);
   if(!o.noFx && rateAt(e, local) >= 1.8) zb += 0.35;   // motion blur when the shot runs fast
   const br = kf(K.bright,local);
-  return { el:texOf(e), rect:[px,py,dw,dh], rot: rot*Math.PI/180, zb: zb + (o.zb||0), db: o.db || [0,0], rgb: (o.noFx ? 0 : (kf(K.rgb,local)||0)) + (o.rgb||0) + (ac ? ac.rgb : 0),
-    expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1), alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
-    off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1 };
+  return { el:texOf(e, local), rect:[px,py,dw,dh], rot: rot*Math.PI/180, zb: zb + (o.zb||0), db: o.db || [0,0], rgb: (o.noFx ? 0 : (kf(K.rgb,local)||0)) + (o.rgb||0) + (ac ? ac.rgb : 0),
+    expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1) * fade, alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
+    off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1,
+    tf: csMat(c), bg: !c.fit ? [0,0,0,-1] : c.bg === 'blur' ? [0,0,0,1] : [...hexRgb(c.bgc), 0], bgr: [W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb],
+    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm] };
 }
+/* ---- Reverse: a shot played backwards ----
+ * The preview plays it from its frames, decoded once at a small size (rc); the export decodes it forwards in windows of
+ * a dozen frames (a ring of canvases, so a long or 4K shot never fills the memory) and hands them out backwards. ---- */
+const REV_MAX = 8;   // seconds of clip a shot may play backwards
+function revFrame(e, local){
+  const rc = e.rc, st = srcPos(e, local), k = Math.max(0, Math.min(rc.frames.length - 1, Math.round((st - rc.a)/rc.dt)));
+  return rc.frames[k] || e.el;
+}
+async function revCache(e){
+  const need = e.sp.pos(e.end - e.start)*e.scaleR, key = e.src + '|' + e.in.toFixed(3) + '|' + need.toFixed(3);
+  if(e.rc && e.rc.key === key) return;
+  if(e.rc) e.rc.frames.forEach(f => f && f.close && f.close()); e.rc = null;
+  const s = sources[e.src], mb = await loadMediabunny(), input = new mb.Input({ source: new mb.BlobSource(s.file), formats: mb.ALL_FORMATS });
+  try{
+    const track = await input.getPrimaryVideoTrack(), first = await track.getFirstTimestamp(), sc = Math.min(1, 480/Math.max(s.w, s.h));
+    const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(s.w*sc/2)*2), height: Math.max(16, Math.round(s.h*sc/2)*2), fit: 'fill', poolSize: 2 });
+    const dt = 1/30, ts = []; for(let t = e.in; t <= e.in + need + 1e-6; t += dt) ts.push(first + Math.min(s.dur - 0.02, t));
+    const frames = []; for await (const wc of sink.canvasesAtTimestamps(ts)) frames.push(wc ? await createImageBitmap(wc.canvas) : null);
+    e.rc = { key, a: e.in, dt, frames };
+  } finally { try{ input.dispose(); }catch(err){} }
+}
+async function shotReverse(){
+  if(!edit.length || kind === 'talk') return false; stopAll();
+  const i = segAt(pos), e = edit[i];
+  if(e.cs && e.cs.rev){ shotSet({ rev: false }); if(e.rc){ e.rc.frames.forEach(f => f && f.close && f.close()); e.rc = null; } prepare(i, pos).then(redrawFrame); return true; }
+  if(e.sp.pos(e.end - e.start)*e.scaleR > REV_MAX){ notify('This shot is too long to reverse (up to ' + REV_MAX + ' s of clip).'); return false; }
+  shotSet({ rev: true }); tasks.start('rev', 'clips', 'Reversing the shot', 'Shot ' + (i + 1));
+  try{ await revCache(e); tasks.done('rev', 'Shot ' + (i + 1) + ' plays backwards'); }
+  catch(err){ console.warn('reverse', err); tasks.fail('rev', 'Could not read this clip backwards. The paused frame still shows it.'); }
+  await prepare(i, pos); redrawFrame(); return true;
+}
+// reversed shots get their frames again when they change (Slip, Trim, a new mix) or a saved Reel opens
+setInterval(() => { if(playing || exporting || recording) return; for(const e of edit) if(e.cs && e.cs.rev && !e._revBusy){
+  const need = e.sp.pos(e.end - e.start)*e.scaleR, key = e.src + '|' + e.in.toFixed(3) + '|' + need.toFixed(3);
+  if(!e.rc || e.rc.key !== key){ e._revBusy = true; revCache(e).catch(()=>{}).finally(() => { e._revBusy = false; }); break; } } }, 1500);
+// export: the timestamps come newest first; each window is decoded oldest first, then handed out backwards
+async function* revFramesExport(sink, tsDesc){
+  const WIN = 12, ring = [];
+  for(let a = 0; a < tsDesc.length; a += WIN){
+    const asc = tsDesc.slice(a, a + WIN).reverse(), got = [];
+    for(let j = 1; j < asc.length; j++) asc[j] = Math.max(asc[j], asc[j-1]);
+    let j = 0;
+    for await (const wc of sink.canvasesAtTimestamps(asc)){
+      if(wc){ const c = ring[j] || (ring[j] = document.createElement('canvas')); if(c.width !== wc.canvas.width || c.height !== wc.canvas.height){ c.width = wc.canvas.width; c.height = wc.canvas.height; }
+        c.getContext('2d').drawImage(wc.canvas, 0, 0); got[j] = c; } else got[j] = null;
+      j++; }
+    for(let q = got.length - 1; q >= 0; q--) yield got[q] ? { canvas: got[q] } : null;
+  }
+}
+// mosaic and magnifier of the shot on screen: pixels (shared by both renderers)
+function lensOf(e){ const c = csOf(e), W = out.width, H = out.height;
+  return { mz: c.mz ? [c.mz.x*W, c.mz.y*H, c.mz.w*W, c.mz.h*H] : [0,0,0,0], mzc: c.mz ? Math.max(3, (c.mz.s || 0.035)*W) : 1,
+    mg: c.mg ? [c.mg.x*W, c.mg.y*H, c.mg.r*W, Math.max(1.1, c.mg.z || 2)] : [0,0,0,1] }; }
 function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = TR_DUR[e.tr] || 0, p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
-  const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null };
+  const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null, lens: lensOf(e) };
   S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : 0.22));
   const inTr = p < 1 && (pe || e.tr==='fadein');
   if(inTr && pe) S.A = layerOf(pe, pl, {noFx:true});
@@ -2912,6 +3277,7 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
+  if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -2930,11 +3296,11 @@ function setLabel(id, t){ const el = $(id); if(!el) return; const sp = el.queryS
 const PLAY_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
 const PAUSE_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
 function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '<span>' + (on ? 'Pause' : 'Preview') + '</span>'; }
-function stopAll(){ playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
+function stopAll(){ stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
-  const c = getCtx(); await c.resume();
+  const c = getCtx(); await c.resume(); await ensureMix();
   edit.forEach(x=>{ x._cued = false; });
   curIdx = segAt(from); if(edit[curIdx-1]) await prepare(curIdx-1, edit[curIdx-1].end-0.01); await prepare(curIdx, from); if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
   const s = c.createBufferSource(); s.buffer = buf;
@@ -2962,7 +3328,8 @@ async function startPlayback(from, destNode){
       if(edit[i+1]) prepare(i+1, edit[i+1].start);
     } else {
       const e = edit[i], l = t-e.start, r = rateAt(e, l), want = srcPos(e, l);
-      if(r===0){ if(!e.el.paused) e.el.pause(); if(Math.abs(e.el.currentTime-want) > 0.05) e.el.currentTime = want; }   // freeze frame
+      if(e.cs && e.cs.rev){ if(!e.el.paused) e.el.pause(); if(!e.rc && Math.abs(e.el.currentTime-want) > 0.12) e.el.currentTime = want; }
+      else if(r===0){ if(!e.el.paused) e.el.pause(); if(Math.abs(e.el.currentTime-want) > 0.05) e.el.currentTime = want; }   // freeze frame
       else {   // speed ramps + gentle catch-up: nudge the speed a little instead of jumping (a jump shows as a hitch)
         const diff = want - e.el.currentTime;
         if(Math.abs(diff) > 0.45) e.el.currentTime = want;
@@ -2973,6 +3340,7 @@ async function startPlayback(from, destNode){
       const n2 = edit[i+2];
       if(n2 && !n2._cued && l > (TR_DUR[e.tr]||0) + 0.05){ n2._cued = true; prepare(i+2, n2.start); }
     }
+    if(layers.length) syncLayers(t);
     drawFrame(t);
   };
   const raf = () => { loop(); if(playing) rafId = requestAnimationFrame(raf); };
@@ -2994,8 +3362,10 @@ const _sm=0;
 // download it as before.
 let savedUrl = null;
 let lastVideo = null;
+let exportKeep = false, exportP = 0, lastName = '';
 function saveFile(blob, name){
   if(/^video\//.test(blob.type)) lastVideo = blob;
+  if(exportKeep){ lastName = name; return false; }
   const file = new File([blob], name, { type: blob.type });
   const phone = matchMedia('(pointer: coarse)').matches;
   let canShare = false; try{ canShare = phone && !!navigator.canShare && navigator.canShare({ files: [file] }); }catch(e){}
@@ -3111,6 +3481,7 @@ async function fastExport(){
   let pre = null;   // the next shot's decoder, seeking ahead (finished before the decoders are let go)
   try{
     // sound: rendered offline, the same chain as the preview (loudness, limiter, tiny fades)
+    await ensureMix();
     const snd = exportSound(), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(dur*sr), sr);
     const sn = oc.createBufferSource(); sn.buffer = snd ? snd.buf : oc.createBuffer(2, Math.ceil(dur*sr), sr);
     const g = oc.createGain(), lim = oc.createDynamicsCompressor();
@@ -3154,6 +3525,17 @@ async function fastExport(){
       }
       return sinks.get(key);
     };
+    // video layers: one decoder each, its frames asked for in time order (one per output frame while it shows)
+    const lyIts = [];
+    for(const L of layers){ const M = lmedia[L.m]; if(!M || M.kind !== 'video') continue;
+      const input = new mb.Input({ source: new mb.BlobSource(M.file), formats: mb.ALL_FORMATS }); inputs.push(input);
+      const track = await input.getPrimaryVideoTrack(); if(!track) continue;
+      const r = Math.min(1, (L.s*W)/M.w*1.4), first = await track.getFirstTimestamp();
+      const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(M.w*r/2)*2), height: Math.max(16, Math.round(M.h*r/2)*2), fit: 'fill', poolSize: 3 });
+      const k0 = Math.ceil(L.t0*fps - 1e-6), k1 = Math.min(Math.round(dur*fps), Math.ceil(L.t1*fps - 1e-6)), ts = [];
+      for(let k=k0;k<k1;k++){ const v = first + Math.min(M.dur - 0.05, Math.max(0, lyTime(L, k/fps))); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
+      lyIts.push({ L, k0, k1, it: sink.canvasesAtTimestamps(ts)[Symbol.asyncIterator]() }); }
+    const layerFrames = async (k) => { for(const q of lyIts){ if(k < q.k0 || k >= q.k1) continue; const r = await q.it.next(); if(!r.done && r.value) q.L.fc = r.value.canvas; } };
     exporting = true;
     const total = Math.round(dur*fps);
     // the frames of every shot: a frame belongs to the shot showing at its time (the same rule as drawFrame)
@@ -3161,8 +3543,8 @@ async function fastExport(){
     const open = async (i) => {
       const e = edit[i], sh = shots[i]; if(!e || sh.fEnd <= sh.f0) return null;
       const { sink, first, half } = await sinkFor(e.src, i % 2), sdur = sources[e.src].dur, ts = [];
-      for(let k=sh.f0; k<sh.fEnd; k++){ const v = first + half + Math.min(Math.max(0, srcPos(e, Math.max(0, k/fps - e.start))), sdur - 2*half - 0.01); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
-      const it = sink.canvasesAtTimestamps(ts)[Symbol.asyncIterator]();
+      for(let k=sh.f0; k<sh.fEnd; k++){ const v = first + half + Math.min(Math.max(0, srcPos(e, Math.max(0, k/fps - e.start))), sdur - 2*half - 0.01); ts.push(!ts.length ? v : e.cs && e.cs.rev ? Math.min(v, ts[ts.length-1]) : Math.max(v, ts[ts.length-1])); }
+      const it = (e.cs && e.cs.rev ? revFramesExport(sink, ts) : sink.canvasesAtTimestamps(ts))[Symbol.asyncIterator]();
       const firstP = it.next(); firstP.catch(()=>{});
       return { it, firstP, ts, sink, first };
     };
@@ -3185,6 +3567,7 @@ async function fastExport(){
           if(g) e.fc = g.canvas;
         }
         if(GL && GL.lost) prof.glLostFrames++;
+        if(lyIts.length) await layerFrames(k);
         if(bgNeeded() && personMask){ holdText = true; try{ drawFrame(k/fps); } finally { holdText = false; } await maskNow(); bgPass(k/fps); drawText(k/fps); }
         else drawFrame(k/fps);
         const tb = performance.now(); prof.draw += tb - ta;
@@ -3196,7 +3579,7 @@ async function fastExport(){
           const done = k/total, el = (performance.now()-tStart)/1000, left = done > 0.03 ? el/done - el : null;
           $('xmsg').textContent = 'Exporting… ' + Math.round(done*100) + '%' + (left !== null ? ' · about ' + (left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left/60) + ' min') + ' left' : '') + (document.hidden ? '' : ' · keep this screen on');
           $('prog').style.width = (done*100).toFixed(1) + '%';
-          tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file');
+          tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file'); exportP = done;
           await yieldNow();
         }
         r = await cur.it.next();
@@ -3216,7 +3599,7 @@ async function fastExport(){
     notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB). Ready for Instagram, TikTok and Shorts.');
     return true;
   } finally {
-    exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; });
+    exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; }); layers.forEach(L => { L.fc = null; });
     // a read-ahead still running (the export stopped early) ends first: letting its decoder go under it fails
     if(pre){ try{ const p2 = await pre; if(p2 && p2.it.return) await p2.it.return(); }catch(err){} pre = null; }
     inputs.forEach(x=>{ try{ x.dispose(); }catch(err){} });
@@ -3229,6 +3612,11 @@ async function fastExport(){
 let wakeLock = null, exportBusy = false;
 async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', ()=>{ wakeLock = null; }); } }catch(err){ wakeLock = null; } }
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
+async function autoExport(){
+  if(exportBusy) return null; exportKeep = true; exportP = 0; lastVideo = null;
+  try{ await runExport(false); } finally { exportKeep = false; }
+  return lastVideo;
+}
 async function runExport(toCloud){
   if(recording || exportBusy) return;
   exportBusy = true; $('saverow').hidden = true; lastVideo = null;
@@ -3665,24 +4053,264 @@ process(inp){const ch=inp[0]&&inp[0][0];if(this.on&&ch){if(!this.n)this.t=curren
 registerProcessor('vo-rec',R);`;
 let voWorkletReady = null;
 function voStat(t){ $('vostat').textContent = t; }
-function applyVo(){   // the song part (baseBuf, set with its loudness by useSection) with the voiceover on it, or alone
+/* ---- the Reel's sound: one mix that the preview and the export both play ----
+ * the song part (baseBuf, with its loudness from useSection) at the music volume with its fades, the voiceover (through
+ * the voice changer; the song steps back while it speaks) and each shot's own sound at its volume (cs.vol). ---- */
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true };
+const musicOut = () => au.mfout || (au.ai ? 0.8 : 0);
+let au = { ...AU0 }, clipMixKey = '';
+const fxCache = new Map();
+function voPcm(){ if(!vo) return null; if(au.vfx === 'none') return vo.pcm;
+  const k = vo.key + '|' + au.vfx + '|' + denoiseOn; if(!fxCache.has(k)){ fxCache.clear(); fxCache.set(k, voiceFx(vo.pcm, vo.sr, au.vfx)); } return fxCache.get(k); }
+// a shot's own sound, decoded once per clip (null: the clip has no sound)
+async function clipPcm(si){
+  const s = sources[si]; if(!s) return null; if(s.pcm !== undefined) return s.pcm;
+  try{ const b = await decodeAnyAudio(s.file), m = new Float32Array(b.length), ch = b.numberOfChannels;
+    for(let c=0;c<ch;c++){ const d = b.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ch; }
+    s.pcm = { x: m, sr: b.sampleRate }; }catch(e){ s.pcm = null; }
+  return s.pcm;
+}
+const clipVoiced = () => kind !== 'talk' && edit.some(e => e.cs && e.cs.vol > 0);
+/* ---- text to speech (on the phone, Piper voices): each piece of speech starts at its time and is mixed like the
+ * voiceover (the voice changer works on it too; the song steps back while it speaks) ---- */
+let ttsClips = [], ttsSeq = 0;
+const ttsPcm = (c) => { if(!c.pcm) return null; if(au.vfx === 'none') return c.pcm; const k = 'tts' + c.id + '|' + au.vfx; if(!fxCache.has(k)) fxCache.set(k, voiceFx(c.pcm, c.sr, au.vfx)); return fxCache.get(k); };
+async function ttsMake(c, quiet){
+  if(c.pcm || !tts) return; const id = 'tts' + c.id;
+  if(!quiet) tasks.start(id, 'voice', 'Making the voice', '"' + c.text.slice(0, 40) + (c.text.length > 40 ? '…' : '') + '"');
+  try{ const r = await tts.speak(c.text, c.voice, (pr) => { if(!quiet) tasks.update(id, pr.p, pr.stage === 'download' ? 'Getting the voice (once, about 60 MB)' : 'Speaking'); });
+    c.pcm = r.pcm; c.sr = r.sr; if(!quiet) tasks.done(id, 'Voice ready'); }
+  catch(err){ console.warn('tts', err); if(!quiet) tasks.fail(id, 'Could not make the voice. Check the internet for the first download and try again.'); throw err; }
+}
+async function ttsAdd(){
+  const text = $('ttstext').value.trim(), voice = $('ttsvoice').value; if(!text || !voice) return;
+  if(!tts){ notify('Text to speech is not available here.', 'err'); return; }
+  const c = { id: ++ttsSeq, text, voice, at: edit.length ? Math.max(0, Math.min(pos, (buf ? buf.duration : 0) - 0.5)) : 0 };
+  $('ttsadd').disabled = true;
+  try{ await ttsMake(c); ttsClips.push(c); $('ttstext').value = ''; ttsList(); applyVo(); clipMixKey = ''; if(!playing) redrawFrame(); notify('Speech added at ' + fmt(c.at).replace(/\.\d+$/, '') + '.'); }
+  catch(e){} finally{ $('ttsadd').disabled = false; }
+}
+function ttsList(){
+  const box = $('ttslist'); box.innerHTML = '';
+  for(const c of ttsClips){ const d = document.createElement('div'); d.className = 'ttsitem';
+    d.innerHTML = '<span class="tt"></span><span class="tm"></span><button type="button" class="btn mini" aria-label="Remove this speech">×</button>';
+    d.querySelector('.tt').textContent = '"' + c.text + '"'; d.querySelector('.tm').textContent = fmt(c.at).replace(/\.\d+$/, '') + ' · ' + ((tts && tts.voices.find(v => v.key === c.voice) || {}).label || c.voice) + (c.pcm ? ' · ' + (c.pcm.length/c.sr).toFixed(1) + ' s' : ' · not made yet');
+    d.querySelector('button').addEventListener('click', () => { ttsClips = ttsClips.filter(x => x !== c); ttsList(); applyVo(); clipMixKey = ''; });
+    box.appendChild(d); }
+}
+if(tts){ $('ttsvoice').innerHTML = tts.voices.map(v => `<option value="${v.key}">${v.label}</option>`).join(''); }
+else $('ttsbox').hidden = true;
+$('ttsadd').addEventListener('click', ttsAdd, SIG);
+// the mix is made again only when something in it changed (called before playing and exporting)
+async function ensureMix(){
   if(kind === 'talk' || !baseBuf) return;
-  if(!vo){ buf = baseBuf; normGain = baseNorm; return; }
-  const B = baseBuf, sr = B.sampleRate, N = B.length, v = vo.pcm, vr = vo.sr;
+  const shots = clipVoiced() ? edit.filter(e => e.cs && e.cs.vol > 0) : [];
+  for(const e of shots) await clipPcm(e.src);
+  for(const c of ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
+  for(const L of layers){ const M = lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await decodeAnyAudio(M.file), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
+  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
+  if(key !== clipMixKey){ clipMixKey = key; applyVo(); }
+}
+function applyVo(){   // (the name stays: everything that changes the sound calls it)
+  if(kind === 'talk' || !baseBuf) return;
+  const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
+  const lyVoiced = layers.filter(L => L.vol > 0 && lmedia[L.m] && lmedia[L.m].pcm);
+  const speech = ttsClips.filter(c => c.pcm);
+  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !musicOut();
+  if(plain){ buf = baseBuf; normGain = baseNorm; return; }
+  const B = baseBuf, sr = B.sampleRate, N = B.length, v = voPcm() || new Float32Array(0), vr = vo ? vo.sr : sr;
   // voice loudness: its speaking parts at about -14 dBFS
   let s2 = 0, n = 0; for(let i=0;i<v.length;i+=4){ const x = v[i]; if(Math.abs(x) > 0.01){ s2 += x*x; n++; } }
   const gv = 0.2/Math.max(0.003, Math.sqrt(s2/Math.max(1, n)));
-  const mix = getCtx().createBuffer(2, N, sr), dn = Math.exp(-1/(0.08*sr)), up = Math.exp(-1/(0.4*sr)), win = Math.round(0.03*sr);
+  const mix = getCtx().createBuffer(2, N, sr), dn = Math.exp(-1/(0.08*sr)), up = Math.exp(-1/(0.4*sr));
+  // the music's volume with its fade in / out
+  const fi = Math.round(au.mfin*sr), fo = Math.round(musicOut()*sr), mv = (i) => au.mvol * (fi && i < fi ? i/fi : 1) * (fo && i > N - fo ? Math.max(0, (N - i)/fo) : 1);
+  // the shots' own sound (mono), placed where each shot plays, at its speed; silent while a shot is frozen
+  const cs = new Float32Array(N);
+  for(const e of shots){ const P = sources[e.src].pcm, c = csOf(e), a = Math.round(e.start*sr), b = Math.min(N, Math.round(e.end*sr)), L = e.end - e.start;
+    // the shot's loudness: about -16 dBFS at volume 100%, short fades at its cuts
+    let q2 = 0, qn = 0; const i0 = Math.round(e.in*P.sr), i1 = Math.min(P.x.length, i0 + Math.round(L*P.sr*2)); for(let k=i0;k<i1;k+=8){ q2 += P.x[k]*P.x[k]; qn++; }
+    const gain = c.vol * Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn)))), ramp = Math.round(0.012*sr);
+    for(let i=a;i<b;i++){ const l = (i - a)/sr; if(rateAt(e, l) <= 0) continue;
+      const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
+      const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
+      cs[i] += P.x[k]*gain*edge; } }
+  for(const L of lyVoiced){ const P = lmedia[L.m].pcm, a = Math.round(L.t0*sr), b = Math.min(N, Math.round(L.t1*sr)), ramp = Math.round(0.02*sr);
+    let q2 = 0, qn = 0; for(let k=0;k<P.x.length;k+=16){ q2 += P.x[k]*P.x[k]; qn++; } const g = L.vol*Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn))));
+    for(let i=a;i<b;i++){ const k = Math.floor((L.in + (i - a)/sr)*P.sr); if(k >= P.x.length) break; cs[i] += P.x[k]*g*Math.min(1, (i - a)/ramp, (b - i)/ramp); } }
+  // text to speech: each at its time, at the voiceover's loudness (resampled with a straight line between samples)
+  for(const c of speech){ const P = ttsPcm(c), a = Math.round(c.at*sr), r = c.sr/sr; let q2 = 0, qn = 0;
+    for(let k=0;k<P.length;k+=4){ if(Math.abs(P[k]) > 0.01){ q2 += P[k]*P[k]; qn++; } } const g = 0.2/Math.max(0.003, Math.sqrt(q2/Math.max(1, qn)));
+    for(let i=a;i<N;i++){ const t = (i - a)*r, k = Math.floor(t); if(k + 1 >= P.length) break; cs[i] += (P[k] + (P[k+1] - P[k])*(t - k))*g; } }
   let env = 1, lv = 0;
   for(let c=0;c<2;c++){ const src = B.getChannelData(Math.min(c, B.numberOfChannels-1)), d = mix.getChannelData(c); env = 1; lv = 0;
     for(let i=0;i<N;i++){
       const j = Math.floor(i*vr/sr), x = (v[j] || 0)*gv;
-      lv = Math.max(Math.abs(x), lv*0.9995);                                   // a follower of the voice
+      lv = Math.max(Math.abs(x) + Math.abs(cs[i])*0.6, lv*0.9995);           // a follower of the voice (and the shots' sound)
       const target = lv > 0.04 ? 0.22 : 0.75; env = target < env ? target + (env - target)*dn : target + (env - target)*up;
-      d[i] = src[i]*baseNorm*env + x;
+      d[i] = src[i]*baseNorm*mv(i)*env + x + cs[i];
     } }
   buf = mix; normGain = 1;
 }
+/* ---- voice changer (on the phone): deep, chipmunk, robot, radio, echo ---- */
+// pitch without changing the length: two crossfaded read heads sliding through a short delay line
+function pitchShift(x, sr, ratio){
+  const W = Math.round(0.05*sr), y = new Float32Array(x.length); let ph = 0; const step = (1 - ratio)/W;
+  for(let i=0;i<x.length;i++){
+    ph += step; ph -= Math.floor(ph);
+    const d1 = ph*W, d2 = ((ph + 0.5) % 1)*W, g1 = 1 - Math.abs(2*ph - 1), g2 = 1 - g1;
+    const r = (d) => { const p = i - d, k = Math.floor(p), f = p - k; return k < 0 ? 0 : (x[k] || 0)*(1 - f) + (x[k+1] || 0)*f; };
+    y[i] = r(d1)*g1 + r(d2)*g2;
+  }
+  return y;
+}
+function voiceFx(x, sr, fx){
+  if(fx === 'deep') return pitchShift(x, sr, 0.74);
+  if(fx === 'chipmunk') return pitchShift(x, sr, 1.55);
+  const y = new Float32Array(x.length);
+  if(fx === 'robot'){ const p = pitchShift(x, sr, 0.92); for(let i=0;i<x.length;i++) y[i] = p[i]*(0.55 + 0.45*Math.sin(2*Math.PI*55*i/sr))*1.4; return y; }
+  if(fx === 'radio'){ // telephone band (300-3400 Hz) and a little crunch
+    let lp = 0, hp = 0, px = 0; const a1 = Math.exp(-2*Math.PI*3400/sr), a2 = Math.exp(-2*Math.PI*300/sr);
+    for(let i=0;i<x.length;i++){ lp = (1 - a1)*x[i] + a1*lp; hp = a2*(hp + lp - px); px = lp; y[i] = Math.tanh(hp*3)*0.6; } return y; }
+  if(fx === 'echo'){ const d = Math.round(0.24*sr); for(let i=0;i<x.length;i++) y[i] = x[i] + (i >= d ? y[i-d]*0.42 : 0); return y; }
+  return x;
+}
+
+/* ---- AI touch-ups: after the edit is made, the AI uses the same clip tools a person would ----
+ * - a clip that would lose most of its picture to the crop (a landscape clip in a Reel) and has no face to follow is
+ *   fitted whole on a blurred copy of itself
+ * - a dark shot gets brighter (a very bright one a little darker)
+ * - a shot where someone speaks keeps its own sound under the music (the music steps back)
+ * - one strong hit or drop, past the opening, plays backwards
+ * - the last shot fades out with the music
+ * What the AI set is listed in cs.auto; anything the creator changes is theirs and stays. Off: au.ai = false. ---- */
+function csAutoSet(e, patch){
+  e.cs = e.cs || {}; const auto = e.cs.auto || [];
+  for(const k in patch){ if(k in e.cs && !auto.includes(k)) continue; e.cs[k] = patch[k]; if(!auto.includes(k)) auto.push(k); }
+  if(auto.length) e.cs.auto = auto; if(!Object.keys(e.cs).length) e.cs = undefined;
+}
+function csAutoClear(e){ if(!e.cs || !e.cs.auto) return; for(const k of e.cs.auto) delete e.cs[k]; delete e.cs.auto; if(!Object.keys(e.cs).length) e.cs = undefined; }
+function speechShare(s, a, b){ const S = s.speech; if(!S) return 0; const i0 = Math.max(0, Math.floor(a/S.hop)), i1 = Math.min(S.p.length, Math.ceil(b/S.hop)); let n = 0; for(let i=i0;i<i1;i++) if(S.p[i] > 0.5) n++; return i1 > i0 ? n/(i1 - i0) : 0; }
+function autoTools(){
+  if(kind === 'talk' || !edit.length) return;
+  edit.forEach(csAutoClear);
+  if(!au.ai) return;
+  const W = out.width, H = out.height;
+  edit.forEach((e) => {
+    const s = sources[e.src]; if(!s || !s.w) return;
+    const keep = Math.min(W/s.w, H/s.h)/Math.max(W/s.w, H/s.h);   // the share of the picture a filled frame keeps
+    if(keep < 0.5 && !(e.face > 0.3)) csAutoSet(e, { fit: true, bg: 'blur' });
+    const need = e.sp.pos(e.end - e.start)*e.scaleR, st = s.samples && s.samples.length ? windowStats(s, e.in, e.in + need) : null;
+    if(st && st.b < 0.3) csAutoSet(e, { bri: +Math.min(0.4, (0.42 - st.b)*1.4).toFixed(2), con: 0.08 });
+    else if(st && st.b > 0.82) csAutoSet(e, { bri: -0.12 });
+    if(speechShare(s, e.in, e.in + need) > 0.4) csAutoSet(e, { vol: 0.9 });
+  });
+  const cand = edit.map((e, i) => ({ e, i })).filter(({ e, i }) => i > 2 && e.start > 3 && (e.type === 'drop' || e.type === 'hit') && e.end - e.start >= 0.5 && e.end - e.start <= 1.6
+    && (e.mot || 0) > 0.45 && e.sp.label === '1×' && e.efx !== 'snap' && !(e.cs && 'rev' in e.cs));
+  if(cand.length) csAutoSet(cand[Math.floor(cand.length/2)].e, { rev: true });
+  const last = edit[edit.length - 1]; csAutoSet(last, { fout: +Math.min(0.6, (last.end - last.start)*0.5).toFixed(2) });
+  clipMixKey = ''; renderEDL(true); if(!playing) redrawFrame();
+}
+// where people speak in each clip (Silero VAD on the phone): read in the background once the clips are in
+let speechBusy = false;
+async function speechScan(){
+  if(speechBusy || !speechProbs || kind === 'talk' || !au.ai) return; speechBusy = true; let found = false;
+  try{ for(const s of sources){ if(s.speech !== undefined || s.removed) continue;
+      const P = await clipPcm(sources.indexOf(s)); if(!P){ s.speech = null; continue; }
+      try{ const p = await speechProbs(P.x, P.sr); s.speech = { p, hop: 512/16000 }; found = found || p.some(x => x > 0.5); }catch(e){ s.speech = null; } }
+  } finally { speechBusy = false; }
+  if(found && edit.length) autoTools();
+}
+
+/* =============== STORY -> REEL (on the phone) ===============
+ * A written story becomes a narrated Reel: each sentence is spoken by a text-to-speech voice (Piper, on the phone), the
+ * narration is the Reel's voiceover (the song, if any, plays quietly under it), each sentence is a scene cut from the
+ * creator's clips or photos (a soft zoom or drift on each shot, a dissolve between scenes), and the captions are the
+ * story's own words timed to the speech. Nothing is uploaded and nothing is charged. ---- */
+let story = null;   // { scenes: [{ a, b, text }], dur }
+const storySentences = (t) => (t.replace(/\s+/g, ' ').match(/[^.!?।]+[.!?।]*/g) || []).map(s => s.trim()).filter(s => s.length > 1);
+async function storyVoice(text, voice, onP){
+  if(!tts) throw new Error('Text to speech is not available here.');
+  const ss = storySentences(text); if(!ss.length) throw new Error('Write a few sentences first.');
+  const parts = []; let sr = 22050;
+  for(let k=0;k<ss.length;k++){ const r = await tts.speak(ss[k], voice, (p) => onP && onP((k + (p.stage === 'speak' ? p.p : p.p*0.5))/ss.length, p.stage)); parts.push(r.pcm); sr = r.sr; }
+  // the speech of each sentence without its silent ends, then a short pause; a breath before the first and after the last
+  const trim = (x) => { let a = 0, b = x.length; while(a < b && Math.abs(x[a]) < 0.01) a++; while(b > a && Math.abs(x[b-1]) < 0.01) b--; return x.subarray(Math.max(0, a - Math.round(0.03*sr)), Math.min(x.length, b + Math.round(0.05*sr))); };
+  const lead = Math.round(0.35*sr), gap = Math.round(0.32*sr), tail = Math.round(0.8*sr), cut = parts.map(trim);
+  const N = lead + cut.reduce((q, x) => q + x.length, 0) + gap*(cut.length - 1) + tail, pcm = new Float32Array(N), scenes = [], words = [];
+  let o = lead;
+  cut.forEach((x, k) => { pcm.set(x, o); const a = o/sr, b = (o + x.length)/sr; scenes.push({ a, b, text: ss[k] });
+    // each word's time: its share of the sentence's letters (the voice speaks at an even pace)
+    const ws = ss[k].split(/\s+/).filter(Boolean), L = ws.reduce((q, w) => q + w.length + 1, 0); let c = 0;
+    for(const w of ws){ const s0 = a + (b - a)*c/L; c += w.length + 1; words.push({ text: w, start: s0, end: a + (b - a)*c/L }); }
+    o += x.length + gap; });
+  return { pcm, sr, scenes, words, dur: N/sr };
+}
+// a quiet track the length of the story, for a Reel without a song (the edit needs a sound to follow)
+function silentWav(sec){
+  const sr = 22050, n = Math.ceil(sec*sr), b = new ArrayBuffer(44 + n*2), v = new DataView(b), s = (o, t) => { for(let i=0;i<t.length;i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  s(0, 'RIFF'); v.setUint32(4, 36 + n*2, true); s(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr*2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); s(36, 'data'); v.setUint32(40, n*2, true);
+  return new File([b], 'Story.wav', { type: 'audio/wav', lastModified: Date.now() });
+}
+// the edit of a story: the scenes cover the whole Reel, each in shots of about 3 s, clips taken in turn
+function storyEdit(){
+  if(!story || !sources.length || !buf || kind === 'talk') return false;
+  const D = buf.duration, n = sources.length, list = [], sc = story.scenes;
+  sc.forEach((s, j) => { const a = j ? (sc[j-1].b + s.a)/2 : 0, b = j < sc.length - 1 ? (s.b + sc[j+1].a)/2 : D, parts = Math.max(1, Math.round((b - a)/3.2));
+    for(let k=0;k<parts;k++) list.push({ start: a + (b - a)*k/parts, end: a + (b - a)*(k + 1)/parts, type: k ? 'cut' : 'hit', fx: 'Story', tr: k ? 'hard' : j ? 'dissolve' : 'fadein',
+      efx: (j + k) % 2 ? 'pan-soft' : 'punch-soft', sp: 'normal', src: (j + k) % n, in: 0, scaleR: 1, cx: 0.5, cy: 0.45, face: 0, fs: 0 }); });
+  if(!restoreEdit(list)) return false;
+  edit.forEach((e, i) => { if(!repick(i, false, e.src)) repick(i, false); });
+  assignPlayers(); edit.forEach(e => { e.cam = null; e.kf = keyframesFor(e); camAt(e, 0); }); renderEDL(); autoTools();
+  $('s3').classList.remove('locked'); $('s3').classList.add('done'); ['play','remix','export','cover'].forEach(id => $(id).disabled = false);
+  captureLoop(); editGen++; return true;
+}
+// the whole story: voice, sound, clips, captions (Auto Reel's Story mode drives it and shows the progress)
+async function storyRun(text, voice, songFile, clipFiles, onStage){
+  onStage && onStage('voice', 0);
+  const S = await storyVoice(text, voice, (p, stage) => onStage && onStage('voice', p, stage));
+  story = { scenes: S.scenes, dur: S.dur };
+  vo = { raw: S.pcm, sr: S.sr, key: 'story' + Date.now().toString(36), clean: null };
+  Object.defineProperty(vo, 'pcm', { configurable: true, get(){ return this.raw; } });
+  capCache.set('vo|' + vo.key + '|0.00|' + $('caplang').value, { from: 0, words: S.words });
+  setKind('music'); onStage && onStage('song', 0);
+  if(songFile){ await loadMusic(songFile); setLen(Math.max(5, Math.min(180, Math.ceil(S.dur)))); au = { ...au, mvol: Math.min(au.mvol, 0.6) }; }
+  else await loadMusic(silentWav(S.dur));
+  onStage && onStage('clips', 0); addVideos(clipFiles); await addQueue;
+  if(!edit.length || !story) makeEdit();
+  $('caps').checked = true; capsOn = true; $('caprow').hidden = false; await loadCaptions();
+  afterVo();
+}
+// Auto Reel without a song: clips where people talk make a talking Reel (their voice leads, pauses cut); otherwise the
+// loudest clip's own sound becomes the song. 'none': no clip has any sound.
+async function autoSound(){
+  let talkShare = 0, loud = -1, loudV = 0;
+  for(let i=0;i<sources.length;i++){ const P = await clipPcm(i); if(!P) continue;
+    let q = 0, n = 0; for(let k=0;k<P.x.length;k+=32){ q += P.x[k]*P.x[k]; n++; } const r = Math.sqrt(q/Math.max(1, n)); if(r > loudV){ loudV = r; loud = i; }
+    if(speechProbs){ try{ const p = await speechProbs(P.x, P.sr); sources[i].speech = { p, hop: 512/16000 }; talkShare = Math.max(talkShare, p.filter(x => x > 0.5).length/Math.max(1, p.length)); }catch(e){} } }
+  if(talkShare >= 0.3){ setKind('talk'); return 'talk'; }
+  if(loud >= 0 && loudV > 0.003){ await extractAudio(loud); return 'extract'; }
+  return 'none';
+}
+// Extract audio: a clip's own sound becomes the Reel's song (its beats lead the cuts, as with any song)
+async function extractAudio(si){
+  const s = sources[si]; if(!s || !s.file) return;
+  const P = await clipPcm(si); if(!P){ notify('That clip has no sound to use.', 'err'); return; }
+  const f = new File([s.file], s.name.replace(/\.[^.]+$/, '') + ' (sound).' + (s.name.split('.').pop() || 'mp4'), { type: s.file.type, lastModified: s.file.lastModified });
+  notify('Using the sound of ' + s.name.replace(/\.[^.]+$/, '') + ' as the song…'); await loadMusic(f);
+}
+function auUI(){
+  const set = (id, v, t) => { const el = $(id); if(el){ el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = t; } };
+  set('mvol', au.mvol, Math.round(au.mvol*100) + '%'); set('mfin', au.mfin, au.mfin.toFixed(1) + ' s'); set('mfout', au.mfout, au.mfout.toFixed(1) + ' s');
+  [...$('vfx').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === au.vfx))); $('aitouch').checked = au.ai !== false;
+  const ex = $('xclip'); if(ex){ const k = ex.value; ex.innerHTML = '<option value="">Use a clip\'s sound as the song…</option>' + sources.map((s, i) => `<option value="${i}">${s.name.replace(/[<&"]/g, '')}</option>`).join(''); ex.value = k && sources[+k] ? '' : ''; }
+}
+const auSet = (patch) => { au = { ...au, ...patch }; auUI(); applyVo(); if(!playing) redrawFrame(); };
+for(const [id, k] of [['mvol','mvol'], ['mfin','mfin'], ['mfout','mfout']]) $(id).addEventListener('input', e => auSet({ [k]: +e.target.value }), SIG);
+$('aitouch').addEventListener('change', e => { au = { ...au, ai: e.target.checked }; autoTools(); if(au.ai) speechScan(); applyVo(); clipMixKey = ''; }, SIG);
+$('vfx').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; if(!vo) notify('Record a voiceover first; the voice changer works on it.'); auSet({ vfx: b.dataset.f }); }, SIG);
+$('xclip').addEventListener('focus', auUI, SIG);
+$('xclip').addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if(v !== '') extractAudio(+v); }, SIG);
 async function recordVoiceover(){
   if(voRec){ voRec.stop(); return; }
   if(!edit.length || kind === 'talk') return;
@@ -3794,12 +4422,16 @@ function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB,
   r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
 function idb(store, mode, fn){ return pdb().then(d => new Promise((res, rej) => { const t = d.transaction(store, mode), req = fn(t.objectStore(store));
   t.oncomplete = () => { d.close(); res(req && 'result' in req ? req.result : undefined); }; t.onerror = () => { d.close(); rej(t.error); }; t.onabort = () => { d.close(); rej(t.error || new Error('storage full')); }; })); }
+function editOf(){
+  return kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined, acc: e.acc && e.acc.length ? e.acc : undefined, cs: e.cs ? JSON.parse(JSON.stringify(e.cs)) : undefined }));
+}
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
-    edit: kind === 'talk' ? [] : edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined, acc: e.acc && e.acc.length ? e.acc : undefined })),
+    lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
+    edit: editOf(),
     kfs: kind === 'talk' && edit.some(e => e.uk && e.uk.length) ? edit.map(e => e.uk && e.uk.length ? e.uk : null) : undefined,
     caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
 }
@@ -3813,6 +4445,7 @@ async function saveProject(st, sig){
     if(song && song.file) await putFile(song.file);
     for(const s of sources) if(s.file) await putFile(s.file);
     if(bgFile) await putFile(bgFile);
+    for(const M of lmedia) await putFile(M.file);
     if(vo) await putFile(voFile());
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
@@ -3841,7 +4474,7 @@ async function listProjects(){
 }
 async function deleteProject(id){
   const all = await idb('meta', 'readonly', s => s.getAll()) || [], me = all.find(p => p.id === id); if(!me) return;
-  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), st.settings && st.settings.bg, st.vo && st.vo.fp].filter(Boolean).map(fp => 'f:' + fp);
+  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), ...(st.lmedia || []).map(c => c.fp), st.settings && st.settings.bg, st.vo && st.vo.fp].filter(Boolean).map(fp => 'f:' + fp);
   for(const p of all) for(const k of keysOf(p.state || {})) (p.id === id ? mine : used).add(k);
   for(const sg of (await idb('songs', 'readonly', s => s.getAll()) || [])) used.add('f:' + sg.fp);   // a recent song keeps its file
   for(const k of mine) if(!used.has(k)) await idb('files', 'readwrite', s => s.delete(k));   // files no other Reel uses
@@ -3859,6 +4492,8 @@ async function openProject(id){
     if(st.kind === 'talk') setKind('talk');
     press('aspect', 'a', S.aspect); press('look', 'l', S.look); press('tstyle', 't', S.textStyle); if(S.mode && S.mode !== 'auto') press('mode', 'm', S.mode);
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
+    if(S.au) au = { ...AU0, ...S.au }; auUI();
+    if(S.tts && S.tts.length){ ttsClips = S.tts.map(c => ({ ...c })); ttsSeq = ttsClips.reduce((q, c) => Math.max(q, c.id), 0); ttsList(); }
     hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1; if(S.denoise === false){ denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
     if(S.trTo){ for(const [k, v] of S.tr || []) trCache.set(k, v); trTo = S.trTo; trOnly = !!S.trOnly; $('captr').value = trTo; $('tronly').checked = trOnly; $('trwrap').hidden = false; }
@@ -3875,6 +4510,9 @@ async function openProject(id){
     if(sf){ let cs = null; try{ cs = await idb('songs', 'readonly', s => s.get(st.song.fp)); }catch(e){} await loadMusic(sf, cs && cs.r ? { r: cs.r, aiDone: cs.aiDone } : null); }
     if(clips.length){ addVideos(clips); await addQueue; }
     if(st.kind !== 'talk' && st.edit && st.edit.length && st.edit.length && clips.length === (st.clips || []).length) restoreEdit(st.edit);
+    if(st.layers && st.layers.length){ const ms = []; for(const c of st.lmedia || []){ const f = await getF(c.fp, c.name); try{ ms.push(f ? await addLayerMedia(f) : null); }catch(e){ ms.push(null); } }
+      lmedia = ms.filter(Boolean); const idx = ms.map((m, i) => m ? ms.slice(0, i).filter(Boolean).length : -1);
+      layers = st.layers.filter(L => idx[L.m] >= 0).map(L => ({ ...L, m: idx[L.m] })); lySeq = layers.reduce((q, L) => Math.max(q, L.id), 0); lyUI(); }
     if(S.capsOn && !capsOn){ $('caps').checked = true; capsOn = true; $('caprow').hidden = false; loadCaptions(); }
     if(vo) afterVo();
     redrawFrame();
@@ -3937,6 +4575,8 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

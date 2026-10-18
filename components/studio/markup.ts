@@ -28,14 +28,17 @@ const IC = {
   prev: I('<path d="M6 5v14M19 5v14L8 12z" fill="currentColor"/>'),
   next: I('<path d="M18 5v14M5 5v14l11-7z" fill="currentColor"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
+  layers: I('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
+  undo: I('<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
+  redo: I('<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>'),
 };
 // a tool: a dock button (Editor), a card (Simple) and the heading of its panel (Pro)
 const TOOLS: [string, string, string][] = [
   ["shots", "Shot", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
-  ["look", "Look", IC.look], ["motion", "Motion", IC.motion], ["bg", "Background", IC.bg], ["voice", "Voice", IC.voice], ["style", "Style", IC.style],
+  ["look", "Look", IC.look], ["motion", "Motion", IC.motion], ["bg", "Background", IC.bg], ["layers", "Overlay", IC.layers], ["voice", "Voice", IC.voice], ["style", "Style", IC.style],
 ];
 // Editor: every tool; Pro: grouped (Shot = the shot + keyframes, Audio = music + voice, Look = look + style)
-const PRO_TOOLS: [string, string, string][] = [["pshot", "Shot", IC.shot], ["text", "Text", IC.text], ["audio", "Audio", IC.music], ["plook", "Look", IC.look], ["bg", "Background", IC.bg]];
+const PRO_TOOLS: [string, string, string][] = [["pshot", "Shot", IC.shot], ["text", "Text", IC.text], ["audio", "Audio", IC.music], ["plook", "Look", IC.look], ["bg", "Background", IC.bg], ["layers", "Overlay", IC.layers]];
 const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool ed" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span></button>`).join("")
   + PRO_TOOLS.map(([k, n, ic]) => `<button type="button" class="tool pr" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span></button>`).join("");
 const card = (k: string, n: string, ic: string) =>
@@ -48,6 +51,7 @@ export const STUDIO_HTML = `
   <div class="views" id="views" role="group" aria-label="View">
     <button type="button" data-view="simple" aria-pressed="true">Simple</button><button type="button" data-view="editor" aria-pressed="false">Editor</button><button type="button" data-view="pro" aria-pressed="false">Pro</button>
   </div>
+  <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
 <div class="wrap">
@@ -73,6 +77,8 @@ export const STUDIO_HTML = `
     <div class="sh3"><span class="num">1</span><h2>What are we making?</h2><span class="st" id="s0st">Choose one to start</span></div>
     <div class="sbody">
     <div class="makegrid">
+      <button type="button" class="kindx autocard" id="autokind">${IC.style}<span><b>Auto Reel</b><small>Pick clips, the AI does everything: you only see the progress</small></span></button>
+      <button type="button" class="kindx storycard" id="storykind">${IC.text}<span><b>Story → Reel</b><small>Write it; the AI narrates it, shows it scene by scene, adds captions</small></span></button>
       <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
         <button data-k="music" aria-pressed="false">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
         <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Pauses cut, captions added</small></span></button>
@@ -222,6 +228,13 @@ export const STUDIO_HTML = `
 
           <section class="panel" data-panel="music">${panelHead("music")}
             <div class="row"><button type="button" class="btn" data-open-step="s1">${IC.music}Change the song or its part</button><button type="button" class="btn" data-open-step="s2">${IC.plus}Add or change clips</button></div>
+            <div class="ausliders musiconly">
+            <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
+            <label class="cslide"><span>Fade in</span><input type="range" id="mfin" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
+            <label class="cslide"><span>Fade out</span><input type="range" id="mfout" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
+            <select id="xclip" aria-label="Extract audio: use a clip's sound as the song"><option value="">Use a clip's sound as the song…</option></select>
+            <p class="hint">A clip's own sound under the music: Shot → Volume.</p>
+            </div>
           </section>
 
           <section class="panel" data-panel="text">${panelHead("text")}
@@ -246,6 +259,7 @@ export const STUDIO_HTML = `
           </section>
 
           <section class="panel" data-panel="look">${panelHead("look")}
+            <label class="tog aitog"><input type="checkbox" id="aitouch" checked> AI touch-ups: fit wide clips, fix dark shots, keep voices, one reversed drop, fade out at the end</label>
             <div class="seg" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button><button data-l="copy" aria-pressed="false" hidden>Copied</button></div>
           </section>
 
@@ -255,8 +269,56 @@ export const STUDIO_HTML = `
             <span class="fname" id="bgstat"></span>
           </section>
 
+          <section class="panel" data-panel="layers">${panelHead("layers")}
+            <div class="row"><button type="button" class="btn" id="lyadd">${IC.plus}Add a video or photo on top</button><input id="lyfile" type="file" accept="video/*,image/*,.mov,.mp4,.jpg,.jpeg,.png,.webp" multiple hidden></div>
+            <p class="hint">It starts at the playhead. Picture in picture, split screen, a masked shape, a logo…</p>
+            <div class="lylist" id="lylist"></div>
+            <div class="lyedit" id="lyedit" hidden>
+              <span class="label">Layout</span>
+              <div class="chips"><button type="button" class="chip" data-lay="tl">↖ Corner</button><button type="button" class="chip" data-lay="tr">↗ Corner</button><button type="button" class="chip" data-lay="bl">↙ Corner</button><button type="button" class="chip" data-lay="br">↘ Corner</button><button type="button" class="chip" data-lay="top">Top half</button><button type="button" class="chip" data-lay="bottom">Bottom half</button><button type="button" class="chip" data-lay="left">Left half</button><button type="button" class="chip" data-lay="right">Right half</button><button type="button" class="chip" data-lay="full">Full</button></div>
+              <span class="label">When · <span id="lytime"></span></span>
+              <div class="chips"><button type="button" class="chip" data-lyt="start">Start at the playhead</button><button type="button" class="chip" data-lyt="end">End at the playhead</button><button type="button" class="chip" data-lyt="all">Whole Reel</button></div>
+              <span class="label">Place</span>
+              <label class="cslide"><span>Across</span><input type="range" data-ly="x" min="0" max="1" step="0.01"><output></output></label>
+              <label class="cslide"><span>Down</span><input type="range" data-ly="y" min="0" max="1" step="0.01"><output></output></label>
+              <label class="cslide"><span>Size</span><input type="range" data-ly="s" min="0.1" max="1.2" step="0.01"><output></output></label>
+              <label class="cslide"><span>Rotate</span><input type="range" data-ly="r" min="-180" max="180" step="1"><output></output></label>
+              <label class="cslide"><span>Opacity</span><input type="range" data-ly="op" min="0" max="1" step="0.05"><output></output></label>
+              <label class="cslide"><span>Corners</span><input type="range" data-ly="rad" min="0" max="1" step="0.05"><output></output></label>
+              <div class="chips"><button type="button" class="chip" data-lyf="fh">Mirror</button><button type="button" class="chip" data-lyf="fv">Flip</button></div>
+              <span class="label">Mask</span>
+              <div class="chips" id="lymask"><button type="button" class="chip" data-m="none">None</button><button type="button" class="chip" data-m="circle">Circle</button><button type="button" class="chip" data-m="rect">Rectangle</button><button type="button" class="chip" data-m="line">Line</button><button type="button" class="chip" data-m="mirror">Mirror band</button></div>
+              <div id="lymaskopts">
+                <label class="cslide"><span>Width</span><input type="range" data-ly="mk.w" min="0.05" max="1.5" step="0.01"><output></output></label>
+                <label class="cslide"><span>Height</span><input type="range" data-ly="mk.h" min="0.05" max="1.5" step="0.01"><output></output></label>
+                <label class="cslide"><span>Angle</span><input type="range" data-ly="mk.a" min="-90" max="90" step="1"><output></output></label>
+                <label class="cslide"><span>Feather</span><input type="range" data-ly="mk.f" min="0" max="0.6" step="0.01"><output></output></label>
+                <label class="tog"><input type="checkbox" data-ly="mk.inv"> Invert (cut the shape out)</label>
+              </div>
+              <span class="label">Crop</span>
+              <label class="cslide"><span>Left</span><input type="range" data-ly="crop.l" min="0" max="0.45" step="0.01"><output></output></label>
+              <label class="cslide"><span>Right</span><input type="range" data-ly="crop.r" min="0" max="0.45" step="0.01"><output></output></label>
+              <label class="cslide"><span>Top</span><input type="range" data-ly="crop.t" min="0" max="0.45" step="0.01"><output></output></label>
+              <label class="cslide"><span>Bottom</span><input type="range" data-ly="crop.b" min="0" max="0.45" step="0.01"><output></output></label>
+              <span class="label">Fade</span>
+              <label class="cslide"><span>Fade in</span><input type="range" data-ly="fin" min="0" max="2" step="0.1"><output></output></label>
+              <label class="cslide"><span>Fade out</span><input type="range" data-ly="fout" min="0" max="2" step="0.1"><output></output></label>
+              <label class="cslide" id="lyvolrow"><span>Its sound</span><input type="range" data-ly="vol" min="0" max="2" step="0.05"><output></output></label>
+              <button type="button" class="btn ghost" data-lydel="1">Remove this layer</button>
+            </div>
+          </section>
+
           <section class="panel" data-panel="voice">${panelHead("voice")}
             <div class="row vorow" id="vorow"><button class="btn" id="vorec" type="button">${IC.voice}Record voiceover</button><button class="btn mini" id="vodel" type="button" hidden>Remove voiceover</button><label class="tog"><input type="checkbox" id="dn2" checked> Clean up noise</label><span class="fname" id="vostat"></span></div>
+            <div class="ttsbox musiconly" id="ttsbox">
+              <label class="label" for="ttstext">Text to speech</label>
+              <textarea id="ttstext" rows="2" maxlength="1200" placeholder="Type what the voice should say… (English, हिन्दी, मराठी, తెలుగు, മലയാളം)"></textarea>
+              <div class="row"><select id="ttsvoice" aria-label="Voice"></select><button type="button" class="btn" id="ttsadd">${IC.voice}Add at the playhead</button></div>
+              <p class="hint">Made on this phone. Each voice is downloaded once (about 60 MB).</p>
+              <div class="ttslist" id="ttslist"></div>
+            </div>
+            <span class="label musiconly">Voice changer</span>
+            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="chip" data-f="none" aria-pressed="true">Original</button><button type="button" class="chip" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="chip" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="chip" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="chip" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="chip" data-f="echo" aria-pressed="false">Echo</button></div>
             <p class="hint talkonly">Talking videos: pauses, music under the voice and noise cleanup are in step 2.</p>
           </section>
 

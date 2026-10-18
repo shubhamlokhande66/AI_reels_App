@@ -178,7 +178,7 @@ export function initSteps(root: HTMLElement): () => void {
 
 /** A photo as a short video: the whole picture with a slow push-in, encoded in the browser (WebCodecs, the same
  * encoder as the studio's export) so the clip has a real length. Nothing is uploaded. */
-async function photoClip(file: File): Promise<File> {
+export async function photoClip(file: File): Promise<File> {
   const mb = await import("mediabunny");
   const bmp = await createImageBitmap(file);
   const scale = Math.min(1, 1080 / Math.max(bmp.width, bmp.height));

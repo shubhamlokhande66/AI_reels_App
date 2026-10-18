@@ -14,6 +14,7 @@ type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean
 type Studio = {
   now: number; playing: boolean; dur: number; songName: string; title: string; hook: string; capsOn: boolean;
   edit: Shot[]; overlays: Ov[]; vo: unknown; kind: string; editGen: number;
+  sources: { name: string }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace", arg?: number) => boolean;
   section: { start: number; len: number; whole: number; auto: boolean };
   segAt: (t: number) => number; kfSeek: (t: number) => Promise<void>;
 };
@@ -34,12 +35,14 @@ const GROUPS: Record<string, string[]> = {
   "simple:style": ["style"], "simple:text": ["text", "captions"], "simple:look": ["look", "bg"], "simple:music": ["music", "voice"],
   "pro:pshot": ["motion", "shots"], "pro:text": ["text", "captions"], "pro:audio": ["music", "voice"], "pro:plook": ["look", "style"], "pro:bg": ["bg"],
 };
-const PRO_OF: Record<string, string> = { shots: "pshot", motion: "pshot", music: "audio", voice: "audio", captions: "text", look: "plook", style: "plook", bg: "bg", text: "text" };
+const PRO_OF: Record<string, string> = { layers: "layers", shots: "pshot", motion: "pshot", music: "audio", voice: "audio", captions: "text", look: "plook", style: "plook", bg: "bg", text: "text" };
 const SIMPLE_OF: Record<string, string> = { style: "style", text: "text", captions: "text", look: "look", bg: "look", music: "music", voice: "music", audio: "music", plook: "look" };
 const fmt = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 9.95 ? "0" : "") + s.toFixed(1); };
 const fmtS = (t: number) => fmt(t).replace(/\.\d$/, "");
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"]; // as the engine's strip
 const TYPE: Record<string, string> = { drop: "Drop", hit: "Hit", cut: "Cut", break: "Break", talk: "Talk", jump: "Talk" };
+import { clipToolsEvents, clipToolsHtml, type ClipApi } from "./clipTools";
+
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
@@ -49,7 +52,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const kf = $<HTMLDetailsElement>("kfbox");
   let view: StudioView = savedView();
   let tool = "";
-  let shotKey = "", lanesKey = "", shotTab = 0;
+  let shotKey = "", lanesKey = "", shotTab = 0, ctOpen = "", ctKey = "";
   const q = new URLSearchParams(location.search).get("tool");
 
   const made = () => !$("s3").classList.contains("locked");
@@ -159,15 +162,35 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const chips = !s0 ? "" : `<div class="chips">${[...s0.options].map((o) => `<button type="button" class="chip" data-c="${shotTab}" data-v="${esc(o.value)}" aria-pressed="${o.value === s0.value}">${esc(o.text)}</button>`).join("")}</div>`;
     const selects = sels.map((s, k) => !s ? "" : `<label class="isel"><span>${names[k]}</span><select data-c="${k}">${[...s.options].map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? " selected" : ""}>${esc(o.text)}</option>`).join("")}</select></label>`).join("");
     const other = `<button type="button" class="btn ghost" data-other="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg><span>Use a different moment</span></button>`;
-    $("shotcard").innerHTML = head + chips + other;
-    $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other;
+    // split, duplicate, delete, replace (the music's timing stays; see the engine's shotOp)
+    const clipName = (n: string) => esc(n.replace(/\.[^.]+$/, ""));
+    const tools = st.kind === "talk" ? "" : `<div class="shtools" role="group" aria-label="Shot tools">`
+      + `<button type="button" class="btn ghost" data-op="split" title="Split this shot where the playhead is">Split</button>`
+      + `<button type="button" class="btn ghost" data-op="dup" title="Play this moment twice">Duplicate</button>`
+      + `<button type="button" class="btn ghost" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
+      + (st.sources.length > 1 ? `<select data-rep="1" aria-label="Replace with a moment from"><option value="">Replace with…</option>${st.sources.map((s, k) => `<option value="${k}">${clipName(s.name)}${k === e.src ? " (this clip)" : ""}</option>`).join("")}</select>` : "")
+      + `</div><div class="cliptools"></div>`;
+    $("shotcard").innerHTML = head + chips + other + tools;
+    $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;
+    clipUI(true);
+  };
+  // the clip tools (rotate, fit, adjust, mosaic…): drawn again when the shot's settings change, never during a slider drag
+  const clipUI = (force = false) => {
+    const st = S(), boxes = root.querySelectorAll<HTMLElement>("#shotcard .cliptools, #inspector .cliptools"); if (!st || !boxes.length) return;
+    if (!force && root.querySelector(".cliptools input[type=range]:focus")) return;
+    const c = st.shotCs(); if (!c) return;
+    const key = JSON.stringify(c) + ctOpen; if (!force && key === ctKey) return; ctKey = key;
+    boxes.forEach((b) => { b.innerHTML = clipToolsHtml(c, ctOpen); });
   };
   const forward = (c: number, v: string) => { const st = S(); if (!st) return; const s = rowOf(st.segAt(st.now))?.children[c + 3]?.querySelector("select") as HTMLSelectElement | null; if (s && s.value !== v) { s.value = v; s.dispatchEvent(new Event("change")); } };
   const other = () => { const st = S(); if (!st) return; rowOf(st.segAt(st.now))?.children[2]?.querySelector<HTMLButtonElement>("button")?.click(); };
   for (const id of ["shotcard", "inspector"]) {
     $(id).addEventListener("click", (e) => { const t = e.target as HTMLElement; const c = t.closest<HTMLButtonElement>(".chip"), tb = t.closest<HTMLButtonElement>(".shtab");
-      if (c) forward(+c.dataset.c!, c.dataset.v!); else if (tb) { shotTab = +tb.dataset.tab!; shotKey = ""; } else if (t.closest("[data-other]")) other(); }, sig);
-    $(id).addEventListener("change", (e) => { const s = e.target as HTMLSelectElement; if (s.dataset.c) forward(+s.dataset.c, s.value); }, sig);
+      if (c && c.dataset.c) forward(+c.dataset.c, c.dataset.v!); else if (tb) { shotTab = +tb.dataset.tab!; shotKey = ""; } else if (t.closest("[data-other]")) other();
+      else { const op = t.closest<HTMLButtonElement>("[data-op]"); if (op) { S()?.shotOp(op.dataset.op as "split" | "dup" | "delete"); shotKey = ""; } } }, sig);
+    clipToolsEvents($(id), () => S(), () => ctOpen, (k) => { ctOpen = k; }, () => clipUI(true), sig);
+    $(id).addEventListener("change", (e) => { const s = e.target as HTMLSelectElement; if (s.dataset.c) forward(+s.dataset.c, s.value);
+      else if (s.dataset.rep && s.value !== "") { S()?.shotOp("replace", +s.value); shotKey = ""; } }, sig);
   }
 
   // Pro: the multi-track timeline (video with keyframes, text, voice, music); tap to move the playhead
@@ -225,7 +248,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (st && made()) {
       setText($("tcur"), fmt(st.now)); setText($("ttot"), fmt(st.dur));
       if (root.classList.contains("playing") !== st.playing) root.classList.toggle("playing", st.playing);
-      shotUI(); drawLanes();
+      shotUI(); clipUI(); drawLanes();
     }
     raf = requestAnimationFrame(tick);
   };
