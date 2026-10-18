@@ -729,3 +729,10 @@
   .brs .autoov > .aodone{width:min(900px,100%)}
   .brs .aodonebox{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start}
 }
+/* the clips' own sound under the song (Music Reel, step 3) */
+.brs .clipsnd{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--background)}
+.brs .clipsnd b{font:700 14px var(--body)}
+.brs .clipsnd small{color:var(--muted);font-size:12.5px}
+.brs .clipsnd .seg{display:flex;width:100%}
+.brs .clipsnd .seg button{flex:1 1 auto;white-space:nowrap}
+.brs .clipsnd .seg button[aria-pressed=true]{background:var(--chipbg,var(--chip-on));color:var(--ink)}
