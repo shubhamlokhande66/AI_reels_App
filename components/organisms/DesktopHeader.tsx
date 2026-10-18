@@ -22,7 +22,7 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
     <header className="sticky top-0 z-30 -mx-8 -mt-5 mb-5 hidden h-[68px] items-center gap-4 border-b border-border bg-[var(--bar)] px-8 md:flex">
       <form
         role="search"
-        className="flex h-11 w-full max-w-[420px] items-center gap-2.5 rounded-xl border border-border bg-surface px-3.5 text-muted focus-within:border-accent"
+        className="flex h-11 w-full max-w-[420px] items-center gap-2.5 rounded-xl border border-border bg-surface px-3.5 text-muted transition-[border-color,box-shadow] focus-within:border-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_22%,transparent)]"
         onSubmit={(e) => {
           e.preventDefault();
           router.push(q.trim() ? `/templates?q=${encodeURIComponent(q.trim())}` : "/templates");
