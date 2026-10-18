@@ -22,6 +22,8 @@ vi.mock("@/hooks/useApi", async (orig) => ({
   ...(await orig<typeof import("@/hooks/useApi")>()),
   useTrends: () => ({ data: [] }),
   useDeleteProject: () => ({ mutate: vi.fn(), isPending: false }),
+  // both kinds on (they are off by default since local-first; the admin turns them on)
+  useFeatures: () => ({ fastStudio: true, aiReel: true, productReel: true }),
 }));
 
 import { NewReel } from "@/components/molecules/NewReel";
