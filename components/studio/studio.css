@@ -336,6 +336,10 @@
 .brs .ttsbox{display:grid;gap:8px;margin:12px 0}
 .brs .autocard{grid-column:1/-1;background:var(--gold-gradient,var(--chipbg));border-color:transparent}
 .brs .autocard small{color:inherit;opacity:.8}
+.brs .storycard{grid-column:1/-1}
+.brs .aostory{display:grid;gap:10px;width:100%}
+.brs .aostory textarea{width:100%;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:15px var(--body);padding:12px;resize:vertical}
+.brs .aostory select{height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:14px var(--body);padding:0 10px}
 .brs .autoov{position:fixed;inset:0;z-index:60;background:var(--background);display:grid;place-items:center;padding:24px 16px;overflow:auto}
 .brs .autoov>div{width:min(460px,100%);display:grid;gap:14px;text-align:center;justify-items:center}
 .brs .autoov h2{margin:0;font:600 26px var(--display)}

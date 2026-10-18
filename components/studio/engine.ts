@@ -1807,6 +1807,7 @@ function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.ab
   if(k.cs){ const m = (k.s + k.e)/2, c = e || edit.find(x => x.start <= m && x.end > m); if(c && !c.cs) c.cs = k.cs; } } }
 function makeEdit(){
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
+  if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
   const keptUk = ukKeep();
   stopAll(); plan = adaptPlan(); styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
@@ -4139,6 +4140,66 @@ async function speechScan(){
   } finally { speechBusy = false; }
   if(found && edit.length) autoTools();
 }
+
+/* =============== STORY -> REEL (on the phone) ===============
+ * A written story becomes a narrated Reel: each sentence is spoken by a text-to-speech voice (Piper, on the phone), the
+ * narration is the Reel's voiceover (the song, if any, plays quietly under it), each sentence is a scene cut from the
+ * creator's clips or photos (a soft zoom or drift on each shot, a dissolve between scenes), and the captions are the
+ * story's own words timed to the speech. Nothing is uploaded and nothing is charged. ---- */
+let story = null;   // { scenes: [{ a, b, text }], dur }
+const storySentences = (t) => (t.replace(/\s+/g, ' ').match(/[^.!?।]+[.!?।]*/g) || []).map(s => s.trim()).filter(s => s.length > 1);
+async function storyVoice(text, voice, onP){
+  if(!tts) throw new Error('Text to speech is not available here.');
+  const ss = storySentences(text); if(!ss.length) throw new Error('Write a few sentences first.');
+  const parts = []; let sr = 22050;
+  for(let k=0;k<ss.length;k++){ const r = await tts.speak(ss[k], voice, (p) => onP && onP((k + (p.stage === 'speak' ? p.p : p.p*0.5))/ss.length, p.stage)); parts.push(r.pcm); sr = r.sr; }
+  // the speech of each sentence without its silent ends, then a short pause; a breath before the first and after the last
+  const trim = (x) => { let a = 0, b = x.length; while(a < b && Math.abs(x[a]) < 0.01) a++; while(b > a && Math.abs(x[b-1]) < 0.01) b--; return x.subarray(Math.max(0, a - Math.round(0.03*sr)), Math.min(x.length, b + Math.round(0.05*sr))); };
+  const lead = Math.round(0.35*sr), gap = Math.round(0.32*sr), tail = Math.round(0.8*sr), cut = parts.map(trim);
+  const N = lead + cut.reduce((q, x) => q + x.length, 0) + gap*(cut.length - 1) + tail, pcm = new Float32Array(N), scenes = [], words = [];
+  let o = lead;
+  cut.forEach((x, k) => { pcm.set(x, o); const a = o/sr, b = (o + x.length)/sr; scenes.push({ a, b, text: ss[k] });
+    // each word's time: its share of the sentence's letters (the voice speaks at an even pace)
+    const ws = ss[k].split(/\s+/).filter(Boolean), L = ws.reduce((q, w) => q + w.length + 1, 0); let c = 0;
+    for(const w of ws){ const s0 = a + (b - a)*c/L; c += w.length + 1; words.push({ text: w, start: s0, end: a + (b - a)*c/L }); }
+    o += x.length + gap; });
+  return { pcm, sr, scenes, words, dur: N/sr };
+}
+// a quiet track the length of the story, for a Reel without a song (the edit needs a sound to follow)
+function silentWav(sec){
+  const sr = 22050, n = Math.ceil(sec*sr), b = new ArrayBuffer(44 + n*2), v = new DataView(b), s = (o, t) => { for(let i=0;i<t.length;i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  s(0, 'RIFF'); v.setUint32(4, 36 + n*2, true); s(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, sr, true); v.setUint32(28, sr*2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); s(36, 'data'); v.setUint32(40, n*2, true);
+  return new File([b], 'Story.wav', { type: 'audio/wav', lastModified: Date.now() });
+}
+// the edit of a story: the scenes cover the whole Reel, each in shots of about 3 s, clips taken in turn
+function storyEdit(){
+  if(!story || !sources.length || !buf || kind === 'talk') return false;
+  const D = buf.duration, n = sources.length, list = [], sc = story.scenes;
+  sc.forEach((s, j) => { const a = j ? (sc[j-1].b + s.a)/2 : 0, b = j < sc.length - 1 ? (s.b + sc[j+1].a)/2 : D, parts = Math.max(1, Math.round((b - a)/3.2));
+    for(let k=0;k<parts;k++) list.push({ start: a + (b - a)*k/parts, end: a + (b - a)*(k + 1)/parts, type: k ? 'cut' : 'hit', fx: 'Story', tr: k ? 'hard' : j ? 'dissolve' : 'fadein',
+      efx: (j + k) % 2 ? 'pan-soft' : 'punch-soft', sp: 'normal', src: (j + k) % n, in: 0, scaleR: 1, cx: 0.5, cy: 0.45, face: 0, fs: 0 }); });
+  if(!restoreEdit(list)) return false;
+  edit.forEach((e, i) => { if(!repick(i, false, e.src)) repick(i, false); });
+  assignPlayers(); edit.forEach(e => { e.cam = null; e.kf = keyframesFor(e); camAt(e, 0); }); renderEDL(); autoTools();
+  $('s3').classList.remove('locked'); $('s3').classList.add('done'); ['play','remix','export','cover'].forEach(id => $(id).disabled = false);
+  captureLoop(); editGen++; return true;
+}
+// the whole story: voice, sound, clips, captions (Auto Reel's Story mode drives it and shows the progress)
+async function storyRun(text, voice, songFile, clipFiles, onStage){
+  onStage && onStage('voice', 0);
+  const S = await storyVoice(text, voice, (p, stage) => onStage && onStage('voice', p, stage));
+  story = { scenes: S.scenes, dur: S.dur };
+  vo = { raw: S.pcm, sr: S.sr, key: 'story' + Date.now().toString(36), clean: null };
+  Object.defineProperty(vo, 'pcm', { configurable: true, get(){ return this.raw; } });
+  capCache.set('vo|' + vo.key + '|0.00|' + $('caplang').value, { from: 0, words: S.words });
+  setKind('music'); onStage && onStage('song', 0);
+  if(songFile){ await loadMusic(songFile); setLen(Math.max(5, Math.min(180, Math.ceil(S.dur)))); au = { ...au, mvol: Math.min(au.mvol, 0.6) }; }
+  else await loadMusic(silentWav(S.dur));
+  onStage && onStage('clips', 0); addVideos(clipFiles); await addQueue;
+  if(!edit.length || !story) makeEdit();
+  $('caps').checked = true; capsOn = true; $('caprow').hidden = false; await loadCaptions();
+  afterVo();
+}
 // Auto Reel without a song: clips where people talk make a talking Reel (their voice leads, pauses cut); otherwise the
 // loudest clip's own sound becomes the song. 'none': no clip has any sound.
 async function autoSound(){
@@ -4433,7 +4494,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, autoExport, extractAudio, autoSound, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
