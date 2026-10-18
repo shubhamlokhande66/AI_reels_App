@@ -2475,7 +2475,7 @@ function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let 
    the bottom 450 px of 1920 are its UI), captions move up when a face is in their way, and Hindi / Marathi (Devanagari)
    are drawn with a font that shapes them. Drawn into the frame itself, so the export has it too. */
 let textStyle = 'pop', capsOn = false, capWords = null, capLines = null;
-const ACCENT = '#FFD54A';
+let ACCENT = '#FFD54A';   // the captions' highlight (a copied Reel can change it)
 const isIndic = s2 => /[ऀ-෿]/.test(s2);
 const fontFor = (txt, px, weight=800) => isIndic(txt) ? `${weight} ${px}px "Noto Sans Devanagari", "Nirmala UI", "Mangal", "Kohinoor Devanagari", sans-serif` : `${weight} ${px}px "Bricolage Grotesque", "Arial Black", system-ui, sans-serif`;
 const shown = txt => isIndic(txt) ? txt : txt.toUpperCase();
@@ -4131,9 +4131,72 @@ $('reffile').addEventListener('change', async e=>{
     GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = '';
     const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = 'copy'; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x===lb));
     setMode('copy');
+    refLookRun(f, refProfile);   // its texts, stickers, captions, background: the AI reads them (when it is on)
   }catch(err){ console.warn('reference not read:', err); $('refinfo').textContent = 'We could not read that Reel. Please try another video.'; notify('We could not read that Reel. Please try another video.', 'err'); }
 });
 $('refchange').addEventListener('click', ()=>$('reffile').click());
+/* ---- Copy a Reel, what is written and stuck on it ----
+ * The phone measures the reference's cuts, moves and colours itself; what is WRITTEN on it (a hook, a price, "follow for
+ * more"), its stickers, its captions' style and a replaced background need eyes. When the administrator turned the
+ * studio's AI on, 10 small frames go to /api/studio/ref-look and the answer is put on the new Reel: the same texts in
+ * the same places, styles, colours and timing (stretched to the new Reel's length), the stickers as emoji, the caption
+ * style and highlight colour, and the background. They are ordinary texts afterwards: tap one to change its words. */
+let refLookBusy = false;
+async function refLookRun(file, R){
+  if(!aiOn || !R || refLookBusy) return;
+  refLookBusy = true; const url = URL.createObjectURL(file), note = t => { if(refProfile === R) $('refinfo').textContent = '“' + R.name + '”: ' + describeRef(R) + (t ? ' · ' + t : ''); };
+  try{
+    note('the AI is reading its texts and stickers…');
+    const N = 10, ts = Array.from({ length: N }, (_, i) => +((i + 0.5)*R.dur/N).toFixed(2));
+    const rd = await clipReader({ url, file, name: R.name, dur: R.dur, w: R.w, h: R.h }, 768);
+    const sc = Math.min(1, 512/Math.max(R.w, R.h)), w = Math.max(2, Math.round(R.w*sc)), h = Math.max(2, Math.round(R.h*sc));
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'), frames = [];
+    let k = 0;
+    try{ for await (const v of rd.frames(ts)){ const t = ts[k++]; if(!v) continue; g.drawImage(v, 0, 0, w, h);
+      let q = 0.75, d = c.toDataURL('image/jpeg', q); while(d.length > 150000 && q > 0.35){ q -= 0.15; d = c.toDataURL('image/jpeg', q); }   // under the server's 120 KB
+      frames.push({ t, image: d.slice(d.indexOf(',') + 1) }); } } finally { rd.close(); }
+    if(frames.length < 2) throw new Error('frames not readable');
+    const r = await fetch('/api/studio/ref-look', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ac.signal, body: JSON.stringify({ name: R.name.slice(0, 200), dur: R.dur, frames }) });
+    const res = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI step failed (' + r.status + ').'));
+    if(refProfile !== R) return;   // another Reel was picked meanwhile
+    R.design = res; R.designDone = false; refLookApplySoon(R);
+  }catch(err){
+    if(err && err.name === 'AbortError') return;
+    console.warn('reference texts not read:', err); note('its texts could not be read this time');
+  }finally{ refLookBusy = false; setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+// once the new Reel has its edit (song part and clips in)
+function refLookApplySoon(R){
+  clearTimeout(refLookApplySoon.h);
+  refLookApplySoon.h = setTimeout(() => { if(refProfile !== R || R.designDone || mode !== 'copy') return;
+    if(!edit.length || pending || !reelLen()){ refLookApplySoon(R); return; }
+    refLookApply(R); }, 600);
+}
+function refLookApply(R){
+  const D = R.design, L = reelLen(); if(!D || !L) return;
+  R.designDone = true;
+  const k = L / Math.max(0.5, R.dur), base = Math.min(R.w, R.h*0.5625);
+  // its sizes: letters (about 3/4 of the font size) and emoji, measured on the reference, in the studio's own units
+  const sizeOf = (hf, emoji) => clip(emoji ? hf*R.h/(base*0.16) : hf*R.h/0.75/(base*0.075), 0.4, 2.6);
+  const timing = (ov, x) => { const whole = x.t0 <= 0.05 && x.t1 >= R.dur - 0.05; ov.all = whole; ov.t0 = whole ? 0 : Math.max(0, Math.min(L - 0.5, x.t0*k)); ov.t1 = whole ? L : Math.min(L, Math.max(ov.t0 + 0.5, x.t1*k)); ov.ref = true; };
+  overlays = overlays.filter(o => !o.ref);   // an earlier reference's texts go
+  for(const x of D.texts || []){ const ov = addOverlay({ text: x.text, style: x.style, color: x.color, anim: x.anim, x: x.x, y: x.y, size: sizeOf(x.h, false) }); timing(ov, x); }
+  for(const x of D.stickers || []){ const ov = addOverlay({ text: x.emoji, emoji: true, x: x.x, y: x.y, size: sizeOf(x.h, true) }); timing(ov, x); }
+  const said = [];
+  if(D.texts && D.texts.length) said.push(D.texts.length + ' text' + (D.texts.length > 1 ? 's' : ''));
+  if(D.stickers && D.stickers.length) said.push(D.stickers.length + ' sticker' + (D.stickers.length > 1 ? 's' : ''));
+  if(D.captions){ press('tstyle', 't', D.captions.style); ACCENT = D.captions.color || ACCENT;
+    if(!capsOn && !$('capwrap').hidden){ $('caps').checked = true; capsOn = true; $('caprow').hidden = false; loadCaptions(); }
+    said.push($('tstyle').querySelector('[data-t="' + D.captions.style + '"]').textContent.toLowerCase() + ' captions'); }
+  if(D.background && D.background.mode !== 'none' && sources.some(s => s.faces && s.faces.some(f => f.n > 0))){
+    if(D.background.mode === 'color' && D.background.color) bgColor = D.background.color;
+    press('bgmode', 'b', D.background.mode); said.push(D.background.mode === 'blur' ? 'blurred background' : 'colour background'); }
+  ovSel = -1; renderOvList(); redraw();
+  const msg = said.length ? 'Copied ' + said.join(', ') + (D.texts && D.texts.length ? '. Tap a text to change its words.' : '.') : 'Nothing written on it to copy.';
+  $('refinfo').textContent = '“' + R.name + '”: ' + describeRef(R) + ' · ' + msg;
+  if(said.length) notify(msg, 'ok');
+}
 /* ---- style library: reference Reels kept as styles, learned styles, and learning from corrections ----
  * A Reel read by "Copy a Reel" can be saved to the creator's style library under a kind (wedding, travel, festival...);
  * only its measured fingerprint goes to the server (never the video). "Use a learned style" asks the server what the
@@ -4581,7 +4644,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
@@ -4654,6 +4717,7 @@ async function openProject(id){
     if(st.caps && st.caps.key) capCache.set(st.caps.key, st.caps.all);
     if(st.vo && st.vo.fp){ const vf = await getF(st.vo.fp, 'voiceover-' + st.vo.key + '.f32'); if(vf){ vo = { raw: new Float32Array(await vf.arrayBuffer()), sr: st.vo.sr, key: st.vo.key }; await cleanVo(); } }
     if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }
+    if(S.capColor) ACCENT = S.capColor;
     bgColor = S.bgColor || bgColor; if(S.bgMode && S.bgMode !== 'none') press('bgmode', 'b', S.bgMode);
     overlays = (st.overlays || []).map(o => ({ ...o })); ovSeq = overlays.reduce((q, o) => Math.max(q, o.id || 0), 0); renderOvList();
     if(st.sec){ sec.len = st.sec.len; sec.auto = st.sec.auto; sec.start = st.sec.start;
