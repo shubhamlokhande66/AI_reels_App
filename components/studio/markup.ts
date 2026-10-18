@@ -225,6 +225,13 @@ export const STUDIO_HTML = `
 
           <section class="panel" data-panel="music">${panelHead("music")}
             <div class="row"><button type="button" class="btn" data-open-step="s1">${IC.music}Change the song or its part</button><button type="button" class="btn" data-open-step="s2">${IC.plus}Add or change clips</button></div>
+            <div class="ausliders musiconly">
+            <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
+            <label class="cslide"><span>Fade in</span><input type="range" id="mfin" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
+            <label class="cslide"><span>Fade out</span><input type="range" id="mfout" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
+            <select id="xclip" aria-label="Extract audio: use a clip's sound as the song"><option value="">Use a clip's sound as the song…</option></select>
+            <p class="hint">A clip's own sound under the music: Shot → Volume.</p>
+            </div>
           </section>
 
           <section class="panel" data-panel="text">${panelHead("text")}
@@ -260,6 +267,8 @@ export const STUDIO_HTML = `
 
           <section class="panel" data-panel="voice">${panelHead("voice")}
             <div class="row vorow" id="vorow"><button class="btn" id="vorec" type="button">${IC.voice}Record voiceover</button><button class="btn mini" id="vodel" type="button" hidden>Remove voiceover</button><label class="tog"><input type="checkbox" id="dn2" checked> Clean up noise</label><span class="fname" id="vostat"></span></div>
+            <span class="label musiconly">Voice changer</span>
+            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="chip" data-f="none" aria-pressed="true">Original</button><button type="button" class="chip" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="chip" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="chip" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="chip" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="chip" data-f="echo" aria-pressed="false">Echo</button></div>
             <p class="hint talkonly">Talking videos: pauses, music under the voice and noise cleanup are in step 2.</p>
           </section>
 

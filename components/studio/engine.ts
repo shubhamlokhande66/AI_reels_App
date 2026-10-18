@@ -2928,7 +2928,7 @@ const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivi
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
+const CS0 = { vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
 const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
 // display uv -> source uv: the picture is turned, then mirrored / flipped
@@ -3032,7 +3032,7 @@ function stopAll(){ playing=false; if(src){ const s=src; src=null; try{s.stop();
 let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
-  const c = getCtx(); await c.resume();
+  const c = getCtx(); await c.resume(); await ensureMix();
   edit.forEach(x=>{ x._cued = false; });
   curIdx = segAt(from); if(edit[curIdx-1]) await prepare(curIdx-1, edit[curIdx-1].end-0.01); await prepare(curIdx, from); if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
   const s = c.createBufferSource(); s.buffer = buf;
@@ -3209,6 +3209,7 @@ async function fastExport(){
   let pre = null;   // the next shot's decoder, seeking ahead (finished before the decoders are let go)
   try{
     // sound: rendered offline, the same chain as the preview (loudness, limiter, tiny fades)
+    await ensureMix();
     const snd = exportSound(), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(dur*sr), sr);
     const sn = oc.createBufferSource(); sn.buffer = snd ? snd.buf : oc.createBuffer(2, Math.ceil(dur*sr), sr);
     const g = oc.createGain(), lim = oc.createDynamicsCompressor();
@@ -3763,24 +3764,104 @@ process(inp){const ch=inp[0]&&inp[0][0];if(this.on&&ch){if(!this.n)this.t=curren
 registerProcessor('vo-rec',R);`;
 let voWorkletReady = null;
 function voStat(t){ $('vostat').textContent = t; }
-function applyVo(){   // the song part (baseBuf, set with its loudness by useSection) with the voiceover on it, or alone
+/* ---- the Reel's sound: one mix that the preview and the export both play ----
+ * the song part (baseBuf, with its loudness from useSection) at the music volume with its fades, the voiceover (through
+ * the voice changer; the song steps back while it speaks) and each shot's own sound at its volume (cs.vol). ---- */
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none' };
+let au = { ...AU0 }, clipMixKey = '';
+const fxCache = new Map();
+function voPcm(){ if(!vo) return null; if(au.vfx === 'none') return vo.pcm;
+  const k = vo.key + '|' + au.vfx + '|' + denoiseOn; if(!fxCache.has(k)){ fxCache.clear(); fxCache.set(k, voiceFx(vo.pcm, vo.sr, au.vfx)); } return fxCache.get(k); }
+// a shot's own sound, decoded once per clip (null: the clip has no sound)
+async function clipPcm(si){
+  const s = sources[si]; if(!s) return null; if(s.pcm !== undefined) return s.pcm;
+  try{ const b = await decodeAnyAudio(s.file), m = new Float32Array(b.length), ch = b.numberOfChannels;
+    for(let c=0;c<ch;c++){ const d = b.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ch; }
+    s.pcm = { x: m, sr: b.sampleRate }; }catch(e){ s.pcm = null; }
+  return s.pcm;
+}
+const clipVoiced = () => kind !== 'talk' && edit.some(e => e.cs && e.cs.vol > 0);
+// the mix is made again only when something in it changed (called before playing and exporting)
+async function ensureMix(){
   if(kind === 'talk' || !baseBuf) return;
-  if(!vo){ buf = baseBuf; normGain = baseNorm; return; }
-  const B = baseBuf, sr = B.sampleRate, N = B.length, v = vo.pcm, vr = vo.sr;
+  const shots = clipVoiced() ? edit.filter(e => e.cs && e.cs.vol > 0) : [];
+  for(const e of shots) await clipPcm(e.src);
+  const key = JSON.stringify([au, vo && vo.key, denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
+  if(key !== clipMixKey){ clipMixKey = key; applyVo(); }
+}
+function applyVo(){   // (the name stays: everything that changes the sound calls it)
+  if(kind === 'talk' || !baseBuf) return;
+  const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
+  const plain = !vo && !shots.length && au.mvol === 1 && !au.mfin && !au.mfout;
+  if(plain){ buf = baseBuf; normGain = baseNorm; return; }
+  const B = baseBuf, sr = B.sampleRate, N = B.length, v = voPcm() || new Float32Array(0), vr = vo ? vo.sr : sr;
   // voice loudness: its speaking parts at about -14 dBFS
   let s2 = 0, n = 0; for(let i=0;i<v.length;i+=4){ const x = v[i]; if(Math.abs(x) > 0.01){ s2 += x*x; n++; } }
   const gv = 0.2/Math.max(0.003, Math.sqrt(s2/Math.max(1, n)));
-  const mix = getCtx().createBuffer(2, N, sr), dn = Math.exp(-1/(0.08*sr)), up = Math.exp(-1/(0.4*sr)), win = Math.round(0.03*sr);
+  const mix = getCtx().createBuffer(2, N, sr), dn = Math.exp(-1/(0.08*sr)), up = Math.exp(-1/(0.4*sr));
+  // the music's volume with its fade in / out
+  const fi = Math.round(au.mfin*sr), fo = Math.round(au.mfout*sr), mv = (i) => au.mvol * (fi && i < fi ? i/fi : 1) * (fo && i > N - fo ? Math.max(0, (N - i)/fo) : 1);
+  // the shots' own sound (mono), placed where each shot plays, at its speed; silent while a shot is frozen
+  const cs = new Float32Array(N);
+  for(const e of shots){ const P = sources[e.src].pcm, c = csOf(e), a = Math.round(e.start*sr), b = Math.min(N, Math.round(e.end*sr)), L = e.end - e.start;
+    // the shot's loudness: about -16 dBFS at volume 100%, short fades at its cuts
+    let q2 = 0, qn = 0; const i0 = Math.round(e.in*P.sr), i1 = Math.min(P.x.length, i0 + Math.round(L*P.sr*2)); for(let k=i0;k<i1;k+=8){ q2 += P.x[k]*P.x[k]; qn++; }
+    const gain = c.vol * Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn)))), ramp = Math.round(0.012*sr);
+    for(let i=a;i<b;i++){ const l = (i - a)/sr; if(rateAt(e, l) <= 0) continue;
+      const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
+      const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
+      cs[i] += P.x[k]*gain*edge; } }
   let env = 1, lv = 0;
   for(let c=0;c<2;c++){ const src = B.getChannelData(Math.min(c, B.numberOfChannels-1)), d = mix.getChannelData(c); env = 1; lv = 0;
     for(let i=0;i<N;i++){
       const j = Math.floor(i*vr/sr), x = (v[j] || 0)*gv;
-      lv = Math.max(Math.abs(x), lv*0.9995);                                   // a follower of the voice
+      lv = Math.max(Math.abs(x) + Math.abs(cs[i])*0.6, lv*0.9995);           // a follower of the voice (and the shots' sound)
       const target = lv > 0.04 ? 0.22 : 0.75; env = target < env ? target + (env - target)*dn : target + (env - target)*up;
-      d[i] = src[i]*baseNorm*env + x;
+      d[i] = src[i]*baseNorm*mv(i)*env + x + cs[i];
     } }
   buf = mix; normGain = 1;
 }
+/* ---- voice changer (on the phone): deep, chipmunk, robot, radio, echo ---- */
+// pitch without changing the length: two crossfaded read heads sliding through a short delay line
+function pitchShift(x, sr, ratio){
+  const W = Math.round(0.05*sr), y = new Float32Array(x.length); let ph = 0; const step = (1 - ratio)/W;
+  for(let i=0;i<x.length;i++){
+    ph += step; ph -= Math.floor(ph);
+    const d1 = ph*W, d2 = ((ph + 0.5) % 1)*W, g1 = 1 - Math.abs(2*ph - 1), g2 = 1 - g1;
+    const r = (d) => { const p = i - d, k = Math.floor(p), f = p - k; return k < 0 ? 0 : (x[k] || 0)*(1 - f) + (x[k+1] || 0)*f; };
+    y[i] = r(d1)*g1 + r(d2)*g2;
+  }
+  return y;
+}
+function voiceFx(x, sr, fx){
+  if(fx === 'deep') return pitchShift(x, sr, 0.74);
+  if(fx === 'chipmunk') return pitchShift(x, sr, 1.55);
+  const y = new Float32Array(x.length);
+  if(fx === 'robot'){ const p = pitchShift(x, sr, 0.92); for(let i=0;i<x.length;i++) y[i] = p[i]*(0.55 + 0.45*Math.sin(2*Math.PI*55*i/sr))*1.4; return y; }
+  if(fx === 'radio'){ // telephone band (300-3400 Hz) and a little crunch
+    let lp = 0, hp = 0, px = 0; const a1 = Math.exp(-2*Math.PI*3400/sr), a2 = Math.exp(-2*Math.PI*300/sr);
+    for(let i=0;i<x.length;i++){ lp = (1 - a1)*x[i] + a1*lp; hp = a2*(hp + lp - px); px = lp; y[i] = Math.tanh(hp*3)*0.6; } return y; }
+  if(fx === 'echo'){ const d = Math.round(0.24*sr); for(let i=0;i<x.length;i++) y[i] = x[i] + (i >= d ? y[i-d]*0.42 : 0); return y; }
+  return x;
+}
+// Extract audio: a clip's own sound becomes the Reel's song (its beats lead the cuts, as with any song)
+async function extractAudio(si){
+  const s = sources[si]; if(!s || !s.file) return;
+  const P = await clipPcm(si); if(!P){ notify('That clip has no sound to use.', 'err'); return; }
+  const f = new File([s.file], s.name.replace(/\.[^.]+$/, '') + ' (sound).' + (s.name.split('.').pop() || 'mp4'), { type: s.file.type, lastModified: s.file.lastModified });
+  notify('Using the sound of ' + s.name.replace(/\.[^.]+$/, '') + ' as the song…'); await loadMusic(f);
+}
+function auUI(){
+  const set = (id, v, t) => { const el = $(id); if(el){ el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = t; } };
+  set('mvol', au.mvol, Math.round(au.mvol*100) + '%'); set('mfin', au.mfin, au.mfin.toFixed(1) + ' s'); set('mfout', au.mfout, au.mfout.toFixed(1) + ' s');
+  [...$('vfx').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.f === au.vfx)));
+  const ex = $('xclip'); if(ex){ const k = ex.value; ex.innerHTML = '<option value="">Use a clip\'s sound as the song…</option>' + sources.map((s, i) => `<option value="${i}">${s.name.replace(/[<&"]/g, '')}</option>`).join(''); ex.value = k && sources[+k] ? '' : ''; }
+}
+const auSet = (patch) => { au = { ...au, ...patch }; auUI(); applyVo(); if(!playing) redrawFrame(); };
+for(const [id, k] of [['mvol','mvol'], ['mfin','mfin'], ['mfout','mfout']]) $(id).addEventListener('input', e => auSet({ [k]: +e.target.value }), SIG);
+$('vfx').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; if(!vo) notify('Record a voiceover first; the voice changer works on it.'); auSet({ vfx: b.dataset.f }); }, SIG);
+$('xclip').addEventListener('focus', auUI, SIG);
+$('xclip').addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if(v !== '') extractAudio(+v); }, SIG);
 async function recordVoiceover(){
   if(voRec){ voRec.stop(); return; }
   if(!edit.length || kind === 'talk') return;
@@ -3898,7 +3979,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { au, trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     edit: editOf(),
     kfs: kind === 'talk' && edit.some(e => e.uk && e.uk.length) ? edit.map(e => e.uk && e.uk.length ? e.uk : null) : undefined,
@@ -3960,6 +4041,7 @@ async function openProject(id){
     if(st.kind === 'talk') setKind('talk');
     press('aspect', 'a', S.aspect); press('look', 'l', S.look); press('tstyle', 't', S.textStyle); if(S.mode && S.mode !== 'auto') press('mode', 'm', S.mode);
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
+    if(S.au) au = { ...AU0, ...S.au }; auUI();
     hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1; if(S.denoise === false){ denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
     if(S.trTo){ for(const [k, v] of S.tr || []) trCache.set(k, v); trTo = S.trTo; trOnly = !!S.trOnly; $('captr').value = trTo; $('tronly').checked = trOnly; $('trwrap').hidden = false; }
@@ -4038,7 +4120,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, get canUndo(){ return hist.u.length > 0; }, get canRedo(){ return hist.r.length > 0; },
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

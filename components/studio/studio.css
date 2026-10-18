@@ -332,6 +332,9 @@
 .brs .kfbox > summary{display:none}
 .brs #capwrap:not([hidden]) ~ .capnone{display:none}
 .brs:not(.talkmode) .talkonly{display:none}
+.brs.talkmode .musiconly{display:none}
+.brs .ausliders{display:grid;gap:10px;margin-top:12px}
+.brs .ausliders select{height:38px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:13.5px var(--body);padding:0 8px}
 .brs .panel[data-panel="shots"]{padding:0;border:0;background:transparent}
 .brs .allshots > summary{cursor:pointer;font:600 14px var(--body);color:var(--muted);padding:6px 2px}
 .brs .allshots[open]{display:grid;gap:10px}
