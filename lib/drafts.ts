@@ -5,8 +5,9 @@ import { useEffect, useState } from "react";
 /** A Reel being made in Fast Studio, kept on this phone (components/studio/engine.ts, IndexedDB "brs-projects"). */
 export type Draft = { id: string; name: string; kind?: string; dur?: number; updated: number; thumb?: string };
 
-/** Fast Studio's drafts on this phone, newest first; read only (the studio owns the store and creates it). */
-export function useDrafts(): Draft[] | null {
+/** Fast Studio's drafts on this phone, newest first; read only (the studio owns the store and creates it).
+ * A new `reload` value reads them again (after a delete). */
+export function useDrafts(reload = 0): Draft[] | null {
   const [drafts, setDrafts] = useState<Draft[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -37,7 +38,7 @@ export function useDrafts(): Draft[] | null {
     return () => {
       live = false;
     };
-  }, []);
+  }, [reload]);
   return drafts;
 }
 
@@ -74,6 +75,33 @@ export function deleteDraft(id: string): Promise<void> {
       };
       tx.oncomplete = () => { dbx.close(); resolve(); };
       tx.onerror = () => { dbx.close(); reject(tx.error); };
+    };
+  });
+}
+
+/** The first video clip of a draft, for a playing preview on its card (Home: Continue Editing); null if it has none. */
+export function draftPreview(id: string): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    let req: IDBOpenDBRequest;
+    try { req = indexedDB.open("brs-projects"); } catch { return resolve(null); }
+    req.onupgradeneeded = () => req.transaction?.abort();
+    req.onerror = () => resolve(null);
+    req.onsuccess = () => {
+      const dbx = req.result;
+      if (!dbx.objectStoreNames.contains("meta") || !dbx.objectStoreNames.contains("files")) { dbx.close(); return resolve(null); }
+      const tx = dbx.transaction(["meta", "files"], "readonly"), got = tx.objectStore("meta").get(id);
+      const end = (b: Blob | null) => { dbx.close(); resolve(b); };
+      got.onerror = () => end(null);
+      got.onsuccess = () => {
+        const clips = ((got.result as { state?: { clips?: { fp?: string }[] } } | undefined)?.state?.clips ?? []).filter((c) => c.fp);
+        const next = (i: number) => {
+          if (i >= clips.length) return end(null);
+          const f = tx.objectStore("files").get("f:" + clips[i].fp);
+          f.onsuccess = () => { const b = f.result as Blob | undefined; if (b && b.type.startsWith("video/")) end(b); else next(i + 1); };
+          f.onerror = () => next(i + 1);
+        };
+        next(0);
+      };
     };
   });
 }

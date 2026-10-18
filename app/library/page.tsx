@@ -234,7 +234,7 @@ function ClipDetails({ item, analysing, onAnalyse, onFavorite, onTag, onDelete, 
           </button>
         ) : (
           <button type="button" className="ib plain" aria-pressed={item.favorite} aria-label={item.favorite ? "Remove from favorites" : "Add to favorites"} onClick={onFavorite}>
-            <Icon name="star" size={20} color={item.favorite ? "#d4b07a" : undefined} />
+            <Icon name="star" size={20} color={item.favorite ? "var(--accent)" : undefined} />
           </button>
         )}
       </div>

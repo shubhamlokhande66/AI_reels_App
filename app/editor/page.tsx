@@ -34,19 +34,19 @@ export default function EditorHome() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-[14px]">
       <Hero title="Make a Reel yourself" subtitle="Every professional tool, free: split, speed, transitions, titles, keyframes." />
       <form
-        className="noir flex flex-col gap-4 rounded-[18px] bg-[#141210] p-[18px] text-[#f3ede3]"
+        className="noir flex flex-col gap-4 rounded-[18px] bg-surface p-[18px] text-foreground"
         onSubmit={(e) => {
           e.preventDefault();
           void create();
         }}
       >
         <span className="row">
-          <span className="it b4" style={{ background: "#1c1916" }}>
+          <span className="it b4" style={{ background: "var(--surface-2)" }}>
             <Icon name="scissors" size={20} />
           </span>
           <span className="flex flex-col">
             <b className="font-display text-[22px] font-semibold">Start a new edit</b>
-            <span className="text-[12.5px] text-[#a69d90]">Add clips and music, cut by hand</span>
+            <span className="text-[12.5px] text-muted">Add clips and music, cut by hand</span>
           </span>
         </span>
         <input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} placeholder="Name your edit (optional)" className="inp" aria-label="Name your edit" />

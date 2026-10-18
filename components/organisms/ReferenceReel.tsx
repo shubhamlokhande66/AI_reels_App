@@ -33,7 +33,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <section
       aria-label="Make it like a Reel you love"
-      className="relative overflow-hidden rounded-3xl border border-accent/50 bg-[linear-gradient(135deg,rgba(212,176,122,0.14),rgba(212,176,122,0.03))] p-5"
+      className="relative overflow-hidden rounded-3xl border border-accent/50 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_14%,transparent),color-mix(in_srgb,var(--accent)_3%,transparent))] p-5"
     >
       <div className="flex items-start gap-4">
         <span aria-hidden className="lux-btn-gold grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl">

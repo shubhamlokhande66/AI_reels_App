@@ -12,6 +12,8 @@ export interface StudioTemplate {
   /** a sample of the text the template puts on the Reel, in its style */
   sample: { text: string; style: "box" | "neon" | "tag" | "clean" | "pop"; color: string; y: number };
   look: string;
+  /** a cover picture (public/templates/<id>.webp); without one the card draws its own poster */
+  cover?: string;
   group: "Everyday" | "Business" | "Festivals" | "Travel & food";
 }
 

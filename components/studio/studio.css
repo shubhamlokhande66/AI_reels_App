@@ -75,8 +75,8 @@
 
 /* app look: gold primary buttons, hidden really hidden */
 .brs [hidden]{display:none !important}
-.brs .btn.primary{background:var(--gold-gradient);color:#1a140c;border-color:transparent}
-.brs .seg button[aria-pressed=true]{background:var(--accent);color:#1a140c}
+.brs .btn.primary{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent}
+.brs .seg button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
 .brs .step{background:linear-gradient(180deg,var(--sheen),transparent),var(--surface)}
 
 /* "Copy a Reel": what was read from the reference, and a button to change it */
@@ -151,8 +151,8 @@
 
 /* ================= Layout (the design "D · Combined"): top bar, home, Simple / Editor / Pro ================= */
 .brs{min-height:100vh;background:var(--background);
-  --ink-btn:var(--gold-gradient); --ink-btn-fg:#1a140c; --chipbg:color-mix(in srgb,var(--accent) 14%,var(--surface));}
-:root[data-theme="light"] .brs{--ink-btn:#1e1b16; --ink-btn-fg:#f7f3ec}
+  --ink-btn:var(--gold-gradient); --ink-btn-fg:var(--on-accent); --chipbg:color-mix(in srgb,var(--accent) 14%,var(--surface));}
+:root[data-theme="light"] .brs{--ink-btn:#17142e; --ink-btn-fg:#f6f4ff}
 .brs svg{flex-shrink:0}
 .brs [hidden]{display:none !important}
 
@@ -216,11 +216,11 @@
 .brs .kinds button span{display:grid;gap:4px}
 .brs .kinds button b{font-size:17px}
 .brs .kinds button small{font-size:13px;color:var(--muted)}
-.brs .kinds button[aria-pressed=true]{background:var(--gold-gradient);color:#14110b;border-color:transparent;box-shadow:0 12px 28px -16px rgba(212,176,122,.85)}
-.brs .kinds button[aria-pressed=true] svg,.brs .kinds button[aria-pressed=true] small{color:#3b2c14}
-:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:#1e1b16;color:#f7f3ec;box-shadow:0 12px 28px -16px rgba(0,0,0,.6)}
-:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#e2c27f}
-:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:#d8d0c2}
+.brs .kinds button[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 12px 28px -16px color-mix(in srgb, var(--accent) 85%, transparent)}
+.brs .kinds button[aria-pressed=true] svg,.brs .kinds button[aria-pressed=true] small{color:rgba(255,255,255,.85)}
+:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:#17142e;color:#f6f4ff;box-shadow:0 12px 28px -16px rgba(0,0,0,.6)}
+:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#c68bff}
+:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:#d9d4f5}
 .brs .copycard{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font-family:var(--body)}
 .brs .copycard > svg:first-child{width:40px;height:40px;padding:10px;border-radius:12px;background:var(--surface-2);color:var(--accent)}
 .brs .copycard span{display:grid;gap:2px;flex:1}
@@ -535,8 +535,8 @@
 
 /* ================= Inside the app (design: the Shubix pages) ==========   Fast Studio is a page of the app like the others: the app's sidebar, top bar, menu and footer around it, the
    Ivory page look, gold buttons, numbered gold steps, cards with the app's corners and shadow. */
-.brs{min-height:0;background:transparent;--ink-btn:var(--gold-gradient);--ink-btn-fg:#1a140c;--chipbg:var(--chip-on)}
-:root[data-theme="light"] .brs{--ink-btn:var(--gold-gradient);--ink-btn-fg:#1a140c}
+.brs{min-height:0;background:transparent;--ink-btn:var(--gold-gradient);--ink-btn-fg:var(--on-accent);--chipbg:var(--chip-on)}
+:root[data-theme="light"] .brs{--ink-btn:var(--gold-gradient);--ink-btn-fg:var(--on-accent)}
 .brs .wrap,.brs.made.v-pro .wrap{max-width:none;padding:0 0 24px;gap:14px}
 @media (min-width:760px){ .brs .wrap{padding:0 0 24px} }
 
@@ -552,15 +552,15 @@
 .brs .views{padding:3px;gap:2px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
 .brs .views button{height:34px;border-radius:9px;font:700 12.5px var(--body)}
 .brs .views button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15),inset 0 0 0 1px var(--line)}
-.brs .tb-export,:root:not([data-theme="light"]) .brs .tb-export{background:var(--gold-gradient);color:#1a140c;border-radius:12px;height:44px}
+.brs .tb-export,:root:not([data-theme="light"]) .brs .tb-export{background:var(--gold-gradient);color:var(--on-accent);border-radius:12px;height:44px}
 
 /* home: the app's page title and "make" cards */
 .brs .hero h1{font:600 clamp(30px,6vw,40px)/1.05 var(--display);letter-spacing:.01em}
 .brs .hero .sub{font-size:13.5px;line-height:1.45;margin-top:4px}
 .brs .kinds button,.brs .copycard{border-radius:16px;box-shadow:var(--shadow);gap:12px}
-.brs .kinds button svg,.brs .copycard > svg:first-child{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:#1e3a8a}
-.brs .kinds button[data-k="talk"] svg{background:#1f5e4a}
-.brs .copycard > svg:first-child{background:#6b2a8f}
+.brs .kinds button svg,.brs .copycard > svg:first-child{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:linear-gradient(135deg,#e040fb,#7c3aed)}
+.brs .kinds button[data-k="talk"] svg{background:linear-gradient(135deg,#3b8bff,#1d4ed8)}
+.brs .copycard > svg:first-child{background:linear-gradient(135deg,#ff4fb4,#d61f7a)}
 .brs .kinds button[aria-pressed=true],:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:var(--surface);color:var(--ink);border:2px solid var(--accent);box-shadow:var(--shadow)}
 .brs .kinds button[aria-pressed=true] svg,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#fff}
 .brs .kinds button[aria-pressed=true] small,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:var(--muted)}
@@ -574,20 +574,20 @@
 
 /* steps: the app's numbered gold steps */
 .brs .step{border-radius:16px;box-shadow:var(--shadow);padding:14px}
-.brs .num{width:26px;height:26px;border:0;background:var(--gold-gradient);color:#1a140c;font:800 12px var(--body)}
+.brs .num{width:26px;height:26px;border:0;background:var(--gold-gradient);color:var(--on-accent);font:800 12px var(--body)}
 .brs .step.done .num{background:var(--success);color:#fff}
 .brs .sh h2{font:700 15px var(--body)}
 
 /* buttons, progress */
 .brs .btn{font:700 14px var(--body)}
-.brs .btn.primary,.brs .btn.hot,.brs .btn.save{background:var(--gold-gradient);color:#1a140c;border-color:transparent;box-shadow:0 10px 22px -14px rgba(169,130,74,.9)}
+.brs .btn.primary,.brs .btn.hot,.brs .btn.save{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 10px 22px -14px var(--brand-glow)}
 .brs .btn.big{border-radius:14px;min-height:52px;font-size:15.5px}
 .brs .bar i{background:var(--gold-gradient)}
 .brs .drop{border:1.5px dashed color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:16px;background:var(--surface)}
 .brs .drop:hover,.brs .drop.over{border-color:var(--accent)}
 .brs canvas.wave{background:var(--surface-2)}
 .brs #play{border-color:var(--accent)}
-.brs.v-pro #play{background:var(--gold-gradient);color:#1a140c}
+.brs.v-pro #play{background:var(--gold-gradient);color:var(--on-accent)}
 
 /* the save bar on phones sits on the page (no app tab bar here) */
 .brs.made.v-simple .savebar{margin:0 -16px;background:color-mix(in srgb,var(--background) 94%,transparent)}
@@ -615,10 +615,10 @@
 .brs .makegrid .kinds{display:contents}
 .brs .kinds button,.brs .kindx{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:10px;text-align:left;padding:14px;min-height:0;border-radius:16px;
   border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-family:var(--body);box-shadow:var(--shadow)}
-.brs .kindx svg:first-child,.brs .kinds button svg{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:#1e3a8a}
-.brs .kinds button[data-k="talk"] svg{background:#1f5e4a}
-.brs #photokind svg{background:#8a5a1c}
-.brs #copycard > svg:first-child{background:#6b2a8f}
+.brs .kindx svg:first-child,.brs .kinds button svg{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:linear-gradient(135deg,#e040fb,#7c3aed)}
+.brs .kinds button[data-k="talk"] svg{background:linear-gradient(135deg,#3b8bff,#1d4ed8)}
+.brs #photokind svg{background:linear-gradient(135deg,#ff9a3d,#ff4f6d)}
+.brs #copycard > svg:first-child{background:linear-gradient(135deg,#ff4fb4,#d61f7a)}
 .brs .kindx span,.brs .kinds button span{display:grid;gap:2px}
 .brs .kindx b,.brs .kinds button b{font-size:14.5px}
 .brs .kindx small,.brs .kinds button small{font-size:12px;color:var(--muted);line-height:1.35}
@@ -694,7 +694,7 @@
 .brs .aobig{width:100%;display:flex;align-items:center;gap:14px;text-align:left;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:14px var(--body);box-shadow:var(--shadow);transition:border-color .15s}
 .brs .aobig:hover,.brs .aobig:focus-visible{border-color:var(--accent)}
 .brs .aoic{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff}
-.brs .aoic1{background:#1e3a8a}.brs .aoic2{background:#7c2d92}
+.brs .aoic1{background:linear-gradient(135deg,#e040fb,#7c3aed)}.brs .aoic2{background:linear-gradient(135deg,#3b8bff,#1d4ed8)}
 .brs .aotx{flex:1;min-width:0;display:grid;gap:3px}
 .brs .aotx b{font:700 15px var(--body)}
 .brs .aotx b em{font:600 11px var(--body);font-style:normal;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
@@ -702,7 +702,7 @@
 .brs .aochev{color:var(--muted);flex:none}
 .brs .aonote{display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font-size:13px}
 .brs .aonote svg{color:var(--accent);flex:none;width:18px;height:18px}
-.brs .aogo{width:100%;justify-content:center;min-height:52px;font-size:16px;background:var(--gold-gradient);color:#1a140c}
+.brs .aogo{width:100%;justify-content:center;min-height:52px;font-size:16px;background:var(--gold-gradient);color:var(--on-accent)}
 .brs .aogo:disabled{opacity:.45;cursor:not-allowed}
 .brs .aorun{justify-items:center;text-align:center;gap:14px;padding:24px 18px}
 .brs .aoring{position:relative;width:150px;height:150px;display:grid;place-items:center}
@@ -724,7 +724,7 @@
 .brs .aodone video{height:min(64vh,620px);max-width:100%;aspect-ratio:9/16;border-radius:18px;background:#000}
 .brs .aoacts{display:grid;gap:10px;width:100%}
 .brs .aoacts .btn{width:100%;justify-content:center}
-.brs .aoacts .btn.save{background:var(--gold-gradient);color:#1a140c}
+.brs .aoacts .btn.save{background:var(--gold-gradient);color:var(--on-accent)}
 @media (min-width:900px){
   .brs .autoov > .aodone{width:min(900px,100%)}
   .brs .aodonebox{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start}

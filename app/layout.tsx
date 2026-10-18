@@ -5,9 +5,9 @@ import { AppShell } from "@/components/templates/AppShell";
 import { Providers } from "@/components/templates/Providers";
 import { THEME_SCRIPT } from "@/lib/theme";
 
-// Display serif for headings, a clean geometric sans for everything else.
+// One clean geometric sans (UI/ design): bold for headings, regular for everything else.
 // Self-hosted (latin variable fonts from Google Fonts in app/fonts): the build never fetches fonts over the network.
-const display = localFont({ src: "./fonts/cormorant-garamond.woff2", variable: "--font-display", weight: "500 700", display: "swap" });
+const display = localFont({ src: "./fonts/manrope.woff2", variable: "--font-display", weight: "200 800", display: "swap" });
 const body = localFont({ src: "./fonts/manrope.woff2", variable: "--font-body", weight: "200 800", display: "swap" });
 const geistMono = localFont({ src: "./fonts/geist-mono.woff2", variable: "--font-geist-mono", weight: "100 900", display: "swap" });
 
@@ -16,7 +16,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#05060a",
+  themeColor: "#0a0a1f",
 };
 
 export const metadata: Metadata = {

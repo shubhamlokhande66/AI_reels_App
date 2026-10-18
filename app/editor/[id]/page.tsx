@@ -384,7 +384,7 @@ export default function StudioEditorPage() {
                 <button type="button" className="ib plain" onClick={() => setPlayhead(0)} aria-label="Back to start">
                   <Icon name="prev" size={16} />
                 </button>
-                <button type="button" className="ib" style={{ background: "#f3ede3", color: "#0a0908", borderColor: "transparent" }} onClick={() => setPlaying((v) => !v)} aria-label={playing ? "Pause" : "Play"} title="Space">
+                <button type="button" className="ib" style={{ background: "var(--foreground)", color: "#0a0908", borderColor: "transparent" }} onClick={() => setPlaying((v) => !v)} aria-label={playing ? "Pause" : "Play"} title="Space">
                   <Icon name={playing ? "pause" : "play"} size={16} />
                 </button>
                 <button type="button" className="ib plain" onClick={() => { setPlaying(false); setPlayhead(Math.max(0, tl.duration - 0.05)); }} aria-label="To the end">

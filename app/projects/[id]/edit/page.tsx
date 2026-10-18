@@ -173,7 +173,7 @@ export default function EditorPage() {
       ),
     },
   ];
-  const tool = "btn sm shrink-0 !bg-[#1c1916] !border-[#2e2924] !text-[#f3ede3]";
+  const tool = "btn sm shrink-0 !bg-[#1c1916] !border-[#2e2924] !text-foreground";
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
@@ -199,7 +199,7 @@ export default function EditorPage() {
       )}
 
       <section className="noir noir-panel relative flex flex-col gap-2" aria-label="Timeline" style={{ fontSize: 10.5 }}>
-        <div className="between flex-wrap" style={{ color: "#f3ede3" }}>
+        <div className="between flex-wrap" style={{ color: "var(--foreground)" }}>
           <span className="mono text-[12px]">
             {fmt(playhead)} / {fmt(tl.duration)}
           </span>
@@ -250,7 +250,7 @@ export default function EditorPage() {
                 if (v) void (v.paused ? v.play() : v.pause());
               }}
               className="ib"
-              style={{ width: 36, height: 36, background: "#1c1916", borderColor: "#2e2924", color: "#f3ede3" }}
+              style={{ width: 36, height: 36, background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--foreground)" }}
             >
               <Icon name={playing ? "pause" : "play"} size={16} />
             </button>
