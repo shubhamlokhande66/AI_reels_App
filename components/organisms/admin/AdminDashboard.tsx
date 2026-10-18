@@ -61,7 +61,7 @@ export function AdminDashboard() {
   const sidebar = (
     <>
       <div className="row gap-2.5 px-1 pb-2">
-        <Logo height={34} />
+        <Logo height={48} />
         <span className="badge b-run ml-auto">Admin</span>
       </div>
       <nav aria-label="Admin" className="flex flex-col gap-3">
@@ -75,7 +75,7 @@ export function AdminDashboard() {
                 onClick={() => setTab(t.id)}
                 aria-current={tab === t.id ? "page" : undefined}
                 className={`flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-left text-[13.5px] transition-colors ${
-                  tab === t.id ? "bg-[rgba(212,176,122,.14)] font-bold text-foreground" : "text-muted hover:bg-[rgba(212,176,122,.06)] hover:text-foreground"
+                  tab === t.id ? "bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] font-bold text-foreground" : "text-muted hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] hover:text-foreground"
                 }`}
               >
                 <Icon name={t.icon} size={18} stroke={1.7} color={tab === t.id ? "var(--accent)" : undefined} />
@@ -89,7 +89,7 @@ export function AdminDashboard() {
           <div className="flex flex-col gap-0.5">
             <span className="eb px-2.5 pb-1">Tools</span>
             {TOOLS.map((t) => (
-              <Link key={t.href} href={t.href} className="flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-[13.5px] text-muted transition-colors hover:bg-[rgba(212,176,122,.06)] hover:text-foreground">
+              <Link key={t.href} href={t.href} className="flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-[13.5px] text-muted transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] hover:text-foreground">
                 <Icon name={t.icon} size={18} stroke={1.7} />
                 {t.label}
               </Link>
@@ -115,7 +115,7 @@ export function AdminDashboard() {
   return (
     <div className="flex min-h-screen">
       {/* computers: the sidebar */}
-      <aside className="hidden border-r border-border [background:var(--sidebar)] md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-3 md:overflow-y-auto md:px-4 md:py-5">
+      <aside className="hidden border-r border-border [background:var(--sidebar)] md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-60 md:flex-col md:gap-3 md:overflow-y-auto md:px-4 md:py-5 [&>*]:shrink-0">
         {sidebar}
       </aside>
       {/* phones: the same sidebar as a drawer */}
@@ -128,7 +128,7 @@ export function AdminDashboard() {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col md:ml-60">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-[var(--bar)] px-4 md:px-6">
           <button type="button" className="ib plain md:hidden" aria-label="Open admin menu" onClick={() => setMenu(true)}>
             <Icon name="menu" size={22} />
@@ -149,7 +149,7 @@ export function AdminDashboard() {
             </button>
             {email && (
               <span className="hidden items-center gap-2 border-l border-border pl-3 lg:flex">
-                <span className="grid h-8 w-8 place-items-center rounded-full font-bold text-[#1a140c] [background:var(--gold-gradient)]">{email[0]?.toUpperCase()}</span>
+                <span className="grid h-8 w-8 place-items-center rounded-full font-bold text-[var(--on-accent)] [background:var(--gold-gradient)]">{email[0]?.toUpperCase()}</span>
                 <span className="sm max-w-[180px] truncate">{email}</span>
               </span>
             )}

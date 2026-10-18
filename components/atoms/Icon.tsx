@@ -98,6 +98,25 @@ const P: Record<string, React.ReactNode> = {
       <path d="M17 14.5v3M15.5 16h3" />
     </>
   ),
+  reels: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="4" />
+      <path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor" strokeLinejoin="round" />
+    </>
+  ),
+  crown: <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 10H5z" fill="currentColor" strokeLinejoin="round" />,
+  bell: (
+    <>
+      <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" />
+      <path d="M10 20a2 2 0 0 0 4 0" />
+    </>
+  ),
+  bulb: (
+    <>
+      <path d="M9 17h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V17h5v-1.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" />
+    </>
+  ),
+  text: <path d="M3 6V4h11v2M8.5 4v16M13 11v-1h8v1M17 10v10M15 20h4M6.5 20h4" />,
   admin: (
     <>
       <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" />
@@ -213,10 +232,11 @@ export function Icon({ name, size = 20, stroke = 1.8, className, color }: { name
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={color ?? "currentColor"}
+      stroke="currentColor"
       strokeWidth={stroke}
       aria-hidden="true"
       className={className}
+      style={color ? { color } : undefined}
     >
       {P[name] ?? P.sparkle}
     </svg>

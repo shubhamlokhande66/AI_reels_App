@@ -303,7 +303,7 @@ function AttachmentChip({ file, tone, onRemove }: { file: Attachment | ChatFile;
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs ${
-        tone === "on-accent" ? "border-black/20 bg-black/10 text-[#1a140c]" : "border-border bg-surface-2 text-foreground"
+        tone === "on-accent" ? "border-black/20 bg-black/10 text-[var(--on-accent)]" : "border-border bg-surface-2 text-foreground"
       }`}
     >
       {thumb ? (

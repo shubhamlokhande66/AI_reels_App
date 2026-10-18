@@ -16,7 +16,7 @@ const KIND_STYLE: Record<BeatEvent["kind"], string> = {
   beat: "bg-surface text-foreground border-border",
 };
 const SECTION_FILL: Record<string, string> = {
-  intro: "#64748b", build: "#f59e0b", drop: "#ef4444", chorus: "#d4b07a", verse: "#6366f1", bridge: "#14b8a6", outro: "#64748b",
+  intro: "#64748b", build: "#f59e0b", drop: "#ef4444", chorus: "#b05cff", verse: "#6366f1", bridge: "#14b8a6", outro: "#64748b",
 };
 
 type Filter = "plan" | "all" | "major" | "beat" | "drops" | "trends";
@@ -215,13 +215,13 @@ export function BeatMap({ data, src }: { data: BeatMapData; src: string }) {
             <rect key={i} x={tr.start * zoom} y={curveTop} width={(tr.end - tr.start) * zoom} height={curveH}
               fill={tr.kind === "rise" ? "#10b981" : "#0ea5e9"} opacity={0.14} />
           ))}
-          <path d={energyPath} fill="none" stroke="#d4b07a" strokeWidth={1.6} />
+          <path d={energyPath} fill="none" stroke="#b05cff" strokeWidth={1.6} />
           <path d={rhythmPath} fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.8} />
           {data.events.map((e, i) => {
             const x = e.t * zoom;
             if (e.effect === "crash_zoom")
               return <path key={i} d={`M${x},${tickTop - 4} l5,8 l-5,8 l-5,-8z`} fill="#ef4444"><title>{`Drop ${beatTime(e.t)}`}</title></path>;
-            if (e.kind === "major") return <line key={i} x1={x} x2={x} y1={tickTop} y2={H - 4} stroke="#d4b07a" strokeWidth={2} />;
+            if (e.kind === "major") return <line key={i} x1={x} x2={x} y1={tickTop} y2={H - 4} stroke="#b05cff" strokeWidth={2} />;
             if (e.kind === "beat") return <line key={i} x1={x} x2={x} y1={tickTop + 14} y2={H - 4} stroke="#e5e7eb" strokeWidth={1} opacity={0.7} />;
             return zoom >= 16 ? <line key={i} x1={x} x2={x} y1={tickTop + 30} y2={H - 4} stroke="#94a3b8" strokeWidth={1} opacity={0.5} /> : null;
           })}
@@ -230,7 +230,7 @@ export function BeatMap({ data, src }: { data: BeatMapData; src: string }) {
             const bar = e.downbeat;
             const strong = !bar && (e.kind === "major" || (e.level ?? 1) >= 3);
             return <circle key={`m${i}`} cx={e.t * zoom} cy={curveTop - 6} r={bar ? 4 : strong ? 3 : 1.6}
-              fill={bar ? "#facc15" : strong ? "#d4b07a" : "#9ca3af"} opacity={bar || strong ? 1 : 0.6}><title>{`${bar ? "Bar start" : strong ? "Strong beat" : "Beat"} ${beatTime(e.t)}`}</title></circle>;
+              fill={bar ? "#facc15" : strong ? "#b05cff" : "#9ca3af"} opacity={bar || strong ? 1 : 0.6}><title>{`${bar ? "Bar start" : strong ? "Strong beat" : "Beat"} ${beatTime(e.t)}`}</title></circle>;
           })}
           <line x1={now * zoom} x2={now * zoom} y1={0} y2={H} stroke="#fff" strokeWidth={1.5} />
         </svg>

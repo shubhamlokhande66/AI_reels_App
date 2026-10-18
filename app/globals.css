@@ -1,62 +1,69 @@
 @import "tailwindcss";
 @import "./rm.css";
 
-/* "Maison" theme: a dark, warm, luxury studio. Onyx surfaces, champagne-gold accent, ivory type, hairline borders.
-   Every screen uses these tokens, so the whole app follows them. */
+/* "Neon" theme (UI/ design): a dark, premium studio. Deep navy surfaces, a purple → magenta brand gradient, white
+   type, hairline borders. Every screen uses these tokens, so the whole app follows them. (--gold-gradient is the
+   brand gradient; the name stays so every older use follows.) */
 :root,
 .noir {
-  --background: #0a0908;
-  --surface: #141210;
-  --surface-2: #1c1916;
-  --border: #2e2924;
-  --foreground: #f3ede3;
-  --muted: #a69d90;
-  --accent: #d4b07a; /* champagne gold */
-  --accent-hover: #e6c995;
-  --accent-deep: #9c7b46;
-  --success: #8fcf9f;
-  --warning: #e9c46a;
-  --danger: #e88b7d;
-  --gold-gradient: linear-gradient(135deg, #f1dcb0 0%, #d4b07a 45%, #a9824a 100%);
-  --sidebar: linear-gradient(180deg, #14110e, #0d0b09);
-  --track: rgba(255, 240, 215, 0.06);
-  --sheen: rgba(255, 245, 225, 0.035);
-  --glow-1: rgba(212, 176, 122, 0.10);
-  --glow-2: rgba(156, 123, 70, 0.08);
-  --scrollbar: #3a332b;
-  --overlay: rgba(0, 0, 0, 0.8);
-  --chip-on: rgba(212, 176, 122, 0.16);
+  --background: #0a0a1f;
+  --surface: #13132e;
+  --surface-2: #1c1c3f;
+  --border: #2b2b55;
+  --foreground: #f6f4ff;
+  --muted: #a3a1c9;
+  --accent: #b05cff; /* brand purple */
+  --accent-hover: #c68bff;
+  --accent-deep: #7c3aed;
+  --on-accent: #ffffff; /* text on the brand gradient */
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --gold-gradient: linear-gradient(100deg, #e040fb 0%, #a855f7 52%, #6d5dfc 100%);
+  --brand-gradient: var(--gold-gradient);
+  --sidebar: linear-gradient(180deg, #121233, #0b0b22);
+  --track: rgba(210, 200, 255, 0.07);
+  --sheen: rgba(235, 225, 255, 0.04);
+  --glow-1: rgba(168, 85, 247, 0.16);
+  --glow-2: rgba(224, 64, 251, 0.10);
+  --scrollbar: #34345f;
+  --overlay: rgba(4, 3, 16, 0.8);
+  --chip-on: rgba(176, 92, 255, 0.18);
   --shadow: none;
-  --bar: #0d0b09;
+  --bar: #0c0c24;
+  --brand-glow: rgba(176, 92, 255, 0.55);
 }
 
-/* Ivory: warm paper, deeper gold for contrast. The whole app is Ivory or Noir, as the person chooses (lib/theme.ts:
-   Light / Dark / same as the phone). .noir / .ivory pin one part of a page to a look (the editors' timeline). */
+/* Light: soft lavender paper, deeper purple for contrast. The whole app is Light or Dark, as the person chooses
+   (lib/theme.ts: Light / Dark / same as the phone). .noir / .ivory pin one part of a page to a look (the editors' timeline). */
 :root[data-theme="light"],
 .ivory {
-  --background: #f7f3ec;
-  --surface: #fffdf9;
-  --surface-2: #f2ece2;
-  --border: #e6dccb;
-  --foreground: #1f1a14;
-  --muted: #6c6256;
-  --accent: #a17836;
-  --accent-hover: #87622a;
-  --accent-deep: #6f4f1f;
-  --success: #2e7a49;
-  --warning: #9a6400;
-  --danger: #b2412e;
-  --gold-gradient: linear-gradient(135deg, #ecd3a0 0%, #c9a05c 45%, #9c7436 100%);
-  --sidebar: linear-gradient(180deg, #fbf8f2, #f3ede3);
-  --track: rgba(60, 40, 15, 0.08);
+  --background: #f6f4ff;
+  --surface: #ffffff;
+  --surface-2: #efecfd;
+  --border: #e1dcf6;
+  --foreground: #17142e;
+  --muted: #615d82;
+  --accent: #7c3aed;
+  --accent-hover: #6d28d9;
+  --accent-deep: #5b21b6;
+  --on-accent: #ffffff;
+  --success: #15803d;
+  --warning: #a16207;
+  --danger: #c0262d;
+  --gold-gradient: linear-gradient(100deg, #d63cf0 0%, #9b4dff 52%, #5d4ff5 100%);
+  --brand-gradient: var(--gold-gradient);
+  --sidebar: linear-gradient(180deg, #ffffff, #f3f0ff);
+  --track: rgba(60, 30, 120, 0.08);
   --sheen: rgba(255, 255, 255, 0.6);
-  --glow-1: rgba(201, 160, 92, 0.16);
-  --glow-2: rgba(161, 120, 54, 0.10);
-  --scrollbar: #d5c8b3;
-  --overlay: rgba(40, 30, 18, 0.45);
-  --chip-on: #f1e6d1;
-  --shadow: 0 1px 2px rgba(60, 40, 15, 0.06), 0 6px 18px -12px rgba(60, 40, 15, 0.25);
-  --bar: #fffdf9;
+  --glow-1: rgba(168, 85, 247, 0.12);
+  --glow-2: rgba(224, 64, 251, 0.07);
+  --scrollbar: #cfc7ee;
+  --overlay: rgba(22, 16, 50, 0.45);
+  --chip-on: #ece4ff;
+  --shadow: 0 1px 2px rgba(40, 20, 90, 0.06), 0 6px 18px -12px rgba(40, 20, 90, 0.25);
+  --bar: #ffffff;
+  --brand-glow: rgba(124, 58, 237, 0.4);
 }
 /* a part of the page that always keeps one look, whatever the page around it */
 .noir {
@@ -117,7 +124,7 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --font-sans: var(--font-body), system-ui, sans-serif;
-  --font-display: var(--font-display), Georgia, serif;
+  --font-display: var(--font-display), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   /* the design's corners: cards 16, buttons 12 */
   --radius-3xl: 1rem;
@@ -147,15 +154,16 @@ h3 {
   letter-spacing: 0.01em;
 }
 
-/* section headings everywhere: the display serif, a touch larger */
+/* section headings everywhere: the bold display sans, a touch larger */
 h2 {
-  font-family: var(--font-display), Georgia, serif;
-  font-size: 1.35em;
-  font-weight: 600;
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: 1.3em;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 ::selection {
-  background: rgba(212, 176, 122, 0.35);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
   color: #fff;
 }
 
@@ -195,7 +203,7 @@ textarea {
 
 .lux-hairline {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 176, 122, 0.45), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 45%, transparent), transparent);
 }
 
 .lux-gold-text {
@@ -214,12 +222,12 @@ textarea {
 
 .lux-btn-gold {
   background: var(--gold-gradient);
-  color: #1a140c;
-  box-shadow: 0 8px 24px -10px rgba(212, 176, 122, 0.55), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+  color: var(--on-accent);
+  box-shadow: 0 8px 24px -10px color-mix(in srgb, var(--accent) 55%, transparent), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
 }
 .lux-btn-gold:hover:not(:disabled) {
   filter: brightness(1.06);
-  box-shadow: 0 10px 30px -10px rgba(212, 176, 122, 0.75), 0 1px 0 rgba(255, 255, 255, 0.4) inset;
+  box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--accent) 75%, transparent), 0 1px 0 rgba(255, 255, 255, 0.4) inset;
 }
 
 @keyframes lux-fade-in {
@@ -256,10 +264,10 @@ textarea {
 @keyframes lux-pulse-glow {
   0%,
   100% {
-    box-shadow: 0 0 12px 0 rgba(212, 176, 122, 0.35);
+    box-shadow: 0 0 12px 0 color-mix(in srgb, var(--accent) 35%, transparent);
   }
   50% {
-    box-shadow: 0 0 22px 2px rgba(212, 176, 122, 0.6);
+    box-shadow: 0 0 22px 2px color-mix(in srgb, var(--accent) 60%, transparent);
   }
 }
 .lux-progress-track {
@@ -340,7 +348,7 @@ button:not(:disabled):active {
 }
 .lux-activity {
   background: var(--gold-gradient);
-  box-shadow: 0 0 12px rgba(212, 176, 122, 0.8);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 80%, transparent);
   animation: lux-activity 1.1s ease-in-out infinite;
 }
 
@@ -389,19 +397,20 @@ body {
 
 /* ---- the manual editor (design: Pro editor): a Noir pro workspace, champagne gold accent ---- */
 .pro-workspace {
-  /* design: the Pro editor, Noir */
-  --background: #0a0908;
-  --surface: #141210;
-  --surface-2: #1c1916;
-  --border: #2e2924;
-  --foreground: #f3ede3;
-  --muted: #a69d90;
-  --accent: #d4b07a;
-  --chip-on: rgba(212, 176, 122, 0.16);
+  /* design: the Pro editor, always dark */
+  --background: #0a0a1f;
+  --surface: #13132e;
+  --surface-2: #1c1c3f;
+  --border: #2b2b55;
+  --foreground: #f6f4ff;
+  --muted: #a3a1c9;
+  --accent: #b05cff;
+  --on-accent: #ffffff;
+  --chip-on: rgba(176, 92, 255, 0.18);
   --shadow: none;
-  --bar: #0d0b09;
-  --track: rgba(255, 240, 215, 0.06);
-  --scrollbar: #3a332b;
+  --bar: #0c0c24;
+  --track: rgba(210, 200, 255, 0.07);
+  --scrollbar: #34345f;
   background: var(--background);
   color: var(--foreground);
   color-scheme: dark;
@@ -409,4 +418,41 @@ body {
 .pro-workspace .lux-card {
   background: var(--surface);
   box-shadow: none;
+}
+
+/* ---- one loading pattern for every button ---------------------------------------------------------------------- */
+/* A button whose server action is on its way (lib/activity.ts sets aria-busy on the button that was clicked) shows a
+   spinner inside it and takes no second click; <Button loading> draws its own spinner (data-loading). */
+button[aria-busy="true"],
+[role="button"][aria-busy="true"],
+a.btn[aria-busy="true"] {
+  pointer-events: none;
+  opacity: 0.85;
+}
+button[aria-busy="true"]:not([data-loading])::before,
+[role="button"][aria-busy="true"]:not([data-loading])::before,
+a.btn[aria-busy="true"]::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  vertical-align: -0.15em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: busy-spin 0.7s linear infinite;
+}
+/* an icon-only button: the spinner takes the icon's place */
+button.ib[aria-busy="true"]:not([data-loading]) > svg {
+  display: none;
+}
+button.ib[aria-busy="true"]:not([data-loading])::before {
+  margin-right: 0;
+}
+@keyframes busy-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

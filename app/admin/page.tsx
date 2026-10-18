@@ -53,7 +53,7 @@ function AdminSignIn() {
   return (
     <div className="grid min-h-screen place-items-center px-4 py-10">
       <section className="card w-full max-w-sm" style={{ gap: 12 }} aria-label="Admin sign-in">
-        <Logo height={40} />
+        <Logo height={72} className="mx-auto" />
         <span className="eb">Administration</span>
         <span className="h2">This part is for the administrator</span>
         <span className="mu sm">

@@ -14,6 +14,11 @@ import { Logo } from "@/components/atoms/Logo";
 import { GlobalActivity } from "@/components/molecules/GlobalActivity";
 import { LegalFooter } from "@/components/molecules/Legal";
 import { EmptyState } from "@/components/molecules/EmptyState";
+import { BottomNav, type NavTab } from "@/components/molecules/BottomNav";
+import { ProPill } from "@/components/molecules/ProPill";
+import { ProBanner } from "@/components/molecules/ProBanner";
+import { Button } from "@/components/atoms/Button";
+import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { InstallApp } from "@/components/molecules/InstallApp";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useMe } from "@/hooks/useApi";
@@ -31,7 +36,7 @@ export const GROUPS: { title: string; admin?: boolean; items: { href: string; la
       { href: "/projects/new", label: "Create Reel", icon: "plus" },
       // a full page load: the studio is cross-origin isolated (next.config.ts) so its AI beat tracker can use several cores
       { href: "/studio", label: "Fast Studio", icon: "bolt", fullLoad: true },
-      { href: "/reels", label: "My Reels", icon: "video" },
+      { href: "/reels", label: "My Reels", icon: "reels" },
       { href: "/story/new", label: "Story → Reel", icon: "book" },
       { href: "/editor", label: "Editor", icon: "scissors" },
     ],
@@ -140,10 +145,10 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-[13.5px] transition-colors ${
-                  active ? "bg-[rgba(212,176,122,.12)] font-bold text-foreground" : "text-muted hover:bg-[rgba(212,176,122,.06)] hover:text-foreground"
+                  active ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-bold text-foreground" : "text-muted hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] hover:text-foreground"
                 }`}
               >
-                <Icon name={item.icon} size={18} stroke={1.7} color={active ? "#d4b07a" : undefined} />
+                <Icon name={item.icon} size={18} stroke={1.7} color={active ? "var(--accent)" : undefined} />
                 {item.label}
               </Tag>
             );
@@ -166,10 +171,9 @@ function Avatar({ email, size = 36 }: { email?: string; size?: number }) {
 /** Only an administrator sees it: opens the admin dashboard. */
 export function AdminButton({ onClick }: { onClick?: () => void }) {
   return (
-    <Link href="/admin" onClick={onClick} className="btn w-full" style={{ borderColor: "var(--accent)" }}>
-      <Icon name="admin" size={18} color="var(--accent)" />
+    <Button href="/admin" onClick={onClick} variant="secondary" icon="admin" full className="!border-accent/70 text-accent">
       Admin dashboard
-    </Link>
+    </Button>
   );
 }
 
@@ -194,9 +198,9 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
         href={item.href}
         onClick={onClose}
         aria-current={active ? "page" : undefined}
-        className={`row min-h-[44px] rounded-xl px-2.5 ${active ? "bg-[rgba(212,176,122,.12)] font-bold" : ""}`}
+        className={`row min-h-[44px] rounded-xl px-2.5 ${active ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-bold" : ""}`}
       >
-        <Icon name={item.icon} size={20} stroke={1.7} color={active ? "#d4b07a" : "#a69d90"} />
+        <Icon name={item.icon} size={20} stroke={1.7} color={active ? "var(--accent)" : "var(--muted)"} />
         {item.label}
       </Tag>
     );
@@ -214,13 +218,13 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
       >
         <div className="top" style={{ gridTemplateColumns: "1fr 44px" }}>
           <span className="flex min-w-0 items-center">
-            <Logo height={34} />
+            <Logo height={44} />
           </span>
           <button type="button" className="ib plain" aria-label="Close menu" onClick={onClose}>
             <Icon name="close" />
           </button>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-4 pt-3">
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-4 pt-3 [&>*]:shrink-0">
           {email && (
             <div className="row px-1 pb-2.5 pt-1">
               <Avatar email={email} />
@@ -256,11 +260,12 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
 }
 
 // Create opens Fast Studio when the server's Create Reel is off (Administration -> Features); at most four tabs and More
-const TABS: { href: string; label: string; icon: string; primary?: boolean; full?: boolean }[] = [
+// (the design's order: Home, Templates, Create, My Reels, More)
+const TABS: NavTab[] = [
   { href: "/", label: "Home", icon: "home" },
-  { href: "/reels", label: "My Reels", icon: "video" },
-  { href: "/projects/new", label: "Create", icon: "plus", primary: true },
   { href: "/templates", label: "Templates", icon: "grid" },
+  { href: "/projects/new", label: "Create", icon: "plus", primary: true },
+  { href: "/reels", label: "My Reels", icon: "reels" },
   { href: "/projects", label: "Projects", icon: "projects" },
   { href: "/editor", label: "Editor", icon: "scissors" },
 ];
@@ -278,6 +283,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawer, setDrawer] = useState(false);
   const creditsQ = useCredits();
   const credits = creditsQ.data?.enabled ? creditsQ.data : null;
+  const paid = !!credits && credits.plan !== "free";
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
   usePresence(pathname); // "online now" on the admin dashboard
@@ -395,11 +401,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Icon name="menu" size={22} />
           </button>
         )}
-        <span className={`t ${meta.left ? "l" : ""}`}>{pathname === "/" ? <Logo height={34} className="mx-auto" /> : title}</span>
+        <span className={`t ${meta.left || pathname === "/" ? "l" : ""}`}>{pathname === "/" ? <Logo height={44} /> : title}</span>
         <span className="flex items-center justify-end gap-2 [&:has(#rm-top-action:not(:empty))>.dflt]:hidden">
           <span id={TOP_SLOT} className="contents" />
           <span className="dflt contents">
-            {meta.admin ? <span className="badge b-run">Admin</span> : meta.credits && credits ? <CreditPill balance={credits.balance} /> : null}
+            {meta.admin ? (
+              <span className="badge b-run">Admin</span>
+            ) : pathname === "/" ? (
+              <span className="flex items-center gap-1">
+                <ProPill plan={credits?.planName} />
+                <NotificationBell />
+              </span>
+            ) : meta.credits && credits ? (
+              <CreditPill balance={credits.balance} />
+            ) : null}
           </span>
         </span>
       </header>
@@ -416,23 +431,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       />
 
       {/* computers: the Noir sidebar */}
-      <aside className="hidden border-r border-border text-foreground [background:var(--sidebar)] md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px]">
+      <aside className="hidden border-r border-border text-foreground [background:var(--sidebar)] md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-60 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px] [&>*]:shrink-0">
         <Link href="/" className="flex" aria-label="Shubix home">
-          <Logo height={80} className="-mx-1 max-w-full" />
+          <Logo height={100} className="-mx-1 max-w-full" />
         </Link>
-        {newReel === "/studio" ? (
-          <a href="/studio" className="btn g">
-            + New Reel
-          </a>
-        ) : (
-          <Link href="/projects/new" className="btn g">
-            + New Reel
-          </Link>
-        )}
+        <Button href={newReel} reload={newReel === "/studio"} icon="plus" full>
+          New Reel
+        </Button>
         <nav aria-label="Main" className="flex flex-col">
           <NavGroups groups={groups} pathname={pathname} />
         </nav>
         <div className="flex-1" />
+        {!paid && <ProBanner compact />}
         {admin && <AdminButton />}
         <ThemeToggle />
         <InstallApp />
@@ -454,36 +464,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       </aside>
 
-      {/* phones: the bottom tab bar (Home, Projects, Editor) */}
-      {meta.tabs && (
-        <nav aria-label="Quick" className="tabbar fixed inset-x-0 bottom-0 z-40 md:hidden">
-          {tabsFor(features).map((t) => {
-            const active = isActive(pathname, t.href);
-            const Tag = t.full ? "a" : Link;
-            return (
-              <Tag key={t.href} href={t.href} aria-label={t.primary ? t.label : undefined} aria-current={active ? "page" : undefined} className={active && !t.primary ? "on" : ""}>
-                {t.primary ? (
-                  <span className="cr">
-                    <Icon name="plus" size={22} stroke={2.2} />
-                  </span>
-                ) : (
-                  <Icon name={t.icon} size={22} stroke={1.7} />
-                )}
-                {t.label}
-              </Tag>
-            );
-          })}
-          <button type="button" onClick={() => setDrawer(true)} className={drawer ? "on" : ""}>
-            <Icon name="menu" size={22} stroke={1.7} />
-            More
-          </button>
-        </nav>
-      )}
+      {/* phones: the bottom tab bar */}
+      {meta.tabs && <BottomNav tabs={tabsFor(features).map((t) => ({ ...t, active: isActive(pathname, t.href) }))} moreOpen={drawer} onMore={() => setDrawer(true)} />}
 
       {needCredits && (
         <div className="noir fixed inset-0 z-[90] grid place-items-center bg-[rgba(5,4,4,.82)] p-5 backdrop-blur-sm" onClick={() => setNeedCredits(null)}>
-          <div role="dialog" aria-modal="true" aria-label="Not enough credits" className="card lux-enter w-full max-w-sm items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "#3a3128" }} onClick={(e) => e.stopPropagation()}>
-            <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[rgba(212,176,122,.12)] text-[#d4b07a]">
+          <div role="dialog" aria-modal="true" aria-label="Not enough credits" className="card lux-enter w-full max-w-sm items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
+            <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
               <Icon name="coins" size={36} stroke={1.5} />
             </span>
             <span className="eb">Credits</span>
@@ -501,7 +488,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main className={`min-w-0 flex-1 px-4 pt-4 md:px-8 md:pb-10 md:pt-5 ${meta.tabs ? "pb-28" : "pb-10"}`}>
+      <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${meta.tabs ? "pb-28" : "pb-10"}`}>
         <div className="mx-auto w-full max-w-6xl">
           {back && (
             <button
@@ -514,9 +501,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           )}
           {blocked ? (
-            <div className="noir mx-auto mt-10 max-w-sm rounded-[20px] bg-[#050404] p-5">
-              <div role="dialog" aria-label="Admin only" className="card items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "#3a3128" }}>
-                <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[rgba(212,176,122,.12)] text-[#d4b07a]">
+            <div className="noir mx-auto mt-10 max-w-sm rounded-[20px] bg-background p-5">
+              <div role="dialog" aria-label="Admin only" className="card items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "var(--border)" }}>
+                <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
                   <Icon name="shield" size={34} stroke={1.5} />
                 </span>
                 <span className="eb">Admin only</span>

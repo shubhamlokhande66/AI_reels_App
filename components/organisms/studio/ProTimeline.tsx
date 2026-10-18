@@ -37,7 +37,7 @@ function savedHeights(): Record<TrackCode, number> {
 }
 const SNAP = 0.1; // a dragged edge this close to a marker sticks to it (hold Alt to place it freely)
 const MARK: Record<MarkerKind, { size: number; color: string; label: string }> = {
-  strong: { size: 8, color: "#facc15", label: "Strong beat" }, medium: { size: 5, color: "#d4b07a", label: "Medium beat" },
+  strong: { size: 8, color: "#facc15", label: "Strong beat" }, medium: { size: 5, color: "#c68bff", label: "Medium beat" },
   drop: { size: 10, color: "#ef4444", label: "Drop" }, custom: { size: 7, color: "#38bdf8", label: "Your marker" },
 };
 

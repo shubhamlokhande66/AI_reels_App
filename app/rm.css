@@ -1,5 +1,6 @@
-/* Shubix page design (the "every page" canvas): Noir for the shell, dashboard and editors; Ivory for the inner
-   pages; champagne gold. Every class is scoped to .rm (the app shell and the sign-in pages), so Fast Studio keeps its
+/* Shubix page design (the "every page" canvas, UI/ design): deep navy, a purple → magenta brand gradient, a bold
+   geometric sans. New components are drawn with Tailwind utilities (components/atoms); these classes are the older
+   pages' vocabulary and follow the same tokens. Every class is scoped to .rm (the app shell and the sign-in pages), so Fast Studio keeps its
    own styles. In the components layer: a Tailwind utility on the same element still wins. */
 @layer components {
   .rm {
@@ -21,8 +22,8 @@
     background: var(--bar);
   }
   .rm .top .t:not(.brs *) {
-    font: 600 20px var(--font-display), Georgia, serif;
-    letter-spacing: 0.2px;
+    font: 800 18px var(--font-display), system-ui, sans-serif;
+    letter-spacing: -0.01em;
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
@@ -88,9 +89,9 @@
     font-weight: 700;
   }
   .rm .h1:not(.brs *) {
-    font: 600 32px/1.05 var(--font-display), Georgia, serif;
+    font: 800 30px/1.08 var(--font-display), system-ui, sans-serif;
     margin: 0;
-    letter-spacing: 0.01em;
+    letter-spacing: -0.02em;
   }
   .rm .h2:not(.brs *) {
     font: 700 15px var(--font-body), sans-serif;
@@ -98,7 +99,8 @@
     letter-spacing: 0;
   }
   .rm .ht:not(.brs *) {
-    font: 600 21px/1.15 var(--font-display), Georgia, serif;
+    font: 800 20px/1.2 var(--font-display), system-ui, sans-serif;
+    letter-spacing: -0.01em;
     margin: 0;
   }
   .rm .sub:not(.brs *) {
@@ -124,10 +126,10 @@
   }
   @media (min-width: 768px) {
     .rm .h1:not(.brs *) {
-      font-size: 40px;
+      font-size: 36px;
     }
     .rm .ht:not(.brs *) {
-      font-size: 24px;
+      font-size: 22px;
     }
   }
 
@@ -187,7 +189,7 @@
     min-width: 0;
   }
   .rm .stat b:not(.brs *) {
-    font: 600 26px/1 var(--font-display), Georgia, serif;
+    font: 800 26px/1 var(--font-display), system-ui, sans-serif;
     font-variant-numeric: lining-nums tabular-nums;
   }
   .rm .stat .ic:not(.brs *) {
@@ -214,23 +216,22 @@
     flex-shrink: 0;
   }
   .rm .it.b1:not(.brs *) {
-    background: #1e3a8a;
+    background: linear-gradient(135deg, #e040fb, #7c3aed);
   }
   .rm .it.b2:not(.brs *) {
-    background: #6b2a8f;
+    background: linear-gradient(135deg, #ff9a3d, #ff4f6d);
   }
   .rm .it.b3:not(.brs *) {
-    background: #5b2370;
+    background: linear-gradient(135deg, #3b8bff, #1d4ed8);
   }
   .rm .it.b4:not(.brs *) {
-    background: #26221d;
-    color: #d4b07a;
+    background: linear-gradient(135deg, #5146e5, #2e2a8a);
   }
   .rm .it.b5:not(.brs *) {
-    background: #8a5a1c;
+    background: linear-gradient(135deg, #12c79a, #0f766e);
   }
   .rm .it.b6:not(.brs *) {
-    background: #1f5e4a;
+    background: linear-gradient(135deg, #ff4fb4, #d61f7a);
   }
   .rm .it.s:not(.brs *) {
     width: 32px;
@@ -266,19 +267,19 @@
     color: var(--muted);
     line-height: 1.35;
   }
-  /* the dashboard's champagne cards (desktop) */
+  /* the dashboard's brand cards */
   .rm .mk.champ:not(.brs *) {
-    background: linear-gradient(135deg, #f6e7c8, #e6cc98);
+    background: var(--gold-gradient);
     border: 0;
-    color: #1a140c;
+    color: var(--on-accent);
     flex-direction: row;
     align-items: center;
   }
   .rm .mk.champ > span:not(.it):not(.brs *) {
-    color: #1a140c;
+    color: var(--on-accent);
   }
   .rm .mk.champ small:not(.brs *) {
-    color: #5e4518;
+    color: rgba(255, 255, 255, 0.8);
     font-size: 12px;
   }
 
@@ -309,9 +310,9 @@
   }
   .rm .btn.g:not(.brs *) {
     background: var(--gold-gradient);
-    color: #1a140c;
+    color: var(--on-accent);
     border-color: transparent;
-    box-shadow: 0 10px 22px -14px rgba(169, 130, 74, 0.9);
+    box-shadow: 0 10px 22px -14px var(--brand-glow);
   }
   .rm .btn.g:hover:not(:disabled):not(.brs *) {
     filter: brightness(1.05);
@@ -329,9 +330,9 @@
     padding: 0 12px;
   }
   .rm .btn.dk:not(.brs *) {
-    background: #1a1612;
-    color: #f3ede3;
-    border-color: #1a1612;
+    background: #17142e;
+    color: #f6f4ff;
+    border-color: #17142e;
   }
   .rm .btn.danger:not(.brs *) {
     color: var(--danger);
@@ -508,7 +509,7 @@
     height: 26px;
     border-radius: 13px;
     background: var(--gold-gradient);
-    color: #1a140c;
+    color: var(--on-accent);
     display: grid;
     place-items: center;
     font: 800 12px var(--font-body), sans-serif;
@@ -588,7 +589,7 @@
     border-radius: 12px;
     position: relative;
     overflow: hidden;
-    background: #3a2a1c;
+    background: #2a2350;
   }
   .rm .photo > img:not(.brs *),
 .rm .photo > video:not(.brs *) {
@@ -712,23 +713,24 @@
     font-weight: 700;
   }
   .rm .tabbar .cr:not(.brs *) {
-    width: 50px;
-    height: 50px;
-    border-radius: 25px;
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
     background: var(--gold-gradient);
-    color: #1a140c;
+    color: var(--on-accent);
     display: grid;
     place-items: center;
     margin-top: -22px;
     border: 4px solid var(--background);
-    box-shadow: 0 8px 20px -8px rgba(212, 176, 122, 0.8);
+    color: var(--on-accent);
+    box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 80%, transparent);
   }
 
   /* ---- music, toggles, checklists, timelines */
   .rm .wave:not(.brs *) {
     height: 50px;
     border-radius: 12px;
-    background: #1c1916;
+    background: var(--surface-2);
     display: flex;
     align-items: center;
     gap: 2px;
@@ -741,10 +743,10 @@
     max-width: 3px;
     min-width: 2px;
     border-radius: 2px;
-    background: #6b5b3a;
+    background: color-mix(in srgb, var(--accent) 35%, var(--surface-2));
   }
   .rm .wave i.h:not(.brs *) {
-    background: #d4b07a;
+    background: var(--accent);
   }
   .rm .tog:not(.brs *) {
     width: 42px;
@@ -823,8 +825,8 @@
     border-radius: 5px;
   }
   .rm .noir-panel:not(.brs *) {
-    background: #141210;
-    color: #a69d90;
+    background: var(--surface);
+    color: var(--muted);
     border-radius: 16px;
     padding: 12px;
   }
@@ -857,7 +859,7 @@
   }
   .rm .prose h2:not(.brs *),
 .rm .prose h3:not(.brs *) {
-    font: 600 19px var(--font-display), Georgia, serif;
+    font: 800 18px var(--font-display), system-ui, sans-serif;
     margin: 8px 0 0;
   }
   .rm .prose p:not(.brs *),
@@ -888,7 +890,7 @@
     gap: 2px;
   }
   .rm .brand b:not(.brs *) {
-    font: 600 30px var(--font-display), Georgia, serif;
+    font: 800 30px var(--font-display), system-ui, sans-serif;
   }
   .rm .brand span:not(.brs *) {
     font-size: 11px;
@@ -901,7 +903,7 @@
     background: var(--gold-gradient);
     display: grid;
     place-items: center;
-    color: #1a140c;
+    color: var(--on-accent);
     font-weight: 800;
     flex-shrink: 0;
   }
