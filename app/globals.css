@@ -141,11 +141,20 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   letter-spacing: 0.005em;
+  background: var(--background);
+}
+
+/* the page's soft glow: a fixed layer of its own (the GPU keeps it; a "background-attachment: fixed" gradient on the body
+   is painted again on every scroll frame, which made scrolling heavy) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background:
     radial-gradient(1200px 600px at 85% -10%, var(--glow-1), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, var(--glow-2), transparent 60%),
-    var(--background);
-  background-attachment: fixed;
+    radial-gradient(900px 500px at -10% 110%, var(--glow-2), transparent 60%);
 }
 
 h1,

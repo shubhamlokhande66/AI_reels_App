@@ -14,7 +14,7 @@ export function BottomNav({ tabs, moreOpen, onMore }: { tabs: NavTab[]; moreOpen
   return (
     <nav
       aria-label="Quick"
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 items-end rounded-t-[22px] border-t border-border bg-[var(--bar)]/95 px-1 pb-[max(14px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 items-end rounded-t-[22px] border-t border-border bg-[var(--bar)] px-1 pb-[max(14px,env(safe-area-inset-bottom))] pt-2 md:hidden"
     >
       {tabs.map((t) => {
         const Tag = t.full ? "a" : Link;

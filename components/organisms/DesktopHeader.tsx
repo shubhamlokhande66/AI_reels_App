@@ -19,7 +19,7 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
     ...(onSignOut ? [{ label: "Sign out", icon: "signout", onClick: onSignOut, danger: true }] : []),
   ];
   return (
-    <header className="sticky top-0 z-30 -mx-8 -mt-5 mb-5 hidden h-[68px] items-center gap-4 border-b border-border bg-[var(--bar)]/90 px-8 backdrop-blur-xl md:flex">
+    <header className="sticky top-0 z-30 -mx-8 -mt-5 mb-5 hidden h-[68px] items-center gap-4 border-b border-border bg-[var(--bar)] px-8 md:flex">
       <form
         role="search"
         className="flex h-11 w-full max-w-[420px] items-center gap-2.5 rounded-xl border border-border bg-surface px-3.5 text-muted focus-within:border-accent"

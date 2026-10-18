@@ -8,7 +8,7 @@ const TONE: Record<BadgeTone, string> = {
   brand: "bg-accent/15 text-accent",
   success: "bg-success/15 text-success",
   danger: "bg-danger/15 text-danger",
-  dark: "border border-white/25 bg-black/55 text-white backdrop-blur-sm", // over a picture
+  dark: "border border-white/25 bg-black/65 text-white", // over a picture (no blur: over a playing video it would be redone every frame)
 };
 
 export function Badge({ tone = "neutral", className, children }: { tone?: BadgeTone; className?: string; children: React.ReactNode }) {

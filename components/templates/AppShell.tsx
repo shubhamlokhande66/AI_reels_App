@@ -29,16 +29,21 @@ import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
 // The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
 // a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. An administrator sees one Admin dashboard
 // button (server/core/admin.ts decides who); the admin tools below are listed in the dashboard, not in the menu.
-export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
+// `unless`: an item shown only while that other link is off (the on-device Story Maker when the server's is off)
+export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean; unless?: string }[] }[] = [
   {
     title: "Studio",
     items: [
       { href: "/", label: "Home", icon: "home" },
       { href: "/projects/new", label: "Create Reel", icon: "plus" },
-      // a full page load: the studio is cross-origin isolated (next.config.ts) so its AI beat tracker can use several cores
-      { href: "/studio", label: "Fast Studio", icon: "bolt", fullLoad: true },
+      // the Create flow, one link per kind; a full page load: it is cross-origin isolated (next.config.ts) so its AI beat
+      // tracker can use several cores
+      { href: "/create/music", label: "Music Reel", icon: "music", fullLoad: true },
+      { href: "/create/talking", label: "Talking Reel", icon: "mic", fullLoad: true },
+      { href: "/create/photo", label: "Photo Reel", icon: "image", fullLoad: true },
+      { href: "/story/new", label: "Story Maker", icon: "book" },
+      { href: "/studio?auto=story", label: "Story Maker", icon: "book", fullLoad: true, unless: "/story/new" },
       { href: "/reels", label: "My Reels", icon: "reels" },
-      { href: "/story/new", label: "Story → Reel", icon: "book" },
       { href: "/editor", label: "Editor", icon: "scissors" },
     ],
   },
@@ -192,7 +197,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
   onSignOut?: () => void;
 }) {
   // the design's list: the main pages, then the Admin dashboard button for an administrator
-  const main = groups.filter((g) => !g.admin).flatMap((g) => g.items).filter((i) => i.href !== "/story/new" && i.href !== "/pricing");
+  const main = groups.filter((g) => !g.admin).flatMap((g) => g.items).filter((i) => i.href !== "/pricing");
   const link = (item: (typeof main)[number]) => {
     const active = isActive(pathname, item.href);
     const Tag = item.fullLoad ? "a" : Link;
@@ -370,7 +375,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const groups = GROUPS.filter((g) => !g.admin)
-    .map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features)) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features) && !(i.unless && linkOn(i.unless, features))) }))
     .filter((g) => g.items.length); // a heading whose parts are all off is not shown
   const newReel = linkOn("/projects/new", features) ? "/projects/new" : "/studio"; // Fast Studio when Create Reel is off
   const signOut = me.data?.user
