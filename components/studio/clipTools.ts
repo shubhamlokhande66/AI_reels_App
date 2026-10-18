@@ -3,17 +3,18 @@
  * and the AI can set the same fields. One-tap tools (Rotate, Mirror, Flip, Fit) act at once; the others open controls. */
 
 export type ClipCs = {
-  i: number; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
+  i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
   bri: number; con: number; sat: number; warm: number; fin: number; fout: number;
   mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
 };
-export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown };
+export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
 
 const I = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 const TOOLS: [string, string, string][] = [
   ["vol", "Volume", I('<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>')],
   ["extract", "Extract audio", I('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')],
   ["crop", "Crop", I('<path d="M6 2v16h16M2 6h16v16"/>')],
+  ["rev", "Reverse", I('<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>')],
   ["rot", "Rotate", I('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>')],
   ["fh", "Mirror", I('<path d="M12 3v18M8 7L3 12l5 5zM16 7l5 5-5 5z"/>')],
   ["fv", "Flip", I('<path d="M3 12h18M7 8l5-5 5 5zM7 16l5 5 5-5z"/>')],
@@ -37,7 +38,7 @@ const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5
 
 /** The row of tools and the open tool's controls */
 export function clipToolsHtml(c: ClipCs, open: string): string {
-  const on = (k: string) => k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
+  const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
     : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm) : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : false;
   const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${TOOLS.map(([k, n, ic]) =>
     `<button type="button" class="ct${on(k) ? " on" : ""}" data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
@@ -70,6 +71,7 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
     const ct = t.closest<HTMLElement>("[data-ct]");
     if (ct) {
       const k = ct.dataset.ct!;
+      if (k === "rev") { void A.shotReverse().then(rerender); return; }
       if (k === "rot") A.shotSet({ rot: (c.rot + 90) % 360 });
       else if (k === "fh") A.shotSet({ fh: !c.fh });
       else if (k === "fv") A.shotSet({ fv: !c.fv });
