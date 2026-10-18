@@ -32,7 +32,7 @@ const left = (s: number) => (s < 1.5 ? "almost done" : s < 60 ? `about ${Math.ce
 export function createTasks(host: HTMLElement) {
   const cards = new Map<string, Card>();
   const box = document.createElement("div");
-  box.setAttribute("aria-live", "polite");
+  box.setAttribute("aria-live", "polite"); box.dataset.tasks = "1";
   box.className =
     "pointer-events-none fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom))] z-[82] flex flex-col items-center gap-2 px-3 md:inset-x-auto md:bottom-6 md:right-6 md:items-end";
   host.appendChild(box);

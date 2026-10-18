@@ -705,8 +705,12 @@ function applyAnalysis(r){
 // Second opinion on the beats: Beat This! (a neural network trained on thousands of hand-annotated songs) runs on this
 // device in the background; the analysis then keeps whichever beats land on stronger hits with a steadier pulse (each
 // tracker misses different songs) and the edit follows. The page stays usable; the first edit never waits for it.
+let beatsBusy = false;
 async function checkBeatsWithAi(token){
   if(!aiBeats || !song) return;
+  beatsBusy = true; try{ await checkBeatsInner(token); } finally { beatsBusy = false; }
+}
+async function checkBeatsInner(token){
   const sr = song.buf.sampleRate, m = song.mono, base = 'Ready';
   const say = t => { if(token === musicToken) $('s1st').textContent = t; };
   say(base + ' · checking the beats with the on-device AI…');
@@ -3276,8 +3280,10 @@ const _sm=0;
 // download it as before.
 let savedUrl = null;
 let lastVideo = null;
+let exportKeep = false, exportP = 0, lastName = '';
 function saveFile(blob, name){
   if(/^video\//.test(blob.type)) lastVideo = blob;
+  if(exportKeep){ lastName = name; return false; }
   const file = new File([blob], name, { type: blob.type });
   const phone = matchMedia('(pointer: coarse)').matches;
   let canShare = false; try{ canShare = phone && !!navigator.canShare && navigator.canShare({ files: [file] }); }catch(e){}
@@ -3491,7 +3497,7 @@ async function fastExport(){
           const done = k/total, el = (performance.now()-tStart)/1000, left = done > 0.03 ? el/done - el : null;
           $('xmsg').textContent = 'Exporting… ' + Math.round(done*100) + '%' + (left !== null ? ' · about ' + (left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left/60) + ' min') + ' left' : '') + (document.hidden ? '' : ' · keep this screen on');
           $('prog').style.width = (done*100).toFixed(1) + '%';
-          tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file');
+          tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file'); exportP = done;
           await yieldNow();
         }
         r = await cur.it.next();
@@ -3524,6 +3530,11 @@ async function fastExport(){
 let wakeLock = null, exportBusy = false;
 async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', ()=>{ wakeLock = null; }); } }catch(err){ wakeLock = null; } }
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
+async function autoExport(){
+  if(exportBusy) return null; exportKeep = true; exportP = 0; lastVideo = null;
+  try{ await runExport(false); } finally { exportKeep = false; }
+  return lastVideo;
+}
 async function runExport(toCloud){
   if(recording || exportBusy) return;
   exportBusy = true; $('saverow').hidden = true; lastVideo = null;
@@ -4128,6 +4139,17 @@ async function speechScan(){
   } finally { speechBusy = false; }
   if(found && edit.length) autoTools();
 }
+// Auto Reel without a song: clips where people talk make a talking Reel (their voice leads, pauses cut); otherwise the
+// loudest clip's own sound becomes the song. 'none': no clip has any sound.
+async function autoSound(){
+  let talkShare = 0, loud = -1, loudV = 0;
+  for(let i=0;i<sources.length;i++){ const P = await clipPcm(i); if(!P) continue;
+    let q = 0, n = 0; for(let k=0;k<P.x.length;k+=32){ q += P.x[k]*P.x[k]; n++; } const r = Math.sqrt(q/Math.max(1, n)); if(r > loudV){ loudV = r; loud = i; }
+    if(speechProbs){ try{ const p = await speechProbs(P.x, P.sr); sources[i].speech = { p, hop: 512/16000 }; talkShare = Math.max(talkShare, p.filter(x => x > 0.5).length/Math.max(1, p.length)); }catch(e){} } }
+  if(talkShare >= 0.3){ setKind('talk'); return 'talk'; }
+  if(loud >= 0 && loudV > 0.003){ await extractAudio(loud); return 'extract'; }
+  return 'none';
+}
 // Extract audio: a clip's own sound becomes the Reel's song (its beats lead the cuts, as with any song)
 async function extractAudio(si){
   const s = sources[si]; if(!s || !s.file) return;
@@ -4411,7 +4433,8 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, autoExport, extractAudio, autoSound, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {

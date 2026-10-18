@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { STUDIO_HTML } from "@/components/studio/markup";
 import { initViews } from "@/components/studio/views";
 import { initSteps } from "@/components/studio/steps";
+import { initAuto } from "@/components/studio/auto";
 import { TTS_VOICES } from "@/lib/tts/voices";
 import { useAdmin } from "@/hooks/useApi";
 import { ErrorBanner } from "@/components/molecules";
@@ -46,6 +47,7 @@ export default function FastStudioPage() {
     const el = root.current!;
     const v = initViews(el, () => {});
     const stopSteps = initSteps(el);
+    const stopAuto = initAuto(el);   // Auto Reel: the AI does everything, the page shows the progress
     (async () => {
       try {
         for (const src of SCRIPTS) await loadScript(src);
@@ -85,7 +87,7 @@ export default function FastStudioPage() {
     return () => {
       cancelled = true;
       v.cleanup();
-      stopSteps();
+      stopSteps(); stopAuto();
       cleanup?.();
     };
   }, []);

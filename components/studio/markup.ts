@@ -77,6 +77,7 @@ export const STUDIO_HTML = `
     <div class="sh3"><span class="num">1</span><h2>What are we making?</h2><span class="st" id="s0st">Choose one to start</span></div>
     <div class="sbody">
     <div class="makegrid">
+      <button type="button" class="kindx autocard" id="autokind">${IC.style}<span><b>Auto Reel</b><small>Pick clips, the AI does everything: you only see the progress</small></span></button>
       <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
         <button data-k="music" aria-pressed="false">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
         <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Pauses cut, captions added</small></span></button>

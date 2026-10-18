@@ -334,6 +334,29 @@
 .brs:not(.talkmode) .talkonly{display:none}
 .brs.talkmode .musiconly{display:none}
 .brs .ttsbox{display:grid;gap:8px;margin:12px 0}
+.brs .autocard{grid-column:1/-1;background:var(--gold-gradient,var(--chipbg));border-color:transparent}
+.brs .autocard small{color:inherit;opacity:.8}
+.brs .autoov{position:fixed;inset:0;z-index:60;background:var(--background);display:grid;place-items:center;padding:24px 16px;overflow:auto}
+.brs .autoov>div{width:min(460px,100%);display:grid;gap:14px;text-align:center;justify-items:center}
+.brs .autoov h2{margin:0;font:600 26px var(--display)}
+.brs .autoov .sub{margin:0;color:var(--muted);font-size:14px}
+.brs .aox{justify-self:end;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}
+.brs .aobig{width:100%;display:grid;gap:4px;text-align:left;padding:16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:14px var(--body)}
+.brs .aobig span{color:var(--muted);font-size:13px}
+.brs #aogo{width:100%}
+.brs .aoring{position:relative;width:170px;height:170px;display:grid;place-items:center}
+.brs .aoring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.brs .aoring circle{fill:none;stroke-width:8}
+.brs .aoring .bg{stroke:var(--line)}
+.brs .aoring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .4s}
+.brs .aoring b{font:600 32px var(--display)}
+.brs .aolist{list-style:none;margin:0;padding:0;display:grid;gap:8px;text-align:left;width:100%}
+.brs .aolist li{padding:10px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:var(--muted);font-size:14px}
+.brs .aolist li.now{color:var(--ink);border-color:var(--accent)}
+.brs .aolist li.ok{color:var(--ink)}
+.brs .aolist li.ok::before{content:"✓ ";color:var(--accent)}
+.brs .aodone video{height:min(62vh,600px);max-width:100%;aspect-ratio:9/16;border-radius:18px;background:#000}
+.brs.autoing [data-tasks],.brs.autoing .toasts{display:none}   /* Auto Reel: its own progress only */
 .brs .aitog{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;font-size:13px;color:var(--muted)}
 .brs .lylist{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
 .brs .lyitem{display:grid;text-align:left;gap:2px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:13px var(--body)}
