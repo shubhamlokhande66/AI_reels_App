@@ -12,7 +12,7 @@ export const FEATURE_LIST: { key: FeatureKey; label: string; hint: string; serve
   { key: "editor", label: "Editor", hint: "The editor that saves and exports on the server.", server: true, pages: ["/editor"] },
   { key: "library", label: "Footage library", hint: "Every uploaded clip, searchable; stored on the server.", server: true, pages: ["/library"] },
   { key: "songs", label: "Songs", hint: "The song library, stored on the server.", server: true, pages: ["/songs"] },
-  { key: "templates", label: "Templates", hint: "Saved ways of working; the AI writes drafts on the server.", server: true, pages: ["/templates"] },
+  { key: "templates", label: "Saved templates", hint: "Your own templates, saved on the server (the AI writes drafts). The Templates page always shows Fast Studio's ready-made ones.", server: true, pages: [] },
   { key: "brands", label: "Brands", hint: "Logo, colours and defaults applied to Reels.", server: true, pages: ["/brands"] },
 ];
 

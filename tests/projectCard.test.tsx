@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({ deleteProject: vi.fn() }));
 vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api }));
 
 import { ProjectCard } from "@/components/molecules/ProjectCard";
+import { ConfirmHost } from "@/components/molecules/ConfirmDialog";
 import type { ProjectSummary } from "@/types/api";
 
 const project = (over: Partial<ProjectSummary> = {}) =>
@@ -16,27 +17,31 @@ const project = (over: Partial<ProjectSummary> = {}) =>
 
 function wrap(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}>{ui}<ConfirmHost /></QueryClientProvider>);
 }
 
 describe("Project card: delete without opening the project", () => {
   beforeEach(() => api.deleteProject.mockReset().mockResolvedValue(undefined));
 
-  it("asks first and deletes only after 'Yes, delete'", async () => {
+  it("asks in a pop-up first and deletes only after 'Delete'", async () => {
     wrap(<ProjectCard project={project()} />);
     await userEvent.click(screen.getByRole("button", { name: "Delete Gold launch" }));
     expect(api.deleteProject).not.toHaveBeenCalled();
-    expect(screen.getByText("Delete this Reel and its files?")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Yes, delete" }));
+    expect(screen.getByRole("alertdialog", { name: 'Delete "Gold launch"?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(api.deleteProject).toHaveBeenCalledWith("p1"));
   });
 
-  it("'No' cancels, and the delete button is not inside the project link", async () => {
+  it("'Cancel' (or Escape) keeps it, and the delete button is not inside the project link", async () => {
     wrap(<ProjectCard project={project()} />);
     const btn = screen.getByRole("button", { name: "Delete Gold launch" });
     expect(btn.closest("a")).toBeNull();
     await userEvent.click(btn);
-    await userEvent.click(screen.getByRole("button", { name: "Keep" }));
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    await userEvent.click(btn);
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(screen.getByRole("button", { name: "Delete Gold launch" })).toBeInTheDocument();
     expect(api.deleteProject).not.toHaveBeenCalled();
   });

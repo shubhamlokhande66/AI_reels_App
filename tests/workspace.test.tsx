@@ -20,6 +20,8 @@ const api = vi.hoisted(() => ({
   deleteBrand: vi.fn(),
   uploadLogo: vi.fn(),
   templates: vi.fn(),
+  // the saved templates show while that part of the app is on (Administration -> Features)
+  features: vi.fn().mockResolvedValue({ templates: true }),
   createTemplate: vi.fn(),
   generateTemplate: vi.fn(),
   favoriteTemplate: vi.fn(),
@@ -118,6 +120,13 @@ describe("Brands page", () => {
 describe("Templates page", () => {
   const builtin = { id: "luxury_product", name: "Luxury Product", description: "Slow.", duration: 15, style: "luxury", pace: "calm", hook: false, captions: false,
     captionStyle: "luxury", audioMode: "music", musicSync: true, ai: false, language: "en", exportPreset: "instagram_reel", builtin: true, favorite: false, uses: 2 };
+
+  it("always shows Fast Studio's ready-made templates, each opening the studio with it", async () => {
+    api.templates.mockResolvedValue([]);
+    wrap(<TemplatesPage />);
+    expect(screen.getByRole("link", { name: /Make a Reel with Beat montage|Beat montage/ })).toHaveAttribute("href", "/studio?tpl=montage");
+    expect(screen.getByText("Festivals")).toBeInTheDocument();
+  });
 
   it("lists templates, links to the create form and cannot delete built-ins", async () => {
     api.templates.mockResolvedValue([builtin]);

@@ -6,11 +6,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { btnPrimary, btnSecondary, Card, photoClass, Spinner } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { MoreMenu } from "@/components/molecules/MoreMenu";
-import { useStyles, useTrends } from "@/hooks/useApi";
+import { useFeatures, useStyles, useTrends } from "@/hooks/useApi";
+import { TemplateCard } from "@/components/molecules/TemplateCard";
+import { STUDIO_TEMPLATES } from "@/lib/studio-templates";
 import { api, errorMessage } from "@/lib/api";
 import { STYLE_LABELS } from "@/lib/format";
 import { takeTemplateDraft } from "@/lib/templateDraftHandoff";
 import { LANGUAGES, type Language, type Template, type TemplateInput } from "@/types/api";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 const FIELD = "inp";
 const AUDIO_MODES = [
@@ -60,7 +63,8 @@ interface Editing {
   isDraft: boolean;
 }
 
-export default function TemplatesPage() {
+/** The templates saved on the server (Administration -> Features -> Saved templates). */
+function ServerTemplates() {
   const qc = useQueryClient();
   const templates = useQuery({ queryKey: ["templates"], queryFn: api.templates });
   const styles = useStyles();
@@ -133,7 +137,7 @@ export default function TemplatesPage() {
               window.scrollTo({ top: 0, behavior: "smooth" });
             },
           },
-          ...(!t.builtin ? [{ label: "Delete", icon: "trash", danger: true, onClick: () => window.confirm(`Delete the template "${t.name}"?`) && del.mutate(t.id) }] : []),
+          ...(!t.builtin ? [{ label: "Delete", icon: "trash", danger: true, onClick: () => void confirmAction({ title: `Delete the template "${t.name}"?`, danger: true, ok: "Delete" }).then((ok) => ok && del.mutate(t.id)) }] : []),
         ]}
       />
     </div>
@@ -141,15 +145,15 @@ export default function TemplatesPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <PageHeader
-        title="Templates"
-        subtitle="Save a way of working once, start every new Reel from it."
-        action={
-          <button type="button" className="btn sm hidden md:inline-flex" onClick={() => { setDraftNote(null); setEditing({ id: null, data: BLANK, isDraft: false }); }}>
-            + Make one by hand
-          </button>
-        }
-      />
+      <div className="between mt-4">
+        <div>
+          <h2 className="ht">Your saved templates</h2>
+          <p className="sub">Save a way of working once, start every new Reel from it.</p>
+        </div>
+        <button type="button" className="btn sm hidden md:inline-flex" onClick={() => { setDraftNote(null); setEditing({ id: null, data: BLANK, isDraft: false }); }}>
+          + Make one by hand
+        </button>
+      </div>
 
       <form
         className="card"
@@ -347,6 +351,33 @@ export default function TemplatesPage() {
               </div>
             ))}
       </div>
+    </div>
+  );
+}
+
+const GROUPS = ["Everyday", "Business", "Travel & food", "Festivals"] as const;
+
+/** Templates: Fast Studio's ready-made Reels (always), then the templates saved on the server when that part is on. */
+export default function TemplatesPage() {
+  const features = useFeatures();
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+      <PageHeader title="Templates" subtitle="Pick a ready-made Reel, add your clips: the style, look, length and text are done for you." />
+      {GROUPS.map((g) => {
+        const list = STUDIO_TEMPLATES.filter((t) => t.group === g);
+        if (!list.length) return null;
+        return (
+          <section key={g} aria-label={g} className="flex flex-col gap-2.5">
+            <h2 className="ht">{g}</h2>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              {list.map((t) => (
+                <TemplateCard key={t.id} t={t} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      {features.templates && <ServerTemplates />}
     </div>
   );
 }

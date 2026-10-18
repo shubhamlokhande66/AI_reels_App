@@ -1276,7 +1276,11 @@ function setKind(k){
 $('kind').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setKind(b.dataset.k); }, SIG);
 // /studio?kind=talk (or music): Home's "Talking Reel" / "Music Reel" open the studio on that kind
 // (after the whole studio is set up: setKind uses state declared further down, e.g. the captions)
-queueMicrotask(() => { if(ac.signal.aborted) return; const k0 = new URLSearchParams(location.search).get('kind'); if(k0 === 'talk' || k0 === 'music') setKind(k0); });
+queueMicrotask(() => { if(ac.signal.aborted) return; const q = new URLSearchParams(location.search), k0 = q.get('kind'), t0 = q.get('tpl');
+  // links from Home and Templates: /studio?kind=music|talk|photo, /studio?tpl=<template> (picked as if tapped)
+  if(t0 && TEMPLATES[t0]){ const b = root.querySelector('#tpl [data-t="' + t0 + '"]'); if(b){ b.click(); return; } }
+  if(k0 === 'photo'){ const b = $('photokind'); if(b){ b.click(); return; } }
+  if(k0 === 'talk' || k0 === 'music'){ const b = root.querySelector('#kind [data-k="' + k0 + '"]'); if(b) b.click(); else setKind(k0); } });
 function setDenoise(on){ denoiseOn = on; $('dn1').checked = on; $('dn2').checked = on; capAll = null; if(kind === 'talk'){ if(sources.length) buildTalk(); } else if(vo){ applyVo(); afterVo(); } }
 $('dn1').addEventListener('change', e => setDenoise(e.target.checked), SIG); $('dn2').addEventListener('change', e => setDenoise(e.target.checked), SIG);
 $('tpace').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; talkPace = b.dataset.p;

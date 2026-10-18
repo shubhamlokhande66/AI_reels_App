@@ -6,6 +6,7 @@ import { btnPrimary, btnSecondary, Card, Icon, Spinner } from "@/components/atom
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { LANGUAGES, type Language, type VoiceProfile, type VoiceProfileInput } from "@/types/api";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 const FIELD = "w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent";
 const EMPTY: VoiceProfileInput = {
@@ -130,7 +131,7 @@ export default function VoicesPage() {
           <button type="button" className="btn sm" onClick={() => setEditing({ id: p.id, data: { ...p }, pron: toLines(p.pronunciations) })}>
             Edit
           </button>
-          <button type="button" className="ib plain" aria-label={`Delete ${p.name}`} onClick={() => window.confirm(`Delete the voice profile "${p.name}"?`) && del.mutate(p.id)}>
+          <button type="button" className="ib plain" aria-label={`Delete ${p.name}`} onClick={() => void confirmAction({ title: `Delete the voice profile "${p.name}"?`, danger: true, ok: "Delete" }).then((ok) => ok && del.mutate(p.id))}>
             <Icon name="trash" size={18} />
           </button>
         </div>

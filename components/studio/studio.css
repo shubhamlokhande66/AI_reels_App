@@ -288,7 +288,7 @@
 .brs .pv{display:grid;gap:14px;justify-items:center}
 .brs .pvbox{position:relative;line-height:0}
 .brs #out{border-radius:18px;max-height:min(62vh,600px);max-width:100%;box-shadow:0 22px 50px -32px rgba(0,0,0,.8)}
-.brs .playov{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:24px;border:0;background:rgba(20,17,12,.72);color:#fff;place-items:center;cursor:pointer}
+.brs .playov{display:none;position:absolute;inset:0;margin:auto;width:48px;height:48px;border-radius:24px;border:0;background:rgba(20,17,12,.72);color:#fff;place-items:center;cursor:pointer}
 .brs .summary,.brs .inspector{display:none}
 .brs .bar{height:4px;width:100%;max-width:420px;justify-self:center}
 .brs .transport{display:flex;gap:6px;justify-content:center;align-items:center}

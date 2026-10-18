@@ -323,8 +323,10 @@ select:disabled,
 input:disabled {
   cursor: not-allowed;
 }
+/* pressed: 1px down. With "translate", not "transform": a button that is placed with a transform (centred over a
+   video, say) keeps its place, instead of jumping away from the finger and missing the tap */
 button:not(:disabled):active {
-  transform: translateY(1px);
+  translate: 0 1px;
 }
 
 /* the top activity bar while an action is on its way to the server */
