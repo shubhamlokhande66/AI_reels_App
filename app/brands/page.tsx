@@ -7,6 +7,7 @@ import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, assetUrl, errorMessage } from "@/lib/api";
 import { STYLE_LABELS } from "@/lib/format";
 import { BRAND_VISUAL_STYLES, LANGUAGES, type Brand, type BrandInput, type Language } from "@/types/api";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 const CAPTION_STYLES = ["minimal", "bold", "karaoke", "highlight", "luxury"];
 const POSITIONS = [
@@ -110,7 +111,7 @@ export default function BrandsPage() {
           <button type="button" className="btn sm" onClick={() => { setLogoFile(null); setEditing({ id: b.id, data: { ...b }, logoUrl: b.logoUrl }); }}>
             Edit
           </button>
-          <button type="button" className="ib plain" aria-label={`Delete ${b.name}`} onClick={() => window.confirm(`Delete the brand "${b.name}"?`) && del.mutate(b.id)}>
+          <button type="button" className="ib plain" aria-label={`Delete ${b.name}`} onClick={() => void confirmAction({ title: `Delete the brand "${b.name}"?`, body: "Its logo, colours and defaults are removed. Reels already made keep their look.", danger: true, ok: "Delete" }).then((ok) => ok && del.mutate(b.id))}>
             <Icon name="trash" size={18} />
           </button>
         </div>

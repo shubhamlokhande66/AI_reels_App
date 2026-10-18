@@ -2,7 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { clock, useDrafts } from "@/lib/drafts";
+import { clock, deleteDraft, useDrafts } from "@/lib/drafts";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { Icon, Spinner } from "@/components/atoms";
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { cloudReelUrl, deleteCloudReel, listCloudReels, shareCloudReel, type CloudReel, type CloudUsage } from "@/lib/cloudReels";
@@ -17,7 +18,21 @@ const mb = (b: number) => (b < 1e7 ? (b / 1e6).toFixed(1) : String(Math.round(b 
 const quality = (r: CloudReel) => (Math.min(r.width, r.height) >= 2000 ? "4K" : Math.min(r.width, r.height) >= 1000 ? "1080p" : "720p") + (r.fps > 30 ? ` · ${r.fps} fps` : "");
 
 function Drafts() {
-  const drafts = useDrafts();
+  const all = useDrafts();
+  const [gone, setGone] = useState<string[]>([]);
+  const [note, setNote] = useState<string | null>(null);
+  const drafts = all && all.filter((d) => !gone.includes(d.id));
+  const remove = async (id: string, name: string) => {
+    if (!(await confirmAction({ title: `Delete "${name}"?`, body: "This draft and its clips are removed from this phone. This cannot be undone.", ok: "Delete", danger: true }))) return;
+    try {
+      await deleteDraft(id);
+      setGone((g) => [...g, id]);
+      setNote(`"${name}" was deleted.`);
+    } catch {
+      setNote("That draft could not be deleted. Please try again.");
+    }
+    setTimeout(() => setNote(null), 3000);
+  };
   if (drafts === null) return <Spinner />;
   if (!drafts.length)
     return (
@@ -34,19 +49,31 @@ function Drafts() {
     );
   return (
     <div className="grid grid-cols-3 gap-x-2 gap-y-2.5 sm:grid-cols-4 md:gap-x-3.5 md:gap-y-4 lg:grid-cols-6">
+      {note && (
+        <p role="status" className="sm col-span-full m-0 text-accent">
+          {note}
+        </p>
+      )}
       {drafts.map((d) => (
-        <a key={d.id} href={`/studio?p=${encodeURIComponent(d.id)}`} className="group flex flex-col gap-1" title={`Open ${d.name} in Fast Studio`}>
-          <div className="photo relative aspect-[3/4] w-full overflow-hidden transition-transform group-hover:scale-[1.01]">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a small picture kept on this phone */}
-            {d.thumb && <img src={d.thumb} alt="" className="h-full w-full object-cover" />}
-            <span className="tag">{clock(d.dur)}</span>
+        <div key={d.id} className="group relative flex min-w-0 flex-col gap-1">
+          <a href={`/studio?p=${encodeURIComponent(d.id)}`} className="flex flex-col gap-1" title={`Open ${d.name} in Fast Studio`}>
+            <div className="photo relative aspect-[3/4] w-full overflow-hidden transition-transform group-hover:scale-[1.01]">
+              {/* eslint-disable-next-line @next/next/no-img-element -- a small picture kept on this phone */}
+              {d.thumb && <img src={d.thumb} alt="" className="h-full w-full object-cover" />}
+              <span className="tag">{clock(d.dur)}</span>
+            </div>
+            <b className="sm truncate group-hover:text-accent">{d.name}</b>
+          </a>
+          <div className="flex items-center justify-between gap-1">
+            <span className="xs truncate text-muted">
+              {d.kind === "talk" ? "Talking · " : ""}
+              {new Date(d.updated).toLocaleDateString()}
+            </span>
+            <button type="button" className="ib plain -mr-1.5 shrink-0" aria-label={`Delete ${d.name}`} title="Delete this draft" onClick={() => remove(d.id, d.name)}>
+              <Icon name="trash" size={16} />
+            </button>
           </div>
-          <b className="sm truncate group-hover:text-accent">{d.name}</b>
-          <span className="xs text-muted">
-            {d.kind === "talk" ? "Talking · " : ""}
-            {new Date(d.updated).toLocaleDateString()}
-          </span>
-        </a>
+        </div>
       ))}
     </div>
   );
@@ -54,7 +81,6 @@ function Drafts() {
 
 function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: CloudReel) => void; onDelete: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const flash = (t: string) => {
     setNote(t);
@@ -78,6 +104,7 @@ function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: Clou
     }
   };
   const remove = async () => {
+    if (!(await confirmAction({ title: `Delete "${r.name}"?`, body: "It is removed from My Reels in your account. A copy you saved on your phone stays there.", ok: "Delete", danger: true }))) return;
     setBusy("delete");
     try {
       await deleteCloudReel(r.id);
@@ -111,7 +138,7 @@ function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: Clou
         <button type="button" onClick={share} disabled={!!busy} className="btn sm flex-1 !px-0" aria-label={`Share ${r.name}`} title="Share a link">
           <Icon name="share" size={15} />
         </button>
-        <button type="button" onClick={() => setAsking(true)} disabled={!!busy} className="btn sm flex-1 !px-0" aria-label={`Delete ${r.name}`} title="Delete">
+        <button type="button" onClick={remove} disabled={!!busy} className="btn sm flex-1 !px-0" aria-label={`Delete ${r.name}`} title="Delete">
           <Icon name="trash" size={15} />
         </button>
       </div>
@@ -119,20 +146,6 @@ function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: Clou
         <span role="status" className="xs text-accent">
           {note}
         </span>
-      )}
-      {asking && (
-        <div role="group" aria-label={`Confirm deleting ${r.name}`} className="card absolute inset-x-1 top-1 z-[3] !gap-2 !p-2.5 text-xs">
-          <b>Delete this Reel from My Reels?</b>
-          <span className="text-muted">A copy you saved on your phone stays there.</span>
-          <div className="flex gap-1.5">
-            <button type="button" disabled={busy === "delete"} onClick={remove} className="btn sm danger fill flex-1">
-              {busy === "delete" ? "Deleting…" : "Yes, delete"}
-            </button>
-            <button type="button" disabled={busy === "delete"} onClick={() => setAsking(false)} className="btn sm flex-1">
-              Keep
-            </button>
-          </div>
-        </div>
       )}
     </div>
   );

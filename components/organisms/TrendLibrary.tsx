@@ -8,6 +8,7 @@ import { btnDanger, btnPrimary, btnSecondary, Card } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { PICKER_VIDEO, isVideoFile } from "@/lib/format";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 const BATCH = 3; // Reels sent per request: each is measured on the server (~10-20 s)
 const MAX_MB = 300;
@@ -160,8 +161,8 @@ export function TrendLibrary() {
             type="button"
             className={btnDanger}
             disabled={running || clear.isPending}
-            onClick={() => {
-              if (window.confirm(`Forget all ${count} learned Reels and the automatic styles? Your own trends stay.`)) clear.mutate();
+            onClick={async () => {
+              if (await confirmAction({ title: `Forget all ${count} learned Reels and the automatic styles?`, body: "Your own trends stay.", danger: true, ok: "Forget" })) clear.mutate();
             }}
           >
             Forget learned Reels

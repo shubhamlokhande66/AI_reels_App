@@ -9,6 +9,7 @@ import { useProjects } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { formatDuration, isVideoFile, PICKER_VIDEO } from "@/lib/format";
 import type { LibraryItem } from "@/types/api";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 type Filter = "all" | "favorites" | "used";
 const UPLOADS = "Library uploads"; // clips uploaded here live in a project of their own
@@ -38,6 +39,13 @@ export default function LibraryPage() {
     mutationFn: (v: { id: string; favorite?: boolean; tags?: string[] }) => api.patchMedia(v.id, v),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["library"] }),
   });
+  const remove = useMutation({
+    mutationFn: (it: LibraryItem) => api.deleteVideo(it.projectId, it.id),
+    onSuccess: () => { setPicked(null); void qc.invalidateQueries({ queryKey: ["library"] }); },
+  });
+  const askRemove = async (it: LibraryItem) => {
+    if (await confirmAction({ title: `Delete "${it.name}"?`, body: `The clip is deleted from the server and from "${it.projectName}". Reels already made with it stay.`, ok: "Delete", danger: true })) remove.mutate(it);
+  };
   const analyse = useMutation({
     mutationFn: (projectId: string) => api.analyze(projectId),
     onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ["library"] }), 4000),
@@ -184,15 +192,18 @@ export default function LibraryPage() {
           onAnalyse={() => analyse.mutate(chosen.projectId)}
           onFavorite={() => patch.mutate({ id: chosen.id, favorite: !chosen.favorite })}
           onTag={(tags) => patch.mutate({ id: chosen.id, tags })}
+          onDelete={() => askRemove(chosen)}
+          deleting={remove.isPending}
         />
       )}
+      {remove.error && <ErrorBanner message={errorMessage(remove.error)} />}
       {analyse.error && <ErrorBanner message={errorMessage(analyse.error)} />}
     </div>
   );
 }
 
 /** The chosen clip (design: the card under the grid): its name, what is in it, tags, and Analyse. */
-function ClipDetails({ item, analysing, onAnalyse, onFavorite, onTag }: { item: LibraryItem; analysing: boolean; onAnalyse: () => void; onFavorite: () => void; onTag: (tags: string[]) => void }) {
+function ClipDetails({ item, analysing, onAnalyse, onFavorite, onTag, onDelete, deleting }: { item: LibraryItem; analysing: boolean; onAnalyse: () => void; onFavorite: () => void; onTag: (tags: string[]) => void; onDelete: () => void; deleting: boolean }) {
   const [draft, setDraft] = useState("");
   return (
     <section className="card" aria-label={`Clip ${item.name}`}>
@@ -250,11 +261,17 @@ function ClipDetails({ item, analysing, onAnalyse, onFavorite, onTag }: { item: 
           {item.score !== undefined ? ` · ${Math.round(item.score * 100)}% match` : ""}
         </span>
       </div>
-      {item.analyzed && (
-        <button type="button" className="ac sm self-start font-bold" onClick={onFavorite}>
-          {item.favorite ? "Remove from favorites" : "Add to favorites"}
+      <div className="between">
+        {item.analyzed ? (
+          <button type="button" className="ac sm font-bold" onClick={onFavorite}>
+            {item.favorite ? "Remove from favorites" : "Add to favorites"}
+          </button>
+        ) : <span />}
+        <button type="button" className="btn sm danger" disabled={deleting} onClick={onDelete}>
+          <Icon name="trash" size={15} />
+          {deleting ? "Deleting…" : "Delete clip"}
         </button>
-      )}
+      </div>
     </section>
   );
 }

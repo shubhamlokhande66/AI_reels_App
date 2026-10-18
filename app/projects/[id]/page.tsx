@@ -37,6 +37,7 @@ import { TopAction, useTopTitle } from "@/components/templates/TopBar";
 import { useFeatures, useAdmin, useCancelJob, useDeleteProject, useGenerate, useProject, useRenderings, useTimelineActions } from "@/hooks/useApi";
 import { formatDuration, styleLabel } from "@/lib/format";
 import type { ClipSummary, GenerateOptions } from "@/types/api";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
@@ -395,8 +396,8 @@ export default function ProjectPage() {
     </div>
   );
 
-  function deleteProject() {
-    if (window.confirm(`Delete "${project!.name}" and all of its files? This can't be undone.`)) {
+  async function deleteProject() {
+    if (await confirmAction({ title: `Delete "${project!.name}"?`, body: "The Reel, its versions and all of its files are deleted from the server. This cannot be undone.", danger: true, ok: "Delete" })) {
       del.mutate(id, { onSuccess: () => router.push("/projects") });
     }
   }

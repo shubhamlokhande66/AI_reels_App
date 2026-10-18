@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/useTheme";
 import { ThemeToggle } from "@/components/molecules/ThemeToggle";
+import { ConfirmHost } from "@/components/molecules/ConfirmDialog";
 import { Icon } from "@/components/atoms/Icon";
 import { Logo } from "@/components/atoms/Logo";
 import { GlobalActivity } from "@/components/molecules/GlobalActivity";
@@ -254,6 +255,7 @@ const TABS: { href: string; label: string; icon: string; primary?: boolean; full
   { href: "/", label: "Home", icon: "home" },
   { href: "/reels", label: "My Reels", icon: "video" },
   { href: "/projects/new", label: "Create", icon: "plus", primary: true },
+  { href: "/templates", label: "Templates", icon: "grid" },
   { href: "/projects", label: "Projects", icon: "projects" },
   { href: "/editor", label: "Editor", icon: "scissors" },
 ];
@@ -359,6 +361,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="rm min-h-screen md:flex">
       <GlobalActivity />
+      <ConfirmHost />
 
       {/* phones: the top bar */}
       <header className="top sticky top-0 z-30 md:hidden">

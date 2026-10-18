@@ -7,6 +7,7 @@ import { keys } from "@/hooks/useApi";
 import { btnDanger, btnSecondary, Card, Spinner } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import type { DirectorProfile, FeedbackReason, Project } from "@/types/api";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 const REASONS: { id: FeedbackReason; label: string }[] = [
   { id: "opening", label: "Weak opening" },
@@ -83,8 +84,8 @@ export function PurgeMediaButton({ project, busy }: { project: Project; busy: bo
         type="button"
         className={btnDanger}
         disabled={busy || purge.isPending}
-        onClick={() => {
-          if (window.confirm("Delete the uploaded clips and music of this project? The finished Reels stay; a new version will need a new upload.")) {
+        onClick={async () => {
+          if (await confirmAction({ title: "Delete the uploaded clips and music of this project?", body: "The finished Reels stay; a new version will need a new upload.", danger: true, ok: "Delete" })) {
             purge.mutate();
           }
         }}
@@ -144,7 +145,7 @@ export function DirectorProfileSection() {
         </dl>
       )}
       <button type="button" className={btnSecondary} disabled={reset.isPending || p.evidence === 0}
-              onClick={() => window.confirm("Forget everything the director has learned?") && reset.mutate()}>
+              onClick={() => void confirmAction({ title: "Forget everything the director has learned?", danger: true, ok: "Forget" }).then((ok) => ok && reset.mutate())}>
         Reset profile
       </button>
       {(toggle.error || reset.error) && <ErrorBanner message={errorMessage(toggle.error ?? reset.error)} />}

@@ -11,6 +11,7 @@ import { ProgressStages } from "@/components/molecules/ProgressStages";
 import { ShotList } from "@/components/molecules/ShotList";
 import { btnDanger, btnPrimary, btnSecondary, Card, Spinner, StatusBadge } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
 
 const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-60";
 const newSeed = () => Math.floor(Math.random() * 1_000_000) + 1;
@@ -161,8 +162,8 @@ export function ProductProjectView({ project }: { project: Project }) {
           type="button"
           className={btnDanger}
           disabled={busy || del.isPending}
-          onClick={() => {
-            if (window.confirm(`Delete "${project.name}" and all of its files?`)) del.mutate(project.id, { onSuccess: () => router.push("/projects") });
+          onClick={async () => {
+            if (await confirmAction({ title: `Delete "${project.name}"?`, body: "The Reel and all of its files are deleted from the server. This cannot be undone.", danger: true, ok: "Delete" })) del.mutate(project.id, { onSuccess: () => router.push("/projects") });
           }}
         >
           Delete project

@@ -13,6 +13,55 @@ import { listCloudReels, type CloudReel } from "@/lib/cloudReels";
 import { clock, useDrafts } from "@/lib/drafts";
 import { styleLabel } from "@/lib/format";
 import type { InsightGroup } from "@/types/api";
+import { TemplateCard } from "@/components/molecules/TemplateCard";
+import { STUDIO_TEMPLATES } from "@/lib/studio-templates";
+
+/** Home: a row of Fast Studio templates (all of them on the Templates page). */
+function HomeTemplates() {
+  return (
+    <>
+      <div className="between">
+        <h2 className="ht">Start from a template</h2>
+        <Link href="/templates" className="sm ac font-bold">
+          See all
+        </Link>
+      </div>
+      <section aria-label="Templates" className="flex snap-x gap-3 overflow-x-auto pb-1 [scrollbar-width:none] md:grid md:grid-cols-6 md:overflow-visible">
+        {STUDIO_TEMPLATES.slice(0, 6).map((t) => (
+          <div key={t.id} className="w-[30%] min-w-[104px] shrink-0 snap-start md:w-auto md:min-w-0">
+            <TemplateCard t={t} compact />
+          </div>
+        ))}
+      </section>
+    </>
+  );
+}
+
+const TIPS = [
+  { icon: "bolt", title: "Hook in the first second", text: "Open on your strongest moment. People decide in one second." },
+  { icon: "music", title: "Cut on the beat", text: "Cuts that land on the music feel professional. Fast Studio does it for you." },
+  { icon: "history", title: "Keep it 15–30 seconds", text: "Short Reels are watched to the end, and watched again." },
+  { icon: "captions", title: "Add captions", text: "Most people watch with the sound off. Captions keep them watching." },
+] as const;
+/** Home: four short tips for Reels that get watched. */
+function HomeTips() {
+  return (
+    <section aria-label="Tips for Reels that get watched" className="flex flex-col gap-2.5">
+      <h2 className="ht">Tips for Reels that get watched</h2>
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-[14px]">
+        {TIPS.map((t) => (
+          <div key={t.title} className="card !gap-1.5 !p-3.5">
+            <span className="ac">
+              <Icon name={t.icon} size={18} />
+            </span>
+            <b className="sm leading-snug">{t.title}</b>
+            <span className="xs leading-snug text-muted">{t.text}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 // Design: "Main" (phones) and "Desktop dashboard" — counts, the four ways to start, what is being made, recent Reels.
 const STATS = [
@@ -133,6 +182,8 @@ function ServerDashboard() {
         })}
       </section>
 
+      <HomeTemplates />
+
       {processing.length > 0 && (
         <>
           <div className="between">
@@ -240,6 +291,8 @@ function Group({ title, rows, label = (s: string) => s }: { title: string; rows:
 const START = [
   { href: "/studio?kind=music", icon: "music", tile: "b1", title: "Music Reel", text: "Cuts land on every beat" },
   { href: "/studio?kind=talk", icon: "mic", tile: "b3", title: "Talking Reel", text: "Pauses cut, captions added" },
+  { href: "/studio?kind=photo", icon: "image", tile: "b2", title: "Photos to Reel", text: "Your photos, moving to the music" },
+  { href: "/studio?auto=story", icon: "book", tile: "b5", title: "Story → Reel", text: "Write it, the AI narrates it" },
   { href: "/reels?tab=saved", icon: "video", tile: "b4", title: "My Reels", text: "Watch, download or share", page: true },
 ];
 
@@ -312,6 +365,8 @@ function StudioHome() {
         })}
       </section>
 
+      <HomeTemplates />
+
       <div className="between">
         <h2 className="ht">Continue editing</h2>
         {!!drafts?.length && (
@@ -362,6 +417,8 @@ function StudioHome() {
           </div>
         </>
       )}
+
+      <HomeTips />
     </div>
   );
 }
