@@ -18,6 +18,7 @@ import { BottomNav, type NavTab } from "@/components/molecules/BottomNav";
 import { ProPill } from "@/components/molecules/ProPill";
 import { ProBanner } from "@/components/molecules/ProBanner";
 import { Button } from "@/components/atoms/Button";
+import { DesktopHeader } from "@/components/organisms/DesktopHeader";
 import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { InstallApp } from "@/components/molecules/InstallApp";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
@@ -93,6 +94,9 @@ function pageMeta(p: string): Meta {
     "/story/new": { title: "Story → Reel", back: "/", credits: true },
     "/editor": { title: "Editor", credits: true, tabs: true },
     "/studio": { title: "Fast Studio", credits: true },
+    "/create/music": { title: "Music Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
+    "/create/talking": { title: "Talking Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
+    "/create/photo": { title: "Photo Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
     "/library": { title: "Media Library" },
     "/songs": { title: "My songs" },
     "/templates": { title: "Templates" },
@@ -489,6 +493,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${meta.tabs ? "pb-28" : "pb-10"}`}>
+        <DesktopHeader email={me.data?.user?.email} credits={credits} admin={admin} onSignOut={signOut} />
         <div className="mx-auto w-full max-w-6xl">
           {back && (
             <button

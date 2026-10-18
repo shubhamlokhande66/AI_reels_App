@@ -1323,7 +1323,9 @@ function setKind(k){
 $('kind').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setKind(b.dataset.k); }, SIG);
 // /studio?kind=talk (or music): Home's "Talking Reel" / "Music Reel" open the studio on that kind
 // (after the whole studio is set up: setKind uses state declared further down, e.g. the captions)
-queueMicrotask(() => { if(ac.signal.aborted) return; const q = new URLSearchParams(location.search), k0 = q.get('kind'), t0 = q.get('tpl');
+queueMicrotask(() => { if(ac.signal.aborted) return; const q = new URLSearchParams(location.search), t0 = q.get('tpl');
+  // the kind: /create/music|talking|photo (the Create flow's addresses), or the older /studio?kind=...
+  const k0 = ({ music: 'music', talking: 'talk', photo: 'photo' })[location.pathname.split('/')[2]] || q.get('kind');
   // links from Home and Templates: /studio?kind=music|talk|photo, /studio?tpl=<template> (picked as if tapped)
   if(t0 && TEMPLATES[t0]){ const b = root.querySelector('#tpl [data-t="' + t0 + '"]'); if(b){ b.click(); return; } }
   if(k0 === 'photo'){ const b = $('photokind'); if(b){ b.click(); return; } }

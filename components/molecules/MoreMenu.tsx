@@ -11,9 +11,9 @@ export type MoreItem = { label: string; icon?: string; href?: string; reload?: b
 
 const WIDTH = 240, GAP = 6, EDGE = 8;
 
-/** The "⋯" button with its short list of actions. The list opens in a layer above the page (a portal), placed under
+/** The "⋯" button (or a `trigger` of its own, e.g. the header's avatar) with its short list of actions. The list opens in a layer above the page (a portal), placed under
  * the button and kept on screen, so a card, a scrolling row or a small screen never cuts it off. */
-export function MoreMenu({ items, label = "More actions" }: { items: MoreItem[]; label?: string }) {
+export function MoreMenu({ items, label = "More actions", trigger, triggerClass }: { items: MoreItem[]; label?: string; trigger?: React.ReactNode; triggerClass?: string }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -70,9 +70,9 @@ export function MoreMenu({ items, label = "More actions" }: { items: MoreItem[];
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-foreground transition-colors hover:bg-surface-2"
+        className={triggerClass ?? "grid h-9 w-9 shrink-0 place-items-center rounded-full text-foreground transition-colors hover:bg-surface-2"}
       >
-        <Icon name="more" size={20} />
+        {trigger ?? <Icon name="more" size={20} />}
       </button>
       {open &&
         createPortal(

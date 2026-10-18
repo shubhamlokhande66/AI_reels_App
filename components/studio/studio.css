@@ -740,3 +740,228 @@
 .brs .postcap{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .brs .postcap textarea{width:100%;min-height:92px;resize:vertical;font:inherit;font-size:14px;line-height:1.4;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
 .brs .postcap textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+
+/* ================= The Create flow (components/studio/flow.ts; UI/ design "After Clip Music Reel") =================
+   .fopen while a Music / Talking / Photo Reel is being set up: computers see the steps in a column and the Reel Preview
+   beside them; phones see one screen at a time (data-fstep). Without .fopen these parts are not there at all. */
+.brs:not(.fopen) :is(.fhead,.fintro,.fai,.fprev,.fan,.fnext,.ftabs,.fsugg){display:none !important}
+.brs:not(.fopen) :is(.fgrid,.fmain){display:contents}
+.brs .fh{display:grid;gap:1px;min-width:0}
+.brs .fsh{font:500 13px var(--body);color:var(--muted)}
+.brs.fopen :is(.hero,.homerow,#s0,.topbar,.savebar){display:none !important}
+/* the edit is made behind the flow (kept rendered out of sight: the engine reads sizes and draws its frames) */
+.brs.fopen #s3{position:fixed !important;left:-200vw !important;top:0 !important;width:100vw !important;opacity:0 !important;pointer-events:none !important}
+.brs.fopen #s1,.brs.fopen #s2{display:grid !important}
+/* the waveform, length and beats once there is a song */
+.brs.fopen #s1:not(.done) .fadjust{display:none !important}
+.brs.fopen .stats span:first-child{display:none}
+.brs.fopen .step.folded .sbody{display:grid}
+.brs.fopen .step.folded{padding:16px}
+.brs.fopen .step > .sh{cursor:default}
+.brs.fopen .step > .sh::after{display:none}
+.brs.fopen .step > .sh .st{display:none}
+.brs.fopen .step{border-radius:20px;padding:16px 18px;gap:16px;background:var(--surface)}
+.brs.fopen .num{width:34px;height:34px;border-radius:12px;font:800 15px var(--body);background:var(--gold-gradient);color:var(--on-accent)}
+.brs.fopen .step.done .num{background:var(--gold-gradient)}
+.brs.fopen .sh h2{font:800 20px var(--display);letter-spacing:-.01em}
+.brs.fopen.v-simple #s1 .stats{display:grid}
+.brs.fopen #s1 .legend{display:none}
+
+/* the head: back, the title, the four steps */
+.brs .fhead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}
+.brs .fback{width:46px;height:46px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.brs .fback:hover{border-color:var(--accent)}
+.brs .ft h1{font:800 clamp(22px,3vw,30px)/1.1 var(--display);letter-spacing:-.02em}
+.brs .ft p{margin:4px 0 0;color:var(--muted);font-size:14px}
+.brs .fsteps{list-style:none;margin:0;padding:0;display:flex;align-items:flex-start;gap:0}
+.brs .fsteps li{position:relative;display:grid;justify-items:center;gap:6px;min-width:96px;font:600 13px var(--body);color:var(--muted)}
+.brs .fsteps li + li::before{content:"";position:absolute;top:15px;right:calc(50% + 18px);width:calc(100% - 36px);height:2px;background:var(--line)}
+.brs .fsteps li.ok + li::before,.brs .fsteps li.on::before{background:var(--accent)}
+.brs .fsteps i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:800 13px var(--body);font-style:normal;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+.brs .fsteps li.on{color:var(--accent)}
+.brs .fsteps li.on i{background:var(--gold-gradient);color:#fff;border-color:transparent;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
+.brs .fsteps li.ok i{background:color-mix(in srgb,var(--accent) 25%,var(--surface));color:var(--ink);border-color:var(--accent)}
+.brs .fskip{border:0;background:transparent;color:var(--muted);font:600 14px var(--body);cursor:pointer;display:none}
+
+/* 1 Choose Music: the song from the phone, the recent songs as cards, the waveform and the length */
+.brs.fopen .fpickrow{gap:12px}
+.brs.fopen #mpick{min-height:48px;border-radius:14px;padding:0 18px}
+.brs.fopen .recent{gap:10px}
+.brs.fopen .rlist{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:12px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.brs.fopen .rsong{position:relative;display:flex;align-items:stretch;border-radius:16px;border:1px solid var(--line);background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 30%,var(--surface)),var(--surface-2));min-height:96px;overflow:hidden}
+.brs.fopen .rsong.cur{border:2px solid var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent)}
+.brs.fopen .rsong.cur::after{content:"";position:absolute;right:10px;bottom:10px;width:24px;height:24px;border-radius:50%;background:var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/13px no-repeat}
+.brs.fopen .rpick{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;gap:2px;padding:12px;max-width:none;text-align:left}
+.brs.fopen .rn{font:800 14px var(--body);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.brs.fopen .rd{font:500 12px var(--body)}
+.brs.fopen .rdel{position:absolute;top:6px;right:6px;width:26px;height:26px;padding:0;border-radius:50%;background:rgba(0,0,0,.35);color:#fff}
+.brs.fopen .fwavebox{border:1px solid var(--line);border-radius:16px;padding:12px;background:var(--surface-2)}
+.brs.fopen canvas.wave{height:110px;background:transparent}
+.brs.fopen .lenrow{display:grid;gap:10px}
+.brs.fopen #slen{border:0;background:transparent;gap:8px;overflow:visible}
+.brs.fopen #slen button{border:1px solid var(--line);border-radius:12px;padding:10px 16px;background:var(--surface-2)}
+.brs.fopen #slen button+button{border-left:1px solid var(--line)}
+.brs.fopen #slen button[aria-pressed=true]{background:var(--gold-gradient);color:#fff;border-color:transparent}
+.brs.fopen .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:8px}
+.brs.fopen .stats span{display:grid;justify-items:center;gap:0;padding:10px 6px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);font-size:11.5px;text-align:center}
+.brs.fopen .stats b{order:-1;font:800 18px var(--body)}
+.brs .fsugg{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface-2)}
+.brs .fsugg > svg{width:28px;height:28px;color:#e879f9;flex:none}
+.brs .fsugg span{display:grid;gap:2px}
+.brs .fsugg b{font:800 14px var(--body)}
+.brs .fsugg small{color:var(--muted);font-size:12.5px;line-height:1.4}
+.brs.talkmode .fsugg{display:none}
+
+/* 2 Add Your Clips: Videos / Photos, the drop area, the clips as pictures */
+.brs .ftabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);max-width:420px}
+.brs .ftabs button{height:40px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:700 14px var(--body);cursor:pointer}
+.brs .ftabs button[aria-pressed=true]{background:var(--gold-gradient);color:#fff}
+.brs.fopen .drop{display:grid;justify-items:center;gap:4px;padding:28px 18px;border-radius:18px;background:var(--surface-2);color:var(--muted)}
+.brs.fopen .drop > svg{width:34px;height:34px;color:var(--ink);margin-bottom:6px}
+.brs.fopen .drop b{color:var(--ink);font:700 15px var(--body)}
+.brs.fopen .drop small{margin-top:8px;font-size:12px}
+.brs.fopen .clips{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.brs.fopen .clip{border-radius:14px;border:0;background:transparent;position:relative}
+.brs.fopen .clip .th{aspect-ratio:1/1;border-radius:14px;object-fit:cover}
+.brs.fopen .clip .meta{position:absolute;inset:auto 6px 6px auto;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.65);display:block}
+.brs.fopen .clip .meta :is(.nm,canvas){display:none}
+.brs.fopen .clip .dd{font:700 11px var(--body);color:#fff}
+.brs.fopen .clip .del{width:24px;height:24px;font-size:14px;background:rgba(0,0,0,.7)}
+.brs.fopen #clipsnd{background:var(--surface-2)}
+.brs.fopen #clipsnd .seg{gap:8px;border:0;background:transparent;overflow:visible}
+.brs.fopen #clipsnd .seg button{border:1px solid var(--line);border-radius:999px;padding:8px 14px}
+.brs.fopen #clipsnd .seg button+button{border-left:1px solid var(--line)}
+.brs.fopen #clipsnd .seg button[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.brs .fslot{display:contents}
+
+/* 3 AI Edit: what the AI does, and whether the Reel is ready */
+.brs .faibody{display:grid;gap:16px}
+.brs .faiList{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.brs .faiList li{display:flex;align-items:center;gap:10px;font:500 13.5px var(--body);color:var(--muted)}
+.brs .faiList li svg{flex:none;width:30px;height:30px;padding:6px;border-radius:9px;border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line));color:var(--accent)}
+.brs .faiList li.now{color:var(--ink)}
+.brs .faiList li.now svg{animation:aospin 1.4s linear infinite;border-style:dashed}
+.brs .faiList li.ok{color:var(--ink)}
+.brs .faiList li.ok svg{background:var(--accent);color:#fff;border-color:transparent}
+.brs .fready{display:grid;justify-items:center;gap:6px;padding:22px;border:1px solid color-mix(in srgb,var(--accent) 55%,var(--line));border-radius:18px;background:color-mix(in srgb,var(--accent) 7%,var(--surface-2));text-align:center}
+.brs .fready > svg{width:38px;height:38px;color:var(--accent)}
+.brs .fready b{font:800 16px var(--body)}
+.brs .fready small{color:var(--muted);font-size:13px}
+
+/* the Reel Preview (computers) */
+.brs .fprev{display:grid;gap:14px;align-content:start}
+.brs .fprevh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brs .fprevh b{font:800 15px var(--body)}
+.brs .fprevh .seg{flex-wrap:nowrap}
+.brs .fprevh .seg button{padding:7px 9px;font-size:12px}
+.brs .fprevbox{position:relative;aspect-ratio:9/16;border-radius:18px;overflow:hidden;display:grid;place-items:center;align-content:center;gap:10px;background:radial-gradient(60% 50% at 50% 35%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%),linear-gradient(170deg,#2b1d63,#0d0b26);color:#fff}
+.brs .fplay{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.75)}
+.brs .fplay svg{width:26px;height:26px}
+.brs .fprevbox small{font:600 13px var(--body);color:rgba(255,255,255,.8)}
+.brs .fprevbox.ready{box-shadow:0 0 0 2px var(--accent)}
+.brs .fgen{width:100%;justify-content:center;gap:10px;min-height:58px;font-size:17px;border-radius:16px}
+.brs .fgen svg{width:22px;height:22px}
+.brs .fnote{display:flex;align-items:center;justify-content:center;gap:6px;margin:0;color:var(--muted);font-size:12.5px;text-align:center}
+.brs .fnote svg{width:15px;height:15px;flex:none}
+.brs .fsmall{font-size:11.5px}
+
+/* the phones' intro and Analysing screens */
+.brs .fintro{display:grid;justify-items:center;gap:14px;text-align:center;padding:12px 4px 4px}
+.brs .fbadge{width:96px;height:96px;border-radius:28px;display:grid;place-items:center;background:linear-gradient(135deg,#e040fb,#7c3aed);box-shadow:0 0 0 10px color-mix(in srgb,var(--accent) 12%,transparent),0 18px 40px -16px var(--brand-glow)}
+.brs .fbadge svg{width:48px !important;height:48px !important;padding:0 !important;background:none !important;color:#fff}
+.brs .fintro h2{margin:6px 0 0;font:800 26px var(--display);letter-spacing:-.02em}
+.brs .fintro p{margin:0;color:var(--muted);font-size:14.5px;max-width:30ch}
+.brs .fchecks{list-style:none;margin:10px 0 6px;padding:0;display:grid;gap:14px;justify-self:stretch;text-align:left}
+.brs .fchecks li{display:flex;align-items:center;gap:12px;font:600 15px var(--body)}
+.brs .fchecks svg{flex:none;width:24px;height:24px;padding:4px;border-radius:50%;background:var(--accent);color:#fff;stroke-width:3}
+.brs .fnext,.brs .fgo{width:100%;justify-content:center;gap:8px}
+.brs .fan{display:grid;justify-items:center;gap:16px;text-align:center;padding:8px 0}
+.brs .fan h2{margin:0;font:800 22px var(--display)}
+.brs .fan .aoring b{font:800 34px var(--body)}
+.brs .fanst{display:grid;gap:2px;margin:0}
+.brs .fanst b{font:700 16px var(--body)}
+.brs .fanst small{color:var(--muted);font-size:13px}
+.brs .fanList{grid-template-columns:1fr;width:100%;text-align:left}
+.brs .fanList li{justify-content:flex-start;padding:4px 0}
+.brs .fbox{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}
+
+/* ---- computers: the steps in a column, the preview beside them ---- */
+@media (min-width:1024px){
+  .brs.fopen .fintro,.brs.fopen .fan,.brs.fopen .fnext{display:none !important}
+  .brs.fopen .fgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:18px;align-items:start}
+  .brs.fopen .fmain{display:grid;gap:16px;min-width:0}
+  .brs.fopen .fprev{position:sticky;top:84px;padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--surface)}
+  .brs.fopen .fadjust{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start}
+  .brs.fopen .fadjust .fwavebox{grid-row:span 3}
+  .brs.fopen .fchoose{display:grid;gap:12px}
+  .brs.fopen .fai .faibody{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:center}
+  .brs.fopen .faiList{grid-template-columns:1fr 1fr}
+}
+/* ---- phones: one screen at a time ---- */
+@media (max-width:1023px){
+  .brs.fopen :is(.fai,.fprev){display:none !important}
+  .brs.fopen :is(.fgrid,.fmain){display:contents}
+  .brs.fopen .ft{display:none}
+  .brs.fopen .fsteps{justify-content:center}
+  .brs.fopen .fsteps li{min-width:56px}
+  .brs.fopen .fsteps li span{display:none}
+  .brs.fopen .fsteps li:last-child{display:none}
+  .brs.fopen[data-fstep="intro"] .fskip{display:block}
+  .brs.fopen:not([data-fstep="intro"]) .fintro,
+  .brs.fopen:not([data-fstep="choose"]):not([data-fstep="adjust"]) #s1,
+  .brs.fopen:not([data-fstep="clips"]) #s2,
+  .brs.fopen:not([data-fstep="analyse"]) .fan{display:none !important}
+  .brs.fopen[data-fstep="choose"] .fadjust,.brs.fopen[data-fstep="adjust"] .fchoose{display:none}
+  .brs.fopen .step{padding:14px;border-radius:18px}
+  .brs.fopen .rlist{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:1fr}
+  .brs.fopen .rsong{min-height:0;background:var(--surface-2)}
+  .brs.fopen .rpick{flex-direction:row;justify-content:space-between;align-items:center;padding:12px 44px 12px 14px}
+  .brs.fopen .rsong.cur::after{top:50%;bottom:auto;transform:translateY(-50%);right:40px}
+  .brs.fopen .rdel{top:50%;transform:translateY(-50%)}
+  .brs.fopen .clips{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .brs.fopen .fnext{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom));z-index:5}
+}
+/* a Talking Reel keeps the voices: shown as the chosen option (the engine's talk edit is the voice, pauses cut) */
+.brs.fopen.talkmode #clipsnd{display:grid !important}
+.brs.fopen.talkmode #clipsnd .seg button:not([data-c="voices"]){display:none}
+.brs.fopen.talkmode #clipsnd small{display:none}
+/* phones: the flow's own head (back, the step dots, Skip) is the top bar, as designed */
+@media (max-width:1023px){
+  body:has(.brs.fopen) header.top{display:none}
+  .brs.fopen .fhead{position:sticky;top:0;z-index:20;margin:-16px -16px 0;padding:max(12px,env(safe-area-inset-top)) 16px 10px;background:var(--bar);border-bottom:1px solid var(--line)}
+  .brs.fopen .fback{width:40px;height:40px;border-radius:12px}
+}
+/* the waveform in the brand colour (the chosen part is outlined by the engine) */
+
+
+/* the made Reel in the preview card: the engine canvas fills it, its play button on top */
+.brs .fprevbox .pvbox{position:absolute;inset:0;display:grid;place-items:center;background:#000}
+.brs .fprevbox .pvbox #out{width:100%;height:100%;max-height:none;object-fit:contain;border-radius:0}
+.brs .fprevbox:has(.pvbox) :is(.fplay,small){display:none}
+/* the engine reads its canvas colours from the page root (engine.ts css()): the same values there */
+:root{--wave:#b05cff;--drop:#ff6a33;--hit:#f2bb1d;--cut:#22c3b3;--break:#8f80ff}
+:root[data-theme="light"]{--wave:#9b4dff;--drop:#e2501a;--hit:#b98500;--cut:#0e8f83;--break:#5b45e0}
+/* length and beats: one row each, as designed */
+.brs.fopen #slen{flex-wrap:nowrap}
+.brs.fopen #slen button{padding:9px 11px;font-size:13px;white-space:nowrap}
+.brs.fopen .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+.brs.fopen .step > .sh,.brs.fopen .sh3{flex-wrap:nowrap;align-items:flex-start}
+.brs.fopen .fh{flex:1}
+@media (max-width:1023px){ .brs.fopen [data-tasks]{display:none} }
+/* the export sheet (UI/ design: Export Settings): quality and frame rate as cards, each with its line */
+.brs .xsh{gap:12px;border:1px solid var(--line)}
+.brs .xsh-h h2{font:800 22px var(--display)}
+.brs .xsh-l{letter-spacing:.02em;text-transform:none;font:700 14px var(--body);color:var(--ink)}
+.brs .xsh .seg{display:grid;gap:10px;border:0;background:transparent;overflow:visible}
+.brs .xsh .seg button{display:grid;place-items:center;gap:2px;min-height:76px;border:1px solid var(--line) !important;border-radius:14px;background:var(--surface-2);font:800 15px var(--body);color:var(--ink)}
+.brs .xsh .seg button::after{font:500 11.5px var(--body);color:var(--muted)}
+.brs .xsh #xres [data-r="720"]::after{content:"Fast export"}
+.brs .xsh #xres [data-r="1080"]::after{content:"Best quality"}
+.brs .xsh #xres [data-r="4k"]::after{content:"Pro (slow)"}
+.brs .xsh #xfps [data-f="30"]::after{content:"Smaller size"}
+.brs .xsh #xfps [data-f="60"]::after{content:"Smoother"}
+.brs .xsh .seg button[aria-pressed=true]{border:2px solid var(--accent) !important;background:color-mix(in srgb,var(--accent) 16%,var(--surface-2));color:var(--ink)}
+.brs .xsh .seg button[aria-pressed=true]::after{color:var(--ink)}
+.brs .xsh .btn.save{background:var(--gold-gradient);color:#fff}
+/* until the flow has written the kind (Talking / Photo words), its place stays empty: never the studio home first */
+.brs.fopen:not(.flive) :is(.fhead,.fintro,.fgrid,.fan){visibility:hidden}

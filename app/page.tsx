@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, photoClass, Skeleton, Spinner, Thumb } from "@/components/atoms";
-import { ErrorBanner, NotificationBell, ProBanner, ProPill, Scroller, SectionHeader, TipsBanner } from "@/components/molecules";
+import { ErrorBanner, ProBanner, Scroller, SectionHeader, TipsBanner } from "@/components/molecules";
 import { HomeHero } from "@/components/organisms/home/HomeHero";
 import { ContinueSection, CreateSection, TemplatesSection, TipsSection } from "@/components/organisms/home/HomeSections";
 import { useCredits, useFeatures, useMe, useProjects, useQueue } from "@/hooks/useApi";
@@ -177,16 +177,10 @@ export default function Home() {
   const saved = useSaved(signedIn);
   const server = linkOn("/projects", features); // the server's projects, jobs and insights only while a part that makes Reels there is on
   const create = linkOn("/projects/new", features) && features.aiReel ? { href: "/projects/new", reload: false } : { href: "/studio", reload: true };
-  const plan = credits.data?.enabled ? credits.data.planName : null;
   const paid = credits.data?.enabled && credits.data.plan !== "free";
 
   return (
     <div className="flex flex-col gap-7 md:gap-9">
-      {/* computers: the plan pill and the bell (phones have them in the top bar) */}
-      <div className="-mb-4 hidden items-center justify-end gap-2 md:flex">
-        <ProPill plan={plan} />
-        <NotificationBell />
-      </div>
       <HomeHero {...create} />
       <CreateSection features={features} />
       <TemplatesSection />

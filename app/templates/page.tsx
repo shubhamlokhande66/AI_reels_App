@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnPrimary, btnSecondary, Card, photoClass, Spinner } from "@/components/atoms";
+import { btnPrimary, btnSecondary, Card, Icon, photoClass, Spinner } from "@/components/atoms";
 import { ErrorBanner, PageHeader } from "@/components/molecules";
 import { MoreMenu } from "@/components/molecules/MoreMenu";
 import { useFeatures, useStyles, useTrends } from "@/hooks/useApi";
@@ -359,12 +360,30 @@ const GROUPS = ["Everyday", "Business", "Travel & food", "Festivals"] as const;
 
 /** Templates: Fast Studio's ready-made Reels (always), then the templates saved on the server when that part is on. */
 export default function TemplatesPage() {
+  return (
+    <Suspense fallback={<Spinner label="Loading templates…" />}>
+      <Templates />
+    </Suspense>
+  );
+}
+
+function Templates() {
   const features = useFeatures();
+  // the header's search (/templates?q=…): the name, the kind, the look and what the template does
+  const [q, setQ] = useState(useSearchParams().get("q") ?? "");
+  const s = q.trim().toLowerCase();
+  const found = (t: (typeof STUDIO_TEMPLATES)[number]) => !s || [t.name, t.text, t.look, t.group, t.kind].join(" ").toLowerCase().includes(s);
+  const any = STUDIO_TEMPLATES.some(found);
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <PageHeader title="Templates" subtitle="Pick a ready-made Reel, add your clips: the style, look, length and text are done for you." />
+      <label className="srch md:max-w-sm">
+        <Icon name="search" size={16} />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates" aria-label="Search templates" />
+      </label>
+      {!any && <p className="mu sm">No template matches “{q}”.</p>}
       {GROUPS.map((g) => {
-        const list = STUDIO_TEMPLATES.filter((t) => t.group === g);
+        const list = STUDIO_TEMPLATES.filter((t) => t.group === g && found(t));
         if (!list.length) return null;
         return (
           <section key={g} aria-label={g} className="flex flex-col gap-2.5">
