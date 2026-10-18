@@ -31,7 +31,7 @@ beforeEach(() => { admin.value = false; });
 describe("AppShell navigation", () => {
   it("shows people the product: create, story, editor, projects and their library", () => {
     const nav = renderShell();
-    for (const [name, href] of [["Create Reel", "/projects/new"], ["Story → Reel", "/story/new"], ["Editor", "/editor"], ["Projects", "/projects"], ["Footage", "/library"], ["Songs", "/songs"]]) {
+    for (const [name, href] of [["Create Reel", "/projects/new"], ["Music Reel", "/create/music"], ["Talking Reel", "/create/talking"], ["Photo Reel", "/create/photo"], ["Story Maker", "/story/new"], ["Editor", "/editor"], ["Projects", "/projects"], ["Footage", "/library"], ["Songs", "/songs"]]) {
       expect(nav.getByRole("link", { name: new RegExp(name) })).toHaveAttribute("href", href);
     }
     expect(screen.getAllByText("me@example.com").length).toBeGreaterThan(0); // the sidebar and the phone menu
@@ -48,6 +48,20 @@ describe("AppShell navigation", () => {
     const nav = renderShell();
     expect(nav.queryByRole("link", { name: /AI Edit/ })).toBeNull();
     for (const link of screen.getAllByRole("link", { name: /Admin dashboard/ })) expect(link).toHaveAttribute("href", "/admin"); // the sidebar and the phone menu
+  });
+});
+
+describe("AppShell: the Create flow in the menu", () => {
+  it("lists Music, Talking and Photo Reel and Story Maker instead of Fast Studio", () => {
+    const nav = renderShell();
+    expect(nav.queryByRole("link", { name: /Fast Studio/ })).toBeNull();
+    expect(nav.getAllByRole("link", { name: /Story Maker/ })).toHaveLength(1);
+  });
+
+  it("opens the on-device Story Maker when the server's Story is off", () => {
+    features.value = { ...features.value, story: false };
+    const nav = renderShell();
+    expect(nav.getByRole("link", { name: /Story Maker/ })).toHaveAttribute("href", "/studio?auto=story");
   });
 });
 

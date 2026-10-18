@@ -75,7 +75,13 @@ export function initFlow(root: HTMLElement): () => void {
     }
   };
 
+  // every write only when it changes something: a write is a DOM mutation even with the same value, and the flow (and
+  // views.ts) watch the DOM, so an unchanged write would wake them again and again (a busy page)
   const setText = (el: Element, t: string) => { if (el.textContent !== t) el.textContent = t; };
+  const setAttr = (el: Element, k: string, v: string) => { if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
+  const setFlag = (el: HTMLElement & { disabled?: boolean }, k: "hidden" | "disabled", v: boolean) => { if (el[k] !== v) el[k] = v; };
+  const setClass = (el: Element, c: string, on: boolean) => { if (el.classList.contains(c) !== on) el.classList.toggle(c, on); };
+  const setData = (el: HTMLElement, k: string, v: string) => { if (el.dataset[k] !== v) el.dataset[k] = v; };
   /** Each kind starts as it is meant: a Music Reel and a Photo Reel mute the clips' own sound under the song, a Talking
    * Reel keeps only the voices (Videos or Photos follow the kind: photomode). Only changed when it differs. */
   const defaults = (k: Kind) => {
@@ -89,19 +95,20 @@ export function initFlow(root: HTMLElement): () => void {
       const t = li.dataset.t!;
       // the last line (the edit itself) runs once the song and clips are in; every line is done once the Reel is made
       const st = make ? "ok" : t === "make" ? (clipsOk() && songOk() ? "now" : "") : (lines.get(t) ?? "");
-      li.classList.toggle("now", st === "now");
-      li.classList.toggle("ok", st === "ok");
+      setClass(li, "now", st === "now");
+      setClass(li, "ok", st === "ok");
     }
     const all = [...root.querySelectorAll(".fanList li")], ok = all.filter((l) => l.classList.contains("ok")).length;
     const p = make ? 100 : Math.max(pct, Math.round((ok / all.length) * 100));
     setText($("fanpct"), p + "%");
-    $("fanring").style.strokeDashoffset = String(326.7 * (1 - p / 100));
+    const off = String(326.7 * (1 - p / 100));
+    if ($("fanring").style.strokeDashoffset !== off) $("fanring").style.strokeDashoffset = off;
   };
 
   const apply = () => {
     const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
-    root.classList.toggle("fopen", on);
-    if (!on) { root.removeAttribute("data-fstep"); place(false); return; }
+    setClass(root, "fopen", on);
+    if (!on) { if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
     const k = readKind();
     if (k !== kind || !$("ftitle").dataset.k) {
       kind = k;
@@ -120,9 +127,9 @@ export function initFlow(root: HTMLElement): () => void {
       const slug = { music: "music", talk: "talking", photo: "photo", copy: "" }[k];
       if (slug && location.pathname !== `/create/${slug}`) history.replaceState(history.state, "", `/create/${slug}${location.search.replace(/([?&])kind=[^&]*&?/, "$1").replace(/[?&]$/, "")}${location.hash}`);
     }
-    root.dataset.fstep = step;
-    root.dataset.fkind = kind;
-    root.classList.add("flive"); // the kind's own words are in: the flow can be seen
+    setData(root, "fstep", step);
+    setData(root, "fkind", kind);
+    setClass(root, "flive", true); // the kind's own words are in: the flow can be seen
     // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
     const adj = phone() && step === "adjust";
     setText($("s1").querySelector("h2")!, adj ? "Adjust Music" : "Choose Music");
@@ -134,22 +141,21 @@ export function initFlow(root: HTMLElement): () => void {
     const at = phone() ? mob : cur;
     root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => {
       const n = +li.dataset.f!;
-      li.classList.toggle("on", n === at);
-      li.classList.toggle("ok", n < at);
+      setClass(li, "on", n === at);
+      setClass(li, "ok", n < at);
     });
     // clips: Videos / Photos
-    root.querySelectorAll<HTMLButtonElement>("#ftabs button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.ft === "photos") === has("photomode"))));
-    $("ftabs").hidden = has("talkmode") || kind === "copy";
+    root.querySelectorAll<HTMLButtonElement>("#ftabs button").forEach((b) => setAttr(b, "aria-pressed", String((b.dataset.ft === "photos") === has("photomode"))));
+    setFlag($("ftabs"), "hidden", has("talkmode") || kind === "copy");
     // Next on the clips step, Generate in the preview card
     const ready = clipsOk() && !!songOk();
-    ($("fclipsnext") as HTMLButtonElement).disabled = !clipsOk();
-    const gen = $<HTMLButtonElement>("fgen");
-    gen.disabled = !ready;
+    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk());
+    setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready);
     setText($("fgent"), "Generate Reel");
     setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
     setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "The AI is reading your clips and the beats." : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
     setText($("fprevnote"), made() ? "Your Reel is ready" : "Your Reel appears here");
-    $("fprevbox").classList.toggle("ready", made());
+    setClass($("fprevbox"), "ready", made());
     paintAi();
     // the phones' analysing screen: the Reel opens once it is made
     if (step === "analyse" && made()) { revealed = true; setTimeout(apply, 350); }
