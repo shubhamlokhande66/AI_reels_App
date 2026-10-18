@@ -35,7 +35,7 @@ const GROUPS: Record<string, string[]> = {
   "simple:style": ["style"], "simple:text": ["text", "captions"], "simple:look": ["look", "bg"], "simple:music": ["music", "voice"],
   "pro:pshot": ["motion", "shots"], "pro:text": ["text", "captions"], "pro:audio": ["music", "voice"], "pro:plook": ["look", "style"], "pro:bg": ["bg"],
 };
-const PRO_OF: Record<string, string> = { shots: "pshot", motion: "pshot", music: "audio", voice: "audio", captions: "text", look: "plook", style: "plook", bg: "bg", text: "text" };
+const PRO_OF: Record<string, string> = { layers: "layers", shots: "pshot", motion: "pshot", music: "audio", voice: "audio", captions: "text", look: "plook", style: "plook", bg: "bg", text: "text" };
 const SIMPLE_OF: Record<string, string> = { style: "style", text: "text", captions: "text", look: "look", bg: "look", music: "music", voice: "music", audio: "music", plook: "look" };
 const fmt = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 9.95 ? "0" : "") + s.toFixed(1); };
 const fmtS = (t: number) => fmt(t).replace(/\.\d$/, "");

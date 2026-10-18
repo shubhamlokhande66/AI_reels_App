@@ -334,6 +334,13 @@
 .brs:not(.talkmode) .talkonly{display:none}
 .brs.talkmode .musiconly{display:none}
 .brs .ttsbox{display:grid;gap:8px;margin:12px 0}
+.brs .lylist{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.brs .lyitem{display:grid;text-align:left;gap:2px;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:13px var(--body)}
+.brs .lyitem[aria-pressed=true]{border-color:var(--accent);background:var(--chipbg)}
+.brs .lyitem .lt{font-size:11.5px;color:var(--muted)}
+.brs .lyedit{display:grid;gap:10px}
+.brs .lyedit .label{margin-top:6px}
+.brs #lymaskopts{display:grid;gap:10px}
 .brs .ttsbox textarea{width:100%;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:14px var(--body);padding:10px;resize:vertical}
 .brs .ttsbox select{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:13.5px var(--body);padding:0 8px;min-width:0;flex:1}
 .brs .ttslist{display:grid;gap:6px}
@@ -458,6 +465,7 @@
   .brs.made.v-simple .savebar{position:static;background:transparent;border:0;backdrop-filter:none;-webkit-backdrop-filter:none}
   .brs .cgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .brs.v-editor .dock{flex-wrap:wrap;border:1px solid var(--line);border-radius:18px;padding:6px;background:var(--surface)}
+  .brs.v-editor .dock .tool{flex:1 1 52px;min-width:52px}   /* one row, however many tools */
   .brs.v-editor #out{max-height:calc(100vh - 330px)}
 
   /* Pro: tool rail | preview + transport | inspector, the timeline across the bottom */

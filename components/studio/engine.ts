@@ -1990,13 +1990,14 @@ function shotTrim(dir){
 // again when the song or the clips change, because an older edit would not fit them.
 const hist = { u: [], r: [], cur: null, cand: '', base: '' };
 const HIST_MAX = 60;
-function histSnap(){ const ov = overlays.map(o => { const c = { ...o }; delete c.box; return c; }), ed = editOf(); return { ed, ov, sig: JSON.stringify([ed, ov]) }; }
+const lyOf = () => layers.map(L => { const c = JSON.parse(JSON.stringify({ ...L, fc: undefined })); return c; });
+function histSnap(){ const ov = overlays.map(o => { const c = { ...o }; delete c.box; return c; }), ed = editOf(), ly = lyOf(); return { ed, ov, ly, sig: JSON.stringify([ed, ov, ly]) }; }
 function histBase(){ return kind + '|' + sources.map(s => s.name + s.dur).join() + '|' + (buf ? buf.duration.toFixed(2) : ''); }
 function histTick(){
   if(restoring || exporting || recording || pending || playing) return;
   const base = histBase();
   if(base !== hist.base){ hist.base = base; hist.u = []; hist.r = []; hist.cur = edit.length || overlays.length ? histSnap() : null; hist.cand = ''; histUI(); return; }
-  if(!edit.length && !overlays.length) return;
+  if(!edit.length && !overlays.length && !layers.length) return;
   const now = histSnap(); if(!hist.cur){ hist.cur = now; return; }
   if(now.sig === hist.cur.sig){ hist.cand = ''; return; }
   if(now.sig !== hist.cand){ hist.cand = now.sig; return; }   // kept once it stops changing (a drag is one step)
@@ -2009,6 +2010,7 @@ function histGo(back){
   to.push(hist.cur); const s = from.pop(); hist.cand = '';
   if(kind !== 'talk' && s.ed.length) restoreEdit(s.ed);
   overlays = s.ov.map(o => ({ ...o })); ovSel = -1; renderOvList();
+  if(s.ly){ layers = s.ly.map(L => ({ ...L })); lySel = Math.min(lySel, layers.length - 1); lyUI(); clipMixKey = ''; }
   if(edit.length) showShot(Math.min(segAt(pos), edit.length - 1)); else redrawFrame();
   hist.cur = histSnap(); histUI(); notify(back ? 'Undone' : 'Redone');
 }
@@ -2072,6 +2074,7 @@ function setCanvas(full, scale = 1){ const [W0,H0]=SIZES[aspect], s = full ? sca
 function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(edit[m].start<=t+1e-4){ r=m; lo=m+1; } else hi=m-1; } return r; }
 async function prepare(i, t){
   const e = edit[i]; if(!e) return;
+  if(layers.length && !playing) await prepLayers(t);
   const local = Math.max(0, t - e.start), target = srcPos(e, local);
   if(e.el.readyState < 2){ try{ await videoData(e.el, 6000); }catch(err){} }
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
@@ -2161,6 +2164,128 @@ function lensPass2D(g, e){
   if(c.mg){ const [cx,cy,R,z] = Z.mg; g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 2*Math.PI); g.clip(); g.drawImage(bufA, cx-R/z, cy-R/z, 2*R/z, 2*R/z, cx-R, cy-R, 2*R, 2*R); g.restore();
     g.save(); g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = Math.max(2, W*0.004); g.beginPath(); g.arc(cx, cy, R, 0, 2*Math.PI); g.stroke(); g.restore(); }
 }
+
+/* =============== OVERLAY TRACK: videos and photos on top of the Reel ===============
+ * Each layer: a video or photo (lmedia) shown from t0 to t1, placed at x / y (its middle, 0..1 of the frame), s wide
+ * (0..1 of the frame), turned r degrees, op opacity, cropped (crop l/t/r/b, 0..1 of the picture), mirrored / flipped,
+ * masked (mask: none / circle / rect / line / mirror, with mk size, angle, feather, invert), faded in / out, and for a
+ * video its own sound (vol). Drawn over the shot, under texts and captions, the same way in the preview and the export
+ * (where each video layer has its own decoder). Saved with the Reel; Undo keeps them. Layouts place a layer in one tap. */
+let lmedia = [], layers = [], lySeq = 0, lySel = -1;
+const LY0 = { x:0.5, y:0.5, s:0.5, r:0, op:1, fh:false, fv:false, crop:{l:0,t:0,r:0,b:0}, mask:'none', mk:{w:0.8,h:0.8,a:0,f:0.12,inv:false}, fin:0, fout:0, vol:0, rad:0 };
+let lyBuf = null, lyG = null;
+async function addLayerMedia(file){
+  const url = URL.createObjectURL(file), photo = /^image\//.test(file.type) || /\.(jpe?g|png|webp|heic|gif)$/i.test(file.name);
+  if(photo){ const img = new Image(); img.src = url; await img.decode(); return { kind:'photo', file, url, img, w: img.naturalWidth, h: img.naturalHeight, dur: Infinity, name: file.name }; }
+  const el = document.createElement('video'); el.muted = true; el.playsInline = true; el.preload = 'auto'; el.src = url;
+  await new Promise((res, rej) => { el.onloadedmetadata = res; el.onerror = () => rej(new Error('This video cannot be opened.')); });
+  return { kind:'video', file, url, el, w: el.videoWidth, h: el.videoHeight, dur: el.duration, name: file.name };
+}
+async function layerAdd(files){
+  if(!edit.length){ notify('Make the Reel first, then add videos or photos on top.'); return; }
+  for(const f of files){
+    let M; try{ M = await addLayerMedia(f); }catch(err){ notify(String(err.message || err), 'err'); continue; }
+    lmedia.push(M); const D = buf.duration, t0 = Math.min(pos, Math.max(0, D - 1)), len = M.kind === 'video' ? Math.min(M.dur, D - t0) : Math.min(3, D - t0);
+    layers.push({ id: ++lySeq, m: lmedia.length - 1, t0, t1: t0 + Math.max(0.5, len), in: 0, ...JSON.parse(JSON.stringify(LY0)), x: 0.68, y: 0.3, s: 0.45 });
+    lySel = layers.length - 1;
+  }
+  lyUI(); await prepLayers(pos); redrawFrame();
+}
+const lyOn = (L, t) => t >= L.t0 && t < L.t1;
+const lyTime = (L, t) => L.in + (t - L.t0);
+// the layer's picture, cropped, masked and faded, in its own canvas; then placed on the frame
+function drawLayers(g, t){
+  for(const L of layers){ if(!lyOn(L, t)) continue; const M = lmedia[L.m]; if(!M) continue;
+    const src = M.kind === 'photo' ? M.img : exporting ? L.fc : M.el;
+    if(!src || (M.kind === 'video' && !exporting && M.el.readyState < 2)) continue;
+    const W = out.width, H = out.height, c = L.crop, sw0 = src.videoWidth || src.naturalWidth || src.width, sh0 = src.videoHeight || src.naturalHeight || src.height;
+    const sx = sw0*c.l, sy = sh0*c.t, sw = Math.max(2, sw0*(1 - c.l - c.r)), sh = Math.max(2, sh0*(1 - c.t - c.b));
+    const dw = Math.max(2, Math.round(L.s*W)), dh = Math.max(2, Math.round(dw*sh/sw*(M.h && M.w ? (M.w/M.h)/(sw0/sh0) : 1)));
+    if(!lyBuf){ lyBuf = document.createElement('canvas'); lyG = lyBuf.getContext('2d'); }
+    if(lyBuf.width !== dw || lyBuf.height !== dh){ lyBuf.width = dw; lyBuf.height = dh; }
+    const q = lyG; q.save(); q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, dw, dh); q.drawImage(src, sx, sy, sw, sh, 0, 0, dw, dh);
+    if(L.mask !== 'none' || L.rad > 0){ layerMask(q, L, dw, dh); }
+    q.restore();
+    const life = t - L.t0, left = L.t1 - t, a = L.op * Math.min(L.fin > 0 ? Math.min(1, life/L.fin) : 1, L.fout > 0 ? Math.min(1, left/L.fout) : 1);
+    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
+    g.drawImage(lyBuf, -dw/2, -dh/2); g.restore();
+    if(L === layers[lySel] && !exporting && !recording && !playing){   // the chosen layer: a thin frame (preview only)
+      g.save(); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.strokeStyle = 'rgba(212,176,122,0.95)'; g.lineWidth = Math.max(2, W*0.004); g.setLineDash([W*0.012, W*0.008]); g.strokeRect(-dw/2, -dh/2, dw, dh); g.restore(); }
+  }
+}
+// keep only the mask's shape (or cut it out, inverted); soft edges with a blur
+function layerMask(q, L, w, h){
+  const k = L.mk, f = Math.max(0, k.f)*Math.min(w, h)*0.5;
+  q.globalCompositeOperation = k.inv && L.mask !== 'none' ? 'destination-out' : 'destination-in';
+  q.filter = f > 0.5 ? 'blur(' + f.toFixed(1) + 'px)' : 'none'; q.fillStyle = '#000'; q.beginPath();
+  const cx = w/2, cy = h/2;
+  if(L.mask === 'circle') q.ellipse(cx, cy, Math.max(1, k.w*w/2 - f), Math.max(1, k.h*h/2 - f), k.a*Math.PI/180, 0, 2*Math.PI);
+  else if(L.mask === 'rect'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const rw = k.w*w - 2*f, rh = k.h*h - 2*f; if(q.roundRect) q.roundRect(-rw/2, -rh/2, rw, rh, L.rad*Math.min(rw, rh)/2); else q.rect(-rw/2, -rh/2, rw, rh); }
+  else if(L.mask === 'line'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const R = Math.hypot(w, h); q.rect(-R, -R, 2*R, R + (k.h - 0.5)*h); }
+  else if(L.mask === 'mirror'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const R = Math.hypot(w, h), bh = k.h*h; q.rect(-R, -bh/2, 2*R, bh); }
+  else { const r = L.rad*Math.min(w, h)/2; if(q.roundRect) q.roundRect(0, 0, w, h, r); else q.rect(0, 0, w, h); }   // rounded corners only
+  q.fill(); q.filter = 'none';
+}
+// video layers follow the playhead: paused (seek and wait) or playing (kept in step)
+async function prepLayers(t){
+  const waits = [];
+  for(const L of layers){ const M = lmedia[L.m]; if(!M || M.kind !== 'video') continue;
+    if(!lyOn(L, t)){ M.el.pause(); continue; }
+    M.el.pause(); const want = Math.min(M.dur - 0.05, lyTime(L, t));
+    if(Math.abs(M.el.currentTime - want) > 0.04){ M.el.currentTime = want; waits.push(waitEv(M.el, 'seeked', 3000).catch(()=>{})); } }
+  await Promise.all(waits);
+}
+function syncLayers(t){
+  for(const L of layers){ const M = lmedia[L.m]; if(!M || M.kind !== 'video') continue;
+    if(!lyOn(L, t)){ if(!M.el.paused) M.el.pause(); continue; }
+    const want = lyTime(L, t); if(want >= M.dur - 0.05){ if(!M.el.paused) M.el.pause(); continue; }
+    if(Math.abs(M.el.currentTime - want) > 0.25) M.el.currentTime = want;
+    if(M.el.paused) M.el.play().catch(()=>{}); }
+}
+const stopLayers = () => lmedia.forEach(M => M.el && M.el.pause());
+// layouts: one tap places the chosen layer
+const LAYOUTS = { tl:{x:0.27,y:0.2,s:0.42}, tr:{x:0.73,y:0.2,s:0.42}, bl:{x:0.27,y:0.78,s:0.42}, br:{x:0.73,y:0.78,s:0.42}, top:'top', bottom:'bottom', left:'left', right:'right', full:'full' };
+function layoutLayer(L, k){
+  const M = lmedia[L.m], W = out.width, H = out.height, ar = M ? M.w/M.h : 1; L.r = 0;
+  const P = LAYOUTS[k]; if(typeof P === 'object'){ Object.assign(L, P); L.crop = {l:0,t:0,r:0,b:0}; return; }
+  // a half or the whole frame: cropped to fill it exactly
+  const box = k === 'full' ? [0.5, 0.5, 1, 1] : k === 'top' ? [0.5, 0.25, 1, 0.5] : k === 'bottom' ? [0.5, 0.75, 1, 0.5] : k === 'left' ? [0.25, 0.5, 0.5, 1] : [0.75, 0.5, 0.5, 1];
+  const want = box[2]*W/(box[3]*H);   // the box's own shape
+  L.crop = {l:0,t:0,r:0,b:0}; if(ar > want){ const cut = (1 - want/ar)/2; L.crop.l = L.crop.r = cut; } else { const cut = (1 - ar/want)/2; L.crop.t = L.crop.b = cut; }
+  L.x = box[0]; L.y = box[1]; L.s = box[2];
+}
+function lyUI(){
+  const box = $('lylist'); if(!box) return; box.innerHTML = '';
+  layers.forEach((L, i) => { const M = lmedia[L.m], b = document.createElement('button'); b.type = 'button'; b.className = 'lyitem'; b.setAttribute('aria-pressed', String(i === lySel));
+    b.innerHTML = '<span class="ln"></span><span class="lt"></span>'; b.querySelector('.ln').textContent = (M ? (M.kind === 'photo' ? '🖼 ' : '🎬 ') + M.name.replace(/\.[^.]+$/, '') : 'Missing file');
+    b.querySelector('.lt').textContent = fmt(L.t0).replace(/\.\d+$/, '') + '–' + fmt(L.t1).replace(/\.\d+$/, '');
+    b.addEventListener('click', () => { lySel = i; lyUI(); pos = Math.max(pos, L.t0); if(!lyOn(L, pos)) pos = L.t0 + 0.05; prepare(segAt(pos), pos).then(() => prepLayers(pos)).then(redrawFrame); });
+    box.appendChild(b); });
+  const L = layers[lySel], ed = $('lyedit'); ed.hidden = !L; if(!L) return;
+  const M = lmedia[L.m];
+  for(const el of ed.querySelectorAll('[data-ly]')){ const k = el.dataset.ly, v = k.includes('.') ? L[k.split('.')[0]][k.split('.')[1]] : L[k];
+    if(el.type === 'checkbox') el.checked = !!v; else el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = lyFmt(k, +v); }
+  [...$('lymask').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === L.mask)));
+  $('lymaskopts').hidden = L.mask === 'none'; $('lyvolrow').hidden = !M || M.kind !== 'video';
+  $('lytime').textContent = fmt(L.t0) + ' – ' + fmt(L.t1);
+}
+const lyFmt = (k, v) => /^(x|y|s|op|crop|mk\.(w|h|f)|vol)/.test(k) ? Math.round(v*100) + '%' : /^(r|mk\.a)$/.test(k) ? Math.round(v) + '°' : /^(fin|fout|rad)$/.test(k) ? (k === 'rad' ? Math.round(v*100) + '%' : v.toFixed(1) + ' s') : String(v);
+function lySet(k, v){ const L = layers[lySel]; if(!L) return;
+  if(k.includes('.')){ const [a, b] = k.split('.'); L[a] = { ...L[a], [b]: v }; } else L[k] = v;
+  if(k === 'vol') clipMixKey = '';
+  if(!playing) redrawFrame(); }
+$('lyadd').addEventListener('click', () => $('lyfile').click(), SIG);
+$('lyfile').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; if(f.length) layerAdd(f); }, SIG);
+$('lyedit').addEventListener('input', e => { const el = e.target, k = el.dataset && el.dataset.ly; if(!k) return; const v = el.type === 'checkbox' ? el.checked : +el.value; lySet(k, v); const o = el.parentElement.querySelector('output'); if(o && el.type !== 'checkbox') o.textContent = lyFmt(k, v); }, SIG);
+$('lyedit').addEventListener('click', e => { const t = e.target.closest('button'); if(!t) return; const L = layers[lySel]; if(!L) return;
+  if(t.dataset.m){ L.mask = t.dataset.m; lyUI(); redrawFrame(); }
+  else if(t.dataset.lay){ layoutLayer(L, t.dataset.lay); lyUI(); redrawFrame(); }
+  else if(t.dataset.lyt === 'start'){ L.t0 = Math.min(pos, L.t1 - 0.3); lyUI(); redrawFrame(); }
+  else if(t.dataset.lyt === 'end'){ L.t1 = Math.max(pos, L.t0 + 0.3); lyUI(); redrawFrame(); }
+  else if(t.dataset.lyt === 'all'){ L.t0 = 0; L.t1 = buf.duration; lyUI(); redrawFrame(); }
+  else if(t.dataset.lyf){ L[t.dataset.lyf] = !L[t.dataset.lyf]; redrawFrame(); }
+  else if(t.dataset.lydel){ layers.splice(lySel, 1); lySel = Math.min(lySel, layers.length - 1); clipMixKey = ''; lyUI(); redrawFrame(); }
+}, SIG);
 function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let cur='';
   words.forEach(w=>{ const tryL = cur ? cur+' '+w : w; if(g.measureText(tryL).width > maxW && cur){ lines.push(cur); cur=w; } else cur=tryL; }); if(cur) lines.push(cur); return lines; }
 /* ---- text: the hook word by word on the beats, captions of the song word by word ----
@@ -2775,6 +2900,7 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
+  if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -2928,7 +3054,7 @@ const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivi
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
+const CS0 = { zoom:1, cx:null, cy:null, vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
 const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
 // display uv -> source uv: the picture is turned, then mirrored / flipped
@@ -2939,11 +3065,11 @@ const hexRgb = h => { const n = parseInt(String(h).replace('#',''), 16) || 0; re
 // the picture's size on the display (turned a quarter: width and height swap) and its scale (fill or fit)
 function csGeom(e, scale){
   const W=out.width, H=out.height, c = csOf(e), odd = (c.rot/90)&1, s0 = sources[e.src];
-  const sw = odd ? s0.h : s0.w, sh = odd ? s0.w : s0.h, r = (c.fit ? Math.min(W/sw, H/sh) : Math.max(W/sw, H/sh))*scale;
+  const sw = odd ? s0.h : s0.w, sh = odd ? s0.w : s0.h, r = (c.fit ? Math.min(W/sw, H/sh) : Math.max(W/sw, H/sh))*scale*(c.zoom || 1);
   return { c, odd, sw, sh, dw: sw*r, dh: sh*r };
 }
 const csFade = (c, local, L) => Math.min(c.fin > 0 ? Math.min(1, local/c.fin) : 1, c.fout > 0 ? Math.min(1, Math.max(0, (L-local)/c.fout)) : 1);
-function csCam(e, local, c){ const [x, y] = camAt(e, local); return c.rot || c.fh || c.fv ? csFwd(c, x, y) : [x, y]; }
+function csCam(e, local, c){ if(c.cx != null && c.cy != null) return [c.cx, c.cy]; const [x, y] = camAt(e, local); return c.rot || c.fh || c.fv ? csFwd(c, x, y) : [x, y]; }
 function layerOf(e, local, o={}){
   const W=out.width, H=out.height, K=e.kf||{};
   let scale = (kf(K.scale,local) ?? 1)*(o.scale||1)*(o.noFx ? 1 : emphAt(e.start + local));
@@ -3010,6 +3136,7 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
+  if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -3028,7 +3155,7 @@ function setLabel(id, t){ const el = $(id); if(!el) return; const sp = el.queryS
 const PLAY_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
 const PAUSE_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
 function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '<span>' + (on ? 'Pause' : 'Preview') + '</span>'; }
-function stopAll(){ playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
+function stopAll(){ stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
@@ -3071,6 +3198,7 @@ async function startPlayback(from, destNode){
       const n2 = edit[i+2];
       if(n2 && !n2._cued && l > (TR_DUR[e.tr]||0) + 0.05){ n2._cued = true; prepare(i+2, n2.start); }
     }
+    if(layers.length) syncLayers(t);
     drawFrame(t);
   };
   const raf = () => { loop(); if(playing) rafId = requestAnimationFrame(raf); };
@@ -3253,6 +3381,17 @@ async function fastExport(){
       }
       return sinks.get(key);
     };
+    // video layers: one decoder each, its frames asked for in time order (one per output frame while it shows)
+    const lyIts = [];
+    for(const L of layers){ const M = lmedia[L.m]; if(!M || M.kind !== 'video') continue;
+      const input = new mb.Input({ source: new mb.BlobSource(M.file), formats: mb.ALL_FORMATS }); inputs.push(input);
+      const track = await input.getPrimaryVideoTrack(); if(!track) continue;
+      const r = Math.min(1, (L.s*W)/M.w*1.4), first = await track.getFirstTimestamp();
+      const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(M.w*r/2)*2), height: Math.max(16, Math.round(M.h*r/2)*2), fit: 'fill', poolSize: 3 });
+      const k0 = Math.ceil(L.t0*fps - 1e-6), k1 = Math.min(Math.round(dur*fps), Math.ceil(L.t1*fps - 1e-6)), ts = [];
+      for(let k=k0;k<k1;k++){ const v = first + Math.min(M.dur - 0.05, Math.max(0, lyTime(L, k/fps))); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
+      lyIts.push({ L, k0, k1, it: sink.canvasesAtTimestamps(ts)[Symbol.asyncIterator]() }); }
+    const layerFrames = async (k) => { for(const q of lyIts){ if(k < q.k0 || k >= q.k1) continue; const r = await q.it.next(); if(!r.done && r.value) q.L.fc = r.value.canvas; } };
     exporting = true;
     const total = Math.round(dur*fps);
     // the frames of every shot: a frame belongs to the shot showing at its time (the same rule as drawFrame)
@@ -3284,6 +3423,7 @@ async function fastExport(){
           if(g) e.fc = g.canvas;
         }
         if(GL && GL.lost) prof.glLostFrames++;
+        if(lyIts.length) await layerFrames(k);
         if(bgNeeded() && personMask){ holdText = true; try{ drawFrame(k/fps); } finally { holdText = false; } await maskNow(); bgPass(k/fps); drawText(k/fps); }
         else drawFrame(k/fps);
         const tb = performance.now(); prof.draw += tb - ta;
@@ -3315,7 +3455,7 @@ async function fastExport(){
     notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': ' + name + ' (' + (blob.size/1e6).toFixed(1) + ' MB). Ready for Instagram, TikTok and Shorts.');
     return true;
   } finally {
-    exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; });
+    exporting = false; edit.forEach(e=>{ e.fc = null; e.fcLast = null; }); layers.forEach(L => { L.fc = null; });
     // a read-ahead still running (the export stopped early) ends first: letting its decoder go under it fails
     if(pre){ try{ const p2 = await pre; if(p2 && p2.it.return) await p2.it.return(); }catch(err){} pre = null; }
     inputs.forEach(x=>{ try{ x.dispose(); }catch(err){} });
@@ -3817,14 +3957,16 @@ async function ensureMix(){
   const shots = clipVoiced() ? edit.filter(e => e.cs && e.cs.vol > 0) : [];
   for(const e of shots) await clipPcm(e.src);
   for(const c of ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
-  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
+  for(const L of layers){ const M = lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await decodeAnyAudio(M.file), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
+  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
   if(key !== clipMixKey){ clipMixKey = key; applyVo(); }
 }
 function applyVo(){   // (the name stays: everything that changes the sound calls it)
   if(kind === 'talk' || !baseBuf) return;
   const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
+  const lyVoiced = layers.filter(L => L.vol > 0 && lmedia[L.m] && lmedia[L.m].pcm);
   const speech = ttsClips.filter(c => c.pcm);
-  const plain = !vo && !shots.length && !speech.length && au.mvol === 1 && !au.mfin && !au.mfout;
+  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !au.mfout;
   if(plain){ buf = baseBuf; normGain = baseNorm; return; }
   const B = baseBuf, sr = B.sampleRate, N = B.length, v = voPcm() || new Float32Array(0), vr = vo ? vo.sr : sr;
   // voice loudness: its speaking parts at about -14 dBFS
@@ -3843,6 +3985,9 @@ function applyVo(){   // (the name stays: everything that changes the sound call
       const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
       const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
       cs[i] += P.x[k]*gain*edge; } }
+  for(const L of lyVoiced){ const P = lmedia[L.m].pcm, a = Math.round(L.t0*sr), b = Math.min(N, Math.round(L.t1*sr)), ramp = Math.round(0.02*sr);
+    let q2 = 0, qn = 0; for(let k=0;k<P.x.length;k+=16){ q2 += P.x[k]*P.x[k]; qn++; } const g = L.vol*Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn))));
+    for(let i=a;i<b;i++){ const k = Math.floor((L.in + (i - a)/sr)*P.sr); if(k >= P.x.length) break; cs[i] += P.x[k]*g*Math.min(1, (i - a)/ramp, (b - i)/ramp); } }
   // text to speech: each at its time, at the voiceover's loudness (resampled with a straight line between samples)
   for(const c of speech){ const P = ttsPcm(c), a = Math.round(c.at*sr), r = c.sr/sr; let q2 = 0, qn = 0;
     for(let k=0;k<P.length;k+=4){ if(Math.abs(P[k]) > 0.01){ q2 += P[k]*P[k]; qn++; } } const g = 0.2/Math.max(0.003, Math.sqrt(q2/Math.max(1, qn)));
@@ -4017,6 +4162,7 @@ function stateOf(){
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
     settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
+    lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
     kfs: kind === 'talk' && edit.some(e => e.uk && e.uk.length) ? edit.map(e => e.uk && e.uk.length ? e.uk : null) : undefined,
     caps: capAll && capKeyNow ? { key: capKeyNow, all: capAll } : null, vo: vo ? { key: vo.key, sr: vo.sr, fp: fileFp(voFile()) } : null };
@@ -4031,6 +4177,7 @@ async function saveProject(st, sig){
     if(song && song.file) await putFile(song.file);
     for(const s of sources) if(s.file) await putFile(s.file);
     if(bgFile) await putFile(bgFile);
+    for(const M of lmedia) await putFile(M.file);
     if(vo) await putFile(voFile());
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
@@ -4059,7 +4206,7 @@ async function listProjects(){
 }
 async function deleteProject(id){
   const all = await idb('meta', 'readonly', s => s.getAll()) || [], me = all.find(p => p.id === id); if(!me) return;
-  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), st.settings && st.settings.bg, st.vo && st.vo.fp].filter(Boolean).map(fp => 'f:' + fp);
+  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), ...(st.lmedia || []).map(c => c.fp), st.settings && st.settings.bg, st.vo && st.vo.fp].filter(Boolean).map(fp => 'f:' + fp);
   for(const p of all) for(const k of keysOf(p.state || {})) (p.id === id ? mine : used).add(k);
   for(const sg of (await idb('songs', 'readonly', s => s.getAll()) || [])) used.add('f:' + sg.fp);   // a recent song keeps its file
   for(const k of mine) if(!used.has(k)) await idb('files', 'readwrite', s => s.delete(k));   // files no other Reel uses
@@ -4095,6 +4242,9 @@ async function openProject(id){
     if(sf){ let cs = null; try{ cs = await idb('songs', 'readonly', s => s.get(st.song.fp)); }catch(e){} await loadMusic(sf, cs && cs.r ? { r: cs.r, aiDone: cs.aiDone } : null); }
     if(clips.length){ addVideos(clips); await addQueue; }
     if(st.kind !== 'talk' && st.edit && st.edit.length && st.edit.length && clips.length === (st.clips || []).length) restoreEdit(st.edit);
+    if(st.layers && st.layers.length){ const ms = []; for(const c of st.lmedia || []){ const f = await getF(c.fp, c.name); try{ ms.push(f ? await addLayerMedia(f) : null); }catch(e){ ms.push(null); } }
+      lmedia = ms.filter(Boolean); const idx = ms.map((m, i) => m ? ms.slice(0, i).filter(Boolean).length : -1);
+      layers = st.layers.filter(L => idx[L.m] >= 0).map(L => ({ ...L, m: idx[L.m] })); lySeq = layers.reduce((q, L) => Math.max(q, L.id), 0); lyUI(); }
     if(S.capsOn && !capsOn){ $('caps').checked = true; capsOn = true; $('caprow').hidden = false; loadCaptions(); }
     if(vo) afterVo();
     redrawFrame();
@@ -4157,7 +4307,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get canRedo(){ return hist.r.length > 0; },
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
   return () => {
