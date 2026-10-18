@@ -47,7 +47,7 @@ export default function FastStudioPage() {
     const el = root.current!;
     const v = initViews(el, () => {});
     const stopSteps = initSteps(el);
-    const stopAuto = initAuto(el);   // Auto Reel: the AI does everything, the page shows the progress
+    const stopAuto = initAuto(el);   // Story -> Reel: the page shows the progress, then the video
     (async () => {
       try {
         for (const src of SCRIPTS) await loadScript(src);

@@ -338,29 +338,7 @@
 .brs .autocard{grid-column:1/-1;background:var(--gold-gradient,var(--chipbg));border-color:transparent}
 .brs .autocard small{color:inherit;opacity:.8}
 .brs .storycard{grid-column:1/-1}
-.brs .aostory{display:grid;gap:10px;width:100%}
-.brs .aostory textarea{width:100%;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:15px var(--body);padding:12px;resize:vertical}
-.brs .aostory select{height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:14px var(--body);padding:0 10px}
-.brs .autoov{position:fixed;inset:0;z-index:60;background:var(--background);display:grid;place-items:center;padding:24px 16px;overflow:auto}
-.brs .autoov>div{width:min(460px,100%);display:grid;gap:14px;text-align:center;justify-items:center}
-.brs .autoov h2{margin:0;font:600 26px var(--display)}
-.brs .autoov .sub{margin:0;color:var(--muted);font-size:14px}
-.brs .aox{justify-self:end;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer}
-.brs .aobig{width:100%;display:grid;gap:4px;text-align:left;padding:16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:14px var(--body)}
-.brs .aobig span{color:var(--muted);font-size:13px}
 .brs #aogo{width:100%}
-.brs .aoring{position:relative;width:170px;height:170px;display:grid;place-items:center}
-.brs .aoring svg{position:absolute;inset:0;transform:rotate(-90deg)}
-.brs .aoring circle{fill:none;stroke-width:8}
-.brs .aoring .bg{stroke:var(--line)}
-.brs .aoring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .4s}
-.brs .aoring b{font:600 32px var(--display)}
-.brs .aolist{list-style:none;margin:0;padding:0;display:grid;gap:8px;text-align:left;width:100%}
-.brs .aolist li{padding:10px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line);color:var(--muted);font-size:14px}
-.brs .aolist li.now{color:var(--ink);border-color:var(--accent)}
-.brs .aolist li.ok{color:var(--ink)}
-.brs .aolist li.ok::before{content:"✓ ";color:var(--accent)}
-.brs .aodone video{height:min(62vh,600px);max-width:100%;aspect-ratio:9/16;border-radius:18px;background:#000}
 .brs.autoing [data-tasks],.brs.autoing .toasts{display:none}   /* Auto Reel: its own progress only */
 .brs .aitog{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;font-size:13px;color:var(--muted)}
 .brs .lylist{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
@@ -650,7 +628,7 @@
 .brs #s0 .tplrow{margin-top:2px}
 @media (min-width:1000px){
   .brs .makegrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-  .brs .autocard,.brs .storycard{grid-column:span 2}   /* side by side above the four kinds */
+  .brs .storycard{grid-column:1/-1}
   .brs .kinds button,.brs .kindx{min-height:150px;padding:18px}
   .brs .kindx[aria-pressed=true],.brs .kinds button[aria-pressed=true]{padding:17px}
   .brs .copycard{flex-direction:column;align-items:flex-start;justify-content:flex-start}
@@ -696,3 +674,58 @@
 .brs .xsh .btn.big{width:100%;justify-content:center;min-height:52px;font-size:15.5px}
 .brs .xsh-note{margin:-2px 0 0;font-size:12.5px;color:var(--muted);text-align:center}
 @media (min-width:600px){ .brs .xsheet{place-items:center} .brs .xsh{border-radius:22px} }
+
+/* ---- Story -> Reel (components/studio/auto.ts): a page inside the app, like every other page (the app's
+   header, menu and footer stay); the studio's own content steps aside while it is open ---- */
+/* (kept rendered, just out of sight: the engine still reads sizes and draws its frames) */
+.brs.autoing > :not(.autoov){position:fixed !important;left:-200vw !important;top:0 !important;width:100vw !important;opacity:0 !important;pointer-events:none !important}
+.brs .autoov{display:block;padding:4px 0 24px}
+.brs .autoov > div{width:min(560px,100%);margin:0 auto;display:grid;gap:14px}
+.brs .aoback{justify-self:start;display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--muted);font:600 14px var(--body);padding:6px 0;cursor:pointer}
+.brs .aoback svg{width:18px;height:18px}
+.brs .aohead{display:grid;gap:6px}
+.brs .autoov h1{margin:0;font:500 clamp(30px,7vw,42px)/1.05 var(--display);color:var(--ink)}
+.brs .autoov h2{margin:0;font:500 22px/1.2 var(--display);color:var(--ink)}
+.brs .autoov .sub{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
+.brs .aolabel{font:700 12px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.brs .aostory{gap:8px}
+.brs .aostory textarea{width:100%;border-radius:14px;border:1px solid var(--line);background:var(--background);color:var(--ink);font:15px var(--body);padding:12px;resize:vertical}
+.brs .aostory select{height:44px;border-radius:12px;border:1px solid var(--line);background:var(--background);color:var(--ink);font:14px var(--body);padding:0 10px}
+.brs .aobig{width:100%;display:flex;align-items:center;gap:14px;text-align:left;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:14px var(--body);box-shadow:var(--shadow);transition:border-color .15s}
+.brs .aobig:hover,.brs .aobig:focus-visible{border-color:var(--accent)}
+.brs .aoic{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff}
+.brs .aoic1{background:#1e3a8a}.brs .aoic2{background:#7c2d92}
+.brs .aotx{flex:1;min-width:0;display:grid;gap:3px}
+.brs .aotx b{font:700 15px var(--body)}
+.brs .aotx b em{font:600 11px var(--body);font-style:normal;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
+.brs .aotx > span{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brs .aochev{color:var(--muted);flex:none}
+.brs .aonote{display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font-size:13px}
+.brs .aonote svg{color:var(--accent);flex:none;width:18px;height:18px}
+.brs .aogo{width:100%;justify-content:center;min-height:52px;font-size:16px;background:var(--gold-gradient);color:#1a140c}
+.brs .aogo:disabled{opacity:.45;cursor:not-allowed}
+.brs .aorun{justify-items:center;text-align:center;gap:14px;padding:24px 18px}
+.brs .aoring{position:relative;width:150px;height:150px;display:grid;place-items:center}
+.brs .aoring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.brs .aoring circle{fill:none;stroke-width:8}
+.brs .aoring .bg{stroke:var(--line)}
+.brs .aoring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .4s}
+.brs .aoring b{font:500 34px var(--display);color:var(--ink)}
+.brs .aolist{list-style:none;margin:0;padding:0;display:grid;gap:8px;text-align:left;width:100%}
+.brs .aolist li{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:var(--background);border:1px solid var(--line);color:var(--muted);font-size:14px}
+.brs .aolist li::before{content:"";flex:none;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);box-sizing:border-box}
+.brs .aolist li.now{color:var(--ink);border-color:var(--accent)}
+.brs .aolist li.now::before{border-color:var(--accent);border-right-color:transparent;animation:aospin .8s linear infinite}
+.brs .aolist li.ok{color:var(--ink)}
+.brs .aolist li.ok::before{border:0;background:var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/12px no-repeat}
+@keyframes aospin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.brs .aolist li.now::before{animation:none}}
+.brs .aodonebox{justify-items:center;gap:16px}
+.brs .aodone video{height:min(64vh,620px);max-width:100%;aspect-ratio:9/16;border-radius:18px;background:#000}
+.brs .aoacts{display:grid;gap:10px;width:100%}
+.brs .aoacts .btn{width:100%;justify-content:center}
+.brs .aoacts .btn.save{background:var(--gold-gradient);color:#1a140c}
+@media (min-width:900px){
+  .brs .autoov > .aodone{width:min(900px,100%)}
+  .brs .aodonebox{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start}
+}

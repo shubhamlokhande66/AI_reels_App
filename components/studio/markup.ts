@@ -77,7 +77,6 @@ export const STUDIO_HTML = `
     <div class="sh3"><span class="num">1</span><h2>What are we making?</h2><span class="st" id="s0st">Choose one to start</span></div>
     <div class="sbody">
     <div class="makegrid">
-      <button type="button" class="kindx autocard" id="autokind">${IC.style}<span><b>Auto Reel</b><small>Pick clips, the AI does everything: you only see the progress</small></span></button>
       <button type="button" class="kindx storycard" id="storykind">${IC.text}<span><b>Story → Reel</b><small>Write it; the AI narrates it, shows it scene by scene, adds captions</small></span></button>
       <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
         <button data-k="music" aria-pressed="false">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
@@ -222,7 +221,7 @@ export const STUDIO_HTML = `
             <div class="row learnrow" id="learnrow" hidden><span class="label">Learned style</span><select id="lcat" aria-label="Kind of Reel"></select><div class="seg" id="lscope"><button data-s="mine" aria-pressed="false">Mine</button><button data-s="all" aria-pressed="true">With shared</button></div><button class="btn mini" id="luse" type="button">Use</button><span class="fname" id="linfo"></span>
               <details class="stdetails"><summary>My saved styles</summary><ul id="stlist"></ul></details></div>
             <span class="fname" id="modehelp">Auto: the music decides. Calm parts get longer shots, drops and hits get effects.</span>
-            <label class="tog" id="aiwrap" hidden title="The AI listens to the song and looks at your clips, then chooses the pace, every shot, transition, effect and the zooms on the beats. You can still change anything."><input type="checkbox" id="aipick"> AI edits my Reel</label>
+            <span id="aiwrap" hidden></span><input type="checkbox" id="aipick" hidden aria-hidden="true">
             <span class="fname" id="aistat" hidden></span>
           </section>
 

@@ -728,6 +728,8 @@ async function checkBeatsInner(token){
   try{ r = await analyseInWorker(m, sr, { beats: bt.beats }); } catch(err){ r = songAnalysis(m, sr, { beats: bt.beats }); }
   if(token !== musicToken) return;
   beatInfo = { source: r.beatSource, note: '', ms: bt.ms, judge: r.beatJudge, ai: bt };
+  while(exportBusy) await new Promise(rr=>setTimeout(rr, 500));   // the video being made keeps its edit; the better beats come after
+  if(token !== musicToken) return;
   song.r = r; song.source = r.beatSource; rememberSong(song.file, r, true);
   const was = playing && !recording;
   await useSection(token);
@@ -1502,7 +1504,7 @@ function aiBonus(ai, slot, last){
 }
 // which moments to show: evenly over the clip, the sharpest well-lit moment of each part, never on a scene change
 function aiTimes(src){
-  const n = Math.max(3, Math.min(8, Math.round(src.dur/2.5))), out = [];
+  const n = Math.max(3, Math.min(5, Math.round(src.dur/3))), out = [];
   for(let k=0;k<n;k++){
     const a = src.dur*k/n, b = src.dur*(k+1)/n, c0 = a+(b-a)*0.2, c1 = a+(b-a)*0.8;
     let best = null, bs = -1;
@@ -1795,22 +1797,15 @@ async function directorRun(key){
     else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('The AI director is busy right now. Your Reel uses the phone\'s own smart edit.'); }
   }finally{ dirBusy = false; tm.done(); }
 }
-(async () => {   // is the AI step set up on this server?
+(async () => {   // is the studio's AI on? The administrator decides (Administration -> Features -> Fast Studio AI) and the
+  // server has an AI provider; people never choose: when it is on, every Reel is edited by the AI
   try{
     const r = await fetch('/api/studio/rank-shots', ac ? { signal: ac.signal } : undefined); if(!r.ok) return;
     aiInfo = await r.json(); if(!aiInfo || !aiInfo.available) return;
-    $('aiwrap').hidden = false;
-    try{ aiOn = localStorage.getItem('brs-ai') === '1'; }catch(e){}
-    $('aipick').checked = aiOn;
-    if(aiInfo.credits) $('aiwrap').title = 'Uses ' + aiInfo.credits + ' credit' + (aiInfo.credits>1?'s':'') + ' per Reel';
-    if(aiOn && sources.length) aiRun();
+    aiOn = true;
+    if(sources.length) aiRun();
   }catch(e){}
 })();
-$('aipick').addEventListener('change', e=>{
-  aiOn = e.target.checked; try{ localStorage.setItem('brs-ai', aiOn ? '1' : '0'); }catch(err){}
-  if(aiOn){ sources.forEach(s=>{ s.aiFailed = false; }); aiRun(); }
-  else { aiStat(''); if(buf && sources.length && !recording) makeEdit(); }
-});
 /* ---- virtual camera: the crop follows the subject smoothly ----
    Like a camera operator: hold still while the subject stays near the middle (a locked-off shot looks professional),
    pan smoothly when it moves away, never twitch. Positions come from the tracked face, else from what moves on its own
@@ -1909,7 +1904,9 @@ function ukKeep(){ return edit.filter(e => (e.uk && e.uk.length) || e.cs).map(e 
 function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.abs(x.start - k.s) < 0.02 && Math.abs(x.end - k.e) < 0.02);
   if(e && k.uk && k.uk.length) e.uk = k.uk;
   if(k.cs){ const m = (k.s + k.e)/2, c = e || edit.find(x => x.start <= m && x.end > m); if(c && !c.cs) c.cs = k.cs; } } }
+let remakeAfterExport = false;
 function makeEdit(){
+  if(exportBusy){ remakeAfterExport = true; return; }   // a late AI answer: the video being made keeps its edit
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
@@ -3688,6 +3685,7 @@ async function runExport(toCloud){
     if(toCloud && lastVideo) await saveToMyReels(lastVideo);
   } finally {
     exportBusy = false; if(wakeLock){ try{ await wakeLock.release(); }catch(err){} wakeLock = null; }
+    if(remakeAfterExport){ remakeAfterExport = false; if(buf && sources.length && !recording) makeEdit(); }
   }
 }
 
@@ -4365,7 +4363,7 @@ function storyEdit(){
   $('s3').classList.remove('locked'); $('s3').classList.add('done'); ['play','remix','export','cover'].forEach(id => $(id).disabled = false);
   captureLoop(); editGen++; return true;
 }
-// the whole story: voice, sound, clips, captions (Auto Reel's Story mode drives it and shows the progress)
+// the whole story: voice, sound, clips, captions (Story -> Reel drives it and shows the progress)
 async function storyRun(text, voice, songFile, clipFiles, onStage){
   onStage && onStage('voice', 0);
   const S = await storyVoice(text, voice, (p, stage) => onStage && onStage('voice', p, stage));
@@ -4381,7 +4379,7 @@ async function storyRun(text, voice, songFile, clipFiles, onStage){
   $('caps').checked = true; capsOn = true; $('caprow').hidden = false; await loadCaptions();
   afterVo();
 }
-// Auto Reel without a song: clips where people talk make a talking Reel (their voice leads, pauses cut); otherwise the
+// No song (Music Reel: "No song? Use my clips' own sound"): clips where people talk make a talking Reel (their voice leads, pauses cut); otherwise the
 // loudest clip's own sound becomes the song. 'none': no clip has any sound.
 async function autoSound(){
   let talkShare = 0, loud = -1, loudV = 0;

@@ -98,15 +98,16 @@ describe("the music map and keyframes", () => {
 describe("long Reels", () => {
   it("are planned in parts at the same time, each part told where it sits", async () => {
     const d = req(LIMITS.slots);
-    expect(chunks(d).map((c) => c.slots.length)).toEqual([CHUNK, CHUNK, LIMITS.slots - 2 * CHUNK]);
+    const parts = Math.ceil(LIMITS.slots / CHUNK);
+    expect(chunks(d).map((c) => c.slots.length)).toEqual(Array.from({ length: parts }, (_, k) => Math.min(CHUNK, LIMITS.slots - k * CHUNK)));
     expect(prompt(chunks(d)[1])).toContain(`cuts ${CHUNK}-${2 * CHUNK - 1} of a longer Reel`);
     const calls: string[] = [];
     const p = { name: "fake", model: "m", visionModel: "", async structured(_s: string, user: string, schema: { parse: (v: unknown) => unknown }) {
       calls.push(user); const first = Number(/"i":(\d+)/.exec(user.split("Cuts (fixed")[1])![1]);
       return schema.parse({ slots: [{ i: first, shot: `${first}a` }], story: calls.length === 1 ? "arc" : "" }); } };
     const res = await direct(d, p as unknown as ManagedProvider);
-    expect(calls).toHaveLength(3);
-    expect(res.slots.map((s) => s.i)).toEqual([0, CHUNK, 2 * CHUNK]);
+    expect(calls).toHaveLength(parts);   // all asked at the same time
+    expect(res.slots.map((s) => s.i)).toEqual(Array.from({ length: parts }, (_, k) => k * CHUNK));
   });
 });
 
