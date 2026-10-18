@@ -172,7 +172,8 @@ export function initSteps(root: HTMLElement): () => void {
       // bring the step that just opened into view (not when a saved Reel is opened)
       if (next[k] && !made) {
         const id = { c1: "s1", c2: "s2", c3: "s3" }[k];
-        setTimeout(() => $(id).scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+        // (the Create flow shows its own steps in place: flow.ts)
+        setTimeout(() => { if (!root.classList.contains("fopen")) $(id).scrollIntoView({ behavior: "smooth", block: "start" }); }, 60);
       }
     }
   };

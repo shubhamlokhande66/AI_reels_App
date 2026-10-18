@@ -31,7 +31,22 @@ const IC = {
   layers: I('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
   undo: I('<path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
   redo: I('<path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>'),
+  back: I('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
+  arrow: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+  check: I('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  spark: I('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" fill="currentColor" stroke="none"/>'),
+  upload: I('<path d="M12 16V4M7 9l5-5 5 5M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/>'),
+  scan: I('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12h8M8 15h5"/>'),
+  lock: I('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
 };
+// the Create flow's AI checklist (step 3 on computers, the Analysing screen on phones); data-t: the tasks it follows
+const AI_STEPS: [string, string, string][] = [
+  ["scenes", "Detecting scenes and best moments", "clips"],
+  ["beats", "Matching with music beats", "beats"],
+  ["faces", "Auto transitions and effects", "ai"],
+  ["look", "Colour and quality enhancement", "make"],
+];
+const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${IC.scan}<span>${t}</span></li>`).join("")}</ul>`;
 // a tool: a dock button (Editor), a card (Simple) and the heading of its panel (Pro)
 const TOOLS: [string, string, string][] = [
   ["shots", "Shot", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
@@ -55,6 +70,21 @@ export const STUDIO_HTML = `
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
 <div class="wrap">
+  <div class="fhead" id="fhead">
+    <button type="button" class="fback" id="fback" aria-label="Back">${IC.back}</button>
+    <div class="ft"><h1 id="ftitle">Music Reel</h1><p id="fsub">Turn your clips into a stunning Reel with music, beats and AI edits.</p></div>
+    <ol class="fsteps" id="fsteps" aria-label="Steps">
+      <li data-f="1"><i>1</i><span>Music</span></li><li data-f="2"><i>2</i><span>Clips</span></li><li data-f="3"><i>3</i><span>AI Edit</span></li><li data-f="4"><i>4</i><span>Preview &amp; Export</span></li>
+    </ol>
+    <button type="button" class="fskip" id="fskip">Skip</button>
+  </div>
+  <section class="fintro" id="fintro" aria-labelledby="fintroh">
+    <span class="fbadge" id="fintroic">${IC.music}</span>
+    <h2 id="fintroh">Create a Music Reel</h2>
+    <p id="fintrop">Turn your clips into a stunning Reel with music, beats and AI edits.</p>
+    <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}AI edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
+    <button type="button" class="btn primary big fgo" data-fnext="1">Let's Start ${IC.arrow}</button>
+  </section>
   <header class="hero">
     <div class="hero-t"><h1>What are we making today?</h1>
     <p class="sub">Your song and clips become a Reel in seconds, on this device. Nothing is uploaded.</p></div>
@@ -97,17 +127,23 @@ export const STUDIO_HTML = `
 
 
 
+  <div class="fgrid">
+  <div class="fmain">
   <section class="step" id="s1">
-    <button type="button" class="sh" aria-expanded="true"><span class="num">2</span><h2>Music</h2><span class="st" id="s1st">Choose a song to start</span></button>
+    <button type="button" class="sh" aria-expanded="true"><span class="num">1</span><span class="fh"><h2>Choose Music</h2><small class="fsh">Pick a song or sound for your Reel</small></span><span class="st" id="s1st">Choose a song to start</span></button>
     <div class="sbody">
-    <div class="row">
+    <div class="fchoose">
+    <div class="row fpickrow">
       <button class="btn primary" id="mpick">${IC.music}Choose song</button>
       <input id="mfile" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.mov,.mp4" hidden>
       <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
       <button class="btn ghost" id="skipmusic" type="button" hidden>Continue without music</button>
     </div>
     <div class="recent" id="recent" hidden><span class="label">Recent songs</span><div class="rlist" id="rlist"></div></div>
-    <canvas class="wave" id="mwave"></canvas>
+    <button type="button" class="btn primary big fnext fchoosenext" data-fnext="1">Next ${IC.arrow}</button>
+    </div>
+    <div class="fadjust">
+    <div class="fwavebox"><canvas class="wave" id="mwave"></canvas></div>
     <div class="row lenrow" id="lenrow" hidden>
       <span class="label">Reel length</span>
       <div class="seg" id="slen" role="group" aria-label="How much of the song">
@@ -120,24 +156,28 @@ export const STUDIO_HTML = `
     <p class="hint" id="lenhint" hidden>Drag on the waveform to choose the part yourself.</p>
     <div class="stats">
       <span>Length <b id="mdur">—</b></span>
-      <span>Tempo <b id="mbpm">—</b> BPM</span>
+      <span><b id="mbpm">—</b> BPM</span>
       <span>Shots <b id="mclips">—</b></span>
       <span>Drops <b id="mdrop">—</b></span>
       <span>Breaks <b id="mbreak">—</b></span>
     </div>
+    <div class="fsugg" id="fsugg">${IC.spark}<span><b>Suggested Part</b><small>We found the best part of the song, with strong beats. Drag on the waveform to choose another.</small></span></div>
     <div class="legend">
       <span><i style="background:var(--drop)"></i>Drop: best shot</span>
       <span><i style="background:var(--hit)"></i>Hit: strong accent</span>
       <span><i style="background:var(--cut)"></i>Cut: plain cut</span>
       <span><i style="background:var(--break)"></i>Break: slow motion</span>
     </div>
+    <button type="button" class="btn primary big fnext" data-fnext="1">Next ${IC.arrow}</button>
+    </div>
     </div>
   </section>
 
   <section class="step locked" id="s2">
-    <button type="button" class="sh" aria-expanded="true"><span class="num">3</span><h2>Clips</h2><span class="st" id="s2st">Several clips or one long video</span></button>
+    <button type="button" class="sh" aria-expanded="true"><span class="num">2</span><span class="fh"><h2>Clips</h2><small class="fsh">Add multiple videos or photos. The more clips, the better!</small></span><span class="st" id="s2st">Several clips or one long video</span></button>
     <div class="sbody">
-    <div class="drop" id="dropzone" role="button" tabindex="0"><span class="vonly">Drop videos here or tap to choose. You can add more at any time.</span><span class="ponly">Drop photos here or tap to choose. Each photo becomes a short moving shot.</span></div>
+    <div class="ftabs" id="ftabs" role="group" aria-label="Videos or photos"><button type="button" data-ft="videos" aria-pressed="true">Videos</button><button type="button" data-ft="photos" aria-pressed="false">Photos</button></div>
+    <div class="drop" id="dropzone" role="button" tabindex="0">${IC.upload}<b class="vonly">Drag &amp; drop videos here</b><b class="ponly">Drag &amp; drop photos here</b><span class="vonly">or tap to choose · you can add more at any time</span><span class="ponly">or tap to choose · each photo becomes a short moving shot</span><small>Supports MP4, MOV, 3GP, JPG, PNG</small></div>
     <input id="vfile" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden>
     <div class="row">
       <button class="btn primary" id="addv"><span class="vonly">+ Add videos</span><span class="ponly">+ Add photos</span></button>
@@ -166,7 +206,35 @@ export const STUDIO_HTML = `
         <button data-a="16:9" aria-pressed="false">16:9</button>
       </div>
     </div>
+    <span class="fslot" id="fsndslot"></span>
+    <button type="button" class="btn primary big fnext" data-fnext="1" id="fclipsnext" disabled>Next ${IC.arrow}</button>
     </div>
+  </section>
+
+  <section class="step fai" id="fai">
+    <div class="sh3"><span class="num">3</span><span class="fh"><h2>AI Edit</h2><small class="fsh">We'll analyse your clips, match them with the beats and create a stunning Reel.</small></span></div>
+    <div class="faibody">
+      ${aiList("faiList")}
+      <div class="fready" id="fready">${IC.spark}<b id="freadyt">Ready to create your Reel!</b><small id="freadys">Add a song and your clips, then press Generate.</small></div>
+    </div>
+  </section>
+  </div>
+
+  <aside class="fprev" id="fprev" aria-label="Reel preview">
+    <div class="fprevh"><b>Reel Preview</b><span class="fslot" id="faspslot"></span></div>
+    <div class="fprevbox" id="fprevbox"><span class="fplay">${IC.play}</span><small id="fprevnote">Your Reel appears here</small></div>
+    <button type="button" class="btn primary big fgen" id="fgen" disabled>${IC.spark}<span id="fgent">Generate Reel</span>${IC.arrow}</button>
+    <p class="fnote">AI will analyse your clips and create a stunning edit</p>
+    <p class="fnote fsmall">${IC.lock}Everything happens on this device. Your videos are never uploaded.</p>
+  </aside>
+  </div>
+
+  <section class="fan" id="fan" aria-live="polite">
+    <h2>Analysing Clips</h2>
+    <div class="aoring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="fg" id="fanring" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"/></svg><b id="fanpct">0%</b></div>
+    <p class="fanst"><b id="fant">Reading your clips…</b><small id="fand"></small></p>
+    ${aiList("faiList fanList")}
+    <p class="fnote fbox">${IC.lock}This happens on your phone. Your videos are never uploaded.</p>
   </section>
 
   <section class="step locked" id="s3">

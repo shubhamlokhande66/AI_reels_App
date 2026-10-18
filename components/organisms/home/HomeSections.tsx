@@ -24,9 +24,9 @@ type Option = { href: string; icon: string; title: string; text: string; tone: T
 export function createOptions(f: Features): Option[] {
   const server = linkOn("/projects/new", f) && f.aiReel;
   return [
-    { href: "/studio?kind=music", icon: "music", title: "Music Reel", text: "Sync with Music", tone: "music", reload: true },
-    { href: "/studio?kind=talk", icon: "mic", title: "Talking Reel", text: "Vlogs & Tutorials", tone: "talk", reload: true },
-    { href: "/studio?kind=photo", icon: "image", title: "Photo Reel", text: "Bring Photos to Life", tone: "photo", reload: true },
+    { href: "/create/music", icon: "music", title: "Music Reel", text: "Sync with Music", tone: "music", reload: true },
+    { href: "/create/talking", icon: "mic", title: "Talking Reel", text: "Vlogs & Tutorials", tone: "talk", reload: true },
+    { href: "/create/photo", icon: "image", title: "Photo Reel", text: "Bring Photos to Life", tone: "photo", reload: true },
     linkOn("/story/new", f)
       ? { href: "/story/new", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story" }
       : { href: "/studio?auto=story", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story", reload: true },

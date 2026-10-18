@@ -3,7 +3,11 @@
  * beats, reading the clips, AI, captions, export, saving to My Reels) with a small live animation for its kind instead of
  * a spinner, the step in plain words, a progress bar and the time left. When it finishes the card turns into a tick and
  * slides away; a failure stays a little longer, in red. Styled with Tailwind (animations: app/globals.css @theme).
+ * Each change is also told to the page as a "studio-task" event on the host ({ id, kind, state, p, title }), so the
+ * Create flow's "Analysing" screen (flow.ts) shows the same progress.
  */
+
+export type TaskEvent = { id: string; kind?: TaskKind; state: "start" | "progress" | "done" | "fail" | "clear"; p: number | null; title?: string };
 
 export type TaskKind = "music" | "clips" | "ai" | "export" | "cloud" | "voice";
 type Card = { el: HTMLElement; kind: TaskKind; t0: number; p: number | null; timer?: ReturnType<typeof setTimeout> };
@@ -36,6 +40,7 @@ export function createTasks(host: HTMLElement) {
   box.className =
     "pointer-events-none fixed inset-x-0 bottom-[calc(96px+env(safe-area-inset-bottom))] z-[82] flex flex-col items-center gap-2 px-3 md:inset-x-auto md:bottom-6 md:right-6 md:items-end";
   host.appendChild(box);
+  const emit = (e: TaskEvent) => host.dispatchEvent(new CustomEvent<TaskEvent>("studio-task", { detail: e }));
 
   function paint(c: Card, title?: string, detail?: string) {
     const q = <T extends Element>(s: string) => c.el.querySelector<T>(s)!;
@@ -84,6 +89,7 @@ export function createTasks(host: HTMLElement) {
       c.el.querySelector("[data-ic]")!.className = "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent";
     }
     paint(c, title, detail);
+    emit({ id, kind, state: "start", p: null, title });
   }
 
   /** Progress (0..1, or null when unknown) and the step in words. */
@@ -92,6 +98,7 @@ export function createTasks(host: HTMLElement) {
     if (!c) return;
     c.p = p;
     paint(c, title, detail);
+    emit({ id, kind: c.kind, state: "progress", p, title });
   }
 
   function finish(id: string, ok: boolean, text: string, ms: number) {
@@ -103,6 +110,7 @@ export function createTasks(host: HTMLElement) {
     if (!ok) c.el.classList.add("border-danger/60");
     c.p = ok ? 1 : c.p;
     paint(c, undefined, text);
+    emit({ id, kind: c.kind, state: ok ? "done" : "fail", p: c.p, title: text });
     if (ok) c.el.querySelector("[data-i]")!.textContent = "";
     c.timer = setTimeout(() => {
       c.el.classList.add("opacity-0", "translate-y-2");
@@ -122,6 +130,7 @@ export function createTasks(host: HTMLElement) {
     fail: (id: string, text: string) => finish(id, false, text, 5000),
     /** Gone without a word (nothing to report). */
     clear: (id: string) => {
+      if (cards.has(id)) emit({ id, state: "clear", p: null });
       cards.get(id)?.el.remove();
       cards.delete(id);
     },

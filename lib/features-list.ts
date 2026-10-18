@@ -4,7 +4,7 @@
 export type FeatureKey = "aiReel" | "productReel" | "story" | "editor" | "fastStudio" | "studioAI" | "library" | "songs" | "templates" | "brands";
 
 export const FEATURE_LIST: { key: FeatureKey; label: string; hint: string; server: boolean; pages: string[] }[] = [
-  { key: "fastStudio", label: "Fast Studio", hint: "Edit on the phone itself: free, nothing uploaded.", server: false, pages: ["/studio"] },
+  { key: "fastStudio", label: "Fast Studio", hint: "Edit on the phone itself: free, nothing uploaded.", server: false, pages: ["/studio", "/create"] },
   { key: "studioAI", label: "Fast Studio AI", hint: "The AI edits every Fast Studio Reel: it looks at the clips, then decides the pace, shots, transitions and camera moves. People never choose; it is on for everyone or off. Uses your AI provider.", server: true, pages: [] },
   { key: "aiReel", label: "Create Reel (AI edit)", hint: "Clips and a song, cut to the beat by the AI on the server.", server: true, pages: [] },
   { key: "productReel", label: "Product Reel", hint: "A Reel directed from product photos, made on the server.", server: true, pages: [] },

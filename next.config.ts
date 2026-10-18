@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
     ];
     return [
       { source: "/studio", headers: isolate },
+      { source: "/create/:kind", headers: isolate }, // the Create flow is Fast Studio too
       // the service worker (installable app): always the newest copy, allowed to look after the whole site
       { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Service-Worker-Allowed", value: "/" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }] },
       { source: "/brand/:path*", headers: [{ key: "Cross-Origin-Resource-Policy", value: "same-origin" }] },
