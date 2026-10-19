@@ -24,6 +24,10 @@ const KINDS: Record<Kind, { title: string; sub: string; intro: string; checks: s
 const ORDER: Record<"music" | "talk", Step[]> = { music: ["intro", "choose", "adjust", "clips", "analyse"], talk: ["intro", "clips", "analyse"] };
 // which engine task moves which line of the AI checklist (data-t in markup.ts)
 const LINE_OF: Record<string, string> = { clips: "clips", beats: "beats", ai: "ai" };
+// the breadcrumb's name for each step (phones walk them one by one; computers see Music, Clips and Shubix Edit at once)
+const STEP_NAME: Record<Step, string> = { intro: "Start", choose: "Music", adjust: "Adjust Music", clips: "Clips", analyse: "Shubix Edit" };
+// what the browser keeps for each screen of the flow (history.state.fflow): Back and Forward walk the screens
+type Mark = { step: Step; revealed: boolean; tool: string; n: number };
 // the engine's work the Reel waits for (the song, the beat check, reading the clips, the AI director): Next (phones) and
 // Generate Reel (computers) stay off until all of it is done, so what opens is the finished Reel
 const WAIT = new Set(["song", "beats", "clips", "ai"]);
@@ -41,6 +45,17 @@ export function initFlow(root: HTMLElement): () => void {
   const lines = new Map<string, "now" | "ok">();
   const working = new Set<string>(); // the WAIT tasks running right now
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
+  // how many screens of this flow the browser has before this one (0: the page as it was opened)
+  let depth = 0;
+  // a tool open on the phones' Reel (Edit Options) is a screen of its own too: Back closes it
+  let toolMarked = "";
+  const mark = (push: boolean) => {
+    if (push) depth++;
+    const fflow: Mark = { step, revealed, tool: toolMarked, n: depth };
+    const st = { ...(history.state ?? {}), fflow };
+    if (push) history.pushState(st, "");
+    else history.replaceState(st, "");
+  };
 
   const has = (c: string) => root.classList.contains(c);
   const done = (id: string) => $(id).classList.contains("done");
@@ -48,6 +63,8 @@ export function initFlow(root: HTMLElement): () => void {
   const chosen = () => has("c1");
   const songOk = () => done("s1") || has("talkmode") || $("s1st").textContent?.startsWith("No song");
   const clipsOk = () => done("s2");
+  // Shubix's line under the clips ends in "…" while it works (scoring the clips, the pace, planning the shots, the mixes)
+  const shubixBusy = () => { const a = $("aistat"); return !a.hidden && /…$/.test(a.textContent ?? ""); };
   const order = () => ORDER[has("talkmode") ? "talk" : "music"];
 
   // the kind in the address (/create/music|talking|photo): the flow is open from the first paint, before the engine
@@ -110,6 +127,33 @@ export function initFlow(root: HTMLElement): () => void {
     if ($("fanring").style.strokeDashoffset !== off) $("fanring").style.strokeDashoffset = off;
   };
 
+  // the breadcrumb (phones and computers): Home › the kind of Reel › the screen (› the open tool on phones)
+  let crumbKey = "";
+  const crumbs = (on: boolean) => {
+    const tool = root.dataset.tool ?? "";
+    const toolName = tool && has("fpost") ? root.querySelector(`.card[data-tool="${tool}"] b`)?.textContent ?? "" : "";
+    const flowKind = chosen() || !!urlKind();
+    const k = flowKind ? KINDS[readKind()].title : "";
+    const cur = !songOk() ? "choose" : !clipsOk() ? "clips" : "analyse";
+    const items: [string, string][] = [["Home", "home"]];   // [name, what it opens]
+    if (!flowKind && q.has("p")) items.push(["My Reels", "reels"]);
+    if (k) items.push([k, on ? "start" : "flow"]);
+    if (on) items.push([step === "clips" && has("photomode") ? "Photos" : STEP_NAME[phone() ? step : (cur as Step)], ""]);
+    else if (revealed || has("made")) items.push(["Your Reel", toolName ? "reel" : ""]);
+    if (!on && toolName) items.push([toolName, ""]);
+    const key = items.map((x) => x.join(":")).join("|");
+    if (key === crumbKey) return;
+    crumbKey = key;
+    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+    $("fcrumbs").innerHTML = "<ol>" + items.map(([t, to], i) => {
+      const last = i === items.length - 1;
+      if (last) return `<li><span aria-current="page">${esc(t)}</span></li>`;
+      if (to === "home") return `<li><a href="/">${esc(t)}</a></li>`;
+      if (to === "reels") return `<li><a href="/reels">${esc(t)}</a></li>`;
+      return `<li><button type="button" data-crumb="${to}">${esc(t)}</button></li>`;
+    }).join("") + "</ol>";
+  };
+
   const apply = () => {
     const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
     setClass(root, "fopen", on);
@@ -122,6 +166,7 @@ export function initFlow(root: HTMLElement): () => void {
       setText($("fptitle"), root.dataset.tool ? "Edit Options" : "");
       root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => { setClass(li, "on", li.dataset.f === "4"); setClass(li, "ok", li.dataset.f !== "4"); });
     }
+    crumbs(on);
     if (!on) { if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
     const k = readKind();
     if (k !== kind || !$("ftitle").dataset.k) {
@@ -168,7 +213,7 @@ export function initFlow(root: HTMLElement): () => void {
     // Next on the clips step, Generate in the preview card: on once the clips are in and the Reel is made, with nothing
     // still being read or decided (a spinner in the button meanwhile)
     const ready = clipsOk() && !!songOk();
-    const busy = ready && (working.size > 0 || !made());
+    const busy = ready && (working.size > 0 || shubixBusy() || !made());
     setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk() || busy);
     setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready || busy);
     setAttr($("fclipsnext"), "aria-busy", String(busy));
@@ -180,11 +225,14 @@ export function initFlow(root: HTMLElement): () => void {
     setClass($("fprevbox"), "ready", made());
     paintAi();
     // the phones' analysing screen: the Reel opens once it is made
-    if (step === "analyse" && made()) { revealed = true; setTimeout(apply, 350); }
+    if (step === "analyse" && made()) { revealed = true; mark(false); setTimeout(apply, 350); }   // Back from the Reel: the clips
   };
 
-  const go = (s: Step) => {
+  const go = (s: Step, push = true) => {
+    const moved = s !== step || revealed;
     step = s;
+    if (revealed) { revealed = false; simpleSet = false; }
+    if (moved) mark(push);
     apply();
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -195,10 +243,9 @@ export function initFlow(root: HTMLElement): () => void {
   };
   const closeTool = () => root.querySelector<HTMLButtonElement>(`.card[data-tool="${root.dataset.tool}"]`)?.click();
   const back = () => {
-    if (has("fpost")) {
-      if (root.dataset.tool) return closeTool(); // Edit Options → back to the Reel
-      revealed = false; simpleSet = false; return go("clips"); // the Reel → back to the clips
-    }
+    if (has("fpost") && root.dataset.tool && !toolMarked) return closeTool(); // Edit Options → back to the Reel
+    if (depth > 0) { history.back(); return; } // the screen before, as the browser's own Back does
+    if (has("fpost")) return go("clips"); // the Reel → back to the clips
     const o = order(), i = o.indexOf(step);
     if (phone() && i > 0) return go(o[i - 1]);
     if (history.length > 1) history.back();
@@ -210,13 +257,20 @@ export function initFlow(root: HTMLElement): () => void {
     const t = e.target as HTMLElement;
     if (t.closest("[data-fnext]")) { e.preventDefault(); next(); return; }
     if (t.closest("#fback")) { back(); return; }
+    const cr = t.closest<HTMLElement>("[data-crumb]");
+    if (cr) {
+      const to = cr.dataset.crumb;
+      if (to === "reel") closeTool();
+      else if (to === "start" || to === "flow") go(to === "flow" && clipsOk() ? "clips" : order()[0]);
+      return;
+    }
     if (t.closest("#fadd")) { $("addv").click(); return; } // the "+" tile at the end of the clips
     if (t.closest("#fapply")) { closeTool(); return; } // Edit Options: Apply (every change is already in the Reel)
     const fd = t.closest<HTMLElement>("[data-fd]");
     if (fd) { done10(fd.dataset.fd!); return; }
     if (t.closest("#fskip")) { go(order()[1]); return; }
     if (t.closest("#fgen")) {
-      if (made()) { revealed = true; apply(); setTimeout(() => $("s3").scrollIntoView({ behavior: "smooth", block: "start" }), 60); }
+      if (made()) { revealed = true; mark(true); apply(); setTimeout(() => $("s3").scrollIntoView({ behavior: "smooth", block: "start" }), 60); }
       else if (phone()) go("analyse");
       return;
     }
@@ -276,7 +330,32 @@ export function initFlow(root: HTMLElement): () => void {
     paintAi();
   }, sig);
 
+  // the browser's Back / Forward between the flow's screens: Next.js keeps the page, the flow shows the screen kept
+  window.addEventListener("popstate", (e) => {
+    const f = (e.state as { fflow?: Mark } | null)?.fflow;
+    if (!f) return;
+    depth = f.n;
+    const screen = f.step !== step || f.revealed !== revealed;
+    step = f.step;
+    if (revealed && !f.revealed) simpleSet = false;
+    revealed = f.revealed;
+    toolMarked = f.tool;
+    if (root.dataset.tool && root.dataset.tool !== f.tool) closeTool();
+    if (f.tool && root.dataset.tool !== f.tool) root.querySelector<HTMLButtonElement>(`.card[data-tool="${f.tool}"]`)?.click(); // Forward into a tool
+    apply();
+    if (screen) window.scrollTo({ top: 0 });
+  }, sig);
+  // a tool opened on the phones' Reel gets its own entry; closed with its own buttons, that entry is left again
+  const toolMark = () => {
+    const tool = root.dataset.tool ?? "";
+    if (tool === toolMarked || !has("fpost")) return;
+    if (tool && !toolMarked) { toolMarked = tool; mark(true); }
+    else if (!tool && (history.state as { fflow?: Mark } | null)?.fflow?.tool) { toolMarked = ""; history.back(); }
+    else { toolMarked = tool; mark(false); }
+  };
+
   const mo = new MutationObserver(() => {
+    toolMark();
     const s = done("s1");
     if (s && !wasSong && phone() && root.dataset.fstep === "choose") { wasSong = s; go("adjust"); return; }
     wasSong = s;
@@ -284,11 +363,14 @@ export function initFlow(root: HTMLElement): () => void {
   });
   mo.observe(root, { attributes: true, attributeFilter: ["class", "data-tool"] });
   ["s1", "s2", "s3", "copycard", "s1st"].forEach((id) => mo.observe($(id), { attributes: true, attributeFilter: ["class", "aria-pressed"], childList: true, characterData: true, subtree: id === "s1st" }));
+  mo.observe($("aistat"), { attributes: true, attributeFilter: ["hidden"], childList: true, characterData: true, subtree: true });
   window.addEventListener("resize", apply, sig);
   // the waveform appears (or changes size) with the flow's steps: the engine draws it again on a resize
   let waveW = 0;
   const ro = new ResizeObserver(() => { const w = $("mwave").clientWidth; if (w && w !== waveW) { waveW = w; window.dispatchEvent(new Event("resize")); } });
   ro.observe($("mwave"));
+  // this page's first screen (a reload starts the flow again: the song and clips were not kept)
+  mark(false);
   apply();
   return () => { ac.abort(); mo.disconnect(); ro.disconnect(); place(false); };
 }
