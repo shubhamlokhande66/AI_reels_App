@@ -11,8 +11,7 @@ import { AppError, NotFoundError, ValidationFailed } from "@/server/core/errors"
 import { sendFile } from "@/server/core/http";
 import { enabled as creditsOn, wallet } from "@/server/credits";
 import { localPath } from "@/server/storage/local";
-import { abortMultipart, completeMultipart, deleteObject, objectSize, objectUrl, partUrls, r2Config, startMultipart } from "@/server/storage/r2";
-import { partSizeFor } from "@/server/projects/directUpload";
+import { abortMultipart, completeMultipart, deleteObject, objectSize, objectUrl, partSizeFor, partUrls, r2Config, startMultipart } from "@/server/storage/r2";
 
 /**
  * My Reels: the finished Reels a person chose to keep in their account ("Export & save" in Fast Studio). Everything else

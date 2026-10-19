@@ -1,4 +1,4 @@
-/* Story -> Reel (and the old Auto Reel, now part of Music Reel: ?auto=1 opens Music Reel): the creator picks clips (and a song, if they like); the AI does everything else on this phone and the page
+/* Story -> Reel (/create/story): the creator picks clips (and a song, if they like); the AI does everything else on this phone and the page
  * shows only the progress, then the finished video. Behind it is the same engine as the editor: the song is analysed,
  * the clips read, the AI picks the moments and the touch-ups, the sound is mixed and the video made (kept in the page,
  * not saved until the creator chooses). "Edit" opens the same Reel in the editor. Without a song: clips where people talk
@@ -149,7 +149,8 @@ export function initAuto(root: HTMLElement): () => void {
     else if (a === "song") $("aomfile").click();
     else if (a === "save") S()?.saveLast();
     else if (a === "edit") { $<HTMLVideoElement>("aovid").pause(); show(null); root.querySelector<HTMLButtonElement>('#views [data-view="editor"]')?.click(); }
-    else if (a === "again") location.href = location.pathname + "?auto=story";
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- plain DOM code: a fresh Story is a full load
+    else if (a === "again") location.href = "/create/story";
   }, sig);
   $("aovfile").addEventListener("change", (e) => { const f = [...((e.target as HTMLInputElement).files ?? [])]; (e.target as HTMLInputElement).value = ""; if (!f.length) return;
     clips = f; $("aoclips").textContent = f.length + (f.some(isPhoto) ? " file" : " clip") + (f.length > 1 ? "s" : "") + " · " + f.map((x) => x.name).slice(0, 3).join(", ") + (f.length > 3 ? "…" : ""); ready(); }, sig);
@@ -157,6 +158,6 @@ export function initAuto(root: HTMLElement): () => void {
   $("aomfile").addEventListener("change", (e) => { const f = (e.target as HTMLInputElement).files?.[0]; (e.target as HTMLInputElement).value = ""; if (!f) return; songFile = f; $("aosong").textContent = f.name; }, sig);
   $("aogo").addEventListener("click", () => void run(), sig);
   $("storykind").addEventListener("click", () => pickMode("story"), sig);
-  { const q = new URLSearchParams(location.search).get("auto"); if (q === "1") root.querySelector<HTMLButtonElement>('#kind [data-k="music"]')?.click(); else if (q === "story") setTimeout(() => pickMode("story"), 0); }
+  if (location.pathname === "/create/story") setTimeout(() => pickMode("story"), 0); // Story Maker's own address
   return () => { ac.abort(); ov.remove(); if (url) URL.revokeObjectURL(url); };
 }

@@ -65,6 +65,11 @@ async function call(c: R2Config, method: string, key: string, query: Record<stri
 }
 
 /** Start a multipart upload of `key` (the browser then sends the parts itself). */
+const MIN_PART = 8 * 1024 * 1024; // R2/S3: every part but the last at least 5 MiB; at most 10,000 parts
+const MAX_PARTS = 10_000;
+/** The part size for a multipart upload of this many bytes. */
+export const partSizeFor = (size: number) => Math.max(MIN_PART, Math.ceil(size / MAX_PARTS / (1024 * 1024)) * 1024 * 1024);
+
 export async function startMultipart(c: R2Config, key: string): Promise<string> {
   const xml = await call(c, "POST", key, { uploads: "" });
   const id = /<UploadId>([^<]+)<\/UploadId>/.exec(xml)?.[1];

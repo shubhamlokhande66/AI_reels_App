@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dropzone } from "@/components/molecules/Dropzone";
-import { TrendLibrary } from "@/components/organisms/TrendLibrary";
 import { ProgressBar } from "@/components/molecules/ProgressStages";
 import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
@@ -187,7 +186,6 @@ export default function TrendsPage() {
         <EmptyState icon="trend" title="No trends yet" hint="Learn one above. When you make a Reel, the AI picks the trend that fits, or you choose one." />
       )}
       {q.data?.map((t) => <TrendCard key={t.id} t={t} />)}
-      <TrendLibrary />
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { clock, deleteDraft, useDrafts } from "@/lib/drafts";
 import { confirmAction } from "@/components/molecules/ConfirmDialog";
-import { Icon, Spinner } from "@/components/atoms";
+import { Button, Icon, Spinner } from "@/components/atoms";
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { cloudReelUrl, deleteCloudReel, listCloudReels, shareCloudReel, type CloudReel, type CloudUsage } from "@/lib/cloudReels";
 
@@ -39,11 +39,11 @@ function Drafts() {
       <EmptyState
         icon="projects"
         title="No drafts yet"
-        hint="The Reels you make in Fast Studio are kept on this phone and show up here."
+        hint="The Reels you make are kept on this phone and show up here."
         action={
-          <a href="/studio" className="btn g">
+          <Button href="/create/music" reload icon="plus">
             Make a Reel
-          </a>
+          </Button>
         }
       />
     );
@@ -56,7 +56,7 @@ function Drafts() {
       )}
       {drafts.map((d) => (
         <div key={d.id} className="group relative flex min-w-0 flex-col gap-1">
-          <a href={`/studio?p=${encodeURIComponent(d.id)}`} className="flex flex-col gap-1" title={`Open ${d.name} in Fast Studio`}>
+          <a href={`/create/edit?p=${encodeURIComponent(d.id)}`} className="flex flex-col gap-1" title={`Open ${d.name}`}>
             <div className="photo relative aspect-[3/4] w-full overflow-hidden transition-transform group-hover:scale-[1.01]">
               {/* eslint-disable-next-line @next/next/no-img-element -- a small picture kept on this phone */}
               {d.thumb && <img src={d.thumb} alt="" className="h-full w-full object-cover" />}
@@ -188,11 +188,11 @@ function Saved() {
         <EmptyState
           icon="upload"
           title="Nothing saved yet"
-          hint={'In Fast Studio, choose "Export & save to My Reels" to keep a finished Reel here, ready to watch, download or share from any phone.'}
+          hint={'When you export, keep "Save to My Reels" on to keep a finished Reel here, ready to watch, download or share from any phone.'}
           action={
-            <a href="/studio" className="btn g">
+            <Button href="/create/music" reload icon="plus">
               Make a Reel
-            </a>
+            </Button>
           }
         />
       ) : (
@@ -224,9 +224,9 @@ function MyReels() {
         title="My Reels"
         subtitle="Drafts stay on this phone. Saved Reels are kept in your account."
         action={
-          <a href="/studio" className="btn g hidden md:inline-flex">
-            + New Reel
-          </a>
+          <Button href="/create/music" reload icon="plus" className="hidden md:inline-flex">
+            New Reel
+          </Button>
         }
       />
       <div role="tablist" aria-label="My Reels" className="chips">

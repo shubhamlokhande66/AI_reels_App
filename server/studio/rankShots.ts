@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { getProvider, type ManagedProvider } from "@/server/ai";
 import { effective, keyConfigured, providerFor } from "@/server/ai/config";
-import { clean, Text } from "@/server/ai/director";
+import { clean, Text } from "@/server/ai/text";
 import { AIResponseError } from "@/server/ai/types";
 import { charge, costOf, enabled as creditsOn, refund } from "@/server/credits";
 

@@ -119,7 +119,7 @@ async function deleteUserData(userId: string) {
     if (UNSCOPED.has(name) || name.startsWith("system.")) continue;
     for (const doc of await d.collection(name).find({ [OWNER]: userId }).toArray()) {
       for (const [k, v] of Object.entries(doc)) if (k.endsWith("Key") && typeof v === "string" && v) fs.rmSync(localPath(v), { force: true, recursive: true });
-      if (name === "projects") deletePrefix(`projects/${doc._id}`);
+      if (name === "projects") deletePrefix(`projects/${doc._id}`); // a project from the old server editor: its folder
     }
     await d.collection(name).deleteMany({ [OWNER]: userId });
   }
@@ -132,7 +132,6 @@ export async function deleteAccount(password: string, confirm: string) {
   const u = await meDoc();
   if (confirm.trim().toLowerCase() !== u.email) throw new ValidationFailed("Type your email address exactly to confirm.", { code: "CONFIRMATION_MISMATCH" });
   if (!verifyPassword(password, String(u.password))) throw new ValidationFailed("The password is not correct.", { code: "BAD_CREDENTIALS" });
-  if (await (await mainDb()).collection("projects").findOne({ [OWNER]: String(u._id), status: "processing" })) throw new ConflictError("A Reel is being made right now. Wait until it finishes (or cancel it), then delete the account.", { code: "ACCOUNT_BUSY" });
   await deleteUserData(String(u._id));
   await (await users()).deleteOne({ _id: u._id as ObjectId });
   forgetSessionCache(String(u._id));

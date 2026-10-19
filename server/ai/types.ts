@@ -135,10 +135,7 @@ export async function runStructured<S extends z.ZodType>(provider: Generator, re
 // ------------------------------------------------------------------ tasks
 export interface TaskSpec { id: string; kind: "text" | "vision"; essential: boolean; label: string }
 export const TASKS: Record<string, TaskSpec> = Object.fromEntries(([
-  ["clip_understanding", "vision", false, "Clip understanding"], ["shot_ranking", "vision", false, "Fast Studio: AI shot picking"], ["studio_director", "text", false, "Fast Studio: AI director"], ["studio_translate", "text", false, "Fast Studio: caption translation"], ["product_understanding", "vision", false, "Product photo understanding"], ["style", "text", false, "Style selection"],
-  ["story", "text", false, "Story planning"], ["order", "text", false, "Shot order"], ["director", "text", false, "Creative director"], ["product_director", "text", false, "Product creative director"],
-  ["copy", "text", false, "Post copy"], ["music", "text", false, "Song part choice"], ["reviewer", "text", false, "Reel reviewer"], ["library_search", "text", false, "Library search"],
-  ["hooks", "text", true, "Hook generation"], ["script", "text", true, "Script writing"], ["revision", "text", true, "Natural-language revision"], ["template", "text", true, "Template drafts"],
-  ["chat", "text", true, "Chat"], ["test", "text", true, "Connection test"], ["general", "text", true, "Other"],
+  ["shot_ranking", "vision", false, "AI shot picking"], ["studio_director", "text", false, "AI director"], ["studio_translate", "text", false, "Caption translation"],
+  ["clip_understanding", "vision", false, "Trend video analysis"], ["test", "text", true, "Connection test"], ["general", "text", true, "Other"],
 ] as const).map(([id, kind, essential, label]) => [id, { id, kind, essential, label }]));
 export const getTask = (task: string | null | undefined) => TASKS[task || "general"] ?? TASKS.general;

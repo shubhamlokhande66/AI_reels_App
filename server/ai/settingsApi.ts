@@ -7,7 +7,7 @@ import { AppError, ValidationFailed } from "@/server/core/errors";
 import { localPath } from "@/server/storage/local";
 import { budgetState, effective, getChosenModel, LOCAL_PROVIDERS, loadSaved, PROVIDERS, publicView, saveConfig, setChosenModel, usageSummary, type EffectiveAIConfig } from "./config";
 import { buildProvider, ManagedProvider } from "./index";
-import type { OllamaProvider } from "./providers";
+import { OllamaProvider } from "./providers";
 import { AIProviderError, TASKS } from "./types";
 
 /** The AI settings (was api/ai_settings.py): provider and models, fallback, budget, a connection test, usage.
@@ -140,4 +140,26 @@ export async function connectionTest(provider: string | null, vision: boolean) {
 export async function usage() {
   const cfg = effective(), out = await usageSummary();
   return { ...out, budget: { ...(await budgetState(cfg)), daily: cfg.dailyBudget, monthly: cfg.monthlyBudget, override: cfg.budgetOverride } };
+}
+
+/** Can this installed Ollama model do the director's job: answer a short brief with the JSON asked for, quickly? */
+export async function testModel(model: string) {
+  const base = buildProvider("ollama") as OllamaProvider;
+  const installed = new Set((await base.installedModels()).map((m) => m.name));
+  if (!installed.has(model)) throw new ValidationFailed(`'${model}' is not installed in Ollama.`, { code: "MODEL_NOT_INSTALLED" });
+  const provider = new OllamaProvider(settings.ollamaBaseUrl, model, settings.aiTimeoutSeconds);
+  const system = 'You edit short videos. Reply with one JSON object only: {"pace": "calm" | "balanced" | "fast", "transition": "cut" | "fade" | "zoom"}.';
+  const user = "A 15-second Reel of a sports car on a race track, cut to an energetic song.";
+  const t = performance.now();
+  let data: Record<string, unknown>;
+  try {
+    const res = await provider.generate({ system, user, jsonMode: true, task: "studio_director" });
+    data = res.parsed ?? (JSON.parse(res.text) as Record<string, unknown>);
+  } catch (e) {
+    return { model, ok: false, seconds: Math.round((performance.now() - t) / 100) / 10, verdict: "failed", detail: String(e instanceof AppError ? e.message : (e as Error).message).slice(0, 200) };
+  }
+  const seconds = Math.round((performance.now() - t) / 100) / 10;
+  const valid = ["calm", "balanced", "fast"].includes(String(data.pace)) && ["cut", "fade", "zoom"].includes(String(data.transition));
+  const [verdict, detail] = !valid ? ["wrong", "Did not answer with the JSON asked for."] : data.pace === "fast" ? ["correct", "Answered with the right JSON and a fitting pace."] : ["over-eager", `Answered with valid JSON, but chose a ${data.pace} pace for an energetic song.`];
+  return { model, ok: verdict === "correct", seconds, verdict, detail };
 }

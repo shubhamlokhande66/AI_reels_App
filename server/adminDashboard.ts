@@ -52,9 +52,9 @@ async function onlineNow() {
 
 export async function overview() {
   const now = Date.now(), today = startOfDay(), week = new Date(now - 7 * DAY), month = new Date(now - 30 * DAY);
-  const [users, presence, payments, wallets, ledger, projects] = await Promise.all(["users", "presence", "payments", "wallets", "credit_ledger", "projects"].map(col));
+  const [users, presence, payments, wallets, ledger, reels] = await Promise.all(["users", "presence", "payments", "wallets", "credit_ledger", "studio_reels"].map(col));
   const yearAgo = new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1), twoWeeks = startOfDay(new Date(now - 13 * DAY));
-  const [totalUsers, newToday, newWeek, visitorsToday, visitorsWeek, online, paid, signupDays, revenueMonths, walletSum, plans, used, projectStatus, recentUsers, recentPayments, pricing] = await Promise.all([
+  const [totalUsers, newToday, newWeek, visitorsToday, visitorsWeek, online, paid, signupDays, revenueMonths, walletSum, plans, used, savedReels, recentUsers, recentPayments, pricing] = await Promise.all([
     users.countDocuments({}),
     users.countDocuments({ createdAt: { $gte: today } }),
     users.countDocuments({ createdAt: { $gte: week } }),
@@ -67,7 +67,7 @@ export async function overview() {
     wallets.aggregate([{ $group: { _id: null, credits: { $sum: { $add: [{ $ifNull: ["$monthly", 0] }, { $ifNull: ["$extra", 0] }] } } } }]).toArray(),
     wallets.aggregate([{ $group: { _id: "$plan", n: { $sum: 1 } } }]).toArray(),
     ledger.aggregate([{ $match: { delta: { $lt: 0 }, refunded: { $ne: true }, at: { $gte: month } } }, { $group: { _id: null, credits: { $sum: "$delta" } } }]).toArray(),
-    projects.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]).toArray(),
+    reels.countDocuments({ status: "ready" }),
     users.find({}, { projection: { email: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(6).toArray(),
     payments.find({ status: "paid" }).sort({ paidAt: -1 }).limit(6).toArray(),
     getPricing(),
@@ -82,7 +82,7 @@ export async function overview() {
     online: online.visitors,
     revenue: { total: Number(p.total) / 100, month: Number(p.month) / 100, payments: Number(p.count) },
     credits: { left: Number(walletSum[0]?.credits ?? 0), used30d: -Number(used[0]?.credits ?? 0) },
-    projects: { total: projectStatus.reduce((s, x) => s + Number(x.n), 0), byStatus: Object.fromEntries(projectStatus.map((x) => [String(x._id ?? "unknown"), Number(x.n)])) },
+    reels: { total: savedReels },
     plans: plans.map((x) => ({ plan: String(x._id ?? "free"), name: names.get(String(x._id)) ?? String(x._id ?? "Free"), users: Number(x.n) })).sort((a, b) => b.users - a.users),
     signupsByDay: Array.from({ length: 14 }, (_, i) => { const d = dayKey(new Date(twoWeeks.getTime() + i * DAY)); return { day: d, users: signups.get(d) ?? 0 }; }),
     revenueByMonth: Array.from({ length: 12 }, (_, i) => { const m = monthKey(new Date(yearAgo.getFullYear(), yearAgo.getMonth() + i, 1)); return { month: m, rupees: revenue.get(m) ?? 0 }; }),
@@ -98,7 +98,7 @@ export async function listUsers() {
     (await col("payments")).aggregate([{ $match: { status: "paid" } }, { $group: { _id: "$userId", rupees: { $sum: "$amount" }, n: { $sum: 1 }, last: { $max: "$paidAt" } } }]).toArray(),
     (await col("wallets")).find({}).toArray(),
     (await col("credit_ledger")).aggregate([{ $match: { delta: { $lt: 0 }, refunded: { $ne: true } } }, { $group: { _id: "$userId", credits: { $sum: "$delta" } } }]).toArray(),
-    (await col("projects")).aggregate([{ $group: { _id: `$${OWNER}`, n: { $sum: 1 } } }]).toArray(),
+    (await col("studio_reels")).aggregate([{ $match: { status: "ready" } }, { $group: { _id: `$${OWNER}`, n: { $sum: 1 } } }]).toArray(),
     (await col("presence")).distinct("uid", { at: { $gte: new Date(Date.now() - ONLINE_MS) }, uid: { $ne: null } }),
     getPricing(),
   ]);
@@ -122,7 +122,7 @@ export async function userDetail(id: string) {
   const [payments, history, reels, devices] = await Promise.all([
     (await col("payments")).find({ userId: id }).sort({ createdAt: -1 }).limit(50).toArray(),
     (await col("credit_ledger")).find({ userId: id }).sort({ at: -1 }).limit(50).toArray(),
-    (await col("projects")).find({ [OWNER]: id }, { projection: { name: 1, title: 1, status: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(12).toArray(),
+    (await col("studio_reels")).find({ [OWNER]: id, status: "ready" }, { projection: { name: 1, status: 1, createdAt: 1 } }).sort({ createdAt: -1 }).limit(12).toArray(),
     (await col("presence")).find({ uid: id }).sort({ at: -1 }).limit(10).toArray(),
   ]);
   const w = billingOn() ? await wallet(id) : null, names = new Map((await getPricing()).plans.map((p) => [p.id, p.name]));
@@ -131,7 +131,7 @@ export async function userDetail(id: string) {
     wallet: w ? { plan: String(w.plan), planName: names.get(String(w.plan)) ?? String(w.plan), period: w.period ?? null, monthly: Number(w.monthly ?? 0), extra: Number(w.extra ?? 0), balance: Number(w.monthly ?? 0) + Number(w.extra ?? 0), planEnds: w.planEnds ?? null, renews: w.cycleEnds ?? null } : null,
     payments: payments.map((p) => ({ id: String(p._id), label: String((p.item as Doc)?.label ?? ""), rupees: Number(p.amount) / 100, status: String(p.status), createdAt: p.createdAt ?? null, paidAt: p.paidAt ?? null, via: p.via ?? null })),
     history: history.map((e) => ({ delta: Number(e.delta), reason: String(e.reason ?? ""), at: e.at ?? null, balance: e.balance ?? null, refunded: Boolean(e.refunded) })),
-    reels: reels.map((r) => ({ id: String(r._id), name: String(r.name ?? r.title ?? "Untitled"), status: String(r.status ?? ""), createdAt: r.createdAt ?? null })),
+    reels: reels.map((r) => ({ id: String(r._id), name: String(r.name ?? "Untitled"), status: String(r.status ?? ""), createdAt: r.createdAt ?? null })),
     devices: devices.map((d) => ({ device: String(d.device ?? "computer"), path: String(d.path ?? "/"), at: d.at ?? null, online: d.at && new Date(d.at).getTime() > Date.now() - ONLINE_MS })),
   };
 }

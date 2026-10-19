@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/server/ai/tasks", () => ({
+vi.mock("@/server/ai/transcribe", () => ({
   transcribe: vi.fn(async (_f: string, _s: number, d: number, _p: unknown, lang: string) => [
     { text: " नमस्कार ", start: 0.5, end: 0.9 }, { text: "", start: 1, end: 1.2 }, { text: "world\u0007", start: 2, end: null },
     { text: `lang:${lang || "auto"}`, start: d + 5, end: d + 6 }, { text: "early", start: -1, end: 0.2 },

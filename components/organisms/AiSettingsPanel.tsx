@@ -7,7 +7,6 @@ import { btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { useHealth } from "@/hooks/useApi";
 import { AiSettingsSection } from "@/components/organisms/AiSettings";
-import { DirectorProfileSection } from "@/components/organisms/DirectorFeedback";
 import type { AiModels, ModelTestResult } from "@/types/api";
 
 function Row({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
@@ -141,7 +140,6 @@ export function AiSettingsPanel() {
           <Card>
             <ul className="divide-y divide-border">
               <Row label="MongoDB" ok={data.mongodb} />
-              <Row label="FFmpeg" ok={data.ffmpeg} />
               <Row label={`AI (${data.ai.provider})`} ok={data.ai.available} detail={`${data.ai.model ?? ""} ${data.ai.detail}`.trim()} />
             </ul>
             <p className="mt-4 text-xs text-muted" suppressHydrationWarning>API: {API_URL}</p>
@@ -149,7 +147,6 @@ export function AiSettingsPanel() {
           <AiSettingsSection>
             <OllamaModels />
           </AiSettingsSection>
-          <DirectorProfileSection />
         </div>
       )}
     </div>

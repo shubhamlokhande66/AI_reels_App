@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { settings } from "@/server/core/config";
 import { ValidationFailed } from "@/server/core/errors";
-import { clean } from "@/server/ai/director";
-import { transcribe } from "@/server/ai/tasks";
+import { clean } from "@/server/ai/text";
+import { transcribe } from "@/server/ai/transcribe";
 import { charge, costOf, enabled as creditsOn, refund } from "@/server/credits";
 
 /** Fast Studio captions: the words of the song (lyrics or speech), with their times, so the phone can show them word by

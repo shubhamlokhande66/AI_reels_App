@@ -21,7 +21,7 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
-      { name: "Fast Studio", short_name: "Studio", description: "Make a Reel on this phone", url: "/studio", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
+      { name: "Music Reel", short_name: "Music Reel", description: "Your clips, cut to the beat of a song", url: "/create/music", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
       { name: "Create a Reel", short_name: "Create", url: "/projects/new", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
       { name: "My Projects", short_name: "Projects", url: "/projects", icons: [{ src: "/icon-192.png", sizes: "192x192" }] },
     ],
