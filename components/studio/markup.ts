@@ -73,17 +73,17 @@ export const STUDIO_HTML = `
   <div class="fhead" id="fhead">
     <button type="button" class="fback" id="fback" aria-label="Back">${IC.back}</button>
     <b class="fptitle" id="fptitle"></b>
-    <div class="ft"><h1 id="ftitle">Music Reel</h1><p id="fsub">Turn your clips into a stunning Reel with music, beats and AI edits.</p></div>
+    <div class="ft"><h1 id="ftitle">Music Reel</h1><p id="fsub">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p></div>
     <ol class="fsteps" id="fsteps" aria-label="Steps">
-      <li data-f="1"><i>1</i><span>Music</span></li><li data-f="2"><i>2</i><span>Clips</span></li><li data-f="3"><i>3</i><span>AI Edit</span></li><li data-f="4"><i>4</i><span>Preview &amp; Export</span></li>
+      <li data-f="1"><i>1</i><span>Music</span></li><li data-f="2"><i>2</i><span>Clips</span></li><li data-f="3"><i>3</i><span>Shubix Edit</span></li><li data-f="4"><i>4</i><span>Preview &amp; Export</span></li>
     </ol>
     <button type="button" class="fskip" id="fskip">Skip</button>
   </div>
   <section class="fintro" id="fintro" aria-labelledby="fintroh">
     <span class="fbadge" id="fintroic">${IC.music}</span>
     <h2 id="fintroh">Create a Music Reel</h2>
-    <p id="fintrop">Turn your clips into a stunning Reel with music, beats and AI edits.</p>
-    <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}AI edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
+    <p id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
+    <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}Shubix edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
     <button type="button" class="btn primary big fgo" data-fnext="1">Let's Start ${IC.arrow}</button>
   </section>
   <!-- the kind and the template, pressed by the address (/create/music|talking|photo, /create/story, ?tpl=): never
@@ -92,7 +92,7 @@ export const STUDIO_HTML = `
     <div class="sh3"><span class="num">1</span><h2>What are we making?</h2><span class="st" id="s0st">Choose one to start</span></div>
     <div class="sbody">
     <div class="makegrid">
-      <button type="button" class="kindx storycard" id="storykind">${IC.text}<span><b>Story → Reel</b><small>Write it; the AI narrates it, shows it scene by scene, adds captions</small></span></button>
+      <button type="button" class="kindx storycard" id="storykind">${IC.text}<span><b>Story → Reel</b><small>Write it; Shubix narrates it, shows it scene by scene, adds captions</small></span></button>
       <div class="kinds" id="kind" role="group" aria-label="Kind of Reel">
         <button data-k="music" aria-pressed="false">${IC.music}<span><b>Music Reel</b><small>Cuts land on every beat</small></span></button>
         <button data-k="talk" aria-pressed="false">${IC.voice}<span><b>Talking Reel</b><small>Pauses cut, captions added</small></span></button>
@@ -199,7 +199,7 @@ export const STUDIO_HTML = `
   </section>
 
   <section class="step fai" id="fai">
-    <div class="sh3"><span class="num">3</span><span class="fh"><h2>AI Edit</h2><small class="fsh">We'll analyse your clips, match them with the beats and create a stunning Reel.</small></span></div>
+    <div class="sh3"><span class="num">3</span><span class="fh"><h2>Shubix Edit</h2><small class="fsh">We'll analyse your clips, match them with the beats and create a stunning Reel.</small></span></div>
     <div class="faibody">
       ${aiList("faiList")}
       <div class="fready" id="fready">${IC.spark}<b id="freadyt">Ready to create your Reel!</b><small id="freadys">Add a song and your clips, then press Generate.</small></div>
@@ -211,7 +211,7 @@ export const STUDIO_HTML = `
     <div class="fprevh"><b>Reel Preview</b><span class="fslot" id="faspslot"></span></div>
     <div class="fprevbox" id="fprevbox"><span class="fplay">${IC.play}</span><small id="fprevnote">Your Reel appears here</small></div>
     <button type="button" class="btn primary big fgen" id="fgen" disabled>${IC.spark}<span id="fgent">Generate Reel</span>${IC.arrow}</button>
-    <p class="fnote">AI will analyse your clips and create a stunning edit</p>
+    <p class="fnote">Shubix will analyse your clips and create a stunning edit</p>
     <p class="fnote fsmall">${IC.lock}Everything happens on this device. Your videos are never uploaded.</p>
   </aside>
   </div>
@@ -326,7 +326,7 @@ export const STUDIO_HTML = `
           </section>
 
           <section class="panel" data-panel="look">${panelHead("look")}
-            <label class="tog aitog"><input type="checkbox" id="aitouch" checked> AI touch-ups: fit wide clips, fix dark shots, keep voices, one reversed drop, fade out at the end</label>
+            <label class="tog aitog"><input type="checkbox" id="aitouch" checked> Shubix touch-ups: fit wide clips, fix dark shots, keep voices, one reversed drop, fade out at the end</label>
             <div class="seg" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button><button data-l="copy" aria-pressed="false" hidden>Copied</button></div>
           </section>
 

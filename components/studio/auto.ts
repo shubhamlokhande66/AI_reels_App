@@ -42,7 +42,7 @@ export function initAuto(root: HTMLElement): () => void {
       <button type="button" class="aoback" data-ao="close">${ICON.back}<span>Back</span></button>
       <div class="aohead">
         <h1 id="aotitle">Story → Reel</h1>
-        <p class="sub" id="aosub">Pick your clips. The AI does the rest: the best moments, cuts on the beat, transitions, colour and sound.</p>
+        <p class="sub" id="aosub">Pick your clips. Shubix does the rest: the best moments, cuts on the beat, transitions, colour and sound.</p>
       </div>
       <div class="aostory step" id="aostory" hidden>
         <label class="aolabel" for="aotext">Your story</label>
@@ -76,7 +76,7 @@ export function initAuto(root: HTMLElement): () => void {
   const pickMode = (m: "auto" | "story") => {
     mode = m; $("aostory").hidden = m !== "story";
     $("aotitle").textContent = m === "story" ? "Story → Reel" : "Auto Reel";
-    $("aosub").textContent = m === "story" ? "Write it, pick a voice and your clips or photos. The AI narrates it, shows it scene by scene and adds the captions, on this phone." : "Pick your clips. The AI does the rest on this phone: cuts on the beat, best moments, framing, colour, sound.";
+    $("aosub").textContent = m === "story" ? "Write it, pick a voice and your clips or photos. Shubix narrates it, shows it scene by scene and adds the captions, on this phone." : "Pick your clips. Shubix does the rest on this phone: cuts on the beat, best moments, framing, colour, sound.";
     $("aoclipsh").textContent = m === "story" ? "Your clips or photos" : "Your clips";
     if (m === "story" && !$<HTMLSelectElement>("aovoice").options.length) $("aovoice").innerHTML = TTS_VOICES.map((v) => `<option value="${v.key}">${v.label}</option>`).join("");
     const names = m === "story" ? STORY_STAGES : STAGES; root.querySelectorAll<HTMLLIElement>("#aolist li").forEach((li, k) => { li.textContent = names[k][1]; });

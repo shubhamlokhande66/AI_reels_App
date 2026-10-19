@@ -16,10 +16,10 @@ type Kind = "music" | "talk" | "photo" | "copy";
 type Step = "intro" | "choose" | "adjust" | "clips" | "analyse";
 
 const KINDS: Record<Kind, { title: string; sub: string; intro: string; checks: string[]; icon: string }> = {
-  music: { title: "Music Reel", sub: "Turn your clips into a stunning Reel with music, beats and AI edits.", intro: "Create a Music Reel", checks: ["Pick a song", "Add your videos or photos", "AI edits on the beat", "Preview, make changes and export"], icon: "music" },
+  music: { title: "Music Reel", sub: "Turn your clips into a stunning Reel with music, beats and Shubix edits.", intro: "Create a Music Reel", checks: ["Pick a song", "Add your videos or photos", "Shubix edits on the beat", "Preview, make changes and export"], icon: "music" },
   talk: { title: "Talking Reel", sub: "Your talking video, pauses cut, captions added, music under the voice.", intro: "Create a Talking Reel", checks: ["Add your talking video", "Pauses cut, captions added", "Soft music under the voice", "Preview, make changes and export"], icon: "voice" },
-  photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Pick a song", "Add your photos", "AI moves them on the beat", "Preview, make changes and export"], icon: "image" },
-  copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy", "Add your clips", "AI copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
+  photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Pick a song", "Add your photos", "Shubix moves them on the beat", "Preview, make changes and export"], icon: "image" },
+  copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy", "Add your clips", "Shubix copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
 };
 const ORDER: Record<"music" | "talk", Step[]> = { music: ["intro", "choose", "adjust", "clips", "analyse"], talk: ["intro", "clips", "analyse"] };
 // which engine task moves which line of the AI checklist (data-t in markup.ts)
@@ -175,7 +175,7 @@ export function initFlow(root: HTMLElement): () => void {
     setAttr($("fgen"), "aria-busy", String(busy));
     setText($("fgent"), busy ? "Making your Reel…" : "Generate Reel");
     setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
-    setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "The AI is reading your clips and the beats." : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
+    setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
     setText($("fprevnote"), made() ? "Your Reel is ready" : "Your Reel appears here");
     setClass($("fprevbox"), "ready", made());
     paintAi();

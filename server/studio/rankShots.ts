@@ -123,7 +123,7 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
   for (const c of input.clips) for (const f of c.frames)
     if (Buffer.byteLength(f.image, "base64") > LIMITS.imageBytes) throw new AIResponseError("A frame is too large (keep each under 120 KB).");
   const ref = `studio_ai_${crypto.randomUUID().slice(0, 12)}`;
-  const charged = await charge(COST_ACTION, ref, "AI shot picking in Fast Studio");
+  const charged = await charge(COST_ACTION, ref, "Shubix shot picking");
   const results = await pool(input.clips, 4, (c) => rankClip(provider, c));
   const clips = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   const failed = results.flatMap((r, i) => (r.status === "rejected" ? [{ id: input.clips[i].id, error: clean((r.reason as Error)?.message ?? r.reason, 200) }] : []));
