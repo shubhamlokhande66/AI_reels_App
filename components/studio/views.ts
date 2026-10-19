@@ -183,8 +183,36 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       + `</div><div class="cliptools"></div>`;
     $("shotcard").innerHTML = head + chips + other + tools;
     $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;
-    if (!$("shotsheet").hidden) $("ssbody").innerHTML = head + chips + other + tools; // the shot sheet: the same choices
+    if (!$("shotsheet").hidden) $("ssbody").innerHTML = sheetHtml(i, sels, clipName); // the shot sheet (the design's frame 3)
     clipUI(true);
+  };
+  // the shot sheet, as the design: the shot's picture, "Shot 1 · 2.40 s", ‹ ›; Transition (29) · Effect (25) · Speed as
+  // picture tiles (the shot's own lit); Speed; the actions with their signs; the clip tools, sideways
+  const thumbs = new Map<HTMLCanvasElement, string>();
+  const thumbOf = (src: number) => {
+    const c = S()?.sources[src]?.card?.querySelector<HTMLCanvasElement>(".th"); if (!c || !c.width) return "";
+    let u = thumbs.get(c); if (!u) { try { u = c.toDataURL("image/jpeg", 0.72); } catch { u = ""; } if (u) thumbs.set(c, u); }
+    return u || "";
+  };
+  const SIGN: Record<string, string> = {
+    split: '<path d="M6 3v18M18 3v18M6 12h12"/>', dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/>',
+    freeze: '<path d="M12 2v20M4.5 6.5l15 11M19.5 6.5l-15 11"/>', delete: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    other: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>',
+  };
+  const sign = (k: string) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SIGN[k]}</svg>`;
+  const sheetHtml = (i: number, sels: (HTMLSelectElement | null)[], clipName: (n: string) => string) => {
+    const st = S()!, e = st.edit[i], th = thumbOf(e.src), names = ["Transition", "Effect", "Speed"];
+    const tabs = names.map((n, k) => `<button type="button" class="shtab" data-tab="${k}" aria-pressed="${k === shotTab}">${n}${k < 2 && sels[k] ? ` (${sels[k]!.options.length})` : ""}</button>`).join("");
+    const tiles = (k: number) => { const sl = sels[k]; if (!sl) return "";
+      return `<div class="sstiles">${[...sl.options].map((o) => `<button type="button" class="chip sstile" data-c="${k}" data-v="${esc(o.value)}" aria-pressed="${o.value === sl.value}"><span class="sstimg${o.value === "hard" || o.value === "none" ? " none" : ""}"${th ? ` style="background-image:url(${th})"` : ""}></span><span class="sstt">${esc(o.text)}</span></button>`).join("")}</div>`; };
+    const sp = sels[2], speed = !sp ? "" : `<div class="sslab">Speed</div><div class="chips sschips">${[...sp.options].map((o) => `<button type="button" class="chip" data-c="2" data-v="${esc(o.value)}" aria-pressed="${o.value === sp.value}">${esc(o.text)}</button>`).join("")}</div>`;
+    const act = (op: string, n: string, extra = "") => `<button type="button" class="ssact" data-op="${op}"${extra}>${sign(op)}<span>${n}</span></button>`;
+    const actions = st.kind === "talk" ? "" : `<div class="sslab">Actions</div><div class="ssacts">${act("split", "Split")}${act("dup", "Duplicate")}${act("freeze", "Freeze")}${act("delete", "Delete", st.edit.length < 2 ? " disabled" : "")}`
+      + `<button type="button" class="ssact" data-other="1">${sign("other")}<span>Other moment</span></button>`
+      + (st.sources.length > 1 ? `<select class="ssrep" data-rep="1" aria-label="Replace with a moment from"><option value="">Replace with…</option>${st.sources.map((s, k) => `<option value="${k}">${clipName(s.name)}${k === e.src ? " (this clip)" : ""}</option>`).join("")}</select>` : "") + `</div>`;
+    return `<div class="ssh">${th ? `<img class="ssth" src="${th}" alt="">` : ""}<b>Shot ${i + 1} · ${(e.end - e.start).toFixed(2)} s</b><span class="ssnav"><button type="button" data-snav="-1" aria-label="The shot before"${i ? "" : " disabled"}>‹</button><button type="button" data-snav="1" aria-label="The next shot"${i < st.edit.length - 1 ? "" : " disabled"}>›</button></span></div>`
+      + `<div class="sstabs">${tabs}</div>` + (shotTab < 2 ? tiles(shotTab) : "") + speed + actions
+      + (st.kind === "talk" ? "" : `<div class="sslab">Clip Tools <small>(scroll)</small></div><div class="cliptools"></div>`);
   };
   // the clip tools (rotate, fit, adjust, mosaic…): drawn again when the shot's settings change, never during a slider drag
   const clipUI = (force = false) => {
@@ -490,6 +518,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   };
   const closeShot = () => { if (sheet.hidden) return; sheet.hidden = true; root.classList.remove("sheeton"); };
   $("ssx").addEventListener("click", closeShot, sig);
+  // ‹ › : the shot before / after, in the same sheet
+  $("ssbody").addEventListener("click", (e) => { const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-snav]"); const st = S(); if (!b || !st) return;
+    const k = Math.max(0, Math.min(st.edit.length - 1, st.segAt(st.now) + +b.dataset.snav!)); openShot(k, shotTab, xOf((st.edit[k].start + st.edit[k].end) / 2)); }, sig);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeShot(); }, sig);
   document.addEventListener("pointerdown", (e) => { const t = e.target as Node; if (!sheet.hidden && !sheet.contains(t) && !lanes.contains(t)) closeShot(); }, { capture: true, ...sig });
   window.addEventListener("scroll", placeSheet, { passive: true, ...sig });

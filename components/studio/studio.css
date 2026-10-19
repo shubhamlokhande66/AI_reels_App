@@ -1258,3 +1258,38 @@
   .brs.noir .tb-aspect{display:inline-flex}
   .brs.noir .tb-aspect select{height:38px;padding:0 30px 0 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 13px var(--body);cursor:pointer}
 }
+
+/* ---- the shot sheet, as the design (frame 3) ---- */
+.brs .shotsheet{width:min(460px,calc(100vw - 24px))}
+.brs .ss-head{position:absolute;top:0;right:0;left:auto;min-height:0;padding:0;z-index:3}
+.brs .ss-x{top:12px;right:12px}
+.brs .ss-body{padding:14px 16px 16px !important;display:grid;align-content:start}
+.brs .ss-body .ssh{display:flex;align-items:center;gap:10px;padding-right:40px}
+.brs .ss-body .ssth{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;box-shadow:0 0 0 1px var(--line)}
+.brs .ss-body .ssh b{font:800 15.5px var(--body);flex:1;min-width:0}
+.brs .ss-body .ssnav{display:inline-flex;gap:4px}
+.brs .ss-body .ssnav button{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:700 16px/1 var(--body);cursor:pointer}
+.brs .ss-body .ssnav button:disabled{opacity:.35;cursor:default}
+.brs .ss-body .sstabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:3px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+.brs .ss-body .sstabs .shtab{height:34px;padding:0 6px;border-radius:9px;font:600 12.5px var(--body);color:var(--muted);white-space:nowrap}
+.brs .ss-body .sstabs .shtab[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff)}
+/* the choices as picture tiles: the shot's own frame, the name under it */
+.brs .ss-body .sstiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.brs .ss-body .sstile{display:grid;gap:5px;height:auto;padding:0;border:0;border-radius:0;background:none;color:var(--muted);font:600 10.5px var(--body);text-align:center;white-space:normal}
+.brs .ss-body .sstile[aria-pressed=true]{background:none;color:var(--ink)}
+.brs .ss-body .sstimg{display:block;aspect-ratio:1/1;border-radius:10px;background:var(--surface-2) center/cover no-repeat;box-shadow:inset 0 0 0 1px var(--line)}
+.brs .ss-body .sstile[aria-pressed=true] .sstimg{box-shadow:0 0 0 2px var(--accent),0 6px 16px -8px var(--brand-glow,rgba(176,92,255,.55))}
+.brs .ss-body .sstimg.none{background:var(--surface-2) !important;position:relative}
+.brs .ss-body .sstimg.none::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font:400 22px var(--body);color:var(--muted)}
+.brs .ss-body .sstt{line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.brs .ss-body .sslab{font:700 12.5px var(--body);color:var(--ink);margin-top:2px}
+.brs .ss-body .sslab small{font-weight:500;color:var(--muted)}
+.brs .ss-body .sschips .chip{height:32px;padding:0 12px;font-size:12px}
+.brs .ss-body .ssacts{display:flex;flex-wrap:wrap;gap:6px}
+.brs .ss-body .ssact{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);cursor:pointer}
+.brs .ss-body .ssact:hover{border-color:var(--accent)}
+.brs .ss-body .ssact[data-op="delete"]{color:var(--danger,#f87171)}
+.brs .ss-body .ssact:disabled{opacity:.4;cursor:default}
+.brs .ss-body .ssrep{height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);padding:0 8px;max-width:160px}
+.brs .ss-body .cliptools .ct{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+@media (max-width:1023px){ .brs .shotsheet{width:auto} .brs .ss-body .sstiles{grid-template-columns:repeat(auto-fill,minmax(60px,1fr))} }
