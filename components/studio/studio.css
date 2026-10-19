@@ -1075,3 +1075,9 @@
 .brs .lanesbox{min-width:0}
 .brs .tlbar .btn.mini{min-height:32px;padding:4px 10px;font-size:12.5px}
 .brs .tlbar #tlz{min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
+/* an item of a higher plan: a crown; it can be tried, the export asks */
+.brs .crowned::after{content:" 👑";font-size:.85em}
+.brs .ask .gl{margin:6px 0 10px;padding-left:18px;font-size:14px;line-height:1.5}
+.brs .ask .askrow{flex-wrap:wrap}
+.brs #xres button, .brs #xfps button{position:relative}
+.brs #xres .crowned::after, .brs #xfps .crowned::after{content:"👑";position:absolute;top:6px;right:8px;font-size:13px}

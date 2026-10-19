@@ -32,10 +32,10 @@ export const phone = () => ({ enabled: ["1", "true", "yes", "on"].includes((proc
 const YEARLY_MONTHS_CHARGED = 10;
 const DEFAULT_PRICING = {
   plans: [
-    { id: "free", name: "Free", monthly: 0, credits: 15, creditsNote: "once, to try everything", tagline: "Try every feature", highlight: false, features: ["15 credits to start", "Reels from your clips", "Your first Story Reel", "Natural Shubix voices"] },
-    { id: "creator", name: "Creator", monthly: 499, credits: 80, creditsNote: "every month", tagline: "For creators posting every week", highlight: true, features: ["80 credits a month", "~8 Story Reels or 80 clip Reels", "Full-HD export", "Natural Shubix voices", "Post to Instagram, TikTok, YouTube"] },
-    { id: "pro", name: "Pro", monthly: 1299, credits: 250, creditsNote: "every month", tagline: "For daily posting and small brands", highlight: false, features: ["250 credits a month", "~25 Story Reels", "Everything in Creator", "Schedule posts", "Brand kit (logo, colours, fonts)"] },
-    { id: "business", name: "Business", monthly: 2999, credits: 650, creditsNote: "every month", tagline: "For agencies and teams", highlight: false, features: ["650 credits a month", "~65 Story Reels", "Everything in Pro", "Several brands", "Email support"] },
+    { id: "free", name: "Free", monthly: 0, credits: 15, creditsNote: "once, to try everything", tagline: "Try every feature", highlight: false, features: ["Full editor: keyframes, green screen, overlays, sound effects", "Music, Talking, Photo and Story Reels", "15 AI credits to start", "1080p export with a small watermark"] },
+    { id: "creator", name: "Creator", monthly: 499, credits: 80, creditsNote: "every month", tagline: "For creators posting every week", highlight: true, features: ["Everything in Free", "No watermark, 60 fps", "All 👑 effects, transitions, filters and fonts", "Beauty, stabilize, speed curve, text that follows people", "80 credits a month for AI edits"] },
+    { id: "pro", name: "Pro", monthly: 1299, credits: 250, creditsNote: "every month", tagline: "For daily posting and small brands", highlight: false, features: ["Everything in Creator", "4K export", "250 credits a month", "Saved styles and brand kit", "Schedule posts"] },
+    { id: "business", name: "Business", monthly: 2999, credits: 650, creditsNote: "every month", tagline: "For agencies and teams", highlight: false, features: ["Everything in Pro", "650 credits a month", "Several brands", "Priority email support"] },
   ],
   topUps: [{ id: "topup_30", credits: 30, price: 199 }, { id: "topup_100", credits: 100, price: 599 }],
   costs: { clip_reel: 1, version: 1, story_render: 2, ai_picture: 1, paid_picture: 3, preview: 0, studio_ai: 0, studio_captions: 0, studio_ref_look: 0 } as Record<string, number>,

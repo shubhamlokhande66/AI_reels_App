@@ -90,6 +90,8 @@ export const DirectIn = z.object({
   reference: Reference.optional(),
   /** the tools used in the creator's last Reels (most used first): this one should feel new */
   recent: z.array(z.string().max(24)).max(LIMITS.recent).default([]),
+  /** what this person's plan opens (the studio refuses the rest): the AI picks from these */
+  allowed: z.object({ fx: z.array(z.string().max(24)).max(80), tr: z.array(z.string().max(24)).max(80) }).optional(),
   /** 0 = the plan; 1-4 = that many different alternative plans for the same cuts (New mix) */
   variants: z.number().int().min(0).max(MAX_VARIANTS).default(0),
   slots: z.array(z.object({
@@ -173,7 +175,7 @@ ${d.recent.length ? `Used in this creator's last Reels (make this one feel diffe
     ...(s.music ? { music: s.music } : {}),
     candidates: s.candidates.map((c) => ({ id: c.id, clip: c.clip, at: +c.at.toFixed(1), score: +c.score.toFixed(2), note: clean(c.note, 60), roles: c.roles, motion: c.motion, people: c.people, camera: c.camera })) })))}
 ${GUIDE}
-Allowed transitions: ${TRANSITIONS.join(", ")}. Allowed effects: ${EFFECTS.join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
+Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
 Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>"} with one entry for every cut.`;
 }
 

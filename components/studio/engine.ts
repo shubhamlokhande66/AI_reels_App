@@ -10,6 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
+import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '../../lib/plan-locks';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 
@@ -23,6 +24,26 @@ let exporting = false;
 // the Shubix watermark on exported Reels (bottom right). Removing it ("Remove Watermark" in the export sheet) is for paid
 // plans (and the administrator): wmPaid comes from the server when the sheet opens; until then the watermark stays
 let wmOff = false, wmPaid = false;
+/* ---- plans: what this person's plan unlocks (lib/plan-locks.ts, changed by the administrator). Kept on the phone for 7
+ * days, so a Reel made offline follows the plan seen last; with no plan known yet, the free plan's rules. Billing off
+ * (or the administrator): everything is open. A crowned item can be tried in the preview; the export asks. ---- */
+const PLAN_KEY = 'brs-plan';
+let planNow = 'free', planOpen = false, LOCKS = needMap(DEFAULT_LOCKS), EXR = DEFAULT_LOCKS.export;
+try{ const c = JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); if(c && Date.now() - c.at < 7*864e5){ planNow = c.plan; planOpen = !!c.open; if(c.need) LOCKS = c.need; if(c.ex) EXR = c.ex; } }catch(e){}
+const lockNeed = (cat, key) => LOCKS[cat + ':' + key] || 'free';
+const isLocked = (cat, key) => !planOpen && !root.classList.contains('admin') && planRank(lockNeed(cat, key)) > planRank(planNow);
+const crown = (cat, key, name) => (isLocked(cat, key) ? '👑 ' : '') + name;
+const exRule = () => planOpen || root.classList.contains('admin') ? { maxRes: '4k', fps60: true, noWatermark: true } : (EXR[planNow] || EXR.free);
+function planLoad(){
+  Promise.all([fetch('/api/plan-locks').then(r => r.ok ? r.json() : null).catch(() => null), fetch('/api/credits', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).catch(() => null)]).then(([L, c]) => {
+    if(L && L.groups){ LOCKS = needMap(L); EXR = L.export || EXR; }
+    if(c){ planOpen = !c.enabled; planNow = c.enabled && c.plan ? c.plan : planNow; }
+    try{ localStorage.setItem(PLAN_KEY, JSON.stringify({ at: Date.now(), plan: planNow, open: planOpen, need: LOCKS, ex: EXR })); }catch(e){}
+    queueMicrotask(() => { try{ planPaint(); if(!$('xsheet').hidden) sheetPaint(); }catch(e){} });
+  });
+}
+planLoad();
+const crownMap = (cat, M) => Object.fromEntries(Object.entries(M).map(([k, v]) => [k, crown(cat, k, v)]));
 const wmImg = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: '/brand/shubix-logo-sm.webp' }) : null;
 const texOf = (e, local) => exporting ? (e.fc || e.fcLast) : e.rc && e.cs && e.cs.rev && local !== undefined ? revFrame(e, local) : e.el;
 const fmt = t => { t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(2); };
@@ -1460,8 +1481,8 @@ function rampSpeed(len){ const sp = 0.45*len;   // fast, then slow into the next
   return {label:'Ramp 1.8×→0.6×', at:l=> l<sp ? 1.8 : 0.6, pos:l=> l<sp ? 1.8*l : 1.8*sp + 0.6*(l-sp)}; }
 function styleEdit(){
   // pros mostly hard-cut; special transitions go on hits, drops and section changes, never twice in a row
-  const HIT_TR = ['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'];
-  const CUT_TR = ['hard','wipe','hard','iris','slideleft','hard','bars','blur','hard','luma','doors'];
+  const HIT_TR = ['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'].filter(k => !isLocked('tr', k));   // only what the plan opens
+  const CUT_TR = ['hard','wipe','hard','iris','slideleft','hard','bars','blur','hard','luma','doors'].filter(k => k === 'hard' || !isLocked('tr', k));
   const HIT_FX = ['punch','tilt','punch','shake'];
   let lastTr = '', hk = 0, ck = 0, fk = 0, dk = 0;
   const beatsRel = (s) => beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
@@ -1469,7 +1490,7 @@ function styleEdit(){
   const per = Math.max(1, buf.duration/30), budget = {snap:Math.round(2*per), whip:Math.round(2*per), spin:Math.round(1*per), glitch:Math.round(2*per), bars:Math.round(2*per), iris:Math.round(3*per), zoom:Math.round(3*per), wipe:Math.round(2*per), dissolve:Math.round(2*per)};
   const take = k => { if(budget[k]===undefined) return k; if(budget[k]>0){ budget[k]--; return k; } return 'hard'; };
   // beat shapes on a few longer shots and some drops: a different set and order with each seed / mix, never one twice in a row
-  const SH_ROT = ['boxgrow','frame','grid','circle','strips','triple','heartbeat','starbeat'], SH_DROP = ['kaleido','strobe','triple','rgbpulse','mirror','vhs'];
+  const SH_ROT = ['boxgrow','frame','grid','circle','strips','triple','heartbeat','starbeat'].filter(k => !isLocked('fx', k)), SH_DROP = ['kaleido','strobe','triple','rgbpulse','mirror','vhs'].filter(k => !isLocked('fx', k));
   const shOff = ((seed||1)*5 + mixNo*3) % SH_ROT.length; let shLeft = Math.max(1, Math.round(2*per)), shK = 0, lastSh = '';
   plan.forEach((s,i)=>{
     const len = s.end - s.start, next = plan[i+1], prev = plan[i-1];
@@ -1500,10 +1521,10 @@ function styleEdit(){
       if(fx==='none' || fx==='bounce' || fx==='punch-soft') fx = len<0.3 ? 'shake' : HIT_FX[fk++ % HIT_FX.length];
       if(sp===SPEED.normal){ const bl = beatsRel(s); if(len>0.9) sp = bl.length ? velocitySpeed(len, bl) : rampSpeed(len); else if(len<0.45) sp = SPEED.fast; }
     }
-    if(i > 0 && shLeft > 0 && len >= (mode==='smooth' ? 1.8 : 1.2) && beatsRel(s).length >= 2 && s.type !== 'drop' && ['pan','bounce','none','pan-soft'].includes(fx)){
+    if(i > 0 && shLeft > 0 && SH_ROT.length && len >= (mode==='smooth' ? 1.8 : 1.2) && beatsRel(s).length >= 2 && s.type !== 'drop' && ['pan','bounce','none','pan-soft'].includes(fx)){
       let k = mode==='smooth' ? ['frame','circle'][shK++ % 2] : SH_ROT[(shOff + shK++) % SH_ROT.length]; if(k === lastSh) k = SH_ROT[(shOff + shK++) % SH_ROT.length];
       fx = k; shLeft--; lastSh = k; }
-    else if(s.type === 'drop' && mode !== 'smooth' && dk % 3 === 0 && fx === 'zoomburst' && len >= 0.8){ fx = SH_DROP[(shOff + dk) % SH_DROP.length]; lastSh = fx; }
+    else if(s.type === 'drop' && SH_DROP.length && mode !== 'smooth' && dk % 3 === 0 && fx === 'zoomburst' && len >= 0.8){ fx = SH_DROP[(shOff + dk) % SH_DROP.length]; lastSh = fx; }
     s.tr = tr; s.efx = fx; s.sp = sp; lastTr = tr;
   });
   if(mode==='copy' && refProfile) copyStyle();
@@ -1701,12 +1722,12 @@ function applyDirectorStyle(){
     // The AI is free: any known tool in any style. Only what cannot be played is refused (the opener has nothing
     // before it to transition from; a freeze needs a moment to hold; a speed on the beats needs beats).
     if(d.tr){ asked++; const tr = d.tr;
-      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR;
+      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR && !isLocked('tr', tr);
       if(ok){ s.tr = tr; s.trByDir = true; used++; } else fixed++;
     }
     // effect: "hook" is the opener's own; a slow move needs time; the photo snap needs a moment to freeze
     if(d.fx){ asked++; const fx = d.fx;
-      let ok = fx in FX_NAME;
+      let ok = fx in FX_NAME && !isLocked('fx', fx);
       if(fx==='snap' && len <= 0.7) ok = false;
       if(ok){ s.efx = fx; s.fxByDir = true; used++; } else fixed++;
     }
@@ -1820,6 +1841,7 @@ function dirRequest(cands){
   const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
     clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
     recent: recentTools(),
+    allowed: { fx: Object.keys(FX_NAME).filter(k => !isLocked('fx', k)), tr: Object.keys(TR_DUR).filter(k => !isLocked('tr', k)) },
     budget: mode === 'copy' && copyBudget ? copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
     slots: plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
       ...(music[i] ? { music: music[i] } : {}),
@@ -2343,7 +2365,7 @@ function shotOp(op, arg){
   return false;
 }
 // the current shot's clip settings: read, change (a patch; null resets them all)
-function shotCs(){ return edit.length && kind !== 'talk' ? { ...csOf(edit[segAt(pos)]), i: segAt(pos) } : null; }
+function shotCs(){ return edit.length && kind !== 'talk' ? { ...csOf(edit[segAt(pos)]), i: segAt(pos), crown: ['beauty','curve','stab'].filter(k => isLocked('tool', k)) } : null; }
 function shotSet(patch){
   if(!edit.length || kind === 'talk' || exporting || recording) return;
   const e = edit[segAt(pos)]; e.cs = patch === null ? undefined : { ...(e.cs || {}), ...patch };
@@ -2441,8 +2463,8 @@ function renderEDL(keepScroll){
     const rb = document.createElement('button'); rb.className='mini'; rb.textContent='↻ other moment'; rb.title='Use a different moment here (never a repeat)';
     rb.addEventListener('click', ev=>{ ev.stopPropagation(); stopAll(); if(repick(i, true)){ renderEDL(true); showShot(i); } else showMsg('No unused footage left for this shot. Add more clips.', true); });
     cc.appendChild(document.createElement('br')); cc.appendChild(rb);
-    tr.children[3].appendChild(sel(TR_NAME, e.tr, v=>{ noteEdit(e.type, 'tr', e.tr, v, e.trByDir); e.tr=v; e.trByDir=false; changed(i,false); }));
-    const fxc = tr.children[4]; fxc.appendChild(sel(FX_NAME, e.efx, v=>{ noteEdit(e.type, 'efx', e.efx, v, e.fxByDir); e.efx=v; e.fxByDir=false; if(v==='snap'){ e.sp=snapSpeed; changed(i,true); } else { if(e.sp===snapSpeed) e.sp=SPEED.normal; changed(i,true); } }));
+    tr.children[3].appendChild(sel(crownMap('tr', TR_NAME), e.tr, v=>{ noteEdit(e.type, 'tr', e.tr, v, e.trByDir); e.tr=v; e.trByDir=false; changed(i,false); }));
+    const fxc = tr.children[4]; fxc.appendChild(sel(crownMap('fx', FX_NAME), e.efx, v=>{ noteEdit(e.type, 'efx', e.efx, v, e.fxByDir); e.efx=v; e.fxByDir=false; if(v==='snap'){ e.sp=snapSpeed; changed(i,true); } else { if(e.sp===snapSpeed) e.sp=SPEED.normal; changed(i,true); } }));
     fxc.insertAdjacentHTML('beforeend', kfSummary(e));
     tr.children[5].appendChild(sel(SPEED_KEYS, speedKey(e.sp), v=>{ noteEdit(e.type, 'sp', speedKey(e.sp), v, e.dirWhy && aiOn); e.sp = speedFor(v, e); changed(i,true); }));
     tr.addEventListener('click', ()=>{ if(playing) startPlayback(e.start); else showShot(i); });
@@ -3041,17 +3063,17 @@ function renderOvList(){
       <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><select class="ovl" aria-label="Keeps moving"></select><span class="ovc"></span>
       <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
       <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
-    const tk = row.querySelector('.ovtrk'); tk.checked = !!ov.track; tk.addEventListener('change', () => { ov.track = tk.checked; if(tk.checked){ ov.x = 0.5; ov.y = ov.emoji ? 0.38 : 0.32; } redraw(); });
+    const tk = row.querySelector('.ovtrk'); tk.checked = !!ov.track; if(isLocked('tool', 'track')) tk.parentElement.lastChild.textContent = ' 👑 Follow the person'; tk.addEventListener('change', () => { ov.track = tk.checked; if(tk.checked){ ov.x = 0.5; ov.y = ov.emoji ? 0.38 : 0.32; } redraw(); });
     const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
     ti.addEventListener('input', () => { ov.text = ti.value; redraw(); });
     const ss = row.querySelector('.ovs'), sa = row.querySelector('.ova');
     if(ov.emoji) ss.hidden = true;
-    Object.entries(OV_STYLES).forEach(([k, v]) => ss.add(new Option(v, k, false, k === ov.style)));
+    Object.entries(OV_STYLES).forEach(([k, v]) => ss.add(new Option(crown('text', k, v), k, false, k === ov.style)));
     Object.entries(OV_ANIMS).forEach(([k, v]) => sa.add(new Option(v, k, false, k === ov.anim)));
     ss.addEventListener('change', () => { ov.style = ss.value; redraw(); }); sa.addEventListener('change', () => { ov.anim = sa.value; redraw(); });
     const sl = row.querySelector('.ovl'); Object.entries(OV_LOOPS).forEach(([k, v]) => sl.add(new Option(v, k, false, k === (ov.loop || 'none')))); sl.addEventListener('change', () => { ov.loop = sl.value === 'none' ? undefined : sl.value; redraw(); });
     const sf = row.querySelector('.ovf'); if(ov.emoji) sf.hidden = true;
-    Object.entries(OV_FONTS).forEach(([k, v]) => sf.add(new Option(v[0], k, false, k === (ov.font || 'auto'))));
+    Object.entries(OV_FONTS).forEach(([k, v]) => sf.add(new Option(crown('font', k, v[0]), k, false, k === (ov.font || 'auto'))));
     sf.addEventListener('change', () => { ov.font = sf.value === 'auto' ? undefined : sf.value; loadFont(sf.value).then(redraw); redraw(); });
     const cs = row.querySelector('.ovc'); if(ov.emoji) cs.hidden = true;
     OV_COLORS.forEach(c => { const b2 = document.createElement('button'); b2.className = 'sw' + (c === ov.color ? ' on' : ''); b2.style.background = c; b2.title = c; b2.setAttribute('aria-label', 'Colour ' + c);
@@ -4289,12 +4311,52 @@ try{ const v = JSON.parse(localStorage.getItem('studio-export') || 'null'); if(v
 wmOff = false;   // set from the person's plan when the sheet opens (sheetOpen)
 let can4k = null, cloudInfo = null;
 function exportDims(){ const [W0,H0] = SIZES[aspect], k = XQ[xq.res].scale; return [Math.round(W0*k/2)*2, Math.round(H0*k/2)*2]; }
+function planPaint(){
+  const lb = $('look'); if(lb) for(const b of lb.querySelectorAll('[data-l]')){ const k = b.dataset.l, on = isLocked('look', k); b.classList.toggle('crowned', on); b.title = on ? PLAN_NAME[lockNeed('look', k)] + ' filter: try it, export asks' : ''; }
+  if(edit.length){ renderEDL(true); renderOvList(); }
+}
+// what in this Reel needs a higher plan, each with how to take it out
+function lockedUsed(){
+  const out = [], add = (cat, key, name, fix) => { if(isLocked(cat, key)) out.push({ need: lockNeed(cat, key), name, fix }); };
+  for(const e of edit){
+    if(e.tr && e.tr !== 'hard') add('tr', e.tr, TR_NAME[e.tr] || e.tr, () => { e.tr = 'dissolve'; });
+    if(e.efx && e.efx !== 'none') add('fx', e.efx, FX_NAME[e.efx] || e.efx, () => { e.efx = 'none'; e.kf = keyframesFor(e); });
+    const c = e.cs || {};
+    if(c.beauty) add('tool', 'beauty', 'Beauty', () => { delete e.cs.beauty; });
+    if(c.stab) add('tool', 'stab', 'Stabilize', () => { delete e.cs.stab; });
+    if(c.curve) add('tool', 'curve', 'Speed curve', () => { delete e.cs.curve; e.sp = SPEED.normal; });
+  }
+  add('look', look, (LOOKS[look] || {}).name || look, () => { const b = $('look').querySelector('[data-l="vivid"]'); if(b) b.click(); });
+  for(const o of overlays){ if(o.font) add('font', o.font, 'Font ' + ((OV_FONTS[o.font] || [])[0] || o.font), () => { o.font = undefined; });
+    if(!o.emoji) add('text', o.style, 'Text style ' + (OV_STYLES[o.style] || o.style), () => { o.style = 'bold'; });
+    if(o.track) add('tool', 'track', 'Text follows the person', () => { o.track = false; }); }
+  const R = exRule(), rk = { '720': 0, '1080': 1, '4k': 2 };
+  if(rk[xq.res] > rk[R.maxRes]) out.push({ need: xq.res === '4k' ? 'pro' : 'creator', name: XQ[xq.res].label + ' quality', fix: () => { xq.res = R.maxRes; } });
+  if(xq.fps === 60 && !R.fps60) out.push({ need: 'creator', name: '60 fps', fix: () => { xq.fps = 30; } });
+  const seen = new Set(); return out.filter(x => !seen.has(x.name) && seen.add(x.name));
+}
+// the export's question when the Reel uses crowned items: upgrade, or take them out and export
+function planGate(list){
+  return new Promise(res => {
+    const top = list.reduce((a, x) => planRank(x.need) > planRank(a) ? x.need : a, 'creator');
+    const d = document.createElement('div'); d.className = 'askbg';
+    d.innerHTML = '<div class="ask" role="alertdialog" aria-modal="true"><p class="gt"></p><ul class="gl"></ul><div class="askrow"><button type="button" class="btn">Cancel</button><button type="button" class="btn">Take them out</button><a class="btn gold" href="/pricing">See plans</a></div></div>';
+    d.querySelector('.gt').textContent = '👑 This Reel uses ' + PLAN_NAME[top] + ' features. Upgrade to export it as it is, or take them out and export now.';
+    const ul = d.querySelector('.gl'); for(const x of list.slice(0, 8)){ const li = document.createElement('li'); li.textContent = x.name + ' · ' + PLAN_NAME[x.need]; ul.appendChild(li); }
+    const [no, fix] = d.querySelectorAll('button'), done = v => { d.remove(); res(v); };
+    no.onclick = () => done(false); fix.onclick = () => { list.forEach(x => x.fix()); done(true); }; d.onclick = e => { if(e.target === d) done(false); };
+    root.appendChild(d); fix.focus();
+  });
+}
 function sheetPaint(){
   [...$('xres').children].forEach(b => { b.setAttribute('aria-pressed', b.dataset.r === xq.res); if(b.dataset.r === '4k'){ b.disabled = can4k === false; b.title = can4k === false ? 'This phone cannot make 4K videos' : ''; } });
   [...$('xfps').children].forEach(b => b.setAttribute('aria-pressed', +b.dataset.f === xq.fps));
   const [W, H] = exportDims(), dur = buf ? buf.duration : 0, mb = (XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1) + 256e3) * dur / 8 / 1e6;
   $('xsize').textContent = W + ' × ' + H + ' · ' + xq.fps + ' fps · up to ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
   // Remove Watermark, and Save to My Reels (when the account has My Reels); "Export to phone" does what they say
+  wmPaid = exRule().noWatermark; const R = exRule();
+  for(const b of $('xres').children) b.classList.toggle('crowned', { '720': 0, '1080': 1, '4k': 2 }[b.dataset.r] > { '720': 0, '1080': 1, '4k': 2 }[R.maxRes]);
+  for(const b of $('xfps').children) b.classList.toggle('crowned', b.dataset.f === '60' && !R.fps60);
   $('xwm').disabled = !wmPaid; $('xwm').checked = wmPaid && xq.nowm; $('xwmpro').hidden = wmPaid;
   wmOff = wmPaid && xq.nowm;
   const cb = $('xgocloud'), note = $('xcloudnote'), my = $('xmy');
@@ -4315,7 +4377,7 @@ function sheetOpen(open){
     .then(c => { can4k = !!c; if(!can4k && xq.res === '4k') xq.res = '1080'; sheetPaint(); }, () => { can4k = false; sheetPaint(); });
   if(cloud) cloud.usage().then(u => { cloudInfo = u; sheetPaint(); }, () => {});
   // a paid plan (or the administrator) may remove the watermark
-  fetch('/api/credits', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(c => { wmPaid = !!(c && c.enabled && c.plan && c.plan !== 'free') || root.classList.contains('admin'); sheetPaint(); }, () => { wmPaid = root.classList.contains('admin'); sheetPaint(); });
+  planLoad();   // the plan's rules (watermark, quality) are read again; sheetPaint follows
 }
 const sheetPick = () => { try{ localStorage.setItem('studio-export', JSON.stringify(xq)); }catch(e){} sheetPaint(); };
 $('xres').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || b.disabled) return; xq.res = b.dataset.r; sheetPick(); }, SIG);
@@ -4325,8 +4387,10 @@ $('xsheet').addEventListener('click', e => { if(e.target === $('xsheet')) sheetO
 addEventListener('keydown', e => { if(e.key === 'Escape' && !$('xsheet').hidden) sheetOpen(false); }, SIG);
 $('xwm').addEventListener('change', e => { if(!wmPaid){ e.target.checked = false; return; } xq.nowm = e.target.checked; wmOff = xq.nowm; sheetPick(); }, SIG);
 $('xmy').addEventListener('change', e => { xq.my = e.target.checked; sheetPick(); }, SIG);
-$('xgo').addEventListener('click', () => { wmOff = wmPaid && xq.nowm; sheetOpen(false); runExport(!!cloudInfo && cloudInfo.used < cloudInfo.limit && xq.my); }, SIG);
-$('xgocloud').addEventListener('click', () => { sheetOpen(false); runExport(true); }, SIG);
+$('xgo').addEventListener('click', async () => { const L = lockedUsed(); if(L.length){ if(!(await planGate(L))) return; renderEDL(true); renderOvList(); sheetPaint(); }
+  wmOff = wmPaid && xq.nowm; sheetOpen(false); runExport(!!cloudInfo && cloudInfo.used < cloudInfo.limit && xq.my); }, SIG);
+$('xgocloud').addEventListener('click', async () => { const L = lockedUsed(); if(L.length){ if(!(await planGate(L))) return; renderEDL(true); renderOvList(); }
+  sheetOpen(false); runExport(true); }, SIG);
 $('export').onclick = () => { if(recording || exportBusy) return; sheetOpen(true); };
 
 async function saveToMyReels(blob){
