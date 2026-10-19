@@ -1,13 +1,12 @@
 # Deploying to Cloudflare (Workers + Containers + R2)
 
-The whole app (website, API, FFmpeg, analysis, rendering) runs in **one Cloudflare Container**, built from
+The whole app (website, API, FFmpeg) runs in **one Cloudflare Container**, built from
 `docker/Dockerfile`. A small Worker (`cloudflare/`) sends every request to it. Uploads and Reels are kept in an **R2 bucket**,
 mounted inside the container at `/data/storage` (the container's own disk is temporary). The database is your MongoDB
 (Atlas).
 
 ```
 browser ──> Worker (cloudflare/src/index.ts) ──> app container (Next.js + FFmpeg) ──> R2 bucket (mounted) + MongoDB Atlas
-                cron, hourly ──> /api/cron (auto-delete, scheduled posts)
 ```
 
 ## 1. What you need
@@ -18,7 +17,7 @@ browser ──> Worker (cloudflare/src/index.ts) ──> app container (Next.js 
   database password.
 
 ## 2. Settings
-Edit `cloudflare/wrangler.jsonc` → `vars`: `R2_BUCKET`, `R2_ACCOUNT_ID`, `PUBLIC_BASE_URL`, `KEEP_ALIVE_URL` (your
+Edit `cloudflare/wrangler.jsonc` → `vars`: `R2_BUCKET`, `R2_ACCOUNT_ID`, `PUBLIC_BASE_URL` (your
 address, e.g. `https://reel-maker.<your-subdomain>.workers.dev`), `AI_PROVIDER`.
 
 Then store the secrets once (they are encrypted in Cloudflare and passed to the app; never put them in a file):
@@ -29,7 +28,6 @@ npx wrangler login
 npx wrangler secret put MONGODB_URI
 npx wrangler secret put SECRET_KEY            # a long random string (openssl rand -base64 48)
 npx wrangler secret put ADMIN_KEY             # another long random string: unlocks /admin
-npx wrangler secret put CRON_SECRET           # another long random string: protects /api/cron
 npx wrangler secret put R2_ACCESS_KEY_ID
 npx wrangler secret put R2_SECRET_ACCESS_KEY
 npx wrangler secret put OPENAI_API_KEY        # and/or GEMINI_API_KEY, SMTP_PASSWORD, RAZORPAY_KEY_SECRET ...
@@ -47,27 +45,17 @@ Building the container image needs Docker. Either:
 Open the address it prints, create the first account, then `/admin` with `ADMIN_KEY`.
 
 ## 4. How it behaves
-- **One container** (2 vCPU, 8 GB: `instance_type` in `wrangler.jsonc`). The job queue is in MongoDB, not in the
-  container: a job waits there with its whole input, the container takes waiting jobs one at a time (`MAX_CONCURRENT_JOBS`),
-  and a job interrupted by a restart or deploy is queued again once (then failed, credits refunded). People see their place
-  in line while they wait. This is the base for extra render containers (`APP_ROLE=worker`), not set up yet. It **sleeps**
-  30 seconds after the last request (`SLEEP_AFTER`; an upload or download in progress counts) and wakes on the next one: the **first request after a sleep takes
-  some seconds** (the container starts and mounts R2). While a Reel is being made, the app pings itself so it stays awake.
+- **Reels are made on the phone**: every Music, Talking and Photo Reel and Story Maker Reel is edited and exported in
+  the browser. The container serves the site and the API (accounts, credits, payments, the AI director, captions,
+  Brands, Voice profiles, My trends) and keeps the Reels people save to **My Reels**.
+- **One container** (`instance_type` in `wrangler.jsonc`). It **sleeps** 30 seconds after the last request
+  (`SLEEP_AFTER`; an upload or download in progress counts) and wakes on the next one: the **first request after a
+  sleep takes some seconds** (the container starts and mounts R2).
 - **Cost**: you pay for the time the container is awake (CPU, memory, disk) beyond what the Workers Paid plan includes.
-  The hourly cron wakes it briefly; make the cron rarer (or remove it) in `wrangler.jsonc` to save more.
-  Scheduled posts are published when the app is awake: at the latest by the next cron run.
-- **Uploads**: clips go **from the browser straight into R2** in parallel 8 MB parts (each retried on its own); they never
-  pass through the Worker or the container, so its 100 MB request limit does not apply (`MAX_DIRECT_VIDEO_SIZE_MB`,
-  default 4096). Before that the browser shrinks 4K or very high-bitrate footage to 1080p (a Reel is 1080x1920), which
-  makes such a clip several times smaller. Then the container joins the parts, reads the clip once onto its own disk
-  and checks it. Songs, photos and reference Reels still go through the Worker (at most **95 MB**, `MAX_VIDEO_SIZE_MB`).
-  `DIRECT_UPLOADS=off` sends clips through the Worker as well.
-- **Clip analysis on the phone**: while a clip uploads, the browser measures it (light, sharpness, motion, shake, faces,
-  best moments) with the server's own analysis code (`server/video/clipAnalysisCore.ts`, OpenCV in WebAssembly, in a
-  background thread) and sends the result; the container checks it is for that file and skips its own analysis. A
-  browser that cannot do it (no WebCodecs) leaves the clip to the container, as before. The first clip loads about
-  10 MB of OpenCV once (cached afterwards).
-- **R2 setup for direct uploads (once)**: R2 → your bucket → Settings →
+- **My Reels uploads**: a saved Reel goes **from the browser straight into R2** in parallel parts; it never passes
+  through the Worker or the container, so the 100 MB request limit does not apply. Trend videos and brand logos go
+  through the Worker (at most **95 MB**).
+- **R2 setup for My Reels (once)**: R2 → your bucket → Settings →
   - **CORS policy** (the browser may PUT parts, and must see each part's ETag):
     ```json
     [{ "AllowedOrigins": ["https://reel-maker.<your-subdomain>.workers.dev"], "AllowedMethods": ["PUT"],
@@ -75,9 +63,5 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
     ```
     (add your own domain too if the app has one). Without `ExposeHeaders: ETag` an upload stops with a clear message.
   - **Object lifecycle rule**: *Abort incomplete multipart uploads* after 1 day (parts of uploads someone abandoned).
-- **Storage**: everything under `STORAGE_PATH` is in R2; render work happens on the container's local disk
-  (`SCRATCH_PATH`) and the finished file is copied into R2 (in the background: the app keeps answering meanwhile).
-  Analysis and renders read clips and songs from local copies on the container's disk (`MEDIA_CACHE_GB`), fetched from
-  R2 once, not through the mounted folder. A deploy or restart interrupts a running job (it is marked
-  failed with a clear message; press Retry).
+- **Storage**: everything under `STORAGE_PATH` is in R2.
 - **Logs**: Cloudflare dashboard → Workers → reel-maker → Logs (observability is on).

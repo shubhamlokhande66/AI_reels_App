@@ -6,7 +6,7 @@ import { z } from "zod";
 import { settings } from "@/server/core/config";
 import { db } from "@/server/core/db";
 import { localPath } from "@/server/storage/local";
-import { getTask } from "./types";
+import { getTask, TASKS } from "./types";
 
 /** The AI configuration in effect (.env + what the person saved in Settings; was ai/ai_config.py, model_choice.py),
  * prices (pricing.py), and the usage log with budgets (usage.py). API keys are never saved or logged. */
@@ -65,7 +65,7 @@ export function effective(saved: SavedAIConfig = loadSaved()): EffectiveAIConfig
     fallbackEnabled: saved.fallbackEnabled ?? settings.aiFallbackEnabled, fallbackProvider: norm(saved.fallbackProvider) || norm(settings.aiFallbackProvider),
     models: { ollama: pick("ollama", getChosenModel() || settings.ollamaModel, settings.ollamaVisionModel), openai: pick("openai", settings.openaiTextModel, settings.openaiVisionModel),
       gemini: pick("gemini", settings.geminiTextModel, settings.geminiVisionModel), claude: pick("claude", settings.claudeTextModel, settings.claudeVisionModel) },
-    taskProviders: Object.fromEntries(Object.entries(saved.taskProviders).map(([k, v]) => [k, norm(v)]).filter(([, v]) => (PROVIDERS as readonly string[]).includes(v))),
+    taskProviders: Object.fromEntries(Object.entries(saved.taskProviders).map(([k, v]) => [k, norm(v)]).filter(([k, v]) => k in TASKS && (PROVIDERS as readonly string[]).includes(v))), // a task the app no longer has is dropped
     dailyBudget: saved.dailyBudget ?? settings.dailyAiBudget, monthlyBudget: saved.monthlyBudget ?? settings.monthlyAiBudget, budgetOverride: saved.budgetOverride,
   };
 }

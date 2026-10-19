@@ -1,6 +1,6 @@
 /** The Fast Studio page body (ids are what components/studio/engine.ts wires up). Everything runs in the browser.
  *
- * Three views of the same Reel (the .brs root carries v-simple / v-editor / v-pro, set by app/studio/page.tsx):
+ * Three views of the same Reel (the .brs root carries v-simple / v-editor / v-pro, set by components/studio/views.ts):
  * - Simple: the steps, then the preview, a few big cards that open one panel each, and a "Save video" bar.
  * - Editor: the song and clips fold into one line each; the preview, the timeline strip and a tool dock that shows one
  *   panel at a time (shots, music, text, captions, look, motion, background, voice, style).
@@ -62,7 +62,7 @@ const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; ret
 
 export const STUDIO_HTML = `
 <div class="topbar" id="topbar">
-  <div class="tb-title"><span class="tb-name" id="tbname">Fast Studio</span><span class="tb-sub" id="psaved"></span></div>
+  <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
   <div class="views" id="views" role="group" aria-label="View">
     <button type="button" data-view="simple" aria-pressed="true">Simple</button><button type="button" data-view="editor" aria-pressed="false">Editor</button><button type="button" data-view="pro" aria-pressed="false">Pro</button>
   </div>
@@ -86,25 +86,9 @@ export const STUDIO_HTML = `
     <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}AI edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
     <button type="button" class="btn primary big fgo" data-fnext="1">Let's Start ${IC.arrow}</button>
   </section>
-  <header class="hero">
-    <div class="hero-t"><h1>What are we making today?</h1>
-    <p class="sub">Your song and clips become a Reel in seconds, on this device. Nothing is uploaded.</p></div>
-    <button class="btn ink hero-new" id="pnew" type="button">${IC.plus}New Reel</button>
-  </header>
-
-  <div class="homerow">
-    <div class="projects" id="projects" hidden>
-      <div class="hrow"><h2>Continue editing</h2><a href="/projects">All projects</a></div>
-      <div class="plist" id="plist"></div>
-    </div>
-    <aside class="stylelib" id="stylelib" hidden>
-      <div class="hrow"><h2>Your style library</h2><a href="/studio?view=pro&amp;tool=style">Manage</a></div>
-      <div class="slist" id="slist"></div>
-      <button type="button" class="teach" id="teach">+ Teach a new style from a Reel</button>
-    </aside>
-  </div>
-
-  <section class="step starts" id="s0">
+  <!-- the kind and the template, pressed by the address (/create/music|talking|photo, /create/story, ?tpl=): never
+       shown (each kind has its own page now); the engine, steps.ts and auto.ts read and press these buttons -->
+  <section class="step starts" id="s0" hidden>
     <div class="sh3"><span class="num">1</span><h2>What are we making?</h2><span class="st" id="s0st">Choose one to start</span></div>
     <div class="sbody">
     <div class="makegrid">
@@ -458,7 +442,7 @@ export const STUDIO_HTML = `
     <p class="xsh-l">Frame rate</p>
     <div class="seg" id="xfps" role="group" aria-label="Frame rate"><button type="button" data-f="30" aria-pressed="true">30 fps</button><button type="button" data-f="60">60 fps</button></div>
     <p class="xsh-size" id="xsize"></p>
-    <label class="xtog"><span class="xti">${I('<path d="M4 7h16M4 12h10M4 17h7"/><path d="M15 15l5 5M20 15l-5 5"/>')}</span><span class="xtt">Remove Watermark</span><input type="checkbox" id="xwm" role="switch"><i aria-hidden="true"></i></label>
+    <label class="xtog"><span class="xti">${I('<path d="M4 7h16M4 12h10M4 17h7"/><path d="M15 15l5 5M20 15l-5 5"/>')}</span><span class="xtt">Remove Watermark <a class="xpro" id="xwmpro" href="/pricing" title="Paid plans can remove the watermark">Pro</a></span><input type="checkbox" id="xwm" role="switch"><i aria-hidden="true"></i></label>
     <label class="xtog" id="xmyrow" hidden><span class="xti">${I('<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor"/>')}</span><span class="xtt">Save to My Reels</span><input type="checkbox" id="xmy" role="switch" checked><i aria-hidden="true"></i></label>
     <button type="button" class="btn save big" id="xgo">${IC.save}<span>Export to phone</span></button>
     <button type="button" class="btn big" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>

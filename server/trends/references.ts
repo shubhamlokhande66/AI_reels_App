@@ -6,26 +6,22 @@ import path from "node:path";
 import { ObjectId } from "mongodb";
 import { z } from "zod";
 import { getProvider } from "@/server/ai";
-import { Text } from "@/server/ai/director";
+import { Text } from "@/server/ai/text";
 import { analyzeAudio } from "@/server/audio/analyzer";
 import { db, parseId } from "@/server/core/db";
 import { AppError, NotFoundError, UnsupportedMedia, ValidationFailed } from "@/server/core/errors";
 import { findBinary, probe, renderFfmpeg, run } from "@/server/core/ffmpeg";
 import { round } from "@/server/core/py";
-import { forAi } from "@/server/director/learned";
 import { buildMusicMap, loudLimit, snapPoints } from "@/server/director/musicMap";
 import { sanitizeFilename, VIDEO_EXTS } from "@/server/media/service";
 import { readUpload, type UploadedFile } from "@/server/media/upload";
 import { parseVideoProbe } from "@/server/media/probe";
-import { getProjectDoc } from "@/server/projects/service";
-import { replaceProjectAudio } from "@/server/projects/media";
 import type { AudioAnalysis } from "@/server/models/analysis";
 
 /** Learned trends (were trends/reference.py, trends/learn.py, api/references.py): reference Reels the person uploads
- * are measured - cuts, shot lengths, beat sync, look, an AI description - and only the numbers are kept; many trending
- * Reels can be grouped into editing styles; one Reel can be copied shot by shot ("make it like this"). */
+ * are measured - cuts, shot lengths, beat sync, look, an AI description - and only the numbers are kept. */
 
-const SCENE_THRESHOLD = 0.32, SOFT_SCENE_THRESHOLD = 0.16, MIN_GAP = 0.2, ON_BEAT = 0.1, MAX_SECONDS = 180, MAX_FILES = 6, MAX_BYTES = 300 * 1024 * 1024, MAX_VIDEOS = 200, LIBRARY_MAX = 500;
+const SCENE_THRESHOLD = 0.32, SOFT_SCENE_THRESHOLD = 0.16, MIN_GAP = 0.2, ON_BEAT = 0.1, MAX_SECONDS = 180, MAX_FILES = 6, MAX_BYTES = 300 * 1024 * 1024, MAX_VIDEOS = 200;
 type Prof = Record<string, unknown>;
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
@@ -114,7 +110,7 @@ export async function profileVideo(file: string, name = "", keepCuts = false): P
   return prof;
 }
 
-const HALF_LIFE_DAYS = 45, MIN_PER_GROUP = 4, MAX_GROUPS = 6, MIN_STYLE_GAP = 0.45;
+const HALF_LIFE_DAYS = 45;
 export function recencyWeight(addedAt: unknown, now = new Date()): number {
   if (!addedAt) return 1;
   const d = addedAt instanceof Date ? addedAt : new Date(String(addedAt));
@@ -140,70 +136,6 @@ export function mergeProfiles(videos: Prof[]): Prof {
   const curves = videos.map((v) => v.energy_curve as string).filter(Boolean);
   if (curves.length) { const c = new Map<string, number>(); for (const x of curves) c.set(x, (c.get(x) ?? 0) + 1); out.energy_curve = [...c].sort((a, b) => b[1] - a[1])[0][0]; }
   return out;
-}
-function features(v: Prof): number[] {
-  const look = (v.look as Record<string, number>) ?? {}, beat = v.on_beat_share as number | undefined;
-  return [Math.log(Math.max(Number(v.median_shot || v.avg_shot || 2), 0.15)), Math.log(Math.max(Number(v.hook_seconds || 2), 0.15)) * 0.6, (beat ?? 0.5) * 2,
-    Number(look.brightness ?? 0.5) * 1.5, Number(look.saturation ?? 0.4) * 1.5, ({ rising: 0.5, peak_in_middle: 0.25, steady: 0, falling: -0.5 } as Record<string, number>)[v.energy_curve as string] ?? 0];
-}
-const dist2 = (a: number[], b: number[]) => a.reduce((s, x, i) => s + (x - b[i]) ** 2, 0);
-function kmeans(x: number[][], k: number, seed = 7, iters = 60): [number[], number[][]] {
-  let st = seed;
-  const rand = () => { st = (st * 1103515245 + 12345) % 2147483648; return st / 2147483648; };
-  const centers = [x[Math.floor(rand() * x.length)]];
-  for (let c = 1; c < k; c++) {
-    const d = x.map((p) => Math.min(...centers.map((cc) => dist2(p, cc)))), sum = d.reduce((a, b) => a + b, 0);
-    if (sum <= 0) { centers.push(x[Math.floor(rand() * x.length)]); continue; }
-    let r = rand() * sum, i = 0;
-    while (i < d.length - 1 && r > d[i]) { r -= d[i]; i++; }
-    centers.push(x[i]);
-  }
-  let c = centers.map((p) => [...p]), labels = new Array(x.length).fill(0);
-  for (let it = 0; it < iters; it++) {
-    labels = x.map((p) => c.reduce((best, cc, j) => (dist2(p, cc) < dist2(p, c[best]) ? j : best), 0));
-    const nw = c.map((cc, j) => { const m = x.filter((_, i) => labels[i] === j); return m.length ? cc.map((_, d) => mean(m.map((p) => p[d]))) : cc; });
-    if (nw.every((p, j) => p.every((v, d) => Math.abs(v - c[j][d]) < 1e-8))) break;
-    c = nw;
-  }
-  return [labels, c];
-}
-function silhouette(x: number[][], labels: number[]): number {
-  const d = (i: number, j: number) => Math.sqrt(dist2(x[i], x[j]));
-  return mean(x.map((_, i) => {
-    const same = labels.map((l, j) => (l === labels[i] ? j : -1)).filter((j) => j >= 0);
-    if (same.length <= 1) return 0;
-    const a = same.reduce((s, j) => s + d(i, j), 0) / (same.length - 1);
-    const others = [...new Set(labels)].filter((l) => l !== labels[i]).map((l) => { const m = labels.map((x2, j) => (x2 === l ? j : -1)).filter((j) => j >= 0); return m.reduce((s, j) => s + d(i, j), 0) / m.length; });
-    const b = others.length ? Math.min(...others) : 0;
-    return (b - a) / Math.max(a, b, 1e-9);
-  }));
-}
-/** The videos of each editing style, biggest first (few videos or one clear style = one group). */
-export function groupVideos(videos: Prof[]): number[][] {
-  const n = videos.length;
-  if (n < 2 * MIN_PER_GROUP) return n ? [Array.from({ length: n }, (_, i) => i)] : [];
-  const x = videos.map(features);
-  let best: [number, number[]] | null = null;
-  for (let k = 2; k <= Math.min(MAX_GROUPS, Math.floor(n / MIN_PER_GROUP)); k++) {
-    const [labels, centers] = kmeans(x, k), sizes = Array.from({ length: k }, (_, j) => labels.filter((l) => l === j).length);
-    if (Math.min(...sizes) < MIN_PER_GROUP) continue;
-    const gaps: number[] = [];
-    for (let i = 0; i < k; i++) for (let j = i + 1; j < k; j++) gaps.push(Math.sqrt(dist2(centers[i], centers[j])));
-    if (Math.min(...gaps) < MIN_STYLE_GAP) continue;
-    const s = silhouette(x, labels);
-    if (!best || s > best[0]) best = [s, labels];
-  }
-  if (!best || best[0] < 0.25) return [Array.from({ length: n }, (_, i) => i)];
-  const labels = best[1];
-  return [...new Set(labels)].sort((a, b) => a - b).map((j) => labels.map((l, i) => (l === j ? i : -1)).filter((i) => i >= 0)).sort((a, b) => b.length - a.length);
-}
-export function nameFor(p: Prof): string {
-  const shot = Number(p.median_shot || p.avg_shot || 2), beat = p.on_beat_share as number | undefined, look = (p.look as Record<string, number>) ?? {};
-  const parts = [shot <= 0.6 ? "Very fast" : shot <= 1.2 ? "Fast" : shot <= 2.4 ? "Balanced" : "Slow cinematic"];
-  if (beat !== undefined && beat !== null) parts.push(beat >= 0.65 ? "beat-synced" : beat < 0.35 ? "free rhythm" : "");
-  if (Number(p.hook_seconds || 9) <= 1) parts.push("quick hook");
-  if ((look.saturation ?? 0.4) >= 0.5) parts.push("vivid"); else if ((look.brightness ?? 0.5) <= 0.35) parts.push("moody"); else if ((look.brightness ?? 0.5) >= 0.62) parts.push("bright");
-  return parts.filter(Boolean).join(" · ");
 }
 
 // ------------------------------------------------------------------ the API (api/references.py)
@@ -269,101 +201,4 @@ export async function removeVideo(id: string, index: number) {
 export async function deleteReference(id: string) {
   const oid = parseId(id, "Trend"), d = await db();
   await d.collection("references").deleteOne({ _id: oid });
-  await d.collection("projects").updateMany({ "settings.reference": String(oid) }, { $set: { "settings.reference": "auto" } });
-}
-
-/** More trending Reels into the learning library; an unreadable file is reported by name, the others are learned. */
-export async function learn(req: Request) {
-  const up = await readUpload(req, MAX_BYTES, MAX_FILES + 1);
-  try {
-    const files = up.files.filter((f) => f.field === "files");
-    if (!files.length) throw new ValidationFailed("Add at least one video.", { code: "NO_VIDEOS" });
-    if (files.length > MAX_FILES) throw new ValidationFailed(`Send at most ${MAX_FILES} videos at a time.`, { code: "TOO_MANY_FILES" });
-    const d = await db(), learned: string[] = [], failed: { name: string; error: string }[] = [];
-    for (const f of files) {
-      let prof: Prof;
-      try { prof = (await measureFiles([f]))[0]; } catch (e) { if (!(e instanceof AppError)) throw e; failed.push({ name: f.filename || "video", error: e.message }); continue; }
-      prof.added_at = new Date().toISOString();
-      await d.collection("trend_videos").insertOne({ _id: new ObjectId(), name: prof.name ?? "", profile: prof, addedAt: new Date() });
-      learned.push(String(prof.name ?? ""));
-    }
-    let total = await d.collection("trend_videos").countDocuments({});
-    if (total > LIBRARY_MAX) {
-      const old = (await d.collection("trend_videos").find({}, { projection: { _id: 1 } }).sort({ addedAt: 1 }).limit(total - LIBRARY_MAX).toArray()).map((x) => x._id);
-      await d.collection("trend_videos").deleteMany({ _id: { $in: old } });
-      total = LIBRARY_MAX;
-    }
-    return { learned, failed, total };
-  } finally { up.cleanup(); }
-}
-export async function trendLibrary() {
-  const d = await db(), last = await d.collection("trend_videos").findOne({}, { sort: { addedAt: -1 } });
-  return { count: await d.collection("trend_videos").countDocuments({}), lastAdded: last?.addedAt ?? null, styles: await d.collection("references").countDocuments({ auto: true }) };
-}
-/** Every learned Reel sorted into editing styles (replaces the previous automatic styles; the person's own trends stay). */
-export async function groupLibrary() {
-  const d = await db(), videos = (await d.collection("trend_videos").find({}).sort({ addedAt: 1 }).toArray()).map((x) => x.profile as Prof);
-  if (!videos.length) throw new ValidationFailed("Add a trending Reel first.", { code: "NO_REELS" });
-  const groups = groupVideos(videos);
-  await d.collection("references").deleteMany({ auto: true });
-  const names = new Set<string>(), out = [];
-  for (const idx of groups) {
-    const vids = idx.map((i) => videos[i]), prof = mergeProfiles(vids), base = nameFor(prof);
-    let name = base, k = 2;
-    while (names.has(name)) name = `${base} (${k++})`;
-    names.add(name);
-    const doc = { _id: new ObjectId(), name, notes: `Learned from ${vids.length} trending Reels`, videos: vids, profile: prof, auto: true, createdAt: new Date(), updatedAt: new Date() };
-    await d.collection("references").insertOne(doc);
-    out.push(refOut(doc));
-  }
-  return out;
-}
-export async function clearLibrary() {
-  const d = await db();
-  await d.collection("trend_videos").deleteMany({});
-  const autoIds = (await d.collection("references").find({ auto: true }, { projection: { _id: 1 } }).toArray()).map((x) => String(x._id));
-  await d.collection("references").deleteMany({ auto: true });
-  await d.collection("projects").updateMany({ "settings.reference": { $in: autoIds } }, { $set: { "settings.reference": "auto" } });
-}
-
-// ------------------------------------------------------------------ "make it like this Reel"
-function referenceOut(ref: Record<string, unknown> | null | undefined) {
-  if (!ref) return null;
-  const p = (ref.profile as Prof) ?? {}, desc = p.described;
-  return { name: ref.name, seconds: ref.seconds, shots: ((ref.cuts as unknown[]) ?? []).length + 1, avgShot: p.avg_shot ?? null, hookSeconds: p.hook_seconds ?? null, onBeatShare: ref.on_beat_share ?? null,
-    bpm: p.bpm ?? null, summary: Array.isArray(desc) ? ((desc[0] as Record<string, string>) ?? {}).summary ?? "" : "", usesAudio: Boolean(ref.use_audio) };
-}
-export const getReferenceReel = async (projectId: string) => referenceOut((await getProjectDoc(projectId)).referenceReel as Record<string, unknown> | null);
-export async function removeReferenceReel(projectId: string) {
-  const doc = await getProjectDoc(projectId);
-  await (await db()).collection("projects").updateOne({ _id: doc._id }, { $unset: { referenceReel: "" } });
-}
-/** Measure the one Reel the person wants theirs to be like; with useAudio its sound becomes the project's song. */
-export async function setReferenceReel(projectId: string, req: Request) {
-  const doc = await getProjectDoc(projectId), up = await readUpload(req, MAX_BYTES, 1);
-  try {
-    const f = up.files.find((x) => x.field === "file");
-    if (!f) throw new ValidationFailed("Request validation failed.", { details: [{ loc: ["body", "file"], msg: "Field required" }] });
-    const useAudio = !["0", "false", "no", "off"].includes((up.fields.use_audio ?? up.fields.useAudio ?? "true").toLowerCase());
-    const name = sanitizeFilename(f.filename, "reference"), ext = path.extname(name).toLowerCase();
-    if (!VIDEO_EXTS.includes(ext)) throw new UnsupportedMedia(`${name} is not a supported video file.`, { code: "UNSUPPORTED_MEDIA" });
-    if (f.tooLarge) throw new ValidationFailed(`${name} is larger than 300 MB.`, { code: "FILE_TOO_LARGE" });
-    const file = `${f.tmp}${ext}`;
-    moveFile(f.tmp, file);
-    f.tmp = file;
-    let prof: Prof;
-    try { prof = await profileVideo(file, name, true); } catch (e) { throw new ValidationFailed(`${name} could not be read as a video (${(e as Error).message}).`, { code: "UNREADABLE_VIDEO" }); }
-    if (Number(prof.shots ?? 0) < 2) throw new ValidationFailed("No cuts were found in this video: it looks like one continuous shot, so there is no editing to copy. Choose a Reel that cuts between several shots.", { code: "NO_CUTS" });
-    let song: string | null = null;
-    if (useAudio) {
-      const m4a = path.join(path.dirname(file), `${path.parse(name).name.slice(0, 60)} (music).m4a`);
-      try { await renderFfmpeg(["-i", file, "-vn", "-c:a", "aac", "-b:a", "192k", m4a], { timeout: 300 }); song = fs.existsSync(m4a) && fs.statSync(m4a).size > 20_000 ? m4a : null; } catch { song = null; }
-    }
-    const cuts = (prof.cuts as number[]) ?? [];
-    delete prof.cuts;
-    const ref = { name, seconds: prof.seconds, cuts, on_beat_share: prof.on_beat_share ?? null, profile: forAi({ name, profile: prof }), use_audio: song !== null };
-    if (song) await replaceProjectAudio(doc, { field: "file", filename: path.basename(song), mimeType: "audio/mp4", tmp: song, size: fs.statSync(song).size, tooLarge: false }, false);
-    await (await db()).collection("projects").updateOne({ _id: doc._id }, { $set: { referenceReel: ref, updatedAt: new Date() } });
-    return referenceOut(ref);
-  } finally { up.cleanup(); }
 }

@@ -2,7 +2,7 @@
 .brs{
   --bg:var(--background); --ink:var(--foreground); --line:var(--border); --chip:var(--surface-2); --wave:color-mix(in srgb,var(--muted) 45%,transparent);
   --drop:#ff6a33; --hit:#f2bb1d; --cut:#22c3b3; --break:#8f80ff; --ok:var(--success);
-  --display:var(--font-display),Georgia,serif; --body:var(--font-body),system-ui,sans-serif; --mono:var(--font-geist-mono),ui-monospace,Menlo,monospace;
+  --display:var(--font-display),system-ui,sans-serif; --body:var(--font-body),system-ui,sans-serif; --mono:var(--font-geist-mono),ui-monospace,Menlo,monospace;
   color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.5;
 }
 :root[data-theme="light"] .brs{ --drop:#e2501a; --hit:#b98500; --cut:#0e8f83; --break:#5b45e0; }
@@ -110,15 +110,6 @@
 .brs .ovsz input{width:90px}
 .brs .btn.mini{padding:6px 10px;font-size:13px}
 .brs #out.ovdrag{touch-action:none}
-.brs .projects{display:grid;gap:8px;margin:0 0 14px}
-.brs .plist{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
-.brs .proj{position:relative;flex:0 0 auto}
-.brs .popen{display:grid;gap:4px;width:118px;padding:6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer;text-align:left}
-.brs .proj.cur .popen{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.brs .popen img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:6px;background:var(--chip)}
-.brs .pname{font:600 13px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brs .pmeta{font-size:11px;color:var(--muted)}
-.brs .pdel{position:absolute;top:2px;right:2px;border:0;border-radius:50%;width:26px;height:26px;background:rgba(0,0,0,.6);color:#fff;font-size:16px;cursor:pointer}
 .brs.talkmode #vorow{display:none}
 .brs .tplrow{margin:0 0 14px;align-items:center;gap:10px}
 .brs .seg.tpl{max-width:100%}
@@ -149,7 +140,7 @@
 .brs .kfsl b{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .brs .kfbox.none .kfsliders,.brs .kfbox.none .kfbtns,.brs .kfbox.none .kftl{opacity:.4;pointer-events:none}
 
-/* ================= Layout (the design "D · Combined"): top bar, home, Simple / Editor / Pro ================= */
+/* ================= Layout (the design "D · Combined"): top bar, Simple / Editor / Pro ================= */
 .brs{min-height:100vh;background:var(--background);
   --ink-btn:var(--gold-gradient); --ink-btn-fg:var(--on-accent); --chipbg:color-mix(in srgb,var(--accent) 14%,var(--surface));}
 :root[data-theme="light"] .brs{--ink-btn:#17142e; --ink-btn-fg:#f6f4ff}
@@ -200,56 +191,8 @@
 
 /* ---- the page ---- */
 .brs .wrap{max-width:1240px;margin:0 auto;padding:16px 16px 140px;gap:16px}
-.brs .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.brs .hero h1{font-size:clamp(32px,7vw,46px);line-height:1.05}
-.brs .hero .sub{max-width:52ch}
 .brs .btn.ink{background:var(--ink-btn);color:var(--ink-btn-fg);border-color:transparent;height:52px;padding:0 22px;border-radius:14px;font-size:15.5px}
-.brs .hero-new{display:none}
-.brs.made .hero,.brs.made .starts,.brs.made .homerow{display:none}
 
-/* what are we making: Music / Talking cards, Copy a Reel */
-.brs .starts{display:grid;gap:12px}
-.brs .kinds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.brs .kinds button{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:24px;text-align:left;padding:18px 16px;min-height:140px;border-radius:20px;
-  border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-family:var(--body)}
-.brs .kinds button svg{width:26px;height:26px;color:var(--accent)}
-.brs .kinds button span{display:grid;gap:4px}
-.brs .kinds button b{font-size:17px}
-.brs .kinds button small{font-size:13px;color:var(--muted)}
-.brs .kinds button[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 12px 28px -16px color-mix(in srgb, var(--accent) 85%, transparent)}
-.brs .kinds button[aria-pressed=true] svg,.brs .kinds button[aria-pressed=true] small{color:rgba(255,255,255,.85)}
-:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:#17142e;color:#f6f4ff;box-shadow:0 12px 28px -16px rgba(0,0,0,.6)}
-:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#c68bff}
-:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:#d9d4f5}
-.brs .copycard{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font-family:var(--body)}
-.brs .copycard > svg:first-child{width:40px;height:40px;padding:10px;border-radius:12px;background:var(--surface-2);color:var(--accent)}
-.brs .copycard span{display:grid;gap:2px;flex:1}
-.brs .copycard b{font-size:15px}
-.brs .copycard small{font-size:12.5px;color:var(--muted)}
-.brs .copycard > svg:last-child{width:18px;height:18px;color:var(--muted)}
-
-/* continue editing, the style library */
-.brs .homerow{display:grid;gap:22px}
-.brs .hrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
-.brs .hrow h2{margin:0;font:700 15px var(--body)}
-.brs .hrow a{font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
-.brs .projects{margin:0;display:block}
-.brs .plist{display:grid;gap:10px;overflow:visible}
-.brs .proj{position:relative}
-.brs .popen{display:grid;grid-template-columns:46px 1fr;grid-template-rows:auto auto;column-gap:12px;row-gap:2px;align-items:center;width:100%;padding:10px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:left}
-.brs .popen img{grid-row:1/3;width:46px;height:62px;aspect-ratio:auto;border-radius:10px;object-fit:cover;background:var(--surface-2)}
-.brs .pname{font:600 14.5px var(--body)}
-.brs .pmeta{font-size:12.5px;color:var(--muted)}
-.brs .pdel{top:50%;right:10px;transform:translateY(-50%);background:transparent;color:var(--muted);width:36px;height:36px}
-.brs .plist .proj:nth-child(n+4){display:none}
-.brs .stylelib{display:grid;gap:8px;align-content:start}
-.brs .slist{display:grid;gap:8px}
-.brs .skind{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font-family:var(--body)}
-.brs .skind > span:first-child{display:grid;gap:3px;flex:1}
-.brs .skind b{font-size:14.5px}
-.brs .skind small{font-size:12.5px;color:var(--muted)}
-.brs .skind .pct{font:500 16px var(--mono);color:var(--accent)}
-.brs .teach{height:46px;border-radius:14px;border:1px dashed color-mix(in srgb,var(--accent) 60%,var(--line));background:transparent;color:var(--accent);font:600 14px var(--body);cursor:pointer}
 
 /* templates: one row of chips (in the Style panel once the Reel is made) */
 .brs .tplrow{display:grid;gap:8px;margin:0;min-width:0}
@@ -337,7 +280,6 @@
 .brs .ttsbox{display:grid;gap:8px;margin:12px 0}
 .brs .autocard{grid-column:1/-1;background:var(--gold-gradient,var(--chipbg));border-color:transparent}
 .brs .autocard small{color:inherit;opacity:.8}
-.brs .storycard{grid-column:1/-1}
 .brs #aogo{width:100%}
 .brs.autoing [data-tasks],.brs.autoing .toasts{display:none}   /* Auto Reel: its own progress only */
 .brs .aitog{display:flex;gap:8px;align-items:flex-start;margin-bottom:12px;font-size:13px;color:var(--muted)}
@@ -444,25 +386,6 @@
   .brs.made .views{display:flex}
   .brs.made .tb-export{display:inline-flex}
 
-  /* home */
-  .brs .hero-new{display:inline-flex}
-  .brs .starts{grid-template-columns:2fr 1fr;gap:16px}
-  .brs .kinds{gap:16px}
-  .brs .kinds button,.brs .copycard{min-height:170px;padding:22px;border-radius:20px}
-  .brs .copycard{flex-direction:column;align-items:flex-start;justify-content:space-between}
-  .brs .copycard > svg:first-child{width:28px;height:28px;padding:0;background:transparent}
-  .brs .copycard > svg:last-child{display:none}
-  .brs .kinds button b,.brs .copycard b{font-size:19px}
-  .brs .kinds button small,.brs .copycard small{font-size:14px}
-  .brs .homerow{grid-template-columns:minmax(0,1fr) 340px;gap:32px;align-items:start}
-  .brs .hrow h2{font-size:18px}
-  .brs .plist{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
-  .brs .plist .proj:nth-child(n+4){display:block}
-  .brs .plist .proj:nth-child(n+9){display:none}
-  .brs .popen{grid-template-columns:1fr;padding:0;border:0;background:transparent;gap:6px}
-  .brs .popen img{grid-row:auto;width:100%;height:auto;aspect-ratio:9/16;border-radius:14px}
-  .brs .pdel{top:6px;right:6px;transform:none;background:rgba(0,0,0,.55);color:#fff;width:28px;height:28px}
-
   /* Simple and Editor: the preview beside the tools */
   .brs.made .create{grid-template-columns:minmax(300px,400px) minmax(0,1fr);gap:28px;align-items:start}
   .brs.made.v-simple .pv{grid-template-columns:1fr;justify-items:center}
@@ -554,22 +477,8 @@
 .brs .views button[aria-pressed=true]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.15),inset 0 0 0 1px var(--line)}
 .brs .tb-export,:root:not([data-theme="light"]) .brs .tb-export{background:var(--gold-gradient);color:var(--on-accent);border-radius:12px;height:44px}
 
-/* home: the app's page title and "make" cards */
-.brs .hero h1{font:600 clamp(30px,6vw,40px)/1.05 var(--display);letter-spacing:.01em}
-.brs .hero .sub{font-size:13.5px;line-height:1.45;margin-top:4px}
-.brs .kinds button,.brs .copycard{border-radius:16px;box-shadow:var(--shadow);gap:12px}
-.brs .kinds button svg,.brs .copycard > svg:first-child{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:linear-gradient(135deg,#e040fb,#7c3aed)}
-.brs .kinds button[data-k="talk"] svg{background:linear-gradient(135deg,#3b8bff,#1d4ed8)}
-.brs .copycard > svg:first-child{background:linear-gradient(135deg,#ff4fb4,#d61f7a)}
-.brs .kinds button[aria-pressed=true],:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:var(--surface);color:var(--ink);border:2px solid var(--accent);box-shadow:var(--shadow)}
-.brs .kinds button[aria-pressed=true] svg,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#fff}
-.brs .kinds button[aria-pressed=true] small,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:var(--muted)}
-@media (min-width:1000px){
-  .brs .kinds button,.brs .copycard{min-height:150px}
-  .brs .copycard > svg:first-child{width:42px;height:42px;padding:10px;background:#6b2a8f}
-}
-.brs .popen,.brs .skind,.brs .card,.brs .panel,.brs .shotcard{border-radius:16px;box-shadow:var(--shadow)}
-.brs .hrow h2{font:600 21px var(--display)}
+/* cards and panels: the app's corners and shadow */
+.brs .card,.brs .panel,.brs .shotcard{border-radius:16px;box-shadow:var(--shadow)}
 .brs .label{font-size:11px;letter-spacing:.2em;font-weight:700}
 
 /* steps: the app's numbered gold steps */
@@ -608,31 +517,6 @@
 @media (min-width:1000px){ .brs.made.v-pro #out{max-height:calc(100vh - 520px);min-height:220px} }
 
 /* ================= The four steps, one after the other ================= */
-/* step 1 (what are we making) is a step card like the others; its choices in a grid */
-.brs #s0{display:grid;grid-template-columns:minmax(0,1fr)}   /* not the older start row (.starts, 2 columns on computers) */
-.brs.made #s0{display:none}
-.brs .makegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.brs .makegrid .kinds{display:contents}
-.brs .kinds button,.brs .kindx{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:10px;text-align:left;padding:14px;min-height:0;border-radius:16px;
-  border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font-family:var(--body);box-shadow:var(--shadow)}
-.brs .kindx svg:first-child,.brs .kinds button svg{width:42px;height:42px;padding:10px;border-radius:12px;color:#fff;background:linear-gradient(135deg,#e040fb,#7c3aed)}
-.brs .kinds button[data-k="talk"] svg{background:linear-gradient(135deg,#3b8bff,#1d4ed8)}
-.brs #photokind svg{background:linear-gradient(135deg,#ff9a3d,#ff4f6d)}
-.brs #copycard > svg:first-child{background:linear-gradient(135deg,#ff4fb4,#d61f7a)}
-.brs .kindx span,.brs .kinds button span{display:grid;gap:2px}
-.brs .kindx b,.brs .kinds button b{font-size:14.5px}
-.brs .kindx small,.brs .kinds button small{font-size:12px;color:var(--muted);line-height:1.35}
-.brs .kindx[aria-pressed=true],.brs .kinds button[aria-pressed=true],:root[data-theme="light"] .brs .kinds button[aria-pressed=true]{background:var(--surface);color:var(--ink);border:2px solid var(--accent);padding:13px;box-shadow:var(--shadow)}
-.brs .kinds button[aria-pressed=true] small,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] small{color:var(--muted)}
-.brs .kinds button[aria-pressed=true] svg,:root[data-theme="light"] .brs .kinds button[aria-pressed=true] svg{color:#fff}
-.brs #s0 .tplrow{margin-top:2px}
-@media (min-width:1000px){
-  .brs .makegrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-  .brs .storycard{grid-column:1/-1}
-  .brs .kinds button,.brs .kindx{min-height:150px;padding:18px}
-  .brs .kindx[aria-pressed=true],.brs .kinds button[aria-pressed=true]{padding:17px}
-  .brs .copycard{flex-direction:column;align-items:flex-start;justify-content:flex-start}
-}
 /* the next step appears once the one before it is done */
 .brs:not(.made):not(.c1) #s1,.brs:not(.made):not(.c2) #s2,.brs:not(.made):not(.c3) #s3{display:none}
 .brs:not(.made) .step.locked{opacity:1}
@@ -640,10 +524,6 @@
 .brs .ponly{display:none}
 .brs.photomode .ponly{display:inline}
 .brs.photomode .vonly{display:none}
-/* the style library (teaching the AI new styles) is for the administrator */
-.brs:not(.admin) .stylelib,.brs:not(.admin) #teach{display:none !important}
-.brs:not(.admin) .homerow{grid-template-columns:1fr}
-
 /* notifications: short notes at the bottom (above the save bar on phones), and the in-app yes / no question */
 .brs .toasts{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;display:grid;gap:8px;width:min(92vw,420px);pointer-events:none}
 .brs .toast{font:600 14px/1.35 var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:12px;padding:11px 14px;box-shadow:0 10px 30px rgba(0,0,0,.18);opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
@@ -748,7 +628,7 @@
 .brs:not(.fopen) :is(.fgrid,.fmain){display:contents}
 .brs .fh{display:grid;gap:1px;min-width:0}
 .brs .fsh{font:500 13px var(--body);color:var(--muted)}
-.brs.fopen :is(.hero,.homerow,#s0,.topbar,.savebar){display:none !important}
+.brs.fopen :is(.topbar,.savebar){display:none !important}
 /* the edit is made behind the flow (kept rendered out of sight: the engine reads sizes and draws its frames) */
 .brs.fopen #s3{position:fixed !important;left:-200vw !important;top:0 !important;width:100vw !important;opacity:0 !important;pointer-events:none !important}
 .brs.fopen #s1,.brs.fopen #s2{display:grid !important}
@@ -963,7 +843,7 @@
 .brs .xsh .seg button[aria-pressed=true]{border:2px solid var(--accent) !important;background:color-mix(in srgb,var(--accent) 16%,var(--surface-2));color:var(--ink)}
 .brs .xsh .seg button[aria-pressed=true]::after{color:var(--ink)}
 .brs .xsh .btn.save{background:var(--gold-gradient);color:#fff}
-/* until the flow has written the kind (Talking / Photo words), its place stays empty: never the studio home first */
+/* until the flow has written the kind (Talking / Photo words), its place stays empty: never anything else first */
 .brs.fopen:not(.flive) :is(.fhead,.fintro,.fgrid,.fan){visibility:hidden}
 
 /* ================= Phones: the 10 screens of the design (UI/New folder/AfterClipMusicReelsMobile.png) =================
@@ -1193,3 +1073,7 @@
 .brs .xtog input:disabled + i{opacity:.45}
 /* the Create flow before it has its words (a moment while the studio starts): the loader in the middle of the screen */
 .brs.fopen:not(.flive)::before{content:"";position:fixed;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 18%,transparent);border-top-color:var(--accent);border-right-color:#e040fb;animation:busy-spin .8s linear infinite;z-index:40}
+/* Remove Watermark is for paid plans: a small "Pro" tag (to the plans) while it is locked */
+.brs .xpro{display:inline-flex;align-items:center;margin-left:6px;padding:1px 8px;border-radius:999px;font:800 11px var(--body);color:#1a1205;background:#f5c84c;vertical-align:1px;text-decoration:none}
+.brs .xpro[hidden]{display:none}
+.brs .xtog:has(input:disabled){cursor:default}

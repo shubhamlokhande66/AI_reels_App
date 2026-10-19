@@ -36,7 +36,11 @@ async function newSessionVersion(id: unknown): Promise<Doc & { _id: unknown }> {
 /** Email over plain SMTP; without SMTP settings the message is written to the server log (a local install still works). */
 export async function sendMail(to: string, subject: string, text: string): Promise<boolean> {
   const s = settings;
-  if (!(s.smtpHost && s.smtpFrom)) { console.warn(`email is not set up (SMTP_HOST / SMTP_FROM); would have sent to ${to}: ${subject}\n${text}`); return false; }
+  if (!(s.smtpHost && s.smtpFrom)) {
+    // the message (a reset link is a key to the account) is shown only while developing, never in a live server's log
+    console.warn(`email is not set up (SMTP_HOST / SMTP_FROM); would have sent to ${to}: ${subject}${process.env.NODE_ENV === "production" ? "" : `\n${text}`}`);
+    return false;
+  }
   const m = /^(.*)<([^>]+)>\s*$/.exec(s.smtpFrom), name = (m?.[1] ?? "").trim().replace(/^"|"$/g, "") || s.businessName, addr = (m?.[2] ?? s.smtpFrom).trim();
   try {
     const t = nodemailer.createTransport({ host: s.smtpHost, port: s.smtpPort, secure: s.smtpSsl, requireTLS: !s.smtpSsl, auth: s.smtpUser ? { user: s.smtpUser, pass: s.smtpPassword } : undefined, connectionTimeout: 20_000 });
@@ -57,7 +61,13 @@ export async function register(email0: string, password: string) {
   const col = await users();
   if (await col.findOne({ email })) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
   const now = new Date(), u = { _id: new ObjectId(), email, password: hashPassword(password), sessionVersion: 0, createdAt: now, lastLoginAt: now, loginCount: 1 };
-  await col.insertOne(u);
+  try {
+    await col.insertOne(u);
+  } catch (e) {
+    // two sign-ups with the same email at the same moment: the unique index (server/core/indexes.ts) lets one through
+    if ((e as { code?: number }).code === 11000) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
+    throw e;
+  }
   return withCookie({ user: userOut(u) }, sessionCookie(u), 201);
 }
 export async function login(email: string, password: string) {
@@ -109,7 +119,7 @@ async function deleteUserData(userId: string) {
     if (UNSCOPED.has(name) || name.startsWith("system.")) continue;
     for (const doc of await d.collection(name).find({ [OWNER]: userId }).toArray()) {
       for (const [k, v] of Object.entries(doc)) if (k.endsWith("Key") && typeof v === "string" && v) fs.rmSync(localPath(v), { force: true, recursive: true });
-      if (name === "projects") deletePrefix(`projects/${doc._id}`);
+      if (name === "projects") deletePrefix(`projects/${doc._id}`); // a project from the old server editor: its folder
     }
     await d.collection(name).deleteMany({ [OWNER]: userId });
   }
@@ -122,7 +132,6 @@ export async function deleteAccount(password: string, confirm: string) {
   const u = await meDoc();
   if (confirm.trim().toLowerCase() !== u.email) throw new ValidationFailed("Type your email address exactly to confirm.", { code: "CONFIRMATION_MISMATCH" });
   if (!verifyPassword(password, String(u.password))) throw new ValidationFailed("The password is not correct.", { code: "BAD_CREDENTIALS" });
-  if (await (await mainDb()).collection("projects").findOne({ [OWNER]: String(u._id), status: "processing" })) throw new ConflictError("A Reel is being made right now. Wait until it finishes (or cancel it), then delete the account.", { code: "ACCOUNT_BUSY" });
   await deleteUserData(String(u._id));
   await (await users()).deleteOne({ _id: u._id as ObjectId });
   forgetSessionCache(String(u._id));

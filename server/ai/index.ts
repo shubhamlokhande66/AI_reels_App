@@ -4,7 +4,7 @@ import { settings } from "@/server/core/config";
 import { AIUnavailable } from "@/server/core/errors";
 import { budgetState, effective, PROVIDERS, providerFor, recordCall, type EffectiveAIConfig } from "./config";
 import { ClaudeProvider, GeminiProvider, OllamaProvider, OpenAIProvider, Provider, type Health } from "./providers";
-import { AIProviderError, AIResponseError, getTask, parseJsonObject, runStructured, type AIRequest, type AIResult, type Message } from "./types";
+import { AIProviderError, AIResponseError, getTask, runStructured, type AIRequest, type AIResult, type Message } from "./types";
 
 /** The provider the app talks to (was ai/managed.py + factory.py + provider.py helpers): budget check -> retries ->
  * optional fallback -> usage log; plus the familiar chat helpers. */
@@ -67,22 +67,6 @@ export class ManagedProvider {
     return res;
   }
 
-  // the familiar helpers
-  async chat(system: string, user: string, o: { jsonMode?: boolean; temperature?: number } = {}) {
-    return (await this.generate({ system, user, jsonMode: o.jsonMode, temperature: o.temperature ?? 0.3 })).text;
-  }
-  async chatTurns(system: string, messages: Message[], temperature = 0.4) {
-    return (await this.generate({ system, messages, temperature, task: "chat" })).text;
-  }
-  async chatJson(system: string, user: string, o: { temperature?: number; task?: string } = {}) {
-    const res = await this.generate({ system, user, jsonMode: true, temperature: o.temperature ?? 0.2, task: o.task });
-    return res.parsed ?? parseJsonObject(res.text);
-  }
-  async chatImages(system: string, user: string, images: string[], temperature = 0.1) {
-    const res = await this.generate({ system, user, images, jsonMode: true, temperature, task: "clip_understanding", ...(this.primary.isLocal ? { maxOutputTokens: 300 } : {}) });
-    if (res.parsed) return res.parsed;
-    try { return parseJsonObject(res.text); } catch { throw new AIResponseError("The AI model did not return valid JSON.", { details: res.text.slice(0, 300) }); }
-  }
   async structured<S extends z.ZodType>(system: string, user: string, schema: S, o: { task?: string; temperature?: number | null; messages?: Message[] | null; maxOutputTokens?: number | null } = {}): Promise<z.infer<S>> {
     return (await runStructured(this, { system, user, messages: o.messages ?? null, temperature: o.temperature ?? null, task: o.task, maxOutputTokens: o.maxOutputTokens ?? null }, schema))[0];
   }

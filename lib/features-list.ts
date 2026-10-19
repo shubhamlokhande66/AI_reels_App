@@ -1,40 +1,29 @@
 // The parts of the app the administrator can show or hide (Administration → Features). Shared by the server (which
 // refuses a hidden feature's work) and the browser (which hides its pages, menu items and buttons).
 
-export type FeatureKey = "aiReel" | "productReel" | "story" | "editor" | "fastStudio" | "studioAI" | "library" | "songs" | "templates" | "brands";
+export type FeatureKey = "fastStudio" | "studioAI" | "brands";
 
 export const FEATURE_LIST: { key: FeatureKey; label: string; hint: string; server: boolean; pages: string[] }[] = [
-  { key: "fastStudio", label: "Fast Studio", hint: "Edit on the phone itself: free, nothing uploaded.", server: false, pages: ["/studio", "/create"] },
-  { key: "studioAI", label: "Fast Studio AI", hint: "The AI edits every Fast Studio Reel: it looks at the clips, then decides the pace, shots, transitions and camera moves. People never choose; it is on for everyone or off. Uses your AI provider.", server: true, pages: [] },
-  { key: "aiReel", label: "Create Reel (AI edit)", hint: "Clips and a song, cut to the beat by the AI on the server.", server: true, pages: [] },
-  { key: "productReel", label: "Product Reel", hint: "A Reel directed from product photos, made on the server.", server: true, pages: [] },
-  { key: "story", label: "Story → Reel", hint: "A narrated Reel from text: AI scenes, voice and pictures on the server.", server: true, pages: ["/story/new"] },
-  { key: "editor", label: "Editor", hint: "The editor that saves and exports on the server.", server: true, pages: ["/editor"] },
-  { key: "library", label: "Footage library", hint: "Every uploaded clip, searchable; stored on the server.", server: true, pages: ["/library"] },
-  { key: "songs", label: "Songs", hint: "The song library, stored on the server.", server: true, pages: ["/songs"] },
-  { key: "templates", label: "Saved templates", hint: "Your own templates, saved on the server (the AI writes drafts). The Templates page always shows Fast Studio's ready-made ones.", server: true, pages: [] },
+  { key: "fastStudio", label: "Create on the phone", hint: "Music, Talking and Photo Reels and Story Maker, made on the phone itself: free, nothing uploaded.", server: false, pages: ["/create"] },
+  { key: "studioAI", label: "AI director", hint: "The AI edits every Reel made on the phone: it looks at the clips, then decides the pace, shots, transitions and camera moves. People never choose; it is on for everyone or off. Uses your AI provider.", server: true, pages: [] },
   { key: "brands", label: "Brands", hint: "Logo, colours and defaults applied to Reels.", server: true, pages: ["/brands"] },
 ];
 
 export type Features = Record<FeatureKey, boolean>;
 export const ALL_ON: Features = Object.fromEntries(FEATURE_LIST.map((f) => [f.key, true])) as Features;
-/** Until the administrator decides otherwise: only Fast Studio (made on the phone) is on; every part that works on the
- * server starts off, so the app is fast and puts no load on the server. */
+/** Until the administrator decides otherwise: making Reels on the phone is on; the parts that use the server (the AI
+ * director, Brands) start off. */
 export const DEFAULTS: Features = Object.fromEntries(FEATURE_LIST.map((f) => [f.key, !f.server])) as Features;
 
-/** The feature a page belongs to (null: always shown). Create Reel is hidden only when both of its kinds are off. */
-export function pageFeature(path: string, f: Features): FeatureKey | null {
-  if (path === "/projects/new") return !f.aiReel && !f.productReel ? "aiReel" : null;
-  // the server's projects: shown while any part that makes Reels on the server is on (Fast Studio's are in My Reels)
-  if (path === "/projects" || path.startsWith("/projects/")) return !f.aiReel && !f.productReel && !f.story && !f.editor ? "aiReel" : null;
+/** The feature a page belongs to (null: always shown). */
+export function pageFeature(path: string, _f: Features): FeatureKey | null {
+  void _f;
   for (const x of FEATURE_LIST) if (x.pages.some((p) => path === p || path.startsWith(`${p}/`))) return x.key;
   return null;
 }
 
 /** Is this link shown, with these features? */
 export function linkOn(href: string, f: Features): boolean {
-  const path = href.split("?")[0];
-  if (href.includes("kind=product")) return f.productReel;
-  const k = pageFeature(path, f);
+  const k = pageFeature(href.split("?")[0], f);
   return k === null || f[k];
 }

@@ -30,7 +30,7 @@ export function initFlow(root: HTMLElement): () => void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector<T>("#" + id)!;
   const q = new URLSearchParams(location.search);
   // a saved Reel, a Story or a picked template opens in the editor as before
-  let revealed = q.has("p") || q.get("auto") === "story";
+  let revealed = q.has("p") || location.pathname === "/create/story";
   let step: Step = "intro";
   let kind: Kind = "music";
   let pct = 0;
@@ -135,7 +135,7 @@ export function initFlow(root: HTMLElement): () => void {
       defaults(k);
       // each kind at its own address (/create/music, /create/talking, /create/photo); the same page, no reload
       const slug = { music: "music", talk: "talking", photo: "photo", copy: "" }[k];
-      if (slug && location.pathname !== `/create/${slug}`) history.replaceState(history.state, "", `/create/${slug}${location.search.replace(/([?&])kind=[^&]*&?/, "$1").replace(/[?&]$/, "")}${location.hash}`);
+      if (slug && location.pathname !== `/create/${slug}`) history.replaceState(history.state, "", `/create/${slug}${location.search}${location.hash}`);
     }
     setData(root, "fstep", step);
     setData(root, "fkind", kind);
@@ -218,8 +218,6 @@ export function initFlow(root: HTMLElement): () => void {
       if (photos !== has("photomode")) (photos ? $("photokind") : root.querySelector<HTMLButtonElement>('#kind [data-k="music"]'))?.click();
       return;
     }
-    // a new Reel (the home's "New Reel") starts the flow again
-    if (t.closest("#pnew")) { revealed = false; step = "intro"; lines.clear(); pct = 0; delete $("ftitle").dataset.k; if (location.pathname !== "/studio") history.replaceState(history.state, "", "/studio"); setTimeout(apply); }
   }, { capture: true, ...sig });
 
   // screens 9 and 10 (phones): Exporting, then Reel Exported with the video, Share / Save / Download and the caption

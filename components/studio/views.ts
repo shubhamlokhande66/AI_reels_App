@@ -3,8 +3,7 @@
  * - Simple: the preview with a summary, four cards (Style, Text, Look, Music) that open their panels, a "Save video" bar.
  * - Editor: the timeline strip, the current shot as chips, a tool dock showing one panel at a time.
  * - Pro: the shot inspector beside the preview, a multi-track timeline (video, text, voice, music), grouped tools.
- * Also: the song and clips steps fold into one line once the Reel is made, the top bar's title and Export, the home
- * screen's style library. */
+ * Also: the song and clips steps fold into one line once the Reel is made, the top bar's title and Export. */
 
 export type StudioView = "simple" | "editor" | "pro" | "all"; // "all": every panel open (checks and support, by link only)
 export const VIEW_KEY = "studio-view";
@@ -21,7 +20,7 @@ type Studio = {
 
 export function savedView(): StudioView {
   try {
-    const q = new URLSearchParams(location.search).get("view"); // a link can open a view: /studio?view=pro
+    const q = new URLSearchParams(location.search).get("view"); // a link can open a view: /create/edit?view=pro
     if (q === "simple" || q === "editor" || q === "pro" || q === "all") return q;
     const v = localStorage.getItem(VIEW_KEY);
     return v === "editor" || v === "pro" ? v : "simple";
@@ -98,7 +97,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const go = t.closest<HTMLElement>("[data-goview]"); if (go) { setView(go.dataset.goview as StudioView); return; }
     const px = t.closest<HTMLElement>("[data-proxy]"); if (px) { $(px.dataset.proxy!).click(); return; }
     const os = t.closest<HTMLElement>("[data-open-step]"); if (os) { const id = os.dataset.openStep!; openStep(id, true); $(id).scrollIntoView({ behavior: "smooth", block: "start" }); return; }
-    if (t.closest("#copycard,#teach")) { copyReel(); return; }
+    if (t.closest("#copycard")) { copyReel(); return; }
     const b = t.closest<HTMLButtonElement>(".tool,.card");
     if (b) {
       const k = b.dataset.tool!;
@@ -137,14 +136,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (st && st.dur) cv("music", fmtS(st.dur) + (st.section && st.section.len && st.section.auto ? " · best part" : "") + (!$("vodel").hidden ? " · voiceover" : ""));
     else cv("music", "Choose a song");
     if (st && made()) {
-      setText($("tbname"), st.title || "Fast Studio");
+      setText($("tbname"), st.title || "Your Reel");
       const talk = st.kind === "talk";
       const info = fmtS(st.dur) + " · " + st.edit.length + (talk ? " parts, pauses cut" : " shots") + (st.songName && !talk ? " on the beat of " : "");
       const si = $("suminfo");
       if (si.dataset.k !== info + st.songName) { si.dataset.k = info + st.songName; si.textContent = info; if (st.songName && !talk) { const b = document.createElement("b"); b.textContent = st.songName; si.append(b); } }
       const sec = st.section, part = sec && sec.whole && sec.len < sec.whole - 0.5 ? " · " + fmtS(sec.start) + "–" + fmtS(sec.start + sec.len) : "";
       setText($("tlmusic"), st.songName ? "♪ " + st.songName + part + " · beats marked" : talk ? "The voice of your clips" : "");
-    } else setText($("tbname"), "Fast Studio");
+    } else setText($("tbname"), "Your Reel");
   };
 
   // the current shot: chips (Editor) and the inspector (Pro), both forwarding to the edit list's own controls
@@ -206,7 +205,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const W = Math.round(lanes.clientWidth * dpr), H = Math.round(rul + rows.reduce((a, b) => a + b, 0) + gap * 3);
     if (lanes.width !== W) lanes.width = W; if (lanes.height !== H) { lanes.height = H; lanes.style.height = H / dpr + "px"; }
     const g = lanes.getContext("2d")!; g.clearRect(0, 0, W, H);
-    const ink = css("--foreground", "#f3ede3"), muted = css("--muted", "#a69d90"), acc = css("--accent", "#d4b07a"), chip = css("--surface-2", "#1c1916");
+    const ink = css("--foreground", "#f6f4ff"), muted = css("--muted", "#a3a1c9"), acc = css("--accent", "#b05cff"), chip = css("--surface-2", "#1c1c3f");
     const X = (t: number) => lab + (t / D) * (W - lab);
     g.font = `${11 * dpr}px system-ui, sans-serif`; g.textBaseline = "middle";
     if (rul) { g.fillStyle = muted; const step = D > 40 ? 10 : 5; for (let t = 0; t < D; t += step) g.fillText(fmtS(t), X(t) + 2 * dpr, rul / 2); }
@@ -253,30 +252,6 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     raf = requestAnimationFrame(tick);
   };
   raf = requestAnimationFrame(tick);
-
-  // home: the style library (kinds with Reels saved, how well each is learned); tap one to use it
-  const KINDS: Record<string, string> = { wedding: "Wedding", travel: "Travel", festival: "Festival", dance: "Dance", talking: "Talking", product: "Product", food: "Food", fitness: "Fitness", vlog: "Vlog", birthday: "Birthday", other: "Other" };
-  (async () => {
-    try {
-      const r = await fetch("/api/studio/styles", { credentials: "same-origin" }); if (!r.ok) return;
-      const d = (await r.json()) as { categories?: Record<string, { mine: number; shared: number }> };
-      const kinds = Object.entries(d.categories || {}).filter(([, c]) => c.mine + c.shared > 0).sort((a, b) => b[1].mine + b[1].shared - (a[1].mine + a[1].shared)).slice(0, 4);
-      const list = $("slist"); list.innerHTML = "";
-      for (const [k, c] of kinds) {
-        const b = document.createElement("button"); b.type = "button"; b.className = "skind";
-        b.innerHTML = `<span><b></b><small></small></span><span class="pct"></span>`;
-        b.querySelector("b")!.textContent = KINDS[k] || k;
-        b.querySelector("small")!.textContent = c.mine + c.shared + " Reels" + (c.shared ? " · " + c.mine + " mine" : "");
-        b.addEventListener("click", () => { $<HTMLSelectElement>("lcat").value = k; $("luse").click(); });
-        list.append(b);
-        fetch("/api/studio/styles/learned?category=" + k + "&scope=all").then((x) => (x.ok ? x.json() : null)).then((x: { accuracy?: { learned?: number } | number | null } | null) => {
-          const a = x && x.accuracy, v = typeof a === "number" ? a : a && typeof a === "object" ? a.learned : null;
-          if (v != null) b.querySelector(".pct")!.textContent = Math.round(v * 100) + "%";
-        }).catch(() => {});
-      }
-      $("stylelib").hidden = false;
-    } catch { /* no server or signed out: no style library on the home screen */ }
-  })();
 
   // fold the song and clips once the Reel is made (tap the line to open them again)
   let wasMade = made();

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Button } from "@/components/atoms";
 
 export const metadata = { title: "Page not found" };
 
@@ -15,9 +16,9 @@ export default function NotFound() {
         <Link href="/" className="btn g">
           Go to Home
         </Link>
-        <Link href="/studio" className="btn">
-          Open Fast Studio
-        </Link>
+        <Button href="/create/music" reload variant="secondary">
+          Make a Music Reel
+        </Button>
       </div>
     </div>
   );

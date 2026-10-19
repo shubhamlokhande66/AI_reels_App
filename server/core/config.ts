@@ -45,10 +45,6 @@ export const settings = {
   /** STORAGE_PATH is a mounted bucket (Cloudflare R2 through FUSE): temporary work stays on the local disk (SCRATCH_PATH) and
    * FFmpeg writes locally before a file is copied into the bucket */
   storageMounted: bool("STORAGE_MOUNTED", false),
-  /** Cloudflare: the scheduler calls /api/cron with this key; KEEP_ALIVE_URL is pinged while jobs run so the container
-   * does not go to sleep in the middle of a render */
-  cronSecret: env("CRON_SECRET", ""),
-  keepAliveUrl: env("KEEP_ALIVE_URL", ""),
   scratchPath: path.resolve(env("SCRATCH_PATH", path.join(os.tmpdir(), "reel-scratch"))),
   maxVideoSizeMb: num("MAX_VIDEO_SIZE_MB", 500),
   maxAudioSizeMb: num("MAX_AUDIO_SIZE_MB", 50),
@@ -99,7 +95,8 @@ export const settings = {
   keepUploadsHours: num("KEEP_UPLOADS_HOURS", 2),
   keepProjectsHours: num("KEEP_PROJECTS_HOURS", 24),
   secretKey: env("SECRET_KEY", ""),
-  cookieSecure: bool("COOKIE_SECURE", false),
+  // the session cookie only over HTTPS: on by itself when the site has an https address (COOKIE_SECURE overrides)
+  cookieSecure: bool("COOKIE_SECURE", env("PUBLIC_BASE_URL", "").startsWith("https://")),
   reviewMaxIterations: num("REVIEW_MAX_ITERATIONS", 3),
   ollamaBaseUrl: env("OLLAMA_BASE_URL", "http://localhost:11434"),
   ollamaModel: env("OLLAMA_MODEL", ""),

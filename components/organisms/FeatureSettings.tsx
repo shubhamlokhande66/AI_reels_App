@@ -36,7 +36,6 @@ export function FeatureSettings() {
           <span className={`badge self-start ${x.server ? "b-run" : "b-ok"}`}>{x.server ? "Uses the server" : "Runs on the phone"}</span>
         </div>
       ))}
-      {!f.aiReel && !f.productReel && <span className="xs" style={{ color: "var(--warning)" }}>Create Reel is hidden: both of its kinds are off.</span>}
       {(q.error || save.error) && <ErrorBanner message={errorMessage(q.error ?? save.error)} onRetry={() => q.refetch()} />}
     </section>
   );

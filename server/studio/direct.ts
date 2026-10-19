@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { getProvider, type ManagedProvider } from "@/server/ai";
-import { clean, Text } from "@/server/ai/director";
+import { clean, Text } from "@/server/ai/text";
 import { AIResponseError } from "@/server/ai/types";
 
 /** Fast Studio's AI director: the brain of the edit, the way an editor's judgment is.

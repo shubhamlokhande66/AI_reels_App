@@ -10,12 +10,12 @@ function mockFetch(status: number, body: unknown) {
 describe("api client", () => {
   it("returns parsed JSON", async () => {
     mockFetch(200, [{ id: "1" }]);
-    expect(await api.listProjects()).toEqual([{ id: "1" }]);
+    expect(await api.brands()).toEqual([{ id: "1" }]);
   });
 
   it("turns backend errors into ApiError with code and details", async () => {
     mockFetch(422, { error: { code: "NO_AUDIO", message: "Upload a music file first.", details: null } });
-    const err = await api.generate("abc").catch((e) => e);
+    const err = await api.createBrand({ name: "x" } as never).catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err.code).toBe("NO_AUDIO");
     expect(err.status).toBe(422);
@@ -24,7 +24,7 @@ describe("api client", () => {
 
   it("handles non-JSON error responses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>bad gateway</html>", { status: 502 })));
-    const err = await api.getProject("x").catch((e) => e);
+    const err = await api.voices().catch((e) => e);
     expect(err.code).toBe("HTTP_ERROR");
     expect(err.message).toContain("502");
   });
@@ -51,7 +51,7 @@ describe("api client", () => {
       if (calls++ === 0) throw new TypeError("Failed to fetch");
       return new Response(JSON.stringify({ id: "p" }), { status: 200 });
     }));
-    const pending = api.getProject("p");
+    const pending = api.brands();
     await vi.runAllTimersAsync();
     expect(await pending).toEqual({ id: "p" });
     vi.useRealTimers();
@@ -62,14 +62,14 @@ describe("api client", () => {
       throw new TypeError("Failed to fetch");
     });
     vi.stubGlobal("fetch", fetch);
-    const err = await api.analyze("p").catch((e) => e);
+    const err = await api.deleteBrand("p").catch((e) => e);
     expect(err.code).toBe("NETWORK_ERROR");
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("handles 204 responses", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
-    await expect(api.deleteProject("x")).resolves.toBeUndefined();
+    await expect(api.deleteBrand("x")).resolves.toBeUndefined();
   });
 
   it("builds asset URLs on the app's own server (same origin; Next.js serves the API)", () => {

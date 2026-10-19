@@ -14,36 +14,10 @@ import type {
   AdminUserDetail,
   AdminUserRow,
   ApiErrorBody,
-  DirectorProfile,
-  FeedbackReason,
-  GenerateOptions,
   Health,
-  Job,
   Media,
-  Project,
-  ProjectSettings,
-  ProjectStatus,
-  ProjectSummary,
-  SongParts,
-  BeatMap,
-  SongAnalysis,
-  PreviewHints,
-  BeatMarkers,
-  MarkerDensity,
-  PlanRow,
-  Rendering,
-  StyleInfo,
-  TrendPreset,
-  ExportPreset,
-  QualityReport,
-  QueueItem,
-  TimelineState,
   Brand,
   LearnedTrend,
-  PerformanceInput,
-  ProductPlan,
-  ProductRequest,
-  ProductStyleInfo,
   AiModels,
   ModelTestResult,
   AiConfig,
@@ -53,21 +27,15 @@ import type {
   AiTestResult,
   AiUsage,
   Song,
-  SongList,
-  ReviseResult,
-  ChatMessage,
-  ChatFile,
   BrandInput,
-  Dashboard,
-  Insights,
-  LibraryResult,
-  Script,
-  Strategy,
   SystemVoices,
-  Template,
-  TemplateInput,
   VoiceProfile,
-  VoiceProfileInput, Connections, Platform, Post, CheckoutOrder, Credits, Pricing, ReferenceReelInfo, SiteInfo, Retention, Story, StoryOptions } from "@/types/api";
+  VoiceProfileInput,
+  CheckoutOrder,
+  Credits,
+  Pricing,
+  SiteInfo,
+} from "@/types/api";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 
@@ -127,7 +95,6 @@ async function parseError(res: Response): Promise<ApiError> {
 
 /** No request may hang forever: without an answer in time it fails with a clear message (the server may be down). */
 const DEFAULT_TIMEOUT_MS = 45_000;
-const AI_TIMEOUT_MS = 240_000; // story planning / a scene picture: one AI call, can take a minute or two
 
 /** A read that timed out or lost the connection is asked again this many times (a busy server usually answers the next one). */
 const GET_RETRIES = 3;
@@ -216,114 +183,6 @@ export interface UploadResult {
   failed: { name: string; error: ApiErrorBody }[];
 }
 
-// ------------------------------------------------------------------ clip uploads (shrunk in the browser, straight to storage)
-type DirectStart = { direct: false } | { direct: true; files: { mediaId: string; name: string; partSize: number; parts: { n: number; url: string }[] }[] };
-const PARALLEL_PARTS = 6, PART_TRIES = 4, CLIPS_AT_ONCE = 2, SHRINK_SHARE = 0.4;
-
-/** One part PUT to its presigned URL; resolves to the ETag storage gave it (needed to join the parts). */
-function putPart(url: string, blob: Blob, onBytes: (loaded: number) => void): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.upload.onprogress = (e) => onBytes(e.loaded);
-    xhr.onerror = () => reject(new ApiError(0, { code: "NETWORK_ERROR", message: "The connection dropped while uploading." }));
-    xhr.onload = () => {
-      const etag = xhr.getResponseHeader("ETag");
-      if (xhr.status >= 200 && xhr.status < 300 && etag) return resolve(etag);
-      reject(new ApiError(xhr.status, etag || xhr.status >= 300
-        ? { code: "UPLOAD_PART_FAILED", message: `Storage refused part of the upload (${xhr.status}).` }
-        : { code: "STORAGE_CORS", message: "Storage did not return the part's ETag: its CORS rule must expose the ETag header." }));
-    };
-    xhr.send(blob);
-  });
-}
-
-/** One clip sent straight to storage in parallel parts, each retried on its own, then joined and added to the project.
- * null = this server has no direct uploads (the caller uses the normal route). */
-async function uploadOneDirect(id: string, file: File, onProgress: (f: number) => void): Promise<Media | null> {
-  const start = await request<DirectStart>(`/api/projects/${id}/videos/direct`, { method: "POST", body: JSON.stringify({ files: [{ name: file.name, size: file.size, type: file.type }] }) });
-  if (!start.direct) return null;
-  const { mediaId, partSize, parts } = start.files[0];
-  const loaded = new Map<number, number>(), etags: { n: number; etag: string }[] = [];
-  const report = () => onProgress(Math.min([...loaded.values()].reduce((a, b) => a + b, 0) / (file.size || 1), 1));
-  let next = 0;
-  const worker = async () => {
-    while (next < parts.length) {
-      const p = parts[next++], from = (p.n - 1) * partSize, to = Math.min(p.n * partSize, file.size);
-      for (let attempt = 1; ; attempt++) {
-        try {
-          etags.push({ n: p.n, etag: await putPart(p.url, file.slice(from, to), (b) => { loaded.set(p.n, b); report(); }) });
-          loaded.set(p.n, to - from);
-          report();
-          break;
-        } catch (e) {
-          loaded.set(p.n, 0);
-          if (attempt >= PART_TRIES || (e instanceof ApiError && e.code === "STORAGE_CORS")) throw e;
-          await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
-        }
-      }
-    }
-  };
-  try {
-    await Promise.all(Array.from({ length: Math.min(PARALLEL_PARTS, parts.length) }, worker));
-  } catch (e) {
-    await request<void>(`/api/projects/${id}/videos/direct/${mediaId}`, { method: "DELETE" }).catch(() => {});
-    throw e;
-  }
-  return request<Media>(`/api/projects/${id}/videos/direct/${mediaId}`, { method: "POST", body: JSON.stringify({ parts: etags }) }, 300_000);
-}
-
-let shrinking: Promise<unknown> = Promise.resolve();
-/** One clip shrunk at a time (a phone has one hardware encoder); the next one shrinks while this one uploads. */
-function shrinkInTurn(file: File, onProgress: (f: number) => void): Promise<File> {
-  const run = shrinking.then(() => import("./shrinkVideo")).then((m) => m.shrinkVideo(file, onProgress));
-  shrinking = run.catch(() => {});
-  return run.catch(() => file);
-}
-
-/** Clips added to a project: each shrunk in the browser when that saves upload time, then sent straight to storage
- * (or through the server where direct uploads are off). A clip that fails is in `failed`; the others still finish. */
-async function uploadClips(id: string, files: File[], onProgress?: (f: number) => void): Promise<UploadResult> {
-  const total = files.reduce((a, f) => a + f.size, 0) || 1, done = files.map(() => 0);
-  const report = () => onProgress?.(Math.min(files.reduce((a, f, i) => a + done[i] * f.size, 0) / total, 1));
-  const uploaded: (Media | undefined)[] = [], failed: UploadResult["failed"] = [];
-  let next = 0, viaServer = false;
-  const worker = async () => {
-    while (next < files.length) {
-      const i = next++, original = files[i];
-      try {
-        const file = await shrinkInTurn(original, (p) => { done[i] = SHRINK_SHARE * p; report(); });
-        // measured on this device while it uploads (the server then has nothing to analyse); null = the server does it
-        let up = 0, measured = 0;
-        const base = file === original ? 0 : SHRINK_SHARE;
-        const show = (both: boolean) => { done[i] = base + (1 - base) * (both ? 0.75 * up + 0.25 * measured : up); report(); };
-        const analysis = import("./clipAnalysis").then((m) => (m.canAnalyzeHere() ? m.analyzeInBrowser(file, original.name, (f) => { measured = f; show(true); }) : null)).catch(() => null);
-        const sent = (p: number) => { up = p; show(measured > 0); };
-        let media = viaServer ? null : await uploadOneDirect(id, file, sent);
-        if (!media) {
-          viaServer = true;
-          const form = new FormData();
-          form.append("files", file);
-          const r = await upload<UploadResult>(`/api/projects/${id}/videos`, form, sent);
-          if (!r.uploaded.length) throw new ApiError(0, r.failed[0]?.error ?? { code: "UPLOAD_FAILED", message: "The clip could not be uploaded." });
-          media = r.uploaded[0];
-        }
-        const measuredHere = await analysis;
-        if (measuredHere) await request(`/api/projects/${id}/videos/${media.id}/analysis`, { method: "POST", body: JSON.stringify({ analysis: measuredHere }) }).catch(() => null);
-        uploaded[i] = media;
-        done[i] = 1;
-        report();
-      } catch (e) {
-        failed.push({ name: original.name, error: e instanceof ApiError ? { code: e.code, message: e.message, details: e.details } : { code: "UPLOAD_FAILED", message: errorMessage(e) } });
-      }
-    }
-  };
-  await tracked(Promise.all(Array.from({ length: Math.min(CLIPS_AT_ONCE, files.length) }, worker)));
-  const result = { uploaded: uploaded.filter((m): m is Media => !!m), failed }; // in the order the clips were picked
-  if (!result.uploaded.length && failed.length) throw new ApiError(0, failed[0].error);
-  return result;
-}
-
 export const api = {
   health: () => request<Health>("/api/health"),
   me: () => request<{ authEnabled: boolean; user: { id: string; email: string } | null }>("/api/auth/me"),
@@ -344,57 +203,6 @@ export const api = {
   /** Is this browser in admin mode? (required = the server has an admin key; without one everyone is admin) */
   adminSession: (key?: string) =>
     request<{ admin: boolean; required: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined),
-  styles: () => request<StyleInfo[]>("/api/styles"),
-  trends: () => request<TrendPreset[]>("/api/trends"),
-
-  listProjects: (status?: ProjectStatus) =>
-    request<ProjectSummary[]>(`/api/projects${status ? `?status=${status}` : ""}`),
-  getProject: (id: string) => request<Project>(`/api/projects/${id}`),
-  createProject: (name: string, settings: Partial<ProjectSettings>) =>
-    request<Project>("/api/projects", { method: "POST", body: JSON.stringify({ name, settings }) }),
-  updateProject: (id: string, patch: Partial<ProjectSettings> & { name?: string }) =>
-    request<Project>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-  deleteProject: (id: string) => request<void>(`/api/projects/${id}`, { method: "DELETE" }),
-  feedback: (id: string, verdict: "accepted" | "rejected", reason?: FeedbackReason, renderingId?: string) =>
-    request<DirectorProfile>(`/api/projects/${id}/feedback`, { method: "POST", body: JSON.stringify({ verdict, reason, renderingId }) }),
-  purgeMedia: (id: string) => request<{ deleted: number }>(`/api/projects/${id}/purge-media`, { method: "POST" }),
-  directorProfile: () => request<DirectorProfile>("/api/director/profile"),
-  setDirectorProfile: (enabled: boolean) => request<DirectorProfile>("/api/director/profile", { method: "PUT", body: JSON.stringify({ enabled }) }),
-  resetDirectorProfile: () => request<DirectorProfile>("/api/director/profile", { method: "DELETE" }),
-
-  /** Shrunk in the browser when that saves time, then straight to storage (parallel parts) or through the server. */
-  uploadVideos: (id: string, files: File[], onProgress?: (f: number) => void) => uploadClips(id, files, onProgress),
-  uploadAudio: (id: string, file: File, onProgress?: (f: number) => void) => {
-    const form = new FormData();
-    form.append("file", file);
-    return upload<Media>(`/api/projects/${id}/audio`, form, onProgress);
-  },
-  deleteVideo: (id: string, mediaId: string) =>
-    request<void>(`/api/projects/${id}/videos/${mediaId}`, { method: "DELETE" }),
-  reorderVideos: (id: string, ids: string[]) =>
-    request<Project>(`/api/projects/${id}/videos/order`, { method: "PUT", body: JSON.stringify({ ids }) }),
-
-  generate: (id: string, options: GenerateOptions = {}) =>
-    request<Job>(`/api/projects/${id}/generate`, { method: "POST", body: JSON.stringify(options) }),
-  analyze: (id: string) => request<Job>(`/api/projects/${id}/analyze`, { method: "POST" }),
-  /** The best parts of the project's song for a Reel of `duration` seconds, best first (the first = the automatic choice). */
-  beatPlan: (id: string, start: number, duration: number, everyBeat = false, minClip = 0.35) =>
-    request<{ start: number; duration: number; rows: PlanRow[] }>(`/api/projects/${id}/beat-plan?start=${start}&duration=${duration}&every_beat=${everyBeat}&min_clip=${minClip}`, undefined, 240_000),
-  beatMap: (id: string) => request<BeatMap>(`/api/projects/${id}/beat-map`, undefined, 240_000), // analyses the song once (cached)
-  /** The song analysis document (Essentia: beats, onsets, transients, frame features, events). Analysed once per song. */
-  /** Schema 1.0 (small: beats, energy curve, sections, candidate events). full = the whole internal document. */
-  songAnalysis: (id: string, includeOnsets = false, full = false) => {
-    const body = new FormData();
-    body.append("project_id", id);
-    body.append("onsets", String(includeOnsets));
-    body.append("full", String(full));
-    return request<SongAnalysis>("/api/v1/audio/analyze", { method: "POST", body }, 300_000); // step 1 of the v1 pipeline
-  },
-  songParts: (id: string, duration: number, count = 5) =>
-    request<SongParts>(`/api/projects/${id}/song-parts?duration=${duration}&count=${count}`, undefined, 240_000), // analyses the song: can take a while
-  getJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}`),
-  cancelJob: (projectId: string, jobId: string) => request<Job>(`/api/projects/${projectId}/jobs/${jobId}/cancel`, { method: "POST" }),
-  renderings: (id: string) => request<Rendering[]>(`/api/projects/${id}/renderings`),
   plans: () => request<Pricing>("/api/plans"),
   credits: () => request<Credits>("/api/credits"),
   createOrder: (item: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item }) }),
@@ -402,29 +210,10 @@ export const api = {
     request<Credits>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
   setPricing: (body: { plans: { id: string; monthly: number; credits: number; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
     request<Pricing>("/api/admin/pricing", { method: "PUT", body: JSON.stringify(body) }),
-  storyOptions: () => request<StoryOptions>("/api/story/options"),
-  createStory: (body: { text: string; language: string; artStyle: string; scenes: number; seconds: number }) =>
-    request<Story>("/api/story", { method: "POST", body: JSON.stringify(body) }, AI_TIMEOUT_MS),
-  replanStory: (id: string) => request<Story>(`/api/projects/${id}/story/replan`, { method: "POST" }, AI_TIMEOUT_MS),
-  getStory: (id: string) => request<Story>(`/api/projects/${id}/story`),
-  editStory: (id: string, body: { title: string; scenes: { id: string; narration: string; visual: string }[] }) =>
-    request<Story>(`/api/projects/${id}/story`, { method: "PUT", body: JSON.stringify(body) }),
-  scenePicture: (id: string, sceneId: string, another = false) =>
-    request<Story>(`/api/projects/${id}/story/scenes/${sceneId}/picture`, { method: "POST", body: JSON.stringify({ another }) }, AI_TIMEOUT_MS),
-  uploadScenePicture: (id: string, sceneId: string, file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-    return upload<Story>(`/api/projects/${id}/story/scenes/${sceneId}/upload`, form);
-  },
-  renderStory: (id: string, body: { voiceId: string | null; quality: "preview" | "final" }) =>
-    request<Job>(`/api/projects/${id}/story/render`, { method: "POST", body: JSON.stringify(body) }),
-  retention: () => request<Retention>("/api/retention"),
   /** Which parts of the app are on (Administration → Features). */
   features: () => request<Features>("/api/features"),
   aiDirectorReport: () => request<AiDirectorReport>("/api/admin/ai-director"),
   setFeatures: (patch: Partial<Features>) => request<Features>("/api/admin/features", { method: "PUT", body: JSON.stringify(patch) }),
-  setRetention: (body: Retention) => request<Retention>("/api/admin/retention", { method: "PUT", body: JSON.stringify(body) }),
-  runRetention: () => request<{ uploads: number; projects: number }>("/api/admin/retention/run", { method: "POST" }),
   adminOverview: () => request<AdminOverview>("/api/admin/overview"),
   adminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
   adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
@@ -432,54 +221,6 @@ export const api = {
     request<AdminUserDetail>(`/api/admin/users/${id}/credits`, { method: "POST", body: JSON.stringify({ credits, note }) }),
   /** This tab is still open (the admin dashboard's "online now"); quiet: no activity bar, no retries. */
   ping: (visitor: string, path: string) => send<{ ok: boolean }>("/api/public/ping", { method: "POST", body: JSON.stringify({ visitor, path }) }, 10_000),
-  connections: () => request<Connections>("/api/publish/connections"),
-  publish: (id: string, renderingId: string, body: { platforms: Platform[]; caption: string; at?: string | null }) =>
-    request<Post>(`/api/projects/${id}/renderings/${renderingId}/publish`, { method: "POST", body: JSON.stringify(body) }),
-  posts: (id: string) => request<Post[]>(`/api/projects/${id}/posts`),
-  cancelPost: (postId: string) => request<{ ok: boolean }>(`/api/posts/${postId}`, { method: "DELETE" }),
-
-  // --- editor ---
-  timeline: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline`),
-  /** How the renderer frames, corrects and grades each shot: the live preview shows the same picture. */
-  /** The Reel's real beat markers: every beat with its kind, the drops, and the person's own markers. */
-  timelineMarkers: (id: string) => request<BeatMarkers>(`/api/projects/${id}/timeline/markers`, undefined, 120_000),
-  editMarkers: (id: string, add: number[], remove: number[]) =>
-    request<BeatMarkers>(`/api/projects/${id}/timeline/markers`, { method: "POST", body: JSON.stringify({ add, remove }) }, 120_000),
-  /** Re-cut the Reel's clips onto the markers of a density (one undoable edit). */
-  autoCut: (id: string, density: MarkerDensity, minClip = 0.4) =>
-    request<TimelineState>(`/api/projects/${id}/timeline/auto-cut`, { method: "POST", body: JSON.stringify({ density, minClip }) }, 300_000),
-  previewHints: (id: string) => request<PreviewHints>(`/api/projects/${id}/timeline/preview-hints`, undefined, 120_000),
-  startEditing: (id: string, fresh = false) => request<TimelineState>(`/api/projects/${id}/timeline/start${fresh ? "?fresh=true" : ""}`, { method: "POST" }),
-  editorCatalog: () => request<{ transitions: string[]; effects: string[]; looks: { id: string; label: string; hint: string }[] }>("/api/editor/catalog"),
-  editTimeline: (id: string, ops: object[], label?: string) =>
-    request<TimelineState>(`/api/projects/${id}/timeline/ops`, { method: "POST", body: JSON.stringify({ ops, label }) }),
-  undo: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline/undo`, { method: "POST" }),
-  redo: (id: string) => request<TimelineState>(`/api/projects/${id}/timeline/redo`, { method: "POST" }),
-  render: (id: string, quality: "preview" | "final", label?: string) =>
-    request<Job>(`/api/projects/${id}/render`, { method: "POST", body: JSON.stringify({ quality, label }) }),
-  restore: (id: string, renderingId: string) =>
-    request<TimelineState>(`/api/projects/${id}/renderings/${renderingId}/restore`, { method: "POST" }),
-  qualityCheck: (id: string) => request<QualityReport>(`/api/projects/${id}/quality-check`, { method: "POST" }),
-  qualityFix: (id: string, code: string, segmentId?: string | null) =>
-    request<{ state: TimelineState; issues: QualityReport["issues"]; checked: QualityReport["checked"] }>(
-      `/api/projects/${id}/quality-fix`,
-      { method: "POST", body: JSON.stringify({ code, segmentId }) },
-    ),
-  exportPresets: () => request<ExportPreset[]>("/api/export-presets"),
-  queue: () => request<QueueItem[]>("/api/queue"),
-
-  // --- understanding + library ---
-  productStyles: () => request<ProductStyleInfo[]>("/api/product/styles"),
-  uploadImages: (id: string, files: File[], onProgress?: (f: number) => void) => {
-    const form = new FormData();
-    files.forEach((f) => form.append("files", f));
-    return upload<UploadResult>(`/api/projects/${id}/images`, form, onProgress);
-  },
-  deleteImage: (id: string, mediaId: string) => request<void>(`/api/projects/${id}/images/${mediaId}`, { method: "DELETE" }),
-  productPlan: (id: string, body: ProductRequest = {}) =>
-    request<ProductPlan>(`/api/projects/${id}/product/plan`, { method: "POST", body: JSON.stringify(body) }),
-  generateProduct: (id: string, body: ProductRequest = {}) =>
-    request<Job>(`/api/projects/${id}/product/generate`, { method: "POST", body: JSON.stringify(body) }),
   aiModels: () => request<AiModels>("/api/ai/models"),
   chooseModel: (model: string | null) => request<AiModels>("/api/ai/model", { method: "PUT", body: JSON.stringify({ model }) }),
   testModel: (model: string) => request<ModelTestResult>("/api/ai/models/test", { method: "POST", body: JSON.stringify({ model }) }),
@@ -489,15 +230,6 @@ export const api = {
   testAi: (provider?: AiProviderId, vision = false) =>
     request<AiTestResult>("/api/ai/test", { method: "POST", body: JSON.stringify({ provider, vision }) }),
   aiUsage: () => request<AiUsage>("/api/ai/usage"),
-  songs: (q = "") => request<SongList>(`/api/songs?q=${encodeURIComponent(q)}`),
-  uploadSongs: (files: File[], onProgress?: (f: number) => void) => {
-    const form = new FormData();
-    files.forEach((f) => form.append("files", f));
-    return upload<{ uploaded: Song[]; failed: { name: string; error: string }[] }>("/api/songs", form, onProgress);
-  },
-  deleteSong: (id: string) => request<void>(`/api/songs/${id}`, { method: "DELETE" }),
-  importSongs: () => request<{ added: number; folders: string[]; errors?: string[] }>("/api/songs/import", { method: "POST" }),
-  songUsed: (id: string) => request<void>(`/api/songs/${id}/used`, { method: "POST" }),
   /** The song's audio as a File, so every existing "song file" flow (waveform, upload) works unchanged. */
   songFile: async (song: Song): Promise<File> => {
     const res = await fetch(assetUrl(song.url) as string);
@@ -506,19 +238,6 @@ export const api = {
     const ext = (blob.type.split("/")[1] ?? "mp3").replace("mpeg", "mp3").replace("x-wav", "wav");
     return new File([blob], `${song.name}.${ext}`, { type: blob.type || "audio/mpeg" });
   },
-  revise: (id: string, instruction: string, dryRun = false, confirmedActions?: Record<string, unknown>[]) =>
-    request<ReviseResult>(`/api/projects/${id}/revise`, { method: "POST", body: JSON.stringify({ instruction, dryRun, confirmedActions }) }),
-  understand: (id: string) => request<Job>(`/api/projects/${id}/understand`, { method: "POST" }),
-  library: (params: Record<string, string | boolean | undefined>) => {
-    const q = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => v !== undefined && v !== "" && q.set(k, String(v)));
-    return request<LibraryResult>(`/api/library?${q.toString()}`);
-  },
-  librarySearch: (query: string, ai: boolean) =>
-    request<LibraryResult>("/api/library/search", { method: "POST", body: JSON.stringify({ query, ai }) }),
-  patchMedia: (id: string, patch: { favorite?: boolean; tags?: string[] }) =>
-    request<unknown>(`/api/library/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
-
   // --- voices + script ---
   systemVoices: () => request<SystemVoices>("/api/voices/system"),
   voices: () => request<VoiceProfile[]>("/api/voices"),
@@ -536,40 +255,8 @@ export const api = {
     if (!res.ok) throw await parseError(res);
     return res.blob();
   },
-  script: (id: string) => request<Script>(`/api/projects/${id}/script`),
-  saveScript: (id: string, s: Omit<Script, "estimatedSeconds">) =>
-    request<Script>(`/api/projects/${id}/script`, { method: "PUT", body: JSON.stringify(s) }),
-  hooks: (id: string, count = 3) =>
-    request<{ hooks: string[]; language: string }>(`/api/projects/${id}/script/hooks`, { method: "POST", body: JSON.stringify({ count }) }),
-  generateScript: (id: string, body: { hook?: string | null; cta?: string | null }) =>
-    request<Script>(`/api/projects/${id}/script/generate`, { method: "POST", body: JSON.stringify(body) }),
-  reviseScript: (id: string, instruction: "shorten" | "natural" | "energetic" | "regenerate") =>
-    request<Script>(`/api/projects/${id}/script/revise`, { method: "POST", body: JSON.stringify({ instruction }) }),
-  generateVoice: (id: string, voiceProfileId?: string) =>
-    request<{ state: TimelineState; voice: { duration: number; voice: string; lines: number } }>(`/api/projects/${id}/voice/generate`, {
-      method: "POST",
-      body: JSON.stringify({ voiceProfileId }),
-    }),
-  removeVoice: (id: string) => request<TimelineState>(`/api/projects/${id}/voice`, { method: "DELETE" }),
-
   // --- my trends (learned from reference Reels) ---
   references: () => request<LearnedTrend[]>("/api/references"),
-  referenceReel: (id: string) => request<ReferenceReelInfo | null>(`/api/projects/${id}/reference-reel`),
-  setReferenceReel: (id: string, file: File, useAudio = true) => {
-    const form = new FormData();
-    form.append("file", file);
-    form.append("use_audio", useAudio ? "true" : "false");
-    return upload<ReferenceReelInfo>(`/api/projects/${id}/reference-reel`, form);
-  },
-  removeReferenceReel: (id: string) => request<void>(`/api/projects/${id}/reference-reel`, { method: "DELETE" }),
-  trendLibrary: () => request<{ count: number; lastAdded: string | null; styles: number }>("/api/trend-library"),
-  learnTrends: (files: File[]) => {
-    const form = new FormData();
-    files.forEach((f) => form.append("files", f));
-    return upload<{ learned: string[]; failed: { name: string; error: string }[]; total: number }>("/api/trend-library/learn", form);
-  },
-  groupTrends: () => request<LearnedTrend[]>("/api/trend-library/group", { method: "POST" }, AI_TIMEOUT_MS),
-  clearTrendLibrary: () => request<void>("/api/trend-library", { method: "DELETE" }),
   createReference: (name: string, notes: string, files: File[], onProgress?: (f: number) => void) => {
     const form = new FormData();
     form.append("name", name);
@@ -596,42 +283,6 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     return upload<Brand>(`/api/brands/${id}/logo`, form);
-  },
-  applyBrand: (projectId: string, brandId: string) =>
-    request<{ state: TimelineState | null }>(`/api/projects/${projectId}/apply-brand`, { method: "POST", body: JSON.stringify({ brandId }) }),
-  templates: () => request<Template[]>("/api/templates"),
-  createTemplate: (t: TemplateInput) => request<Template>("/api/templates", { method: "POST", body: JSON.stringify(t) }),
-  updateTemplate: (id: string, t: TemplateInput) => request<Template>(`/api/templates/${id}`, { method: "PATCH", body: JSON.stringify(t) }),
-  deleteTemplate: (id: string) => request<void>(`/api/templates/${id}`, { method: "DELETE" }),
-  favoriteTemplate: (id: string, favorite: boolean) =>
-    request<unknown>(`/api/templates/${id}/favorite`, { method: "PUT", body: JSON.stringify({ favorite }) }),
-  generateTemplate: (prompt: string) =>
-    request<{ draft: boolean; template: TemplateInput }>("/api/templates/generate", { method: "POST", body: JSON.stringify({ prompt }) }),
-  generateTemplateFromChat: (transcript: string) =>
-    request<{ draft: boolean; template: TemplateInput }>("/api/templates/generate-from-chat", { method: "POST", body: JSON.stringify({ transcript }) }),
-  applyTemplate: (projectId: string, templateId: string) =>
-    request<{ settings: unknown }>(`/api/projects/${projectId}/apply-template`, { method: "POST", body: JSON.stringify({ templateId }) }),
-
-  // --- variations, workspace ---
-  strategies: () => request<Strategy[]>("/api/variation-strategies"),
-  /** One long video -> several Reels from its best parts (they appear as versions). */
-  split: (id: string, count: number, seconds: number) =>
-    request<Job>(`/api/projects/${id}/split`, { method: "POST", body: JSON.stringify({ count, seconds }) }),
-  variations: (id: string, strategies?: string[]) =>
-    request<Job>(`/api/projects/${id}/variations`, { method: "POST", body: JSON.stringify({ strategies }) }),
-  duplicate: (id: string, body: { name?: string; variant?: "copy" | "language"; language?: string }) =>
-    request<{ id: string; name: string }>(`/api/projects/${id}/duplicate`, { method: "POST", body: JSON.stringify(body) }),
-  performance: (projectId: string, renderingId: string, body: PerformanceInput) =>
-    request<unknown>(`/api/projects/${projectId}/renderings/${renderingId}/performance`, { method: "PUT", body: JSON.stringify(body) }),
-  insights: () => request<Insights>("/api/insights"),
-  dashboard: () => request<Dashboard>("/api/dashboard"),
-
-  // --- chat ---
-  chat: (messages: ChatMessage[]) => request<{ reply: string }>("/api/chat", { method: "POST", body: JSON.stringify({ messages }) }),
-  uploadChatFile: (file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-    return request<ChatFile>("/api/chat/files", { method: "POST", body: form });
   },
 };
 
