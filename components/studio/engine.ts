@@ -1689,25 +1689,23 @@ function applyDirectorStyle(){
   plan.forEach((s,i)=>{
     const d = director.slots[i], len = s.end - s.start;
     if(!d) return;
-    // transition: the opener has nothing before it (hard or a fade-in); the user's style (Smooth) is respected
+    // The AI is free: any known tool in any style. Only what cannot be played is refused (the opener has nothing
+    // before it to transition from; a freeze needs a moment to hold; a speed on the beats needs beats).
     if(d.tr){ asked++; const tr = d.tr;
-      const ok = i===0 ? (tr==='hard' || tr==='fadein') : TR_OK[mode].includes(tr);
+      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR;
       if(ok){ s.tr = tr; s.trByDir = true; used++; } else fixed++;
     }
     // effect: "hook" is the opener's own; a slow move needs time; the photo snap needs a moment to freeze
     if(d.fx){ asked++; const fx = d.fx;
-      let ok = (FX_OK[mode]||[]).includes(fx) || (i===0 && fx==='hook');
-      if(fx==='hook' && i!==0) ok = false;
+      let ok = fx in FX_NAME;
       if(fx==='snap' && len <= 0.7) ok = false;
-      if(['pan','pan-soft','drift'].includes(fx) && len < 0.8) ok = false;
       if(ok){ s.efx = fx; s.fxByDir = true; used++; } else fixed++;
     }
     // speed: only what the shot can play (and what Smooth allows)
     if(d.sp){ asked++; let ok = true, sp = null; const bl = beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
-      if(mode==='smooth' && !['normal','slow'].includes(d.sp)) ok = false;
       if(d.sp==='freeze' && s.efx!=='snap') ok = false;
-      if(d.sp==='ramp' && len < 0.9) ok = false;
-      if(d.sp==='velocity' && (!bl.length || len < 0.9)) ok = false;
+      if(d.sp==='ramp' && len < 0.4) ok = false;
+      if(d.sp==='velocity' && !bl.length) ok = false;
       if(ok) sp = d.sp==='velocity' ? velocitySpeed(len, bl) : d.sp==='ramp' ? rampSpeed(len) : d.sp==='freeze' ? snapSpeed : SPEED[d.sp];
       if(sp){ s.sp = sp; used++; } else fixed++;
     }
@@ -1721,7 +1719,7 @@ function applyDirectorStyle(){
       used++; }
     // keyframes on the hits: inside the shot, not in the first frames of a transition, none in a Smooth Reel
     s.acc = [];
-    if(d.keys && d.keys.length && mode!=='smooth'){ asked += d.keys.length;
+    if(d.keys && d.keys.length){ asked += d.keys.length;
       for(const k of d.keys){ if(k.at > Math.max(0.04, (i && TR_DUR[s.tr]) || 0) && k.at < len-0.05 && ACCENTS.includes(k.do)){ s.acc.push({at:k.at, do:k.do}); used++; } else fixed++; } }
   });
   const undone = finishTransitions();
@@ -1799,10 +1797,20 @@ function cutMusic(){
   const sm = getSoundMap(), cx = { hits: hitsRaw || [], hitStr: hitsStr || [], drops: plan.filter(s=>s.type==='drop').map(s=>s.start), beats };
   return plan.map(s => sm ? describeCut(sm, s.start, s.end, cx) : null);
 }
+/* ---- every Reel feels new: the tools each finished Reel used are kept on the phone (last 6 Reels) and the AI is told
+ * which ones this creator used lately, most used first, so it makes other choices ---- */
+const RECENT_KEY = 'brs-recent-tools';
+function recentTools(){ let L = []; try{ L = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); }catch(e){}
+  const n = new Map(); for(const r of Array.isArray(L) ? L : []) for(const k of r) n.set(k, (n.get(k) || 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1]).slice(0, 40).map(([k]) => k); }
+function rememberTools(){ if(!edit.length) return; const used = new Set();
+  for(const e of edit){ if(e.tr && e.tr !== 'hard') used.add(e.tr); if(e.efx && e.efx !== 'none') used.add(e.efx); if(e.sp && e.sp.label && e.sp.label !== '1×') used.add('speed ' + e.sp.label); }
+  try{ const L = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); L.push([...used].slice(0, 30)); localStorage.setItem(RECENT_KEY, JSON.stringify(L.slice(-6))); }catch(e){} }
 function dirRequest(cands){
   const per = Math.max(1, buf.duration/30), music = cutMusic(), pc = paceNow();
   const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
     clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
+    recent: recentTools(),
     budget: mode === 'copy' && copyBudget ? copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
     slots: plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
       ...(music[i] ? { music: music[i] } : {}),
@@ -1814,7 +1822,7 @@ function dirRequest(cands){
 function toSlots(list, cands){
   const slots = [];
   for(const d of list || []){ const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
-    slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], why: d.why || '' }; }
+    slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], cs: d.clip && typeof d.clip === 'object' ? d.clip : null, why: d.why || '' }; }
   return slots;
 }
 // An AI plan made for other cuts (the song's part moved), fitted to these: every cut takes the choices of the AI's cut
@@ -1844,7 +1852,7 @@ function refitDirector(src, withShots){
     const keys = (d.keys || []).map((k,n) => ({ at: hits[n] ? hits[n].at : +(k.at / Math.max(0.05, best.len) * len).toFixed(2), do: k.do }));
     let cand = null;
     if(cands){ const c = (cands[i] || []).find(c => near(c) >= 0); if(c){ pool.splice(near(c), 1); cand = { src: c.si, in: c.a }; } }
-    slots[i] = { cand, tr: d.tr, fx: d.fx, sp: d.sp, keys, move: (d.move || []).slice(), why: d.why || '' };
+    slots[i] = { cand, tr: d.tr, fx: d.fx, sp: d.sp, keys, move: (d.move || []).slice(), cs: d.cs || null, why: d.why || '' };
   });
   return slots;
 }
@@ -3757,7 +3765,7 @@ async function copyCaption(text, sharing){
 let lastVideo = null;
 let exportKeep = false, exportP = 0, lastName = '';
 function saveFile(blob, name){
-  if(/^video\//.test(blob.type)){ lastVideo = blob; fillCaption(); }
+  if(/^video\//.test(blob.type)){ lastVideo = blob; fillCaption(); rememberTools(); }
   if(exportKeep){ lastName = name; return false; }
   const file = new File([blob], name, { type: blob.type });
   const phone = matchMedia('(pointer: coarse)').matches;
@@ -4706,6 +4714,11 @@ function voiceFx(x, sr, fx){
  * - one strong hit or drop, past the opening, plays backwards
  * - the last shot fades out with the music
  * What the AI set is listed in cs.auto; anything the creator changes is theirs and stays. Off: au.ai = false. ---- */
+// the AI's shot settings, each a known field of the clip tools in its range (the server checked them too)
+const AI_CS = c => { const o = {}, n = (k, a, b) => { const v = Number(c[k]); if(Number.isFinite(v) && v) o[k] = Math.min(b, Math.max(a, v)); };
+  if([90,180,270].includes(c.rot)) o.rot = c.rot; for(const k of ['fh','fv','fit']) if(c[k] === true) o[k] = true;
+  if(o.fit){ if(c.bg === 'blur' || c.bg === 'color') o.bg = c.bg; if(/^#[0-9a-f]{6}$/i.test(c.bgc || '')) o.bgc = c.bgc; n('bd', 0, 1); if(/^#[0-9a-f]{6}$/i.test(c.bdc || '')) o.bdc = c.bdc; }
+  n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('fin', 0, 1.5); n('fout', 0, 1.5); return o; };
 function csAutoSet(e, patch){
   e.cs = e.cs || {}; const auto = e.cs.auto || [];
   for(const k in patch){ if(k in e.cs && !auto.includes(k)) continue; e.cs[k] = patch[k]; if(!auto.includes(k)) auto.push(k); }
@@ -4729,6 +4742,8 @@ function autoTools(){
     if(au.clip === 'all') csAutoSet(e, { vol: 0.7 });
     else if(au.clip === 'voices' && speechShare(s, e.in, e.in + need) > 0.4) csAutoSet(e, { vol: 0.9 });
   });
+  // the AI director's own look for a shot (mirror, black and white, a framed photo, a fade...), like a person's clip tools
+  edit.forEach((e, i) => { const d = dirSlotOf(i); if(d && d.cs) csAutoSet(e, AI_CS(d.cs)); });
   const cand = edit.map((e, i) => ({ e, i })).filter(({ e, i }) => i > 2 && e.start > 3 && (e.type === 'drop' || e.type === 'hit') && e.end - e.start >= 0.5 && e.end - e.start <= 1.6
     && (e.mot || 0) > 0.45 && e.sp.label === '1×' && e.efx !== 'snap' && !(e.cs && 'rev' in e.cs));
   if(cand.length) csAutoSet(cand[Math.floor(cand.length/2)].e, { rev: true });
