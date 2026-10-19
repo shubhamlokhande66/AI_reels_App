@@ -201,6 +201,8 @@ export interface AiProviderModels {
 }
 
 export interface AiUsagePeriod {
+  /** each kind of AI work (shot_ranking, studio_director, captions…): calls, cost and cost per call */
+  tasks?: { task: string; calls: number; cost: number | null; perCall: number | null }[];
   calls: number;
   ok: number;
   failed: number;

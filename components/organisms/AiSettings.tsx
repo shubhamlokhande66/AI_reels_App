@@ -226,6 +226,8 @@ function money(v: number | null | undefined, currency: string) {
   return `${currency === "INR" ? "₹" : currency === "USD" ? "$" : `${currency} `}${v.toFixed(v < 1 ? 4 : 2)}`;
 }
 
+/** the AI's kinds of work, in plain words */
+const TASK_NAME: Record<string, string> = { shot_ranking: "Fast Studio: picking shots (and Copy a Reel)", studio_director: "Fast Studio: AI director (pace, plan, New mix)", studio_captions: "Captions", translate: "Caption translation", general: "Other" };
 function Period({ title, p, currency }: { title: string; p: AiUsagePeriod; currency: string }) {
   return (
     <div className="rounded-xl border border-border p-3 text-sm">
@@ -236,6 +238,10 @@ function Period({ title, p, currency }: { title: string; p: AiUsagePeriod; curre
         {p.fallbacks ? <span className="text-warning"> · {p.fallbacks} fallback</span> : null}
       </p>
       <p className="mt-1 text-xs">Estimated cost: {money(p.cost, currency)}{!p.allPriced && p.calls ? " (some models not priced)" : ""}</p>
+      {p.tasks && p.tasks.length > 0 && (
+        <table className="mt-2 w-full text-xs"><thead><tr className="text-left text-muted"><th>Work</th><th>Calls</th><th>Cost</th><th>Per call</th></tr></thead>
+          <tbody>{p.tasks.map((t) => <tr key={t.task}><td>{TASK_NAME[t.task] ?? t.task}</td><td>{t.calls}</td><td>{money(t.cost, currency)}</td><td>{money(t.perCall, currency)}</td></tr>)}</tbody></table>
+      )}
       {p.providers.length > 0 && (
         <ul className="mt-2 space-y-0.5 text-xs text-muted">
           {p.providers.map((x) => (

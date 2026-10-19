@@ -135,7 +135,13 @@ function starts(now = new Date()) {
   const week = new Date(day); week.setDate(day.getDate() - ((day.getDay() + 6) % 7));
   return { today: day, week, month: new Date(day.getFullYear(), day.getMonth(), 1) };
 }
-type Row = { ts: Date; provider?: string; ok?: boolean; cost?: number | null; fallbackUsed?: boolean };
+type Row = { ts: Date; provider?: string; task?: string; ok?: boolean; cost?: number | null; fallbackUsed?: boolean };
+/** what each kind of AI work costs (shot picking, the director, captions, copying a Reel…): calls and cost, the dearest first */
+function byTask(rows: Row[]) {
+  const m = new Map<string, { calls: number; cost: number }>();
+  for (const r of rows) { const t = m.get(r.task ?? "general") ?? { calls: 0, cost: 0 }; t.calls++; t.cost += Number(r.cost ?? 0); m.set(r.task ?? "general", t); }
+  return [...m].sort((a, b) => b[1].cost - a[1].cost).map(([task, v]) => ({ task, calls: v.calls, cost: toDisplay(v.cost), perCall: toDisplay(v.calls ? v.cost / v.calls : 0) }));
+}
 function aggregate(rows: Row[]) {
   const by = new Map<string, { calls: number; ok: number; failed: number; cost: number }>();
   let total = 0, priced = true;
@@ -147,7 +153,7 @@ function aggregate(rows: Row[]) {
     p.cost += Number(r.cost ?? 0); total += Number(r.cost ?? 0);
     by.set(r.provider ?? "?", p);
   }
-  return { calls: rows.length, ok: rows.filter((r) => r.ok).length, failed: rows.filter((r) => !r.ok).length, fallbacks: rows.filter((r) => r.fallbackUsed).length, cost: toDisplay(total), allPriced: priced,
+  return { tasks: byTask(rows), calls: rows.length, ok: rows.filter((r) => r.ok).length, failed: rows.filter((r) => !r.ok).length, fallbacks: rows.filter((r) => r.fallbackUsed).length, cost: toDisplay(total), allPriced: priced,
     providers: [...by].sort(([a], [b]) => a.localeCompare(b)).map(([provider, v]) => ({ provider, ...v, cost: toDisplay(v.cost) })) };
 }
 export async function usageSummary(now = new Date()) {
