@@ -98,8 +98,7 @@ export const STUDIO_HTML = `
     </div>
   <div class="tplrow">
     <span class="label">Or start from a template</span>
-    <div class="tpl" id="tpl" role="group" aria-label="Templates">
-      <button data-t="talking" aria-pressed="false">Talking head</button><button data-t="tutorial" aria-pressed="false">Tutorial</button><button data-t="recipe" aria-pressed="false">Recipe</button><button data-t="beforeafter" aria-pressed="false">Before / After</button><button data-t="product" aria-pressed="false">Product</button><button data-t="montage" aria-pressed="false">Beat montage</button><button data-t="travel" aria-pressed="false">Travel</button><button data-t="ganpati" aria-pressed="false">Ganpati</button><button data-t="diwali" aria-pressed="false">Diwali</button>
+    <div class="tpl" id="tpl" role="group" aria-label="Templates"><!-- filled by the studio: the templates from Admin -->
     </div>
     <span class="fname" id="tplhelp"></span>
   </div>

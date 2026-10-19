@@ -5,9 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { Icon, Spinner } from "@/components/atoms";
 import { PageHeader } from "@/components/molecules";
 import { TemplateCard } from "@/components/molecules/TemplateCard";
-import { STUDIO_TEMPLATES } from "@/lib/studio-templates";
-
-const GROUPS = ["Everyday", "Business", "Travel & food", "Festivals"] as const;
+import { groupsOf, lookName, type StudioTemplate } from "@/lib/studio-templates";
+import { useTemplates } from "@/lib/useTemplates";
 
 /** Templates: the ready-made Reels, by group, searchable; each opens the Create page with it picked. */
 export default function TemplatesPage() {
@@ -20,10 +19,11 @@ export default function TemplatesPage() {
 
 function Templates() {
   // the header's search (/templates?q=…): the name, the kind, the look and what the template does
+  const { templates } = useTemplates();
   const [q, setQ] = useState(useSearchParams().get("q") ?? "");
   const s = q.trim().toLowerCase();
-  const found = (t: (typeof STUDIO_TEMPLATES)[number]) => !s || [t.name, t.text, t.look, t.group, t.kind].join(" ").toLowerCase().includes(s);
-  const any = STUDIO_TEMPLATES.some(found);
+  const found = (t: StudioTemplate) => !s || [t.name, t.text, lookName(t), t.group, t.kind].join(" ").toLowerCase().includes(s);
+  const any = templates.some(found);
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
       <PageHeader title="Templates" subtitle="Pick a ready-made Reel, add your clips: the style, look, length and text are done for you." />
@@ -32,8 +32,8 @@ function Templates() {
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates" aria-label="Search templates" />
       </label>
       {!any && <p className="mu sm">No template matches “{q}”.</p>}
-      {GROUPS.map((g) => {
-        const list = STUDIO_TEMPLATES.filter((t) => t.group === g && found(t));
+      {groupsOf(templates).map((g) => {
+        const list = templates.filter((t) => t.group === g && found(t));
         if (!list.length) return null;
         return (
           <section key={g} aria-label={g} className="flex flex-col gap-2.5">

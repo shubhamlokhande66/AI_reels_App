@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 import { templateHref, templateMeta, type StudioTemplate } from "@/lib/studio-templates";
 
 /** Each template's poster art (UI/ design: Popular Templates): glowing light over its own colours, until a cover
- * picture is set (public/templates/<id>.webp, `cover` in lib/studio-templates.ts). */
+ * picture is set (the administrator's cover address, Admin → Templates). */
 const ART: Record<string, string> = {
   montage: "bg-[radial-gradient(circle_at_70%_25%,rgba(255,120,240,.75),transparent_40%),linear-gradient(160deg,#ff3fd0,#6d28d9_55%,#1a0b3d)]",
   beforeafter: "bg-[radial-gradient(circle_at_40%_30%,rgba(255,220,190,.6),transparent_38%),linear-gradient(160deg,#c08a6a,#5b3b2e_60%,#1e1412)]",
@@ -33,6 +33,7 @@ export function TemplateCard({ t, compact = false }: { t: StudioTemplate; compac
             </span>
           ))}
         </span>
+        {t.isNew && <Badge tone="dark" className="absolute left-2.5 top-2.5">✨ New</Badge>}
         <Badge tone="dark" className="absolute bottom-2.5 right-2.5">
           {t.kind === "talk" ? "Talk" : t.len ? `${t.len}s` : "Music"}
         </Badge>
