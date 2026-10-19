@@ -2592,14 +2592,28 @@ function drawLayers(g, t){
     if(!lyBuf){ lyBuf = document.createElement('canvas'); lyG = lyBuf.getContext('2d'); }
     if(lyBuf.width !== dw || lyBuf.height !== dh){ lyBuf.width = dw; lyBuf.height = dh; }
     const q = lyG; q.save(); q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, dw, dh); q.drawImage(src, sx, sy, sw, sh, 0, 0, dw, dh);
+    if(L.key && L.key.on) chromaKey(q, dw, dh, L.key);
     if(L.mask !== 'none' || L.rad > 0){ layerMask(q, L, dw, dh); }
     q.restore();
     const life = t - L.t0, left = L.t1 - t, a = L.op * Math.min(L.fin > 0 ? Math.min(1, life/L.fin) : 1, L.fout > 0 ? Math.min(1, left/L.fout) : 1);
-    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
+    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.globalCompositeOperation = L.blend || 'source-over'; g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
     g.drawImage(lyBuf, -dw/2, -dh/2); g.restore();
     if(L === layers[lySel] && !exporting && !recording && !playing){   // the chosen layer: a thin frame (preview only)
       g.save(); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.strokeStyle = 'rgba(176,92,255,0.95)'; g.lineWidth = Math.max(2, W*0.004); g.setLineDash([W*0.012, W*0.008]); g.strokeRect(-dw/2, -dh/2, dw, dh); g.restore(); }
   }
+}
+/* chroma key (green screen): pixels near the key colour become see-through, with a soft edge and the colour's spill
+ * taken off the edges (a green rim turns neutral) */
+function chromaKey(q, w, h, K){
+  const im = q.getImageData(0, 0, w, h), d = im.data, [kr, kg, kb] = hexRgb(K.c).map(v => v*255), tol = 40 + (K.tol ?? 0.35)*180, soft = 40;
+  const kmax = Math.max(kr, kg, kb), dom = kg === kmax ? 1 : kb === kmax ? 2 : 0;
+  for(let i = 0; i < d.length; i += 4){
+    const r = d[i], g = d[i+1], b = d[i+2], dist = Math.hypot(r - kr, g - kg, b - kb);
+    if(dist < tol){ d[i+3] = 0; continue; }
+    if(dist < tol + soft){ d[i+3] = Math.round(d[i+3]*(dist - tol)/soft);
+      if(dom === 1 && g > Math.max(r, b)) d[i+1] = Math.max(r, b); else if(dom === 2 && b > Math.max(r, g)) d[i+2] = Math.max(r, g); }
+  }
+  q.putImageData(im, 0, 0);
 }
 // keep only the mask's shape (or cut it out, inverted); soft edges with a blur
 function layerMask(q, L, w, h){
@@ -2650,6 +2664,7 @@ function lyUI(){
     b.addEventListener('click', () => { lySel = i; lyUI(); pos = Math.max(pos, L.t0); if(!lyOn(L, pos)) pos = L.t0 + 0.05; prepare(segAt(pos), pos).then(() => prepLayers(pos)).then(redrawFrame); });
     box.appendChild(b); });
   const L = layers[lySel], ed = $('lyedit'); ed.hidden = !L; if(!L) return;
+  if(!L.key) L.key = { on: false, c: '#00FF00', tol: 0.35 }; if(!L.blend) L.blend = 'source-over';
   const M = lmedia[L.m];
   for(const el of ed.querySelectorAll('[data-ly]')){ const k = el.dataset.ly, v = k.includes('.') ? L[k.split('.')[0]][k.split('.')[1]] : L[k];
     if(el.type === 'checkbox') el.checked = !!v; else el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = lyFmt(k, +v); }
@@ -2664,7 +2679,7 @@ function lySet(k, v){ const L = layers[lySel]; if(!L) return;
   if(!playing) redrawFrame(); }
 $('lyadd').addEventListener('click', () => $('lyfile').click(), SIG);
 $('lyfile').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; if(f.length) layerAdd(f); }, SIG);
-$('lyedit').addEventListener('input', e => { const el = e.target, k = el.dataset && el.dataset.ly; if(!k) return; const v = el.type === 'checkbox' ? el.checked : +el.value; lySet(k, v); const o = el.parentElement.querySelector('output'); if(o && el.type !== 'checkbox') o.textContent = lyFmt(k, v); }, SIG);
+$('lyedit').addEventListener('input', e => { const el = e.target, k = el.dataset && el.dataset.ly; if(!k) return; const v = el.type === 'checkbox' ? el.checked : el.tagName === 'SELECT' ? el.value : +el.value; lySet(k, v); const o = el.parentElement.querySelector('output'); if(o && el.type !== 'checkbox') o.textContent = lyFmt(k, v); }, SIG);
 $('lyedit').addEventListener('click', e => { const t = e.target.closest('button'); if(!t) return; const L = layers[lySel]; if(!L) return;
   if(t.dataset.m){ L.mask = t.dataset.m; lyUI(); redrawFrame(); }
   else if(t.dataset.lay){ layoutLayer(L, t.dataset.lay); lyUI(); redrawFrame(); }
@@ -2672,6 +2687,7 @@ $('lyedit').addEventListener('click', e => { const t = e.target.closest('button'
   else if(t.dataset.lyt === 'end'){ L.t1 = Math.max(pos, L.t0 + 0.3); lyUI(); redrawFrame(); }
   else if(t.dataset.lyt === 'all'){ L.t0 = 0; L.t1 = buf.duration; lyUI(); redrawFrame(); }
   else if(t.dataset.lyf){ L[t.dataset.lyf] = !L[t.dataset.lyf]; redrawFrame(); }
+  else if(t.dataset.lykey){ L.key = { ...(L.key || { tol: 0.35 }), on: true, c: t.dataset.lykey }; lyUI(); redrawFrame(); }
   else if(t.dataset.lydel){ layers.splice(lySel, 1); lySel = Math.min(lySel, layers.length - 1); clipMixKey = ''; lyUI(); redrawFrame(); }
 }, SIG);
 function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let cur='';
@@ -3365,6 +3381,8 @@ uniform float mode, prog, mixv, time, snap, bgDark, border;
 uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix, warm, lift;
 uniform vec3 leak;
 uniform vec4 tfA, tfB, bgA, bgB, bgrA, bgrB, bdA, bdB, adA, adB, mz, mg;
+uniform vec4 ad2A, ad2B, tsh, thi;   /* a shot's highlights, shadows, hue, sharpen and the look's shadow and highlight tints */
+uniform float beA, beB;   /* skin smoothing of a shot */
 uniform float mzc;
 uniform vec4 shp, shq;   // a beat shape of the shot: kind, level, centre, and the grid / strips count
 vec2 rotP(vec2 p, float r){ vec2 c=res*0.5; vec2 d=p-c; float cs=cos(-r), sn=sin(-r); return c+vec2(cs*d.x-sn*d.y, sn*d.x+cs*d.y); }
@@ -3385,11 +3403,29 @@ vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb,
 }
 // a shot with its clip settings: border and canvas around a fitted picture, then its own colour
 vec3 adj(vec3 c, vec4 a){ c *= 1.+a.x*0.5; c = (c-0.5)*(1.+a.y)+0.5; float l = dot(c, vec3(0.299,0.587,0.114)); c = mix(vec3(l), c, 1.+a.z); return c*vec3(1.+0.15*a.w, 1., 1.-0.15*a.w); }
-vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, vec4 bg, vec4 bgr, vec4 bd, vec4 ad, out float inside){
+vec3 hueRot(vec3 c, float a){ float l = dot(c, vec3(0.299,0.587,0.114)); vec3 k = c - l; float cs = cos(a), sn = sin(a);
+  vec3 u = normalize(vec3(1.,-0.5,-0.5)), v = normalize(vec3(0.,0.866,-0.866)); float x = dot(k,u), y = dot(k,v);
+  return l + u*(x*cs - y*sn) + v*(x*sn + y*cs) + (k - u*x - v*y); }
+vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, vec4 bg, vec4 bgr, vec4 bd, vec4 ad, vec4 ad2, float be, out float inside){
   vec3 c = layer(t,p,r,rot,zb,db,rgb,tf,inside);
+  if(inside>0.5 && (ad2.w>0.01 || be>0.01)){
+    float ib; vec2 o = vec2(1.6,0.);
+    vec3 bl = (layer(t,p+o,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p+o.yx,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o.yx,r,rot,0.,vec2(0.),0.,tf,ib))*0.25;
+    if(ad2.w>0.01) c += (c-bl)*ad2.w*2.5;
+    if(be>0.01){
+      vec2 o2 = vec2(4.5,0.);
+      vec3 wb = (layer(t,p+o2,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o2,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p+o2.yx,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o2.yx,r,rot,0.,vec2(0.),0.,tf,ib)+bl*4.)/8.;
+      float skin = smoothstep(0.02,0.1,c.r-c.g)*smoothstep(0.0,0.06,c.g-c.b)*step(0.2,c.r);
+      float flatness = 1.-smoothstep(0.03,0.14,length(c-wb));
+      c = mix(c, wb*1.02+0.01, clamp(be*skin*flatness,0.,0.9));
+    }
+  }
   if(inside<0.5 && bd.w>0.){ vec2 q = rotP(p,rot); if(q.x>r.x-bd.w && q.x<r.x+r.z+bd.w && q.y>r.y-bd.w && q.y<r.y+r.w+bd.w){ c = bd.rgb; inside = 1.; } }
   if(inside<0.5 && bg.w>-0.5){ float ib; c = bg.w>0.5 ? layer(t,p,bgr,0.,1.,vec2(0.),0.,tf,ib)*0.62 : bg.rgb; inside = 1.; }
-  return adj(c, ad);
+  c = adj(c, ad);
+  if(ad2.x!=0. || ad2.y!=0.){ float l = dot(c, vec3(0.299,0.587,0.114)); c += ad2.x*0.28*smoothstep(0.45,1.,l) + ad2.y*0.28*(1.-smoothstep(0.,0.55,l)); }
+  if(ad2.z!=0.) c = hueRot(c, ad2.z*3.14159);
+  return c;
 }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 /* Beat shapes (the shot's effect, stepping on its beats): 1 box that grows, 2 grid of windows, 3 strips, 4 circle,
@@ -3432,9 +3468,9 @@ void main(){
   vec2 p = p0 - offB, pA = p0 - offA;   // the creator's keyframed move of each layer
   float inA=0., inB=0.;
   vec3 A = vec3(0.);
-  if(hasA>0.5){ A = shotL(tA,pA,rA,rotA,zbA,dbA,rgbA,tfA,bgA,bgrA,bdA,adA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
+  if(hasA>0.5){ A = shotL(tA,pA,rA,rotA,zbA,dbA,rgbA,tfA,bgA,bgrA,bdA,adA,ad2A,beA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
   vec2 pS = shp.x>7.5 ? shWarp(p) : p;   // mirror, kaleidoscope, triple split, VHS move the picture itself
-  vec3 B = shotL(tB,pS,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,inB);
+  vec3 B = shotL(tB,pS,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,ad2B,beB,inB);
   B *= mix(1.,inB,clB)*alB;
   if(shp.x>0.5 && (shp.x<7.5 || (shp.x>9.5 && shp.x<10.5))){
     float rim; float mk = shMask(p0, rim);
@@ -3474,6 +3510,7 @@ void main(){
   col = mix(vec3(l), col, sat);
   if(teal>0.){ vec3 tint = mix(vec3(0.75,1.05,1.12), vec3(1.12,0.98,0.82), smoothstep(0.15,0.85,l)); col = mix(col, col*tint, teal); }
   col *= vec3(1.+0.12*warm, 1., 1.-0.12*warm);   // white balance: warm (+) / cool (-)
+  if(tsh.w>0. || thi.w>0.){ float lt = dot(col, vec3(0.299,0.587,0.114)); col = mix(col, col*tsh.rgb*2., tsh.w*(1.-smoothstep(0.,0.6,lt))); col = mix(col, col*thi.rgb*2., thi.w*smoothstep(0.4,1.,lt)); }
   if(leak.z>0.){ float d = distance(p0, leak.xy)/(res.x*0.9); vec3 lc = vec3(1.,0.67,0.35)*leak.z*(1.-smoothstep(0.,1.,d)); col = 1.-(1.-col)*(1.-lc); }
   col = mix(col, vec3(dot(col,vec3(0.299,0.587,0.114))), mono);   // after the light leak: black and white stays black and white
   col += flash;
@@ -3523,12 +3560,12 @@ const GL = (()=>{
       set('res',[c.width,c.height]);
       const L = (pre, X) => { set('r'+pre, X.rect); set('rot'+pre, X.rot); set('zb'+pre, X.zb); set('db'+pre, X.db); set('rgb'+pre, X.rgb); set('ex'+pre, X.expo); set('br'+pre, X.bright);
         set('off'+pre, X.off || [0,0]); set('cl'+pre, X.clip || 0);
-        set('tf'+pre, X.tf || [1,0,0,1]); set('bg'+pre, X.bg || [0,0,0,-1]); set('bgr'+pre, X.bgr || [0,0,1,1]); set('bd'+pre, X.bd || [0,0,0,0]); set('ad'+pre, X.ad || [0,0,0,0]); };
+        set('tf'+pre, X.tf || [1,0,0,1]); set('bg'+pre, X.bg || [0,0,0,-1]); set('bgr'+pre, X.bgr || [0,0,1,1]); set('bd'+pre, X.bd || [0,0,0,0]); set('ad'+pre, X.ad || [0,0,0,0]); set('ad2'+pre, X.ad2 || [0,0,0,0]); set('be'+pre, X.be || 0); };
       if(S.A){ L('A', S.A); set('alA', S.A.alpha ?? 1); } else { set('offA', [0,0]); set('clA', 0); }
       L('B', S.B); set('alB', S.B.uo ?? 1);
       set('hasA', S.A ? 1 : 0); set('mode', S.mode); set('prog', S.prog); set('mixv', S.mix); set('irisC', S.iris || [c.width/2,c.height/2]);
       set('time', S.time); set('snap', S.snap ? 1 : 0); set('bgR', S.bgR || [0,0,1,1]); set('bgDark', S.bgDark||0); set('frR', S.frR || [0,0,c.width,c.height]); set('border', S.border||0);
-      const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0);
+      const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0); set('tsh', G.tsh || [0.5,0.5,0.5,0]); set('thi', G.thi || [0.5,0.5,0.5,0]);
       set('flash', S.flash||0); set('leak', S.leak || [0,0,0]); set('loopMix', S.loopMix||0);
       const LZ = S.lens || { mz:[0,0,0,0], mzc:1, mg:[0,0,0,1] }; set('mz', LZ.mz); set('mzc', LZ.mzc); set('mg', LZ.mg);
       set('shp', S.shp ? S.shp.a : [0,0,0,0]); set('shq', S.shp ? S.shp.b : [0,0,0,0]);
@@ -3537,13 +3574,39 @@ const GL = (()=>{
   }catch(err){ console.warn('WebGL off:', err && err.message); return null; }
 })();
 const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivid:{con:1.14,sat:1.14,bri:1.02,teal:0,mono:0,grain:0.035},
-  cine:{con:1.16,sat:0.92,bri:0.98,teal:0.55,mono:0,grain:0.07}, mono:{con:1.25,sat:1,bri:1.0,teal:0,mono:1,grain:0.09} };
+  cine:{con:1.16,sat:0.92,bri:0.98,teal:0.55,mono:0,grain:0.07}, mono:{con:1.25,sat:1,bri:1.0,teal:0,mono:1,grain:0.09},
+  /* filters: the same controls in other mixes, plus a tint in the shadows and one in the highlights (split toning) */
+  warmfilm:{con:1.05,sat:1.0,bri:1.0,teal:0,mono:0,grain:0.06,warm:0.5,lift:0.05},
+  cool:{con:1.06,sat:0.95,bri:1.0,teal:0,mono:0,grain:0,warm:-0.55},
+  retro:{con:0.98,sat:0.8,bri:1.0,teal:0,mono:0,grain:0.09,warm:0.3,lift:0.1,tsh:[0.42,0.56,0.6,0.35]},
+  moody:{con:1.22,sat:0.7,bri:0.92,teal:0.2,mono:0,grain:0.05,vig:0.5},
+  wedding:{con:0.95,sat:0.95,bri:1.05,teal:0,mono:0,grain:0,warm:0.2,lift:0.05,thi:[0.56,0.52,0.48,0.25]},
+  golden:{con:1.06,sat:1.12,bri:1.02,teal:0,mono:0,grain:0.03,warm:0.7,thi:[0.6,0.52,0.4,0.3]},
+  tealorange:{con:1.12,sat:1.05,bri:1.0,teal:0.95,mono:0,grain:0.03},
+  faded:{con:0.88,sat:0.85,bri:1.02,teal:0,mono:0,grain:0.04,lift:0.15},
+  noir:{con:1.45,sat:1,bri:0.97,teal:0,mono:1,grain:0.12,vig:0.55},
+  sepia:{con:1.05,sat:1,bri:1.0,teal:0,mono:1,grain:0.08,tsh:[0.58,0.48,0.38,0.7],thi:[0.6,0.54,0.44,0.6]},
+  cyber:{con:1.15,sat:1.2,bri:1.0,teal:0,mono:0,grain:0.03,tsh:[0.55,0.35,0.65,0.6],thi:[0.4,0.6,0.62,0.45]},
+  pastel:{con:0.9,sat:0.75,bri:1.06,teal:0,mono:0,grain:0,lift:0.12,thi:[0.55,0.5,0.56,0.25]},
+  dramatic:{con:1.35,sat:0.85,bri:0.97,teal:0.3,mono:0,grain:0.05,vig:0.6},
+  summer:{con:1.06,sat:1.22,bri:1.04,teal:0,mono:0,grain:0,warm:0.4},
+  night:{con:1.1,sat:0.8,bri:0.86,teal:0,mono:0,grain:0.06,warm:-0.4,tsh:[0.38,0.45,0.66,0.5]},
+  vintage:{con:0.95,sat:0.7,bri:1.0,teal:0,mono:0,grain:0.11,warm:0.35,lift:0.12,thi:[0.6,0.55,0.42,0.3]},
+  matte:{con:0.92,sat:0.92,bri:1.0,teal:0,mono:0,grain:0.03,lift:0.1},
+  punchy:{con:1.26,sat:1.3,bri:1.02,teal:0,mono:0,grain:0.02},
+  forest:{con:1.08,sat:0.95,bri:0.98,teal:0,mono:0,grain:0.04,tsh:[0.44,0.58,0.46,0.45],thi:[0.56,0.56,0.46,0.2]},
+  rose:{con:1.0,sat:1.0,bri:1.03,teal:0,mono:0,grain:0.02,lift:0.04,tsh:[0.6,0.44,0.5,0.4],thi:[0.6,0.5,0.52,0.25]} };
+const LOOK_EXTRA = { warmfilm:'Warm film', cool:'Cool', retro:'Retro', moody:'Moody', wedding:'Wedding', golden:'Golden hour', tealorange:'Teal & orange', faded:'Faded', noir:'Noir', sepia:'Sepia',
+  cyber:'Cyber', pastel:'Pastel', dramatic:'Dramatic', summer:'Summer', night:'Night', vintage:'Vintage', matte:'Matte', punchy:'Punchy', forest:'Forest', rose:'Rose' };
+for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2D renderer's version of each filter, and its button in Look
+  LOOKS[k] = { name: n, filter: (G.mono ? 'grayscale(1) ' : '') + 'contrast(' + G.con + ') saturate(' + G.sat + ') brightness(' + G.bri + ')' + (G.warm > 0.2 ? ' sepia(' + (G.warm*0.3).toFixed(2) + ')' : ''), grain: G.grain || 0 };
+  const lb = $('look'), cp = lb && lb.querySelector('[data-l="copy"]'); if(lb && !lb.querySelector('[data-l="' + k + '"]')){ const b = document.createElement('button'); b.dataset.l = k; b.setAttribute('aria-pressed', 'false'); b.textContent = n; lb.insertBefore(b, cp); } }
 // the same keyframed motion as the 2D path, expressed as numbers for the shader
 /* ---- Clip tools: each shot's own settings (e.cs), drawn the same by both renderers and in the export.
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, fin:0, fout:0, mz:null, mg:null };
 const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
 // display uv -> source uv: the picture is turned, then mirrored / flipped
@@ -3584,7 +3647,7 @@ function layerOf(e, local, o={}){
     expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1) * fade, alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
     off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1,
     tf: csMat(c), bg: !c.fit ? [0,0,0,-1] : c.bg === 'blur' ? [0,0,0,1] : [...hexRgb(c.bgc), 0], bgr: [W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb],
-    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm] };
+    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm], ad2: [c.hi || 0, c.sh || 0, c.hue || 0, c.sharp || 0], be: c.beauty || 0 };
 }
 /* ---- Reverse: a shot played backwards ----
  * The preview plays it from its frames, decoded once at a small size (rc); the export decodes it forwards in windows of
@@ -3678,7 +3741,7 @@ function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = TR_DUR[e.tr] || 0, p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
   const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null, lens: lensOf(e) };
-  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : 0.22));
+  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : (GRADES[look].vig ?? 0.22))) + (csOf(e).vig || 0)*0.9;
   const inTr = p < 1 && (pe || e.tr==='fadein');
   if(inTr && pe) S.A = layerOf(pe, pl, {noFx:true});
   S.B = layerOf(e, local);
@@ -4795,7 +4858,7 @@ function voiceFx(x, sr, fx){
 const AI_CS = c => { const o = {}, n = (k, a, b) => { const v = Number(c[k]); if(Number.isFinite(v) && v) o[k] = Math.min(b, Math.max(a, v)); };
   if([90,180,270].includes(c.rot)) o.rot = c.rot; for(const k of ['fh','fv','fit']) if(c[k] === true) o[k] = true;
   if(o.fit){ if(c.bg === 'blur' || c.bg === 'color') o.bg = c.bg; if(/^#[0-9a-f]{6}$/i.test(c.bgc || '')) o.bgc = c.bgc; n('bd', 0, 1); if(/^#[0-9a-f]{6}$/i.test(c.bdc || '')) o.bdc = c.bdc; }
-  n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('fin', 0, 1.5); n('fout', 0, 1.5); return o; };
+  n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('hi', -1, 1); n('sh', -1, 1); n('hue', -1, 1); n('sharp', 0, 1); n('vig', 0, 1); n('beauty', 0, 1); n('fin', 0, 1.5); n('fout', 0, 1.5); return o; };
 function csAutoSet(e, patch){
   e.cs = e.cs || {}; const auto = e.cs.auto || [];
   for(const k in patch){ if(k in e.cs && !auto.includes(k)) continue; e.cs[k] = patch[k]; if(!auto.includes(k)) auto.push(k); }
@@ -5172,7 +5235,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, addMark, clearMarks, setTlZoom, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, addMark, clearMarks, setTlZoom, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
