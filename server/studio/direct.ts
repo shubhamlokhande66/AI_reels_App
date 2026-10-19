@@ -20,13 +20,14 @@ import { AIResponseError } from "@/server/ai/types";
  * Without the AI, the phone's own rules make the edit. */
 
 export const TASK = "studio_director";
-export const TRANSITIONS = ["hard", "fadein", "flash", "whip", "zoom", "glitch", "dip", "dissolve", "iris", "wipe", "bars", "spin", "diamond", "heart", "star"] as const;
+export const TRANSITIONS = ["hard", "fadein", "flash", "whip", "zoom", "glitch", "dip", "dissolve", "iris", "wipe", "bars", "spin", "diamond", "heart", "star",
+  "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin"] as const;
 /** eases of a camera move into its keyframe (the studio's EASE) */
 export const EASES = ["lin", "inOut", "outCubic", "outExpo", "outBack"] as const;
 export const EFFECTS = ["none", "hook", "zoomburst", "punch", "punch-soft", "tilt", "shake", "bounce", "pan", "pan-soft", "drift", "snap",
   /* beat shapes and beat effects (they step on the shot's beats) */
   "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"] as const;
-export const SPEEDS = ["normal", "slow", "fast", "velocity", "ramp", "freeze"] as const;
+export const SPEEDS = ["normal", "slow", "fast", "velocity", "ramp", "freeze", "hold"] as const;   // hold = a freeze frame for the whole shot
 /** keyframes the AI places at a moment inside a shot (on a hit) */
 export const ACCENTS = ["punch", "shake", "flash", "pulse"] as const;
 export const HIT_KINDS = ["kick", "dhol", "snare", "hat"] as const;
@@ -122,7 +123,7 @@ export interface Accent { at: number; do: (typeof ACCENTS)[number] }
 /** a camera keyframe inside a shot: at = fraction of the shot (0-1), scale, offset (fraction of the frame), turn (degrees) */
 export interface MoveKey { at: number; s: number; x: number; y: number; r: number; ez: (typeof EASES)[number] }
 /** the shot's own settings, as the creator's clip tools set them (the engine's e.cs) */
-export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; fin?: number; fout?: number }
+export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; fin?: number; fout?: number }
 export interface DirectedSlot { i: number; shot: string | null; transition: string | null; effect: string | null; speed: string | null; keys: Accent[]; move: MoveKey[]; clip?: ClipLook; why: string }
 
 const GUIDE = `You are the editor's brain. Decide every creative choice from the music and the footage, like a top Reels editor.
@@ -136,10 +137,11 @@ Decide like this:
 - Keyframes ("keys"): place up to ${LIMITS.accents} moments INSIDE a shot, exactly on its hits ("at" copied from hits): "punch" (quick zoom) on a strong dhol/snare/tabla hit, "shake" on a heavy kick or bass, "flash" (light burst) on the biggest hit, "pulse" (small bump) on lighter repeated hits. Only where a hit really deserves it; most shots need none.
 - Camera moves ("move"): keyframes of the camera inside the shot, like an editor's keyframes: at = fraction of the shot (0 = its start, 1 = its end), s = zoom (1 = as filmed, 1.2 = 20% closer), x / y = slide (fraction of the frame, -0.15..0.15), r = turn in degrees (-15..15), ez = how it moves into that keyframe (lin, inOut, outCubic, outExpo = fast then settles, outBack = overshoots). E.g. a push-in on a build-up: [{"at":0,"s":1},{"at":1,"s":1.18,"ez":"inOut"}]; a snap zoom on the drop: [{"at":0,"s":1.3},{"at":0.25,"s":1,"ez":"outExpo"}]; a slow tilt: [{"at":0,"r":-4},{"at":1,"r":3}]. Use moves for long shots and for anything the reference does; leave "effect" "none" on a shot with a move.
 - Shapes: iris (circle), diamond, heart, star, wipe and bars open the next shot through that shape: use them for a section change, a calm reveal, or when the reference does.
-- Speed: slow on breaks, held notes and emotional moments; ramp or velocity on longer shots in a build-up before a drop; fast on very short hits; freeze only with "snap" on one or two drops.
+- More transitions: slideleft / slideright / slideup / slidedown (push), swipeup (a feed scroll), zoomout, blur (blur through), flip (card flip), luma (light fade by brightness), pixelate, clock (clock wipe), doors (doors open), ripple, burn (film burn), dropin (drops in and bounces).
+- Speed: slow on breaks, held notes and emotional moments; ramp or velocity on longer shots in a build-up before a drop; fast on very short hits; freeze only with "snap" on one or two drops; hold = the whole shot is one frozen frame (a dramatic pause, a punchline, a face on a hit).
 - Style "smooth" asks for a calm feel, "fast" for energy on almost every cut: a direction, not a rule; break it when the moment is better for it.
 - Beat shapes and beat effects (effect names) step on the beats INSIDE a shot, best on shots of 1 s or more with 2+ beats: boxgrow (the shot in a small box on the subject that grows on each beat to full frame), grid (2x2 or 3x3 windows opening one per beat), strips (3 strips one per beat), circle / heartbeat / starbeat (the shot in that shape, pulsing on each beat), frame (frame in frame on its blurred copy), mirror, kaleido (kaleidoscope), triple (the shot three times, one band per beat), vhs (retro tape), strobe (black and white flash on each beat), rgbpulse (colour split on each beat), blurpulse (blur on each beat).
-- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm (-1..1), fin / fout (fade in / out, seconds). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
+- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm / hi (highlights) / sh (shadows) / hue (-1..1), sharp / vig (vignette) / beauty (smooth skin) / stab (stabilize a shaky shot) (0..1), fin / fout (fade in / out, seconds). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
 - Camera moves are as free as the creator's own keyframes: zoom 0.1-4, slide -1..1 of the frame, turn -360..360 degrees, up to ${LIMITS.moveKeys} keyframes; keys on hits up to ${LIMITS.keys} a shot.
 - There are no limits on style or budget: use the WHOLE toolbox, combine tools (a grid on the drop with an RGB split key, a box that grows while the camera turns), invent. Every Reel must feel new and different from the creator's recent ones.`;
 
@@ -216,7 +218,8 @@ export function cleanClip(raw: Record<string, unknown> | null | undefined): Clip
   for (const k of ["fh", "fv", "fit"] as const) if (raw[k] === true) o[k] = true;
   if (o.fit) { const bg = raw.bg; if (bg === "blur") o.bg = "blur"; else if (hex(bg)) { o.bg = "color"; o.bgc = hex(bg)!; }
     if (Number.isFinite(num("bd")) && num("bd") > 0) { o.bd = r3(clampN(num("bd"), 0, 1, 0)); o.bdc = hex(raw.bdc) ?? "#FFFFFF"; } }
-  for (const k of ["bri", "con", "sat", "warm"] as const) if (Number.isFinite(num(k)) && num(k) !== 0) o[k] = r3(clampN(num(k), -1, 1, 0));
+  for (const k of ["bri", "con", "sat", "warm", "hi", "sh", "hue"] as const) if (Number.isFinite(num(k)) && num(k) !== 0) o[k] = r3(clampN(num(k), -1, 1, 0));
+  for (const k of ["sharp", "vig", "beauty", "stab"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1, 0));
   for (const k of ["fin", "fout"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1.5, 0));
   return Object.keys(o).length ? o : undefined;
 }

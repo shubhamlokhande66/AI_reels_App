@@ -243,8 +243,9 @@ export const STUDIO_HTML = `
           <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
           <span class="tc" id="ttot">0:00.0</span>
         </div>
-        <div class="strip"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas><div class="tlmusic" id="tlmusic"></div></div>
-        <canvas class="lanes" id="lanes" aria-label="Timeline: video, text, voice and music; tap to move the playhead"></canvas>
+        <div class="tlbar"><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button></span></div>
+        <div class="strip"><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
+        <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch or use − and + to zoom, drag a shot's edge to make it longer or shorter, tap a transition or an effect to change it"></canvas></div>
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
         <div class="msg" id="xmsg" hidden></div>
         <div class="row" id="saverow" hidden><button class="btn gold" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
@@ -287,6 +288,10 @@ export const STUDIO_HTML = `
             </div>
             <div class="ausliders musiconly">
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
+            <label class="tog"><input type="checkbox" id="sfxon" checked> Sound effects on transitions (whoosh, boom, click, pop)</label>
+            <label class="cslide"><span>Effects volume</span><input type="range" id="sfxv" min="0" max="1.5" step="0.05" value="0.6"><output>60%</output></label>
+            <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="btn mini" data-sfx="whoosh">Whoosh</button><button type="button" class="btn mini" data-sfx="pop">Pop</button><button type="button" class="btn mini" data-sfx="boom">Boom</button><button type="button" class="btn mini" data-sfx="click">Click</button><button type="button" class="btn mini" data-sfx="riser">Riser</button><button type="button" class="btn mini" data-sfx="ding">Ding</button></div>
+            <div class="chips" id="sfxlist"></div>
             <label class="cslide"><span>Fade in</span><input type="range" id="mfin" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
             <label class="cslide"><span>Fade out</span><input type="range" id="mfout" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
             <select id="xclip" aria-label="Extract audio: use a clip's sound as the song"><option value="">Use a clip's sound as the song…</option></select>
@@ -361,6 +366,9 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Fade in</span><input type="range" data-ly="fin" min="0" max="2" step="0.1"><output></output></label>
               <label class="cslide"><span>Fade out</span><input type="range" data-ly="fout" min="0" max="2" step="0.1"><output></output></label>
               <label class="cslide" id="lyvolrow"><span>Its sound</span><input type="range" data-ly="vol" min="0" max="2" step="0.05"><output></output></label>
+              <label class="cslide"><span>Blend</span><select data-ly="blend" aria-label="Blend mode"><option value="source-over">Normal</option><option value="screen">Screen (light leaks, dust)</option><option value="multiply">Multiply</option><option value="overlay">Overlay</option><option value="soft-light">Soft light</option><option value="lighten">Lighten</option><option value="darken">Darken</option><option value="color-dodge">Colour dodge</option><option value="difference">Difference</option></select></label>
+              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="btn mini" data-lykey="#00FF00">Green</button><button type="button" class="btn mini" data-lykey="#0047FF">Blue</button><button type="button" class="btn mini" data-lykey="#000000">Black</button><button type="button" class="btn mini" data-lykey="#FFFFFF">White</button></div>
+              <label class="cslide"><span>Key strength</span><input type="range" data-ly="key.tol" min="0" max="1" step="0.05"><output></output></label>
               <button type="button" class="btn ghost" data-lydel="1">Remove this layer</button>
             </div>
           </section>
