@@ -4,7 +4,7 @@
 
 export type ClipCs = {
   i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
-  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
+  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; crown?: string[]; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
   mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
 };
 export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
@@ -44,7 +44,7 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
   const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
     : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : false;
   const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${TOOLS.map(([k, n, ic]) =>
-    `<button type="button" class="ct${on(k) ? " on" : ""}" data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
+    `<button type="button" class="ct${on(k) ? " on" : ""}" data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
   const need = (t: string) => `<p class="cnote">${t}</p>`;
   if (open === "vol") body = slider("vol", "Clip sound", c.vol, 0, 2, 0.05, "%") + slider("pitch", "Pitch (semitones)", c.pitch ?? 0, -12, 12, 1, "st") + slider("mus", "Music under this shot", c.mus ?? 1, 0, 1.5, 0.05, "%") + need("The clip's own sound under the music (0% = the song alone). The music steps back while the clip is loud.");

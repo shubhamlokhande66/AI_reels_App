@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AiDirectorReport } from "@/components/organisms/AiDirectorReport";
 import { AiSettingsPanel } from "@/components/organisms/AiSettingsPanel";
 import { FeatureSettings } from "@/components/organisms/FeatureSettings";
+import { PlanLockSettings } from "@/components/organisms/PlanLockSettings";
 import { PricingSettings } from "@/components/organisms/PricingSettings";
 import { SiteSetupNotice } from "@/components/organisms/SiteSetupNotice";
 
@@ -11,6 +12,7 @@ import { SiteSetupNotice } from "@/components/organisms/SiteSetupNotice";
 const SECTIONS = [
   { id: "features", label: "Features", body: () => <FeatureSettings /> },
   { id: "pricing", label: "Plans & pricing", body: () => <PricingSettings /> },
+  { id: "locks", label: "Plan locks", body: () => <PlanLockSettings /> },
   { id: "ai", label: "AI", body: () => <AiSettingsPanel /> },
   { id: "report", label: "AI report", body: () => <AiDirectorReport /> },
 ] as const;
