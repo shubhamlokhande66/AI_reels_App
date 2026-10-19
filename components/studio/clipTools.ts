@@ -4,7 +4,7 @@
 
 export type ClipCs = {
   i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
-  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; fin: number; fout: number;
+  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
   mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
 };
 export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
@@ -22,6 +22,8 @@ const TOOLS: [string, string, string][] = [
   ["canvas", "Canvas", I('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/>')],
   ["border", "Border", I('<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="6.5" y="6.5" width="11" height="11" rx="1"/>')],
   ["adjust", "Adjust", I('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>')],
+  ["curve", "Speed curve", I('<path d="M3 18c4 0 4-12 9-12s5 12 9 12"/><circle cx="12" cy="6" r="1.5"/>')],
+  ["stab", "Stabilize", I('<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M2 12h2M20 12h2M12 2v2M12 20v2"/>')],
   ["beauty", "Beauty", I('<circle cx="12" cy="10" r="6"/><path d="M9 9h.01M15 9h.01M9.5 12.5a3.5 3.5 0 0 0 5 0M6 21c1.5-3 4-4 6-4s4.5 1 6 4"/>')],
   ["fade", "Fade", I('<path d="M3 20L12 4l9 16z"/><path d="M12 4v16" stroke-dasharray="2 2"/>')],
   ["mosaic", "Mosaic", I('<rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/>')],
@@ -40,7 +42,7 @@ const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5
 /** The row of tools and the open tool's controls */
 export function clipToolsHtml(c: ClipCs, open: string): string {
   const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
-    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : false;
+    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : false;
   const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${TOOLS.map(([k, n, ic]) =>
     `<button type="button" class="ct${on(k) ? " on" : ""}" data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
@@ -55,6 +57,8 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
     : slider("bd", "Width", c.bd, 0, 1, 0.05, "%") + swatches("bdc", c.bdc);
   else if (open === "adjust") body = slider("bri", "Brightness", c.bri, -1, 1, 0.05) + slider("con", "Contrast", c.con, -1, 1, 0.05) + slider("sat", "Saturation", c.sat, -1, 1, 0.05) + slider("warm", "Warmth", c.warm, -1, 1, 0.05)
     + slider("hi", "Highlights", c.hi ?? 0, -1, 1, 0.05) + slider("sh", "Shadows", c.sh ?? 0, -1, 1, 0.05) + slider("hue", "Hue", c.hue ?? 0, -1, 1, 0.02) + slider("sharp", "Sharpen", c.sharp ?? 0, 0, 1, 0.05, "%") + slider("vig", "Vignette", c.vig ?? 0, 0, 1, 0.05, "%");
+  else if (open === "curve") body = (["a", "b", "c", "d", "e"] as const).map((k, i) => slider("curve." + k, ["Start", "¼", "Middle", "¾", "End"][i], c.curve?.[k] ?? 1, 0.2, 4, 0.1, "x")).join("") + need("The shot's speed at five points, smooth in between: slow it down in the middle, speed it into the end.");
+  else if (open === "stab") body = slider("stab", "Stabilize", c.stab ?? 0, 0, 1, 0.05, "%") + need("Takes out the camera's shake, zoomed in a little so no edge shows.");
   else if (open === "beauty") body = slider("beauty", "Smooth skin", c.beauty ?? 0, 0, 1, 0.05, "%") + need("Softens skin and keeps the eyes, hair and edges sharp.");
   else if (open === "fade") body = slider("fin", "Fade in", c.fin, 0, 1.5, 0.1, "s") + slider("fout", "Fade out", c.fout, 0, 1.5, 0.1, "s");
   else if (open === "mosaic") body = !c.mz ? `<button type="button" class="chip" data-act="mz-on">Add mosaic</button>${need("Hides a face, a plate or a logo with blocks.")}`
@@ -100,9 +104,9 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
   // sliders change the picture while they move; the tools are drawn again when they are let go
   const fromSlider = (el: HTMLInputElement) => {
     const A = api(), c = A?.shotCs(); if (!A || !c) return; const k = el.dataset.s!, v = +el.value;
-    const out = el.parentElement?.querySelector("output"); if (out) { const unit = /^(fin|fout)$/.test(k) ? "s" : k === "mg.z" || k === "zoom" ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
+    const out = el.parentElement?.querySelector("output"); if (out) { const unit = /^(fin|fout)$/.test(k) ? "s" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
     if (k === "cx" || k === "cy") A.shotSet({ cx: k === "cx" ? v : c.cx ?? 0.5, cy: k === "cy" ? v : c.cy ?? 0.5 });
-    else if (k.includes(".")) { const [o, f] = k.split(".") as ["mz" | "mg", string]; A.shotSet({ [o]: { ...(c[o] as object), [f]: v } } as Partial<ClipCs>); }
+    else if (k.includes(".")) { const [o, f] = k.split(".") as ["mz" | "mg" | "curve", string]; A.shotSet({ [o]: { ...(c[o] as object), [f]: v } } as Partial<ClipCs>); }
     else A.shotSet({ [k]: v } as Partial<ClipCs>);
   };
   box.addEventListener("input", (ev) => { const el = ev.target as HTMLInputElement; if (el.dataset.s) fromSlider(el); }, sig);
