@@ -4389,8 +4389,10 @@ function planGate(list){
   return new Promise(res => {
     const top = list.reduce((a, x) => planRank(x.need) > planRank(a) ? x.need : a, 'creator');
     const d = document.createElement('div'); d.className = 'askbg';
-    d.innerHTML = '<div class="ask" role="alertdialog" aria-modal="true"><p class="gt"></p><ul class="gl"></ul><div class="askrow"><button type="button" class="btn">Cancel</button><button type="button" class="btn">Take them out</button><a class="btn gold" href="/pricing">See plans</a></div></div>';
-    d.querySelector('.gt').textContent = '👑 This Reel uses ' + PLAN_NAME[top] + ' features. Upgrade to export it as it is, or take them out and export now.';
+    // as the design (frame 9): ✕, a crown, what it is, what is in it, Upgrade Now · Take them out
+    d.innerHTML = '<div class="ask lockpop" role="alertdialog" aria-modal="true" aria-labelledby="lkt"><button type="button" class="askx" aria-label="Close">✕</button><div class="lkcrown" aria-hidden="true">👑</div><h3 class="lkt" id="lkt"></h3><p class="gt"></p><ul class="gl"></ul><div class="askrow"><a class="btn gold" href="/pricing">Upgrade Now</a><button type="button" class="btn">Take them out</button></div></div>';
+    d.querySelector('.lkt').textContent = 'This is a ' + PLAN_NAME[top] + ' Feature';
+    d.querySelector('.gt').textContent = 'Your Reel uses ' + PLAN_NAME[top] + ' features. Upgrade to export it as it is, or take them out and export now.';
     const ul = d.querySelector('.gl'); for(const x of list.slice(0, 8)){ const li = document.createElement('li'); li.textContent = x.name + ' · ' + PLAN_NAME[x.need]; ul.appendChild(li); }
     const [no, fix] = d.querySelectorAll('button'), done = v => { d.remove(); res(v); };
     no.onclick = () => done(false); fix.onclick = () => { list.forEach(x => x.fix()); done(true); }; d.onclick = e => { if(e.target === d) done(false); };
@@ -4420,6 +4422,8 @@ function sheetPaint(){
 function sheetOpen(open){
   $('xsheet').hidden = !open;
   if(!open) return;
+  // the Reel's picture beside the settings (the design's frame 8): its first shot
+  try{ const th = edit.length && sources[edit[0].src] && sources[edit[0].src].card.querySelector('.th'); if(th && th.width) $('xprev').src = th.toDataURL('image/jpeg', 0.8); }catch(e){}
   sheetPaint();
   $('xgo').focus();
   if(can4k === null) loadMediabunny().then(mb => { const [W0,H0] = SIZES[aspect]; return mb.getFirstEncodableVideoCodec(['avc','vp9','av1'], {width: W0*2, height: H0*2}); })

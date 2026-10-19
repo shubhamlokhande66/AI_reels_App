@@ -346,7 +346,7 @@ export const STUDIO_HTML = `
             <div class="lylist" id="lylist"></div>
             <div class="lyedit" id="lyedit" hidden>
               <span class="label">Layout</span>
-              <div class="chips"><button type="button" class="chip" data-lay="tl">↖ Corner</button><button type="button" class="chip" data-lay="tr">↗ Corner</button><button type="button" class="chip" data-lay="bl">↙ Corner</button><button type="button" class="chip" data-lay="br">↘ Corner</button><button type="button" class="chip" data-lay="top">Top half</button><button type="button" class="chip" data-lay="bottom">Bottom half</button><button type="button" class="chip" data-lay="left">Left half</button><button type="button" class="chip" data-lay="right">Right half</button><button type="button" class="chip" data-lay="full">Full</button></div>
+              <div class="chips"><button type="button" class="chip" data-lay="tl"><i class="lyic lay-tl" aria-hidden="true"></i><span>Top left</span></button><button type="button" class="chip" data-lay="tr"><i class="lyic lay-tr" aria-hidden="true"></i><span>Top right</span></button><button type="button" class="chip" data-lay="bl"><i class="lyic lay-bl" aria-hidden="true"></i><span>Bottom left</span></button><button type="button" class="chip" data-lay="br"><i class="lyic lay-br" aria-hidden="true"></i><span>Bottom right</span></button><button type="button" class="chip" data-lay="top"><i class="lyic lay-top" aria-hidden="true"></i><span>Top</span></button><button type="button" class="chip" data-lay="bottom"><i class="lyic lay-bottom" aria-hidden="true"></i><span>Bottom</span></button><button type="button" class="chip" data-lay="left"><i class="lyic lay-left" aria-hidden="true"></i><span>Left</span></button><button type="button" class="chip" data-lay="right"><i class="lyic lay-right" aria-hidden="true"></i><span>Right</span></button><button type="button" class="chip" data-lay="full"><i class="lyic lay-full" aria-hidden="true"></i><span>Full</span></button></div>
               <span class="label">When · <span id="lytime"></span></span>
               <div class="chips"><button type="button" class="chip" data-lyt="start">Start at the playhead</button><button type="button" class="chip" data-lyt="end">End at the playhead</button><button type="button" class="chip" data-lyt="all">Whole Reel</button></div>
               <span class="label">Place</span>
@@ -358,7 +358,7 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Corners</span><input type="range" data-ly="rad" min="0" max="1" step="0.05"><output></output></label>
               <div class="chips"><button type="button" class="chip" data-lyf="fh">Mirror</button><button type="button" class="chip" data-lyf="fv">Flip</button></div>
               <span class="label">Mask</span>
-              <div class="chips" id="lymask"><button type="button" class="chip" data-m="none">None</button><button type="button" class="chip" data-m="circle">Circle</button><button type="button" class="chip" data-m="rect">Rectangle</button><button type="button" class="chip" data-m="line">Line</button><button type="button" class="chip" data-m="mirror">Mirror band</button></div>
+              <div class="chips" id="lymask"><button type="button" class="chip" data-m="none"><i class="lyic mk-none" aria-hidden="true"></i><span>None</span></button><button type="button" class="chip" data-m="circle"><i class="lyic mk-circle" aria-hidden="true"></i><span>Circle</span></button><button type="button" class="chip" data-m="rect"><i class="lyic mk-rect" aria-hidden="true"></i><span>Rectangle</span></button><button type="button" class="chip" data-m="line"><i class="lyic mk-line" aria-hidden="true"></i><span>Line</span></button><button type="button" class="chip" data-m="mirror"><i class="lyic mk-mirror" aria-hidden="true"></i><span>Mirror</span></button></div>
               <div id="lymaskopts">
                 <label class="cslide"><span>Width</span><input type="range" data-ly="mk.w" min="0.05" max="1.5" step="0.01"><output></output></label>
                 <label class="cslide"><span>Height</span><input type="range" data-ly="mk.h" min="0.05" max="1.5" step="0.01"><output></output></label>
@@ -376,7 +376,7 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Fade out</span><input type="range" data-ly="fout" min="0" max="2" step="0.1"><output></output></label>
               <label class="cslide" id="lyvolrow"><span>Its sound</span><input type="range" data-ly="vol" min="0" max="2" step="0.05"><output></output></label>
               <label class="cslide"><span>Blend</span><select data-ly="blend" aria-label="Blend mode"><option value="source-over">Normal</option><option value="screen">Screen (light leaks, dust)</option><option value="multiply">Multiply</option><option value="overlay">Overlay</option><option value="soft-light">Soft light</option><option value="lighten">Lighten</option><option value="darken">Darken</option><option value="color-dodge">Colour dodge</option><option value="difference">Difference</option></select></label>
-              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="btn mini" data-lykey="#00FF00">Green</button><button type="button" class="btn mini" data-lykey="#0047FF">Blue</button><button type="button" class="btn mini" data-lykey="#000000">Black</button><button type="button" class="btn mini" data-lykey="#FFFFFF">White</button></div>
+              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="btn mini" data-lykey="#00FF00"><i class="keydot" style="background:#00FF00" aria-hidden="true"></i>Green</button><button type="button" class="btn mini" data-lykey="#0047FF"><i class="keydot" style="background:#0047FF" aria-hidden="true"></i>Blue</button><button type="button" class="btn mini" data-lykey="#000000"><i class="keydot" style="background:#000000" aria-hidden="true"></i>Black</button><button type="button" class="btn mini" data-lykey="#FFFFFF"><i class="keydot" style="background:#FFFFFF" aria-hidden="true"></i>White</button></div>
               <label class="cslide"><span>Key strength</span><input type="range" data-ly="key.tol" min="0" max="1" step="0.05"><output></output></label>
               <button type="button" class="btn ghost" data-lydel="1">Remove this layer</button>
             </div>
@@ -402,6 +402,8 @@ export const STUDIO_HTML = `
               <canvas id="kftl" class="kftl" aria-label="Keyframes of the shot or text; tap to move the playhead"></canvas>
               <div class="row kfbtns"><button class="btn mini" id="kfprev" type="button" aria-label="Previous keyframe">◀ ◆</button><button class="btn mini" id="kfadd" type="button">◇ Add keyframe</button><button class="btn mini" id="kfnext" type="button" aria-label="Next keyframe">◆ ▶</button><select id="kfease" aria-label="Ease into this keyframe"></select><button class="btn mini" id="kfdel" type="button">Delete ◆</button><button class="btn mini" id="kfclear" type="button">Clear all</button></div>
               <div class="kfsliders" id="kfsliders"></div>
+              <span class="label kfml">Ready-made moves</span>
+              <div class="kfmoves" id="kfmoves"></div>
               <p class="hint"><span id="kfinfo"></span>. Tap a text or sticker to animate it, otherwise the shot under the playhead. Pause where the move starts and set it; move the playhead and set it again. Drag the picture to move it. Double-tap a slider to reset it.</p>
             </details>
           </section>
@@ -448,7 +450,8 @@ export const STUDIO_HTML = `
 </section>
 <div class="xsheet" id="xsheet" hidden>
   <div class="xsh" role="dialog" aria-modal="true" aria-labelledby="xsht">
-    <div class="xsh-h"><h2 id="xsht">Export Reel</h2><button type="button" class="ibtn" id="xshclose" aria-label="Close">✕</button></div>
+    <img class="xprev" id="xprev" alt="">
+    <div class="xsh-h"><h2 id="xsht">Export Your Reel</h2><button type="button" class="ibtn" id="xshclose" aria-label="Close">✕</button></div>
     <p class="xsh-l">Quality</p>
     <div class="seg" id="xres" role="group" aria-label="Quality"><button type="button" data-r="720">720p</button><button type="button" data-r="1080" aria-pressed="true">1080p</button><button type="button" data-r="4k">4K</button></div>
     <p class="xsh-l">Frame rate</p>

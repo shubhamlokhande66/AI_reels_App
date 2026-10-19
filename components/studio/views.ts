@@ -70,6 +70,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     root.querySelectorAll<HTMLElement>(".panel").forEach((p) => p.classList.toggle("on", on.has(p.dataset.panel!)));
     // the keyframe panel is open when Motion is shown (dragging the picture then moves the shot)
     const kfWant = on.has("motion");
+    if (kfWant) kfMoves();
     if (kf.open !== kfWant) kf.open = kfWant;
     if (view === "all") $<HTMLDetailsElement>("allshots").open = true;
     shotKey = ""; lanesKey = "";
@@ -134,6 +135,19 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const media = (into: boolean) => {
     if (into) mediaParts.forEach((el) => $("mslot").append(el));
     else for (const h of [...mediaHome].reverse()) if (h.el.parentElement !== h.parent) h.parent.insertBefore(h.el, h.next && h.next.parentNode === h.parent ? h.next : null);
+  };
+  // Motion's ready-made moves as picture tiles (the design's frame 7): the shot's own picture, the move's name; a tap
+  // applies it (the engine's own list, #kfpreset)
+  const kfMoves = () => {
+    const box = $("kfmoves"), sel = $<HTMLSelectElement>("kfpreset"), st = S();
+    if (!box.childElementCount) for (const o of [...sel.options].filter((x) => x.value)) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "kfmove"; b.dataset.v = o.value;
+      b.innerHTML = `<span class="kfmimg"></span><span class="kfmt">${esc(o.text)}</span>`;
+      b.addEventListener("click", () => { sel.value = o.value; sel.dispatchEvent(new Event("change")); }, sig);
+      box.append(b);
+    }
+    const th = st && st.edit.length ? thumbOf(st.edit[Math.max(0, st.segAt(st.now))].src) : "";
+    box.querySelectorAll<HTMLElement>(".kfmimg").forEach((el) => { const v = th ? `url(${th})` : ""; if (el.style.backgroundImage !== v) el.style.backgroundImage = v; });
   };
   // the top bar's format (9:16 ▾): the clips step's own Format buttons
   $<HTMLSelectElement>("tbaspect").addEventListener("change", (e) => root.querySelector<HTMLButtonElement>(`#aspect [data-a="${(e.target as HTMLSelectElement).value}"]`)?.click(), sig);

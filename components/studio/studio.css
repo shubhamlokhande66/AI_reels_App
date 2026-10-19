@@ -1338,3 +1338,64 @@
 .brs .ov .ovtime{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .brs .ov .ovtime .ovtm{padding:6px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font:600 12px var(--mono);color:var(--ink)}
 .brs .ov .ovdel2{margin-left:auto;color:var(--danger,#f87171);border-color:color-mix(in srgb,var(--danger,#f87171) 45%,var(--line))}
+
+/* ---- Layers (the design's frame 6): Layout and Mask as tiles with a small drawing; green screen colours; Remove ---- */
+.brs .lyedit .chips:has(> [data-lay]),.brs #lymask{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px;overflow:visible;flex-wrap:wrap}
+.brs .lyedit :is([data-lay],[data-m]).chip{display:grid;justify-items:center;gap:5px;height:auto;padding:8px 4px;border-radius:12px;font-size:11px;white-space:nowrap}
+.brs .lyedit :is([data-lay],[data-m]).chip[aria-pressed=true],.brs .lyedit :is([data-lay],[data-m]).chip.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--ink)}
+.brs .lyic{position:relative;display:block;width:30px;height:22px;border:1.5px solid currentColor;border-radius:4px;opacity:.85}
+.brs .lyic::after{content:"";position:absolute;background:currentColor;border-radius:2px;opacity:.75}
+.brs .lay-full::after{inset:2px}
+.brs .lay-left::after{inset:2px 50% 2px 2px}
+.brs .lay-right::after{inset:2px 2px 2px 50%}
+.brs .lay-top::after{inset:2px 2px 50% 2px}
+.brs .lay-bottom::after{inset:50% 2px 2px 2px}
+.brs .lay-tl::after{inset:2px 55% 52% 2px}
+.brs .lay-tr::after{inset:2px 2px 52% 55%}
+.brs .lay-bl::after{inset:52% 55% 2px 2px}
+.brs .lay-br::after{inset:52% 2px 2px 55%}
+.brs .mk-none::after{content:"×";inset:0;background:none;display:grid;place-items:center;font:600 14px/1 var(--body);opacity:1}
+.brs .mk-circle::after{inset:3px 8px;border-radius:50%}
+.brs .mk-rect::after{inset:4px 6px}
+.brs .mk-line::after{left:2px;right:2px;top:45%;height:2px}
+.brs .mk-mirror::after{inset:2px 11px}
+.brs .keydot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:6px;box-shadow:0 0 0 1px var(--line);vertical-align:-1px}
+.brs [data-lykey]{display:inline-flex;align-items:center;flex-direction:row-reverse;gap:6px}
+.brs [data-lykey] .keydot{margin:0}
+.brs [data-lydel]{color:var(--danger,#f87171);border:1px solid color-mix(in srgb,var(--danger,#f87171) 45%,var(--line)) !important;border-radius:10px;justify-self:start}
+.brs .lyedit .label{font:700 12.5px var(--body);color:var(--ink);text-transform:none;letter-spacing:0;margin-top:4px}
+
+/* ---- Motion / Keyframes (the design's frame 7): the keyframe buttons as one row, the ready-made moves as tiles ---- */
+.brs .kfbtns{display:flex;flex-wrap:wrap;gap:6px}
+.brs .kfbtns .btn.mini{height:32px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+.brs #kfadd{background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
+.brs #kfclear{color:var(--danger,#f87171)}
+.brs .kfhead #kfpreset{display:none}
+.brs .kfml{font:700 12.5px var(--body);color:var(--ink);text-transform:none;letter-spacing:0}
+.brs .kfmoves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.brs .kfmove{display:grid;gap:5px;padding:0;border:0;background:none;color:var(--muted);font:600 11px var(--body);cursor:pointer;text-align:center}
+.brs .kfmove:hover{color:var(--ink)}
+.brs .kfmimg{display:block;aspect-ratio:4/3;border-radius:10px;background:var(--surface-2) center/cover no-repeat;box-shadow:inset 0 0 0 1px var(--line)}
+.brs .kfmove:hover .kfmimg{box-shadow:0 0 0 2px var(--accent)}
+
+/* ---- the export sheet (the design's frame 8): the Reel's picture on the left of its settings, a computer ---- */
+.brs .xprev{display:none}
+@media (min-width:1024px){
+  .brs.noir .xsheet{background:rgba(4,3,16,.7)}
+  .brs .xsh:has(.xprev[src]){display:grid;grid-template-columns:200px minmax(0,1fr);column-gap:22px;width:min(640px,calc(100vw - 32px));align-items:start}
+  .brs .xsh:has(.xprev[src]) > :not(.xprev){grid-column:2}
+  .brs .xsh .xprev[src]{display:block;grid-column:1;grid-row:1/span 12;width:200px;aspect-ratio:9/16;object-fit:cover;border-radius:16px;box-shadow:0 18px 40px -18px rgba(0,0,0,.7)}
+}
+.brs .xsh .seg button[aria-pressed=true]{border:2px solid var(--accent) !important}
+/* ---- the lock popup (the design's frame 9) ---- */
+.brs .askbg:has(.lockpop){place-items:center;background:rgba(4,3,16,.72)}
+.brs .ask.lockpop{position:relative;display:grid;justify-items:center;gap:10px;text-align:center;padding:28px 24px 24px;width:min(100%,420px)}
+.brs .ask.lockpop .askx{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;border:0;background:var(--surface-2);color:var(--ink);cursor:pointer}
+.brs .ask.lockpop .lkcrown{font-size:40px;line-height:1;filter:drop-shadow(0 6px 14px rgba(250,204,21,.45))}
+.brs .ask.lockpop .lkt{margin:0;font:800 19px var(--display,var(--body))}
+.brs .ask.lockpop .gt{margin:0;font-size:13.5px;color:var(--muted);line-height:1.45}
+.brs .ask.lockpop .gl{justify-self:stretch;display:grid;gap:8px;margin:6px 0 4px;padding:0;list-style:none;text-align:left}
+.brs .ask.lockpop .gl li{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.brs .ask.lockpop .gl li::before{content:"✓";flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:800 11px var(--body)}
+.brs .ask.lockpop .askrow{justify-self:stretch;margin-top:6px}
+.brs .ask.lockpop .btn.gold{background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
