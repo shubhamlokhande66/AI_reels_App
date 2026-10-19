@@ -36,7 +36,7 @@ export function AiDirectorReport() {
       )}
       {r && (
         <span className="mu xs">
-          {r.cuts} cuts · {r.choices.transitions} special transitions · {r.choices.effects} effects · {r.choices.keys} keyframes on hits
+          {r.cuts} cuts · {r.mixes} New mix calls · {r.choices.transitions} special transitions · {r.choices.effects} effects · {r.choices.keys} keyframes on hits
           {r.avgSeconds !== null ? ` · ${r.avgSeconds} s per plan` : ""}
           {r.failed ? ` · ${r.failed} not answered (the phone's own edit was used)` : ""}
           {r.changed.transitions + r.changed.effects ? ` · changed by people: ${r.changed.transitions} transitions (${pct(r.changeRate.transitions)}), ${r.changed.effects} effects (${pct(r.changeRate.effects)})` : ""}

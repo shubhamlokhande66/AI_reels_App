@@ -36,7 +36,7 @@ export async function taste(): Promise<string> {
   })(), 1500, "");
 }
 
-export interface Run { kind: "pace" | "plan"; cuts: number; mode: string; provider: string; model: string; transitions?: number; effects?: number; keys?: number; ms: number; ok: boolean }
+export interface Run { kind: "pace" | "plan" | "mix"; cuts: number; mode: string; provider: string; model: string; transitions?: number; effects?: number; keys?: number; ms: number; ok: boolean }
 /** One line per AI call (never blocks the answer). */
 export function recordRun(r: Run) {
   void within((async () => { await (await db()).collection("studio_director_runs").insertOne({ ...r, at: new Date() }); })(), 3000, undefined);
@@ -45,9 +45,9 @@ export function recordRun(r: Run) {
 /** The administrator's view: the last 30 days, everyone. */
 export async function report(days = 30) {
   const since = new Date(Date.now() - days * 864e5), m = await mainDb();
-  const [runs] = await m.collection("studio_director_runs").aggregate<{ plans: number; paces: number; failed: number; cuts: number; transitions: number; effects: number; keys: number; ms: number; users: string[] }>([
+  const [runs] = await m.collection("studio_director_runs").aggregate<{ plans: number; paces: number; mixes: number; failed: number; cuts: number; transitions: number; effects: number; keys: number; ms: number; users: string[] }>([
     { $match: { at: { $gte: since } } },
-    { $group: { _id: null, plans: { $sum: { $cond: [{ $and: [{ $eq: ["$kind", "plan"] }, "$ok"] }, 1, 0] } }, paces: { $sum: { $cond: [{ $and: [{ $eq: ["$kind", "pace"] }, "$ok"] }, 1, 0] } },
+    { $group: { _id: null, plans: { $sum: { $cond: [{ $and: [{ $eq: ["$kind", "plan"] }, "$ok"] }, 1, 0] } }, paces: { $sum: { $cond: [{ $and: [{ $eq: ["$kind", "pace"] }, "$ok"] }, 1, 0] } }, mixes: { $sum: { $cond: [{ $and: [{ $eq: ["$kind", "mix"] }, "$ok"] }, 1, 0] } },
       failed: { $sum: { $cond: ["$ok", 0, 1] } }, cuts: { $sum: { $cond: [{ $eq: ["$kind", "plan"] }, "$cuts", 0] } },
       transitions: { $sum: { $ifNull: ["$transitions", 0] } }, effects: { $sum: { $ifNull: ["$effects", 0] } }, keys: { $sum: { $ifNull: ["$keys", 0] } },
       ms: { $avg: { $cond: [{ $eq: ["$kind", "plan"] }, "$ms", null] } }, users: { $addToSet: "$ownerId" } } },
@@ -57,10 +57,10 @@ export async function report(days = 30) {
     { $group: { _id: "$field", ai: { $sum: { $cond: ["$ai", 1, 0] } }, all: { $sum: 1 } } },
   ]).toArray();
   const by = (f: string) => changes.find((c) => c._id === f) ?? { ai: 0, all: 0 };
-  const r = runs ?? { plans: 0, paces: 0, failed: 0, cuts: 0, transitions: 0, effects: 0, keys: 0, ms: 0, users: [] };
+  const r = runs ?? { plans: 0, paces: 0, mixes: 0, failed: 0, cuts: 0, transitions: 0, effects: 0, keys: 0, ms: 0, users: [] };
   const rate = (changed: number, made: number) => (made ? Math.min(1, changed / made) : null);
   return {
-    days, plans: r.plans, paces: r.paces, failed: r.failed, cuts: r.cuts, creators: (r.users ?? []).filter(Boolean).length,
+    days, plans: r.plans, paces: r.paces, mixes: r.mixes ?? 0, failed: r.failed, cuts: r.cuts, creators: (r.users ?? []).filter(Boolean).length,
     avgSeconds: r.ms ? Math.round(r.ms / 100) / 10 : null,
     choices: { transitions: r.transitions, effects: r.effects, keys: r.keys },
     changed: { transitions: by("tr").ai, effects: by("efx").ai, speeds: by("sp").ai },

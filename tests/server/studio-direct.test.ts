@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "@/server/ai";
-import { CHUNK, chunks, cleanMove, direct, DirectIn, LIMITS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt } from "@/server/studio/direct";
+import { CHUNK, chunks, cleanMove, direct, DirectIn, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "@/server/studio/direct";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
 const cand = (id: string, extra = {}) => ({ id, clip: "c1", at: 1.5, score: 1.2, note: "dancer spins", roles: ["action"], motion: "high", people: true, camera: "pans left", ...extra });
@@ -164,5 +164,44 @@ describe("the AI's camera keyframes", () => {
       move: [{ at: 0, s: 1.3, x: 0, y: 0, r: 0, ez: "lin" }, { at: 0.25, s: 1, x: 0, y: 0, r: 0, ez: "outExpo" }] }] });
     expect(out.slots[0].transition).toBe("heart");
     expect(out.slots[0].move).toHaveLength(2);
+  });
+});
+
+/** New mix: other plans for the same cuts in one call; the pace asked once for the whole song. */
+describe("New mix", () => {
+  it("asks once for several different plans and checks each like a plan", async () => {
+    const { p, calls } = fake({ plans: [
+      { slots: [{ i: 0, shot: "0b" }, { i: 1, shot: "1a", transition: "whip" }], story: "calmer" },
+      { slots: [{ i: 0, shot: "zz" }, { i: 1, shot: "1b", transition: "nope", effect: "shake" }], story: "harder" },
+      { slots: [{ i: 7, shot: "7a" }], story: "unusable" },
+    ] });
+    const res = await directVariants({ ...req(2), variants: 3 }, p);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("make 3 DIFFERENT plans");
+    expect(res.plans).toHaveLength(2); // the plan with no usable cut is left out
+    expect(res.plans[0].slots.map((s) => s.shot)).toEqual(["0b", "1a"]);
+    expect(res.plans[1].slots[0].shot).toBeNull(); // not offered for that cut
+    expect(res.plans[1].slots[1]).toMatchObject({ shot: "1b", transition: null, effect: "shake" });
+  });
+  it("asks for at most four, and long Reels in parts joined in order", async () => {
+    expect(() => DirectIn.parse({ ...req(2), variants: MAX_VARIANTS + 1 })).toThrow();
+    const n = CHUNK + 5, plan = (lo: number, hi: number) => ({ slots: Array.from({ length: hi - lo }, (_, k) => ({ i: lo + k, shot: `${lo + k}a` })) });
+    const p = { name: "fake", model: "m", async structured(_s: string, user: string, schema: { parse: (v: unknown) => unknown }) {
+      const first = user.includes(`These are cuts ${CHUNK}-`) ? CHUNK : 0, last = first ? n : CHUNK;
+      return schema.parse({ plans: [plan(first, last), plan(first, last)] }); } } as unknown as Parameters<typeof directVariants>[1];
+    const res = await directVariants({ ...req(n), variants: 2 }, p);
+    expect(res.plans).toHaveLength(2);
+    expect(res.plans[0].slots.map((s) => s.i)).toEqual(Array.from({ length: n }, (_, i) => i));
+  });
+  it("tells the AI the other plans are for the same cuts, without the plan's JSON", () => {
+    const t = variantsPrompt({ ...req(2), variants: 4 });
+    expect(t).toContain('"plans"');
+    expect(t).not.toContain('Return JSON: {"slots"');
+  });
+  it("asks the pace for the whole song when the Reel uses a part of it", () => {
+    const sec = { i: 0, t: 0, len: 8, beats: 16, starts: "start", loud: 0.5, trend: "steady", bass: 0.5, drums: 0.5, voice: 0.5, hitRate: 1, now: 2 };
+    const whole = PaceIn.parse({ mode: "auto", duration: 180, reel: 30, bpm: 120, footage: 60, clips: 6, sections: [sec] });
+    expect(pacePrompt(whole)).toContain("uses a 30.0 s part of this song");
+    expect(pacePrompt({ ...whole, reel: undefined })).not.toContain("part of this song");
   });
 });

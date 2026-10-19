@@ -1664,7 +1664,7 @@ function aiDone(charged, failed){
    rule choice. One plan per edit (style, mix and clips); a new mix or style asks again. */
 let director = null, dirBusy = false, dirFailedKey = '', dirCands = null;
 const dirKey = () => [mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
-let mixNo = 0;   // a new mix asks the director again
+let mixNo = 0;   // which mix: 0 = the AI's plan, 1-4 = its other mixes (one call), then the phone's own mixes in its style
 const dirSlotOf = i => (aiOn && director && director.key===dirKey() && director.slots[i]) || null;
 const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
 const TR_OK = { smooth: ['hard','dissolve','dip','iris','diamond','heart','star','wipe'], auto: Object.keys(TR_DUR).filter(k=>k!=='fadein'), fast: Object.keys(TR_DUR).filter(k=>k!=='fadein'), copy: Object.keys(TR_DUR).filter(k=>k!=='fadein') };
@@ -1774,13 +1774,107 @@ function directorCandidates(){
   });
   return out;
 }
+// The AI's plans, kept per song, clips and style (not per part of the song): moving the song's part fits them to the
+// new cuts on this phone (by what the music does under each cut), and New mix uses the AI's other mixes, asked once.
+// The AI is asked again only for a new song, other clips or another style.
+const VARIANTS = 4;
+const aiMixes = new Map();   // dirBase -> { plans: [{ slots, ctx, sig, story }] by mix, asked, busy }
+const dirBase = () => [mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', sources.map(fpOf).join(';'), song ? song.key : ''].join('#');
+const planSig = () => plan.length + ':' + plan.map(s=>s.start.toFixed(2)).join(',');
+function mixStore(){ const b = dirBase(); if(!aiMixes.has(b)) aiMixes.set(b, { plans: [], asked: false, busy: false }); return aiMixes.get(b); }
+// what the music does under every cut (the AI reads it; a fitted plan matches on it)
+function cutMusic(){
+  const sm = getSoundMap(), cx = { hits: hitsRaw || [], hitStr: hitsStr || [], drops: plan.filter(s=>s.type==='drop').map(s=>s.start), beats };
+  return plan.map(s => sm ? describeCut(sm, s.start, s.end, cx) : null);
+}
+function dirRequest(cands){
+  const per = Math.max(1, buf.duration/30), music = cutMusic(), pc = paceNow();
+  const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
+    clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
+    budget: mode === 'copy' && copyBudget ? copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
+    slots: plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
+      ...(music[i] ? { music: music[i] } : {}),
+      candidates: cands[i].map(({si,a,...c})=>c) })).filter(x=>x.candidates.length) };
+  const ctx = plan.map((s,i)=>({ i, len: s.end - s.start, type: s.type, music: music[i] }));
+  return { req, ctx };
+}
+// the AI's answer -> one entry per cut (its shot as a moment of a clip)
+function toSlots(list, cands){
+  const slots = [];
+  for(const d of list || []){ const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
+    slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], why: d.why || '' }; }
+  return slots;
+}
+// An AI plan made for other cuts (the song's part moved), fitted to these: every cut takes the choices of the AI's cut
+// whose music is most alike (a drop's transition goes to the new drop, the hook stays the hook), its keyframes land on
+// this cut's own hits, and its moments of the clips are kept where this cut can use them. withShots false: the phone
+// picks the moments (its own mix), the style stays the AI's. Every choice is still checked (applyDirectorStyle).
+function refitDirector(src, withShots){
+  const old = src.ctx.filter(c => src.slots[c.i]).map(c => ({ ...c, d: src.slots[c.i] }));
+  if(!old.length || !plan.length) return null;
+  const music = cutMusic(), cands = withShots ? directorCandidates() : null;
+  const pool = withShots ? src.slots.filter(d => d && d.cand).map(d => ({ ...d.cand })) : [];
+  const near = (c) => pool.findIndex(p => p.src === c.si && Math.abs(p.in - c.a) < 0.6);
+  const slots = []; let prev = null;
+  plan.forEach((s,i)=>{
+    const m = music[i], len = s.end - s.start;
+    let best = null, bs = -Infinity;
+    for(const o of old){
+      if(old.length > 1 && (i === 0) !== (o.i === 0)) continue;   // the hook from the hook
+      let sc = (o.type === s.type ? 3 : 0) - Math.abs(Math.log(Math.max(0.05, len) / Math.max(0.05, o.len)));
+      if(m && o.music) sc -= 2*(Math.abs(m.loud - o.music.loud) + Math.abs(m.drums - o.music.drums) + Math.abs(m.bass - o.music.bass)) - (m.trend === o.music.trend ? 0.5 : 0);
+      if(o === prev) sc -= 1.5;   // not the same choices twice in a row
+      if(sc > bs){ bs = sc; best = o; }
+    }
+    if(!best) best = old[0];
+    prev = best;
+    const d = best.d, hits = m && m.hits ? m.hits.slice().sort((a,b)=>b.p-a.p) : [];
+    const keys = (d.keys || []).map((k,n) => ({ at: hits[n] ? hits[n].at : +(k.at / Math.max(0.05, best.len) * len).toFixed(2), do: k.do }));
+    let cand = null;
+    if(cands){ const c = (cands[i] || []).find(c => near(c) >= 0); if(c){ pool.splice(near(c), 1); cand = { src: c.si, in: c.a }; } }
+    slots[i] = { cand, tr: d.tr, fx: d.fx, sp: d.sp, keys, move: (d.move || []).slice(), why: d.why || '' };
+  });
+  return slots;
+}
 function directorMaybe(){
   if(!aiOn || dirBusy || !edit.length || recording) return;
   if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
   if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
-  const key = dirKey(); if((director && director.key===key) || dirFailedKey===key) return;
+  const key = dirKey(); if((director && director.key===key && !director.interim) || dirFailedKey===key) return;
   if(dirCache.has(key)){ director = dirCache.get(key); makeEdit(); return; }
+  const st = mixStore();
+  if(mixNo > 0 && !st.asked && st.plans[0]) variantsRun(st);   // the first New mix: the AI's other mixes, in one call
+  const own = st.plans[mixNo];
+  if(own){   // the AI's plan for this mix: as it is on the same cuts, else fitted to these (the song's part moved)
+    const slots = own.sig === planSig() ? own.slots : refitDirector(own, true);
+    if(slots){ director = { key, slots, story: own.story }; dirCache.set(key, director); makeEdit(); return; }
+  }
+  if(mixNo > 0 && st.plans.length){   // past the AI's mixes, or while they come: the phone's own mix in the AI's style
+    if(director && director.key===key && director.interim) return;   // waiting for the AI's mixes
+    const from = st.plans.filter(Boolean), src = from[mixNo % from.length], slots = refitDirector(src, false);
+    if(slots){ director = { key, slots, story: src.story, interim: st.busy }; if(!st.busy) dirCache.set(key, director); makeEdit(); return; }
+  }
   directorRun(key);
+}
+// New mix: the AI's other plans for these cuts, all in one call (the input is sent once)
+async function variantsRun(st){
+  st.asked = true; st.busy = true;
+  aiStat('AI is making ' + VARIANTS + ' more mixes for New mix…');
+  const tm = timeoutSignal(90000);
+  let n = 0;
+  try{
+    const cands = directorCandidates(), { req, ctx } = dirRequest(cands), sig = planSig();
+    const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...req, variants: VARIANTS }), signal: tm.signal });
+    const res = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI mixes failed (' + r.status + ').'));
+    let k = 1;
+    for(const pl of res.plans || []){ while(st.plans[k]) k++; st.plans[k] = { slots: toSlots(pl.slots, cands), ctx, sig, story: pl.story || '' }; n++; }
+    aiStat('AI made ' + n + ' more mix' + (n === 1 ? '' : 'es') + ' · press New mix to see each.');
+  }catch(e){
+    if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI mixes not used:', e);
+    aiStat('New mix uses the phone\'s own mixes in the AI\'s style.');
+  }finally{ st.busy = false; tm.done(); }
+  if(mixNo > 0 && buf && sources.length && !recording) makeEdit();
 }
 const dirCache = new Map();
 // a request that gives up after ms (the phone's own edit is already on screen, so nobody waits for a slow AI)
@@ -1827,27 +1921,58 @@ function refContext(){
   return { name: String(R.name || '').slice(0, 80), medianBeats: Math.min(64, +R.medianBeats || 0), hookBeats: Math.min(64, +R.hookBeats || 0), onBeat: c01(R.onBeat),
     energy: ['rising','falling','steady'].includes(R.energy) ? R.energy : 'steady', zoomShare: c01(R.zoomShare), trans, moments: cleanMoments(R.moments) };
 }
+// The pace is asked for every section of the whole song (when a part of it is used), so moving the part needs no new
+// question: each of the part's sections takes the pace of the song's section it lies in.
+const songPace = new Map();   // paceSongKey -> { secs: [{ t, len, every }] in the song's time, story }
+const paceSongKey = () => song ? [song.key, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#') : '';
+const partOn = () => !!song && buf !== song.buf;
+let wholeMapKey = '', wholeMap = null;
+// the whole song in sections (null: no part is used, or the song is too long or has too many sections to ask at once)
+function wholeSections(){
+  if(!partOn() || !song.r || !song.mono) return null;
+  const D = song.buf.duration, r = song.r; if(D > 600 || !(r.cuts || []).length || (r.beats || []).length < 8) return null;
+  if(wholeMapKey !== song.key){ try{ wholeMap = soundMap(song.mono, song.buf.sampleRate); }catch(e){ wholeMap = null; } wholeMapKey = song.key; }
+  if(!wholeMap) return null;
+  const cs = r.cuts, wp = cs.map((t,k)=>({ start: t, end: k+1 < cs.length ? cs[k+1] : D, type: r.cutType[k], fx: r.cutFx[k] }));
+  const ws = sectionsOf(wholeMap, wp, r.beats, r.period, D);
+  return ws.length && ws.length <= 24 ? ws : null;
+}
+function paceFromSong(sp){
+  const sm = getSoundMap(); if(!sm) return null;
+  const secs = sectionsOf(sm, basePlan, beats, period, buf.duration).slice(0, 24); if(!secs.length) return null;
+  return { story: sp.story, why: [], secs: secs.map(x => { const a = x.t + secStart, b = a + x.len; let best = null, bo = 0;
+    for(const w of sp.secs){ const o = Math.min(b, w.t + w.len) - Math.max(a, w.t); if(o > bo){ bo = o; best = w; } }
+    return { t: x.t, len: x.len, every: best ? best.every : x.now }; }) };
+}
 function paceMaybe(){
   if(paceBusy || !paceWanted()) return;
   const key = paceKey();
   if(paceCache.has(key)){ pacing = paceCache.get(key); makeEdit(); return; }
+  const sp = songPace.get(paceSongKey()), p = sp && paceFromSong(sp);
+  if(p){ pacing = { key, ...p }; paceCache.set(key, pacing); makeEdit(); return; }
   paceRun(key);
 }
 async function paceRun(key){
   const sm = getSoundMap(); if(!sm){ paceFailedKey = key; return; }
-  const secs = sectionsOf(sm, basePlan, beats, period, buf.duration).slice(0, 24);
+  const whole = wholeSections(), songKey = paceSongKey();
+  const secs = whole || sectionsOf(sm, basePlan, beats, period, buf.duration).slice(0, 24);
   if(!secs.length){ paceFailedKey = key; return; }
   paceBusy = true; aiStat('AI is listening to the song and choosing the pace…');
   const tm = timeoutSignal(25000);
   try{
-    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), clips: sources.filter(s=>!s.removed).length,
-      footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext() };
+    const req = { mode, duration: +(whole ? song.buf.duration : buf.duration).toFixed(2), bpm: +(60/(whole ? song.r.period : period)).toFixed(1), clips: sources.filter(s=>!s.removed).length,
+      footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext(),
+      ...(whole ? { reel: +buf.duration.toFixed(2) } : {}) };
     const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI pace failed (' + r.status + ').'));
-    if(paceKey() !== key) return;
     const every = new Map((res.sections || []).map(x=>[x.i, x.every]));
-    pacing = { key, story: res.story || '', secs: secs.map(s=>({ t: s.t, len: s.len, every: every.get(s.i) || s.now })), why: res.sections || [] };
+    const answer = secs.map(s=>({ t: s.t, len: s.len, every: every.get(s.i) || s.now }));
+    if(whole) songPace.set(songKey, { secs: answer, story: res.story || '' });   // kept even if the part moved meanwhile
+    if(paceKey() !== key){ paceBusy = false; if(buf && sources.length && !recording) paceMaybe(); return; }
+    if(whole){ const p = paceFromSong(songPace.get(songKey)); pacing = p ? { key, ...p, why: res.sections || [] } : null; }
+    else pacing = { key, story: res.story || '', secs: answer, why: res.sections || [] };
+    if(!pacing){ paceFailedKey = key; paceBusy = false; return; }
     paceCache.set(key, pacing);
     aiStat('AI chose the pace' + (pacing.story ? ': ' + pacing.story : '') + '. Now planning the shots…');
     paceBusy = false; makeEdit();
@@ -1862,22 +1987,14 @@ async function directorRun(key){
   const tm = timeoutSignal(45000);
   try{
     const cands = directorCandidates(); dirCands = cands;
-    const per = Math.max(1, buf.duration/30), sm = getSoundMap();
-    const cx = { hits: hitsRaw || [], hitStr: hitsStr || [], drops: plan.filter(s=>s.type==='drop').map(s=>s.start), beats };
-    const pc = paceNow();
-    const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
-      clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
-      budget: mode === 'copy' && copyBudget ? copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
-      slots: plan.map((s,i)=>({ i, t:+s.start.toFixed(2), len:+(s.end-s.start).toFixed(2), type:s.type, beats: beats.filter(b=>b>s.start+0.1 && b<s.end-0.05).length,
-        ...(sm ? { music: describeCut(sm, s.start, s.end, cx) } : {}),
-        candidates: cands[i].map(({si,a,...c})=>c) })).filter(x=>x.candidates.length) };
+    const { req, ctx } = dirRequest(cands), sig = planSig(), mix = mixNo, st = mixStore();
     const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI director failed (' + r.status + ').'));
-    if(dirKey() !== key) return;   // the edit changed meanwhile: its own plan will be asked for
-    const slots = [];
-    for(const d of res.slots || []){ const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
-      slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], why: d.why || '' }; }
+    const slots = toSlots(res.slots, cands);
+    if(!st.plans[mix]) st.plans[mix] = { slots, ctx, sig, story: res.story || '' };   // kept for the song's other parts
+    // the edit changed meanwhile (the song's part moved): the plan is fitted to it, or a new one asked (other clips)
+    if(dirKey() !== key){ dirBusy = false; if(buf && sources.length && !recording) directorMaybe(); return; }
     director = { key, slots, story: res.story || '' }; dirCache.set(key, director);
     dirBusy = false; makeEdit();
   }catch(e){
@@ -2051,7 +2168,7 @@ function makeEdit(){
   if(dupCount) showMsg('Your clips are a little short for this song, so ' + dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + '. Add more clips to avoid repeats.');
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
-  if(dirInfo){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
+  if(dirInfo && !director.interim){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
     const keys = edit.reduce((n,e)=>n+((e.acc&&e.acc.length)||0), 0);
     aiStat('AI director planned your Reel' + (director.story ? ': ' + director.story : '.') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '')); }
   captureLoop(); editGen++;

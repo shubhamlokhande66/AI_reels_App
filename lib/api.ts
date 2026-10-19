@@ -4,7 +4,7 @@ import { adminHeaders } from "./admin";
 
 /** Administration: how the Fast Studio AI director did in the last days (server/studio/brain.ts report) */
 export interface AiDirectorReport {
-  days: number; plans: number; paces: number; failed: number; cuts: number; creators: number; avgSeconds: number | null;
+  days: number; plans: number; paces: number; mixes: number; failed: number; cuts: number; creators: number; avgSeconds: number | null;
   choices: { transitions: number; effects: number; keys: number };
   changed: { transitions: number; effects: number; speeds: number };
   changeRate: { transitions: number | null; effects: number | null };
