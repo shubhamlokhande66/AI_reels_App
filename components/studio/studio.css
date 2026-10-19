@@ -240,7 +240,7 @@
 .brs .strip{display:none;gap:6px}
 .brs .tl{height:46px;border-radius:10px}
 .brs .tlmusic{height:26px;border-radius:8px;background:var(--surface-2);display:flex;align-items:center;padding:0 10px;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brs .lanes{display:none;width:100%;cursor:pointer;touch-action:none}
+.brs .lanes{display:none;width:100%;cursor:pointer;touch-action:pan-y;user-select:none;-webkit-user-select:none}
 .brs label.safe{font-size:12.5px;color:var(--muted);justify-self:center}
 
 /* tools: the dock (every tool, one bar) and the panels */
@@ -816,9 +816,9 @@
 
   /* ---- 6 Reel Preview: "Your Reel is Ready!", the video, the shots, New Mix, the tools, Export ---- */
   .brs.fpost .wrap{padding-bottom:110px}
-  .brs.fpost .topbar,.brs.fpost #s3 > .sh3,.brs.fpost .lanes,.brs.fpost .tog.safe,.brs.fpost #tlmusic{display:none !important}
+  .brs.fpost .topbar,.brs.fpost #s3 > .sh3,.brs.fpost .tog.safe,.brs.fpost #tlmusic{display:none !important}
   .brs.fpost #s3{background:none;border:0;box-shadow:none;padding:0}
-  .brs.fpost .create{display:grid;grid-template-columns:1fr;gap:16px}
+  .brs.fpost .create{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
   .brs.fpost .stage{display:flex;flex-direction:column;align-items:stretch;gap:12px}
   .brs.fpost .pv,.brs.fpost .summary{display:contents}
   .brs.fpost .sumh{order:-3;margin:0;text-align:center;font:800 24px var(--display);letter-spacing:-.02em}
@@ -829,7 +829,7 @@
   .brs.fpost .bar{order:0}
   .brs.fpost .transport{order:1;display:flex;justify-content:space-between;padding:0 2px}
   .brs.fpost .transport :is(#pshot,#nshot,#cover,#remix,#play){display:none}
-  .brs.fpost .strip{order:2;display:block}
+  .brs.fpost .lanes{order:2;display:block;width:100%}
   .brs.fpost .tl{height:54px;border-radius:12px}
   .brs.fpost .summary > .btn{order:3;width:100%;justify-content:center;min-height:48px;border-radius:14px;background:var(--surface-2)}
   .brs.fpost :is(#xmsg,#saverow){order:4}
@@ -981,7 +981,7 @@
 .brs.v-one label.safe{display:none}
 
 @media (max-width:1023px){
-  .brs.made.v-one .strip{display:grid}
+  .brs.made.v-one .lanes{display:block}
   /* every tool in sight: five a row */
   .brs.v-one .dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;overflow:visible}
   .brs.v-one .tool{height:70px;min-width:0;gap:6px;padding:8px 0;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:600 11px var(--body);letter-spacing:-.01em}
@@ -997,10 +997,10 @@
 @media (min-width:1024px){
   .brs.made.v-one .wrap{gap:14px}
   .brs.made.v-one .create{grid-template-columns:88px minmax(0,1fr) minmax(340px,400px);grid-template-rows:minmax(0,1fr) auto auto auto auto;gap:0;
-    height:max(calc(100vh - 140px),780px);border:1px solid var(--line);border-radius:18px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
+    height:calc(100vh - 140px);min-height:600px;border:1px solid var(--line);border-radius:18px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
   .brs.made.v-one :is(.stage,.tools,.pv){display:contents}
   /* the tool rail */
-  .brs.made.v-one .dock{grid-column:1;grid-row:1/-1;flex-direction:column;gap:4px;padding:12px 8px;overflow-y:auto;border-right:1px solid var(--line);background:color-mix(in srgb,var(--surface-2) 45%,var(--surface))}
+  .brs.made.v-one .dock{grid-column:1;grid-row:1/-1;flex-direction:column;gap:4px;padding:12px 8px;overflow-y:auto;contain:size;border-right:1px solid var(--line);background:color-mix(in srgb,var(--surface-2) 45%,var(--surface))}
   .brs.made.v-one .tool{flex:0 0 66px;width:100%;height:66px;border-radius:14px;font-size:11.5px}
   /* the preview and its controls */
   /* the preview takes the room its row has (never over the bar under it), 9:16 inside */
@@ -1041,3 +1041,26 @@
 .brs.made.v-one.playing .playov{opacity:0}
 .brs.made.v-one.playing .pvbox:hover .playov{opacity:.85}
 @media (min-width:1024px){ .brs.made.v-one .transport #play{display:none} }
+
+/* the preview as a wide, low stage (like CapCut): a dark box across the column, the Reel in the middle of it */
+.brs.made.v-one:not(.fopen) .pvbox{background:radial-gradient(70% 90% at 50% 50%,#1d1840,#0b0a18);border-radius:16px;padding:10px;box-sizing:border-box}
+/* one cell that never grows with the canvas (1080 px wide by itself): the Reel shrinks into the stage */
+.brs.made.v-one:not(.fopen) .pvbox{grid-template:minmax(0,1fr) / minmax(0,1fr);min-width:0;max-width:100%}
+.brs.made.v-one:not(.fopen) #out{min-width:0;min-height:0}
+.brs.made.v-one:not(.fopen) #out{box-shadow:0 12px 30px -14px rgba(0,0,0,.9)}
+@media (max-width:1023px){
+  .brs.fpost .pvbox{align-self:stretch;display:grid;place-items:center;height:38svh;min-height:240px}
+  .brs.fpost #out{max-height:100%;max-width:100%;width:auto;height:auto;border-radius:12px}
+  .brs.fpost[data-tool]:not([data-tool=""]) .pvbox{height:30svh;min-height:200px}
+  .brs.fpost[data-tool]:not([data-tool=""]) #out{max-height:100%}
+}
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .pvbox{margin:14px 20px 4px}
+}
+
+/* a note under the preview (clips too short, saved…): one line, the accent's tint; the whole text on hover */
+.brs.made.v-one #xmsg:not([hidden]){display:block;min-width:0;max-width:100%;padding:8px 12px;border-radius:12px;font:500 13px/1.3 var(--body);
+  color:var(--ink);background:color-mix(in srgb,var(--accent) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));box-shadow:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brs.made.v-one #xmsg:not([hidden])::before{content:"i";display:inline-grid;vertical-align:-4px;margin-right:8px;width:18px;height:18px;border-radius:50%;place-items:center;background:var(--accent);color:#fff;font:700 11px/1 var(--body)}
+.brs.made.v-one #xmsg.err:not([hidden]){background:color-mix(in srgb,var(--warning) 10%,var(--surface));border-color:color-mix(in srgb,var(--warning) 45%,var(--line))}
+.brs.made.v-one #xmsg.err:not([hidden])::before{content:"!";background:var(--warning)}

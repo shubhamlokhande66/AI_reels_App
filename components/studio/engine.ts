@@ -2187,7 +2187,7 @@ function makeEdit(){
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = edit.length + ' shots · ' + fmt(buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
-  if(dupCount) showMsg('Your clips are a little short for this song, so ' + dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + '. Add more clips to avoid repeats.');
+  if(dupCount) showMsg(dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + ': your clips are short for this song · add more clips to avoid it');
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(dirInfo && !director.interim){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
@@ -2337,6 +2337,26 @@ function shotTrim(dir){
   const L = editOf(), d = to - L[i+1].start; L[i].end = to; L[i+1].start = to;
   if(L[i+1].uk) L[i+1].uk = L[i+1].uk.map(k => ({ ...k, t: k.t - d })).filter(k => k.t >= 0);
   if(!restoreEdit(L)) return false; changed(i, true); changed(i+1, true); pos = edit[i].start + 0.05; showShot(i); return true;
+}
+// ripple (dragging a shot's end on the timeline): shot i ends at `to` (on the nearest beat when one is close), every
+// later shot moves with it, and the last shot still ends with the song (it gives or takes the difference)
+function shotRipple(i, to){
+  if(!edit.length || kind === 'talk' || exporting || recording || !edit[i]) return false;
+  const D = buf.duration, e = edit[i];
+  if(i === edit.length - 1){ notify('The last shot ends with the song.'); return false; }
+  const nb = beats.reduce((b, x) => Math.abs(x - to) < Math.abs(b - to) ? x : b, Infinity);
+  if(Math.abs(nb - to) < 0.12) to = nb;
+  to = Math.max(e.start + MIN_SHOT, Math.min(D - MIN_SHOT, to));
+  const d = to - e.end; if(Math.abs(d) < 0.01) return false;
+  stopAll();
+  const L = editOf(); L[i].end = to;
+  for(let k = i + 1; k < L.length; k++){ L[k].start += d; L[k].end += d; }
+  const out = L.filter(x => x.start < D - MIN_SHOT); out[out.length - 1].end = D;   // shots pushed past the song's end go
+  if(!restoreEdit(out)) return false;
+  changed(i, true); if(edit.length - 1 !== i) changed(edit.length - 1, true);
+  pos = edit[i].start + 0.05; showShot(i);
+  notify('Shot ' + (i + 1) + ' is ' + (to - edit[i].start).toFixed(1) + ' s · the shots after it moved' + (d > 0 ? ' later.' : ' earlier.'));
+  return true;
 }
 // Undo / Redo: a step is kept each time the edit or the texts change (any control, a new mix, a split…). The list starts
 // again when the song or the clips change, because an older edit would not fit them.
@@ -3797,7 +3817,7 @@ function saveFile(blob, name){
   return false;
 }
 const savedMsg = (shared, what) => shared ? what + ' is ready: tap the button below to save it to Photos or share it.' : what + ' saved';
-function showMsg(t, err){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.classList.toggle('err', !!err); if(err) notify(t, 'err'); }
+function showMsg(t, err){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.title=t; m.classList.toggle('err', !!err); if(err) notify(t, 'err'); }
 // a short note that pops up at the bottom and goes away by itself (errors stay a little longer)
 function notify(t, kind){
   const box = $('toasts'); if(!box || !t) return;
@@ -5096,7 +5116,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 

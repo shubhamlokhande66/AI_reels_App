@@ -10,12 +10,12 @@ export type StudioView = "one" | "all"; // "all": every panel open (checks and s
 // the tools of paid plans (and the administrator); free plans see them with a PRO tag that opens /pricing
 export const PRO_TOOLS = new Set(["motion", "layers", "bg", "voice"]);
 
-type Shot = { start: number; end: number; src: number; type: string; tr: string; efx: string; uk?: { t: number }[] };
+type Shot = { start: number; end: number; src: number; type: string; tr: string; efx: string; uk?: { t: number }[]; ak?: { t: number }[]; acc?: { at: number; do: string }[]; sp?: { label: string } };
 type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean };
 type Studio = {
-  now: number; playing: boolean; dur: number; songName: string; title: string; hook: string; capsOn: boolean;
+  now: number; playing: boolean; dur: number; audio: AudioBuffer | null; beats: number[]; songName: string; title: string; hook: string; capsOn: boolean;
   edit: Shot[]; overlays: Ov[]; vo: unknown; kind: string; editGen: number;
-  sources: { name: string }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace", arg?: number) => boolean;
+  sources: { name: string }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean;
   section: { start: number; len: number; whole: number; auto: boolean };
   segAt: (t: number) => number; kfSeek: (t: number) => Promise<void>;
 };
@@ -168,35 +168,150 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       else if (s.dataset.rep && s.value !== "") { S()?.shotOp("replace", +s.value); shotKey = ""; } }, sig);
   }
 
-  // Pro: the multi-track timeline (video with keyframes, text, voice, music); tap to move the playhead
+  // the multi-track timeline (video with keyframes, text, voice, music), phones and computers, like CapCut / VN:
+  // - zoom: a pinch (two fingers on a phone, the touchpad on a computer); swipe sideways to move along it
+  // - drag a shot's right edge: the shot gets longer or shorter and every shot after it moves with it (shotRipple)
+  // - tap: the playhead goes there; while playing the view follows the playhead
   const lanes = $<HTMLCanvasElement>("lanes");
   const css = (v: string, d: string) => getComputedStyle(root).getPropertyValue(v).trim() || d;
+  const ZMAX = 40, RUL = 18, EDGE = 12; // the most zoom, the time ruler's height, how near an edge counts (css px)
+  let zoom = 1, t0 = 0; // the view: the song from t0, a 1/zoom part of it
+  let trim: { i: number; to: number } | null = null; // a shot's end being dragged
+  const labW = () => (lanes.clientWidth > 700 ? 64 : 46);
+  // the song's loudness, measured once per song part: the louder of its samples every 5 ms (the waveform under the beats)
+  const PEAK_DT = 0.005;
+  let peaksOf: AudioBuffer | null = null, peaks = new Float32Array(0);
+  const songPeaks = (a: AudioBuffer) => {
+    if (a === peaksOf) return peaks;
+    const ch = [...Array(a.numberOfChannels)].map((_, c) => a.getChannelData(c)), per = Math.max(1, Math.round(a.sampleRate * PEAK_DT));
+    const n = Math.ceil(a.length / per), out = new Float32Array(n);
+    let top = 1e-6;
+    for (let k = 0; k < n; k++) { let m = 0; const e = Math.min(a.length, (k + 1) * per); for (let s = k * per; s < e; s += 2) for (const d of ch) { const v = Math.abs(d[s]); if (v > m) m = v; } out[k] = m; if (m > top) top = m; }
+    for (let k = 0; k < n; k++) out[k] /= top;
+    peaksOf = a; peaks = out; return out;
+  };
+  const span = () => (S()?.dur || 1) / zoom;
+  const fix = () => { const D = S()?.dur || 1; zoom = Math.max(1, Math.min(ZMAX, zoom)); t0 = Math.max(0, Math.min(D - D / zoom, t0)); lanesKey = ""; };
+  const tAt = (x: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return t0 + ((x - r.left - lab) / (r.width - lab)) * span(); };
+  const xOf = (t: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return r.left + lab + ((t - t0) / span()) * (r.width - lab); };
+  // the shot whose right edge is under x on the video track (not the last: it ends with the song)
+  // the tracks from the top (css px): the ruler, Effects, Video, Text, Voice, Music
+  const FXH = 22, GAP = 5, VTOP = RUL + FXH + GAP;
+  const vidH = () => (lanes.clientWidth > 700 ? 46 : 38);
+  // the names people see for a transition and an effect: the edit list's own choices
+  let namesGen = -1, names = { tr: new Map<string, string>(), efx: new Map<string, string>() };
+  const nameOf = (kind: "tr" | "efx", v: string) => {
+    const st = S();
+    if (st && st.editGen !== namesGen) {
+      namesGen = st.editGen;
+      const row = rowOf(0), opts = (c: number) => new Map([...((row?.children[c + 3]?.querySelector("select") as HTMLSelectElement | null)?.options ?? [])].map((o) => [o.value, o.text] as [string, string]));
+      names = { tr: opts(0), efx: opts(1) };
+    }
+    return names[kind].get(v) || v.charAt(0).toUpperCase() + v.slice(1);
+  };
+  // what is under the pointer, said in words (the canvas's tooltip)
+  const infoAt = (x: number, y: number) => {
+    const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st) return "";
+    const k = st.edit.findIndex((e) => xOf(e.start) <= x && x < xOf(e.end)); if (k < 0) return "";
+    const e = st.edit[k];
+    if (yy >= RUL && yy < RUL + FXH) return e.efx && e.efx !== "none" ? "Effect: " + nameOf("efx", e.efx) : e.ak && e.ak.length ? "Camera move (Shubix keyframes)" : "";
+    if (yy >= VTOP && yy < VTOP + vidH()) {
+      const near = st.edit.findIndex((s, j) => j > 0 && Math.abs(xOf(s.start) - x) < 10);
+      if (near > 0 && st.edit[near].tr && st.edit[near].tr !== "hard") return "Transition: " + nameOf("tr", st.edit[near].tr);
+      return "Shot " + (k + 1) + " · " + (e.end - e.start).toFixed(2) + " s" + (e.sp && e.sp.label !== "1×" ? " · speed " + e.sp.label : "") + (e.acc && e.acc.length ? " · " + e.acc.length + " hit" + (e.acc.length > 1 ? "s" : "") + " on the beat" : "");
+    }
+    return "";
+  };
+  // what a tap opens: a transition (on the cut, the shot it leads into), an effect (its box) or a speed (its badge)
+  const hitAt = (x: number, y: number): { k: number; tab: number } | null => {
+    const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st) return null;
+    if (yy >= VTOP && yy < VTOP + vidH()) {
+      const c = st.edit.findIndex((s, j) => j > 0 && s.tr && s.tr !== "hard" && Math.abs(xOf(s.start) - x) < 11 && yy < VTOP + 22);
+      if (c > 0) return { k: c, tab: 0 };
+    }
+    const k = st.edit.findIndex((e) => xOf(e.start) <= x && x < xOf(e.end)); if (k < 0) return null;
+    const e = st.edit[k];
+    if (yy >= RUL && yy < RUL + FXH && ((e.efx && e.efx !== "none") || (e.ak && e.ak.length))) return { k, tab: 1 };
+    if (yy >= VTOP + vidH() - 18 && yy < VTOP + vidH() && e.sp && e.sp.label !== "1×" && x < Math.max(xOf(e.start), r.left + labW()) + 90) return { k, tab: 2 };
+    return null;
+  };
+  const edgeAt = (x: number, y: number) => {
+    const st = S(), r = lanes.getBoundingClientRect(), vh = vidH();
+    // the lower part of the video track (the handle is drawn there; the upper part of a cut is its transition box)
+    if (!st || y - r.top < VTOP + vh * 0.45 || y - r.top > VTOP + vh) return -1;
+    let best = -1, bd = EDGE;
+    st.edit.forEach((e, k) => { const d = Math.abs(xOf(e.end) - x); if (k < st.edit.length - 1 && d < bd) { bd = d; best = k; } });
+    return best;
+  };
   const drawLanes = () => {
     const st = S(); if (!st || !made() || !st.edit.length || !lanes.clientWidth) return;
     const D = st.dur || 1, now = st.now;
-    const key = [lanes.clientWidth, st.editGen, st.edit.length, (now * 20) | 0, st.overlays.map((o) => o.t0 + "/" + o.t1 + o.text).join(), !!st.vo, st.hook, st.capsOn, st.edit.reduce((a, e) => a + (e.uk ? e.uk.length : 0), 0), root.querySelectorAll("#edl tr").length].join("|");
+    if (st.playing && (now < t0 || now > t0 + span())) { t0 = now - span() * 0.1; fix(); } // follow the playhead
+    const key = [lanes.clientWidth, zoom, t0, st.audio ? st.audio.length : 0, st.beats.length, trim ? trim.i + ":" + trim.to : "", st.editGen, st.edit.length, (now * 20) | 0, st.overlays.map((o) => o.t0 + "/" + o.t1 + o.text).join(), !!st.vo, st.hook, st.capsOn, st.edit.reduce((a, e) => a + (e.uk ? e.uk.length : 0), 0), root.querySelectorAll("#edl tr").length].join("|");
     if (key === lanesKey) return; lanesKey = key;
-    const dpr = window.devicePixelRatio || 1, wide = lanes.clientWidth > 700, lab = (wide ? 64 : 46) * dpr;
-    const rows = [wide ? 46 : 38, 24, 24, 24].map((h) => h * dpr), gap = 5 * dpr, rul = wide ? 18 * dpr : 0;
-    const W = Math.round(lanes.clientWidth * dpr), H = Math.round(rul + rows.reduce((a, b) => a + b, 0) + gap * 3);
+    const dpr = window.devicePixelRatio || 1, wide = lanes.clientWidth > 700, lab = labW() * dpr;
+    const rows = [wide ? 46 : 38, 24, 24, wide ? 44 : 38].map((h) => h * dpr), gap = 5 * dpr, rul = RUL * dpr;
+    const fxh = FXH * dpr, W = Math.round(lanes.clientWidth * dpr), H = Math.round(rul + fxh + gap + rows.reduce((a, b) => a + b, 0) + gap * 3);
     if (lanes.width !== W) lanes.width = W; if (lanes.height !== H) { lanes.height = H; lanes.style.height = H / dpr + "px"; }
     const g = lanes.getContext("2d")!; g.clearRect(0, 0, W, H);
     const ink = css("--foreground", "#f6f4ff"), muted = css("--muted", "#a3a1c9"), acc = css("--accent", "#b05cff"), chip = css("--surface-2", "#1c1c3f");
-    const X = (t: number) => lab + (t / D) * (W - lab);
+    const pps = (W - lab) / (D / zoom); // pixels per second
+    const X = (t: number) => lab + (t - t0) * pps;
     g.font = `${11 * dpr}px system-ui, sans-serif`; g.textBaseline = "middle";
-    if (rul) { g.fillStyle = muted; const step = D > 40 ? 10 : 5; for (let t = 0; t < D; t += step) g.fillText(fmtS(t), X(t) + 2 * dpr, rul / 2); }
+    const track = (draw: () => void) => { g.save(); g.beginPath(); g.rect(lab, 0, W - lab, H); g.clip(); draw(); g.restore(); };
+    // the ruler: a tick every 0.25 s to 1 min, as many as fit
+    const step = [0.25, 0.5, 1, 2, 5, 10, 30, 60].find((s) => s * pps >= 56 * dpr) ?? 60;
+    track(() => { g.fillStyle = muted; for (let t = Math.floor(t0 / step) * step; t <= t0 + D / zoom + step; t += step) { g.fillRect(X(t), rul - 5 * dpr, dpr, 5 * dpr); g.fillText(step < 1 ? fmt(t) : fmtS(t), X(t) + 3 * dpr, rul / 2 - dpr); } });
     let y = rul;
     const label = (s: string, h: number) => { g.fillStyle = muted; g.fillText(s, 2 * dpr, y + h / 2); };
     const rr = (x: number, yy: number, w: number, h: number, r: number) => { g.beginPath(); if (g.roundRect) g.roundRect(x, yy, Math.max(1, w), h, r); else g.rect(x, yy, Math.max(1, w), h); };
+    const cur = st.segAt(now), dt = trim ? trim.to - st.edit[trim.i].end : 0;
+    // where each shot is drawn: while an end is dragged that shot stretches and the shots after it move with it
+    const at = (k: number) => { const e = st.edit[k], sh = trim && k > trim.i ? dt : 0; return [e.start + sh, trim && k === trim.i ? trim.to : e.end + sh]; };
+    // a small box with a word in it (an effect, a speed), as the pro editors show them on their tracks
+    const tag = (x: number, yy: number, maxW: number, h: number, text: string, bg: string, fg = "#fff") => {
+      g.font = `600 ${10.5 * dpr}px system-ui, sans-serif`;
+      const w = Math.min(maxW, g.measureText(text).width + 12 * dpr); if (w < 14 * dpr) return;
+      g.fillStyle = bg; rr(x, yy, w, h, 4 * dpr); g.fill();
+      g.save(); g.beginPath(); g.rect(x, yy, w, h); g.clip(); g.fillStyle = fg; g.fillText(text, x + 6 * dpr, yy + h / 2 + 0.5 * dpr); g.restore();
+      g.font = `${11 * dpr}px system-ui, sans-serif`;
+    };
+    const diamond = (x: number, yy: number, r: number, col: string) => { g.beginPath(); g.moveTo(x, yy - r); g.lineTo(x + r, yy); g.lineTo(x, yy + r); g.lineTo(x - r, yy); g.closePath(); g.fillStyle = col; g.fill(); g.lineWidth = dpr; g.strokeStyle = "rgba(0,0,0,.45)"; g.stroke(); };
+    // Effects: each shot's effect (or Shubix's camera move) as a box across its shot
+    label("Effects", fxh);
+    track(() => st.edit.forEach((e, k) => {
+      const [a, b] = at(k), x0 = X(a) + 2 * dpr, w = X(b) - X(a) - 4 * dpr;
+      if (e.efx && e.efx !== "none") tag(x0, y + 2 * dpr, w, fxh - 4 * dpr, "✦ " + nameOf("efx", e.efx), "#6d4bd8");
+      else if (e.ak && e.ak.length) tag(x0, y + 2 * dpr, w, fxh - 4 * dpr, "◆ Camera move", "#3c5fa8");
+    }));
+    y += fxh + gap;
     label("Video", rows[0]);
-    const cur = st.segAt(now);
-    st.edit.forEach((e, k) => {
-      const x0 = X(e.start) + dpr, x1 = X(e.end) - dpr; g.fillStyle = CLIP_COL[e.src % CLIP_COL.length]; rr(x0, y, x1 - x0, rows[0], 5 * dpr); g.fill();
-      if (k === cur) { g.lineWidth = 2 * dpr; g.strokeStyle = acc; g.stroke(); }
-      for (const kq of e.uk || []) { const kx = X(e.start + kq.t), ky = y + rows[0] - 7 * dpr, r = 4 * dpr; g.beginPath(); g.moveTo(kx, ky - r); g.lineTo(kx + r, ky); g.lineTo(kx, ky + r); g.lineTo(kx - r, ky); g.closePath(); g.fillStyle = "#6FA8FF"; g.fill(); }
-    });
+    track(() => st.edit.forEach((e, k) => {
+      const [a, b] = at(k), x0 = X(a) + dpr, x1 = X(b) - dpr, h = rows[0];
+      g.fillStyle = CLIP_COL[e.src % CLIP_COL.length]; rr(x0, y, x1 - x0, h, 5 * dpr); g.fill();
+      if (k === cur || (trim && k === trim.i)) { g.lineWidth = 2 * dpr; g.strokeStyle = acc; g.stroke(); }
+      if (x1 - Math.max(x0, lab) > 24 * dpr) { g.save(); rr(x0, y, x1 - x0, h, 5 * dpr); g.clip(); g.fillStyle = "rgba(255,255,255,.85)"; g.fillText(String(k + 1), Math.max(x0, lab) + 6 * dpr, y + 10 * dpr); g.restore(); }
+      // speed: a small box at the bottom left
+      if (e.sp && e.sp.label && e.sp.label !== "1×") tag(Math.max(x0, lab) + 4 * dpr, y + h - 16 * dpr, x1 - Math.max(x0, lab) - 8 * dpr, 13 * dpr, "⏱ " + e.sp.label, "rgba(0,0,0,.55)");
+      // keyframes: yours (light blue), Shubix's camera moves (violet), the hits on the beat (gold)
+      const ky = y + h - 8 * dpr, r = 4 * dpr;
+      for (const q of e.ak || []) diamond(X(a + q.t), ky, r, "#a996ff");
+      for (const q of e.acc || []) diamond(X(a + q.at), y + 9 * dpr, r, "#f2bb1d");
+      for (const q of e.uk || []) diamond(X(a + q.t), ky, r, "#6FA8FF");
+      // the handle on the right edge (the last shot ends with the song)
+      if (k < st.edit.length - 1 && (k === cur || (trim && k === trim.i))) { g.fillStyle = "#fff"; rr(x1 - 5 * dpr, y + h * 0.52, 4 * dpr, h * 0.4, 2 * dpr); g.fill(); }
+    }));
+    // transitions: a small box on the cut (a bow tie: one shot into the next), named on hover
+    track(() => st.edit.forEach((e, k) => {
+      if (!k || !e.tr || e.tr === "hard") return;
+      const cx = X(at(k)[0]), s = 16 * dpr, top = y + 3 * dpr; // the upper half: the trim handle is in the lower one
+      g.fillStyle = "#fff"; rr(cx - s / 2, top, s, s, 4 * dpr); g.fill(); g.lineWidth = dpr; g.strokeStyle = "rgba(0,0,0,.35)"; g.stroke();
+      g.fillStyle = acc; g.beginPath(); g.moveTo(cx - 5 * dpr, top + 4 * dpr); g.lineTo(cx, top + s / 2); g.lineTo(cx - 5 * dpr, top + s - 4 * dpr); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(cx + 5 * dpr, top + 4 * dpr); g.lineTo(cx, top + s / 2); g.lineTo(cx + 5 * dpr, top + s - 4 * dpr); g.closePath(); g.fill();
+    }));
+    if (trim && dt > 0) track(() => { g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(X(D), y, W, rows[0]); }); // past the song's end: cut
     y += rows[0] + gap;
-    const bar = (a: number, b: number, s: string, col: string, h: number) => { const x0 = X(a), x1 = X(b); g.fillStyle = col; rr(x0, y + dpr, x1 - x0, h - 2 * dpr, 5 * dpr); g.fill(); g.save(); g.beginPath(); g.rect(x0, y, x1 - x0, h); g.clip(); g.fillStyle = "#fff"; g.fillText(s, x0 + 6 * dpr, y + h / 2); g.restore(); };
+    const bar = (a: number, b: number, s: string, col: string, h: number) => track(() => { const x0 = X(a), x1 = X(b); g.fillStyle = col; rr(x0, y + dpr, x1 - x0, h - 2 * dpr, 5 * dpr); g.fill(); g.save(); g.beginPath(); g.rect(x0, y, x1 - x0, h); g.clip(); g.fillStyle = "#fff"; g.fillText(s, Math.max(x0, lab) + 6 * dpr, y + h / 2); g.restore(); });
     label("Text", rows[1]);
     if (st.hook) bar(0, Math.min(D, 2.2), st.hook, "#5a4a7e", rows[1]);
     for (const o of st.overlays) bar(o.all ? 0 : o.t0, o.all ? D : o.t1, o.text, "#4A3E6A", rows[1]);
@@ -206,15 +321,74 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (st.vo || st.kind === "talk") bar(0, D, st.kind === "talk" ? "Your voice · pauses cut" : "Voiceover · cleaned", "#2E5A47", rows[2]);
     y += rows[2] + gap;
     label("Music", rows[3]);
-    if (st.songName) bar(0, D, "♪ " + st.songName, "#5b4b30", rows[3]);
-    else { g.fillStyle = chip; rr(lab, y + dpr, W - lab, rows[3] - 2 * dpr, 5 * dpr); g.fill(); }
-    g.fillStyle = ink; g.fillRect(Math.round(X(Math.min(now, D))) - dpr, 0, 2 * dpr, H);
+    if (st.songName && st.audio) {
+      // the song as a waveform (louder = taller), its beats as marks, zoomed with every other track (they stay in sync)
+      const h = rows[3], mid = y + h / 2, pk = songPeaks(st.audio);
+      track(() => {
+        g.fillStyle = "#3b3122"; rr(X(0), y + dpr, X(D) - X(0), h - 2 * dpr, 5 * dpr); g.fill();
+        g.fillStyle = "#e0b45c";
+        for (let px = Math.max(lab, X(0)); px < Math.min(W, X(D)); px += dpr) {
+          const a = Math.max(0, Math.floor((t0 + (px - lab) / pps) / PEAK_DT)), b = Math.min(pk.length, Math.ceil((t0 + (px + dpr - lab) / pps) / PEAK_DT));
+          let m = 0; for (let k = a; k < Math.max(b, a + 1) && k < pk.length; k++) if (pk[k] > m) m = pk[k];
+          const hh = Math.max(dpr, m * (h / 2 - 3 * dpr)); g.fillRect(px, mid - hh, dpr, hh * 2);
+        }
+        g.fillStyle = "rgba(255,255,255,.75)";
+        for (const bt of st.beats) if (bt >= t0 && bt <= t0 + D / zoom) g.fillRect(Math.round(X(bt)), y + dpr, dpr, 5 * dpr);
+        g.fillStyle = "#fff"; g.fillText("♪ " + st.songName, Math.max(X(0), lab) + 6 * dpr, y + 9 * dpr);
+      });
+    } else if (st.songName) bar(0, D, "♪ " + st.songName, "#5b4b30", rows[3]);
+    else track(() => { g.fillStyle = chip; rr(lab, y + dpr, W - lab, rows[3] - 2 * dpr, 5 * dpr); g.fill(); });
+    if (now >= t0 && now <= t0 + D / zoom) { g.fillStyle = ink; g.fillRect(Math.round(X(now)) - dpr, 0, 2 * dpr, H); }
   };
   window.addEventListener("resize", () => { lanesKey = ""; if (wide() && !tool && made()) { tool = defTool(); apply(); } const st = S() as (Studio & { drawTimeline?: () => void }) | undefined; if (st && st.edit.length) st.drawTimeline?.(); }, sig);
+  // fingers and the mouse: one pointer drags an edge, moves along (when zoomed) or taps; two pointers pinch
+  const pts = new Map<number, number>(); // pointer id -> x
+  let pinch: { d0: number; z0: number; tm: number; f: number } | null = null, pan: { x: number; t0: number; moved: boolean } | null = null;
+  const spread = () => { const xs = [...pts.values()]; return { d: Math.abs(xs[0] - xs[1]) || 1, m: (xs[0] + xs[1]) / 2 }; };
   lanes.addEventListener("pointerdown", (e) => {
-    const st = S(); if (!st || !st.dur) return; const r = lanes.getBoundingClientRect(), lab = r.width > 700 ? 64 : 46;
-    void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, ((e.clientX - r.left - lab) / (r.width - lab)) * st.dur)));
+    const st = S(); if (!st || !st.dur) return;
+    if (e.isPrimary) { pts.clear(); pinch = null; } // a new gesture: nothing left over from one that never ended
+    try { lanes.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
+    pts.set(e.pointerId, e.clientX);
+    if (pts.size === 2) { const { d, m } = spread(), r = lanes.getBoundingClientRect(); trim = null; pan = null; pinch = { d0: d, z0: zoom, tm: tAt(m), f: (m - r.left - labW()) / (r.width - labW()) }; return; }
+    const k = edgeAt(e.clientX, e.clientY);
+    if (k >= 0) { trim = { i: k, to: st.edit[k].end }; lanesKey = ""; return; }
+    pan = { x: e.clientX, t0, moved: false };
   }, sig);
+  lanes.addEventListener("pointermove", (e) => {
+    if (!pts.has(e.pointerId)) { lanes.style.cursor = edgeAt(e.clientX, e.clientY) >= 0 ? "col-resize" : hitAt(e.clientX, e.clientY) ? "pointer" : "default"; const t = infoAt(e.clientX, e.clientY); if (lanes.title !== t) lanes.title = t; return; }
+    pts.set(e.pointerId, e.clientX);
+    const st = S(); if (!st) return;
+    if (pinch && pts.size === 2) { const { d } = spread(); zoom = pinch.z0 * (d / pinch.d0); fix(); t0 = pinch.tm - pinch.f * span(); fix(); return; }
+    if (trim) { trim.to = Math.max(st.edit[trim.i].start + 0.3, Math.min(st.dur - 0.3, tAt(e.clientX))); lanesKey = ""; return; }
+    if (pan) { const r = lanes.getBoundingClientRect(), dx = e.clientX - pan.x; if (Math.abs(dx) > 4) pan.moved = true; t0 = pan.t0 - (dx / (r.width - labW())) * span(); fix(); }
+  }, sig);
+  const up = (e: PointerEvent) => {
+    if (!pts.delete(e.pointerId)) return;
+    const st = S();
+    if (pinch) { if (pts.size < 2) pinch = null; pan = null; return; }
+    if (trim && st && e.type === "pointerup" && Math.abs(trim.to - st.edit[trim.i].end) >= 0.02) { const t = trim; trim = null; st.shotRipple(t.i, t.to); shotKey = ""; }
+    else if (trim && st && e.type === "pointerup") { trim = null; pan = { x: e.clientX, t0, moved: false }; } // pressed, not dragged: a tap
+    if (pan && !pan.moved && st && e.type === "pointerup") {
+      // a tap on a transition, an effect or a speed: that shot, its tab open in the Shot tool; elsewhere: the playhead
+      const hit = hitAt(e.clientX, e.clientY);
+      if (hit) {
+        void st.kfSeek(st.edit[hit.k].start + 0.05);
+        shotTab = hit.tab; shotKey = "";
+        if (tool !== "shots") { tool = "shots"; apply(); }
+      } else void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, tAt(e.clientX))));
+    }
+    trim = null; pan = null; lanesKey = "";
+  };
+  lanes.addEventListener("pointerup", up, sig);
+  lanes.addEventListener("pointercancel", up, sig);
+  // a touchpad: a pinch arrives as a wheel with Ctrl; a sideways swipe moves along
+  lanes.addEventListener("wheel", (e) => {
+    const st = S(); if (!st || !st.dur) return;
+    const r = lanes.getBoundingClientRect(), f = (e.clientX - r.left - labW()) / (r.width - labW());
+    if (e.ctrlKey) { e.preventDefault(); const tm = tAt(e.clientX); zoom *= Math.exp(-e.deltaY * 0.012); fix(); t0 = tm - f * span(); fix(); }
+    else if (zoom > 1 && (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey)) { e.preventDefault(); t0 += ((e.deltaX || e.deltaY) / (r.width - labW())) * span(); fix(); }
+  }, { passive: false, signal: ac.signal });
 
   // the times, the shot, the lanes: kept up to date while the page is open (each redraws only on a change)
   let raf = 0;
