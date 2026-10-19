@@ -268,7 +268,7 @@ export function initFlow(root: HTMLElement): () => void {
     if (fd) { done10(fd.dataset.fd!); return; }
     if (t.closest("#fskip")) { go(order()[1]); return; }
     if (t.closest("#fgen")) {
-      if (made()) { revealed = true; mark(true); apply(); setTimeout(() => $("s3").scrollIntoView({ behavior: "smooth", block: "start" }), 60); }
+      if (made()) { revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); } // the editor from its top: the breadcrumb, the Reel's name and Export
       else if (phone()) go("analyse");
       return;
     }
