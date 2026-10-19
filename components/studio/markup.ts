@@ -243,8 +243,9 @@ export const STUDIO_HTML = `
           <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
           <span class="tc" id="ttot">0:00.0</span>
         </div>
-        <div class="strip"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas><div class="tlmusic" id="tlmusic"></div></div>
-        <canvas class="lanes" id="lanes" aria-label="Timeline: video, text, voice and music; tap to move the playhead"></canvas>
+        <div class="tlbar"><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button></span></div>
+        <div class="strip"><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
+        <div class="tlscroll"><canvas class="lanes" id="lanes" aria-label="Timeline: video, text, voice and music; tap to move the playhead"></canvas></div>
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
         <div class="msg" id="xmsg" hidden></div>
         <div class="row" id="saverow" hidden><button class="btn gold" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
