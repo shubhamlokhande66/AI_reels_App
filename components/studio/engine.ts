@@ -3327,7 +3327,7 @@ void main(){
   }
   else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p0,irisC)); col=mix(A,B,mk); }
   else if(mode<7.5){ float q=1.-pow(1.-prog,3.); float s=(p0.x+p0.y*0.6)/(res.x+res.y*0.6); float e=-0.15+q*1.3; float mk=1.-smoothstep(e-0.08,e,s); col=mix(A,B,mk); }
-  else if(mode>8.5){ float q=prog*prog*(3.-2.*prog);   // smooth in and out: the shape is seen growing vec2 far=max(irisC,res-irisC); float L=length(far); vec2 d=p0-irisC; float mk;
+  else if(mode>8.5){ float q=prog*prog*(3.-2.*prog);   /* smooth in and out: the shape is seen growing */ vec2 far=max(irisC,res-irisC); float L=length(far); vec2 d=p0-irisC; float mk;
     if(mode<9.5){ float R=L*1.45*q+1e-3; float v=(abs(d.x)+abs(d.y))/R; mk=1.-smoothstep(0.93,1.,v); }
     else if(mode<10.5){ float R=L*1.9*q+1e-3; vec2 u=d/R; float X=u.x*1.15; float Y=-u.y*1.15+0.3; float a=X*X+Y*Y-1.; float h=a*a*a-X*X*Y*Y*Y; mk=1.-smoothstep(-0.03,0.03,h); }
     else { float R=L*1.85*q+1e-3; float r=length(d)/R; float an=atan(d.y,d.x); float lim=0.55+0.45*pow(0.5+0.5*cos(5.*an+1.5708),3.); mk=1.-smoothstep(lim-0.05,lim,r); }
