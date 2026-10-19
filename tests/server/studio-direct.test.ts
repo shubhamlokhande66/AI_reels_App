@@ -32,7 +32,10 @@ describe("request limits", () => {
     expect(text).toContain('"id":"2b"');
     expect(text).toContain("Style: auto");
     expect(text).toContain("hook");
-    expect(text).toContain('{"whip":2}');
+    expect(text).not.toContain('{"whip":2}');   // no budget: the AI uses any tool as often as it likes
+    expect(text).toContain("boxgrow"); expect(text).toContain("no limits on style");
+    const fresh = prompt(DirectIn.parse({ ...req(3), recent: ["boxgrow", "flash", "speed 0.5×"] }));
+    expect(fresh).toContain("Used in this creator's last Reels (make this one feel different: other tools, other combinations): boxgrow, flash, speed 0.5×.");
   });
 });
 
@@ -114,10 +117,10 @@ describe("long Reels", () => {
 describe("pace", () => {
   const sec = (i: number, extra = {}) => ({ i, t: i * 8, len: 8, beats: 16, starts: i ? "drop" : "start", loud: 0.5, trend: "steady", bass: 0.5, drums: 0.5, voice: 0.5, hitRate: 1, now: 2, ...extra });
   const pin = (mode = "auto") => PaceIn.parse({ mode, duration: 24, bpm: 120, footage: 60, clips: 6, sections: [sec(0), sec(1), sec(2, { starts: "break" })] });
-  it("keeps one pace per known section, nearest allowed value for the style", () => {
+  it("keeps one pace per known section, the nearest of 1, 2, 4, 8 beats in any style (the style is no limit)", () => {
     const out = parsePace(pin("smooth"), { story: "builds", sections: [{ i: 0, every: 1, why: "" }, { i: 1, every: 3, why: "drop" }, { i: 1, every: 8, why: "dup" }, { i: 9, every: 2, why: "" }] });
-    expect(out.sections).toEqual([{ i: 0, every: 2, why: "" }, { i: 1, every: 2, why: "drop" }]);
-    expect(parsePace(pin("fast"), { story: "", sections: [{ i: 2, every: 8, why: "" }] }).sections[0].every).toBe(2);
+    expect(out.sections).toEqual([{ i: 0, every: 1, why: "" }, { i: 1, every: 2, why: "drop" }]);
+    expect(parsePace(pin("fast"), { story: "", sections: [{ i: 2, every: 8, why: "" }] }).sections[0].every).toBe(8);
   });
   it("refuses an answer with no usable section, and asks the model once", async () => {
     expect(() => parsePace(pin(), { story: "", sections: [{ i: 7, every: 2, why: "" }] })).toThrow();
@@ -152,9 +155,11 @@ describe("copy a Reel", () => {
   });
 });
 describe("the AI's camera keyframes", () => {
-  it("are kept inside the shot and in range, with a known ease, starting from as filmed", () => {
+  it("are as free as the creator's own keyframes: inside the shot, zoom 0.1-4, slide -1..1, turn +-360, a known ease", () => {
     expect(cleanMove([{ at: 0.5, s: 3, x: 0.9, y: -1, r: 40, ez: "warp" }, { at: 1.2, s: 1, x: 0, y: 0, r: 0, ez: "lin" }, { at: 1, s: 1.1, x: 0, y: 0, r: 0, ez: "outExpo" }]))
-      .toEqual([{ at: 0, s: 1, x: 0, y: 0, r: 0, ez: "inOut" }, { at: 0.5, s: 1.6, x: 0.15, y: -0.15, r: 15, ez: "inOut" }, { at: 1, s: 1.1, x: 0, y: 0, r: 0, ez: "outExpo" }]);
+      .toEqual([{ at: 0, s: 1, x: 0, y: 0, r: 0, ez: "inOut" }, { at: 0.5, s: 3, x: 0.9, y: -1, r: 40, ez: "inOut" }, { at: 1, s: 1.1, x: 0, y: 0, r: 0, ez: "outExpo" }]);
+    expect(cleanMove([{ at: 0, s: 10, x: 5, y: -5, r: 900, ez: "lin" }, { at: 1, s: 0.01, x: 0, y: 0, r: -900, ez: "lin" }]))
+      .toEqual([{ at: 0, s: 4, x: 1, y: -1, r: 360, ez: "lin" }, { at: 1, s: 0.1, x: 0, y: 0, r: -360, ez: "lin" }]);
   });
   it("drop a 'move' that does not move", () => {
     expect(cleanMove([{ at: 0, s: 1, x: 0, y: 0, r: 0, ez: "lin" }, { at: 1, s: 1, x: 0, y: 0, r: 0, ez: "lin" }])).toEqual([]);
@@ -203,5 +208,20 @@ describe("New mix", () => {
     const whole = PaceIn.parse({ mode: "auto", duration: 180, reel: 30, bpm: 120, footage: 60, clips: 6, sections: [sec] });
     expect(pacePrompt(whole)).toContain("uses a 30.0 s part of this song");
     expect(pacePrompt({ ...whole, reel: undefined })).not.toContain("part of this song");
+  });
+});
+
+describe("every tool is open to the AI", () => {
+  it("takes the beat shapes and each shot's own look, keeping only known fields in range", () => {
+    const d = DirectIn.parse(req(3));
+    const out = parsePlan(d, { story: "", slots: [
+      { i: 0, shot: "0a", transition: "hard", effect: "hook", speed: "normal", why: "" },
+      { i: 1, shot: "1a", transition: "heart", effect: "boxgrow", speed: "normal", why: "", clip: { rot: 92, fh: true, fit: true, bg: "#112233", bd: 3, sat: -1, warm: 0.4, fout: 9, zoom: 7, evil: "x" } },
+      { i: 2, shot: "2a", transition: "star", effect: "kaleido", speed: "fast", why: "", clip: { bg: "blur", bri: "lots" } },
+    ] });
+    expect(out.slots[1]).toMatchObject({ effect: "boxgrow", transition: "heart", clip: { rot: 90, fh: true, fit: true, bg: "color", bgc: "#112233", bd: 1, bdc: "#FFFFFF", sat: -1, warm: 0.4, fout: 1.5 } });
+    expect(out.slots[1].clip).not.toHaveProperty("zoom");
+    expect(out.slots[2].effect).toBe("kaleido");
+    expect(out.slots[2]).not.toHaveProperty("clip");   // a background without "fit" and a word for a number: nothing usable
   });
 });
