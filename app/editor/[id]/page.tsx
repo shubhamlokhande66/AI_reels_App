@@ -298,7 +298,7 @@ export default function StudioEditorPage() {
       <input ref={addVideoInput} type="file" accept={PICKER_VIDEO} multiple hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void addFromTrack("video", f); }} />
       <input ref={addAudioInput} type="file" accept={PICKER_AUDIO} hidden onChange={(e) => { const f = Array.from(e.target.files ?? []); e.target.value = ""; void addFromTrack("audio", f); }} />
       {/* top bar */}
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-[#0d0b09] px-4 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-[var(--bar)] px-4 py-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
         <div className="row min-w-0">
           <Link href="/editor" className="ib plain" aria-label="Back">
             <Icon name="back" />

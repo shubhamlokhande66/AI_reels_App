@@ -2,7 +2,7 @@
 .brs{
   --bg:var(--background); --ink:var(--foreground); --line:var(--border); --chip:var(--surface-2); --wave:color-mix(in srgb,var(--muted) 45%,transparent);
   --drop:#ff6a33; --hit:#f2bb1d; --cut:#22c3b3; --break:#8f80ff; --ok:var(--success);
-  --display:var(--font-display),Georgia,serif; --body:var(--font-body),system-ui,sans-serif; --mono:var(--font-geist-mono),ui-monospace,Menlo,monospace;
+  --display:var(--font-display),system-ui,sans-serif; --body:var(--font-body),system-ui,sans-serif; --mono:var(--font-geist-mono),ui-monospace,Menlo,monospace;
   color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.5;
 }
 :root[data-theme="light"] .brs{ --drop:#e2501a; --hit:#b98500; --cut:#0e8f83; --break:#5b45e0; }

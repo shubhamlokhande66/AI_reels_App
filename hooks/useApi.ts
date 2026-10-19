@@ -3,6 +3,7 @@
 import { DEFAULTS, type Features } from "@/lib/features-list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { getAdminKey, setAdminKey } from "@/lib/admin";
 import type { GenerateOptions, Job, Project, ProjectStatus, TimelineState } from "@/types/api";
 
 export const keys = {
@@ -74,7 +75,18 @@ export function useCredits() {
 
 /** Admin mode in this browser (settings and diagnostics are admin only; see lib/admin.ts). */
 export function useAdmin(): { admin: boolean; required: boolean; loading: boolean } {
-  const q = useQuery({ queryKey: ["admin"], queryFn: () => api.adminSession(), staleTime: 60_000, retry: false });
+  const q = useQuery({
+    queryKey: ["admin"],
+    queryFn: async () => {
+      const s = await api.adminSession();
+      // an admin key the server no longer takes (ADMIN_KEY changed): forgotten, so it is not sent with every request
+      // (wrong keys are counted against guessing, server/core/rateLimit.ts)
+      if (!s.admin && getAdminKey()) setAdminKey(null);
+      return s;
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
   return { admin: q.data?.admin ?? false, required: q.data?.required ?? true, loading: q.isLoading };
 }
 
@@ -146,8 +158,10 @@ export function useQueue() {
   return useQuery({
     queryKey: keys.queue,
     queryFn: api.queue,
-    refetchInterval: (q) => (q.state.data?.some((j) => j.position !== null) ? 1500 : 8000),
-    refetchIntervalInBackground: true,
+    // quick while a Reel waits or is being made; otherwise a slow check, and none in a background tab (every open tab
+    // polling every few seconds adds up fast with many people)
+    refetchInterval: (q) => (q.state.data?.some((j) => j.position !== null) ? 1500 : 30_000),
+    refetchIntervalInBackground: false,
   });
 }
 

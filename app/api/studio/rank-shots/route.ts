@@ -2,6 +2,7 @@ import { body } from "@/server/core/body";
 import { getFeatures, requireFeature } from "@/server/core/features";
 import { route } from "@/server/core/http";
 import { availability, RankIn, rankShots } from "@/server/studio/rankShots";
+import { limits } from "@/server/core/rateLimit";
 
 /** Fast Studio's AI shot picking: GET says whether the studio's AI is on (an AI provider is set up AND the administrator
  * turned on "Fast Studio AI"; people never choose) and its credit cost; POST scores the frames the phone sends (a few
@@ -12,5 +13,6 @@ export const GET = route(async () => {
 });
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");
+  limits.ai(req); // each AI call costs money
   return rankShots(await body(req, RankIn));
 });

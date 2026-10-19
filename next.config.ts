@@ -17,7 +17,17 @@ const nextConfig: NextConfig = {
       { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
       { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
     ];
+    // every page and API answer: no MIME guessing, no framing by other sites (clickjacking), a short referrer, the camera
+    // and microphone for this site only (the studio's voiceover), no location; HTTPS only, once deployed
+    const security = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), interest-cohort=()" },
+      ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
+    ];
     return [
+      { source: "/:path*", headers: security },
       { source: "/studio", headers: isolate },
       { source: "/create/:kind", headers: isolate }, // the Create flow is Fast Studio too
       // the service worker (installable app): always the newest copy, allowed to look after the whole site

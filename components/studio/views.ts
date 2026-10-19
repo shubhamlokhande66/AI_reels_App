@@ -206,7 +206,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const W = Math.round(lanes.clientWidth * dpr), H = Math.round(rul + rows.reduce((a, b) => a + b, 0) + gap * 3);
     if (lanes.width !== W) lanes.width = W; if (lanes.height !== H) { lanes.height = H; lanes.style.height = H / dpr + "px"; }
     const g = lanes.getContext("2d")!; g.clearRect(0, 0, W, H);
-    const ink = css("--foreground", "#f3ede3"), muted = css("--muted", "#a69d90"), acc = css("--accent", "#d4b07a"), chip = css("--surface-2", "#1c1916");
+    const ink = css("--foreground", "#f6f4ff"), muted = css("--muted", "#a3a1c9"), acc = css("--accent", "#b05cff"), chip = css("--surface-2", "#1c1c3f");
     const X = (t: number) => lab + (t / D) * (W - lab);
     g.font = `${11 * dpr}px system-ui, sans-serif`; g.textBaseline = "middle";
     if (rul) { g.fillStyle = muted; const step = D > 40 ? 10 : 5; for (let t = 0; t < D; t += step) g.fillText(fmtS(t), X(t) + 2 * dpr, rul / 2); }

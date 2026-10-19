@@ -36,7 +36,11 @@ async function newSessionVersion(id: unknown): Promise<Doc & { _id: unknown }> {
 /** Email over plain SMTP; without SMTP settings the message is written to the server log (a local install still works). */
 export async function sendMail(to: string, subject: string, text: string): Promise<boolean> {
   const s = settings;
-  if (!(s.smtpHost && s.smtpFrom)) { console.warn(`email is not set up (SMTP_HOST / SMTP_FROM); would have sent to ${to}: ${subject}\n${text}`); return false; }
+  if (!(s.smtpHost && s.smtpFrom)) {
+    // the message (a reset link is a key to the account) is shown only while developing, never in a live server's log
+    console.warn(`email is not set up (SMTP_HOST / SMTP_FROM); would have sent to ${to}: ${subject}${process.env.NODE_ENV === "production" ? "" : `\n${text}`}`);
+    return false;
+  }
   const m = /^(.*)<([^>]+)>\s*$/.exec(s.smtpFrom), name = (m?.[1] ?? "").trim().replace(/^"|"$/g, "") || s.businessName, addr = (m?.[2] ?? s.smtpFrom).trim();
   try {
     const t = nodemailer.createTransport({ host: s.smtpHost, port: s.smtpPort, secure: s.smtpSsl, requireTLS: !s.smtpSsl, auth: s.smtpUser ? { user: s.smtpUser, pass: s.smtpPassword } : undefined, connectionTimeout: 20_000 });
@@ -57,7 +61,13 @@ export async function register(email0: string, password: string) {
   const col = await users();
   if (await col.findOne({ email })) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
   const now = new Date(), u = { _id: new ObjectId(), email, password: hashPassword(password), sessionVersion: 0, createdAt: now, lastLoginAt: now, loginCount: 1 };
-  await col.insertOne(u);
+  try {
+    await col.insertOne(u);
+  } catch (e) {
+    // two sign-ups with the same email at the same moment: the unique index (server/core/indexes.ts) lets one through
+    if ((e as { code?: number }).code === 11000) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
+    throw e;
+  }
   return withCookie({ user: userOut(u) }, sessionCookie(u), 201);
 }
 export async function login(email: string, password: string) {

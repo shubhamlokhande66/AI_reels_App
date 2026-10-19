@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { currentUser } from "./auth";
 import { settings } from "./config";
 import { AppError } from "./errors";
+import { limits } from "./rateLimit";
 
 /** Admin access (was core/admin.py). An administrator is a signed-in account whose email is in ADMIN_EMAILS, or a
  * browser that sends the ADMIN_KEY in the X-Admin-Key header. With neither set (a local install) everyone is admin. */
@@ -24,7 +25,9 @@ async function emailOf(uid: string): Promise<string | null> {
 
 function keyMatches(req: Request): boolean {
   const key = settings.adminKey, given = req.headers.get("x-admin-key") ?? "";
-  return Boolean(key && given) && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key));
+  const ok = Boolean(key && given) && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key));
+  if (given && !ok) limits.adminKey(req); // a wrong key: counted, so it cannot be guessed (429 after a few)
+  return ok;
 }
 
 export const adminRequired = () => Boolean(settings.adminKey || emails().size);

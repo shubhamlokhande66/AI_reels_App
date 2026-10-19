@@ -99,7 +99,8 @@ export const settings = {
   keepUploadsHours: num("KEEP_UPLOADS_HOURS", 2),
   keepProjectsHours: num("KEEP_PROJECTS_HOURS", 24),
   secretKey: env("SECRET_KEY", ""),
-  cookieSecure: bool("COOKIE_SECURE", false),
+  // the session cookie only over HTTPS: on by itself when the site has an https address (COOKIE_SECURE overrides)
+  cookieSecure: bool("COOKIE_SECURE", env("PUBLIC_BASE_URL", "").startsWith("https://")),
   reviewMaxIterations: num("REVIEW_MAX_ITERATIONS", 3),
   ollamaBaseUrl: env("OLLAMA_BASE_URL", "http://localhost:11434"),
   ollamaModel: env("OLLAMA_MODEL", ""),

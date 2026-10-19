@@ -174,7 +174,7 @@ export default function LibraryPage() {
               <Thumb id={it.id} url={it.thumbnailUrl} className="aspect-[3/4] w-full">
                 <span className="tag">{formatDuration(it.duration)}</span>
                 {it.favorite && (
-                  <span className="absolute right-1.5 top-1.5 z-[1] text-[#f1dcb0]">
+                  <span className="absolute right-1.5 top-1.5 z-[1] text-[#f5c84c]">
                     <Icon name="star" size={16} />
                   </span>
                 )}

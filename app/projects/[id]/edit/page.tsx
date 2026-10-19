@@ -173,7 +173,7 @@ export default function EditorPage() {
       ),
     },
   ];
-  const tool = "btn sm shrink-0 !bg-[#1c1916] !border-[#2e2924] !text-foreground";
+  const tool = "btn sm shrink-0 !bg-surface-2 !border-border !text-foreground";
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
@@ -230,7 +230,7 @@ export default function EditorPage() {
             </button>
             <button
               type="button"
-              className={`${tool} !text-[#e88b7d]`}
+              className={`${tool} !text-danger`}
               disabled={!selected || tl.segments.length < 2 || mutating}
               onClick={() => {
                 if (selected) {

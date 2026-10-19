@@ -7,6 +7,7 @@ export async function register() {
   const [{ hasWork, pump, recoverStaleJobs, runsJobs }, { startRetention }, { startScheduler }, { settings }] = await Promise.all([
     import("@/server/jobs/manager"), import("@/server/workspace"), import("@/server/publish"), import("@/server/core/config"),
   ]);
+  void import("@/server/core/indexes").then((m) => m.ensureIndexes()).catch((e) => console.warn("database indexes:", e)); // once per server
   recoverStaleJobs().catch((e) => console.warn("recovering interrupted jobs:", e));
   if (runsJobs()) {
     // the job queue lives in MongoDB: take waiting jobs (also ones another instance started) and requeue stalled ones
