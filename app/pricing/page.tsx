@@ -206,7 +206,7 @@ export default function PricingPage() {
       {/* what a credit buys */}
       <section aria-labelledby="costs-h" className="flex flex-col gap-5">
         <div id="costs-h">
-          <Heading title="What a credit buys" sub="Previews and most Fast Studio AI work are free. A Reel that fails gives its credits back." center />
+          <Heading title="What a credit buys" sub="Previews and the edits made on your phone are free. A Reel that fails gives its credits back." center />
         </div>
         <Card className="!p-2 md:!p-3">
           <ul className="m-0 grid list-none gap-x-6 p-0 md:grid-cols-2">

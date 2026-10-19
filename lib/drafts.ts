@@ -45,7 +45,7 @@ export function useDrafts(reload = 0): Draft[] | null {
 export const clock = (s = 0) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 
 /** Delete a draft from this phone: its entry and the files only it uses (a song or clip another draft or the recent
- * songs list still uses stays). The same rule as Fast Studio's own delete (components/studio/engine.ts deleteProject). */
+ * songs list still uses stays). Files a draft shares with another one, or with the recent songs, are kept (keptSweep in components/studio/engine.ts clears leftovers). */
 export function deleteDraft(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     let req: IDBOpenDBRequest;

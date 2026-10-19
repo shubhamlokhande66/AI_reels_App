@@ -22,18 +22,13 @@ type Option = { href: string; icon: string; title: string; text: string; tone: T
 
 /** The six ways to start, as far as this studio has them on (Administration → Features). */
 export function createOptions(f: Features): Option[] {
-  const server = linkOn("/projects/new", f) && f.aiReel;
   return [
     { href: "/create/music", icon: "music", title: "Music Reel", text: "Sync with Music", tone: "music", reload: true },
     { href: "/create/talking", icon: "mic", title: "Talking Reel", text: "Vlogs & Tutorials", tone: "talk", reload: true },
     { href: "/create/photo", icon: "image", title: "Photo Reel", text: "Bring Photos to Life", tone: "photo", reload: true },
-    linkOn("/story/new", f)
-      ? { href: "/story/new", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story" }
-      : { href: "/studio?auto=story", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story", reload: true },
+    { href: "/create/story", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story", reload: true },
     { href: "/templates", icon: "grid", title: "Use a Template", text: "Ready-made Styles", tone: "template" },
-    server
-      ? { href: "/projects/new", icon: "copy", title: "Recreate a Reel", text: "Match Any Style", tone: "recreate" }
-      : { href: "/reels", icon: "video", title: "My Reels", text: "Watch, download or share", tone: "recreate" },
+    { href: "/reels", icon: "video", title: "My Reels", text: "Watch, download or share", tone: "recreate" },
   ].filter((o) => linkOn(o.href, f)) as Option[];
 }
 
@@ -89,7 +84,7 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
       ) : drafts.length ? (
         <Scroller label="Your drafts" grid="md:grid md:grid-cols-4 md:overflow-visible lg:grid-cols-5">
           {drafts.slice(0, 10).map((d, i) => {
-            const href = `/studio?p=${encodeURIComponent(d.id)}`;
+            const href = `/create/edit?p=${encodeURIComponent(d.id)}`;
             return (
               <div key={d.id} className={`w-[44vw] max-w-[200px] shrink-0 snap-start md:w-auto md:max-w-none ${i >= 5 ? "md:hidden" : i === 4 ? "md:hidden lg:block" : ""}`}>
                 <DraftCard
@@ -114,7 +109,7 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
           title="No Reels yet"
           hint="Pick a song and a few clips: your first Reel is ready in seconds, cut to the beat."
           action={
-            <Button href="/studio" reload icon="plus">
+            <Button href="/create/music" reload icon="plus">
               Make your first Reel
             </Button>
           }

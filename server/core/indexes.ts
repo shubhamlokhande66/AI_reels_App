@@ -2,8 +2,7 @@ import "server-only";
 import { mainDb, OWNER } from "./db";
 
 /** The database's indexes, made once when the server starts (instrumentation.ts); making one that is there already
- * does nothing. Without them every look-up by user, and the job queue's check every few seconds, reads a whole
- * collection; and two sign-ups at the same moment could both get the same email. A failure is logged, never fatal
+ * does nothing. Without them every look-up by user reads a whole collection; and two sign-ups at the same moment could both get the same email. A failure is logged, never fatal
  * (for example old duplicate emails: the unique index waits until they are cleaned up). */
 const INDEXES: [collection: string, keys: Record<string, 1 | -1>, options?: { unique?: boolean; name?: string }][] = [
   ["users", { email: 1 }, { unique: true, name: "email_unique" }],
@@ -11,9 +10,8 @@ const INDEXES: [collection: string, keys: Record<string, 1 | -1>, options?: { un
   ["payments", { status: 1, paidAt: -1 }],
   ["credit_ledger", { userId: 1, at: -1 }],
   ["credit_ledger", { ref: 1 }],
-  ["projects", { [OWNER]: 1, createdAt: -1 }],
-  ["projects", { status: 1 }],
-  ["jobs", { status: 1, runner: 1, "queue.storage": 1, claimedBy: 1 }],
+  ["studio_reels", { [OWNER]: 1, status: 1, createdAt: -1 }],
+  ["studio_reels", { shareToken: 1 }],
   ["presence", { uid: 1, at: -1 }],
 ];
 

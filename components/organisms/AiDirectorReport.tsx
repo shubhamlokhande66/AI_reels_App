@@ -18,7 +18,7 @@ export function AiDirectorReport() {
         <span className="h2">AI director</span>
         <span className="mu xs">last {r?.days ?? 30} days</span>
       </div>
-      <span className="mu sm">In Fast Studio with AI on, the AI chooses the pace, every shot, transition, effect and the keyframes on the hits. This shows how often people kept what it chose.</span>
+      <span className="mu sm">With the AI director on, the AI chooses the pace, every shot, transition, effect and the keyframes on the hits. This shows how often people kept what it chose.</span>
       {r && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[

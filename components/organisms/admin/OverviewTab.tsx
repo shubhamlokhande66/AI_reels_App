@@ -105,8 +105,8 @@ export function OverviewTab({ onOpenUser }: { onOpenUser: (id: string) => void }
               <span className="mu xs">have paid</span>
             </div>
             <div className="stat" style={{ gridTemplateColumns: "1fr" }}>
-              <b>{count(o.projects.total)}</b>
-              <span className="mu xs">Reels &amp; projects</span>
+              <b>{count(o.reels.total)}</b>
+              <span className="mu xs">Reels in My Reels</span>
             </div>
           </div>
           <span className="eb pt-1">Plans</span>

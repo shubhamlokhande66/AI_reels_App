@@ -84,16 +84,6 @@ export function initSteps(root: HTMLElement): () => void {
         update();
         return;
       }
-      if (t.closest("#pnew")) {
-        // a new Reel starts at step 1 again
-        chosen = skip = clipSound = clipSoundAsked = false; kindNow = null;
-        setPhoto(false);
-        setTimeout(() => {
-          press(null);
-          $("s0st").textContent = "Choose one to start";
-          update();
-        });
-      }
     },
     { capture: true, signal: ac.signal },
   );

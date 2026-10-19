@@ -29,30 +29,23 @@ import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
 // The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
 // a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. An administrator sees one Admin dashboard
 // button (server/core/admin.ts decides who); the admin tools below are listed in the dashboard, not in the menu.
-// `unless`: an item shown only while that other link is off (the on-device Story Maker when the server's is off)
-export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean; unless?: string }[] }[] = [
+export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
   {
     title: "Studio",
     items: [
       { href: "/", label: "Home", icon: "home" },
-      { href: "/projects/new", label: "Create Reel", icon: "plus" },
       // the Create flow, one link per kind; a full page load: it is cross-origin isolated (next.config.ts) so its AI beat
       // tracker can use several cores
       { href: "/create/music", label: "Music Reel", icon: "music", fullLoad: true },
       { href: "/create/talking", label: "Talking Reel", icon: "mic", fullLoad: true },
       { href: "/create/photo", label: "Photo Reel", icon: "image", fullLoad: true },
-      { href: "/story/new", label: "Story Maker", icon: "book" },
-      { href: "/studio?auto=story", label: "Story Maker", icon: "book", fullLoad: true, unless: "/story/new" },
+      { href: "/create/story", label: "Story Maker", icon: "book", fullLoad: true },
       { href: "/reels", label: "My Reels", icon: "reels" },
-      { href: "/editor", label: "Editor", icon: "scissors" },
     ],
   },
   {
     title: "Library",
     items: [
-      { href: "/projects", label: "Projects", icon: "projects" },
-      { href: "/library", label: "Footage", icon: "image" },
-      { href: "/songs", label: "Songs", icon: "music" },
       { href: "/templates", label: "Templates", icon: "grid" },
       { href: "/brands", label: "Brands", icon: "star" },
     ],
@@ -69,9 +62,6 @@ export const GROUPS: { title: string; admin?: boolean; items: { href: string; la
     admin: true,
     items: [
       { href: "/settings", label: "AI settings", icon: "gear" },
-      { href: "/ai-edit/new", label: "AI Edit", icon: "wand" },
-      { href: "/beats/new", label: "Beat Sync check", icon: "wave" },
-      { href: "/chat", label: "Chat", icon: "chat" },
       { href: "/voices", label: "Voice profiles", icon: "mic" },
       { href: "/trends", label: "My trends", icon: "trend" },
     ],
@@ -93,17 +83,12 @@ type Meta = { title: string; back?: string; left?: boolean; credits?: boolean; t
 function pageMeta(p: string): Meta {
   const fixed: Record<string, Meta> = {
     "/": { title: "Shubix", credits: true, tabs: true },
-    "/projects": { title: "My Projects", credits: true, tabs: true },
     "/reels": { title: "My Reels", credits: true, tabs: true },
-    "/projects/new": { title: "Create a new Reel", back: "/", credits: true },
-    "/story/new": { title: "Story → Reel", back: "/", credits: true },
-    "/editor": { title: "Editor", credits: true, tabs: true },
-    "/studio": { title: "Fast Studio", credits: true },
+    "/create/story": { title: "Story Maker", back: "/", credits: true },
+    "/create/edit": { title: "Your Reel", credits: true },
     "/create/music": { title: "Music Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
     "/create/talking": { title: "Talking Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
     "/create/photo": { title: "Photo Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
-    "/library": { title: "Media Library" },
-    "/songs": { title: "My songs" },
     "/templates": { title: "Templates" },
     "/brands": { title: "My Brands" },
     "/account": { title: "My account" },
@@ -113,17 +98,11 @@ function pageMeta(p: string): Meta {
     "/refunds": { title: "Legal", back: "/" },
     "/contact": { title: "Contact us" },
     "/settings": { title: "AI settings", admin: true },
-    "/ai-edit/new": { title: "AI Edit", admin: true },
-    "/beats/new": { title: "Beat Sync check", admin: true },
-    "/chat": { title: "Chat", admin: true },
     "/voices": { title: "Voice profiles", admin: true },
     "/trends": { title: "My trends", admin: true },
     "/admin": { title: "Administration" },
   };
-  if (fixed[p]) return fixed[p];
-  const m = p.match(/^\/projects\/([^/]+)(\/(edit|beats))?$/);
-  if (m) return { title: m[3] === "edit" ? "Edit" : "Project", back: m[2] ? `/projects/${m[1]}` : "/projects", left: true };
-  return { title: "Shubix" };
+  return fixed[p] ?? { title: "Shubix" };
 }
 
 /** The signed-in user's credits (billing on): tap to see plans and top up. */
@@ -273,15 +252,10 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
 const TABS: NavTab[] = [
   { href: "/", label: "Home", icon: "home" },
   { href: "/templates", label: "Templates", icon: "grid" },
-  { href: "/projects/new", label: "Create", icon: "plus", primary: true },
+  { href: "/create/music", label: "Create", icon: "plus", primary: true, full: true },
   { href: "/reels", label: "My Reels", icon: "reels" },
-  { href: "/projects", label: "Projects", icon: "projects" },
-  { href: "/editor", label: "Editor", icon: "scissors" },
 ];
-const tabsFor = (f: Parameters<typeof linkOn>[1]) =>
-  TABS.map((t) => (t.primary && !linkOn(t.href, f) ? { ...t, href: "/studio", full: true } : t))
-    .filter((t) => linkOn(t.href, f))
-    .slice(0, 4);
+const tabsFor = (f: Parameters<typeof linkOn>[1]) => TABS.filter((t) => linkOn(t.href, f));
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
@@ -345,15 +319,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const features = useFeatures();
   const offKey = pageFeature(pathname, features);
   const off = offKey && !features[offKey] ? FEATURE_LIST.find((f) => f.key === offKey)! : null;
-  if (pathname.startsWith("/editor/") && !signedOut) {
-    // the Pro editor is a full-screen workspace (like CapCut): no sidebar or bottom bar
-    return (
-      <main className="rm min-h-screen">
-        <GlobalActivity />
-        {children}
-      </main>
-    );
-  }
   if (pathname.startsWith("/admin") && !signedOut) {
     // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
     return (
@@ -375,9 +340,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const groups = GROUPS.filter((g) => !g.admin)
-    .map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features) && !(i.unless && linkOn(i.unless, features))) }))
+    .map((g) => ({ ...g, items: g.items.filter((i) => linkOn(i.href, features)) }))
     .filter((g) => g.items.length); // a heading whose parts are all off is not shown
-  const newReel = linkOn("/projects/new", features) ? "/projects/new" : "/studio"; // Fast Studio when Create Reel is off
   const signOut = me.data?.user
     ? async () => {
         await api.logout();
@@ -444,7 +408,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link href="/" className="flex" aria-label="Shubix home">
           <Logo height={100} className="-mx-1 max-w-full" />
         </Link>
-        <Button href={newReel} reload={newReel === "/studio"} icon="plus" full>
+        <Button href="/create/music" reload icon="plus" full>
           New Reel
         </Button>
         <nav aria-label="Main" className="flex flex-col">

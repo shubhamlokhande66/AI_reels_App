@@ -2,7 +2,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { z } from "zod";
 import { getProvider, type ManagedProvider } from "@/server/ai";
-import { clean, Text } from "@/server/ai/director";
+import { clean, Text } from "@/server/ai/text";
 import { AIResponseError } from "@/server/ai/types";
 import { charge, refund } from "@/server/credits";
 

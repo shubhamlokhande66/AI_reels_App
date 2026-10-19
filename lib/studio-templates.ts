@@ -1,5 +1,5 @@
 /** Fast Studio's ready-made templates, as people see them (Templates page, Home). Each opens Fast Studio with that
- * template picked (/studio?tpl=<id>); what a template does to the edit (style, look, length, texts) lives in the studio
+ * template picked (/create/edit?tpl=<id>); what a template does to the edit (style, look, length, texts) lives in the studio
  * itself (components/studio/engine.ts TEMPLATES): keep the ids the same. */
 export interface StudioTemplate {
   id: string;
@@ -29,5 +29,5 @@ export const STUDIO_TEMPLATES: StudioTemplate[] = [
   { id: "diwali", name: "Diwali", kind: "music", len: 30, text: "Shubh Deepavali in gold over smooth, cinematic cuts.", sample: { text: "शुभ दीपावली 🪔", style: "neon", color: "#FFD54A", y: 0.26 }, look: "Cinematic", group: "Festivals" },
 ];
 
-export const templateHref = (t: StudioTemplate) => `/studio?tpl=${t.id}`;
+export const templateHref = (t: StudioTemplate) => `/create/edit?tpl=${t.id}`;
 export const templateMeta = (t: StudioTemplate) => `${t.kind === "talk" ? "Talking" : "Music"}${t.len ? ` · ${t.len} s` : ""} · ${t.look}`;

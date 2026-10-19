@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { getProvider, type ManagedProvider } from "@/server/ai";
-import { clean } from "@/server/ai/director";
+import { clean } from "@/server/ai/text";
 import { AIResponseError } from "@/server/ai/types";
 
 /** Fast Studio's translated captions: the caption lines the phone already has (with their times on the phone), turned

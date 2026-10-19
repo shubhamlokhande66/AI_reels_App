@@ -98,7 +98,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" } = 
 
   return (
     <>
-      {failed && <ErrorBanner title="Fast Studio could not start" message={failed} onRetry={() => location.reload()} />}
+      {failed && <ErrorBanner title="The editor could not start" message={failed} onRetry={() => location.reload()} />}
       <div ref={root} className={kind ? "brs fopen" : "brs"} data-fstep={kind ? "intro" : undefined} data-fkind={kind} dangerouslySetInnerHTML={{ __html: STUDIO_HTML }} />
     </>
   );

@@ -5,14 +5,12 @@ import { AiDirectorReport } from "@/components/organisms/AiDirectorReport";
 import { AiSettingsPanel } from "@/components/organisms/AiSettingsPanel";
 import { FeatureSettings } from "@/components/organisms/FeatureSettings";
 import { PricingSettings } from "@/components/organisms/PricingSettings";
-import { RetentionSettings } from "@/components/organisms/RetentionSettings";
 import { SiteSetupNotice } from "@/components/organisms/SiteSetupNotice";
 
-/** Every setting of the studio, in one place: what is on, prices and plans, storage, the AI. */
+/** Every setting of the studio, in one place: what is on, prices and plans, the AI. */
 const SECTIONS = [
   { id: "features", label: "Features", body: () => <FeatureSettings /> },
   { id: "pricing", label: "Plans & pricing", body: () => <PricingSettings /> },
-  { id: "storage", label: "Storage", body: () => <RetentionSettings /> },
   { id: "ai", label: "AI", body: () => <AiSettingsPanel /> },
   { id: "report", label: "AI report", body: () => <AiDirectorReport /> },
 ] as const;

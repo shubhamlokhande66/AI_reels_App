@@ -20,8 +20,9 @@ const $ = id => root.querySelector('#'+id);
 const tasks = createTasks(root);   // what is happening now, always in view (components/studio/tasks.ts)
 const ac = new AbortController(), SIG = { signal: ac.signal };
 let exporting = false;
-// the Shubix watermark on exported Reels (bottom right), unless "Remove Watermark" is on in the export sheet
-let wmOff = false;
+// the Shubix watermark on exported Reels (bottom right). Removing it ("Remove Watermark" in the export sheet) is for paid
+// plans (and the administrator): wmPaid comes from the server when the sheet opens; until then the watermark stays
+let wmOff = false, wmPaid = false;
 const wmImg = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: '/brand/shubix-logo-sm.webp' }) : null;
 const texOf = (e, local) => exporting ? (e.fc || e.fcLast) : e.rc && e.cs && e.cs.rev && local !== undefined ? revFrame(e, local) : e.el;
 const fmt = t => { t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(2); };
@@ -1110,7 +1111,7 @@ function makeCard(f){
  * Reading a clip (action, scene changes, faces; where people speak) takes the longest part of making a Reel, and gives the
  * same answer for the same file every time. So it is kept in the saved Reels' file store ("a:"/"v:" + the file's
  * fingerprint): opening a draft again, or adding the same clip again, uses it at once. SCAN_V: raise it when the reading
- * changes so old results are read again. They go with their clip's file (deleteProject; keptSweep for leftovers). */
+ * changes so old results are read again. They go with their clip's file (lib/drafts.ts deleteDraft; keptSweep for leftovers). */
 const SCAN_V = 1;
 async function keptGet(pre, f){ if(typeof indexedDB === 'undefined' || !f) return null; try{ return await idb('files', 'readonly', s => s.get(pre + fileFp(f))) || null; }catch(e){ return null; } }
 function keptPut(pre, f, val){ if(typeof indexedDB === 'undefined' || !f) return; idb('files', 'readwrite', s => s.put(val, pre + fileFp(f))).catch(e => console.info('clip reading not kept:', e && e.message)); }
@@ -1356,12 +1357,12 @@ function setKind(k){
   else if(song){ useSection(); } else { edit = []; renderEDL(); drawFrame(0); }
 }
 $('kind').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setKind(b.dataset.k); }, SIG);
-// /studio?kind=talk (or music): Home's "Talking Reel" / "Music Reel" open the studio on that kind
+// /create/talking (or music, photo): Home's "Talking Reel" / "Music Reel" / "Photo Reel" open the studio on that kind
 // (after the whole studio is set up: setKind uses state declared further down, e.g. the captions)
 queueMicrotask(() => { if(ac.signal.aborted) return; const q = new URLSearchParams(location.search), t0 = q.get('tpl');
-  // the kind: /create/music|talking|photo (the Create flow's addresses), or the older /studio?kind=...
-  const k0 = ({ music: 'music', talking: 'talk', photo: 'photo' })[location.pathname.split('/')[2]] || q.get('kind');
-  // links from Home and Templates: /studio?kind=music|talk|photo, /studio?tpl=<template> (picked as if tapped)
+  // the kind: /create/music|talking|photo (the Create flow's addresses)
+  const k0 = ({ music: 'music', talking: 'talk', photo: 'photo' })[location.pathname.split('/')[2]];
+  // a template from Home or Templates: /create/edit?tpl=<template> (picked as if tapped)
   if(t0 && TEMPLATES[t0]){ const b = root.querySelector('#tpl [data-t="' + t0 + '"]'); if(b){ b.click(); return; } }
   if(k0 === 'photo'){ const b = $('photokind'); if(b){ b.click(); return; } }
   if(k0 === 'talk' || k0 === 'music'){ const b = root.querySelector('#kind [data-k="' + k0 + '"]'); if(b) b.click(); else setKind(k0); } });
@@ -1885,7 +1886,7 @@ async function directorRun(key){
     else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('The AI director is busy right now. Your Reel uses the phone\'s own smart edit.'); }
   }finally{ dirBusy = false; tm.done(); }
 }
-(async () => {   // is the studio's AI on? The administrator decides (Administration -> Features -> Fast Studio AI) and the
+(async () => {   // is the studio's AI on? The administrator decides (Administration -> Features -> AI director) and the
   // server has an AI provider; people never choose: when it is on, every Reel is edited by the AI
   try{
     const r = await fetch('/api/studio/rank-shots', ac ? { signal: ac.signal } : undefined); if(!r.ok) return;
@@ -3837,7 +3838,7 @@ async function runExport(toCloud){
 const XQ = { '720': { scale: 2/3, bitrate: 6e6, label: '720p' }, '1080': { scale: 1, bitrate: 12e6, label: '1080p' }, '4k': { scale: 2, bitrate: 35e6, label: '4K' } };
 const xq = { res: '1080', fps: 30, nowm: false, my: true };
 try{ const v = JSON.parse(localStorage.getItem('studio-export') || 'null'); if(v && XQ[v.res]) xq.res = v.res; if(v && (v.fps === 30 || v.fps === 60)) xq.fps = v.fps; if(v && typeof v.nowm === 'boolean') xq.nowm = v.nowm; if(v && typeof v.my === 'boolean') xq.my = v.my; }catch(e){}
-wmOff = xq.nowm;
+wmOff = false;   // set from the person's plan when the sheet opens (sheetOpen)
 let can4k = null, cloudInfo = null;
 function exportDims(){ const [W0,H0] = SIZES[aspect], k = XQ[xq.res].scale; return [Math.round(W0*k/2)*2, Math.round(H0*k/2)*2]; }
 function sheetPaint(){
@@ -3846,7 +3847,8 @@ function sheetPaint(){
   const [W, H] = exportDims(), dur = buf ? buf.duration : 0, mb = (XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1) + 256e3) * dur / 8 / 1e6;
   $('xsize').textContent = W + ' × ' + H + ' · ' + xq.fps + ' fps · up to ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
   // Remove Watermark, and Save to My Reels (when the account has My Reels); "Export to phone" does what they say
-  $('xwm').checked = xq.nowm;
+  $('xwm').disabled = !wmPaid; $('xwm').checked = wmPaid && xq.nowm; $('xwmpro').hidden = wmPaid;
+  wmOff = wmPaid && xq.nowm;
   const cb = $('xgocloud'), note = $('xcloudnote'), my = $('xmy');
   cb.hidden = true;
   $('xmyrow').hidden = note.hidden = !cloudInfo;
@@ -3864,6 +3866,8 @@ function sheetOpen(open){
   if(can4k === null) loadMediabunny().then(mb => { const [W0,H0] = SIZES[aspect]; return mb.getFirstEncodableVideoCodec(['avc','vp9','av1'], {width: W0*2, height: H0*2}); })
     .then(c => { can4k = !!c; if(!can4k && xq.res === '4k') xq.res = '1080'; sheetPaint(); }, () => { can4k = false; sheetPaint(); });
   if(cloud) cloud.usage().then(u => { cloudInfo = u; sheetPaint(); }, () => {});
+  // a paid plan (or the administrator) may remove the watermark
+  fetch('/api/credits', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).then(c => { wmPaid = !!(c && c.enabled && c.plan && c.plan !== 'free') || root.classList.contains('admin'); sheetPaint(); }, () => { wmPaid = root.classList.contains('admin'); sheetPaint(); });
 }
 const sheetPick = () => { try{ localStorage.setItem('studio-export', JSON.stringify(xq)); }catch(e){} sheetPaint(); };
 $('xres').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || b.disabled) return; xq.res = b.dataset.r; sheetPick(); }, SIG);
@@ -3871,9 +3875,9 @@ $('xfps').addEventListener('click', e => { const b = e.target.closest('button');
 $('xshclose').addEventListener('click', () => sheetOpen(false), SIG);
 $('xsheet').addEventListener('click', e => { if(e.target === $('xsheet')) sheetOpen(false); }, SIG);
 addEventListener('keydown', e => { if(e.key === 'Escape' && !$('xsheet').hidden) sheetOpen(false); }, SIG);
-$('xwm').addEventListener('change', e => { xq.nowm = e.target.checked; wmOff = xq.nowm; sheetPick(); }, SIG);
+$('xwm').addEventListener('change', e => { if(!wmPaid){ e.target.checked = false; return; } xq.nowm = e.target.checked; wmOff = xq.nowm; sheetPick(); }, SIG);
 $('xmy').addEventListener('change', e => { xq.my = e.target.checked; sheetPick(); }, SIG);
-$('xgo').addEventListener('click', () => { sheetOpen(false); runExport(!!cloudInfo && cloudInfo.used < cloudInfo.limit && xq.my); }, SIG);
+$('xgo').addEventListener('click', () => { wmOff = wmPaid && xq.nowm; sheetOpen(false); runExport(!!cloudInfo && cloudInfo.used < cloudInfo.limit && xq.my); }, SIG);
 $('xgocloud').addEventListener('click', () => { sheetOpen(false); runExport(true); }, SIG);
 $('export').onclick = () => { if(recording || exportBusy) return; sheetOpen(true); };
 
@@ -4774,30 +4778,6 @@ setInterval(() => {
   if(restoring || recording || exporting || pending || (!song && !sources.length) || typeof indexedDB === 'undefined') return;
   const st = stateOf(), sig = JSON.stringify(st); if(sig !== lastSig) saveProject(st, sig);
 }, 3000);
-async function listProjects(){
-  let all = []; try{ all = await idb('meta', 'readonly', s => s.getAll()) || []; }catch(e){ return; }
-  all.sort((a, b) => b.updated - a.updated);
-  const box = $('plist'); box.innerHTML = '';
-  for(const p of all){
-    const d = document.createElement('div'); d.className = 'proj' + (proj && p.id === proj.id ? ' cur' : '');
-    d.innerHTML = `<button class="popen" type="button"><img alt=""><span class="pname"></span><span class="pmeta"></span></button><button class="pdel" type="button" aria-label="Delete this Reel" title="Delete">×</button>`;
-    const img = d.querySelector('img'); if(p.thumb) img.src = p.thumb; else img.remove();
-    d.querySelector('.pname').textContent = p.name; d.querySelector('.pmeta').textContent = (p.kind === 'talk' ? 'Talking · ' : '') + fmt(p.dur || 0).replace(/\.\d+$/, '') + ' · ' + new Date(p.updated).toLocaleDateString();
-    d.querySelector('.popen').addEventListener('click', () => { if(!(proj && p.id === proj.id)) location.href = location.pathname + '?p=' + encodeURIComponent(p.id); });
-    d.querySelector('.pdel').addEventListener('click', async () => { if(!(await askConfirm('Delete "' + p.name + '"? It is removed from this phone.', 'Delete'))) return; await deleteProject(p.id); if(proj && proj.id === p.id){ location.href = location.pathname; return; } listProjects(); });
-    box.appendChild(d);
-  }
-  $('projects').hidden = !all.length;
-}
-async function deleteProject(id){
-  const all = await idb('meta', 'readonly', s => s.getAll()) || [], me = all.find(p => p.id === id); if(!me) return;
-  const used = new Set(), mine = new Set(); const keysOf = st => [st.song && st.song.fp, ...(st.clips || []).map(c => c.fp), ...(st.lmedia || []).map(c => c.fp), st.settings && st.settings.bg, st.vo && st.vo.fp].filter(Boolean).map(fp => 'f:' + fp);
-  for(const p of all) for(const k of keysOf(p.state || {})) (p.id === id ? mine : used).add(k);
-  for(const sg of (await idb('songs', 'readonly', s => s.getAll()) || [])) used.add('f:' + sg.fp);   // a recent song keeps its file
-  for(const k of mine) if(!used.has(k)) await idb('files', 'readwrite', s => s.delete(k));   // files no other Reel uses
-  await idb('meta', 'readwrite', s => s.delete(id));
-  await keptSweep();   // and what was read in those clips
-}
 const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
 async function openProject(id){
   restoring = true; const say = t => { $('psaved').textContent = t; };
@@ -4838,7 +4818,7 @@ async function openProject(id){
     const missing = (st.clips || []).length - clips.length + (st.song && !sf ? 1 : 0);
     say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : 'Opened "' + p.name + '" · saved on this phone');
   }catch(err){ console.warn('project not opened:', err); say('This Reel could not be opened.'); notify('This Reel could not be opened.', 'err'); }
-  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; listProjects(); }
+  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; }
 }
 function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
@@ -4848,8 +4828,7 @@ function restoreEdit(list){
   setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop(); editGen++;
   return true;
 }
-$('pnew').addEventListener('click', () => { location.href = location.pathname; }, SIG);
-{ const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else { listProjects(); keptSweep(); } }
+{ const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else keptSweep(); }
 
 /* ---- My music: the songs used lately, on this phone, picked again in one tap ----
  * Each song is kept once (with the saved Reels' files) together with its finished analysis (beats, drops, AI check), so
