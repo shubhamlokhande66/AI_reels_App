@@ -4,7 +4,7 @@
 
 export type ClipCs = {
   i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
-  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
+  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
   mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
 };
 export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
@@ -35,7 +35,7 @@ const SWATCH = ["#000000", "#ffffff", "#f3ede3", "#d4b07a", "#e85d75", "#4f7cff"
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const slider = (k: string, label: string, v: number, min: number, max: number, step: number, unit = "") =>
   `<label class="cslide"><span>${label}</span><input type="range" data-s="${k}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${fmtV(v, unit)}</output></label>`;
-const fmtV = (v: number, unit: string) => unit === "s" ? `${v.toFixed(1)} s` : unit === "x" ? `${v.toFixed(1)}×` : unit === "%" ? `${Math.round(v * 100)}%` : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
+const fmtV = (v: number, unit: string) => unit === "st" ? `${v > 0 ? "+" : ""}${Math.round(v)}` : unit === "s" ? `${v.toFixed(1)} s` : unit === "x" ? `${v.toFixed(1)}×` : unit === "%" ? `${Math.round(v * 100)}%` : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
 const swatches = (k: string, cur: string) => `<span class="cswatch">${SWATCH.map((c) => `<button type="button" data-col="${k}" data-v="${c}" aria-pressed="${c === cur}" aria-label="Colour ${c}" style="background:${c}"></button>`).join("")}</span>`;
 const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5, y: 0.45, r: 0.18, z: 2 };
 
@@ -47,7 +47,7 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
     `<button type="button" class="ct${on(k) ? " on" : ""}" data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
   const need = (t: string) => `<p class="cnote">${t}</p>`;
-  if (open === "vol") body = slider("vol", "Clip sound", c.vol, 0, 2, 0.05, "%") + need("The clip's own sound under the music (0% = the song alone). The music steps back while the clip is loud.");
+  if (open === "vol") body = slider("vol", "Clip sound", c.vol, 0, 2, 0.05, "%") + slider("pitch", "Pitch (semitones)", c.pitch ?? 0, -12, 12, 1, "st") + slider("mus", "Music under this shot", c.mus ?? 1, 0, 1.5, 0.05, "%") + need("The clip's own sound under the music (0% = the song alone). The music steps back while the clip is loud.");
   else if (open === "extract") body = `<button type="button" class="chip" data-act="extract">Use this clip's sound as the song</button>${need("Its beats then lead the cuts, as with any song. Change it back in Music.")}`;
   else if (open === "crop") body = slider("zoom", "Zoom", c.zoom, 1, 3, 0.05, "x") + slider("cx", "Across", c.cx ?? 0.5, 0, 1, 0.01, "%") + slider("cy", "Down", c.cy ?? 0.5, 0, 1, 0.01, "%")
     + `<button type="button" class="chip" data-act="crop-auto">${c.cx == null ? "Following the face (automatic)" : "Back to automatic (follows the face)"}</button>`;
@@ -104,7 +104,7 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
   // sliders change the picture while they move; the tools are drawn again when they are let go
   const fromSlider = (el: HTMLInputElement) => {
     const A = api(), c = A?.shotCs(); if (!A || !c) return; const k = el.dataset.s!, v = +el.value;
-    const out = el.parentElement?.querySelector("output"); if (out) { const unit = /^(fin|fout)$/.test(k) ? "s" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
+    const out = el.parentElement?.querySelector("output"); if (out) { const unit = k === "pitch" ? "st" : k === "mus" ? "%" : /^(fin|fout)$/.test(k) ? "s" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
     if (k === "cx" || k === "cy") A.shotSet({ cx: k === "cx" ? v : c.cx ?? 0.5, cy: k === "cy" ? v : c.cy ?? 0.5 });
     else if (k.includes(".")) { const [o, f] = k.split(".") as ["mz" | "mg" | "curve", string]; A.shotSet({ [o]: { ...(c[o] as object), [f]: v } } as Partial<ClipCs>); }
     else A.shotSet({ [k]: v } as Partial<ClipCs>);
