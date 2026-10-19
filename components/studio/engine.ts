@@ -1460,8 +1460,8 @@ function rampSpeed(len){ const sp = 0.45*len;   // fast, then slow into the next
   return {label:'Ramp 1.8×→0.6×', at:l=> l<sp ? 1.8 : 0.6, pos:l=> l<sp ? 1.8*l : 1.8*sp + 0.6*(l-sp)}; }
 function styleEdit(){
   // pros mostly hard-cut; special transitions go on hits, drops and section changes, never twice in a row
-  const HIT_TR = ['whip','iris','zoom','glitch','spin','bars'];
-  const CUT_TR = ['hard','wipe','hard','iris','hard','bars'];
+  const HIT_TR = ['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'];
+  const CUT_TR = ['hard','wipe','hard','iris','slideleft','hard','bars','blur','hard','luma','doors'];
   const HIT_FX = ['punch','tilt','punch','shake'];
   let lastTr = '', hk = 0, ck = 0, fk = 0, dk = 0;
   const beatsRel = (s) => beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
@@ -1509,11 +1509,14 @@ function styleEdit(){
   if(mode==='copy' && refProfile) copyStyle();
 }
 const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip:'Whip pan (blur)', zoom:'Zoom-through', glitch:'Glitch RGB', dip:'Dip to black', dissolve:'Dissolve',
-  iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur', diamond:'Mask: diamond', heart:'Mask: heart', star:'Mask: star'};
+  iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur', diamond:'Mask: diamond', heart:'Mask: heart', star:'Mask: star',
+  slideleft:'Push left', slideright:'Push right', slideup:'Push up', slidedown:'Push down', swipeup:'Swipe up (feed scroll)', zoomout:'Zoom out', blur:'Blur through', flip:'Card flip',
+  luma:'Light fade (by brightness)', pixelate:'Pixelate', clock:'Clock wipe', doors:'Doors open', ripple:'Ripple', burn:'Film burn', dropin:'Drop in (bounce)'};
 const FX_NAME = {jump:'Punch-in (jump cut)', 'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce',
   boxgrow:'Shape: box grows on the beat', grid:'Shape: grid opens on the beat', strips:'Shape: strips on the beat', circle:'Shape: circle pulse', heartbeat:'Shape: heart pulse', starbeat:'Shape: star pulse',
   frame:'Frame in frame', mirror:'Mirror', kaleido:'Kaleidoscope', triple:'Triple split', vhs:'VHS retro', strobe:'Strobe on the beat', rgbpulse:'RGB split on the beat', blurpulse:'Blur pulse on the beat'};
-const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2, diamond:0.36, heart:0.42, star:0.4};
+const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2, diamond:0.36, heart:0.42, star:0.4,
+  slideleft:0.24, slideright:0.24, slideup:0.24, slidedown:0.24, swipeup:0.2, zoomout:0.3, blur:0.35, flip:0.3, luma:0.45, pixelate:0.4, clock:0.4, doors:0.35, ripple:0.45, burn:0.4, dropin:0.32};
 
 /* ---- keyframes: [time, value, ease] per property, local to the shot ---- */
 const EASE = {
@@ -2235,10 +2238,20 @@ function kfSummary(e){
 /* ---- manual control: change any shot, the rest stays ---- */
 const SPEED_KEYS = {normal:'1×', slow:'Slow 0.5×', fast:'Fast 1.6×', velocity:'Velocity (beat)', ramp:'Ramp 1.8×→0.6×', freeze:'Freeze → 1×', hold:'Freeze frame'};
 const holdSpeed = {label:'Freeze frame', at:()=>0, pos:()=>0};   // the picture stands still for the whole shot
+SPEED_KEYS.curve = 'Custom curve';
+/* a custom speed curve: five speeds across the shot (start, 1/4, middle, 3/4, end; 0.2x-4x), smooth in between; the clip
+ * time is the integral of the speed (precomputed in 96 steps) */
+function curveSpeed(len, cv){
+  const v = ['a','b','c','d','e'].map(k => Math.min(4, Math.max(0.2, +(cv && cv[k]) || 1)));
+  const at = l => { const x = Math.min(1, Math.max(0, l/Math.max(1e-6, len)))*4, i = Math.min(3, Math.floor(x)), f = x - i, s2 = f*f*(3 - 2*f); return v[i] + (v[i+1] - v[i])*s2; };
+  const N = 96, cum = new Float64Array(N + 1); for(let k = 0; k < N; k++){ const a = k*len/N, b = (k + 1)*len/N; cum[k+1] = cum[k] + (at(a) + at(b))/2*(b - a); }
+  const pos = l => { const x = Math.min(N, Math.max(0, l/Math.max(1e-6, len)*N)), i = Math.min(N - 1, Math.floor(x)); return cum[i] + (cum[i+1] - cum[i])*(x - i); };
+  return { label:'Custom curve', at, pos };
+}
 function speedFor(key, e){
   const len = e.end - e.start, bl = beats.filter(b=>b>e.start+0.15 && b<e.end-0.1).map(b=>b-e.start);
   if(key==='slow') return SPEED.slow; if(key==='fast') return SPEED.fast; if(key==='ramp') return rampSpeed(len);
-  if(key==='velocity') return bl.length ? velocitySpeed(len, bl) : rampSpeed(len); if(key==='freeze') return snapSpeed; if(key==='hold') return holdSpeed; return SPEED.normal;
+  if(key==='velocity') return bl.length ? velocitySpeed(len, bl) : rampSpeed(len); if(key==='freeze') return snapSpeed; if(key==='hold') return holdSpeed; if(key==='curve') return curveSpeed(len, e.cs && e.cs.curve); return SPEED.normal;
 }
 const speedKey = sp => (Object.keys(SPEED_KEYS).find(k=>SPEED_KEYS[k]===sp.label) || (sp.label.startsWith('Ramp') ? 'ramp' : 'normal'));
 function assignPlayers(){ const uc = sources.map(()=>0); edit.forEach(e=>{ e.el = sources[e.src].els[(uc[e.src]++)%3]; }); }
@@ -2337,6 +2350,7 @@ function shotSet(patch){
   if(e.cs && e.cs.auto){ e.cs.auto = e.cs.auto.filter(k => !(k in patch)); if(!e.cs.auto.length) delete e.cs.auto; }
   if(e.cs) for(const k of Object.keys(e.cs)) if(JSON.stringify(e.cs[k]) === JSON.stringify(CS0[k])) delete e.cs[k];
   if(e.cs && !Object.keys(e.cs).length) e.cs = undefined;
+  if(patch && 'curve' in patch){ e.sp = speedFor('curve', e); changed(segAt(pos), true); }
   if(!playing) redrawFrame();
 }
 // slip: the same shot, an earlier or later moment of its clip (the shot's place in the song stays)
@@ -2513,7 +2527,10 @@ function drawShot(g, e, local, o={}){
   if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
   if(u){ scale *= u.s; rot += u.r; }
+  const cs0 = csOf(e); let stab = null;
+  if(cs0.stab > 0 && !o.noStab){ stab = stabAt(sources[e.src], srcPos(e, local)); scale *= 1 + 0.12*cs0.stab; }
   const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
+  if(stab){ x += stab[0]*dw*cs0.stab; y += stab[1]*dh*cs0.stab; }
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py0 = H/2 - ccy*dh; py0 = panClamp(py0, H, dh);
   const py = py0 + y;
@@ -2583,6 +2600,10 @@ const LY0 = { x:0.5, y:0.5, s:0.5, r:0, op:1, fh:false, fv:false, crop:{l:0,t:0,
 let lyBuf = null, lyG = null;
 async function addLayerMedia(file){
   const url = URL.createObjectURL(file), photo = /^image\//.test(file.type) || /\.(jpe?g|png|webp|heic|gif)$/i.test(file.name);
+  if(photo && (file.type === 'image/gif' || /\.gif$/i.test(file.name)) && typeof ImageDecoder !== 'undefined'){   // an animated GIF: its frames, played in a loop
+    try{ const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: 'image/gif' }); await dec.tracks.ready; const n = Math.min(240, dec.tracks.selectedTrack.frameCount || 1), frames = [], times = []; let t = 0;
+      for(let k = 0; k < n; k++){ const r = await dec.decode({ frameIndex: k }); frames.push(await createImageBitmap(r.image)); times.push(t); t += Math.max(0.02, (r.image.duration || 100000)/1e6); r.image.close(); }
+      dec.close(); if(frames.length > 1) return { kind:'gif', file, url, frames, times, gdur: t, img: frames[0], w: frames[0].width, h: frames[0].height, dur: Infinity, name: file.name }; }catch(e){ console.info('GIF read as a picture:', e && e.message); } }
   if(photo){ const img = new Image(); img.src = url; await img.decode(); return { kind:'photo', file, url, img, w: img.naturalWidth, h: img.naturalHeight, dur: Infinity, name: file.name }; }
   const el = document.createElement('video'); el.muted = true; el.playsInline = true; el.preload = 'auto'; el.src = url;
   await new Promise((res, rej) => { el.onloadedmetadata = res; el.onerror = () => rej(new Error('This video cannot be opened.')); });
@@ -2601,9 +2622,10 @@ async function layerAdd(files){
 const lyOn = (L, t) => t >= L.t0 && t < L.t1;
 const lyTime = (L, t) => L.in + (t - L.t0);
 // the layer's picture, cropped, masked and faded, in its own canvas; then placed on the frame
+const gifFrame = (M, t) => { const T = ((t % M.gdur) + M.gdur) % M.gdur; let k = 0; while(k + 1 < M.times.length && M.times[k + 1] <= T) k++; return M.frames[k]; };
 function drawLayers(g, t){
   for(const L of layers){ if(!lyOn(L, t)) continue; const M = lmedia[L.m]; if(!M) continue;
-    const src = M.kind === 'photo' ? M.img : exporting ? L.fc : M.el;
+    const src = M.kind === 'photo' ? M.img : M.kind === 'gif' ? gifFrame(M, t - L.t0) : exporting ? L.fc : M.el;
     if(!src || (M.kind === 'video' && !exporting && M.el.readyState < 2)) continue;
     const W = out.width, H = out.height, c = L.crop, sw0 = src.videoWidth || src.naturalWidth || src.width, sh0 = src.videoHeight || src.naturalHeight || src.height;
     const sx = sw0*c.l, sy = sh0*c.t, sw = Math.max(2, sw0*(1 - c.l - c.r)), sh = Math.max(2, sh0*(1 - c.t - c.b));
@@ -2611,14 +2633,28 @@ function drawLayers(g, t){
     if(!lyBuf){ lyBuf = document.createElement('canvas'); lyG = lyBuf.getContext('2d'); }
     if(lyBuf.width !== dw || lyBuf.height !== dh){ lyBuf.width = dw; lyBuf.height = dh; }
     const q = lyG; q.save(); q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, dw, dh); q.drawImage(src, sx, sy, sw, sh, 0, 0, dw, dh);
+    if(L.key && L.key.on) chromaKey(q, dw, dh, L.key);
     if(L.mask !== 'none' || L.rad > 0){ layerMask(q, L, dw, dh); }
     q.restore();
     const life = t - L.t0, left = L.t1 - t, a = L.op * Math.min(L.fin > 0 ? Math.min(1, life/L.fin) : 1, L.fout > 0 ? Math.min(1, left/L.fout) : 1);
-    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
+    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.globalCompositeOperation = L.blend || 'source-over'; g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
     g.drawImage(lyBuf, -dw/2, -dh/2); g.restore();
     if(L === layers[lySel] && !exporting && !recording && !playing){   // the chosen layer: a thin frame (preview only)
       g.save(); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.strokeStyle = 'rgba(176,92,255,0.95)'; g.lineWidth = Math.max(2, W*0.004); g.setLineDash([W*0.012, W*0.008]); g.strokeRect(-dw/2, -dh/2, dw, dh); g.restore(); }
   }
+}
+/* chroma key (green screen): pixels near the key colour become see-through, with a soft edge and the colour's spill
+ * taken off the edges (a green rim turns neutral) */
+function chromaKey(q, w, h, K){
+  const im = q.getImageData(0, 0, w, h), d = im.data, [kr, kg, kb] = hexRgb(K.c).map(v => v*255), tol = 40 + (K.tol ?? 0.35)*180, soft = 40;
+  const kmax = Math.max(kr, kg, kb), dom = kg === kmax ? 1 : kb === kmax ? 2 : 0;
+  for(let i = 0; i < d.length; i += 4){
+    const r = d[i], g = d[i+1], b = d[i+2], dist = Math.hypot(r - kr, g - kg, b - kb);
+    if(dist < tol){ d[i+3] = 0; continue; }
+    if(dist < tol + soft){ d[i+3] = Math.round(d[i+3]*(dist - tol)/soft);
+      if(dom === 1 && g > Math.max(r, b)) d[i+1] = Math.max(r, b); else if(dom === 2 && b > Math.max(r, g)) d[i+2] = Math.max(r, g); }
+  }
+  q.putImageData(im, 0, 0);
 }
 // keep only the mask's shape (or cut it out, inverted); soft edges with a blur
 function layerMask(q, L, w, h){
@@ -2669,6 +2705,7 @@ function lyUI(){
     b.addEventListener('click', () => { lySel = i; lyUI(); pos = Math.max(pos, L.t0); if(!lyOn(L, pos)) pos = L.t0 + 0.05; prepare(segAt(pos), pos).then(() => prepLayers(pos)).then(redrawFrame); });
     box.appendChild(b); });
   const L = layers[lySel], ed = $('lyedit'); ed.hidden = !L; if(!L) return;
+  if(!L.key) L.key = { on: false, c: '#00FF00', tol: 0.35 }; if(!L.blend) L.blend = 'source-over';
   const M = lmedia[L.m];
   for(const el of ed.querySelectorAll('[data-ly]')){ const k = el.dataset.ly, v = k.includes('.') ? L[k.split('.')[0]][k.split('.')[1]] : L[k];
     if(el.type === 'checkbox') el.checked = !!v; else el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = lyFmt(k, +v); }
@@ -2683,7 +2720,7 @@ function lySet(k, v){ const L = layers[lySel]; if(!L) return;
   if(!playing) redrawFrame(); }
 $('lyadd').addEventListener('click', () => $('lyfile').click(), SIG);
 $('lyfile').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; if(f.length) layerAdd(f); }, SIG);
-$('lyedit').addEventListener('input', e => { const el = e.target, k = el.dataset && el.dataset.ly; if(!k) return; const v = el.type === 'checkbox' ? el.checked : +el.value; lySet(k, v); const o = el.parentElement.querySelector('output'); if(o && el.type !== 'checkbox') o.textContent = lyFmt(k, v); }, SIG);
+$('lyedit').addEventListener('input', e => { const el = e.target, k = el.dataset && el.dataset.ly; if(!k) return; const v = el.type === 'checkbox' ? el.checked : el.tagName === 'SELECT' ? el.value : +el.value; lySet(k, v); const o = el.parentElement.querySelector('output'); if(o && el.type !== 'checkbox') o.textContent = lyFmt(k, v); }, SIG);
 $('lyedit').addEventListener('click', e => { const t = e.target.closest('button'); if(!t) return; const L = layers[lySel]; if(!L) return;
   if(t.dataset.m){ L.mask = t.dataset.m; lyUI(); redrawFrame(); }
   else if(t.dataset.lay){ layoutLayer(L, t.dataset.lay); lyUI(); redrawFrame(); }
@@ -2691,6 +2728,7 @@ $('lyedit').addEventListener('click', e => { const t = e.target.closest('button'
   else if(t.dataset.lyt === 'end'){ L.t1 = Math.max(pos, L.t0 + 0.3); lyUI(); redrawFrame(); }
   else if(t.dataset.lyt === 'all'){ L.t0 = 0; L.t1 = buf.duration; lyUI(); redrawFrame(); }
   else if(t.dataset.lyf){ L[t.dataset.lyf] = !L[t.dataset.lyf]; redrawFrame(); }
+  else if(t.dataset.lykey){ L.key = { ...(L.key || { tol: 0.35 }), on: true, c: t.dataset.lykey }; lyUI(); redrawFrame(); }
   else if(t.dataset.lydel){ layers.splice(lySel, 1); lySel = Math.min(lySel, layers.length - 1); clipMixKey = ''; lyUI(); redrawFrame(); }
 }, SIG);
 function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let cur='';
@@ -2892,6 +2930,7 @@ function redrawSoon(){ clearTimeout(redrawSoon.h); redrawSoon.h = setTimeout(() 
 const ovFont = (ov, fs, weight) => { const f = OV_FONTS[ov.font]; if(!f || !f[1]) return fontFor(ov.text, fs, weight); loadFont(ov.font);
   return `${weight} ${fs}px "${f[0]}", ${isIndic(ov.text) ? '"Noto Sans Devanagari", ' : ''}"Arial Black", sans-serif`; };
 const OV_ANIMS = { pop: 'Pop', fade: 'Fade', slide: 'Slide up', type: 'Typewriter', none: 'None' };
+const OV_LOOPS = { none: 'Still', bounce: 'Bounce', spin: 'Spin', wiggle: 'Wiggle', pulse: 'Pulse', float: 'Float', swing: 'Swing', shake: 'Shake' };   // keeps moving while it shows
 const OV_EMOJI = ['🔥','😂','😍','👇','👉','✅','❌','⭐','💯','🎉','❤️','👀','🙏','🪔','🌺','🎵','📍','💰','⚡','😱'];
 const OV_PRESETS = {
   price:   { text: '₹999 only', style: 'tag', color: '#FFD54A', y: 0.62, size: 1 },
@@ -2927,6 +2966,11 @@ function drawOverlay(g, ov, t){
     else if(ov.anim === 'type'){ const chars = [...txt]; txt = chars.slice(0, Math.max(1, Math.ceil(since/0.05))).join(''); }
     if(ov.emoji) sc *= 1 + 0.05*Math.sin(t*6);   // stickers breathe a little
   }
+  let lx = 0, ly = 0, lr = 0;   // a sticker / text that keeps moving (its loop)
+  if(ov.loop && ov.loop !== 'none' && !coverMode){ const w = since*Math.PI*2;
+    if(ov.loop === 'bounce') ly = -Math.abs(Math.sin(w*0.9))*fs*0.35; else if(ov.loop === 'spin') lr = since*240; else if(ov.loop === 'wiggle') lr = Math.sin(w*2.2)*12;
+    else if(ov.loop === 'pulse') sc *= 1 + 0.12*Math.abs(Math.sin(w*1.1)); else if(ov.loop === 'float'){ ly = Math.sin(w*0.5)*fs*0.18; lx = Math.cos(w*0.35)*fs*0.12; }
+    else if(ov.loop === 'swing') lr = Math.sin(w*0.8)*18; else if(ov.loop === 'shake'){ lx = Math.sin(since*97)*fs*0.06; ly = Math.cos(since*71)*fs*0.05; } }
   const u = uAt(ov.uk, since);   // the creator's keyframes: moved, sized, turned, faded over its time
   if(u){ sc *= Math.max(0.01, u.s); alpha *= Math.max(0, Math.min(1, u.o)); }
   g.save(); g.globalAlpha = Math.max(0, alpha);
@@ -2938,9 +2982,12 @@ function drawOverlay(g, ov, t){
   const top = H*(220/1920) + th/2 + fs*0.3, bot = H*(1 - 450/1920) - th/2 - fs*0.3;
   let cx = Math.max(tw/2 + W*0.05, Math.min(W - tw/2 - W*0.05, ov.x*W)), cy = Math.max(top, Math.min(bot, ov.y*H)) + dy;
   if(u){ cx += u.x*W; cy += u.y*H; }
+  if(ov.track && edit.length && !ov.emoji || ov.track && ov.emoji){   // follows the person / subject of the shot playing
+    const e = edit[segAt(t)], lo = t - e.start, B = layerOf(e, lo, {noFx:true}), [ax, ay] = camAt(e, lo), [px, py, dw, dh] = B.rect;
+    cx = Math.max(tw/2, Math.min(W - tw/2, px + ax*dw + (ov.x - 0.5)*W)); cy = Math.max(th/2, Math.min(H - th/2, py + ay*dh + (ov.y - 0.5)*H)) + dy; }
   const bs = u ? Math.max(0.2, u.s) : 1;
   ov.box = [(cx - (tw/2 + fs*0.4)*bs)/W, (cy - (th/2 + fs*0.3)*bs)/H, (tw + fs*0.8)*bs/W, (th + fs*0.6)*bs/H];
-  g.translate(cx, cy); if(u && u.r) g.rotate(u.r*Math.PI/180); g.scale(sc, sc);
+  g.translate(cx + lx, cy + ly); if((u && u.r) || lr) g.rotate(((u && u.r) || 0)*Math.PI/180 + lr*Math.PI/180); g.scale(sc, sc);
   const dark = c => { const n = parseInt(c.slice(1), 16); return ((n>>16)*0.299 + ((n>>8)&255)*0.587 + (n&255)*0.114) < 140; };
   if(!ov.emoji && (ov.style === 'box' || ov.style === 'tag')){
     const tag = ov.style === 'tag', pw = tw + fs*(tag ? 1.05 : 0.6), ph = th + fs*0.36, r = tag ? fs*0.5 : fs*0.2;
@@ -2991,9 +3038,10 @@ function renderOvList(){
     const row = document.createElement('div'); row.className = 'ov' + (i === ovSel ? ' sel' : '');
     const [a, b] = ovTiming(ov);
     row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Remove" aria-label="Remove">×</button></div>
-      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><span class="ovc"></span>
+      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><select class="ovl" aria-label="Keeps moving"></select><span class="ovc"></span>
       <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
-      <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
+      <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
+    const tk = row.querySelector('.ovtrk'); tk.checked = !!ov.track; tk.addEventListener('change', () => { ov.track = tk.checked; if(tk.checked){ ov.x = 0.5; ov.y = ov.emoji ? 0.38 : 0.32; } redraw(); });
     const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
     ti.addEventListener('input', () => { ov.text = ti.value; redraw(); });
     const ss = row.querySelector('.ovs'), sa = row.querySelector('.ova');
@@ -3001,6 +3049,7 @@ function renderOvList(){
     Object.entries(OV_STYLES).forEach(([k, v]) => ss.add(new Option(v, k, false, k === ov.style)));
     Object.entries(OV_ANIMS).forEach(([k, v]) => sa.add(new Option(v, k, false, k === ov.anim)));
     ss.addEventListener('change', () => { ov.style = ss.value; redraw(); }); sa.addEventListener('change', () => { ov.anim = sa.value; redraw(); });
+    const sl = row.querySelector('.ovl'); Object.entries(OV_LOOPS).forEach(([k, v]) => sl.add(new Option(v, k, false, k === (ov.loop || 'none')))); sl.addEventListener('change', () => { ov.loop = sl.value === 'none' ? undefined : sl.value; redraw(); });
     const sf = row.querySelector('.ovf'); if(ov.emoji) sf.hidden = true;
     Object.entries(OV_FONTS).forEach(([k, v]) => sf.add(new Option(v[0], k, false, k === (ov.font || 'auto'))));
     sf.addEventListener('change', () => { ov.font = sf.value === 'auto' ? undefined : sf.value; loadFont(sf.value).then(redraw); redraw(); });
@@ -3342,6 +3391,7 @@ function drawFrame2D(t){
         if(p<0.5){ drawShot(og, pe, pl); og.fillStyle=`rgba(0,0,0,${EASE.inOut(p*2)})`; og.fillRect(0,0,W,H); }
         else { drawShot(og, e, local); og.fillStyle=`rgba(0,0,0,${1-EASE.inOut((p-0.5)*2)})`; og.fillRect(0,0,W,H); }
         break;
+      case 'slideleft': case 'slideright': case 'slideup': case 'slidedown': case 'swipeup': case 'zoomout': case 'blur': case 'flip': case 'luma': case 'pixelate': case 'clock': case 'doors': case 'ripple': case 'burn': case 'dropin':   // the 2D renderer: a dissolve
       case 'dissolve': drawShot(og, pe, pl, {noFx:true}); drawShot(og, e, local, {alpha:EASE.inOut(p)}); break;
       case 'fadein': drawShot(og, e, local, {alpha:q}); break;
       case 'flash': {   // exposure flash: picture blows out to white, then settles
@@ -3384,6 +3434,8 @@ uniform float mode, prog, mixv, time, snap, bgDark, border;
 uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix, warm, lift;
 uniform vec3 leak;
 uniform vec4 tfA, tfB, bgA, bgB, bgrA, bgrB, bdA, bdB, adA, adB, mz, mg;
+uniform vec4 ad2A, ad2B, tsh, thi;   /* a shot's highlights, shadows, hue, sharpen and the look's shadow and highlight tints */
+uniform float beA, beB;   /* skin smoothing of a shot */
 uniform float mzc;
 uniform vec4 shp, shq;   // a beat shape of the shot: kind, level, centre, and the grid / strips count
 vec2 rotP(vec2 p, float r){ vec2 c=res*0.5; vec2 d=p-c; float cs=cos(-r), sn=sin(-r); return c+vec2(cs*d.x-sn*d.y, sn*d.x+cs*d.y); }
@@ -3404,11 +3456,29 @@ vec3 layer(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb,
 }
 // a shot with its clip settings: border and canvas around a fitted picture, then its own colour
 vec3 adj(vec3 c, vec4 a){ c *= 1.+a.x*0.5; c = (c-0.5)*(1.+a.y)+0.5; float l = dot(c, vec3(0.299,0.587,0.114)); c = mix(vec3(l), c, 1.+a.z); return c*vec3(1.+0.15*a.w, 1., 1.-0.15*a.w); }
-vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, vec4 bg, vec4 bgr, vec4 bd, vec4 ad, out float inside){
+vec3 hueRot(vec3 c, float a){ float l = dot(c, vec3(0.299,0.587,0.114)); vec3 k = c - l; float cs = cos(a), sn = sin(a);
+  vec3 u = normalize(vec3(1.,-0.5,-0.5)), v = normalize(vec3(0.,0.866,-0.866)); float x = dot(k,u), y = dot(k,v);
+  return l + u*(x*cs - y*sn) + v*(x*sn + y*cs) + (k - u*x - v*y); }
+vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb, vec4 tf, vec4 bg, vec4 bgr, vec4 bd, vec4 ad, vec4 ad2, float be, out float inside){
   vec3 c = layer(t,p,r,rot,zb,db,rgb,tf,inside);
+  if(inside>0.5 && (ad2.w>0.01 || be>0.01)){
+    float ib; vec2 o = vec2(1.6,0.);
+    vec3 bl = (layer(t,p+o,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p+o.yx,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o.yx,r,rot,0.,vec2(0.),0.,tf,ib))*0.25;
+    if(ad2.w>0.01) c += (c-bl)*ad2.w*2.5;
+    if(be>0.01){
+      vec2 o2 = vec2(4.5,0.);
+      vec3 wb = (layer(t,p+o2,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o2,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p+o2.yx,r,rot,0.,vec2(0.),0.,tf,ib)+layer(t,p-o2.yx,r,rot,0.,vec2(0.),0.,tf,ib)+bl*4.)/8.;
+      float skin = smoothstep(0.02,0.1,c.r-c.g)*smoothstep(0.0,0.06,c.g-c.b)*step(0.2,c.r);
+      float flatness = 1.-smoothstep(0.03,0.14,length(c-wb));
+      c = mix(c, wb*1.02+0.01, clamp(be*skin*flatness,0.,0.9));
+    }
+  }
   if(inside<0.5 && bd.w>0.){ vec2 q = rotP(p,rot); if(q.x>r.x-bd.w && q.x<r.x+r.z+bd.w && q.y>r.y-bd.w && q.y<r.y+r.w+bd.w){ c = bd.rgb; inside = 1.; } }
   if(inside<0.5 && bg.w>-0.5){ float ib; c = bg.w>0.5 ? layer(t,p,bgr,0.,1.,vec2(0.),0.,tf,ib)*0.62 : bg.rgb; inside = 1.; }
-  return adj(c, ad);
+  c = adj(c, ad);
+  if(ad2.x!=0. || ad2.y!=0.){ float l = dot(c, vec3(0.299,0.587,0.114)); c += ad2.x*0.28*smoothstep(0.45,1.,l) + ad2.y*0.28*(1.-smoothstep(0.,0.55,l)); }
+  if(ad2.z!=0.) c = hueRot(c, ad2.z*3.14159);
+  return c;
 }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
 /* Beat shapes (the shot's effect, stepping on its beats): 1 box that grows, 2 grid of windows, 3 strips, 4 circle,
@@ -3448,12 +3518,14 @@ void main(){
   if(mz.z>0. && p0.x>mz.x && p0.x<mz.x+mz.z && p0.y>mz.y && p0.y<mz.y+mz.w) p0 = mz.xy + (floor((p0-mz.xy)/mzc)+0.5)*mzc;
   float ring = 0.;
   if(mg.z>0.){ float dd = distance(p0, mg.xy); ring = smoothstep(mg.z-5., mg.z-2., dd)*(1.-smoothstep(mg.z, mg.z+2., dd)); if(dd<mg.z) p0 = mg.xy + (p0-mg.xy)/mg.w; }
+  if(mode>12.5 && mode<13.5){ float blk = max(1., res.x*0.07*sin(3.14159*prog)); p0 = (floor(p0/blk)+0.5)*blk; }
+  if(mode>15.5 && mode<16.5){ vec2 dd = p0-res*0.5; float rr = length(dd); p0 += (dd/(rr+1e-3))*sin(rr*0.06-prog*20.)*res.x*0.02*sin(3.14159*prog); }
   vec2 p = p0 - offB, pA = p0 - offA;   // the creator's keyframed move of each layer
   float inA=0., inB=0.;
   vec3 A = vec3(0.);
-  if(hasA>0.5){ A = shotL(tA,pA,rA,rotA,zbA,dbA,rgbA,tfA,bgA,bgrA,bdA,adA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
+  if(hasA>0.5){ A = shotL(tA,pA,rA,rotA,zbA,dbA,rgbA,tfA,bgA,bgrA,bdA,adA,ad2A,beA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
   vec2 pS = shp.x>7.5 ? shWarp(p) : p;   // mirror, kaleidoscope, triple split, VHS move the picture itself
-  vec3 B = shotL(tB,pS,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,inB);
+  vec3 B = shotL(tB,pS,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,ad2B,beB,inB);
   B *= mix(1.,inB,clB)*alB;
   if(shp.x>0.5 && (shp.x<7.5 || (shp.x>9.5 && shp.x<10.5))){
     float rim; float mk = shMask(p0, rim);
@@ -3480,6 +3552,12 @@ void main(){
   }
   else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p0,irisC)); col=mix(A,B,mk); }
   else if(mode<7.5){ float q=1.-pow(1.-prog,3.); float s=(p0.x+p0.y*0.6)/(res.x+res.y*0.6); float e=-0.15+q*1.3; float mk=1.-smoothstep(e-0.08,e,s); col=mix(A,B,mk); }
+  else if(mode>11.5){
+    if(mode<12.5){ float lb = dot(B, vec3(0.299,0.587,0.114)); col = mix(A, B, smoothstep(0., 0.15, prog*1.2-(1.-lb))); }
+    else if(mode<13.5 || mode>15.5) col = mix(A, B, smoothstep(0.35, 0.65, prog));
+    else if(mode<14.5){ vec2 dd = p0-res*0.5; float a = mod(atan(dd.x, -dd.y)+6.28318, 6.28318)/6.28318; col = mix(A, B, 1.-smoothstep(prog-0.01, prog, a)); }
+    else { float hw = prog*res.x*0.5; col = mix(A, B, 1.-smoothstep(hw-2., hw, abs(p0.x-res.x*0.5))); }
+  }
   else if(mode>8.5){ float q=prog*prog*(3.-2.*prog);   /* smooth in and out: the shape is seen growing */ vec2 far=max(irisC,res-irisC); float L=length(far); vec2 d=p0-irisC; float mk;
     if(mode<9.5){ float R=L*1.45*q+1e-3; float v=(abs(d.x)+abs(d.y))/R; mk=1.-smoothstep(0.93,1.,v); }
     else if(mode<10.5){ float R=L*1.9*q+1e-3; vec2 u=d/R; float X=u.x*1.15; float Y=-u.y*1.15+0.3; float a=X*X+Y*Y-1.; float h=a*a*a-X*X*Y*Y*Y; mk=1.-smoothstep(-0.03,0.03,h); }
@@ -3493,6 +3571,7 @@ void main(){
   col = mix(vec3(l), col, sat);
   if(teal>0.){ vec3 tint = mix(vec3(0.75,1.05,1.12), vec3(1.12,0.98,0.82), smoothstep(0.15,0.85,l)); col = mix(col, col*tint, teal); }
   col *= vec3(1.+0.12*warm, 1., 1.-0.12*warm);   // white balance: warm (+) / cool (-)
+  if(tsh.w>0. || thi.w>0.){ float lt = dot(col, vec3(0.299,0.587,0.114)); col = mix(col, col*tsh.rgb*2., tsh.w*(1.-smoothstep(0.,0.6,lt))); col = mix(col, col*thi.rgb*2., thi.w*smoothstep(0.4,1.,lt)); }
   if(leak.z>0.){ float d = distance(p0, leak.xy)/(res.x*0.9); vec3 lc = vec3(1.,0.67,0.35)*leak.z*(1.-smoothstep(0.,1.,d)); col = 1.-(1.-col)*(1.-lc); }
   col = mix(col, vec3(dot(col,vec3(0.299,0.587,0.114))), mono);   // after the light leak: black and white stays black and white
   col += flash;
@@ -3542,12 +3621,12 @@ const GL = (()=>{
       set('res',[c.width,c.height]);
       const L = (pre, X) => { set('r'+pre, X.rect); set('rot'+pre, X.rot); set('zb'+pre, X.zb); set('db'+pre, X.db); set('rgb'+pre, X.rgb); set('ex'+pre, X.expo); set('br'+pre, X.bright);
         set('off'+pre, X.off || [0,0]); set('cl'+pre, X.clip || 0);
-        set('tf'+pre, X.tf || [1,0,0,1]); set('bg'+pre, X.bg || [0,0,0,-1]); set('bgr'+pre, X.bgr || [0,0,1,1]); set('bd'+pre, X.bd || [0,0,0,0]); set('ad'+pre, X.ad || [0,0,0,0]); };
+        set('tf'+pre, X.tf || [1,0,0,1]); set('bg'+pre, X.bg || [0,0,0,-1]); set('bgr'+pre, X.bgr || [0,0,1,1]); set('bd'+pre, X.bd || [0,0,0,0]); set('ad'+pre, X.ad || [0,0,0,0]); set('ad2'+pre, X.ad2 || [0,0,0,0]); set('be'+pre, X.be || 0); };
       if(S.A){ L('A', S.A); set('alA', S.A.alpha ?? 1); } else { set('offA', [0,0]); set('clA', 0); }
       L('B', S.B); set('alB', S.B.uo ?? 1);
       set('hasA', S.A ? 1 : 0); set('mode', S.mode); set('prog', S.prog); set('mixv', S.mix); set('irisC', S.iris || [c.width/2,c.height/2]);
       set('time', S.time); set('snap', S.snap ? 1 : 0); set('bgR', S.bgR || [0,0,1,1]); set('bgDark', S.bgDark||0); set('frR', S.frR || [0,0,c.width,c.height]); set('border', S.border||0);
-      const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0);
+      const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0); set('tsh', G.tsh || [0.5,0.5,0.5,0]); set('thi', G.thi || [0.5,0.5,0.5,0]);
       set('flash', S.flash||0); set('leak', S.leak || [0,0,0]); set('loopMix', S.loopMix||0);
       const LZ = S.lens || { mz:[0,0,0,0], mzc:1, mg:[0,0,0,1] }; set('mz', LZ.mz); set('mzc', LZ.mzc); set('mg', LZ.mg);
       set('shp', S.shp ? S.shp.a : [0,0,0,0]); set('shq', S.shp ? S.shp.b : [0,0,0,0]);
@@ -3556,13 +3635,39 @@ const GL = (()=>{
   }catch(err){ console.warn('WebGL off:', err && err.message); return null; }
 })();
 const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivid:{con:1.14,sat:1.14,bri:1.02,teal:0,mono:0,grain:0.035},
-  cine:{con:1.16,sat:0.92,bri:0.98,teal:0.55,mono:0,grain:0.07}, mono:{con:1.25,sat:1,bri:1.0,teal:0,mono:1,grain:0.09} };
+  cine:{con:1.16,sat:0.92,bri:0.98,teal:0.55,mono:0,grain:0.07}, mono:{con:1.25,sat:1,bri:1.0,teal:0,mono:1,grain:0.09},
+  /* filters: the same controls in other mixes, plus a tint in the shadows and one in the highlights (split toning) */
+  warmfilm:{con:1.05,sat:1.0,bri:1.0,teal:0,mono:0,grain:0.06,warm:0.5,lift:0.05},
+  cool:{con:1.06,sat:0.95,bri:1.0,teal:0,mono:0,grain:0,warm:-0.55},
+  retro:{con:0.98,sat:0.8,bri:1.0,teal:0,mono:0,grain:0.09,warm:0.3,lift:0.1,tsh:[0.42,0.56,0.6,0.35]},
+  moody:{con:1.22,sat:0.7,bri:0.92,teal:0.2,mono:0,grain:0.05,vig:0.5},
+  wedding:{con:0.95,sat:0.95,bri:1.05,teal:0,mono:0,grain:0,warm:0.2,lift:0.05,thi:[0.56,0.52,0.48,0.25]},
+  golden:{con:1.06,sat:1.12,bri:1.02,teal:0,mono:0,grain:0.03,warm:0.7,thi:[0.6,0.52,0.4,0.3]},
+  tealorange:{con:1.12,sat:1.05,bri:1.0,teal:0.95,mono:0,grain:0.03},
+  faded:{con:0.88,sat:0.85,bri:1.02,teal:0,mono:0,grain:0.04,lift:0.15},
+  noir:{con:1.45,sat:1,bri:0.97,teal:0,mono:1,grain:0.12,vig:0.55},
+  sepia:{con:1.05,sat:1,bri:1.0,teal:0,mono:1,grain:0.08,tsh:[0.58,0.48,0.38,0.7],thi:[0.6,0.54,0.44,0.6]},
+  cyber:{con:1.15,sat:1.2,bri:1.0,teal:0,mono:0,grain:0.03,tsh:[0.55,0.35,0.65,0.6],thi:[0.4,0.6,0.62,0.45]},
+  pastel:{con:0.9,sat:0.75,bri:1.06,teal:0,mono:0,grain:0,lift:0.12,thi:[0.55,0.5,0.56,0.25]},
+  dramatic:{con:1.35,sat:0.85,bri:0.97,teal:0.3,mono:0,grain:0.05,vig:0.6},
+  summer:{con:1.06,sat:1.22,bri:1.04,teal:0,mono:0,grain:0,warm:0.4},
+  night:{con:1.1,sat:0.8,bri:0.86,teal:0,mono:0,grain:0.06,warm:-0.4,tsh:[0.38,0.45,0.66,0.5]},
+  vintage:{con:0.95,sat:0.7,bri:1.0,teal:0,mono:0,grain:0.11,warm:0.35,lift:0.12,thi:[0.6,0.55,0.42,0.3]},
+  matte:{con:0.92,sat:0.92,bri:1.0,teal:0,mono:0,grain:0.03,lift:0.1},
+  punchy:{con:1.26,sat:1.3,bri:1.02,teal:0,mono:0,grain:0.02},
+  forest:{con:1.08,sat:0.95,bri:0.98,teal:0,mono:0,grain:0.04,tsh:[0.44,0.58,0.46,0.45],thi:[0.56,0.56,0.46,0.2]},
+  rose:{con:1.0,sat:1.0,bri:1.03,teal:0,mono:0,grain:0.02,lift:0.04,tsh:[0.6,0.44,0.5,0.4],thi:[0.6,0.5,0.52,0.25]} };
+const LOOK_EXTRA = { warmfilm:'Warm film', cool:'Cool', retro:'Retro', moody:'Moody', wedding:'Wedding', golden:'Golden hour', tealorange:'Teal & orange', faded:'Faded', noir:'Noir', sepia:'Sepia',
+  cyber:'Cyber', pastel:'Pastel', dramatic:'Dramatic', summer:'Summer', night:'Night', vintage:'Vintage', matte:'Matte', punchy:'Punchy', forest:'Forest', rose:'Rose' };
+for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2D renderer's version of each filter, and its button in Look
+  LOOKS[k] = { name: n, filter: (G.mono ? 'grayscale(1) ' : '') + 'contrast(' + G.con + ') saturate(' + G.sat + ') brightness(' + G.bri + ')' + (G.warm > 0.2 ? ' sepia(' + (G.warm*0.3).toFixed(2) + ')' : ''), grain: G.grain || 0 };
+  const lb = $('look'), cp = lb && lb.querySelector('[data-l="copy"]'); if(lb && !lb.querySelector('[data-l="' + k + '"]')){ const b = document.createElement('button'); b.dataset.l = k; b.setAttribute('aria-pressed', 'false'); b.textContent = n; lb.insertBefore(b, cp); } }
 // the same keyframed motion as the 2D path, expressed as numbers for the shader
 /* ---- Clip tools: each shot's own settings (e.cs), drawn the same by both renderers and in the export.
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, fin:0, fout:0, mz:null, mg:null };
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null };
 const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
 // display uv -> source uv: the picture is turned, then mirrored / flipped
@@ -3578,6 +3683,22 @@ function csGeom(e, scale){
 }
 const csFade = (c, local, L) => Math.min(c.fin > 0 ? Math.min(1, local/c.fin) : 1, c.fout > 0 ? Math.min(1, Math.max(0, (L-local)/c.fout)) : 1);
 function csCam(e, local, c){ if(c.cx != null && c.cy != null) return [c.cx, c.cy]; const [x, y] = camAt(e, local); return c.rot || c.fh || c.fv ? csFwd(c, x, y) : [x, y]; }
+/* stabilize (basic): the camera's own shake, measured while the clip was read (a global shift per frame), is taken out:
+ * the path of the camera is smoothed over about 0.8 s and the picture is moved by what the smoothing removed, a little
+ * zoomed so no edge shows */
+function stabPath(src){
+  if(src._stab) return src._stab; const S = src.samples || []; if(S.length < 4) return null;
+  const t = S.map(x => x.t), cx = [0], cy = [0];
+  for(let k = 1; k < S.length; k++){ cx.push(cx[k-1] + (S[k].gx || 0)/SW); cy.push(cy[k-1] + (S[k].gy || 0)/SH); }
+  const dt = Math.max(1e-3, (t[t.length-1] - t[0])/(t.length - 1)), R = Math.max(2, Math.round(0.4/dt));
+  const sm = a => a.map((_, k) => { let s = 0, w = 0; for(let j = Math.max(0, k - R); j <= Math.min(a.length - 1, k + R); j++){ const g = Math.exp(-(((j - k)/(R*0.6))**2)); s += a[j]*g; w += g; } return s/w; });
+  const sx = sm(cx), sy = sm(cy);
+  return (src._stab = { t, dx: cx.map((v, k) => sx[k] - v), dy: cy.map((v, k) => sy[k] - v) });
+}
+function stabAt(src, st){ const P = stabPath(src); if(!P) return null; const t = P.t; let lo = 0, hi = t.length - 1;
+  if(st <= t[0]) return [P.dx[0], P.dy[0]]; if(st >= t[hi]) return [P.dx[hi], P.dy[hi]];
+  while(hi - lo > 1){ const m = (lo + hi) >> 1; if(t[m] <= st) lo = m; else hi = m; } const f = (st - t[lo])/Math.max(1e-6, t[hi] - t[lo]);
+  return [P.dx[lo] + (P.dx[hi] - P.dx[lo])*f, P.dy[lo] + (P.dy[hi] - P.dy[lo])*f]; }
 function layerOf(e, local, o={}){
   const W=out.width, H=out.height, K=e.kf||{};
   let scale = (kf(K.scale,local) ?? 1)*(o.scale||1)*(o.noFx ? 1 : emphAt(e.start + local));
@@ -3592,7 +3713,10 @@ function layerOf(e, local, o={}){
   if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local);
   if(u){ scale *= u.s; rot += u.r; }
+  const cs0 = csOf(e); let stab = null;
+  if(cs0.stab > 0 && !o.noStab){ stab = stabAt(sources[e.src], srcPos(e, local)); scale *= 1 + 0.12*cs0.stab; }
   const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
+  if(stab){ x += stab[0]*dw*cs0.stab; y += stab[1]*dh*cs0.stab; }
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py = H/2 - ccy*dh; py = panClamp(py, H, dh) + y;
   const rb = Math.max(W/G.sw, H/G.sh)*1.12, fade = csFade(c, local, e.end - e.start);
@@ -3603,7 +3727,7 @@ function layerOf(e, local, o={}){
     expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1) * fade, alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
     off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1,
     tf: csMat(c), bg: !c.fit ? [0,0,0,-1] : c.bg === 'blur' ? [0,0,0,1] : [...hexRgb(c.bgc), 0], bgr: [W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb],
-    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm] };
+    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm], ad2: [c.hi || 0, c.sh || 0, c.hue || 0, c.sharp || 0], be: c.beauty || 0 };
 }
 /* ---- Reverse: a shot played backwards ----
  * The preview plays it from its frames, decoded once at a small size (rc); the export decodes it forwards in windows of
@@ -3697,7 +3821,7 @@ function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = TR_DUR[e.tr] || 0, p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
   const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null, lens: lensOf(e) };
-  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : 0.22));
+  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : (GRADES[look].vig ?? 0.22))) + (csOf(e).vig || 0)*0.9;
   const inTr = p < 1 && (pe || e.tr==='fadein');
   if(inTr && pe) S.A = layerOf(pe, pl, {noFx:true});
   S.B = layerOf(e, local);
@@ -3715,6 +3839,20 @@ function drawFrameGL(t){
       case 'bars': S.mode = 8; S.prog = p; break;
       case 'diamond': case 'heart': case 'star': { const [px,py,dw,dh] = S.B.rect, [ccx,ccy] = camAt(e, local); S.mode = {diamond:9, heart:10, star:11}[e.tr]; S.prog = p; S.iris = [px+ccx*dw+S.B.off[0], py+ccy*dh+S.B.off[1]]; break; }
       case 'dip': S.mode = 2; S.prog = EASE.inOut(p); break;
+      case 'slideleft': case 'slideright': { const sg = e.tr === 'slideleft' ? -1 : 1; S.A = layerOf(pe, pl, {dx:sg*q*W, noFx:true}); S.B = layerOf(e, local, {dx:-sg*(1-q)*W}); S.mode = 3; break; }
+      case 'slideup': case 'slidedown': { const sg = e.tr === 'slideup' ? -1 : 1; S.A = layerOf(pe, pl, {dy:sg*q*H, noFx:true}); S.B = layerOf(e, local, {dy:-sg*(1-q)*H}); S.mode = 3; break; }
+      case 'swipeup': { const k = EASE.outExpo(p), bl = 0.08*H*Math.sin(Math.PI*p); S.A = layerOf(pe, pl, {dy:-k*H, db:[0,bl], noFx:true}); S.B = layerOf(e, local, {dy:(1-k)*H, db:[0,bl]}); S.mode = 3; break; }
+      case 'zoomout': S.A = layerOf(pe, pl, {scale:1-0.45*p, zb:0.6*p, noFx:true}); S.B = layerOf(e, local, {scale:1.3-0.3*q}); S.mode = 1; S.mix = q; break;
+      case 'blur': S.A = layerOf(pe, pl, {zb:2.2*p, noFx:true}); S.B = layerOf(e, local, {zb:2.2*(1-q)}); S.mode = 1; S.mix = EASE.inOut(p); break;
+      case 'flip': { const first = p < 0.5, X = first ? layerOf(pe, pl, {noFx:true}) : S.B, k = first ? 1 - 2*p : 2*p - 1, [x, y, w, h] = X.rect;
+        X.rect = [W/2 - (W/2 - x)*k, y, Math.max(1, w*k), h]; X.clip = 1; S.B = X; S.A = null; S.mode = 0; break; }
+      case 'luma': S.mode = 12; S.prog = EASE.inOut(p); break;
+      case 'pixelate': S.mode = 13; S.prog = p; break;
+      case 'clock': S.mode = 14; S.prog = EASE.inOut(p); break;
+      case 'doors': S.mode = 15; S.prog = EASE.outCubic(p); break;
+      case 'ripple': S.mode = 16; S.prog = p; break;
+      case 'burn': S.mode = 1; S.mix = EASE.inOut(p); S.leak = [W*0.55, H*0.4, 1.5*Math.sin(Math.PI*p)]; S.flash = 0.25*Math.sin(Math.PI*p); break;
+      case 'dropin': S.A = layerOf(pe, pl, {noFx:true}); S.B = layerOf(e, local, {dy:-(1 - EASE.outBack(p))*H}); S.mode = 3; break;
       case 'dissolve': S.mode = 1; S.mix = EASE.inOut(p); break;
       case 'fadein': S.mode = 1; S.mix = q; if(!pe) S.A = null; break;
       case 'flash': S.flash = 0.85*Math.pow(1-p,2); if(e.efx!=='snap') S.B.expo += Math.max(0, 1-p*1.6); break;
@@ -4682,7 +4820,7 @@ function voStat(t){ $('vostat').textContent = t; }
  * the voice changer; the song steps back while it speaks) and each shot's own sound at its volume (cs.vol). ---- */
 // clip: the clips' own sound under the song: mute (the default: no wind, traffic or chatter), voices (only where
 // people speak), all (every shot's sound, a little under the song)
-const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute' };
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute', sfx: true, sfxv: 0.6 };
 const musicOut = () => au.mfout || (au.ai ? 0.8 : 0);
 let au = { ...AU0 }, clipMixKey = '';
 const fxCache = new Map();
@@ -4735,14 +4873,56 @@ async function ensureMix(){
   for(const c of ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
   for(const L of layers){ const M = lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await decodeAnyAudio(M.file), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
   const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
-  if(key !== clipMixKey){ clipMixKey = key; applyVo(); }
+  const key2 = key + JSON.stringify([sfxEvents(), au.sfx, au.sfxv, edit.map(e => e.cs ? [e.cs.mus, e.cs.pitch] : 0)]);
+  if(key2 !== clipMixKey){ clipMixKey = key2; applyVo(); }
 }
+/* ---- sound effects, made on the phone (no files): whoosh, pop, boom, camera click, riser, ding.
+ * Automatic ones follow the edit (a whoosh into a push / swipe / whip / zoom / spin, a boom on a flash into a drop, a
+ * click on a photo snap or a freeze, a pop when a text or sticker pops in); the creator adds more at the playhead. ---- */
+let sfxList = [], sfxSeq = 0;
+const SFX_NAMES = { whoosh: 'Whoosh', pop: 'Pop', boom: 'Boom', click: 'Camera click', riser: 'Riser', ding: 'Ding' };
+const sfxCache = new Map();
+function sfxSynth(kind, sr){
+  const key = kind + sr; if(sfxCache.has(key)) return sfxCache.get(key);
+  const len = { whoosh: 0.42, pop: 0.09, boom: 0.9, click: 0.09, riser: 1.2, ding: 0.7 }[kind] || 0.3, n = Math.round(len*sr), y = new Float32Array(n);
+  let seed = 7; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647*2 - 1; };
+  let lp = 0, ph = 0;
+  for(let i = 0; i < n; i++){ const t = i/sr, f = t/len;
+    if(kind === 'whoosh'){ const cut = 400 + 5000*Math.sin(Math.PI*f), a = Math.exp(-2*Math.PI*cut/sr); lp = (1 - a)*rnd() + a*lp; y[i] = lp*Math.sin(Math.PI*f)**1.5*1.6; }
+    else if(kind === 'pop'){ ph += 2*Math.PI*(700 - 450*f)/sr; y[i] = Math.sin(ph)*Math.exp(-t/0.025); }
+    else if(kind === 'boom'){ ph += 2*Math.PI*(70 - 30*f)/sr; y[i] = Math.sin(ph)*Math.exp(-t/0.28) + rnd()*0.3*Math.exp(-t/0.03); }
+    else if(kind === 'click'){ y[i] = rnd()*(Math.exp(-t/0.004) + (t > 0.045 ? 0.7*Math.exp(-(t - 0.045)/0.006) : 0)); }
+    else if(kind === 'riser'){ const a = Math.exp(-2*Math.PI*(300 + 6000*f*f)/sr); lp = (1 - a)*rnd() + a*lp; ph += 2*Math.PI*(200 + 900*f*f)/sr; y[i] = (lp*1.4 + Math.sin(ph)*0.25)*f*f; }
+    else if(kind === 'ding'){ y[i] = (Math.sin(2*Math.PI*1320*t) + 0.5*Math.sin(2*Math.PI*1980*t))*Math.exp(-t/0.18)*0.7; } }
+  let pk = 0; for(const v of y) pk = Math.max(pk, Math.abs(v)); for(let i = 0; i < n; i++) y[i] *= 0.5/Math.max(1e-6, pk);
+  sfxCache.set(key, y); return y;
+}
+const WHOOSH_TR = ['whip','swipeup','slideleft','slideright','slideup','slidedown','zoom','spin','zoomout','dropin'];
+function sfxEvents(){
+  const out = sfxList.map(x => ({ at: x.at, kind: x.kind }));
+  if(au.sfx && kind !== 'talk'){ let lastW = -9;
+    edit.forEach((e, i) => { if(!i) return;
+      if(WHOOSH_TR.includes(e.tr) && e.start - lastW > 0.8){ out.push({ at: Math.max(0, e.start - 0.2), kind: 'whoosh' }); lastW = e.start; }
+      else if((e.tr === 'flash' || e.tr === 'burn') && e.type === 'drop') out.push({ at: e.start, kind: 'boom' });
+      if(e.efx === 'snap' || (e.sp && e.sp.label === 'Freeze frame')) out.push({ at: e.start, kind: 'click' }); });
+    for(const o of overlays) if(o.anim === 'pop' && !o.all && o.t0 > 0.05) out.push({ at: o.t0, kind: 'pop' }); }
+  return out;
+}
+function sfxAdd(k){ if(!SFX_NAMES[k] || !buf) return; sfxList.push({ id: ++sfxSeq, at: +(playing ? curTime() : pos).toFixed(2), kind: k }); sfxUI(); clipMixKey = ''; ensureMix(); notify(SFX_NAMES[k] + ' added at ' + (playing ? curTime() : pos).toFixed(1) + ' s'); }
+function sfxUI(){ const box = $('sfxlist'); if(!box) return; box.innerHTML = '';
+  for(const x of sfxList){ const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = SFX_NAMES[x.kind] + ' · ' + x.at.toFixed(1) + ' s ×'; b.title = 'Remove';
+    b.addEventListener('click', () => { sfxList = sfxList.filter(y => y !== x); sfxUI(); clipMixKey = ''; ensureMix(); }); box.appendChild(b); } }
+$('sfxadd').addEventListener('click', e => { const b = e.target.closest('[data-sfx]'); if(b) sfxAdd(b.dataset.sfx); }, SIG);
+$('sfxon').addEventListener('change', e => { au = { ...au, sfx: e.target.checked }; clipMixKey = ''; ensureMix(); }, SIG);
+$('sfxv').addEventListener('input', e => { au = { ...au, sfxv: +e.target.value }; const o = e.target.parentElement.querySelector('output'); if(o) o.textContent = Math.round(au.sfxv*100) + '%'; clipMixKey = ''; }, SIG);
+$('sfxv').addEventListener('change', () => ensureMix(), SIG);
 function applyVo(){   // (the name stays: everything that changes the sound calls it)
   if(kind === 'talk' || !baseBuf) return;
   const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
   const lyVoiced = layers.filter(L => L.vol > 0 && lmedia[L.m] && lmedia[L.m].pcm);
   const speech = ttsClips.filter(c => c.pcm);
-  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !musicOut();
+  const fxEv = sfxEvents(), musShots = edit.some(e => e.cs && e.cs.mus !== undefined && e.cs.mus !== 1);
+  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !musicOut() && !fxEv.length && !musShots;
   if(plain){ buf = baseBuf; normGain = baseNorm; return; }
   const B = baseBuf, sr = B.sampleRate, N = B.length, v = voPcm() || new Float32Array(0), vr = vo ? vo.sr : sr;
   // voice loudness: its speaking parts at about -14 dBFS
@@ -4757,10 +4937,13 @@ function applyVo(){   // (the name stays: everything that changes the sound call
     // the shot's loudness: about -16 dBFS at volume 100%, short fades at its cuts
     let q2 = 0, qn = 0; const i0 = Math.round(e.in*P.sr), i1 = Math.min(P.x.length, i0 + Math.round(L*P.sr*2)); for(let k=i0;k<i1;k+=8){ q2 += P.x[k]*P.x[k]; qn++; }
     const gain = c.vol * Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn)))), ramp = Math.round(0.012*sr);
+    const seg = new Float32Array(Math.max(0, b - a));
     for(let i=a;i<b;i++){ const l = (i - a)/sr; if(rateAt(e, l) <= 0) continue;
       const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
       const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
-      cs[i] += P.x[k]*gain*edge; } }
+      seg[i - a] = P.x[k]*gain*edge; }
+    const ps = c.pitch ? pitchShift(seg, sr, Math.pow(2, c.pitch/12)) : seg;   // the shot's own pitch (semitones)
+    for(let i=0;i<ps.length;i++) cs[a + i] += ps[i]; }
   for(const L of lyVoiced){ const P = lmedia[L.m].pcm, a = Math.round(L.t0*sr), b = Math.min(N, Math.round(L.t1*sr)), ramp = Math.round(0.02*sr);
     let q2 = 0, qn = 0; for(let k=0;k<P.x.length;k+=16){ q2 += P.x[k]*P.x[k]; qn++; } const g = L.vol*Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn))));
     for(let i=a;i<b;i++){ const k = Math.floor((L.in + (i - a)/sr)*P.sr); if(k >= P.x.length) break; cs[i] += P.x[k]*g*Math.min(1, (i - a)/ramp, (b - i)/ramp); } }
@@ -4768,13 +4951,19 @@ function applyVo(){   // (the name stays: everything that changes the sound call
   for(const c of speech){ const P = ttsPcm(c), a = Math.round(c.at*sr), r = c.sr/sr; let q2 = 0, qn = 0;
     for(let k=0;k<P.length;k+=4){ if(Math.abs(P[k]) > 0.01){ q2 += P[k]*P[k]; qn++; } } const g = 0.2/Math.max(0.003, Math.sqrt(q2/Math.max(1, qn)));
     for(let i=a;i<N;i++){ const t = (i - a)*r, k = Math.floor(t); if(k + 1 >= P.length) break; cs[i] += (P[k] + (P[k+1] - P[k])*(t - k))*g; } }
+  // sound effects: on top of everything (not ducked); the music under a shot: each shot's own music volume, eased
+  const fxa = new Float32Array(N);
+  for(const ev of fxEv){ const y = sfxSynth(ev.kind, sr), a = Math.round((ev.kind === 'riser' ? ev.at - y.length/sr : ev.at)*sr); for(let i=0;i<y.length;i++){ const j = a + i; if(j >= 0 && j < N) fxa[j] += y[i]*au.sfxv; } }
+  let mg = null;
+  if(musShots){ mg = new Float32Array(N); const k = Math.exp(-1/(0.12*sr)); let g = 1;
+    for(let i=0;i<N;i++){ const e = edit[segAt(i/sr)], tg = e && e.cs && e.cs.mus !== undefined ? e.cs.mus : 1; g = tg + (g - tg)*k; mg[i] = g; } }
   let env = 1, lv = 0;
   for(let c=0;c<2;c++){ const src = B.getChannelData(Math.min(c, B.numberOfChannels-1)), d = mix.getChannelData(c); env = 1; lv = 0;
     for(let i=0;i<N;i++){
       const j = Math.floor(i*vr/sr), x = (v[j] || 0)*gv;
       lv = Math.max(Math.abs(x) + Math.abs(cs[i])*0.6, lv*0.9995);           // a follower of the voice (and the shots' sound)
       const target = lv > 0.04 ? 0.22 : 0.75; env = target < env ? target + (env - target)*dn : target + (env - target)*up;
-      d[i] = src[i]*baseNorm*mv(i)*env + x + cs[i];
+      d[i] = src[i]*baseNorm*mv(i)*(mg ? mg[i] : 1)*env + x + cs[i] + fxa[i];
     } }
   buf = mix; normGain = 1;
 }
@@ -4814,7 +5003,7 @@ function voiceFx(x, sr, fx){
 const AI_CS = c => { const o = {}, n = (k, a, b) => { const v = Number(c[k]); if(Number.isFinite(v) && v) o[k] = Math.min(b, Math.max(a, v)); };
   if([90,180,270].includes(c.rot)) o.rot = c.rot; for(const k of ['fh','fv','fit']) if(c[k] === true) o[k] = true;
   if(o.fit){ if(c.bg === 'blur' || c.bg === 'color') o.bg = c.bg; if(/^#[0-9a-f]{6}$/i.test(c.bgc || '')) o.bgc = c.bgc; n('bd', 0, 1); if(/^#[0-9a-f]{6}$/i.test(c.bdc || '')) o.bdc = c.bdc; }
-  n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('fin', 0, 1.5); n('fout', 0, 1.5); return o; };
+  n('stab', 0, 1); n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('hi', -1, 1); n('sh', -1, 1); n('hue', -1, 1); n('sharp', 0, 1); n('vig', 0, 1); n('beauty', 0, 1); n('fin', 0, 1.5); n('fout', 0, 1.5); return o; };
 function csAutoSet(e, patch){
   e.cs = e.cs || {}; const auto = e.cs.auto || [];
   for(const k in patch){ if(k in e.cs && !auto.includes(k)) continue; e.cs[k] = patch[k]; if(!auto.includes(k)) auto.push(k); }
@@ -5066,7 +5255,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), sfx: sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
@@ -5117,6 +5306,7 @@ async function openProject(id){
     if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }
     if(S.capColor) ACCENT = S.capColor;
     if(Array.isArray(S.marks)) userMarks = S.marks.filter(Number.isFinite);
+    if(Array.isArray(S.sfx)){ sfxList = S.sfx.filter(x => SFX_NAMES[x.kind] && Number.isFinite(x.at)).map(x => ({ ...x, id: ++sfxSeq })); sfxUI(); }
     bgColor = S.bgColor || bgColor; if(S.bgMode && S.bgMode !== 'none') press('bgmode', 'b', S.bgMode);
     overlays = (st.overlays || []).map(o => ({ ...o })); ovSeq = overlays.reduce((q, o) => Math.max(q, o.id || 0), 0); renderOvList();
     if(st.sec){ sec.len = st.sec.len; sec.auto = st.sec.auto; sec.start = st.sec.start;
@@ -5191,7 +5381,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
