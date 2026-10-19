@@ -10,11 +10,13 @@ import type { Credits } from "@/types/api";
 import { Badge, Button, Card, Icon, Spinner } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { PlanAction, PlanCard, rupees } from "@/components/organisms/pricing/PlanCard";
+import { PlanCompare } from "@/components/organisms/pricing/PlanCompare";
 
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 
 const FAQ = [
   ["What does a credit buy?", "Credits measure what you make. A Reel from your own clips uses 1 credit; a narrated Story Reel uses a few credits plus 1 for each Shubix picture. Classical paintings and library pictures are free. Previews are free."],
+  ["What does the 👑 mean?", "Most of the editor is free, keyframes, green screen and sound effects included. Some effects, transitions, filters and fonts, and a few advanced tools, carry a crown: you can try them in your Reel for free, and exporting with them needs the plan shown. You can also take them out and export for free."],
   ["Are prices including GST?", "Yes. The price you see is the price you pay."],
   ["What happens to unused credits?", "Plan credits renew every month and do not carry over. Starter and top-up credits never expire."],
   ["Can I cancel any time?", "Yes. You pay for a month or a year at a time and nothing renews by itself, so there is nothing to cancel."],
@@ -176,6 +178,8 @@ export default function PricingPage() {
           );
         })}
       </section>
+
+      <PlanCompare />
 
       {/* your credits and top-ups */}
       <section aria-label="Credits" className={cn("grid gap-5", mine && "md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]")}>

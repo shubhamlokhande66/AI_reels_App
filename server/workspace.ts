@@ -43,10 +43,21 @@ const DEFAULT_PRICING = {
 const COST_LABELS: Record<string, string> = { clip_reel: "Reel from your own clips", version: "New version / re-render", story_render: "Story Reel: narrate and render", ai_picture: "Shubix picture for a story scene", paid_picture: "Premium HD Shubix picture", preview: "Quick previews", studio_ai: "Shubix edits the Reel (per Reel)", studio_captions: "Fast Studio: captions from the song (per song)", studio_ref_look: "Fast Studio: copy a Reel's texts, stickers and captions (per Reel)" };
 export type Pricing = typeof DEFAULT_PRICING;
 
+/** the plans' feature lists before the plan locks (October 2026): replaced by the new defaults when read */
+const OLD_FEATURES = new Set([
+  JSON.stringify(["15 credits to start", "Reels from your clips", "Your first Story Reel", "Natural Shubix voices"]),
+  JSON.stringify(["80 credits a month", "~8 Story Reels or 80 clip Reels", "Full-HD export", "Natural Shubix voices", "Post to Instagram, TikTok, YouTube"]),
+  JSON.stringify(["250 credits a month", "~25 Story Reels", "Everything in Creator", "Schedule posts", "Brand kit (logo, colours, fonts)"]),
+  JSON.stringify(["650 credits a month", "~65 Story Reels", "Everything in Pro", "Several brands", "Email support"]),
+]);
 export async function getPricing(): Promise<Pricing> {
   const out = structuredClone(DEFAULT_PRICING);
   const saved = ((await (await db()).collection("app_settings").findOne({ _id: "pricing" as unknown as ObjectId })) ?? {}) as Record<string, unknown>;
-  if ((saved.plans as unknown[])?.length) out.plans = saved.plans as Pricing["plans"];
+  if ((saved.plans as unknown[])?.length) out.plans = (saved.plans as Pricing["plans"]).map((sp) => {
+    // plans saved before the feature lists were rewritten keep their prices; the old default lists give way to the new ones
+    const def = DEFAULT_PRICING.plans.find((d) => d.id === sp.id);
+    return def && OLD_FEATURES.has(JSON.stringify(sp.features)) ? { ...sp, features: def.features } : sp;
+  });
   if ((saved.topUps as unknown[])?.length) out.topUps = saved.topUps as Pricing["topUps"];
   for (const [k, v] of Object.entries((saved.costs as Record<string, number>) ?? {})) if (k in out.costs) out.costs[k] = v;
   return out;
