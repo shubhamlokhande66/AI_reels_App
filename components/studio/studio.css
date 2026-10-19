@@ -1022,3 +1022,8 @@
   .brs.made.v-one .transport{border-bottom:1px solid var(--line)}
   .brs.made.v-one .strip,.brs.made.v-one .summary,.brs.made.v-one .inspector{display:none}
 }
+/* the timeline's bar: a beat where the playhead is, zoom */
+.brs .tlbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}
+.brs .tlbar .tlzs{margin-left:auto;display:inline-flex;align-items:center;gap:4px}
+.brs .tlscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;min-width:0}
+.brs .tlscroll > canvas{min-width:100%;max-width:none}
