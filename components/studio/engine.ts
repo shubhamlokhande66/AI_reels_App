@@ -2581,6 +2581,10 @@ const LY0 = { x:0.5, y:0.5, s:0.5, r:0, op:1, fh:false, fv:false, crop:{l:0,t:0,
 let lyBuf = null, lyG = null;
 async function addLayerMedia(file){
   const url = URL.createObjectURL(file), photo = /^image\//.test(file.type) || /\.(jpe?g|png|webp|heic|gif)$/i.test(file.name);
+  if(photo && (file.type === 'image/gif' || /\.gif$/i.test(file.name)) && typeof ImageDecoder !== 'undefined'){   // an animated GIF: its frames, played in a loop
+    try{ const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: 'image/gif' }); await dec.tracks.ready; const n = Math.min(240, dec.tracks.selectedTrack.frameCount || 1), frames = [], times = []; let t = 0;
+      for(let k = 0; k < n; k++){ const r = await dec.decode({ frameIndex: k }); frames.push(await createImageBitmap(r.image)); times.push(t); t += Math.max(0.02, (r.image.duration || 100000)/1e6); r.image.close(); }
+      dec.close(); if(frames.length > 1) return { kind:'gif', file, url, frames, times, gdur: t, img: frames[0], w: frames[0].width, h: frames[0].height, dur: Infinity, name: file.name }; }catch(e){ console.info('GIF read as a picture:', e && e.message); } }
   if(photo){ const img = new Image(); img.src = url; await img.decode(); return { kind:'photo', file, url, img, w: img.naturalWidth, h: img.naturalHeight, dur: Infinity, name: file.name }; }
   const el = document.createElement('video'); el.muted = true; el.playsInline = true; el.preload = 'auto'; el.src = url;
   await new Promise((res, rej) => { el.onloadedmetadata = res; el.onerror = () => rej(new Error('This video cannot be opened.')); });
@@ -2599,9 +2603,10 @@ async function layerAdd(files){
 const lyOn = (L, t) => t >= L.t0 && t < L.t1;
 const lyTime = (L, t) => L.in + (t - L.t0);
 // the layer's picture, cropped, masked and faded, in its own canvas; then placed on the frame
+const gifFrame = (M, t) => { const T = ((t % M.gdur) + M.gdur) % M.gdur; let k = 0; while(k + 1 < M.times.length && M.times[k + 1] <= T) k++; return M.frames[k]; };
 function drawLayers(g, t){
   for(const L of layers){ if(!lyOn(L, t)) continue; const M = lmedia[L.m]; if(!M) continue;
-    const src = M.kind === 'photo' ? M.img : exporting ? L.fc : M.el;
+    const src = M.kind === 'photo' ? M.img : M.kind === 'gif' ? gifFrame(M, t - L.t0) : exporting ? L.fc : M.el;
     if(!src || (M.kind === 'video' && !exporting && M.el.readyState < 2)) continue;
     const W = out.width, H = out.height, c = L.crop, sw0 = src.videoWidth || src.naturalWidth || src.width, sh0 = src.videoHeight || src.naturalHeight || src.height;
     const sx = sw0*c.l, sy = sh0*c.t, sw = Math.max(2, sw0*(1 - c.l - c.r)), sh = Math.max(2, sh0*(1 - c.t - c.b));
@@ -2906,6 +2911,7 @@ function redrawSoon(){ clearTimeout(redrawSoon.h); redrawSoon.h = setTimeout(() 
 const ovFont = (ov, fs, weight) => { const f = OV_FONTS[ov.font]; if(!f || !f[1]) return fontFor(ov.text, fs, weight); loadFont(ov.font);
   return `${weight} ${fs}px "${f[0]}", ${isIndic(ov.text) ? '"Noto Sans Devanagari", ' : ''}"Arial Black", sans-serif`; };
 const OV_ANIMS = { pop: 'Pop', fade: 'Fade', slide: 'Slide up', type: 'Typewriter', none: 'None' };
+const OV_LOOPS = { none: 'Still', bounce: 'Bounce', spin: 'Spin', wiggle: 'Wiggle', pulse: 'Pulse', float: 'Float', swing: 'Swing', shake: 'Shake' };   // keeps moving while it shows
 const OV_EMOJI = ['🔥','😂','😍','👇','👉','✅','❌','⭐','💯','🎉','❤️','👀','🙏','🪔','🌺','🎵','📍','💰','⚡','😱'];
 const OV_PRESETS = {
   price:   { text: '₹999 only', style: 'tag', color: '#FFD54A', y: 0.62, size: 1 },
@@ -2941,6 +2947,11 @@ function drawOverlay(g, ov, t){
     else if(ov.anim === 'type'){ const chars = [...txt]; txt = chars.slice(0, Math.max(1, Math.ceil(since/0.05))).join(''); }
     if(ov.emoji) sc *= 1 + 0.05*Math.sin(t*6);   // stickers breathe a little
   }
+  let lx = 0, ly = 0, lr = 0;   // a sticker / text that keeps moving (its loop)
+  if(ov.loop && ov.loop !== 'none' && !coverMode){ const w = since*Math.PI*2;
+    if(ov.loop === 'bounce') ly = -Math.abs(Math.sin(w*0.9))*fs*0.35; else if(ov.loop === 'spin') lr = since*240; else if(ov.loop === 'wiggle') lr = Math.sin(w*2.2)*12;
+    else if(ov.loop === 'pulse') sc *= 1 + 0.12*Math.abs(Math.sin(w*1.1)); else if(ov.loop === 'float'){ ly = Math.sin(w*0.5)*fs*0.18; lx = Math.cos(w*0.35)*fs*0.12; }
+    else if(ov.loop === 'swing') lr = Math.sin(w*0.8)*18; else if(ov.loop === 'shake'){ lx = Math.sin(since*97)*fs*0.06; ly = Math.cos(since*71)*fs*0.05; } }
   const u = uAt(ov.uk, since);   // the creator's keyframes: moved, sized, turned, faded over its time
   if(u){ sc *= Math.max(0.01, u.s); alpha *= Math.max(0, Math.min(1, u.o)); }
   g.save(); g.globalAlpha = Math.max(0, alpha);
@@ -2957,7 +2968,7 @@ function drawOverlay(g, ov, t){
     cx = Math.max(tw/2, Math.min(W - tw/2, px + ax*dw + (ov.x - 0.5)*W)); cy = Math.max(th/2, Math.min(H - th/2, py + ay*dh + (ov.y - 0.5)*H)) + dy; }
   const bs = u ? Math.max(0.2, u.s) : 1;
   ov.box = [(cx - (tw/2 + fs*0.4)*bs)/W, (cy - (th/2 + fs*0.3)*bs)/H, (tw + fs*0.8)*bs/W, (th + fs*0.6)*bs/H];
-  g.translate(cx, cy); if(u && u.r) g.rotate(u.r*Math.PI/180); g.scale(sc, sc);
+  g.translate(cx + lx, cy + ly); if((u && u.r) || lr) g.rotate(((u && u.r) || 0)*Math.PI/180 + lr*Math.PI/180); g.scale(sc, sc);
   const dark = c => { const n = parseInt(c.slice(1), 16); return ((n>>16)*0.299 + ((n>>8)&255)*0.587 + (n&255)*0.114) < 140; };
   if(!ov.emoji && (ov.style === 'box' || ov.style === 'tag')){
     const tag = ov.style === 'tag', pw = tw + fs*(tag ? 1.05 : 0.6), ph = th + fs*0.36, r = tag ? fs*0.5 : fs*0.2;
@@ -3008,7 +3019,7 @@ function renderOvList(){
     const row = document.createElement('div'); row.className = 'ov' + (i === ovSel ? ' sel' : '');
     const [a, b] = ovTiming(ov);
     row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Remove" aria-label="Remove">×</button></div>
-      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><span class="ovc"></span>
+      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><select class="ovl" aria-label="Keeps moving"></select><span class="ovc"></span>
       <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
       <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
     const tk = row.querySelector('.ovtrk'); tk.checked = !!ov.track; tk.addEventListener('change', () => { ov.track = tk.checked; if(tk.checked){ ov.x = 0.5; ov.y = ov.emoji ? 0.38 : 0.32; } redraw(); });
@@ -3019,6 +3030,7 @@ function renderOvList(){
     Object.entries(OV_STYLES).forEach(([k, v]) => ss.add(new Option(v, k, false, k === ov.style)));
     Object.entries(OV_ANIMS).forEach(([k, v]) => sa.add(new Option(v, k, false, k === ov.anim)));
     ss.addEventListener('change', () => { ov.style = ss.value; redraw(); }); sa.addEventListener('change', () => { ov.anim = sa.value; redraw(); });
+    const sl = row.querySelector('.ovl'); Object.entries(OV_LOOPS).forEach(([k, v]) => sl.add(new Option(v, k, false, k === (ov.loop || 'none')))); sl.addEventListener('change', () => { ov.loop = sl.value === 'none' ? undefined : sl.value; redraw(); });
     const sf = row.querySelector('.ovf'); if(ov.emoji) sf.hidden = true;
     Object.entries(OV_FONTS).forEach(([k, v]) => sf.add(new Option(v[0], k, false, k === (ov.font || 'auto'))));
     sf.addEventListener('change', () => { ov.font = sf.value === 'auto' ? undefined : sf.value; loadFont(sf.value).then(redraw); redraw(); });
@@ -3636,7 +3648,7 @@ for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null };
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null };
 const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
 // display uv -> source uv: the picture is turned, then mirrored / flipped
@@ -4789,7 +4801,7 @@ function voStat(t){ $('vostat').textContent = t; }
  * the voice changer; the song steps back while it speaks) and each shot's own sound at its volume (cs.vol). ---- */
 // clip: the clips' own sound under the song: mute (the default: no wind, traffic or chatter), voices (only where
 // people speak), all (every shot's sound, a little under the song)
-const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute' };
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute', sfx: true, sfxv: 0.6 };
 const musicOut = () => au.mfout || (au.ai ? 0.8 : 0);
 let au = { ...AU0 }, clipMixKey = '';
 const fxCache = new Map();
@@ -4842,14 +4854,56 @@ async function ensureMix(){
   for(const c of ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
   for(const L of layers){ const M = lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await decodeAnyAudio(M.file), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
   const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
-  if(key !== clipMixKey){ clipMixKey = key; applyVo(); }
+  const key2 = key + JSON.stringify([sfxEvents(), au.sfx, au.sfxv, edit.map(e => e.cs ? [e.cs.mus, e.cs.pitch] : 0)]);
+  if(key2 !== clipMixKey){ clipMixKey = key2; applyVo(); }
 }
+/* ---- sound effects, made on the phone (no files): whoosh, pop, boom, camera click, riser, ding.
+ * Automatic ones follow the edit (a whoosh into a push / swipe / whip / zoom / spin, a boom on a flash into a drop, a
+ * click on a photo snap or a freeze, a pop when a text or sticker pops in); the creator adds more at the playhead. ---- */
+let sfxList = [], sfxSeq = 0;
+const SFX_NAMES = { whoosh: 'Whoosh', pop: 'Pop', boom: 'Boom', click: 'Camera click', riser: 'Riser', ding: 'Ding' };
+const sfxCache = new Map();
+function sfxSynth(kind, sr){
+  const key = kind + sr; if(sfxCache.has(key)) return sfxCache.get(key);
+  const len = { whoosh: 0.42, pop: 0.09, boom: 0.9, click: 0.09, riser: 1.2, ding: 0.7 }[kind] || 0.3, n = Math.round(len*sr), y = new Float32Array(n);
+  let seed = 7; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647*2 - 1; };
+  let lp = 0, ph = 0;
+  for(let i = 0; i < n; i++){ const t = i/sr, f = t/len;
+    if(kind === 'whoosh'){ const cut = 400 + 5000*Math.sin(Math.PI*f), a = Math.exp(-2*Math.PI*cut/sr); lp = (1 - a)*rnd() + a*lp; y[i] = lp*Math.sin(Math.PI*f)**1.5*1.6; }
+    else if(kind === 'pop'){ ph += 2*Math.PI*(700 - 450*f)/sr; y[i] = Math.sin(ph)*Math.exp(-t/0.025); }
+    else if(kind === 'boom'){ ph += 2*Math.PI*(70 - 30*f)/sr; y[i] = Math.sin(ph)*Math.exp(-t/0.28) + rnd()*0.3*Math.exp(-t/0.03); }
+    else if(kind === 'click'){ y[i] = rnd()*(Math.exp(-t/0.004) + (t > 0.045 ? 0.7*Math.exp(-(t - 0.045)/0.006) : 0)); }
+    else if(kind === 'riser'){ const a = Math.exp(-2*Math.PI*(300 + 6000*f*f)/sr); lp = (1 - a)*rnd() + a*lp; ph += 2*Math.PI*(200 + 900*f*f)/sr; y[i] = (lp*1.4 + Math.sin(ph)*0.25)*f*f; }
+    else if(kind === 'ding'){ y[i] = (Math.sin(2*Math.PI*1320*t) + 0.5*Math.sin(2*Math.PI*1980*t))*Math.exp(-t/0.18)*0.7; } }
+  let pk = 0; for(const v of y) pk = Math.max(pk, Math.abs(v)); for(let i = 0; i < n; i++) y[i] *= 0.5/Math.max(1e-6, pk);
+  sfxCache.set(key, y); return y;
+}
+const WHOOSH_TR = ['whip','swipeup','slideleft','slideright','slideup','slidedown','zoom','spin','zoomout','dropin'];
+function sfxEvents(){
+  const out = sfxList.map(x => ({ at: x.at, kind: x.kind }));
+  if(au.sfx && kind !== 'talk'){ let lastW = -9;
+    edit.forEach((e, i) => { if(!i) return;
+      if(WHOOSH_TR.includes(e.tr) && e.start - lastW > 0.8){ out.push({ at: Math.max(0, e.start - 0.2), kind: 'whoosh' }); lastW = e.start; }
+      else if((e.tr === 'flash' || e.tr === 'burn') && e.type === 'drop') out.push({ at: e.start, kind: 'boom' });
+      if(e.efx === 'snap' || (e.sp && e.sp.label === 'Freeze frame')) out.push({ at: e.start, kind: 'click' }); });
+    for(const o of overlays) if(o.anim === 'pop' && !o.all && o.t0 > 0.05) out.push({ at: o.t0, kind: 'pop' }); }
+  return out;
+}
+function sfxAdd(k){ if(!SFX_NAMES[k] || !buf) return; sfxList.push({ id: ++sfxSeq, at: +(playing ? curTime() : pos).toFixed(2), kind: k }); sfxUI(); clipMixKey = ''; ensureMix(); notify(SFX_NAMES[k] + ' added at ' + (playing ? curTime() : pos).toFixed(1) + ' s'); }
+function sfxUI(){ const box = $('sfxlist'); if(!box) return; box.innerHTML = '';
+  for(const x of sfxList){ const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = SFX_NAMES[x.kind] + ' · ' + x.at.toFixed(1) + ' s ×'; b.title = 'Remove';
+    b.addEventListener('click', () => { sfxList = sfxList.filter(y => y !== x); sfxUI(); clipMixKey = ''; ensureMix(); }); box.appendChild(b); } }
+$('sfxadd').addEventListener('click', e => { const b = e.target.closest('[data-sfx]'); if(b) sfxAdd(b.dataset.sfx); }, SIG);
+$('sfxon').addEventListener('change', e => { au = { ...au, sfx: e.target.checked }; clipMixKey = ''; ensureMix(); }, SIG);
+$('sfxv').addEventListener('input', e => { au = { ...au, sfxv: +e.target.value }; const o = e.target.parentElement.querySelector('output'); if(o) o.textContent = Math.round(au.sfxv*100) + '%'; clipMixKey = ''; }, SIG);
+$('sfxv').addEventListener('change', () => ensureMix(), SIG);
 function applyVo(){   // (the name stays: everything that changes the sound calls it)
   if(kind === 'talk' || !baseBuf) return;
   const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
   const lyVoiced = layers.filter(L => L.vol > 0 && lmedia[L.m] && lmedia[L.m].pcm);
   const speech = ttsClips.filter(c => c.pcm);
-  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !musicOut();
+  const fxEv = sfxEvents(), musShots = edit.some(e => e.cs && e.cs.mus !== undefined && e.cs.mus !== 1);
+  const plain = !vo && !shots.length && !speech.length && !lyVoiced.length && au.mvol === 1 && !au.mfin && !musicOut() && !fxEv.length && !musShots;
   if(plain){ buf = baseBuf; normGain = baseNorm; return; }
   const B = baseBuf, sr = B.sampleRate, N = B.length, v = voPcm() || new Float32Array(0), vr = vo ? vo.sr : sr;
   // voice loudness: its speaking parts at about -14 dBFS
@@ -4864,10 +4918,13 @@ function applyVo(){   // (the name stays: everything that changes the sound call
     // the shot's loudness: about -16 dBFS at volume 100%, short fades at its cuts
     let q2 = 0, qn = 0; const i0 = Math.round(e.in*P.sr), i1 = Math.min(P.x.length, i0 + Math.round(L*P.sr*2)); for(let k=i0;k<i1;k+=8){ q2 += P.x[k]*P.x[k]; qn++; }
     const gain = c.vol * Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn)))), ramp = Math.round(0.012*sr);
+    const seg = new Float32Array(Math.max(0, b - a));
     for(let i=a;i<b;i++){ const l = (i - a)/sr; if(rateAt(e, l) <= 0) continue;
       const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
       const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
-      cs[i] += P.x[k]*gain*edge; } }
+      seg[i - a] = P.x[k]*gain*edge; }
+    const ps = c.pitch ? pitchShift(seg, sr, Math.pow(2, c.pitch/12)) : seg;   // the shot's own pitch (semitones)
+    for(let i=0;i<ps.length;i++) cs[a + i] += ps[i]; }
   for(const L of lyVoiced){ const P = lmedia[L.m].pcm, a = Math.round(L.t0*sr), b = Math.min(N, Math.round(L.t1*sr)), ramp = Math.round(0.02*sr);
     let q2 = 0, qn = 0; for(let k=0;k<P.x.length;k+=16){ q2 += P.x[k]*P.x[k]; qn++; } const g = L.vol*Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn))));
     for(let i=a;i<b;i++){ const k = Math.floor((L.in + (i - a)/sr)*P.sr); if(k >= P.x.length) break; cs[i] += P.x[k]*g*Math.min(1, (i - a)/ramp, (b - i)/ramp); } }
@@ -4875,13 +4932,19 @@ function applyVo(){   // (the name stays: everything that changes the sound call
   for(const c of speech){ const P = ttsPcm(c), a = Math.round(c.at*sr), r = c.sr/sr; let q2 = 0, qn = 0;
     for(let k=0;k<P.length;k+=4){ if(Math.abs(P[k]) > 0.01){ q2 += P[k]*P[k]; qn++; } } const g = 0.2/Math.max(0.003, Math.sqrt(q2/Math.max(1, qn)));
     for(let i=a;i<N;i++){ const t = (i - a)*r, k = Math.floor(t); if(k + 1 >= P.length) break; cs[i] += (P[k] + (P[k+1] - P[k])*(t - k))*g; } }
+  // sound effects: on top of everything (not ducked); the music under a shot: each shot's own music volume, eased
+  const fxa = new Float32Array(N);
+  for(const ev of fxEv){ const y = sfxSynth(ev.kind, sr), a = Math.round((ev.kind === 'riser' ? ev.at - y.length/sr : ev.at)*sr); for(let i=0;i<y.length;i++){ const j = a + i; if(j >= 0 && j < N) fxa[j] += y[i]*au.sfxv; } }
+  let mg = null;
+  if(musShots){ mg = new Float32Array(N); const k = Math.exp(-1/(0.12*sr)); let g = 1;
+    for(let i=0;i<N;i++){ const e = edit[segAt(i/sr)], tg = e && e.cs && e.cs.mus !== undefined ? e.cs.mus : 1; g = tg + (g - tg)*k; mg[i] = g; } }
   let env = 1, lv = 0;
   for(let c=0;c<2;c++){ const src = B.getChannelData(Math.min(c, B.numberOfChannels-1)), d = mix.getChannelData(c); env = 1; lv = 0;
     for(let i=0;i<N;i++){
       const j = Math.floor(i*vr/sr), x = (v[j] || 0)*gv;
       lv = Math.max(Math.abs(x) + Math.abs(cs[i])*0.6, lv*0.9995);           // a follower of the voice (and the shots' sound)
       const target = lv > 0.04 ? 0.22 : 0.75; env = target < env ? target + (env - target)*dn : target + (env - target)*up;
-      d[i] = src[i]*baseNorm*mv(i)*env + x + cs[i];
+      d[i] = src[i]*baseNorm*mv(i)*(mg ? mg[i] : 1)*env + x + cs[i] + fxa[i];
     } }
   buf = mix; normGain = 1;
 }
@@ -5173,7 +5236,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), sfx: sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
@@ -5224,6 +5287,7 @@ async function openProject(id){
     if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }
     if(S.capColor) ACCENT = S.capColor;
     if(Array.isArray(S.marks)) userMarks = S.marks.filter(Number.isFinite);
+    if(Array.isArray(S.sfx)){ sfxList = S.sfx.filter(x => SFX_NAMES[x.kind] && Number.isFinite(x.at)).map(x => ({ ...x, id: ++sfxSeq })); sfxUI(); }
     bgColor = S.bgColor || bgColor; if(S.bgMode && S.bgMode !== 'none') press('bgmode', 'b', S.bgMode);
     overlays = (st.overlays || []).map(o => ({ ...o })); ovSeq = overlays.reduce((q, o) => Math.max(q, o.id || 0), 0); renderOvList();
     if(st.sec){ sec.len = st.sec.len; sec.auto = st.sec.auto; sec.start = st.sec.start;
@@ -5298,7 +5362,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, addMark, clearMarks, setTlZoom, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 

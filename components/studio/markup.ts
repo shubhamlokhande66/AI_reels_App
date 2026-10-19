@@ -288,6 +288,10 @@ export const STUDIO_HTML = `
             </div>
             <div class="ausliders musiconly">
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
+            <label class="tog"><input type="checkbox" id="sfxon" checked> Sound effects on transitions (whoosh, boom, click, pop)</label>
+            <label class="cslide"><span>Effects volume</span><input type="range" id="sfxv" min="0" max="1.5" step="0.05" value="0.6"><output>60%</output></label>
+            <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="btn mini" data-sfx="whoosh">Whoosh</button><button type="button" class="btn mini" data-sfx="pop">Pop</button><button type="button" class="btn mini" data-sfx="boom">Boom</button><button type="button" class="btn mini" data-sfx="click">Click</button><button type="button" class="btn mini" data-sfx="riser">Riser</button><button type="button" class="btn mini" data-sfx="ding">Ding</button></div>
+            <div class="chips" id="sfxlist"></div>
             <label class="cslide"><span>Fade in</span><input type="range" id="mfin" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
             <label class="cslide"><span>Fade out</span><input type="range" id="mfout" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
             <select id="xclip" aria-label="Extract audio: use a clip's sound as the song"><option value="">Use a clip's sound as the song…</option></select>
