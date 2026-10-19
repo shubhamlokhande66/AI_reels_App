@@ -750,13 +750,13 @@ async function checkBeatsWithAi(token){
 async function checkBeatsInner(token){
   const sr = song.buf.sampleRate, m = song.mono, base = 'Ready';
   const say = t => { if(token === musicToken) $('s1st').textContent = t; };
-  say(base + ' · checking the beats with the on-device AI…');
+  say(base + ' · Shubix is checking the beats on this phone…');
   let beatStage = '';
-  if(token === musicToken) tasks.start('beats', 'ai', 'Checking the beats', 'The AI listens to your song on this phone');
+  if(token === musicToken) tasks.start('beats', 'ai', 'Checking the beats', 'Shubix listens to your song on this phone');
   let bt;
-  try{ bt = await aiBeats(m, sr, (stage, p) => { say(base + (stage === 'download' ? ' · getting the AI beat tracker (once) ' : ' · AI beat check ') + Math.round(p*100) + '%'); if(token !== musicToken) return;
-      if(stage !== beatStage){ beatStage = stage; tasks.start('beats', 'ai', stage === 'download' ? 'Getting the AI beat tracker' : 'Checking the beats', stage === 'download' ? 'Only the first time · kept on this phone' : 'The AI listens to your song on this phone'); }
-      tasks.update('beats', p, stage === 'download' && p >= 1 ? 'Downloaded · starting the AI' : undefined); }); }
+  try{ bt = await aiBeats(m, sr, (stage, p) => { say(base + (stage === 'download' ? ' · getting the Shubix beat tracker (once) ' : ' · Shubix beat check ') + Math.round(p*100) + '%'); if(token !== musicToken) return;
+      if(stage !== beatStage){ beatStage = stage; tasks.start('beats', 'ai', stage === 'download' ? 'Getting the Shubix beat tracker' : 'Checking the beats', stage === 'download' ? 'Only the first time · kept on this phone' : 'Shubix listens to your song on this phone'); }
+      tasks.update('beats', p, stage === 'download' && p >= 1 ? 'Downloaded · starting Shubix' : undefined); }); }
   catch(err){ beatInfo = { source: 'own', note: String(err && err.message || err) }; say(base); tasks.clear('beats'); console.info('on-device beat tracker not used:', beatInfo.note); return; }
   if(token !== musicToken) return;
   let r;
@@ -769,7 +769,7 @@ async function checkBeatsInner(token){
   const was = playing && !recording;
   await useSection(token);
   if(token !== musicToken) return;
-  say(base + (r.beatSource === 'ai' ? ' · beats confirmed by the on-device AI (Beat This!)' : ' · beats double-checked: the AI agrees or fits less well, kept'));
+  say(base + (r.beatSource === 'ai' ? ' · beats confirmed by Shubix on this phone (Beat This!)' : ' · beats double-checked: Shubix agrees or fits less well, kept'));
   if(token === musicToken) tasks.done('beats', 'Beats checked');
   if(sources.length && was) showMsg('Beats fine-tuned: your edit now follows them. Tap Preview to see it.');
 }
@@ -1567,7 +1567,7 @@ let aiOn = false, aiBusy = false, aiInfo = null;
 const aiCache = new Map();
 const fpOf = src => [src.name, src.file ? src.file.size : 0, src.file ? src.file.lastModified : 0].join('|');
 function aiStat(t, err){ const el = $('aistat'); el.hidden = !t; el.textContent = t || '';
-  if(!t) tasks.clear('ai'); else if(/…$/.test(t)) tasks.start('ai', 'ai', 'AI at work', t.replace(/…$/, '')); else if(err) tasks.fail('ai', t); else if(tasks.has('ai')) tasks.done('ai', t); el.style.color = err ? 'var(--drop)' : ''; }
+  if(!t) tasks.clear('ai'); else if(/…$/.test(t)) tasks.start('ai', 'ai', 'Shubix at work', t.replace(/…$/, '')); else if(err) tasks.fail('ai', t); else if(tasks.has('ai')) tasks.done('ai', t); el.style.color = err ? 'var(--drop)' : ''; }
 // The AI's view of footage [a,b]: frames nearby (same scene only), weighted by distance
 function aiAt(src, a, b){
   if(!aiOn || !src.ai || !src.ai.frames.length) return null;
@@ -1625,7 +1625,7 @@ async function aiRun(){
   sources.forEach(s=>{ if(!s.ai) aiRestore(s); });
   const need = sources.filter(s=>!s.ai && !s.aiFailed && !s.removed);
   if(!need.length){ aiDone(); return; }
-  aiBusy = true; aiStat('AI is looking at ' + need.length + (need.length>1 ? ' clips…' : ' clip…'));
+  aiBusy = true; aiStat('Shubix is looking at ' + need.length + (need.length>1 ? ' clips…' : ' clip…'));
   let charged = 0, failed = 0;
   try{
     const jobs = [];
@@ -1635,7 +1635,7 @@ async function aiRun(){
       const r = await fetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: ac.signal,
         body: JSON.stringify({ clips: part.map(j=>({ id:j.id, name:j.src.name, frames:j.frames })) }) });
       const res = await r.json().catch(()=>({}));
-      if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI step failed (' + r.status + ').'));
+      if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not do this step (' + r.status + ').'));
       charged += res.charged || 0;
       for(const c of res.clips || []){ const j = part.find(x=>x.id===c.id); if(!j) continue;
         j.src.ai = { frames: c.frames, summary: c.summary, mood: c.mood }; const fp = fpOf(j.src); aiCache.set(fp, j.src.ai);
@@ -1653,7 +1653,7 @@ async function aiRun(){
 }
 function aiDone(charged, failed){
   const withAi = sources.filter(s=>s.ai), n = withAi.reduce((q,s)=>q+s.ai.frames.length, 0);
-  aiStat('AI scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' skipped)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
+  aiStat('Shubix scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' skipped)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
   if(buf && sources.length && !recording) makeEdit();
 }
 /* ---- AI director: one text call plans the Reel as a story ----
@@ -1859,20 +1859,20 @@ function directorMaybe(){
 // New mix: the AI's other plans for these cuts, all in one call (the input is sent once)
 async function variantsRun(st){
   st.asked = true; st.busy = true;
-  aiStat('AI is making ' + VARIANTS + ' more mixes for New mix…');
+  aiStat('Shubix is making ' + VARIANTS + ' more mixes for New mix…');
   const tm = timeoutSignal(90000);
   let n = 0;
   try{
     const cands = directorCandidates(), { req, ctx } = dirRequest(cands), sig = planSig();
     const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...req, variants: VARIANTS }), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI mixes failed (' + r.status + ').'));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not make the mixes (' + r.status + ').'));
     let k = 1;
     for(const pl of res.plans || []){ while(st.plans[k]) k++; st.plans[k] = { slots: toSlots(pl.slots, cands), ctx, sig, story: pl.story || '' }; n++; }
-    aiStat('AI made ' + n + ' more mix' + (n === 1 ? '' : 'es') + ' · press New mix to see each.');
+    aiStat('Shubix made ' + n + ' more mix' + (n === 1 ? '' : 'es') + ' · press New mix to see each.');
   }catch(e){
     if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI mixes not used:', e);
-    aiStat('New mix uses the phone\'s own mixes in the AI\'s style.');
+    aiStat('New mix uses the phone\'s own mixes in Shubix\'s style.');
   }finally{ st.busy = false; tm.done(); }
   if(mixNo > 0 && buf && sources.length && !recording) makeEdit();
 }
@@ -1957,7 +1957,7 @@ async function paceRun(key){
   const whole = wholeSections(), songKey = paceSongKey();
   const secs = whole || sectionsOf(sm, basePlan, beats, period, buf.duration).slice(0, 24);
   if(!secs.length){ paceFailedKey = key; return; }
-  paceBusy = true; aiStat('AI is listening to the song and choosing the pace…');
+  paceBusy = true; aiStat('Shubix is listening to the song and choosing the pace…');
   const tm = timeoutSignal(25000);
   try{
     const req = { mode, duration: +(whole ? song.buf.duration : buf.duration).toFixed(2), bpm: +(60/(whole ? song.r.period : period)).toFixed(1), clips: sources.filter(s=>!s.removed).length,
@@ -1965,7 +1965,7 @@ async function paceRun(key){
       ...(whole ? { reel: +buf.duration.toFixed(2) } : {}) };
     const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI pace failed (' + r.status + ').'));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not choose the pace (' + r.status + ').'));
     const every = new Map((res.sections || []).map(x=>[x.i, x.every]));
     const answer = secs.map(s=>({ t: s.t, len: s.len, every: every.get(s.i) || s.now }));
     if(whole) songPace.set(songKey, { secs: answer, story: res.story || '' });   // kept even if the part moved meanwhile
@@ -1974,7 +1974,7 @@ async function paceRun(key){
     else pacing = { key, story: res.story || '', secs: answer, why: res.sections || [] };
     if(!pacing){ paceFailedKey = key; paceBusy = false; return; }
     paceCache.set(key, pacing);
-    aiStat('AI chose the pace' + (pacing.story ? ': ' + pacing.story : '') + '. Now planning the shots…');
+    aiStat('Shubix chose the pace' + (pacing.story ? ': ' + pacing.story : '') + '. Now planning the shots…');
     paceBusy = false; makeEdit();
   }catch(e){
     paceFailedKey = key;
@@ -1983,14 +1983,14 @@ async function paceRun(key){
   }finally{ paceBusy = false; tm.done(); }
 }
 async function directorRun(key){
-  dirBusy = true; aiStat('AI director is choosing every shot, transition and effect…');
+  dirBusy = true; aiStat('Shubix is choosing every shot, transition and effect…');
   const tm = timeoutSignal(45000);
   try{
     const cands = directorCandidates(); dirCands = cands;
     const { req, ctx } = dirRequest(cands), sig = planSig(), mix = mixNo, st = mixStore();
     const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI director failed (' + r.status + ').'));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not plan the Reel (' + r.status + ').'));
     const slots = toSlots(res.slots, cands);
     if(!st.plans[mix]) st.plans[mix] = { slots, ctx, sig, story: res.story || '' };   // kept for the song's other parts
     // the edit changed meanwhile (the song's part moved): the plan is fitted to it, or a new one asked (other clips)
@@ -1999,8 +1999,8 @@ async function directorRun(key){
     dirBusy = false; makeEdit();
   }catch(e){
     dirFailedKey = key;
-    if(tm.timedOut()) aiStat('The AI took too long this time. Your Reel uses the phone\'s own smart edit.');
-    else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('The AI director is busy right now. Your Reel uses the phone\'s own smart edit.'); }
+    if(tm.timedOut()) aiStat('Shubix took too long this time. Your Reel uses the phone\'s own smart edit.');
+    else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('Shubix is busy right now. Your Reel uses the phone\'s own smart edit.'); }
   }finally{ dirBusy = false; tm.done(); }
 }
 (async () => {   // is the studio's AI on? The administrator decides (Administration -> Features -> AI director) and the
@@ -2170,7 +2170,7 @@ function makeEdit(){
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(dirInfo && !director.interim){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
     const keys = edit.reduce((n,e)=>n+((e.acc&&e.acc.length)||0), 0);
-    aiStat('AI director planned your Reel' + (director.story ? ': ' + director.story : '.') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '')); }
+    aiStat('Shubix planned your Reel' + (director.story ? ': ' + director.story : '.') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '')); }
   captureLoop(); editGen++;
   paceMaybe(); directorMaybe();
   if(look === 'copy' && refProfile) setTimeout(()=>{ copyLook(); }, 0);
@@ -2195,11 +2195,11 @@ function moveWords(K){
 }
 function kfSummary(e){
   const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
-  const notes = [e.dirWhy && aiOn ? 'Director: ' + e.dirWhy : '', e.aiNote && aiOn ? 'AI: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
+  const notes = [e.dirWhy && aiOn ? 'Shubix: ' + e.dirWhy : '', e.aiNote && aiOn ? 'Shubix saw: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
   const why = (notes ? `<br><span style="font:11px var(--body);color:var(--muted)">${notes}</span>` : '')
     + (e.uk && e.uk.length ? `<br><span style="font:11px var(--body);color:#c99a00">◆ ${e.uk.length} keyframe${e.uk.length > 1 ? 's' : ''} of yours</span>` : '')
-    + (e.acc && e.acc.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">AI keyframes: ${e.acc.map(a => a.do + ' at ' + a.at.toFixed(2) + ' s').join(', ')}</span>` : '')
-    + (e.ak && e.ak.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">AI camera move: ${moveWords(e.ak)}</span>` : '');
+    + (e.acc && e.acc.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">Shubix keyframes: ${e.acc.map(a => a.do + ' at ' + a.at.toFixed(2) + ' s').join(', ')}</span>` : '')
+    + (e.ak && e.ak.length && aiOn ? `<br><span style="font:11px var(--body);color:var(--muted)">Shubix camera move: ${moveWords(e.ak)}</span>` : '');
   const s = e.kf && e.kf.scale; if(!s || s.length<2) return why;
   const a=s[0], b=s[s.length-1];
   return `<br><span style="font:11px var(--mono);color:var(--muted)">◆ scale ${a[1].toFixed(2)}→${b[1].toFixed(2)} · ${(b[0]-a[0]).toFixed(2)}s ${b[2]||''}</span>` + why;
@@ -4025,7 +4025,7 @@ const MODE_HELP = {
   auto: 'Auto: the music decides. Calm parts get longer shots, drops and hits get effects.',
   smooth: 'Smooth: fewer, longer shots on the strong beats, soft camera moves, no flashy effects.',
   fast: 'Fast: a cut on every beat, a transition on every cut, punches and speed changes on the hits.',
-  copy: 'Copy a Reel: its pace, transitions and shapes, camera moves, speed and colours, on this song and your clips. With AI on, the AI copies what it does on each kind of music moment.',
+  copy: 'Copy a Reel: its pace, transitions and shapes, camera moves, speed and colours, on this song and your clips. With Shubix on, it copies what the Reel does on each kind of music moment.',
 };
 function setMode(m){ mode = m; [...$('mode').children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.m===m)); $('modehelp').textContent = MODE_HELP[mode];
   $('refbox').hidden = !refProfile;
@@ -4365,7 +4365,7 @@ async function refLookRun(file, R){
   if(!aiOn || !R || refLookBusy) return;
   refLookBusy = true; const url = URL.createObjectURL(file), note = t => { if(refProfile === R) $('refinfo').textContent = '“' + R.name + '”: ' + describeRef(R) + (t ? ' · ' + t : ''); };
   try{
-    note('the AI is reading its texts and stickers…');
+    note('Shubix is reading its texts and stickers…');
     const N = 10, ts = Array.from({ length: N }, (_, i) => +((i + 0.5)*R.dur/N).toFixed(2));
     const rd = await clipReader({ url, file, name: R.name, dur: R.dur, w: R.w, h: R.h }, 768);
     const sc = Math.min(1, 512/Math.max(R.w, R.h)), w = Math.max(2, Math.round(R.w*sc)), h = Math.max(2, Math.round(R.h*sc));
@@ -4377,7 +4377,7 @@ async function refLookRun(file, R){
     if(frames.length < 2) throw new Error('frames not readable');
     const r = await fetch('/api/studio/ref-look', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ac.signal, body: JSON.stringify({ name: R.name.slice(0, 200), dur: R.dur, frames }) });
     const res = await r.json().catch(() => ({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('The AI step failed (' + r.status + ').'));
+    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not do this step (' + r.status + ').'));
     if(refProfile !== R) return;   // another Reel was picked meanwhile
     R.design = res; R.designDone = false; refLookApplySoon(R);
   }catch(err){

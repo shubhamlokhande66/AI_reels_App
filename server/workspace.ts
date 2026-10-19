@@ -32,15 +32,15 @@ export const phone = () => ({ enabled: ["1", "true", "yes", "on"].includes((proc
 const YEARLY_MONTHS_CHARGED = 10;
 const DEFAULT_PRICING = {
   plans: [
-    { id: "free", name: "Free", monthly: 0, credits: 15, creditsNote: "once, to try everything", tagline: "Try every feature", highlight: false, features: ["15 credits to start", "Reels from your clips", "Your first Story Reel", "Natural AI voices"] },
-    { id: "creator", name: "Creator", monthly: 499, credits: 80, creditsNote: "every month", tagline: "For creators posting every week", highlight: true, features: ["80 credits a month", "~8 Story Reels or 80 clip Reels", "Full-HD export", "Natural AI voices", "Post to Instagram, TikTok, YouTube"] },
+    { id: "free", name: "Free", monthly: 0, credits: 15, creditsNote: "once, to try everything", tagline: "Try every feature", highlight: false, features: ["15 credits to start", "Reels from your clips", "Your first Story Reel", "Natural Shubix voices"] },
+    { id: "creator", name: "Creator", monthly: 499, credits: 80, creditsNote: "every month", tagline: "For creators posting every week", highlight: true, features: ["80 credits a month", "~8 Story Reels or 80 clip Reels", "Full-HD export", "Natural Shubix voices", "Post to Instagram, TikTok, YouTube"] },
     { id: "pro", name: "Pro", monthly: 1299, credits: 250, creditsNote: "every month", tagline: "For daily posting and small brands", highlight: false, features: ["250 credits a month", "~25 Story Reels", "Everything in Creator", "Schedule posts", "Brand kit (logo, colours, fonts)"] },
     { id: "business", name: "Business", monthly: 2999, credits: 650, creditsNote: "every month", tagline: "For agencies and teams", highlight: false, features: ["650 credits a month", "~65 Story Reels", "Everything in Pro", "Several brands", "Email support"] },
   ],
   topUps: [{ id: "topup_30", credits: 30, price: 199 }, { id: "topup_100", credits: 100, price: 599 }],
   costs: { clip_reel: 1, version: 1, story_render: 2, ai_picture: 1, paid_picture: 3, preview: 0, studio_ai: 0, studio_captions: 0, studio_ref_look: 0 } as Record<string, number>,
 };
-const COST_LABELS: Record<string, string> = { clip_reel: "Reel from your own clips", version: "New version / re-render", story_render: "Story Reel: narrate and render", ai_picture: "AI picture for a story scene", paid_picture: "Premium HD AI picture", preview: "Quick previews", studio_ai: "Fast Studio: AI edits the Reel (per Reel)", studio_captions: "Fast Studio: captions from the song (per song)", studio_ref_look: "Fast Studio: copy a Reel's texts, stickers and captions (per Reel)" };
+const COST_LABELS: Record<string, string> = { clip_reel: "Reel from your own clips", version: "New version / re-render", story_render: "Story Reel: narrate and render", ai_picture: "Shubix picture for a story scene", paid_picture: "Premium HD Shubix picture", preview: "Quick previews", studio_ai: "Shubix edits the Reel (per Reel)", studio_captions: "Fast Studio: captions from the song (per song)", studio_ref_look: "Fast Studio: copy a Reel's texts, stickers and captions (per Reel)" };
 export type Pricing = typeof DEFAULT_PRICING;
 
 export async function getPricing(): Promise<Pricing> {

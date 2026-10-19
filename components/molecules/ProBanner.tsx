@@ -22,7 +22,7 @@ export function ProBanner({ href = "/pricing", compact = false }: { href?: strin
         <span className="flex min-w-0 flex-col">
           <b className={cn("font-extrabold", compact ? "text-[14px]" : "text-[15px] md:text-lg")}>{compact ? "Upgrade to Pro" : "Go Pro with Shubix"}</b>
           <span className={cn("leading-snug text-muted", compact ? "text-[11.5px]" : "text-[12px] md:text-[13px]")}>
-            {compact ? "Premium templates & AI edits" : "More templates, premium styles and advanced AI edits."}
+            {compact ? "Premium templates & Shubix edits" : "More templates, premium styles and advanced Shubix edits."}
           </span>
         </span>
       </span>

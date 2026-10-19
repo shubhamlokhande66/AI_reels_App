@@ -14,7 +14,7 @@ import { PlanAction, PlanCard, rupees } from "@/components/organisms/pricing/Pla
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 
 const FAQ = [
-  ["What does a credit buy?", "Credits measure what you make. A Reel from your own clips uses 1 credit; a narrated Story Reel uses a few credits plus 1 for each AI picture. Classical paintings and library pictures are free. Previews are free."],
+  ["What does a credit buy?", "Credits measure what you make. A Reel from your own clips uses 1 credit; a narrated Story Reel uses a few credits plus 1 for each Shubix picture. Classical paintings and library pictures are free. Previews are free."],
   ["Are prices including GST?", "Yes. The price you see is the price you pay."],
   ["What happens to unused credits?", "Plan credits renew every month and do not carry over. Starter and top-up credits never expire."],
   ["Can I cancel any time?", "Yes. You pay for a month or a year at a time and nothing renews by itself, so there is nothing to cancel."],

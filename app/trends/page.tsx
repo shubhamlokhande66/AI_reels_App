@@ -148,7 +148,7 @@ function TrendCard({ t }: { t: LearnedTrend }) {
       </ul>
       {looks(t.profile).some((l) => l.summary) && (
         <div className="rounded-xl bg-surface-2 p-3 text-sm">
-          <p className="mb-1 text-xs font-medium text-muted">What the AI saw</p>
+          <p className="mb-1 text-xs font-medium text-muted">What Shubix saw</p>
           {looks(t.profile).map((l, i) => l.summary && <p key={i}>{l.summary}{l.effects?.length ? ` Effects: ${l.effects.join(", ")}.` : ""}</p>)}
         </div>
       )}
@@ -183,7 +183,7 @@ export default function TrendsPage() {
       {q.isLoading && <Spinner label="Loading your trends…" />}
       {q.error && <ErrorBanner message={errorMessage(q.error)} />}
       {q.data && q.data.length === 0 && (
-        <EmptyState icon="trend" title="No trends yet" hint="Learn one above. When you make a Reel, the AI picks the trend that fits, or you choose one." />
+        <EmptyState icon="trend" title="No trends yet" hint="Learn one above. When you make a Reel, Shubix picks the trend that fits, or you choose one." />
       )}
       {q.data?.map((t) => <TrendCard key={t.id} t={t} />)}
     </div>
