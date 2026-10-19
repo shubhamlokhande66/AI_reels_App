@@ -63,6 +63,7 @@ export const STUDIO_HTML = `
 <div class="topbar" id="topbar">
   <button type="button" class="ibtn tb-back" id="tbback" aria-label="Back">${IC.back}</button>
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
+  <label class="tb-aspect" title="Format"><select id="tbaspect" aria-label="Format"><option value="9:16">9:16</option><option value="4:5">4:5</option><option value="1:1">1:1</option><option value="16:9">16:9</option></select></label>
   <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
@@ -244,8 +245,9 @@ export const STUDIO_HTML = `
           <button class="btn icon" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version">${IC.mix}<span>Change Reel</span></button>
           <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
           <span class="tc" id="ttot">0:00.0</span>
+          <button class="btn icon" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
         </div>
-        <div class="tlbar"><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button></span></div>
+        <div class="tlbar"><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button><button class="btn mini" id="tlfit" type="button" aria-label="The whole Reel in view" title="The whole Reel in view">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button></span></div>
         <div class="strip"><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
         <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch or use − and + to zoom, drag a shot's edge to make it longer or shorter, tap a transition or an effect to change it"></canvas></div>
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
@@ -262,6 +264,11 @@ export const STUDIO_HTML = `
         <nav class="dock" id="dock" aria-label="Tools">${dock}</nav>
 
         <div class="panels" id="panels">
+          <!-- the left panel's tabs on a computer (the design): each opens its tool, Effects / Transitions the shot sheet -->
+          <nav class="ptabs" id="ptabs" aria-label="Library">
+            <button type="button" data-pt="media" aria-pressed="false">${IC.image}<span>Media</span></button><button type="button" data-pt="music" aria-pressed="false">${IC.music}<span>Music</span></button><button type="button" data-pt="text" aria-pressed="false">${IC.text}<span>Text</span></button><button type="button" data-pt="stickers" aria-pressed="false">${I('<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>')}<span>Stickers</span></button><button type="button" data-pt="effects" aria-pressed="false">${IC.spark}<span>Effects</span></button><button type="button" data-pt="transitions" aria-pressed="false">${I('<path d="M4 6l7 6-7 6zM20 6l-7 6 7 6z"/>')}<span>Transitions</span></button><button type="button" data-pt="filters" aria-pressed="false">${I('<path d="M4 6h16M7 12h10M10 18h4"/>')}<span>Filters</span></button>
+          </nav>
+          <section class="panel" data-panel="media"><h3 class="ph">${IC.image}Media</h3><div class="mslot" id="mslot"></div></section>
           <section class="panel" data-panel="style">${panelHead("style")}
             <div class="seg" id="mode">
               <button data-m="auto" aria-pressed="true">Auto</button>

@@ -49,7 +49,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const made = () => !$("s3").classList.contains("locked");
   // computers keep a tool open beside the preview (the shot first); phones show the Reel, a tool opens over it
   const wide = () => window.matchMedia("(min-width: 1024px)").matches;
-  const defTool = () => (wide() ? "style" : ""); // computers: the left panel opens on Style, the first tool
+  const defTool = () => (wide() ? "media" : ""); // computers: the left panel opens on Media (the design); phones: the Reel
   // a paid plan (or the administrator, or billing off) uses the Pro tools; until the server says so they are locked
   let paid = false;
   const locked = (k: string) => PRO_TOOLS.has(k) && !paid && !root.classList.contains("admin");
@@ -58,6 +58,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     root.classList.add("v-" + view);
     root.dataset.tool = tool;
     root.classList.toggle("made", made());
+    // the left panel's tabs: lit for the tool they open
+    const PT: Record<string, string> = { media: "media", music: "music", text: "text", look: "filters" };
+    root.querySelectorAll<HTMLButtonElement>("#ptabs [data-pt]").forEach((b) => b.setAttribute("aria-pressed", String(PT[tool] === b.dataset.pt)));
     root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.tool === tool));
       const lock = String(locked(b.dataset.tool!));
@@ -84,6 +87,17 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const px = t.closest<HTMLElement>("[data-proxy]"); if (px) { $(px.dataset.proxy!).click(); return; }
     const os = t.closest<HTMLElement>("[data-open-step]"); if (os) { const id = os.dataset.openStep!; openStep(id, true); $(id).scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (t.closest("#copycard")) { copyReel(); return; }
+    const pt = t.closest<HTMLButtonElement>("#ptabs [data-pt]");
+    if (pt) {
+      const k = pt.dataset.pt!, st = S();
+      if (k === "effects" || k === "transitions") { // the shot at the playhead, in the shot sheet
+        if (st && st.edit.length) { const i = Math.max(0, st.segAt(st.now)); openShot(i, k === "effects" ? 1 : 0, xOf((st.edit[i].start + st.edit[i].end) / 2)); }
+        return;
+      }
+      tool = k === "stickers" ? "text" : k === "filters" ? "look" : k; apply();
+      if (k === "stickers") $("ovsticker").scrollIntoView({ block: "nearest" });
+      return;
+    }
     const b = t.closest<HTMLButtonElement>(".tool");
     if (b) {
       const k = b.dataset.tool!;
@@ -113,6 +127,16 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // the top bar's Export is the same button as the save bar's
   const exp = $<HTMLButtonElement>("export"), top = $<HTMLButtonElement>("topexport");
   top.addEventListener("click", () => exp.click(), sig);
+  // the Media panel (a computer's left panel): the clips step's own Videos / Photos, drop zone and clips, moved in while
+  // the editor is open and back to the Create flow's clips step when it opens again
+  const mediaParts = [$("ftabs"), $("dropzone"), root.querySelector<HTMLElement>(".fclipgrid")!];
+  const mediaHome = mediaParts.map((el) => ({ el, parent: el.parentElement!, next: el.nextSibling }));
+  const media = (into: boolean) => {
+    if (into) mediaParts.forEach((el) => $("mslot").append(el));
+    else for (const h of [...mediaHome].reverse()) if (h.el.parentElement !== h.parent) h.parent.insertBefore(h.el, h.next && h.next.parentNode === h.parent ? h.next : null);
+  };
+  // the top bar's format (9:16 ▾): the clips step's own Format buttons
+  $<HTMLSelectElement>("tbaspect").addEventListener("change", (e) => root.querySelector<HTMLButtonElement>(`#aspect [data-a="${(e.target as HTMLSelectElement).value}"]`)?.click(), sig);
   // the top bar's Back: the Create flow's own (the screen before: the clips, or where the page came from)
   $("tbback").addEventListener("click", () => $("fback").click(), sig);
   const mirror = () => { if (top.disabled !== exp.disabled) top.disabled = exp.disabled; }; // only on a change: a write is a mutation too
@@ -121,6 +145,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const setText = (el: Element | null, v: string) => { if (el && el.textContent !== v) el.textContent = v; };
   const values = () => {
     const st = S();
+    const asp = root.querySelector<HTMLElement>('#aspect [aria-pressed="true"]')?.dataset.a; const sel = $<HTMLSelectElement>("tbaspect"); if (asp && sel.value !== asp) sel.value = asp;
     if (st && made()) {
       setText($("tbname"), st.title || "Your Reel");
       const talk = st.kind === "talk";
@@ -189,7 +214,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const ZMAX = 40, RUL = 18, EDGE = 12; // the most zoom, the time ruler's height, how near an edge counts (css px)
   let zoom = 1, t0 = 0; // the view: the song from t0, a 1/zoom part of it
   let trim: { i: number; to: number } | null = null; // a shot's end being dragged
-  const labW = () => (lanes.clientWidth > 700 ? 92 : 46); // the tracks' names (wider on a computer, as the design)
+  const labW = () => (lanes.clientWidth > 700 ? 116 : 50); // the tracks' heads: icon, name, + Add (a computer, as the design)
   // the song's loudness, measured once per song part: the louder of its samples every 5 ms (the waveform under the beats)
   const PEAK_DT = 0.005;
   let peaksOf: AudioBuffer | null = null, peaks = new Float32Array(0);
@@ -211,6 +236,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const zoomBy = (f: number) => { const st = S(); if (!st) return; const at = Math.min(Math.max(st.now, t0), t0 + span()), p = (at - t0) / span(); zoom *= f; fix(); t0 = at - p * span(); fix(); };
   $("tlzi").addEventListener("click", () => zoomBy(2), sig);
   $("tlzo").addEventListener("click", () => zoomBy(0.5), sig);
+  $("tlfit").addEventListener("click", () => { zoom = 1; t0 = 0; fix(); }, sig);
+  // the preview full screen (the browser's own; Escape leaves it)
+  $("pvfull").addEventListener("click", () => { const box = root.querySelector<HTMLElement>(".pvbox"); if (document.fullscreenElement) void document.exitFullscreen(); else void box?.requestFullscreen?.().catch(() => {}); }, sig);
   const tAt = (x: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return t0 + ((x - r.left - lab) / (r.width - lab)) * span(); };
   const xOf = (t: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return r.left + lab + ((t - t0) / span()) * (r.width - lab); };
   // the shot whose right edge is under x on the video track (not the last: it ends with the song)
@@ -282,7 +310,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const step = [0.25, 0.5, 1, 2, 5, 10, 30, 60].find((s) => s * pps >= 56 * dpr) ?? 60;
     track(() => { g.fillStyle = muted; for (let t = Math.floor(t0 / step) * step; t <= t0 + D / zoom + step; t += step) { g.fillRect(X(t), rul - 5 * dpr, dpr, 5 * dpr); g.fillText(step < 1 ? fmt(t) : fmtS(t), X(t) + 3 * dpr, rul / 2 - dpr); } });
     let y = rul;
-    const label = (s: string, h: number) => { g.font = `600 ${11.5 * dpr}px system-ui, sans-serif`; g.fillStyle = ink; g.fillText(s, 4 * dpr, y + h / 2); g.font = `${11 * dpr}px system-ui, sans-serif`; };
+    // a track's head: its sign and name, and "+ Add" on a computer (a tap there adds to that track: see laneTap)
+    const label = (s: string, h: number, sign = "") => {
+      const my = y + h / 2;
+      g.font = `600 ${11.5 * dpr}px system-ui, sans-serif`; g.fillStyle = muted; if (sign) g.fillText(sign, 4 * dpr, my);
+      g.fillStyle = ink; g.fillText(s, (sign ? 20 : 4) * dpr, my);
+      if (wide) { g.font = `600 ${10 * dpr}px system-ui, sans-serif`; g.fillStyle = acc; g.fillText("+ Add", lab - 40 * dpr, my); }
+      g.font = `${11 * dpr}px system-ui, sans-serif`;
+    };
     const rr = (x: number, yy: number, w: number, h: number, r: number) => { g.beginPath(); if (g.roundRect) g.roundRect(x, yy, Math.max(1, w), h, r); else g.rect(x, yy, Math.max(1, w), h); };
     const cur = st.segAt(now), dt = trim ? trim.to - st.edit[trim.i].end : 0;
     // where each shot is drawn: while an end is dragged that shot stretches and the shots after it move with it
@@ -299,14 +334,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     };
     const diamond = (x: number, yy: number, r: number, col: string) => { g.beginPath(); g.moveTo(x, yy - r); g.lineTo(x + r, yy); g.lineTo(x, yy + r); g.lineTo(x - r, yy); g.closePath(); g.fillStyle = col; g.fill(); g.lineWidth = dpr; g.strokeStyle = "rgba(0,0,0,.45)"; g.stroke(); };
     // Effects: each shot's effect (or Shubix's camera move) as a box across its shot
-    label("Effects", fxh);
+    label("Effects", fxh, "✦");
     track(() => st.edit.forEach((e, k) => {
       const [a, b] = at(k), x0 = X(a) + 2 * dpr, w = X(b) - X(a) - 4 * dpr;
       if (e.efx && e.efx !== "none") tag(x0, y + 2 * dpr, w, fxh - 4 * dpr, "✦ " + nameOf("efx", e.efx), "#6d4bd8");
       else if (e.ak && e.ak.length) tag(x0, y + 2 * dpr, w, fxh - 4 * dpr, "◆ Camera move", "#3c5fa8");
     }));
     y += fxh + gap;
-    label("Video", rows[0]);
+    label("Video", rows[0], "▣");
     track(() => st.edit.forEach((e, k) => {
       const [a, b] = at(k), x0 = X(a) + dpr, x1 = X(b) - dpr, h = rows[0];
       g.fillStyle = CLIP_COL[e.src % CLIP_COL.length]; rr(x0, y, x1 - x0, h, 5 * dpr); g.fill();
@@ -345,21 +380,21 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (trim && dt > 0) track(() => { g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(X(D), y, W, rows[0]); }); // past the song's end: cut
     y += rows[0] + gap;
     const bar = (a: number, b: number, s: string, col: string, h: number) => track(() => { const x0 = X(a), x1 = X(b); g.fillStyle = col; rr(x0, y + dpr, x1 - x0, h - 2 * dpr, 5 * dpr); g.fill(); g.save(); g.beginPath(); g.rect(x0, y, x1 - x0, h); g.clip(); g.fillStyle = "#fff"; g.fillText(s, Math.max(x0, lab) + 6 * dpr, y + h / 2); g.restore(); });
-    label("Text", rows[1]);
-    if (st.hook) bar(0, Math.min(D, 2.2), st.hook, "#5a4a7e", rows[1]);
-    for (const o of st.overlays) bar(o.all ? 0 : o.t0, o.all ? D : o.t1, o.text, "#4A3E6A", rows[1]);
-    if (st.capsOn) bar(Math.min(D, 2.4), D, "Captions", "#3e4a6a", rows[1]);
+    label("Text", rows[1], "T");
+    if (st.hook) bar(0, Math.min(D, 2.2), "T  " + st.hook, "#6d3fe0", rows[1]);
+    for (const o of st.overlays) bar(o.all ? 0 : o.t0, o.all ? D : o.t1, "T  " + o.text, "#7c4dff", rows[1]);
+    if (st.capsOn) bar(Math.min(D, 2.4), D, "CC  Captions", "#4f46e5", rows[1]);
     y += rows[1] + gap;
-    label("Voice", rows[2]);
-    if (st.vo || st.kind === "talk") bar(0, D, st.kind === "talk" ? "Your voice · pauses cut" : "Voiceover · cleaned", "#2E5A47", rows[2]);
+    label("Voice", rows[2], "◉");
+    if (st.vo || st.kind === "talk") bar(0, D, st.kind === "talk" ? "🎙 Your voice · pauses cut" : "🎙 Voiceover", "#0f766e", rows[2]);
     y += rows[2] + gap;
-    label("Music", rows[3]);
+    label("Music", rows[3], "♫");
     if (st.songName && st.audio) {
       // the song as a waveform (louder = taller), its beats as marks, zoomed with every other track (they stay in sync)
       const h = rows[3], mid = y + h / 2, pk = songPeaks(st.audio);
       track(() => {
-        g.fillStyle = "#3b3122"; rr(X(0), y + dpr, X(D) - X(0), h - 2 * dpr, 5 * dpr); g.fill();
-        g.fillStyle = "#e0b45c";
+        g.fillStyle = "#2c1a5e"; rr(X(0), y + dpr, X(D) - X(0), h - 2 * dpr, 5 * dpr); g.fill();
+        g.fillStyle = "#a98bff";
         for (let px = Math.max(lab, X(0)); px < Math.min(W, X(D)); px += dpr) {
           const a = Math.max(0, Math.floor((t0 + (px - lab) / pps) / PEAK_DT)), b = Math.min(pk.length, Math.ceil((t0 + (px + dpr - lab) / pps) / PEAK_DT));
           let m = 0; for (let k = a; k < Math.max(b, a + 1) && k < pk.length; k++) if (pk[k] > m) m = pk[k];
@@ -369,9 +404,13 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
         for (const bt of st.beats) if (bt >= t0 && bt <= t0 + D / zoom) g.fillRect(Math.round(X(bt)), y + dpr, dpr, 5 * dpr);
         g.fillStyle = "#fff"; g.fillText("♪ " + st.songName, Math.max(X(0), lab) + 6 * dpr, y + 9 * dpr);
       });
-    } else if (st.songName) bar(0, D, "♪ " + st.songName, "#5b4b30", rows[3]);
+    } else if (st.songName) bar(0, D, "♪ " + st.songName, "#4c2a9a", rows[3]);
     else track(() => { g.fillStyle = chip; rr(lab, y + dpr, W - lab, rows[3] - 2 * dpr, 5 * dpr); g.fill(); });
-    if (now >= t0 && now <= t0 + D / zoom) { g.fillStyle = ink; g.fillRect(Math.round(X(now)) - dpr, 0, 2 * dpr, H); }
+    // the playhead: a line through every track and a marker on the ruler
+    if (now >= t0 && now <= t0 + D / zoom) {
+      const px = Math.round(X(now)); g.fillStyle = acc; g.fillRect(px - dpr, rul - 4 * dpr, 2 * dpr, H);
+      g.beginPath(); g.moveTo(px - 6 * dpr, 2 * dpr); g.lineTo(px + 6 * dpr, 2 * dpr); g.lineTo(px + 6 * dpr, rul - 9 * dpr); g.lineTo(px, rul - 3 * dpr); g.lineTo(px - 6 * dpr, rul - 9 * dpr); g.closePath(); g.fill();
+    }
   };
   window.addEventListener("resize", () => { lanesKey = ""; if (wide() && !tool && made()) { tool = defTool(); apply(); } const st = S() as (Studio & { drawTimeline?: () => void }) | undefined; if (st && st.edit.length) st.drawTimeline?.(); }, sig);
   // fingers and the mouse: one pointer drags an edge, moves along (when zoomed) or taps; two pointers pinch
@@ -404,6 +443,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     else if (trim && st && e.type === "pointerup") { trim = null; pan = { x: e.clientX, t0, moved: false }; } // pressed, not dragged: a tap
     if (pan && !pan.moved && st && e.type === "pointerup") {
       // a tap on a shot (its transition, effect or speed: that tab) opens the shot sheet over it; elsewhere: the playhead
+      if (e.clientX - lanes.getBoundingClientRect().left < labW()) { laneTap(e.clientY); trim = null; pan = null; lanesKey = ""; return; }
       const hit = hitAt(e.clientX, e.clientY), k = hit ? hit.k : shotAt(e.clientX, e.clientY);
       if (k >= 0) openShot(k, hit ? hit.tab : shotTab, e.clientX);
       else void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, tAt(e.clientX))));
@@ -420,6 +460,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     else if (zoom > 1 && (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey)) { e.preventDefault(); t0 += ((e.deltaX || e.deltaY) / (r.width - labW())) * span(); fix(); }
   }, { passive: false, signal: ac.signal });
 
+  // a tap on a track's head ("+ Add"): Effects → the shot's effects, Video → more clips, Text / Voice / Music → that tool
+  const laneTap = (y: number) => {
+    const st = S(), yy = y - lanes.getBoundingClientRect().top; if (!st) return;
+    const vh = vidH(), text = VTOP + vh + GAP, voice = text + 24 + GAP, music = voice + 24 + GAP;
+    if (yy >= RUL && yy < RUL + FXH) { const k = Math.max(0, st.segAt(st.now)); openShot(k, 1, xOf((st.edit[k].start + st.edit[k].end) / 2)); }
+    else if (yy >= VTOP && yy < text) $("addv").click();
+    else { const t = yy < voice ? "text" : yy < music ? "voice" : "music"; const b = root.querySelector<HTMLButtonElement>(`.tool[data-tool="${t}"]`); if (b && tool !== t) b.click(); }
+  };
   // the shot sheet (like CapCut / VN): over the clip on a computer (an arrow points at it), from the bottom on a phone;
   // its chips show every choice with the shot's own one selected; ✕, Escape or a tap outside closes it
   const sheet = $("shotsheet");
@@ -463,6 +511,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // fold the song and clips once the Reel is made (tap the line to open them again)
   let wasMade = made();
   const onChange = () => {
+    // the editor is a dark workspace (as the design and the pro editors), whatever the app's theme; the Create flow keeps it
+    const noir = made() && !root.classList.contains("fopen");
+    if (root.classList.contains("noir") !== noir) { root.classList.toggle("noir", noir); media(noir); }
     mirror(); values();
     const m = made();
     if (m !== wasMade) {
