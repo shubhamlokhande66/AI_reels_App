@@ -1462,6 +1462,9 @@ function styleEdit(){
   // restraint: fancy transitions are rationed (whip pans 1-2 per reel), the rest are clean hard cuts
   const per = Math.max(1, buf.duration/30), budget = {snap:Math.round(2*per), whip:Math.round(2*per), spin:Math.round(1*per), glitch:Math.round(2*per), bars:Math.round(2*per), iris:Math.round(3*per), zoom:Math.round(3*per), wipe:Math.round(2*per), dissolve:Math.round(2*per)};
   const take = k => { if(budget[k]===undefined) return k; if(budget[k]>0){ budget[k]--; return k; } return 'hard'; };
+  // beat shapes on a few longer shots and some drops: a different set and order with each seed / mix, never one twice in a row
+  const SH_ROT = ['boxgrow','frame','grid','circle','strips','triple','heartbeat','starbeat'], SH_DROP = ['kaleido','strobe','triple','rgbpulse','mirror','vhs'];
+  const shOff = ((seed||1)*5 + mixNo*3) % SH_ROT.length; let shLeft = Math.max(1, Math.round(2*per)), shK = 0, lastSh = '';
   plan.forEach((s,i)=>{
     const len = s.end - s.start, next = plan[i+1], prev = plan[i-1];
     let tr='hard', fx='none', sp=SPEED.normal;
@@ -1491,13 +1494,19 @@ function styleEdit(){
       if(fx==='none' || fx==='bounce' || fx==='punch-soft') fx = len<0.3 ? 'shake' : HIT_FX[fk++ % HIT_FX.length];
       if(sp===SPEED.normal){ const bl = beatsRel(s); if(len>0.9) sp = bl.length ? velocitySpeed(len, bl) : rampSpeed(len); else if(len<0.45) sp = SPEED.fast; }
     }
+    if(i > 0 && shLeft > 0 && len >= (mode==='smooth' ? 1.8 : 1.2) && beatsRel(s).length >= 2 && s.type !== 'drop' && ['pan','bounce','none','pan-soft'].includes(fx)){
+      let k = mode==='smooth' ? ['frame','circle'][shK++ % 2] : SH_ROT[(shOff + shK++) % SH_ROT.length]; if(k === lastSh) k = SH_ROT[(shOff + shK++) % SH_ROT.length];
+      fx = k; shLeft--; lastSh = k; }
+    else if(s.type === 'drop' && mode !== 'smooth' && dk % 3 === 0 && fx === 'zoomburst' && len >= 0.8){ fx = SH_DROP[(shOff + dk) % SH_DROP.length]; lastSh = fx; }
     s.tr = tr; s.efx = fx; s.sp = sp; lastTr = tr;
   });
   if(mode==='copy' && refProfile) copyStyle();
 }
 const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip:'Whip pan (blur)', zoom:'Zoom-through', glitch:'Glitch RGB', dip:'Dip to black', dissolve:'Dissolve',
   iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur', diamond:'Mask: diamond', heart:'Mask: heart', star:'Mask: star'};
-const FX_NAME = {jump:'Punch-in (jump cut)', 'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce'};
+const FX_NAME = {jump:'Punch-in (jump cut)', 'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce',
+  boxgrow:'Shape: box grows on the beat', grid:'Shape: grid opens on the beat', strips:'Shape: strips on the beat', circle:'Shape: circle pulse', heartbeat:'Shape: heart pulse', starbeat:'Shape: star pulse',
+  frame:'Frame in frame', mirror:'Mirror', kaleido:'Kaleidoscope', triple:'Triple split', vhs:'VHS retro', strobe:'Strobe on the beat', rgbpulse:'RGB split on the beat', blurpulse:'Blur pulse on the beat'};
 const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2, diamond:0.36, heart:0.42, star:0.4};
 
 /* ---- keyframes: [time, value, ease] per property, local to the shot ---- */
@@ -1668,7 +1677,10 @@ let mixNo = 0;   // which mix: 0 = the AI's plan, 1-4 = its other mixes (one cal
 const dirSlotOf = i => (aiOn && director && director.key===dirKey() && director.slots[i]) || null;
 const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
 const TR_OK = { smooth: ['hard','dissolve','dip','iris','diamond','heart','star','wipe'], auto: Object.keys(TR_DUR).filter(k=>k!=='fadein'), fast: Object.keys(TR_DUR).filter(k=>k!=='fadein'), copy: Object.keys(TR_DUR).filter(k=>k!=='fadein') };
+// the beat shapes and beat effects (drawn in drawFrameGL; see shapeAt)
+const BEAT_FX = ['boxgrow','grid','strips','circle','heartbeat','starbeat','frame','mirror','kaleido','triple','vhs','strobe','rgbpulse','blurpulse'];
 const FX_OK = { smooth: ['none','pan-soft','drift'], auto: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'], fast: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'] };
+FX_OK.auto.push(...BEAT_FX); FX_OK.fast.push(...BEAT_FX); FX_OK.smooth.push('frame', 'circle');
 FX_OK.copy = FX_OK.auto;
 // the director's transitions / effects / speeds, each checked; returns how many were used and how many were corrected
 function applyDirectorStyle(){
@@ -3269,6 +3281,7 @@ uniform float con, sat, bri, teal, mono, vig, grain, flash, loopMix, warm, lift;
 uniform vec3 leak;
 uniform vec4 tfA, tfB, bgA, bgB, bgrA, bgrB, bdA, bdB, adA, adB, mz, mg;
 uniform float mzc;
+uniform vec4 shp, shq;   // a beat shape of the shot: kind, level, centre, and the grid / strips count
 vec2 rotP(vec2 p, float r){ vec2 c=res*0.5; vec2 d=p-c; float cs=cos(-r), sn=sin(-r); return c+vec2(cs*d.x-sn*d.y, sn*d.x+cs*d.y); }
 vec3 tap(sampler2D t, vec2 uv, float ro){ uv=clamp(uv,0.001,0.999);
   if(ro<0.0001) return texture2D(t,uv).rgb;
@@ -3294,6 +3307,37 @@ vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb,
   return adj(c, ad);
 }
 float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
+/* Beat shapes (the shot's effect, stepping on its beats): 1 box that grows, 2 grid of windows, 3 strips, 4 circle,
+ * 5 heart, 6 star, 7 frame in frame, 8 mirror, 9 kaleidoscope, 10 triple split, 11 VHS. Outside a shape: the same shot,
+ * blurred and dark. shp = (kind, level, centre x, centre y); shq.x = cells across for the grid / strips. */
+float rbox(vec2 d, vec2 h, float r){ vec2 q = abs(d)-h+r; return length(max(q,0.))+min(max(q.x,q.y),0.)-r; }
+vec2 shWarp(vec2 p){
+  if(shp.x<8.5){ if(p.x>res.x*0.5) p.x = res.x-p.x; return p; }
+  if(shp.x<9.5){ vec2 c = res*0.5; return c-abs(p-c); }
+  if(shp.x<10.5){ float h = res.y/3.; return vec2(p.x, mod(p.y,h)+h); }
+  float jump = step(0.985, hash(vec2(floor(p.y*0.02), floor(time*9.))));
+  p.x += sin(p.y*0.045+time*23.)*res.x*0.0025 + jump*res.x*0.02; return p;
+}
+float shMask(vec2 p0, out float rim){
+  float k = shp.x, lv = shp.y; vec2 c = shp.zw; rim = 0.;
+  float w = res.x*0.007;   // the white edge
+  if(k<1.5 || (k>6.5 && k<7.5)){
+    vec2 hh = res*0.5*lv; float r = res.x*0.035; float d = rbox(p0-c, hh, r);
+    float wk = k>6.5 ? w*1.8 : w; rim = smoothstep(-1.,1.,d)*(1.-smoothstep(wk-1.,wk+1.,d))*step(lv,0.995);
+    return 1.-smoothstep(-1.,1.,d); }
+  if(k<3.5){
+    float n = max(1.,shq.x), gap = res.x*0.01;
+    vec2 cell = k<2.5 ? res/n : vec2(res.x/n, res.y);
+    vec2 id = floor(p0/cell); float idx = k<2.5 ? id.y*n+id.x : id.x;
+    vec2 l = mod(p0, cell)-cell*0.5; float d = rbox(l, cell*0.5-gap, gap*1.4);
+    return step(idx+0.5, lv)*(1.-smoothstep(-1.,1.,d)); }
+  float L = length(max(c,res-c)); vec2 dd = p0-c;
+  if(k<4.5){ float R = lv*L; float d = length(dd)-R; rim = smoothstep(-1.,1.,d)*(1.-smoothstep(w-1.,w+1.,d))*step(lv,0.995); return 1.-smoothstep(-1.,1.,d); }
+  if(k<5.5){ vec2 u = dd/(lv*L*1.9+1e-3); float X = u.x*1.15, Y = -u.y*1.15+0.3; float a = X*X+Y*Y-1.; float h = a*a*a-X*X*Y*Y*Y; return 1.-smoothstep(-0.02,0.02,h); }
+  if(k<6.5){ float r = length(dd)/(lv*L*1.85+1e-3); float an = atan(dd.y,dd.x); float lim = 0.55+0.45*pow(0.5+0.5*cos(5.*an+1.5708),3.); return 1.-smoothstep(lim-0.03,lim,r); }
+  if(k>9.5 && k<10.5){ float h = res.y/3.; float idx = floor(p0.y/h); float e = abs(mod(p0.y,h)); rim = 0.; return step(idx+0.5, lv)*step(1.5, e)*step(e, h-1.5); }
+  return 1.;
+}
 void main(){
   vec2 p0 = vec2(gl_FragCoord.x, res.y-gl_FragCoord.y);
   // mosaic (blocks) and magnifier (a round lens) of the shot, on screen
@@ -3304,8 +3348,13 @@ void main(){
   float inA=0., inB=0.;
   vec3 A = vec3(0.);
   if(hasA>0.5){ A = shotL(tA,pA,rA,rotA,zbA,dbA,rgbA,tfA,bgA,bgrA,bdA,adA,inA); A = (A + A*exA)*brA*alA*mix(1.,inA,clA); }
-  vec3 B = shotL(tB,p,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,inB);
+  vec2 pS = shp.x>7.5 ? shWarp(p) : p;   // mirror, kaleidoscope, triple split, VHS move the picture itself
+  vec3 B = shotL(tB,pS,rB,rotB,zbB,dbB,rgbB,tfB,bgB,bgrB,bdB,adB,inB);
   B *= mix(1.,inB,clB)*alB;
+  if(shp.x>0.5 && (shp.x<7.5 || (shp.x>9.5 && shp.x<10.5))){
+    float rim; float mk = shMask(p0, rim);
+    if(mk<0.999 || rim>0.){ float ib; vec3 bgc = layer(tB,p,rB,rotB,1.,vec2(0.),0.,tfB,ib)*0.34; B = mix(bgc, B, mk); B = mix(B, vec3(1.), rim*0.92); }
+  }
   if(snap>0.5){
     vec2 q = rotP(p,rotB);
     bool inFrame = q.x>frR.x && q.x<frR.x+frR.z && q.y>frR.y && q.y<frR.y+frR.w;
@@ -3343,6 +3392,7 @@ void main(){
   if(leak.z>0.){ float d = distance(p0, leak.xy)/(res.x*0.9); vec3 lc = vec3(1.,0.67,0.35)*leak.z*(1.-smoothstep(0.,1.,d)); col = 1.-(1.-col)*(1.-lc); }
   col = mix(col, vec3(dot(col,vec3(0.299,0.587,0.114))), mono);   // after the light leak: black and white stays black and white
   col += flash;
+  if(shp.x>10.5 && shp.x<11.5){ col *= 0.86+0.14*sin(p0.y*1.7); col += (hash(vec2(p0.y*0.13, floor(time*24.)))-0.5)*0.07; col = mix(vec3(dot(col,vec3(0.299,0.587,0.114))), col, 0.78); col.r *= 1.04; col.b *= 0.93; }
   vec2 uvn = p0/res-0.5; float vd = length(uvn*vec2(res.x/res.y,1.)*vec2(1.,1.));
   col *= 1. - vig*smoothstep(0.3,0.75,vd);
   if(grain>0.) col += (hash(p0*0.73 + fract(time*7.)*vec2(97.,13.))-0.5)*grain*0.6;
@@ -3396,6 +3446,7 @@ const GL = (()=>{
       const G = S.grade; set('con',G.con); set('sat',G.sat); set('bri',G.bri); set('teal',G.teal); set('mono',G.mono); set('vig',G.vig); set('grain',G.grain); set('warm',G.warm||0); set('lift',G.lift||0);
       set('flash', S.flash||0); set('leak', S.leak || [0,0,0]); set('loopMix', S.loopMix||0);
       const LZ = S.lens || { mz:[0,0,0,0], mzc:1, mg:[0,0,0,1] }; set('mz', LZ.mz); set('mzc', LZ.mzc); set('mg', LZ.mg);
+      set('shp', S.shp ? S.shp.a : [0,0,0,0]); set('shq', S.shp ? S.shp.b : [0,0,0,0]);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     }};
   }catch(err){ console.warn('WebGL off:', err && err.message); return null; }
@@ -3503,6 +3554,41 @@ async function* revFramesExport(sink, tsDesc){
 function lensOf(e){ const c = csOf(e), W = out.width, H = out.height;
   return { mz: c.mz ? [c.mz.x*W, c.mz.y*H, c.mz.w*W, c.mz.h*H] : [0,0,0,0], mzc: c.mz ? Math.max(3, (c.mz.s || 0.035)*W) : 1,
     mg: c.mg ? [c.mg.x*W, c.mg.y*H, c.mg.r*W, Math.max(1.1, c.mg.z || 2)] : [0,0,0,1] }; }
+/* ---- Beat shapes and beat effects: the shot shown through a shape that steps on its beats ----
+ * boxgrow: a small box, bigger on the next beat, then the whole frame · grid: 2x2 (3x3 on long shots) windows open one a
+ * beat · strips: 3 strips one a beat · circle / heartbeat / starbeat: the shape pulses on each beat · frame: the shot in
+ * a white-edged frame on its own blurred copy, bumping on the beats · mirror, kaleido · triple: the shot three times,
+ * one band a beat · vhs: retro tape. Shot without beats (talking): a step every 0.6 s. Drawn by the WebGL renderer. */
+const SHAPE_K = { boxgrow:1, grid:2, strips:3, circle:4, heartbeat:5, starbeat:6, frame:7, mirror:8, kaleido:9, triple:10, vhs:11 };
+const shotBeats = e => { const L = e.end - e.start, b = (e.beatsIn || []).filter(x => x > 0.08 && x < L - 0.05); if(b.length) return b; const o = []; for(let x = 0.6; x < L - 0.1; x += 0.6) o.push(x); return o; };
+function shapeAt(e, local, B){
+  const k = SHAPE_K[e.efx]; if(!k) return null;
+  const W = out.width, H = out.height, bts = shotBeats(e), past = bts.filter(b => local >= b), n = past.length, since = n ? local - past[n-1] : local;
+  const step = (levels) => { const a = levels[Math.min(n, levels.length - 1)], b0 = n ? levels[Math.min(n - 1, levels.length - 1)] : a*0.7, q = Math.min(1, since/0.16); return b0 + (a - b0)*EASE.outBack(q); };
+  const bump = n ? Math.exp(-since/0.12) : 0;
+  let lv = 1, cells = 0;
+  if(k === 1) lv = step([0.4, 0.62, 0.84, 1]);
+  else if(k === 2){ cells = (e.end - e.start) > 2.4 && bts.length >= 6 ? 3 : 2; lv = Math.min(cells*cells, 1 + n); }
+  else if(k === 3){ cells = 3; lv = Math.min(3, 1 + n); }
+  else if(k === 4) lv = 0.5*(1 + 0.14*bump);
+  else if(k === 5) lv = 0.36*(1 + 0.16*bump);
+  else if(k === 6) lv = 0.42*(1 + 0.16*bump);
+  else if(k === 7) lv = 0.8*(1 + 0.035*bump);
+  else if(k === 10) lv = Math.min(3, 1 + n);
+  // the shape's centre: on the subject, kept so the shape stays in the frame
+  let cx = W/2, cy = H/2;
+  if(k === 1 || (k >= 4 && k <= 6)){ const [px,py,dw,dh] = B.rect, [ax, ay] = camAt(e, local), off = B.off || [0,0];
+    const sx = px + ax*dw + off[0], sy = py + ay*dh + off[1], m = k === 1 ? lv*0.5 : 0.25;
+    cx = Math.min(W*(1 - m), Math.max(W*m, sx)); cy = Math.min(H*(1 - m), Math.max(H*m, sy)); }
+  return { a: [k, lv, cx, cy], b: [cells, 0, 0, 0] };
+}
+// beat effects that ride on the picture's own settings: an RGB split or a blur on each beat
+function beatFxOf(e, local){
+  if(e.efx !== 'rgbpulse' && e.efx !== 'blurpulse' && e.efx !== 'vhs') return null;
+  if(e.efx === 'vhs') return { rgb: 5 + 3*Math.abs(Math.sin(local*7)), zb: 0 };
+  let r = 0; for(const b of shotBeats(e)){ const d = local - b; if(d >= 0 && d < 0.4) r = Math.max(r, Math.exp(-d/0.09)); }
+  return e.efx === 'rgbpulse' ? { rgb: 18*r, zb: 0 } : { rgb: 0, zb: 1.4*r };
+}
 function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = TR_DUR[e.tr] || 0, p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
@@ -3511,6 +3597,9 @@ function drawFrameGL(t){
   const inTr = p < 1 && (pe || e.tr==='fadein');
   if(inTr && pe) S.A = layerOf(pe, pl, {noFx:true});
   S.B = layerOf(e, local);
+  { const bf = beatFxOf(e, local); if(bf){ S.B.rgb += bf.rgb; S.B.zb += bf.zb; } }
+  S.shp = shapeAt(e, local, S.B);
+  if(e.efx === 'strobe'){ const bts = shotBeats(e).filter(b => local >= b), d = bts.length ? local - bts[bts.length-1] : 9; if(d < 0.1){ S.grade.mono = 1; S.flash = Math.max(S.flash||0, 0.3*(1 - d/0.1)); S.grade.con *= 1.25; } }
   if(inTr){
     switch(e.tr){
       case 'whip': { const blur = 0.09*W*Math.sin(Math.PI*q); S.A = layerOf(pe, pl, {dx:-q*W, db:[blur,0], noFx:true}); S.B = layerOf(e, local, {dx:(1-q)*W, db:[blur,0]}); S.mode = 3; break; }
