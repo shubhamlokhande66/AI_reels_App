@@ -148,7 +148,7 @@ export function initAuto(root: HTMLElement): () => void {
     else if (a === "clips") $("aovfile").click();
     else if (a === "song") $("aomfile").click();
     else if (a === "save") S()?.saveLast();
-    else if (a === "edit") { $<HTMLVideoElement>("aovid").pause(); show(null); root.querySelector<HTMLButtonElement>('#views [data-view="editor"]')?.click(); }
+    else if (a === "edit") { $<HTMLVideoElement>("aovid").pause(); show(null); }
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- plain DOM code: a fresh Story is a full load
     else if (a === "again") location.href = "/create/story";
   }, sig);
