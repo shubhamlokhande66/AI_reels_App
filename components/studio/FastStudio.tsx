@@ -1,4 +1,5 @@
 "use client";
+import { reportError } from "@/lib/useErrorReport";
 
 import { useEffect, useRef, useState } from "react";
 import { STUDIO_HTML } from "@/components/studio/markup";
@@ -86,6 +87,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" } = 
         });
       } catch (e) {
         setFailed(e instanceof Error ? e.message : String(e));
+        reportError("studio", "Fast Studio could not start: " + (e instanceof Error ? e.message : String(e)), e instanceof Error ? e.stack ?? "" : "");
       }
     })();
     return () => {

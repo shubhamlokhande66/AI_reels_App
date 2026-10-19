@@ -24,6 +24,7 @@ import { InstallApp } from "@/components/molecules/InstallApp";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useMe } from "@/hooks/useApi";
 import { usePresence } from "@/lib/usePresence";
+import { useErrorReport } from "@/lib/useErrorReport";
 import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
 
 // The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
@@ -270,6 +271,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
   usePresence(pathname); // "online now" on the admin dashboard
+  useErrorReport(); // errors on people's phones reach Admin → Errors
 
   // one look for every page: the person's choice (Light / Dark / same as the phone), kept on this device
   const { pref } = useTheme();

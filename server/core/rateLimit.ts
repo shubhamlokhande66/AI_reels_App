@@ -39,5 +39,6 @@ export const limits = {
   account: (req: Request) => limit(`account:${currentUser() ?? clientIp(req)}`, 10, 15 * MIN),
   adminKey: (req: Request) => limit(`adminkey:${clientIp(req)}`, 10, 15 * MIN, "Too many admin password tries."),
   ping: (req: Request, visitor: string) => limit(`ping:${visitor}:${clientIp(req)}`, 8, MIN, "Too many pings."),
+  clientError: (req: Request) => limit(`clienterr:${clientIp(req)}`, 10, MIN, "Too many error reports."),
   ai: (req: Request) => limit(`ai:${currentUser() ?? clientIp(req)}`, 40, MIN, "The AI is being asked too often. Wait a moment."),
 };
