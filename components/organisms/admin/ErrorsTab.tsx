@@ -1,0 +1,37 @@
+"use client";
+
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, errorMessage } from "@/lib/api";
+import { Card } from "@/components/atoms";
+import { ErrorBanner } from "@/components/molecules";
+import { ago } from "./format";
+
+/** What broke in people's browsers (last 30 days): the same error once, with how often, where and on which device.
+ * "Fixed" removes it; if it comes back, it shows again. */
+const KIND: Record<string, string> = { error: "Error", rejection: "Error (async)", studio: "Studio did not start", webgl: "WebGL off (slower renderer)" };
+export function ErrorsTab() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["admin-errors"], queryFn: api.adminErrors, refetchInterval: 60_000 });
+  const fix = useMutation({ mutationFn: api.clearAdminError, onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-errors"] }) });
+  if (q.error) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
+  const rows = q.data?.errors ?? [];
+  return (
+    <div className="flex flex-col gap-3">
+      <Card><p className="m-0 text-sm">{q.isLoading ? "Loading…" : rows.length ? `${rows.length} different errors in the last 30 days, ${rows.reduce((n, r) => n + r.count, 0)} times in all.` : "No errors reported in the last 30 days."}</p></Card>
+      {rows.map((r) => (
+        <Card key={r.id}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="m-0 text-xs text-muted">{KIND[r.kind] ?? r.kind} · {r.count}× · last {ago(r.lastAt)} · {r.path}</p>
+              <p className="m-0 break-words font-medium">{r.message}</p>
+              {r.where && <p className="m-0 break-all text-xs text-muted">{r.where}</p>}
+              <p className="m-0 truncate text-xs text-muted" title={r.ua}>{r.ua}</p>
+              {r.stack && <details className="mt-1 text-xs"><summary>Details</summary><pre className="whitespace-pre-wrap break-all">{r.stack}</pre></details>}
+            </div>
+            <button type="button" className="btn mini" disabled={fix.isPending} onClick={() => fix.mutate(r.id)}>Fixed</button>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}

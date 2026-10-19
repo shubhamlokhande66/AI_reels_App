@@ -3654,7 +3654,7 @@ const GL = (()=>{
       set('shp', S.shp ? S.shp.a : [0,0,0,0]); set('shq', S.shp ? S.shp.b : [0,0,0,0]);
       gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
     }};
-  }catch(err){ console.warn('WebGL off:', err && err.message); return null; }
+  }catch(err){ console.warn('WebGL off:', err && err.message); try{ window.__shubixReport && window.__shubixReport('webgl', 'WebGL off: ' + String(err && err.message || err).slice(0, 300)); }catch(e){} return null; }
 })();
 const GRADES = { natural:{con:1.06,sat:1.04,bri:1.0,teal:0,mono:0,grain:0}, vivid:{con:1.14,sat:1.14,bri:1.02,teal:0,mono:0,grain:0.035},
   cine:{con:1.16,sat:0.92,bri:0.98,teal:0.55,mono:0,grain:0.07}, mono:{con:1.25,sat:1,bri:1.0,teal:0,mono:1,grain:0.09},

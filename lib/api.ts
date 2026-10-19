@@ -210,6 +210,8 @@ export const api = {
     request<Credits>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
   planLocks: () => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks"),
   setPlanLocks: (body: import("@/lib/plan-locks").LockOverrides) => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks", { method: "PUT", body: JSON.stringify(body) }),
+  adminErrors: () => request<{ errors: { id: string; kind: string; message: string; where: string; count: number; firstAt: string; lastAt: string; path: string; ua: string; stack: string }[] }>("/api/admin/errors"),
+  clearAdminError: (id: string) => request<{ ok: boolean }>("/api/admin/errors", { method: "DELETE", body: JSON.stringify({ id }) }),
   setPricing: (body: { plans: { id: string; monthly: number; credits: number; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
     request<Pricing>("/api/admin/pricing", { method: "PUT", body: JSON.stringify(body) }),
   /** Which parts of the app are on (Administration → Features). */

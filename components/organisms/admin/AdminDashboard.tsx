@@ -9,16 +9,17 @@ import { GROUPS } from "@/components/templates/AppShell";
 import { useMe } from "@/hooks/useApi";
 import { getAdminKey, setAdminKey } from "@/lib/admin";
 import { LiveDot, OverviewTab, useOverview } from "./OverviewTab";
+import { ErrorsTab } from "./ErrorsTab";
 import { SettingsTab } from "./SettingsTab";
 import { UserPanel } from "./UserPanel";
 import { UsersTab } from "./UsersTab";
 
 /** The admin panel (like the shop's): a grouped sidebar, a header with who is online and Refresh, then the open tab. */
-type Tab = "overview" | "users" | "settings";
+type Tab = "overview" | "users" | "settings" | "errors";
 const NAV: { title: string; items: { id: Tab; label: string; icon: string; hint: string }[] }[] = [
   { title: "Overview", items: [{ id: "overview", label: "Dashboard", icon: "home", hint: "Visitors, sign-ups, revenue and credits at a glance" }] },
   { title: "People", items: [{ id: "users", label: "Users", icon: "user", hint: "Everyone who signed up: logins, purchases, credits left" }] },
-  { title: "System", items: [{ id: "settings", label: "Settings", icon: "gear", hint: "Every setting of the studio, managed here" }] },
+  { title: "System", items: [{ id: "settings", label: "Settings", icon: "gear", hint: "Every setting of the studio, managed here" }, { id: "errors", label: "Errors", icon: "key", hint: "What broke in people's browsers, newest first" }] },
 ];
 const TABS = NAV.flatMap((g) => g.items);
 const TOOLS = GROUPS.find((g) => g.admin)?.items ?? [];
@@ -160,6 +161,7 @@ export function AdminDashboard() {
             {tab === "overview" && <OverviewTab onOpenUser={setUser} />}
             {tab === "users" && <UsersTab onOpenUser={setUser} />}
             {tab === "settings" && <SettingsTab />}
+            {tab === "errors" && <ErrorsTab />}
           </div>
         </main>
       </div>
