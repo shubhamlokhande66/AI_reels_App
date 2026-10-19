@@ -55,7 +55,7 @@ function LearnForm() {
     <Card className="space-y-4">
       <div>
         <h2 className="h2">Learn a new trend</h2>
-        <p className="text-sm text-muted">
+        <p className="mt-1.5 text-sm text-muted">
           Upload 1-6 trending Reels you like (saved to your phone or computer). The app measures how they are cut: timing on the beat, shot
           lengths in loud and calm parts, the hook and the look. The videos themselves are not kept.
         </p>

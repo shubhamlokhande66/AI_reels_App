@@ -816,7 +816,7 @@
 
   /* ---- 6 Reel Preview: "Your Reel is Ready!", the video, the shots, New Mix, the tools, Export ---- */
   .brs.fpost .wrap{padding-bottom:110px}
-  .brs.fpost .topbar,.brs.fpost #s3 > .sh3,.brs.fpost .tog.safe,.brs.fpost #tlmusic{display:none !important}
+  .brs.fpost #s3 > .sh3,.brs.fpost .tog.safe,.brs.fpost #tlmusic{display:none !important}
   .brs.fpost #s3{background:none;border:0;box-shadow:none;padding:0}
   .brs.fpost .create{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
   .brs.fpost .stage{display:flex;flex-direction:column;align-items:stretch;gap:12px}
@@ -828,7 +828,7 @@
   .brs.fpost #out{max-height:46svh;border-radius:18px}
   .brs.fpost .bar{order:0}
   .brs.fpost .transport{order:1;display:flex;justify-content:space-between;padding:0 2px}
-  .brs.fpost .transport :is(#pshot,#nshot,#cover,#remix,#play){display:none}
+  .brs.fpost .transport :is(#pshot,#nshot,#cover){display:none}
   .brs.fpost :is(.tlbar,.lanesbox){order:2}
   .brs.fpost .lanes{display:block;width:100%}
   .brs.fpost .tl{height:54px;border-radius:12px}
@@ -841,7 +841,7 @@
   /* ---- 7 Edit Options: the tools as tabs, the chosen one's choices, Apply ---- */
   /* a tool open: the Reel stays in view, smaller, with its play button inside; then the tools as tabs and the panel */
   .brs.fpost[data-tool]:not([data-tool=""]) .savebar,
-  .brs.fpost[data-tool]:not([data-tool=""]) .stage > :not(.pv,.bar),
+  .brs.fpost[data-tool]:not([data-tool=""]) .stage > :not(.pv,.bar,.transport),
   .brs.fpost[data-tool]:not([data-tool=""]) :is(.sumh,.sumi,.summary > .btn,.inspector){display:none !important}
   .brs.fpost[data-tool]:not([data-tool=""]) #out{max-height:34svh}
   .brs.fpost[data-tool]:not([data-tool=""]) .stage{gap:8px}
@@ -1001,7 +1001,7 @@
     height:calc(100vh - 140px);min-height:600px;border:1px solid var(--line);border-radius:18px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
   .brs.made.v-one :is(.stage,.tools,.pv){display:contents}
   /* the tool rail */
-  .brs.made.v-one .dock{grid-column:1;grid-row:1/-1;flex-direction:column;gap:4px;padding:12px 8px;overflow-y:auto;contain:size;border-right:1px solid var(--line);background:color-mix(in srgb,var(--surface-2) 45%,var(--surface))}
+  .brs.made.v-one .dock{grid-column:1;grid-row:1/-1;align-self:stretch;flex-direction:column;gap:4px;padding:12px 8px;overflow-y:auto;contain:size;border-right:1px solid var(--line);background:color-mix(in srgb,var(--surface-2) 45%,var(--surface))}
   .brs.made.v-one .tool{flex:0 0 66px;width:100%;height:66px;border-radius:14px;font-size:11.5px}
   /* the preview and its controls */
   /* the preview takes the room its row has (never over the bar under it), 9:16 inside */
@@ -1043,7 +1043,6 @@
 .brs.made.v-one .playov:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .brs.made.v-one.playing .playov{opacity:0}
 .brs.made.v-one.playing .pvbox:hover .playov{opacity:.85}
-@media (min-width:1024px){ .brs.made.v-one .transport #play{display:none} }
 
 /* the preview as a wide, low stage (like CapCut): a dark box across the column, the Reel in the middle of it */
 .brs.made.v-one:not(.fopen) .pvbox{background:radial-gradient(70% 90% at 50% 50%,#1d1840,#0b0a18);border-radius:16px;padding:10px;box-sizing:border-box}
@@ -1082,3 +1081,118 @@
 .brs #xres button, .brs #xfps button{position:relative}
 .brs #xres .crowned::after, .brs #xfps .crowned::after{content:"👑";position:absolute;top:6px;right:8px;font-size:13px}
 .brs .fsample{margin-top:8px;width:100%}
+
+/* the progress bar is a seek bar: tap or drag (views.ts); a taller reach than its 4 px line, and a handle */
+.brs.made .stage .bar{position:relative;overflow:visible;cursor:pointer;touch-action:none}
+.brs.made .stage .bar::before{content:"";position:absolute;inset:-10px 0}
+.brs.made .stage .bar i{position:relative;border-radius:inherit}
+.brs.made .stage .bar i::after{content:"";position:absolute;right:-7px;top:50%;width:14px;height:14px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.45),0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent);transform:translateY(-50%)}
+
+/* ===================== the editor, as the pro editors lay it out (CapCut / VN), phones and computers =====================
+   Top bar: ← Back, the Reel's name, ↶ ↷, Export · the preview (9:16, ▶ inside) · the play bar: ▶/⏸, 0:03.20 / 0:15.00,
+   Change Reel · the timeline · the tools (a rail on a computer, a bar at the bottom of a phone) · a tool's panel (on the
+   right on a computer, a sheet over the editor on a phone) · the shot sheet (a shot tapped on the timeline). */
+.brs .tb-back{display:none}
+.brs.made:not(.fopen) .tb-back{display:grid;width:40px;height:40px;border-radius:12px;flex:none}
+.brs.made:not(.fopen) .tb-title{flex:1;min-width:0}
+.brs.made:not(.fopen) .tb-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* the play bar: ▶/⏸ · the time (current / total) · previous / next shot · Change Reel at the end */
+.brs.made.v-one .transport{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0}
+.brs.made.v-one .transport #play{order:1;width:40px;height:40px;min-height:40px;flex:none;border-radius:50%;background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
+.brs.made.v-one .transport #tcur{order:2;min-width:0;text-align:right;color:var(--ink);font-weight:600}
+.brs.made.v-one .transport #ttot{order:3;min-width:0;text-align:left}
+.brs.made.v-one .transport #ttot::before{content:"/ ";color:var(--muted)}
+.brs.made.v-one .transport #pshot{order:4;margin-left:6px}
+.brs.made.v-one .transport #nshot{order:5}
+.brs.made.v-one .transport #cover{order:6}
+.brs.made.v-one .transport #remix{order:7;margin-left:auto;width:auto;height:36px;min-height:36px;padding:0 14px;gap:6px;border-radius:18px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 13px var(--body)}
+.brs.made.v-one .transport #remix span{display:inline}
+.brs.made.v-one .transport #remix svg{width:16px;height:16px}
+
+/* the shot sheet */
+.brs .shotsheet{position:fixed;z-index:70;display:grid;grid-template-rows:auto minmax(0,1fr);background:var(--surface);color:var(--ink);
+  border:1px solid var(--line);border-radius:18px;box-shadow:0 24px 60px -18px rgba(0,0,0,.65)}
+.brs .shotsheet[hidden]{display:none}
+.brs .ss-head{position:relative;display:flex;justify-content:center;align-items:center;min-height:34px;padding:6px 44px 0}
+.brs .ss-grip{width:38px;height:4px;border-radius:2px;background:var(--line)}
+.brs .ss-x{position:absolute;right:8px;top:6px;width:30px;height:30px;border-radius:50%;border:0;background:var(--surface-2);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.brs .ss-x svg{width:16px;height:16px}
+.brs .ss-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 16px 16px !important;border:0 !important;border-radius:0 !important;background:none !important;box-shadow:none !important;gap:12px}
+/* every choice in sight (it wraps), the shot's own one lit */
+.brs .ss-body .chips{flex-wrap:wrap;overflow:visible;padding:0;-webkit-mask-image:none;mask-image:none}
+.brs .ss-body .chip[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff);border-color:transparent;font-weight:700}
+.brs .ss-body .shh{position:sticky;top:0;z-index:1;margin:0 -16px;padding:4px 16px 10px;background:var(--surface);border-bottom:1px solid var(--line)}
+.brs .ss-body .shtab{font-size:14px}
+.brs .ss-body .shtab[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff)}
+.brs .ss-body .ctrow{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;scrollbar-width:none}
+.brs .ss-body .ctrow::-webkit-scrollbar{display:none}
+.brs .ss-body .ct{flex:0 0 64px;min-width:64px}
+@media (min-width:1024px){
+  .brs .ss-grip{display:none}
+  /* the arrow under it, pointing at the clip */
+  .brs .shotsheet::after{content:"";position:absolute;left:var(--ax,50%);bottom:-7px;width:14px;height:14px;margin-left:-7px;transform:rotate(45deg);
+    background:var(--surface);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+}
+
+@media (max-width:1023px){
+  /* ---- the phone editor (the finished Reel) ---- */
+  .brs.fpost .fhead{display:none !important}
+  body:has(.brs.fpost) .brs .fcrumbs{display:none}
+  .brs.fpost .topbar{display:flex !important;flex-wrap:nowrap;align-items:center;gap:6px;position:sticky;top:0;z-index:40;margin:0 -16px 4px;
+    padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:var(--background);border-bottom:1px solid var(--line)}
+  .brs.fpost .tb-name{font-size:16px;font-weight:800}
+  .brs.fpost .tb-sub{font-size:11px}
+  .brs.fpost .tb-undo{display:inline-flex;gap:0;margin-left:0}
+  .brs.fpost .tb-undo .btn.icon{width:36px;height:36px;min-height:36px}
+  .brs.fpost .tb-export{display:inline-flex !important;height:38px;min-height:38px;padding:0 14px;gap:6px;border-radius:12px;font-size:14px;flex:none}
+  .brs.fpost .tb-export svg{width:16px;height:16px}
+  /* the old "Your Reel is ready" screen: its title, line and big buttons go (the top bar has Export, the play bar Change Reel) */
+  .brs.fpost :is(.sumh,.sumi,.summary > .btn){display:none !important}
+  .brs.fpost #export{display:none !important}
+  .brs.fpost .savebar{position:static !important;margin:0;padding:4px 0 8px;background:none}
+  .brs.fpost .savebar .tog{display:block;justify-self:start;font-size:12.5px}
+  .brs.fpost .wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  .brs.fpost .stage{gap:10px}
+  .brs.fpost .pvbox{height:44svh;min-height:240px}
+  /* the tools: one bar at the bottom of the screen, every tool, sideways (like CapCut) */
+  .brs.fpost .dock,.brs.fpost[data-tool]:not([data-tool=""]) .dock{position:fixed;left:0;right:0;bottom:0;z-index:45;order:0;display:flex !important;grid-template-columns:none;
+    gap:2px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:6px 6px calc(6px + env(safe-area-inset-bottom));margin:0;
+    background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -8px 24px -16px rgba(0,0,0,.5);-webkit-mask-image:none;mask-image:none}
+  .brs.fpost .dock::-webkit-scrollbar{display:none}
+  .brs.fpost .dock .tool,.brs.fpost[data-tool]:not([data-tool=""]) .tool{flex:0 0 64px;min-width:64px;height:58px;padding:6px 0;border:0;border-radius:12px;background:transparent;color:var(--muted);font:600 11px var(--body)}
+  .brs.fpost .dock .tool[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+  /* a tool open: its panel is a sheet over the editor, above the tool bar; the Reel and its play bar stay in view */
+  .brs.fpost[data-tool]:not([data-tool=""]) .panels{position:fixed;left:0;right:0;bottom:calc(70px + env(safe-area-inset-bottom));z-index:44;
+    max-height:50svh;overflow-y:auto;overscroll-behavior:contain;margin:0;padding:12px 16px 0;background:var(--surface);
+    border-top-left-radius:20px;border-top-right-radius:20px;border-top:1px solid var(--line);box-shadow:0 -14px 34px -14px rgba(0,0,0,.55)}
+  .brs.fpost[data-tool]:not([data-tool=""]) .panel .ph{display:flex;font-size:15px}
+  .brs.fpost[data-tool]:not([data-tool=""]) .fapply{position:sticky;bottom:0;left:auto;right:auto;z-index:2;width:100%;min-height:46px;margin:10px 0 0;border-radius:14px 14px 0 0}
+  .brs.fpost[data-tool]:not([data-tool=""]) .pvbox{height:28svh;min-height:180px}
+  .brs.fpost[data-tool]:not([data-tool=""]) .wrap{padding-bottom:calc(50svh + 80px)}
+  /* the shot sheet from the bottom, over the tool bar */
+  .brs .shotsheet{left:0;right:0;bottom:0;max-height:64svh;border-radius:20px 20px 0 0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom)}
+}
+@media (min-width:1024px){ .brs.made.v-one:not(.fopen) .transport{padding:8px 20px 10px;justify-content:flex-start} }
+
+/* ===================== the computer editor, as the design (UI/ "Editor Page – Desktop (Main)") =====================
+   the tool's panel on the left · the preview and the play bar in the middle · the timeline across · the ten tools under it */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .create{grid-template-columns:minmax(280px,320px) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto auto auto auto auto auto;
+    height:max(calc(100vh - 130px),660px);min-height:0}
+  .brs.made.v-one:not(.fopen) .panels{grid-column:1;grid-row:1/5;border-left:0;border-right:1px solid var(--line);padding:16px 16px 20px}
+  .brs.made.v-one:not(.fopen) .panel .ph{font-size:15px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+  .brs.made.v-one:not(.fopen) .pvbox{grid-column:2;grid-row:1;margin:14px 20px 6px}
+  .brs.made.v-one:not(.fopen) .bar{grid-column:2;grid-row:3;justify-self:stretch;width:auto;max-width:none;margin:0 20px 8px}
+  .brs.made.v-one:not(.fopen) .transport{grid-column:2;grid-row:2;border-bottom:0}
+  .brs.made.v-one:not(.fopen) :is(.stage .msg,#saverow,.postcap){grid-column:2;grid-row:4;justify-self:center;margin:0 20px 8px}
+  .brs.made.v-one:not(.fopen) .tlbar{grid-column:1/-1;grid-row:5;margin:0;padding:8px 16px 4px;border-top:1px solid var(--line)}
+  .brs.made.v-one:not(.fopen) .lanesbox{grid-column:1/-1;grid-row:6;margin:0 16px 10px}
+  .brs.made.v-one:not(.fopen) .inspector{display:none !important}
+  /* the ten tools under the timeline, side by side (the active one lit) */
+  .brs.made.v-one:not(.fopen) .dock{grid-column:1/-1;grid-row:7;align-self:end;flex-direction:row;justify-content:center;gap:6px;padding:6px 12px;
+    overflow-x:auto;overflow-y:hidden;contain:none;border-right:0;border-top:1px solid var(--line)}
+  .brs.made.v-one:not(.fopen) .dock .tool{flex:0 0 84px;width:auto;height:60px;border-radius:12px;font-size:12px}
+  .brs.made.v-one:not(.fopen) .dock .tool[aria-pressed=true]{background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:inset 0 -2px 0 var(--accent)}
+}

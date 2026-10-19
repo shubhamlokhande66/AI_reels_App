@@ -49,9 +49,10 @@ const AI_STEPS: [string, string, string][] = [
 ];
 const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${IC.scan}<span>${t}</span></li>`).join("")}</ul>`;
 // a tool: a button in the tool bar and the heading of its panel
+// in the editor's order (the tool bar on a phone, the rail on a computer)
 const TOOLS: [string, string, string][] = [
-  ["shots", "Shot", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
-  ["look", "Look", IC.look], ["motion", "Motion", IC.motion], ["bg", "Background", IC.bg], ["layers", "Overlay", IC.layers], ["voice", "Voice", IC.voice], ["style", "Style", IC.style],
+  ["style", "Style", IC.style], ["shots", "Shots", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
+  ["look", "Look", IC.look], ["bg", "Background", IC.bg], ["layers", "Layers", IC.layers], ["voice", "Voice", IC.voice], ["motion", "Motion", IC.motion],
 ];
 // every tool in one bar; a Pro tool (views.ts PRO_TOOLS) carries a PRO tag, and on a free plan it opens /pricing
 const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span>${PRO_TOOLS.has(k) ? `<em class="protag">${IC.crown}PRO</em>` : ""}</button>`).join("");
@@ -60,6 +61,7 @@ const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; ret
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
 <div class="topbar" id="topbar">
+  <button type="button" class="ibtn tb-back" id="tbback" aria-label="Back">${IC.back}</button>
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
   <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
@@ -230,7 +232,7 @@ export const STUDIO_HTML = `
           <div class="summary" id="summary">
             <h2 class="sumh">Your Reel is ready</h2>
             <p class="sumi" id="suminfo"></p>
-            <button type="button" class="btn" data-proxy="remix">${IC.mix}<span>New mix</span></button>
+            <button type="button" class="btn" data-proxy="remix">${IC.mix}<span>Change Reel</span></button>
           </div>
           <div class="inspector" id="inspector"></div>
         </div>
@@ -240,7 +242,7 @@ export const STUDIO_HTML = `
           <button class="btn icon" id="pshot" type="button" aria-label="Previous shot">${IC.prev}</button>
           <button class="btn icon" id="cover" disabled aria-label="Cover image" title="Cover image">${IC.image}<span>Cover</span></button>
           <button class="btn primary" id="play" disabled>${IC.play}<span>Preview</span></button>
-          <button class="btn icon" id="remix" disabled aria-label="New mix" title="New mix">${IC.mix}<span>New mix</span></button>
+          <button class="btn icon" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version">${IC.mix}<span>Change Reel</span></button>
           <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
           <span class="tc" id="ttot">0:00.0</span>
         </div>
@@ -398,7 +400,7 @@ export const STUDIO_HTML = `
             </details>
           </section>
 
-          <button type="button" class="btn primary big fapply" id="fapply">Apply ${IC.arrow}</button>
+          <button type="button" class="btn primary big fapply" id="fapply">${IC.check} Done</button>
           <section class="panel wide" data-panel="shots">
             <div class="shotcard" id="shotcard"></div>
             <details class="allshots" id="allshots"><summary>All shots</summary>
@@ -416,6 +418,11 @@ export const STUDIO_HTML = `
   <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
 </div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
+<section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
+  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
+  <div class="ss-body shotcard" id="ssbody"></div>
+</section>
 <section class="fexp" id="fexp" hidden aria-live="polite" aria-labelledby="fexph">
   <h2 id="fexph">Exporting</h2>
   <div class="aoring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="fg" id="fexpring" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"/></svg><b id="fexppct">0%</b></div>

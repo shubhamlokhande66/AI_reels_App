@@ -15,7 +15,7 @@ type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean
 type Studio = {
   now: number; playing: boolean; dur: number; audio: AudioBuffer | null; beats: number[]; songName: string; title: string; hook: string; capsOn: boolean;
   edit: Shot[]; overlays: Ov[]; vo: unknown; kind: string; editGen: number;
-  sources: { name: string }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace" | "freeze", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean;
+  sources: { name: string; card?: HTMLElement }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace" | "freeze", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean;
   section: { start: number; len: number; whole: number; auto: boolean };
   segAt: (t: number) => number; kfSeek: (t: number) => Promise<void>;
 };
@@ -29,6 +29,7 @@ export function savedView(): StudioView {
 }
 const fmt = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 9.95 ? "0" : "") + s.toFixed(1); };
 const fmtS = (t: number) => fmt(t).replace(/\.\d$/, "");
+const fmt2 = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 9.995 ? "0" : "") + s.toFixed(2); }; // 0:03.20
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"]; // as the engine's strip
 const TYPE: Record<string, string> = { drop: "Drop", hit: "Hit", cut: "Cut", break: "Break", talk: "Talk", jump: "Talk" };
 import { clipToolsEvents, clipToolsHtml, type ClipApi } from "./clipTools";
@@ -48,7 +49,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const made = () => !$("s3").classList.contains("locked");
   // computers keep a tool open beside the preview (the shot first); phones show the Reel, a tool opens over it
   const wide = () => window.matchMedia("(min-width: 1024px)").matches;
-  const defTool = () => (wide() ? "shots" : "");
+  const defTool = () => (wide() ? "style" : ""); // computers: the left panel opens on Style, the first tool
   // a paid plan (or the administrator, or billing off) uses the Pro tools; until the server says so they are locked
   let paid = false;
   const locked = (k: string) => PRO_TOOLS.has(k) && !paid && !root.classList.contains("admin");
@@ -98,6 +99,13 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
 
   // play over the preview, previous / next shot
   $("playov").addEventListener("click", () => $("play").click(), sig);
+  // the progress bar under the preview: tap or drag along it to move through the Reel
+  const bar = root.querySelector<HTMLElement>(".stage .bar")!;
+  let barDrag = false;
+  const barSeek = (x: number) => { const st = S(); if (!st || !st.dur || !made()) return; const r = bar.getBoundingClientRect(); void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, ((x - r.left) / r.width) * st.dur))); };
+  bar.addEventListener("pointerdown", (e) => { barDrag = true; try { bar.setPointerCapture(e.pointerId); } catch { /* gone */ } barSeek(e.clientX); }, sig);
+  bar.addEventListener("pointermove", (e) => { if (barDrag) barSeek(e.clientX); }, sig);
+  for (const ev of ["pointerup", "pointercancel"]) bar.addEventListener(ev, () => { barDrag = false; }, sig);
   const jump = (d: number) => { const st = S(); if (!st || !st.edit.length) return; const i = Math.max(0, Math.min(st.edit.length - 1, st.segAt(st.now) + d)); void st.kfSeek(st.edit[i].start + 0.05); };
   $("pshot").addEventListener("click", () => jump(-1), sig);
   $("nshot").addEventListener("click", () => jump(1), sig);
@@ -105,6 +113,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // the top bar's Export is the same button as the save bar's
   const exp = $<HTMLButtonElement>("export"), top = $<HTMLButtonElement>("topexport");
   top.addEventListener("click", () => exp.click(), sig);
+  // the top bar's Back: the Create flow's own (the screen before: the clips, or where the page came from)
+  $("tbback").addEventListener("click", () => $("fback").click(), sig);
   const mirror = () => { if (top.disabled !== exp.disabled) top.disabled = exp.disabled; }; // only on a change: a write is a mutation too
 
   // the title and the summary show what is made now
@@ -148,11 +158,12 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       + `</div><div class="cliptools"></div>`;
     $("shotcard").innerHTML = head + chips + other + tools;
     $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;
+    if (!$("shotsheet").hidden) $("ssbody").innerHTML = head + chips + other + tools; // the shot sheet: the same choices
     clipUI(true);
   };
   // the clip tools (rotate, fit, adjust, mosaic…): drawn again when the shot's settings change, never during a slider drag
   const clipUI = (force = false) => {
-    const st = S(), boxes = root.querySelectorAll<HTMLElement>("#shotcard .cliptools, #inspector .cliptools"); if (!st || !boxes.length) return;
+    const st = S(), boxes = root.querySelectorAll<HTMLElement>("#shotcard .cliptools, #inspector .cliptools, #ssbody .cliptools"); if (!st || !boxes.length) return;
     if (!force && root.querySelector(".cliptools input[type=range]:focus")) return;
     const c = st.shotCs(); if (!c) return;
     const key = JSON.stringify(c) + ctOpen; if (!force && key === ctKey) return; ctKey = key;
@@ -160,7 +171,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   };
   const forward = (c: number, v: string) => { const st = S(); if (!st) return; const s = rowOf(st.segAt(st.now))?.children[c + 3]?.querySelector("select") as HTMLSelectElement | null; if (s && s.value !== v) { s.value = v; s.dispatchEvent(new Event("change")); } };
   const other = () => { const st = S(); if (!st) return; rowOf(st.segAt(st.now))?.children[2]?.querySelector<HTMLButtonElement>("button")?.click(); };
-  for (const id of ["shotcard", "inspector"]) {
+  for (const id of ["shotcard", "inspector", "ssbody"]) {
     $(id).addEventListener("click", (e) => { const t = e.target as HTMLElement; const c = t.closest<HTMLButtonElement>(".chip"), tb = t.closest<HTMLButtonElement>(".shtab");
       if (c && c.dataset.c) forward(+c.dataset.c, c.dataset.v!); else if (tb) { shotTab = +tb.dataset.tab!; shotKey = ""; } else if (t.closest("[data-other]")) other();
       else { const op = t.closest<HTMLButtonElement>("[data-op]"); if (op) { S()?.shotOp(op.dataset.op as "split" | "dup" | "delete" | "freeze"); shotKey = ""; } } }, sig);
@@ -178,7 +189,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const ZMAX = 40, RUL = 18, EDGE = 12; // the most zoom, the time ruler's height, how near an edge counts (css px)
   let zoom = 1, t0 = 0; // the view: the song from t0, a 1/zoom part of it
   let trim: { i: number; to: number } | null = null; // a shot's end being dragged
-  const labW = () => (lanes.clientWidth > 700 ? 64 : 46);
+  const labW = () => (lanes.clientWidth > 700 ? 92 : 46); // the tracks' names (wider on a computer, as the design)
   // the song's loudness, measured once per song part: the louder of its samples every 5 ms (the waveform under the beats)
   const PEAK_DT = 0.005;
   let peaksOf: AudioBuffer | null = null, peaks = new Float32Array(0);
@@ -271,7 +282,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const step = [0.25, 0.5, 1, 2, 5, 10, 30, 60].find((s) => s * pps >= 56 * dpr) ?? 60;
     track(() => { g.fillStyle = muted; for (let t = Math.floor(t0 / step) * step; t <= t0 + D / zoom + step; t += step) { g.fillRect(X(t), rul - 5 * dpr, dpr, 5 * dpr); g.fillText(step < 1 ? fmt(t) : fmtS(t), X(t) + 3 * dpr, rul / 2 - dpr); } });
     let y = rul;
-    const label = (s: string, h: number) => { g.fillStyle = muted; g.fillText(s, 2 * dpr, y + h / 2); };
+    const label = (s: string, h: number) => { g.font = `600 ${11.5 * dpr}px system-ui, sans-serif`; g.fillStyle = ink; g.fillText(s, 4 * dpr, y + h / 2); g.font = `${11 * dpr}px system-ui, sans-serif`; };
     const rr = (x: number, yy: number, w: number, h: number, r: number) => { g.beginPath(); if (g.roundRect) g.roundRect(x, yy, Math.max(1, w), h, r); else g.rect(x, yy, Math.max(1, w), h); };
     const cur = st.segAt(now), dt = trim ? trim.to - st.edit[trim.i].end : 0;
     // where each shot is drawn: while an end is dragged that shot stretches and the shots after it move with it
@@ -279,7 +290,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     // a small box with a word in it (an effect, a speed), as the pro editors show them on their tracks
     const tag = (x: number, yy: number, maxW: number, h: number, text: string, bg: string, fg = "#fff") => {
       g.font = `600 ${10.5 * dpr}px system-ui, sans-serif`;
-      const w = Math.min(maxW, g.measureText(text).width + 12 * dpr); if (w < 14 * dpr) return;
+      // too narrow for its word (zoomed out, a short shot): a thin bar of its colour; zoom in for the name
+      if (maxW < 44 * dpr) { if (maxW > 4 * dpr) { g.fillStyle = bg; rr(x, yy + h / 2 - 2 * dpr, maxW, 4 * dpr, 2 * dpr); g.fill(); } g.font = `${11 * dpr}px system-ui, sans-serif`; return; }
+      const w = Math.min(maxW, g.measureText(text).width + 12 * dpr);
       g.fillStyle = bg; rr(x, yy, w, h, 4 * dpr); g.fill();
       g.save(); g.beginPath(); g.rect(x, yy, w, h); g.clip(); g.fillStyle = fg; g.fillText(text, x + 6 * dpr, yy + h / 2 + 0.5 * dpr); g.restore();
       g.font = `${11 * dpr}px system-ui, sans-serif`;
@@ -297,10 +310,19 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     track(() => st.edit.forEach((e, k) => {
       const [a, b] = at(k), x0 = X(a) + dpr, x1 = X(b) - dpr, h = rows[0];
       g.fillStyle = CLIP_COL[e.src % CLIP_COL.length]; rr(x0, y, x1 - x0, h, 5 * dpr); g.fill();
+      // a film strip: the clip's picture, again and again along the shot (as the editors show it)
+      const th = st.sources[e.src]?.card?.querySelector<HTMLCanvasElement>(".th");
+      if (th && th.width && x1 - x0 > 6 * dpr) {
+        g.save(); rr(x0, y, x1 - x0, h, 5 * dpr); g.clip();
+        const tw = h * 0.75, sw = Math.min(th.width, th.height * 0.75), sx = (th.width - sw) / 2;
+        for (let tx = x0; tx < x1 && tx < W; tx += tw) if (tx + tw > lab) g.drawImage(th, sx, 0, sw, th.height, tx, y, tw, h);
+        g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(x0, y, x1 - x0, h);
+        g.restore();
+      }
       if (k === cur || (trim && k === trim.i)) { g.lineWidth = 2 * dpr; g.strokeStyle = acc; g.stroke(); }
       if (x1 - Math.max(x0, lab) > 24 * dpr) { g.save(); rr(x0, y, x1 - x0, h, 5 * dpr); g.clip(); g.fillStyle = "rgba(255,255,255,.85)"; g.fillText(String(k + 1), Math.max(x0, lab) + 6 * dpr, y + 10 * dpr); g.restore(); }
       // speed: a small box at the bottom left
-      if (e.sp && e.sp.label && e.sp.label !== "1×") tag(Math.max(x0, lab) + 4 * dpr, y + h - 16 * dpr, x1 - Math.max(x0, lab) - 8 * dpr, 13 * dpr, "⏱ " + e.sp.label, "rgba(0,0,0,.55)");
+      if (e.sp && e.sp.label && e.sp.label !== "1×" && x1 - Math.max(x0, lab) > 56 * dpr) tag(Math.max(x0, lab) + 4 * dpr, y + h - 16 * dpr, x1 - Math.max(x0, lab) - 8 * dpr, 13 * dpr, "⏱ " + e.sp.label, "rgba(0,0,0,.55)");
       // keyframes: yours (light blue), Shubix's camera moves (violet), the hits on the beat (gold)
       const ky = y + h - 8 * dpr, r = 4 * dpr;
       for (const q of e.ak || []) diamond(X(a + q.t), ky, r, "#a996ff");
@@ -313,6 +335,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     track(() => st.edit.forEach((e, k) => {
       if (!k || !e.tr || e.tr === "hard") return;
       const cx = X(at(k)[0]), s = 16 * dpr, top = y + 3 * dpr; // the upper half: the trim handle is in the lower one
+      // shots too short for a box (zoomed out): a dot on the cut instead
+      const room = Math.min(X(at(k)[1]) - X(at(k)[0]), X(at(k - 1)[1]) - X(at(k - 1)[0]));
+      if (room < 30 * dpr) { g.fillStyle = "#fff"; g.beginPath(); g.arc(cx, top + s / 2, 2.5 * dpr, 0, 7); g.fill(); return; }
       g.fillStyle = "#fff"; rr(cx - s / 2, top, s, s, 4 * dpr); g.fill(); g.lineWidth = dpr; g.strokeStyle = "rgba(0,0,0,.35)"; g.stroke();
       g.fillStyle = acc; g.beginPath(); g.moveTo(cx - 5 * dpr, top + 4 * dpr); g.lineTo(cx, top + s / 2); g.lineTo(cx - 5 * dpr, top + s - 4 * dpr); g.closePath(); g.fill();
       g.beginPath(); g.moveTo(cx + 5 * dpr, top + 4 * dpr); g.lineTo(cx, top + s / 2); g.lineTo(cx + 5 * dpr, top + s - 4 * dpr); g.closePath(); g.fill();
@@ -378,13 +403,10 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (trim && st && e.type === "pointerup" && Math.abs(trim.to - st.edit[trim.i].end) >= 0.02) { const t = trim; trim = null; st.shotRipple(t.i, t.to); shotKey = ""; }
     else if (trim && st && e.type === "pointerup") { trim = null; pan = { x: e.clientX, t0, moved: false }; } // pressed, not dragged: a tap
     if (pan && !pan.moved && st && e.type === "pointerup") {
-      // a tap on a transition, an effect or a speed: that shot, its tab open in the Shot tool; elsewhere: the playhead
-      const hit = hitAt(e.clientX, e.clientY);
-      if (hit) {
-        void st.kfSeek(st.edit[hit.k].start + 0.05);
-        shotTab = hit.tab; shotKey = "";
-        if (tool !== "shots") { tool = "shots"; apply(); }
-      } else void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, tAt(e.clientX))));
+      // a tap on a shot (its transition, effect or speed: that tab) opens the shot sheet over it; elsewhere: the playhead
+      const hit = hitAt(e.clientX, e.clientY), k = hit ? hit.k : shotAt(e.clientX, e.clientY);
+      if (k >= 0) openShot(k, hit ? hit.tab : shotTab, e.clientX);
+      else void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, tAt(e.clientX))));
     }
     trim = null; pan = null; lanesKey = "";
   };
@@ -398,12 +420,39 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     else if (zoom > 1 && (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey)) { e.preventDefault(); t0 += ((e.deltaX || e.deltaY) / (r.width - labW())) * span(); fix(); }
   }, { passive: false, signal: ac.signal });
 
+  // the shot sheet (like CapCut / VN): over the clip on a computer (an arrow points at it), from the bottom on a phone;
+  // its chips show every choice with the shot's own one selected; ✕, Escape or a tap outside closes it
+  const sheet = $("shotsheet");
+  let sheetX = 0;
+  const shotAt = (x: number, y: number) => { const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st || yy < VTOP || yy > VTOP + vidH()) return -1; return st.edit.findIndex((e) => xOf(e.start) <= x && x < xOf(e.end)); };
+  const placeSheet = () => {
+    if (sheet.hidden) return;
+    if (!wide()) { for (const k of ["left", "bottom", "width", "maxHeight"] as const) sheet.style[k] = ""; return; } // a phone: the CSS sheet
+    const lr = lanes.getBoundingClientRect(), w = Math.min(460, window.innerWidth - 24), left = Math.max(12, Math.min(window.innerWidth - w - 12, sheetX - w / 2));
+    sheet.style.width = w + "px"; sheet.style.left = left + "px";
+    sheet.style.bottom = Math.max(12, window.innerHeight - lr.top + 12) + "px";
+    sheet.style.maxHeight = Math.max(240, lr.top - 24) + "px";
+    sheet.style.setProperty("--ax", Math.max(18, Math.min(w - 18, sheetX - left)) + "px");
+  };
+  const openShot = (k: number, tab: number, x: number) => {
+    const st = S(); if (!st || !st.edit[k]) return;
+    void st.kfSeek(st.edit[k].start + 0.05);
+    shotTab = tab; shotKey = ""; sheetX = xOf((st.edit[k].start + st.edit[k].end) / 2) || x;
+    sheet.hidden = false; root.classList.add("sheeton"); placeSheet();
+  };
+  const closeShot = () => { if (sheet.hidden) return; sheet.hidden = true; root.classList.remove("sheeton"); };
+  $("ssx").addEventListener("click", closeShot, sig);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeShot(); }, sig);
+  document.addEventListener("pointerdown", (e) => { const t = e.target as Node; if (!sheet.hidden && !sheet.contains(t) && !lanes.contains(t)) closeShot(); }, { capture: true, ...sig });
+  window.addEventListener("scroll", placeSheet, { passive: true, ...sig });
+  window.addEventListener("resize", placeSheet, sig);
+
   // the times, the shot, the lanes: kept up to date while the page is open (each redraws only on a change)
   let raf = 0;
   const tick = () => {
     const st = S();
     if (st && made()) {
-      setText($("tcur"), fmt(st.now)); setText($("ttot"), fmt(st.dur));
+      setText($("tcur"), fmt2(st.now)); setText($("ttot"), fmt2(st.dur));
       if (root.classList.contains("playing") !== st.playing) root.classList.toggle("playing", st.playing);
       shotUI(); clipUI(); drawLanes();
     }

@@ -1932,7 +1932,7 @@ function directorMaybe(){
 // New mix: the AI's other plans for these cuts, all in one call (the input is sent once)
 async function variantsRun(st){
   st.asked = true; st.busy = true;
-  aiStat('Shubix is making ' + VARIANTS + ' more mixes for New mix…');
+  aiStat('Shubix is making ' + VARIANTS + ' more versions for Change Reel…');
   const tm = timeoutSignal(90000);
   let n = 0;
   try{
@@ -1942,10 +1942,10 @@ async function variantsRun(st){
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not make the mixes (' + r.status + ').'));
     let k = 1;
     for(const pl of res.plans || []){ while(st.plans[k]) k++; st.plans[k] = { slots: toSlots(pl.slots, cands), ctx, sig, story: pl.story || '' }; n++; }
-    aiStat('Shubix made ' + n + ' more mix' + (n === 1 ? '' : 'es') + ' · press New mix to see each.');
+    aiStat('Shubix made ' + n + ' more version' + (n === 1 ? '' : 's') + ' · press Change Reel to see each.');
   }catch(e){
     if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI mixes not used:', e);
-    aiStat('New mix uses the phone\'s own mixes in Shubix\'s style.');
+    aiStat('Change Reel uses the phone\'s own versions in Shubix\'s style.');
   }finally{ st.busy = false; tm.done(); }
   if(mixNo > 0 && buf && sources.length && !recording) makeEdit();
 }

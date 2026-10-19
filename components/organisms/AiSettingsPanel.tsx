@@ -134,7 +134,7 @@ export function AiSettingsPanel() {
   return (
     <div className="flex flex-col gap-3">
       {isLoading && <Spinner />}
-      {error && <ErrorBanner title="Backend unreachable" message={`We couldn't reach ${API_URL}. Start the server, then try again.`} onRetry={() => location.reload()} />}
+      {error && <ErrorBanner title="Backend unreachable" message={`We couldn't reach ${API_URL || "the server"}. Start the server, then try again.`} onRetry={() => location.reload()} />}
       {data && (
         <div className="space-y-6">
           <Card>
@@ -142,7 +142,7 @@ export function AiSettingsPanel() {
               <Row label="MongoDB" ok={data.mongodb} />
               <Row label={`AI (${data.ai.provider})`} ok={data.ai.available} detail={`${data.ai.model ?? ""} ${data.ai.detail}`.trim()} />
             </ul>
-            <p className="mt-4 text-xs text-muted" suppressHydrationWarning>API: {API_URL}</p>
+            {API_URL && <p className="mt-4 text-xs text-muted" suppressHydrationWarning>API: {API_URL}</p>}
           </Card>
           <AiSettingsSection>
             <OllamaModels />

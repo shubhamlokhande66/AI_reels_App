@@ -86,7 +86,8 @@ export default function VoicesPage() {
                   <Icon name="mic" size={18} />
                 </span>
                 <span className="meta">
-                  <b>{v.name}</b>
+                  {/* the whole name, on two lines when it must (a phone): never cut off */}
+                  <b className="whitespace-normal leading-snug">{v.name}</b>
                   <span className="mu xs">{v.language}</span>
                 </span>
               </div>
