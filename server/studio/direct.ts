@@ -122,7 +122,7 @@ export interface Accent { at: number; do: (typeof ACCENTS)[number] }
 /** a camera keyframe inside a shot: at = fraction of the shot (0-1), scale, offset (fraction of the frame), turn (degrees) */
 export interface MoveKey { at: number; s: number; x: number; y: number; r: number; ez: (typeof EASES)[number] }
 /** the shot's own settings, as the creator's clip tools set them (the engine's e.cs) */
-export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; fin?: number; fout?: number }
+export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; fin?: number; fout?: number }
 export interface DirectedSlot { i: number; shot: string | null; transition: string | null; effect: string | null; speed: string | null; keys: Accent[]; move: MoveKey[]; clip?: ClipLook; why: string }
 
 const GUIDE = `You are the editor's brain. Decide every creative choice from the music and the footage, like a top Reels editor.
@@ -139,7 +139,7 @@ Decide like this:
 - Speed: slow on breaks, held notes and emotional moments; ramp or velocity on longer shots in a build-up before a drop; fast on very short hits; freeze only with "snap" on one or two drops; hold = the whole shot is one frozen frame (a dramatic pause, a punchline, a face on a hit).
 - Style "smooth" asks for a calm feel, "fast" for energy on almost every cut: a direction, not a rule; break it when the moment is better for it.
 - Beat shapes and beat effects (effect names) step on the beats INSIDE a shot, best on shots of 1 s or more with 2+ beats: boxgrow (the shot in a small box on the subject that grows on each beat to full frame), grid (2x2 or 3x3 windows opening one per beat), strips (3 strips one per beat), circle / heartbeat / starbeat (the shot in that shape, pulsing on each beat), frame (frame in frame on its blurred copy), mirror, kaleido (kaleidoscope), triple (the shot three times, one band per beat), vhs (retro tape), strobe (black and white flash on each beat), rgbpulse (colour split on each beat), blurpulse (blur on each beat).
-- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm (-1..1), fin / fout (fade in / out, seconds). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
+- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm / hi (highlights) / sh (shadows) / hue (-1..1), sharp / vig (vignette) / beauty (smooth skin) (0..1), fin / fout (fade in / out, seconds). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
 - Camera moves are as free as the creator's own keyframes: zoom 0.1-4, slide -1..1 of the frame, turn -360..360 degrees, up to ${LIMITS.moveKeys} keyframes; keys on hits up to ${LIMITS.keys} a shot.
 - There are no limits on style or budget: use the WHOLE toolbox, combine tools (a grid on the drop with an RGB split key, a box that grows while the camera turns), invent. Every Reel must feel new and different from the creator's recent ones.`;
 
@@ -216,7 +216,8 @@ export function cleanClip(raw: Record<string, unknown> | null | undefined): Clip
   for (const k of ["fh", "fv", "fit"] as const) if (raw[k] === true) o[k] = true;
   if (o.fit) { const bg = raw.bg; if (bg === "blur") o.bg = "blur"; else if (hex(bg)) { o.bg = "color"; o.bgc = hex(bg)!; }
     if (Number.isFinite(num("bd")) && num("bd") > 0) { o.bd = r3(clampN(num("bd"), 0, 1, 0)); o.bdc = hex(raw.bdc) ?? "#FFFFFF"; } }
-  for (const k of ["bri", "con", "sat", "warm"] as const) if (Number.isFinite(num(k)) && num(k) !== 0) o[k] = r3(clampN(num(k), -1, 1, 0));
+  for (const k of ["bri", "con", "sat", "warm", "hi", "sh", "hue"] as const) if (Number.isFinite(num(k)) && num(k) !== 0) o[k] = r3(clampN(num(k), -1, 1, 0));
+  for (const k of ["sharp", "vig", "beauty"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1, 0));
   for (const k of ["fin", "fout"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1.5, 0));
   return Object.keys(o).length ? o : undefined;
 }

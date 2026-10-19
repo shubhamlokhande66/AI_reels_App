@@ -362,6 +362,9 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Fade in</span><input type="range" data-ly="fin" min="0" max="2" step="0.1"><output></output></label>
               <label class="cslide"><span>Fade out</span><input type="range" data-ly="fout" min="0" max="2" step="0.1"><output></output></label>
               <label class="cslide" id="lyvolrow"><span>Its sound</span><input type="range" data-ly="vol" min="0" max="2" step="0.05"><output></output></label>
+              <label class="cslide"><span>Blend</span><select data-ly="blend" aria-label="Blend mode"><option value="source-over">Normal</option><option value="screen">Screen (light leaks, dust)</option><option value="multiply">Multiply</option><option value="overlay">Overlay</option><option value="soft-light">Soft light</option><option value="lighten">Lighten</option><option value="darken">Darken</option><option value="color-dodge">Colour dodge</option><option value="difference">Difference</option></select></label>
+              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="btn mini" data-lykey="#00FF00">Green</button><button type="button" class="btn mini" data-lykey="#0047FF">Blue</button><button type="button" class="btn mini" data-lykey="#000000">Black</button><button type="button" class="btn mini" data-lykey="#FFFFFF">White</button></div>
+              <label class="cslide"><span>Key strength</span><input type="range" data-ly="key.tol" min="0" max="1" step="0.05"><output></output></label>
               <button type="button" class="btn ghost" data-lydel="1">Remove this layer</button>
             </div>
           </section>
