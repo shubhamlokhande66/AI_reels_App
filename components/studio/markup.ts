@@ -61,6 +61,7 @@ const card = (k: string, n: string, ic: string) =>
 const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; return `<h3 class="ph">${t[2]}${t[1]}</h3>`; };
 
 export const STUDIO_HTML = `
+<nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
 <div class="topbar" id="topbar">
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
   <div class="views" id="views" role="group" aria-label="View">

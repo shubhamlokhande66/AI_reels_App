@@ -1992,6 +1992,8 @@ async function paceRun(key){
     paceFailedKey = key;
     if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI pace not used:', e);
     paceBusy = false; if(buf && sources.length && !recording) directorMaybe();
+    // the director did not start (already planned, or no edit yet): the line must not stay on "choosing the pace…"
+    if(!dirBusy && /…$/.test($('aistat').textContent || '')) aiStat('Your Reel keeps the song\'s own pace.');
   }finally{ paceBusy = false; tm.done(); }
 }
 async function directorRun(key){
