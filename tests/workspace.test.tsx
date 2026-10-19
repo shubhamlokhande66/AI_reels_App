@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   deleteBrand: vi.fn(),
   uploadLogo: vi.fn(),
   features: vi.fn().mockResolvedValue({}),
+  templates: vi.fn().mockRejectedValue(new Error("offline")),
 }));
 vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api }));
 
@@ -82,6 +83,17 @@ describe("Templates page", () => {
     wrap(<TemplatesPage />);
     expect(await screen.findByRole("link", { name: /Make a Reel with Beat montage|Beat montage/ })).toHaveAttribute("href", "/create/edit?tpl=montage");
     expect(screen.getByText("Festivals")).toBeInTheDocument();
+  });
+
+  it("shows the administrator's list from the server, by its groups", async () => {
+    const { DEFAULT_TEMPLATES } = await import("@/lib/studio-templates");
+    api.templates.mockResolvedValueOnce({ templates: [{ ...DEFAULT_TEMPLATES[0], id: "pongal", name: "Pongal", group: "Harvest", isNew: true }] });
+    wrap(<TemplatesPage />);
+    expect(await screen.findByRole("link", { name: /Pongal/ })).toHaveAttribute("href", "/create/edit?tpl=pongal");
+    expect(screen.getByText("Harvest")).toBeInTheDocument();
+    expect(screen.getByText("✨ New")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Beat montage/ })).toBeNull();
+    localStorage.clear();   // the list is kept for the next visit
   });
 
   it("finds templates by what they are", async () => {

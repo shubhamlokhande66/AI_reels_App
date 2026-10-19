@@ -11,6 +11,7 @@
  */
 import { createTasks } from './tasks';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '../../lib/plan-locks';
+import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '../../lib/studio-templates';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 
@@ -1412,9 +1413,14 @@ queueMicrotask(() => { if(ac.signal.aborted) return; const q = new URLSearchPara
   // the kind: /create/music|talking|photo (the Create flow's addresses)
   const k0 = ({ music: 'music', talking: 'talk', photo: 'photo' })[location.pathname.split('/')[2]];
   // a template from Home or Templates: /create/edit?tpl=<template> (picked as if tapped)
-  if(t0 && TEMPLATES[t0]){ const b = root.querySelector('#tpl [data-t="' + t0 + '"]'); if(b){ b.click(); return; } }
+  const pick = () => { const b = TEMPLATES[t0] && root.querySelector('#tpl [data-t="' + CSS.escape(t0) + '"]'); if(b){ b.click(); return true; } return false; };
+  if(t0 && pick()) return;
+  // one the administrator added since the last visit: wait for the server's list
+  if(t0){ tplReady.then(() => { if(!ac.signal.aborted && !pick()) kindFromPath(); }); return; }
+  kindFromPath();
+  function kindFromPath(){
   if(k0 === 'photo'){ const b = $('photokind'); if(b){ b.click(); return; } }
-  if(k0 === 'talk' || k0 === 'music'){ const b = root.querySelector('#kind [data-k="' + k0 + '"]'); if(b) b.click(); else setKind(k0); } });
+  if(k0 === 'talk' || k0 === 'music'){ const b = root.querySelector('#kind [data-k="' + k0 + '"]'); if(b) b.click(); else setKind(k0); } } });
 function setDenoise(on){ denoiseOn = on; $('dn1').checked = on; $('dn2').checked = on; capAll = null; if(kind === 'talk'){ if(sources.length) buildTalk(); } else if(vo){ applyVo(); afterVo(); } }
 $('dn1').addEventListener('change', e => setDenoise(e.target.checked), SIG); $('dn2').addEventListener('change', e => setDenoise(e.target.checked), SIG);
 $('tpace').addEventListener('click', e => { const b = e.target.closest('button'); if(!b || recording) return; talkPace = b.dataset.p;
@@ -5267,24 +5273,25 @@ $('vodel').addEventListener('click', () => { if(voRec) return; vo = null; applyV
  * Each template chooses the kind (music edit / talking), the edit's pace, the look, the length of the song, captions,
  * the background, and places its texts on the edit when there is one: steps at the thirds of a tutorial, BEFORE / AFTER
  * at the halves, the price and a follow card on a product, a greeting on a festival Reel. Everything stays editable. */
-const TEMPLATES = {
-  talking:  { kind: 'talk', look: 'natural', pace: 'natural', music: 0.05, caps: true, style: 'karaoke', bg: 'none' },
-  tutorial: { kind: 'talk', look: 'natural', pace: 'tight', music: 0.05, caps: true, style: 'box',
-              texts: L => [ { text: 'Step 1', style: 'box', color: '#FFD54A', y: 0.2, at: [0, L/3] }, { text: 'Step 2', style: 'box', color: '#FFD54A', y: 0.2, at: [L/3, 2*L/3] }, { text: 'Step 3', style: 'box', color: '#FFD54A', y: 0.2, at: [2*L/3, L] }, { text: 'Save this for later 📌', style: 'box', color: '#4DA3FF', y: 0.66, size: 0.85, at: [L - 3, L] } ] },
-  recipe:   { kind: 'music', mode: 'smooth', look: 'vivid', len: 30, style: 'box',
-              texts: L => [ { text: 'Easy recipe in 30 seconds', style: 'box', color: '#FFD54A', y: 0.22, at: [0, 2.6] }, { text: 'Save this recipe 📌', style: 'box', color: '#FF4D4D', y: 0.66, size: 0.85, at: [L - 3, L] } ] },
-  beforeafter: { kind: 'music', mode: 'auto', look: 'vivid', len: 15, style: 'pop',
-              texts: L => [ { text: 'BEFORE', style: 'box', color: '#111111', y: 0.2, at: [0, L/2] }, { text: 'AFTER', style: 'box', color: '#3DDC84', y: 0.2, at: [L/2, L] } ] },
-  product:  { kind: 'music', mode: 'auto', look: 'vivid', len: 15, style: 'pop',
-              texts: L => [ { text: 'New arrival ✨', style: 'neon', color: '#FFD54A', y: 0.22, at: [0, 2.4] }, { text: '₹999 only', style: 'tag', color: '#FFD54A', y: 0.62, at: [L*0.35, L - 3] }, { text: 'DM to order 👉', style: 'box', color: '#FF4D4D', y: 0.66, size: 0.85, at: [L - 3, L] } ] },
-  montage:  { kind: 'music', mode: 'fast', look: 'cine', len: 15, style: 'pop', hook: 'WAIT FOR THE DROP' },
-  travel:   { kind: 'music', mode: 'smooth', look: 'cine', len: 30, style: 'clean',
-              texts: L => [ { text: '📍 Your place', style: 'clean', color: '#FFFFFF', y: 0.25, at: [0, 3] } ] },
-  ganpati:  { kind: 'music', mode: 'auto', look: 'vivid', len: 30, style: 'pop',
-              texts: L => [ { text: 'गणपती बाप्पा मोरया 🌺', style: 'neon', color: '#FFD54A', y: 0.26, all: true } ] },
-  diwali:   { kind: 'music', mode: 'smooth', look: 'cine', len: 30, style: 'pop',
-              texts: L => [ { text: 'शुभ दीपावली 🪔', style: 'neon', color: '#FFD54A', y: 0.26, all: true } ] },
-};
+// the templates are data (lib/studio-templates.ts; the administrator's list from /api/templates, today's ones)
+const TPL_KEY = 'brs-templates';
+function tplOf(t){
+  const e = t.edit || {}, xs = Array.isArray(e.texts) && e.texts.length ? e.texts : null;
+  return { kind: t.kind, name: t.name, look: e.look || 'natural', mode: e.mode, style: e.style, bg: e.bg, hook: e.hook, caps: !!e.caps, len: t.len,
+    pace: e.pace || 'natural', music: e.music ?? 0.05,
+    texts: xs ? L => xs.map(x => ({ text: x.text, style: x.style, color: x.color, anim: x.anim, y: x.y, size: x.size, all: !!x.all, ...(x.all ? {} : { at: [edgeAt(x.from, L, 0), edgeAt(x.to, L, L)] }) })) : undefined };
+}
+let TEMPLATES = {};
+function tplSet(list){
+  TEMPLATES = Object.fromEntries(list.map(t => [t.id, tplOf(t)]));
+  const box = $('tpl'); if(!box) return;
+  box.replaceChildren(...list.map(t => { const b = document.createElement('button'); b.type = 'button'; b.dataset.t = t.id; b.textContent = t.name; b.setAttribute('aria-pressed', String(t.id === tplName)); return b; }));
+}
+(() => { let c = null; try{ c = JSON.parse(localStorage.getItem(TPL_KEY) || 'null'); }catch(e){} tplSet(liveTemplates(c && Array.isArray(c.templates) ? c.templates : DEFAULT_TEMPLATES)); })();
+const tplReady = fetch('/api/templates').then(r => r.ok ? r.json() : null).then(r => {
+  if(!r || !Array.isArray(r.templates)) return; tplSet(r.templates);
+  try{ localStorage.setItem(TPL_KEY, JSON.stringify({ at: Date.now(), templates: r.templates })); }catch(e){}
+}).catch(() => {});
 let tplWaiting = null, tplGen = 0, tplNeed = false;
 function placeTemplateTexts(t){
   const L = reelLen(); if(!t.texts || !L) return;

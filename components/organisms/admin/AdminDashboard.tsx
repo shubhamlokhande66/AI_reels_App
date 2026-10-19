@@ -10,15 +10,17 @@ import { useMe } from "@/hooks/useApi";
 import { getAdminKey, setAdminKey } from "@/lib/admin";
 import { LiveDot, OverviewTab, useOverview } from "./OverviewTab";
 import { ErrorsTab } from "./ErrorsTab";
+import { TemplatesTab } from "./TemplatesTab";
 import { SettingsTab } from "./SettingsTab";
 import { UserPanel } from "./UserPanel";
 import { UsersTab } from "./UsersTab";
 
 /** The admin panel (like the shop's): a grouped sidebar, a header with who is online and Refresh, then the open tab. */
-type Tab = "overview" | "users" | "settings" | "errors";
+type Tab = "overview" | "users" | "templates" | "settings" | "errors";
 const NAV: { title: string; items: { id: Tab; label: string; icon: string; hint: string }[] }[] = [
   { title: "Overview", items: [{ id: "overview", label: "Dashboard", icon: "home", hint: "Visitors, sign-ups, revenue and credits at a glance" }] },
   { title: "People", items: [{ id: "users", label: "Users", icon: "user", hint: "Everyone who signed up: logins, purchases, credits left" }] },
+  { title: "Content", items: [{ id: "templates", label: "Templates", icon: "grid", hint: "Every template of the studio: add, change, hide, order, its times and its days" }] },
   { title: "System", items: [{ id: "settings", label: "Settings", icon: "gear", hint: "Every setting of the studio, managed here" }, { id: "errors", label: "Errors", icon: "key", hint: "What broke in people's browsers, newest first" }] },
 ];
 const TABS = NAV.flatMap((g) => g.items);
@@ -161,6 +163,7 @@ export function AdminDashboard() {
             {tab === "overview" && <OverviewTab onOpenUser={setUser} />}
             {tab === "users" && <UsersTab onOpenUser={setUser} />}
             {tab === "settings" && <SettingsTab />}
+            {tab === "templates" && <TemplatesTab />}
             {tab === "errors" && <ErrorsTab />}
           </div>
         </main>

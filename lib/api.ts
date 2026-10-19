@@ -208,6 +208,10 @@ export const api = {
   createOrder: (item: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item }) }),
   verifyPayment: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
     request<Credits>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
+  templates: () => request<{ templates: import("@/lib/studio-templates").StudioTemplate[] }>("/api/templates"),
+  adminTemplates: () => request<{ templates: import("@/lib/studio-templates").StudioTemplate[]; saved: boolean; updatedAt?: string }>("/api/templates?all=1"),
+  setTemplates: (templates: import("@/lib/studio-templates").StudioTemplate[]) => request<{ templates: import("@/lib/studio-templates").StudioTemplate[]; saved: boolean; updatedAt?: string }>("/api/templates", { method: "PUT", body: JSON.stringify({ templates }) }),
+  resetTemplates: () => request<{ templates: import("@/lib/studio-templates").StudioTemplate[]; saved: boolean }>("/api/templates", { method: "DELETE" }),
   planLocks: () => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks"),
   setPlanLocks: (body: import("@/lib/plan-locks").LockOverrides) => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks", { method: "PUT", body: JSON.stringify(body) }),
   adminErrors: () => request<{ errors: { id: string; kind: string; message: string; where: string; count: number; firstAt: string; lastAt: string; path: string; ua: string; stack: string }[] }>("/api/admin/errors"),

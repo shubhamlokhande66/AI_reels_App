@@ -12,7 +12,7 @@ import { Button } from "@/components/atoms/Button";
 import { clock, deleteDraft, draftPreview, type Draft } from "@/lib/drafts";
 import { linkOn, type Features } from "@/lib/features-list";
 import { formatRelative } from "@/lib/format";
-import { STUDIO_TEMPLATES } from "@/lib/studio-templates";
+import { useTemplates } from "@/lib/useTemplates";
 import type { Tone } from "@/lib/ui";
 
 /** Home's sections (UI/ design), each one reusable on its own: Create Your Reel, Popular Templates, Continue Editing,
@@ -46,11 +46,12 @@ export function CreateSection({ features }: { features: Features }) {
 }
 
 export function TemplatesSection() {
+  const { templates } = useTemplates();
   return (
     <section aria-labelledby="tpl-h" className="flex flex-col gap-3">
       <SectionHeader id="tpl-h" title="Popular Templates" href="/templates" />
       <Scroller label="Popular templates" grid="md:grid md:grid-cols-6 md:overflow-visible">
-        {STUDIO_TEMPLATES.slice(0, 6).map((t) => (
+        {templates.slice(0, 6).map((t) => (
           <div key={t.id} className="w-[31vw] min-w-[108px] max-w-[150px] shrink-0 snap-start md:w-auto md:max-w-none">
             <TemplateCard t={t} compact />
           </div>
