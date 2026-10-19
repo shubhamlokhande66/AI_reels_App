@@ -1386,6 +1386,28 @@ function setKind(k){
 $('kind').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setKind(b.dataset.k); }, SIG);
 // /create/talking (or music, photo): Home's "Talking Reel" / "Music Reel" / "Photo Reel" open the studio on that kind
 // (after the whole studio is set up: setKind uses state declared further down, e.g. the captions)
+/* ---- "Try it with our sample clips": someone with no clips at hand sees what the app does in a minute. The sample
+ * (a song and a few clips, public/samples/manifest.json: { song, songName?, clips: [...], credit? }) is loaded like the
+ * person's own files. No manifest: the button stays hidden. /create/music?sample=1 starts it straight away. ---- */
+let sampleInfo = null;
+async function sampleRun(){
+  const b = $('fsample'); if(!sampleInfo || (b && b.disabled)) return;
+  if(b){ b.disabled = true; b.textContent = 'Loading the sample…'; }
+  try{
+    const get = async (name, type) => { const r = await fetch('/samples/' + encodeURIComponent(name)); if(!r.ok) throw new Error(name); const bl = await r.blob(); return new File([bl], name, { type: bl.type || type, lastModified: 1 }); };
+    const [songF, ...clipsF] = await Promise.all([get(sampleInfo.song, 'audio/mpeg'), ...sampleInfo.clips.map(c => get(c, 'video/mp4'))]);
+    const go = root.querySelector('[data-fnext]'); if(go && root.dataset.fstep === 'intro') go.click();
+    loadMusic(songF); addVideos(clipsF);
+    if(sampleInfo.credit) notify(sampleInfo.credit);
+  }catch(err){ console.warn('sample not loaded:', err); notify('The sample could not be loaded. Please try your own clips.', 'err'); }
+  finally{ if(b){ b.disabled = false; b.textContent = 'No clips with you? Try it with our sample clips'; } }
+}
+$('fsample').addEventListener('click', sampleRun, SIG);
+fetch('/samples/manifest.json').then(r => r.ok ? r.json() : null).then(m => {
+  if(!m || !m.song || !Array.isArray(m.clips) || !m.clips.length) return; sampleInfo = m;
+  const b = $('fsample'); if(b && (root.dataset.fkind || 'music') === 'music') b.hidden = false;
+  if(new URLSearchParams(location.search).get('sample') === '1') sampleRun();
+}).catch(() => {});
 queueMicrotask(() => { if(ac.signal.aborted) return; const q = new URLSearchParams(location.search), t0 = q.get('tpl');
   // the kind: /create/music|talking|photo (the Create flow's addresses)
   const k0 = ({ music: 'music', talking: 'talk', photo: 'photo' })[location.pathname.split('/')[2]];

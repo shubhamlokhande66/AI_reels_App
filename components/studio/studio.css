@@ -1081,3 +1081,4 @@
 .brs .ask .askrow{flex-wrap:wrap}
 .brs #xres button, .brs #xfps button{position:relative}
 .brs #xres .crowned::after, .brs #xfps .crowned::after{content:"👑";position:absolute;top:6px;right:8px;font-size:13px}
+.brs .fsample{margin-top:8px;width:100%}

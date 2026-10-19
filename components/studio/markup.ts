@@ -80,6 +80,7 @@ export const STUDIO_HTML = `
     <p id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
     <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}Shubix edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
     <button type="button" class="btn primary big fgo" data-fnext="1">Let's Start ${IC.arrow}</button>
+    <button type="button" class="btn ghost fsample" id="fsample" hidden>No clips with you? Try it with our sample clips</button>
   </section>
   <!-- the kind and the template, pressed by the address (/create/music|talking|photo, /create/story, ?tpl=): never
        shown (each kind has its own page now); the engine, steps.ts and auto.ts read and press these buttons -->
