@@ -1,12 +1,14 @@
-/** Fast Studio's three views of the same Reel, on the markup of components/studio/markup.ts (the editing itself is the
- * engine's; everything here shows, hides or forwards to the engine's own controls):
- * - Simple: the preview with a summary, four cards (Style, Text, Look, Music) that open their panels, a "Save video" bar.
- * - Editor: the timeline strip, the current shot as chips, a tool dock showing one panel at a time.
- * - Pro: the shot inspector beside the preview, a multi-track timeline (video, text, voice, music), grouped tools.
+/** Fast Studio's editor, one view for everyone (like CapCut or VN), on the markup of components/studio/markup.ts (the
+ * editing itself is the engine's; everything here shows, hides or forwards to the engine's own controls):
+ * - every tool in one bar (Shot, Music, Text, Captions, Look, Motion, Background, Overlay, Voice, Style), one panel open
+ *   at a time; computers: the tools down the left, the preview in the middle, the open tool on the right and the
+ *   multi-track timeline (video, text, voice, music) underneath; phones: the tools in a row under the preview.
+ * - Pro tools (PRO_TOOLS) carry a PRO tag: on a free plan a tap opens the pricing page instead.
  * Also: the song and clips steps fold into one line once the Reel is made, the top bar's title and Export. */
 
-export type StudioView = "simple" | "editor" | "pro" | "all"; // "all": every panel open (checks and support, by link only)
-export const VIEW_KEY = "studio-view";
+export type StudioView = "one" | "all"; // "all": every panel open (checks and support, by link only)
+// the tools of paid plans (and the administrator); free plans see them with a PRO tag that opens /pricing
+export const PRO_TOOLS = new Set(["motion", "layers", "bg", "voice"]);
 
 type Shot = { start: number; end: number; src: number; type: string; tr: string; efx: string; uk?: { t: number }[] };
 type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean };
@@ -20,22 +22,11 @@ type Studio = {
 
 export function savedView(): StudioView {
   try {
-    const q = new URLSearchParams(location.search).get("view"); // a link can open a view: /create/edit?view=pro
-    if (q === "simple" || q === "editor" || q === "pro" || q === "all") return q;
-    const v = localStorage.getItem(VIEW_KEY);
-    return v === "editor" || v === "pro" ? v : "simple";
+    return new URLSearchParams(location.search).get("view") === "all" ? "all" : "one";
   } catch {
-    return "simple";
+    return "one";
   }
 }
-
-// which panels a tool opens (Simple's cards and Pro's tools are groups; the Editor's dock opens one panel each)
-const GROUPS: Record<string, string[]> = {
-  "simple:style": ["style"], "simple:text": ["text", "captions"], "simple:look": ["look", "bg"], "simple:music": ["music", "voice"],
-  "pro:pshot": ["motion", "shots"], "pro:text": ["text", "captions"], "pro:audio": ["music", "voice"], "pro:plook": ["look", "style"], "pro:bg": ["bg"],
-};
-const PRO_OF: Record<string, string> = { layers: "layers", shots: "pshot", motion: "pshot", music: "audio", voice: "audio", captions: "text", look: "plook", style: "plook", bg: "bg", text: "text" };
-const SIMPLE_OF: Record<string, string> = { style: "style", text: "text", captions: "text", look: "look", bg: "look", music: "music", voice: "music", audio: "music", plook: "look" };
 const fmt = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 9.95 ? "0" : "") + s.toFixed(1); };
 const fmtS = (t: number) => fmt(t).replace(/\.\d$/, "");
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"]; // as the engine's strip
@@ -49,40 +40,36 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector<T>("#" + id)!;
   const S = () => (root as unknown as { __studio?: Studio }).__studio;
   const kf = $<HTMLDetailsElement>("kfbox");
-  let view: StudioView = savedView();
+  const view: StudioView = savedView();
   let tool = "";
   let shotKey = "", lanesKey = "", shotTab = 0, ctOpen = "", ctKey = "";
   const q = new URLSearchParams(location.search).get("tool");
 
   const made = () => !$("s3").classList.contains("locked");
-  const defTool = () => (view === "editor" ? "shots" : view === "pro" ? "pshot" : "");
-  const panelsOf = () => (!tool ? [] : GROUPS[view + ":" + tool] || [tool]);
+  // computers keep a tool open beside the preview (the shot first); phones show the Reel, a tool opens over it
+  const wide = () => window.matchMedia("(min-width: 1024px)").matches;
+  const defTool = () => (wide() ? "shots" : "");
+  // a paid plan (or the administrator, or billing off) uses the Pro tools; until the server says so they are locked
+  let paid = false;
+  const locked = (k: string) => PRO_TOOLS.has(k) && !paid && !root.classList.contains("admin");
   const apply = () => {
-    root.classList.remove("v-simple", "v-editor", "v-pro", "v-all");
+    root.classList.remove("v-simple", "v-editor", "v-pro", "v-one", "v-all");
     root.classList.add("v-" + view);
     root.dataset.tool = tool;
     root.classList.toggle("made", made());
-    root.querySelectorAll<HTMLButtonElement>("#views button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === view)));
-    root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tool === tool)));
-    root.querySelectorAll<HTMLButtonElement>(".card").forEach((b) => b.setAttribute("aria-expanded", String(b.dataset.tool === tool)));
-    const on = new Set(view === "all" ? [...root.querySelectorAll<HTMLElement>(".panel")].map((p) => p.dataset.panel!) : panelsOf());
+    root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) => {
+      b.setAttribute("aria-pressed", String(b.dataset.tool === tool));
+      const lock = String(locked(b.dataset.tool!));
+      if (b.dataset.locked !== lock) b.dataset.locked = lock;
+    });
+    const on = new Set(view === "all" ? [...root.querySelectorAll<HTMLElement>(".panel")].map((p) => p.dataset.panel!) : tool ? [tool] : []);
     root.querySelectorAll<HTMLElement>(".panel").forEach((p) => p.classList.toggle("on", on.has(p.dataset.panel!)));
     // the keyframe panel is open when Motion is shown (dragging the picture then moves the shot)
     const kfWant = on.has("motion");
     if (kf.open !== kfWant) kf.open = kfWant;
-    if (view === "pro" || view === "all") $<HTMLDetailsElement>("allshots").open = true;
+    if (view === "all") $<HTMLDetailsElement>("allshots").open = true;
     shotKey = ""; lanesKey = "";
     requestAnimationFrame(() => { const st = S() as (Studio & { drawTimeline?: () => void }) | undefined; if (st && st.edit.length) st.drawTimeline?.(); });   // the strip at its new size
-  };
-  const setView = (v: StudioView) => {
-    const was = tool; // the same tool in the new view, where it exists there
-    view = v;
-    if (v === "pro") tool = PRO_OF[was] || "pshot";
-    else if (v === "editor") tool = (GROUPS["pro:" + was] || GROUPS["simple:" + was] || [was])[0] || "shots";
-    else tool = SIMPLE_OF[was] && was !== "shots" ? "" : "";
-    try { if (v !== "all") localStorage.setItem(VIEW_KEY, v); } catch { /* private mode */ }
-    apply();
-    onView(v);
   };
   const openStep = (id: string, open: boolean) => {
     const s = $(id), h = s.querySelector<HTMLButtonElement>(".sh")!;
@@ -91,26 +78,25 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   };
   const copyReel = () => root.querySelector<HTMLButtonElement>('#mode [data-m="copy"]')?.click();
 
-  $("views").addEventListener("click", (e) => { const b = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-view]"); if (b) setView(b.dataset.view as StudioView); }, sig);
   root.addEventListener("click", (e) => {
     const t = e.target as HTMLElement;
-    const go = t.closest<HTMLElement>("[data-goview]"); if (go) { setView(go.dataset.goview as StudioView); return; }
     const px = t.closest<HTMLElement>("[data-proxy]"); if (px) { $(px.dataset.proxy!).click(); return; }
     const os = t.closest<HTMLElement>("[data-open-step]"); if (os) { const id = os.dataset.openStep!; openStep(id, true); $(id).scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (t.closest("#copycard")) { copyReel(); return; }
-    const b = t.closest<HTMLButtonElement>(".tool,.card");
+    const b = t.closest<HTMLButtonElement>(".tool");
     if (b) {
       const k = b.dataset.tool!;
-      tool = b.classList.contains("card") && tool === k ? "" : k; // a card closes again on a second tap
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- plain DOM code, the pricing page is a full load
+      if (locked(k)) { location.assign("/pricing?feature=" + encodeURIComponent(k)); return; } // a Pro tool on a free plan
+      tool = tool === k && !wide() ? "" : k; // phones: a second tap closes it again (computers always show one)
       apply();
-      if (b.classList.contains("card") && tool) root.querySelector<HTMLElement>(".panel.on")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       return;
     }
     const sh = t.closest<HTMLButtonElement>(".step > .sh");
     if (sh) { const s = sh.parentElement!; openStep(s.id, s.classList.contains("folded")); }
   }, sig);
 
-  // play over the preview (Simple), previous / next shot
+  // play over the preview, previous / next shot
   $("playov").addEventListener("click", () => $("play").click(), sig);
   const jump = (d: number) => { const st = S(); if (!st || !st.edit.length) return; const i = Math.max(0, Math.min(st.edit.length - 1, st.segAt(st.now) + d)); void st.kfSeek(st.edit[i].start + 0.05); };
   $("pshot").addEventListener("click", () => jump(-1), sig);
@@ -121,20 +107,10 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   top.addEventListener("click", () => exp.click(), sig);
   const mirror = () => { if (top.disabled !== exp.disabled) top.disabled = exp.disabled; }; // only on a change: a write is a mutation too
 
-  // the cards, the title and the summary show what is chosen now
-  const pressed = (id: string) => root.querySelector(`#${id} [aria-pressed="true"]`)?.textContent?.trim() || "";
+  // the title and the summary show what is made now
   const setText = (el: Element | null, v: string) => { if (el && el.textContent !== v) el.textContent = v; };
-  const cv = (k: string, v: string) => setText(root.querySelector(`[data-cv="${k}"]`), v);
   const values = () => {
     const st = S();
-    const ref = !$("refbox").hidden && pressed("mode") === "Copy a Reel";
-    cv("style", ref ? "Copied Reel" : pressed("mode"));
-    const hook = $<HTMLInputElement>("hook").value.trim(), n = root.querySelectorAll("#ovlist .ov").length, caps = $<HTMLInputElement>("caps").checked;
-    cv("text", (hook ? "“" + (hook.length > 14 ? hook.slice(0, 13) + "…" : hook) + "”" : n ? n + " text" + (n > 1 ? "s" : "") : "Add a hook") + (caps ? " + captions" : ""));
-    const bgm = pressed("bgmode");
-    cv("look", pressed("look") + (bgm && bgm !== "Original" ? " · " + bgm.toLowerCase() + " background" : ""));
-    if (st && st.dur) cv("music", fmtS(st.dur) + (st.section && st.section.len && st.section.auto ? " · best part" : "") + (!$("vodel").hidden ? " · voiceover" : ""));
-    else cv("music", "Choose a song");
     if (st && made()) {
       setText($("tbname"), st.title || "Your Reel");
       const talk = st.kind === "talk";
@@ -146,10 +122,10 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     } else setText($("tbname"), "Your Reel");
   };
 
-  // the current shot: chips (Editor) and the inspector (Pro), both forwarding to the edit list's own controls
+  // the current shot: chips (the Shot tool) and the inspector, both forwarding to the edit list's own controls
   const rowOf = (i: number) => root.querySelectorAll<HTMLTableRowElement>("#edl tr")[i];
   const shotUI = () => {
-    const st = S(); if (!st || !made() || !st.edit.length || view === "simple") return;
+    const st = S(); if (!st || !made() || !st.edit.length) return;
     const i = st.segAt(st.now), e = st.edit[i], row = rowOf(i); if (!e || !row) return;
     const sels = [3, 4, 5].map((c) => row.children[c]?.querySelector("select") as HTMLSelectElement | null);
     const key = view + "|" + shotTab + "|" + i + "|" + st.editGen + "|" + sels.map((s) => s && s.value).join() + "|" + (e.uk ? e.uk.length : 0) + "|" + root.querySelectorAll("#edl tr").length;
@@ -196,7 +172,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const lanes = $<HTMLCanvasElement>("lanes");
   const css = (v: string, d: string) => getComputedStyle(root).getPropertyValue(v).trim() || d;
   const drawLanes = () => {
-    const st = S(); if (!st || view !== "pro" || !made() || !st.edit.length || !lanes.clientWidth) return;
+    const st = S(); if (!st || !made() || !st.edit.length || !lanes.clientWidth) return;
     const D = st.dur || 1, now = st.now;
     const key = [lanes.clientWidth, st.editGen, st.edit.length, (now * 20) | 0, st.overlays.map((o) => o.t0 + "/" + o.t1 + o.text).join(), !!st.vo, st.hook, st.capsOn, st.edit.reduce((a, e) => a + (e.uk ? e.uk.length : 0), 0), root.querySelectorAll("#edl tr").length].join("|");
     if (key === lanesKey) return; lanesKey = key;
@@ -234,7 +210,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     else { g.fillStyle = chip; rr(lab, y + dpr, W - lab, rows[3] - 2 * dpr, 5 * dpr); g.fill(); }
     g.fillStyle = ink; g.fillRect(Math.round(X(Math.min(now, D))) - dpr, 0, 2 * dpr, H);
   };
-  window.addEventListener("resize", () => { lanesKey = ""; const st = S() as (Studio & { drawTimeline?: () => void }) | undefined; if (st && st.edit.length) st.drawTimeline?.(); }, sig);
+  window.addEventListener("resize", () => { lanesKey = ""; if (wide() && !tool && made()) { tool = defTool(); apply(); } const st = S() as (Studio & { drawTimeline?: () => void }) | undefined; if (st && st.edit.length) st.drawTimeline?.(); }, sig);
   lanes.addEventListener("pointerdown", (e) => {
     const st = S(); if (!st || !st.dur) return; const r = lanes.getBoundingClientRect(), lab = r.width > 700 ? 64 : 46;
     void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, ((e.clientX - r.left - lab) / (r.width - lab)) * st.dur)));
@@ -272,7 +248,11 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   root.addEventListener("input", values, sig);
 
   tool = defTool();
-  if (q) tool = view === "pro" ? PRO_OF[q] || tool : view === "simple" ? SIMPLE_OF[q] || "" : root.querySelector(`.panel[data-panel="${q}"]`) ? q : tool;
+  if (q && root.querySelector(`.panel[data-panel="${q}"]`)) tool = q; // a link can open a tool: /create/edit?tool=text
   apply(); onChange(); onView(view);
-  return { setView, cleanup: () => { ac.abort(); mo.disconnect(); cancelAnimationFrame(raf); } };
+  fetch("/api/credits", { credentials: "same-origin", ...sig }).then((r) => (r.ok ? r.json() : null)).then((c: { enabled?: boolean; plan?: string } | null) => {
+    paid = !!c && (c.enabled === false || (!!c.plan && c.plan !== "free"));
+    apply();
+  }, () => {});
+  return { cleanup: () => { ac.abort(); mo.disconnect(); cancelAnimationFrame(raf); } };
 }

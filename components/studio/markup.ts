@@ -1,11 +1,11 @@
 /** The Fast Studio page body (ids are what components/studio/engine.ts wires up). Everything runs in the browser.
  *
- * Three views of the same Reel (the .brs root carries v-simple / v-editor / v-pro, set by components/studio/views.ts):
- * - Simple: the steps, then the preview, a few big cards that open one panel each, and a "Save video" bar.
- * - Editor: the song and clips fold into one line each; the preview, the timeline strip and a tool dock that shows one
- *   panel at a time (shots, music, text, captions, look, motion, background, voice, style).
- * - Pro: every panel open in an inspector beside the preview, the timeline and the edit list underneath.
- * The panels are the same elements in every view: only what is shown changes. */
+ * One editor for everyone (the .brs root carries v-one, set by components/studio/views.ts): the song and clips fold
+ * into one line each; the preview, the timeline and one tool bar with every tool (shot, music, text, captions, look,
+ * motion, background, overlay, voice, style), one panel open at a time. Pro tools carry a PRO tag (views.ts PRO_TOOLS).
+ * ?view=all opens every panel at once (checks and support). */
+import { PRO_TOOLS } from "./views";
+
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
 const IC = {
@@ -38,6 +38,7 @@ const IC = {
   upload: I('<path d="M12 16V4M7 9l5-5 5 5M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/>'),
   scan: I('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12h8M8 15h5"/>'),
   lock: I('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
+  crown: '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>',
 };
 // the Create flow's AI checklist (step 3 on computers, the Analysing screen on phones); data-t: the tasks it follows
 const AI_STEPS: [string, string, string][] = [
@@ -47,26 +48,19 @@ const AI_STEPS: [string, string, string][] = [
   ["look", "Colour and quality enhancement", "make"],
 ];
 const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${IC.scan}<span>${t}</span></li>`).join("")}</ul>`;
-// a tool: a dock button (Editor), a card (Simple) and the heading of its panel (Pro)
+// a tool: a button in the tool bar and the heading of its panel
 const TOOLS: [string, string, string][] = [
   ["shots", "Shot", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
   ["look", "Look", IC.look], ["motion", "Motion", IC.motion], ["bg", "Background", IC.bg], ["layers", "Overlay", IC.layers], ["voice", "Voice", IC.voice], ["style", "Style", IC.style],
 ];
-// Editor: every tool; Pro: grouped (Shot = the shot + keyframes, Audio = music + voice, Look = look + style)
-const PRO_TOOLS: [string, string, string][] = [["pshot", "Shot", IC.shot], ["text", "Text", IC.text], ["audio", "Audio", IC.music], ["plook", "Look", IC.look], ["bg", "Background", IC.bg], ["layers", "Overlay", IC.layers]];
-const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool ed" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span></button>`).join("")
-  + PRO_TOOLS.map(([k, n, ic]) => `<button type="button" class="tool pr" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span></button>`).join("");
-const card = (k: string, n: string, ic: string) =>
-  `<button type="button" class="card" data-tool="${k}" aria-expanded="false">${ic}<span class="ct"><b>${n}</b><span class="cv" data-cv="${k}"></span></span></button>`;
+// every tool in one bar; a Pro tool (views.ts PRO_TOOLS) carries a PRO tag, and on a free plan it opens /pricing
+const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span>${PRO_TOOLS.has(k) ? `<em class="protag">${IC.crown}PRO</em>` : ""}</button>`).join("");
 const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; return `<h3 class="ph">${t[2]}${t[1]}</h3>`; };
 
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
 <div class="topbar" id="topbar">
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
-  <div class="views" id="views" role="group" aria-label="View">
-    <button type="button" data-view="simple" aria-pressed="true">Simple</button><button type="button" data-view="editor" aria-pressed="false">Editor</button><button type="button" data-view="pro" aria-pressed="false">Pro</button>
-  </div>
   <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
@@ -263,11 +257,6 @@ export const STUDIO_HTML = `
 
       <div class="tools">
         <nav class="dock" id="dock" aria-label="Tools">${dock}</nav>
-        <div class="cards" id="cards">
-          <div class="cgrid">${card("style", "Style", IC.style)}${card("text", "Text", IC.text)}${card("look", "Look", IC.look)}${card("music", "Music", IC.music)}</div>
-          <button type="button" class="more" data-goview="editor">Want to change every shot? Open the Editor view ${IC.chev}</button>
-          <button type="button" class="fmore" data-goview="editor">${I('<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>')}<span>More</span></button>
-        </div>
 
         <div class="panels" id="panels">
           <section class="panel" data-panel="style">${panelHead("style")}

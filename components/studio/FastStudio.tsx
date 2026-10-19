@@ -14,8 +14,8 @@ import "./studio.css";
 /**
  * Fast Studio: song + clips -> a finished, beat-synced Reel made entirely on this device (analysis, edit, GPU preview and a
  * WebCodecs MP4 export). Nothing is uploaded, so it is fast and costs no server time. The editor itself is plain DOM code
- * (components/studio/engine.ts) mounted into this page once; components/studio/views.ts switches its Simple / Editor /
- * Pro views. It sits inside the app like every other page: the same sidebar, top bar, menu and footer.
+ * (components/studio/engine.ts) mounted into this page once; components/studio/views.ts lays out its one editor (every
+ * tool in one bar, Pro tools tagged). It sits inside the app like every other page: the same sidebar, top bar, menu and footer.
  */
 
 const SCRIPTS = ["/vendor/tracking/tracking-min.js", "/vendor/tracking/face-min.js"]; // face finder (BSD), loaded in order

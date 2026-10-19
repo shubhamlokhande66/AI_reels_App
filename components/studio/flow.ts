@@ -3,7 +3,7 @@
  * Computers: one page. The header (back, "Music Reel", the four steps Music · Clips · AI Edit · Preview & Export), then
  *   1 Choose Music, 2 Add Your Clips, 3 AI Edit in a column, and the Reel Preview with Generate Reel beside them.
  * Phones: one screen at a time: the intro, choose music, adjust music (part, length, beats), add clips, analysing, then
- *   the finished Reel (the engine's own Simple view: "Your Reel is ready", Style / Text / Look / Music, Export).
+ *   the finished Reel ("Your Reel is ready", the editor's tools in a row, Export).
  *
  * The engine makes the edit by itself as soon as there is a song and clips; the flow keeps that edit behind the
  * Analysing screen until Generate (computers) or Next (phones) is pressed, then hands the page to the editor views
@@ -41,7 +41,6 @@ export function initFlow(root: HTMLElement): () => void {
   let step: Step = "intro";
   let kind: Kind = "music";
   let pct = 0;
-  let simpleSet = false; // the made Reel opens in the Simple view on phones (once: a later choice stays)
   const lines = new Map<string, "now" | "ok">();
   const working = new Set<string>(); // the WAIT tasks running right now
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
@@ -131,7 +130,7 @@ export function initFlow(root: HTMLElement): () => void {
   let crumbKey = "";
   const crumbs = (on: boolean) => {
     const tool = root.dataset.tool ?? "";
-    const toolName = tool && has("fpost") ? root.querySelector(`.card[data-tool="${tool}"] b`)?.textContent ?? "" : "";
+    const toolName = tool && has("fpost") ? root.querySelector(`.tool[data-tool="${tool}"] span`)?.textContent ?? "" : "";
     const flowKind = chosen() || !!urlKind();
     const k = flowKind ? KINDS[readKind()].title : "";
     const cur = !songOk() ? "choose" : !clipsOk() ? "clips" : "analyse";
@@ -157,12 +156,11 @@ export function initFlow(root: HTMLElement): () => void {
   const apply = () => {
     const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
     setClass(root, "fopen", on);
-    // phones, once the Reel is made: "Your Reel is Ready!" (the Simple view under the flow's head, step 4), and its
+    // phones, once the Reel is made: "Your Reel is Ready!" (the editor under the flow's head, step 4), and its
     // tools as "Edit Options" (screens 6 and 7 of the design)
     const post = !on && revealed && made() && !has("autoing") && phone();
     setClass(root, "fpost", post);
     if (post) {
-      if (!has("v-simple") && !simpleSet) { simpleSet = true; root.querySelector<HTMLButtonElement>('#views [data-view="simple"]')?.click(); }
       setText($("fptitle"), root.dataset.tool ? "Edit Options" : "");
       root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => { setClass(li, "on", li.dataset.f === "4"); setClass(li, "ok", li.dataset.f !== "4"); });
     }
@@ -231,7 +229,7 @@ export function initFlow(root: HTMLElement): () => void {
   const go = (s: Step, push = true) => {
     const moved = s !== step || revealed;
     step = s;
-    if (revealed) { revealed = false; simpleSet = false; }
+    if (revealed) revealed = false;
     if (moved) mark(push);
     apply();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -241,7 +239,7 @@ export function initFlow(root: HTMLElement): () => void {
     if (step === "clips" && !songOk()) return go("choose"); // a Music Reel without a song yet
     if (i >= 0 && i < o.length - 1) go(o[i + 1]);
   };
-  const closeTool = () => root.querySelector<HTMLButtonElement>(`.card[data-tool="${root.dataset.tool}"]`)?.click();
+  const closeTool = () => root.querySelector<HTMLButtonElement>(`.tool[data-tool="${root.dataset.tool}"]`)?.click();
   const back = () => {
     if (has("fpost") && root.dataset.tool && !toolMarked) return closeTool(); // Edit Options → back to the Reel
     if (depth > 0) { history.back(); return; } // the screen before, as the browser's own Back does
@@ -337,11 +335,10 @@ export function initFlow(root: HTMLElement): () => void {
     depth = f.n;
     const screen = f.step !== step || f.revealed !== revealed;
     step = f.step;
-    if (revealed && !f.revealed) simpleSet = false;
     revealed = f.revealed;
     toolMarked = f.tool;
     if (root.dataset.tool && root.dataset.tool !== f.tool) closeTool();
-    if (f.tool && root.dataset.tool !== f.tool) root.querySelector<HTMLButtonElement>(`.card[data-tool="${f.tool}"]`)?.click(); // Forward into a tool
+    if (f.tool && root.dataset.tool !== f.tool) root.querySelector<HTMLButtonElement>(`.tool[data-tool="${f.tool}"]`)?.click(); // Forward into a tool
     apply();
     if (screen) window.scrollTo({ top: 0 });
   }, sig);

@@ -471,7 +471,20 @@ same on the GPU and the 2D renderer: linear move half way 0.100 / -0.050 (set 0.
 dragging the picture 10% moved the shot 0.100; a text moved 0.200 and sized 1.500× (set 0.2, 1.5×); saved with the Reel;
 the exported 1080p video: bar at 0.700, 0.500 and 20.0° against the preview's 0.699, 0.499 and 20.0°.
 
-## The studio's look: Simple / Editor / Pro, menu, Ivory / Noir
+## The studio's look: one editor, menu, Ivory / Noir
+
+**Now (2026-10-19): one editor for everyone** (`views.ts`, the root's `v-one`), like CapCut or VN; the Simple / Editor /
+Pro switch below is gone. Every tool is in one bar: Shot, Music, Text, Captions, Look, Motion, Background, Overlay,
+Voice, Style, one panel open at a time.
+- Computer (1024px and wider): the tools in a rail on the left, the preview with previous / play / next in the middle,
+  the open tool on the right (Shot first), the Video / Text / Voice / Music tracks across the bottom.
+- Phone: "Your Reel is ready", the preview, the shot strip, New mix, the ten tools five a row, Export; a tool opens over
+  the Reel with the tools as tabs in one row and Apply.
+- Pro tools (`PRO_TOOLS`: Motion, Background, Overlay, Voice) carry a PRO tag on a free plan; a tap opens
+  `/pricing?feature=<tool>`. Paid plans, the administrator and billing off use them as any other tool.
+- `?tool=text` opens a tool; `?view=all` opens every panel (the checks use it). Check: `scripts/studio-ui/check-views.cjs`.
+
+What follows is the earlier three-view design, kept for its history.
 
 Built to the design "D · Combined" (phone: Simple, Menu, Editor, Pro; computer: Home, Pro editor).
 
