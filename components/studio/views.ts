@@ -15,7 +15,7 @@ type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean
 type Studio = {
   now: number; playing: boolean; dur: number; audio: AudioBuffer | null; beats: number[]; songName: string; title: string; hook: string; capsOn: boolean;
   edit: Shot[]; overlays: Ov[]; vo: unknown; kind: string; editGen: number;
-  sources: { name: string }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean;
+  sources: { name: string }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace" | "freeze", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean;
   section: { start: number; len: number; whole: number; auto: boolean };
   segAt: (t: number) => number; kfSeek: (t: number) => Promise<void>;
 };
@@ -142,6 +142,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const tools = st.kind === "talk" ? "" : `<div class="shtools" role="group" aria-label="Shot tools">`
       + `<button type="button" class="btn ghost" data-op="split" title="Split this shot where the playhead is">Split</button>`
       + `<button type="button" class="btn ghost" data-op="dup" title="Play this moment twice">Duplicate</button>`
+      + `<button type="button" class="btn ghost" data-op="freeze" title="Freeze the picture at the playhead, then play on">Freeze</button>`
       + `<button type="button" class="btn ghost" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
       + (st.sources.length > 1 ? `<select data-rep="1" aria-label="Replace with a moment from"><option value="">Replace with…</option>${st.sources.map((s, k) => `<option value="${k}">${clipName(s.name)}${k === e.src ? " (this clip)" : ""}</option>`).join("")}</select>` : "")
       + `</div><div class="cliptools"></div>`;
@@ -162,7 +163,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   for (const id of ["shotcard", "inspector"]) {
     $(id).addEventListener("click", (e) => { const t = e.target as HTMLElement; const c = t.closest<HTMLButtonElement>(".chip"), tb = t.closest<HTMLButtonElement>(".shtab");
       if (c && c.dataset.c) forward(+c.dataset.c, c.dataset.v!); else if (tb) { shotTab = +tb.dataset.tab!; shotKey = ""; } else if (t.closest("[data-other]")) other();
-      else { const op = t.closest<HTMLButtonElement>("[data-op]"); if (op) { S()?.shotOp(op.dataset.op as "split" | "dup" | "delete"); shotKey = ""; } } }, sig);
+      else { const op = t.closest<HTMLButtonElement>("[data-op]"); if (op) { S()?.shotOp(op.dataset.op as "split" | "dup" | "delete" | "freeze"); shotKey = ""; } } }, sig);
     clipToolsEvents($(id), () => S(), () => ctOpen, (k) => { ctOpen = k; }, () => clipUI(true), sig);
     $(id).addEventListener("change", (e) => { const s = e.target as HTMLSelectElement; if (s.dataset.c) forward(+s.dataset.c, s.value);
       else if (s.dataset.rep && s.value !== "") { S()?.shotOp("replace", +s.value); shotKey = ""; } }, sig);
@@ -191,7 +192,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     peaksOf = a; peaks = out; return out;
   };
   const span = () => (S()?.dur || 1) / zoom;
-  const fix = () => { const D = S()?.dur || 1; zoom = Math.max(1, Math.min(ZMAX, zoom)); t0 = Math.max(0, Math.min(D - D / zoom, t0)); lanesKey = ""; };
+  const fix = () => {
+    const D = S()?.dur || 1; zoom = Math.max(1, Math.min(ZMAX, zoom)); t0 = Math.max(0, Math.min(D - D / zoom, t0)); lanesKey = "";
+    setText($("tlz"), (zoom < 10 ? Math.round(zoom * 10) / 10 : Math.round(zoom)) + "×");
+  };
+  // − / + : half or twice the zoom, around the playhead
+  const zoomBy = (f: number) => { const st = S(); if (!st) return; const at = Math.min(Math.max(st.now, t0), t0 + span()), p = (at - t0) / span(); zoom *= f; fix(); t0 = at - p * span(); fix(); };
+  $("tlzi").addEventListener("click", () => zoomBy(2), sig);
+  $("tlzo").addEventListener("click", () => zoomBy(0.5), sig);
   const tAt = (x: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return t0 + ((x - r.left - lab) / (r.width - lab)) * span(); };
   const xOf = (t: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return r.left + lab + ((t - t0) / span()) * (r.width - lab); };
   // the shot whose right edge is under x on the video track (not the last: it ends with the song)

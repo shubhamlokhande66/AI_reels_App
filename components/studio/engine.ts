@@ -32,6 +32,12 @@ let onEnv=null, onFps=0, onOff=0, hitsRaw=[];
 let cutFx = [], pfArr = null;
 const DRUM_MIN = 0.7;
 let beats = [], cuts = [], cutType = [], peaks = [], peakS = [];
+let userMarks = [];   // beats the creator tapped in (song time): cuts can land on them like on the song's own beats
+function withMarks(b, dur){ if(!userMarks.length) return b; const out = b.slice();
+  for(const m of userMarks){ const t = m - secStart; if(t > 0.05 && t < dur - 0.05 && !out.some(x => Math.abs(x - t) < 0.08)) out.push(t); }
+  return out.sort((x, y) => x - y); }
+function addMark(t){ if(!buf || !edit.length) return false; userMarks.push(+(secStart + t).toFixed(3)); beats = withMarks(beats, buf.duration); makeEdit(); notify('Beat added at ' + t.toFixed(1) + ' s: a cut can land there now'); return true; }
+function clearMarks(){ if(!userMarks.length) return false; const ts = userMarks.map(m => m - secStart); userMarks = []; beats = beats.filter(b => !ts.some(t => Math.abs(t - b) < 0.005)); makeEdit(); notify('Your beats are cleared'); return true; }
 // On an iPhone the page's sound is muted by the ring/silent switch unless it says it is playing media (Audio Session API)
 function getCtx(){ if(!ctx){ try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){} ctx = new (window.AudioContext||window.webkitAudioContext)(); } return ctx; }
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -358,7 +364,7 @@ function snap(t, w){
 }
 function rebuild(){
   const p = period, dur = buf.duration;
-  beats = beatsDP.filter(t => t >= 0 && t < dur-0.02);
+  beats = withMarks(beatsDP.filter(t => t >= 0 && t < dur-0.02), dur);
   const first = beats.length ? beats[0] : 0;
   barOff = 0;
   // loudness every 5 ms; a cut only where the sound suddenly jumps UP or suddenly falls DOWN
@@ -1706,7 +1712,7 @@ function applyDirectorStyle(){
       if(d.sp==='freeze' && s.efx!=='snap') ok = false;
       if(d.sp==='ramp' && len < 0.4) ok = false;
       if(d.sp==='velocity' && !bl.length) ok = false;
-      if(ok) sp = d.sp==='velocity' ? velocitySpeed(len, bl) : d.sp==='ramp' ? rampSpeed(len) : d.sp==='freeze' ? snapSpeed : SPEED[d.sp];
+      if(ok) sp = d.sp==='velocity' ? velocitySpeed(len, bl) : d.sp==='ramp' ? rampSpeed(len) : d.sp==='freeze' ? snapSpeed : d.sp==='hold' ? holdSpeed : SPEED[d.sp];
       if(sp){ s.sp = sp; used++; } else fixed++;
     }
     if(s.efx==='snap' && s.sp!==snapSpeed) s.sp = snapSpeed;   // the photo snap is a freeze by definition
@@ -2227,11 +2233,12 @@ function kfSummary(e){
   return `<br><span style="font:11px var(--mono);color:var(--muted)">◆ scale ${a[1].toFixed(2)}→${b[1].toFixed(2)} · ${(b[0]-a[0]).toFixed(2)}s ${b[2]||''}</span>` + why;
 }
 /* ---- manual control: change any shot, the rest stays ---- */
-const SPEED_KEYS = {normal:'1×', slow:'Slow 0.5×', fast:'Fast 1.6×', velocity:'Velocity (beat)', ramp:'Ramp 1.8×→0.6×', freeze:'Freeze → 1×'};
+const SPEED_KEYS = {normal:'1×', slow:'Slow 0.5×', fast:'Fast 1.6×', velocity:'Velocity (beat)', ramp:'Ramp 1.8×→0.6×', freeze:'Freeze → 1×', hold:'Freeze frame'};
+const holdSpeed = {label:'Freeze frame', at:()=>0, pos:()=>0};   // the picture stands still for the whole shot
 function speedFor(key, e){
   const len = e.end - e.start, bl = beats.filter(b=>b>e.start+0.15 && b<e.end-0.1).map(b=>b-e.start);
   if(key==='slow') return SPEED.slow; if(key==='fast') return SPEED.fast; if(key==='ramp') return rampSpeed(len);
-  if(key==='velocity') return bl.length ? velocitySpeed(len, bl) : rampSpeed(len); if(key==='freeze') return snapSpeed; return SPEED.normal;
+  if(key==='velocity') return bl.length ? velocitySpeed(len, bl) : rampSpeed(len); if(key==='freeze') return snapSpeed; if(key==='hold') return holdSpeed; return SPEED.normal;
 }
 const speedKey = sp => (Object.keys(SPEED_KEYS).find(k=>SPEED_KEYS[k]===sp.label) || (sp.label.startsWith('Ramp') ? 'ramp' : 'normal'));
 function assignPlayers(){ const uc = sources.map(()=>0); edit.forEach(e=>{ e.el = sources[e.src].els[(uc[e.src]++)%3]; }); }
@@ -2289,6 +2296,19 @@ function shotOp(op, arg){
       tr: op === 'dup' ? (x.tr === 'hard' ? 'flash' : x.tr) : 'hard' };   // a replay reads better with a little transition
     L.splice(i, 1, a, b);
     return done(L, i + 1, op === 'dup' ? 'Shot ' + (i + 1) + ' now plays twice.' : 'Shot ' + (i + 1) + ' split in two.');
+  }
+  if(op === 'freeze'){
+    // freeze frame: the picture at the playhead stands still (1 s, or up to the next beat), then the shot plays on from there
+    const t = Math.max(e.start, Math.min(e.end - MIN_SHOT, pos)), at = t - e.start, src = x.cs && x.cs.rev ? srcPos(e, at) : srcPosF(e, at);
+    const nb = beats.find(b => b > t + 0.45 && b < t + 1.6), hold = Math.min(e.end - t, nb ? nb - t : 1);
+    if(hold < 0.25){ notify('Move the playhead earlier in the shot to freeze it there.'); return false; }
+    const parts = [];
+    if(at >= MIN_SHOT) parts.push({ ...x, end: t, uk: undefined });
+    parts.push({ ...x, start: t, end: t + hold, in: src, sp: 'hold', tr: at >= MIN_SHOT ? 'flash' : x.tr, efx: 'none', uk: undefined });
+    if(e.end - (t + hold) >= MIN_SHOT) parts.push({ ...x, start: t + hold, in: src, tr: 'hard', uk: undefined });
+    else parts[parts.length - 1].end = e.end;
+    L.splice(i, 1, ...parts);
+    return done(L, i + (at >= MIN_SHOT ? 1 : 0), 'Freeze frame added to shot ' + (i + 1) + '.');
   }
   if(op === 'delete'){
     if(L.length < 2){ notify('A Reel needs at least one shot.'); return false; }
@@ -2430,8 +2450,17 @@ function drawTimeline(){
     g.fillStyle = css(TCOL[e.type]); g.fillRect(x0, 0, Math.max(2*dpr, 3*dpr), 8*dpr);
     if(e.sp.label!=='1×'){ g.fillStyle='rgba(0,0,0,0.35)'; g.fillRect(x0+dpr, h-7*dpr, Math.max(1,x1-x0-2*dpr), 5*dpr); }
     if(e.uk && e.uk.length){ const cx = (x0+x1)/2, cy = h/2 + 5*dpr, r = 5*dpr; g.beginPath(); g.moveTo(cx, cy-r); g.lineTo(cx+r, cy); g.lineTo(cx, cy+r); g.lineTo(cx-r, cy); g.closePath(); g.fillStyle = '#FFD54A'; g.fill(); g.strokeStyle = '#000'; g.lineWidth = dpr; g.stroke(); } });
+  for(const m of userMarks){ const x = (m - secStart)/D*w; if(x >= 0 && x <= w){ g.fillStyle = '#FFD54A'; g.beginPath(); g.moveTo(x - 4*dpr, 0); g.lineTo(x + 4*dpr, 0); g.lineTo(x, 7*dpr); g.closePath(); g.fill(); } }
   const t = playing ? curTime() : pos; g.fillStyle = css('--ink'); g.fillRect(Math.round(t/D*w)-dpr, 0, 2*dpr, h);
+  if(tlZoom > 1){ const sc = cv.parentElement, px = t/D*cv.clientWidth; if(sc && (px < sc.scrollLeft + 20 || px > sc.scrollLeft + sc.clientWidth - 20)) sc.scrollLeft = px - sc.clientWidth/2; }
 }
+/* timeline zoom: 1x shows the whole Reel; 2x-8x widen the shot strip and the lanes, which then scroll and follow the playhead */
+let tlZoom = 1;
+// (the tracks under the preview zoom inside their own canvas, with a pinch or − / +: components/studio/views.ts)
+function setTlZoom(z){ tlZoom = Math.max(1, Math.min(8, z)); const c = $('tl'); if(c) c.style.width = (tlZoom*100) + '%';
+  root.classList.toggle('tlzoomed', tlZoom > 1); drawTimeline(); }
+$('addbeat').addEventListener('click', () => addMark(playing ? curTime() : pos), SIG);
+$('clrbeat').addEventListener('click', () => clearMarks(), SIG);
 $('tl').addEventListener('click', ev=>{ if(!edit.length) return; const r=$('tl').getBoundingClientRect(), tt=(ev.clientX-r.left)/r.width*buf.duration;
   const i = segAt(tt); if(playing) startPlayback(tt); else { const rows=$('edl').children; rows[i] && rows[i].scrollIntoView({block:'nearest'}); showShot(i); } });
 $('remix').onclick = () => { seed = (seed*7919 + 13) % 2147483647 || 7; mixNo++; makeEdit(); };
@@ -2838,7 +2867,30 @@ $('tronly').addEventListener('change', e => { trOnly = e.target.checked; redraw(
  * festival greetings. */
 let overlays = [], ovSeq = 0, ovSel = -1;
 const OV_COLORS = ['#FFFFFF', '#FFD54A', '#FF4D4D', '#3DDC84', '#4DA3FF', '#FF6FD8', '#111111'];
-const OV_STYLES = { bold: 'Bold', box: 'Box', neon: 'Neon', clean: 'Clean', tag: 'Tag' };
+const OV_STYLES = { bold: 'Bold', box: 'Box', neon: 'Neon', clean: 'Clean', tag: 'Tag', outline: 'Outline only', shadow: 'Hard shadow', bubble: 'Speech bubble', glow: 'Soft glow', stack: 'Double outline' };
+/* ---- fonts for texts: loaded from Google Fonts the first time one is picked (cached by the browser after that), so a
+ * Reel looks the same in the preview and the export. Devanagari ones for Marathi / Hindi. ---- */
+const OV_FONTS = {
+  auto: ['Auto', ''], anton: ['Anton', 'Anton'], bebas: ['Bebas Neue', 'Bebas+Neue'], poppins: ['Poppins', 'Poppins:wght@600;800'],
+  montserrat: ['Montserrat', 'Montserrat:wght@600;800'], oswald: ['Oswald', 'Oswald:wght@600'], bangers: ['Bangers', 'Bangers'],
+  marker: ['Permanent Marker', 'Permanent+Marker'], pacifico: ['Pacifico', 'Pacifico'], lobster: ['Lobster', 'Lobster'],
+  dancing: ['Dancing Script', 'Dancing+Script:wght@700'], caveat: ['Caveat', 'Caveat:wght@700'], playfair: ['Playfair Display', 'Playfair+Display:wght@700'],
+  mukta: ['Mukta', 'Mukta:wght@600;800'], baloo: ['Baloo 2', 'Baloo+2:wght@600;800'], yatra: ['Yatra One', 'Yatra+One'], kalam: ['Kalam', 'Kalam:wght@700'], rozha: ['Rozha One', 'Rozha+One'],
+};
+const fontReady = new Set(), fontWait = new Map();
+function loadFont(key){
+  const f = OV_FONTS[key]; if(!f || !f[1] || fontReady.has(key)) return Promise.resolve();
+  if(fontWait.has(key)) return fontWait.get(key);
+  const pr = new Promise(res => {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=' + f[1] + '&display=block'; l.onerror = () => res(); document.head.appendChild(l);
+    l.onload = () => Promise.all([document.fonts.load('800 40px "' + f[0] + '"'), document.fonts.load('800 40px "' + f[0] + '"', 'अ')]).catch(() => {}).then(() => { fontReady.add(key); res(); redrawSoon(); });
+    setTimeout(res, 6000);
+  });
+  fontWait.set(key, pr); return pr;
+}
+function redrawSoon(){ clearTimeout(redrawSoon.h); redrawSoon.h = setTimeout(() => { if(!playing && edit.length) redraw(); }, 50); }
+const ovFont = (ov, fs, weight) => { const f = OV_FONTS[ov.font]; if(!f || !f[1]) return fontFor(ov.text, fs, weight); loadFont(ov.font);
+  return `${weight} ${fs}px "${f[0]}", ${isIndic(ov.text) ? '"Noto Sans Devanagari", ' : ''}"Arial Black", sans-serif`; };
 const OV_ANIMS = { pop: 'Pop', fade: 'Fade', slide: 'Slide up', type: 'Typewriter', none: 'None' };
 const OV_EMOJI = ['🔥','😂','😍','👇','👉','✅','❌','⭐','💯','🎉','❤️','👀','🙏','🪔','🌺','🎵','📍','💰','⚡','😱'];
 const OV_PRESETS = {
@@ -2878,7 +2930,7 @@ function drawOverlay(g, ov, t){
   const u = uAt(ov.uk, since);   // the creator's keyframes: moved, sized, turned, faded over its time
   if(u){ sc *= Math.max(0.01, u.s); alpha *= Math.max(0, Math.min(1, u.o)); }
   g.save(); g.globalAlpha = Math.max(0, alpha);
-  g.font = ov.emoji ? `${fs}px "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif` : fontFor(ov.text, fs, ov.style === 'clean' ? 600 : 800);
+  g.font = ov.emoji ? `${fs}px "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif` : ovFont(ov, fs, ov.style === 'clean' ? 600 : 800);
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
   const lines = ov.emoji ? [txt] : wrapLines(g, txt, W*0.82), lh = fs*1.18;
   const tw = Math.max(...lines.map(l => g.measureText(l).width), fs*0.6), th = lh*lines.length;
@@ -2900,6 +2952,25 @@ function drawOverlay(g, ov, t){
     g.shadowColor = ov.color; g.shadowBlur = fs*0.6; g.fillStyle = '#fff';
     lines.forEach((l, k) => { const y = (k - (lines.length-1)/2)*lh; g.fillText(l, 0, y); g.fillText(l, 0, y); });
     g.shadowBlur = 0; g.lineWidth = fs*0.04; g.strokeStyle = ov.color; lines.forEach((l, k) => g.strokeText(l, 0, (k - (lines.length-1)/2)*lh));
+  } else if(!ov.emoji && ov.style === 'outline'){   // hollow letters
+    g.lineWidth = fs*0.07; g.strokeStyle = ov.color; g.shadowColor = 'rgba(0,0,0,0.5)'; g.shadowBlur = fs*0.12;
+    lines.forEach((l, k) => g.strokeText(l, 0, (k - (lines.length-1)/2)*lh));
+  } else if(!ov.emoji && ov.style === 'shadow'){   // a hard, offset shadow in the contrasting colour
+    const off = fs*0.09; g.fillStyle = dark(ov.color) ? '#fff' : '#111';
+    lines.forEach((l, k) => g.fillText(l, off, (k - (lines.length-1)/2)*lh + off));
+    g.fillStyle = ov.color; lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh));
+  } else if(!ov.emoji && ov.style === 'bubble'){   // a speech bubble with a tail
+    const pw = tw + fs*0.9, ph = th + fs*0.6, r = fs*0.45;
+    g.fillStyle = ov.color; g.beginPath(); g.roundRect ? g.roundRect(-pw/2, -ph/2, pw, ph, r) : g.rect(-pw/2, -ph/2, pw, ph); g.fill();
+    g.beginPath(); g.moveTo(-pw*0.22, ph/2 - 2); g.lineTo(-pw*0.34, ph/2 + fs*0.5); g.lineTo(-pw*0.06, ph/2 - 2); g.closePath(); g.fill();
+    g.fillStyle = dark(ov.color) ? '#fff' : '#111'; lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh + fs*0.03));
+  } else if(!ov.emoji && ov.style === 'glow'){   // white letters in a soft glow of the colour
+    g.shadowColor = ov.color; g.shadowBlur = fs*0.9; g.fillStyle = ov.color; lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh));
+    g.shadowBlur = fs*0.3; g.fillStyle = '#fff'; lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh));
+  } else if(!ov.emoji && ov.style === 'stack'){   // two outlines: the colour, then black, around white letters
+    g.lineWidth = fs*0.34; g.strokeStyle = '#111'; lines.forEach((l, k) => g.strokeText(l, 0, (k - (lines.length-1)/2)*lh));
+    g.lineWidth = fs*0.18; g.strokeStyle = ov.color; lines.forEach((l, k) => g.strokeText(l, 0, (k - (lines.length-1)/2)*lh));
+    g.fillStyle = '#fff'; lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh));
   } else if(!ov.emoji && ov.style === 'clean'){
     g.shadowColor = 'rgba(0,0,0,0.55)'; g.shadowBlur = fs*0.25; g.fillStyle = ov.color;
     lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh));
@@ -2920,7 +2991,7 @@ function renderOvList(){
     const row = document.createElement('div'); row.className = 'ov' + (i === ovSel ? ' sel' : '');
     const [a, b] = ovTiming(ov);
     row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Remove" aria-label="Remove">×</button></div>
-      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ova" aria-label="Entrance"></select><span class="ovc"></span>
+      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><span class="ovc"></span>
       <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
       <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
     const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
@@ -2930,6 +3001,9 @@ function renderOvList(){
     Object.entries(OV_STYLES).forEach(([k, v]) => ss.add(new Option(v, k, false, k === ov.style)));
     Object.entries(OV_ANIMS).forEach(([k, v]) => sa.add(new Option(v, k, false, k === ov.anim)));
     ss.addEventListener('change', () => { ov.style = ss.value; redraw(); }); sa.addEventListener('change', () => { ov.anim = sa.value; redraw(); });
+    const sf = row.querySelector('.ovf'); if(ov.emoji) sf.hidden = true;
+    Object.entries(OV_FONTS).forEach(([k, v]) => sf.add(new Option(v[0], k, false, k === (ov.font || 'auto'))));
+    sf.addEventListener('change', () => { ov.font = sf.value === 'auto' ? undefined : sf.value; loadFont(sf.value).then(redraw); redraw(); });
     const cs = row.querySelector('.ovc'); if(ov.emoji) cs.hidden = true;
     OV_COLORS.forEach(c => { const b2 = document.createElement('button'); b2.className = 'sw' + (c === ov.color ? ' on' : ''); b2.style.background = c; b2.title = c; b2.setAttribute('aria-label', 'Colour ' + c);
       b2.addEventListener('click', () => { ov.color = c; [...cs.children].forEach(x => x.classList.toggle('on', x === b2)); redraw(); }); cs.appendChild(b2); });
@@ -4992,7 +5066,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '' },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '' },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
@@ -5042,6 +5116,7 @@ async function openProject(id){
     if(st.vo && st.vo.fp){ const vf = await getF(st.vo.fp, 'voiceover-' + st.vo.key + '.f32'); if(vf){ vo = { raw: new Float32Array(await vf.arrayBuffer()), sr: st.vo.sr, key: st.vo.key }; await cleanVo(); } }
     if(S.bg){ const bf = await getF(S.bg, 'background'); if(bf){ bgFile = bf; const im = new Image(); im.onload = () => { bgImg = im; redrawFrame(); }; im.src = URL.createObjectURL(bf); } }
     if(S.capColor) ACCENT = S.capColor;
+    if(Array.isArray(S.marks)) userMarks = S.marks.filter(Number.isFinite);
     bgColor = S.bgColor || bgColor; if(S.bgMode && S.bgMode !== 'none') press('bgmode', 'b', S.bgMode);
     overlays = (st.overlays || []).map(o => ({ ...o })); ovSeq = overlays.reduce((q, o) => Math.max(q, o.id || 0), 0); renderOvList();
     if(st.sec){ sec.len = st.sec.len; sec.auto = st.sec.auto; sec.start = st.sec.start;
@@ -5116,7 +5191,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 

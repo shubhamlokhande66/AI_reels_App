@@ -829,7 +829,8 @@
   .brs.fpost .bar{order:0}
   .brs.fpost .transport{order:1;display:flex;justify-content:space-between;padding:0 2px}
   .brs.fpost .transport :is(#pshot,#nshot,#cover,#remix,#play){display:none}
-  .brs.fpost .lanes{order:2;display:block;width:100%}
+  .brs.fpost :is(.tlbar,.lanesbox){order:2}
+  .brs.fpost .lanes{display:block;width:100%}
   .brs.fpost .tl{height:54px;border-radius:12px}
   .brs.fpost .summary > .btn{order:3;width:100%;justify-content:center;min-height:48px;border-radius:14px;background:var(--surface-2)}
   .brs.fpost :is(#xmsg,#saverow){order:4}
@@ -996,7 +997,7 @@
 
 @media (min-width:1024px){
   .brs.made.v-one .wrap{gap:14px}
-  .brs.made.v-one .create{grid-template-columns:88px minmax(0,1fr) minmax(340px,400px);grid-template-rows:minmax(0,1fr) auto auto auto auto;gap:0;
+  .brs.made.v-one .create{grid-template-columns:88px minmax(0,1fr) minmax(340px,400px);grid-template-rows:minmax(0,1fr) auto auto auto auto auto;gap:0;
     height:calc(100vh - 140px);min-height:600px;border:1px solid var(--line);border-radius:18px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
   .brs.made.v-one :is(.stage,.tools,.pv){display:contents}
   /* the tool rail */
@@ -1026,7 +1027,9 @@
   .brs.made.v-one .savebar{padding:10px 0 24px}
   .brs.made.v-one #export{display:none}
   /* the tracks: video, text, voice, music */
-  .brs.made.v-one .lanes{display:block;grid-column:2/-1;grid-row:5;margin:12px 18px 14px;width:calc(100% - 36px)}
+  .brs.made.v-one .tlbar{grid-column:2/-1;grid-row:5;margin:10px 18px 4px}
+  .brs.made.v-one .lanesbox{grid-column:2/-1;grid-row:6;margin:0 18px 14px;min-width:0}
+  .brs.made.v-one .lanes{display:block}
   .brs.made.v-one .transport{border-bottom:1px solid var(--line)}
   .brs.made.v-one .strip,.brs.made.v-one .summary,.brs.made.v-one .inspector{display:none}
 }
@@ -1064,3 +1067,11 @@
 .brs.made.v-one #xmsg:not([hidden])::before{content:"i";display:inline-grid;vertical-align:-4px;margin-right:8px;width:18px;height:18px;border-radius:50%;place-items:center;background:var(--accent);color:#fff;font:700 11px/1 var(--body)}
 .brs.made.v-one #xmsg.err:not([hidden]){background:color-mix(in srgb,var(--warning) 10%,var(--surface));border-color:color-mix(in srgb,var(--warning) 45%,var(--line))}
 .brs.made.v-one #xmsg.err:not([hidden])::before{content:"!";background:var(--warning)}
+/* the timeline's bar: a beat where the playhead is, zoom */
+.brs .tlbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:4px 0}
+.brs .tlbar .tlzs{margin-left:auto;display:inline-flex;align-items:center;gap:4px}
+.brs .tlscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;min-width:0}
+.brs .tlscroll > canvas{min-width:100%;max-width:none}
+.brs .lanesbox{min-width:0}
+.brs .tlbar .btn.mini{min-height:32px;padding:4px 10px;font-size:12.5px}
+.brs .tlbar #tlz{min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
