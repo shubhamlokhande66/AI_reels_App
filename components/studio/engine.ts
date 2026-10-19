@@ -3082,15 +3082,23 @@ function drawOverlay(g, ov, t){
 }
 function drawOverlays(t){ for(const ov of overlays) if(!ov.behind || !personMask || !bgMask) drawOverlay(og, ov, t); }
 // the list under "Text & stickers": edit the words, style, colour, entrance, size, when it shows
+let ovTab = 'font';   // the text editor's open tab (Font, Style, Animation or Loop), the same for every text
 function renderOvList(){
   const box = $('ovlist'); box.innerHTML = '';
   overlays.forEach((ov, i) => {
     const row = document.createElement('div'); row.className = 'ov' + (i === ovSel ? ' sel' : '');
     const [a, b] = ovTiming(ov);
-    row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Remove" aria-label="Remove">×</button></div>
-      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><select class="ovl" aria-label="Keeps moving"></select><span class="ovc"></span>
-      <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
-      <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
+    // the text / sticker editor (the design's frame 5): the words; Font · Style · Animation · Loop; the colour; follow the
+    // person; start and end; delete. Each choice is a chip (its select stays, hidden, as the one place the value lives)
+    row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Delete" aria-label="Delete">×</button></div>
+      <div class="ovtabs" role="tablist"><button type="button" data-ovt="font">Font</button><button type="button" data-ovt="style">Style</button><button type="button" data-ovt="anim">Animation</button><button type="button" data-ovt="loop">Loop</button></div>
+      <div class="ovpane" data-p="font"><div class="ovfrow"><select class="ovf" aria-label="Font"></select><label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
+        <div class="ovcrow"><span class="ovclab">Color</span><span class="ovc"></span><label class="ovpick" title="Any colour"><input type="color" class="ovcol" aria-label="Any colour"></label></div></div>
+      <div class="ovpane" data-p="style"><select class="ovs" aria-label="Style" hidden></select><div class="ovchips" data-for="ovs"></div></div>
+      <div class="ovpane" data-p="anim"><select class="ova" aria-label="Entrance" hidden></select><div class="ovchips" data-for="ova"></div></div>
+      <div class="ovpane" data-p="loop"><select class="ovl" aria-label="Keeps moving" hidden></select><div class="ovchips" data-for="ovl"></div></div>
+      <div class="ovctl ovflags"><label class="tog switch"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog switch"><input type="checkbox" class="ovbeh"> Behind the person</label><label class="tog switch"><input type="checkbox" class="ovall"> Whole Reel</label></div>
+      <div class="ovctl ovtime"><span class="ovtl">Start</span><button class="btn mini ovfrom" title="Start where the playhead is">Here</button><span class="fname ovtm"></span><span class="ovtl">End</span><button class="btn mini ovto" title="End where the playhead is">Here</button><button class="btn mini ovdel2" type="button">Delete</button></div>`;
     const tk = row.querySelector('.ovtrk'); tk.checked = !!ov.track; if(isLocked('tool', 'track')) tk.parentElement.lastChild.textContent = ' 👑 Follow the person'; tk.addEventListener('change', () => { ov.track = tk.checked; if(tk.checked){ ov.x = 0.5; ov.y = ov.emoji ? 0.38 : 0.32; } redraw(); });
     const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
     ti.addEventListener('input', () => { ov.text = ti.value; redraw(); });
@@ -3115,6 +3123,19 @@ function renderOvList(){
     const bh = row.querySelector('.ovbeh'); bh.checked = !!ov.behind; bh.addEventListener('change', () => { ov.behind = bh.checked; if(bh.checked && !personMask) $('bgstat').textContent = 'Text behind the person needs the background tools'; bgMask = null; bgFrame = -1; redrawFrame(); });
     const al = row.querySelector('.ovall'); al.checked = ov.all; al.addEventListener('change', () => { ov.all = al.checked; showT(); redraw(); });
     row.querySelector('.ovdel').addEventListener('click', () => { overlays.splice(i, 1); ovSel = -1; renderOvList(); redraw(); });
+    row.querySelector('.ovdel2').addEventListener('click', () => row.querySelector('.ovdel').click());
+    // Font · Style · Animation · Loop (the last one chosen stays open); each select's choices as chips
+    const tabTo = k => { ovTab = k; row.querySelectorAll('[data-ovt]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ovt === k))); row.querySelectorAll('.ovpane').forEach(p => { p.hidden = p.dataset.p !== k; }); };
+    row.querySelectorAll('[data-ovt]').forEach(b => b.addEventListener('click', () => tabTo(b.dataset.ovt)));
+    tabTo(ov.emoji && ovTab !== 'anim' && ovTab !== 'loop' ? 'anim' : ovTab);
+    if(ov.emoji) row.querySelectorAll('[data-ovt="font"],[data-ovt="style"]').forEach(b => { b.hidden = true; });
+    row.querySelectorAll('.ovchips').forEach(box2 => { const sel = row.querySelector('.' + box2.dataset.for);
+      const paint = () => [...box2.children].forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === sel.value)));
+      [...sel.options].forEach(o => { const c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.dataset.v = o.value; c.textContent = o.text;
+        c.addEventListener('click', () => { sel.value = o.value; sel.dispatchEvent(new Event('change')); paint(); }); box2.appendChild(c); });
+      paint(); });
+    const pick = row.querySelector('.ovcol'); pick.value = /^#[0-9a-f]{6}$/i.test(ov.color || '') ? ov.color : '#ffffff'; if(ov.emoji) pick.parentElement.hidden = true;
+    pick.addEventListener('input', () => { ov.color = pick.value; [...cs.children].forEach(x => x.classList.remove('on')); redraw(); });
     row.addEventListener('focusin', () => { if(ovSel !== i){ ovSel = i; [...box.children].forEach((r, k) => r.classList.toggle('sel', k === i)); redraw(); } });
     box.appendChild(row);
   });

@@ -33,8 +33,20 @@ const TOOLS: [string, string, string][] = [
 ];
 const SWATCH = ["#000000", "#ffffff", "#f3ede3", "#d4b07a", "#e85d75", "#4f7cff", "#1db954", "#ff9f1c"];
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+// the Adjust sliders' signs (the design: a sign, the name, the slider, the value)
+const SLIDE_IC: Record<string, string> = {
+  bri: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  con: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>',
+  sat: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  warm: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',
+  hi: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M12 8h9M12 13h8"/>',
+  sh: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/>',
+  hue: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/>',
+  sharp: '<path d="M12 3l9 16H3z"/>',
+  vig: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/>',
+};
 const slider = (k: string, label: string, v: number, min: number, max: number, step: number, unit = "") =>
-  `<label class="cslide"><span>${label}</span><input type="range" data-s="${k}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${fmtV(v, unit)}</output></label>`;
+  `<label class="cslide${SLIDE_IC[k] ? " csi" : ""}">${SLIDE_IC[k] ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLIDE_IC[k]}</svg>` : ""}<span>${label}</span><input type="range" data-s="${k}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${fmtV(v, unit)}</output></label>`;
 const fmtV = (v: number, unit: string) => unit === "st" ? `${v > 0 ? "+" : ""}${Math.round(v)}` : unit === "s" ? `${v.toFixed(1)} s` : unit === "x" ? `${v.toFixed(1)}×` : unit === "%" ? `${Math.round(v * 100)}%` : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
 const swatches = (k: string, cur: string) => `<span class="cswatch">${SWATCH.map((c) => `<button type="button" data-col="${k}" data-v="${c}" aria-pressed="${c === cur}" aria-label="Colour ${c}" style="background:${c}"></button>`).join("")}</span>`;
 const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5, y: 0.45, r: 0.18, z: 2 };
