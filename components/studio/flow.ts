@@ -24,6 +24,9 @@ const KINDS: Record<Kind, { title: string; sub: string; intro: string; checks: s
 const ORDER: Record<"music" | "talk", Step[]> = { music: ["intro", "choose", "adjust", "clips", "analyse"], talk: ["intro", "clips", "analyse"] };
 // which engine task moves which line of the AI checklist (data-t in markup.ts)
 const LINE_OF: Record<string, string> = { clips: "clips", beats: "beats", ai: "ai" };
+// the engine's work the Reel waits for (the song, the beat check, reading the clips, the AI director): Next (phones) and
+// Generate Reel (computers) stay off until all of it is done, so what opens is the finished Reel
+const WAIT = new Set(["song", "beats", "clips", "ai"]);
 
 export function initFlow(root: HTMLElement): () => void {
   const ac = new AbortController(), sig = { signal: ac.signal };
@@ -36,6 +39,7 @@ export function initFlow(root: HTMLElement): () => void {
   let pct = 0;
   let simpleSet = false; // the made Reel opens in the Simple view on phones (once: a later choice stays)
   const lines = new Map<string, "now" | "ok">();
+  const working = new Set<string>(); // the WAIT tasks running right now
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
 
   const has = (c: string) => root.classList.contains(c);
@@ -161,11 +165,15 @@ export function initFlow(root: HTMLElement): () => void {
     // clips: Videos / Photos
     root.querySelectorAll<HTMLButtonElement>("#ftabs button").forEach((b) => setAttr(b, "aria-pressed", String((b.dataset.ft === "photos") === has("photomode"))));
     setFlag($("ftabs"), "hidden", has("talkmode") || kind === "copy");
-    // Next on the clips step, Generate in the preview card
+    // Next on the clips step, Generate in the preview card: on once the clips are in and the Reel is made, with nothing
+    // still being read or decided (a spinner in the button meanwhile)
     const ready = clipsOk() && !!songOk();
-    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk());
-    setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready);
-    setText($("fgent"), "Generate Reel");
+    const busy = ready && (working.size > 0 || !made());
+    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk() || busy);
+    setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready || busy);
+    setAttr($("fclipsnext"), "aria-busy", String(busy));
+    setAttr($("fgen"), "aria-busy", String(busy));
+    setText($("fgent"), busy ? "Making your Reel…" : "Generate Reel");
     setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
     setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
     setText($("fprevnote"), made() ? "Your Reel is ready" : "Your Reel appears here");
@@ -257,6 +265,11 @@ export function initFlow(root: HTMLElement): () => void {
   // the engine's progress (reading the clips, the beats, the AI) fills the checklist and the ring
   root.addEventListener("studio-task", (e) => {
     const d = (e as CustomEvent<TaskEvent>).detail, line = LINE_OF[d.id];
+    if (WAIT.has(d.id)) {
+      if (d.state === "start" || d.state === "progress") working.add(d.id);
+      else working.delete(d.id); // done, failed (the Reel goes on without it) or cleared
+      apply();
+    }
     if (line) lines.set(line, d.state === "done" ? "ok" : d.state === "fail" || d.state === "clear" ? lines.get(line) ?? "ok" : "now");
     if (d.id === "clips" && d.p !== null) pct = Math.max(pct, Math.round(d.p * 60));
     if (d.id === "clips" && d.title) { setText($("fant"), d.state === "done" ? "Clips read" : "Reading your clips…"); setText($("fand"), d.title); }
