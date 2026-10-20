@@ -192,7 +192,7 @@ export const STUDIO_HTML = `
       </div>
     </div>
     <span class="fslot" id="fsndslot"></span>
-    <button type="button" class="btn primary big fnext" data-fnext="1" id="fclipsnext" disabled>Next ${IC.arrow}</button>
+    <button type="button" class="btn primary big fnext" data-fnext="1" id="fclipsnext" disabled><span id="fclipsnt">Next</span> ${IC.arrow}</button>
     </div>
   </section>
 
