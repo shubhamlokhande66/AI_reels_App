@@ -1281,14 +1281,14 @@
 .brs .ss-body .sstabs .shtab{height:34px;padding:0 6px;border-radius:9px;font:600 12.5px var(--body);color:var(--muted);white-space:nowrap}
 .brs .ss-body .sstabs .shtab[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff)}
 /* the choices as picture tiles: the shot's own frame, the name under it */
-.brs .ss-body .sstiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
-.brs .ss-body .sstile{display:grid;gap:5px;height:auto;padding:0;border:0;border-radius:0;background:none;color:var(--muted);font:600 10.5px var(--body);text-align:center;white-space:normal}
-.brs .ss-body .sstile[aria-pressed=true]{background:none;color:var(--ink)}
-.brs .ss-body .sstimg{display:block;aspect-ratio:1/1;border-radius:10px;background:var(--surface-2) center/cover no-repeat;box-shadow:inset 0 0 0 1px var(--line)}
-.brs .ss-body .sstile[aria-pressed=true] .sstimg{box-shadow:0 0 0 2px var(--accent),0 6px 16px -8px var(--brand-glow,rgba(176,92,255,.55))}
-.brs .ss-body .sstimg.none{background:var(--surface-2) !important;position:relative}
-.brs .ss-body .sstimg.none::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font:400 22px var(--body);color:var(--muted)}
-.brs .ss-body .sstt{line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.brs :is(.ss-body,.shtilebox) .sstiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.brs :is(.ss-body,.shtilebox) .sstile{display:grid;gap:5px;height:auto;padding:0;border:0;border-radius:0;background:none;color:var(--muted);font:600 10.5px var(--body);text-align:center;white-space:normal}
+.brs :is(.ss-body,.shtilebox) .sstile[aria-pressed=true]{background:none;color:var(--ink)}
+.brs :is(.ss-body,.shtilebox) .sstimg{display:block;aspect-ratio:1/1;border-radius:10px;background:var(--surface-2) center/cover no-repeat;box-shadow:inset 0 0 0 1px var(--line)}
+.brs :is(.ss-body,.shtilebox) .sstile[aria-pressed=true] .sstimg{box-shadow:0 0 0 2px var(--accent),0 6px 16px -8px var(--brand-glow,rgba(176,92,255,.55))}
+.brs :is(.ss-body,.shtilebox) .sstimg.none{background:var(--surface-2) !important;position:relative}
+.brs :is(.ss-body,.shtilebox) .sstimg.none::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font:400 22px var(--body);color:var(--muted)}
+.brs :is(.ss-body,.shtilebox) .sstt{line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .brs .ss-body .sslab{font:700 12.5px var(--body);color:var(--ink);margin-top:2px}
 .brs .ss-body .sslab small{font-weight:500;color:var(--muted)}
 .brs .ss-body .sschips .chip{height:32px;padding:0 12px;font-size:12px}
@@ -1299,7 +1299,7 @@
 .brs .ss-body .ssact:disabled{opacity:.4;cursor:default}
 .brs .ss-body .ssrep{height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);padding:0 8px;max-width:160px}
 .brs .ss-body .cliptools .ct{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
-@media (max-width:1023px){ .brs .shotsheet{width:auto} .brs .ss-body .sstiles{grid-template-columns:repeat(auto-fill,minmax(60px,1fr))} }
+@media (max-width:1023px){ .brs .shotsheet{width:auto} .brs :is(.ss-body,.shtilebox) .sstiles{grid-template-columns:repeat(auto-fill,minmax(60px,1fr))} }
 
 /* ---- Adjust (the design's frame 4): a sign, the name, the slider, the value; Reset ---- */
 .brs .cslide.csi{grid-template-columns:18px 84px minmax(0,1fr) 40px}
@@ -1444,9 +1444,9 @@
   .brs .shotsheet.docked::after,.brs .shotsheet.docked .ss-rs{display:none}
 }
 /* every choice the same square, whatever the length of its name (a two-line name used to stretch its row's pictures) */
-.brs .ss-body .sstiles{align-items:start}
-.brs .ss-body .sstile{align-content:start;grid-template-rows:auto auto}
-.brs .ss-body .sstimg{width:100%;height:auto;align-self:start}
+.brs :is(.ss-body,.shtilebox) .sstiles{align-items:start}
+.brs :is(.ss-body,.shtilebox) .sstile{align-content:start;grid-template-rows:auto auto}
+.brs :is(.ss-body,.shtilebox) .sstimg{width:100%;height:auto;align-self:start}
 /* the play bar's time on one line on a phone ("0:02.90 / 0:20.00" used to wrap) */
 .brs.made.v-one .transport :is(#tcur,#ttot){white-space:nowrap;font-variant-numeric:tabular-nums}
 @media (max-width:1023px){
@@ -1462,3 +1462,14 @@
 @media (max-width:1023px){
   .brs.fpost[data-tool]:not([data-tool=""]) .fapply{box-shadow:0 -14px 0 0 var(--surface),0 -22px 14px -6px var(--surface)}
 }
+
+/* the Shots tool (a phone's panel, the computer's inspector): Transition / Effect as the same square tiles as the sheet */
+.brs .shtilebox{margin:4px 0 10px}
+.brs .shtilebox .sstiles{grid-template-columns:repeat(auto-fill,minmax(64px,1fr))}
+/* a phone's play bar: room between the time and the Play button */
+@media (max-width:1023px){
+  .brs.made.v-one .transport{gap:12px}
+  .brs.made.v-one .transport #ttot{margin-right:6px}
+}
+/* a phone's tool sheet: Done always last (it comes before the Shots panel in the page, so it showed at the top there) */
+@media (max-width:1023px){ .brs.fpost[data-tool]:not([data-tool=""]) .fapply{order:99} }
