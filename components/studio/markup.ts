@@ -228,7 +228,7 @@ export const STUDIO_HTML = `
       <div class="stage">
         <div class="pv">
           <div class="pvbox"><canvas id="out" width="1080" height="1920"></canvas>
-            <button type="button" class="playov" id="playov" aria-label="Play preview">${IC.play}</button></div>
+            <button type="button" class="playov" id="playov" aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button></div>
           <div class="summary" id="summary">
             <h2 class="sumh">Your Reel is ready</h2>
             <p class="sumi" id="suminfo"></p>

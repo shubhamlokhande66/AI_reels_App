@@ -1042,7 +1042,14 @@
 .brs.made.v-one .playov:hover{transform:scale(1.06)}
 .brs.made.v-one .playov:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .brs.made.v-one.playing .playov{opacity:0}
-.brs.made.v-one.playing .pvbox:hover .playov{opacity:.85}
+/* playing: no button over the video. With a mouse, hovering shows Pause; on a touch screen a tap stays "hovered", so
+   nothing shows there (it used to show the Play icon while playing) */
+.brs .playov .ic-play,.brs .playov .ic-pause{display:grid;place-items:center}
+.brs .playov .ic-pause{display:none}
+.brs.playing .playov .ic-play{display:none}
+.brs.playing .playov .ic-pause{display:grid}
+.brs.made.v-one.playing .playov svg{margin-left:0}
+@media (hover:hover) and (pointer:fine){ .brs.made.v-one.playing .pvbox:hover .playov{opacity:.85} }
 
 /* the preview as a wide, low stage (like CapCut): a dark box across the column, the Reel in the middle of it */
 .brs.made.v-one:not(.fopen) .pvbox{background:radial-gradient(70% 90% at 50% 50%,#1d1840,#0b0a18);border-radius:16px;padding:10px;box-sizing:border-box}
@@ -1430,3 +1437,23 @@
 .brs.openfail .openspin{display:none}
 .brs.openfail .openload #openback{display:inline-flex}
 .brs.openfail .openload small{color:var(--ink)}
+
+/* the shot's Transition / Effect / Speed in the computer's left panel (views.ts placeSheet: .docked) */
+@media (min-width:1024px){
+  .brs .shotsheet.docked{border-radius:0 0 16px 16px;box-shadow:none;border-top:0}
+  .brs .shotsheet.docked::after,.brs .shotsheet.docked .ss-rs{display:none}
+}
+/* every choice the same square, whatever the length of its name (a two-line name used to stretch its row's pictures) */
+.brs .ss-body .sstiles{align-items:start}
+.brs .ss-body .sstile{align-content:start;grid-template-rows:auto auto}
+.brs .ss-body .sstimg{width:100%;height:auto;align-self:start}
+/* the play bar's time on one line on a phone ("0:02.90 / 0:20.00" used to wrap) */
+.brs.made.v-one .transport :is(#tcur,#ttot){white-space:nowrap;font-variant-numeric:tabular-nums}
+@media (max-width:1023px){
+  .brs.made.v-one .transport{flex-wrap:nowrap;gap:8px}
+  .brs.made.v-one .transport :is(#tcur,#ttot){font-size:12px;letter-spacing:-.01em}
+  .brs.made.v-one .transport #ttot::before{margin:0 2px}
+}
+@media (max-width:1023px){
+  .brs.made.v-one .transport #remix{white-space:nowrap;padding:0 12px;flex:0 0 auto}
+}
