@@ -257,7 +257,7 @@ function Period({ title, p, currency }: { title: string; p: AiUsagePeriod; curre
 
 export function AiUsageCard() {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["ai-usage"], queryFn: api.aiUsage, refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ["ai-usage"], queryFn: api.aiUsage, refetchInterval: 60_000 });
   const cfg = useQuery({ queryKey: ["ai-config"], queryFn: api.aiConfig });
   if (q.isLoading) return <Spinner label="Loading AI usage…" />;
   if (q.error || !q.data) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;

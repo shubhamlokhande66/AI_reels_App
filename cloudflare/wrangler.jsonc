@@ -12,7 +12,8 @@
       "class_name": "ReelApp",
       "image": "../docker/Dockerfile",
       "image_build_context": "..",
-      // 2 vCPU, 8 GB, 16 GB disk: rendering and video analysis. Billed only while the container is awake.
+      // basic = 1/4 vCPU, 1 GiB, 4 GB disk (the app needs ~250-350 MB; Reels are made on the phone). Memory and disk are
+      // billed for every second the container is awake, so it must sleep: see SLEEP_AFTER and lib/usePresence.ts.
       "instance_type": "basic",
       "max_instances": 1
     }
