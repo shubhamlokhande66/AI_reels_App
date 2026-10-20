@@ -13,7 +13,7 @@
       "image": "../docker/Dockerfile",
       "image_build_context": "..",
       // 2 vCPU, 8 GB, 16 GB disk: rendering and video analysis. Billed only while the container is awake.
-      "instance_type": "standard-3",
+      "instance_type": "standard-1",
       "max_instances": 1
     }
   ],

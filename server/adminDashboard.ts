@@ -12,7 +12,7 @@ import { getPricing } from "@/server/workspace";
 
 type Doc = Record<string, unknown>;
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone; // days and months as the server's clock counts them
-const ONLINE_MS = 75_000, DAY = 86400_000, SEEN_EVERY = 5 * 60_000, KEEP_DAYS = 30;
+const ONLINE_MS = 6 * 60_000, DAY = 86400_000, SEEN_EVERY = 5 * 60_000, KEEP_DAYS = 30;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const col = async (name: string) => (await mainDb()).collection<any>(name);
 let indexed = false;

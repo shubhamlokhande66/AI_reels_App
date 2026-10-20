@@ -12,7 +12,7 @@ export function useMe() {
 
 /** The signed-in user's credits (`enabled: false` when billing is off or nobody is signed in). */
 export function useCredits() {
-  return useQuery({ queryKey: ["credits"], queryFn: api.credits, staleTime: 15_000, refetchInterval: 60_000, refetchOnWindowFocus: true });
+  return useQuery({ queryKey: ["credits"], queryFn: api.credits, staleTime: 15_000, refetchOnWindowFocus: true }); // no timer: each request keeps the server awake (Cloudflare); read again when the tab comes back and after each charge
 }
 
 /** Admin mode in this browser (settings and diagnostics are admin only; see lib/admin.ts). */
@@ -33,7 +33,7 @@ export function useAdmin(): { admin: boolean; required: boolean; loading: boolea
 }
 
 export function useHealth() {
-  return useQuery({ queryKey: ["health"], queryFn: api.health, refetchInterval: 15_000, retry: false });
+  return useQuery({ queryKey: ["health"], queryFn: api.health, refetchInterval: 60_000, retry: false }); // the admin's AI settings page only
 }
 
 /** Which parts of the app are on; everything counts as on until the answer arrives (nothing flickers away for most people). */

@@ -52,6 +52,11 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
   (`SLEEP_AFTER`; an upload or download in progress counts) and wakes on the next one: the **first request after a
   sleep takes some seconds** (the container starts and mounts R2).
 - **Cost**: you pay for the time the container is awake (CPU, memory, disk) beyond what the Workers Paid plan includes.
+  Memory is billed for the whole size of the instance while it is awake, used or not, so keep it small: Reels are made
+  on the phone, the server only answers the API. `standard-1` (½ vCPU, 4 GiB, 8 GB disk) is plenty; `basic` (1 GiB) is
+  cheaper still if captions on the server are not used. The app asks the server rarely (presence every 5 minutes while a
+  tab is visible, credits when the tab comes back), so the container can sleep; a timer that called it every 30 s kept it
+  awake all day.
 - **My Reels uploads**: a saved Reel goes **from the browser straight into R2** in parallel parts; it never passes
   through the Worker or the container, so the 100 MB request limit does not apply. Trend videos and brand logos go
   through the Worker (at most **95 MB**).
