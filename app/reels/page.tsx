@@ -183,6 +183,7 @@ function Saved() {
         <div className="h-1.5 overflow-hidden rounded-full bg-[var(--line,rgba(0,0,0,.08))]">
           <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / Math.max(1, usage.limit)) * 100)}%` }} />
         </div>
+        {!!usage.keepDays && <p className="mu xs m-0">Saved Reels are kept for {usage.keepDays} days on your plan; download the ones you want to keep for longer.</p>}
       </div>
       {!reels.length ? (
         <EmptyState
