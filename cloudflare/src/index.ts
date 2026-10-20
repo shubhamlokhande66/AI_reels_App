@@ -27,8 +27,19 @@ export class ReelApp extends Container<Env> {
 
 const app = (env: Env) => getContainer(env.APP, "main");
 
+// An open tab says "still here" every 5 minutes (lib/usePresence.ts, the admin's "online now"). Waking the container
+// only for that would bill it for a few minutes each time someone leaves a tab open: while it sleeps, the Worker answers
+// the ping itself. Opening a page wakes it anyway, so the first ping of a visit is still counted.
+const PING = "/api/public/ping";
+const awake = async (env: Env) => {
+  try { const s = await app(env).getState(); return s.status === "running" || s.status === "healthy"; }
+  catch { return true; } // unsure: as before, to the app
+};
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === "POST" && new URL(request.url).pathname === PING && !(await awake(env)))
+      return Response.json({ ok: true, asleep: true });
     return app(env).fetch(request);
   },
 } satisfies ExportedHandler<Env>;
