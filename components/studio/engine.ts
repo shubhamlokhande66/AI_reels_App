@@ -21,6 +21,31 @@ export function initStudio(root, deps) {
 const $ = id => root.querySelector('#'+id);
 const tasks = createTasks(root);   // what is happening now, always in view (components/studio/tasks.ts)
 const ac = new AbortController(), SIG = { signal: ac.signal };
+// iPhone / iPad (iPadOS says it is a Mac): Safari there gives a page much less memory, and reloads it when it runs out
+const IOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+/* ---- a page the phone reloaded (out of memory) ----
+ * iPhone Safari reloads a page that uses too much memory, without a word: the person lands on the first screen, as if the
+ * app went back. So the studio keeps a note in this tab (sessionStorage) while it works, removed when the page is left
+ * normally. Found at the next start, it means the page died: it is reported (Admin → Errors), and the Reel is reopened
+ * from this phone when it was saved (the clips' reading is kept, so the second time is fast). */
+const LIFE_KEY = 'brs-life';
+let lifeNote = {};
+function life(p){ lifeNote = { ...lifeNote, ...p, at: Date.now() }; try{ sessionStorage.setItem(LIFE_KEY, JSON.stringify(lifeNote)); }catch(e){} }
+const lifeEnd = () => { try{ sessionStorage.removeItem(LIFE_KEY); }catch(e){} };
+let lifeBefore = null;
+try{ lifeBefore = JSON.parse(sessionStorage.getItem(LIFE_KEY) || 'null'); }catch(e){}
+life({ path: location.pathname + location.search, stage: 'open' });
+window.addEventListener('pagehide', lifeEnd, SIG);
+ac.signal.addEventListener('abort', lifeEnd);
+if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3){
+  try{ window.__shubixReport && window.__shubixReport('crash', 'The phone reloaded the studio at "' + (lifeBefore.stage || '?') + '"' + (IOS ? ' (iPhone)' : ''), JSON.stringify(lifeBefore)); }catch(e){}
+  queueMicrotask(() => {
+    if(ac.signal.aborted) return;
+    const q = new URLSearchParams(location.search);
+    if(lifeBefore.proj && !q.get('p')){ location.replace('/create/edit?p=' + encodeURIComponent(lifeBefore.proj)); return; }
+    setTimeout(() => { try{ notify('Your phone ran short of memory and reloaded. Add your clips again: what was read is kept, so it is quick now.', 'err'); }catch(e){} }, 800);
+  });
+}
 let exporting = false;
 // the Shubix watermark on exported Reels (bottom right). Removing it ("Remove Watermark" in the export sheet) is for paid
 // plans (and the administrator): wmPaid comes from the server when the sheet opens; until then the watermark stays
@@ -1182,11 +1207,11 @@ async function readVideo(src){
     const kept = await scanGet(src);   // read before (a saved Reel opened again, or the same clip added again): used as it is
     if(kept){ src.scenes = kept.scenes; src.samples = kept.samples; src.faces = kept.faces; src.faceHow = kept.faceHow; src.readMs.kept = true; pm = pf = 1; show(); }
     else {
-      stage = 'motion and faces';
-      await Promise.all([
-        scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); }),
-        scanFaces(src, p=>{ pf = p; show(); }).then(()=>{ src.readMs.faces = Math.round(performance.now()-tq); }),
-      ]);
+      stage = 'motion and faces'; life({ stage: 'reading clips', clips: sources.length + pending, size: Math.round((src.file && src.file.size || 0) / 1e6) + ' MB', res: src.w + 'x' + src.h });
+      const doMotion = () => scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); });
+      const doFaces = () => scanFaces(src, p=>{ pf = p; show(); }).then(()=>{ src.readMs.faces = Math.round(performance.now()-tq); });
+      // two decoders at once is ~40% faster, but on an iPhone it doubles the memory of a 4K video: one after the other there
+      if(IOS){ await doMotion(); await doFaces(); } else await Promise.all([doMotion(), doFaces()]);
       if(!src.removed) scanPut(src);
     }
     if(src.removed) return;
@@ -2210,6 +2235,7 @@ function makeEdit(){
   if(was && buf && edit.length && !playing && !starting && !recording) startPlayback(Math.min(Math.max(0, at), Math.max(0, buf.duration - 0.2)));
 }
 function makeEditNow(){
+  life({ stage: 'making the Reel', clips: sources.length });
   if(exportBusy){ remakeAfterExport = true; return; }   // a late AI answer: the video being made keeps its edit
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(story && storyEdit()) return;
@@ -3991,7 +4017,15 @@ async function startPlayback(from, destNode){
   stopAll();
   const g0 = playGen; starting = true; setPlayLabel(true);
   const gone = () => g0 !== playGen;
-  const c = getCtx(); await c.resume(); if(gone()) return;
+  // the phone's sound wakes up first. An iPhone leaves it "interrupted" after a call, Siri, a locked screen or another
+  // app's sound, and then waking it may never answer: Play would hang. So it gets 1.5 s; if the sound still sleeps, Play
+  // stops and says so, and the next tap (a new touch, which an iPhone needs) wakes it.
+  const c = getCtx(); await Promise.race([c.resume().catch(()=>{}), new Promise(r => setTimeout(r, 1500))]); if(gone()) return;
+  if(c.state !== 'running' && !destNode){
+    stopAll(); showMsg('The sound did not start (the phone paused it). Tap Play again.', true);
+    try{ window.__shubixReport && window.__shubixReport('audio', 'Sound did not start: AudioContext ' + c.state); }catch(e){}
+    return;
+  }
   // the clips' sound mix: made before playing, except while clips are being read (decoding an iPhone video's sound then
   // would hold Play for many seconds); the next Play has it. Exporting always waits for it (destNode).
   if(!pending || destNode) await ensureMix(); else ensureMix().catch(()=>{});
@@ -5416,6 +5450,7 @@ let saving = false;
 async function saveProject(st, sig){
   if(saving) return; saving = true;
   try{
+    life({ stage: 'saving on the phone' });
     if(!proj){ proj = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: Date.now() }; try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){} }
     if(song && song.file) await putFile(song.file);
     for(const s of sources) if(s.file) await putFile(s.file);
@@ -5424,12 +5459,15 @@ async function saveProject(st, sig){
     if(vo) await putFile(voFile());
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
+    life({ stage: 'saved', proj: proj.id });
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }catch(err){ console.warn('project not saved:', err); $('psaved').textContent = 'Not saved'; notify('Could not save this Reel on your phone. It may be low on space.', 'err'); }
   finally{ saving = false; }
 }
 setInterval(() => {
   if(restoring || recording || exporting || pending || (!song && !sources.length) || typeof indexedDB === 'undefined') return;
+  // an iPhone: copying big clip files into the phone's storage is not done while the preview plays (memory)
+  if(IOS && (playing || starting)) return;
   const st = stateOf(), sig = JSON.stringify(st); if(sig !== lastSig) saveProject(st, sig);
 }, 3000);
 const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
