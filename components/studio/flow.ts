@@ -213,8 +213,11 @@ export function initFlow(root: HTMLElement): () => void {
     // Next on the clips step, Generate in the preview card: on once the clips are in and the Reel is made, with nothing
     // still being read or decided (a spinner in the button meanwhile)
     const ready = clipsOk() && !!songOk();
-    const busy = ready && (working.size > 0 || shubixBusy() || !made());
-    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk() || busy);
+    // nothing can be made from these clips (a talking Reel without a voice): no endless spinner, the reason instead
+    const stop = !made() && working.size === 0 ? root.dataset.nomake ?? "" : "";
+    const busy = ready && !stop && (working.size > 0 || shubixBusy() || !made());
+    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk() || busy || !!stop);
+    setText($("fclipsnt"), stop || "Next");
     setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready || busy);
     setAttr($("fclipsnext"), "aria-busy", String(busy));
     setAttr($("fgen"), "aria-busy", String(busy));
@@ -360,7 +363,7 @@ export function initFlow(root: HTMLElement): () => void {
     wasSong = s;
     apply();
   });
-  mo.observe(root, { attributes: true, attributeFilter: ["class", "data-tool"] });
+  mo.observe(root, { attributes: true, attributeFilter: ["class", "data-tool", "data-nomake"] });
   ["s1", "s2", "s3", "copycard", "s1st"].forEach((id) => mo.observe($(id), { attributes: true, attributeFilter: ["class", "aria-pressed"], childList: true, characterData: true, subtree: id === "s1st" }));
   mo.observe($("aistat"), { attributes: true, attributeFilter: ["hidden"], childList: true, characterData: true, subtree: true });
   window.addEventListener("resize", apply, sig);

@@ -1358,6 +1358,7 @@ function splitPoint(v, a, b){
 }
 function rmsOf(x, gate = 0.01){ let s2 = 0, n = 0; for(let i=0;i<x.length;i+=4){ const v = x[i]; if(Math.abs(v) > gate){ s2 += v*v; n++; } } return Math.sqrt(s2/Math.max(1, n)); }
 async function buildTalk(){
+  delete root.dataset.nomake;   // set again below when these clips have no voice (flow.ts shows it on Next)
   const token = ++talkToken;
   if(!sources.length) return;
   stopAll();
@@ -1366,7 +1367,7 @@ async function buildTalk(){
   const parts = [];
   sources.forEach((src, si) => { if(!src.voice.has) return; for(const [a,b] of speechParts(src.voice, src.dur, talkPace)) parts.push({ si, a, b }); });
   const mute = sources.filter(s => !s.voice.has).length;
-  if(!parts.length){ $('s3st').textContent = 'No voice found in these clips'; showMsg('We could not hear anyone talking in these clips. For a music Reel, choose "Music Reel" at the top.', true); return; }
+  if(!parts.length){ root.dataset.nomake = 'No voice found: add a clip where you talk'; $('s3st').textContent = 'No voice found in these clips'; showMsg('We could not hear anyone talking in these clips. For a music Reel, choose "Music Reel" at the top.', true); return; }
   const sr = getCtx().sampleRate, T = parts.reduce((q,p)=>q + p.b - p.a, 0), N = Math.round(T*sr), voice = new Float32Array(N), act = new Float32Array(N);
   // the voice: the parts end to end, 8 ms fades at every join (no clicks), one loudness for every clip
   const fade = Math.round(0.008*sr); let o = 0;
@@ -1433,6 +1434,7 @@ async function buildTalk(){
 }
 function setKind(k){
   if(recording || k === kind) return;
+  delete root.dataset.nomake;
   kind = k; if(playing) stopAll();
   [...$('kind').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === k)));
   root.classList.toggle('talkmode', k === 'talk');
@@ -2613,9 +2615,9 @@ async function prepare(i, t, quick){
   const e = edit[i]; if(!e) return;
   if(layers.length && !playing) await prepLayers(t);
   const local = Math.max(0, t - e.start), target = srcPos(e, local);
-  if(e.el.readyState < 2){ try{ await videoData(e.el, quick ? 1200 : 6000); }catch(err){} }
+  if(e.el.readyState < 2){ try{ await videoData(e.el, quick ? 600 : 6000); }catch(err){} }
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
-  if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 800 : 4000); }catch(err){} }
+  if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 300 : 4000); }catch(err){} }
 }
 const srcPosF = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
 const srcPos = (e, l) => e.cs && e.cs.rev ? e.in + (e.sp.pos(e.end - e.start) - e.sp.pos(l))*e.scaleR : srcPosF(e, l);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { Card } from "@/components/atoms";
@@ -22,17 +22,17 @@ const status = (t: StudioTemplate, day: string) => (!t.on ? "Hidden" : isLive(t,
 export function TemplatesTab() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["admin-templates"], queryFn: api.adminTemplates });
-  const [list, setList] = useState<StudioTemplate[] | null>(null);
+  // the changes not saved yet (null: none, the server's list is shown)
+  const [draft, setDraft] = useState<StudioTemplate[] | null>(null);
   const [open, setOpen] = useState<number | null>(null);
-  const [dirty, setDirty] = useState(false);
   const [msg, setMsg] = useState("");
-  useEffect(() => { if (q.data && !dirty) setList(clone(q.data.templates)); }, [q.data, dirty]);
-  const save = useMutation({ mutationFn: api.setTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDirty(false); setMsg("Saved: people see the new templates now."); } });
-  const reset = useMutation({ mutationFn: api.resetTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDirty(false); setOpen(null); setMsg("Back to the default templates."); } });
+  const list = draft ?? q.data?.templates ?? null, dirty = draft !== null;
+  const save = useMutation({ mutationFn: api.setTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDraft(null); setMsg("Saved: people see the new templates now."); } });
+  const reset = useMutation({ mutationFn: api.resetTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDraft(null); setOpen(null); setMsg("Back to the default templates."); } });
   if (q.error) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   if (!list) return <Card><p className="m-0 text-sm">Loading…</p></Card>;
   const day = todayIST();
-  const edit = (fn: (l: StudioTemplate[]) => void) => { const l = clone(list); fn(l); setList(l); setDirty(true); setMsg(""); };
+  const edit = (fn: (l: StudioTemplate[]) => void) => { const l = clone(list); fn(l); setDraft(l); setMsg(""); };
   const move = (i: number, d: number) => edit((l) => { const j = i + d; if (j < 0 || j >= l.length) return; [l[i], l[j]] = [l[j], l[i]]; if (open === i) setOpen(j); });
   const live = list.filter((t) => isLive(t, day)).length;
   return (

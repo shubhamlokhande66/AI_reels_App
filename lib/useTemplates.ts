@@ -11,7 +11,8 @@ export function useTemplates() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let live = true;
-    try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (Array.isArray(c?.templates)) setList(c.templates); } catch {}
+    // the list kept from the last visit, then the server's (set from callbacks, after this render)
+    void Promise.resolve().then(() => { if (!live) return; try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (Array.isArray(c?.templates)) setList(c.templates); } catch {} });
     api.templates().then((r) => { if (!live || !Array.isArray(r?.templates)) return; setList(r.templates); try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), templates: r.templates })); } catch {} })
       .catch(() => {}).finally(() => live && setReady(true));
     return () => { live = false; };

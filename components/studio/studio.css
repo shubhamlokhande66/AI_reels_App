@@ -1457,3 +1457,8 @@
 @media (max-width:1023px){
   .brs.made.v-one .transport #remix{white-space:nowrap;padding:0 12px;flex:0 0 auto}
 }
+/* a phone's tool sheet: Done stays at the bottom while the tool scrolls; a band of the sheet's colour above it, so what
+   scrolls under it reads as behind it (it looked laid over the stickers) */
+@media (max-width:1023px){
+  .brs.fpost[data-tool]:not([data-tool=""]) .fapply{box-shadow:0 -14px 0 0 var(--surface),0 -22px 14px -6px var(--surface)}
+}
