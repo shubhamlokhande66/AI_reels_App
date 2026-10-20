@@ -1399,3 +1399,22 @@
 .brs .ask.lockpop .gl li::before{content:"✓";flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:800 11px var(--body)}
 .brs .ask.lockpop .askrow{justify-self:stretch;margin-top:6px}
 .brs .ask.lockpop .btn.gold{background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
+
+/* the shot sheet moved / resized by the person (views.ts): where they put it, no arrow; a corner to drag */
+.brs .shotsheet.free{border-radius:18px !important;border-bottom:1px solid var(--line) !important}
+.brs .shotsheet.free::after{display:none}
+.brs .shotsheet.dragging{user-select:none;-webkit-user-select:none;box-shadow:0 30px 70px -18px rgba(0,0,0,.75)}
+.brs .ss-body .ssh{cursor:move;touch-action:none}
+.brs .ss-head{touch-action:none}
+.brs .ss-rs{position:absolute;right:3px;bottom:3px;width:16px;height:16px;cursor:se-resize;touch-action:none;z-index:4;
+  background:linear-gradient(135deg,transparent 0 45%,var(--muted) 45% 52%,transparent 52% 64%,var(--muted) 64% 71%,transparent 71%)}
+@media (max-width:1023px){ .brs .ss-grip{cursor:move} .brs .ss-head{position:relative;min-height:22px;padding:8px 44px 0} }
+
+/* the shot sheet's custom speed: a slider with its marks (0.2× 0.5× 1× 2× 4×) and the number as it moves */
+.brs .ss-body .ssspd{display:grid;gap:6px;padding:12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+.brs .ss-body .ssspdh{display:flex;justify-content:space-between;align-items:baseline;font:600 12.5px var(--body);color:var(--ink)}
+.brs .ss-body .ssspdh output{font:800 16px var(--mono);color:var(--accent)}
+.brs .ss-body #ssspd{width:100%;accent-color:var(--accent);height:22px;margin:0;cursor:pointer;touch-action:none}
+.brs .ss-body .ssspdt{position:relative;height:14px;margin:0 8px}
+.brs .ss-body .ssspdt span{position:absolute;transform:translateX(-50%);font:600 10px var(--mono);color:var(--muted)}
+.brs .ss-body .ssspdt span::before{content:"";position:absolute;left:50%;top:-5px;width:1px;height:4px;background:var(--muted)}

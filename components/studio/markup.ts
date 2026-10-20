@@ -430,6 +430,7 @@ export const STUDIO_HTML = `
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
   <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
   <div class="ss-body shotcard" id="ssbody"></div>
+  <span class="ss-rs" aria-hidden="true" title="Drag to resize"></span>
 </section>
 <section class="fexp" id="fexp" hidden aria-live="polite" aria-labelledby="fexph">
   <h2 id="fexph">Exporting</h2>

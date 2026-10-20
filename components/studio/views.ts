@@ -214,12 +214,22 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     other: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>',
   };
   const sign = (k: string) => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SIGN[k]}</svg>`;
+  // the speed slider's scale: 0.2× at 0, 4× at 100, the same step for each doubling (1× near the middle)
+  const SPD_LO = 0.2, SPD_HI = 4;
+  const spdPos = (v: number) => (Math.log(Math.min(SPD_HI, Math.max(SPD_LO, v)) / SPD_LO) / Math.log(SPD_HI / SPD_LO)) * 100;
+  const spdOf = (p: number) => { const v = SPD_LO * Math.pow(SPD_HI / SPD_LO, p / 100); return Math.abs(v - 1) < 0.04 ? 1 : Math.round(v * 20) / 20; };
+  const spdTxt = (v: number) => (v < 1 ? v.toFixed(2).replace(/0$/, "") : v.toFixed(1).replace(/\.0$/, "")) + "×";
   const sheetHtml = (i: number, sels: (HTMLSelectElement | null)[], clipName: (n: string) => string) => {
     const st = S()!, e = st.edit[i], th = thumbOf(e.src), names = ["Transition", "Effect", "Speed"];
     const tabs = names.map((n, k) => `<button type="button" class="shtab" data-tab="${k}" aria-pressed="${k === shotTab}">${n}${k < 2 && sels[k] ? ` (${sels[k]!.options.length})` : ""}</button>`).join("");
     const tiles = (k: number) => { const sl = sels[k]; if (!sl) return "";
       return `<div class="sstiles">${[...sl.options].map((o) => `<button type="button" class="chip sstile" data-c="${k}" data-v="${esc(o.value)}" aria-pressed="${o.value === sl.value}"><span class="sstimg${o.value === "hard" || o.value === "none" ? " none" : ""}"${th ? ` style="background-image:url(${th})"` : ""}></span><span class="sstt">${esc(o.text)}</span></button>`).join("")}</div>`; };
-    const sp = sels[2], speed = !sp ? "" : `<div class="sslab">Speed</div><div class="chips sschips">${[...sp.options].map((o) => `<button type="button" class="chip" data-c="2" data-v="${esc(o.value)}" aria-pressed="${o.value === sp.value}">${esc(o.text)}</button>`).join("")}</div>`;
+    // Speed: the ready ones as chips, and any speed on a slider (as the pro editors: 0.2× … 4×, 1× near the middle)
+    const cv = st.shotCs()?.curve, flat = cv && ["a", "b", "c", "d", "e"].every((k) => cv[k as "a"] === cv.a) ? cv.a : null;
+    const num = flat ?? (+((e.sp?.label || "").match(/([\d.]+)×/)?.[1] || "") || 1);
+    const speed = !sels[2] ? "" : `<div class="sslab">Speed</div><div class="chips sschips">${[...sels[2]!.options].map((o) => `<button type="button" class="chip" data-c="2" data-v="${esc(o.value)}" aria-pressed="${o.value === sels[2]!.value}">${esc(o.text)}</button>`).join("")}</div>`
+      + `<div class="ssspd"><div class="ssspdh"><span>Custom speed</span><output id="ssspdv">${spdTxt(num)}</output></div><input type="range" id="ssspd" min="0" max="100" step="0.5" value="${spdPos(num).toFixed(1)}" aria-label="Speed">`
+      + `<div class="ssspdt" aria-hidden="true">${[0.2, 0.5, 1, 2, 4].map((v) => `<span style="left:${spdPos(v).toFixed(1)}%">${v}×</span>`).join("")}</div></div>`;
     const act = (op: string, n: string, extra = "") => `<button type="button" class="ssact" data-op="${op}"${extra}>${sign(op)}<span>${n}</span></button>`;
     const actions = st.kind === "talk" ? "" : `<div class="sslab">Actions</div><div class="ssacts">${act("split", "Split")}${act("dup", "Duplicate")}${act("freeze", "Freeze")}${act("delete", "Delete", st.edit.length < 2 ? " disabled" : "")}`
       + `<button type="button" class="ssact" data-other="1">${sign("other")}<span>Other moment</span></button>`
@@ -515,8 +525,23 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const sheet = $("shotsheet");
   let sheetX = 0;
   const shotAt = (x: number, y: number) => { const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st || yy < VTOP || yy > VTOP + vidH()) return -1; return st.edit.findIndex((e) => xOf(e.start) <= x && x < xOf(e.end)); };
+  // moved or resized by the person (drag its head, its corner or an edge): it stays where they put it, this visit and the
+  // next (a double-click on its head puts it back over the clip)
+  const FREE_KEY = "studio-shotsheet";
+  let free: { x: number; y: number; w: number; h: number } | null = null;
+  try { const j = JSON.parse(localStorage.getItem(FREE_KEY) || "null"); if (j && [j.x, j.y, j.w, j.h].every((v) => typeof v === "number")) free = j; } catch { /* private mode */ }
+  const keepFree = () => { try { if (free) localStorage.setItem(FREE_KEY, JSON.stringify(free)); else localStorage.removeItem(FREE_KEY); } catch { /* private mode */ } };
+  const placeFree = () => {
+    const f = free!, W = window.innerWidth, H = window.innerHeight;
+    f.w = Math.max(300, Math.min(W - 16, f.w)); f.h = Math.max(220, Math.min(H - 16, f.h));
+    f.x = Math.max(8, Math.min(W - f.w - 8, f.x)); f.y = Math.max(8, Math.min(H - f.h - 8, f.y));
+    Object.assign(sheet.style, { left: f.x + "px", top: f.y + "px", width: f.w + "px", height: f.h + "px", right: "auto", bottom: "auto", maxHeight: "none" });
+    sheet.classList.add("free");
+  };
   const placeSheet = () => {
     if (sheet.hidden) return;
+    if (free) { placeFree(); return; }
+    sheet.classList.remove("free"); sheet.style.top = sheet.style.height = sheet.style.right = "";
     if (!wide()) { for (const k of ["left", "bottom", "width", "maxHeight"] as const) sheet.style[k] = ""; return; } // a phone: the CSS sheet
     const lr = lanes.getBoundingClientRect(), w = Math.min(460, window.innerWidth - 24), left = Math.max(12, Math.min(window.innerWidth - w - 12, sheetX - w / 2));
     sheet.style.width = w + "px"; sheet.style.left = left + "px";
@@ -531,7 +556,55 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     sheet.hidden = false; root.classList.add("sheeton"); placeSheet();
   };
   const closeShot = () => { if (sheet.hidden) return; sheet.hidden = true; root.classList.remove("sheeton"); };
+  // dragging: its head moves it; its corner or an edge resizes it (a mouse, a finger or a pen)
+  let drag: { mode: string; px: number; py: number; f: { x: number; y: number; w: number; h: number } } | null = null;
+  const EDGE_PX = 8;
+  const edgeOf = (e: PointerEvent) => {
+    const r = sheet.getBoundingClientRect(), t = e.target as HTMLElement;
+    if (t.closest(".ss-rs")) return "se";
+    const l = e.clientX - r.left < EDGE_PX, rt = r.right - e.clientX < EDGE_PX, b = r.bottom - e.clientY < EDGE_PX, tp = e.clientY - r.top < EDGE_PX;
+    const m = (tp ? "n" : b ? "s" : "") + (l ? "w" : rt ? "e" : "");
+    if (m) return m;
+    if (t.closest(".ssh, .ss-head") && !t.closest("button, select, input, a")) return "move";
+    return "";
+  };
+  sheet.addEventListener("pointermove", (e) => {
+    if (drag) return;
+    const m = edgeOf(e), c = m === "move" ? "move" : m ? m + "-resize" : "";
+    if (sheet.style.cursor !== c) sheet.style.cursor = c;
+  }, sig);
+  sheet.addEventListener("pointerdown", (e) => {
+    const mode = edgeOf(e); if (!mode) return;
+    e.preventDefault();
+    const r = sheet.getBoundingClientRect();
+    if (!free) free = { x: r.left, y: r.top, w: r.width, h: r.height };
+    drag = { mode, px: e.clientX, py: e.clientY, f: { ...free } };
+    try { sheet.setPointerCapture(e.pointerId); } catch { /* gone */ }
+    sheet.classList.add("dragging");
+  }, sig);
+  sheet.addEventListener("pointermove", (e) => {
+    if (!drag || !free) return;
+    const dx = e.clientX - drag.px, dy = e.clientY - drag.py, o = drag.f, m = drag.mode;
+    if (m === "move") { free.x = o.x + dx; free.y = o.y + dy; }
+    else {
+      if (m.includes("e")) free.w = o.w + dx;
+      if (m.includes("s")) free.h = o.h + dy;
+      if (m.includes("w")) { free.w = o.w - dx; free.x = o.x + Math.min(dx, o.w - 300); }
+      if (m.includes("n")) { free.h = o.h - dy; free.y = o.y + Math.min(dy, o.h - 220); }
+    }
+    placeFree();
+  }, sig);
+  const dragEnd = () => { if (!drag) return; drag = null; sheet.classList.remove("dragging"); keepFree(); };
+  sheet.addEventListener("pointerup", dragEnd, sig);
+  sheet.addEventListener("pointercancel", dragEnd, sig);
+  sheet.addEventListener("dblclick", (e) => { const t = e.target as HTMLElement; if (!t.closest(".ssh, .ss-head") || t.closest("button, select, input")) return; free = null; keepFree(); placeSheet(); }, sig);
   $("ssx").addEventListener("click", closeShot, sig);
+  // the custom speed: the number while dragging, the shot's speed when let go (a constant speed curve, the engine's own)
+  $("ssbody").addEventListener("input", (e) => { const t = e.target as HTMLInputElement; if (t.id === "ssspd") { const o = $("ssspdv"); o.textContent = spdTxt(spdOf(+t.value)); } }, sig);
+  $("ssbody").addEventListener("change", (e) => {
+    const t = e.target as HTMLInputElement, st = S(); if (t.id !== "ssspd" || !st) return;
+    const v = spdOf(+t.value); st.shotSet({ curve: { a: v, b: v, c: v, d: v, e: v } }); shotKey = "";
+  }, sig);
   // ‹ › : the shot before / after, in the same sheet
   $("ssbody").addEventListener("click", (e) => { const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-snav]"); const st = S(); if (!b || !st) return;
     const k = Math.max(0, Math.min(st.edit.length - 1, st.segAt(st.now) + +b.dataset.snav!)); openShot(k, shotTab, xOf((st.edit[k].start + st.edit[k].end) / 2)); }, sig);
