@@ -45,7 +45,7 @@ function LiveVisitors({ o }: { o: AdminOverview }) {
           <LiveDot />
           <span className="h2">Live visitors</span>
         </span>
-        <span className="mu xs">updates every 15 s</span>
+        <span className="mu xs">updates every minute</span>
       </div>
       <span className="mu sm">
         {o.visitors.online} on the site now · {o.visitors.onlineSignedIn} signed in · {o.visitors.onlineGuests} guest{o.visitors.onlineGuests === 1 ? "" : "s"}
