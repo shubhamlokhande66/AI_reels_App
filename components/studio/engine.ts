@@ -1158,13 +1158,17 @@ async function keptSweep(){
 async function readVideo(src){
   if(src.removed) return;
   const card = src.card, dd = card.querySelector('.dd');
+  let stage = 'metadata', v = null;   // where reading stopped, for the report below
+  // still reading after 2 minutes: reported too (a phone where it hangs instead of failing)
+  const slow = setTimeout(() => { try{ window.__shubixReport && window.__shubixReport('clip', 'Clip still reading after 2 min at "' + stage + '" · ' + ((src.file && src.file.type) || 'no type') + ' · ' + dd.textContent, JSON.stringify({ size: src.file && src.file.size, dur: src.dur, w: src.w, h: src.h, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){} }, 120000);
   try{
     dd.textContent = 'reading…'; dd.dataset.st = 'read'; dd.dataset.p = '0';
-    const v = makeVideo(src.url); await waitEv(v,'loadedmetadata', 15000);
+    v = makeVideo(src.url); await waitEv(v,'loadedmetadata', 15000);
     src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight;
     if(!isFinite(src.dur) || src.dur<=0 || !src.w) throw new Error('bad');
-    await videoData(v);
-    v.currentTime = Math.min(src.dur*0.3, 2); await waitEv(v,'seeked');
+    stage = 'first picture'; await videoData(v);
+    stage = 'seek'; v.currentTime = Math.min(src.dur*0.3, 2); await waitEv(v,'seeked');
+    stage = 'thumbnail';
     const th = card.querySelector('.th'); th.width=320; th.height=180; const tg=th.getContext('2d');
     const r = Math.max(320/src.w, 180/src.h); tg.drawImage(v,(320-src.w*r)/2,(180-src.h*r)/2,src.w*r,src.h*r);
     v.removeAttribute('src'); v.load();
@@ -1177,6 +1181,7 @@ async function readVideo(src){
     const kept = await scanGet(src);   // read before (a saved Reel opened again, or the same clip added again): used as it is
     if(kept){ src.scenes = kept.scenes; src.samples = kept.samples; src.faces = kept.faces; src.faceHow = kept.faceHow; src.readMs.kept = true; pm = pf = 1; show(); }
     else {
+      stage = 'motion and faces';
       await Promise.all([
         scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); }),
         scanFaces(src, p=>{ pf = p; show(); }).then(()=>{ src.readMs.faces = Math.round(performance.now()-tq); }),
@@ -1193,9 +1198,13 @@ async function readVideo(src){
   }catch(e){
     if(src.removed) return;
     console.warn('clip not readable:', src.name, e && e.message || e);
+    // to Admin → Errors: what the phone could not do with which kind of file, so it can be fixed for that phone
+    try{ const f = src.file || {}, me = v && v.error;
+      window.__shubixReport && window.__shubixReport('clip', 'Clip not readable at "' + stage + '": ' + String(e && e.message || e).slice(0, 160) + ' · ' + (f.type || 'no type') + ' · .' + String(src.name || '').split('.').pop().toLowerCase(),
+        JSON.stringify({ size: f.size, dur: src.dur, w: src.w, h: src.h, ready: v && v.readyState, net: v && v.networkState, mediaError: me ? me.code + ' ' + (me.message || '') : null, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){}
     dd.textContent = 'This video does not play here (format). Remove it with ×.'; dd.dataset.st = 'bad';
     card.style.borderColor = 'var(--drop)';
-  }
+  }finally{ clearTimeout(slow); }
 }
 // Do the clips have a sound of their own? Then the person chooses what the Reel keeps (Mute it is the default).
 let clipSoundTold = false;
@@ -3964,13 +3973,19 @@ function setLabel(id, t){ const el = $(id); if(!el) return; const sp = el.queryS
 const PLAY_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
 const PAUSE_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg>';
 function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '<span>' + (on ? 'Pause' : 'Preview') + '</span>'; }
-function stopAll(){ stopPart(); stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
+// every start or stop gets a new number: a start that is still loading (the mix, the clips) gives up when the number
+// moved on, so two quick taps never leave two songs playing (and Pause always stops the one that plays)
+let playGen = 0, starting = false;
+function stopAll(){ playGen++; starting = false; stopPart(); stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
-  const c = getCtx(); await c.resume(); await ensureMix();
+  const g0 = playGen; starting = true; setPlayLabel(true);
+  const gone = () => g0 !== playGen;
+  const c = getCtx(); await c.resume(); if(gone()) return; await ensureMix(); if(gone()) return;
   edit.forEach(x=>{ x._cued = false; });
-  curIdx = segAt(from); if(edit[curIdx-1]) await prepare(curIdx-1, edit[curIdx-1].end-0.01); await prepare(curIdx, from); if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
+  curIdx = segAt(from); if(edit[curIdx-1]) await prepare(curIdx-1, edit[curIdx-1].end-0.01); if(gone()) return; await prepare(curIdx, from); if(gone()) return; if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
+  starting = false;
   const s = c.createBufferSource(); s.buffer = buf;
   // loudness: bring the song to about -14 LUFS (social media level), limiter stops clipping, tiny fades stop clicks
   const g = c.createGain(), lim = c.createDynamicsCompressor();
@@ -4016,7 +4031,7 @@ async function startPlayback(from, destNode){
   timer = setInterval(()=>{ if(document.hidden) loop(); }, 33);
 }
 let onEnd = null;
-$('play').onclick = () => { if(recording) return; if(playing){ pos = curTime(); stopAll(); } else startPlayback(pos >= buf.duration-0.05 ? 0 : pos); };
+$('play').onclick = () => { if(recording) return; if(playing){ pos = curTime(); stopAll(); } else if(starting) stopAll(); else startPlayback(pos >= buf.duration-0.05 ? 0 : pos); };
 
 /* =============== EXPORT =============== */
 function pickMime(){

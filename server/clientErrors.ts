@@ -8,7 +8,7 @@ import { db } from "@/server/core/db";
  * sees them without an outside service: the same error is one row with a count, the page and device it was seen on last.
  * Kept 30 days. Nothing personal: the message, where in the code, the page, the browser. */
 export const ClientError = z.object({
-  kind: z.enum(["error", "rejection", "studio", "webgl"]).default("error"),
+  kind: z.enum(["error", "rejection", "studio", "webgl", "clip"]).default("error"),
   message: z.string().max(400),
   stack: z.string().max(2000).default(""),
   path: z.string().max(300).default("/"),
