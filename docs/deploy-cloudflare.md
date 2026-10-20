@@ -52,6 +52,11 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
 - **One container** (`instance_type` in `wrangler.jsonc`). It **sleeps** 30 seconds after the last request
   (`SLEEP_AFTER`; an upload or download in progress counts) and wakes on the next one: the **first request after a
   sleep takes some seconds** (the container starts and mounts R2).
+- **Open tabs do not wake it**: an open tab says "still here" every 5 minutes (the admin's "online now"); while the
+  container sleeps, the Worker answers that itself (`cloudflare/src/index.ts`), so a tab left open costs nothing.
+- **One container**: every request goes to the one named `main`. `max_instances` above 1 would not be used by itself;
+  sharing the load (random containers) would keep two awake at quiet times and double the cost. Only worth it when one
+  `basic` container is no longer fast enough (then first try `standard-1`).
 - **Static assets (free)**: the files that never change are not served by the container. Before each deploy
   `scripts/cf-assets.mjs` copies `public/` (logo, icons, the AI engine in `vendor/ort`, …) and the AI models Fast Studio
   downloads (`/api/studio/model/*`, ~25 MB for a new visitor) into `cloudflare/assets/`, with their headers (`_headers`).
