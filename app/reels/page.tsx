@@ -69,7 +69,7 @@ function Drafts() {
               {d.kind === "talk" ? "Talking · " : ""}
               {new Date(d.updated).toLocaleDateString()}
             </span>
-            <button type="button" className="ib plain -mr-1.5 shrink-0" aria-label={`Delete ${d.name}`} title="Delete this draft" onClick={() => remove(d.id, d.name)}>
+            <button type="button" className="ib plain -mr-1.5 h-8 w-8 shrink-0" aria-label={`Delete ${d.name}`} title="Delete this draft" onClick={() => remove(d.id, d.name)}>
               <Icon name="trash" size={16} />
             </button>
           </div>

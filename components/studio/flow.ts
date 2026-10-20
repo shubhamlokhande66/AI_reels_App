@@ -38,6 +38,8 @@ export function initFlow(root: HTMLElement): () => void {
   const q = new URLSearchParams(location.search);
   // a saved Reel, a Story or a picked template opens in the editor as before
   let revealed = q.has("p") || location.pathname === "/create/story";
+  // a saved Reel being opened: "Opening your Reel…" from the first paint (the engine takes it away once it is back)
+  if (q.has("p")) root.classList.add("opening");
   let step: Step = "intro";
   let kind: Kind = "music";
   let pct = 0;

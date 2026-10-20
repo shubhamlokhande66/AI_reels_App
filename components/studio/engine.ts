@@ -1938,7 +1938,7 @@ function directorMaybe(){
 // New mix: the AI's other plans for these cuts, all in one call (the input is sent once)
 async function variantsRun(st){
   st.asked = true; st.busy = true;
-  aiStat('Shubix is making ' + VARIANTS + ' more mixes for New mix…');
+  aiStat('Shubix is making ' + VARIANTS + ' more versions for Change Reel…');
   const tm = timeoutSignal(90000);
   let n = 0;
   try{
@@ -1948,10 +1948,10 @@ async function variantsRun(st){
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not make the mixes (' + r.status + ').'));
     let k = 1;
     for(const pl of res.plans || []){ while(st.plans[k]) k++; st.plans[k] = { slots: toSlots(pl.slots, cands), ctx, sig, story: pl.story || '' }; n++; }
-    aiStat('Shubix made ' + n + ' more mix' + (n === 1 ? '' : 'es') + ' · press New mix to see each.');
+    aiStat('Shubix made ' + n + ' more version' + (n === 1 ? '' : 's') + ' · press Change Reel to see each.');
   }catch(e){
     if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI mixes not used:', e);
-    aiStat('New mix uses the phone\'s own mixes in Shubix\'s style.');
+    aiStat('Change Reel uses the phone\'s own versions in Shubix\'s style.');
   }finally{ st.busy = false; tm.done(); }
   if(mixNo > 0 && buf && sources.length && !recording) makeEdit();
 }
@@ -3082,15 +3082,23 @@ function drawOverlay(g, ov, t){
 }
 function drawOverlays(t){ for(const ov of overlays) if(!ov.behind || !personMask || !bgMask) drawOverlay(og, ov, t); }
 // the list under "Text & stickers": edit the words, style, colour, entrance, size, when it shows
+let ovTab = 'font';   // the text editor's open tab (Font, Style, Animation or Loop), the same for every text
 function renderOvList(){
   const box = $('ovlist'); box.innerHTML = '';
   overlays.forEach((ov, i) => {
     const row = document.createElement('div'); row.className = 'ov' + (i === ovSel ? ' sel' : '');
     const [a, b] = ovTiming(ov);
-    row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Remove" aria-label="Remove">×</button></div>
-      <div class="ovctl"><select class="ovs" aria-label="Style"></select><select class="ovf" aria-label="Font"></select><select class="ova" aria-label="Entrance"></select><select class="ovl" aria-label="Keeps moving"></select><span class="ovc"></span>
-      <label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
-      <div class="ovctl"><span class="fname ovtm"></span><button class="btn mini ovfrom">Start here</button><button class="btn mini ovto">End here</button><label class="tog"><input type="checkbox" class="ovall"> Whole Reel</label><label class="tog"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog"><input type="checkbox" class="ovbeh"> Behind the person</label></div>`;
+    // the text / sticker editor (the design's frame 5): the words; Font · Style · Animation · Loop; the colour; follow the
+    // person; start and end; delete. Each choice is a chip (its select stays, hidden, as the one place the value lives)
+    row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Delete" aria-label="Delete">×</button></div>
+      <div class="ovtabs" role="tablist"><button type="button" data-ovt="font">Font</button><button type="button" data-ovt="style">Style</button><button type="button" data-ovt="anim">Animation</button><button type="button" data-ovt="loop">Loop</button></div>
+      <div class="ovpane" data-p="font"><div class="ovfrow"><select class="ovf" aria-label="Font"></select><label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
+        <div class="ovcrow"><span class="ovclab">Color</span><span class="ovc"></span><label class="ovpick" title="Any colour"><input type="color" class="ovcol" aria-label="Any colour"></label></div></div>
+      <div class="ovpane" data-p="style"><select class="ovs" aria-label="Style" hidden></select><div class="ovchips" data-for="ovs"></div></div>
+      <div class="ovpane" data-p="anim"><select class="ova" aria-label="Entrance" hidden></select><div class="ovchips" data-for="ova"></div></div>
+      <div class="ovpane" data-p="loop"><select class="ovl" aria-label="Keeps moving" hidden></select><div class="ovchips" data-for="ovl"></div></div>
+      <div class="ovctl ovflags"><label class="tog switch"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog switch"><input type="checkbox" class="ovbeh"> Behind the person</label><label class="tog switch"><input type="checkbox" class="ovall"> Whole Reel</label></div>
+      <div class="ovctl ovtime"><span class="ovtl">Start</span><button class="btn mini ovfrom" title="Start where the playhead is">Here</button><span class="fname ovtm"></span><span class="ovtl">End</span><button class="btn mini ovto" title="End where the playhead is">Here</button><button class="btn mini ovdel2" type="button">Delete</button></div>`;
     const tk = row.querySelector('.ovtrk'); tk.checked = !!ov.track; if(isLocked('tool', 'track')) tk.parentElement.lastChild.textContent = ' 👑 Follow the person'; tk.addEventListener('change', () => { ov.track = tk.checked; if(tk.checked){ ov.x = 0.5; ov.y = ov.emoji ? 0.38 : 0.32; } redraw(); });
     const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
     ti.addEventListener('input', () => { ov.text = ti.value; redraw(); });
@@ -3115,6 +3123,19 @@ function renderOvList(){
     const bh = row.querySelector('.ovbeh'); bh.checked = !!ov.behind; bh.addEventListener('change', () => { ov.behind = bh.checked; if(bh.checked && !personMask) $('bgstat').textContent = 'Text behind the person needs the background tools'; bgMask = null; bgFrame = -1; redrawFrame(); });
     const al = row.querySelector('.ovall'); al.checked = ov.all; al.addEventListener('change', () => { ov.all = al.checked; showT(); redraw(); });
     row.querySelector('.ovdel').addEventListener('click', () => { overlays.splice(i, 1); ovSel = -1; renderOvList(); redraw(); });
+    row.querySelector('.ovdel2').addEventListener('click', () => row.querySelector('.ovdel').click());
+    // Font · Style · Animation · Loop (the last one chosen stays open); each select's choices as chips
+    const tabTo = k => { ovTab = k; row.querySelectorAll('[data-ovt]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ovt === k))); row.querySelectorAll('.ovpane').forEach(p => { p.hidden = p.dataset.p !== k; }); };
+    row.querySelectorAll('[data-ovt]').forEach(b => b.addEventListener('click', () => tabTo(b.dataset.ovt)));
+    tabTo(ov.emoji && ovTab !== 'anim' && ovTab !== 'loop' ? 'anim' : ovTab);
+    if(ov.emoji) row.querySelectorAll('[data-ovt="font"],[data-ovt="style"]').forEach(b => { b.hidden = true; });
+    row.querySelectorAll('.ovchips').forEach(box2 => { const sel = row.querySelector('.' + box2.dataset.for);
+      const paint = () => [...box2.children].forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === sel.value)));
+      [...sel.options].forEach(o => { const c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.dataset.v = o.value; c.textContent = o.text;
+        c.addEventListener('click', () => { sel.value = o.value; sel.dispatchEvent(new Event('change')); paint(); }); box2.appendChild(c); });
+      paint(); });
+    const pick = row.querySelector('.ovcol'); pick.value = /^#[0-9a-f]{6}$/i.test(ov.color || '') ? ov.color : '#ffffff'; if(ov.emoji) pick.parentElement.hidden = true;
+    pick.addEventListener('input', () => { ov.color = pick.value; [...cs.children].forEach(x => x.classList.remove('on')); redraw(); });
     row.addEventListener('focusin', () => { if(ovSel !== i){ ovSel = i; [...box.children].forEach((r, k) => r.classList.toggle('sel', k === i)); redraw(); } });
     box.appendChild(row);
   });
@@ -4368,8 +4389,10 @@ function planGate(list){
   return new Promise(res => {
     const top = list.reduce((a, x) => planRank(x.need) > planRank(a) ? x.need : a, 'creator');
     const d = document.createElement('div'); d.className = 'askbg';
-    d.innerHTML = '<div class="ask" role="alertdialog" aria-modal="true"><p class="gt"></p><ul class="gl"></ul><div class="askrow"><button type="button" class="btn">Cancel</button><button type="button" class="btn">Take them out</button><a class="btn gold" href="/pricing">See plans</a></div></div>';
-    d.querySelector('.gt').textContent = '👑 This Reel uses ' + PLAN_NAME[top] + ' features. Upgrade to export it as it is, or take them out and export now.';
+    // as the design (frame 9): ✕, a crown, what it is, what is in it, Upgrade Now · Take them out
+    d.innerHTML = '<div class="ask lockpop" role="alertdialog" aria-modal="true" aria-labelledby="lkt"><button type="button" class="askx" aria-label="Close">✕</button><div class="lkcrown" aria-hidden="true">👑</div><h3 class="lkt" id="lkt"></h3><p class="gt"></p><ul class="gl"></ul><div class="askrow"><a class="btn gold" href="/pricing">Upgrade Now</a><button type="button" class="btn">Take them out</button></div></div>';
+    d.querySelector('.lkt').textContent = 'This is a ' + PLAN_NAME[top] + ' Feature';
+    d.querySelector('.gt').textContent = 'Your Reel uses ' + PLAN_NAME[top] + ' features. Upgrade to export it as it is, or take them out and export now.';
     const ul = d.querySelector('.gl'); for(const x of list.slice(0, 8)){ const li = document.createElement('li'); li.textContent = x.name + ' · ' + PLAN_NAME[x.need]; ul.appendChild(li); }
     const [no, fix] = d.querySelectorAll('button'), done = v => { d.remove(); res(v); };
     no.onclick = () => done(false); fix.onclick = () => { list.forEach(x => x.fix()); done(true); }; d.onclick = e => { if(e.target === d) done(false); };
@@ -4399,6 +4422,8 @@ function sheetPaint(){
 function sheetOpen(open){
   $('xsheet').hidden = !open;
   if(!open) return;
+  // the Reel's picture beside the settings (the design's frame 8): its first shot
+  try{ const th = edit.length && sources[edit[0].src] && sources[edit[0].src].card.querySelector('.th'); if(th && th.width) $('xprev').src = th.toDataURL('image/jpeg', 0.8); }catch(e){}
   sheetPaint();
   $('xgo').focus();
   if(can4k === null) loadMediabunny().then(mb => { const [W0,H0] = SIZES[aspect]; return mb.getFirstEncodableVideoCodec(['avc','vp9','av1'], {width: W0*2, height: H0*2}); })
@@ -5379,7 +5404,8 @@ setInterval(() => {
 }, 3000);
 const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
 async function openProject(id){
-  restoring = true; const say = t => { $('psaved').textContent = t; };
+  // "Opening your Reel…" over the page until the edit is back (flow.ts shows it from the first paint); its line follows say()
+  restoring = true; root.classList.add('opening'); const say = t => { $('psaved').textContent = t; $('openstep').textContent = t.replace(/…$/, ''); };
   try{
     const p = await idb('meta', 'readonly', s => s.get(id)); if(!p){ say('That Reel is no longer on this phone.'); return; }
     const st = p.state, getF = async (fp, name) => { const b = fp ? await idb('files', 'readonly', s => s.get('f:' + fp)) : null; return b ? new File([b], name || b.name || 'file', { type: b.type, lastModified: +fp.split('|').pop() || Date.now() }) : null; };
@@ -5419,7 +5445,9 @@ async function openProject(id){
     const missing = (st.clips || []).length - clips.length + (st.song && !sf ? 1 : 0);
     say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : 'Opened "' + p.name + '" · saved on this phone');
   }catch(err){ console.warn('project not opened:', err); say('This Reel could not be opened.'); notify('This Reel could not be opened.', 'err'); }
-  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; }
+  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; root.classList.remove('opening');
+    // nothing to show (gone, or its files are not on this phone): say so, not a blank page
+    if(!edit.length && !sources.length){ root.classList.add('openfail'); $('openh').textContent = 'This Reel could not be opened'; } }
 }
 function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;

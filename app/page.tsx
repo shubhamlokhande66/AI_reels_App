@@ -69,7 +69,8 @@ export default function Home() {
       <CreateSection features={features} />
       <TemplatesSection />
       <ContinueSection drafts={drafts} onChange={() => setReload((n) => n + 1)} />
-      <TipsBanner />
+      {/* the shortcut to the tips, when Saved Reels stand between (else the tips are right here) */}
+      {saved && saved.length > 0 && <TipsBanner />}
       <SavedSection reels={saved} />
       <TipsSection />
       {!paid && <ProBanner />}

@@ -28,7 +28,7 @@ export function createOptions(f: Features): Option[] {
     { href: "/create/photo", icon: "image", title: "Photo Reel", text: "Bring Photos to Life", tone: "photo", reload: true },
     { href: "/create/story", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story", reload: true },
     { href: "/templates", icon: "grid", title: "Use a Template", text: "Ready-made Styles", tone: "template" },
-    { href: "/reels", icon: "video", title: "My Reels", text: "Watch, download or share", tone: "recreate" },
+    { href: "/reels", icon: "video", title: "My Reels", text: "Watch & share", tone: "recreate" },
   ].filter((o) => linkOn(o.href, f)) as Option[];
 }
 
@@ -131,7 +131,7 @@ export function TipsSection() {
   return (
     <section aria-labelledby="tips-h" className="flex flex-col gap-3">
       <SectionHeader id="tips-h" title="Tips for Better Reels" />
-      <div className="grid grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
         {TIPS.map((t, i) => (
           <TipCard key={t.title} n={i + 1} {...t} />
         ))}

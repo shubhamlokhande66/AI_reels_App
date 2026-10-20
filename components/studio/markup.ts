@@ -49,9 +49,10 @@ const AI_STEPS: [string, string, string][] = [
 ];
 const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${IC.scan}<span>${t}</span></li>`).join("")}</ul>`;
 // a tool: a button in the tool bar and the heading of its panel
+// in the editor's order (the tool bar on a phone, the rail on a computer)
 const TOOLS: [string, string, string][] = [
-  ["shots", "Shot", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
-  ["look", "Look", IC.look], ["motion", "Motion", IC.motion], ["bg", "Background", IC.bg], ["layers", "Overlay", IC.layers], ["voice", "Voice", IC.voice], ["style", "Style", IC.style],
+  ["style", "Style", IC.style], ["shots", "Shots", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
+  ["look", "Look", IC.look], ["bg", "Background", IC.bg], ["layers", "Layers", IC.layers], ["voice", "Voice", IC.voice], ["motion", "Motion", IC.motion],
 ];
 // every tool in one bar; a Pro tool (views.ts PRO_TOOLS) carries a PRO tag, and on a free plan it opens /pricing
 const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span>${PRO_TOOLS.has(k) ? `<em class="protag">${IC.crown}PRO</em>` : ""}</button>`).join("");
@@ -60,7 +61,9 @@ const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; ret
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
 <div class="topbar" id="topbar">
+  <button type="button" class="ibtn tb-back" id="tbback" aria-label="Back">${IC.back}</button>
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
+  <label class="tb-aspect" title="Format"><select id="tbaspect" aria-label="Format"><option value="9:16">9:16</option><option value="4:5">4:5</option><option value="1:1">1:1</option><option value="16:9">16:9</option></select></label>
   <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
@@ -229,7 +232,7 @@ export const STUDIO_HTML = `
           <div class="summary" id="summary">
             <h2 class="sumh">Your Reel is ready</h2>
             <p class="sumi" id="suminfo"></p>
-            <button type="button" class="btn" data-proxy="remix">${IC.mix}<span>New mix</span></button>
+            <button type="button" class="btn" data-proxy="remix">${IC.mix}<span>Change Reel</span></button>
           </div>
           <div class="inspector" id="inspector"></div>
         </div>
@@ -239,11 +242,12 @@ export const STUDIO_HTML = `
           <button class="btn icon" id="pshot" type="button" aria-label="Previous shot">${IC.prev}</button>
           <button class="btn icon" id="cover" disabled aria-label="Cover image" title="Cover image">${IC.image}<span>Cover</span></button>
           <button class="btn primary" id="play" disabled>${IC.play}<span>Preview</span></button>
-          <button class="btn icon" id="remix" disabled aria-label="New mix" title="New mix">${IC.mix}<span>New mix</span></button>
+          <button class="btn icon" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version">${IC.mix}<span>Change Reel</span></button>
           <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
           <span class="tc" id="ttot">0:00.0</span>
+          <button class="btn icon" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
         </div>
-        <div class="tlbar"><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button></span></div>
+        <div class="tlbar"><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button><button class="btn mini" id="tlfit" type="button" aria-label="The whole Reel in view" title="The whole Reel in view">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button></span></div>
         <div class="strip"><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
         <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch or use − and + to zoom, drag a shot's edge to make it longer or shorter, tap a transition or an effect to change it"></canvas></div>
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
@@ -260,6 +264,11 @@ export const STUDIO_HTML = `
         <nav class="dock" id="dock" aria-label="Tools">${dock}</nav>
 
         <div class="panels" id="panels">
+          <!-- the left panel's tabs on a computer (the design): each opens its tool, Effects / Transitions the shot sheet -->
+          <nav class="ptabs" id="ptabs" aria-label="Library">
+            <button type="button" data-pt="media" aria-pressed="false">${IC.image}<span>Media</span></button><button type="button" data-pt="music" aria-pressed="false">${IC.music}<span>Music</span></button><button type="button" data-pt="text" aria-pressed="false">${IC.text}<span>Text</span></button><button type="button" data-pt="stickers" aria-pressed="false">${I('<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>')}<span>Stickers</span></button><button type="button" data-pt="effects" aria-pressed="false">${IC.spark}<span>Effects</span></button><button type="button" data-pt="transitions" aria-pressed="false">${I('<path d="M4 6l7 6-7 6zM20 6l-7 6 7 6z"/>')}<span>Transitions</span></button><button type="button" data-pt="filters" aria-pressed="false">${I('<path d="M4 6h16M7 12h10M10 18h4"/>')}<span>Filters</span></button>
+          </nav>
+          <section class="panel" data-panel="media"><h3 class="ph">${IC.image}Media</h3><div class="mslot" id="mslot"></div></section>
           <section class="panel" data-panel="style">${panelHead("style")}
             <div class="seg" id="mode">
               <button data-m="auto" aria-pressed="true">Auto</button>
@@ -337,7 +346,7 @@ export const STUDIO_HTML = `
             <div class="lylist" id="lylist"></div>
             <div class="lyedit" id="lyedit" hidden>
               <span class="label">Layout</span>
-              <div class="chips"><button type="button" class="chip" data-lay="tl">↖ Corner</button><button type="button" class="chip" data-lay="tr">↗ Corner</button><button type="button" class="chip" data-lay="bl">↙ Corner</button><button type="button" class="chip" data-lay="br">↘ Corner</button><button type="button" class="chip" data-lay="top">Top half</button><button type="button" class="chip" data-lay="bottom">Bottom half</button><button type="button" class="chip" data-lay="left">Left half</button><button type="button" class="chip" data-lay="right">Right half</button><button type="button" class="chip" data-lay="full">Full</button></div>
+              <div class="chips"><button type="button" class="chip" data-lay="tl"><i class="lyic lay-tl" aria-hidden="true"></i><span>Top left</span></button><button type="button" class="chip" data-lay="tr"><i class="lyic lay-tr" aria-hidden="true"></i><span>Top right</span></button><button type="button" class="chip" data-lay="bl"><i class="lyic lay-bl" aria-hidden="true"></i><span>Bottom left</span></button><button type="button" class="chip" data-lay="br"><i class="lyic lay-br" aria-hidden="true"></i><span>Bottom right</span></button><button type="button" class="chip" data-lay="top"><i class="lyic lay-top" aria-hidden="true"></i><span>Top</span></button><button type="button" class="chip" data-lay="bottom"><i class="lyic lay-bottom" aria-hidden="true"></i><span>Bottom</span></button><button type="button" class="chip" data-lay="left"><i class="lyic lay-left" aria-hidden="true"></i><span>Left</span></button><button type="button" class="chip" data-lay="right"><i class="lyic lay-right" aria-hidden="true"></i><span>Right</span></button><button type="button" class="chip" data-lay="full"><i class="lyic lay-full" aria-hidden="true"></i><span>Full</span></button></div>
               <span class="label">When · <span id="lytime"></span></span>
               <div class="chips"><button type="button" class="chip" data-lyt="start">Start at the playhead</button><button type="button" class="chip" data-lyt="end">End at the playhead</button><button type="button" class="chip" data-lyt="all">Whole Reel</button></div>
               <span class="label">Place</span>
@@ -349,7 +358,7 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Corners</span><input type="range" data-ly="rad" min="0" max="1" step="0.05"><output></output></label>
               <div class="chips"><button type="button" class="chip" data-lyf="fh">Mirror</button><button type="button" class="chip" data-lyf="fv">Flip</button></div>
               <span class="label">Mask</span>
-              <div class="chips" id="lymask"><button type="button" class="chip" data-m="none">None</button><button type="button" class="chip" data-m="circle">Circle</button><button type="button" class="chip" data-m="rect">Rectangle</button><button type="button" class="chip" data-m="line">Line</button><button type="button" class="chip" data-m="mirror">Mirror band</button></div>
+              <div class="chips" id="lymask"><button type="button" class="chip" data-m="none"><i class="lyic mk-none" aria-hidden="true"></i><span>None</span></button><button type="button" class="chip" data-m="circle"><i class="lyic mk-circle" aria-hidden="true"></i><span>Circle</span></button><button type="button" class="chip" data-m="rect"><i class="lyic mk-rect" aria-hidden="true"></i><span>Rectangle</span></button><button type="button" class="chip" data-m="line"><i class="lyic mk-line" aria-hidden="true"></i><span>Line</span></button><button type="button" class="chip" data-m="mirror"><i class="lyic mk-mirror" aria-hidden="true"></i><span>Mirror</span></button></div>
               <div id="lymaskopts">
                 <label class="cslide"><span>Width</span><input type="range" data-ly="mk.w" min="0.05" max="1.5" step="0.01"><output></output></label>
                 <label class="cslide"><span>Height</span><input type="range" data-ly="mk.h" min="0.05" max="1.5" step="0.01"><output></output></label>
@@ -367,7 +376,7 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Fade out</span><input type="range" data-ly="fout" min="0" max="2" step="0.1"><output></output></label>
               <label class="cslide" id="lyvolrow"><span>Its sound</span><input type="range" data-ly="vol" min="0" max="2" step="0.05"><output></output></label>
               <label class="cslide"><span>Blend</span><select data-ly="blend" aria-label="Blend mode"><option value="source-over">Normal</option><option value="screen">Screen (light leaks, dust)</option><option value="multiply">Multiply</option><option value="overlay">Overlay</option><option value="soft-light">Soft light</option><option value="lighten">Lighten</option><option value="darken">Darken</option><option value="color-dodge">Colour dodge</option><option value="difference">Difference</option></select></label>
-              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="btn mini" data-lykey="#00FF00">Green</button><button type="button" class="btn mini" data-lykey="#0047FF">Blue</button><button type="button" class="btn mini" data-lykey="#000000">Black</button><button type="button" class="btn mini" data-lykey="#FFFFFF">White</button></div>
+              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="btn mini" data-lykey="#00FF00"><i class="keydot" style="background:#00FF00" aria-hidden="true"></i>Green</button><button type="button" class="btn mini" data-lykey="#0047FF"><i class="keydot" style="background:#0047FF" aria-hidden="true"></i>Blue</button><button type="button" class="btn mini" data-lykey="#000000"><i class="keydot" style="background:#000000" aria-hidden="true"></i>Black</button><button type="button" class="btn mini" data-lykey="#FFFFFF"><i class="keydot" style="background:#FFFFFF" aria-hidden="true"></i>White</button></div>
               <label class="cslide"><span>Key strength</span><input type="range" data-ly="key.tol" min="0" max="1" step="0.05"><output></output></label>
               <button type="button" class="btn ghost" data-lydel="1">Remove this layer</button>
             </div>
@@ -393,11 +402,13 @@ export const STUDIO_HTML = `
               <canvas id="kftl" class="kftl" aria-label="Keyframes of the shot or text; tap to move the playhead"></canvas>
               <div class="row kfbtns"><button class="btn mini" id="kfprev" type="button" aria-label="Previous keyframe">◀ ◆</button><button class="btn mini" id="kfadd" type="button">◇ Add keyframe</button><button class="btn mini" id="kfnext" type="button" aria-label="Next keyframe">◆ ▶</button><select id="kfease" aria-label="Ease into this keyframe"></select><button class="btn mini" id="kfdel" type="button">Delete ◆</button><button class="btn mini" id="kfclear" type="button">Clear all</button></div>
               <div class="kfsliders" id="kfsliders"></div>
+              <span class="label kfml">Ready-made moves</span>
+              <div class="kfmoves" id="kfmoves"></div>
               <p class="hint"><span id="kfinfo"></span>. Tap a text or sticker to animate it, otherwise the shot under the playhead. Pause where the move starts and set it; move the playhead and set it again. Drag the picture to move it. Double-tap a slider to reset it.</p>
             </details>
           </section>
 
-          <button type="button" class="btn primary big fapply" id="fapply">Apply ${IC.arrow}</button>
+          <button type="button" class="btn primary big fapply" id="fapply">${IC.check} Done</button>
           <section class="panel wide" data-panel="shots">
             <div class="shotcard" id="shotcard"></div>
             <details class="allshots" id="allshots"><summary>All shots</summary>
@@ -414,7 +425,15 @@ export const STUDIO_HTML = `
   <button class="btn save big" id="export" disabled>${IC.save}<span>Export</span></button>
   <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
 </div>
+<!-- a saved Reel opening (/create/edit?p=): engine.ts openProject; flow.ts shows it from the first paint -->
+<div class="openload" id="openload" role="status" aria-live="polite"><span class="openspin" aria-hidden="true"></span><b id="openh">Opening your Reel…</b><small id="openstep">Getting the song and the clips</small><a class="btn" href="/reels" id="openback">Back to My Reels</a></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+<!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
+<section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
+  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
+  <div class="ss-body shotcard" id="ssbody"></div>
+  <span class="ss-rs" aria-hidden="true" title="Drag to resize"></span>
+</section>
 <section class="fexp" id="fexp" hidden aria-live="polite" aria-labelledby="fexph">
   <h2 id="fexph">Exporting</h2>
   <div class="aoring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="fg" id="fexpring" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"/></svg><b id="fexppct">0%</b></div>
@@ -434,7 +453,8 @@ export const STUDIO_HTML = `
 </section>
 <div class="xsheet" id="xsheet" hidden>
   <div class="xsh" role="dialog" aria-modal="true" aria-labelledby="xsht">
-    <div class="xsh-h"><h2 id="xsht">Export Reel</h2><button type="button" class="ibtn" id="xshclose" aria-label="Close">✕</button></div>
+    <img class="xprev" id="xprev" alt="">
+    <div class="xsh-h"><h2 id="xsht">Export Your Reel</h2><button type="button" class="ibtn" id="xshclose" aria-label="Close">✕</button></div>
     <p class="xsh-l">Quality</p>
     <div class="seg" id="xres" role="group" aria-label="Quality"><button type="button" data-r="720">720p</button><button type="button" data-r="1080" aria-pressed="true">1080p</button><button type="button" data-r="4k">4K</button></div>
     <p class="xsh-l">Frame rate</p>
