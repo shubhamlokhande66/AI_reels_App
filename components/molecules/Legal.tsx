@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { api } from "@/lib/api";
 import type { SiteInfo } from "@/types/api";
 

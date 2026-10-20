@@ -1,7 +1,7 @@
 "use client";
 
 import { DEFAULTS, type Features } from "@/lib/features-list";
-import { useQuery } from "@tanstack/react-query";
+import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { api } from "@/lib/api";
 import { getAdminKey, setAdminKey } from "@/lib/admin";
 
