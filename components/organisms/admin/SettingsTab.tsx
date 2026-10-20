@@ -6,6 +6,7 @@ import { AiSettingsPanel } from "@/components/organisms/AiSettingsPanel";
 import { FeatureSettings } from "@/components/organisms/FeatureSettings";
 import { PlanLockSettings } from "@/components/organisms/PlanLockSettings";
 import { PricingSettings } from "@/components/organisms/PricingSettings";
+import { BackupSettings } from "@/components/organisms/BackupSettings";
 import { ReelsKeepSettings } from "@/components/organisms/ReelsKeepSettings";
 import { SiteSetupNotice } from "@/components/organisms/SiteSetupNotice";
 
@@ -16,6 +17,7 @@ const SECTIONS = [
   { id: "locks", label: "Plan locks", body: () => <PlanLockSettings /> },
   { id: "reels", label: "My Reels", body: () => <ReelsKeepSettings /> },
   { id: "ai", label: "AI", body: () => <AiSettingsPanel /> },
+  { id: "backup", label: "Backup", body: () => <BackupSettings /> },
   { id: "report", label: "AI report", body: () => <AiDirectorReport /> },
 ] as const;
 
