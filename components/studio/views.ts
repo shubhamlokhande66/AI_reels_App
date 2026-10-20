@@ -45,6 +45,11 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   let tool = "";
   let shotKey = "", lanesKey = "", shotTab = 0, ctOpen = "", ctKey = "";
   const q = new URLSearchParams(location.search).get("tool");
+  // The made Reel opens as a review: the preview big, Change Reel, Export and Edit. Edit opens the timeline and the tools
+  // (✓ Done editing goes back). A saved Reel opened again (?p=) or a tool asked for (?tool=) opens in the editor.
+  let editing = /[?&](p|tool)=/.test(location.search);
+  const reviewNow = () => made() && !root.classList.contains("fopen") && !editing;
+  const setEditing = (on: boolean) => { editing = on; if (!on && !wide()) tool = ""; apply(); if (on) requestAnimationFrame(() => $("lanes").scrollIntoView({ block: "nearest" })); };
 
   const made = () => !$("s3").classList.contains("locked");
   // computers keep a tool open beside the preview (the shot first); phones show the Reel, a tool opens over it
@@ -56,8 +61,11 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const apply = () => {
     root.classList.remove("v-simple", "v-editor", "v-pro", "v-one", "v-all");
     root.classList.add("v-" + view);
+    if (tool && !wide() && !editing) editing = true; // a phone: a tool opened means editing
     root.dataset.tool = tool;
     root.classList.toggle("made", made());
+    root.classList.toggle("editing", editing);
+    root.classList.toggle("review", reviewNow());
     // the left panel's tabs: lit for the tool they open
     const PT: Record<string, string> = { media: "media", music: "music", text: "text", look: "filters" };
     root.querySelectorAll<HTMLButtonElement>("#ptabs [data-pt]").forEach((b) => b.setAttribute("aria-pressed", String(PT[tool] === b.dataset.pt)));
@@ -100,6 +108,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       if (k === "stickers") $("ovsticker").scrollIntoView({ block: "nearest" });
       return;
     }
+    if (t.closest("#fedit")) { setEditing(true); return; }
+    if (t.closest("#feditdone")) { closeShot(); setEditing(false); return; }
     const b = t.closest<HTMLButtonElement>(".tool");
     if (b) {
       const k = b.dataset.tool!;
@@ -650,6 +660,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // fold the song and clips once the Reel is made (tap the line to open them again)
   let wasMade = made();
   const onChange = () => {
+    if (root.classList.contains("review") !== reviewNow()) root.classList.toggle("review", reviewNow());
     // the editor's workspace (.noir: its layout); its colours follow the app's Light / Dark switch (app/globals.css)
     const noir = made() && !root.classList.contains("fopen");
     if (root.classList.contains("noir") !== noir) { root.classList.toggle("noir", noir); media(noir); }

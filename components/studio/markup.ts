@@ -34,6 +34,7 @@ const IC = {
   back: I('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
   arrow: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   check: I('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  pen: I('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
   spark: I('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" fill="currentColor" stroke="none"/>'),
   upload: I('<path d="M12 16V4M7 9l5-5 5 5M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/>'),
   scan: I('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12h8M8 15h5"/>'),
@@ -247,7 +248,8 @@ export const STUDIO_HTML = `
           <span class="tc" id="ttot">0:00.0</span>
           <button class="btn icon" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
         </div>
-        <div class="tlbar"><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button><button class="btn mini" id="tlfit" type="button" aria-label="The whole Reel in view" title="The whole Reel in view">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button></span></div>
+        <div class="feditbar"><button type="button" class="btn primary big" id="fedit">${IC.pen}<span>Edit</span></button><small>Change shots, effects, text, music and more on the timeline</small></div>
+        <div class="tlbar"><button class="btn mini feditdone" id="feditdone" type="button">${IC.check} Done editing</button><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button><button class="btn mini" id="tlfit" type="button" aria-label="The whole Reel in view" title="The whole Reel in view">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button></span></div>
         <div class="strip"><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
         <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch or use − and + to zoom, drag a shot's edge to make it longer or shorter, tap a transition or an effect to change it"></canvas></div>
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>

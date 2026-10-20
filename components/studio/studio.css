@@ -1473,3 +1473,27 @@
 }
 /* a phone's tool sheet: Done always last (it comes before the Shots panel in the page, so it showed at the top there) */
 @media (max-width:1023px){ .brs.fpost[data-tool]:not([data-tool=""]) .fapply{order:99} }
+
+/* ---- the made Reel as a review first (views.ts .review): the preview big, Change Reel, Export and Edit; the timeline,
+   the tools and their panels open with Edit (.editing), "Done editing" closes them. Phones and computers. ---- */
+.brs .feditbar,.brs .feditdone{display:none}
+.brs.review .feditbar{display:grid;justify-items:center;gap:8px;margin:6px 0 4px;text-align:center}
+.brs.review .feditbar #fedit{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:min(420px,100%);min-height:54px;font-size:16px;border-radius:16px}
+.brs.review .feditbar #fedit svg{width:20px;height:20px}
+.brs.review .feditbar small{color:var(--muted);font-size:12.5px}
+.brs.made.editing:not(.fopen) .feditdone{display:inline-flex;align-items:center;gap:6px;color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.brs.made.editing:not(.fopen) .feditdone svg{width:15px;height:15px}
+.brs.review :is(.tlbar,.lanesbox,.dock,.ptabs,.panels,.fapply,#shotsheet){display:none !important}
+/* a phone: the preview takes the room the timeline had */
+@media (max-width:1023px){
+  .brs.review.fpost .pvbox{height:58svh}
+  .brs.review.fpost .wrap{padding-bottom:24px}
+}
+/* a computer: one column, the preview in the middle */
+@media (min-width:1024px){
+  .brs.review.made.v-one .create{grid-template-columns:minmax(0,1fr) !important;grid-template-rows:auto !important}
+  .brs.review.made.v-one .create :is(.pvbox,.bar,.transport,.feditbar,.stage .msg,#saverow,.postcap){grid-column:1/-1 !important;grid-row:auto !important}
+  .brs.review.made.v-one:not(.fopen) .pvbox{height:min(62vh,640px)}
+  .brs.review.made.v-one .bar{justify-self:center;width:min(420px,80%)}
+}
+@media (max-width:1023px){ .brs.fpost .feditbar{order:2;margin-top:10px} }
