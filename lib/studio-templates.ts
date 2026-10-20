@@ -37,8 +37,8 @@ export interface TplEdit {
 export interface StudioTemplate {
   id: string;
   name: string;
-  /** what you add: clips with a song, or clips of you talking */
-  kind: "music" | "talk";
+  /** what you add: clips with a song, clips of you talking, or photos with a song */
+  kind: TplKind;
   /** seconds of the song (talking Reels follow the speech) */
   len?: number;
   /** what it does, in a line */
@@ -56,6 +56,8 @@ export interface StudioTemplate {
   edit: TplEdit;
 }
 
+export type TplKind = "music" | "talk" | "photo";
+export const TPL_KINDS: Record<TplKind, string> = { music: "Music (clips + a song)", talk: "Talking (clips of you speaking)", photo: "Photos (photos + a song)" };
 export const TPL_LOOKS = { natural: "Natural", vivid: "Vivid", cine: "Cinematic", mono: "B&W" } as const;
 export const TPL_MODES = { auto: "Auto", smooth: "Smooth", fast: "Fast" } as const;
 export const TPL_PACES = { tight: "Tight", natural: "Natural", relaxed: "Relaxed", off: "Keep all" } as const;
@@ -94,6 +96,12 @@ export const DEFAULT_TEMPLATES: StudioTemplate[] = [
     edit: { look: "natural", mode: "auto", style: "clean", texts: [T("☀️ Morning", "tag", "#FFD54A", 0.18, at(0), at(1 / 3)), T("🌤️ Afternoon", "tag", "#FF9F43", 0.18, at(1 / 3), at(2 / 3)), T("🌙 Night", "tag", "#7C5CFF", 0.18, at(2 / 3), at(1))] } },
   { id: "quote", name: "Quote", kind: "music", len: 15, group: "Everyday", on: true, isNew: true, text: "One line of words over slow, moody clips.",
     edit: { look: "mono", mode: "smooth", style: "clean", texts: [ALL("Your words here", "clean", "#FFFFFF", 0.5)] } },
+  { id: "slideshow", name: "Photo slideshow", kind: "photo", len: 15, group: "Everyday", on: true, isNew: true, text: "Your photos gently moving to the music, one on every beat.",
+    edit: { look: "natural", mode: "smooth", style: "clean" } },
+  { id: "memories", name: "Memories", kind: "photo", len: 30, group: "Occasions", on: true, isNew: true, text: "Old photos, soft cinematic moves, a warm title and a last line.",
+    edit: { look: "cine", mode: "smooth", style: "clean", texts: [T("Memories ❤️", "glow", "#FFD54A", 0.24, at(0), at(0, 3)), T("Forever in our hearts", "clean", "#FFFFFF", 0.7, at(1, -3), at(1))] } },
+  { id: "bdayphotos", name: "Birthday photos", kind: "photo", len: 15, group: "Occasions", on: true, isNew: true, text: "Their photos on a party beat with Happy Birthday on top.",
+    edit: { look: "vivid", mode: "fast", style: "pop", texts: [T("Happy Birthday 🎂", "neon", "#FF6FD8", 0.24, at(0), at(1, -3)), T("Love you ❤️", "box", "#FF4D4D", 0.66, at(1, -3), at(1), 0.9)] } },
   { id: "birthday", name: "Birthday", kind: "music", len: 15, group: "Occasions", on: true, isNew: true, text: "Happy birthday in big letters, bright colours, a beat for the party.",
     edit: { look: "vivid", mode: "fast", style: "pop", texts: [T("Happy Birthday 🎂", "neon", "#FF6FD8", 0.24, at(0), at(1, -3)), T("Love you always ❤️", "box", "#FF4D4D", 0.66, at(1, -3), at(1), 0.9)] } },
   { id: "wedding", name: "Wedding", kind: "music", len: 30, group: "Occasions", on: true, isNew: true, text: "Slow cinematic cuts and the couple's names in gold.",
@@ -108,6 +116,8 @@ export const DEFAULT_TEMPLATES: StudioTemplate[] = [
     edit: { look: "vivid", mode: "smooth", style: "box", texts: [T("Easy recipe in 30 seconds", "box", "#FFD54A", 0.22, at(0), at(0, 2.6)), SAVE("Save this recipe 📌", "#FF4D4D")] } },
   { id: "travel", name: "Travel", kind: "music", len: 30, group: "Travel & food", on: true, text: "Slow, cinematic cuts and the name of the place.",
     edit: { look: "cine", mode: "smooth", style: "clean", texts: [T("📍 Your place", "clean", "#FFFFFF", 0.25, at(0), at(0, 3))] } },
+  { id: "tripphotos", name: "Trip photos", kind: "photo", len: 30, group: "Travel & food", on: true, isNew: true, text: "Your trip in photos: slow cinematic moves and the place's name.",
+    edit: { look: "cine", mode: "smooth", style: "clean", texts: [T("📍 Our trip", "clean", "#FFFFFF", 0.25, at(0), at(0, 3))] } },
   { id: "ganpati", name: "Ganpati", kind: "music", len: 30, group: "Festivals", on: true, text: "Ganpati Bappa Morya in gold, warm colours, cut to the aarti or your song.",
     edit: { look: "vivid", mode: "auto", style: "pop", texts: [ALL("गणपती बाप्पा मोरया 🌺", "neon", "#FFD54A", 0.26)] } },
   { id: "diwali", name: "Diwali", kind: "music", len: 30, group: "Festivals", on: true, text: "Shubh Deepavali in gold over smooth, cinematic cuts.",
@@ -138,6 +148,6 @@ export const groupsOf = (list: StudioTemplate[]) => [...new Set(list.map((t) => 
 
 export const templateHref = (t: StudioTemplate) => `/create/edit?tpl=${encodeURIComponent(t.id)}`;
 export const lookName = (t: StudioTemplate) => TPL_LOOKS[t.edit.look] ?? "Natural";
-export const templateMeta = (t: StudioTemplate) => `${t.kind === "talk" ? "Talking" : "Music"}${t.len ? ` · ${t.len} s` : ""} · ${lookName(t)}`;
+export const templateMeta = (t: StudioTemplate) => `${t.kind === "talk" ? "Talking" : t.kind === "photo" ? "Photos" : "Music"}${t.len ? ` · ${t.len} s` : ""} · ${lookName(t)}`;
 /** a sample of the text the template puts on the Reel (the card's poster) */
 export const sampleOf = (t: StudioTemplate) => t.edit.texts?.[0]?.text || t.edit.hook || t.name;

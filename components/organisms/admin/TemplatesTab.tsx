@@ -7,8 +7,8 @@ import { Card } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { TemplateCard } from "@/components/molecules/TemplateCard";
 import {
-  edgeAt, groupsOf, isLive, todayIST, TPL_ANIMS, TPL_BGS, TPL_CAP_STYLES, TPL_LIMITS, TPL_LOOKS, TPL_MODES, TPL_MUSIC, TPL_PACES, TPL_TEXT_STYLES,
-  type StudioTemplate, type TplEdge, type TplText,
+  edgeAt, groupsOf, isLive, todayIST, TPL_ANIMS, TPL_BGS, TPL_CAP_STYLES, TPL_LIMITS, TPL_LOOKS, TPL_MODES, TPL_MUSIC, TPL_PACES, TPL_TEXT_STYLES, TPL_KINDS,
+  type StudioTemplate, type TplKind, type TplEdge, type TplText,
 } from "@/lib/studio-templates";
 
 /** Admin → Templates: every template of Fast Studio, managed here. Add, change, hide, order; the song's length, the look,
@@ -53,7 +53,7 @@ export function TemplatesTab() {
         <Card key={i}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <button type="button" className="min-w-0 text-left" onClick={() => setOpen(open === i ? null : i)} aria-expanded={open === i}>
-              <b>{t.name}</b> <span className="text-xs text-muted">· {t.group} · {t.kind === "talk" ? "Talking" : `Music ${t.len ?? ""} s`} · {status(t, day)}{t.showFrom || t.showTo ? ` · ${t.showFrom || "…"} → ${t.showTo || "…"}` : ""}</span>
+              <b>{t.name}</b> <span className="text-xs text-muted">· {t.group} · {t.kind === "talk" ? "Talking" : `${t.kind === "photo" ? "Photos" : "Music"} ${t.len ?? ""} s`} · {status(t, day)}{t.showFrom || t.showTo ? ` · ${t.showFrom || "…"} → ${t.showTo || "…"}` : ""}</span>
             </button>
             <div className="flex flex-wrap items-center gap-1.5">
               <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={t.on} onChange={(e) => edit((l) => { l[i].on = e.target.checked; })} /> Show</label>
@@ -90,13 +90,13 @@ function Editor({ t, groups, set }: { t: StudioTemplate; groups: string[]; set: 
             <datalist id="tpl-groups">{groups.map((g) => <option key={g} value={g} />)}</datalist>
           </Row>
           <Row label="Kind">
-            <select value={t.kind} onChange={(v) => set((x) => { x.kind = v.target.value as "music" | "talk"; if (x.kind === "talk") { delete x.len; x.edit.pace ??= "natural"; x.edit.music ??= 0.05; x.edit.caps ??= true; } else x.len ??= 15; })}>
-              <option value="music">Music (clips + a song)</option><option value="talk">Talking (clips of you speaking)</option>
+            <select value={t.kind} onChange={(v) => set((x) => { x.kind = v.target.value as TplKind; if (x.kind === "talk") { delete x.len; x.edit.pace ??= "natural"; x.edit.music ??= 0.05; x.edit.caps ??= true; } else x.len ??= 15; })}>
+              {opts(TPL_KINDS)}
             </select>
           </Row>
-          {t.kind === "music" && <Row label="Length of the song (seconds)"><input type="number" min={5} max={180} value={t.len ?? ""} onChange={(v) => set((x) => { x.len = num(v.target.value) && Math.round(num(v.target.value)!); })} /></Row>}
+          {t.kind !== "talk" && <Row label="Length of the song (seconds)"><input type="number" min={5} max={180} value={t.len ?? ""} onChange={(v) => set((x) => { x.len = num(v.target.value) && Math.round(num(v.target.value)!); })} /></Row>}
           <Row label="Look"><select value={e.look} onChange={(v) => set((x) => { x.edit.look = v.target.value as never; })}>{opts(TPL_LOOKS)}</select></Row>
-          {t.kind === "music" ? (
+          {t.kind !== "talk" ? (
             <Row label="Cutting"><select value={e.mode ?? "auto"} onChange={(v) => set((x) => { x.edit.mode = v.target.value as never; })}>{opts(TPL_MODES)}</select></Row>
           ) : (
             <>
