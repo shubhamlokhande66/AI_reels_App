@@ -874,9 +874,10 @@ async function clipReader(src, maxSide){
   }
 }
 
-async function scanMotion(src, onProgress){
-  // read the clip's frames (see clipReader) and compare small frames: how much moves, where it moves, how bright
-  const rd = await clipReader(src, 256);
+async function scanMotion(src, onProgress, faces){
+  // read the clip's frames (see clipReader) and compare small frames: how much moves, where it moves, how bright.
+  // faces (a faceScanner): its frames come from this same pass, so the clip is decoded once (an iPhone)
+  const rd = await clipReader(src, faces ? 480 : 256); if(src.readMs) src.readMs.how = rd.fast ? 'webcodecs' : 'seek';
   const c = document.createElement('canvas'); c.width=SW; c.height=SH; const g = c.getContext('2d', {willReadFrequently:true});
   const c2 = document.createElement('canvas'); c2.width=128; c2.height=72; const g2 = c2.getContext('2d', {willReadFrequently:true});
   let prev = null; const out = [], hists = [], lums = [];
@@ -905,7 +906,12 @@ async function scanMotion(src, onProgress){
   for(let t=0; t<src.dur-0.02; t+=step) ts.push(+t.toFixed(4));
   try{
     let k = 0;
-    for await (const img of rd.frames(ts)){ const t = ts[k++]; if(img) grab(img, t); if(k % 8 === 0) onProgress(t/src.dur); }
+    let fi = 0; const half = step/2;
+    for await (const img of rd.frames(ts)){ const t = ts[k++]; if(img) grab(img, t); if(k % 8 === 0) onProgress(t/src.dur);
+      // the faces' times this frame stands for (within half a step: at most 0.1 s off)
+      if(faces && img) while(fi < faces.ts.length && faces.ts[fi] <= t + half){ if(faces.ts[fi] >= t - half && !(await faces.each(img, faces.ts[fi]))){ faces = null; break; } fi++; }
+    }
+    if(faces) faces.done();
   }catch(err){ console.warn('reading frames failed', err); }
   if(!out.length) { rd.close(); throw new Error('no frames could be read'); }
   // order by time (callbacks can arrive out of order around the end); keep histograms paired with their samples
@@ -1066,33 +1072,45 @@ function crossesScene(src, a, b){
   for(const s of sc){ if(s.t0 > b + 0.06) break; if(s.t1 >= a - 0.03 && s.t0 <= b + 0.06) return true; }
   return false;
 }
-async function scanFaces(src, onProgress){
-  // faces: up to 2.5 looks a second (at most about 60 per clip), then cleaned up over time (see trackFaces)
+// faces: up to 2.5 looks a second (at most about 60 per clip), then cleaned up over time (see trackFaces). faceScanner
+// gives the times it wants and takes their frames from any reader: its own (scanFaces), or the motion pass on an
+// iPhone (one decode of the clip for both)
+function faceScanner(src){
   src.faces = [];
   const vj = window.tracking && tracking.ViolaJones && tracking.ViolaJones.classifiers && tracking.ViolaJones.classifiers.face;
   let blaze = !!findFaces; src.faceHow = blaze ? 'blazeface' : 'viola-jones';
-  if(!blaze && !vj) return;
-  const rd = await clipReader(src, 480);
+  if(!blaze && !vj) return null;
   const w = 240, h = Math.round(240*src.h/src.w), c = document.createElement('canvas'); c.width=w; c.height=h;
   const g = c.getContext('2d', {willReadFrequently:true});
   const step = Math.min(1.5, Math.max(0.4, src.dur/60)), raw = [], ts = [];
   for(let tt=0.1; tt<src.dur; tt+=step) ts.push(tt);
-  let k = 0;
-  try{ for await (const v of rd.frames(ts)){ const tt = ts[k++]; if(!v) continue;
-    if(blaze){
-      try{ raw.push({t:tt, rects: await blazeFaces(v, src.w, src.h)}); }
-      catch(err){ console.info('BlazeFace not used:', err && err.message); blaze = false; src.faceHow = 'viola-jones'; if(!vj) break; }
-    }
-    if(!blaze){
+  let off = false;
+  return { ts,
+    // false: faces cannot be found here any more
+    async each(v, tt){
+      if(off) return false;
+      if(blaze){
+        try{ raw.push({t:tt, rects: await blazeFaces(v, src.w, src.h)}); return true; }
+        catch(err){ console.info('BlazeFace not used:', err && err.message); blaze = false; src.faceHow = 'viola-jones'; if(!vj){ off = true; return false; } }
+      }
       g.drawImage(v,0,0,w,h); const px = g.getImageData(0,0,w,h).data;
       let rects = [];
       try{ rects = tracking.ViolaJones.detect(px, w, h, 1.0, 1.25, 1.5, 0.2, tracking.ViolaJones.classifiers.face) || []; }catch(e){}
       raw.push({t:tt, rects: rects.filter(r=>r.width > w*0.06).map(r=>({x:(r.x+r.width/2)/w, y:(r.y+r.height/2)/h, s:r.width/w}))});
-    }
+      return true;
+    },
+    done(){ src.faces = trackFaces(raw); } };
+}
+async function scanFaces(src, onProgress){
+  const fs = faceScanner(src); if(!fs) return;
+  const rd = await clipReader(src, 480), ts = fs.ts;
+  let k = 0;
+  try{ for await (const v of rd.frames(ts)){ const tt = ts[k++]; if(!v) continue;
+    if(!(await fs.each(v, tt))) break;
     onProgress(tt/src.dur);
     await new Promise(r=>setTimeout(r,0));
   } }catch(err){ console.warn('reading frames for faces failed', err); } finally { rd.close(); }
-  src.faces = trackFaces(raw);
+  fs.done();
 }
 // Faces with BlazeFace (MediaPipe, in a worker): the whole frame fitted into a 128x128 square, and squares as wide as
 // the frame along its long side (top, middle, bottom of a vertical video), where a face is twice as many pixels; the
@@ -1211,8 +1229,17 @@ async function readVideo(src){
       const doMotion = () => scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); });
       const doFaces = () => scanFaces(src, p=>{ pf = p; show(); }).then(()=>{ src.readMs.faces = Math.round(performance.now()-tq); });
       // two decoders at once is ~40% faster, but on an iPhone it doubles the memory of a 4K video: one after the other there
-      if(IOS){ await doMotion(); await doFaces(); } else await Promise.all([doMotion(), doFaces()]);
+      if(IOS){   // one decode of the clip for motion and faces: half the work and the memory of two decoders
+        const fsc = faceScanner(src);
+        await scanMotion(src, p=>{ pm = pf = p; show(); }, fsc); src.readMs.motion = src.readMs.faces = Math.round(performance.now()-tq);
+        if(!fsc) src.faces = src.faces || [];
+      } else await Promise.all([doMotion(), doFaces()]);
       if(!src.removed) scanPut(src);
+      // how long reading took against the clip's length, by phone and way of decoding (Admin → Errors, "Clip reading
+      // speed"): iPhones always (to compare with Android), others only when slower than the clip itself
+      try{ const ms = Math.round(performance.now() - tq), x = ms / 1000 / Math.max(1, src.dur), b = x < 0.5 ? '<0.5' : x < 1 ? '0.5-1' : x < 2 ? '1-2' : x < 4 ? '2-4' : '4+';
+        if(IOS || x >= 1) window.__shubixReport && window.__shubixReport('perf', 'Clip reading ' + b + '× its length · ' + (IOS ? 'iPhone' : 'other') + ' · ' + (src.readMs.how || '?') + (src.h > 1920 || src.w > 1920 ? ' · 4K' : ''),
+          JSON.stringify({ ms, dur: +src.dur.toFixed(1), w: src.w, h: src.h, type: src.file && src.file.type, mb: Math.round((src.file && src.file.size || 0) / 1e6), parts: src.readMs })); }catch(e){}
     }
     if(src.removed) return;
     const nf = src.faces.filter(f=>f.n>0).length, shs = src.samples.map(s=>s.sh).sort((a,b)=>a-b);
