@@ -28,6 +28,7 @@ let wmOff = false, wmPaid = false;
 /* ---- plans: what this person's plan unlocks (lib/plan-locks.ts, changed by the administrator). Kept on the phone for 7
  * days, so a Reel made offline follows the plan seen last; with no plan known yet, the free plan's rules. Billing off
  * (or the administrator): everything is open. A crowned item can be tried in the preview; the export asks. ---- */
+let playGen = 0, starting = false;   // Preview's start / stop number (startPlayback, stopAll)
 const PLAN_KEY = 'brs-plan';
 let planNow = 'free', planOpen = false, LOCKS = needMap(DEFAULT_LOCKS), EXR = DEFAULT_LOCKS.export;
 try{ const c = JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); if(c && Date.now() - c.at < 7*864e5){ planNow = c.plan; planOpen = !!c.open; if(c.need) LOCKS = c.need; if(c.ex) EXR = c.ex; } }catch(e){}
@@ -2201,7 +2202,14 @@ function ukRestore(kept){ for(const k of kept){ const e = edit.find(x => Math.ab
   if(e && k.uk && k.uk.length) e.uk = k.uk;
   if(k.cs){ const m = (k.s + k.e)/2, c = e || edit.find(x => x.start <= m && x.end > m); if(c && !c.cs) c.cs = k.cs; } } }
 let remakeAfterExport = false;
+// The Reel is made again (a clip finished reading, the AI's plan came, a setting changed). If it was playing, it goes on
+// playing from the same moment instead of stopping: Play pressed while clips are read keeps playing when they are done.
 function makeEdit(){
+  const was = (playing || starting) && !recording && !exportBusy && kind !== 'talk', at = playing ? curTime() : pos;
+  makeEditNow();
+  if(was && buf && edit.length && !playing && !starting && !recording) startPlayback(Math.min(Math.max(0, at), Math.max(0, buf.duration - 0.2)));
+}
+function makeEditNow(){
   if(exportBusy){ remakeAfterExport = true; return; }   // a late AI answer: the video being made keeps its edit
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(story && storyEdit()) return;
@@ -2546,13 +2554,15 @@ const PREVIEW_SCALE = 0.5;
 function setCanvas(full, scale = 1){ const [W0,H0]=SIZES[aspect], s = full ? scale : PREVIEW_SCALE, w = Math.round(W0*s/2)*2, h = Math.round(H0*s/2)*2;
   if(out.width!==w||out.height!==h){ out.width=w; out.height=h; loopImg=null; } }
 function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(edit[m].start<=t+1e-4){ r=m; lo=m+1; } else hi=m-1; } return r; }
-async function prepare(i, t){
+// quick: Play is waiting. Then the picture gets at most a moment: while clips are being read the phone's video decoder is
+// busy (an iPhone may not answer at all), and the song must start anyway; the shot catches up while it plays.
+async function prepare(i, t, quick){
   const e = edit[i]; if(!e) return;
   if(layers.length && !playing) await prepLayers(t);
   const local = Math.max(0, t - e.start), target = srcPos(e, local);
-  if(e.el.readyState < 2){ try{ await videoData(e.el, 6000); }catch(err){} }
+  if(e.el.readyState < 2){ try{ await videoData(e.el, quick ? 1200 : 6000); }catch(err){} }
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
-  if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked',4000); }catch(err){} }
+  if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 800 : 4000); }catch(err){} }
 }
 const srcPosF = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
 const srcPos = (e, l) => e.cs && e.cs.rev ? e.in + (e.sp.pos(e.end - e.start) - e.sp.pos(l))*e.scaleR : srcPosF(e, l);
@@ -3975,16 +3985,21 @@ const PAUSE_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="
 function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '<span>' + (on ? 'Pause' : 'Preview') + '</span>'; }
 // every start or stop gets a new number: a start that is still loading (the mix, the clips) gives up when the number
 // moved on, so two quick taps never leave two songs playing (and Pause always stops the one that plays)
-let playGen = 0, starting = false;
 function stopAll(){ playGen++; starting = false; stopPart(); stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
   const g0 = playGen; starting = true; setPlayLabel(true);
   const gone = () => g0 !== playGen;
-  const c = getCtx(); await c.resume(); if(gone()) return; await ensureMix(); if(gone()) return;
+  const c = getCtx(); await c.resume(); if(gone()) return;
+  // the clips' sound mix: made before playing, except while clips are being read (decoding an iPhone video's sound then
+  // would hold Play for many seconds); the next Play has it. Exporting always waits for it (destNode).
+  if(!pending || destNode) await ensureMix(); else ensureMix().catch(()=>{});
+  if(gone()) return;
   edit.forEach(x=>{ x._cued = false; });
-  curIdx = segAt(from); if(edit[curIdx-1]) await prepare(curIdx-1, edit[curIdx-1].end-0.01); if(gone()) return; await prepare(curIdx, from); if(gone()) return; if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
+  curIdx = segAt(from); const quick = !destNode;
+  if(edit[curIdx-1]){ if(quick) prepare(curIdx-1, edit[curIdx-1].end-0.01, true); else await prepare(curIdx-1, edit[curIdx-1].end-0.01); }
+  if(gone()) return; await prepare(curIdx, from, quick); if(gone()) return; if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
   starting = false;
   const s = c.createBufferSource(); s.buffer = buf;
   // loudness: bring the song to about -14 LUFS (social media level), limiter stops clipping, tiny fades stop clicks
