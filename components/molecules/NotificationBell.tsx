@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { Icon } from "@/components/atoms/Icon";
 import { listCloudReels } from "@/lib/cloudReels";
 import { formatRelative } from "@/lib/format";

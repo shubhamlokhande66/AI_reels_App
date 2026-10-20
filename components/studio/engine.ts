@@ -4074,7 +4074,9 @@ async function startPlayback(from, destNode){
   s.start(0, from); src = s; startedAt = c.currentTime; startOff = from; playing = true;
   edit[curIdx].el.play().catch(()=>{});
   setPlayLabel(true);
-  s.onended = () => { if(src===s){ src=null; playing=false; pos=0; edit.forEach(e=>e.el.pause()); setPlayLabel(false); onEnd && onEnd(); } };
+  s.onended = () => { if(src===s){ src=null; playing=false; pos=0; edit.forEach(e=>e.el.pause()); setPlayLabel(false); onEnd && onEnd();
+    // back at the start: the picture, the progress bar and the playhead too (the time already says 0:00)
+    if(!recording){ try{ if(edit.length){ prepare(0, 0).then(() => { if(!playing){ drawFrame(0); drawTimeline(); } }); } drawTimeline(); }catch(e){} } } };
   const loop = () => {
     if(!playing) return;
     const t = Math.max(0, curTime()), i = segAt(t);
