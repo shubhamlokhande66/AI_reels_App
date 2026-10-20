@@ -17,6 +17,10 @@
       "max_instances": 1
     }
   ],
+  // the files that never change (public/ and the AI models at /api/studio/model/*), made by scripts/cf-assets.mjs before
+  // a deploy: served by Cloudflare itself, free and unlimited, without waking the container; every other request goes to
+  // the Worker and on to the container. No path is turned into an .html page (html_handling), so pages stay the app's.
+  "assets": { "directory": "./assets", "html_handling": "none" },
   "durable_objects": { "bindings": [{ "name": "APP", "class_name": "ReelApp" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReelApp"] }],
   "vars": {

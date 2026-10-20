@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
+    "deploy": "node ../scripts/cf-assets.mjs && wrangler deploy",
+    "dev": "node ../scripts/cf-assets.mjs && wrangler dev",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

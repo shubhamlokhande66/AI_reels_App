@@ -73,3 +73,6 @@ scripts/studio-talk/out/
 scripts/studio-vision/out/
 scripts/studio-voiceover/out/
 scripts/studio-keyframes/out/
+
+# made by scripts/cf-assets.mjs before a Cloudflare deploy
+/cloudflare/assets/

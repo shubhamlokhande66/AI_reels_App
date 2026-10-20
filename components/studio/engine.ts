@@ -5247,10 +5247,12 @@ function autoTools(){
   const last = edit[edit.length - 1]; csAutoSet(last, { fout: +Math.min(0.6, (last.end - last.start)*0.5).toFixed(2) });
   clipMixKey = ''; renderEDL(true); if(!playing) redrawFrame();
 }
-// where people speak in each clip (Silero VAD on the phone): read in the background once the clips are in
+// where people speak in each clip (Silero VAD on the phone): only for "Keep voices only" (the one place it is used,
+// autoTools). With the clips' sound muted (the default) or all kept, neither the speech model (1.3 MB) is downloaded nor
+// every clip's sound decoded (slow and heavy on an iPhone); choosing "Keep voices only" reads it then.
 let speechBusy = false;
 async function speechScan(){
-  if(speechBusy || !speechProbs || kind === 'talk' || !au.ai) return; speechBusy = true; let found = false;
+  if(speechBusy || !speechProbs || kind === 'talk' || !au.ai || au.clip !== 'voices') return; speechBusy = true; let found = false;
   try{ for(const s of sources){ if(s.speech !== undefined || s.removed) continue;
       const P = await clipPcm(sources.indexOf(s)); if(!P){ s.speech = null; continue; }
       try{ const p = await speechProbs(P.x, P.sr); s.speech = { p, hop: 512/16000 }; found = found || p.some(x => x > 0.5); }catch(e){ s.speech = null; } }

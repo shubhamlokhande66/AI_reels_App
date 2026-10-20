@@ -40,7 +40,8 @@ Building the container image needs Docker. Either:
   (a token with *Workers Scripts* and *Containers* edit rights) and `CLOUDFLARE_ACCOUNT_ID`. Every push to `main`
   then deploys by itself (docs-only changes do not); you can also run the **Deploy to Cloudflare** workflow from the
   Actions tab (`.github/workflows/deploy-cloudflare.yml`).
-- **From your computer:** install Docker Desktop, then `cd cloudflare && npx wrangler deploy`.
+- **From your computer:** install Docker Desktop, run `npm install` once in the repo root, then `cd cloudflare && npm run deploy`
+  (it first makes the static assets, see below; a plain `npx wrangler deploy` works too, without them).
 
 Open the address it prints, create the first account, then `/admin` with `ADMIN_KEY`.
 
@@ -51,6 +52,12 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
 - **One container** (`instance_type` in `wrangler.jsonc`). It **sleeps** 30 seconds after the last request
   (`SLEEP_AFTER`; an upload or download in progress counts) and wakes on the next one: the **first request after a
   sleep takes some seconds** (the container starts and mounts R2).
+- **Static assets (free)**: the files that never change are not served by the container. Before each deploy
+  `scripts/cf-assets.mjs` copies `public/` (logo, icons, the AI engine in `vendor/ort`, …) and the AI models Fast Studio
+  downloads (`/api/studio/model/*`, ~25 MB for a new visitor) into `cloudflare/assets/`, with their headers (`_headers`).
+  Cloudflare serves them itself from the nearest data centre: free, unlimited, and the container is not woken. Pages,
+  the API and Next's own JS still come from the container. A file over 25 MiB, or one missing, is served by the app as
+  before.
 - **Cost**: you pay for the time the container is awake (CPU, memory, disk) beyond what the Workers Paid plan includes.
   Memory is billed for the whole size of the instance while it is awake, used or not, so keep it small: Reels are made
   on the phone, the server only answers the API. `basic` (¼ vCPU, 1 GiB, 4 GB disk) is the default: measured, the
