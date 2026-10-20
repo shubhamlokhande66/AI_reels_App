@@ -53,8 +53,11 @@ Open the address it prints, create the first account, then `/admin` with `ADMIN_
   sleep takes some seconds** (the container starts and mounts R2).
 - **Cost**: you pay for the time the container is awake (CPU, memory, disk) beyond what the Workers Paid plan includes.
   Memory is billed for the whole size of the instance while it is awake, used or not, so keep it small: Reels are made
-  on the phone, the server only answers the API. `standard-1` (½ vCPU, 4 GiB, 8 GB disk) is plenty; `basic` (1 GiB) is
-  cheaper still if captions on the server are not used. The app asks the server rarely (presence every 5 minutes while a
+  on the phone, the server only answers the API. `basic` (¼ vCPU, 1 GiB, 4 GB disk) is the default: measured, the
+  Next.js server stays at ~165 MB (also after 500 page loads at once), FFmpeg cutting audio for captions ~47 MB, so with
+  the R2 mount and the database the app needs ~250-350 MB. Use `standard-1` (½ vCPU, 4 GiB) if the logs show "out of
+  memory" (My trends / References analyse videos on the server) or the app gets slow with many people at once; `lite`
+  (256 MiB) is too small. The app asks the server rarely (presence every 5 minutes while a
   tab is visible, credits when the tab comes back), so the container can sleep; a timer that called it every 30 s kept it
   awake all day.
 - **My Reels uploads**: a saved Reel goes **from the browser straight into R2** in parallel parts; it never passes
