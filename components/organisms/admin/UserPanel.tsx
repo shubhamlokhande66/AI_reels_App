@@ -66,7 +66,7 @@ function GiveCredits({ user }: { user: AdminUserDetail }) {
 
 /** One person in full, as a panel over the dashboard. */
 export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) {
-  const q = useQuery({ queryKey: ["admin", "user", id], queryFn: () => api.adminUser(id), refetchInterval: 30_000 });
+  const q = useQuery({ queryKey: ["admin", "user", id], queryFn: () => api.adminUser(id), refetchInterval: 60_000 });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);

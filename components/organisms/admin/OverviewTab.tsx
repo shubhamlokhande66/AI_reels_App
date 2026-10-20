@@ -10,7 +10,7 @@ import { ago, count, page, rupees } from "./format";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-export const useOverview = () => useQuery({ queryKey: ["admin", "overview"], queryFn: api.adminOverview, refetchInterval: 15_000 });
+export const useOverview = () => useQuery({ queryKey: ["admin", "overview"], queryFn: api.adminOverview, refetchInterval: 60_000 });
 
 function Stat({ label, value, note, icon, live }: { label: string; value: string; note?: string; icon: string; live?: boolean }) {
   return (

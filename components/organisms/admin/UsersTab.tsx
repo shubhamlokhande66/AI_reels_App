@@ -29,7 +29,7 @@ const COLUMNS: { key: SortKey; label: string; num?: boolean }[] = [
   { key: "reels", label: "Reels", num: true },
 ];
 
-export const useAdminUsers = () => useQuery({ queryKey: ["admin", "users"], queryFn: api.adminUsers, refetchInterval: 30_000 });
+export const useAdminUsers = () => useQuery({ queryKey: ["admin", "users"], queryFn: api.adminUsers, refetchInterval: 60_000 });
 
 const value = (u: AdminUserRow, k: SortKey): string | number => {
   const v = u[k];
