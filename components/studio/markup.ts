@@ -425,6 +425,8 @@ export const STUDIO_HTML = `
   <button class="btn save big" id="export" disabled>${IC.save}<span>Export</span></button>
   <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
 </div>
+<!-- a saved Reel opening (/create/edit?p=): engine.ts openProject; flow.ts shows it from the first paint -->
+<div class="openload" id="openload" role="status" aria-live="polite"><span class="openspin" aria-hidden="true"></span><b id="openh">Opening your Reel…</b><small id="openstep">Getting the song and the clips</small><a class="btn" href="/reels" id="openback">Back to My Reels</a></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">

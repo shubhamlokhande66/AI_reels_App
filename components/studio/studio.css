@@ -1418,3 +1418,15 @@
 .brs .ss-body .ssspdt{position:relative;height:14px;margin:0 8px}
 .brs .ss-body .ssspdt span{position:absolute;transform:translateX(-50%);font:600 10px var(--mono);color:var(--muted)}
 .brs .ss-body .ssspdt span::before{content:"";position:absolute;left:50%;top:-5px;width:1px;height:4px;background:var(--muted)}
+
+/* a saved Reel opening: a loader where the editor will be (never a blank page); if it cannot open, why and the way back */
+.brs .openload{display:none}
+.brs.opening .openload,.brs.openfail .openload{display:grid;justify-items:center;align-content:center;gap:10px;min-height:60vh;padding:40px 20px;text-align:center}
+.brs.opening :is(.wrap,.topbar,.savebar){display:none !important}
+.brs .openspin{width:46px;height:46px;border-radius:50%;border:4px solid color-mix(in srgb,var(--accent) 22%,transparent);border-top-color:var(--accent);animation:aospin .8s linear infinite}
+.brs .openload b{font:800 19px var(--display,var(--body));color:var(--ink)}
+.brs .openload small{font-size:13.5px;color:var(--muted);max-width:420px}
+.brs .openload #openback{display:none;margin-top:6px}
+.brs.openfail .openspin{display:none}
+.brs.openfail .openload #openback{display:inline-flex}
+.brs.openfail .openload small{color:var(--ink)}

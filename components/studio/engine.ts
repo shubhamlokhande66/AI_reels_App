@@ -5404,7 +5404,8 @@ setInterval(() => {
 }, 3000);
 const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
 async function openProject(id){
-  restoring = true; const say = t => { $('psaved').textContent = t; };
+  // "Opening your Reel…" over the page until the edit is back (flow.ts shows it from the first paint); its line follows say()
+  restoring = true; root.classList.add('opening'); const say = t => { $('psaved').textContent = t; $('openstep').textContent = t.replace(/…$/, ''); };
   try{
     const p = await idb('meta', 'readonly', s => s.get(id)); if(!p){ say('That Reel is no longer on this phone.'); return; }
     const st = p.state, getF = async (fp, name) => { const b = fp ? await idb('files', 'readonly', s => s.get('f:' + fp)) : null; return b ? new File([b], name || b.name || 'file', { type: b.type, lastModified: +fp.split('|').pop() || Date.now() }) : null; };
@@ -5444,7 +5445,9 @@ async function openProject(id){
     const missing = (st.clips || []).length - clips.length + (st.song && !sf ? 1 : 0);
     say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : 'Opened "' + p.name + '" · saved on this phone');
   }catch(err){ console.warn('project not opened:', err); say('This Reel could not be opened.'); notify('This Reel could not be opened.', 'err'); }
-  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; }
+  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; root.classList.remove('opening');
+    // nothing to show (gone, or its files are not on this phone): say so, not a blank page
+    if(!edit.length && !sources.length){ root.classList.add('openfail'); $('openh').textContent = 'This Reel could not be opened'; } }
 }
 function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
