@@ -212,6 +212,8 @@ export const api = {
   adminTemplates: () => request<{ templates: import("@/lib/studio-templates").StudioTemplate[]; saved: boolean; updatedAt?: string }>("/api/templates?all=1"),
   setTemplates: (templates: import("@/lib/studio-templates").StudioTemplate[]) => request<{ templates: import("@/lib/studio-templates").StudioTemplate[]; saved: boolean; updatedAt?: string }>("/api/templates", { method: "PUT", body: JSON.stringify({ templates }) }),
   resetTemplates: () => request<{ templates: import("@/lib/studio-templates").StudioTemplate[]; saved: boolean }>("/api/templates", { method: "DELETE" }),
+  reelsKeep: () => request<{ days: Record<string, number>; limits: Record<string, number> }>("/api/admin/reels-keep"),
+  setReelsKeep: (days: Record<string, number>) => request<{ days: Record<string, number>; limits: Record<string, number> }>("/api/admin/reels-keep", { method: "PUT", body: JSON.stringify(days) }),
   planLocks: () => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks"),
   setPlanLocks: (body: import("@/lib/plan-locks").LockOverrides) => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks", { method: "PUT", body: JSON.stringify(body) }),
   adminErrors: () => request<{ errors: { id: string; kind: string; message: string; where: string; count: number; firstAt: string; lastAt: string; path: string; ua: string; stack: string }[] }>("/api/admin/errors"),

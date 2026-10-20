@@ -6,7 +6,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { z } from "zod";
 import { currentUser } from "@/server/core/auth";
-import { db, mainDb, ObjectId, parseId } from "@/server/core/db";
+import { db, mainDb, ObjectId, OWNER, parseId } from "@/server/core/db";
 import { AppError, NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { sendFile } from "@/server/core/http";
 import { enabled as creditsOn, wallet } from "@/server/credits";
@@ -49,10 +49,50 @@ async function planOf(): Promise<string> {
   return String((await wallet(uid)).plan ?? "free");
 }
 
+/* ---- how long a saved Reel is kept, per plan (Admin → Settings → My Reels; 0 = until deleted, the default) ----
+ * Keeps R2 inside its free 10 GB. There is no scheduler (the container sleeps): old Reels are removed when someone opens
+ * My Reels or saves a Reel, at most once every 6 hours per server, across all users (each by their own plan). */
+export const KEEP_PLANS = ["free", "creator", "pro", "business"] as const;
+export type KeepDays = Record<(typeof KEEP_PLANS)[number], number>;
+const KEEP_ID = "reels_keep" as unknown as ObjectId;
+export const KeepIn = z.object(Object.fromEntries(KEEP_PLANS.map((p) => [p, z.number().int().min(0).max(3650)])) as Record<(typeof KEEP_PLANS)[number], z.ZodNumber>);
+export async function keepDays(): Promise<KeepDays> {
+  const d = (await (await mainDb()).collection("app_settings").findOne({ _id: KEEP_ID })) as { days?: Partial<KeepDays> } | null;
+  return Object.fromEntries(KEEP_PLANS.map((p) => [p, Number(d?.days?.[p] ?? 0)])) as KeepDays;
+}
+export async function setKeepDays(days: KeepDays) {
+  await (await mainDb()).collection("app_settings").updateOne({ _id: KEEP_ID }, { $set: { days, updatedAt: new Date() } }, { upsert: true });
+  lastSweep = 0; // the new rule is applied at the next look
+  return keepDays();
+}
+let lastSweep = 0;
+const SWEEP_EVERY = 6 * 3600 * 1000;
+/** Reels older than their owner's plan keeps: deleted (the file in R2 or on disk, then the entry). Returns how many. */
+export async function sweepOld(now = Date.now()) {
+  if (now - lastSweep < SWEEP_EVERY) return 0;
+  lastSweep = now;
+  const keep = await keepDays(), shortest = Math.min(...Object.values(keep).filter((d) => d > 0));
+  if (!Number.isFinite(shortest)) return 0;
+  const all = (await mainDb()).collection<ReelDoc & { [OWNER]?: string }>("studio_reels"), c = r2Config(), plans = new Map<string, string>();
+  let n = 0;
+  for (const d of await all.find({ status: "ready", createdAt: { $lt: new Date(now - shortest * 86400_000) } }).sort({ createdAt: 1 }).limit(200).toArray()) {
+    const owner = d[OWNER] ?? "";
+    if (!plans.has(owner)) plans.set(owner, owner && creditsOn() ? String((await wallet(owner)).plan ?? "free") : "free");
+    const days = keep[plans.get(owner) as keyof KeepDays] ?? keep.free;
+    if (!days || d.createdAt.getTime() > now - days * 86400_000) continue;
+    try { if (c) await deleteObject(c, d.key); else await fs.promises.rm(localPath(d.key), { force: true }); } catch { continue; } // try again next time
+    await all.deleteOne({ _id: d._id });
+    n++;
+  }
+  return n;
+}
+const sweepSoon = () => { void sweepOld().catch((e) => console.warn("My Reels clean-up:", e)); };
+
 export async function usage() {
   const plan = await planOf();
   const used = await (await reels()).countDocuments({ status: "ready" });
-  return { used, limit: LIMITS[plan] ?? LIMITS.free, plan, cloud: true };
+  const keep = (await keepDays())[plan as keyof KeepDays] ?? 0;
+  return { used, limit: LIMITS[plan] ?? LIMITS.free, plan, cloud: true, keepDays: keep };
 }
 
 const out = (d: ReelDoc) => ({
@@ -72,11 +112,13 @@ async function dropStale() {
 
 export async function listReels() {
   await dropStale();
+  sweepSoon();
   const docs = await (await reels()).find({ status: "ready" }).sort({ createdAt: -1 }).limit(2000).toArray();
   return { reels: docs.map(out), usage: await usage() };
 }
 
 export async function startReel(d: z.infer<typeof StartIn>) {
+  sweepSoon();
   const u = await usage();
   if (u.used >= u.limit)
     throw new AppError(`My Reels is full (${u.limit} Reels on your plan). Delete a Reel you no longer need, or choose a bigger plan.`, { code: "REELS_FULL", status: 409, details: u });
