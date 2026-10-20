@@ -95,6 +95,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
         if (st && st.edit.length) { const i = Math.max(0, st.segAt(st.now)); openShot(i, k === "effects" ? 1 : 0, xOf((st.edit[i].start + st.edit[i].end) / 2)); }
         return;
       }
+      if (sheet.classList.contains("docked")) closeShot();
       tool = k === "stickers" ? "text" : k === "filters" ? "look" : k; apply();
       if (k === "stickers") $("ovsticker").scrollIntoView({ block: "nearest" });
       return;
@@ -178,7 +179,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const i = st.segAt(st.now), e = st.edit[i], row = rowOf(i); if (!e || !row) return;
     const sels = [3, 4, 5].map((c) => row.children[c]?.querySelector("select") as HTMLSelectElement | null);
     const key = view + "|" + shotTab + "|" + i + "|" + st.editGen + "|" + sels.map((s) => s && s.value).join() + "|" + (e.uk ? e.uk.length : 0) + "|" + root.querySelectorAll("#edl tr").length;
-    if (key === shotKey) return; shotKey = key;
+    if (key === shotKey) return; shotKey = key; markTabs();
     const names = ["Transition", "Effect", "Speed"];
     // as in the design: "Shot 1 · Transition" with its choices as chips (Effect and Speed one tap away)
     const head = `<div class="shh"><span class="shtabs"><b>Shot ${i + 1} ·</b>${names.map((n, k) => `<button type="button" class="shtab" data-tab="${k}" aria-pressed="${k === shotTab}">${n}</button>`).join("")}</span><span>${(e.end - e.start).toFixed(2)} s · ${esc(TYPE[e.type] || e.type)}</span></div>`;
@@ -365,8 +366,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     // a track's head: its sign and name, and "+ Add" on a computer (a tap there adds to that track: see laneTap)
     const label = (s: string, h: number, sign = "") => {
       const my = y + h / 2;
-      g.font = `600 ${11.5 * dpr}px system-ui, sans-serif`; g.fillStyle = muted; if (sign) g.fillText(sign, 4 * dpr, my);
-      g.fillStyle = ink; g.fillText(s, (sign ? 20 : 4) * dpr, my);
+      // a phone's narrow heads: the name only (with the sign it was cut: "Effecte", "Videc")
+      g.font = `600 ${(wide ? 11.5 : 10.5) * dpr}px system-ui, sans-serif`; g.fillStyle = muted; if (sign && wide) g.fillText(sign, 4 * dpr, my);
+      g.fillStyle = ink; g.fillText(s, (sign && wide ? 20 : 4) * dpr, my, lab - 6 * dpr);
       if (wide) { g.font = `600 ${10 * dpr}px system-ui, sans-serif`; g.fillStyle = acc; g.fillText("+ Add", lab - 40 * dpr, my); }
       g.font = `${11 * dpr}px system-ui, sans-serif`;
     };
@@ -542,7 +544,18 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (sheet.hidden) return;
     if (free) { placeFree(); return; }
     sheet.classList.remove("free"); sheet.style.top = sheet.style.height = sheet.style.right = "";
-    if (!wide()) { for (const k of ["left", "bottom", "width", "maxHeight"] as const) sheet.style[k] = ""; return; } // a phone: the CSS sheet
+    if (!wide()) { sheet.classList.remove("docked"); for (const k of ["left", "bottom", "width", "maxHeight"] as const) sheet.style[k] = ""; return; } // a phone: the CSS sheet
+    // a computer: in the left panel, under its tabs (as Media, Music and Text), not floating over the preview
+    const pn = root.querySelector<HTMLElement>(".panels"), pt = root.querySelector<HTMLElement>("#ptabs");
+    if (pn && pn.offsetParent) {
+      const r = pn.getBoundingClientRect(), tb = pt && pt.offsetParent ? pt.getBoundingClientRect().bottom : r.top;
+      const top = Math.max(8, r.top, tb), bottom = Math.min(window.innerHeight - 8, r.bottom);
+      if (r.width >= 260 && bottom - top >= 240) {
+        Object.assign(sheet.style, { left: r.left + "px", top: top + "px", width: r.width + "px", height: bottom - top + "px", right: "auto", bottom: "auto", maxHeight: "none" });
+        sheet.classList.add("docked"); markTabs(); return;
+      }
+    }
+    sheet.classList.remove("docked");
     const lr = lanes.getBoundingClientRect(), w = Math.min(460, window.innerWidth - 24), left = Math.max(12, Math.min(window.innerWidth - w - 12, sheetX - w / 2));
     sheet.style.width = w + "px"; sheet.style.left = left + "px";
     sheet.style.bottom = Math.max(12, window.innerHeight - lr.top + 12) + "px";
@@ -555,12 +568,18 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     shotTab = tab; shotKey = ""; sheetX = xOf((st.edit[k].start + st.edit[k].end) / 2) || x;
     sheet.hidden = false; root.classList.add("sheeton"); placeSheet();
   };
-  const closeShot = () => { if (sheet.hidden) return; sheet.hidden = true; root.classList.remove("sheeton"); };
+  const closeShot = () => { if (sheet.hidden) return; sheet.hidden = true; root.classList.remove("sheeton"); markTabs(); };
+  // the left panel's tabs while the shot's Transition / Effect is open there
+  function markTabs() {
+    const on = !sheet.hidden && sheet.classList.contains("docked") ? (shotTab === 1 ? "effects" : shotTab === 0 ? "transitions" : "") : "";
+    if (on) root.querySelectorAll<HTMLButtonElement>("#ptabs [data-pt]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.pt === on)));
+  }
   // dragging: its head moves it; its corner or an edge resizes it (a mouse, a finger or a pen)
   let drag: { mode: string; px: number; py: number; f: { x: number; y: number; w: number; h: number } } | null = null;
   const EDGE_PX = 8;
   const edgeOf = (e: PointerEvent) => {
     const r = sheet.getBoundingClientRect(), t = e.target as HTMLElement;
+    if (sheet.classList.contains("docked")) return "";
     if (t.closest(".ss-rs")) return "se";
     const l = e.clientX - r.left < EDGE_PX, rt = r.right - e.clientX < EDGE_PX, b = r.bottom - e.clientY < EDGE_PX, tp = e.clientY - r.top < EDGE_PX;
     const m = (tp ? "n" : b ? "s" : "") + (l ? "w" : rt ? "e" : "");
@@ -619,7 +638,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const st = S();
     if (st && made()) {
       setText($("tcur"), fmt2(st.now)); setText($("ttot"), fmt2(st.dur));
-      if (root.classList.contains("playing") !== st.playing) root.classList.toggle("playing", st.playing);
+      if (root.classList.contains("playing") !== st.playing) { root.classList.toggle("playing", st.playing); $("playov").setAttribute("aria-label", st.playing ? "Pause preview" : "Play preview"); }
       shotUI(); clipUI(); drawLanes();
     }
     raf = requestAnimationFrame(tick);
@@ -629,7 +648,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // fold the song and clips once the Reel is made (tap the line to open them again)
   let wasMade = made();
   const onChange = () => {
-    // the editor is a dark workspace (as the design and the pro editors), whatever the app's theme; the Create flow keeps it
+    // the editor's workspace (.noir: its layout); its colours follow the app's Light / Dark switch (app/globals.css)
     const noir = made() && !root.classList.contains("fopen");
     if (root.classList.contains("noir") !== noir) { root.classList.toggle("noir", noir); media(noir); }
     mirror(); values();

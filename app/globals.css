@@ -5,7 +5,7 @@
    type, hairline borders. Every screen uses these tokens, so the whole app follows them. (--gold-gradient is the
    brand gradient; the name stays so every older use follows.) */
 :root,
-.noir {
+.noir:not(.brs) {
   --background: #0a0a1f;
   --surface: #13132e;
   --surface-2: #1c1c3f;
@@ -65,8 +65,9 @@
   --bar: #ffffff;
   --brand-glow: rgba(124, 58, 237, 0.4);
 }
-/* a part of the page that always keeps one look, whatever the page around it */
-.noir {
+/* a part of the page that always keeps one look, whatever the page around it (not the studio's editor: it follows
+   the Light / Dark switch, like the rest of the app) */
+.noir:not(.brs) {
   color-scheme: dark;
   color: var(--foreground);
 }
