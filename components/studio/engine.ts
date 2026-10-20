@@ -5399,7 +5399,7 @@ $('vodel').addEventListener('click', () => { if(voRec) return; vo = null; applyV
 const TPL_KEY = 'brs-templates';
 function tplOf(t){
   const e = t.edit || {}, xs = Array.isArray(e.texts) && e.texts.length ? e.texts : null;
-  return { kind: t.kind, name: t.name, look: e.look || 'natural', mode: e.mode, style: e.style, bg: e.bg, hook: e.hook, caps: !!e.caps, len: t.len,
+  return { kind: t.kind === 'photo' ? 'music' : t.kind, photo: t.kind === 'photo', name: t.name, look: e.look || 'natural', mode: e.mode, style: e.style, bg: e.bg, hook: e.hook, caps: !!e.caps, len: t.len,
     pace: e.pace || 'natural', music: e.music ?? 0.05,
     texts: xs ? L => xs.map(x => ({ text: x.text, style: x.style, color: x.color, anim: x.anim, y: x.y, size: x.size, all: !!x.all, ...(x.all ? {} : { at: [edgeAt(x.from, L, 0), edgeAt(x.to, L, L)] }) })) : undefined };
 }
@@ -5407,7 +5407,7 @@ let TEMPLATES = {};
 function tplSet(list){
   TEMPLATES = Object.fromEntries(list.map(t => [t.id, tplOf(t)]));
   const box = $('tpl'); if(!box) return;
-  box.replaceChildren(...list.map(t => { const b = document.createElement('button'); b.type = 'button'; b.dataset.t = t.id; b.textContent = t.name; b.setAttribute('aria-pressed', String(t.id === tplName)); return b; }));
+  box.replaceChildren(...list.map(t => { const b = document.createElement('button'); b.type = 'button'; b.dataset.t = t.id; b.dataset.kind = t.kind; b.textContent = t.name; b.setAttribute('aria-pressed', String(t.id === tplName)); return b; }));
 }
 (() => { let c = null; try{ c = JSON.parse(localStorage.getItem(TPL_KEY) || 'null'); }catch(e){} tplSet(liveTemplates(c && Array.isArray(c.templates) ? c.templates : DEFAULT_TEMPLATES)); })();
 const tplReady = fetch('/api/templates').then(r => r.ok ? r.json() : null).then(r => {
@@ -5436,7 +5436,7 @@ function useTemplate(name){
   const gen0 = editGen, kind0 = kind;
   if(t.kind === 'music' && t.len !== undefined && song) setLen(t.len); else if(t.kind === 'music' && t.len !== undefined){ sec.len = t.len; sec.auto = true; }
   tplWaiting = t; tplGen = gen0; tplNeed = sources.length > 0 && (editGen === gen0 ? (t.len !== undefined && !!song) || kind0 !== kind || kind === 'talk' : false);
-  $('tplhelp').textContent = edit.length ? '' : 'Now add ' + (t.kind === 'talk' ? 'your talking clips' : 'a song and your clips') + ': the template is applied to the edit.';
+  $('tplhelp').textContent = edit.length ? '' : 'Now add ' + (t.kind === 'talk' ? 'your talking clips' : t.photo ? 'a song and your photos' : 'a song and your clips') + ': the template is applied to the edit.';
   tplApplySoon();
 }
 // the texts go on once the edit has its final length (after the song part and the clips are in)

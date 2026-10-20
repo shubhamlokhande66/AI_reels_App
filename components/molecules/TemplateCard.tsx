@@ -35,7 +35,7 @@ export function TemplateCard({ t, compact = false }: { t: StudioTemplate; compac
         </span>
         {t.isNew && <Badge tone="dark" className="absolute left-2.5 top-2.5">✨ New</Badge>}
         <Badge tone="dark" className="absolute bottom-2.5 right-2.5">
-          {t.kind === "talk" ? "Talk" : t.len ? `${t.len}s` : "Music"}
+          {t.kind === "talk" ? "Talk" : t.kind === "photo" ? `Photos${t.len ? ` · ${t.len}s` : ""}` : t.len ? `${t.len}s` : "Music"}
         </Badge>
       </div>
       {!compact && (

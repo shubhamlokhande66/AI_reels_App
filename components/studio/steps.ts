@@ -70,9 +70,10 @@ export function initSteps(root: HTMLElement): () => void {
       }
       if (t.closest("#tpl button")) {
         chosen = true;
-        setPhoto(false);
+        const photo = t.closest<HTMLButtonElement>("#tpl button")!.dataset.kind === "photo"; // a Photos template: Photos to Reel
+        setPhoto(photo);
         setTimeout(() => {
-          press(root.classList.contains("talkmode") ? "talk" : null);
+          press(photo ? "photo" : root.classList.contains("talkmode") ? "talk" : null);
           $("s0st").textContent = `Template: ${t.closest<HTMLButtonElement>("#tpl button")!.textContent}`;
           update();
         });

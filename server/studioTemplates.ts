@@ -27,7 +27,7 @@ const Text = z.object({
 export const TemplateIn = z.object({
   id: z.string().trim().regex(/^[a-z0-9][a-z0-9-]{0,39}$/, "an id of small letters, digits and -"),
   name: z.string().trim().min(1).max(TPL_LIMITS.name),
-  kind: z.enum(["music", "talk"]),
+  kind: z.enum(["music", "talk", "photo"]),
   len: z.number().int().min(5).max(180).optional(),
   text: z.string().trim().max(TPL_LIMITS.text).default(""),
   group: z.string().trim().min(1).max(30),
