@@ -23,6 +23,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # the static assets (public/ and the AI models, scripts/cf-assets.mjs): the app's packages for the AI engine's files
+      - run: npm ci --ignore-scripts && node scripts/cf-assets.mjs
+        working-directory: .
       - run: npm ci
       - run: npx wrangler deploy
         env:
