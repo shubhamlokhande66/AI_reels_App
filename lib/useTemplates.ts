@@ -11,8 +11,8 @@ export function useTemplates() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let live = true;
-    try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (c?.templates) setList(c.templates); } catch {}
-    api.templates().then((r) => { if (!live) return; setList(r.templates); try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), templates: r.templates })); } catch {} })
+    try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (Array.isArray(c?.templates)) setList(c.templates); } catch {}
+    api.templates().then((r) => { if (!live || !Array.isArray(r?.templates)) return; setList(r.templates); try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), templates: r.templates })); } catch {} })
       .catch(() => {}).finally(() => live && setReady(true));
     return () => { live = false; };
   }, []);
