@@ -8,7 +8,7 @@ import { ago } from "./format";
 
 /** What broke in people's browsers (last 30 days): the same error once, with how often, where and on which device.
  * "Fixed" removes it; if it comes back, it shows again. */
-const KIND: Record<string, string> = { error: "Error", rejection: "Error (async)", studio: "Studio did not start", webgl: "WebGL off (slower renderer)" };
+const KIND: Record<string, string> = { error: "Error", rejection: "Error (async)", studio: "Studio did not start", webgl: "WebGL off (slower renderer)", clip: "A clip could not be read" };
 export function ErrorsTab() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["admin-errors"], queryFn: api.adminErrors, refetchInterval: 60_000 });
