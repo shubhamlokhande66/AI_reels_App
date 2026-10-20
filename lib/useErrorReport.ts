@@ -7,7 +7,7 @@ import { useEffect } from "react";
  * sent once per page load. Also callable as window.__shubixReport(kind, message) by the studio. */
 const NOISE = /ResizeObserver loop|^Script error\.?$|chrome-extension:|moz-extension:|safari-extension:|Non-Error promise rejection|AbortError|The user aborted/i;
 const sent = new Set<string>();
-export function reportError(kind: "error" | "rejection" | "studio" | "webgl" | "clip" | "audio" | "crash", message: string, stack = "") {
+export function reportError(kind: "error" | "rejection" | "studio" | "webgl" | "clip" | "audio" | "crash" | "perf", message: string, stack = "") {
   try {
     const m = String(message || "").slice(0, 400);
     if (!m || NOISE.test(m) || NOISE.test(stack) || sent.has(kind + m) || sent.size > 20) return;
