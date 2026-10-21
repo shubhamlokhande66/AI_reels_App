@@ -18,6 +18,7 @@ import type {
   Media,
   Brand,
   LearnedTrend,
+  StyleSuggestion,
   AiModels,
   ModelTestResult,
   AiConfig,
@@ -283,6 +284,11 @@ export const api = {
     request<LearnedTrend>(`/api/references/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   removeReferenceVideo: (id: string, index: number) => request<LearnedTrend>(`/api/references/${id}/videos/${index}`, { method: "DELETE" }),
   deleteReference: (id: string) => request<void>(`/api/references/${id}`, { method: "DELETE" }),
+  // admin: Reels creators copied, waiting to teach the styles
+  styleSuggestions: () => request<{ items: StyleSuggestion[]; total: number }>("/api/admin/style-suggestions"),
+  useStyleSuggestion: (id: string, category: string) =>
+    request<{ id: string }>("/api/admin/style-suggestions", { method: "POST", body: JSON.stringify({ id, category }) }),
+  removeStyleSuggestion: (id: string) => request<{ ok: boolean }>("/api/admin/style-suggestions", { method: "DELETE", body: JSON.stringify({ id }) }),
 
   // --- brands + templates ---
   brands: () => request<Brand[]>("/api/brands"),

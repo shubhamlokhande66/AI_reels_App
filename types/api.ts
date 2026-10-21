@@ -40,6 +40,17 @@ export interface TrendLook {
   summary?: string;
 }
 
+/** A Reel a creator copied ("Copy a Reel"), waiting for the administrator to teach the styles with it. */
+export interface StyleSuggestion {
+  id: string;
+  name: string;
+  createdAt: string;
+  pace: string;
+  trans: string;
+  bpm: number;
+  dur: number;
+}
+
 export interface LearnedTrend {
   id: string;
   name: string;

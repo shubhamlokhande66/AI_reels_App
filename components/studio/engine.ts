@@ -10,6 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
+import { adminHeaders } from '../../lib/admin';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '../../lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '../../lib/studio-templates';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
@@ -419,7 +420,8 @@ function snap(t, w){
 }
 function rebuild(){
   const p = period, dur = buf.duration;
-  beats = withMarks(beatsDP.filter(t => t >= 0 && t < dur-0.02), dur);
+  // the creator's own beats live on the page; in the worker there are none (analyseInWorker leaves songs with them here)
+  beats = (typeof withMarks === 'function' ? withMarks : b => b)(beatsDP.filter(t => t >= 0 && t < dur-0.02), dur);
   const first = beats.length ? beats[0] : 0;
   barOff = 0;
   // loudness every 5 ms; a cut only where the sound suddenly jumps UP or suddenly falls DOWN
@@ -511,6 +513,8 @@ function rebuild(){
 }
 function analyseInWorker(m, sr, opts){
   return new Promise((resolve, reject) => {
+    // beats the creator tapped in are the page's: with any, the song is analysed on the page (they become its beats)
+    if(userMarks.length) return reject(new Error('own beats: analysed on the page'));
     let url = null, w = null;
     try{
       const code = 'const songAnalysis = ' + songAnalysis.toString() + ';\n' +
@@ -4986,6 +4990,7 @@ $('reffile').addEventListener('change', async e=>{
   try{
     refProfile = await analyzeReference(f, (p, what)=>{ $('refinfo').textContent = 'Reading the Reel: ' + what + ' ' + Math.round(p*100) + '%'; });
     $('refinfo').textContent = '“' + f.name + '”: ' + describeRef(refProfile); $('stsaverow').hidden = false; $('ststat').textContent = ''; learnedKind = '';
+    suggestRef(f.name);
     // the copied look is on while it is matched (makeEdit then matches it on the new edit)
     GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = ''; copyLookScore = null;
     const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = 'copy'; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x===lb));
@@ -5072,8 +5077,15 @@ function fingerprintOf(R){
     shotBeats: (R.shotBeats || []).slice(0, 300).map(x => clip(x, 0, 64)), shotSec: (R.shotSec || []).slice(0, 300).map(x => clip(x, 0, 60)),
     moments: cleanMoments(R.moments) };
 }
-async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts }); const j = await r.json().catch(() => ({}));
+async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts, headers: { ...adminHeaders(), ...(opts && opts.headers) } }); const j = await r.json().catch(() => ({}));
   if(r.status === 401) throw new Error('sign in to keep a style library'); if(!r.ok) throw new Error((j.error && j.error.message) || ('error ' + r.status)); return j; }
+// only the administrator teaches the styles (FastStudio.tsx sets the 'admin' class): a creator's copied Reel is offered
+// to the administrator (its fingerprint, never the video), who uses it under a kind or removes it (Admin → My trends)
+function suggestRef(name){
+  if(root.classList.contains('admin') || !refProfile || refProfile.learned) return;
+  api('/api/studio/styles/suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: (name || 'Reel').replace(/\.[^.]+$/, '').slice(0, 120) || 'Reel', fp: fingerprintOf(refProfile) }) })
+    .catch(err => console.info('copied Reel not offered for the styles:', err && err.message));
+}
 $('stsave').addEventListener('click', async () => {
   if(!refProfile || refProfile.learned) return;
   $('ststat').textContent = 'Saving…';
