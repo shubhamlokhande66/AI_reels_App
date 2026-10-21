@@ -16,19 +16,23 @@ const ONLINE_MS = 6 * 60_000, DAY = 86400_000, SEEN_EVERY = 5 * 60_000, KEEP_DAY
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const col = async (name: string) => (await mainDb()).collection<any>(name);
 let indexed = false;
-const lastSeenWrite = new Map<string, number>();
+const lastSeenWrite = new Map<string, number>(), iosAppWrite = new Map<string, number>();
 
-export const pingBody = z.object({ visitor: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/), path: z.string().max(300).default("/") });
+/** app: the page runs as the installed app (home screen), so an iPhone's Safari can tell it is installed (accounts.ts me) */
+export const pingBody = z.object({ visitor: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/), path: z.string().max(300).default("/"), app: z.boolean().default(false) });
 
 /** One open tab says it is still here. */
-export async function ping(visitor: string, path: string, userAgent: string) {
+export async function ping(visitor: string, path: string, userAgent: string, app = false) {
   const presence = await col("presence"), now = new Date(), uid = currentUser();
   if (!indexed) { indexed = true; await presence.createIndex({ at: 1 }, { expireAfterSeconds: KEEP_DAYS * 86400 }).catch(() => { indexed = false; }); }
   const device = /mobile|android|iphone|ipad/i.test(userAgent) ? "phone" : "computer";
   await presence.updateOne({ _id: visitor }, { $set: { at: now, path, uid, device }, $setOnInsert: { firstAt: now } }, { upsert: true });
-  if (uid && ObjectId.isValid(uid) && now.getTime() - (lastSeenWrite.get(uid) ?? 0) > SEEN_EVERY) {
+  // the app opened on an iPhone: noted at once (then once an hour), so its Safari stops offering to install it
+  const iosApp = !!uid && app && /iphone|ipad|ipod/i.test(userAgent) && now.getTime() - (iosAppWrite.get(uid) ?? 0) > 3600_000;
+  if (uid && ObjectId.isValid(uid) && (iosApp || now.getTime() - (lastSeenWrite.get(uid) ?? 0) > SEEN_EVERY)) {
     lastSeenWrite.set(uid, now.getTime());
-    await (await col("users")).updateOne({ _id: new ObjectId(uid) }, { $set: { lastSeenAt: now } });
+    if (iosApp) iosAppWrite.set(uid, now.getTime());
+    await (await col("users")).updateOne({ _id: new ObjectId(uid) }, { $set: { lastSeenAt: now, ...(iosApp ? { iosAppAt: now } : {}) } });
   }
   return { ok: true };
 }

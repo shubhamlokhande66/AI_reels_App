@@ -7,5 +7,5 @@ import { limits } from "@/server/core/rateLimit";
 export const POST = route(async (req) => {
   const b = await body(req, pingBody);
   limits.ping(req, b.visitor);
-  return ping(b.visitor, b.path, req.headers.get("user-agent") ?? "");
+  return ping(b.visitor, b.path, req.headers.get("user-agent") ?? "", b.app);
 });

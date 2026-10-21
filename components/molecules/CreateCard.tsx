@@ -24,8 +24,9 @@ export function CreateCard({ href, icon, title, text, tone, reload = false }: { 
         </span>
       </span>
       <span className="flex flex-col">
-        <b className="text-[14.5px] font-extrabold leading-tight md:text-base">{title}</b>
-        <span className="text-[11.5px] leading-snug text-white/80 md:text-[12.5px]">{text}</span>
+        {/* 7 in a row on a computer (lg): a touch smaller, so every title stays on one line */}
+        <b className="text-[14.5px] font-extrabold leading-tight md:text-base lg:text-[15px]">{title}</b>
+        <span className="text-[11.5px] leading-snug text-white/80 md:text-[12.5px] lg:text-xs">{text}</span>
       </span>
     </Tag>
   );

@@ -186,7 +186,7 @@ function SuggestionRow({ s }: { s: StyleSuggestion }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{s.name}</p>
-          <p className="text-xs text-muted">{s.dur}s{s.bpm ? ` · ${s.bpm} BPM` : ""} · {s.pace}{s.trans ? ` · ${s.trans}` : ""}</p>
+          <p className="text-xs text-muted">{s.from === "made" ? "Made & saved" : "Copied"} · {s.dur}s{s.bpm ? ` · ${s.bpm} BPM` : ""} · {s.pace}{s.trans ? ` · ${s.trans}` : ""}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select aria-label={`Kind of Reel for ${s.name}`} value={kind} onChange={(e) => setKind(e.target.value)} className="rounded-xl border border-border bg-surface px-2 py-2 text-sm">
@@ -202,7 +202,7 @@ function SuggestionRow({ s }: { s: StyleSuggestion }) {
   );
 }
 
-/** Reels creators copied in the studio ("Copy a Reel"): only their numbers are kept, never the video. Only the
+/** Reels creators copied in the studio ("Copy a Reel") or made and saved: only their numbers are kept, never the video. Only the
  * administrator teaches the styles: each waits here until it is used (under a kind) or removed. */
 function Suggestions() {
   const q = useQuery({ queryKey: ["style-suggestions"], queryFn: api.styleSuggestions });
@@ -211,8 +211,9 @@ function Suggestions() {
       <div>
         <h2 className="h2">Reels from users</h2>
         <p className="mt-1.5 text-sm text-muted">
-          Reels people gave to “Copy a Reel”. Only their numbers are kept (pace, cuts, transitions, look), never the video. Pick the kind
-          and tap Use to teach Shubix&apos;s styles with it, or Remove it.
+          Reels people gave to “Copy a Reel” (Copied) and Reels they made and saved (Made &amp; saved). They never see this. Only the
+          numbers are kept (pace, cuts, transitions, look), never the video. Pick the kind and tap Use to teach Shubix&apos;s styles
+          with it, or Remove it.
         </p>
       </div>
       {q.isLoading && <Spinner label="Loading…" />}

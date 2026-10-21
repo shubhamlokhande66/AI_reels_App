@@ -11,9 +11,17 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cap:sync": "cap sync",
+    "cap:android": "cap sync android && cd android && gradlew.bat assembleDebug",
+    "cap:ios": "cap sync ios && cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/filesystem": "^8.1.5",
+    "@capacitor/ios": "^8.5.3",
+    "@capacitor/share": "^8.0.3",
     "@diffusionstudio/piper-wasm": "1.0.0",
     "@mediabunny/aac-encoder": "1.60.0",
     "@shiguredo/rnnoise-wasm": "2025.1.5",
@@ -35,6 +43,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",

@@ -20,14 +20,16 @@ import type { Tone } from "@/lib/ui";
 
 type Option = { href: string; icon: string; title: string; text: string; tone: Tone; reload?: boolean };
 
-/** The six ways to start, as far as this studio has them on (Administration → Features). */
+/** The ways to start (and My Reels), as far as this studio has them on (Administration → Features). All of them are here, so the
+ * section has no "See more". */
 export function createOptions(f: Features): Option[] {
   return [
     { href: "/create/music", icon: "music", title: "Music Reel", text: "Sync with Music", tone: "music", reload: true },
     { href: "/create/talking", icon: "mic", title: "Talking Reel", text: "Vlogs & Tutorials", tone: "talk", reload: true },
     { href: "/create/photo", icon: "image", title: "Photo Reel", text: "Bring Photos to Life", tone: "photo", reload: true },
+    { href: "/create/copy", icon: "copy", title: "Copy a Reel", text: "Match any Reel", tone: "copy", reload: true },
     { href: "/create/story", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story", reload: true },
-    { href: "/templates", icon: "grid", title: "Use a Template", text: "Ready-made Styles", tone: "template" },
+    { href: "/templates", icon: "grid", title: "Templates", text: "Ready-made Styles", tone: "template" },
     { href: "/reels", icon: "video", title: "My Reels", text: "Watch & share", tone: "recreate" },
   ].filter((o) => linkOn(o.href, f)) as Option[];
 }
@@ -35,8 +37,8 @@ export function createOptions(f: Features): Option[] {
 export function CreateSection({ features }: { features: Features }) {
   return (
     <section aria-labelledby="create-h" className="flex flex-col gap-3">
-      <SectionHeader id="create-h" title="Create Your Reel" href="/templates" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3">
+      <SectionHeader id="create-h" title="Create Your Reel" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7 lg:gap-3">
         {createOptions(features).map((o) => (
           <CreateCard key={o.title} {...o} />
         ))}

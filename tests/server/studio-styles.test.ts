@@ -159,4 +159,12 @@ describe("Reels from creators wait for the administrator", () => {
     store.user = "dave"; expect((await learnedStyle("dance", "all")).n).toBe(1);  // used: it teaches everyone's styles
     await expect(approveSuggestion({ id: one.id, category: "dance" })).rejects.toThrow();
   });
+  it("a Reel a creator made and saved waits the same way, marked as made", async () => {
+    const { suggestStyle, listSuggestions, learnedStyle } = await import("@/server/studio/styles");
+    store.cols.clear();
+    store.user = "carol"; await suggestStyle({ name: "my reel", fp: dance(), from: "made" }); await suggestStyle({ name: "copied", fp: dance() });
+    expect((await learnedStyle("dance", "all")).n).toBe(0);
+    store.user = "admin"; const by = Object.fromEntries((await listSuggestions()).items.map((s) => [s.name, s.from]));
+    expect(by).toEqual({ "my reel": "made", copied: "copy" });
+  });
 });

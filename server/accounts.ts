@@ -51,7 +51,10 @@ export async function sendMail(to: string, subject: string, text: string): Promi
 
 export async function me() {
   const uid = currentUser(), u = uid && ObjectId.isValid(uid) ? await (await users()).findOne({ _id: new ObjectId(uid) }) : null;
-  return { authEnabled: settings.authEnabled, user: u ? userOut(u) : null };
+  // iosApp: the Shubix app on this person's iPhone was opened in the last 14 days (adminDashboard.ts ping), so Safari
+  // hides its "Install the app" banner; not opened for 14 days, it was most likely removed, and the banner comes back
+  const iosApp = !!u && u.iosAppAt instanceof Date && Date.now() - u.iosAppAt.getTime() < 14 * 864e5;
+  return { authEnabled: settings.authEnabled, user: u ? { ...userOut(u), iosApp } : null };
 }
 export async function register(email0: string, password: string) {
   needAccounts();
