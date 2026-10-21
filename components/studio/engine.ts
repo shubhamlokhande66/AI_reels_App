@@ -419,7 +419,8 @@ function snap(t, w){
 }
 function rebuild(){
   const p = period, dur = buf.duration;
-  beats = withMarks(beatsDP.filter(t => t >= 0 && t < dur-0.02), dur);
+  // the creator's own beats live on the page; in the worker there are none (analyseInWorker leaves songs with them here)
+  beats = (typeof withMarks === 'function' ? withMarks : b => b)(beatsDP.filter(t => t >= 0 && t < dur-0.02), dur);
   const first = beats.length ? beats[0] : 0;
   barOff = 0;
   // loudness every 5 ms; a cut only where the sound suddenly jumps UP or suddenly falls DOWN
@@ -511,6 +512,8 @@ function rebuild(){
 }
 function analyseInWorker(m, sr, opts){
   return new Promise((resolve, reject) => {
+    // beats the creator tapped in are the page's: with any, the song is analysed on the page (they become its beats)
+    if(userMarks.length) return reject(new Error('own beats: analysed on the page'));
     let url = null, w = null;
     try{
       const code = 'const songAnalysis = ' + songAnalysis.toString() + ';\n' +
