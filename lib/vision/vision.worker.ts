@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web/wasm";
+import { ortThreads } from "../ortThreads";
 
 /** Fast Studio's eyes on the phone, in a worker (ONNX Runtime WebAssembly): MediaPipe Selfie Segmentation (who is the
  * person: a 256x256 mask) and BlazeFace short range (where faces are), both Apache-2.0, converted to ONNX
@@ -23,7 +24,7 @@ function session(name: string, base: string, wasm: string) {
   let s = sessions.get(name);
   if (!s) {
     ort.env.wasm.wasmPaths = wasm;
-    ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(2, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)) : 1;
+    ort.env.wasm.numThreads = ortThreads(self.crossOriginIsolated ? Math.min(2, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)) : 1);
     s = bytes(base + name).then((b) => ort.InferenceSession.create(b, { executionProviders: ["wasm"], graphOptimizationLevel: "all" }));
     s.catch(() => sessions.delete(name)); sessions.set(name, s);
   }

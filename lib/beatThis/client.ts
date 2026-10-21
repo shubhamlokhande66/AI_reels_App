@@ -1,4 +1,5 @@
 import { BEAT_THIS_SR, type BeatThisResult } from "./core";
+import { isIOS } from "../ortThreads";
 
 /** Fast Studio's on-device beat tracker: Beat This! in a worker (lib/beatThis/beatThis.worker.ts). The song is resampled
  * to 22 050 Hz here (the browser's own resampler), the network runs in the worker. Rejects when this device cannot run
@@ -31,7 +32,7 @@ async function resample(mono: Float32Array, sr: number): Promise<Float32Array> {
   const len = Math.ceil(mono.length * BEAT_THIS_SR / sr);
   try {
     const oc = new OfflineAudioContext(1, len, BEAT_THIS_SR), b = oc.createBuffer(1, mono.length, sr);
-    b.copyToChannel(new Float32Array(mono), 0); const s = oc.createBufferSource(); s.buffer = b; s.connect(oc.destination); s.start();
+    b.copyToChannel(mono as Float32Array<ArrayBuffer>, 0); const s = oc.createBufferSource(); s.buffer = b; s.connect(oc.destination); s.start();
     return (await oc.startRendering()).getChannelData(0).slice();
   } catch {   // no OfflineAudioContext: linear interpolation
     const y = new Float32Array(len), r = sr / BEAT_THIS_SR;
@@ -52,6 +53,9 @@ export async function beatThisOnDevice(mono: Float32Array, sr: number, onProgres
       const d = e.data; if (d.id !== id) return;
       if (d.type === "progress") { onProgress?.(d.stage, d.p); return; }
       w.removeEventListener("message", onMsg); w.removeEventListener("error", onErr);
+      // an iPhone: the worker goes once the beats are in. Its WebAssembly memory (the model, a few hundred MB) never
+      // shrinks, and the clips and the Reel need it next; the model stays in Cache Storage, so the next song loads fast
+      if (isIOS()) { w.terminate(); if (worker === w) worker = null; }
       if (d.type === "done") resolve({ ...d.result, ms: { resample: tr, ...d.ms } });
       else reject(new Error(d.message));
     };

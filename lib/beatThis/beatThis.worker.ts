@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web/wasm";
 import { beatThisWith, BINS, MELS } from "./core";
+import { ortThreads } from "../ortThreads";
 
 /** Beat This! on the phone: the same 8-bit model and the same pre- / post-processing as the server
  * (lib/beatThis/core.ts), run with ONNX Runtime's WebAssembly backend in this worker so the page never stalls. The model
@@ -27,7 +28,7 @@ async function getBytes(url: string, onProgress: (p: number) => void): Promise<A
 function load(msg: In, post: (o: object) => void) {
   ready ??= (async () => {
     ort.env.wasm.wasmPaths = msg.wasm;
-    ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)) : 1;
+    ort.env.wasm.numThreads = ortThreads(self.crossOriginIsolated ? Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)) : 1);
     let pm = 0, pf = 0;
     const tell = () => post({ id: msg.id, type: "progress", stage: "download", p: 0.97 * pm + 0.03 * pf });
     const [model, fbBuf] = await Promise.all([getBytes(msg.model, (p) => { pm = p; tell(); }), getBytes(msg.filterbank, (p) => { pf = p; tell(); })]);
