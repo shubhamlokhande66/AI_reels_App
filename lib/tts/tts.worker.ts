@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web/wasm";
+import { ortThreads } from "../ortThreads";
 
 /** Text to speech on the phone: Piper voices (MIT; rhasspy/piper-voices, about 60 MB each, downloaded once and kept in
  * the browser's Cache Storage) run with ONNX Runtime's WebAssembly backend in this worker. The text becomes phoneme ids
@@ -63,7 +64,7 @@ function chunks(text: string, max = 300): string[] {
 self.onmessage = async (e: MessageEvent<In>) => {
   const m = e.data;
   try {
-    ort.env.wasm.wasmPaths = m.wasm; ort.env.wasm.numThreads = Math.min(4, navigator.hardwareConcurrency || 2);
+    ort.env.wasm.wasmPaths = m.wasm; ort.env.wasm.numThreads = ortThreads(Math.min(4, navigator.hardwareConcurrency || 2));
     if (!sessions.has(m.model)) sessions.set(m.model, (async () => {
       const cfg = JSON.parse(new TextDecoder().decode(await bytes(m.config))) as PiperConfig;
       const model = await bytes(m.model, (p) => post({ id: m.id, type: "progress", stage: "download", p }));

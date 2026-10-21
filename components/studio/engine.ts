@@ -808,9 +808,16 @@ function applyAnalysis(r){
 // device in the background; the analysis then keeps whichever beats land on stronger hits with a steadier pulse (each
 // tracker misses different songs) and the edit follows. The page stays usable; the first edit never waits for it.
 let beatsBusy = false;
+// An iPhone that reloaded while Shubix checked the beats (out of memory) does not run it again for a week: the page's own
+// beats are good, and the person must be able to make the Reel at all
+const AI_BEATS_OFF = 'brs-ai-beats-off';
+if(IOS && lifeBefore && lifeBefore.stage === 'checking beats' && Date.now() - lifeBefore.at < 10*60e3) try{ localStorage.setItem(AI_BEATS_OFF, String(Date.now())); }catch(e){}
+function aiBeatsOff(){ try{ return Date.now() - (+localStorage.getItem(AI_BEATS_OFF) || 0) < 7*864e5; }catch(e){ return false; } }
 async function checkBeatsWithAi(token){
   if(!aiBeats || !song) return;
-  beatsBusy = true; try{ await checkBeatsInner(token); } finally { beatsBusy = false; }
+  if(IOS && aiBeatsOff()){ beatInfo = { source: 'own', note: 'off on this phone (it ran short of memory before)' }; return; }
+  beatsBusy = true; life({ stage: 'checking beats' });
+  try{ await checkBeatsInner(token); } finally { beatsBusy = false; if(lifeNote.stage === 'checking beats') life({ stage: 'song ready' }); }
 }
 async function checkBeatsInner(token){
   const sr = song.buf.sampleRate, m = song.mono, base = 'Ready';
