@@ -13,5 +13,5 @@ const FILES = new Map(MODEL_FILES.files.map((f) => [f.name, path.join(process.cw
 export const GET = route<{ name: string }>(async (req, { name }) => {
   const file = FILES.get(name);
   if (!file) throw new NotFoundError("No such model file.", { code: "MODEL_NOT_FOUND" });
-  return sendFile(req, path.join(file, name), "application/octet-stream", { cache: "public, max-age=31536000, immutable" });
+  return sendFile(req, path.join(file, name), "application/octet-stream", { cache: "public, max-age=31536000, s-maxage=31536000, immutable" });
 });

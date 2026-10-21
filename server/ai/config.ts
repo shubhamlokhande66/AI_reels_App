@@ -5,6 +5,7 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/server/core/config";
 import { db } from "@/server/core/db";
+import { forgetFiles, keepFile } from "@/server/storage/dbFiles";
 import { localPath } from "@/server/storage/local";
 import { getTask, TASKS } from "./types";
 
@@ -16,14 +17,14 @@ export const LOCAL_PROVIDERS = new Set(["ollama"]);
 const KEY = "settings/ai_config.json", MODEL_KEY = "settings/ai_model.json";
 
 const readJson = (key: string) => { try { return JSON.parse(fs.readFileSync(localPath(key), "utf8")); } catch { return null; } };
-const writeJson = (key: string, v: unknown) => { const f = localPath(key); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v)); };
+const writeJson = (key: string, v: unknown) => { const f = localPath(key); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v)); void keepFile(key); };
 
 export function getChosenModel(): string | null {
   const name = readJson(MODEL_KEY)?.model;
   return typeof name === "string" && name.trim() ? name.trim() : null;
 }
 export function setChosenModel(model: string | null) {
-  if (!model) { try { fs.rmSync(localPath(MODEL_KEY), { force: true }); } catch { /* nothing saved */ } return; }
+  if (!model) { try { fs.rmSync(localPath(MODEL_KEY), { force: true }); } catch { /* nothing saved */ } void forgetFiles(MODEL_KEY); return; }
   writeJson(MODEL_KEY, { model: model.trim() });
 }
 

@@ -4,6 +4,7 @@ import path from "node:path";
 import { z } from "zod";
 import { settings } from "@/server/core/config";
 import { AppError, ValidationFailed } from "@/server/core/errors";
+import { keepFile } from "@/server/storage/dbFiles";
 import { localPath } from "@/server/storage/local";
 import { budgetState, effective, getChosenModel, LOCAL_PROVIDERS, loadSaved, PROVIDERS, publicView, saveConfig, setChosenModel, usageSummary, type EffectiveAIConfig } from "./config";
 import { buildProvider, ManagedProvider } from "./index";
@@ -133,7 +134,7 @@ export async function connectionTest(provider: string | null, vision: boolean) {
     if (!(e instanceof AppError)) throw e;
     Object.assign(result, { ok: false, correct: false, detail: e.message, errorCode: e.code, latencyMs: Date.now() - started, ...(e instanceof AIProviderError ? { errorKind: e.kind } : {}) });
   }
-  try { const f = localPath(LAST_TEST_KEY); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(result)); } catch { /* a convenience */ }
+  try { const f = localPath(LAST_TEST_KEY); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(result)); void keepFile(LAST_TEST_KEY); } catch { /* a convenience */ }
   return result;
 }
 

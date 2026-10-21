@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db, parseId } from "@/server/core/db";
 import { NotFoundError, UnsupportedMedia, ValidationFailed } from "@/server/core/errors";
 import { readUpload } from "@/server/media/upload";
+import { forgetFiles, keepFile } from "@/server/storage/dbFiles";
 import { deletePrefix, localPath } from "@/server/storage/local";
 
 /** Brand kits: name, colours, fonts, watermark logo and the defaults a Reel made for the brand starts with. */
@@ -47,7 +48,7 @@ export async function updateBrand(id: string, p: BrandIn) {
 }
 export async function deleteBrand(id: string) {
   const oid = parseId(id, "Brand");
-  deletePrefix(`brands/${oid}`);
+  deletePrefix(`brands/${oid}`); void forgetFiles(`brands/${oid}/`);
   await (await brands()).deleteOne({ _id: oid });
 }
 
@@ -69,6 +70,7 @@ export async function uploadLogo(id: string, req: Request) {
     const key = `brands/${d._id}/logo.png`;
     fs.mkdirSync(path.dirname(localPath(key)), { recursive: true });
     fs.writeFileSync(localPath(key), png);
+    await keepFile(key);
     await (await brands()).updateOne({ _id: d._id }, { $set: { logoKey: key } });
     return getBrand(id);
   } finally {

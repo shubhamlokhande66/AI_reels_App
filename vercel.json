@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["bom1"],
+  "installCommand": "npm_config_onnxruntime_node_install=skip npm ci",
+  "functions": {
+    "app/api/**/*": { "maxDuration": 60 }
+  }
+}

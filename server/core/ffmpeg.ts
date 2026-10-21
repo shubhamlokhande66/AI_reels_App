@@ -38,11 +38,20 @@ function winget(name: string): string | null {
   return null;
 }
 
+/** The copy shipped as an npm package (ffmpeg-static / ffprobe-static, Linux x64): for a host with no FFmpeg installed
+ * (Vercel). Read at run time from its folder (next.config.ts puts it into the functions that use it). */
+function bundled(name: "ffmpeg" | "ffprobe"): string | null {
+  const arch = process.arch === "arm64" ? "arm64" : "x64";
+  const p = name === "ffmpeg" ? path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg")
+    : path.join(process.cwd(), "node_modules", "ffprobe-static", "bin", process.platform, arch, process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
+  return fs.existsSync(p) ? p : null;
+}
+
 export function findBinary(name: "ffmpeg" | "ffprobe"): string {
   const hit = resolved.get(name);
   if (hit) return hit;
   const configured = name === "ffmpeg" ? settings.ffmpegBin : settings.ffprobeBin;
-  const candidate = configured || onPath(name) || winget(name);
+  const candidate = configured || onPath(name) || winget(name) || bundled(name);
   if (!candidate) throw new AppError(`${name} was not found. Install FFmpeg and add it to PATH, or set ${name.toUpperCase()}_BIN.`, { code: "FFMPEG_NOT_FOUND", status: 500 });
   resolved.set(name, candidate);
   return candidate;

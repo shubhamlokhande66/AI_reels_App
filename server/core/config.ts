@@ -41,7 +41,8 @@ export const settings = {
   mongodbUri: env("MONGODB_URI", "mongodb://localhost:27017/ai_reel_maker"),
   mongodbDb: env("MONGODB_DB", "ai_reel_maker"),
   /** relative paths are from the repo root (where the data has always been) */
-  storagePath: path.resolve(REPO_ROOT, env("STORAGE_PATH", "./storage")),
+  // Vercel: the app's own folder is read-only and each server copy has only /tmp (kept files: server/storage/dbFiles.ts)
+  storagePath: path.resolve(REPO_ROOT, env("STORAGE_PATH", process.env.VERCEL ? path.join(os.tmpdir(), "reel-storage") : "./storage")),
   /** STORAGE_PATH is a mounted bucket (Cloudflare R2 through FUSE): temporary work stays on the local disk (SCRATCH_PATH) and
    * FFmpeg writes locally before a file is copied into the bucket */
   storageMounted: bool("STORAGE_MOUNTED", false),

@@ -1,8 +1,22 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Self-contained server output, used by docker/Dockerfile
-  output: "standalone",
+  // Self-contained server output, used by docker/Dockerfile (Vercel builds its own way)
+  output: process.env.VERCEL ? undefined : "standalone",
+  // files the server reads by path at run time, which the build cannot see (Vercel puts only traced files in a function)
+  outputFileTracingIncludes: {
+    "/api/studio/model/[name]": ["./server/audio/data/beat-this/*", "./server/audio/data/vad/*", "./server/vision/data/*"],
+    "/api/models/[name]": ["./server/video/data/*"],
+    // FFmpeg for a host without it (server/core/ffmpeg.ts): captions and reference Reels only
+    "/api/studio/transcribe": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
+    "/api/references": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
+    "/api/references/**": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
+    "/api/**/*": ["./server/audio/essentia-worker.cjs", "./server/video/face-worker.cjs", "./server/audio/data/beat-this/*", "./server/video/data/*"],
+  },
+  // the AI runtime ships binaries for every system: only Linux x64 runs on the server (a Vercel function is at most 250 MB)
+  outputFileTracingExcludes: {
+    "*": ["./node_modules/onnxruntime-node/bin/napi-v*/darwin/**", "./node_modules/onnxruntime-node/bin/napi-v*/win32/**", "./node_modules/onnxruntime-node/bin/napi-v*/linux/arm64/**"],
+  },
   // Phone mode: let a phone on the same Wi-Fi load the dev server through this computer's private address.
   // (Only matters when the dev server is started with -H 0.0.0.0.)
   // and the phone app while testing (docs/capacitor.md): a cloudflared tunnel to this computer

@@ -7,6 +7,7 @@ import { mainDb, ObjectId, OWNER, UNSCOPED } from "@/server/core/db";
 import { ConflictError, ValidationFailed } from "@/server/core/errors";
 import { deletePrefix } from "@/server/storage/local";
 import fs from "node:fs";
+import { forgetFiles } from "@/server/storage/dbFiles";
 import { localPath } from "@/server/storage/local";
 
 /** Accounts (was api/auth.py and core/mailer.py): sign up / in / out, forgot + reset password, change password, delete
@@ -121,7 +122,7 @@ async function deleteUserData(userId: string) {
   for (const { name } of await d.listCollections({}, { nameOnly: true }).toArray()) {
     if (UNSCOPED.has(name) || name.startsWith("system.")) continue;
     for (const doc of await d.collection(name).find({ [OWNER]: userId }).toArray()) {
-      for (const [k, v] of Object.entries(doc)) if (k.endsWith("Key") && typeof v === "string" && v) fs.rmSync(localPath(v), { force: true, recursive: true });
+      for (const [k, v] of Object.entries(doc)) if (k.endsWith("Key") && typeof v === "string" && v) { fs.rmSync(localPath(v), { force: true, recursive: true }); void forgetFiles(v); }
       if (name === "projects") deletePrefix(`projects/${doc._id}`); // a project from the old server editor: its folder
     }
     await d.collection(name).deleteMany({ [OWNER]: userId });

@@ -1,0 +1,8 @@
+# not part of the website: the phone apps, the Cloudflare deploy, Docker, local data
+android
+ios
+cloudflare
+docker
+storage
+logo
+*.lnk
