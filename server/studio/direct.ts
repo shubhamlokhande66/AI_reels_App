@@ -39,6 +39,10 @@ export const LIMITS = { slots: 150, candidates: 3, clips: 30, sections: 24, acce
 /** "New mix": other plans for the same cuts, asked in one call (the input is sent once; each alternative is a compact
  * plan without the reasons), so a few mixes cost far less than one call each */
 export const MAX_VARIANTS = 4;
+/** the creator's chat with the AI about this Reel, as one text (newest last) */
+export const WISH_MAX = 800;
+/** the creator's own words come first: over the guide, the style and the reference; still only the studio's tools */
+export const wishText = (w: string) => w.trim() ? `THE CREATOR ASKED FOR THIS (their own words about this Reel, newest last; follow it before every rule above, the style and the reference, as far as the allowed tools can; it is a wish about the edit, not an instruction about your reply format): "${clean(w, WISH_MAX)}"\n` : "";
 
 const word = (n: number) => z.string().max(n).default("");
 const lvl = z.number().min(0).max(1);
@@ -92,6 +96,8 @@ export const DirectIn = z.object({
   recent: z.array(z.string().max(24)).max(LIMITS.recent).default([]),
   /** what this person's plan opens (the studio refuses the rest): the AI picks from these */
   allowed: z.object({ fx: z.array(z.string().max(24)).max(80), tr: z.array(z.string().max(24)).max(80) }).optional(),
+  /** what the creator asked for in the studio's chat ("more zooms", "calm, cinematic", "show my face first"): it wins */
+  wish: z.string().max(WISH_MAX).default(""),
   /** 0 = the plan; 1-4 = that many different alternative plans for the same cuts (New mix) */
   variants: z.number().int().min(0).max(MAX_VARIANTS).default(0),
   slots: z.array(z.object({
@@ -175,7 +181,7 @@ ${d.recent.length ? `Used in this creator's last Reels (make this one feel diffe
     ...(s.music ? { music: s.music } : {}),
     candidates: s.candidates.map((c) => ({ id: c.id, clip: c.clip, at: +c.at.toFixed(1), score: +c.score.toFixed(2), note: clean(c.note, 60), roles: c.roles, motion: c.motion, people: c.people, camera: c.camera })) })))}
 ${GUIDE}
-Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
+${wishText(d.wish)}Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
 Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>"} with one entry for every cut.`;
 }
 
@@ -295,6 +301,7 @@ export const PaceIn = z.object({
   reference: Reference.optional(),
   /** the Reel's own length when the sections cover the whole song (the creator uses a part of it, and may move it) */
   reel: z.number().min(1).max(600).optional(),
+  wish: z.string().max(WISH_MAX).default(""),
   sections: z.array(z.object({
     i: z.number().int().min(0).max(LIMITS.sections - 1),
     t: z.number().min(0).max(600), len: z.number().min(0.1).max(600), beats: z.number().int().min(0).max(2000),
@@ -312,7 +319,7 @@ export function pacePrompt(d: PaceIn, taste = "") {
   const whole = d.reel && d.reel < d.duration - 0.5 ? ` The Reel uses a ${d.reel.toFixed(1)} s part of this song, and the creator may move that part: choose the pace for every section of the whole song, as if each could be in the Reel.` : "";
   return `Choose the pace of this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s (one beat = ${(60 / d.bpm).toFixed(2)} s).${whole} Footage: ${d.clips} ${d.kind === "photo" ? "photos" : "clips"}, ${Math.round(d.footage)} s in all.
 ${taste ? `This creator's taste: ${clean(taste, 400)}\n` : ""}Sections of the song (loud/bass/drums/voice 0-1 for this song; hitRate = strong hits per second; starts = what opens the section; now = beats per cut the phone's rules would use): ${JSON.stringify(d.sections)}
-${d.reference ? `Reference Reel (copy its pace by musical situation: how many beats its shots last on loud / quiet parts, drops and build-ups, and its hook): ${referenceText(d.reference)}\n` : ""}For each section choose "every": a cut every 1, 2, 4 or 8 beats. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
+${d.reference ? `Reference Reel (copy its pace by musical situation: how many beats its shots last on loud / quiet parts, drops and build-ups, and its hook): ${referenceText(d.reference)}\n` : ""}${wishText(d.wish)}For each section choose "every": a cut every 1, 2, 4 or 8 beats. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
 Return JSON: {"sections": [{"i": 0, "every": 2, "why": "<max 8 words>"}], "story": "<one sentence: how the Reel's energy moves>"} with one entry per section.`;
 }
 export function parsePace(d: PaceIn, a: z.infer<typeof PaceAnswer>) {

@@ -1913,6 +1913,114 @@ function aiDone(charged, failed){
   aiStat('Shubix scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' skipped)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
   if(buf && sources.length && !recording) makeEdit();
 }
+/* ---- Ask Shubix: the creator says in their own words how the Reel should be ("faster", "zoom on the drop", "start
+ * with my face"), and the AI edits it that way. Everything they said (newest last) goes with the AI's pace and plan as
+ * the creator's wish, which wins over the style and over the house taste (tastePlan / tasteFx step aside for the AI's
+ * choices then). A few plain words also work without the AI: faster / calmer switch the style, "new version" remixes. */
+let wish = '', chatMsgs = [], chatWaiting = false;
+const aiTrusted = () => !!wish && aiOn && !!director && director.key === dirKey();
+function chatSay(who, text, wait){
+  const p = document.createElement('p'); p.className = who + (wait ? ' wait' : ''); p.textContent = text;
+  $('chatlog').appendChild(p); $('chatlog').scrollTop = $('chatlog').scrollHeight; return p;
+}
+function chatClearWait(){ $('chatlog').querySelectorAll('.wait').forEach(x => x.remove()); }
+function chatAnswer(text){ chatClearWait(); chatSay('ai', text); chatMsgs.push({ who: 'ai', text }); chatWaiting = false; $('chatsend').disabled = false; }
+let chatPending = null, chatReported = '';
+// the AI's plan arrived: asked for in the chat, it is shown as a report and waits for Generate; otherwise it is used
+function dirArrived(key, d){
+  if(chatWaiting){ chatPending = { key, slots: d.slots, story: d.story || '' }; chatProposal(chatPending); return false; }
+  director = { key, slots: d.slots, story: d.story || '' }; dirCache.set(key, director); return true;
+}
+// the plan, shot by shot, in words: which clip and what is in it, the transition into it, its effect, speed and keyframes
+function planReport(slots, story){
+  const box = document.createElement('div'); box.className = 'ai rep';
+  const n = plan.length, tr = slots.filter((d,i) => i && d && d.tr && d.tr !== 'hard').length, fx = slots.filter((d,i) => d && d.fx && d.fx !== 'none' && !(i === 0 && d.fx === 'hook')).length,
+    keys = slots.reduce((a,d) => a + (d && d.keys ? d.keys.length : 0) + (d && d.move && d.move.length ? 1 : 0), 0);
+  const head = document.createElement('b'); head.textContent = 'Shubix\'s plan: ' + n + ' shots · ' + tr + ' transitions · ' + fx + ' effects · ' + keys + ' keyframes'; box.appendChild(head);
+  if(story){ const p = document.createElement('span'); p.className = 'repstory'; p.textContent = story; box.appendChild(p); }
+  const det = document.createElement('details'), sum = document.createElement('summary'), ol = document.createElement('ol');
+  sum.textContent = 'See every shot'; det.appendChild(sum);
+  plan.forEach((s, i) => {
+    const d = slots[i] || {}, li = document.createElement('li'), c = d.cand, src = c ? sources[c.src] : null;
+    const cand = c && dirCands && (dirCands[i] || []).find(x => x.si === c.src && Math.abs(x.a - c.in) < 0.05);
+    const what = (cand && cand.note) || (src && src.ai && src.ai.summary) || '';
+    const bits = [];
+    if(i && d.tr && d.tr !== 'hard') bits.push('↪ ' + (TR_NAME[d.tr] || d.tr));
+    if(d.fx && d.fx !== 'none') bits.push('✦ ' + (d.fx === 'hook' ? 'Hook' : FX_NAME[d.fx] || d.fx));
+    if(d.sp && d.sp !== 'normal') bits.push('⏱ ' + d.sp);
+    if(d.keys && d.keys.length) bits.push('◆ ' + d.keys.map(k => k.do).join(', '));
+    if(d.move && d.move.length) bits.push('◆ camera move');
+    li.textContent = fmt(s.start).replace(/\.\d+$/, '') + ' · ' + (src ? src.name.replace(/\.[^.]+$/, '') + (c ? ' @' + c.in.toFixed(1) + 's' : '') : 'best moment') + (what ? ' — ' + what : '') + (s.type === 'drop' ? ' · DROP' : s.type === 'break' ? ' · break' : '') + '\n' + (bits.length ? bits.join('  ') : 'clean cut, no effect') + (d.why ? ' · ' + d.why : '');
+    ol.appendChild(li);
+  });
+  det.appendChild(ol); box.appendChild(det);
+  return box;
+}
+function chatProposal(pd){
+  chatClearWait();
+  const box = planReport(pd.slots, pd.story), go = document.createElement('button');
+  go.type = 'button'; go.className = 'btn hot repgo'; go.textContent = 'Generate Reel';
+  go.addEventListener('click', () => chatGenerate(go), SIG);
+  box.appendChild(go); $('chatlog').appendChild(box); $('chatlog').scrollTop = $('chatlog').scrollHeight;
+  chatMsgs.push({ who: 'ai', text: 'Plan ready: ' + (pd.story || plan.length + ' shots') });
+  chatWaiting = false; $('chatsend').disabled = false;
+}
+function chatGenerate(btn){
+  const pd = chatPending; btn.disabled = true;
+  if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\'ll plan it anew.'); return; }
+  chatPending = null; chatReported = pd.key; director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
+  makeEdit(); if(!playing && !recording && buf && edit.length) startPlayback(0);
+  btn.textContent = 'Generated ✓';
+  chatAnswer('Your new Reel is ready ✓ Not quite right? Tell me what to change and I\'ll check it again.');
+}
+// a plan the AI made by itself (no chat): its report goes into the chat too, and the button shows there is one
+function chatReportAuto(){
+  if(chatWaiting || chatPending || !aiOn || !director || director.key !== dirKey() || chatReported === director.key) return;
+  chatReported = director.key; $('chatlog').appendChild(planReport(director.slots, director.story)); $('chatfab').classList.add('news');
+}
+function chatDone(story){ if(!chatWaiting) return; chatAnswer('Done ✓ Your Reel is edited the way you asked' + (story ? ': ' + story : '.') + ' Tell me if you want anything else.'); }
+function chatFail(msg){ if(chatWaiting) chatAnswer(msg); }
+function chatRestore(list){
+  if(!Array.isArray(list)) return; chatMsgs = list.filter(m => m && typeof m.text === 'string').slice(-20);
+  $('chatlog').innerHTML = ''; chatMsgs.forEach(m => chatSay(m.who === 'me' ? 'me' : 'ai', m.text));
+  wish = chatMsgs.filter(m => m.who === 'me').map(m => m.text).join(' · ').slice(-800);
+}
+// plain words the phone understands by itself (with or without the AI)
+function chatLocal(t){
+  const x = t.toLowerCase(), did = [];
+  const has = (...w) => w.some(k => x.includes(k));
+  if(!aiOn && has('new version', 'different version', 'another version', 'dusra', 'navin', 'नवीन')){ seed = (seed*7919 + 13) % 2147483647 || 7; mixNo++; did.push('a new version'); }
+  if(has('faster', 'fast', 'energetic', 'energy', 'jalad', 'जलद', 'speed up', 'quick')){ if(mode !== 'fast'){ setModeQuiet('fast'); did.push('the Fast style'); } }
+  else if(has('calm', 'slow', 'smooth', 'cinematic', 'halu', 'हळू', 'shant', 'शांत')){ if(mode !== 'smooth'){ setModeQuiet('smooth'); did.push('the Smooth style'); } }
+  return did;
+}
+function setModeQuiet(m){ mode = m; [...$('mode').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m)); modeWords(m); if(buf) plan = adaptPlan(); }
+function chatSend(text){
+  text = String(text || '').trim().slice(0, 300); if(!text || chatWaiting) return;
+  chatSay('me', text); chatMsgs.push({ who: 'me', text });
+  wish = chatMsgs.filter(m => m.who === 'me').map(m => m.text).join(' · ').slice(-800);
+  $('chatin').value = '';
+  const did = chatLocal(text), ready = buf && sources.length && edit.length && !recording;
+  if(!ready){ chatAnswer('Got it! I\'ll edit your Reel this way as soon as it is made.' + (did.length ? ' (Using ' + did.join(' and ') + '.)' : '')); return; }
+  if(!aiOn){
+    makeEdit();
+    chatAnswer(did.length ? 'Done ✓ I used ' + did.join(' and ') + '. (Shubix AI is off right now, so only the style changes.)' : 'Shubix AI is off right now, so I can only switch the style (say "faster" or "calmer") or make a new version.');
+    return;
+  }
+  chatWaiting = true; chatPending = null; $('chatsend').disabled = true; chatSay('ai', 'Planning your Reel: checking every clip', true);
+  dirFailedKey = ''; paceFailedKey = '';
+  const asked = chatMsgs.length;
+  makeEdit();
+  // an answer that never comes (the AI waits for the clips' check, or nothing was asked): not a spinner for ever
+  setTimeout(() => { if(chatWaiting && chatMsgs.length === asked) chatFail(dirBusy || paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : 'Your Reel is updated.'); }, 120000);
+}
+function chatOpen(on){ $('chatfab').classList.remove('news'); $('chatbox').hidden = !on; $('chatfab').setAttribute('aria-expanded', String(on)); $('chatfab').hidden = on;
+  if(on){ if(!chatMsgs.length && !$('chatlog').children.length) chatSay('ai', 'Hi! Tell me how you want this Reel: the mood, the pace, which moments, zooms, transitions, slow-mo… I\'ll edit it that way.'); $('chatin').focus(); } }
+$('chatfab').addEventListener('click', () => chatOpen(true), SIG);
+$('chatclose').addEventListener('click', () => chatOpen(false), SIG);
+$('chatform').addEventListener('submit', e => { e.preventDefault(); chatSend($('chatin').value); }, SIG);
+$('chatin').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); chatSend($('chatin').value); } }, SIG);
+$('chatchips').addEventListener('click', e => { const b = e.target.closest('button'); if(b) chatSend(b.dataset.say); }, SIG);
 /* ---- AI director: one text call plans the Reel as a story ----
    The cut times are fixed by the music. For every cut the phone offers its 3 best different moments (rules + AI scores);
    the director picks one per cut plus its transition, effect and speed. Every choice is then checked here: the moment
@@ -1920,7 +2028,7 @@ function aiDone(charged, failed){
    the shot and the style and stay within its ration, effects and speeds must suit the cut. Whatever fails keeps the
    rule choice. One plan per edit (style, mix and clips); a new mix or style asks again. */
 let director = null, dirBusy = false, dirFailedKey = '', dirCands = null;
-const dirKey = () => [mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
+const dirKey = () => [wish, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
 let mixNo = 0;   // which mix: 0 = the AI's plan, 1-4 = its other mixes (one call), then the phone's own mixes in its style
 const dirSlotOf = i => (aiOn && director && director.key===dirKey() && director.slots[i]) || null;
 const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
@@ -2008,7 +2116,7 @@ function recipeNow(){
   return r;
 }
 function tastePlan(){
-  if(mode === 'copy' || !plan.length || !buf) return;
+  if(mode === 'copy' || !plan.length || !buf || aiTrusted()) return;
   const L = buf.duration, style = TR_STYLE[mode] || TR_STYLE.auto;
   const most = Math.max(1, Math.round(L / 7)), apart = Math.max(4, L / 6);
   let used = 0, last = -99, lastAcc = -99;
@@ -2038,7 +2146,7 @@ function tastePlan(){
 // per shot, once its footage is chosen (before its keyframes are made): zooms on drops only and never two in a row, gentle
 // moves on long shots, at most a third of the shots moving; photos always move gently (a still photo looks stopped)
 function tasteFx(e, i, t){
-  if(mode === 'copy') return;
+  if(mode === 'copy' || aiTrusted()) return;
   const len = e.end - e.start, photo = root.classList.contains('photomode');
   if(BEAT_FX.includes(e.efx)){ if(mode === 'fast' && e.type === 'drop' && !t.shape) t.shape = true; else e.efx = 'none'; }
   if(e.efx === 'hook' && i > 0) e.efx = 'none';
@@ -2118,7 +2226,7 @@ function directorCandidates(){
 // The AI is asked again only for a new song, other clips or another style.
 const VARIANTS = 4;
 const aiMixes = new Map();   // dirBase -> { plans: [{ slots, ctx, sig, story }] by mix, asked, busy }
-const dirBase = () => [mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', sources.map(fpOf).join(';'), song ? song.key : ''].join('#');
+const dirBase = () => [wish, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', sources.map(fpOf).join(';'), song ? song.key : ''].join('#');
 const planSig = () => plan.length + ':' + plan.map(s=>s.start.toFixed(2)).join(',');
 function mixStore(){ const b = dirBase(); if(!aiMixes.has(b)) aiMixes.set(b, { plans: [], asked: false, busy: false }); return aiMixes.get(b); }
 // what the music does under every cut (the AI reads it; a fitted plan matches on it)
@@ -2137,7 +2245,7 @@ function rememberTools(){ if(!edit.length) return; const used = new Set();
   try{ const L = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); L.push([...used].slice(0, 30)); localStorage.setItem(RECENT_KEY, JSON.stringify(L.slice(-6))); }catch(e){} }
 function dirRequest(cands){
   const per = Math.max(1, buf.duration/30), music = cutMusic(), pc = paceNow();
-  const req = { mode, duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
+  const req = { mode, wish: wish.slice(-800), duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
     clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
     recent: recentTools(),
     allowed: { fx: Object.keys(FX_NAME).filter(k => !isLocked('fx', k)), tr: Object.keys(TR_DUR).filter(k => !isLocked('tr', k)) },
@@ -2191,7 +2299,8 @@ function directorMaybe(){
   if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
   if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
   const key = dirKey(); if((director && director.key===key && !director.interim) || dirFailedKey===key) return;
-  if(dirCache.has(key)){ director = dirCache.get(key); makeEdit(); return; }
+  if(chatPending && chatPending.key === key) return;   // the creator's asked-for plan waits for Generate
+  if(dirCache.has(key)){ if(dirArrived(key, dirCache.get(key))) makeEdit(); return; }
   const st = mixStore();
   if(mixNo > 0 && !st.asked && st.plans[0]) variantsRun(st);   // the first New mix: the AI's other mixes, in one call
   const own = st.plans[mixNo];
@@ -2247,7 +2356,7 @@ function getSoundMap(){
    the phone's own pace shows first and the AI's replaces it when it arrives. */
 let pacing = null, paceBusy = false, paceFailedKey = '';
 const paceCache = new Map();
-const paceKey = () => [musicKey, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
+const paceKey = () => [wish, musicKey, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
 const paceUsable = () => aiOn && kind !== 'talk' && buf && beats.length >= 8 && sources.length && !recording && !(mode === 'copy' && refProfile);   // a copied Reel keeps its own rhythm
 const paceNow = () => (paceUsable() && pacing && pacing.key === paceKey()) ? pacing : null;
 const paceWanted = () => paceUsable() && !paceNow() && paceFailedKey !== paceKey();
@@ -2310,7 +2419,7 @@ async function paceRun(key){
   paceBusy = true; aiStat('Shubix is listening to the song and choosing the pace…');
   const tm = timeoutSignal(25000);
   try{
-    const req = { mode, duration: +(whole ? song.buf.duration : buf.duration).toFixed(2), bpm: +(60/(whole ? song.r.period : period)).toFixed(1), clips: sources.filter(s=>!s.removed).length,
+    const req = { mode, wish: wish.slice(-800), duration: +(whole ? song.buf.duration : buf.duration).toFixed(2), bpm: +(60/(whole ? song.r.period : period)).toFixed(1), clips: sources.filter(s=>!s.removed).length,
       footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext(),
       ...(whole ? { reel: +buf.duration.toFixed(2) } : {}) };
     const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
@@ -2347,10 +2456,11 @@ async function directorRun(key){
     if(!st.plans[mix]) st.plans[mix] = { slots, ctx, sig, story: res.story || '' };   // kept for the song's other parts
     // the edit changed meanwhile (the song's part moved): the plan is fitted to it, or a new one asked (other clips)
     if(dirKey() !== key){ dirBusy = false; if(buf && sources.length && !recording) directorMaybe(); return; }
-    director = { key, slots, story: res.story || '' }; dirCache.set(key, director);
-    dirBusy = false; makeEdit();
+    dirBusy = false;
+    if(dirArrived(key, { slots, story: res.story || '' })) makeEdit();
   }catch(e){
     dirFailedKey = key;
+    chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : 'Shubix could not change the Reel right now. Try again in a moment.');
     if(tm.timedOut()) aiStat('Shubix took too long this time. Your Reel uses the phone\'s own smart edit.');
     else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('Shubix is busy right now. Your Reel uses the phone\'s own smart edit.'); }
   }finally{ dirBusy = false; tm.done(); }
@@ -2600,6 +2710,7 @@ function makeEditNow(){
     aiStat('Shubix planned your Reel' + (director.story ? ': ' + director.story : '.') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '')); }
   captureLoop(); editGen++;
   paceMaybe(); directorMaybe();
+  chatReportAuto();
   if(look === 'copy' && refProfile) setTimeout(()=>{ copyLook(); }, 0);
 }
 function captureLoop(){
@@ -5969,7 +6080,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), sfx: sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '', seq: seqOn },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), sfx: sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '', seq: seqOn, chat: chatMsgs.slice(-20) },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
@@ -6017,7 +6128,7 @@ async function openProject(id){
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
     if(S.au) au = { ...AU0, ...S.au }; auUI();
     if(S.tts && S.tts.length){ ttsClips = S.tts.map(c => ({ ...c })); ttsSeq = ttsClips.reduce((q, c) => Math.max(q, c.id), 0); ttsList(); }
-    hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1; if(S.denoise === false){ denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
+    hookText = S.hookText || ''; $('hook').value = hookText; seed = S.seed || 1; chatRestore(S.chat); if(S.denoise === false){ denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
     if(S.trTo){ for(const [k, v] of S.tr || []) trCache.set(k, v); trTo = S.trTo; trOnly = !!S.trOnly; $('captr').value = trTo; $('tronly').checked = trOnly; $('trwrap').hidden = false; }
     if(st.caps && st.caps.key) capCache.set(st.caps.key, st.caps.all);

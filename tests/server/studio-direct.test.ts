@@ -225,3 +225,18 @@ describe("every tool is open to the AI", () => {
     expect(out.slots[2]).not.toHaveProperty("clip");   // a background without "fit" and a word for a number: nothing usable
   });
 });
+
+describe("the creator's chat (Ask Shubix)", () => {
+  const sec = [{ i: 0, t: 0, len: 20, beats: 40, starts: "start", loud: 0.5, trend: "steady", bass: 0.5, drums: 0.5, voice: 0.5, hitRate: 1, now: 2 }];
+  it("puts what the creator asked in both prompts, ahead of the rules, and nothing when they asked nothing", () => {
+    const d = DirectIn.parse({ ...req(2), wish: "zoom on the drop · start with my face" });
+    expect(prompt(d)).toContain('THE CREATOR ASKED FOR THIS');
+    expect(prompt(d)).toContain('"zoom on the drop · start with my face"');
+    expect(variantsPrompt({ ...d, variants: 2 })).toContain("THE CREATOR ASKED FOR THIS");
+    expect(pacePrompt(PaceIn.parse({ mode: "auto", duration: 20, bpm: 120, footage: 30, clips: 3, wish: "faster cuts", sections: sec }))).toContain('"faster cuts"');
+    expect(prompt(req(2))).not.toContain("THE CREATOR ASKED");
+  });
+  it("keeps the wish short", () => {
+    expect(() => DirectIn.parse({ ...req(1), wish: "x".repeat(801) })).toThrow();
+  });
+});
