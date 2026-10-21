@@ -107,12 +107,18 @@ vi.mock("@/server/core/db", () => {
       find: (f?: Record<string, unknown>) => cursor(all().filter((d) => match(d, scope(f)))),
       insertOne: async (d: Record<string, unknown>) => { const doc = { ...d, _id: "id" + ++store.seq, ...(owner ? { ownerId: owner } : {}) }; all().push(doc); return { insertedId: doc._id }; },
       insertMany: async (ds: Record<string, unknown>[]) => { for (const d of ds) all().push({ ...d, _id: "id" + ++store.seq, ...(owner ? { ownerId: owner } : {}) }); return {}; },
+      findOne: async (f: Record<string, unknown>) => all().find((d) => match(d, scope(f))) ?? null,
+      countDocuments: async (f: Record<string, unknown> = {}) => all().filter((d) => match(d, scope(f))).length,
+      updateOne: async (f: Record<string, unknown>, u: { $setOnInsert: Record<string, unknown> }, o?: { upsert?: boolean }) => {
+        if (all().some((d) => match(d, scope(f))) || !o?.upsert) return {}; all().push({ ...u.$setOnInsert, _id: "id" + ++store.seq }); return {}; },
       deleteOne: async (f: Record<string, unknown>) => { const a = all(), i = a.findIndex((d) => match(d, scope(f))); if (i >= 0) a.splice(i, 1); return { deletedCount: i >= 0 ? 1 : 0 }; },
       aggregate: (p: Record<string, Record<string, unknown>>[]) => { const m = p[0].$match ?? {}; const rows = all().filter((d) => match(d, owner ? { ...m, ownerId: owner } : m)); const g = new Map<string, number>(); for (const d of rows) g.set(String(d.category), (g.get(String(d.category)) ?? 0) + 1); return { toArray: async () => [...g].map(([k, n]) => ({ _id: k, n })) }; },
     };
   };
   return { db: async () => ({ collection: (n: string) => col(n, store.user) }), mainDb: async () => ({ collection: (n: string) => col(n, null) }), parseId: (id: string) => id };
 });
+
+vi.mock("@/server/core/auth", () => ({ currentUser: () => store.user }));
 
 describe("storage", () => {
   it("keeps mine private, lets shared ones teach everyone, and learns from corrections", async () => {
@@ -133,5 +139,24 @@ describe("storage", () => {
     store.user = "bob"; await expect(deleteStyle(aliceIds[0])).rejects.toThrow();                // cannot delete hers
     store.user = "alice"; await deleteStyle(aliceIds[0]); expect((await listStyles()).mine).toHaveLength(3);
     await expect(learnedStyle("cars", "all")).rejects.toThrow();
+  });
+});
+
+describe("Reels from creators wait for the administrator", () => {
+  it("a copied Reel teaches nothing until the administrator uses it under a kind; removing drops it", async () => {
+    const { suggestStyle, listSuggestions, approveSuggestion, removeSuggestion, learnedStyle } = await import("@/server/studio/styles");
+    store.cols.clear();
+    store.user = "carol"; const fp = dance();
+    await suggestStyle({ name: "trend 1", fp }); await suggestStyle({ name: "trend 1 again", fp });   // the same Reel twice: kept once
+    await suggestStyle({ name: "trend 2", fp: dance() });
+    expect((await learnedStyle("dance", "all")).n).toBe(0);                     // waiting: teaches nothing
+    store.user = "admin"; const list = await listSuggestions();
+    expect(list.total).toBe(2); expect(list.items.map((s) => s.name).sort()).toEqual(["trend 1", "trend 2"]);
+    const one = list.items.find((s) => s.name === "trend 1")!, two = list.items.find((s) => s.name === "trend 2")!;
+    await approveSuggestion({ id: one.id, category: "dance" });
+    await removeSuggestion(two.id);
+    expect((await listSuggestions()).total).toBe(0);
+    store.user = "dave"; expect((await learnedStyle("dance", "all")).n).toBe(1);  // used: it teaches everyone's styles
+    await expect(approveSuggestion({ id: one.id, category: "dance" })).rejects.toThrow();
   });
 });

@@ -1,6 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { RefMoment } from "@/server/studio/direct";
+import { createHash } from "node:crypto";
+import { currentUser } from "@/server/core/auth";
 import { db, mainDb, parseId } from "@/server/core/db";
 import { NotFoundError } from "@/server/core/errors";
 
@@ -26,6 +28,9 @@ export const Fingerprint = z.object({
 });
 export type Fingerprint = z.infer<typeof Fingerprint>;
 export const SaveIn = z.object({ name: z.string().trim().min(1).max(120), category: z.enum(CATEGORIES), shared: z.boolean().default(false), fp: Fingerprint });
+/** a Reel a creator gave to "Copy a Reel": offered to the administrator, who decides whether it teaches the styles */
+export const SuggestIn = z.object({ name: z.string().trim().min(1).max(120), fp: Fingerprint });
+export const ApproveIn = z.object({ id: z.string().max(40), category: z.enum(CATEGORIES) });
 export const EditsIn = z.object({ category: z.enum([...CATEGORIES, "general"] as [string, ...string[]]),
   edits: z.array(z.object({ type: z.enum(["drop", "hit", "cut", "break"]), field: z.enum(FIELDS), from: z.string().max(24), to: z.string().max(24),
     /** the choice that was changed was the AI director's (how often people undo the AI is how good it is) */
@@ -130,4 +135,32 @@ export async function recordEdits(d: z.infer<typeof EditsIn>) {
   const at = new Date();
   await (await editsCol()).insertMany(d.edits.map((e) => ({ ...e, category: d.category, at })));
   return { ok: true, n: d.edits.length };
+}
+
+// ---- Reels from creators: only the administrator teaches the styles. A Reel a creator copies ("Copy a Reel") is kept
+// here (its fingerprint, never the video) until the administrator uses it, under the kind they choose, or removes it.
+const SUGGEST_MAX = 500;
+const suggestions = async () => (await mainDb()).collection("studio_style_suggestions");
+export async function suggestStyle(d: z.infer<typeof SuggestIn>) {
+  const col = await suggestions(), key = createHash("sha1").update(JSON.stringify(d.fp)).digest("hex");
+  if (await col.countDocuments({}) >= SUGGEST_MAX) return { ok: true, kept: false };   // the administrator has plenty waiting
+  await col.updateOne({ key }, { $setOnInsert: { key, name: d.name, fp: d.fp, by: currentUser() ?? null, createdAt: new Date() } }, { upsert: true });
+  return { ok: true, kept: true };
+}
+export async function listSuggestions() {
+  const docs = await (await suggestions()).find({}).sort({ createdAt: -1 }).limit(200).toArray();
+  return { items: docs.map((d) => ({ id: String(d._id), name: String(d.name), createdAt: d.createdAt, ...summary(d.fp as Fingerprint), bpm: Math.round((d.fp as Fingerprint).bpm), dur: Math.round((d.fp as Fingerprint).dur) })), total: await (await suggestions()).countDocuments({}) };
+}
+/** the administrator uses a creator's Reel: it becomes one of the administrator's shared styles of that kind */
+export async function approveSuggestion(d: z.infer<typeof ApproveIn>) {
+  const col = await suggestions(), doc = await col.findOne({ _id: parseId(d.id) });
+  if (!doc) throw new NotFoundError("This Reel is no longer waiting.", { code: "SUGGESTION_NOT_FOUND" });
+  const saved = await saveStyle({ name: String(doc.name), category: d.category, shared: true, fp: doc.fp as Fingerprint });
+  await col.deleteOne({ _id: doc._id });
+  return saved;
+}
+export async function removeSuggestion(id: string) {
+  const r = await (await suggestions()).deleteOne({ _id: parseId(id) });
+  if (!r.deletedCount) throw new NotFoundError("This Reel is no longer waiting.", { code: "SUGGESTION_NOT_FOUND" });
+  return { ok: true };
 }

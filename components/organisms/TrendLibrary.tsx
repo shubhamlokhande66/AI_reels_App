@@ -8,7 +8,7 @@ import { btnDanger, btnPrimary, btnSecondary, Card, Spinner } from "@/components
 import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
 import { PICKER_VIDEO, isVideoFile } from "@/lib/format";
-import type { LearnedTrend, TrendLook, TrendProfile } from "@/types/api";
+import type { LearnedTrend, StyleSuggestion, TrendLook, TrendProfile } from "@/types/api";
 
 const FIELD = "w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent";
 
@@ -170,6 +170,64 @@ function TrendCard({ t }: { t: LearnedTrend }) {
   );
 }
 
+const KINDS: [string, string][] = [["wedding", "Wedding"], ["travel", "Travel"], ["festival", "Festival"], ["dance", "Dance"], ["talking", "Talking"], ["product", "Product"],
+  ["food", "Food"], ["fitness", "Fitness"], ["vlog", "Vlog"], ["birthday", "Birthday"], ["other", "Other"]]; // server/studio/styles.ts CATEGORIES
+
+function SuggestionRow({ s }: { s: StyleSuggestion }) {
+  const qc = useQueryClient();
+  const [kind, setKind] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const refresh = () => qc.invalidateQueries({ queryKey: ["style-suggestions"] });
+  const use = useMutation({ mutationFn: () => api.useStyleSuggestion(s.id, kind), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
+  const remove = useMutation({ mutationFn: () => api.removeStyleSuggestion(s.id), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
+  const busy = use.isPending || remove.isPending;
+  return (
+    <li className="space-y-2 rounded-xl bg-surface-2 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{s.name}</p>
+          <p className="text-xs text-muted">{s.dur}s{s.bpm ? ` · ${s.bpm} BPM` : ""} · {s.pace}{s.trans ? ` · ${s.trans}` : ""}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select aria-label={`Kind of Reel for ${s.name}`} value={kind} onChange={(e) => setKind(e.target.value)} className="rounded-xl border border-border bg-surface px-2 py-2 text-sm">
+            <option value="">Kind of Reel…</option>
+            {KINDS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+          </select>
+          <button type="button" className={btnPrimary} disabled={busy || !kind} onClick={() => { setError(null); use.mutate(); }}>{use.isPending ? "Using…" : "Use"}</button>
+          <button type="button" className={btnDanger} disabled={busy} onClick={() => { setError(null); remove.mutate(); }}>Remove</button>
+        </div>
+      </div>
+      {error && <ErrorBanner message={error} />}
+    </li>
+  );
+}
+
+/** Reels creators copied in the studio ("Copy a Reel"): only their numbers are kept, never the video. Only the
+ * administrator teaches the styles: each waits here until it is used (under a kind) or removed. */
+function Suggestions() {
+  const q = useQuery({ queryKey: ["style-suggestions"], queryFn: api.styleSuggestions });
+  return (
+    <Card className="space-y-3">
+      <div>
+        <h2 className="h2">Reels from users</h2>
+        <p className="mt-1.5 text-sm text-muted">
+          Reels people gave to “Copy a Reel”. Only their numbers are kept (pace, cuts, transitions, look), never the video. Pick the kind
+          and tap Use to teach Shubix&apos;s styles with it, or Remove it.
+        </p>
+      </div>
+      {q.isLoading && <Spinner label="Loading…" />}
+      {q.error && <ErrorBanner message={errorMessage(q.error)} />}
+      {q.data && q.data.items.length === 0 && <p className="text-sm text-muted">Nothing waiting.</p>}
+      {q.data && q.data.items.length > 0 && (
+        <ul className="space-y-2" aria-label="Reels from users">
+          {q.data.items.map((s) => <SuggestionRow key={s.id} s={s} />)}
+        </ul>
+      )}
+      {q.data && q.data.total > q.data.items.length && <p className="text-xs text-muted">Showing the newest {q.data.items.length} of {q.data.total}.</p>}
+    </Card>
+  );
+}
+
 /** My trends: the /trends page, and a tab of the admin dashboard (embedded: the dashboard's header has the title). */
 export function TrendLibrary({ embedded = false }: { embedded?: boolean } = {}) {
   const q = useQuery({ queryKey: ["references"], queryFn: api.references });
@@ -177,6 +235,7 @@ export function TrendLibrary({ embedded = false }: { embedded?: boolean } = {}) 
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
       {!embedded && <PageHeader title="My trends" subtitle="Give a trending Reel; its cuts, pace and look are learned." />}
       <LearnForm />
+      <Suggestions />
       <div className="between">
         <h2 className="ht">Trend library</h2>
         {q.data && <span className="mu sm">{q.data.length} trend{q.data.length === 1 ? "" : "s"}</span>}
