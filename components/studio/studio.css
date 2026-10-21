@@ -544,6 +544,11 @@
 
 /* 1 Choose Music: the song from the phone, the recent songs as cards, the waveform and the length */
 .brs.fopen .fpickrow{gap:12px}
+/* a song being read (engine.ts songBusy): a spinner in Choose song, the recent songs wait */
+.brs #mpick.busy{opacity:1;cursor:progress}
+.brs #mpick.busy svg{display:none}
+.brs #mpick.busy::before{content:"";width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:aospin .8s linear infinite;flex:none}
+.brs .rlist.busy{opacity:.5;pointer-events:none}
 .brs.fopen #mpick{min-height:48px;border-radius:14px;padding:0 18px}
 .brs.fopen .recent{gap:10px}
 .brs.fopen .rlist{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:12px;overflow-x:auto;scrollbar-width:none;padding:2px}
@@ -654,6 +659,8 @@
   .brs.fopen .fprev{position:sticky;top:84px;padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--surface)}
   .brs.fopen .fadjust{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start}
   .brs.fopen .fadjust .fwavebox{grid-row:span 3}
+  .brs.fopen .fadjust .fsugg{grid-column:1/-1}   /* the Suggested Part note across the whole width */
+  .brs.fopen .rlist{grid-auto-columns:minmax(160px,210px)}   /* one recent song is a card, not the whole width */
   .brs.fopen .fchoose{display:grid;gap:12px}
   .brs.fopen .fai .faibody{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:center}
   .brs.fopen .faiList{grid-template-columns:1fr 1fr}
@@ -906,16 +913,17 @@
 }
 /* phones: the flow screens are the whole screen (no legal links under them, as designed) */
 @media (max-width:1023px){ body:has(.brs.fopen) nav[aria-label="Legal"],body:has(.brs.fpost) nav[aria-label="Legal"]{display:none} }
-/* phones: each clip says only how far it is read (%), then a green tick and its length; a clip that cannot play: a red "!" */
+/* phones: each clip says only how far it is read (%), then its length; a clip that cannot play says so */
 @media (max-width:1023px){
   .brs.fopen .clip .dd{font-size:0;line-height:1}
   .brs.fopen .clip .dd::after{content:"…";font:800 11.5px var(--body);color:#fff}
   .brs.fopen .clip .dd[data-st="read"]::after{content:attr(data-p) "%"}
   .brs.fopen .clip .dd[data-st="ok"]::after{content:attr(data-len)}
   .brs.fopen .clip .dd[data-st="bad"]::after{content:"Cannot play"}
-  .brs.fopen .clip:has(.dd[data-st="ok"])::before{content:"✓";position:absolute;top:6px;left:6px;z-index:2;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#22c55e;color:#fff;font:800 12px var(--body);box-shadow:0 2px 6px rgba(0,0,0,.35)}
-  .brs.fopen .clip:has(.dd[data-st="bad"]){outline:2px solid var(--danger);outline-offset:-2px}
 }
+/* phones and computers: a clip read and ready shows a green tick; a clip that cannot play, a red outline */
+.brs.fopen .clip:has(.dd[data-st="ok"])::before{content:"✓";position:absolute;top:6px;left:6px;z-index:2;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#22c55e;color:#fff;font:800 12px var(--body);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.brs.fopen .clip:has(.dd[data-st="bad"]){outline:2px solid var(--danger);outline-offset:-2px}
 @media (max-width:1023px){
   /* 5: the privacy note in one line */
   .brs.fopen .fan .fbox{white-space:nowrap;font-size:11.5px;padding:11px 12px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
@@ -1502,3 +1510,23 @@
   .brs.review.made.v-one .bar{justify-self:center;width:min(420px,80%)}
 }
 @media (max-width:1023px){ .brs.fpost .feditbar{order:2;margin-top:10px} }
+
+/* computers, the editor open: it fills the page beside the app's sidebar (no side gaps; the tool panel had too little
+   room and its tabs' names were cut) */
+@media (min-width:1024px){
+  main > .max-w-6xl:has(.brs.made.editing){max-width:none;width:auto;margin-left:-32px;margin-right:-32px}   /* past main's 32 px sides */
+  .brs.made.editing:not(.fopen) .create{grid-template-columns:minmax(340px,380px) minmax(0,1fr)}   /* room for the tool tabs' names */
+  .brs.noir.made.editing .ptabs{grid-template-columns:repeat(7,minmax(max-content,1fr));padding-left:4px;padding-right:4px}   /* each name whole */
+  .brs.made.editing{padding-left:0;padding-right:0;border-left:0;border-right:0;border-radius:0}
+  .brs.made.editing .create{border-left:0;border-right:0;border-radius:0}
+  .brs.made.editing :is(.topbar,.fcrumbs){padding-left:16px;padding-right:16px}
+}
+/* computers: previous · play · next sit in the very middle of the play bar (under the preview and the Edit button);
+   the times stay on the left and the picture / full screen / Change Reel on the right */
+@media (min-width:1024px){
+  .brs.made.v-one .transport{position:relative}
+  .brs.made.v-one .transport #play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+  .brs.made.v-one .transport #pshot{position:absolute;right:calc(50% + 28px);top:50%;transform:translateY(-50%);margin:0}
+  .brs.made.v-one .transport #nshot{position:absolute;left:calc(50% + 28px);top:50%;transform:translateY(-50%);margin:0}
+  .brs.made.v-one .transport #cover{margin-left:auto}
+}

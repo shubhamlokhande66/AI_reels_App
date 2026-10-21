@@ -37,6 +37,13 @@ describe("AppShell navigation", () => {
     expect(screen.getAllByText("me@example.com").length).toBeGreaterThan(0); // the sidebar and the phone menu
   });
 
+  it("gives the phone menu the sidebar's groups, Pricing & plans too", () => {
+    renderShell();
+    const menu = within(screen.getByRole("navigation", { name: "Pages", hidden: true }));
+    for (const g of ["Studio", "Library", "Account"]) expect(menu.getByText(g)).toBeInTheDocument();
+    expect(menu.getByRole("link", { name: /Pricing & plans/, hidden: true })).toHaveAttribute("href", "/pricing");
+  });
+
   it("shows no admin tools and no Admin dashboard button to people", () => {
     const nav = renderShell();
     for (const name of ["AI Edit", "Beat Sync check", "Chat", "AI settings"]) expect(nav.queryByRole("link", { name: new RegExp(name) })).not.toBeInTheDocument();

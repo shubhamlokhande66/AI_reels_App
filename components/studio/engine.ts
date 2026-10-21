@@ -631,14 +631,18 @@ async function decodeAnyAudio(file){
     return out;
   } finally { try{ input.dispose(); }catch(e){} }
 }
+// Choose song shows a spinner while the song is read and its beats found (a long song or a video takes seconds; the
+// Create flow hides the status line on phones, so the button itself says it is working)
+function songBusy(on){ const b = $('mpick'); b.classList.toggle('busy', on); b.setAttribute('aria-busy', String(on)); b.disabled = on;
+  b.querySelector('span').textContent = on ? 'Reading the song…' : 'Choose song'; $('rlist').classList.toggle('busy', on); }
 async function loadMusic(file, cached = null){
   const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
-  stopAll();
+  stopAll(); songBusy(true);
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
   tasks.start('song', 'music', 'Adding your song', 'Reading the sound of ' + name.replace(/\.[^.]+$/, ''));
   let whole;
   try{ whole = await decodeAnyAudio(file); }
-  catch(e){ if(token !== musicToken) return; console.warn('song not readable', e); tasks.fail('song', 'This file has no sound we can read. Try an MP3, M4A or WAV.'); $('s1st').textContent = 'Could not read the sound of this file. Use MP3, M4A, WAV or a video with sound. (Songs in the Apple Music app are protected and cannot be opened by websites.)'; return; }
+  catch(e){ if(token !== musicToken) return; songBusy(false); console.warn('song not readable', e); tasks.fail('song', 'This file has no sound we can read. Try an MP3, M4A or WAV.'); $('s1st').textContent = 'Could not read the sound of this file. Use MP3, M4A, WAV or a video with sound. (Songs in the Apple Music app are protected and cannot be opened by websites.)'; return; }
   if(token !== musicToken) return;
   const m = new Float32Array(whole.length);
   { const ch = whole.numberOfChannels; for(let c=0;c<ch;c++){ const d = whole.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ch; } }
@@ -655,7 +659,7 @@ async function loadMusic(file, cached = null){
   song.r = r; song.source = r.beatSource || 'own';
   await useSection(token);
   if(token !== musicToken) return;
-  $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked'); $('lenrow').hidden = kind === 'talk';
+  songBusy(false); $('s1st').textContent = 'Ready'; $('s1').classList.add('done'); $('s2').classList.remove('locked'); $('lenrow').hidden = kind === 'talk';
   tasks.done('song', 'Song ready' + (sources.length ? '' : ' · now add your clips'));
   if(cached && cached.aiDone){ $('s1st').textContent = 'Ready · beats as checked before'; rememberSong(file, r, true); }
   else { rememberSong(file, r, false); checkBeatsWithAi(token); }

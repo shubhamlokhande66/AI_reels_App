@@ -47,7 +47,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const kf = $<HTMLDetailsElement>("kfbox");
   const view: StudioView = savedView();
   let tool = "";
-  let shotKey = "", lanesKey = "", shotTab = 0, ctOpen = "", ctKey = "";
+  let shotKey = "", lanesKey = "", shotTab = 0, ctOpen = "", ctKey = "", revealKey = "", shownTool = "";
   const q = new URLSearchParams(location.search).get("tool");
   // The made Reel opens as a review: the preview big, Change Reel, Export and Edit. Edit opens the timeline and the tools
   // (✓ Done editing goes back). A saved Reel opened again (?p=) or a tool asked for (?tool=) opens in the editor.
@@ -98,7 +98,23 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (kf.open !== kfWant) kf.open = kfWant;
     if (view === "all") $<HTMLDetailsElement>("allshots").open = true;
     shotKey = ""; lanesKey = "";
+    if (tool !== shownTool) { shownTool = tool; requestAnimationFrame(() => reveal(root.querySelector(".panel.on"))); }
     requestAnimationFrame(() => { const st = S() as (Studio & { drawTimeline?: () => void }) | undefined; if (st && st.edit.length) st.drawTimeline?.(); });   // the strip at its new size
+  };
+  // a picker opened (a tool, the shot's Transition / Effect): its chosen item is scrolled into view, so nobody has to
+  // hunt for it in a long list. The longest list in the box counts; only its own scrolling boxes move, never the page.
+  const reveal = (box: Element | null) => {
+    if (!box) return;
+    const on = [...box.querySelectorAll<HTMLElement>(':is(.seg,.chips,.sstiles,.tpl) > [aria-pressed="true"]')]
+      .sort((a, b) => b.parentElement!.childElementCount - a.parentElement!.childElementCount)[0];
+    if (!on || on.parentElement!.childElementCount < 6) return;
+    for (let p = on.parentElement; p && p !== root; p = p.parentElement) {
+      const s = getComputedStyle(p), y = /(auto|scroll)/.test(s.overflowY) && p.scrollHeight > p.clientHeight + 1, x = /(auto|scroll)/.test(s.overflowX) && p.scrollWidth > p.clientWidth + 1;
+      if (!x && !y) continue;
+      const r = on.getBoundingClientRect(), pr = p.getBoundingClientRect();
+      if (x) p.scrollLeft += r.left - pr.left - (pr.width - r.width) / 2;
+      if (y) { p.scrollTop += r.top - pr.top - (pr.height - r.height) / 2; return; } // a sideways strip: its column too
+    }
   };
   const openStep = (id: string, open: boolean) => {
     const s = $(id), h = s.querySelector<HTMLButtonElement>(".sh")!;
@@ -234,6 +250,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;
     if (!$("shotsheet").hidden) $("ssbody").innerHTML = sheetHtml(i, sels, clipName); // the shot sheet (the design's frame 3)
     clipUI(true);
+    const rk = i + "|" + shotTab + "|" + $("shotsheet").hidden; // another shot or tab: its chosen tile in view
+    if (rk !== revealKey) { revealKey = rk; requestAnimationFrame(() => { reveal($("ssbody")); reveal($("shotcard")); }); }
   };
   // the shot sheet, as the design: the shot's picture, "Shot 1 · 2.40 s", ‹ ›; Transition (29) · Effect (25) · Speed as
   // picture tiles (the shot's own lit); Speed; the actions with their signs; the clip tools, sideways

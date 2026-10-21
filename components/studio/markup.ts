@@ -120,7 +120,7 @@ export const STUDIO_HTML = `
     <div class="sbody">
     <div class="fchoose">
     <div class="row fpickrow">
-      <button class="btn primary" id="mpick">${IC.music}Choose song</button>
+      <button class="btn primary" id="mpick">${IC.music}<span>Choose song</span></button>
       <input id="mfile" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.mov,.mp4" hidden>
       <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
       <button class="btn ghost" id="skipmusic" type="button" hidden>Continue without music</button>
