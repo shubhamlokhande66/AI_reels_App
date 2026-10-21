@@ -99,7 +99,8 @@ export async function summary(userId: string) {
   return { enabled: true, balance: balanceOf(w), monthly: Number(w.monthly ?? 0), extra: Number(w.extra ?? 0), plan: w.plan, planName: plans.get(String(w.plan))?.name ?? w.plan, period: w.period ?? null,
     planEnds: w.planEnds ?? null, renews: w.cycleEnds ?? null, history };
 }
-export async function myCredits() { const uid = currentUser(); return !enabled() || !uid ? { enabled: false } : summary(uid); }
+/** billing: true when billing is on but nobody is signed in (the studio then follows the free plan, not "everything open") */
+export async function myCredits() { const uid = currentUser(); return !enabled() || !uid ? { enabled: false, billing: enabled() } : summary(uid); }
 
 // ------------------------------------------------------------------ payments
 function uidOrThrow() { const uid = currentUser(); if (!uid) throw new AuthRequired("Please sign in to buy a plan or credits."); return uid; }

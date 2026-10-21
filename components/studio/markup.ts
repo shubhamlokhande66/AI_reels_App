@@ -2,9 +2,9 @@
  *
  * One editor for everyone (the .brs root carries v-one, set by components/studio/views.ts): the song and clips fold
  * into one line each; the preview, the timeline and one tool bar with every tool (shot, music, text, captions, look,
- * motion, background, overlay, voice, style), one panel open at a time. Pro tools carry a PRO tag (views.ts PRO_TOOLS).
+ * motion, background, overlay, voice, style), one panel open at a time. A plan's tools carry its tag (views.ts PLAN_TOOLS).
  * ?view=all opens every panel at once (checks and support). */
-import { PRO_TOOLS } from "./views";
+import { PLAN_TOOLS } from "./views";
 
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
@@ -55,8 +55,9 @@ const TOOLS: [string, string, string][] = [
   ["style", "Style", IC.style], ["shots", "Shots", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
   ["look", "Look", IC.look], ["bg", "Background", IC.bg], ["layers", "Layers", IC.layers], ["voice", "Voice", IC.voice], ["motion", "Motion", IC.motion],
 ];
-// every tool in one bar; a Pro tool (views.ts PRO_TOOLS) carries a PRO tag, and on a free plan it opens /pricing
-const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span>${PRO_TOOLS.has(k) ? `<em class="protag">${IC.crown}PRO</em>` : ""}</button>`).join("");
+// every tool in one bar; a plan's tool (views.ts PLAN_TOOLS) carries its plan's tag (views.ts writes the plan's name), and
+// on a lower plan it opens /pricing
+const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag">${IC.crown}<b>PRO</b></em>` : ""}</button>`).join("");
 const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; return `<h3 class="ph">${t[2]}${t[1]}</h3>`; };
 
 export const STUDIO_HTML = `
@@ -66,6 +67,7 @@ export const STUDIO_HTML = `
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
   <label class="tb-aspect" title="Format"><select id="tbaspect" aria-label="Format"><option value="9:16">9:16</option><option value="4:5">4:5</option><option value="1:1">1:1</option><option value="16:9">16:9</option></select></label>
   <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
+  <button type="button" class="btn tb-asfree" id="tbasfree" aria-pressed="false" title="Administrator: see the studio as a Free plan sees it">View as Free</button>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
 <div class="wrap">

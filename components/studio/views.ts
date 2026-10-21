@@ -3,12 +3,15 @@
  * - every tool in one bar (Shot, Music, Text, Captions, Look, Motion, Background, Overlay, Voice, Style), one panel open
  *   at a time; computers: the tools down the left, the preview in the middle, the open tool on the right and the
  *   multi-track timeline (video, text, voice, music) underneath; phones: the tools in a row under the preview.
- * - Pro tools (PRO_TOOLS) carry a PRO tag: on a free plan a tap opens the pricing page instead.
+ * - the plan's tools (PLAN_TOOLS: Motion, Layers, Background, Voice) need the plan the administrator set for them (Admin →
+ *   Settings → Plan locks → Studio tools; Pro by default): on a lower plan they carry that plan's tag (PRO, CREATOR…)
+ *   and a tap opens the pricing page instead. The administrator has everything, and "View as Free" in the top bar
+ *   shows the studio as a free plan sees it.
  * Also: the song and clips steps fold into one line once the Reel is made, the top bar's title and Export. */
 
 export type StudioView = "one" | "all"; // "all": every panel open (checks and support, by link only)
-// the tools of paid plans (and the administrator); free plans see them with a PRO tag that opens /pricing
-export const PRO_TOOLS = new Set(["motion", "layers", "bg", "voice"]);
+// the tool bar's tools a plan opens (lib/plan-locks.ts, group "studio"); a lower plan sees its tag and /pricing
+export const PLAN_TOOLS = new Set(DEFAULT_LOCKS.groups.find((g) => g.id === "studio")!.items.map((it) => it.key));
 
 type Shot = { start: number; end: number; src: number; type: string; tr: string; efx: string; uk?: { t: number }[]; ak?: { t: number }[]; acc?: { at: number; do: string }[]; sp?: { label: string } };
 type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean };
@@ -33,6 +36,7 @@ const fmt2 = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), 
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"]; // as the engine's strip
 const TYPE: Record<string, string> = { drop: "Drop", hit: "Hit", cut: "Cut", break: "Break", talk: "Talk", jump: "Talk" };
 import { clipToolsEvents, clipToolsHtml, type ClipApi } from "./clipTools";
+import { DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, type PlanId } from "../../lib/plan-locks";
 
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -55,9 +59,22 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // computers keep a tool open beside the preview (the shot first); phones show the Reel, a tool opens over it
   const wide = () => window.matchMedia("(min-width: 1024px)").matches;
   const defTool = () => (wide() ? "media" : ""); // computers: the left panel opens on Media (the design); phones: the Reel
-  // a paid plan (or the administrator, or billing off) uses the Pro tools; until the server says so they are locked
-  let paid = false;
-  const locked = (k: string) => PRO_TOOLS.has(k) && !paid && !root.classList.contains("admin");
+  // the plan's tools: the plan seen last (the engine keeps it on the phone), then what the engine reads from the server
+  // ("brs-plan" below). Billing off or the administrator: all open; the administrator's View as Free: the free plan.
+  let plan = "free", open = false, need: Record<string, string> = needMap(DEFAULT_LOCKS);
+  try { const c = JSON.parse(localStorage.getItem("brs-plan") || "null"); if (c && Date.now() - c.at < 7 * 864e5) { plan = c.plan || "free"; open = !!c.open; if (c.need) need = c.need; } } catch {}
+  try { if (localStorage.getItem("brs-asfree") === "1") root.classList.add("asfree"); } catch {}
+  const asFree = () => root.classList.contains("admin") && root.classList.contains("asfree");
+  const needOf = (k: string) => (need["studio:" + k] || "free") as PlanId;
+  const locked = (k: string) => PLAN_TOOLS.has(k) && (asFree() ? planRank(needOf(k)) > 0 : !open && !root.classList.contains("admin") && planRank(needOf(k)) > planRank(plan));
+  // each plan's tool: locked or not, and its tag says the plan it needs
+  const paintLocks = () => root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) => {
+    const k = b.dataset.tool!, lock = String(locked(k)), tag = b.querySelector(".protag b");
+    if (b.dataset.locked !== lock) b.dataset.locked = lock;
+    const name = PLAN_NAME[needOf(k)] ?? "Pro", title = lock === "true" ? name + " plan: tap to see the plans" : "";
+    if (tag && tag.textContent !== name.toUpperCase()) tag.textContent = name.toUpperCase();
+    if (b.title !== title) b.title = title;
+  });
   const apply = () => {
     root.classList.remove("v-simple", "v-editor", "v-pro", "v-one", "v-all");
     root.classList.add("v-" + view);
@@ -71,9 +88,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     root.querySelectorAll<HTMLButtonElement>("#ptabs [data-pt]").forEach((b) => b.setAttribute("aria-pressed", String(PT[tool] === b.dataset.pt)));
     root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.tool === tool));
-      const lock = String(locked(b.dataset.tool!));
-      if (b.dataset.locked !== lock) b.dataset.locked = lock;
     });
+    paintLocks();
     const on = new Set(view === "all" ? [...root.querySelectorAll<HTMLElement>(".panel")].map((p) => p.dataset.panel!) : tool ? [tool] : []);
     root.querySelectorAll<HTMLElement>(".panel").forEach((p) => p.classList.toggle("on", on.has(p.dataset.panel!)));
     // the keyframe panel is open when Motion is shown (dragging the picture then moves the shot)
@@ -109,6 +125,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       return;
     }
     if (t.closest("#fedit")) { setEditing(true); return; }
+    if (t.closest("#tbasfree")) { // the administrator: see the studio as a free plan sees it (the engine repaints its crowns)
+      const on = !root.classList.contains("asfree");
+      root.classList.toggle("asfree", on);
+      try { localStorage.setItem("brs-asfree", on ? "1" : "0"); } catch {}
+      if (tool && locked(tool)) tool = defTool();
+      apply(); root.dispatchEvent(new Event("brs-asfree"));
+      return;
+    }
     if (t.closest("#feditdone")) { closeShot(); setEditing(false); return; }
     const b = t.closest<HTMLButtonElement>(".tool");
     if (b) {
@@ -661,6 +685,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   let wasMade = made();
   const onChange = () => {
     if (root.classList.contains("review") !== reviewNow()) root.classList.toggle("review", reviewNow());
+    paintLocks(); // the administrator's class comes after the first paint
+    const af = String(asFree()), ab = root.querySelector("#tbasfree"); if (ab && ab.getAttribute("aria-pressed") !== af) ab.setAttribute("aria-pressed", af);
     // the editor's workspace (.noir: its layout); its colours follow the app's Light / Dark switch (app/globals.css)
     const noir = made() && !root.classList.contains("fopen");
     if (root.classList.contains("noir") !== noir) { root.classList.toggle("noir", noir); media(noir); }
@@ -682,9 +708,12 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   tool = defTool();
   if (q && root.querySelector(`.panel[data-panel="${q}"]`)) tool = q; // a link can open a tool: /create/edit?tool=text
   apply(); onChange(); onView(view);
-  fetch("/api/credits", { credentials: "same-origin", ...sig }).then((r) => (r.ok ? r.json() : null)).then((c: { enabled?: boolean; plan?: string } | null) => {
-    paid = !!c && (c.enabled === false || (!!c.plan && c.plan !== "free"));
+  // the engine read the plan and the plan locks from the server (components/studio/engine.ts planLoad)
+  root.addEventListener("brs-plan", (e) => {
+    const d = (e as CustomEvent<{ plan: string; open: boolean; need: Record<string, string> }>).detail;
+    plan = d.plan || "free"; open = d.open; need = d.need || need;
+    if (tool && locked(tool)) tool = defTool(); // a plan that no longer opens the tool shown
     apply();
-  }, () => {});
+  }, sig);
   return { cleanup: () => { ac.abort(); mo.disconnect(); cancelAnimationFrame(raf); } };
 }

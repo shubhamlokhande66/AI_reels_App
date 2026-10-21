@@ -1,7 +1,9 @@
-/** Which plan unlocks what in Fast Studio, the way CapCut and InShot do it: the whole editor is free (keyframes, green
- * screen, overlays, sound effects), and a part of each library (effects, transitions, filters, fonts, text styles)
- * plus a few advanced tools carry a crown for a paid plan. People can try a crowned item in the preview; exporting
- * with one asks them to upgrade or to take it out. Export quality and the watermark follow the plan too.
+/** Which plan unlocks what in Fast Studio, the way CapCut and InShot do it: most of the editor is free, a few tools of
+ * the tool bar (Studio tools: Motion, Layers, Background, Voice) open only on their plan, and a part of each library
+ * (effects, transitions, filters, fonts, text styles) plus a few advanced tools carry a crown for a paid plan. People
+ * can try a crowned item in the preview; exporting with one asks them to upgrade or to take it out. A Studio tool
+ * shows its plan's tag in the tool bar and a tap opens the pricing page. Export quality and the watermark follow the
+ * plan too.
  * The administrator can move any item to another plan (Admin → Settings → Plan locks); these are the defaults. */
 
 export const PLANS = ["free", "creator", "pro", "business"] as const;
@@ -18,6 +20,8 @@ export interface PlanLocks { groups: LockGroup[]; export: Record<PlanId, ExportR
 const I = (plan: PlanId, list: [string, string][]): LockItem[] => list.map(([key, name]) => ({ key, name, plan }));
 export const DEFAULT_LOCKS: PlanLocks = {
   groups: [
+    // the tool bar's tools (components/studio/views.ts): on a lower plan they carry their plan's tag and open /pricing
+    { id: "studio", name: "Studio tools", items: I("pro", [["motion", "Motion (keyframes)"], ["layers", "Layers (overlay, green screen, blend, GIF)"], ["bg", "Background"], ["voice", "Voice"]]) },
     { id: "fx", name: "Effects", items: [
       ...I("free", [["hook", "Hook zoom"], ["zoomburst", "Zoom burst"], ["punch", "Zoom punch"], ["punch-soft", "Soft zoom"], ["tilt", "Tilt punch"], ["shake", "Shake"], ["bounce", "Beat bounce"], ["pan", "Ken Burns"], ["pan-soft", "Ken Burns soft"], ["drift", "Slow drift"], ["snap", "Photo snap"],
         ["boxgrow", "Box grows on the beat"], ["frame", "Frame in frame"], ["circle", "Circle pulse"]]),
@@ -36,7 +40,7 @@ export const DEFAULT_LOCKS: PlanLocks = {
       ...I("free", [["box", "Box"], ["neon", "Neon"], ["clean", "Clean"], ["tag", "Tag"], ["outline", "Outline"], ["shadow", "Hard shadow"], ["bubble", "Speech bubble"]]),
       ...I("creator", [["glow", "Soft glow"], ["stack", "Double outline"]]) ] },
     { id: "tool", name: "Tools", items: [
-      ...I("free", [["keyframes", "Keyframes"], ["overlay", "Overlay / picture in picture"], ["chroma", "Green screen"], ["blend", "Blend modes"], ["sfx", "Sound effects"], ["freeze", "Freeze frame"], ["gif", "GIF overlay"]]),
+      ...I("free", [["sfx", "Sound effects"], ["freeze", "Freeze frame"]]),
       ...I("creator", [["beauty", "Beauty (smooth skin)"], ["curve", "Speed curve"], ["stab", "Stabilize"], ["track", "Text follows the person"]]) ] },
   ],
   export: {
