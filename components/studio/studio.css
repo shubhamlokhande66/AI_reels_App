@@ -1578,3 +1578,39 @@
 .brs.aithink :is(#play,#remix,#export,#topexport){pointer-events:none;opacity:.45}
 /* the Format row once its buttons moved to the preview card (flow.ts place, computers): no empty "Format" label left */
 .brs .fmtrow:not(:has(#aspect)){display:none}
+
+/* ---- Ask Shubix: the chat about the Reel (first page and the editor) ---- */
+.brs .chatfab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:80;display:none;align-items:center;gap:8px;
+  padding:12px 16px;border-radius:999px;border:0;background:var(--ink-btn);color:var(--ink-btn-fg);font:600 14px var(--body);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.brs .chatfab:focus-visible{outline:2px solid var(--drop);outline-offset:3px}
+/* where it shows: the flow's first screens (before anything is made), and the Reel's editor once it is made */
+.brs.fopen[data-fstep="intro"] .chatfab,.brs.fopen[data-fstep="choose"] .chatfab,.brs.made:not(.fopen) .chatfab{display:inline-flex}
+.brs.made.fpost .chatfab{bottom:calc(max(16px,env(safe-area-inset-bottom)) + 72px)}
+.brs .chatbox{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:86;width:min(380px,calc(100vw - 24px));
+  max-height:min(560px,calc(100dvh - 24px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden}
+.brs .chatbox[hidden]{display:none}
+.brs .chath{display:flex;align-items:center;justify-content:space-between;padding:10px 10px 10px 16px;border-bottom:1px solid var(--line)}
+.brs .chath b{display:inline-flex;align-items:center;gap:8px;font:600 15px var(--display)}
+.brs .chatlog{flex:1;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-height:120px}
+.brs .chatlog p{margin:0;padding:8px 12px;border-radius:14px;max-width:88%;font-size:14px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
+.brs .chatlog .me{align-self:flex-end;background:var(--ink-btn);color:var(--ink-btn-fg);border-bottom-right-radius:4px}
+.brs .chatlog .ai{align-self:flex-start;background:var(--chip);border-bottom-left-radius:4px}
+.brs .chatlog .ai.wait::after{content:"…";animation:chatdots 1.2s steps(3) infinite}
+@keyframes chatdots{0%{opacity:.2}50%{opacity:1}100%{opacity:.2}}
+.brs .chatchips{display:flex;gap:6px;overflow-x:auto;padding:0 14px 8px;scrollbar-width:none}
+.brs .chatchips button{flex-shrink:0;font:600 12.5px var(--body);padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.brs .chatchips button:hover{border-color:var(--accent)}
+.brs .chatform{display:flex;gap:8px;align-items:flex-end;padding:10px 12px;border-top:1px solid var(--line)}
+.brs .chatform textarea{flex:1;resize:none;font:14px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-height:42px;max-height:120px}
+.brs .chatform textarea:focus{outline:2px solid var(--drop);outline-offset:1px}
+@media (max-width:599px){ .brs .chatbox{right:0;left:0;bottom:0;width:100%;border-radius:18px 18px 0 0;max-height:75dvh} .brs .chatfab span{display:none} .brs .chatfab{padding:14px} }
+.brs .chatfab.news::after{content:"";position:absolute;top:6px;right:6px;width:10px;height:10px;border-radius:50%;background:var(--drop);border:2px solid var(--bg)}
+.brs .chatfab{position:fixed}
+.brs .chatlog .rep{align-self:stretch;max-width:100%;background:var(--chip);border-radius:14px;padding:10px 12px;display:grid;gap:6px;font-size:13.5px}
+.brs .chatlog .rep b{font:600 14px var(--body)}
+.brs .chatlog .rep .repstory{color:var(--muted)}
+.brs .chatlog .rep summary{cursor:pointer;font-weight:600;color:var(--accent)}
+.brs .chatlog .rep ol{margin:6px 0 0;padding-left:20px;display:grid;gap:6px}
+.brs .chatlog .rep li{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.35}
+.brs .chatlog .rep .repgo{justify-self:start;margin-top:4px}
+@media (min-width:600px){ .brs.fopen .chatfab{bottom:calc(max(16px,env(safe-area-inset-bottom)) + 84px)} }

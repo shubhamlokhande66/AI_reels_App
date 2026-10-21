@@ -485,4 +485,22 @@ export const STUDIO_HTML = `
     <button type="button" class="btn big" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>
     <p class="xsh-note" id="xcloudnote" hidden></p>
   </div>
-</div>`;
+</div>
+<!-- Ask Shubix: tell the AI in your own words how the Reel should be; it edits the Reel that way (engine.ts, chat) -->
+<button type="button" class="chatfab" id="chatfab" aria-expanded="false" aria-controls="chatbox">${IC.spark}<span>Ask Shubix</span></button>
+<section class="chatbox" id="chatbox" role="dialog" aria-labelledby="chath" hidden>
+  <div class="chath"><b id="chath">${IC.spark} Ask Shubix</b><button type="button" class="ibtn" id="chatclose" aria-label="Close">✕</button></div>
+  <div class="chatlog" id="chatlog" aria-live="polite"></div>
+  <div class="chatchips" id="chatchips">
+    <button type="button" data-say="Make it faster and more energetic">Faster</button>
+    <button type="button" data-say="Make it calm and cinematic, slower cuts">Calmer</button>
+    <button type="button" data-say="Add more zooms and camera moves on the beats">More zooms</button>
+    <button type="button" data-say="More transitions">More transitions</button>
+    <button type="button" data-say="Keep it clean: fewer effects, simple cuts">Cleaner</button>
+    <button type="button" data-say="Make a completely different version">New version</button>
+  </div>
+  <form class="chatform" id="chatform">
+    <textarea id="chatin" rows="2" maxlength="300" placeholder="Tell Shubix what you want, e.g. &quot;start with my face, zoom on the drop, slow-mo at the end&quot;"></textarea>
+    <button type="submit" class="btn hot" id="chatsend">Send</button>
+  </form>
+</section>`;
