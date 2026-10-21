@@ -39,7 +39,7 @@ life({ path: location.pathname + location.search, stage: 'open' });
 window.addEventListener('pagehide', lifeEnd, SIG);
 ac.signal.addEventListener('abort', lifeEnd);
 if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3){
-  try{ window.__shubixReport && window.__shubixReport('crash', 'The phone reloaded the studio at "' + (lifeBefore.stage || '?') + '"' + (IOS ? ' (iPhone)' : ''), JSON.stringify(lifeBefore)); }catch(e){}
+  try{ window.__shubixReport && window.__shubixReport('crash', 'The phone reloaded the studio at "' + (lifeBefore.stage || '?') + '"' + (lifeBefore.saving ? ' while saving' : '') + (IOS ? ' (iPhone)' : ''), JSON.stringify(lifeBefore)); }catch(e){}
   queueMicrotask(() => {
     if(ac.signal.aborted) return;
     const q = new URLSearchParams(location.search);
@@ -857,7 +857,7 @@ window.addEventListener('resize', ()=>{ drawMusic(); sources.forEach(drawSpark);
 const sources = []; // {name,url,dur,w,h,samples:[{t,m,b,cx}], els:[v,v], use:0}
 const SW = 48, SH = 27;
 function waitEv(el, ev, ms=8000){ return new Promise((res,rej)=>{ const t=setTimeout(()=>{ cleanup(); rej(new Error('timeout '+ev)); }, ms); const ok=()=>{ cleanup(); res(); }; const bad=()=>{ cleanup(); const me = el.error; rej(new Error('error' + (me ? ' ' + me.code + (me.message ? ': ' + me.message : '') : ''))); }; function cleanup(){ clearTimeout(t); el.removeEventListener(ev,ok); el.removeEventListener('error',bad); } el.addEventListener(ev,ok,{once:true}); el.addEventListener('error',bad,{once:true}); }); }
-function makeVideo(url){ const v=document.createElement('video'); v.muted=true; v.defaultMuted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline',''); v.setAttribute('muted',''); v.preload='auto'; v.crossOrigin='anonymous'; v.src=url; return v; }
+function makeVideo(url){ const v=document.createElement('video'); v.muted=true; v.defaultMuted=true; v.playsInline=true; v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline',''); v.setAttribute('muted',''); v.preload='auto'; v.crossOrigin='anonymous'; if(url) v.src=url; return v; }
 // A video's pictures, ready to draw. iPhone Safari loads only the metadata of a video nobody has played ('preload' is
 // ignored there), so a video that never played has no picture to draw or seek to; a muted inline video may play without a
 // tap, and a moment of playing brings its pictures in. Other browsers return at once.
@@ -1268,7 +1268,7 @@ async function readVideo(src){
     src.shMed = shs[Math.floor(shs.length/2)] || 1;
     dd.textContent = src.dur.toFixed(1) + ' s · ' + src.w + '×' + src.h + (nf ? ' · faces ' + Math.round(nf/Math.max(1,src.faces.length)*100) + '%' : '');
     dd.dataset.st = 'ok'; dd.dataset.len = fmt(src.dur).replace(/\.\d+$/, '');
-    src.els = [makeVideo(src.url), makeVideo(src.url), makeVideo(src.url)];
+    src.els = [lazyPlayer(src.url), lazyPlayer(src.url), lazyPlayer(src.url)];
     sources.push(src); drawSpark(src);
   }catch(e){
     if(src.removed) return;
@@ -2635,11 +2635,29 @@ const PREVIEW_SCALE = 0.5;
 function setCanvas(full, scale = 1){ const [W0,H0]=SIZES[aspect], s = full ? scale : PREVIEW_SCALE, w = Math.round(W0*s/2)*2, h = Math.round(H0*s/2)*2;
   if(out.width!==w||out.height!==h){ out.width=w; out.height=h; loopImg=null; } }
 function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(edit[m].start<=t+1e-4){ r=m; lo=m+1; } else hi=m-1; } return r; }
+/* ---- iPhone: only the players near the playhead hold their video ----
+ * Each clip has 3 players (a shot and the next shots of the same clip, for transitions). On an iPhone each player that has
+ * shown a picture keeps its own decoder and decoded frames: for a 4K HEVC clip about 100-200 MB, never given back while
+ * its src is set. 3 clips are 9 such players, 6 clips 18: right after the clips were read and the Reel was made, the first
+ * preview loaded them and Safari reloaded the page (Admin -> Errors: "reloaded at saved / making the Reel", 4K clips).
+ * So on an iPhone a player gets its video only when its shot is prepared, and the players of shots far from the playhead
+ * (more than one before, two after) let theirs go: at most 4 loaded at once, whatever the number of clips. */
+function lazyPlayer(url){ const v = makeVideo(IOS ? '' : url); v._url = url; return v; }
+const playerLoaded = v => !!v.getAttribute('src');
+function playersAround(i){
+  if(!IOS) return;
+  const c = playing || starting ? curIdx : i, keep = new Set();
+  for(let k = Math.min(c, i) - 1; k <= Math.max(c, i) + 2; k++) if(edit[k]) keep.add(edit[k].el);
+  for(const s of sources) for(const v of s.els || []) if(!keep.has(v) && playerLoaded(v)){ v.pause(); v.removeAttribute('src'); v.load(); }
+  const v = edit[i].el; if(!playerLoaded(v) && v._url) v.src = v._url;
+}
 // quick: Play is waiting. Then the picture gets at most a moment: while clips are being read the phone's video decoder is
 // busy (an iPhone may not answer at all), and the song must start anyway; the shot catches up while it plays.
 async function prepare(i, t, quick){
   const e = edit[i]; if(!e) return;
   if(layers.length && !playing) await prepLayers(t);
+  if(e !== edit[i]) return;
+  playersAround(i);
   const local = Math.max(0, t - e.start), target = srcPos(e, local);
   if(e.el.readyState < 2){ try{ await videoData(e.el, quick ? 600 : 6000); }catch(err){} }
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
@@ -3781,7 +3799,14 @@ const GL = (()=>{
     init();
     c.addEventListener('webglcontextlost', e=>{ e.preventDefault(); lost = true; });
     c.addEventListener('webglcontextrestored', ()=>{ try{ init(); lost = false; }catch(err){ console.warn('WebGL could not be restored:', err && err.message); } });
-    const upload = (k, src) => { if(!src) return; if(src.readyState!==undefined && src.readyState<2) return; gl.activeTexture(gl.TEXTURE0+k); gl.bindTexture(gl.TEXTURE_2D,tex[k]);
+    // iPhone: a 4K video is not made a 4K texture each frame (33 MB, two during a transition); it is drawn into a copy of
+    // at most 1920 px first. The shader reads the texture in 0-1 coordinates, so the picture is the same.
+    const small = [], fitIOS = (k, v) => {
+      const W = v.videoWidth, H = v.videoHeight, sc = 1920/Math.max(W, H); if(!IOS || !(sc < 1)) return v;
+      const c2 = small[k] || (small[k] = document.createElement('canvas')), w = Math.round(W*sc), h = Math.round(H*sc);
+      if(c2.width !== w || c2.height !== h){ c2.width = w; c2.height = h; }
+      c2.getContext('2d').drawImage(v, 0, 0, w, h); return c2; };
+    const upload = (k, src) => { if(!src) return; if(src.readyState!==undefined && src.readyState<2) return; if(src.readyState!==undefined) src = fitIOS(k, src); gl.activeTexture(gl.TEXTURE0+k); gl.bindTexture(gl.TEXTURE_2D,tex[k]);
       try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src); }catch(e){} };
     const set = (name, v) => { const l=U[name]; if(!l) return; if(typeof v==='number') gl.uniform1f(l,v); else if(v.length===2) gl.uniform2fv(l,v); else if(v.length===3) gl.uniform3fv(l,v); else gl.uniform4fv(l,v); };
     return { canvas:c, gl, get lost(){ return lost || gl.isContextLost(); }, render(S){
@@ -4071,6 +4096,7 @@ let rafId=0;
 async function startPlayback(from, destNode){
   stopAll();
   const g0 = playGen; starting = true; setPlayLabel(true);
+  life({ stage: destNode ? 'exporting' : 'playing the preview', players: sources.reduce((n, s) => n + (s.els || []).filter(v => v.getAttribute('src')).length, 0) });
   const gone = () => g0 !== playGen;
   // the phone's sound wakes up first. An iPhone leaves it "interrupted" after a call, Siri, a locked screen or another
   // app's sound, and then waking it may never answer: Play would hang. So it gets 1.5 s; if the sound still sleeps, Play
@@ -5631,7 +5657,7 @@ let saving = false;
 async function saveProject(st, sig){
   if(saving) return; saving = true;
   try{
-    life({ stage: 'saving on the phone' });
+    life({ saving: 1 });   // the stage stays what the studio is doing (a save every few seconds would hide it)
     if(!proj){ proj = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: Date.now() }; try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){} }
     if(song && song.file) await putFile(song.file);
     for(const s of sources) if(s.file) await putFile(s.file);
@@ -5640,10 +5666,10 @@ async function saveProject(st, sig){
     if(vo) await putFile(voFile());
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
-    life({ stage: 'saved', proj: proj.id });
+    life({ saving: 0, proj: proj.id });
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }catch(err){ console.warn('project not saved:', err); $('psaved').textContent = 'Not saved'; notify('Could not save this Reel on your phone. It may be low on space.', 'err'); }
-  finally{ saving = false; }
+  finally{ saving = false; if(lifeNote.saving) life({ saving: 0 }); }
 }
 setInterval(() => {
   if(restoring || recording || exporting || pending || (!song && !sources.length) || typeof indexedDB === 'undefined') return;
