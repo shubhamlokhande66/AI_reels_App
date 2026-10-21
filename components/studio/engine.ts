@@ -2440,6 +2440,18 @@ function suitFx(e){
   else if(len > 2.2 && (e.efx==='punch' || e.efx==='tilt')){ e.efx = 'pan'; e.why = 'long shot: slow move instead'; }
 }
 // how good footage [a, a+need] of src is for cut i (the rules, plus the AI's opinion of the moment when it is on)
+// a clip that is bad all through (shaky handheld, out of focus) looks fine next to itself: judged against the other
+// clips. Shaky = the camera's own movement jumps around from frame to frame; soft = far fewer fine edges than the rest.
+function clipFlaw(src){
+  const key = sources.length; if(src._flaw && src._flaw.key === key) return src._flaw.v;
+  const med = a => { const x = a.filter(v => isFinite(v)).sort((p,q)=>p-q); return x.length ? x[x.length>>1] : 0; };
+  const S = src.samples || [];
+  const jit = med(S.slice(1).map((x,i) => Math.abs((x.gx||0) - (S[i].gx||0)) + Math.abs((x.gy||0) - (S[i].gy||0))));
+  const shAll = med(sources.filter(o => !o.removed && o.samples && o.samples.length).map(o => med(o.samples.map(x => x.sh))));
+  const soft = shAll > 0 && sources.length > 1 ? med(S.map(x => x.sh))/shAll : 1;
+  const v = (jit >= 1.5 ? 3 : 0) + (soft < 0.15 ? 3 : 0);
+  src._flaw = { key, v }; return v;
+}
 function scoreWindow(i, src, a, need, gmax){
   const s = plan[i], st = windowStats(src, a, a+need), m = st.m/gmax;
   let sc;
@@ -2450,7 +2462,7 @@ function scoreWindow(i, src, a, need, gmax){
   if(i===0) sc = 2.4*m;   // hook: the most action-packed moment opens the reel
   if(st.b < 0.08) sc -= 1;                              // too dark
   const sharp = st.sh / (src.shMed||1);
-  if(sharp < 0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5, sharp);   // blurry / shaky footage is avoided
+  if(sharp < 0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5, sharp); sc -= clipFlaw(src);   // blurry / shaky footage is avoided
   sc += st.face * ((s.type==='drop'||s.type==='hit'||i===0) ? 0.8 : 0.45);   // people make shots stronger
   const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : s.type, i===plan.length-1);
   return {sc, st, m, ai};
@@ -2653,7 +2665,7 @@ function repick(i, avoidCurrent, onlySrc){
       if(crossesScene(src, a, a+need)) continue;
       const st = windowStats(src, a, a+need), m = st.m/gmax;
       let sc = e.type==='drop' ? 2.2*m : e.type==='hit' ? 1.5*m : e.type==='break' ? 1-Math.abs(m-0.18)*2 : 1-Math.abs(m-0.55);
-      if(st.b < 0.08) sc -= 1; const sharp = st.sh/(src.shMed||1); if(sharp<0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5,sharp);
+      if(st.b < 0.08) sc -= 1; const sharp = st.sh/(src.shMed||1); if(sharp<0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5,sharp); sc -= clipFlaw(src);
       sc += st.face*0.6 + rng()*0.3;
       const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : e.type, i===edit.length-1);
       if(sc>bs){ bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : 0.5+(st.cx-0.5)*0.8, cy: st.face>0.3 ? st.fy : 0.45, face:st.face, fs: st.fs, mot: m, aiNote: ai ? ai.note : ''}; }
