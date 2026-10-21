@@ -1428,7 +1428,7 @@ async function buildTalk(){
     e.kf = keyframesFor(e); e.beatsIn = [];
     return e;
   });
-  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak }));
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak, ref: e.ref }));
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL(); drawMusic();
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((q,s)=>q + s.dur, 0), how = sources.some(s => s.voice.how === 'level') ? ' (by loudness)' : '';
@@ -1819,9 +1819,10 @@ FX_OK.copy = FX_OK.auto;
 function applyDirectorStyle(){
   if(!aiOn || !director || director.key !== dirKey()) return null;
   let used = 0, fixed = 0, asked = 0;
+  const exact = copyExact();
   plan.forEach((s,i)=>{
     const d = director.slots[i], len = s.end - s.start;
-    if(!d) return;
+    if(!d || exact) return;   // copying a Reel exactly: its own transitions, effects and moves (copyShots); the AI picks the moments
     // The AI is free: any known tool in any style. Only what cannot be played is refused (the opener has nothing
     // before it to transition from; a freeze needs a moment to hold; a speed on the beats needs beats).
     if(d.tr){ asked++; const tr = d.tr;
@@ -1865,6 +1866,7 @@ function finishTransitions(){
   const per = Math.max(1, buf.duration/30), left = {snap:Math.round(2*per), whip:Math.round(2*per), spin:Math.round(1*per), glitch:Math.round(2*per), bars:Math.round(2*per), iris:Math.round(3*per), zoom:Math.round(3*per), wipe:Math.round(2*per), dissolve:Math.round(2*per) + (mode==='smooth' ? 99 : 0), flash:Math.round(6*per) + (mode==='fast' ? 99 : 0)};
   if(mode==='copy' && copyBudget){ Object.keys(left).forEach(k=>{ left[k] = copyBudget[k] || 0; }); }   // copying a Reel: its own counts are the ration
   const want = {}; plan.forEach(s=>{ if(s.trByDir && left[s.tr]!==undefined) want[s.tr] = (want[s.tr]||0) + 1; });
+  const mine = s => s.trByDir || s.trByRef;   // the director's or the copied Reel's own: never rationed
   let undone = 0;
   plan.forEach((s,i)=>{
     if(i===0 || s.tr==='hard') return;
@@ -1874,7 +1876,8 @@ function finishTransitions(){
     // the AI director's own choices only have to fit in time (its taste decides the mix); the rules' choices are
     // rationed and never repeat, leaving room for the director's
     if(ok && !s.trByDir && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
-    if(ok && left[s.tr]!==undefined){
+    if(ok && left[s.tr]!==undefined && s.trByRef) left[s.tr]--;
+    else if(ok && left[s.tr]!==undefined){
       if(s.trByDir){ want[s.tr]--; left[s.tr]--; }
       else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
     }
@@ -2052,7 +2055,7 @@ function getSoundMap(){
 let pacing = null, paceBusy = false, paceFailedKey = '';
 const paceCache = new Map();
 const paceKey = () => [musicKey, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
-const paceUsable = () => aiOn && kind !== 'talk' && buf && beats.length >= 8 && sources.length && !recording;
+const paceUsable = () => aiOn && kind !== 'talk' && buf && beats.length >= 8 && sources.length && !recording && !(mode === 'copy' && refProfile);   // a copied Reel keeps its own rhythm
 const paceNow = () => (paceUsable() && pacing && pacing.key === paceKey()) ? pacing : null;
 const paceWanted = () => paceUsable() && !paceNow() && paceFailedKey !== paceKey();
 // a reference's shots, kept inside what the server accepts (numbers in range, known words only)
@@ -2329,6 +2332,7 @@ function makeEditNow(){
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = edit.length + ' shots · ' + fmt(buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
+  showCopyMatch();
   if(dupCount) showMsg(dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + ': your clips are short for this song · add more clips to avoid it');
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
@@ -4706,12 +4710,18 @@ function cutKind(fr, hint){
   const brighter = maxB - Math.max(endOf(-1), endOf(1));
   if(maxB > 0.78 && maxB > endMed + 0.22 && brighter > 0.15) return 'flash';
   // the reading may have landed at the end of a flash: a white spike a few frames earlier is the cut
-  const early = fr.filter(f=>f.k < -2 && f.k > -CUT_K), eMax = early.length ? early.reduce((q,f)=>f.mean > q.mean ? f : q, early[0]) : null;
-  if(eMax && eMax.mean > 0.78 && eMax.mean > endMed + 0.22 && eMax.mean - Math.max(endOf(-1), endOf(1)) > 0.15){ fr.shiftTo = eMax.k; return 'flash'; }
+  const early = fr.filter(f=>f.k < -2 && f.k >= -CUT_K), eMax = early.length ? early.reduce((q,f)=>f.mean > q.mean ? f : q, early[0]) : null;
+  if(eMax && eMax.mean > 0.78){
+    // the shot after it (from 2 frames past the cut read) and whatever comes before the white frame
+    const after = fr.filter(f=>f.k >= 2).map(f=>f.mean).sort((a,b)=>a-b), before = fr.filter(f=>f.k < eMax.k).map(f=>f.mean);
+    const aMed = after.length ? after[(after.length-1)>>1] : endMed;
+    if(eMax.mean > aMed + 0.22 && (!before.length || eMax.mean > Math.max(...before) + 0.08)){ fr.shiftTo = eMax.k; return 'flash'; }
+  }
   const before = fr.filter(f=>f.k <= 0 && f.k >= -4 && f.dx !== undefined);
-  if(fr.spin) return 'spin';
+  const whip = before.filter(f=>Math.abs(f.dx) >= 5 || f.aniso < 0.3).length >= 2;   // a sideways jump or blur
+  if(fr.spin && !whip) return 'spin';
   if(fr.glitch) return 'glitch';
-  if(before.filter(f=>Math.abs(f.dx) >= 5 || f.aniso < 0.3).length >= 2) return 'whip';
+  if(whip) return 'whip';
   if(before.filter(f=>f.sc >= 1.06).length >= 2) return 'zoom';
   if(hint === 'dissolve') return 'dissolve';
   if(hint === 'fade') return 'fade';
@@ -4746,20 +4756,29 @@ async function analyzeReference(file, onP){
       cuts.forEach((c,i)=>{ const cv = frames.slice(i*(2*CUT_K+1), (i+1)*(2*CUT_K+1)), fr = cutFramesOf(cv);
         const at = k => fr.find(f=>f.k===k);
         // a spin: the picture turns over the frames before the cut
-        { let turned = 0; for(let k=-4;k<0;k++){ const a = at(k), b = at(k+1); if(a && b && Math.abs(motionBetween(a.Y, b.Y, a.FW, a.FH).r) >= 6) turned++; } fr.spin = turned >= 2; }
+        { let cw = 0, ccw = 0; for(let k=-4;k<0;k++){ const a = at(k), b = at(k+1); if(!a || !b) continue; const r = motionBetween(a.Y, b.Y, a.FW, a.FH).r; if(r >= 6) cw++; else if(r <= -6) ccw++; }
+          fr.spin = Math.max(cw, ccw) >= 2; }   // turned the same way on two frames or more
         // a glitch: red and blue pulled apart on two frames or more around the cut
         fr.glitch = cv.slice(CUT_K-3, CUT_K+4).filter(x=>rgbShiftOf(x) >= 2).length >= 2;
         c.kind = cutKind(fr, c.hint); if(fr.shiftTo) c.t += fr.shiftTo/30;
         // a reveal through a shape (circle, diamond, heart, star, wipe, bars): the frames in the middle of the transition
-        if(['hard','dissolve','fade'].includes(c.kind)){ const A = at(-CUT_K), B = at(CUT_K);
+        const stepOf = k => { const a = at(k-1), b = at(k); if(!a || !b) return null; let s = 0; for(let q=0;q<a.Y.length;q++) s += Math.abs(a.Y[q]-b.Y[q]); return s/a.Y.length; };
+        const steps = []; for(let k=-3;k<=4;k++){ const s = stepOf(k); if(s !== null) steps.push(s); } steps.sort((x,y)=>y-x);
+        const oneStep = steps.length >= 4 && steps[0] > 3*Math.max(0.006, steps[1]); c.one = oneStep;
+        if(['hard','dissolve'].includes(c.kind) && !oneStep){ const A = at(-CUT_K), B = at(CUT_K);
           if(A && B) for(const k of [0,-1,1,-2,2,-3,3]){ const F = at(k); if(!F) continue; const sh = revealShape(A.Y, B.Y, F.Y, A.FW, A.FH); if(sh){ c.kind = sh; break; } } } });
+      // two cuts under 0.2 s apart are one moving transition (a whip's first blurred frames read as a cut of their own),
+      // unless both are clean one-frame jumps (a strobe of hard cuts)
+      for(let i=cuts.length-1;i>0;i--){ const a = cuts[i-1], b = cuts[i];
+        if(b.t - a.t < 0.2 && !(a.one && b.one)){ if(b.kind === 'hard' && a.kind !== 'hard') b.kind = a.kind; else if(b.kind === 'hard' && !a.one) b.kind = 'whip'; cuts.splice(i-1, 1); } }
+      cuts.forEach(c=>{ delete c.one; });
       // shots: a zoom inside them (two frames) and the colour look (the middle frame)
       onP(0.85, 'reading its look');
       const bounds = [0, ...cuts.map(c=>c.t), dur], sh = [];
       for(let i=0;i<bounds.length-1 && i<40;i++) sh.push({ a: bounds[i], b: bounds[i+1] });
       const zt = [], zi = [], lt = [];
       // the camera move: frames every ~0.12 s inside the shot (clear of its transitions), at most 9; short shots are not judged
-      sh.forEach((x,i)=>{ const L = x.b - x.a, m = Math.min(0.2, 0.15*L), n = L >= 0.5 ? Math.max(3, Math.min(9, Math.round((L-2*m)/0.12)+1)) : 0;
+      sh.forEach((x,i)=>{ const L = x.b - x.a, m = Math.min(0.25, Math.max(0.18, 0.15*L)), n = L - 2*m >= 0.24 ? Math.max(3, Math.min(9, Math.round((L-2*m)/0.12)+1)) : 0;
         for(let k=0;k<n;k++){ const t = x.a + m + (L-2*m)*k/(n-1); zt.push(t); zi.push([i, (t - x.a)/L]); } lt.push(x.a + 0.5*L); });
       const zf = await fs.small(zt), lf = await fs.full(lt);
       sh.forEach((x,i)=>{ const L = x.b - x.a, mine = zi.map((z,k)=>[z,k]).filter(([z])=>z[0]===i), gr = mine.map(([,k])=>zf[k] ? greyOf(zf[k]) : null);
@@ -4792,7 +4811,7 @@ async function analyzeReference(file, onP){
       return mm; });
     return { name: file.name, dur, w, h, moments, cuts: cuts.map(c=>({t:+c.t.toFixed(3), kind:c.kind})), shotSec, shotBeats, medianBeats: med(shotBeats), medianSec: med(shotSec),
       hookBeats: shotBeats[0] || 0, hookSec: shotSec[0] || 0, onBeat, energy, trans,
-      zoomShare: shots.filter(s=>s.zoom >= 1.05 || s.zoom <= 0.95).length/Math.max(1, shots.filter(s=>s.b-s.a >= 0.9).length),   // of the shots long enough to judge
+      zoomShare: shots.filter(s=>s.b-s.a >= 0.9 && (s.zoom >= 1.05 || s.zoom <= 0.95)).length/Math.max(1, shots.filter(s=>s.b-s.a >= 0.9).length),   // of the shots long enough to judge
       look, bpm: P ? 60/P : 0 };
   } finally { setTimeout(()=>URL.revokeObjectURL(url), 1000); }
 }
@@ -4813,18 +4832,23 @@ function copyPlan(){
   const keep = basePlan.filter(s=>s.type==='drop' || s.type==='break').map(s=>s.start);
   const seq = R.shotBeats.length ? R.shotBeats.slice(1) : [], wantAt = k => R.medianBeats ? (seq.length ? seq[(k) % seq.length] : R.medianBeats) : 0;
   const typeAt = t => { const b = basePlan.find(s=>Math.abs(s.start - t) < 0.06); return b ? b.type : 'cut'; };
+  // which of the reference's shots shot k copies: the hook, then its sequence over and over
+  const nRef = R.medianBeats ? (R.shotBeats || []).length : (R.shotSec || []).length;
+  const refIdx = k => nRef < 2 ? 0 : k === 0 ? 0 : R.medianBeats ? 1 + (k-1) % (nRef-1) : k % nRef;
+  // as long as the reference's own longest shot (a calm Reel's 5 s shot stays 5 s), never under 3.5 s nor over 12 s
+  const LMAX = Math.min(12, Math.max(3.5, ...(R.medianBeats ? (R.shotBeats || []).map(b=>b*P0) : (R.shotSec || []))) + 0.05);
   const out = []; let start = 0, k = 0;
   while(start < dur - 0.3){
     let len = R.medianBeats ? (k === 0 ? (R.hookBeats || wantAt(0)) : wantAt(k-1))*P0 : (k === 0 ? R.hookSec : R.shotSec[k % R.shotSec.length]);
     // pace curve: a rising Reel gets shorter shots towards the end (already in its sequence when it repeats; scaled here)
-    len = Math.min(3.5, Math.max(0.3, len));
+    len = Math.min(LMAX, Math.max(0.3, len));
     let end = start + len;
     const drop = keep.find(t => t > start + 0.08 && t < end + 0.5*P0);
     if(drop !== undefined && drop - start < 0.5*len && out.length){ out[out.length-1].end = drop; start = drop; continue; }   // a sliver before a drop joins the shot before it
     if(drop !== undefined) end = drop;
     else if(bt.length){ const b = bt.reduce((q,x)=>Math.abs(x-end) < Math.abs(q-end) ? x : q, bt[0]); if(Math.abs(b-end) < 0.6*P0 && b > start + 0.25) end = b; }
     if(end > dur - 0.35) end = dur;
-    out.push({ start, end, type: k === 0 ? (basePlan[0] ? basePlan[0].type : 'cut') : typeAt(start), fx: 'Hard cut' });
+    out.push({ start, end, type: k === 0 ? (basePlan[0] ? basePlan[0].type : 'cut') : typeAt(start), fx: 'Hard cut', ref: refIdx(k) });
     start = end; k++;
   }
   return out;
@@ -4850,6 +4874,59 @@ function copyStyle(){
   const longI = [...plan.keys()].filter(i=>plan[i].end-plan[i].start >= 0.9), zn = Math.round(Math.min(1, R.zoomShare)*longI.length);
   longI.sort((a,b)=>(plan[b].end-plan[b].start)-(plan[a].end-plan[a].start)).slice(0, zn).forEach(i=>{ plan[i].efx = (plan[i].end-plan[i].start) > 1.2 ? 'pan' : 'punch-soft'; });
   copyBudget = {}; Object.entries(want).forEach(([k,v])=>{ if(k!=='hard') copyBudget[REF_TR[k]] = v; });
+  copyShots();
+}
+// The exact copy: each shot does what the reference's shot at the same place did (copyPlan's s.ref), measured shot by
+// shot: the transition into it, its camera move (zoom, position, turn and its ease, as keyframes), a shake, a zoom.
+// The shares above stay for shots the reference has no reading of (past its 40th shot, or a style without shots).
+// A learned style keeps the transition shares (what Reels of its kind have in common, moved by the creator's
+// corrections) and takes the rhythm and camera moves of its most typical Reel.
+const copyExact = () => mode === 'copy' && !!refProfile && (refProfile.moments || []).length >= 2;
+function copyShots(){
+  if(!copyExact()) return;
+  const M = refProfile.moments, clip = (x, a, b) => Math.min(b, Math.max(a, Number.isFinite(+x) ? +x : a));
+  plan.forEach((s,i)=>{
+    const m = M[s.ref ?? i]; if(!m) return;
+    const len = s.end - s.start;
+    if(i > 0 && !refProfile.learned){ const tr = m.tr === 'start' ? 'hard' : REF_TR[m.tr] || 'hard'; s.tr = tr; s.trByRef = tr !== 'hard'; }
+    s.efx = 'none'; s.ak = [];
+    if(Array.isArray(m.move) && m.move.length >= 2 && len >= 0.3){
+      const ez = m.move.length === 2 ? (m.ease || 'inOut') : 'lin';   // more keys: the path's own shape is in them
+      s.ak = m.move.map(k=>({ t: +(clip(k.f, 0, 1)*len).toFixed(3), s: clip(k.s, 0.4, 2.5), x: clip(k.x, -0.6, 0.6), y: clip(k.y, -0.6, 0.6), r: clip(k.r, -60, 60), o: 1, ez }));
+    } else if(m.zoom === 'in' || m.zoom === 'out') s.efx = len > 1.2 ? 'pan' : 'punch-soft';
+    if(m.shake && !s.ak.length) s.efx = 'shake';
+  });
+}
+// How close the new Reel is to the one copied, shot by shot (shown under it, and read by the checks): each shot's
+// length (half or double the reference's = 0), the transition into it, whether its camera moves, and the colour look
+// measured on the rendered edit. The last shot is not counted (the song's end cuts it).
+let copyLookScore = null;
+function copyMatch(){
+  const R = refProfile; if(mode !== 'copy' || !R || !edit.length) return null;
+  const M = R.moments || [], P0 = period || 0.5, r = x => Math.round(x*100);
+  let pace = 0, pn = 0, tr = 0, tn = 0, mv = 0, mn = 0;
+  edit.forEach((e,i)=>{
+    const m = M[e.ref ?? i]; if(!m || i === edit.length - 1) return;
+    const want = R.medianBeats && m.beats ? m.beats*P0 : m.sec, got = e.end - e.start;
+    if(want > 0){ pace += Math.max(0, 1 - Math.abs(Math.log2(got/want))); pn++; }
+    if(i > 0 && !R.learned){ tr += e.tr === (m.tr === 'start' ? 'hard' : REF_TR[m.tr] || 'hard') ? 1 : 0; tn++; }
+    const wantMove = !!(m.move && m.move.length >= 2) || m.zoom === 'in' || m.zoom === 'out', gotMove = !!(e.ak && e.ak.length >= 2) || ['pan','punch-soft','pan-soft'].includes(e.efx);
+    mv += wantMove === gotMove ? 1 : 0; mn++;
+  });
+  if(!pn) return null;
+  // a learned style: the edit's transition shares against the style's (half the summed difference = 0)
+  if(R.learned && edit.length > 2){ const got = {}, n = edit.length - 1; edit.slice(1).forEach(e=>{ got[e.tr] = (got[e.tr]||0) + 1/n; });
+    const want = {}; Object.entries(R.trans || {}).forEach(([k,v])=>{ const t = REF_TR[k] || 'hard'; want[t] = (want[t]||0) + v; });
+    let l1 = 0; new Set([...Object.keys(got), ...Object.keys(want)]).forEach(k=>{ l1 += Math.abs((got[k]||0) - (want[k]||0)); }); tr = 1 - l1/2; tn = 1; }
+  const parts = { rhythm: pace/pn, transitions: tn ? tr/tn : 1, moves: mn ? mv/mn : 1, look: copyLookScore };
+  const w = { rhythm: 0.35, transitions: 0.3, moves: 0.15, look: 0.2 }; let s = 0, ws = 0;
+  for(const k of Object.keys(w)) if(parts[k] !== null && parts[k] !== undefined){ s += w[k]*parts[k]; ws += w[k]; }
+  return { total: r(s/ws), rhythm: r(parts.rhythm), transitions: r(parts.transitions), moves: r(parts.moves), look: parts.look === null ? null : r(parts.look), shots: pn };
+}
+function showCopyMatch(){
+  const m = copyMatch(), el = $('refmatch'); if(!el) return;
+  el.hidden = !m; if(!m) return;
+  el.textContent = 'Matches the original ' + m.total + '% · rhythm ' + m.rhythm + '% · transitions ' + m.transitions + '% · camera moves ' + m.moves + '%' + (m.look !== null ? ' · look ' + m.look + '%' : '');
 }
 // The copied look, matched on the edit itself (like a colourist with scopes): render a few frames of the edit, measure
 // them exactly as the reference was measured, correct the grade, measure again. The edit's crops, zooms and effects are
@@ -4880,7 +4957,7 @@ async function copyLook(){
       const O = await renderedLook(); if(!O) break;
       const k = pass === 0 ? 1 : 0.85;
       G.con = cl(G.con * Math.pow(T.std/Math.max(0.02, O.std), k), 0.7, 2.0);
-      if(!mono) G.sat = cl(G.sat * Math.pow(T.sat/Math.max(0.02, O.sat), k), 0.35, 2);
+      if(!mono) G.sat = cl(G.sat * Math.pow(T.sat/Math.max(0.02, O.sat), k), 0.35, 3);
       G.bri = cl(G.bri * Math.pow(T.mean/Math.max(0.03, O.mean), k), 0.6, 1.4);
       if(!mono) G.warm = cl(G.warm + k*(T.warm - O.warm)/0.11, -1.6, 1.6);
       G.vig = cl(G.vig + k*(T.vig - O.vig)*1.4, 0, 0.9);
@@ -4890,6 +4967,8 @@ async function copyLook(){
       GRADES.copy = { ...G };
     }
     copyLookKey = key;
+    // how close the look came: brightness, contrast, colour and warmth, each within 0.15 of the reference = 100%
+    { const O = await renderedLook(); if(O) copyLookScore = ['mean','std','sat','warm'].reduce((q,k)=>q + Math.max(0, 1 - Math.abs((O[k]||0) - (T[k]||0))/0.15), 0)/4; showCopyMatch(); }
   } finally { copyLookBusy = false; }
   LOOKS.copy = { name: 'Copied', filter: 'contrast(' + G.con.toFixed(2) + ') saturate(' + (mono ? 0 : G.sat).toFixed(2) + ') brightness(' + G.bri.toFixed(2) + ')', grain: G.grain };
   if(!playing && !recording) captureLoop();
@@ -4901,7 +4980,7 @@ $('reffile').addEventListener('change', async e=>{
     refProfile = await analyzeReference(f, (p, what)=>{ $('refinfo').textContent = 'Reading the Reel: ' + what + ' ' + Math.round(p*100) + '%'; });
     $('refinfo').textContent = '“' + f.name + '”: ' + describeRef(refProfile); $('stsaverow').hidden = false; $('ststat').textContent = ''; learnedKind = '';
     // the copied look is on while it is matched (makeEdit then matches it on the new edit)
-    GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = '';
+    GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = ''; copyLookScore = null;
     const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = 'copy'; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x===lb));
     setMode('copy');
     refLookRun(f, refProfile);   // its texts, stickers, captions, background: the AI reads them (when it is on)
@@ -4999,6 +5078,8 @@ async function loadKinds(){
   try{ const r = await api('/api/studio/styles'); const sel = $('lcat'), keep = sel.value; sel.innerHTML = '';
     for(const [k, name] of Object.entries(STYLE_KINDS)){ const c = r.categories[k] || { mine: 0, shared: 0 }; const o = new Option(name + ' (' + c.mine + ' mine' + (c.shared ? ', ' + c.shared + ' shared' : '') + ')', k); o.disabled = !c.mine && !c.shared; sel.add(o); }
     if(keep) sel.value = keep; $('learnrow').hidden = false;
+    const tc = $('tcat'); if(!tc.options.length) for(const [k, name] of Object.entries(STYLE_KINDS)) tc.add(new Option(name, k));
+    autoUse();
     $('stlist').innerHTML = ''; for(const s of r.mine.slice(0, 40)){ const li = document.createElement('li'); li.textContent = STYLE_KINDS[s.category] + ': ' + s.name + ' · ' + s.pace + (s.trans ? ' · ' + s.trans : '') + (s.shared ? ' · shared' : '') + ' ';
       const del = document.createElement('button'); del.className = 'btn mini'; del.textContent = 'Delete'; del.addEventListener('click', async () => { try{ await api('/api/studio/styles/' + s.id, { method: 'DELETE' }); loadKinds(); }catch(e){} }); li.appendChild(del); $('stlist').appendChild(li); }
   }catch(err){ $('learnrow').hidden = true; }
@@ -5009,13 +5090,50 @@ $('luse').addEventListener('click', async () => {
     if(!r.fp){ $('linfo').textContent = 'No Reels of this kind yet.'; return; }
     learnedKind = k;
     refProfile = { ...r.fp, name: 'Learned ' + STYLE_KINDS[k] + ' style', cuts: [], learned: true };
-    GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = '';
+    GRADES.copy = { con:1, sat:1, bri:1, warm:0, teal:0, mono: refProfile.look && refProfile.look.sat < 0.05 ? 1 : 0, lift:0, vig:0, grain:0 }; copyLookKey = ''; copyLookScore = null;
     const lb = $('look').querySelector('[data-l="copy"]'); lb.hidden = false; look = refProfile.look ? 'copy' : look; [...$('look').children].forEach(x=>x.setAttribute('aria-pressed', x.dataset.l === look));
     $('linfo').textContent = 'Learned from ' + r.n + ' Reel' + (r.n > 1 ? 's' : '') + (r.accuracy ? ' · predicts a new ' + STYLE_KINDS[k].toLowerCase() + ' Reel ' + Math.round(r.accuracy.learned*100) + '% (default style ' + Math.round(r.accuracy.baseline*100) + '%)' : '') + (r.corrections ? ' · ' + r.corrections + ' of your changes' : '');
     setMode('copy'); $('refinfo').textContent = refProfile.name + ': ' + describeRef(refProfile); $('stsaverow').hidden = true;
   }catch(err){ console.warn('learned style:', err); $('linfo').textContent = 'Your learned style is not ready yet.'; }
 }, SIG);
-$('lscope').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; [...$('lscope').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); }, SIG);
+$('lscope').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; [...$('lscope').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); if($('lauto').checked) autoSave(); }, SIG);
+// "Use for my next Reels": the kind and scope are remembered on this device, and the learned style is put on when the studio opens
+const AUTO_KEY = 'brs-auto-style';
+function autoSave(){ try{ if($('lauto').checked) localStorage.setItem(AUTO_KEY, JSON.stringify({ kind: $('lcat').value, scope: $('lscope').querySelector('[aria-pressed="true"]').dataset.s })); else localStorage.removeItem(AUTO_KEY); }catch(e){} }
+function autoRead(){ try{ const a = JSON.parse(localStorage.getItem(AUTO_KEY) || 'null'); return a && STYLE_KINDS[a.kind] ? a : null; }catch(e){ return null; } }
+$('lauto').addEventListener('change', autoSave, SIG);
+$('lcat').addEventListener('change', () => { if($('lauto').checked) autoSave(); }, SIG);
+let autoTried = false;
+function autoUse(){
+  if(autoTried) return; autoTried = true;
+  const a = autoRead(); if(!a) return;
+  const o = [...$('lcat').options].find(x => x.value === a.kind); if(!o || o.disabled) return;
+  $('lauto').checked = true; $('lcat').value = a.kind;
+  [...$('lscope').children].forEach(x => x.setAttribute('aria-pressed', String(x.dataset.s === a.scope)));
+  if(refProfile && !refProfile.learned) return;   // a Reel the creator is copying comes first
+  $('luse').click();
+}
+// teaching from many Reels: each one read like "Copy a Reel" and saved to the kind, one after another
+$('tpick').addEventListener('click', () => $('tfiles').click(), SIG);
+$('tfiles').addEventListener('change', async e => {
+  const files = [...(e.target.files || [])]; e.target.value = ''; if(!files.length) return;
+  const cat = $('tcat').value, shared = $('tshare').checked; let ok = 0, bad = 0;
+  $('tpick').disabled = true;
+  try{
+    for(const [i, f] of files.entries()){
+      const head = 'Reel ' + (i+1) + ' of ' + files.length + ': ';
+      try{
+        const R = await analyzeReference(f, (p, what) => { $('tstat').textContent = head + what + ' ' + Math.round(p*100) + '%'; });
+        if(!R.cuts || R.cuts.length < 2) throw new Error('too few cuts to learn from');
+        $('tstat').textContent = head + 'saving';
+        await api('/api/studio/styles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: (f.name || 'Reel').replace(/\.[^.]+$/, '').slice(0, 120), category: cat, shared, fp: fingerprintOf(R) }) });
+        ok++;
+      }catch(err){ console.warn('not learned from', f.name, err); bad++; }
+    }
+  } finally { $('tpick').disabled = false; }
+  $('tstat').textContent = 'Learned from ' + ok + ' Reel' + (ok === 1 ? '' : 's') + ' (' + STYLE_KINDS[cat] + ')' + (bad ? ' · ' + bad + ' could not be read (too short or no cuts)' : '') + (ok ? ' ✓' : '');
+  if(ok){ await loadKinds(); $('lcat').value = cat; if(learnedKind === cat) $('luse').click(); }
+}, SIG);
 // corrections: what the creator changes, a few seconds later in one request
 function noteEdit(type, field, from, to, byAi){
   if(from === to) return;
@@ -5565,7 +5683,7 @@ function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
   stopAll(); const uc = sources.map(() => 0);
   edit = list.map(x => { const e = { ...x, el: sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
-  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak }));
+  plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak, ref: e.ref }));
   setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop(); editGen++;
   return true;
 }
@@ -5613,7 +5731,7 @@ async function pickRecent(fp){
 }
 listRecent();
 
-root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, get grade(){ return GRADES[look]; },
+root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, copyMatch, get grade(){ return GRADES[look]; },
   shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests

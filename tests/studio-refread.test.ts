@@ -62,6 +62,14 @@ describe("camera moves", () => {
     expect(["outCubic", "outExpo"]).toContain(mv.ease);
     expect(mv.shake).toBe(false);
   });
+  it("a camera that only pans is not read as a zoom (the small scale errors of each step do not add up)", () => {
+    const fs = [0, 0.12, 0.25, 0.37, 0.5, 0.62, 0.75, 0.87, 1];
+    for (const [px, py] of [[5, 3], [-6, 2], [4, -4]]) {
+      const mv = shotMove(fs.map((f) => moved(sc, 1, px * f, py * f)), fs, W, H);
+      expect(mv.zoom).toBe("none");
+      expect(Math.abs(mv.keys[mv.keys.length - 1].s - 1)).toBeLessThan(0.03);
+    }
+  });
   it("hears a shake and sees a freeze", () => {
     const fs = [0, 0.2, 0.4, 0.6, 0.8, 1];
     const shake = shotMove(fs.map((f, k) => moved(sc, 1, k % 2 ? 4 : -4, 0)), fs, W, H);

@@ -98,8 +98,12 @@ const r3 = (v: number) => Math.round(v * 1000) / 1000;
 export function shotMove(frames: Float32Array[], fs: number[], W: number, H: number): ShotMove {
   const pts: MoveKey[] = [{ f: fs[0] ?? 0, s: 1, x: 0, y: 0, r: 0 }];
   let S = 1, X = 0, Y = 0, R = 0, freeze: number | null = null, flips = 0, lastSign = 0;
+  const meanOf = (F: Float32Array) => { let s = 0; for (let i = 0; i < F.length; i++) s += F[i]; return s / F.length; };
   for (let k = 1; k < frames.length; k++) {
+    // a step across a flash, a fade or a jump in the light is not a camera move: it adds nothing (the move goes on after it)
+    if (Math.abs(meanOf(frames[k - 1]) - meanOf(frames[k])) > 0.08) { pts.push({ f: fs[k], s: S, x: X, y: Y, r: R }); continue; }
     const m = motionBetween(frames[k - 1], frames[k], W, H);
+    if (m.diff > 0.12) { pts.push({ f: fs[k], s: S, x: X, y: Y, r: R }); continue; }   // no move explains it (a cut inside the shot): not read
     const still = m.diff < 0.006 && Math.abs(m.s - 1) < 0.005 && !m.dx && !m.dy;
     if (still && freeze === null) freeze = fs[k - 1];
     S *= m.s; X += m.dx; Y += m.dy; R += m.r;

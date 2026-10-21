@@ -40,15 +40,21 @@ const norm = (t: Record<string, number>) => { const s = Object.values(t).reduce(
 export function learn(fps: Fingerprint[]): Fingerprint | null {
   if (!fps.length) return null;
   const m = (k: keyof Fingerprint) => median(fps.map((f) => Number(f[k])));
+  // a Reel without a steady beat has 0 here (it is paced in seconds): it does not pull the others' beats down
+  const mb = (k: "medianBeats" | "hookBeats" | "bpm") => { const v = fps.map((f) => Number(f[k])).filter((x) => x > 0); return v.length * 2 >= fps.length ? median(v) : 0; };
   const trans: Record<string, number> = {};
   for (const f of fps) for (const [k, v] of Object.entries(f.trans)) trans[k] = (trans[k] ?? 0) + v / fps.length;
   const looks = fps.map((f) => f.look).filter(Boolean) as z.infer<typeof Look>[];
-  const look = looks.length ? Object.fromEntries(Object.keys(looks[0]).map((k) => [k, +mean(looks.map((l) => Number(l[k as keyof typeof l] ?? 0))).toFixed(4)])) : null;
-  const pace = m("medianBeats") || m("medianSec");
-  const typical = fps.reduce((best, f) => (Math.abs((f.medianBeats || f.medianSec) - pace) + Math.abs(f.zoomShare - m("zoomShare")) < Math.abs((best.medianBeats || best.medianSec) - pace) + Math.abs(best.zoomShare - m("zoomShare")) ? f : best), fps[0]);
+  // each colour number averaged over the Reels that have it
+  const lookKeys = [...new Set(looks.flatMap((l) => Object.keys(l)))] as (keyof z.infer<typeof Look>)[];
+  const look = looks.length ? Object.fromEntries(lookKeys.map((k) => [k, +mean(looks.filter((l) => Number.isFinite(l[k])).map((l) => Number(l[k]))).toFixed(4)])) : null;
+  const beatsPace = mb("medianBeats"), pace = beatsPace || m("medianSec"), paceOf = (f: Fingerprint) => (beatsPace ? f.medianBeats : f.medianSec);
+  // the Reel whose rhythm is copied: the most typical one paced the same way (in beats or in seconds)
+  const same = fps.filter((f) => (beatsPace ? f.medianBeats > 0 && f.shotBeats.length > 0 : f.shotSec.length > 0));
+  const typical = (same.length ? same : fps).reduce((best, f) => (Math.abs(paceOf(f) - pace) + Math.abs(f.zoomShare - m("zoomShare")) < Math.abs(paceOf(best) - pace) + Math.abs(best.zoomShare - m("zoomShare")) ? f : best), (same.length ? same : fps)[0]);
   const energies = ["steady", "rising", "falling"] as const;
   return {
-    dur: m("dur"), bpm: m("bpm"), medianBeats: m("medianBeats"), medianSec: m("medianSec"), hookBeats: m("hookBeats"), hookSec: m("hookSec"), onBeat: m("onBeat"),
+    dur: m("dur"), bpm: mb("bpm"), medianBeats: beatsPace, medianSec: m("medianSec"), hookBeats: beatsPace ? mb("hookBeats") : 0, hookSec: m("hookSec"), onBeat: m("onBeat"),
     energy: energies.reduce((a, e) => (fps.filter((f) => f.energy === e).length > fps.filter((f) => f.energy === a).length ? e : a), "steady" as Fingerprint["energy"]),
     zoomShare: m("zoomShare"), trans: norm(trans) as Fingerprint["trans"], look: look as Fingerprint["look"], shotBeats: typical.shotBeats, shotSec: typical.shotSec, moments: typical.moments ?? [],
   };
@@ -57,7 +63,9 @@ export function learn(fps: Fingerprint[]): Fingerprint | null {
 /** the creator's corrections move the transition mix: each change from one kind to another shifts a little share */
 export function withCorrections(fp: Fingerprint, edits: { field: string; from: string; to: string }[]): Fingerprint {
   const tr = edits.filter((e) => e.field === "tr" && e.from !== e.to); if (!tr.length) return fp;
-  const map: Record<string, string> = { hard: "hard", flash: "flash", dip: "fade", fadein: "fade", whip: "whip", zoom: "zoom", dissolve: "dissolve" };
+  // the studio's names of the transitions the reference reader knows (the others, a push or a page turn, are not in a style)
+  const map: Record<string, string> = { hard: "hard", flash: "flash", dip: "fade", fadein: "fade", whip: "whip", zoom: "zoom", dissolve: "dissolve", glitch: "glitch", spin: "spin",
+    iris: "iris", diamond: "diamond", heart: "heart", star: "star", wipe: "wipe", bars: "bars" };
   const t: Record<string, number> = { ...fp.trans }, step = Math.min(0.5, 1 / Math.max(4, tr.length));
   for (const e of tr) { const a = map[e.from], b = map[e.to]; if (a) t[a] = (t[a] ?? 0) - step * 0.5 * (t[a] ?? 0); if (b) t[b] = (t[b] ?? 0) + step * 0.5 * (1 - (t[b] ?? 0)); }
   return { ...fp, trans: norm(t) as Fingerprint["trans"] };

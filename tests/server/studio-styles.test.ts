@@ -45,6 +45,32 @@ describe("learning a style", () => {
   });
 });
 
+describe("learning from Reels read on a phone", () => {
+  it("a Reel without a steady beat (0 beats, paced in seconds) does not pull the others' pace down", () => {
+    const W = Array.from({ length: 6 }, wedding), free = { ...wedding(), medianBeats: 0, hookBeats: 0, bpm: 0, shotBeats: [], shotSec: [2.5, 2.7, 2.4] };
+    const l = learn([...W, free, { ...free }])!;
+    expect(l.medianBeats).toBe(learn(W)!.medianBeats); expect(l.bpm).toBeGreaterThan(70);
+    expect(l.shotBeats.length).toBeGreaterThan(0);   // the rhythm comes from a Reel paced in beats
+  });
+  it("most Reels without a beat: the style is paced in seconds", () => {
+    const S = Array.from({ length: 5 }, () => ({ ...wedding(), medianBeats: 0, hookBeats: 0, bpm: 0, shotBeats: [], shotSec: [2, 2.2, 2.1] }));
+    const l = learn([...S, wedding()])!;
+    expect(l.medianBeats).toBe(0); expect(l.shotSec.length).toBe(3);
+  });
+  it("averages each colour number over the Reels that measured it", () => {
+    const a = { ...wedding(), look: { mean: 0.4, std: 0.2 } }, b = { ...wedding(), look: { mean: 0.6, std: 0.2, sat: 0.5, vig: 0.3 } };
+    const l = learn([a, b])!;
+    expect(l.look!.mean).toBeCloseTo(0.5, 5); expect(l.look!.sat).toBeCloseTo(0.5, 5); expect(l.look!.vig).toBeCloseTo(0.3, 5);
+  });
+  it("corrections to the shape reveals and glitches move the mix too", () => {
+    const base = learn(Array.from({ length: 6 }, wedding))!;
+    for (const k of ["glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars"]) {
+      const after = withCorrections(base, Array.from({ length: 6 }, () => ({ field: "tr", from: "dissolve", to: k })));
+      expect(after.trans[k as keyof FP["trans"]] ?? 0).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("corrections", () => {
   it("move the transition mix toward what the creator picks, and stay a mix", () => {
     const base = learn(Array.from({ length: 6 }, wedding))!;
