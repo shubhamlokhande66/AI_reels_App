@@ -347,7 +347,7 @@ export interface Pricing {
 
 /** The signed-in user's credits (billing on). */
 export type Credits =
-  | { enabled: false }
+  | { enabled: false; billing?: boolean } // billing: on, but nobody signed in
   | {
       enabled: true;
       balance: number;

@@ -43,6 +43,7 @@ export function PlanLockSettings() {
       {L.groups.map((g, gi) => (
         <Card key={g.id}>
           <h3 className="m-0 text-base font-semibold">{g.name}</h3>
+          {g.id === "studio" && <p className="mu sm m-0">The editor&apos;s tool bar: on a lower plan the tool shows its plan&apos;s tag and a tap opens the pricing page.</p>}
           <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
             {g.items.map((it, ii) => (
               <label key={it.key} className="flex items-center justify-between gap-2 text-sm">

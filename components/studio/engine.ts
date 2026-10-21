@@ -52,24 +52,31 @@ let exporting = false;
 let wmOff = false, wmPaid = false;
 /* ---- plans: what this person's plan unlocks (lib/plan-locks.ts, changed by the administrator). Kept on the phone for 7
  * days, so a Reel made offline follows the plan seen last; with no plan known yet, the free plan's rules. Billing off
- * (or the administrator): everything is open. A crowned item can be tried in the preview; the export asks. ---- */
+ * (or the administrator): everything is open, except while the administrator looks with View as Free (views.ts): then
+ * the free plan's rules. Signed out with billing on: the free plan. A crowned item can be tried in the preview; the
+ * export asks. ---- */
 let playGen = 0, starting = false;   // Preview's start / stop number (startPlayback, stopAll)
 const PLAN_KEY = 'brs-plan';
 let planNow = 'free', planOpen = false, LOCKS = needMap(DEFAULT_LOCKS), EXR = DEFAULT_LOCKS.export;
 try{ const c = JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); if(c && Date.now() - c.at < 7*864e5){ planNow = c.plan; planOpen = !!c.open; if(c.need) LOCKS = c.need; if(c.ex) EXR = c.ex; } }catch(e){}
 const lockNeed = (cat, key) => LOCKS[cat + ':' + key] || 'free';
-const isLocked = (cat, key) => !planOpen && !root.classList.contains('admin') && planRank(lockNeed(cat, key)) > planRank(planNow);
+const asFree = () => root.classList.contains('admin') && root.classList.contains('asfree');
+const allOpen = () => !asFree() && (planOpen || root.classList.contains('admin'));
+const isLocked = (cat, key) => !allOpen() && planRank(lockNeed(cat, key)) > planRank(asFree() ? 'free' : planNow);
 const crown = (cat, key, name) => (isLocked(cat, key) ? '👑 ' : '') + name;
-const exRule = () => planOpen || root.classList.contains('admin') ? { maxRes: '4k', fps60: true, noWatermark: true } : (EXR[planNow] || EXR.free);
+const exRule = () => allOpen() ? { maxRes: '4k', fps60: true, noWatermark: true } : asFree() ? EXR.free : (EXR[planNow] || EXR.free);
 function planLoad(){
   Promise.all([fetch('/api/plan-locks').then(r => r.ok ? r.json() : null).catch(() => null), fetch('/api/credits', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).catch(() => null)]).then(([L, c]) => {
     if(L && L.groups){ LOCKS = needMap(L); EXR = L.export || EXR; }
-    if(c){ planOpen = !c.enabled; planNow = c.enabled && c.plan ? c.plan : planNow; }
+    // signed out with billing on (billing: true): the free plan, not everything open
+    if(c){ planOpen = !c.enabled && !c.billing; planNow = c.enabled && c.plan ? c.plan : c.billing ? 'free' : planNow; }
     try{ localStorage.setItem(PLAN_KEY, JSON.stringify({ at: Date.now(), plan: planNow, open: planOpen, need: LOCKS, ex: EXR })); }catch(e){}
+    root.dispatchEvent(new CustomEvent('brs-plan', { detail: { plan: planNow, open: planOpen, need: LOCKS } }));   // the tool bar's plan tools (views.ts)
     queueMicrotask(() => { try{ planPaint(); if(!$('xsheet').hidden) sheetPaint(); }catch(e){} });
   });
 }
 planLoad();
+root.addEventListener('brs-asfree', () => { try{ planPaint(); if(!$('xsheet').hidden) sheetPaint(); }catch(e){} }, SIG);   // View as Free switched (views.ts)
 const crownMap = (cat, M) => Object.fromEntries(Object.entries(M).map(([k, v]) => [k, crown(cat, k, v)]));
 const wmImg = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: '/brand/shubix-logo-sm.webp' }) : null;
 const texOf = (e, local) => exporting ? (e.fc || e.fcLast) : e.rc && e.cs && e.cs.rev && local !== undefined ? revFrame(e, local) : e.el;
