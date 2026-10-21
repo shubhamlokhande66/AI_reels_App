@@ -274,7 +274,7 @@ export function repace(plan: Slot[], secs: { t: number; len: number; every: numb
     let s = c.t;
     while (end - s > 4.5) {
       const mid = s + Math.min(3, (end - s) / 2);
-      const bt = beats.filter((x) => x > s + 1.2 && x < end - 1).reduce((best, x) => (Math.abs(x - mid) < Math.abs(best - mid) ? x : best), mid) - EARLY;
+      const bt = (beats.filter((x) => x > s + 1.2 && x < end - 1).reduce<number | null>((best, x) => (best === null || Math.abs(x - mid) < Math.abs(best - mid) ? x : best), null) ?? mid) - EARLY;
       res.push({ start: s, end: bt, type: s === c.t ? c.type : "cut", fx: s === c.t ? (base?.fx ?? c.fx ?? "Hard cut") : "Hard cut" }); s = bt;
     }
     if (end - s >= 0.08) res.push({ start: s, end, type: s === c.t ? c.type : "cut", fx: s === c.t ? (base?.fx ?? c.fx ?? "Hard cut") : "Hard cut" });
