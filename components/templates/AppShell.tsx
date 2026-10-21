@@ -176,9 +176,9 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
   credits: { balance: number; planName: string } | null;
   onSignOut?: () => void;
 }) {
-  // the design's list: the main pages, then the Admin dashboard button for an administrator
-  const main = groups.filter((g) => !g.admin).flatMap((g) => g.items).filter((i) => i.href !== "/pricing");
-  const link = (item: (typeof main)[number]) => {
+  // the computer's sidebar list, by group (Studio, Library, Account with Pricing & plans), then the Admin dashboard button
+  const main = groups.filter((g) => !g.admin);
+  const link = (item: (typeof GROUPS)[number]["items"][number]) => {
     const active = isActive(pathname, item.href);
     const Tag = item.fullLoad ? "a" : Link;
     return (
@@ -221,7 +221,12 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
             </div>
           )}
           <nav aria-label="Pages" className="flex flex-col">
-            {main.map(link)}
+            {main.map((g) => (
+              <div key={g.title} className="flex flex-col">
+                <span className="eb px-2.5 pb-1 pt-3 first:pt-1">{g.title}</span>
+                {g.items.map(link)}
+              </div>
+            ))}
           </nav>
           <div className="flex-1" />
           {admin && <AdminButton onClick={onClose} />}

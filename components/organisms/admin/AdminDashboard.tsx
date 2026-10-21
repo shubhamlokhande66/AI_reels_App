@@ -5,7 +5,9 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon, Logo } from "@/components/atoms";
 import { ThemeToggle } from "@/components/molecules/ThemeToggle";
-import { GROUPS } from "@/components/templates/AppShell";
+import { AiSettingsPanel } from "@/components/organisms/AiSettingsPanel";
+import { TrendLibrary } from "@/components/organisms/TrendLibrary";
+import { VoiceProfiles } from "@/components/organisms/VoiceProfiles";
 import { useMe } from "@/hooks/useApi";
 import { getAdminKey, setAdminKey } from "@/lib/admin";
 import { LiveDot, OverviewTab, useOverview } from "./OverviewTab";
@@ -16,15 +18,18 @@ import { UserPanel } from "./UserPanel";
 import { UsersTab } from "./UsersTab";
 
 /** The admin panel (like the shop's): a grouped sidebar, a header with who is online and Refresh, then the open tab. */
-type Tab = "overview" | "users" | "templates" | "settings" | "errors";
+type Tab = "overview" | "users" | "templates" | "settings" | "errors" | "ai" | "voices" | "trends";
 const NAV: { title: string; items: { id: Tab; label: string; icon: string; hint: string }[] }[] = [
   { title: "Overview", items: [{ id: "overview", label: "Dashboard", icon: "home", hint: "Visitors, sign-ups, revenue and credits at a glance" }] },
   { title: "People", items: [{ id: "users", label: "Users", icon: "user", hint: "Everyone who signed up: logins, purchases, credits left" }] },
   { title: "Content", items: [{ id: "templates", label: "Templates", icon: "grid", hint: "Every template of the studio: add, change, hide, order, its times and its days" }] },
   { title: "System", items: [{ id: "settings", label: "Settings", icon: "gear", hint: "Every setting of the studio, managed here" }, { id: "errors", label: "Errors", icon: "key", hint: "What broke in people's browsers, newest first" }] },
+  // the AI's tools open here too (before, they were links that left the dashboard)
+  { title: "Tools", items: [{ id: "ai", label: "AI settings", icon: "gear", hint: "Which AI does each job. Changes apply to new Reels." },
+    { id: "voices", label: "Voice profiles", icon: "mic", hint: "How voice-overs sound. Runs offline on this computer." },
+    { id: "trends", label: "My trends", icon: "trend", hint: "Give a trending Reel; its cuts, pace and look are learned." }] },
 ];
 const TABS = NAV.flatMap((g) => g.items);
-const TOOLS = GROUPS.find((g) => g.admin)?.items ?? [];
 const fromHash = (): Tab => {
   const h = typeof window === "undefined" ? "" : window.location.hash.slice(1);
   return TABS.some((t) => t.id === h) ? (h as Tab) : "overview";
@@ -88,17 +93,6 @@ export function AdminDashboard() {
             ))}
           </div>
         ))}
-        {TOOLS.length > 0 && (
-          <div className="flex flex-col gap-0.5">
-            <span className="eb px-2.5 pb-1">Tools</span>
-            {TOOLS.map((t) => (
-              <Link key={t.href} href={t.href} className="flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-[13.5px] text-muted transition-colors hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] hover:text-foreground">
-                <Icon name={t.icon} size={18} stroke={1.7} />
-                {t.label}
-              </Link>
-            ))}
-          </div>
-        )}
       </nav>
       <div className="flex-1" />
       <ThemeToggle />
@@ -165,6 +159,9 @@ export function AdminDashboard() {
             {tab === "settings" && <SettingsTab />}
             {tab === "templates" && <TemplatesTab />}
             {tab === "errors" && <ErrorsTab />}
+            {tab === "ai" && <div className="mx-auto flex w-full max-w-3xl flex-col gap-3"><AiSettingsPanel /></div>}
+            {tab === "voices" && <VoiceProfiles embedded />}
+            {tab === "trends" && <TrendLibrary embedded />}
           </div>
         </main>
       </div>
