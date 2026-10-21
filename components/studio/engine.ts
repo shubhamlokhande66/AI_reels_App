@@ -1879,6 +1879,61 @@ function applyDirectorStyle(){
 // One last pass over every cut, whoever chose it: special transitions stay within their ration (the director's own
 // choices are served first), finish well inside both shots, and the same special one never runs twice in a row.
 // Returns how many of the director's transitions had to become hard cuts.
+/* ---- a human editor's taste: what makes a Reel look made by a good editor, not by a random generator ----
+ * Trending Reels are mostly plain cuts on the beat; a special transition only where the song changes (a drop, a break),
+ * in one style for the whole Reel; a zoom only on a drop, never on shot after shot; most shots clean; shape effects
+ * (heart, star, split, kaleidoscope) at most once, on a fast Reel's drop. Applied to the rules' and the AI's choices
+ * alike; a copied Reel keeps its reference's own edit, and the person can still pick anything by hand afterwards. */
+const TR_CLASSY = new Set(['dissolve','fadein','dip','flash','whip','zoom','glitch','slideleft','slideright','swipeup','burn','luma','blur','zoomout']);
+const TR_STYLE = { smooth: ['dissolve', 'dip'], fast: ['whip', 'flash'], auto: ['flash', 'dissolve'] };
+const ZOOM_FX = new Set(['bounce','zoomburst','punch','tilt','shake','jump']);
+const MOVE_FX = new Set(['pan','pan-soft','drift','punch-soft']);
+function tastePlan(){
+  if(mode === 'copy' || !plan.length || !buf) return;
+  const L = buf.duration, style = TR_STYLE[mode] || TR_STYLE.auto;
+  const most = Math.max(1, Math.round(L / 7)), apart = Math.max(4, L / 6);
+  let used = 0, last = -99, lastAcc = -99;
+  // a song without a drop or a break (found): its hits, or else its long shots, are where it changes
+  const marked = plan.some(s => s.type === 'drop' || s.type === 'break'), hits = plan.some(s => s.type === 'hit');
+  plan.forEach((s, i) => {
+    const len = s.end - s.start, prev = plan[i - 1];
+    // transitions: only where the song changes, room on both sides, spaced, one style
+    if(i > 0 && s.tr !== 'hard'){
+      const at = s.type === 'drop' || s.type === 'break' || (s.type === 'hit' && (!marked || s.start - last >= 2 * apart))
+        || (!marked && !hits && len >= 1.5);
+      const room = len >= 1 && prev && prev.end - prev.start >= 1;
+      if(!at || !room || used >= most || s.start - last < apart) s.tr = 'hard';
+      else {
+        if(!TR_CLASSY.has(s.tr)) s.tr = s.type === 'drop' ? style[0] : style[1];
+        if((TR_DUR[s.tr] || 0) > 0.6 * len) s.tr = 'hard'; else { used++; last = s.start; }
+      }
+    }
+    // the AI's keyframe kicks: on a drop or a hit only, one per shot, spaced
+    if(s.acc && s.acc.length){
+      if((s.type === 'drop' || s.type === 'hit') && s.start - lastAcc >= 3){ s.acc = s.acc.slice(0, 1); lastAcc = s.start; }
+      else s.acc = [];
+    }
+  });
+}
+// per shot, once its footage is chosen (before its keyframes are made): zooms on drops only and never two in a row, gentle
+// moves on long shots, at most a third of the shots moving; photos always move gently (a still photo looks stopped)
+function tasteFx(e, i, t){
+  if(mode === 'copy') return;
+  const len = e.end - e.start, photo = root.classList.contains('photomode');
+  if(BEAT_FX.includes(e.efx)){ if(mode === 'fast' && e.type === 'drop' && !t.shape) t.shape = true; else e.efx = 'none'; }
+  if(e.efx === 'hook' && i > 0) e.efx = 'none';
+  if(ZOOM_FX.has(e.efx)){
+    const ok = (e.type === 'drop' || (mode === 'fast' && e.type === 'hit')) && !t.prevZoom && e.start - t.lastZoom >= 3;
+    if(!ok) e.efx = photo || len >= 2.5 ? 'pan-soft' : 'none';
+  }
+  if(e.efx === 'pan') e.efx = photo || len >= 2.5 ? 'pan-soft' : 'none';   // Ken Burns, without the bounce on every beat
+  if(MOVE_FX.has(e.efx) && !photo){
+    if(len < 2.5 || t.moves >= Math.ceil(t.n / 3)) e.efx = 'none'; else t.moves++;
+  }
+  if(photo && e.efx === 'none') e.efx = 'pan-soft';   // a photo always moves a little (Ken Burns); a still one looks stuck
+  t.prevZoom = ZOOM_FX.has(e.efx) || e.efx === 'hook';
+  if(t.prevZoom) t.lastZoom = e.start;
+}
 function finishTransitions(){
   const per = Math.max(1, buf.duration/30), left = {snap:Math.round(2*per), whip:Math.round(2*per), spin:Math.round(1*per), glitch:Math.round(2*per), bars:Math.round(2*per), iris:Math.round(3*per), zoom:Math.round(3*per), wipe:Math.round(2*per), dissolve:Math.round(2*per) + (mode==='smooth' ? 99 : 0), flash:Math.round(6*per) + (mode==='fast' ? 99 : 0)};
   if(mode==='copy' && copyBudget){ Object.keys(left).forEach(k=>{ left[k] = copyBudget[k] || 0; }); }   // copying a Reel: its own counts are the ration
@@ -2351,7 +2406,7 @@ function makeEditNow(){
   if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
   const keptUk = ukKeep();
-  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = repace(basePlan, pc.secs, beats, buf.duration, mode); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions();
+  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = repace(basePlan, pc.secs, beats, buf.duration, mode); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
   // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
@@ -2395,7 +2450,8 @@ function makeEditNow(){
   });
   const useCount = sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
   edit = plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
-  edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth' && !e.fxByDir) suitFx(e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
+  const taste = { n: edit.length, moves: 0, prevZoom: false, lastZoom: -99, shape: false };
+  edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth' && !e.fxByDir) suitFx(e); tasteFx(e, i, taste); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
   ukRestore(keptUk);
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
   autoTools(); speechScan();
@@ -5339,7 +5395,9 @@ function voStat(t){ $('vostat').textContent = t; }
  * the voice changer; the song steps back while it speaks) and each shot's own sound at its volume (cs.vol). ---- */
 // clip: the clips' own sound under the song: mute (the default: no wind, traffic or chatter), voices (only where
 // people speak), all (every shot's sound, a little under the song)
-const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute', sfx: true, sfxv: 0.6 };
+// sfx: the automatic sound effects (a whoosh into a swipe, a boom on a drop...) are off by default: a whoosh on every
+// swipe is what makes an edit sound home-made; they are one tap away (Music → Sound effects) and can be added by hand
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute', sfx: false, sfxv: 0.6 };
 const musicOut = () => au.mfout || (au.ai ? 0.8 : 0);
 let au = { ...AU0 }, clipMixKey = '';
 const fxCache = new Map();
