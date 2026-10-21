@@ -12,7 +12,8 @@ export const WASM_BASE = "/vendor/ort/";
 export type Progress = (stage: "download" | "run", p: number) => void;
 export type OnDeviceBeats = BeatThisResult & { ms: { resample: number; load: number; run: number } };
 
-let worker: Worker | null = null, nextId = 1;
+// waiting: the requests the current worker still owes an answer (a new song can be picked while one is checked)
+let worker: Worker | null = null, nextId = 1, waiting = 0;
 
 /** WebAssembly SIMD (the runtime needs it): a tiny module using a v128 instruction must validate. */
 function simdOk(): boolean {
@@ -48,18 +49,21 @@ export async function beatThisOnDevice(mono: Float32Array, sr: number, onProgres
   const tr = Math.round(performance.now() - t0);
   worker ??= new Worker(new URL("./beatThis.worker.ts", import.meta.url), { type: "module" });
   const w = worker, id = nextId++;
+  waiting++;
+  // an iPhone: the worker goes once nothing more is asked of it. Its WebAssembly memory (the model, a few hundred MB)
+  // never shrinks, and the clips and the Reel need it next; the model stays in Cache Storage, so the next song loads
+  // fast. Not while another request waits on it (a second song picked meanwhile): that one would never be answered.
+  const settle = () => { waiting = Math.max(0, waiting - 1); if (isIOS() && waiting === 0 && worker === w) { w.terminate(); worker = null; } };
   return new Promise((resolve, reject) => {
     const onMsg = (e: MessageEvent) => {
       const d = e.data; if (d.id !== id) return;
       if (d.type === "progress") { onProgress?.(d.stage, d.p); return; }
       w.removeEventListener("message", onMsg); w.removeEventListener("error", onErr);
-      // an iPhone: the worker goes once the beats are in. Its WebAssembly memory (the model, a few hundred MB) never
-      // shrinks, and the clips and the Reel need it next; the model stays in Cache Storage, so the next song loads fast
-      if (isIOS()) { w.terminate(); if (worker === w) worker = null; }
+      settle();
       if (d.type === "done") resolve({ ...d.result, ms: { resample: tr, ...d.ms } });
       else reject(new Error(d.message));
     };
-    const onErr = (e: ErrorEvent) => { w.removeEventListener("message", onMsg); w.removeEventListener("error", onErr); worker = null; reject(new Error(e.message || "beat worker failed")); };
+    const onErr = (e: ErrorEvent) => { w.removeEventListener("message", onMsg); w.removeEventListener("error", onErr); if (worker === w) worker = null; settle(); reject(new Error(e.message || "beat worker failed")); };
     w.addEventListener("message", onMsg); w.addEventListener("error", onErr);
     w.postMessage({ id, samples, model: new URL(MODEL_URL, location.href).href, filterbank: new URL(FILTERBANK_URL, location.href).href, wasm: new URL(WASM_BASE, location.href).href }, [samples.buffer]);
   });
