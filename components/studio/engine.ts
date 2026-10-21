@@ -541,21 +541,30 @@ function snap(t, w){
 /* =============== STEP 1: MUSIC =============== */
 let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0, editGen = 0;
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
-function adaptPlan(){
+function adaptPlan(){ return endWell(noFlashCuts(adaptPlan0())); }
+function noFlashCuts(p){
+  for(let i=1;i<p.length;i++){ const s = p[i], pt = partAt(s.start + 0.05); if(s.end - s.start >= (pt === 'drop' || pt === 'up' ? 0.4 : 0.6)) continue;
+    const keepStart = s.type === 'drop' || s.type === 'break' || isPartStart(s.start + 1/30);
+    if(keepStart && p[i+1] && !(p[i+1].type === 'drop' || p[i+1].type === 'break' || isPartStart(p[i+1].start + 1/30))){ s.end = p[i+1].end; p.splice(i+1, 1); i--; }
+    else if(!keepStart){ p[i-1].end = s.end; p.splice(i, 1); i--; } }
+  return p;
+}
+function adaptPlan0(){
   if(mode==='copy' && refProfile) return copyPlan();
   if(mode==='smooth'){
-    const minLen = Math.min(3, Math.max(1.4, period*4)), outP = [];
-    basePlan.forEach(s=>{ const last = outP[outP.length-1];
-      const keep = !last || s.type==='drop' || s.type==='break' || (s.start-last.start) >= minLen || (s.end-last.start) > 4.5;
+    const bar = Math.min(3, Math.max(1.4, period*4)), outP = [];
+    basePlan.forEach(s=>{ const last = outP[outP.length-1], minLen = outP.length === 1 ? Math.min(bar, 2.6) : partAt(s.start) === 'drop' ? (bar > 2.2 ? bar/2 : bar) : Math.min(4, 2*bar);
+      const keep = !last || s.type==='drop' || s.type==='break' || isPartStart(s.start) || (s.start-last.start) >= minLen - 0.1 || (s.end-last.start) > (partAt(s.start) === 'drop' ? 4.5 : 5.2);
       if(keep) outP.push({...s}); else last.end = s.end; });
     return outP;
   }
   if(mode==='fast'){
     const outP = [];
     basePlan.forEach(s=>{
-      const bs = beats.map(b=>b-1/30).filter(b=>b>s.start+0.3 && b<s.end-0.3);
+      const G = gridOf(buf.duration), one = period < 0.4 ? 2*period - 0.02 : 0.3, bs = G.map(b=>b-1/30).filter(b=>b>s.start+0.3 && b<s.end-0.3);
       let a = s.start, first = true;
-      for(const b of bs){ if(b-a >= 0.3){ outP.push({...s, start:a, end:b, type:first?s.type:'cut', fx:first?s.fx:'Hard cut'}); a=b; first=false; } }
+      for(const b of bs){ const pt = partAt(b), step = pt === 'drop' || pt === 'up' ? one : Math.max(one, 1.9*period);
+        if(b-a >= step && s.end-b >= Math.min(step, 0.6)){ outP.push({...s, start:a, end:b, type:first?s.type:'cut', fx:first?s.fx:'Hard cut'}); a=b; first=false; } }
       outP.push({...s, start:a, end:s.end, type:first?s.type:'cut', fx:first?s.fx:'Hard cut'});
     });
     return outP;
@@ -570,12 +579,13 @@ function buildPlan(){
   for(let i=1;i<cs.length;i++) cs[i] = Math.max(cs[i-1]+0.05, cs[i]-1/30);
   for(let i=0;i<cs.length;i++){ const end = i+1<cs.length ? cs[i+1] : dur; if(end-cs[i] < 0.08) continue; list.push({start:cs[i], end, type:ts[i], fx:fx[i]}); }
   // pattern interrupt: no shot longer than 3.5 s; split long ones on a beat
-  const outL = [];
+  const outL = [], G = gridOf(dur);
   list.forEach(s=>{
     let a = s.start; const segs = [];
     while(s.end - a > 3.5){
       const mid = a + Math.min(3.0, (s.end-a)/2);
-      const bt = beats.filter(b=>b>a+1.2 && b<s.end-1.0).reduce((best,b)=>Math.abs(b-mid)<Math.abs(best-mid)?b:best, mid) - 1/30;
+      const btG = G.filter(b=>b>a+1.2 && b<s.end-1.0).reduce((best,b)=>best==null || Math.abs(b-mid)<Math.abs(best-mid)?b:best, null) ?? mid;
+      const bt = btG - 1/30;
       segs.push([a, bt]); a = bt;
     }
     segs.push([a, s.end]);
@@ -691,7 +701,9 @@ function bestPart(L){
   if(!starts.length) return 0;
   const eAt = (a, b) => { const fa = Math.max(0, Math.floor(a/hs)), fb = Math.min(E.length, Math.ceil(b/hs)); let s2 = 0; for(let f=fa; f<fb; f++) s2 += E[f]; return s2/Math.max(1, fb-fa); };
   let eMax = 1e-9; const ew = starts.map(t => { const v = eAt(t, t+L); if(v > eMax) eMax = v; return v; });
-  const drops = (r.cuts || []).filter((c,k)=>r.cutType[k] === 'drop'), brk = (r.cuts || []).filter((c,k)=>r.cutType[k] === 'break');
+  const pt = partsOfSong(), byParts = pt && pt.length;
+  const drops = byParts ? pt.filter(x => x.ty === 'drop').map(x => x.t) : (r.cuts || []).filter((c,k)=>r.cutType[k] === 'drop'),
+    brk = byParts ? pt.filter(x => x.ty === 'break').map(x => x.t) : (r.cuts || []).filter((c,k)=>r.cutType[k] === 'break');
   // how hard each beat hits (a bar's first beat usually hits hardest): a part starts best on a strong one
   const hit = t => eAt(t, t + 0.12), hMax = Math.max(1e-9, ...starts.map(hit));
   let best = 0, bs = -Infinity;
@@ -708,13 +720,101 @@ function bestPart(L){
   return best;
 }
 function snapToBeat(t){ const bt = song.r.beats || []; if(bt.length < 8) return Math.max(0, t); let b = bt[0]; for(const x of bt) if(Math.abs(x - t) < Math.abs(b - t)) b = x; return b; }
+/* ---- the song's parts, the way an editor hears them: intro, build-up, DROP, break ----
+ * Loudness and low end (kick + bass) per beat; a part starts where both change for good (8 beats before vs after),
+ * placed on the exact beat and on the bar line. A rise into one of the loudest parts is a drop, a fall is a break.
+ * The edit's drops and breaks come only from here, so every Reel cuts where the song changes and nowhere else. */
+function songParts(mono, sr, beats){
+  if(!beats || beats.length < 16) return [];
+  let n = beats.length; const p = (beats[n-1]-beats[0])/(n-1), dur = mono.length/sr;
+  // a quiet intro or ending has no beats found: its pulse goes on, on the same grid
+  { const g = beats.slice(); for(let t=g[0]-p; t>=0; t-=p) g.unshift(t); for(let t=g[g.length-1]+p; t<dur-p; t+=p) g.push(t); beats = g; n = g.length; }
+  // per beat: loudness and low end (kick + bass), in dB
+  let lp = 0; const a = Math.exp(-2*Math.PI*150/sr), low = new Float32Array(mono.length);
+  for(let i=0;i<mono.length;i++){ lp = (1-a)*mono[i] + a*lp; low[i] = lp; }
+  const db = (arr, t0, t1) => { const i0 = Math.max(0, Math.round(t0*sr)), i1 = Math.min(arr.length, Math.round(t1*sr)); let s = 0; for(let i=i0;i<i1;i+=2) s += arr[i]*arr[i]; return 10*Math.log10(s/Math.max(1,(i1-i0)/2) + 1e-9); };
+  const F = beats.map((b,k) => { const e = k+1<n ? beats[k+1] : b+p; return [db(mono,b,e), db(low,b,e)]; });
+  const W = 8, nov = beats.map((_,k) => { if(k < 4 || k > n-4) return 0; const w = Math.min(W, k, n-k);
+    let d = 0; for(const j of [0,1]){ let A=0,B=0; for(let q=1;q<=w;q++){ A += F[k-q][j]; B += F[k+q-1][j]; } d += (B-A)/w; } return d/2; });
+  // boundaries: strongest changes, at least 8 beats apart
+  const cand = nov.map((v,k)=>({k, v})).filter(c => c.v >= 3 || c.v <= -3.5).sort((x,y)=>Math.abs(y.v)-Math.abs(x.v)), keep = [];
+  cand.forEach(c => { if(keep.every(o => Math.abs(o.k-c.k) >= 8)) keep.push(c); });
+  // the exact beat: where the sound changes most from one beat to the next (same direction), near the coarse change
+  const step = (k, w) => { let A=0,B=0; for(let q=1;q<=w;q++){ A += F[k-q][0]+F[k-q][1]; B += F[k+q-1][0]+F[k+q-1][1]; } return (B-A)/(2*w); };
+  keep.forEach(c => { let bk = c.k, bv = 0; for(let k=Math.max(2,c.k-3); k<=Math.min(n-2,c.k+3); k++){ const v = step(k, 2)*Math.sign(c.v); if(v > bv){ bv = v; bk = k; } } c.k = bk; });
+  // bars: the phase most changes agree on; a change one beat off a bar line moves onto it
+  const ph = [0,1,2,3].map(r => keep.reduce((s,c)=>s + (c.k%4===r ? Math.abs(c.v) : 0), 0)), P = ph.indexOf(Math.max(...ph));
+  keep.forEach(c => { const o = ((c.k - P)%4+4)%4; if(o === 1) c.k -= 1; else if(o === 3) c.k += 1; });
+  for(let i=keep.length-1;i>=0;i--) if(beats[n-1] - beats[Math.min(n-1,keep[i].k)] < 4*p || keep[i].k >= n) keep.splice(i,1);
+  keep.sort((x,y)=>x.k-y.k);
+  const all = F.map(f=>f[0]).sort((x,y)=>x-y), hi = all[Math.floor(all.length*0.55)];
+  const segE = (k0,k1) => { const v = F.slice(k0, Math.max(k0+1,k1)).map(f=>f[0]).sort((x,y)=>x-y); return v[v.length>>1]; };   // median: a silent tail does not count
+  return keep.map((c,i) => { const nx = i+1<keep.length ? keep[i+1].k : n; const e = segE(c.k, nx);
+    return { t: beats[c.k], ty: c.v > 0 && e >= hi ? 'drop' : c.v < 0 ? 'break' : 'up', v: +c.v.toFixed(1) }; });
+}
+// the analysis' cuts, put on the beat grid and on the song's parts (st, L: the part of the song in use)
+function applyParts(r, parts, st, L){
+  const p = r.period, bt = r.beats || [];
+  if(!p || !r.cuts) return r;
+  const cuts = r.cuts.slice(), ty = r.cutType.slice(), fx = r.cutFx.slice();
+  // the grid: beats, carried on before the first and after the last one (a quiet intro still has a pulse)
+  const grid = [];
+  if(bt.length >= 8){ for(let t=bt[0]-p; t>-0.05; t-=p) grid.unshift(t); grid.push(...bt); for(let t=bt[bt.length-1]+p; t<L; t+=p) grid.push(t); }
+  const near = (t, step) => { let b = null, bd = Infinity; for(const g of grid) for(let q=0; q<1; q+=step){ const c = g + q*p, d = Math.abs(c - t); if(d < bd){ bd = d; b = c; } } return [b, bd]; };
+  const rel = (parts || []).map(x => ({ t: Math.max(0, x.t - st), ty: x.ty })).filter(x => x.t >= 0 && x.t < L - 0.5 && (x.t > 0 || x.ty === 'drop'));
+  // on the beat; half beats only in a build-up (its roll speeds up)
+  const inBuild = t => { let ty = ''; for(const x of rel){ if(x.t <= t + 0.02) ty = x.ty; else break; } return ty === 'up'; };
+  if(grid.length) for(let i=0;i<cuts.length;i++){ if(cuts[i] < 0.05) continue;
+    const [b1, d1] = near(cuts[i], 1), [b2] = near(cuts[i], 0.5);
+    cuts[i] = d1 <= 0.1 || !inBuild(cuts[i]) ? b1 : b2; }
+  const FX = { drop: 'Best shot · flash + zoom-in', break: 'Slow-mo / freeze / text' };
+  rel.forEach(x => {
+    let j = -1, bd = 0.25; cuts.forEach((c,k) => { const d = Math.abs(c - x.t); if(d < bd){ bd = d; j = k; } });
+    const T = x.ty === 'drop' || x.ty === 'break' ? x.ty : (j >= 0 && ty[j] !== 'drop' && ty[j] !== 'break' ? ty[j] : 'cut');
+    if(j >= 0){ cuts[j] = x.t; ty[j] = T; fx[j] = FX[T] || fx[j]; }
+    else { let k = cuts.findIndex(c => c > x.t); if(k < 0) k = cuts.length; cuts.splice(k, 0, x.t); ty.splice(k, 0, T); fx.splice(k, 0, FX[T] || 'Hard cut'); }
+  });
+  const isPart = t => rel.some(q => Math.abs(q.t - t) < 0.01);
+  // a drop or break anywhere else is only a hit / a cut; a cut right after a part's start goes (the part's shot plays)
+  const out = { c: [], t: [], f: [] }, ord = cuts.map((c,k) => k).sort((x,y) => cuts[x] - cuts[y]);
+  ord.forEach(k => { const c = cuts[k]; let T = ty[k], F = fx[k];
+    if(parts && parts.length && (T === 'drop' || T === 'break') && !isPart(c)){ T = T === 'drop' ? 'hit' : 'cut'; F = T === 'hit' ? 'Zoom punch' : 'Hard cut'; }
+    const n = out.c.length - 1;
+    if(n >= 0 && c - out.c[n] < 0.3){ if(isPart(c) && !isPart(out.c[n])){ out.c[n] = c; out.t[n] = T; out.f[n] = F; }
+      else if(!isPart(out.c[n]) && out.t[n] === 'cut' && T !== 'cut'){ out.t[n] = T; out.f[n] = F; } return; }
+    out.c.push(c); out.t.push(T); out.f.push(F); });
+  return { ...r, cuts: out.c, cutType: out.t, cutFx: out.f, parts: rel };
+}
+// which part of the song a moment (in the Reel's time) is in: intro, up (build), drop, break
+let songPartsRel = [];
+function partAt(t){ let ty = 'intro'; for(const x of songPartsRel){ if(x.t <= t + 0.02) ty = x.ty; else break; } return ty; }
+const isPartStart = t => songPartsRel.some(x => Math.abs(x.t - t) < 0.08);
+function gridOf(dur){ const g = []; if(beats.length < 8 || !period) return beats.slice();
+  for(let t=beats[0]-period; t>0.05; t-=period) g.unshift(t); g.push(...beats); for(let t=beats[beats.length-1]+period; t<dur-0.05; t+=period) g.push(t); return g; }
+// the last shot is a whole one (a cut just before the end looks like a mistake)
+// a cut wherever a part of the song starts (the AI's pace keeps drops and breaks; a build-up's start too)
+function withPartCuts(p){
+  songPartsRel.forEach(x => { const t = x.t - 1/30; if(t < 0.3) return;
+    if(p.some(s => Math.abs(s.start - t) < 0.1)) return;
+    const k = p.findIndex(s => s.start < t && s.end > t); if(k < 0) return;
+    const s = p[k], T = x.ty === 'drop' || x.ty === 'break' ? x.ty : 'cut';
+    p.splice(k + 1, 0, { ...s, start: t, type: T, fx: T === 'drop' ? 'Best shot · flash + zoom-in' : T === 'break' ? 'Slow-mo / freeze / text' : 'Hard cut' }); s.end = t; });
+  return p;
+}
+function endWell(p){ while(p.length > 1 && p[p.length-1].end - p[p.length-1].start < 1){ const l = p.pop(); p[p.length-1].end = l.end; } return p; }
+function partsOfSong(){
+  if(song && song.r && song.partsOf !== song.r){ try{ song.parts = songParts(song.mono, song.buf.sampleRate, song.r.beats); }catch(e){ console.warn('song parts', e); song.parts = []; }
+    song.partsOf = song.r; }
+  return song ? song.parts : [];
+}
 async function useSection(token = musicToken){
   if(!song || !song.r) return;
   if(kind === 'talk'){ drawMusic(); if(sources.length && !recording && !(talk && talk.songKey === song.key)) buildTalk(); return; }
   const run = ++secBusy, W = song.buf, D = W.duration, sr = W.sampleRate;
   let r;
+  const parts = partsOfSong();
   if(!sec.len || sec.len >= D - 0.3){
-    buf = W; mono = song.mono; secStart = 0; r = song.r;
+    buf = W; mono = song.mono; secStart = 0; r = applyParts(song.r, parts, 0, D);
   } else {
     const pb = partBeats(sec.len), L = Math.min(pb.len, D);
     let st = sec.auto ? bestPart(L) : snapToBeat(sec.start);
@@ -739,6 +839,7 @@ async function useSection(token = musicToken){
         else if(r.cutType[k] === 'drop' || r.cutType[k] === 'break'){ r.cutType[k] = 'cut'; r.cutFx[k] = 'Hard cut'; } });
       const d0 = W2.find(c => c.ty === 'drop' && Math.abs(c.t) < 0.12);
       if(d0 && !(r.cuts.length && r.cuts[0] < 0.12)){ r.cuts.unshift(0); r.cutType.unshift('drop'); r.cutFx.unshift(d0.fx); } }
+    r = applyParts(r, parts, st, L);
     buf = part; mono = m; secStart = st;
   }
   musicKey = song.key + (secStart || buf !== W ? '@' + secStart.toFixed(2) + '+' + buf.duration.toFixed(2) : '');
@@ -804,6 +905,7 @@ function playPart(from, base){
 let beatInfo = { source: 'own', note: '' };
 function applyAnalysis(r){
   ({ period, phase, hopSec, rmsF, onEnv, onFps, onOff, hitsRaw, hitsStr, pfArr, beats, cuts, cutType, cutFx, peaks, peakS, barOff } = r);
+  songPartsRel = r.parts || [];
   buildPlan(); drawMusic();
   $('mbpm').textContent = (60/period).toFixed(0);
   $('mclips').textContent = plan.length; $('mdrop').textContent = plan.filter(s=>s.type==='drop').length; $('mbreak').textContent = plan.filter(s=>s.type==='break').length;
@@ -1888,6 +1990,23 @@ const TR_CLASSY = new Set(['dissolve','fadein','dip','flash','whip','zoom','glit
 const TR_STYLE = { smooth: ['dissolve', 'dip'], fast: ['whip', 'flash'], auto: ['flash', 'dissolve'] };
 const ZOOM_FX = new Set(['bounce','zoomburst','punch','tilt','shake','jump']);
 const MOVE_FX = new Set(['pan','pan-soft','drift','punch-soft']);
+// an editor's recipes: each Reel gets one (by its song, and the next one with each Remix), all of them clean. What
+// changes is how the drop lands (its transition and its zoom) and how a break opens; the rules around them stay.
+const RECIPES = [
+  { name: 'Clean cut', drop: 'flash', zoom: 'punch', brk: 'dip' },
+  { name: 'Drop punch', drop: 'whip', zoom: 'zoomburst', brk: 'dissolve' },
+  { name: 'Zoom in', drop: 'zoom', zoom: 'punch', brk: 'blur' },
+  { name: 'Cinematic', drop: 'dissolve', zoom: 'zoomburst', brk: 'dip' },
+  { name: 'Flash beat', drop: 'flash', zoom: 'zoomburst', brk: 'luma' },
+];
+function recipeNow(){
+  let h = 0; for(const c of String(musicKey || '')) h = (h*31 + c.charCodeAt(0)) >>> 0;
+  const r = RECIPES[(h + mixNo) % RECIPES.length];
+  // Smooth keeps soft transitions; Fast keeps quick ones
+  if(mode === 'smooth') return { ...r, drop: r.drop === 'dissolve' || r.drop === 'flash' ? r.drop : 'dissolve', brk: r.brk === 'blur' ? 'blur' : 'dip' };
+  if(mode === 'fast') return { ...r, drop: r.drop === 'dissolve' ? 'whip' : r.drop };
+  return r;
+}
 function tastePlan(){
   if(mode === 'copy' || !plan.length || !buf) return;
   const L = buf.duration, style = TR_STYLE[mode] || TR_STYLE.auto;
@@ -1899,12 +2018,13 @@ function tastePlan(){
     const len = s.end - s.start, prev = plan[i - 1];
     // transitions: only where the song changes, room on both sides, spaced, one style
     if(i > 0 && s.tr !== 'hard'){
-      const at = s.type === 'drop' || s.type === 'break' || (s.type === 'hit' && (!marked || s.start - last >= 2 * apart))
+      const at = s.type === 'drop' || s.type === 'break' || (songPartsRel.length ? isPartStart(s.start) : s.type === 'hit' && (!marked || s.start - last >= 2 * apart))
         || (!marked && !hits && len >= 1.5);
       const room = len >= 1 && prev && prev.end - prev.start >= 1;
       if(!at || !room || used >= most || s.start - last < apart) s.tr = 'hard';
       else {
-        if(!TR_CLASSY.has(s.tr)) s.tr = s.type === 'drop' ? style[0] : style[1];
+        const rc = recipeNow();
+        if(s.type === 'drop') s.tr = rc.drop; else if(s.type === 'break') s.tr = rc.brk; else if(!TR_CLASSY.has(s.tr)) s.tr = style[1];
         if((TR_DUR[s.tr] || 0) > 0.6 * len) s.tr = 'hard'; else { used++; last = s.start; }
       }
     }
@@ -1922,8 +2042,9 @@ function tasteFx(e, i, t){
   const len = e.end - e.start, photo = root.classList.contains('photomode');
   if(BEAT_FX.includes(e.efx)){ if(mode === 'fast' && e.type === 'drop' && !t.shape) t.shape = true; else e.efx = 'none'; }
   if(e.efx === 'hook' && i > 0) e.efx = 'none';
+  if(e.type === 'drop' && i > 0 && len >= 0.4 && e.efx !== 'snap' && !BEAT_FX.includes(e.efx)) e.efx = mode === 'smooth' ? 'zoomburst' : recipeNow().zoom;
   if(ZOOM_FX.has(e.efx)){
-    const ok = (e.type === 'drop' || (mode === 'fast' && e.type === 'hit')) && !t.prevZoom && e.start - t.lastZoom >= 3;
+    const ok = e.type === 'drop' || (mode === 'fast' && e.type === 'hit' && !t.prevZoom && e.start - t.lastZoom >= 3 && !(t.drops || []).some(d => d > e.start && d - e.start < 3));
     if(!ok) e.efx = photo || len >= 2.5 ? 'pan-soft' : 'none';
   }
   if(e.efx === 'pan') e.efx = photo || len >= 2.5 ? 'pan-soft' : 'none';   // Ken Burns, without the bounce on every beat
@@ -2319,6 +2440,18 @@ function suitFx(e){
   else if(len > 2.2 && (e.efx==='punch' || e.efx==='tilt')){ e.efx = 'pan'; e.why = 'long shot: slow move instead'; }
 }
 // how good footage [a, a+need] of src is for cut i (the rules, plus the AI's opinion of the moment when it is on)
+// a clip that is bad all through (shaky handheld, out of focus) looks fine next to itself: judged against the other
+// clips. Shaky = the camera's own movement jumps around from frame to frame; soft = far fewer fine edges than the rest.
+function clipFlaw(src){
+  const key = sources.length; if(src._flaw && src._flaw.key === key) return src._flaw.v;
+  const med = a => { const x = a.filter(v => isFinite(v)).sort((p,q)=>p-q); return x.length ? x[x.length>>1] : 0; };
+  const S = src.samples || [];
+  const jit = med(S.slice(1).map((x,i) => Math.abs((x.gx||0) - (S[i].gx||0)) + Math.abs((x.gy||0) - (S[i].gy||0))));
+  const shAll = med(sources.filter(o => !o.removed && o.samples && o.samples.length).map(o => med(o.samples.map(x => x.sh))));
+  const soft = shAll > 0 && sources.length > 1 ? med(S.map(x => x.sh))/shAll : 1;
+  const v = (jit >= 1.5 ? 3 : 0) + (soft < 0.15 ? 3 : 0);
+  src._flaw = { key, v }; return v;
+}
 function scoreWindow(i, src, a, need, gmax){
   const s = plan[i], st = windowStats(src, a, a+need), m = st.m/gmax;
   let sc;
@@ -2329,7 +2462,7 @@ function scoreWindow(i, src, a, need, gmax){
   if(i===0) sc = 2.4*m;   // hook: the most action-packed moment opens the reel
   if(st.b < 0.08) sc -= 1;                              // too dark
   const sharp = st.sh / (src.shMed||1);
-  if(sharp < 0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5, sharp);   // blurry / shaky footage is avoided
+  if(sharp < 0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5, sharp); sc -= clipFlaw(src);   // blurry / shaky footage is avoided
   sc += st.face * ((s.type==='drop'||s.type==='hit'||i===0) ? 0.8 : 0.45);   // people make shots stronger
   const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : s.type, i===plan.length-1);
   return {sc, st, m, ai};
@@ -2406,7 +2539,7 @@ function makeEditNow(){
   if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
   const keptUk = ukKeep();
-  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = repace(basePlan, pc.secs, beats, buf.duration, mode); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
+  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = endWell(noFlashCuts(withPartCuts(repace(basePlan, pc.secs, beats, buf.duration, mode)))); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
   // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
@@ -2450,7 +2583,7 @@ function makeEditNow(){
   });
   const useCount = sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
   edit = plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
-  const taste = { n: edit.length, moves: 0, prevZoom: false, lastZoom: -99, shape: false };
+  const taste = { n: edit.length, moves: 0, prevZoom: false, lastZoom: -99, shape: false, drops: edit.filter(x => x.type === 'drop').map(x => x.start) };
   edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth' && !e.fxByDir) suitFx(e); tasteFx(e, i, taste); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
   ukRestore(keptUk);
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
@@ -2532,7 +2665,7 @@ function repick(i, avoidCurrent, onlySrc){
       if(crossesScene(src, a, a+need)) continue;
       const st = windowStats(src, a, a+need), m = st.m/gmax;
       let sc = e.type==='drop' ? 2.2*m : e.type==='hit' ? 1.5*m : e.type==='break' ? 1-Math.abs(m-0.18)*2 : 1-Math.abs(m-0.55);
-      if(st.b < 0.08) sc -= 1; const sharp = st.sh/(src.shMed||1); if(sharp<0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5,sharp);
+      if(st.b < 0.08) sc -= 1; const sharp = st.sh/(src.shMed||1); if(sharp<0.45) sc -= 0.9; else sc += 0.25*Math.min(1.5,sharp); sc -= clipFlaw(src);
       sc += st.face*0.6 + rng()*0.3;
       const ai = aiAt(src, a, a+need); if(ai) sc += aiBonus(ai, i===0 ? 'hook' : e.type, i===edit.length-1);
       if(sc>bs){ bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : 0.5+(st.cx-0.5)*0.8, cy: st.face>0.3 ? st.fy : 0.45, face:st.face, fs: st.fs, mot: m, aiNote: ai ? ai.note : ''}; }
@@ -5969,7 +6102,7 @@ async function pickRecent(fp){
 }
 listRecent();
 
-root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, copyMatch, get grade(){ return GRADES[look]; },
+root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, copyMatch, get grade(){ return GRADES[look]; },
   shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
