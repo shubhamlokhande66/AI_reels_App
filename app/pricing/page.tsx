@@ -138,7 +138,7 @@ export default function PricingPage() {
             >
               {y ? "Yearly" : "Monthly"}
               {y && freeMonths > 0 && (
-                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-extrabold", yearly ? "bg-white/20 text-white" : "bg-success/15 text-success")}>
+                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-extrabold", yearly ? "bg-white/20 text-white" : "bg-success/15 text-[color-mix(in_srgb,var(--success)_75%,var(--foreground))]")}>
                   {freeMonths} months free
                 </span>
               )}

@@ -186,7 +186,7 @@ export interface UploadResult {
 
 export const api = {
   health: () => request<Health>("/api/health"),
-  me: () => request<{ authEnabled: boolean; user: { id: string; email: string } | null }>("/api/auth/me"),
+  me: () => request<{ authEnabled: boolean; user: { id: string; email: string; iosApp?: boolean } | null }>("/api/auth/me"),
   login: (email: string, password: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   register: (email: string, password: string) =>
@@ -231,7 +231,7 @@ export const api = {
   adminGiveCredits: (id: string, credits: number, note: string) =>
     request<AdminUserDetail>(`/api/admin/users/${id}/credits`, { method: "POST", body: JSON.stringify({ credits, note }) }),
   /** This tab is still open (the admin dashboard's "online now"); quiet: no activity bar, no retries. */
-  ping: (visitor: string, path: string) => send<{ ok: boolean }>("/api/public/ping", { method: "POST", body: JSON.stringify({ visitor, path }) }, 10_000),
+  ping: (visitor: string, path: string, app = false) => send<{ ok: boolean }>("/api/public/ping", { method: "POST", body: JSON.stringify({ visitor, path, app }) }, 10_000),
   aiModels: () => request<AiModels>("/api/ai/models"),
   chooseModel: (model: string | null) => request<AiModels>("/api/ai/model", { method: "PUT", body: JSON.stringify({ model }) }),
   testModel: (model: string) => request<ModelTestResult>("/api/ai/models/test", { method: "POST", body: JSON.stringify({ model }) }),

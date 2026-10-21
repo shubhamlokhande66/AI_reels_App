@@ -29,7 +29,8 @@ export const Fingerprint = z.object({
 export type Fingerprint = z.infer<typeof Fingerprint>;
 export const SaveIn = z.object({ name: z.string().trim().min(1).max(120), category: z.enum(CATEGORIES), shared: z.boolean().default(false), fp: Fingerprint });
 /** a Reel a creator gave to "Copy a Reel": offered to the administrator, who decides whether it teaches the styles */
-export const SuggestIn = z.object({ name: z.string().trim().min(1).max(120), fp: Fingerprint });
+/** from: "copy" a Reel a creator gave to Copy a Reel, "made" one they made and saved (downloaded, shared, kept) */
+export const SuggestIn = z.object({ name: z.string().trim().min(1).max(120), fp: Fingerprint, from: z.enum(["copy", "made"]).default("copy") });
 export const ApproveIn = z.object({ id: z.string().max(40), category: z.enum(CATEGORIES) });
 export const EditsIn = z.object({ category: z.enum([...CATEGORIES, "general"] as [string, ...string[]]),
   edits: z.array(z.object({ type: z.enum(["drop", "hit", "cut", "break"]), field: z.enum(FIELDS), from: z.string().max(24), to: z.string().max(24),
@@ -137,19 +138,19 @@ export async function recordEdits(d: z.infer<typeof EditsIn>) {
   return { ok: true, n: d.edits.length };
 }
 
-// ---- Reels from creators: only the administrator teaches the styles. A Reel a creator copies ("Copy a Reel") is kept
-// here (its fingerprint, never the video) until the administrator uses it, under the kind they choose, or removes it.
+// ---- Reels from creators: only the administrator teaches the styles. A Reel a creator copies ("Copy a Reel") or makes
+// and saves is kept here (its fingerprint, never the video) until the administrator uses it, under the kind they choose, or removes it.
 const SUGGEST_MAX = 500;
 const suggestions = async () => (await mainDb()).collection("studio_style_suggestions");
-export async function suggestStyle(d: z.infer<typeof SuggestIn>) {
+export async function suggestStyle(d: z.input<typeof SuggestIn>) {
   const col = await suggestions(), key = createHash("sha1").update(JSON.stringify(d.fp)).digest("hex");
   if (await col.countDocuments({}) >= SUGGEST_MAX) return { ok: true, kept: false };   // the administrator has plenty waiting
-  await col.updateOne({ key }, { $setOnInsert: { key, name: d.name, fp: d.fp, by: currentUser() ?? null, createdAt: new Date() } }, { upsert: true });
+  await col.updateOne({ key }, { $setOnInsert: { key, name: d.name, fp: d.fp, from: d.from ?? "copy", by: currentUser() ?? null, createdAt: new Date() } }, { upsert: true });
   return { ok: true, kept: true };
 }
 export async function listSuggestions() {
   const docs = await (await suggestions()).find({}).sort({ createdAt: -1 }).limit(200).toArray();
-  return { items: docs.map((d) => ({ id: String(d._id), name: String(d.name), createdAt: d.createdAt, ...summary(d.fp as Fingerprint), bpm: Math.round((d.fp as Fingerprint).bpm), dur: Math.round((d.fp as Fingerprint).dur) })), total: await (await suggestions()).countDocuments({}) };
+  return { items: docs.map((d) => ({ id: String(d._id), name: String(d.name), from: d.from === "made" ? "made" : "copy", createdAt: d.createdAt, ...summary(d.fp as Fingerprint), bpm: Math.round((d.fp as Fingerprint).bpm), dur: Math.round((d.fp as Fingerprint).dur) })), total: await (await suggestions()).countDocuments({}) };
 }
 /** the administrator uses a creator's Reel: it becomes one of the administrator's shared styles of that kind */
 export async function approveSuggestion(d: z.infer<typeof ApproveIn>) {

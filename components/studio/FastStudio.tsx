@@ -8,6 +8,7 @@ import { initSteps } from "@/components/studio/steps";
 import { initAuto } from "@/components/studio/auto";
 import { initFlow } from "@/components/studio/flow";
 import { TTS_VOICES } from "@/lib/tts/voices";
+import { isApp } from "@/lib/nativeApp";
 import { useAdmin } from "@/hooks/useApi";
 import { ErrorBanner } from "@/components/molecules";
 import "./studio.css";
@@ -34,9 +35,9 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-/** `kind`: the Create flow's page (/create/music|talking|photo) is drawn in its flow from the very first paint, so the
+/** `kind`: the Create flow's page (/create/music|talking|photo|copy) is drawn in its flow from the very first paint, so the
  * studio's home never shows before it (components/studio/flow.ts takes over once the studio has started). */
-export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" } = {}) {
+export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "copy" } = {}) {
   const root = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const { admin } = useAdmin();
@@ -60,6 +61,8 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" } = 
         if (cancelled || !root.current) return;
         cleanup = initStudio(root.current, {
           loadMediabunny: () => import("mediabunny"),
+          // the phone app (Capacitor): the exported Reel goes to the phone's share sheet (lib/nativeApp.ts)
+          app: { isApp, share: (blob: Blob, name: string, text: string) => import("@/lib/nativeApp").then((m) => m.shareFile(blob, name, text)) },
           // AAC for the export on browsers whose WebCodecs has no AAC encoder (Safari before 26, i.e. most iPhones today)
           loadAacEncoder: () => import("@mediabunny/aac-encoder"),
           // the on-device AI beat tracker (Beat This!, ONNX Runtime WebAssembly, in a worker); loaded only when a song is

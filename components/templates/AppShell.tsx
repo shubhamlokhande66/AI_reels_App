@@ -21,6 +21,7 @@ import { Button } from "@/components/atoms/Button";
 import { DesktopHeader } from "@/components/organisms/DesktopHeader";
 import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { InstallApp } from "@/components/molecules/InstallApp";
+import { InstallBanner } from "@/components/molecules/InstallBanner";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useMe } from "@/hooks/useApi";
 import { usePresence } from "@/lib/usePresence";
@@ -40,6 +41,7 @@ export const GROUPS: { title: string; admin?: boolean; items: { href: string; la
       { href: "/create/music", label: "Music Reel", icon: "music", fullLoad: true },
       { href: "/create/talking", label: "Talking Reel", icon: "mic", fullLoad: true },
       { href: "/create/photo", label: "Photo Reel", icon: "image", fullLoad: true },
+      { href: "/create/copy", label: "Copy a Reel", icon: "copy", fullLoad: true },
       { href: "/create/story", label: "Story Maker", icon: "book", fullLoad: true },
       { href: "/reels", label: "My Reels", icon: "reels" },
     ],
@@ -470,6 +472,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${meta.tabs ? "pb-28" : "pb-10"}`}>
         <DesktopHeader email={me.data?.user?.email} credits={credits} admin={admin} onSignOut={signOut} />
+        {/* "Get the Shubix app" until it is installed (not over the studio while a Reel is made) */}
+        {!pathname.startsWith("/create") && <InstallBanner className="mb-4" />}
         <div className="mx-auto w-full max-w-6xl">
           {back && (
             <button

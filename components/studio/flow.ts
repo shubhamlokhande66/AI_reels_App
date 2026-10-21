@@ -7,7 +7,8 @@
  *
  * The engine makes the edit by itself as soon as there is a song and clips; the flow keeps that edit behind the
  * Analysing screen until Generate (computers) or Next (phones) is pressed, then hands the page to the editor views
- * (views.ts). A saved Reel that is opened again, Story → Reel and Copy a Reel skip the flow. Everything here shows,
+ * (views.ts). A saved Reel that is opened again and Story → Reel skip the flow; Copy a Reel (/create/copy) first asks for
+ * the Reel to copy. Everything here shows,
  * hides or forwards to the engine's own controls (ids from markup.ts); the progress comes from tasks.ts events. */
 
 import type { TaskEvent } from "./tasks";
@@ -19,7 +20,7 @@ const KINDS: Record<Kind, { title: string; sub: string; intro: string; checks: s
   music: { title: "Music Reel", sub: "Turn your clips into a stunning Reel with music, beats and Shubix edits.", intro: "Create a Music Reel", checks: ["Pick a song", "Add your videos or photos", "Shubix edits on the beat", "Preview, make changes and export"], icon: "music" },
   talk: { title: "Talking Reel", sub: "Your talking video, pauses cut, captions added, music under the voice.", intro: "Create a Talking Reel", checks: ["Add your talking video", "Pauses cut, captions added", "Soft music under the voice", "Preview, make changes and export"], icon: "voice" },
   photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Pick a song", "Add your photos", "Shubix moves them on the beat", "Preview, make changes and export"], icon: "image" },
-  copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy", "Add your clips", "Shubix copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
+  copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy (its song comes with it)", "Add your clips", "Shubix copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
 };
 const ORDER: Record<"music" | "talk", Step[]> = { music: ["intro", "choose", "adjust", "clips", "analyse"], talk: ["intro", "clips", "analyse"] };
 // which engine task moves which line of the AI checklist (data-t in markup.ts)
@@ -43,6 +44,8 @@ export function initFlow(root: HTMLElement): () => void {
   let step: Step = "intro";
   let kind: Kind = "music";
   let pct = 0;
+  // Copy a Reel: the Reel being copied (its file, for its song) and whether its song is still to come (below)
+  let refFile: File | null = null, refName = "", autoSong = false;
   const lines = new Map<string, "now" | "ok">();
   const working = new Set<string>(); // the WAIT tasks running right now
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
@@ -68,11 +71,13 @@ export function initFlow(root: HTMLElement): () => void {
   const shubixBusy = () => { const a = $("aistat"); return !a.hidden && /…$/.test(a.textContent ?? ""); };
   const order = () => ORDER[has("talkmode") ? "talk" : "music"];
 
-  // the kind in the address (/create/music|talking|photo): the flow is open from the first paint, before the engine
+  // the kind in the address (/create/music|talking|photo|copy): the flow is open from the first paint, before the engine
   // has picked that kind (it does a moment later, once it has started)
-  const urlKind = (): Kind | null => ({ music: "music", talking: "talk", photo: "photo" } as Record<string, Kind>)[location.pathname.split("/")[2] ?? ""] ?? null;
+  const urlKind = (): Kind | null => ({ music: "music", talking: "talk", photo: "photo", copy: "copy" } as Record<string, Kind>)[location.pathname.split("/")[2] ?? ""] ?? null;
   const readKind = (): Kind => {
     if (!chosen() && urlKind()) return urlKind()!;
+    // Copy a Reel stays Copy a Reel once a song is chosen, also before the Reel to copy is picked
+    if (urlKind() === "copy" && !has("talkmode") && !has("photomode")) return "copy";
     if (has("talkmode")) return "talk";
     if ($("copycard").getAttribute("aria-pressed") === "true") return "copy";
     if (has("photomode")) return "photo";
@@ -139,7 +144,8 @@ export function initFlow(root: HTMLElement): () => void {
     const items: [string, string][] = [["Home", "home"]];   // [name, what it opens]
     if (!flowKind && q.has("p")) items.push(["My Reels", "reels"]);
     if (k) items.push([k, on ? "start" : "flow"]);
-    if (on) items.push([step === "clips" && has("photomode") ? "Photos" : STEP_NAME[phone() ? step : (cur as Step)], ""]);
+    const here = step === "clips" && has("photomode") ? "Photos" : STEP_NAME[phone() ? step : (cur as Step)];
+    if (on) items.push([readKind() === "copy" && !has("pickown") && (here === "Music" || here === "Start") ? "Reel to copy" : here, ""]);
     else if (revealed || has("made")) items.push(["Your Reel", toolName ? "reel" : ""]);
     if (!on && toolName) items.push([toolName, ""]);
     const key = items.map((x) => x.join(":")).join("|");
@@ -180,23 +186,29 @@ export function initFlow(root: HTMLElement): () => void {
       root.querySelectorAll("#fintrol li").forEach((li, i) => { const svg = li.querySelector("svg"); li.textContent = K.checks[i] ?? ""; if (svg) li.prepend(svg); });
       $("fintroic").innerHTML = root.querySelector(`#kind [data-k="${k === "talk" ? "talk" : "music"}"] svg`)?.outerHTML ?? "";
       if (k === "photo") $("fintroic").innerHTML = $("photokind").querySelector("svg")!.outerHTML;
+      if (k === "copy") $("fintroic").innerHTML = $("copycard").querySelector("svg")!.outerHTML;
+      setText($("fgot"), k === "copy" ? "Pick the Reel to copy" : "Let's Start");
       if (!order().includes(step)) step = "intro";
       defaults(k);
       // each kind at its own address (/create/music, /create/talking, /create/photo); the same page, no reload
-      const slug = { music: "music", talk: "talking", photo: "photo", copy: "" }[k];
+      const slug = { music: "music", talk: "talking", photo: "photo", copy: "copy" }[k];
       if (slug && location.pathname !== `/create/${slug}`) history.replaceState(history.state, "", `/create/${slug}${location.search}${location.hash}`);
     }
     setData(root, "fstep", step);
     setData(root, "fkind", kind);
     setClass(root, "flive", true); // the kind's own words are in: the flow can be seen
     // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
-    const adj = phone() && step === "adjust";
-    setText($("s1").querySelector("h2")!, adj ? "Adjust Music" : "Choose Music");
-    setText($("s1").querySelector(".fsh")!, adj ? "Trim or select the best part of the song" : "Pick a song or sound for your Reel");
+    const adj = phone() && step === "adjust", copy = kind === "copy";
+    // Copy a Reel: the song is the copied Reel's ("Different song?" in the Reel to copy box opens the picker: .pickown)
+    const own = has("pickown");
+    setText($("s1").querySelector("h2")!, adj ? "Adjust Music" : copy && !own ? "Music" : "Choose Music");
+    setText($("s1").querySelector(".fsh")!, adj ? "Trim or select the best part of the song" : copy && !own ? "The song of the Reel you copy" : "Pick a song or sound for your Reel");
+    setFlag($("frefother"), "hidden", own);
+    setText($("fsteps").querySelector('li[data-f="1"] span')!, copy && !own ? "Reel" : "Music");
     // the phones' head names the screen (the intro and Analysing have their own big titles)
     // Adjust Music (phones): the chosen song in a row at the top
     if (adj) { setText($("fsongn"), ($("mname").textContent ?? "").replace(/\.[^.]+$/, "")); setText($("fsongd"), "Song · " + ($("mdur").textContent ?? "")); }
-    setText($("fptitle"), { intro: "", choose: "Choose Music", adjust: "Adjust Music", clips: has("photomode") ? "Add Your Photos" : "Add Your Clips", analyse: "" }[step]);
+    setText($("fptitle"), { intro: "", choose: copy && !own ? "Music" : "Choose Music", adjust: "Adjust Music", clips: has("photomode") ? "Add Your Photos" : "Add Your Clips", analyse: "" }[step]);
     place(true);
     // the header's steps: Music · Clips · AI Edit · Preview & Export
     const cur = !songOk() ? 1 : !clipsOk() ? 2 : 3;
@@ -215,15 +227,29 @@ export function initFlow(root: HTMLElement): () => void {
     const ready = clipsOk() && !!songOk();
     // nothing can be made from these clips (a talking Reel without a voice): no endless spinner, the reason instead
     const stop = !made() && working.size === 0 ? root.dataset.nomake ?? "" : "";
-    const busy = ready && !stop && (working.size > 0 || shubixBusy() || !made());
+    // Copy a Reel: the copied Reel's song may still be coming while the clips are in (Next waits for it, spinning)
+    const songComing = working.has("refsong") || working.has("song");
+    const busy = (ready || (clipsOk() && songComing)) && !stop && (working.size > 0 || shubixBusy() || !made());
     setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk() || busy || !!stop);
-    setText($("fclipsnt"), stop || "Next");
+    // every button forward says what it waits for while it is off (phones: Next on each screen; computers: Generate)
+    const reading = working.has("clips") || (!!$("qinfo").textContent && !clipsOk());
+    const missing = !clipsOk() ? (reading ? "Reading your clips…" : has("photomode") ? "Add your photos to continue" : "Add your clips to continue")
+      : !songOk() && !songComing ? "Choose a song first" : "";
+    setText($("fclipsnt"), stop || (busy ? "Next" : missing || "Next"));
+    // Music (phones): Next only with a song ready (or "use my clips' own sound"), a spinner while it is read
+    const songBusy = working.has("song") || working.has("refsong");   // (the beat check is waited for at the clips)
+    for (const [b, t] of [["fchnext", "fchnt"], ["fadjnext", "fadjnt"]] as const) {
+      setFlag($<HTMLButtonElement>(b), "disabled", !songOk() || songBusy);
+      setAttr($(b), "aria-busy", String(songBusy));
+      setText($(t), songBusy ? "Reading your song…" : !songOk() ? "Choose a song to continue" : "Next");
+    }
     setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready || busy);
     setAttr($("fclipsnext"), "aria-busy", String(busy));
     setAttr($("fgen"), "aria-busy", String(busy));
-    setText($("fgent"), busy ? "Making your Reel…" : "Generate Reel");
+    setText($("fgent"), busy ? "Making your Reel…" : ready ? "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
     setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
-    setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
+    setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : copy && !refName && !songOk() ? "Pick the Reel to copy, then add your clips."
+      : copy && songComing ? "Taking the song from the Reel you copy…" : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
     setText($("fprevnote"), made() ? "Your Reel is ready" : "Your Reel appears here");
     setClass($("fprevbox"), "ready", made());
     paintAi();
@@ -241,7 +267,8 @@ export function initFlow(root: HTMLElement): () => void {
   };
   const next = () => {
     const o = order(), i = o.indexOf(step);
-    if (step === "clips" && !songOk()) return go("choose"); // a Music Reel without a song yet
+    if ((step === "choose" || step === "adjust") && !songOk()) return;   // (its Next is off: a click that slipped through)
+    if (step === "clips" && !songOk()) { if (kind === "copy") root.classList.add("pickown"); return go("choose"); } // no song yet (Copy a Reel: its Reel had none)
     if (i >= 0 && i < o.length - 1) go(o[i + 1]);
   };
   const closeTool = () => root.querySelector<HTMLButtonElement>(`.tool[data-tool="${root.dataset.tool}"]`)?.click();
@@ -259,7 +286,13 @@ export function initFlow(root: HTMLElement): () => void {
 
   root.addEventListener("click", (e) => {
     const t = e.target as HTMLElement;
+    // Copy a Reel: its first button picks the Reel to copy (the phone's file picker opens from this tap); the song is next
+    if (t.closest("[data-fnext]") && step === "intro" && kind === "copy" && !refName) { e.preventDefault(); pickRef(); return; }
     if (t.closest("[data-fnext]")) { e.preventDefault(); next(); return; }
+    if (t.closest("#frefpick")) { pickRef(); return; }
+    if (t.closest("#frefsong")) { refSong(); return; }
+    // a different song: the Choose Music panel opens (phones: its screen), the copied Reel's song is not put on
+    if (t.closest("#frefother")) { autoSong = false; working.delete("refsong"); root.classList.add("pickown"); if (phone()) go("choose"); else $("s1").scrollIntoView({ behavior: "smooth", block: "start" }); apply(); return; }
     if (t.closest("#fback")) { back(); return; }
     const cr = t.closest<HTMLElement>("[data-crumb]");
     if (cr) {
@@ -318,11 +351,53 @@ export function initFlow(root: HTMLElement): () => void {
     else { $("fexp").hidden = true; if (d.state === "done") showDone(d.title); }
   }, sig);
 
+  /* ---- Copy a Reel (/create/copy): the Reel to copy is picked first, straight from the page (before, it was only in the
+   * finished Reel's editing modes). Picking it presses the studio's own Copy a Reel (#copycard -> the "Copy a Reel" mode
+   * -> #reffile, read by the engine); its file is kept here for its song. Once the Reel is read (not at the same time:
+   * one heavy job at a time on a phone), its own song becomes the Reel's song, unless one was chosen already; "Use its
+   * song" brings it back after another song. ---- */
+  const pickRef = () => {
+    if (refName) { $("refchange").click(); return; }   // a Reel is already copied: Change Reel
+    $("copycard").click();
+  };
+  const refSong = () => {
+    if (!refFile) return;
+    root.classList.remove("pickown");
+    const dt = new DataTransfer(); dt.items.add(refFile);
+    const mf = $<HTMLInputElement>("mfile"); mf.files = dt.files; mf.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  // captured on the way down, before the engine reads the file and empties the input
+  root.addEventListener("change", (e) => {
+    const inp = e.target as HTMLInputElement;
+    if (inp.id !== "reffile" || !inp.files?.[0]) return;
+    refFile = inp.files[0]; refName = refFile.name;
+    setText($("frefpick"), "Change Reel");
+    setFlag($("frefsong"), "hidden", false);
+    // its song comes with it: no Choose Music screen (phones go straight to the clips; Music stays reachable to change
+    // it). Next / Generate wait for that song like for any song (refsong, then the engine's song task)
+    if (!done("s1")) { autoSong = true; working.add("refsong"); apply(); }
+    if (step === "intro" || step === "choose") go("clips");
+  }, { capture: true, ...sig });
+  // what the engine says about the Reel being read ("Reading the Reel: cuts 40%", then what it found)
+  const refMo = new MutationObserver(() => {
+    const t = ($("refinfo").textContent ?? "").trim(); if (!t) return;
+    setText($("frefst"), t);
+    if (!autoSong || /^Reading/.test(t)) return;
+    autoSong = false;
+    if (!/could not read/i.test(t) && !done("s1") && !$("mpick").classList.contains("busy")) refSong();   // the engine's song task takes over
+    working.delete("refsong"); apply();
+  });
+  refMo.observe($("refinfo"), { childList: true, characterData: true, subtree: true });
+
   // a song that is ready moves the phones on to adjusting it
   let wasSong = done("s1");
   // the engine's progress (reading the clips, the beats, the AI) fills the checklist and the ring
   root.addEventListener("studio-task", (e) => {
     const d = (e as CustomEvent<TaskEvent>).detail, line = LINE_OF[d.id];
+    // Copy a Reel whose Reel has no sound we can read: the Music card opens, to choose a song
+    if (d.id === "song" && d.state === "fail" && kind === "copy") root.classList.add("pickown");
+    // Shubix is thinking (planning, re-planning): the preview shows a loader, not the first version made without it
+    if (d.id === "ai") setClass(root, "aithink", d.state === "start" || d.state === "progress");
     if (WAIT.has(d.id)) {
       if (d.state === "start" || d.state === "progress") working.add(d.id);
       else working.delete(d.id); // done, failed (the Reel goes on without it) or cleared
@@ -375,5 +450,5 @@ export function initFlow(root: HTMLElement): () => void {
   // this page's first screen (a reload starts the flow again: the song and clips were not kept)
   mark(false);
   apply();
-  return () => { ac.abort(); mo.disconnect(); ro.disconnect(); place(false); };
+  return () => { ac.abort(); mo.disconnect(); ro.disconnect(); refMo.disconnect(); place(false); };
 }

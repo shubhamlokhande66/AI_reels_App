@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { api } from "@/lib/api";
+import { isStandalone } from "@/lib/pwa";
 
 /** "Online now" on the admin dashboard: while the page is visible, this browser says it is here every 5 minutes (and on
  * each new page, and when the tab is shown again). Not more often: on Cloudflare every request keeps the app's container
@@ -25,7 +26,8 @@ function visitorId(): string {
 export function usePresence(pathname: string) {
   useEffect(() => {
     const beat = () => {
-      if (document.visibilityState === "visible") api.ping(visitorId(), pathname).catch(() => {}); // never in anyone's way
+      // app: opened from the home screen (an iPhone's Safari then knows the app is installed: InstallBanner)
+      if (document.visibilityState === "visible") api.ping(visitorId(), pathname, isStandalone()).catch(() => {}); // never in anyone's way
     };
     beat();
     const t = setInterval(beat, EVERY_MS);

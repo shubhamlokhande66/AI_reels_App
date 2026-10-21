@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Shubix</string>
+    <string name="title_activity_main">Shubix</string>
+    <string name="package_name">com.shubix.app</string>
+    <string name="custom_url_scheme">com.shubix.app</string>
+</resources>

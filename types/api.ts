@@ -44,6 +44,8 @@ export interface TrendLook {
 export interface StyleSuggestion {
   id: string;
   name: string;
+  /** "copy": given to Copy a Reel; "made": made in the studio and saved */
+  from: "copy" | "made";
   createdAt: string;
   pace: string;
   trans: string;

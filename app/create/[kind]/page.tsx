@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import { FastStudio } from "@/components/studio/FastStudio";
 
 /** Fast Studio, one address per way in:
- * - /create/music, /create/talking, /create/photo: the Create flow of that kind, its defaults set (components/studio/flow.ts)
+ * - /create/music, /create/talking, /create/photo, /create/copy: the Create flow of that kind, its defaults set
+ *   (components/studio/flow.ts); Copy a Reel starts by picking the Reel to copy
  * - /create/story: Story Maker on the phone (components/studio/auto.ts)
  * - /create/edit: a saved Reel opened again (?p=<draft>) or a template (?tpl=<id>); with neither there is nothing to
  *   open, so it is a 404 */
-const KINDS = { music: "Music Reel", talking: "Talking Reel", photo: "Photo Reel", story: "Story Maker", edit: "Your Reel" } as const;
+const KINDS = { music: "Music Reel", talking: "Talking Reel", photo: "Photo Reel", copy: "Copy a Reel", story: "Story Maker", edit: "Your Reel" } as const;
 type Kind = keyof typeof KINDS;
-const FLOW = new Set<Kind>(["music", "talking", "photo"]); // drawn in the Create flow from the first paint
+const FLOW = new Set<Kind>(["music", "talking", "photo", "copy"]); // drawn in the Create flow from the first paint
 
 export const dynamicParams = false; // any other /create/... is a 404
 export function generateStaticParams() {
@@ -28,5 +29,5 @@ export default async function CreatePage({ params, searchParams }: { params: Pro
     const q = await searchParams;
     if (!q.p && !q.tpl) notFound();
   }
-  return <FastStudio kind={FLOW.has(kind as Kind) ? (kind as "music" | "talking" | "photo") : undefined} />;
+  return <FastStudio kind={FLOW.has(kind as Kind) ? (kind as "music" | "talking" | "photo" | "copy") : undefined} />;
 }

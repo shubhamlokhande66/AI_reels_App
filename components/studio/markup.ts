@@ -85,7 +85,7 @@ export const STUDIO_HTML = `
     <h2 id="fintroh">Create a Music Reel</h2>
     <p id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
     <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}Shubix edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
-    <button type="button" class="btn primary big fgo" data-fnext="1">Let's Start ${IC.arrow}</button>
+    <button type="button" class="btn primary big fgo" data-fnext="1"><span id="fgot">Let's Start</span> ${IC.arrow}</button>
     <button type="button" class="btn ghost fsample" id="fsample" hidden>No clips with you? Try it with our sample clips</button>
   </section>
   <!-- the kind and the template, pressed by the address (/create/music|talking|photo, /create/story, ?tpl=): never
@@ -115,6 +115,14 @@ export const STUDIO_HTML = `
 
   <div class="fgrid">
   <div class="fmain">
+  <!-- Copy a Reel (/create/copy): the Reel being copied, at the top; its song is the Reel's song unless the creator
+       chooses another (flow.ts) -->
+  <section class="fref" id="fref" aria-label="Reel to copy">
+    <span class="fsongic">${IC.copy}</span>
+    <span class="fsongt"><b>Reel to copy</b><small id="frefst">Pick a Reel you like: its song, cuts, transitions and look go on your clips</small>
+      <button type="button" class="freflink" id="frefother">Different song? Choose it here</button></span>
+    <span class="frefbtns"><button type="button" class="btn primary" id="frefpick">Pick the Reel</button><button type="button" class="btn ghost" id="frefsong" hidden>Use its song</button></span>
+  </section>
   <section class="step" id="s1">
     <button type="button" class="sh" aria-expanded="true"><span class="num">1</span><span class="fh"><h2>Choose Music</h2><small class="fsh">Pick a song or sound for your Reel</small></span><span class="st" id="s1st">Choose a song to start</span></button>
     <div class="sbody">
@@ -126,7 +134,7 @@ export const STUDIO_HTML = `
       <button class="btn ghost" id="skipmusic" type="button" hidden>Continue without music</button>
     </div>
     <div class="recent" id="recent" hidden><span class="label">Recent songs</span><div class="rlist" id="rlist"></div></div>
-    <button type="button" class="btn primary big fnext fchoosenext" data-fnext="1">Next ${IC.arrow}</button>
+    <button type="button" class="btn primary big fnext fchoosenext" data-fnext="1" id="fchnext" disabled><span id="fchnt">Next</span> ${IC.arrow}</button>
     </div>
     <div class="fadjust">
     <div class="fsong" id="fsong"><span class="fsongic">${IC.music}</span><span class="fsongt"><b id="fsongn"></b><small id="fsongd"></small></span></div>
@@ -155,7 +163,7 @@ export const STUDIO_HTML = `
       <span><i style="background:var(--cut)"></i>Cut: plain cut</span>
       <span><i style="background:var(--break)"></i>Break: slow motion</span>
     </div>
-    <button type="button" class="btn primary big fnext" data-fnext="1">Next ${IC.arrow}</button>
+    <button type="button" class="btn primary big fnext" data-fnext="1" id="fadjnext" disabled><span id="fadjnt">Next</span> ${IC.arrow}</button>
     </div>
     </div>
   </section>
@@ -171,6 +179,10 @@ export const STUDIO_HTML = `
       <button class="btn" id="clearv" hidden>Remove all</button>
       <span class="fname" id="qinfo"></span>
     </div>
+    <!-- how the clips go into the Reel: the best moments of all of them, or one after another as they were added (engine.ts) -->
+    <div class="row seqrow" id="seqrow"><span class="label">Clip order</span>
+      <div class="seg" id="seq" role="group" aria-label="Clip order"><button type="button" data-q="mix" aria-pressed="true">Mix all clips</button><button type="button" data-q="order" aria-pressed="false">In my order</button></div>
+      <span class="fname" id="seqhelp">Shubix picks the best moments from all your clips</span></div>
     <span class="flabel fcliplabel">Selected Clips</span>
     <div class="fclipgrid"><div class="clips" id="clips"></div><button type="button" class="fadd" id="fadd" aria-label="Add more clips">${IC.plus}</button></div>
     <div class="row talkrow" id="talkrow" hidden>
@@ -185,7 +197,7 @@ export const STUDIO_HTML = `
       <label class="tog"><input type="checkbox" id="dn1" checked> Clean up voice noise</label>
       <span class="fname" id="tinfo"></span>
     </div>
-    <div class="row">
+    <div class="row fmtrow">
       <span class="label">Format</span>
       <div class="seg" id="aspect">
         <button data-a="9:16" aria-pressed="true">9:16 Reel</button>
@@ -231,6 +243,7 @@ export const STUDIO_HTML = `
       <div class="stage">
         <div class="pv">
           <div class="pvbox"><canvas id="out" width="1080" height="1920"></canvas>
+            <div class="aiwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Shubix is making your Reel</b><small>Watching your clips and listening to the song…</small></div>
             <button type="button" class="playov" id="playov" aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button></div>
           <div class="summary" id="summary">
             <h2 class="sumh">Your Reel is ready</h2>
@@ -286,7 +299,7 @@ export const STUDIO_HTML = `
             <div class="row learnrow" id="learnrow" hidden><span class="label">Learned style</span><select id="lcat" aria-label="Kind of Reel"></select><div class="seg" id="lscope"><button data-s="mine" aria-pressed="false">Mine</button><button data-s="all" aria-pressed="true">With shared</button></div><button class="btn mini" id="luse" type="button">Use</button><label class="tog"><input type="checkbox" id="lauto"> Use for my next Reels</label><span class="fname" id="linfo"></span>
               <details class="stdetails" id="teach"><summary>Teach Shubix from many Reels</summary><span class="fname">Pick Reels made by real editors: each is read on this phone (the video never leaves it), and what they have in common becomes the learned style of that kind.</span>
                 <div class="row"><select id="tcat" aria-label="Kind of Reel"></select><label class="tog"><input type="checkbox" id="tshare"> Share (helps everyone's styles)</label><button class="btn mini" id="tpick" type="button">Choose Reels</button><input id="tfiles" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden><span class="fname" id="tstat"></span></div></details>
-              <details class="stdetails"><summary>My saved styles</summary><ul id="stlist"></ul></details></div>
+              <details class="stdetails" id="stmine"><summary>My saved styles</summary><ul id="stlist"></ul></details></div>
             <span class="fname" id="modehelp">Auto: the music decides. Calm parts get longer shots, drops and hits get effects.</span>
             <span id="aiwrap" hidden></span><input type="checkbox" id="aipick" hidden aria-hidden="true">
             <span class="fname" id="aistat" hidden></span>
