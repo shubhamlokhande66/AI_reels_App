@@ -34,7 +34,9 @@ async function pull() {
 /** At server start: the kept files back on this server's disk, then a check for changes every minute. */
 export async function restoreFiles() {
   if (!filesInDb()) return;
-  try { await pull(); } catch (e) { console.warn("kept files: could not restore", e); }
+  // at most 8 s: a slow database must not hold the server's start (the minute check catches up)
+  try { await Promise.race([pull(), new Promise((_, no) => setTimeout(() => no(new Error("timed out")), 8000))]); }
+  catch (e) { console.warn("kept files: could not restore", e); }
   if (!timer) { timer = setInterval(() => { void pull().catch(() => {}); }, 60_000); timer.unref?.(); }
 }
 

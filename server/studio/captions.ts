@@ -56,7 +56,7 @@ export function cleanWords(words: { text: string; start: number | null; end: num
 let localWhisper: boolean | null = null;
 async function hasLocalWhisper() {
   if (localWhisper !== null) return localWhisper;
-  try { await import(/* webpackIgnore: true */ "@huggingface/transformers" as string); localWhisper = true; } catch { localWhisper = false; }
+  try { await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "@huggingface/transformers" as string); localWhisper = true; } catch { localWhisper = false; }
   return localWhisper;
 }
 export async function availability() {

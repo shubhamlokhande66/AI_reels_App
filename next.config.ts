@@ -15,7 +15,10 @@ const nextConfig: NextConfig = {
   },
   // the AI runtime ships binaries for every system: only Linux x64 runs on the server (a Vercel function is at most 250 MB)
   outputFileTracingExcludes: {
-    "*": ["./node_modules/onnxruntime-node/bin/napi-v*/darwin/**", "./node_modules/onnxruntime-node/bin/napi-v*/win32/**", "./node_modules/onnxruntime-node/bin/napi-v*/linux/arm64/**"],
+    // never server code (a route that runs FFmpeg is traced broadly: these keep it small)
+    "*": ["./android/**", "./ios/**", "./cloudflare/**", "./scripts/**", "./tests/**", "./docs/**", "./storage/**", "./logo/**", "./public/**", "./components/**", "./capacitor/**", "./docker/**",
+      "./node_modules/@img/sharp-libvips-linuxmusl-*/**", "./node_modules/@img/sharp-linuxmusl-*/**", "./node_modules/ffprobe-static/bin/darwin/**", "./node_modules/ffprobe-static/bin/win32/**", "./node_modules/ffprobe-static/bin/linux/ia32/**",
+      "./node_modules/onnxruntime-node/bin/napi-v*/darwin/**", "./node_modules/onnxruntime-node/bin/napi-v*/win32/**", "./node_modules/onnxruntime-node/bin/napi-v*/linux/arm64/**"],
   },
   // Phone mode: let a phone on the same Wi-Fi load the dev server through this computer's private address.
   // (Only matters when the dev server is started with -H 0.0.0.0.)

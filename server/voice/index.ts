@@ -64,7 +64,7 @@ function pcmToWav(data: Buffer, rate = 24000): Buffer {
   return Buffer.concat([h, data]);
 }
 
-const SAPI_SCRIPT = path.join(process.cwd(), "server", "voice", "sapi_speak.ps1");
+const SAPI_SCRIPT = path.join(/*turbopackIgnore: true*/ process.cwd(), "server", "voice", "sapi_speak.ps1");
 class Sapi implements Engine {
   name = "sapi"; prefix = "";
   private voices: VoiceInfo[] | null = null;

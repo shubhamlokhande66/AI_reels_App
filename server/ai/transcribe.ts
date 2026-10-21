@@ -28,7 +28,7 @@ export async function transcribe(file: string, start: number, duration: number, 
   let asr: Asr | null = null;
   try {
     g.__asr ??= (async () => {
-      const mod = (await import(/* webpackIgnore: true */ "@huggingface/transformers" as string)) as { pipeline: (task: string, model: string) => Promise<Asr> };
+      const mod = (await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ "@huggingface/transformers" as string)) as { pipeline: (task: string, model: string) => Promise<Asr> };
       return mod.pipeline("automatic-speech-recognition", `onnx-community/whisper-${settings.whisperModel || "base"}`);
     })();
     asr = await g.__asr;

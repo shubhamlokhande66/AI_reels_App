@@ -8,7 +8,7 @@ import MODEL_FILES from "@/server/studio/model-files.json";
  * changes with the model. */
 // the list is shared with scripts/cf-assets.mjs, which puts the same files on Cloudflare's static assets (free, and the
 // app's container is not woken for them); this route serves them everywhere else (and on Cloudflare if one is missing)
-const FILES = new Map(MODEL_FILES.files.map((f) => [f.name, path.join(process.cwd(), f.dir)]));
+const FILES = new Map(MODEL_FILES.files.map((f) => [f.name, path.join(/*turbopackIgnore: true*/ process.cwd(), f.dir)]));
 
 export const GET = route<{ name: string }>(async (req, { name }) => {
   const file = FILES.get(name);

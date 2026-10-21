@@ -23,8 +23,8 @@ function onPath(name: string): string | null {
 function winget(name: string): string | null {
   const base = process.env.LOCALAPPDATA;
   const root = base && path.join(base, "Microsoft", "WinGet", "Packages");
-  if (!root || !fs.existsSync(root)) return null;
-  for (const pkg of fs.readdirSync(root).filter((d) => d.startsWith("Gyan.FFmpeg"))) {
+  if (!root || !fs.existsSync(/*turbopackIgnore: true*/ root)) return null;
+  for (const pkg of fs.readdirSync(/*turbopackIgnore: true*/ root).filter((d) => d.startsWith("Gyan.FFmpeg"))) {
     const stack = [path.join(root, pkg)];
     while (stack.length) {
       const dir = stack.pop()!;
@@ -42,9 +42,9 @@ function winget(name: string): string | null {
  * (Vercel). Read at run time from its folder (next.config.ts puts it into the functions that use it). */
 function bundled(name: "ffmpeg" | "ffprobe"): string | null {
   const arch = process.arch === "arm64" ? "arm64" : "x64";
-  const p = name === "ffmpeg" ? path.join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg")
-    : path.join(process.cwd(), "node_modules", "ffprobe-static", "bin", process.platform, arch, process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
-  return fs.existsSync(p) ? p : null;
+  const p = name === "ffmpeg" ? path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg")
+    : path.join(/*turbopackIgnore: true*/ process.cwd(), "node_modules", "ffprobe-static", "bin", process.platform, arch, process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
+  return fs.existsSync(/*turbopackIgnore: true*/ p) ? p : null;
 }
 
 export function findBinary(name: "ffmpeg" | "ffprobe"): string {
