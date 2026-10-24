@@ -1005,7 +1005,11 @@ async function scanMotion(src, onProgress, faces){
   const c = document.createElement('canvas'); c.width=SW; c.height=SH; const g = c.getContext('2d', {willReadFrequently:true});
   const c2 = document.createElement('canvas'); c2.width=128; c2.height=72; const g2 = c2.getContext('2d', {willReadFrequently:true});
   let prev = null; const out = [], hists = [], lums = [];
+  const strip = [], STRIP_H = 72; let stripLast = -9;
   const grab = (v, t) => {
+    if(t - stripLast >= Math.max(0.5, src.dur/60)){ stripLast = t;
+      try{ const vw = v.videoWidth || v.displayWidth || v.width || 9, vh = v.videoHeight || v.displayHeight || v.height || 16, sc = document.createElement('canvas');
+        sc.height = STRIP_H; sc.width = Math.max(24, Math.round(STRIP_H*vw/vh)); sc.getContext('2d').drawImage(v, 0, 0, sc.width, sc.height); strip.push({ t, c: sc }); }catch(e){} }
     g.drawImage(v,0,0,SW,SH); const d = g.getImageData(0,0,SW,SH).data;
     const lum = new Float32Array(SW*SH); let b=0;
     for(let i=0;i<SW*SH;i++){ const y=(d[i*4]*0.3+d[i*4+1]*0.59+d[i*4+2]*0.11)/255; lum[i]=y; b+=y; }
@@ -1038,6 +1042,7 @@ async function scanMotion(src, onProgress, faces){
     if(faces) faces.done();
   }catch(err){ console.warn('reading frames failed', err); }
   if(!out.length) { rd.close(); throw new Error('no frames could be read'); }
+  strip.sort((a, b) => a.t - b.t); src.strip = strip;
   // order by time (callbacks can arrive out of order around the end); keep histograms paired with their samples
   const idx = out.map((s,i)=>i).sort((a,b)=>out[a].t-out[b].t);
   const S = idx.map(i=>out[i]), H = idx.map(i=>hists[i]), LM = idx.map(i=>lums[i]);
@@ -2905,6 +2910,26 @@ function shotTrim(dir){
 }
 // ripple (dragging a shot's end on the timeline): shot i ends at `to` (on the nearest beat when one is close), every
 // later shot moves with it, and the last shot still ends with the song (it gives or takes the difference)
+// a shot's left edge dragged (VN's trim from the start): the cut between it and the shot before moves to `to`; the shot
+// before gets longer or shorter, this one starts later or earlier in its clip and still ends where it did (the rest stays)
+function shotRoll(i, to){
+  if(!edit.length || kind === 'talk' || exporting || recording || !edit[i] || i < 1) return false;
+  const a = edit[i-1], e = edit[i];
+  const nb = beats.reduce((b, x) => Math.abs(x - to) < Math.abs(b - to) ? x : b, Infinity);
+  if(Math.abs(nb - to) < 0.12) to = nb;
+  to = Math.max(a.start + MIN_SHOT, Math.min(e.end - MIN_SHOT, to));
+  const d = to - e.start; if(Math.abs(d) < 0.01) return false;
+  stopAll();
+  const L = editOf(), x = L[i], rate = (e.sp && e.sp.at ? e.sp.at(0) : 1)*(e.scaleR || 1);
+  let inn = d > 0 ? srcPosF(e, d) : e.in + d*rate;
+  if(inn < 0){ to -= inn/rate; inn = 0; if(to - e.start > -0.01){ notify('This is the start of the clip.'); return false; } }
+  const dd = to - e.start;
+  L[i-1].end = to; x.start = to; x.in = inn;
+  if(x.uk) x.uk = x.uk.map(q => ({ ...q, t: q.t - dd })).filter(q => q.t >= 0);
+  if(!restoreEdit(L)) return false;
+  changed(i - 1, true); changed(i, true);
+  pos = edit[i].start + 0.05; showShot(i); return true;
+}
 function shotRipple(i, to){
   if(!edit.length || kind === 'talk' || exporting || recording || !edit[i]) return false;
   const D = buf.duration, e = edit[i];
@@ -6256,7 +6281,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, copyMatch, get grade(){ return GRADES[look]; },
-  shotOp, shotMove, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotMove, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 
