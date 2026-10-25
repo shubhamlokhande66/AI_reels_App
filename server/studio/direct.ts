@@ -101,7 +101,7 @@ export const DirectIn = z.object({
   /** the Reel (the phone's id of it): Shubix AI is charged once per Reel */
   reelId: z.string().regex(/^[\w-]{6,64}$/).optional(),
   /** a chat message this plan answers (its number in the chat): charged once, small or whole-Reel by its words */
-  chat: z.object({ n: z.number().int().min(1).max(500), text: z.string().max(300) }).optional(),
+  chat: z.object({ n: z.number().int().min(1).max(500), id: z.string().regex(/^[\w-]{6,40}$/).optional(), text: z.string().max(300) }).optional(),
   /** a small change: the plan now, and what to change in it; only the cuts that change come back */
   patch: z.object({ ask: z.string().min(1).max(300), current: z.array(z.object({ i: z.number().int().min(0).max(LIMITS.slots - 1), clip: z.string().max(8), at: z.number().min(0).max(36_000),
     transition: z.string().max(24), effect: z.string().max(24), speed: z.string().max(24) })).max(LIMITS.slots) }).optional(),

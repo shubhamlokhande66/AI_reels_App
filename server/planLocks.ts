@@ -2,7 +2,8 @@ import "server-only";
 import type { ObjectId } from "mongodb";
 import { db } from "@/server/core/db";
 import { ValidationFailed } from "@/server/core/errors";
-import { applyOverrides, DEFAULT_LOCKS, PLANS, type LockOverrides, type PlanId } from "@/lib/plan-locks";
+import { applyOverrides, DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, PLANS, type LockOverrides, type PlanId } from "@/lib/plan-locks";
+import { aiAllowed, PlanNeeded } from "@/server/credits";
 
 /** What each plan unlocks in Fast Studio: the defaults (lib/plan-locks.ts) with the administrator's changes. */
 const ID = "plan_locks" as unknown as ObjectId;
@@ -23,4 +24,13 @@ export async function setLocks(o: LockOverrides) {
     ex[p] = { ...(r.maxRes && ["720", "1080", "4k"].includes(r.maxRes) ? { maxRes: r.maxRes } : {}), ...(typeof r.fps60 === "boolean" ? { fps60: r.fps60 } : {}), ...(typeof r.noWatermark === "boolean" ? { noWatermark: r.noWatermark } : {}) }; }
   await (await db()).collection("app_settings").updateOne({ _id: ID }, { $set: { items, export: ex, updatedAt: new Date() } }, { upsert: true });
   return getLocks();
+}
+
+/** A page's tools on the server (lib/plan-locks.ts "page:…", e.g. the brand kit is Pro): a lower plan gets a 402 with the
+ * plan it needs. Billing off and the administrator: open. */
+export async function requirePlanItem(key: string, admin = false) {
+  const a = await aiAllowed(admin);
+  if (!a.plan && a.ok) return; // billing off, or the administrator
+  const need = needMap(await getLocks())[key] as PlanId | undefined;
+  if (need && planRank(need) > planRank(a.plan)) throw new PlanNeeded(`This is in the ${PLAN_NAME[need]} plan. Upgrade to use it.`, { plan: a.plan, need });
 }

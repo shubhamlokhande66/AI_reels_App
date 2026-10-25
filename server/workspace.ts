@@ -34,16 +34,16 @@ const YEARLY_MONTHS_CHARGED = 10;
  * AI on credits: an AI Reel uses 10 credits, a chat change 1 (a few shots) or 2 (the whole Reel). The administrator
  * changes all of it in Admin → Settings → Plans & pricing (`ai`: the plan has Shubix AI; `hidden`: not offered). */
 export const PRICING_VERSION = 2;
-type PlanDef = { id: string; name: string; monthly: number; credits: number; creditsNote: string; tagline: string; highlight: boolean; ai: boolean; ads: boolean; hidden: boolean; features: string[] };
+type PlanDef = { id: string; name: string; monthly: number; credits: number; creditsNote: string; tagline: string; highlight: boolean; ai: boolean; ads: boolean; hidden: boolean; freeChats: number; features: string[] };
 const DEFAULT_PRICING = {
   plans: [
-    { id: "free", name: "Free", monthly: 0, credits: 0, creditsNote: "Reels made on your phone", tagline: "Edit Reels on your phone, free", highlight: false, ai: false, ads: true, hidden: false,
-      features: ["Unlimited Reels, edited on your phone (on the beat)", "Full editor: timeline, text, music, effects", "1080p export with a small watermark", "Ads", "No Shubix AI"] },
-    { id: "creator", name: "Editor", monthly: 199, credits: 250, creditsNote: "every month · about 20 AI Reels", tagline: "Shubix AI edits your Reels", highlight: true, ai: true, ads: false, hidden: false,
-      features: ["Everything in Free, no ads, no watermark", "Shubix AI: about 20 AI Reels a month", "Ask Shubix: change the Reel by chat", "Captions from the song", "All 👑 effects, Beauty, Stabilize, 60 fps"] },
-    { id: "pro", name: "Pro", monthly: 499, credits: 720, creditsNote: "every month · about 60 AI Reels", tagline: "For daily posting and brands", highlight: false, ai: true, ads: false, hidden: false,
-      features: ["Everything in Editor", "About 60 AI Reels a month", "4K export", "Background, Layers, Voice, Motion", "Saved styles and brand kit"] },
-    { id: "business", name: "Business", monthly: 2999, credits: 650, creditsNote: "every month", tagline: "For agencies and teams", highlight: false, ai: true, ads: false, hidden: true,
+    { id: "free", name: "Free", monthly: 0, credits: 0, creditsNote: "Reels made on your phone", tagline: "Edit Reels on your phone, free", highlight: false, ai: false, ads: true, hidden: false, freeChats: 0,
+      features: ["Unlimited Reels, edited on your phone (on the beat)", "Full editor: timeline, text, music, effects", "1080p export with a small watermark", "Ads", "No Shubix AI · Copy a Reel, Templates and Story Maker in Editor"] },
+    { id: "creator", name: "Editor", monthly: 199, credits: 250, creditsNote: "every month · about 20 AI Reels", tagline: "Shubix AI edits your Reels", highlight: true, ai: true, ads: false, hidden: false, freeChats: 2,
+      features: ["Everything in Free, no ads, no watermark", "Shubix AI: about 20 AI Reels a month", "Ask Shubix: 2 free chat changes per Reel", "Copy a Reel, Templates, Story Maker", "All 👑 effects, Beauty, Stabilize, 60 fps"] },
+    { id: "pro", name: "Pro", monthly: 499, credits: 720, creditsNote: "every month · about 60 AI Reels", tagline: "For daily posting and brands", highlight: false, ai: true, ads: false, hidden: false, freeChats: 5,
+      features: ["Everything in Editor", "About 60 AI Reels a month", "Ask Shubix: 5 free chat changes per Reel", "Brand kit (logo, colours, fonts)", "4K export · Background, Layers, Voice, Motion"] },
+    { id: "business", name: "Business", monthly: 2999, credits: 650, creditsNote: "every month", tagline: "For agencies and teams", highlight: false, ai: true, ads: false, hidden: true, freeChats: 5,
       features: ["Everything in Pro", "Several brands", "Priority email support"] },
   ] as PlanDef[],
   topUps: [{ id: "topup_100", credits: 100, price: 99 }, { id: "topup_300", credits: 300, price: 249 }],
@@ -97,6 +97,7 @@ export async function setPricing(plans: Record<string, unknown>[], topUps: Recor
     const name = typeof p.name === "string" && p.name.trim() ? p.name.trim().slice(0, 30) : base.name;
     return { ...base, name, monthly: base.id === "free" ? 0 : int(p.monthly, 1, 100000, `${name} price`), credits: int(p.credits, 0, 100000, `${name} credits`),
       ai: typeof p.ai === "boolean" ? p.ai : base.ai, ads: typeof p.ads === "boolean" ? p.ads : base.ads, hidden: base.id === "free" ? false : typeof p.hidden === "boolean" ? p.hidden : base.hidden,
+      freeChats: int(p.freeChats ?? base.freeChats ?? 0, 0, 50, `${name} free chat changes`),
       creditsNote: typeof p.creditsNote === "string" ? p.creditsNote.trim().slice(0, 60) : base.creditsNote, tagline: typeof p.tagline === "string" ? p.tagline.trim().slice(0, 60) : base.tagline,
       features: ((p.features as unknown[]) ?? base.features).map((f) => String(f).trim().slice(0, 80)).filter(Boolean).slice(0, 10) };
   });

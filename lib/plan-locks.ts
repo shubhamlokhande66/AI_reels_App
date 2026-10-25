@@ -8,7 +8,7 @@
 
 export const PLANS = ["free", "creator", "pro", "business"] as const;
 export type PlanId = (typeof PLANS)[number];
-export const PLAN_NAME: Record<PlanId, string> = { free: "Free", creator: "Creator", pro: "Pro", business: "Business" };
+export const PLAN_NAME: Record<PlanId, string> = { free: "Free", creator: "Editor", pro: "Pro", business: "Business" };
 /** a plan's place in the order: an item needing "creator" is open to creator, pro and business */
 export const planRank = (p: string | null | undefined) => { const i = PLANS.indexOf((p || "free") as PlanId); return i < 0 ? 0 : i; };
 
@@ -20,6 +20,8 @@ export interface PlanLocks { groups: LockGroup[]; export: Record<PlanId, ExportR
 const I = (plan: PlanId, list: [string, string][]): LockItem[] => list.map(([key, name]) => ({ key, name, plan }));
 export const DEFAULT_LOCKS: PlanLocks = {
   groups: [
+    // whole pages: on a lower plan the Home card carries the plan's tag, and the page itself asks to upgrade (PlanGate)
+    { id: "page", name: "Pages", items: [...I("creator", [["copy", "Copy a Reel"], ["templates", "Templates"], ["story", "Story Maker"]]), ...I("pro", [["brand", "Brand kit"]])] },
     // the tool bar's tools (components/studio/views.ts): on a lower plan they carry their plan's tag and open /pricing
     { id: "studio", name: "Studio tools", items: I("pro", [["motion", "Motion (keyframes)"], ["layers", "Layers (overlay, green screen, blend, GIF)"], ["bg", "Background"], ["voice", "Voice"]]) },
     { id: "fx", name: "Effects", items: [
@@ -62,3 +64,10 @@ export function applyOverrides(o: LockOverrides | null | undefined): PlanLocks {
 }
 /** item key -> the plan it needs, for quick lookups ("fx:grid" -> "creator") */
 export const needMap = (L: PlanLocks) => Object.fromEntries(L.groups.flatMap((g) => g.items.map((it) => [`${g.id}:${it.key}`, it.plan])));
+
+/** the page an address opens, for its lock ("/create/copy" -> "page:copy") */
+export const PAGE_LOCK: Record<string, string> = { "/create/copy": "page:copy", "/templates": "page:templates", "/create/story": "page:story", "/brands": "page:brand" };
+/** what a person may open: billing off (or signed out with billing off) and the administrator see everything */
+export function lockedFor(need: string | undefined, who: { plan?: string | null; open: boolean }) {
+  return !who.open && planRank(need) > planRank(who.plan);
+}
