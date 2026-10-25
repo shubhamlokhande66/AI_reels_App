@@ -12,7 +12,8 @@ import { Button } from "@/components/atoms/Button";
 import { clock, deleteDraft, draftPreview, type Draft } from "@/lib/drafts";
 import { linkOn, type Features } from "@/lib/features-list";
 import { lockTag, PAGE_LOCK, type PlanId } from "@/lib/plan-locks";
-import { useLockCheck } from "@/hooks/useApi";
+import { useList, useLockCheck, useT } from "@/hooks/useApi";
+import type { ListItem } from "@/lib/collections";
 import { formatRelative } from "@/lib/format";
 import { useTemplates } from "@/lib/useTemplates";
 import type { Tone } from "@/lib/ui";
@@ -20,30 +21,25 @@ import type { Tone } from "@/lib/ui";
 /** Home's sections (UI/ design), each one reusable on its own: Create Your Reel, Popular Templates, Continue Editing,
  * Tips for Better Reels. */
 
-type Option = { href: string; icon: string; title: string; text: string; tone: Tone; reload?: boolean };
+type Option = { key: string; href: string; icon: string; title: string; text: string; tone: Tone; reload?: boolean };
 
-/** The ways to start (and My Reels), as far as this studio has them on (Administration → Features). All of them are here, so the
- * section has no "See more". */
-export function createOptions(f: Features): Option[] {
-  return [
-    { href: "/create/music", icon: "music", title: "Music Reel", text: "Sync with Music", tone: "music", reload: true },
-    { href: "/create/talking", icon: "mic", title: "Talking Reel", text: "Vlogs & Tutorials", tone: "talk", reload: true },
-    { href: "/create/photo", icon: "image", title: "Photo Reel", text: "Bring Photos to Life", tone: "photo", reload: true },
-    { href: "/create/copy", icon: "copy", title: "Copy a Reel", text: "Match any Reel", tone: "copy", reload: true },
-    { href: "/create/story", icon: "book", title: "Story Maker", text: "Text to Video", tone: "story", reload: true },
-    { href: "/templates", icon: "grid", title: "Templates", text: "Ready-made Styles", tone: "template" },
-    { href: "/reels", icon: "video", title: "My Reels", text: "Watch & share", tone: "recreate" },
-  ].filter((o) => linkOn(o.href, f)) as Option[];
+/** The ways to start (and My Reels): the administrator's cards (Admin → CMS → Home → Create Your Reel), as far as this
+ * studio has their page on (Administration → Features). A card to a page of the studio (/create/…) or another site
+ * is a full page load. */
+export function createOptions(f: Features, cards: ListItem[]): Option[] {
+  return cards
+    .filter((c) => c.title && c.link && (!c.link.startsWith("/") || linkOn(c.link, f)))
+    .map((c) => ({ key: c.id, href: c.link, icon: c.icon || "sparkle", title: c.title, text: c.text, tone: (c.tone || "brand") as Tone, reload: !c.link.startsWith("/") || c.link.startsWith("/create") }));
 }
 
 export function CreateSection({ features }: { features: Features }) {
-  const check = useLockCheck();
+  const check = useLockCheck(), t = useT(), cards = useList("home.cards");
   return (
     <section aria-labelledby="create-h" className="flex flex-col gap-3">
-      <SectionHeader id="create-h" title="Create Your Reel" />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7 lg:gap-3">
-        {createOptions(features).map((o) => (
-          <CreateCard key={o.title} {...o} lock={PAGE_LOCK[o.href] && check && check(PAGE_LOCK[o.href]) ? lockTag(check(PAGE_LOCK[o.href]) as PlanId) : ""} />
+      <SectionHeader id="create-h" title={t("home.createTitle")} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(132px,1fr))] lg:gap-3">
+        {createOptions(features, cards).map(({ key, ...o }) => (
+          <CreateCard key={key} {...o} lock={PAGE_LOCK[o.href] && check && check(PAGE_LOCK[o.href]) ? lockTag(check(PAGE_LOCK[o.href]) as PlanId) : ""} />
         ))}
       </div>
     </section>
@@ -51,10 +47,10 @@ export function CreateSection({ features }: { features: Features }) {
 }
 
 export function TemplatesSection() {
-  const { templates } = useTemplates();
+  const { templates } = useTemplates(), t = useT();
   return (
     <section aria-labelledby="tpl-h" className="flex flex-col gap-3">
-      <SectionHeader id="tpl-h" title="Popular Templates" href="/templates" />
+      <SectionHeader id="tpl-h" title={t("home.templatesTitle")} href="/templates" />
       <Scroller label="Popular templates" grid="md:grid md:grid-cols-6 md:overflow-visible">
         {templates.slice(0, 6).map((t) => (
           <div key={t.id} className="w-[31vw] min-w-[108px] max-w-[150px] shrink-0 snap-start md:w-auto md:max-w-none">
@@ -68,15 +64,16 @@ export function TemplatesSection() {
 
 /** The drafts on this phone, newest first; null while they are being read. */
 export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; onChange?: () => void }) {
+  const t = useT();
   async function remove(d: Draft) {
-    if (await confirmAction({ title: `Delete “${d.name}”?`, body: "The draft and its clips are removed from this phone.", ok: "Delete", danger: true })) {
+    if (await confirmAction({ title: t("reels.deleteDraftTitle", { name: d.name }), body: t("reels.deleteDraftText"), ok: t("reels.delete"), danger: true })) {
       await deleteDraft(d.id);
       onChange?.();
     }
   }
   return (
     <section aria-labelledby="cont-h" className="flex flex-col gap-3">
-      <SectionHeader id="cont-h" title="Continue Editing" href={drafts?.length ? "/reels" : undefined} />
+      <SectionHeader id="cont-h" title={t("home.continueTitle")} href={drafts?.length ? "/reels" : undefined} />
       {drafts === null ? (
         <div className="flex gap-3 overflow-hidden" role="status" aria-label="Loading your drafts">
           {[0, 1, 2].map((i) => (
@@ -99,10 +96,10 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
                   thumb={d.thumb}
                   preview={() => draftPreview(d.id)}
                   duration={clock(d.dur)}
-                  edited={`Edited ${formatRelative(new Date(d.updated).toISOString())}`}
+                  edited={t("common.edited", { when: formatRelative(new Date(d.updated).toISOString()) })}
                   menu={[
-                    { label: "Open", icon: "scissors", href, reload: true },
-                    { label: "Delete", icon: "trash", danger: true, onClick: () => void remove(d) },
+                    { label: t("common.open"), icon: "scissors", href, reload: true },
+                    { label: t("reels.delete"), icon: "trash", danger: true, onClick: () => void remove(d) },
                   ]}
                 />
               </div>
@@ -112,11 +109,11 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
       ) : (
         <EmptyState
           icon="video"
-          title="No Reels yet"
-          hint="Pick a song and a few clips: your first Reel is ready in seconds, cut to the beat."
+          title={t("home.emptyTitle")}
+          hint={t("home.emptyText")}
           action={
             <Button href="/create/music" reload icon="plus">
-              Make your first Reel
+              {t("home.emptyButton")}
             </Button>
           }
         />
@@ -125,20 +122,16 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
   );
 }
 
-const TIPS = [
-  { icon: "bulb", color: "#facc15", title: "Add a strong hook", text: "First 2 seconds matter the most." },
-  { icon: "music", color: "#e879f9", title: "Use trending music", text: "That matches your vibe." },
-  { icon: "play", color: "#c026d3", title: "Keep it short and engaging", text: "15–30 seconds works best." },
-  { icon: "text", color: "#f472b6", title: "Add text and captions", text: "So everyone can understand." },
-];
-
 export function TipsSection() {
+  const t = useT();
+  // the administrator's tips (Admin → CMS → Home → Tips for Better Reels)
+  const tips = useList("home.tips").filter((tip) => tip.title);
   return (
     <section aria-labelledby="tips-h" className="flex flex-col gap-3">
-      <SectionHeader id="tips-h" title="Tips for Better Reels" />
+      <SectionHeader id="tips-h" title={t("home.tipsTitle")} />
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-        {TIPS.map((t, i) => (
-          <TipCard key={t.title} n={i + 1} {...t} />
+        {tips.map((tip, i) => (
+          <TipCard key={tip.id} n={i + 1} icon={tip.icon || "bulb"} color={tip.color || "#b05cff"} title={tip.title} text={tip.text} />
         ))}
       </div>
     </section>

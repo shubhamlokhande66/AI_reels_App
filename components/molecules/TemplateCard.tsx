@@ -1,4 +1,8 @@
+"use client";
+
 import { Badge } from "@/components/atoms";
+import { LockBadge } from "@/components/molecules/LockBadge";
+import { usePlanNeed } from "@/hooks/useApi";
 import { cn } from "@/lib/cn";
 import { templateHref, templateMeta, type StudioTemplate } from "@/lib/studio-templates";
 
@@ -17,11 +21,15 @@ const ART: Record<string, string> = {
 };
 const FALLBACK = "bg-[radial-gradient(circle_at_60%_30%,rgba(200,140,255,.6),transparent_38%),linear-gradient(160deg,#7c3aed,#2a1660_60%,#0b0b22)]";
 
-/** A Fast Studio template: a 9:16 poster with its name and length; opens Fast Studio with it picked. */
-export function TemplateCard({ t, compact = false }: { t: StudioTemplate; compact?: boolean }) {
+/** A Fast Studio template: a 9:16 poster with its name and length; opens Fast Studio with it picked. `link={false}`:
+ * only the poster and its words (the admin's preview). */
+export function TemplateCard({ t, compact = false, link = true }: { t: StudioTemplate; compact?: boolean; link?: boolean }) {
   const words = t.name.replace("/", " ").split(/\s+/).filter(Boolean);
+  // a template of a higher plan (Admin → Templates): the Upgrade tag, and a tap opens the plans
+  const need = usePlanNeed(), locked = link && !!need && need(t.plan);
+  const Tag = link ? "a" : "div";
   return (
-    <a href={templateHref(t)} className="group flex min-w-0 flex-col gap-1.5" title={`Make a Reel with ${t.name}`}>
+    <Tag {...(link ? { href: locked ? `/pricing?need=${encodeURIComponent(`template:${t.id}`)}` : templateHref(t), title: locked ? `${t.name}: in a paid plan` : `Make a Reel with ${t.name}` } : {})} className="group flex min-w-0 flex-col gap-1.5">
       <div className={cn("relative aspect-[9/16] w-full overflow-hidden rounded-2xl [container-type:inline-size] border border-white/10 transition-transform duration-300 group-hover:-translate-y-1", ART[t.id] ?? FALLBACK)}>
         {/* eslint-disable-next-line @next/next/no-img-element -- a small static cover */}
         {t.cover && <img src={t.cover} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
@@ -33,7 +41,7 @@ export function TemplateCard({ t, compact = false }: { t: StudioTemplate; compac
             </span>
           ))}
         </span>
-        {t.isNew && <Badge tone="dark" className="absolute left-2.5 top-2.5">✨ New</Badge>}
+        {locked ? <span className="absolute left-2.5 top-2.5"><LockBadge card /></span> : t.isNew && <Badge tone="dark" className="absolute left-2.5 top-2.5">✨ New</Badge>}
         <Badge tone="dark" className="absolute bottom-2.5 right-2.5">
           {t.kind === "talk" ? "Talk" : t.kind === "photo" ? `Photos${t.len ? ` · ${t.len}s` : ""}` : t.len ? `${t.len}s` : "Music"}
         </Badge>
@@ -45,6 +53,6 @@ export function TemplateCard({ t, compact = false }: { t: StudioTemplate; compac
           <span className="line-clamp-2 text-[11px] leading-snug text-muted">{t.text}</span>
         </>
       )}
-    </a>
+    </Tag>
   );
 }

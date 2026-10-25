@@ -28,11 +28,10 @@ export function buttonClass({ variant = "primary", size = "md", full = false, cl
   return cn(BASE, VARIANT[variant], SIZE[size], full && "w-full", className);
 }
 
-// the older string names (many pages, often with extra utilities that must win): the .btn classes in app/rm.css,
-// drawn to the same look as <Button>
-export const btnPrimary = "btn g";
-export const btnSecondary = "btn";
-export const btnDanger = "btn danger";
+// the older string names (the admin's settings): the same classes as <Button>
+export const btnPrimary = buttonClass();
+export const btnSecondary = buttonClass({ variant: "secondary" });
+export const btnDanger = buttonClass({ variant: "danger" });
 
 type Common = { variant?: ButtonVariant; size?: ButtonSize; full?: boolean; icon?: string; iconRight?: string; loading?: boolean; className?: string; children?: React.ReactNode };
 type AsButton = Common & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children"> & { href?: undefined };

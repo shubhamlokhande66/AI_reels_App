@@ -1,7 +1,11 @@
+"use client";
+
 import { Icon } from "@/components/atoms/Icon";
+import { useT } from "@/hooks/useApi";
 
 /** "Tips for Better Reels · Simple tips to get more views" (UI/ design): the row that leads to the tips. */
 export function TipsBanner({ href = "#tips-h" }: { href?: string }) {
+  const t = useT();
   return (
     <a
       href={href}
@@ -9,8 +13,8 @@ export function TipsBanner({ href = "#tips-h" }: { href?: string }) {
     >
       <Icon name="bulb" size={30} stroke={2} color="#c084fc" />
       <span className="flex min-w-0 flex-1 flex-col">
-        <b className="text-[15px] font-extrabold">Tips for Better Reels</b>
-        <span className="text-[12px] text-muted">Simple tips to get more views</span>
+        <b className="text-[15px] font-extrabold">{t("home.tipsTitle")}</b>
+        <span className="text-[12px] text-muted">{t("home.tipsSub")}</span>
       </span>
       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 transition-colors group-hover:bg-white/20">
         <Icon name="chevron" size={18} stroke={2.2} />

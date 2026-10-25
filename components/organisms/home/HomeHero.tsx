@@ -1,9 +1,13 @@
+"use client";
+
 import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
+import { useT } from "@/hooks/useApi";
 
 /** Home's hero (UI/ design): "Your moments. Your story. Your Reel.", the line under it, the Create Reel button, and
  * on the right three Reels fanned out with "Create · Edit · Share". `reload`: Create opens Fast Studio (a full load). */
 export function HomeHero({ href, reload }: { href: string; reload: boolean }) {
+  const t = useT();
   return (
     <section
       aria-label="Make a Reel"
@@ -16,16 +20,16 @@ export function HomeHero({ href, reload }: { href: string; reload: boolean }) {
 
       <div className="relative grid items-center gap-6 md:grid-cols-[1.2fr_1fr]">
         <div className="flex max-w-xl flex-col gap-4">
-          <h1 className="m-0 font-[family-name:var(--font-display)] text-[clamp(34px,9vw,58px)] font-extrabold leading-[1.02] tracking-[-0.03em]">
-            <span className="block text-foreground">Your moments.</span>
-            <span className="block bg-[linear-gradient(90deg,#c084fc,#a855f7)] bg-clip-text text-transparent">Your story.</span>
-            <span className="block bg-[linear-gradient(90deg,#ff4fd8,#e040fb)] bg-clip-text text-transparent">Your Reel.</span>
+          <h1 className="m-0 font-[family-name:var(--font-display)] text-[clamp(30px,7.5vw,46px)] font-semibold leading-[1.05] tracking-[-0.025em]">
+            <span className="block text-foreground">{t("home.hero1")}</span>
+            <span className="block bg-[linear-gradient(90deg,#c084fc,#a855f7)] bg-clip-text text-transparent">{t("home.hero2")}</span>
+            <span className="block bg-[linear-gradient(90deg,#ff4fd8,#e040fb)] bg-clip-text text-transparent">{t("home.hero3")}</span>
           </h1>
           <p className="m-0 max-w-[30ch] text-[14.5px] leading-relaxed text-foreground/85 md:max-w-md md:text-base">
-            Add your clips, choose a style or just give an idea — let Shubix create stunning reels for you in minutes.
+            {t("home.heroText")}
           </p>
           <Button href={href} reload={reload} size="lg" icon="plus" iconRight="send" className="w-full max-w-sm md:w-fit md:min-w-[280px]">
-            Create Reel
+            {t("home.heroButton")}
           </Button>
         </div>
 

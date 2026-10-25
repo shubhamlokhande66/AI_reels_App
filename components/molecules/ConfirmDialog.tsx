@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useT } from "@/hooks/useApi";
+import { buttonClass } from "@/components/atoms/Button";
+import { cn } from "@/lib/cn";
 
 /** "Are you sure?" as a pop-up in the app's own style, for anything that cannot be undone (deleting a Reel, a draft, a
  * project…). Call `confirmAction({...})` from anywhere: it resolves true when the person confirms, false otherwise
@@ -29,6 +32,7 @@ const close = (v: boolean) => {
 };
 
 export function ConfirmHost() {
+  const t = useT();
   const ask = useSyncExternalStore(
     (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     () => pending,
@@ -55,7 +59,7 @@ export function ConfirmHost() {
         aria-modal="true"
         aria-labelledby="confirm-title"
         aria-describedby={ask.body ? "confirm-body" : undefined}
-        className="card w-full max-w-sm animate-pop !gap-3 !p-5 shadow-2xl"
+        className="flex w-full max-w-sm animate-pop flex-col gap-3 rounded-2xl border border-border bg-surface p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {ask.danger && (
@@ -64,13 +68,13 @@ export function ConfirmHost() {
           </span>
         )}
         <b id="confirm-title" className="text-[17px] leading-snug">{ask.title}</b>
-        {ask.body && <p id="confirm-body" className="mu sm m-0">{ask.body}</p>}
+        {ask.body && <p id="confirm-body" className="m-0 text-[12.5px] text-muted">{ask.body}</p>}
         <div className="mt-1 flex gap-2">
-          <button ref={cancelRef} type="button" className="btn flex-1" onClick={() => close(false)}>
-            {ask.cancel ?? "Cancel"}
+          <button ref={cancelRef} type="button" className={buttonClass({ variant: "secondary", className: "flex-1" })} onClick={() => close(false)}>
+            {ask.cancel ?? t("common.cancel")}
           </button>
-          <button type="button" className={`btn flex-1 ${ask.danger ? "danger fill" : "g"}`} onClick={() => close(true)}>
-            {ask.ok ?? "OK"}
+          <button type="button" className={buttonClass({ variant: ask.danger ? "danger" : "primary", className: cn("flex-1", ask.danger && "bg-danger text-white hover:bg-danger") })} onClick={() => close(true)}>
+            {ask.ok ?? t("common.ok")}
           </button>
         </div>
       </div>

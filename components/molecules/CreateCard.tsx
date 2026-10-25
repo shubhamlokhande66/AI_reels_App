@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Icon } from "@/components/atoms/Icon";
+import { LockBadge } from "@/components/molecules/LockBadge";
 import { cn } from "@/lib/cn";
 import { TONE_BG, TONE_GLOW, type Tone } from "@/lib/ui";
 
 /** One way to start a Reel (UI/ design: Create Options): its tone's gradient, a white icon, a title, a line, and the
- * arrow chip. `reload`: a full page load (Fast Studio). `lock`: its tag on a lower plan ("👑", "👑 Pro"), and a
+ * arrow chip. `reload`: a full page load (Fast Studio). `lock`: its tag on a lower plan ("Upgrade", with a crown), and a
  * tap opens the plans. */
 export function CreateCard({ href, icon, title, text, tone, reload = false, lock = "" }: { href: string; icon: string; title: string; text: string; tone: Tone; reload?: boolean; lock?: string }) {
   const Tag = reload && !lock ? "a" : Link;
@@ -22,7 +23,7 @@ export function CreateCard({ href, icon, title, text, tone, reload = false, lock
       <span className="flex items-start justify-between gap-2">
         <Icon name={icon} size={30} stroke={2} />
         {lock ? (
-          <span className="rounded-full bg-black/35 px-2 py-0.5 text-[11px] font-bold">{lock}</span>
+          <LockBadge card />
         ) : (
           <span aria-hidden className="grid h-7 w-7 place-items-center rounded-full bg-black/20 transition-colors group-hover:bg-black/35">
             <Icon name="send" size={15} stroke={2.4} />

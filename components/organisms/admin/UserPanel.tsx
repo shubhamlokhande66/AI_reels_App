@@ -9,12 +9,13 @@ import { api, errorMessage } from "@/lib/api";
 import type { AdminUserDetail } from "@/types/api";
 import { ago, count, date, dateTime, page, rupees } from "./format";
 import { LiveDot } from "./OverviewTab";
+import { cn } from "@/lib/cn";
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col">
-      <span className="mu xs">{label}</span>
-      <span className="sm truncate font-bold">{value}</span>
+      <span className="text-muted text-[11px]">{label}</span>
+      <span className="text-[12.5px] truncate font-bold">{value}</span>
     </div>
   );
 }
@@ -45,18 +46,18 @@ function GiveCredits({ user }: { user: AdminUserDetail }) {
     if (ok) give.mutate(sign * n);
   }
   return (
-    <section className="card" aria-label="Give credits">
-      <span className="h2">Give or take back credits</span>
+    <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow)]" aria-label="Give credits">
+      <span className="m-0 text-[15px] font-bold">Give or take back credits</span>
       <div className="flex gap-2">
-        <input className="inp w-28" type="number" min={1} inputMode="numeric" placeholder="Credits" aria-label="Credits" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <input className="inp flex-1" placeholder="Note (optional)" aria-label="Note" maxLength={120} value={note} onChange={(e) => setNote(e.target.value)} />
+        <input className="min-w-0 rounded-xl border border-border bg-surface px-3 text-[14px] font-medium text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_22%,transparent)] disabled:opacity-60 h-11 w-28" type="number" min={1} inputMode="numeric" placeholder="Credits" aria-label="Credits" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <input className="w-full min-w-0 rounded-xl border border-border bg-surface px-3 text-[14px] font-medium text-foreground outline-none transition-[border-color,box-shadow] placeholder:text-muted focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_22%,transparent)] disabled:opacity-60 h-11 flex-1" placeholder="Note (optional)" aria-label="Note" maxLength={120} value={note} onChange={(e) => setNote(e.target.value)} />
       </div>
       {give.error && <ErrorBanner message={errorMessage(give.error)} />}
-      <div className="g2">
-        <button type="button" className="btn g" disabled={give.isPending || !(Number(amount) > 0)} onClick={() => void submit(1)}>
+      <div className="grid grid-cols-2 gap-2.5">
+        <button type="button" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-[filter,border-color,background-color,color] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent border border-transparent bg-[image:var(--gold-gradient)] text-[var(--on-accent)] shadow-[0_12px_26px_-14px_var(--brand-glow)] hover:brightness-110 h-11 rounded-xl px-4 text-sm" disabled={give.isPending || !(Number(amount) > 0)} onClick={() => void submit(1)}>
           Give
         </button>
-        <button type="button" className="btn danger" disabled={give.isPending || !(Number(amount) > 0)} onClick={() => void submit(-1)}>
+        <button type="button" className="inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-[filter,border-color,background-color,color] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent border border-danger/40 bg-surface text-danger hover:border-danger h-11 rounded-xl px-4 text-sm" disabled={give.isPending || !(Number(amount) > 0)} onClick={() => void submit(-1)}>
           Take back
         </button>
       </div>
@@ -77,12 +78,12 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
     <div className="fixed inset-0 z-[60]">
       <div className="absolute inset-0 bg-[var(--overlay)]" onClick={onClose} />
       <aside role="dialog" aria-modal="true" aria-label="User details" className="absolute inset-y-0 right-0 flex w-full max-w-[520px] flex-col bg-background shadow-2xl">
-        <div className="between border-b border-border px-4 py-3">
-          <span className="row min-w-0 gap-2">
+        <div className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3">
+          <span className="flex items-center min-w-0 gap-2">
             {online && <LiveDot />}
-            <span className="h2 truncate">{u?.email ?? "User"}</span>
+            <span className="m-0 text-[15px] font-bold truncate">{u?.email ?? "User"}</span>
           </span>
-          <button type="button" className="ib plain" aria-label="Close" onClick={onClose}>
+          <button type="button" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-border p-0 text-foreground transition-colors hover:text-accent border-0 bg-transparent" aria-label="Close" onClick={onClose}>
             <Icon name="close" />
           </button>
         </div>
@@ -91,7 +92,7 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
           {q.error && <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />}
           {u && (
             <>
-              <section className="card">
+              <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow)]">
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Fact label="Joined" value={date(u.createdAt)} />
                   <Fact label="Last login" value={ago(u.lastLoginAt)} />
@@ -103,10 +104,10 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
               </section>
 
               {u.wallet ? (
-                <section className="card" aria-label="Credits">
-                  <div className="between">
-                    <span className="h2">Credits</span>
-                    <span className="badge b-run">
+                <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow)]" aria-label="Credits">
+                  <div className="flex items-center justify-between gap-2.5">
+                    <span className="m-0 text-[15px] font-bold">Credits</span>
+                    <span className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-[11px] font-bold bg-[var(--chip-on)] text-accent">
                       {u.wallet.planName} plan{u.wallet.period ? ` · ${u.wallet.period}` : ""}
                     </span>
                   </div>
@@ -115,89 +116,89 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
                     <Fact label="This month's" value={count(u.wallet.monthly)} />
                     <Fact label="Top-ups" value={count(u.wallet.extra)} />
                   </div>
-                  {u.wallet.planEnds && <span className="mu xs">Plan ends {date(u.wallet.planEnds)}{u.wallet.renews ? ` · credits renew ${date(u.wallet.renews)}` : ""}</span>}
+                  {u.wallet.planEnds && <span className="text-muted text-[11px]">Plan ends {date(u.wallet.planEnds)}{u.wallet.renews ? ` · credits renew ${date(u.wallet.renews)}` : ""}</span>}
                 </section>
               ) : (
-                <span className="mu sm">Billing is off: this studio does not count credits.</span>
+                <span className="text-muted text-[12.5px]">Billing is off: this studio does not count credits.</span>
               )}
               {u.wallet && <GiveCredits user={u} />}
 
-              <section className="card" aria-label="Purchases">
-                <span className="h2">Purchases</span>
+              <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow)]" aria-label="Purchases">
+                <span className="m-0 text-[15px] font-bold">Purchases</span>
                 {u.payments.length ? (
                   <ul className="flex flex-col">
                     {u.payments.map((p) => (
-                      <li key={p.id} className="between border-t border-border py-2 first:border-t-0">
+                      <li key={p.id} className="flex items-center justify-between gap-2.5 border-t border-border py-2 first:border-t-0">
                         <span className="flex min-w-0 flex-col">
-                          <span className="sm truncate">{p.label}</span>
-                          <span className="mu xs">{dateTime(p.paidAt ?? p.createdAt)}</span>
+                          <span className="text-[12.5px] truncate">{p.label}</span>
+                          <span className="text-muted text-[11px]">{dateTime(p.paidAt ?? p.createdAt)}</span>
                         </span>
-                        <span className="row shrink-0 gap-2">
-                          <span className={`badge ${p.status === "paid" ? "b-ok" : ""}`}>{p.status === "created" ? "not paid" : p.status}</span>
-                          <b className="sm">{rupees(p.rupees)}</b>
+                        <span className="flex items-center shrink-0 gap-2">
+                          <span className={cn("inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-2 text-[11px] font-bold text-muted", p.status === "paid" && "bg-success/15 text-success")}>{p.status === "created" ? "not paid" : p.status}</span>
+                          <b className="text-[12.5px]">{rupees(p.rupees)}</b>
                         </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <span className="mu sm">No purchases yet.</span>
+                  <span className="text-muted text-[12.5px]">No purchases yet.</span>
                 )}
               </section>
 
-              <section className="card" aria-label="Credit history">
-                <span className="h2">Credit history</span>
+              <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow)]" aria-label="Credit history">
+                <span className="m-0 text-[15px] font-bold">Credit history</span>
                 {u.history.length ? (
                   <ul className="flex flex-col">
                     {u.history.map((e, i) => (
-                      <li key={i} className="between border-t border-border py-2 first:border-t-0">
+                      <li key={i} className="flex items-center justify-between gap-2.5 border-t border-border py-2 first:border-t-0">
                         <span className="flex min-w-0 flex-col">
-                          <span className="sm truncate">
+                          <span className="text-[12.5px] truncate">
                             {e.reason}
-                            {e.refunded && <span className="mu"> · refunded</span>}
+                            {e.refunded && <span className="text-muted"> · refunded</span>}
                           </span>
-                          <span className="mu xs">{dateTime(e.at)}</span>
+                          <span className="text-muted text-[11px]">{dateTime(e.at)}</span>
                         </span>
                         <span className="flex shrink-0 flex-col items-end">
-                          <b className={`sm ${e.delta > 0 ? "text-success" : ""}`}>{e.delta > 0 ? `+${e.delta}` : e.delta}</b>
-                          {e.balance !== null && <span className="mu xs">left {e.balance}</span>}
+                          <b className={`text-[12.5px] ${e.delta > 0 ? "text-success" : ""}`}>{e.delta > 0 ? `+${e.delta}` : e.delta}</b>
+                          {e.balance !== null && <span className="text-muted text-[11px]">left {e.balance}</span>}
                         </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <span className="mu sm">No credit changes yet.</span>
+                  <span className="text-muted text-[12.5px]">No credit changes yet.</span>
                 )}
               </section>
 
-              <section className="card" aria-label="Recent Reels">
-                <span className="h2">Recent Reels</span>
+              <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow)]" aria-label="Recent Reels">
+                <span className="m-0 text-[15px] font-bold">Recent Reels</span>
                 {u.reels.length ? (
                   <ul className="flex flex-col">
                     {u.reels.map((r) => (
-                      <li key={r.id} className="between border-t border-border py-2 first:border-t-0">
-                        <span className="sm truncate">{r.name}</span>
-                        <span className="row shrink-0 gap-2">
-                          <span className="badge">{r.status || "draft"}</span>
-                          <span className="mu xs">{date(r.createdAt)}</span>
+                      <li key={r.id} className="flex items-center justify-between gap-2.5 border-t border-border py-2 first:border-t-0">
+                        <span className="text-[12.5px] truncate">{r.name}</span>
+                        <span className="flex items-center shrink-0 gap-2">
+                          <span className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-2 px-2 text-[11px] font-bold text-muted">{r.status || "draft"}</span>
+                          <span className="text-muted text-[11px]">{date(r.createdAt)}</span>
                         </span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <span className="mu sm">No Reels yet.</span>
+                  <span className="text-muted text-[12.5px]">No Reels yet.</span>
                 )}
               </section>
 
               {u.devices.length > 0 && (
-                <section className="card" aria-label="Devices">
-                  <span className="h2">Devices</span>
+                <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border bg-surface p-3.5 shadow-[var(--shadow)]" aria-label="Devices">
+                  <span className="m-0 text-[15px] font-bold">Devices</span>
                   <ul className="flex flex-col">
                     {u.devices.map((d, i) => (
-                      <li key={i} className="between border-t border-border py-2 first:border-t-0">
-                        <span className="sm">
-                          {d.device} · <span className="mu">{page(d.path)}</span>
+                      <li key={i} className="flex items-center justify-between gap-2.5 border-t border-border py-2 first:border-t-0">
+                        <span className="text-[12.5px]">
+                          {d.device} · <span className="text-muted">{page(d.path)}</span>
                         </span>
-                        <span className={`xs ${d.online ? "text-success" : "mu"}`}>{d.online ? "online" : ago(d.at)}</span>
+                        <span className={`text-[11px] ${d.online ? "text-success" : "text-muted"}`}>{d.online ? "online" : ago(d.at)}</span>
                       </li>
                     ))}
                   </ul>

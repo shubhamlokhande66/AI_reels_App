@@ -6,6 +6,7 @@ import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { Icon } from "@/components/atoms/Icon";
 import { listCloudReels } from "@/lib/cloudReels";
 import { formatRelative } from "@/lib/format";
+import { useT } from "@/hooks/useApi";
 
 const SEEN = "reel-notes-seen";
 const seenAt = () => {
@@ -18,6 +19,7 @@ const seenAt = () => {
 
 /** The top bar's bell (UI/ design): the Reels saved to My Reels lately, a red dot for the ones not seen yet. */
 export function NotificationBell() {
+  const t = useT();
   const q = useQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, staleTime: 60_000, retry: false });
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState(Number.MAX_SAFE_INTEGER); // no dot until this device's memory is read
@@ -55,7 +57,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={toggle}
-        aria-label={fresh ? `Notifications, ${fresh} new` : "Notifications"}
+        aria-label={fresh ? t("bell.new", { n: fresh }) : t("bell.title")}
         aria-expanded={open}
         className="relative grid h-10 w-10 place-items-center rounded-full text-foreground transition-colors hover:bg-surface-2"
       >
@@ -63,8 +65,8 @@ export function NotificationBell() {
         {fresh > 0 && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--bar)] bg-[#ff3b5c]" />}
       </button>
       {open && (
-        <div role="dialog" aria-label="Notifications" className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-32px))] rounded-2xl border border-border bg-surface p-2 shadow-[0_20px_44px_-18px_rgba(0,0,0,.7)]">
-          <b className="block px-2.5 pb-1.5 pt-1 text-[13px]">Notifications</b>
+        <div role="dialog" aria-label={t("bell.title")} className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-32px))] rounded-2xl border border-border bg-surface p-2 shadow-[0_20px_44px_-18px_rgba(0,0,0,.7)]">
+          <b className="block px-2.5 pb-1.5 pt-1 text-[13px]">{t("bell.title")}</b>
           {items.length ? (
             items.map((r) => (
               <Link key={r.id} href="/reels?tab=saved" onClick={() => setOpen(false)} className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 hover:bg-surface-2">
@@ -78,7 +80,7 @@ export function NotificationBell() {
               </Link>
             ))
           ) : (
-            <p className="m-0 px-2.5 pb-2 text-[13px] text-muted">You&apos;re all caught up. Reels you save to My Reels show up here.</p>
+            <p className="m-0 px-2.5 pb-2 text-[13px] text-muted">{t("bell.empty")}</p>
           )}
         </div>
       )}

@@ -3,23 +3,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { API_URL, api, errorMessage } from "@/lib/api";
-import { btnPrimary, btnSecondary, Card, Spinner } from "@/components/atoms";
-import { ErrorBanner } from "@/components/molecules";
+import { cn } from "@/lib/cn";
+import { Badge, Button, Card, Heading, Icon, Select, Spinner } from "@/components/atoms";
+import { ErrorBanner, Field, SidePanel } from "@/components/molecules";
 import { useHealth } from "@/hooks/useApi";
-import { AiSettingsSection } from "@/components/organisms/AiSettings";
+import { AiModeBadge, AiProviderCard, AiUsageCard, Live, money } from "@/components/organisms/AiSettings";
+import { AiDirectorReport } from "@/components/organisms/AiDirectorReport";
 import type { AiModels, ModelTestResult } from "@/types/api";
-
-function Row({ label, ok, detail }: { label: string; ok: boolean; detail?: string }) {
-  return (
-    <li className="flex items-center justify-between py-2 text-sm">
-      <span>{label}</span>
-      <span className={ok ? "text-success" : "text-danger"}>
-        {ok ? "● Available" : "● Unavailable"}
-        {detail && <span className="ml-2 text-muted">{detail}</span>}
-      </span>
-    </li>
-  );
-}
 
 const VERDICT: Record<ModelTestResult["verdict"], { label: string; tone: string }> = {
   correct: { label: "Understood the request exactly", tone: "text-success" },
@@ -32,7 +22,7 @@ const VERDICT: Record<ModelTestResult["verdict"], { label: string; tone: string 
 function ModelPicker() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["ai-models"], queryFn: api.aiModels });
-  if (q.isLoading) return <Spinner label="Looking for installed models…" />;
+  if (q.isLoading) return <Spinner size="sm" label="Looking for installed models…" />;
   if (q.error || !q.data) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   // keyed by the saved choice so the dropdown always starts on what is actually in use
   return <PickerBody key={q.data.current} data={q.data} onSaved={(d) => qc.setQueryData(["ai-models"], d)} />;
@@ -42,113 +32,105 @@ function PickerBody({ data, onSaved }: { data: AiModels; onSaved: (d: AiModels) 
   const [pick, setPick] = useState(data.current);
   const [results, setResults] = useState<Record<string, ModelTestResult>>({});
   const save = useMutation({ mutationFn: (m: string | null) => api.chooseModel(m), onSuccess: onSaved });
-  const test = useMutation({
-    mutationFn: (m: string) => api.testModel(m),
-    onSuccess: (r) => setResults((cur) => ({ ...cur, [r.model]: r })),
-  });
+  const test = useMutation({ mutationFn: (m: string) => api.testModel(m), onSuccess: (r) => setResults((cur) => ({ ...cur, [r.model]: r })) });
   const chosen = data.models.find((m) => m.name === pick);
   const usable = data.models.filter((m) => !m.embeddingOnly);
   const result = results[pick];
-
-  if (!data.reachable) {
-    return <ErrorBanner title="Ollama is not reachable" message={data.detail ?? "Start Ollama, then reload this page."} />;
-  }
+  if (!data.reachable) return <ErrorBanner title="Ollama is not reachable" message={data.detail ?? "Start Ollama, then reload this page."} />;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-        <label className="text-sm">
-          <span className="mb-1 block text-xs text-muted">Model used for scripts, hooks, change requests, content analysis and Library search</span>
-          <select
-            aria-label="AI model"
-            value={pick}
-            onChange={(e) => setPick(e.target.value)}
-            className="w-full rounded-lg border border-border bg-surface px-2 py-2 text-sm outline-none focus:border-accent"
-          >
-            {usable.map((m) => (
-              <option key={m.name} value={m.name}>
-                {m.name} · {m.sizeGb} GB{m.vision ? " · vision" : ""}{m.thinking ? " · reasoning" : ""}{m.current ? " (in use)" : ""}
-              </option>
-            ))}
-            {!usable.some((m) => m.name === pick) && <option value={pick}>{pick || "No model chosen"}</option>}
-          </select>
-        </label>
-        <div className="flex gap-2">
-          <button type="button" className={btnPrimary} disabled={save.isPending || pick === data.current} onClick={() => save.mutate(pick)}>
-            {save.isPending ? "Saving…" : "Use this model"}
-          </button>
-          <button type="button" className={btnSecondary} disabled={test.isPending || !pick} onClick={() => test.mutate(pick)}>
-            {test.isPending ? "Testing…" : "Test it"}
-          </button>
-        </div>
-      </div>
-
-      <p className="text-xs text-muted">
+    <Card as="section" aria-label="Ollama model" className="flex flex-col gap-3">
+      <Field label="Model used for scripts, hooks, change requests, content analysis and Library search">
+        <Select aria-label="AI model" value={pick} onChange={(e) => setPick(e.target.value)}>
+          {usable.map((m) => <option key={m.name} value={m.name}>{m.name} · {m.sizeGb} GB{m.vision ? " · vision" : ""}{m.thinking ? " · reasoning" : ""}{m.current ? " (in use)" : ""}</option>)}
+          {!usable.some((m) => m.name === pick) && <option value={pick}>{pick || "No model chosen"}</option>}
+        </Select>
+      </Field>
+      <p className="m-0 text-[12.5px] text-muted">
         In use now: <strong className="text-foreground">{data.current || "none"}</strong>{" "}
         {data.source === "settings" ? "(chosen here)" : data.source === "env" ? "(from OLLAMA_MODEL in .env)" : ""}.
-        {data.source === "settings" && (
-          <>
-            {" "}
-            <button type="button" className="text-accent hover:underline" disabled={save.isPending} onClick={() => save.mutate(null)}>
-              Go back to the .env model{data.envModel ? ` (${data.envModel})` : ""}
-            </button>
-          </>
-        )}
+        {data.source === "settings" && <> <button type="button" className="font-semibold text-accent hover:underline" disabled={save.isPending} onClick={() => save.mutate(null)}>Go back to the .env model{data.envModel ? ` (${data.envModel})` : ""}</button></>}
       </p>
-      {chosen && !chosen.vision && <p className="text-xs text-warning">{data.needsVision} This model does not report vision, so those features will not work with it.</p>}
-      {chosen?.thinking && <p className="text-xs text-muted">This model can reason step by step; the app turns that off for structured answers because it makes them much slower.</p>}
+      {chosen && !chosen.vision && <p className="m-0 text-[12.5px] text-warning">{data.needsVision} This model does not report vision, so those features will not work with it.</p>}
+      {chosen?.thinking && <p className="m-0 text-[12.5px] text-muted">This model can reason step by step; the app turns that off for structured answers because it makes them much slower.</p>}
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="secondary" disabled={test.isPending || !pick} onClick={() => test.mutate(pick)}>{test.isPending ? "Testing…" : "Test it"}</Button>
+        <Button disabled={save.isPending || pick === data.current} onClick={() => save.mutate(pick)}>{save.isPending ? "Saving…" : "Use this model"}</Button>
+      </div>
       {save.error && <ErrorBanner message={errorMessage(save.error)} />}
       {test.error && <ErrorBanner message={errorMessage(test.error)} />}
-
       {result && (
-        <div role="status" aria-label="Model test result" className="rounded-xl border border-border bg-surface-2 p-3 text-sm">
-          <p className={`font-medium ${VERDICT[result.verdict].tone}`}>
-            {result.model}: {VERDICT[result.verdict].label} · {result.seconds}s
-          </p>
-          <p className="mt-1 text-xs text-muted">{result.detail}</p>
+        <div role="status" aria-label="Model test result" className="rounded-xl border border-border bg-surface-2/60 p-3 text-sm">
+          <p className={cn("m-0 font-bold", VERDICT[result.verdict].tone)}>{result.model}: {VERDICT[result.verdict].label} · {result.seconds}s</p>
+          <p className="m-0 mt-1 text-xs text-muted">{result.detail}</p>
         </div>
       )}
-      <p className="text-xs text-muted">
-        The test asks the model to interpret one small edit request and checks its answer. It changes nothing. Speed depends on your computer, so compare models here rather
-        than trusting a general ranking. Install more with <code>ollama pull &lt;name&gt;</code>.
-      </p>
-    </div>
-  );
-}
-
-function OllamaModels() {
-  // The Ollama picker is only useful when Ollama serves text or vision; it never assumes Ollama exists otherwise.
-  const cfg = useQuery({ queryKey: ["ai-config"], queryFn: api.aiConfig });
-  if (!cfg.data || (cfg.data.textProvider !== "ollama" && cfg.data.visionProvider !== "ollama")) return null;
-  return (
-    <Card>
-      <h2 className="mb-3 font-semibold">Ollama model (on this computer)</h2>
-      <ModelPicker />
+      <p className="m-0 text-[12px] text-muted">The test asks the model to interpret one small edit request and checks its answer; it changes nothing. Speed depends on this computer, so compare models here. Install more with <code>ollama pull &lt;name&gt;</code>.</p>
     </Card>
   );
 }
 
-/** AI settings (also a tab of the admin dashboard): the server's checks, which AI does each job, the director's profile. */
+type Id = "provider" | "ollama" | "usage" | "director";
+
+/** Admin → Tools → AI settings (also /settings): the AI's state at a glance, then its sections (like the CMS); a tap
+ * opens a section's form on the right: the provider and models, the Ollama model, usage and budget, the AI director. */
 export function AiSettingsPanel() {
-  const { data, isLoading, error } = useHealth();
+  const health = useHealth();
+  const cfg = useQuery({ queryKey: ["ai-config"], queryFn: api.aiConfig });
+  const usage = useQuery({ queryKey: ["ai-usage"], queryFn: api.aiUsage, refetchInterval: 60_000 });
+  const report = useQuery({ queryKey: ["ai-director-report"], queryFn: api.aiDirectorReport });
+  const [open, setOpen] = useState<Id | null>(null);
+
+  if (health.isLoading) return <Spinner />;
+  if (health.error) return <ErrorBanner title="Backend unreachable" message={`We couldn't reach ${API_URL || "the server"}. Start the server, then try again.`} onRetry={() => location.reload()} />;
+  const c = cfg.data, u = usage.data, h = health.data;
+  const ollama = !!c && (c.textProvider === "ollama" || c.visionProvider === "ollama");
+
+  const sections: { id: Id; icon: string; title: string; line: string; badge?: React.ReactNode; body: React.ReactNode }[] = [
+    { id: "provider", icon: "wand", title: "AI provider & models", line: c ? `Text: ${c.status.text.provider}${c.status.text.model ? ` · ${c.status.text.model}` : ""} · Vision: ${c.status.vision.provider}${c.fallbackEnabled && c.fallbackProvider ? ` · fallback ${c.fallbackProvider}` : ""}` : "Which AI does each job",
+      badge: c ? <AiModeBadge local={c.mode === "local"} /> : undefined, body: <AiProviderCard /> },
+    ...(ollama ? [{ id: "ollama" as const, icon: "gear", title: "Ollama model (on this computer)", line: "Pick and test the local model", body: <ModelPicker /> }] : []),
+    { id: "usage", icon: "coins", title: "Usage & budget", line: u ? `Today ${u.today.calls} calls · this month ${u.month.calls} calls, ${money(u.month.cost, u.currency)}${u.budget.daily || u.budget.monthly ? " · budget set" : " · no budget"}` : "Calls, cost and budget",
+      badge: u?.budget.exceeded ? <Badge tone="danger">Budget used up</Badge> : undefined, body: <AiUsageCard /> },
+    { id: "director", icon: "sparkle", title: "AI director report", line: report.data ? `${report.data.plans} Reels planned · ${report.data.creators} people · last ${report.data.days} days` : "How often people kept what the AI chose",
+      body: <AiDirectorReport bare /> },
+  ];
+  const cur = sections.find((s) => s.id === open);
+
   return (
-    <div className="flex flex-col gap-3">
-      {isLoading && <Spinner />}
-      {error && <ErrorBanner title="Backend unreachable" message={`We couldn't reach ${API_URL || "the server"}. Start the server, then try again.`} onRetry={() => location.reload()} />}
-      {data && (
-        <div className="space-y-6">
-          <Card>
-            <ul className="divide-y divide-border">
-              <Row label="MongoDB" ok={data.mongodb} />
-              <Row label={`AI (${data.ai.provider})`} ok={data.ai.available} detail={`${data.ai.model ?? ""} ${data.ai.detail}`.trim()} />
-            </ul>
-            {API_URL && <p className="mt-4 text-xs text-muted" suppressHydrationWarning>API: {API_URL}</p>}
-          </Card>
-          <AiSettingsSection>
-            <OllamaModels />
-          </AiSettingsSection>
-        </div>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+      {/* the state at a glance */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Card className="flex flex-col gap-1.5 p-3 md:p-3"><span className="text-[12px] font-semibold text-muted">Database</span><b className="text-[14px]">MongoDB</b><Live ok={!!h?.mongodb} on="Connected" /></Card>
+        <Card className="flex flex-col gap-1.5 p-3 md:p-3"><span className="text-[12px] font-semibold text-muted">Text AI</span><b className="truncate text-[14px]">{c ? `${c.status.text.provider}${c.status.text.model ? ` · ${c.status.text.model}` : ""}` : h?.ai.provider}</b><Live ok={c ? c.status.text.available : !!h?.ai.available} /></Card>
+        <Card className="flex flex-col gap-1.5 p-3 md:p-3"><span className="text-[12px] font-semibold text-muted">Vision AI</span><b className="truncate text-[14px]">{c ? `${c.status.vision.provider}${c.status.vision.model ? ` · ${c.status.vision.model}` : ""}` : "…"}</b><Live ok={!!c?.status.vision.available} /></Card>
+        <Card className="flex flex-col gap-1.5 p-3 md:p-3"><span className="text-[12px] font-semibold text-muted">This month</span><b className="font-[family-name:var(--font-display)] text-[20px] leading-none">{u ? money(u.month.cost, u.currency) : "…"}</b><span className="text-[12px] text-muted">{u ? `${u.month.calls} AI calls` : ""}</span></Card>
+      </div>
+      {u?.budget.exceeded && (
+        <p className="m-0 flex items-center gap-2 rounded-xl border border-warning/50 bg-warning/10 px-3 py-2 text-[13px] font-semibold text-warning">
+          <Icon name="warn" size={16} />Budget reached: {u.budget.reason}. Automatic AI polish is paused; Reels are still made with the rule-based editor.
+        </p>
       )}
+
+      <div className="flex flex-col gap-2">
+        {sections.map((s) => (
+          <button key={s.id} type="button" onClick={() => setOpen(s.id)} aria-haspopup="dialog"
+            className={cn("flex w-full items-center gap-3 rounded-2xl border bg-surface px-4 py-3.5 text-left shadow-[var(--shadow)] transition-colors md:px-5", open === s.id ? "border-accent" : "border-border hover:border-accent/60")}>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Icon name={s.icon} size={19} /></span>
+            <span className="min-w-0 flex-1">
+              <Heading size="section" as="h2">{s.title}</Heading>
+              <span className="block truncate text-[12.5px] text-muted">{s.line}</span>
+            </span>
+            {s.badge}
+            <Icon name="chevron" size={18} className="shrink-0 text-muted" />
+          </button>
+        ))}
+      </div>
+      {API_URL && <p className="m-0 text-xs text-muted" suppressHydrationWarning>API: {API_URL}</p>}
+
+      <SidePanel open={!!cur} onClose={() => setOpen(null)} title={cur?.title ?? ""} where="AI settings" badge={cur?.badge}>
+        {cur?.body}
+      </SidePanel>
     </div>
   );
 }

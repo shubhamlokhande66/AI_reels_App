@@ -3,31 +3,44 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, errorMessage } from "@/lib/api";
-import { ErrorBanner } from "@/components/molecules";
-import { LogoTile } from "@/components/atoms";
-import { LegalFooter } from "@/components/molecules/Legal";
 import Link from "next/link";
+import { api, errorMessage } from "@/lib/api";
+import { emailOk, passwordOk } from "@/lib/validate";
+import { useT } from "@/hooks/useApi";
+import { Button, Card, Input, LogoTile } from "@/components/atoms";
+import { ErrorBanner, Field, PasswordInput } from "@/components/molecules";
+import { LegalFooter } from "@/components/molecules/Legal";
 
-/** Sign in, or create an account (accounts on: AUTH_ENABLED on the server). */
+/** Sign in, or create an account (accounts on: AUTH_ENABLED on the server). Each field says what is wrong as people
+ * type (after they leave it); the button waits until the form is right. */
 export default function LoginPage() {
   const router = useRouter();
   const qc = useQueryClient();
+  const t = useT();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [again, setAgain] = useState(""); // creating an account: the password a second time
+  const [touched, setTouched] = useState<Record<string, boolean>>({}); // the fields left once: their message shows
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const signin = mode === "signin";
+  const touch = (k: string) => setTouched((x) => ({ ...x, [k]: true }));
+
+  // what is wrong with each field (shown once the field was left, or the form sent)
+  const emailErr = email && !emailOk(email) ? t("auth.badEmail") : "";
+  const pwErr = !signin && password && !passwordOk(password) ? t("auth.shortPassword") : "";
+  const againErr = !signin && again && again !== password ? t("auth.mismatch") : "";
+  const valid = emailOk(email) && (signin ? !!password : passwordOk(password) && again === password);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setError("Enter a valid email address.");
-    if (mode === "signup" && password.length < 8) return setError("Use a password of at least 8 characters.");
-    if (!password) return setError("Enter your password.");
+    setTouched({ email: true, password: true, again: true });
+    if (!valid) return;
     setBusy(true);
     try {
-      await (mode === "signin" ? api.login(email.trim(), password) : api.register(email.trim(), password));
+      await (signin ? api.login(email.trim(), password) : api.register(email.trim(), password));
       await qc.invalidateQueries();
       router.replace("/");
     } catch (err) {
@@ -38,43 +51,44 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-svh w-full max-w-[400px] flex-col justify-center gap-[18px] px-7 py-10">
+    <div className="mx-auto flex min-h-svh w-full max-w-[420px] flex-col justify-center gap-5 px-5 py-10">
       <div className="flex justify-center">
         <LogoTile height={72} />
       </div>
-      <h1 className="ht mt-2 text-center" style={{ fontSize: 26 }}>
-        {mode === "signin" ? "Sign in" : "Create your account"}
-      </h1>
-      <form onSubmit={submit} className="flex flex-col gap-[18px]">
-        <label className="f">
-          Email
-          <input type="email" autoComplete="email" placeholder="you@email.com" value={email} onChange={(e) => setEmail(e.target.value)} className="inp" />
-        </label>
-        <label className="f">
-          Password
-          <input
-            type="password"
-            autoComplete={mode === "signin" ? "current-password" : "new-password"}
-            placeholder={mode === "signin" ? "Your password" : "At least 8 characters"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="inp"
-          />
-        </label>
-        {error && <ErrorBanner message={error} />}
-        <button type="submit" className="btn g big" disabled={busy}>
-          {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
-        </button>
-      </form>
-      {mode === "signin" && (
-        <Link href="/forgot" className="ac sm text-center font-bold">
-          Forgot your password?
+      <Card className="flex flex-col gap-[18px] p-6 md:p-7">
+        <h1 className="m-0 text-center font-[family-name:var(--font-display)] text-[24px] font-semibold tracking-[-0.02em]">{t(signin ? "auth.signIn" : "auth.signUp")}</h1>
+        <form onSubmit={submit} noValidate className="flex flex-col gap-[18px]">
+          <Field label={t("auth.email")} error={touched.email ? emailErr : ""}>
+            <Input type="email" autoComplete="email" placeholder={t("auth.emailPlaceholder")} value={email} aria-invalid={!!(touched.email && emailErr) || undefined}
+              className={touched.email && emailErr ? "border-danger" : undefined} onChange={(e) => setEmail(e.target.value)} onBlur={() => touch("email")} />
+          </Field>
+          <Field label={t("auth.password")}
+            error={touched.password ? pwErr : ""}
+            ok={!signin && passwordOk(password) ? t("auth.strongEnough") : ""}
+            hint={!signin ? t("auth.lengthHint") : undefined}>
+            <PasswordInput autoComplete={signin ? "current-password" : "new-password"} placeholder={t(signin ? "auth.passwordPlaceholder" : "auth.newPasswordPlaceholder")}
+              value={password} invalid={!!(touched.password && pwErr)} onChange={(e) => setPassword(e.target.value)} onBlur={() => touch("password")} />
+          </Field>
+          {!signin && (
+            <Field label={t("auth.confirmPassword")} error={touched.again || (again.length >= password.length && password) ? againErr : ""} ok={again && again === password ? t("auth.match") : ""}>
+              <PasswordInput autoComplete="new-password" placeholder={t("auth.confirmPlaceholder")} value={again} invalid={!!(touched.again && againErr)} onChange={(e) => setAgain(e.target.value)} onBlur={() => touch("again")} />
+            </Field>
+          )}
+          {error && <ErrorBanner message={error} />}
+          <Button type="submit" size="lg" loading={busy} disabled={!valid}>
+            {busy ? t("auth.wait") : t(signin ? "auth.signIn" : "auth.signUpButton")}
+          </Button>
+        </form>
+      </Card>
+      {signin && (
+        <Link href="/forgot" className="text-center text-[12.5px] font-bold text-accent">
+          {t("auth.forgotLink")}
         </Link>
       )}
-      <p className="mu sm text-center">
-        {mode === "signin" ? "New here?" : "Already have an account?"}{" "}
-        <button type="button" className="ac font-bold" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}>
-          {mode === "signin" ? "Create an account" : "Sign in"}
+      <p className="m-0 text-center text-[12.5px] text-muted">
+        {t(signin ? "auth.newHere" : "auth.haveAccount")}{" "}
+        <button type="button" className="font-bold text-accent" onClick={() => { setMode(signin ? "signup" : "signin"); setError(null); setAgain(""); setTouched({}); }}>
+          {t(signin ? "auth.createLink" : "auth.signIn")}
         </button>
       </p>
       <LegalFooter className="mt-4" />

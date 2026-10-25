@@ -16,14 +16,24 @@ import { LegalFooter } from "@/components/molecules/Legal";
 import { EmptyState } from "@/components/molecules/EmptyState";
 import { BottomNav, type NavTab } from "@/components/molecules/BottomNav";
 import { ProPill } from "@/components/molecules/ProPill";
+import { CreditPill } from "@/components/molecules/CreditPill";
+import { Avatar } from "@/components/atoms/Avatar";
+import { Badge } from "@/components/atoms/Badge";
+import { Eyebrow } from "@/components/atoms/Eyebrow";
+import { IconButton } from "@/components/atoms/IconButton";
+import { cn } from "@/lib/cn";
+import { LockBadge } from "@/components/molecules/LockBadge";
+import { NoticeCard } from "@/components/molecules/NoticeCard";
+import { Card } from "@/components/atoms/Card";
 import { ProBanner } from "@/components/molecules/ProBanner";
 import { Button } from "@/components/atoms/Button";
 import { DesktopHeader } from "@/components/organisms/DesktopHeader";
 import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { InstallApp } from "@/components/molecules/InstallApp";
 import { InstallBanner } from "@/components/molecules/InstallBanner";
+import { VerifyBanner } from "@/components/molecules/VerifyBanner";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
-import { useAdmin, useCredits, useFeatures, useLockCheck, useMe } from "@/hooks/useApi";
+import { useAdmin, useCredits, useFeatures, useLockCheck, useMe, useT } from "@/hooks/useApi";
 import { lockTag, PAGE_LOCK } from "@/lib/plan-locks";
 import { usePresence } from "@/lib/usePresence";
 import { useErrorReport } from "@/lib/useErrorReport";
@@ -32,33 +42,38 @@ import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
 // The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
 // a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. An administrator sees one Admin dashboard
 // button (server/core/admin.ts decides who); the admin tools below are listed in the dashboard, not in the menu.
-export const GROUPS: { title: string; admin?: boolean; items: { href: string; label: string; icon: string; fullLoad?: boolean }[] }[] = [
+// `tk`: the text key of a name (Admin → CMS, lib/texts.ts); the admin pages keep their own names
+export const GROUPS: { title: string; tk?: string; admin?: boolean; items: { href: string; label: string; tk?: string; icon: string; fullLoad?: boolean }[] }[] = [
   {
     title: "Studio",
+    tk: "nav.studio",
     items: [
-      { href: "/", label: "Home", icon: "home" },
+      { href: "/", label: "Home", tk: "nav.home", icon: "home" },
       // the Create flow, one link per kind; a full page load: it is cross-origin isolated (next.config.ts) so its AI beat
       // tracker can use several cores
-      { href: "/create/music", label: "Music Reel", icon: "music", fullLoad: true },
-      { href: "/create/talking", label: "Talking Reel", icon: "mic", fullLoad: true },
-      { href: "/create/photo", label: "Photo Reel", icon: "image", fullLoad: true },
-      { href: "/create/copy", label: "Copy a Reel", icon: "copy", fullLoad: true },
-      { href: "/create/story", label: "Story Maker", icon: "book", fullLoad: true },
-      { href: "/reels", label: "My Reels", icon: "reels" },
+      { href: "/create/music", label: "Music Reel", tk: "nav.music", icon: "music", fullLoad: true },
+      { href: "/create/talking", label: "Talking Reel", tk: "nav.talking", icon: "mic", fullLoad: true },
+      { href: "/create/photo", label: "Photo Reel", tk: "nav.photo", icon: "image", fullLoad: true },
+      { href: "/create/copy", label: "Copy a Reel", tk: "nav.copy", icon: "copy", fullLoad: true },
+      { href: "/create/story", label: "Story Maker", tk: "nav.story", icon: "book", fullLoad: true },
+      { href: "/reels", label: "My Reels", tk: "nav.reels", icon: "reels" },
     ],
   },
   {
     title: "Library",
+    tk: "nav.library",
     items: [
-      { href: "/templates", label: "Templates", icon: "grid" },
-      { href: "/brands", label: "Brands", icon: "star" },
+      { href: "/templates", label: "Templates", tk: "nav.templates", icon: "grid" },
+      { href: "/brands", label: "Brands", tk: "nav.brands", icon: "star" },
+      { href: "/voices", label: "Voice profiles", tk: "nav.voices", icon: "mic" }, // Pro (lib/plan-locks.ts page:voices)
     ],
   },
   {
     title: "Account",
+    tk: "nav.account",
     items: [
-      { href: "/account", label: "My account", icon: "user" },
-      { href: "/pricing", label: "Pricing & plans", icon: "coins" },
+      { href: "/account", label: "My account", tk: "nav.myAccount", icon: "user" },
+      { href: "/pricing", label: "Pricing & plans", tk: "nav.pricing", icon: "coins" },
     ],
   },
   {
@@ -66,13 +81,12 @@ export const GROUPS: { title: string; admin?: boolean; items: { href: string; la
     admin: true,
     items: [
       { href: "/settings", label: "AI settings", icon: "gear" },
-      { href: "/voices", label: "Voice profiles", icon: "mic" },
       { href: "/trends", label: "My trends", icon: "trend" },
     ],
   },
 ];
 
-const AUTH_PAGES = ["/login", "/forgot", "/reset"];
+const AUTH_PAGES = ["/login", "/forgot", "/reset", "/verify"];
 const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact"];
 
 export function isActive(pathname: string, href: string): boolean {
@@ -81,62 +95,48 @@ export function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-type Meta = { title: string; back?: string; left?: boolean; credits?: boolean; tabs?: boolean; admin?: boolean };
+type Meta = { title: string; tk?: string; back?: string; left?: boolean; credits?: boolean; tabs?: boolean; admin?: boolean };
 
 /** What the phone top bar shows on each page (the designs). */
 function pageMeta(p: string): Meta {
   const fixed: Record<string, Meta> = {
     "/": { title: "Shubix", credits: true, tabs: true },
-    "/reels": { title: "My Reels", credits: true, tabs: true },
-    "/create/story": { title: "Story Maker", back: "/", credits: true },
-    "/create/edit": { title: "Your Reel", credits: true },
-    "/create/music": { title: "Music Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
-    "/create/talking": { title: "Talking Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
-    "/create/photo": { title: "Photo Reel", credits: true }, // the flow has its own back (components/studio/flow.ts)
-    "/templates": { title: "Templates" },
-    "/brands": { title: "My Brands" },
-    "/account": { title: "My account" },
-    "/pricing": { title: "Pricing & plans", credits: true },
-    "/terms": { title: "Legal", back: "/" },
-    "/privacy": { title: "Legal", back: "/" },
-    "/refunds": { title: "Legal", back: "/" },
-    "/contact": { title: "Contact us" },
+    "/reels": { title: "My Reels", tk: "nav.reels", credits: true, tabs: true },
+    "/create/story": { title: "Story Maker", tk: "nav.story", back: "/", credits: true },
+    "/create/edit": { title: "Your Reel", tk: "nav.yourReel", credits: true },
+    "/create/music": { title: "Music Reel", tk: "nav.music", credits: true }, // the flow has its own back (components/studio/flow.ts)
+    "/create/talking": { title: "Talking Reel", tk: "nav.talking", credits: true }, // the flow has its own back (components/studio/flow.ts)
+    "/create/photo": { title: "Photo Reel", tk: "nav.photo", credits: true }, // the flow has its own back (components/studio/flow.ts)
+    "/templates": { title: "Templates", tk: "nav.templates" },
+    "/brands": { title: "My Brands", tk: "nav.myBrands" },
+    "/account": { title: "My account", tk: "nav.myAccount" },
+    "/pricing": { title: "Pricing & plans", tk: "nav.pricing", credits: true },
+    "/terms": { title: "Legal", tk: "nav.legal", back: "/" },
+    "/privacy": { title: "Legal", tk: "nav.legal", back: "/" },
+    "/refunds": { title: "Legal", tk: "nav.legal", back: "/" },
+    "/contact": { title: "Contact us", tk: "nav.contact" },
     "/settings": { title: "AI settings", admin: true },
-    "/voices": { title: "Voice profiles", admin: true },
+    "/voices": { title: "Voice profiles", tk: "nav.voices" },
     "/trends": { title: "My trends", admin: true },
     "/admin": { title: "Administration" },
   };
   return fixed[p] ?? { title: "Shubix" };
 }
 
-/** The signed-in user's credits (billing on): tap to see plans and top up. */
-function CreditPill({ balance, full = false }: { balance: number; full?: boolean }) {
-  return (
-    <Link href="/pricing" title="Your credits: plans and top-ups" className={`cred ${balance <= 2 ? "low" : ""}`}>
-      <i aria-hidden />
-      {balance.toLocaleString("en-IN")}
-      <span className={full ? "" : "sr-only"}> credits</span>
-    </Link>
-  );
-}
-
-/** A page on a higher plan (lib/plan-locks.ts "page:…"): the plan it needs ("Editor", "Pro"), or "". */
+/** A page on a higher plan (lib/plan-locks.ts "page:…"): its tag ("Upgrade"), or "". */
 function useNavLock() {
   const check = useLockCheck();
   return (href: string) => { const need = PAGE_LOCK[href] && check ? check(PAGE_LOCK[href]) : ""; return need ? lockTag(need) : ""; };
 }
-const LockTag = ({ plan }: { plan: string }) => (
-  <span className="ml-auto rounded-full border border-[#f5c84c]/70 px-1.5 py-px text-[10.5px] font-bold text-[#f5c84c]" title="In a paid plan: see the plans">{plan}</span>
-);
 
 /** The sidebar's and the drawer's page list. */
 export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pathname: string; onNavigate?: () => void }) {
-  const lockOf = useNavLock();
+  const lockOf = useNavLock(), t = useT();
   return (
     <>
       {groups.map((g) => (
         <div key={g.title} className="flex flex-col gap-0.5">
-          <span className="eb px-2.5 pb-1 pt-3 first:pt-1">{g.title}</span>
+          <Eyebrow className="px-2.5 pb-1 pt-3 first:pt-1">{g.tk ? t(g.tk) : g.title}</Eyebrow>
           {g.items.map((item) => {
             const active = isActive(pathname, item.href), lock = lockOf(item.href);
             const Tag = item.fullLoad && !lock ? "a" : Link;
@@ -151,22 +151,14 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
                 }`}
               >
                 <Icon name={item.icon} size={18} stroke={1.7} color={active ? "var(--accent)" : undefined} />
-                {item.label}
-                {lock && <LockTag plan={lock} />}
+                <span className="min-w-0 truncate">{item.tk ? t(item.tk) : item.label}</span>
+                {lock && <LockBadge />}
               </Tag>
             );
           })}
         </div>
       ))}
     </>
-  );
-}
-
-function Avatar({ email, size = 36 }: { email?: string; size?: number }) {
-  return (
-    <span className="avatar" style={{ width: size, height: size, fontSize: size * 0.42 }} aria-hidden>
-      {(email?.[0] ?? "R").toUpperCase()}
-    </span>
   );
 }
 
@@ -192,7 +184,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
 }) {
   // the computer's sidebar list, by group (Studio, Library, Account with Pricing & plans), then the Admin dashboard button
   const main = groups.filter((g) => !g.admin);
-  const lockOf = useNavLock();
+  const lockOf = useNavLock(), t = useT();
   const link = (item: (typeof GROUPS)[number]["items"][number]) => {
     const active = isActive(pathname, item.href), lock = lockOf(item.href);
     const Tag = item.fullLoad && !lock ? "a" : Link;
@@ -202,11 +194,11 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
         href={lock ? "/pricing?need=" + encodeURIComponent(item.href) : item.href}
         onClick={onClose}
         aria-current={active ? "page" : undefined}
-        className={`row min-h-[44px] rounded-xl px-2.5 ${active ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-bold" : ""}`}
+        className={cn("flex min-h-[44px] items-center gap-2.5 rounded-xl px-2.5", active && "bg-accent/12 font-bold")}
       >
         <Icon name={item.icon} size={20} stroke={1.7} color={active ? "var(--accent)" : "var(--muted)"} />
-        {item.label}
-        {lock && <LockTag plan={lock} />}
+        <span className="min-w-0 truncate">{item.tk ? t(item.tk) : item.label}</span>
+        {lock && <LockBadge />}
       </Tag>
     );
   };
@@ -221,25 +213,23 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="top" style={{ gridTemplateColumns: "1fr 44px" }}>
+        <div className="grid items-center gap-2 border-b border-border bg-[var(--bar)] px-4 pb-2.5 pt-[max(12px,env(safe-area-inset-top))] grid-cols-[1fr_44px]">
           <span className="flex min-w-0 items-center">
             <Logo height={44} />
           </span>
-          <button type="button" className="ib plain" aria-label="Close menu" onClick={onClose}>
-            <Icon name="close" />
-          </button>
+          <IconButton icon="close" plain label={t("common.closeMenu")} onClick={onClose} />
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-4 pt-3 [&>*]:shrink-0">
           {email && (
-            <div className="row px-1 pb-2.5 pt-1">
+            <div className="flex items-center gap-3 px-1 pb-2.5 pt-1">
               <Avatar email={email} />
-              <span className="mu sm truncate">{email}</span>
+              <span className="truncate text-[12.5px] text-muted">{email}</span>
             </div>
           )}
           <nav aria-label="Pages" className="flex flex-col">
             {main.map((g) => (
               <div key={g.title} className="flex flex-col">
-                <span className="eb px-2.5 pb-1 pt-3 first:pt-1">{g.title}</span>
+                <Eyebrow className="px-2.5 pb-1 pt-3 first:pt-1">{g.tk ? t(g.tk) : g.title}</Eyebrow>
                 {g.items.map(link)}
               </div>
             ))}
@@ -249,17 +239,17 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
           <ThemeToggle className="mt-2" />
           <InstallApp className="px-1 pt-2" />
           {credits && (
-            <div className="between px-1 py-2.5">
+            <div className="flex items-center justify-between gap-3 px-1 py-2.5">
               <span onClick={onClose}>
                 <CreditPill balance={credits.balance} full />
               </span>
-              <span className="mu sm">{credits.planName} plan</span>
+              <span className="text-[12.5px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
             </div>
           )}
           {onSignOut && (
-            <button type="button" onClick={onSignOut} className="row mu sm min-h-[44px] px-1 text-left">
+            <button type="button" onClick={onSignOut} className="flex min-h-[44px] items-center gap-3 px-1 text-left text-[12.5px] text-muted hover:text-foreground">
               <Icon name="signout" size={18} />
-              Sign out
+              {t("nav.signOut")}
             </button>
           )}
           <div className="pb-[env(safe-area-inset-bottom)]" />
@@ -271,11 +261,11 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
 
 // Create opens Fast Studio when the server's Create Reel is off (Administration -> Features); at most four tabs and More
 // (the design's order: Home, Templates, Create, My Reels, More)
-const TABS: NavTab[] = [
-  { href: "/", label: "Home", icon: "home" },
-  { href: "/templates", label: "Templates", icon: "grid" },
-  { href: "/create/music", label: "Create", icon: "plus", primary: true, full: true },
-  { href: "/reels", label: "My Reels", icon: "reels" },
+const TABS: (NavTab & { tk: string })[] = [
+  { href: "/", label: "Home", tk: "nav.home", icon: "home" },
+  { href: "/templates", label: "Templates", tk: "nav.templates", icon: "grid" },
+  { href: "/create/music", label: "Create", tk: "nav.create", icon: "plus", primary: true, full: true },
+  { href: "/reels", label: "My Reels", tk: "nav.reels", icon: "reels" },
 ];
 const tabsFor = (f: Parameters<typeof linkOn>[1]) => TABS.filter((t) => linkOn(t.href, f));
 
@@ -285,6 +275,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const qc = useQueryClient();
   const me = useMe();
+  const t = useT();
   const [drawer, setDrawer] = useState(false);
   const creditsQ = useCredits();
   const credits = creditsQ.data?.enabled ? creditsQ.data : null;
@@ -342,7 +333,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const features = useFeatures();
   const offKey = pageFeature(pathname, features);
   const off = offKey && !features[offKey] ? FEATURE_LIST.find((f) => f.key === offKey)! : null;
-  if (pathname.startsWith("/admin") && !signedOut) {
+  if ((pathname.startsWith("/admin") || pathname.startsWith("/cms")) && !signedOut) {
     // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
     return (
       <main className="rm min-h-screen">
@@ -373,8 +364,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }
     : undefined;
   const meta = pageMeta(pathname);
-  const title = customTitle ?? meta.title;
+  const title = customTitle ?? (meta.tk ? t(meta.tk) : meta.title);
   const back = meta.back;
+  // phones: the bottom tab bar, the plan pill and the bell on every page; the studio (/create/…) keeps the whole screen
+  // for its own tool bars, and the admin pages keep their Admin badge
+  const studio = pathname.startsWith("/create");
+  const tabs = meta.tabs || (!studio && !meta.admin);
 
   return (
     <div className="rm min-h-screen md:flex">
@@ -382,30 +377,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <ConfirmHost />
 
       {/* phones: the top bar */}
-      <header className="top sticky top-0 z-30 md:hidden">
+      <header className="grid items-center gap-2 border-b border-border bg-[var(--bar)] px-4 pb-2.5 pt-[max(12px,env(safe-area-inset-top))] sticky top-0 z-30 grid-cols-[44px_1fr_minmax(44px,auto)] md:hidden">
         {back ? (
-          <button
-            type="button"
-            className="ib plain"
-            aria-label="Back"
-            onClick={() => (window.history.length > 1 ? router.back() : router.push(back))}
-          >
-            <Icon name="back" />
-          </button>
+          <IconButton icon="back" plain label={t("common.back")} onClick={() => (window.history.length > 1 ? router.back() : router.push(back))} />
         ) : (
-          <button type="button" className="ib plain" aria-label="Open menu" aria-expanded={drawer} onClick={() => setDrawer(true)}>
-            <Icon name="menu" size={22} />
-          </button>
+          <IconButton icon="menu" plain iconSize={22} label={t("common.openMenu")} aria-expanded={drawer} onClick={() => setDrawer(true)} />
         )}
-        <span className={`t ${meta.left || pathname === "/" ? "l" : ""}`}>{pathname === "/" ? <Logo height={44} /> : title}</span>
+        <span className={cn("min-w-0 truncate whitespace-nowrap font-[family-name:var(--font-display)] text-[16px] font-semibold tracking-[-0.01em]", meta.left || pathname === "/" ? "text-left" : "text-center")}>{pathname === "/" ? <Logo height={44} /> : title}</span>
         <span className="flex items-center justify-end gap-2 [&:has(#rm-top-action:not(:empty))>.dflt]:hidden">
           <span id={TOP_SLOT} className="contents" />
           <span className="dflt contents">
             {meta.admin ? (
-              <span className="badge b-run">Admin</span>
-            ) : pathname === "/" ? (
+              <Badge tone="brand">Admin</Badge>
+            ) : !studio ? (
               <span className="flex items-center gap-1">
-                <ProPill plan={credits?.planName} />
+                <InstallBanner compact />
+                <ProPill plan={credits?.planName} compact={pathname !== "/"} />
                 <NotificationBell />
               </span>
             ) : meta.credits && credits ? (
@@ -432,7 +419,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Logo height={100} className="-mx-1 max-w-full" />
         </Link>
         <Button href="/create/music" reload icon="plus" full>
-          New Reel
+          {t("nav.newReel")}
         </Button>
         <nav aria-label="Main" className="flex flex-col">
           <NavGroups groups={groups} pathname={pathname} />
@@ -443,103 +430,62 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <ThemeToggle />
         <InstallApp />
         {credits && (
-          <div className="between">
+          <div className="flex items-center justify-between gap-3">
             <CreditPill balance={credits.balance} full />
-            <span className="mu xs">{credits.planName} plan</span>
+            <span className="text-[11px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
           </div>
         )}
         {me.data?.user && (
-          <div className="between xs mu">
+          <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
             <span className="truncate" title={me.data.user.email}>
               {me.data.user.email}
             </span>
             <button type="button" className="shrink-0 font-bold hover:text-accent" onClick={signOut}>
-              Sign out
+              {t("nav.signOut")}
             </button>
           </div>
         )}
       </aside>
 
       {/* phones: the bottom tab bar */}
-      {meta.tabs && <BottomNav tabs={tabsFor(features).map((t) => ({ ...t, active: isActive(pathname, t.href) }))} moreOpen={drawer} onMore={() => setDrawer(true)} />}
+      {tabs && <BottomNav tabs={tabsFor(features).map((x) => ({ ...x, label: t(x.tk), active: isActive(pathname, x.href) }))} moreOpen={drawer} onMore={() => setDrawer(true)} />}
 
       {needCredits && (
-        <div className="noir fixed inset-0 z-[90] grid place-items-center bg-[rgba(5,4,4,.82)] p-5 backdrop-blur-sm" onClick={() => setNeedCredits(null)}>
-          <div role="dialog" aria-modal="true" aria-label="Not enough credits" className="card lux-enter w-full max-w-sm items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "var(--border)" }} onClick={(e) => e.stopPropagation()}>
-            <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
-              <Icon name="coins" size={36} stroke={1.5} />
-            </span>
-            <span className="eb">Credits</span>
-            <h2 className="ht" style={{ fontSize: 26 }}>
-              Not enough credits
-            </h2>
-            <span className="mu sm">{needCredits} Top up or choose a plan to keep making Reels.</span>
-            <Link href="/pricing" onClick={() => setNeedCredits(null)} className="btn g big mt-1.5">
-              See plans &amp; top-ups
-            </Link>
-            <button type="button" className="btn w-full" onClick={() => setNeedCredits(null)}>
-              Not now
-            </button>
-          </div>
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-[rgba(5,4,4,.82)] p-5 backdrop-blur-sm" onClick={() => setNeedCredits(null)}>
+          <NoticeCard dialog icon="coins" eyebrow={t("nav.credits")} title={t("plan.noCreditsTitle")} text={`${needCredits} ${t("plan.noCreditsText")}`} onClick={(e) => e.stopPropagation()}
+            actions={<><Button href="/pricing" size="lg" onClick={() => setNeedCredits(null)}>{t("plan.noCreditsButton")}</Button><Button variant="secondary" full onClick={() => setNeedCredits(null)}>{t("plan.noCreditsLater")}</Button></>} />
         </div>
       )}
 
-      <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${meta.tabs ? "pb-28" : "pb-10"}`}>
+      <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${tabs ? "pb-28" : "pb-10"}`}>
         <DesktopHeader email={me.data?.user?.email} credits={credits} admin={admin} onSignOut={signOut} />
         {/* "Get the Shubix app" until it is installed (not over the studio while a Reel is made) */}
-        {!pathname.startsWith("/create") && <InstallBanner className="mb-4" />}
         <div className="mx-auto w-full max-w-6xl">
           {back && (
             <button
               type="button"
               onClick={() => (window.history.length > 1 ? router.back() : router.push(back))}
-              className="row mu sm mb-2 hidden font-bold hover:text-accent md:inline-flex"
+              className="mb-2 hidden items-center gap-2 text-[12.5px] font-bold text-muted hover:text-accent md:inline-flex"
             >
               <Icon name="back" size={16} />
-              Back
+              {t("common.back")}
             </button>
           )}
           {blocked ? (
-            <div className="noir mx-auto mt-10 max-w-sm rounded-[20px] bg-background p-5">
-              <div role="dialog" aria-label="Admin only" className="card items-center gap-2.5 px-5 py-[26px] text-center" style={{ borderColor: "var(--border)" }}>
-                <span className="grid h-[72px] w-[72px] place-items-center rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] text-accent">
-                  <Icon name="shield" size={34} stroke={1.5} />
-                </span>
-                <span className="eb">Admin only</span>
-                <h1 className="ht" style={{ fontSize: 24 }}>
-                  This page is for the administrator
-                </h1>
-                <span className="mu sm">Please sign in with an admin account to continue.</span>
-                <div className="g2 mt-1.5 w-full">
-                  <Link href="/" className="btn">
-                    Back
-                  </Link>
-                  <Link href="/admin" className="btn g">
-                    Admin sign-in
-                  </Link>
-                </div>
-              </div>
+            <div className="mx-auto mt-10 flex max-w-sm justify-center">
+              <NoticeCard dialog icon="shield" eyebrow={t("common.adminOnly")} title={t("common.adminTitle")} text={t("common.adminText")}
+                actions={<div className="grid grid-cols-2 gap-2"><Button href="/" variant="secondary">{t("common.back")}</Button><Button href="/admin">{t("common.adminSignIn")}</Button></div>} />
             </div>
           ) : off && !admin ? (
             <div className="mx-auto mt-6 max-w-md">
-              <EmptyState
-                icon="lock"
-                title={`${off.label} is turned off`}
-                hint="The studio's administrator has switched this part of the app off. Everything else works as usual."
-                action={
-                  <Link href="/" className="btn g">
-                    Back to Home
-                  </Link>
-                }
-              />
+              <EmptyState icon="lock" title={t("common.offTitle", { page: off.label })} hint={t("common.offText")} action={<Button href="/">{t("common.backHome")}</Button>} />
             </div>
           ) : (
             <>
               {off && (
-                <p role="status" className="card sm mb-3" style={{ color: "var(--warning)" }}>
-                  {off.label} is turned off for everyone else. You see it because you are the administrator.
-                </p>
+                <Card role="status" className="mb-3 text-[12.5px] text-warning">{t("common.offAdmin", { page: off.label })}</Card>
               )}
+              {me.data?.user?.emailVerified === false && <VerifyBanner email={me.data.user.email} />}
               {children}
             </>
           )}

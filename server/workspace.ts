@@ -96,6 +96,7 @@ export async function setPricing(plans: Record<string, unknown>[], topUps: Recor
     if (!base) throw new ValidationFailed(`Unknown plan '${p.id}'.`, { code: "INVALID_PRICING" });
     const name = typeof p.name === "string" && p.name.trim() ? p.name.trim().slice(0, 30) : base.name;
     return { ...base, name, monthly: base.id === "free" ? 0 : int(p.monthly, 1, 100000, `${name} price`), credits: int(p.credits, 0, 100000, `${name} credits`),
+      highlight: typeof p.highlight === "boolean" ? p.highlight : base.highlight,
       ai: typeof p.ai === "boolean" ? p.ai : base.ai, ads: typeof p.ads === "boolean" ? p.ads : base.ads, hidden: base.id === "free" ? false : typeof p.hidden === "boolean" ? p.hidden : base.hidden,
       freeChats: int(p.freeChats ?? base.freeChats ?? 0, 0, 50, `${name} free chat changes`),
       creditsNote: typeof p.creditsNote === "string" ? p.creditsNote.trim().slice(0, 60) : base.creditsNote, tagline: typeof p.tagline === "string" ? p.tagline.trim().slice(0, 60) : base.tagline,

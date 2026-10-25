@@ -50,6 +50,7 @@ describe("My trends", () => {
 
   it("learns a new trend from uploaded Reels", async () => {
     renderPage();
+    await userEvent.click(screen.getByRole("button", { name: /Learn a new trend/ })); // the form opens on the right
     const btn = screen.getByRole("button", { name: "Learn this trend" });
     expect(btn).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Trend name"), "Party");

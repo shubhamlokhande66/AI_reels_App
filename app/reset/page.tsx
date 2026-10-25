@@ -5,13 +5,17 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
+import { useT } from "@/hooks/useApi";
+import { Button, Card } from "@/components/atoms";
+import { passwordOk } from "@/lib/validate";
 import { AuthFrame } from "@/components/molecules/AuthFrame";
-import { ErrorBanner } from "@/components/molecules";
+import { ErrorBanner, Field, PasswordInput } from "@/components/molecules";
 
 function ResetForm() {
   const token = useSearchParams().get("token") ?? "";
   const router = useRouter();
   const qc = useQueryClient();
+  const t = useT();
   const [password, setPassword] = useState("");
   const [again, setAgain] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,8 +24,8 @@ function ResetForm() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (password.length < 8) return setError("Use a password of at least 8 characters.");
-    if (password !== again) return setError("The two passwords don't match.");
+    if (!passwordOk(password)) return setError(t("auth.shortPassword"));
+    if (password !== again) return setError(t("auth.mismatch"));
     setBusy(true);
     try {
       await api.resetPassword(token, password);
@@ -36,45 +40,40 @@ function ResetForm() {
 
   if (!token)
     return (
-      <p className="sm">
-        This link is incomplete. <Link href="/forgot" className="ac font-bold">Ask for a new one</Link>.
+      <p className="m-0 text-[12.5px]">
+        {t("auth.badLink")} <Link href="/forgot" className="font-bold text-accent">{t("auth.askNew")}</Link>.
       </p>
     );
   return (
     <form onSubmit={submit} className="flex flex-col gap-3">
-      <label className="f">
-        New password
-        <input type="password" autoComplete="new-password" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} className="inp" />
-      </label>
-      <label className="f">
-        Confirm password
-        <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} className="inp" />
-      </label>
+      <Field label={t("auth.newPassword")} hint={t("auth.lengthHint")} error={password && !passwordOk(password) ? t("auth.shortPassword") : ""} ok={passwordOk(password) ? t("auth.strongEnough") : ""}>
+        <PasswordInput autoComplete="new-password" placeholder={t("auth.newPasswordPlaceholder")} value={password} invalid={!!password && !passwordOk(password)} onChange={(e) => setPassword(e.target.value)} />
+      </Field>
+      <Field label={t("auth.confirmPassword")} error={again && again !== password ? t("auth.mismatch") : ""} ok={again && again === password ? t("auth.match") : ""}>
+        <PasswordInput autoComplete="new-password" placeholder={t("auth.confirmPlaceholder")} value={again} invalid={!!again && again !== password} onChange={(e) => setAgain(e.target.value)} />
+      </Field>
       {error && <ErrorBanner message={error} />}
       {error?.includes("expired") && (
-        <Link href="/forgot" className="ac sm font-bold">
-          Ask for a new link
+        <Link href="/forgot" className="text-[12.5px] font-bold text-accent">
+          {t("auth.askNewLink")}
         </Link>
       )}
-      <button type="submit" className="btn g" disabled={busy}>
-        {busy ? "Saving…" : "Reset password"}
-      </button>
+      <Button type="submit" loading={busy} disabled={!passwordOk(password) || again !== password}>{busy ? t("auth.saving") : t("auth.resetButton")}</Button>
     </form>
   );
 }
 
 /** Choose a new password from the emailed link. Every other session ends; this device is signed in. */
 export default function ResetPage() {
+  const t = useT();
   return (
     <AuthFrame>
-      <div className="card" style={{ gap: 12, padding: 18 }}>
-        <h1 className="ht" style={{ fontSize: 24 }}>
-          Choose a new password
-        </h1>
+      <Card className="flex flex-col gap-3">
+        <h1 className="m-0 font-[family-name:var(--font-display)] text-[21px] font-semibold tracking-[-0.015em]">{t("auth.resetTitle")}</h1>
         <Suspense fallback={null}>
           <ResetForm />
         </Suspense>
-      </div>
+      </Card>
     </AuthFrame>
   );
 }

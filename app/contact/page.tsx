@@ -1,15 +1,33 @@
 "use client";
 
 import { useState } from "react";
-import { Icon } from "@/components/atoms";
-import { Hero } from "@/components/molecules";
+import { Button, Card, Heading, IconTile, Input, TextArea } from "@/components/atoms";
+import { Field, Hero } from "@/components/molecules";
 import { siteOr, useSite } from "@/components/molecules/Legal";
-import { useMe } from "@/hooks/useApi";
+import { useList, useMe, useT } from "@/hooks/useApi";
+import type { Tone } from "@/lib/ui";
+
+/** One way to reach us: its icon, its name and the address (a card that is a link). */
+function Way({ href, icon, tone, title, line }: { href: string; icon: string; tone: Tone; title: string; line: string }) {
+  return (
+    <a href={href} target={href.startsWith("http") ? "_blank" : undefined} rel="noreferrer">
+      <Card variant="interactive" className="flex items-center gap-3">
+        <IconTile icon={icon} tone={tone} size={38} />
+        <span className="flex min-w-0 flex-col">
+          <b>{title}</b>
+          <span className="truncate text-[12.5px] text-muted">{line}</span>
+        </span>
+      </Card>
+    </a>
+  );
+}
 
 /** Contact us (design: "Contact"): email, WhatsApp, and a message that opens in your email app. */
 export default function ContactPage() {
   const s = siteOr(useSite().data);
   const me = useMe();
+  const t = useT();
+  const ways = useList("contact.ways").filter((w) => w.title && w.link);
   const [from, setFrom] = useState("");
   const [text, setText] = useState("");
   const email = from || me.data?.user?.email || "";
@@ -18,57 +36,37 @@ export default function ContactPage() {
   const send = (e: React.FormEvent) => {
     e.preventDefault();
     const body = `${text.trim()}\n\n— ${email}`;
-    window.location.href = `mailto:${s.email}?subject=${encodeURIComponent("Help with Shubix")}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:${s.email}?subject=${encodeURIComponent(t("contact.subject"))}&body=${encodeURIComponent(body)}`;
   };
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
-      <Hero title="We're here to help" subtitle="Questions about a Reel, credits or your account." />
+      <Hero title={t("contact.title")} subtitle={t("contact.sub")} />
+      {realEmail && <Way href={`mailto:${s.email}`} icon="mail" tone="talk" title={t("contact.email")} line={s.email} />}
+      {s.phone && <Way href={`https://wa.me/${wa}`} icon="chat" tone="story" title={t("contact.whatsapp")} line={s.phone} />}
+      {/* more ways: Admin → CMS → Contact us → Ways to reach us */}
+      {ways.map((w) => <Way key={w.id} href={w.link} icon={w.icon || "send"} tone={(w.tone || "brand") as Tone} title={w.title} line={w.text} />)}
       {realEmail && (
-        <a href={`mailto:${s.email}`} className="card" style={{ flexDirection: "row", alignItems: "center" }}>
-          <span className="it b1" style={{ width: 38, height: 38 }}>
-            <Icon name="mail" size={18} />
-          </span>
-          <span className="flex min-w-0 flex-col">
-            <b>Email</b>
-            <span className="mu sm truncate">{s.email}</span>
-          </span>
-        </a>
+        <Card as="section" aria-label={t("contact.formTitle")}>
+          <form className="flex flex-col gap-3" onSubmit={send}>
+            <Heading size="section">{t("contact.formTitle")}</Heading>
+            <Field label={t("contact.yourEmail")}>
+              <Input type="email" required placeholder={t("auth.emailPlaceholder")} value={email} onChange={(e) => setFrom(e.target.value)} />
+            </Field>
+            <Field label={t("contact.message")}>
+              <TextArea required placeholder={t("contact.messagePlaceholder")} value={text} onChange={(e) => setText(e.target.value)} />
+            </Field>
+            <Button type="submit" disabled={!text.trim()}>{t("contact.send")}</Button>
+            <span className="text-[11px] text-muted">{t("contact.opensMail")}</span>
+          </form>
+        </Card>
       )}
-      {s.phone && (
-        <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="card" style={{ flexDirection: "row", alignItems: "center" }}>
-          <span className="it b6" style={{ width: 38, height: 38 }}>
-            <Icon name="chat" size={18} />
-          </span>
-          <span className="flex min-w-0 flex-col">
-            <b>WhatsApp</b>
-            <span className="mu sm">{s.phone}</span>
-          </span>
-        </a>
+      {!realEmail && !s.phone && !ways.length && (
+        <Card className="flex flex-col gap-1">
+          <b>{t("contact.soonTitle")}</b>
+          <span className="text-[12.5px] text-muted">{t("contact.soonText")}</span>
+        </Card>
       )}
-      {realEmail && <form className="card" onSubmit={send} aria-label="Send us a message">
-        <span className="h2">Send us a message</span>
-        <label className="f">
-          Your email
-          <input type="email" required className="inp" placeholder="you@email.com" value={email} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label className="f">
-          Message
-          <textarea required className="ta" placeholder="How can we help?" value={text} onChange={(e) => setText(e.target.value)} />
-        </label>
-        <button type="submit" className="btn g" disabled={!text.trim()}>
-          Send
-        </button>
-        <span className="mu xs">
-          This opens your email app with the message ready. We reply within 3 working days.
-        </span>
-      </form>}
-      {!realEmail && !s.phone && (
-        <div className="card">
-          <b>Support is being set up</b>
-          <span className="mu sm">Our support email will be here very soon. Please check back in a little while.</span>
-        </div>
-      )}
-      <p className="mu xs text-center">
+      <p className="m-0 text-center text-[11px] text-muted">
         {s.name}
         {s.address ? ` · ${s.address}` : ""}
       </p>

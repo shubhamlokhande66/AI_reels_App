@@ -9,7 +9,9 @@ import { initAuto } from "@/components/studio/auto";
 import { initFlow } from "@/components/studio/flow";
 import { TTS_VOICES } from "@/lib/tts/voices";
 import { isApp } from "@/lib/nativeApp";
-import { useAdmin } from "@/hooks/useApi";
+import { useAdmin, useTexts, useT } from "@/hooks/useApi";
+import { STUDIO_KEYS } from "@/lib/texts-all";
+import { startTextSwap } from "@/components/studio/textSwap";
 import { ErrorBanner } from "@/components/molecules";
 import "./studio.css";
 
@@ -41,6 +43,14 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "c
   const root = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const { admin, required } = useAdmin();
+  const t = useT();
+  // the administrator's wording for the studio (Admin → CMS → Studio …): swapped where it shows
+  const texts = useTexts().data;
+  useEffect(() => {
+    const swaps = new Map<string, string>();
+    for (const [words, key] of STUDIO_KEYS) if (texts?.[key] !== undefined && texts[key] !== words) swaps.set(words, texts[key]);
+    return root.current ? startTextSwap(root.current, swaps) : undefined;
+  }, [texts]);
   // the style library (teaching the AI new styles) is the administrator's; plans open only for a real administrator
   // (an admin key or email set up), not for everyone on a server without one
   useEffect(() => {
@@ -105,7 +115,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "c
 
   return (
     <>
-      {failed && <ErrorBanner title="The editor could not start" message={failed} onRetry={() => location.reload()} />}
+      {failed && <ErrorBanner title={t("studio.failed")} message={failed} onRetry={() => location.reload()} />}
       <div ref={root} className={kind ? "brs fopen" : "brs"} data-fstep={kind ? "intro" : undefined} data-fkind={kind} dangerouslySetInnerHTML={{ __html: STUDIO_HTML }} />
     </>
   );

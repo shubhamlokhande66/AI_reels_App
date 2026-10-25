@@ -2,8 +2,11 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/atoms/Icon";
-import { useMe } from "@/hooks/useApi";
+import { useMe, useT } from "@/hooks/useApi";
 import { canInstall, install, isIos, isStandalone, subscribeInstall } from "@/lib/pwa";
+import { Button, IconButton } from "@/components/atoms";
+import { RichText } from "./RichText";
+import { cn } from "@/lib/cn";
 
 /** "Get the Shubix app", at the top of every page until the app is installed:
  * - Android, computers (Chrome, Edge): Install installs it at once (the browser's own offer, lib/pwa.ts). The browser offers
@@ -14,7 +17,10 @@ import { canInstall, install, isIos, isStandalone, subscribeInstall } from "@/li
  * Never inside the installed app. "Not now" hides it until the browser tab is closed. */
 const LATER = "shubix-install-later";
 
-export function InstallBanner({ className = "" }: { className?: string }) {
+/** In the sticky header, top right (AppShell): a pill on computers ("Get the app · Install · ✕"); `compact` on phones,
+ * a round install button. On an iPhone, Install opens the two taps in a small card under it. */
+export function InstallBanner({ className = "", compact = false }: { className?: string; compact?: boolean }) {
+  const t = useT();
   const offer = useSyncExternalStore(subscribeInstall, canInstall, () => false);
   const standalone = useSyncExternalStore(subscribeInstall, isStandalone, () => true);
   const ios = useSyncExternalStore(() => () => {}, isIos, () => false);
@@ -35,25 +41,26 @@ export function InstallBanner({ className = "" }: { className?: string }) {
     } catch {}
     setLater(true);
   };
+  const go = () => (offer ? void install() : setHowTo((v) => !v));
   return (
-    <div className={`flex flex-col items-center gap-2 ${className}`}>
-      <div role="region" aria-label="Install the Shubix app" className="flex max-w-full items-center gap-2.5 rounded-full border border-border bg-surface-2 py-1.5 pl-3 pr-1.5 shadow-sm">
-        <Icon name="download" size={18} className="shrink-0 text-accent" />
-        <span className="min-w-0 text-sm leading-tight">
-          <b>Get the Shubix app</b>
-          <span className="text-muted hidden sm:inline"> · full screen, one tap from your home screen</span>
-        </span>
-        <button type="button" className="btn sm g shrink-0" onClick={() => (offer ? void install() : setHowTo(true))}>
-          Install
-        </button>
-        <button type="button" aria-label="Not now" title="Not now" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted hover:text-foreground" onClick={notNow}>
-          <Icon name="close" size={16} />
-        </button>
-      </div>
+    <div role="region" aria-label={t("install.sidebar")} className={cn("relative", className)}>
+      {compact ? (
+        <IconButton icon="download" label={t("install.button")} title={t("install.title")} onClick={go} className="border-accent/50 text-accent" />
+      ) : (
+        <div className="flex h-10 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 py-1 pl-3 pr-1" title={`${t("install.title")} · ${t("install.sub")}`}>
+          <Icon name="download" size={16} className="shrink-0 text-accent" />
+          <span className="hidden whitespace-nowrap text-[13px] font-semibold xl:inline">{t("install.title")}</span>
+          <Button size="sm" className="ml-1 h-8 rounded-full px-3" onClick={go}>{t("install.button")}</Button>
+          <IconButton icon="close" plain size={28} iconSize={14} label={t("install.notNow")} className="text-muted" onClick={notNow} />
+        </div>
+      )}
+      {/* iPhone: a website cannot install itself, so the two taps */}
       {howTo && !offer && (
-        <p className="max-w-sm text-center text-xs leading-snug text-muted">
-          In Safari, tap the <b>Share</b> button <Icon name="share" size={13} className="inline align-[-2px]" />, then <b>Add to Home Screen</b>. Shubix then opens full screen like any app.
-        </p>
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(300px,calc(100vw-32px))] rounded-2xl border border-border bg-surface p-3.5 text-[12.5px] leading-snug text-muted shadow-[0_20px_44px_-18px_rgba(0,0,0,.6)]">
+          <b className="mb-1 block text-[13px] text-foreground">{t("install.title")}</b>
+          <RichText text={t("install.ios")} />
+          {compact && <button type="button" onClick={notNow} className="mt-2 text-[12px] font-semibold text-muted hover:text-foreground">{t("install.notNow")}</button>}
+        </div>
       )}
     </div>
   );

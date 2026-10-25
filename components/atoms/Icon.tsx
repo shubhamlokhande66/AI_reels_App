@@ -56,6 +56,18 @@ const P: Record<string, React.ReactNode> = {
   next: <path d="M16 5h2v14h-2zM4 5v14l11-7z" fill="currentColor" stroke="none" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
   upload: <path d="M12 20V9M7 14l5-5 5 5M5 4h14" />,
+  pen: (
+    <>
+      <path d="M4 20h4L19 9l-4-4L4 16z" />
+      <path d="M13.5 6.5l4 4" />
+    </>
+  ),
+  // a handle to drag by (six dots)
+  grip: (
+    <>
+      {[9, 15].flatMap((x) => [6, 12, 18].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" fill="currentColor" stroke="none" />))}
+    </>
+  ),
   more: (
     <>
       <circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none" />
@@ -200,6 +212,14 @@ const P: Record<string, React.ReactNode> = {
       <circle cx="12" cy="12" r="3" />
     </>
   ),
+  // the eye crossed out: hide what is typed
+  eyeOff: (
+    <>
+      <path d="M3 3l18 18" />
+      <path d="M10.6 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.8 8.5 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </>
+  ),
   copy: (
     <>
       <rect x="8" y="8" width="13" height="13" rx="2" />
@@ -243,9 +263,3 @@ export function Icon({ name, size = 20, stroke = 1.8, className, color }: { name
   );
 }
 
-/** A warm placeholder picture for a thumbnail that is not there yet: the same one for the same id. */
-export function photoClass(id: string | undefined | null): string {
-  let h = 0;
-  for (const c of id ?? "") h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return `p${(h % 7) + 1}`;
-}

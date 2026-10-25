@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FastStudio } from "@/components/studio/FastStudio";
 import { PlanGate } from "@/components/organisms/PlanGate";
+import { TemplateGate } from "@/components/organisms/TemplateGate";
 
 /** Fast Studio, one address per way in:
  * - /create/music, /create/talking, /create/photo, /create/copy: the Create flow of that kind, its defaults set
@@ -31,5 +32,8 @@ export default async function CreatePage({ params, searchParams }: { params: Pro
   const studio = <FastStudio kind={FLOW.has(kind as Kind) ? (kind as "music" | "talking" | "photo" | "copy") : undefined} />;
   // Copy a Reel, Story Maker and a template open on their plan (lib/plan-locks.ts "page:…"); a saved Reel always opens
   const lock = kind === "copy" ? "page:copy" : kind === "story" ? "page:story" : kind === "edit" && q.tpl && !q.p ? "page:templates" : "";
-  return lock ? <PlanGate item={lock}>{studio}</PlanGate> : studio;
+  // a template has its own plan too (Admin → Templates)
+  const tpl = kind === "edit" && typeof q.tpl === "string" && !q.p ? q.tpl : "";
+  const gated = tpl ? <TemplateGate id={tpl}>{studio}</TemplateGate> : studio;
+  return lock ? <PlanGate item={lock}>{gated}</PlanGate> : gated;
 }

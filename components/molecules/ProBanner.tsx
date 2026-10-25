@@ -1,9 +1,13 @@
+"use client";
+
 import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
 import { cn } from "@/lib/cn";
+import { useT } from "@/hooks/useApi";
 
 /** "Go Pro with Shubix" (UI/ design): the plans. `compact`: the sidebar's small card (stacked, a full-width button). */
 export function ProBanner({ href = "/pricing", compact = false }: { href?: string; compact?: boolean }) {
+  const t = useT();
   return (
     <section
       aria-label="Go Pro"
@@ -20,14 +24,14 @@ export function ProBanner({ href = "/pricing", compact = false }: { href?: strin
           <Icon name="crown" size={compact ? 26 : 34} />
         </span>
         <span className="flex min-w-0 flex-col">
-          <b className={cn("font-extrabold", compact ? "text-[14px]" : "text-[15px] md:text-lg")}>{compact ? "Upgrade to Pro" : "Go Pro with Shubix"}</b>
+          <b className={cn("font-extrabold", compact ? "text-[14px]" : "text-[15px] md:text-lg")}>{t(compact ? "plan.bannerTitleSmall" : "plan.bannerTitle")}</b>
           <span className={cn("leading-snug text-muted", compact ? "text-[11.5px]" : "text-[12px] md:text-[13px]")}>
-            {compact ? "Premium templates & Shubix edits" : "More templates, premium styles and advanced Shubix edits."}
+            {t(compact ? "plan.bannerTextSmall" : "plan.bannerText")}
           </span>
         </span>
       </span>
       <Button href={href} size="sm" iconRight="send" full={compact} className={compact ? "" : "shrink-0"}>
-        Upgrade
+        {t("plan.bannerButton")}
       </Button>
     </section>
   );

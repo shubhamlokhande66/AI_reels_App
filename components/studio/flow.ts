@@ -12,6 +12,7 @@
  * hides or forwards to the engine's own controls (ids from markup.ts); the progress comes from tasks.ts events. */
 
 import type { TaskEvent } from "./tasks";
+import { tx } from "./i18n";
 
 type Kind = "music" | "talk" | "photo" | "copy";
 type Step = "intro" | "choose" | "adjust" | "clips" | "analyse";
@@ -105,7 +106,7 @@ export function initFlow(root: HTMLElement): () => void {
 
   // every write only when it changes something: a write is a DOM mutation even with the same value, and the flow (and
   // views.ts) watch the DOM, so an unchanged write would wake them again and again (a busy page)
-  const setText = (el: Element, t: string) => { if (el.textContent !== t) el.textContent = t; };
+  const setText = (el: Element, t: string) => { t = tx(t); if (el.textContent !== t) el.textContent = t; }; // the admin's wording (i18n.ts)
   const setAttr = (el: Element, k: string, v: string) => { if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
   const setFlag = (el: HTMLElement & { disabled?: boolean }, k: "hidden" | "disabled", v: boolean) => { if (el[k] !== v) el[k] = v; };
   const setClass = (el: Element, c: string, on: boolean) => { if (el.classList.contains(c) !== on) el.classList.toggle(c, on); };

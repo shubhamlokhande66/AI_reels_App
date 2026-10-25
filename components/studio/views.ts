@@ -40,6 +40,7 @@ const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3
 const TYPE: Record<string, string> = { drop: "Drop", hit: "Hit", cut: "Cut", break: "Break", talk: "Talk", jump: "Talk" };
 import { CLIP_TOOLS, clipToolsEvents, clipToolsHtml, type ClipApi } from "./clipTools";
 import { DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, type PlanId } from "../../lib/plan-locks";
+import { tx } from "./i18n";
 
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -216,7 +217,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     for (const [a, b] of [["tundo", "undo"], ["tredo", "redo"]] as const) { const x = $<HTMLButtonElement>(a), y = $<HTMLButtonElement>(b); if (x.disabled !== y.disabled) x.disabled = y.disabled; } };
 
   // the title and the summary show what is made now
-  const setText = (el: Element | null, v: string) => { if (el && el.textContent !== v) el.textContent = v; };
+  const setText = (el: Element | null, v: string) => { v = tx(v); if (el && el.textContent !== v) el.textContent = v; }; // the admin's wording (i18n.ts)
   const values = () => {
     const st = S();
     const asp = root.querySelector<HTMLElement>('#aspect [aria-pressed="true"]')?.dataset.a; const sel = $<HTMLSelectElement>("tbaspect"); if (asp && sel.value !== asp) sel.value = asp;
