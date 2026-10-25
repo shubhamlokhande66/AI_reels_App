@@ -1005,7 +1005,11 @@ async function scanMotion(src, onProgress, faces){
   const c = document.createElement('canvas'); c.width=SW; c.height=SH; const g = c.getContext('2d', {willReadFrequently:true});
   const c2 = document.createElement('canvas'); c2.width=128; c2.height=72; const g2 = c2.getContext('2d', {willReadFrequently:true});
   let prev = null; const out = [], hists = [], lums = [];
+  const strip = [], STRIP_H = 72; let stripLast = -9;
   const grab = (v, t) => {
+    if(t - stripLast >= Math.max(0.5, src.dur/60)){ stripLast = t;
+      try{ const vw = v.videoWidth || v.displayWidth || v.width || 9, vh = v.videoHeight || v.displayHeight || v.height || 16, sc = document.createElement('canvas');
+        sc.height = STRIP_H; sc.width = Math.max(24, Math.round(STRIP_H*vw/vh)); sc.getContext('2d').drawImage(v, 0, 0, sc.width, sc.height); strip.push({ t, c: sc }); }catch(e){} }
     g.drawImage(v,0,0,SW,SH); const d = g.getImageData(0,0,SW,SH).data;
     const lum = new Float32Array(SW*SH); let b=0;
     for(let i=0;i<SW*SH;i++){ const y=(d[i*4]*0.3+d[i*4+1]*0.59+d[i*4+2]*0.11)/255; lum[i]=y; b+=y; }
@@ -1038,6 +1042,7 @@ async function scanMotion(src, onProgress, faces){
     if(faces) faces.done();
   }catch(err){ console.warn('reading frames failed', err); }
   if(!out.length) { rd.close(); throw new Error('no frames could be read'); }
+  strip.sort((a, b) => a.t - b.t); src.strip = strip;
   // order by time (callbacks can arrive out of order around the end); keep histograms paired with their samples
   const idx = out.map((s,i)=>i).sort((a,b)=>out[a].t-out[b].t);
   const S = idx.map(i=>out[i]), H = idx.map(i=>hists[i]), LM = idx.map(i=>lums[i]);
@@ -1976,7 +1981,7 @@ function chatGenerate(btn){
 // a plan the AI made by itself (no chat): its report goes into the chat too, and the button shows there is one
 function chatReportAuto(){
   if(chatWaiting || chatPending || !aiOn || !director || director.key !== dirKey() || chatReported === director.key) return;
-  chatReported = director.key; $('chatlog').appendChild(planReport(director.slots, director.story)); $('chatfab').classList.add('news');
+  chatReported = director.key; $('chatlog').appendChild(planReport(director.slots, director.story)); $('chatfab').classList.add('news'); $('tbchat').classList.add('news');
 }
 function chatDone(story){ if(!chatWaiting) return; chatAnswer('Done ✓ Your Reel is edited the way you asked' + (story ? ': ' + story : '.') + ' Tell me if you want anything else.'); }
 function chatFail(msg){ if(chatWaiting) chatAnswer(msg); }
@@ -2014,7 +2019,7 @@ function chatSend(text){
   // an answer that never comes (the AI waits for the clips' check, or nothing was asked): not a spinner for ever
   setTimeout(() => { if(chatWaiting && chatMsgs.length === asked) chatFail(dirBusy || paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : 'Your Reel is updated.'); }, 120000);
 }
-function chatOpen(on){ $('chatfab').classList.remove('news'); $('chatbox').hidden = !on; $('chatfab').setAttribute('aria-expanded', String(on)); $('chatfab').hidden = on;
+function chatOpen(on){ $('chatfab').classList.remove('news'); $('tbchat').classList.remove('news'); $('chatbox').hidden = !on; $('chatfab').setAttribute('aria-expanded', String(on)); $('chatfab').hidden = on;
   if(on){ if(!chatMsgs.length && !$('chatlog').children.length) chatSay('ai', 'Hi! Tell me how you want this Reel: the mood, the pace, which moments, zooms, transitions, slow-mo… I\'ll edit it that way.'); $('chatin').focus(); } }
 $('chatfab').addEventListener('click', () => chatOpen(true), SIG);
 $('chatclose').addEventListener('click', () => chatOpen(false), SIG);
@@ -2849,6 +2854,30 @@ function shotOp(op, arg){
   }
   return false;
 }
+// move a shot's footage to another place in the Reel (drag on the timeline): the cuts stay on the beat, so each place keeps
+// its time, kind and transition; the moments move along, each fitted to its new length (the clip's end is not passed)
+function shotMove(from, to){
+  if(kind === 'talk' || !edit.length || exporting || recording) return false;
+  from = Math.trunc(from); to = Math.max(0, Math.min(edit.length - 1, Math.trunc(to)));
+  if(from === to || !edit[from]) return false;
+  stopAll();
+  const L = editOf(), KEEP = ['start', 'end', 'type', 'fx', 'tr', 'sp', 'acc', 'ak'];
+  const look = L.map(x => { const c = { ...x }; KEEP.forEach(k => delete c[k]); return c; });
+  const [m] = look.splice(from, 1); look.splice(to, 0, m);
+  const lo = Math.min(from, to), hi = Math.max(from, to);
+  for(let k = lo; k <= hi; k++){
+    const slot = L[k], c = look[k], src = sources[c.src]; if(!src) return false;
+    const x = { ...slot, ...c, start: slot.start, end: slot.end };
+    const sp = speedFor(x.sp, x), need = sp.pos(x.end - x.start), room = Math.max(0.05, src.dur - TAIL);
+    x.scaleR = need > room ? Math.max(0.05, room/need*0.98) : 1;
+    x.in = Math.max(0, Math.min(x.in, room - need*x.scaleR));
+    if(x.uk) x.uk = x.uk.filter(q => q.t < x.end - x.start);
+    L[k] = x;
+  }
+  if(!restoreEdit(L)) return false;
+  pos = edit[to].start + 0.05; showShot(to); notify('Shot ' + (from + 1) + ' moved to place ' + (to + 1) + '.');
+  return true;
+}
 // the current shot's clip settings: read, change (a patch; null resets them all)
 function shotCs(){ return edit.length && kind !== 'talk' ? { ...csOf(edit[segAt(pos)]), i: segAt(pos), crown: ['beauty','curve','stab'].filter(k => isLocked('tool', k)) } : null; }
 function shotSet(patch){
@@ -2881,6 +2910,26 @@ function shotTrim(dir){
 }
 // ripple (dragging a shot's end on the timeline): shot i ends at `to` (on the nearest beat when one is close), every
 // later shot moves with it, and the last shot still ends with the song (it gives or takes the difference)
+// a shot's left edge dragged (VN's trim from the start): the cut between it and the shot before moves to `to`; the shot
+// before gets longer or shorter, this one starts later or earlier in its clip and still ends where it did (the rest stays)
+function shotRoll(i, to){
+  if(!edit.length || kind === 'talk' || exporting || recording || !edit[i] || i < 1) return false;
+  const a = edit[i-1], e = edit[i];
+  const nb = beats.reduce((b, x) => Math.abs(x - to) < Math.abs(b - to) ? x : b, Infinity);
+  if(Math.abs(nb - to) < 0.12) to = nb;
+  to = Math.max(a.start + MIN_SHOT, Math.min(e.end - MIN_SHOT, to));
+  const d = to - e.start; if(Math.abs(d) < 0.01) return false;
+  stopAll();
+  const L = editOf(), x = L[i], rate = (e.sp && e.sp.at ? e.sp.at(0) : 1)*(e.scaleR || 1);
+  let inn = d > 0 ? srcPosF(e, d) : e.in + d*rate;
+  if(inn < 0){ to -= inn/rate; inn = 0; if(to - e.start > -0.01){ notify('This is the start of the clip.'); return false; } }
+  const dd = to - e.start;
+  L[i-1].end = to; x.start = to; x.in = inn;
+  if(x.uk) x.uk = x.uk.map(q => ({ ...q, t: q.t - dd })).filter(q => q.t >= 0);
+  if(!restoreEdit(L)) return false;
+  changed(i - 1, true); changed(i, true);
+  pos = edit[i].start + 0.05; showShot(i); return true;
+}
 function shotRipple(i, to){
   if(!edit.length || kind === 'talk' || exporting || recording || !edit[i]) return false;
   const D = buf.duration, e = edit[i];
@@ -3498,7 +3547,10 @@ function drawOverlay(g, ov, t){
   const W = out.width, H = out.height, base = Math.min(W, H*0.5625), since = t - a, left = b - t;
   const fs = Math.round(base*(ov.emoji ? 0.16 : 0.075)*ov.size);
   let alpha = Math.min(1, left/0.15), sc = 1, dy = 0, txt = ov.emoji ? ov.text : (isIndic(ov.text) ? ov.text : ov.text);
-  if(!coverMode){
+  // paused in the editor: a text shows as it will look once in (its entrance played), so a text just added, or one being
+  // keyframed at its first moment, is there to see and to drag (at its first frame it would still be invisible)
+  const still = !playing && !recording && !exporting;
+  if(!coverMode && !still){
     if(ov.anim === 'pop'){ const q = Math.min(1, since/0.22); sc = 0.6 + 0.4*EASE.outBack(q); alpha *= Math.min(1, since/0.08); }
     else if(ov.anim === 'fade') alpha *= Math.min(1, since/0.35);
     else if(ov.anim === 'slide'){ const q = Math.min(1, since/0.3); dy = (1 - EASE.outCubic(q))*fs*1.2; alpha *= q; }
@@ -3567,7 +3619,9 @@ function drawOverlay(g, ov, t){
   }
   g.restore();
   if(ovSel >= 0 && overlays[ovSel] === ov && !recording && !exporting && !coverMode){   // the one being edited: a dashed frame
-    const [bx, by, bw, bh] = ov.box; g.save(); g.setLineDash([10, 8]); g.lineWidth = 3; g.strokeStyle = 'rgba(255,213,74,0.95)'; g.strokeRect(bx*W, by*H, bw*W, bh*H); g.restore(); }
+    const [bx, by, bw, bh] = ov.box; g.save(); g.setLineDash([10, 8]); g.lineWidth = 3; g.strokeStyle = 'rgba(255,213,74,0.95)'; g.strokeRect(bx*W, by*H, bw*W, bh*H);
+    const hr = Math.max(16, W*0.022); g.setLineDash([]); g.beginPath(); g.arc((bx + bw)*W, (by + bh)*H, hr, 0, Math.PI*2); g.fillStyle = '#ffd54a'; g.fill(); g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.55)'; g.stroke();
+    g.beginPath(); g.moveTo((bx + bw)*W - hr*0.45, (by + bh)*H + hr*0.45); g.lineTo((bx + bw)*W + hr*0.45, (by + bh)*H - hr*0.45); g.strokeStyle = '#000'; g.lineWidth = 3; g.stroke(); g.restore(); }
 }
 function drawOverlays(t){ for(const ov of overlays) if(!ov.behind || !personMask || !bgMask) drawOverlay(og, ov, t); }
 // the list under "Text & stickers": edit the words, style, colour, entrance, size, when it shows
@@ -3581,7 +3635,7 @@ function renderOvList(){
     // person; start and end; delete. Each choice is a chip (its select stays, hidden, as the one place the value lives)
     row.innerHTML = `<div class="ovtop"><input class="ovt" maxlength="80" aria-label="Text"><button class="ovdel" title="Delete" aria-label="Delete">×</button></div>
       <div class="ovtabs" role="tablist"><button type="button" data-ovt="font">Font</button><button type="button" data-ovt="style">Style</button><button type="button" data-ovt="anim">Animation</button><button type="button" data-ovt="loop">Loop</button></div>
-      <div class="ovpane" data-p="font"><div class="ovfrow"><select class="ovf" aria-label="Font"></select><label class="ovsz">Size <input type="range" min="0.5" max="2.2" step="0.05" aria-label="Size"></label></div>
+      <div class="ovpane" data-p="font"><div class="ovfrow"><select class="ovf" aria-label="Font"></select><label class="ovsz">Size <input type="range" min="0.3" max="4" step="0.05" aria-label="Size"></label></div>
         <div class="ovcrow"><span class="ovclab">Color</span><span class="ovc"></span><label class="ovpick" title="Any colour"><input type="color" class="ovcol" aria-label="Any colour"></label></div></div>
       <div class="ovpane" data-p="style"><select class="ovs" aria-label="Style" hidden></select><div class="ovchips" data-for="ovs"></div></div>
       <div class="ovpane" data-p="anim"><select class="ova" aria-label="Entrance" hidden></select><div class="ovchips" data-for="ova"></div></div>
@@ -3637,11 +3691,21 @@ OV_EMOJI.forEach(em => { const b = document.createElement('button'); b.textConte
   b.addEventListener('click', () => { addOverlay({ text: em, emoji: true, y: 0.5, x: 0.72, size: 1 }); $('emojis').hidden = true; }); $('emojis').appendChild(b); });
 $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.value]; e.target.value = ''; if(p) addOverlay(p); }, SIG);
 // drag on the preview: the item under the finger moves with it (a tap selects it)
-{ let drag = null;
+{ let drag = null; const fingers = new Map();
   const at = ev => { const r = out.getBoundingClientRect(); return [(ev.clientX - r.left)/r.width, (ev.clientY - r.top)/r.height]; };
+  // a text's size: two fingers on it (pinch), or its corner handle dragged away from / toward its middle
+  const OV_MIN = 0.3, OV_MAX = 4;
+  const midOf = ov => { const [bx, by, bw, bh] = ov.box, r = out.getBoundingClientRect(); return [r.left + (bx + bw/2)*r.width, r.top + (by + bh/2)*r.height]; };
+  const spread = () => { const p = [...fingers.values()]; return Math.hypot(p[0][0] - p[1][0], p[0][1] - p[1][1]) || 1; };
   out.addEventListener('pointerdown', ev => {
     if(recording) return;
+    fingers.set(ev.pointerId, [ev.clientX, ev.clientY]);
+    if(fingers.size === 2 && drag && drag.i != null && overlays[drag.i]){ const ov = overlays[drag.i]; drag = { i: drag.i, pinch: true, d0: spread(), s0: ov.size || 1 }; try{ out.setPointerCapture(ev.pointerId); }catch(e){} ev.preventDefault(); return; }
     const [x, y] = at(ev), t = playing ? curTime() : pos || 0;
+    if(ovSel >= 0 && overlays[ovSel] && overlays[ovSel].box){ const ov = overlays[ovSel], [bx, by, bw, bh] = ov.box, r = out.getBoundingClientRect(), [a0, b0] = ovTiming(ov);
+      const hx = r.left + (bx + bw)*r.width, hy = r.top + (by + bh)*r.height;
+      if(t >= a0 && t < b0 && Math.hypot(ev.clientX - hx, ev.clientY - hy) < 28){ const [mx, my] = midOf(ov);
+        drag = { i: ovSel, handle: true, d0: Math.hypot(ev.clientX - mx, ev.clientY - my) || 1, s0: ov.size || 1, mx, my }; out.setPointerCapture(ev.pointerId); ev.preventDefault(); return; } }
     for(let i = overlays.length - 1; i >= 0; i--){ const ov = overlays[i], [a, b] = ovTiming(ov); if(!ov.box || !(t >= a && t < b)) continue;
       const [bx, by, bw, bh] = ov.box; if(x >= bx && x <= bx + bw && y >= by && y <= by + bh){
         drag = { i, dx: x - ov.x, dy: y - ov.y }; ovSel = i; out.setPointerCapture(ev.pointerId); renderOvList(); ev.preventDefault(); redraw(); return; } }
@@ -3652,11 +3716,14 @@ $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.va
       if(T){ drag = { shot: true, x0: x, y0: y, ux: u.x, uy: u.y }; out.setPointerCapture(ev.pointerId); ev.preventDefault(); kfSync(); }
     }
   }, SIG);
-  out.addEventListener('pointermove', ev => { if(!drag) return; const [x, y] = at(ev);
+  out.addEventListener('pointermove', ev => { if(fingers.has(ev.pointerId)) fingers.set(ev.pointerId, [ev.clientX, ev.clientY]); if(!drag) return; const [x, y] = at(ev);
+    if(drag.pinch || drag.handle){ const ov = overlays[drag.i]; if(!ov) return;
+      const f = drag.pinch ? (fingers.size === 2 ? spread()/drag.d0 : 1) : Math.hypot(ev.clientX - drag.mx, ev.clientY - drag.my)/drag.d0;
+      ov.size = Math.round(Math.max(OV_MIN, Math.min(OV_MAX, drag.s0*f))*100)/100; redraw(); return; }
     if(drag.shot){ kfSet({ x: drag.ux + x - drag.x0, y: drag.uy + y - drag.y0 }); return; }
     const ov = overlays[drag.i]; if(!ov) return;
     ov.x = Math.max(0.05, Math.min(0.95, x - drag.dx)); ov.y = Math.max(0.05, Math.min(0.95, y - drag.dy)); redraw(); }, SIG);
-  const end = () => { drag = null; };
+  const end = ev => { fingers.delete(ev.pointerId); if(drag && (drag.pinch || drag.handle)){ if(drag.pinch && fingers.size) return; renderOvList(); } drag = null; };
   out.addEventListener('pointerup', end, SIG); out.addEventListener('pointercancel', end, SIG); }
 
 /* ---- ◆ Keyframes: the creator animates a shot or a text: position, zoom, rotation, opacity, with an ease ----
@@ -6214,7 +6281,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, copyMatch, get grade(){ return GRADES[look]; },
-  shotOp, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  shotOp, shotMove, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 

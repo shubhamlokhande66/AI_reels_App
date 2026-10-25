@@ -1584,7 +1584,8 @@
   padding:12px 16px;border-radius:999px;border:0;background:var(--ink-btn);color:var(--ink-btn-fg);font:600 14px var(--body);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 .brs .chatfab:focus-visible{outline:2px solid var(--drop);outline-offset:3px}
 /* where it shows: the flow's first screens (before anything is made), and the Reel's editor once it is made */
-.brs.fopen[data-fstep="intro"] .chatfab,.brs.fopen[data-fstep="choose"] .chatfab,.brs.made:not(.fopen) .chatfab{display:inline-flex}
+/* on every page of the studio (the phones' editor has it in its top bar instead) */
+.brs .chatfab:not([hidden]){display:inline-flex}
 .brs.made.fpost .chatfab{bottom:calc(max(16px,env(safe-area-inset-bottom)) + 72px)}
 .brs .chatbox{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:86;width:min(380px,calc(100vw - 24px));
   max-height:min(560px,calc(100dvh - 24px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden}
@@ -1614,3 +1615,123 @@
 .brs .chatlog .rep li{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.35}
 .brs .chatlog .rep .repgo{justify-self:start;margin-top:4px}
 @media (min-width:600px){ .brs.fopen .chatfab{bottom:calc(max(16px,env(safe-area-inset-bottom)) + 84px)} }
+
+/* ===================== the phones' editor, like VN: one screen, no page scroll =====================
+   top bar (back = done, the Reel's name, format, Ask Shubix, Export) · the preview · time, undo / redo, play, full screen ·
+   tall tracks · the tools at the bottom, or the selected clip's own toolbar (views.ts .clipsel) */
+.brs .tb-chat,.brs .tr-undo,.brs .clipbar,.brs .ctpop{display:none}
+.brs .beatmarks{display:grid;gap:6px;margin-top:6px}
+.brs .beatmarks .hint{margin:0}
+@media (max-width:1023px){
+  .brs .tb-asfree{display:none !important}   /* an administrator's check, for a computer */
+  .brs.fpost.editing .topbar{gap:4px}
+  .brs.fpost.editing .tb-title{min-width:0;flex:1}
+  .brs.fpost.editing .tb-name{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .brs.fpost.editing .tb-sub{display:none}
+  .brs.fpost.editing .tb-undo{display:none !important}
+  .brs.fpost .tb-aspect{display:inline-flex !important}
+  .brs.fpost .tb-aspect select{height:36px;padding:0 24px 0 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:700 12.5px var(--body);cursor:pointer;
+    appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
+    background-position:calc(100% - 13px) 15px,calc(100% - 8px) 15px;background-size:5px 5px;background-repeat:no-repeat}
+  .brs.fpost.editing .tb-chat{display:grid;width:38px;height:38px;border-radius:12px;color:var(--accent)}
+  .brs.fpost.editing .tb-export{padding:0 12px}
+  .brs.fpost.editing .chatfab{display:none !important}
+  /* the preview: big, with nothing over the picture (play is in the bar under it) */
+  .brs.fpost.editing .pvbox{height:40svh !important;min-height:220px}
+  .brs.fpost.editing .playov{display:none !important}
+  .brs.fpost.editing .stage .bar,.brs.fpost.editing .tlbar,.brs.fpost.editing .tog.safe,.brs.fpost.editing #xmsg,.brs.fpost.editing .feditbar{display:none !important}
+  .brs.fpost.editing .transport{display:flex !important;align-items:center;gap:6px;padding:4px 2px;margin:0;border:0;flex-wrap:nowrap}
+  .brs.fpost.editing .transport :is(#remix,#pshot,#nshot,#cover){display:none !important}
+  .brs.fpost.editing .transport .tc{font:600 12.5px var(--mono);color:var(--ink)}
+  .brs.fpost.editing .transport #ttot{color:var(--muted);order:1}
+  .brs.fpost.editing .transport #ttot::before{content:"/ ";color:var(--muted)}
+  .brs.fpost.editing .transport #tcur{order:0}
+  .brs.fpost.editing .tr-undo{display:inline-flex;gap:2px;order:2;margin-left:auto}
+  .brs.fpost.editing .tr-undo .btn.icon{width:38px;height:38px;min-height:38px;padding:0;border:0;background:transparent;justify-content:center}
+  .brs.fpost.editing .tr-undo .btn.icon:disabled{opacity:.35}
+  .brs.fpost.editing .transport #play{order:3;width:46px;height:46px;min-height:46px;padding:0;border-radius:50%;justify-content:center}
+  .brs.fpost.editing .transport #play span{display:none}
+  .brs.fpost.editing .transport #pvfull{display:inline-flex !important;order:4;width:38px;height:38px;min-height:38px;padding:0;border:0;background:transparent;justify-content:center}
+  /* the tracks: the width of the screen, tall, fingers only (no − / + : pinch to zoom) */
+  .brs.fpost.editing .lanesbox{margin:2px -16px 0;padding:0 8px}
+  .brs.fpost.editing .lanes{touch-action:none}
+  .brs.fpost.editing .wrap{padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+  .brs.fpost.editing #allshots{display:none !important}
+  /* the selected clip's toolbar, where the tools were */
+  .brs.fpost.editing.clipsel .dock{display:none !important}
+  .brs.fpost.editing .clipbar:not([hidden]){display:grid;position:fixed;left:0;right:0;bottom:0;z-index:46;gap:2px;padding:6px 0 calc(6px + env(safe-area-inset-bottom));
+    background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -8px 24px -16px rgba(0,0,0,.5)}
+  .brs .cbhead{display:flex;align-items:center;gap:8px;padding:0 12px}
+  .brs .cbhead b{font:700 13.5px var(--body)}
+  .brs .cbhead small{color:var(--muted);font:600 12px var(--mono)}
+  .brs .cbx{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+  .brs .cbx svg{width:15px;height:15px}
+  .brs .cbrow{display:flex;gap:2px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:0 6px}
+  .brs .cbrow::-webkit-scrollbar{display:none}
+  .brs .cb{flex:0 0 66px;height:58px;display:grid;justify-items:center;align-content:center;gap:4px;border:0;border-radius:12px;background:transparent;color:var(--ink);font:600 10.5px var(--body);cursor:pointer;padding:4px 2px}
+  .brs .cb span{max-width:62px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brs .cb svg{width:21px;height:21px}
+  .brs .cb.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+  .brs .cb:disabled{opacity:.35}
+  .brs .cb[data-cb="delete"]{color:#ff6a7a}
+  /* one clip tool's controls, over the timeline (✓ closes) */
+  .brs.fpost.editing .ctpop:not([hidden]){display:grid;position:fixed;left:0;right:0;bottom:calc(112px + env(safe-area-inset-bottom));z-index:47;max-height:44svh;overflow-y:auto;
+    padding:10px 16px 14px;gap:8px;background:var(--surface);border-top:1px solid var(--line);border-radius:18px 18px 0 0;box-shadow:0 -14px 34px -14px rgba(0,0,0,.55)}
+  .brs .ctpoph{display:flex;align-items:center;justify-content:space-between}
+  .brs .ctpoph b{font:700 15px var(--display)}
+  .brs .ctpopok{width:36px;height:36px;border-radius:50%;border:0;background:var(--ink-btn);color:var(--ink-btn-fg);display:grid;place-items:center;cursor:pointer}
+  .brs .ctpop :is(.ctrow,[data-act="reset"]){display:none !important}
+  .brs .ctpop .ctbody{display:grid;gap:10px}
+  /* a tool's panel: "Done" is a small ✓ at its top right, not a bar over the controls */
+  .brs.fpost[data-tool]:not([data-tool=""]) .panels{padding-top:12px}
+  .brs.fpost[data-tool]:not([data-tool=""]) .fapply{position:absolute !important;top:10px;right:12px;left:auto !important;bottom:auto !important;width:auto !important;min-height:34px !important;height:34px;
+    margin:0 !important;padding:0 14px;border-radius:999px !important;font-size:13px !important;gap:6px;box-shadow:none !important;z-index:3}
+  .brs.fpost[data-tool]:not([data-tool=""]) .fapply svg{width:15px;height:15px}
+  .brs.fpost[data-tool]:not([data-tool=""]) .panel .ph{padding-right:96px}
+  /* the shot's picker from a clip's toolbar: just the tiles */
+  .brs .shotsheet{max-height:58svh}
+}
+/* Look: square tiles, each the shot's own picture in that look (a close preview; the Reel shows the real one) */
+.brs #look{display:grid !important;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px 8px;padding:4px;background:none;border:0}
+.brs #look button{display:grid;gap:5px;justify-items:center;padding:0;border:0;background:none;color:var(--muted);font:600 11.5px var(--body);cursor:pointer;min-width:0;box-shadow:none}
+.brs #look button::before{content:"";display:block;width:100%;aspect-ratio:1/1;border-radius:12px;border:2px solid transparent;
+  background:var(--lookth,linear-gradient(135deg,#8a6cff,#ff7ab6 55%,#ffd36e)) center/cover;filter:var(--lf,none)}
+.brs #look button[aria-pressed=true]{color:var(--accent);background:none}
+.brs #look button[aria-pressed=true]::before{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+.brs #look button{position:relative}
+.brs #look button.crowned::after{content:"👑";position:absolute;top:4px;right:6px;font-size:12px}
+.brs #look [data-l=natural]{--lf:none}
+.brs #look [data-l=vivid]{--lf:saturate(1.45) contrast(1.12)}
+.brs #look [data-l=cine]{--lf:contrast(1.18) saturate(.85) sepia(.12) hue-rotate(-8deg)}
+.brs #look [data-l=mono]{--lf:grayscale(1) contrast(1.25)}
+.brs #look [data-l=warmfilm]{--lf:sepia(.35) saturate(1.15) contrast(1.05)}
+.brs #look [data-l=cool]{--lf:hue-rotate(-14deg) saturate(.9) brightness(1.04)}
+.brs #look [data-l=retro]{--lf:sepia(.4) saturate(.8) contrast(.95)}
+.brs #look [data-l=moody]{--lf:contrast(1.25) saturate(.65) brightness(.9)}
+.brs #look [data-l=wedding]{--lf:brightness(1.08) saturate(.95) sepia(.12)}
+.brs #look [data-l=golden]{--lf:sepia(.4) saturate(1.3) brightness(1.04)}
+.brs #look [data-l=tealorange]{--lf:contrast(1.15) saturate(1.2) hue-rotate(-12deg)}
+.brs #look [data-l=faded]{--lf:contrast(.85) saturate(.8) brightness(1.06)}
+.brs #look [data-l=noir]{--lf:grayscale(1) contrast(1.5) brightness(.95)}
+.brs #look [data-l=sepia]{--lf:sepia(.85)}
+.brs #look [data-l=cyber]{--lf:hue-rotate(40deg) saturate(1.5) contrast(1.15)}
+.brs #look [data-l=pastel]{--lf:saturate(.7) brightness(1.12) contrast(.9)}
+.brs #look [data-l=dramatic]{--lf:contrast(1.4) saturate(1.1) brightness(.92)}
+.brs #look [data-l=summer]{--lf:saturate(1.35) brightness(1.08) sepia(.1)}
+.brs #look [data-l=night]{--lf:hue-rotate(-30deg) brightness(.8) saturate(.9)}
+.brs #look [data-l=vintage]{--lf:sepia(.5) contrast(.9) saturate(.75)}
+.brs #look [data-l=matte]{--lf:contrast(.88) brightness(1.04) saturate(.9)}
+.brs #look [data-l=punchy]{--lf:contrast(1.3) saturate(1.4)}
+.brs #look [data-l=forest]{--lf:hue-rotate(20deg) saturate(1.15) contrast(1.05)}
+.brs #look [data-l=rose]{--lf:hue-rotate(-20deg) saturate(1.2) brightness(1.04) sepia(.1)}
+@media (max-width:1023px){ .brs.fopen .chatfab{bottom:calc(max(16px,env(safe-area-inset-bottom)) + 78px)} }
+
+/* the made Reel: Ask Shubix sits in the top bar (a floating button would cover the tools and the timeline) */
+.brs.made:not(.fopen) .chatfab{display:none !important}
+.brs.made:not(.fopen) .tb-chat{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--accent)}
+@media (min-width:1024px){
+  .brs.made:not(.fopen) .tb-chat{width:auto;height:38px;padding:0 14px;border-radius:12px;font:600 13.5px var(--body)}
+  .brs.made:not(.fopen) .tb-chat::after{content:"Ask Shubix"}
+}
+.brs .tb-chat{position:relative}
+.brs .tb-chat.news::before{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--drop)}

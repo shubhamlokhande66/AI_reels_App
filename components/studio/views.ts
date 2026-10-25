@@ -13,12 +13,15 @@ export type StudioView = "one" | "all"; // "all": every panel open (checks and s
 // the tool bar's tools a plan opens (lib/plan-locks.ts, group "studio"); a lower plan sees its tag and /pricing
 export const PLAN_TOOLS = new Set(DEFAULT_LOCKS.groups.find((g) => g.id === "studio")!.items.map((it) => it.key));
 
-type Shot = { start: number; end: number; src: number; type: string; tr: string; efx: string; uk?: { t: number }[]; ak?: { t: number }[]; acc?: { at: number; do: string }[]; sp?: { label: string } };
+type Shot = { in?: number; scaleR?: number; start: number; end: number; src: number; type: string; tr: string; efx: string; uk?: { t: number }[]; ak?: { t: number }[]; acc?: { at: number; do: string }[]; sp?: { label: string } };
 type Ov = { t0: number; t1: number; all?: boolean; text: string; emoji?: boolean };
+type Trim = { i: number; to: number; left?: boolean };
 type Studio = {
   now: number; playing: boolean; dur: number; audio: AudioBuffer | null; beats: number[]; songName: string; title: string; hook: string; capsOn: boolean;
   edit: Shot[]; overlays: Ov[]; vo: unknown; kind: string; editGen: number;
-  sources: { name: string; card?: HTMLElement }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace" | "freeze", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean;
+  sources: { name: string; card?: HTMLElement; strip?: { t: number; c: HTMLCanvasElement }[] }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace" | "freeze", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean; shotMove: (from: number, to: number) => boolean; shotRoll: (i: number, to: number) => boolean;
+  ovSelect: (i: number) => void; ovRefresh: () => void; ovSel: number;
+  kfTarget: () => { what: string; a: number; b: number } | null;
   section: { start: number; len: number; whole: number; auto: boolean };
   segAt: (t: number) => number; kfSeek: (t: number) => Promise<void>;
 };
@@ -35,7 +38,7 @@ const fmtS = (t: number) => fmt(t).replace(/\.\d$/, "");
 const fmt2 = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return m + ":" + (s < 9.995 ? "0" : "") + s.toFixed(2); }; // 0:03.20
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"]; // as the engine's strip
 const TYPE: Record<string, string> = { drop: "Drop", hit: "Hit", cut: "Cut", break: "Break", talk: "Talk", jump: "Talk" };
-import { clipToolsEvents, clipToolsHtml, type ClipApi } from "./clipTools";
+import { CLIP_TOOLS, clipToolsEvents, clipToolsHtml, type ClipApi } from "./clipTools";
 import { DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, type PlanId } from "../../lib/plan-locks";
 
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -94,7 +97,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     root.querySelectorAll<HTMLElement>(".panel").forEach((p) => p.classList.toggle("on", on.has(p.dataset.panel!)));
     // the keyframe panel is open when Motion is shown (dragging the picture then moves the shot)
     const kfWant = on.has("motion");
-    if (kfWant) kfMoves();
+    if (on.has("look")) { const st = S(), th = st && st.edit.length ? thumbOf(st.edit[Math.max(0, st.segAt(st.now))].src) : ""; $("look").style.setProperty("--lookth", th ? `url(${th})` : ""); }
+    if (kfWant) { kfMoves(); const st = S(), T = st && st.kfTarget(); if (st && T && T.what === "text" && (st.now < T.a || st.now >= T.b)) void st.kfSeek(T.a + 0.05); }
     if (kf.open !== kfWant) kf.open = kfWant;
     if (view === "all") $<HTMLDetailsElement>("allshots").open = true;
     shotKey = ""; lanesKey = "";
@@ -149,13 +153,16 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       apply(); root.dispatchEvent(new Event("brs-asfree"));
       return;
     }
-    if (t.closest("#feditdone")) { closeShot(); setEditing(false); return; }
+    if (t.closest("#feditdone")) { closeShot(); selectClip(-1); setEditing(false); return; }
     const b = t.closest<HTMLButtonElement>(".tool");
     if (b) {
       const k = b.dataset.tool!;
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- plain DOM code, the pricing page is a full load
       if (locked(k)) { location.assign("/pricing?feature=" + encodeURIComponent(k)); return; } // a Pro tool on a free plan
+      // phones: Shots = the clip under the playhead, selected (its toolbar has every shot tool)
+      if (k === "shots" && !wide()) { const st = S(); if (st && st.edit.length) { if (!editing) setEditing(true); selectClip(Math.max(0, st.segAt(st.now))); } return; }
       tool = tool === k && !wide() ? "" : k; // phones: a second tap closes it again (computers always show one)
+      if (sel >= 0) selectClip(-1, false);
       apply();
       return;
     }
@@ -203,8 +210,10 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // the top bar's format (9:16 ▾): the clips step's own Format buttons
   $<HTMLSelectElement>("tbaspect").addEventListener("change", (e) => root.querySelector<HTMLButtonElement>(`#aspect [data-a="${(e.target as HTMLSelectElement).value}"]`)?.click(), sig);
   // the top bar's Back: the Create flow's own (the screen before: the clips, or where the page came from)
-  $("tbback").addEventListener("click", () => $("fback").click(), sig);
-  const mirror = () => { if (top.disabled !== exp.disabled) top.disabled = exp.disabled; }; // only on a change: a write is a mutation too
+  $("tbback").addEventListener("click", () => { if (editing && !wide() && made()) { selectClip(-1); closeShot(); setEditing(false); return; } $("fback").click(); }, sig);
+  $("tbchat").addEventListener("click", () => $("chatfab").click(), sig);
+  const mirror = () => { if (top.disabled !== exp.disabled) top.disabled = exp.disabled; // only on a change: a write is a mutation too
+    for (const [a, b] of [["tundo", "undo"], ["tredo", "redo"]] as const) { const x = $<HTMLButtonElement>(a), y = $<HTMLButtonElement>(b); if (x.disabled !== y.disabled) x.disabled = y.disabled; } };
 
   // the title and the summary show what is made now
   const setText = (el: Element | null, v: string) => { if (el && el.textContent !== v) el.textContent = v; };
@@ -238,17 +247,15 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const selects = sels.map((s, k) => !s ? "" : `<label class="isel"><span>${names[k]}</span><select data-c="${k}">${[...s.options].map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? " selected" : ""}>${esc(o.text)}</option>`).join("")}</select></label>`).join("");
     const other = `<button type="button" class="btn ghost" data-other="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg><span>Use a different moment</span></button>`;
     // split, duplicate, delete, replace (the music's timing stays; see the engine's shotOp)
-    const clipName = (n: string) => esc(n.replace(/\.[^.]+$/, ""));
     const tools = st.kind === "talk" ? "" : `<div class="shtools" role="group" aria-label="Shot tools">`
       + `<button type="button" class="btn ghost" data-op="split" title="Split this shot where the playhead is">Split</button>`
       + `<button type="button" class="btn ghost" data-op="dup" title="Play this moment twice">Duplicate</button>`
       + `<button type="button" class="btn ghost" data-op="freeze" title="Freeze the picture at the playhead, then play on">Freeze</button>`
       + `<button type="button" class="btn ghost" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
-      + (st.sources.length > 1 ? `<select data-rep="1" aria-label="Replace with a moment from"><option value="">Replace with…</option>${st.sources.map((s, k) => `<option value="${k}">${clipName(s.name)}${k === e.src ? " (this clip)" : ""}</option>`).join("")}</select>` : "")
       + `</div><div class="cliptools"></div>`;
     $("shotcard").innerHTML = head + chips + other + tools;
     $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;
-    if (!$("shotsheet").hidden) $("ssbody").innerHTML = sheetHtml(i, sels, clipName); // the shot sheet (the design's frame 3)
+    if (!$("shotsheet").hidden) $("ssbody").innerHTML = sheetHtml(i, sels); // the shot sheet (the design's frame 3)
     clipUI(true);
     const rk = i + "|" + shotTab + "|" + $("shotsheet").hidden; // another shot or tab: its chosen tile in view
     if (rk !== revealKey) { revealKey = rk; requestAnimationFrame(() => { reveal($("ssbody")); reveal($("shotcard")); }); }
@@ -275,7 +282,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // Transition / Effect choices as square picture tiles (the shot sheet and the Shots tool), on the shot's own picture
   const tilesHtml = (k: number, sels: (HTMLSelectElement | null)[], th: string | null | undefined) => { const sl = sels[k]; if (!sl) return "";
       return `<div class="sstiles">${[...sl.options].map((o) => `<button type="button" class="chip sstile" data-c="${k}" data-v="${esc(o.value)}" aria-pressed="${o.value === sl.value}"><span class="sstimg${o.value === "hard" || o.value === "none" ? " none" : ""}"${th ? ` style="background-image:url(${th})"` : ""}></span><span class="sstt">${esc(o.text)}</span></button>`).join("")}</div>`; };
-  const sheetHtml = (i: number, sels: (HTMLSelectElement | null)[], clipName: (n: string) => string) => {
+  const sheetHtml = (i: number, sels: (HTMLSelectElement | null)[]) => {
     const st = S()!, e = st.edit[i], th = thumbOf(e.src), names = ["Transition", "Effect", "Speed"];
     const tabs = names.map((n, k) => `<button type="button" class="shtab" data-tab="${k}" aria-pressed="${k === shotTab}">${n}${k < 2 && sels[k] ? ` (${sels[k]!.options.length})` : ""}</button>`).join("");
     const tiles = (k: number) => tilesHtml(k, sels, th);
@@ -288,10 +295,11 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const act = (op: string, n: string, extra = "") => `<button type="button" class="ssact" data-op="${op}"${extra}>${sign(op)}<span>${n}</span></button>`;
     const actions = st.kind === "talk" ? "" : `<div class="sslab">Actions</div><div class="ssacts">${act("split", "Split")}${act("dup", "Duplicate")}${act("freeze", "Freeze")}${act("delete", "Delete", st.edit.length < 2 ? " disabled" : "")}`
       + `<button type="button" class="ssact" data-other="1">${sign("other")}<span>Other moment</span></button>`
-      + (st.sources.length > 1 ? `<select class="ssrep" data-rep="1" aria-label="Replace with a moment from"><option value="">Replace with…</option>${st.sources.map((s, k) => `<option value="${k}">${clipName(s.name)}${k === e.src ? " (this clip)" : ""}</option>`).join("")}</select>` : "") + `</div>`;
+ + `</div>`;
+    const pick = !wide();
     return `<div class="ssh">${th ? `<img class="ssth" src="${th}" alt="">` : ""}<b>Shot ${i + 1} · ${(e.end - e.start).toFixed(2)} s</b><span class="ssnav"><button type="button" data-snav="-1" aria-label="The shot before"${i ? "" : " disabled"}>‹</button><button type="button" data-snav="1" aria-label="The next shot"${i < st.edit.length - 1 ? "" : " disabled"}>›</button></span></div>`
-      + `<div class="sstabs">${tabs}</div>` + (shotTab < 2 ? tiles(shotTab) : "") + speed + actions
-      + (st.kind === "talk" ? "" : `<div class="sslab">Clip Tools <small>(scroll)</small></div><div class="cliptools"></div>`);
+      + `<div class="sstabs">${tabs}</div>` + (shotTab < 2 ? tiles(shotTab) : shotTab === 2 ? speed : "") + (pick ? "" : (shotTab < 2 ? speed : "") + actions
+      + (st.kind === "talk" ? "" : `<div class="sslab">Clip Tools <small>(scroll)</small></div><div class="cliptools"></div>`));
   };
   // the clip tools (rotate, fit, adjust, mosaic…): drawn again when the shot's settings change, never during a slider drag
   const clipUI = (force = false) => {
@@ -320,7 +328,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const css = (v: string, d: string) => getComputedStyle(root).getPropertyValue(v).trim() || d;
   const ZMAX = 40, RUL = 18, EDGE = 12; // the most zoom, the time ruler's height, how near an edge counts (css px)
   let zoom = 1, t0 = 0; // the view: the song from t0, a 1/zoom part of it
-  let trim: { i: number; to: number } | null = null; // a shot's end being dragged
+  let trim: Trim | null = null; // a shot's end (or, on a phone, its start) being dragged
   const labW = () => (lanes.clientWidth > 700 ? 116 : 50); // the tracks' heads: icon, name, + Add (a computer, as the design)
   // the song's loudness, measured once per song part: the louder of its samples every 5 ms (the waveform under the beats)
   const PEAK_DT = 0.005;
@@ -335,8 +343,11 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     peaksOf = a; peaks = out; return out;
   };
   const span = () => (S()?.dur || 1) / zoom;
+  // phones, as VN: the playhead stands in the middle of the tracks and the Reel slides under it (a swipe scrubs)
+  const vn = () => !wide();
+  const centre = () => { if (!vn()) return; const st = S(); if (st) t0 = st.now - span() / 2; };
   const fix = () => {
-    const D = S()?.dur || 1; zoom = Math.max(1, Math.min(ZMAX, zoom)); t0 = Math.max(0, Math.min(D - D / zoom, t0)); lanesKey = "";
+    const D = S()?.dur || 1; zoom = Math.max(vn() ? 0.6 : 1, Math.min(ZMAX, zoom)); if (vn()) centre(); else t0 = Math.max(0, Math.min(D - D / zoom, t0)); lanesKey = "";
     setText($("tlz"), (zoom < 10 ? Math.round(zoom * 10) / 10 : Math.round(zoom)) + "×");
   };
   // − / + : half or twice the zoom, around the playhead
@@ -346,12 +357,17 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   $("tlfit").addEventListener("click", () => { zoom = 1; t0 = 0; fix(); }, sig);
   // the preview full screen (the browser's own; Escape leaves it)
   $("pvfull").addEventListener("click", () => { const box = root.querySelector<HTMLElement>(".pvbox"); if (document.fullscreenElement) void document.exitFullscreen(); else void box?.requestFullscreen?.().catch(() => {}); }, sig);
-  const tAt = (x: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return t0 + ((x - r.left - lab) / (r.width - lab)) * span(); };
-  const xOf = (t: number) => { const r = lanes.getBoundingClientRect(), lab = labW(); return r.left + lab + ((t - t0) / span()) * (r.width - lab); };
+  const tAt = (x: number) => { centre(); const r = lanes.getBoundingClientRect(), lab = labW(); return t0 + ((x - r.left - lab) / (r.width - lab)) * span(); };
+  const xOf = (t: number) => { centre(); const r = lanes.getBoundingClientRect(), lab = labW(); return r.left + lab + ((t - t0) / span()) * (r.width - lab); };
   // the shot whose right edge is under x on the video track (not the last: it ends with the song)
   // the tracks from the top (css px): the ruler, Effects, Video, Text, Voice, Music
   const FXH = 22, GAP = 5, VTOP = RUL + FXH + GAP;
-  const vidH = () => (lanes.clientWidth > 700 ? 46 : 38);
+  // the tracks' heights (css px): video, text, voice, music; phones get tall ones, easy to hit with a finger (as VN)
+  const ROWS = () => (lanes.clientWidth > 700 ? [46, 24, 24, 44] : [56, 30, 30, 48]);
+  const vidH = () => ROWS()[0];
+  // phones: a tap selects a clip (its toolbar opens under the timeline); a second tap on it opens its picker
+  let phoneZoomed = false, sel = -1, move: { from: number; x: number } | null = null, press: { k: number; x: number; y: number; tm: ReturnType<typeof setTimeout> } | null = null;
+  const phone = () => !wide();
   // the names people see for a transition and an effect: the edit list's own choices
   let namesGen = -1, names = { tr: new Map<string, string>(), efx: new Map<string, string>() };
   const nameOf = (kind: "tr" | "efx", v: string) => {
@@ -394,17 +410,20 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     // the lower part of the video track (the handle is drawn there; the upper part of a cut is its transition box)
     if (!st || y - r.top < VTOP + vh * 0.45 || y - r.top > VTOP + vh) return -1;
     let best = -1, bd = EDGE;
-    st.edit.forEach((e, k) => { const d = Math.abs(xOf(e.end) - x); if (k < st.edit.length - 1 && d < bd) { bd = d; best = k; } });
+    st.edit.forEach((e, k) => { const d = Math.abs(xOf(e.end) - x); if (k < st.edit.length - 1 && d < bd && (!phone() || k === sel)) { bd = d; best = k; } });
     return best;
   };
   const drawLanes = () => {
     const st = S(); if (!st || !made() || !st.edit.length || !lanes.clientWidth) return;
     const D = st.dur || 1, now = st.now;
-    if (st.playing && (now < t0 || now > t0 + span())) { t0 = now - span() * 0.1; fix(); } // follow the playhead
-    const key = [lanes.clientWidth, zoom, t0, st.audio ? st.audio.length : 0, st.beats.length, trim ? trim.i + ":" + trim.to : "", st.editGen, st.edit.length, (now * 20) | 0, st.overlays.map((o) => o.t0 + "/" + o.t1 + o.text).join(), !!st.vo, st.hook, st.capsOn, st.edit.reduce((a, e) => a + (e.uk ? e.uk.length : 0), 0), root.querySelectorAll("#edl tr").length].join("|");
+    // a phone opens the tracks zoomed in (about 12 s across, as VN): every clip wide enough to see and to tap
+    if (vn() && editing && !phoneZoomed) { phoneZoomed = true; zoom = Math.max(1, D / 6); fix(); }
+    if (vn()) centre();
+    else if (st.playing && (now < t0 || now > t0 + span())) { t0 = now - span() * 0.1; fix(); } // follow the playhead
+    const key = [lanes.clientWidth, zoom, t0, sel, st.ovSel, ovDrag ? ovDrag.i + ":" + st.overlays[ovDrag.i]?.t0 + ":" + st.overlays[ovDrag.i]?.t1 : "", (st.sources[0]?.strip?.length ?? 0), move ? move.from + ":" + Math.round(move.x) : "", (root.querySelector<HTMLInputElement>("#mvol")?.value ?? ""), st.audio ? st.audio.length : 0, st.beats.length, trim ? trim.i + ":" + trim.to : "", st.editGen, st.edit.length, (now * 20) | 0, st.overlays.map((o) => o.t0 + "/" + o.t1 + o.text).join(), !!st.vo, st.hook, st.capsOn, st.edit.reduce((a, e) => a + (e.uk ? e.uk.length : 0), 0), root.querySelectorAll("#edl tr").length].join("|");
     if (key === lanesKey) return; lanesKey = key;
     const dpr = window.devicePixelRatio || 1, wide = lanes.clientWidth > 700, lab = labW() * dpr;
-    const rows = [wide ? 46 : 38, 24, 24, wide ? 44 : 38].map((h) => h * dpr), gap = 5 * dpr, rul = RUL * dpr;
+    const rows = ROWS().map((h) => h * dpr), gap = 5 * dpr, rul = RUL * dpr;
     const fxh = FXH * dpr, W = Math.round(lanes.clientWidth * dpr), H = Math.round(rul + fxh + gap + rows.reduce((a, b) => a + b, 0) + gap * 3);
     if (lanes.width !== W) lanes.width = W; if (lanes.height !== H) { lanes.height = H; lanes.style.height = H / dpr + "px"; }
     const g = lanes.getContext("2d")!; g.clearRect(0, 0, W, H);
@@ -415,21 +434,26 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const track = (draw: () => void) => { g.save(); g.beginPath(); g.rect(lab, 0, W - lab, H); g.clip(); draw(); g.restore(); };
     // the ruler: a tick every 0.25 s to 1 min, as many as fit
     const step = [0.25, 0.5, 1, 2, 5, 10, 30, 60].find((s) => s * pps >= 56 * dpr) ?? 60;
-    track(() => { g.fillStyle = muted; for (let t = Math.floor(t0 / step) * step; t <= t0 + D / zoom + step; t += step) { g.fillRect(X(t), rul - 5 * dpr, dpr, 5 * dpr); g.fillText(step < 1 ? fmt(t) : fmtS(t), X(t) + 3 * dpr, rul / 2 - dpr); } });
+    track(() => { g.fillStyle = muted; for (let t = Math.max(0, Math.floor(t0 / step) * step); t <= Math.min(D, t0 + D / zoom + step); t += step) { if (X(t) < lab) continue; g.fillRect(X(t), rul - 5 * dpr, dpr, 5 * dpr); g.fillText(step < 1 ? fmt(t) : fmtS(t), X(t) + 3 * dpr, rul / 2 - dpr); } });
     let y = rul;
     // a track's head: its sign and name, and "+ Add" on a computer (a tap there adds to that track: see laneTap)
     const label = (s: string, h: number, sign = "") => {
       const my = y + h / 2;
       // a phone's narrow heads: the name only (with the sign it was cut: "Effecte", "Videc")
       g.font = `600 ${(wide ? 11.5 : 10.5) * dpr}px system-ui, sans-serif`; g.fillStyle = muted; if (sign && wide) g.fillText(sign, 4 * dpr, my);
-      g.fillStyle = ink; g.fillText(s, (sign && wide ? 20 : 4) * dpr, my, lab - 6 * dpr);
+      g.fillStyle = ink; g.fillText(s, (sign && wide ? 20 : 4) * dpr, s === "Music" && !wide ? my - 8 * dpr : my, lab - 6 * dpr);
+      if (s === "Music") { const off = muted0(); g.font = `600 ${(wide ? 10 : 12) * dpr}px system-ui, sans-serif`; g.fillStyle = off ? "#ff6a7a" : acc;
+        g.fillText(wide ? (off ? "🔇" : "🔊") : off ? "🔇 Off" : "🔊 On", wide ? lab - 60 * dpr : 4 * dpr, wide ? my : my + 9 * dpr); }
       if (wide) { g.font = `600 ${10 * dpr}px system-ui, sans-serif`; g.fillStyle = acc; g.fillText("+ Add", lab - 40 * dpr, my); }
       g.font = `${11 * dpr}px system-ui, sans-serif`;
     };
     const rr = (x: number, yy: number, w: number, h: number, r: number) => { g.beginPath(); if (g.roundRect) g.roundRect(x, yy, Math.max(1, w), h, r); else g.rect(x, yy, Math.max(1, w), h); };
-    const cur = st.segAt(now), dt = trim ? trim.to - st.edit[trim.i].end : 0;
-    // where each shot is drawn: while an end is dragged that shot stretches and the shots after it move with it
-    const at = (k: number) => { const e = st.edit[k], sh = trim && k > trim.i ? dt : 0; return [e.start + sh, trim && k === trim.i ? trim.to : e.end + sh]; };
+    const cur = phone() ? sel : st.segAt(now), dt = trim && !trim.left ? trim.to - st.edit[trim.i].end : 0;
+    // where each shot is drawn: while an end is dragged that shot stretches and the shots after it move with it; while a
+    // start is dragged (a phone) the cut moves: the shot before ends there, this one starts there
+    const at = (k: number) => { const e = st.edit[k];
+      if (trim && trim.left) return [k === trim.i ? trim.to : e.start, k === trim.i - 1 ? trim.to : e.end];
+      const sh = trim && k > trim.i ? dt : 0; return [e.start + sh, trim && k === trim.i ? trim.to : e.end + sh]; };
     // a small box with a word in it (an effect, a speed), as the pro editors show them on their tracks
     const tag = (x: number, yy: number, maxW: number, h: number, text: string, bg: string, fg = "#fff") => {
       g.font = `600 ${10.5 * dpr}px system-ui, sans-serif`;
@@ -454,8 +478,19 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       const [a, b] = at(k), x0 = X(a) + dpr, x1 = X(b) - dpr, h = rows[0];
       g.fillStyle = CLIP_COL[e.src % CLIP_COL.length]; rr(x0, y, x1 - x0, h, 5 * dpr); g.fill();
       // a film strip: the clip's picture, again and again along the shot (as the editors show it)
-      const th = st.sources[e.src]?.card?.querySelector<HTMLCanvasElement>(".th");
-      if (th && th.width && x1 - x0 > 6 * dpr) {
+      const th = st.sources[e.src]?.card?.querySelector<HTMLCanvasElement>(".th"), strip = st.sources[e.src]?.strip;
+      if (strip && strip.length && x1 - x0 > 6 * dpr) {
+        // as VN: the clip's frames one after another, each the moment of the clip under it
+        g.save(); rr(x0, y, x1 - x0, h, 5 * dpr); g.clip();
+        const c0 = strip[0].c, tw = Math.max(18 * dpr, h * (c0.width / c0.height));
+        for (let tx = x0; tx < x1 && tx < W; tx += tw) { if (tx + tw <= lab) continue;
+          const ts = (e.in ?? 0) + ((tx + tw / 2 - X(a)) / pps) * (e.scaleR ?? 1);
+          let lo = 0, hi = strip.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (strip[m].t < ts) lo = m + 1; else hi = m; }
+          const f = lo > 0 && Math.abs(strip[lo - 1].t - ts) < Math.abs(strip[lo].t - ts) ? strip[lo - 1] : strip[lo];
+          g.drawImage(f.c, tx, y, tw, h); }
+        g.fillStyle = "rgba(0,0,0,.18)"; g.fillRect(x0, y, x1 - x0, h);
+        g.restore();
+      } else if (th && th.width && x1 - x0 > 6 * dpr) {
         g.save(); rr(x0, y, x1 - x0, h, 5 * dpr); g.clip();
         const tw = h * 0.75, sw = Math.min(th.width, th.height * 0.75), sx = (th.width - sw) / 2;
         for (let tx = x0; tx < x1 && tx < W; tx += tw) if (tx + tw > lab) g.drawImage(th, sx, 0, sw, th.height, tx, y, tw, h);
@@ -472,7 +507,12 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       for (const q of e.acc || []) diamond(X(a + q.at), y + 9 * dpr, r, "#f2bb1d");
       for (const q of e.uk || []) diamond(X(a + q.t), ky, r, "#6FA8FF");
       // the handle on the right edge (the last shot ends with the song)
-      if (k < st.edit.length - 1 && (k === cur || (trim && k === trim.i))) { g.fillStyle = "#fff"; rr(x1 - 5 * dpr, y + h * 0.52, 4 * dpr, h * 0.4, 2 * dpr); g.fill(); }
+      if (vn() && k === sel) {
+        g.lineWidth = 3 * dpr; g.strokeStyle = "#fff"; rr(x0, y - dpr, x1 - x0, h + 2 * dpr, 5 * dpr); g.stroke();
+        const hw = 10 * dpr; lanes.dataset.selx = Math.round(x0 / dpr) + "," + Math.round(x1 / dpr);
+        if (k > 0) { g.fillStyle = "#fff"; rr(x0 - hw + 2 * dpr, y - dpr, hw, h + 2 * dpr, 4 * dpr); g.fill(); g.fillStyle = "#555"; g.fillRect(x0 - hw / 2 - dpr, y + h * 0.35, 2 * dpr, h * 0.3); }
+        if (k < st.edit.length - 1) { g.fillStyle = "#fff"; rr(x1 - 2 * dpr, y - dpr, hw, h + 2 * dpr, 4 * dpr); g.fill(); g.fillStyle = "#555"; g.fillRect(x1 + hw / 2 - 3 * dpr, y + h * 0.35, 2 * dpr, h * 0.3); }
+      } else if (k < st.edit.length - 1 && (k === cur || (trim && k === trim.i))) { g.fillStyle = "#fff"; rr(x1 - 5 * dpr, y + h * 0.52, 4 * dpr, h * 0.4, 2 * dpr); g.fill(); }
     }));
     // transitions: a small box on the cut (a bow tie: one shot into the next), named on hover
     track(() => st.edit.forEach((e, k) => {
@@ -486,11 +526,24 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       g.beginPath(); g.moveTo(cx + 5 * dpr, top + 4 * dpr); g.lineTo(cx, top + s / 2); g.lineTo(cx + 5 * dpr, top + s - 4 * dpr); g.closePath(); g.fill();
     }));
     if (trim && dt > 0) track(() => { g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(X(D), y, W, rows[0]); }); // past the song's end: cut
+    if (vn()) track(() => { const bx = X(D) + 10 * dpr, s = rows[0] - 12 * dpr; if (bx > W) return; g.fillStyle = "#fff"; rr(bx, y + 6 * dpr, s, s, 8 * dpr); g.fill();
+      g.fillStyle = "#111"; g.fillRect(bx + s / 2 - 1.5 * dpr, y + 6 * dpr + s * 0.28, 3 * dpr, s * 0.44); g.fillRect(bx + s * 0.28, y + 6 * dpr + s / 2 - 1.5 * dpr, s * 0.44, 3 * dpr); });
+    if (move && st.edit[move.from]) {
+      const e = st.edit[move.from], h = rows[0], to = dropAt(move.x), px = (move.x - lanes.getBoundingClientRect().left) * dpr;
+      track(() => { const lx = X(st.edit[to].start) + (to > move!.from ? X(st.edit[to].end) - X(st.edit[to].start) : 0); g.fillStyle = "#fff"; g.fillRect(lx - 1.5 * dpr, y - 4 * dpr, 3 * dpr, h + 8 * dpr); });
+      const w = Math.max(40 * dpr, Math.min(110 * dpr, X(e.end) - X(e.start))), gx = Math.max(lab, Math.min(W - w, px - w / 2));
+      g.save(); g.globalAlpha = 0.92; g.shadowColor = "rgba(0,0,0,.5)"; g.shadowBlur = 12 * dpr; g.fillStyle = CLIP_COL[e.src % CLIP_COL.length]; rr(gx, y - 6 * dpr, w, h + 12 * dpr, 7 * dpr); g.fill(); g.restore();
+      const th = st.sources[e.src]?.card?.querySelector<HTMLCanvasElement>(".th");
+      if (th && th.width) { g.save(); rr(gx, y - 6 * dpr, w, h + 12 * dpr, 7 * dpr); g.clip(); g.drawImage(th, gx, y - 6 * dpr, w, h + 12 * dpr); g.restore(); }
+      g.lineWidth = 2.5 * dpr; g.strokeStyle = acc; rr(gx, y - 6 * dpr, w, h + 12 * dpr, 7 * dpr); g.stroke();
+    }
     y += rows[0] + gap;
     const bar = (a: number, b: number, s: string, col: string, h: number) => track(() => { const x0 = X(a), x1 = X(b); g.fillStyle = col; rr(x0, y + dpr, x1 - x0, h - 2 * dpr, 5 * dpr); g.fill(); g.save(); g.beginPath(); g.rect(x0, y, x1 - x0, h); g.clip(); g.fillStyle = "#fff"; g.fillText(s, Math.max(x0, lab) + 6 * dpr, y + h / 2); g.restore(); });
     label("Text", rows[1], "T");
     if (st.hook) bar(0, Math.min(D, 2.2), "T  " + st.hook, "#6d3fe0", rows[1]);
-    for (const o of st.overlays) bar(o.all ? 0 : o.t0, o.all ? D : o.t1, "T  " + o.text, "#7c4dff", rows[1]);
+    st.overlays.forEach((o, i) => { const a0 = o.all ? 0 : o.t0, b0 = o.all ? D : o.t1; bar(a0, b0, (o.emoji ? "" : "T  ") + o.text, "#7c4dff", rows[1]);
+      if (i === st.ovSel) track(() => { const xa = X(a0), xb = X(b0); g.lineWidth = 2.5 * dpr; g.strokeStyle = "#fff"; rr(xa, y + dpr, xb - xa, rows[1] - 2 * dpr, 5 * dpr); g.stroke();
+        g.fillStyle = "#fff"; rr(xa - 3 * dpr, y + dpr, 7 * dpr, rows[1] - 2 * dpr, 3 * dpr); g.fill(); rr(xb - 4 * dpr, y + dpr, 7 * dpr, rows[1] - 2 * dpr, 3 * dpr); g.fill(); }); });
     if (st.capsOn) bar(Math.min(D, 2.4), D, "CC  Captions", "#4f46e5", rows[1]);
     y += rows[1] + gap;
     label("Voice", rows[2], "◉");
@@ -508,9 +561,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
           let m = 0; for (let k = a; k < Math.max(b, a + 1) && k < pk.length; k++) if (pk[k] > m) m = pk[k];
           const hh = Math.max(dpr, m * (h / 2 - 3 * dpr)); g.fillRect(px, mid - hh, dpr, hh * 2);
         }
-        g.fillStyle = "rgba(255,255,255,.75)";
-        for (const bt of st.beats) if (bt >= t0 && bt <= t0 + D / zoom) g.fillRect(Math.round(X(bt)), y + dpr, dpr, 5 * dpr);
-        g.fillStyle = "#fff"; g.fillText("♪ " + st.songName, Math.max(X(0), lab) + 6 * dpr, y + 9 * dpr);
+        g.fillStyle = "rgba(255,255,255,.7)";
+        for (const bt of st.beats) if (bt >= t0 && bt <= t0 + D / zoom) g.fillRect(Math.round(X(bt)), y + h - 6 * dpr, dpr, 4 * dpr);
+        g.font = `600 ${10.5 * dpr}px system-ui, sans-serif`;
+        const nm = "♪ " + st.songName + (muted0() ? "  ·  muted" : ""), nx = Math.max(X(0), lab) + 5 * dpr, nw = Math.min(g.measureText(nm).width + 12 * dpr, W - nx - 4 * dpr);
+        g.fillStyle = "rgba(10,6,30,.62)"; rr(nx, y + 4 * dpr, nw, 15 * dpr, 7 * dpr); g.fill();
+        g.save(); g.beginPath(); g.rect(nx, y, nw, h); g.clip(); g.fillStyle = "#fff"; g.fillText(nm, nx + 6 * dpr, y + 11.5 * dpr); g.restore();
+        if (muted0()) { g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(Math.max(X(0), lab), y + dpr, X(D) - Math.max(X(0), lab), h - 2 * dpr); }
+        g.font = `${11 * dpr}px system-ui, sans-serif`;
       });
     } else if (st.songName) bar(0, D, "♪ " + st.songName, "#4c2a9a", rows[3]);
     else track(() => { g.fillStyle = chip; rr(lab, y + dpr, W - lab, rows[3] - 2 * dpr, 5 * dpr); g.fill(); });
@@ -523,37 +581,106 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   window.addEventListener("resize", () => { lanesKey = ""; if (wide() && !tool && made()) { tool = defTool(); apply(); } const st = S() as (Studio & { drawTimeline?: () => void }) | undefined; if (st && st.edit.length) st.drawTimeline?.(); }, sig);
   // fingers and the mouse: one pointer drags an edge, moves along (when zoomed) or taps; two pointers pinch
   const pts = new Map<number, number>(); // pointer id -> x
-  let pinch: { d0: number; z0: number; tm: number; f: number } | null = null, pan: { x: number; t0: number; moved: boolean } | null = null;
+  let pinch: { d0: number; z0: number; tm: number; f: number } | null = null, pan: { x: number; t0: number; now: number; moved: boolean; vx: number; lt: number; lx: number } | null = null;
   const spread = () => { const xs = [...pts.values()]; return { d: Math.abs(xs[0] - xs[1]) || 1, m: (xs[0] + xs[1]) / 2 }; };
+  const pxs = () => { const r = lanes.getBoundingClientRect(); return (r.width - labW()) / span(); }; // css px per second
+  // phones: a swipe on the tracks scrubs (the Reel slides under the playhead in the middle), one seek per frame
+  let scrubT: number | null = null, scrubRaf = 0, glide = 0;
+  const scrub = (t: number) => { const st = S(); if (!st) return; scrubT = Math.max(0, Math.min(st.dur - 0.01, t));
+    if (!scrubRaf) scrubRaf = requestAnimationFrame(() => { scrubRaf = 0; const s2 = S(); if (s2 && scrubT != null) { void s2.kfSeek(scrubT); lanesKey = ""; } }); };
+  // a flick keeps going a little and slows down (as VN)
+  const flick = (v: number) => { cancelAnimationFrame(glide); let vel = v, last = performance.now();
+    const step = (now: number) => { const st = S(); if (!st) return; const dt = now - last; last = now; vel *= Math.pow(0.94, dt / 16);
+      if (Math.abs(vel) < 0.02) return; scrub((scrubT ?? st.now) - (vel * dt) / pxs()); glide = requestAnimationFrame(step); };
+    glide = requestAnimationFrame(step); };
+  // a text on the Text track: drag it to move it in time, drag its ends to make it shorter or longer; a tap selects it
+  let ovDrag: { i: number; part: "body" | "l" | "r"; x0: number; a: number; b: number; moved: boolean } | null = null;
+  const ovAt = (x: number, y: number) => {
+    const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st) return null;
+    const [vh, th] = ROWS(), top = VTOP + vh + GAP; if (yy < top || yy > top + th || x < r.left + labW()) return null;
+    for (let i = st.overlays.length - 1; i >= 0; i--) { const o = st.overlays[i], a = o.all ? 0 : o.t0, b = o.all ? st.dur : o.t1, xa = xOf(a), xb = xOf(b);
+      if (x < xa - 10 || x > xb + 10) continue;
+      return { i, part: (i === st.ovSel && Math.abs(x - xa) < 14 ? "l" : i === st.ovSel && Math.abs(x - xb) < 14 ? "r" : "body") as "body" | "l" | "r", a, b }; }
+    return null;
+  };
+  // the selected clip's start (phones: a handle at each end)
+  const leftEdgeAt = (x: number, y: number) => {
+    const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st || !vn() || sel < 1 || !st.edit[sel]) return false;
+    return yy >= VTOP - 4 && yy <= VTOP + vidH() + 4 && x <= xOf(st.edit[sel].start) + 6 && x >= xOf(st.edit[sel].start) - 18;
+  };
+  const rightEdgeAt = (x: number, y: number) => {
+    const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st || !vn() || sel < 0 || sel >= st.edit.length - 1) return false;
+    return yy >= VTOP - 4 && yy <= VTOP + vidH() + 4 && x >= xOf(st.edit[sel].end) - 6 && x <= xOf(st.edit[sel].end) + 18;
+  };
+  const plusAt = (x: number, y: number) => { const st = S(), r = lanes.getBoundingClientRect(), yy = y - r.top; if (!st || !vn()) return false;
+    const bx = xOf(st.dur) + 10; return yy >= VTOP && yy <= VTOP + vidH() && x >= bx && x <= bx + vidH(); };
   lanes.addEventListener("pointerdown", (e) => {
     const st = S(); if (!st || !st.dur) return;
+    cancelAnimationFrame(glide);
     if (e.isPrimary) { pts.clear(); pinch = null; } // a new gesture: nothing left over from one that never ended
     try { lanes.setPointerCapture(e.pointerId); } catch { /* the pointer is already gone */ }
     pts.set(e.pointerId, e.clientX);
-    if (pts.size === 2) { const { d, m } = spread(), r = lanes.getBoundingClientRect(); trim = null; pan = null; pinch = { d0: d, z0: zoom, tm: tAt(m), f: (m - r.left - labW()) / (r.width - labW()) }; return; }
-    const k = edgeAt(e.clientX, e.clientY);
+    if (pts.size === 2) { const { d, m } = spread(), r = lanes.getBoundingClientRect(); trim = null; pan = null; ovDrag = null; if (press) { clearTimeout(press.tm); press = null; } move = null; pinch = { d0: d, z0: zoom, tm: tAt(m), f: (m - r.left - labW()) / (r.width - labW()) }; return; }
+    if (leftEdgeAt(e.clientX, e.clientY)) { trim = { i: sel, to: st.edit[sel].start, left: true }; lanesKey = ""; return; }
+    if (rightEdgeAt(e.clientX, e.clientY)) { trim = { i: sel, to: st.edit[sel].end }; lanesKey = ""; return; }
+    const k = vn() ? -1 : edgeAt(e.clientX, e.clientY);
     if (k >= 0) { trim = { i: k, to: st.edit[k].end }; lanesKey = ""; return; }
-    pan = { x: e.clientX, t0, moved: false };
+    const oh = ovAt(e.clientX, e.clientY);
+    if (oh) { ovDrag = { ...oh, x0: e.clientX, moved: false }; return; }
+    pan = { x: e.clientX, t0, now: st.now, moved: false, vx: 0, lt: performance.now(), lx: e.clientX };
+    const pk = st.kind === "talk" ? -1 : shotAt(e.clientX, e.clientY);
+    if (pk >= 0 && st.edit.length > 1) { const x0 = e.clientX; press = { k: pk, x: x0, y: e.clientY, tm: setTimeout(() => { press = null; pan = null; move = { from: pk, x: x0 }; lanesKey = ""; try { navigator.vibrate?.(12); } catch { /* no vibration */ } }, 380) }; }
   }, sig);
   lanes.addEventListener("pointermove", (e) => {
     if (!pts.has(e.pointerId)) { lanes.style.cursor = edgeAt(e.clientX, e.clientY) >= 0 ? "col-resize" : hitAt(e.clientX, e.clientY) ? "pointer" : "default"; const t = infoAt(e.clientX, e.clientY); if (lanes.title !== t) lanes.title = t; return; }
     pts.set(e.pointerId, e.clientX);
     const st = S(); if (!st) return;
-    if (pinch && pts.size === 2) { const { d } = spread(); zoom = pinch.z0 * (d / pinch.d0); fix(); t0 = pinch.tm - pinch.f * span(); fix(); return; }
-    if (trim) { trim.to = Math.max(st.edit[trim.i].start + 0.3, Math.min(st.dur - 0.3, tAt(e.clientX))); lanesKey = ""; return; }
-    if (pan) { const r = lanes.getBoundingClientRect(), dx = e.clientX - pan.x; if (Math.abs(dx) > 4) pan.moved = true; t0 = pan.t0 - (dx / (r.width - labW())) * span(); fix(); }
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) { clearTimeout(press.tm); press = null; }
+    if (move) { move.x = e.clientX; lanesKey = ""; const r = lanes.getBoundingClientRect(); // near an end: the tracks scroll along
+      const by = e.clientX < r.left + labW() + 24 ? -1 : e.clientX > r.right - 24 ? 1 : 0;
+      if (by && vn()) scrub(st.now + by * span() * 0.03); else if (by) { t0 += by * span() * 0.03; fix(); }
+      return; }
+    if (pinch && pts.size === 2) { const { d } = spread(); zoom = pinch.z0 * (d / pinch.d0); fix(); if (!vn()) { t0 = pinch.tm - pinch.f * span(); fix(); } return; }
+    if (ovDrag) { const o = st.overlays[ovDrag.i]; if (!o) return; const dt = (e.clientX - ovDrag.x0) / pxs(); if (Math.abs(e.clientX - ovDrag.x0) > 4) ovDrag.moved = true; if (!ovDrag.moved) return;
+      const D = st.dur, len = ovDrag.b - ovDrag.a; o.all = false;
+      if (ovDrag.part === "body") { const a = Math.max(0, Math.min(D - len, ovDrag.a + dt)); o.t0 = a; o.t1 = a + len; }
+      else if (ovDrag.part === "l") o.t0 = Math.max(0, Math.min(ovDrag.b - 0.3, ovDrag.a + dt));
+      else o.t1 = Math.max(ovDrag.a + 0.3, Math.min(D, ovDrag.b + dt));
+      lanesKey = ""; return; }
+    if (trim) { const i = trim.i;
+      trim.to = trim.left ? Math.max(st.edit[i - 1].start + 0.3, Math.min(st.edit[i].end - 0.3, tAt(e.clientX))) : Math.max(st.edit[i].start + 0.3, Math.min(st.dur - 0.3, tAt(e.clientX)));
+      lanesKey = ""; return; }
+    if (pan) { const r = lanes.getBoundingClientRect(), dx = e.clientX - pan.x; if (Math.abs(dx) > 4) pan.moved = true;
+      const now = performance.now(), dtm = Math.max(1, now - pan.lt); pan.vx = 0.7 * pan.vx + 0.3 * ((e.clientX - pan.lx) / dtm); pan.lt = now; pan.lx = e.clientX;
+      if (vn()) { if (pan.moved) scrub(pan.now - dx / pxs()); }
+      else { t0 = pan.t0 - (dx / (r.width - labW())) * span(); fix(); } }
   }, sig);
   const up = (e: PointerEvent) => {
     if (!pts.delete(e.pointerId)) return;
     const st = S();
+    if (press) { clearTimeout(press.tm); press = null; }
+    if (move) { const m = move; move = null; lanesKey = ""; pan = null; trim = null;
+      if (st && e.type === "pointerup") { const to = dropAt(e.clientX); if (to !== m.from && st.shotMove(m.from, to)) { shotKey = ""; if (phone()) selectClip(to); } else if (phone()) selectClip(m.from); }
+      return; }
     if (pinch) { if (pts.size < 2) pinch = null; pan = null; return; }
-    if (trim && st && e.type === "pointerup" && Math.abs(trim.to - st.edit[trim.i].end) >= 0.02) { const t = trim; trim = null; st.shotRipple(t.i, t.to); shotKey = ""; }
-    else if (trim && st && e.type === "pointerup") { trim = null; pan = { x: e.clientX, t0, moved: false }; } // pressed, not dragged: a tap
+    if (ovDrag) { const d = ovDrag; ovDrag = null; lanesKey = "";
+      if (st && e.type === "pointerup") { if (d.moved) st.ovRefresh(); else { st.ovSelect(d.i); if (sel >= 0) selectClip(-1, false); if (!wide() && tool !== "text") { tool = "text"; apply(); } } }
+      return; }
+    if (trim && st && e.type === "pointerup") {
+      const t = trim; trim = null;
+      if (t.left && Math.abs(t.to - st.edit[t.i].start) >= 0.02) { if (st.shotRoll(t.i, t.to)) { shotKey = ""; if (vn()) selectClip(t.i, false); } }
+      else if (!t.left && Math.abs(t.to - st.edit[t.i].end) >= 0.02) { st.shotRipple(t.i, t.to); shotKey = ""; if (vn()) selectClip(t.i, false); }
+      else if (!vn()) pan = { x: e.clientX, t0, now: st.now, moved: false, vx: 0, lt: 0, lx: e.clientX }; // pressed, not dragged: a tap
+    }
+    if (pan && pan.moved && vn() && st && e.type === "pointerup" && Math.abs(pan.vx) > 0.25) flick(pan.vx);
     if (pan && !pan.moved && st && e.type === "pointerup") {
       // a tap on a shot (its transition, effect or speed: that tab) opens the shot sheet over it; elsewhere: the playhead
-      if (e.clientX - lanes.getBoundingClientRect().left < labW()) { laneTap(e.clientY); trim = null; pan = null; lanesKey = ""; return; }
+      if (e.clientX - lanes.getBoundingClientRect().left < labW()) { laneTap(e.clientY, e.clientX - lanes.getBoundingClientRect().left); trim = null; pan = null; lanesKey = ""; return; }
+      if (plusAt(e.clientX, e.clientY)) { $("addv").click(); trim = null; pan = null; return; }
       const hit = hitAt(e.clientX, e.clientY), k = hit ? hit.k : shotAt(e.clientX, e.clientY);
-      if (k >= 0) openShot(k, hit ? hit.tab : shotTab, e.clientX);
+      if (k >= 0 && phone() && !hit) { if (sel !== k) selectClip(k, false); else openShot(k, shotTab, e.clientX); } // a phone: tap = select, again = its picker
+      else if (k >= 0) { if (phone()) selectClip(k, false); openShot(k, hit ? hit.tab : shotTab, e.clientX); }
+      else if (vn()) { if (sel >= 0) selectClip(-1); if (st.ovSel >= 0) st.ovSelect(-1); } // VN: a tap beside the clips lets go
       else void st.kfSeek(Math.max(0, Math.min(st.dur - 0.01, tAt(e.clientX))));
     }
     trim = null; pan = null; lanesKey = "";
@@ -564,18 +691,93 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   lanes.addEventListener("wheel", (e) => {
     const st = S(); if (!st || !st.dur) return;
     const r = lanes.getBoundingClientRect(), f = (e.clientX - r.left - labW()) / (r.width - labW());
-    if (e.ctrlKey) { e.preventDefault(); const tm = tAt(e.clientX); zoom *= Math.exp(-e.deltaY * 0.012); fix(); t0 = tm - f * span(); fix(); }
+    if (e.ctrlKey) { e.preventDefault(); const tm = tAt(e.clientX); zoom *= Math.exp(-e.deltaY * 0.012); fix(); if (!vn()) { t0 = tm - f * span(); fix(); } }
+    else if (vn() && (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey)) { e.preventDefault(); scrub(st.now + (e.deltaX || e.deltaY) / pxs()); }
     else if (zoom > 1 && (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey)) { e.preventDefault(); t0 += ((e.deltaX || e.deltaY) / (r.width - labW())) * span(); fix(); }
   }, { passive: false, signal: ac.signal });
 
   // a tap on a track's head ("+ Add"): Effects → the shot's effects, Video → more clips, Text / Voice / Music → that tool
-  const laneTap = (y: number) => {
+  const laneTap = (y: number, x = 0) => {
     const st = S(), yy = y - lanes.getBoundingClientRect().top; if (!st) return;
-    const vh = vidH(), text = VTOP + vh + GAP, voice = text + 24 + GAP, music = voice + 24 + GAP;
+    const [vh, th, oh] = ROWS(), text = VTOP + vh + GAP, voice = text + th + GAP, music = voice + oh + GAP;
+    // the Music head: its sound on / off (a computer: the speaker; "+ Add" there opens Music)
+    if (yy >= music && (phone() || (x > labW() - 64 && x < labW() - 42))) { muteMusic(); return; }
     if (yy >= RUL && yy < RUL + FXH) { const k = Math.max(0, st.segAt(st.now)); openShot(k, 1, xOf((st.edit[k].start + st.edit[k].end) / 2)); }
     else if (yy >= VTOP && yy < text) $("addv").click();
     else { const t = yy < voice ? "text" : yy < music ? "voice" : "music"; const b = root.querySelector<HTMLButtonElement>(`.tool[data-tool="${t}"]`); if (b && tool !== t) b.click(); }
   };
+  // the music on / off (the Music track's head): its volume to 0 and back to what it was
+  function muted0() { return root.querySelector<HTMLInputElement>("#mvol")?.value === "0"; }
+  function muteMusic() {
+    const r = root.querySelector<HTMLInputElement>("#mvol"); if (!r) return;
+    if (+r.value > 0) { r.dataset.was = r.value; r.value = "0"; } else r.value = r.dataset.was && +r.dataset.was > 0 ? r.dataset.was : "1";
+    r.dispatchEvent(new Event("input", { bubbles: true })); r.dispatchEvent(new Event("change", { bubbles: true })); lanesKey = "";
+  }
+  // where a moved clip lands: the place under the finger (before the first, after the last at the ends)
+  function dropAt(x: number) {
+    const st = S(); if (!st || !st.edit.length) return 0;
+    const k = st.edit.findIndex((e) => xOf(e.start) <= x && x < xOf(e.end));
+    return k >= 0 ? k : x < xOf(st.edit[0].start) ? 0 : st.edit.length - 1;
+  }
+  // ---- phones: the selected clip and its own toolbar (as VN): Transition, Effect, Speed, Split … every clip tool ----
+  const clipbar = $("clipbar"), ctpop = $("ctpop");
+  let ctPopKey = "";
+  const CB_SIGN: Record<string, string> = {
+    tr: '<path d="M4 6l7 6-7 6zM20 6l-7 6 7 6z"/>', fx: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+    sp: '<circle cx="12" cy="13" r="8"/><path d="M12 13l4-3M9 2h6"/>', close: '<path d="M6 6l12 12M18 6L6 18"/>', reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/>',
+  };
+  const svg = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const ONE_TAP = new Set(["rot", "fh", "fv", "fit", "rev"]);
+  function renderClipBar() {
+    const st = S(), on = phone() && sel >= 0 && !!st && !!st.edit[sel] && editing && made();
+    if (clipbar.hidden === on) clipbar.hidden = !on;
+    root.classList.toggle("clipsel", on);
+    if (!on || !st) { if (!ctpop.hidden) { ctpop.hidden = true; ctPopKey = ""; } return; }
+    const e = st.edit[sel], c = st.segAt(st.now) === sel ? st.shotCs() : null;
+    const isOn = (k: string) => !!c && (k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "rev" ? c.rev : k === "vol" ? c.vol > 0 : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm) : false);
+    const b = (k: string, n: string, ic: string, extra = "") => `<button type="button" class="cb${isOn(k) ? " on" : ""}" data-cb="${k}"${extra}>${ic}<span>${n}</span></button>`;
+    const tools = st.kind === "talk" ? [] : CLIP_TOOLS;
+    const key = [sel, st.editGen, st.edit.length, JSON.stringify(c), e.tr, e.efx, e.sp?.label].join("|");
+    if (clipbar.dataset.k === key) return; clipbar.dataset.k = key;
+    clipbar.innerHTML = `<div class="cbhead"><button type="button" class="cbx" data-cb="close" aria-label="Back to the tools">${svg(CB_SIGN.close)}</button><b>Shot ${sel + 1}</b><small>${(e.end - e.start).toFixed(1)} s</small></div><div class="cbrow">`
+      + b("tr", "Transition", svg(CB_SIGN.tr), sel ? "" : " disabled") + b("fx", "Effect", svg(CB_SIGN.fx)) + b("sp", "Speed", svg(CB_SIGN.sp))
+      + (st.kind === "talk" ? "" : b("split", "Split", sign("split")) + b("dup", "Duplicate", sign("dup")) + b("freeze", "Freeze", sign("freeze")) + b("other", "Other moment", sign("other")))
+      + tools.map(([k, n, ic]) => b(k, n, ic)).join("")
+      + (st.kind === "talk" ? "" : b("reset", "Reset", svg(CB_SIGN.reset)) + b("delete", "Delete", sign("delete"), st.edit.length < 2 ? " disabled" : ""))
+      + `</div>`;
+  }
+  function selectClip(k: number, seek = true) {
+    const st = S(); if (!st) return;
+    if (k >= st.edit.length) k = -1;
+    sel = k; lanesKey = ""; clipbar.dataset.k = "";
+    if (!ctpop.hidden) { ctpop.hidden = true; ctPopKey = ""; }
+    if (k >= 0) { if (tool && !wide()) { tool = ""; apply(); } if (seek && st.segAt(st.now) !== k) void st.kfSeek(st.edit[k].start + 0.05);
+      const r = lanes.getBoundingClientRect(), e = st.edit[k]; if (xOf(e.start) < r.left + labW() || xOf(e.end) > r.right) { t0 = e.start - span() * 0.3; fix(); } } // in view
+    renderClipBar();
+  }
+  // a tool on the selected clip works on that clip (the playhead goes into it first, if it was elsewhere)
+  const into = async (k: number) => { const st = S(); if (st && st.edit[k] && st.segAt(st.now) !== k) await st.kfSeek(st.edit[k].start + 0.05); };
+  const ctPopRender = () => { const st = S(), c = st?.shotCs(); if (!c || !ctPopKey) return; $("ctpopb").innerHTML = clipToolsHtml(c, ctPopKey); };
+  clipbar.addEventListener("click", async (ev) => {
+    const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-cb]"); const st = S(); if (!btn || !st || btn.disabled) return;
+    const k = btn.dataset.cb!;
+    if (k === "close") { selectClip(-1); return; }
+    if (sel < 0) return;
+    await into(sel);
+    if (k === "tr" || k === "fx" || k === "sp") { openShot(sel, { tr: 0, fx: 1, sp: 2 }[k], xOf((st.edit[sel].start + st.edit[sel].end) / 2)); return; }
+    if (k === "split" || k === "dup" || k === "freeze" || k === "delete") { if (st.shotOp(k)) { shotKey = ""; selectClip(Math.max(0, st.segAt(st.now)), false); } return; }
+    if (k === "other") { other(); clipbar.dataset.k = ""; renderClipBar(); return; }
+    if (k === "reset") { st.shotSet(null); clipbar.dataset.k = ""; renderClipBar(); return; }
+    const c = st.shotCs(); if (!c) return;
+    if (ONE_TAP.has(k)) {
+      if (k === "rev") await st.shotReverse(); else st.shotSet(k === "rot" ? { rot: (c.rot + 90) % 360 } : { [k]: !c[k as "fh"] });
+      clipbar.dataset.k = ""; renderClipBar(); return;
+    }
+    // every other tool: its own controls, alone, over the timeline
+    ctPopKey = k; $("ctpoph").textContent = CLIP_TOOLS.find((x) => x[0] === k)?.[1] ?? ""; ctPopRender(); ctpop.hidden = false;
+  }, sig);
+  clipToolsEvents(ctpop, () => S(), () => ctPopKey, (k) => { if (k) ctPopKey = k; }, () => { ctPopRender(); clipbar.dataset.k = ""; renderClipBar(); }, sig);
+  $("ctpopok").addEventListener("click", () => { ctpop.hidden = true; ctPopKey = ""; }, sig);
   // the shot sheet (like CapCut / VN): over the clip on a computer (an arrow points at it), from the bottom on a phone;
   // its chips show every choice with the shot's own one selected; ✕, Escape or a tap outside closes it
   const sheet = $("shotsheet");
@@ -694,6 +896,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       setText($("tcur"), fmt2(st.now)); setText($("ttot"), fmt2(st.dur));
       if (root.classList.contains("playing") !== st.playing) { root.classList.toggle("playing", st.playing); $("playov").setAttribute("aria-label", st.playing ? "Pause preview" : "Play preview"); }
       shotUI(); clipUI(); drawLanes();
+      if (sel >= 0 && (sel >= st.edit.length || wide() || !editing)) selectClip(-1, false); else if (sel >= 0) renderClipBar();
     }
     raf = requestAnimationFrame(tick);
   };

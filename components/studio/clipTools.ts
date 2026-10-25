@@ -10,7 +10,8 @@ export type ClipCs = {
 export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
 
 const I = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
-const TOOLS: [string, string, string][] = [
+/** every clip tool: [key, name, icon] (the phones' clip toolbar shows them too, components/studio/views.ts) */
+export const CLIP_TOOLS: [string, string, string][] = [
   ["vol", "Volume", I('<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>')],
   ["extract", "Extract audio", I('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')],
   ["crop", "Crop", I('<path d="M6 2v16h16M2 6h16v16"/>')],
@@ -55,7 +56,7 @@ const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5
 export function clipToolsHtml(c: ClipCs, open: string): string {
   const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
     : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : false;
-  const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${TOOLS.map(([k, n, ic]) =>
+  const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${CLIP_TOOLS.map(([k, n, ic]) =>
     `<button type="button" class="ct${on(k) ? " on" : ""}" data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
   const need = (t: string) => `<p class="cnote">${t}</p>`;

@@ -67,7 +67,8 @@ export const STUDIO_HTML = `
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
   <label class="tb-aspect" title="Format"><select id="tbaspect" aria-label="Format"><option value="9:16">9:16</option><option value="4:5">4:5</option><option value="1:1">1:1</option><option value="16:9">16:9</option></select></label>
   <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
-  <button type="button" class="btn tb-asfree" id="tbasfree" aria-pressed="false" title="Administrator: see the studio as a Free plan sees it">View as Free</button>
+  <button type="button" class="btn tb-asfree" id="tbasfree" aria-pressed="false" title="Administrator only: shows the studio the way a Free plan user sees it (locked tools, watermark). Press again to see everything.">Preview as Free user</button>
+  <button type="button" class="ibtn tb-chat" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix">${IC.spark}</button>
   <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
 </div>
 <div class="wrap">
@@ -257,6 +258,7 @@ export const STUDIO_HTML = `
           <span class="tc" id="tcur">0:00.0</span>
           <button class="btn icon" id="pshot" type="button" aria-label="Previous shot">${IC.prev}</button>
           <button class="btn icon" id="cover" disabled aria-label="Cover image" title="Cover image">${IC.image}<span>Cover</span></button>
+          <span class="tr-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="tundo" data-proxy="undo" disabled aria-label="Undo">${IC.undo}</button><button type="button" class="btn icon" id="tredo" data-proxy="redo" disabled aria-label="Redo">${IC.redo}</button></span>
           <button class="btn primary" id="play" disabled>${IC.play}<span>Preview</span></button>
           <button class="btn icon" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version">${IC.mix}<span>Change Reel</span></button>
           <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
@@ -264,9 +266,9 @@ export const STUDIO_HTML = `
           <button class="btn icon" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
         </div>
         <div class="feditbar"><button type="button" class="btn primary big" id="fedit">${IC.pen}<span>Edit</span></button><small>Change shots, effects, text, music and more on the timeline</small></div>
-        <div class="tlbar"><button class="btn mini feditdone" id="feditdone" type="button">${IC.check} Done editing</button><button class="btn mini" id="addbeat" type="button" title="A beat where the playhead is: a cut can land on it">♩ Beat here</button><button class="btn mini" id="clrbeat" type="button" title="Remove the beats you added">Clear my beats</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button><button class="btn mini" id="tlfit" type="button" aria-label="The whole Reel in view" title="The whole Reel in view">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button></span></div>
+        <div class="tlbar"><button class="btn mini feditdone" id="feditdone" type="button">${IC.check} Done editing</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button><button class="btn mini" id="tlfit" type="button" aria-label="The whole Reel in view" title="The whole Reel in view">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button></span></div>
         <div class="strip"><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
-        <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch or use − and + to zoom, drag a shot's edge to make it longer or shorter, tap a transition or an effect to change it"></canvas></div>
+        <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch to zoom. Tap a clip to select it, tap it again for its transition, effect and speed; hold a clip and drag it to move it; drag the selected clip's edge to make it longer or shorter"></canvas></div>
         <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
         <div class="msg" id="xmsg" hidden></div>
         <div class="row" id="saverow" hidden><button class="btn gold" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
@@ -316,6 +318,9 @@ export const STUDIO_HTML = `
             </div>
             <div class="ausliders musiconly">
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
+            <div class="beatmarks"><span class="label">Your beat markers</span>
+              <p class="hint">Hear a beat Shubix missed? Pause on it and add a marker: a cut can land there.</p>
+              <div class="row"><button class="btn mini" id="addbeat" type="button">＋ Add marker at playhead</button><button class="btn mini" id="clrbeat" type="button">Remove my markers</button></div></div>
             <label class="tog"><input type="checkbox" id="sfxon" checked> Sound effects on transitions (whoosh, boom, click, pop)</label>
             <label class="cslide"><span>Effects volume</span><input type="range" id="sfxv" min="0" max="1.5" step="0.05" value="0.6"><output>60%</output></label>
             <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="btn mini" data-sfx="whoosh">Whoosh</button><button type="button" class="btn mini" data-sfx="pop">Pop</button><button type="button" class="btn mini" data-sfx="boom">Boom</button><button type="button" class="btn mini" data-sfx="click">Click</button><button type="button" class="btn mini" data-sfx="riser">Riser</button><button type="button" class="btn mini" data-sfx="ding">Ding</button></div>
@@ -339,7 +344,7 @@ export const STUDIO_HTML = `
             </div>
             <div class="emojis" id="emojis" hidden></div>
             <div class="ovlist" id="ovlist"></div>
-            <p class="hint" id="ovhint" hidden>Drag a text or sticker on the preview to move it. Pause the preview where it should start or end.</p>
+            <p class="hint" id="ovhint" hidden>Drag a text or sticker on the preview to move it; pinch it with two fingers, or drag its yellow corner, to make it bigger or smaller. Pause the preview where it should start or end.</p>
           </section>
 
           <section class="panel" data-panel="captions">${panelHead("captions")}
@@ -448,6 +453,11 @@ export const STUDIO_HTML = `
 <div class="openload" id="openload" role="status" aria-live="polite"><span class="openspin" aria-hidden="true"></span><b id="openh">Opening your Reel…</b><small id="openstep">Getting the song and the clips</small><a class="btn" href="/reels" id="openback">Back to My Reels</a></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
+<div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
+<section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">
+  <div class="ctpoph"><b id="ctpoph"></b><button type="button" class="ctpopok" id="ctpopok" aria-label="Done">${IC.check}</button></div>
+  <div class="ctpopb" id="ctpopb"></div>
+</section>
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
   <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
   <div class="ss-body shotcard" id="ssbody"></div>
