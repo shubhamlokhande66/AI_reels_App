@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Icon, Spinner } from "@/components/atoms";
 import { PageHeader } from "@/components/molecules";
+import { PlanGate } from "@/components/organisms/PlanGate";
 import { TemplateCard } from "@/components/molecules/TemplateCard";
 import { groupsOf, lookName, type StudioTemplate } from "@/lib/studio-templates";
 import { useTemplates } from "@/lib/useTemplates";
@@ -11,9 +12,11 @@ import { useTemplates } from "@/lib/useTemplates";
 /** Templates: the ready-made Reels, by group, searchable; each opens the Create page with it picked. */
 export default function TemplatesPage() {
   return (
-    <Suspense fallback={<Spinner label="Loading templates…" />}>
-      <Templates />
-    </Suspense>
+    <PlanGate item="page:templates">
+      <Suspense fallback={<Spinner label="Loading templates…" />}>
+        <Templates />
+      </Suspense>
+    </PlanGate>
   );
 }
 

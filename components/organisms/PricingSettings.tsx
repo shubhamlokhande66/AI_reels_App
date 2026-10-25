@@ -17,13 +17,13 @@ const COST_LABELS: Record<string, string> = {
 };
 
 type Form = {
-  plans: { id: string; name: string; monthly: number; credits: number; ai: boolean; ads: boolean; hidden: boolean; features: string[] }[];
+  plans: { id: string; name: string; monthly: number; credits: number; freeChats: number; ai: boolean; ads: boolean; hidden: boolean; features: string[] }[];
   topUps: { id: string; credits: number; price: number }[];
   costs: Record<string, number>;
 };
 
 const toForm = (p: Pricing): Form => ({
-  plans: p.plans.map(({ id, name, monthly, credits, ai, ads, hidden, features }) => ({ id, name, monthly, credits, ai: ai ?? id !== "free", ads: ads ?? id === "free", hidden: !!hidden, features })),
+  plans: p.plans.map(({ id, name, monthly, credits, freeChats, ai, ads, hidden, features }) => ({ id, name, monthly, credits, freeChats: freeChats ?? 0, ai: ai ?? id !== "free", ads: ads ?? id === "free", hidden: !!hidden, features })),
   topUps: p.topUps.map((t) => ({ ...t })),
   costs: { ...p.costs },
 });
@@ -61,6 +61,7 @@ export function PricingSettings() {
     for (const p of form.plans) {
       if (p.id !== "free" && !whole(p.monthly, 1)) return setFormError(`${p.name}: the price must be a whole number of rupees (at least 1).`);
       if (!whole(p.credits, 0)) return setFormError(`${p.name}: credits must be a whole number.`);
+      if (!whole(p.freeChats, 0) || p.freeChats > 50) return setFormError(`${p.name}: free chat changes must be 0 to 50.`);
     }
     for (const t of form.topUps) if (!whole(t.credits, 1) || !whole(t.price, 1)) return setFormError("Top-ups need whole numbers of credits and rupees.");
     for (const [k, v] of Object.entries(form.costs)) if (!whole(v, 0) || v > 100) return setFormError(`${COST_LABELS[k] ?? q.data?.costLabels?.[k] ?? k}: use 0 to 100 credits.`);
@@ -71,7 +72,7 @@ export function PricingSettings() {
   const setFlag = (i: number, k: "ai" | "ads" | "hidden", v: boolean) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
   const setName = (i: number, v: string) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, name: v } : p)) });
   const setFeatures = (i: number, v: string) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, features: v.split("\n") } : p)) });
-  const setPlan = (i: number, k: "monthly" | "credits", v: number) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
+  const setPlan = (i: number, k: "monthly" | "credits" | "freeChats", v: number) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
   const setTop = (i: number, k: "credits" | "price", v: number) => setForm((f) => f && { ...f, topUps: f.topUps.map((t, j) => (j === i ? { ...t, [k]: v } : t)) });
 
   return (
@@ -80,7 +81,7 @@ export function PricingSettings() {
         <h2 className="font-medium">Plans & credits</h2>
         <p className="mt-1 text-sm text-muted">
           Prices in rupees, GST included. Yearly = 10 × the monthly price. Shubix AI off: that plan&apos;s Reels are edited on the phone (no AI, no
-          credits). An AI Reel uses &quot;Shubix AI edits a Reel&quot; credits once; each Ask Shubix change uses the small or whole-Reel credits. Changes show on the pricing page at once; people who already paid keep
+          credits). An AI Reel uses &quot;Shubix AI edits a Reel&quot; credits once; the first &quot;Free chats / Reel&quot; Ask Shubix changes on a Reel are free, then each uses the small or whole-Reel credits. Changes show on the pricing page at once; people who already paid keep
           what they bought.
         </p>
         {!q.data.billingEnabled && (
@@ -98,6 +99,7 @@ export function PricingSettings() {
               <th className="pb-2 font-normal">Plan</th>
               <th className="pb-2 text-right font-normal">₹ / month</th>
               <th className="pb-2 text-right font-normal">Credits</th>
+              <th className="pb-2 text-right font-normal" title="Ask Shubix changes per Reel that use no credits; after them each change uses credits">Free chats / Reel</th>
               <th className="pb-2 text-center font-normal" title="Shubix AI in this plan (off: Reels are edited on the phone)">Shubix AI</th>
               <th className="pb-2 text-center font-normal" title="Ads shown to this plan">Ads</th>
               <th className="pb-2 text-center font-normal" title="Shown on the pricing page">Offered</th>
@@ -116,6 +118,9 @@ export function PricingSettings() {
                 </td>
                 <td className="py-2 text-right">
                   <input type="number" min={0} inputMode="numeric" aria-label={`${p.name} credits`} className={NUM} value={p.credits} onChange={(e) => setPlan(i, "credits", e.target.valueAsNumber)} />
+                </td>
+                <td className="py-2 text-right">
+                  <input type="number" min={0} max={50} inputMode="numeric" aria-label={`${p.name} free chat changes per Reel`} className={NUM} value={p.freeChats} onChange={(e) => setPlan(i, "freeChats", e.target.valueAsNumber)} />
                 </td>
                 <td className="py-2 text-center"><input type="checkbox" aria-label={`${p.name}: Shubix AI`} checked={p.ai} onChange={(e) => setFlag(i, "ai", e.target.checked)} /></td>
                 <td className="py-2 text-center"><input type="checkbox" aria-label={`${p.name}: ads`} checked={p.ads} onChange={(e) => setFlag(i, "ads", e.target.checked)} /></td>

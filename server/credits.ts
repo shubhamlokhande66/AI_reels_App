@@ -69,12 +69,12 @@ export class PlanNeeded extends AppError {
   constructor(message: string, details: unknown) { super(message, { code: "PLAN_NEEDED", status: 402, details }); }
 }
 /** Has this person's plan Shubix AI? Billing off (a private studio) or the administrator: always. */
-export async function aiAllowed(admin = false): Promise<{ ok: boolean; plan: string; planName: string; balance: number | null }> {
+export async function aiAllowed(admin = false): Promise<{ ok: boolean; plan: string; planName: string; balance: number | null; freeChats: number }> {
   const uid = currentUser();
-  if (!enabled() || admin) return { ok: true, plan: "", planName: "", balance: null };
-  if (!uid) return { ok: false, plan: "free", planName: "Free", balance: 0 };
-  const w = await wallet(uid), plan = (await plansById()).get(String(w.plan)) as { ai?: boolean; name?: string } | undefined;
-  return { ok: !!plan?.ai, plan: String(w.plan), planName: plan?.name ?? String(w.plan), balance: balanceOf(w) };
+  if (!enabled() || admin) return { ok: true, plan: "", planName: "", balance: null, freeChats: 0 };
+  if (!uid) return { ok: false, plan: "free", planName: "Free", balance: 0, freeChats: 0 };
+  const w = await wallet(uid), plan = (await plansById()).get(String(w.plan)) as { ai?: boolean; name?: string; freeChats?: number } | undefined;
+  return { ok: !!plan?.ai, plan: String(w.plan), planName: plan?.name ?? String(w.plan), balance: balanceOf(w), freeChats: Number(plan?.freeChats ?? 0) };
 }
 export async function requireAiPlan(admin = false) {
   const a = await aiAllowed(admin);
@@ -91,6 +91,20 @@ export async function chargeOnce(action: string, key: string, reason: string): P
   const ref = `${action}:${uid}:${key}`;
   if (await (await col("credit_ledger")).findOne({ ref, delta: { $lt: 0 }, refunded: { $ne: true } })) return { taken: 0, ref };
   return { taken: await charge(action, ref, reason), ref };
+}
+/** One Ask Shubix message on a Reel: the plan's first few per Reel (freeChats: Editor 2, Pro 5) use no credits, the
+ * rest are charged (small or whole-Reel). Counted on the server per person and Reel by message id, so a retry of the
+ * same message is the same turn and a Reel opened again keeps its count. `undo` gives a failed turn back. */
+export async function chatTurn(reelId: string, msgId: string, action: string, reason: string) {
+  const uid = currentUser();
+  if (!enabled() || !uid) return { taken: 0, ref: "", free: false, used: 0, left: 0, undo: async () => {} };
+  const w = await wallet(uid), freeChats = Number(((await plansById()).get(String(w.plan)) as { freeChats?: number } | undefined)?.freeChats ?? 0);
+  const chats = await col("reel_chats"), _id = `${uid}:${reelId}` as unknown as ObjectId;
+  const doc = (await chats.findOneAndUpdate({ _id }, { $addToSet: { ids: msgId }, $set: { at: new Date() } }, { upsert: true, returnDocument: "after" })) as { ids?: string[] } | null;
+  const ids = doc?.ids ?? [msgId], i = ids.indexOf(msgId), used = ids.length, left = Math.max(0, freeChats - used);
+  if (i < freeChats) return { taken: 0, ref: "", free: true, used, left, undo: async () => { await chats.updateOne({ _id }, { $pull: { ids: msgId } } as never); } };
+  const c = await chargeOnce(action, `${reelId}:chat:${msgId}`, reason);
+  return { ...c, free: false, used, left, undo: async () => { await chats.updateOne({ _id }, { $pull: { ids: msgId } } as never); if (c.taken) await refund(c.ref); } };
 }
 /** The AI's price list for the phone: an AI Reel, a small and a whole-Reel chat change, Change Reel's versions */
 export async function aiCosts() { const [reel, small, big, mix] = await Promise.all(["studio_ai", "studio_chat_small", "studio_chat_big", "studio_mix"].map((k) => costOf(k))); return { reel, small, big, mix }; }

@@ -353,6 +353,8 @@ export interface Pricing {
     ai?: boolean;
     ads?: boolean;
     hidden?: boolean;
+    /** Ask Shubix changes per Reel that use no credits */
+    freeChats?: number;
     features: string[];
   }[];
   topUps: { id: string; credits: number; price: number }[];

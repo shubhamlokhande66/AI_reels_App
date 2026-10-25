@@ -11,6 +11,8 @@ import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { Button } from "@/components/atoms/Button";
 import { clock, deleteDraft, draftPreview, type Draft } from "@/lib/drafts";
 import { linkOn, type Features } from "@/lib/features-list";
+import { PAGE_LOCK } from "@/lib/plan-locks";
+import { useLockCheck } from "@/hooks/useApi";
 import { formatRelative } from "@/lib/format";
 import { useTemplates } from "@/lib/useTemplates";
 import type { Tone } from "@/lib/ui";
@@ -35,12 +37,13 @@ export function createOptions(f: Features): Option[] {
 }
 
 export function CreateSection({ features }: { features: Features }) {
+  const check = useLockCheck();
   return (
     <section aria-labelledby="create-h" className="flex flex-col gap-3">
       <SectionHeader id="create-h" title="Create Your Reel" />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7 lg:gap-3">
         {createOptions(features).map((o) => (
-          <CreateCard key={o.title} {...o} />
+          <CreateCard key={o.title} {...o} lock={PAGE_LOCK[o.href] && check ? check(PAGE_LOCK[o.href]) : ""} />
         ))}
       </div>
     </section>

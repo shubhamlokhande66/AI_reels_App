@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FastStudio } from "@/components/studio/FastStudio";
+import { PlanGate } from "@/components/organisms/PlanGate";
 
 /** Fast Studio, one address per way in:
  * - /create/music, /create/talking, /create/photo, /create/copy: the Create flow of that kind, its defaults set
@@ -25,9 +26,10 @@ export async function generateMetadata({ params }: { params: Promise<{ kind: str
 export default async function CreatePage({ params, searchParams }: { params: Promise<{ kind: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { kind } = await params;
   if (!(kind in KINDS)) notFound();
-  if (kind === "edit") {
-    const q = await searchParams;
-    if (!q.p && !q.tpl) notFound();
-  }
-  return <FastStudio kind={FLOW.has(kind as Kind) ? (kind as "music" | "talking" | "photo" | "copy") : undefined} />;
+  const q = await searchParams;
+  if (kind === "edit" && !q.p && !q.tpl) notFound();
+  const studio = <FastStudio kind={FLOW.has(kind as Kind) ? (kind as "music" | "talking" | "photo" | "copy") : undefined} />;
+  // Copy a Reel, Story Maker and a template open on their plan (lib/plan-locks.ts "page:…"); a saved Reel always opens
+  const lock = kind === "copy" ? "page:copy" : kind === "story" ? "page:story" : kind === "edit" && q.tpl && !q.p ? "page:templates" : "";
+  return lock ? <PlanGate item={lock}>{studio}</PlanGate> : studio;
 }

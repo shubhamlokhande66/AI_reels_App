@@ -12,7 +12,7 @@ import { limits } from "@/server/core/rateLimit";
 export const GET = route(async (req) => {
   const a = await availability(), admin = await isAdmin(req), p = await aiAllowed(admin);
   // planAi: this person's plan has Shubix AI (Free: the phone edits); costs and balance for the phone's confirmations
-  return { ...a, available: !!a.available && ((await getFeatures()).studioAI || admin), planAi: p.ok, plan: p.plan, planName: p.planName, balance: p.balance, costs: await aiCosts() };
+  return { ...a, available: !!a.available && ((await getFeatures()).studioAI || admin), planAi: p.ok, plan: p.plan, planName: p.planName, balance: p.balance, freeChats: p.freeChats, costs: await aiCosts() };
 });
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");

@@ -1,5 +1,6 @@
 "use client";
 
+import { PlanGate } from "@/components/organisms/PlanGate";
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon, Spinner, Toggle } from "@/components/atoms";
@@ -38,6 +39,14 @@ const EMPTY: BrandInput = {
 };
 
 export default function BrandsPage() {
+  return (
+    <PlanGate item="page:brand">
+      <Brands />
+    </PlanGate>
+  );
+}
+
+function Brands() {
   const qc = useQueryClient();
   const brands = useQuery({ queryKey: ["brands"], queryFn: api.brands });
   const voices = useQuery({ queryKey: ["voices"], queryFn: api.voices });

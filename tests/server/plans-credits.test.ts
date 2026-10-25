@@ -18,9 +18,12 @@ const coll = (name: string) => {
   return {
     findOne: async (q: Doc) => L.find((d) => match(d, q)) ?? null,
     insertOne: async (d: Doc) => { L.push({ ...d }); },
-    updateOne: async (q: Doc, u: { $set: Doc }, o?: { upsert?: boolean }) => { const d = L.find((x) => match(x, q)); if (d) Object.assign(d, u.$set); else if (o?.upsert) L.push({ ...q, ...u.$set }); },
-    findOneAndUpdate: async (q: Doc, u: { $set?: Doc; $inc?: Record<string, number> }) => {
-      const d = L.find((x) => match(x, q)); if (!d) return null;
+    updateOne: async (q: Doc, u: { $set?: Doc; $pull?: Record<string, unknown> }, o?: { upsert?: boolean }) => { const d = L.find((x) => match(x, q));
+      for (const [k, v] of Object.entries(u.$pull ?? {})) if (d) d[k] = (d[k] as unknown[]).filter((x) => x !== v);
+      if (d) Object.assign(d, u.$set ?? {}); else if (o?.upsert) L.push({ ...q, ...u.$set }); },
+    findOneAndUpdate: async (q: Doc, u: { $set?: Doc; $inc?: Record<string, number>; $addToSet?: Record<string, unknown> }, o?: { upsert?: boolean }) => {
+      let d = L.find((x) => match(x, q)); if (!d && o?.upsert) { d = { ...q }; L.push(d); } if (!d) return null;
+      for (const [k, v] of Object.entries(u.$addToSet ?? {})) { const a = (d[k] as unknown[]) ?? []; if (!a.includes(v)) a.push(v); d[k] = a; }
       Object.assign(d, u.$set ?? {}); for (const [k, v] of Object.entries(u.$inc ?? {})) d[k] = Number(d[k] ?? 0) + v; return { ...d };
     },
     find: (q: Doc) => ({ sort: () => ({ limit: () => ({ toArray: async () => L.filter((d) => match(d, q)) }) }) }),
@@ -68,5 +71,22 @@ describe("plans and Shubix AI credits", () => {
     expect((await chargeOnce("studio_chat_small", "reelA:chat1", "chat")).taken).toBe(0);
     expect((await chargeOnce("studio_chat_big", "reelA:chat2", "chat")).taken).toBe(2);
     expect(await balanceNow()).toBe(720 - 13);
+  });
+  it("gives Editor 2 and Pro 5 free chat changes per Reel, then charges", async () => {
+    const { chatTurn, setPlanByAdmin, balanceNow } = await import("@/server/credits");
+    await setPlanByAdmin("u1", "creator", 1);
+    const t = (id: string) => chatTurn("reelB", id, "studio_chat_big", "chat");
+    expect((await t("m1")).free).toBe(true);
+    expect((await t("m1")).free).toBe(true); // a retry is the same turn
+    const second = await t("m2");
+    expect([second.free, second.left]).toEqual([true, 0]);
+    const third = await t("m3");
+    expect([third.free, third.taken]).toEqual([false, 2]);
+    expect(await balanceNow()).toBe(250 - 2);
+    await third.undo(); // the AI failed: the credits come back
+    expect(await balanceNow()).toBe(250);
+    await setPlanByAdmin("u1", "pro", 1);
+    for (const id of ["p1", "p2", "p3", "p4", "p5"]) expect((await chatTurn("reelC", id, "studio_chat_small", "chat")).free).toBe(true);
+    expect((await chatTurn("reelC", "p6", "studio_chat_small", "chat")).taken).toBe(1);
   });
 });
