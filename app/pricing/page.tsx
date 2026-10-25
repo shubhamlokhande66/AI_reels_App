@@ -3,58 +3,40 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { useCredits, useMe } from "@/hooks/useApi";
+import { useCredits, useList, useMe, useT } from "@/hooks/useApi";
 import { pay } from "@/lib/razorpay";
 import { cn } from "@/lib/cn";
 import type { Credits } from "@/types/api";
 import { Badge, Button, Card, Icon, Spinner } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
+import { SectionHeading } from "@/components/molecules/SectionHeading";
 import { PlanAction, PlanCard, rupees } from "@/components/organisms/pricing/PlanCard";
 import { PlanCompare } from "@/components/organisms/pricing/PlanCompare";
 
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 
-const FAQ = [
-  ["What does a credit buy?", "Credits measure what you make. A Reel from your own clips uses 1 credit; a narrated Story Reel uses a few credits plus 1 for each Shubix picture. Classical paintings and library pictures are free. Previews are free."],
-  ["What does the 👑 mean?", "Most of the editor is free, keyframes, green screen and sound effects included. Some effects, transitions, filters and fonts, and a few advanced tools, carry a crown: you can try them in your Reel for free, and exporting with them needs the plan shown. You can also take them out and export for free."],
-  ["Are prices including GST?", "Yes. The price you see is the price you pay."],
-  ["What happens to unused credits?", "Plan credits renew every month and do not carry over. Starter and top-up credits never expire."],
-  ["Can I cancel any time?", "Yes. You pay for a month or a year at a time and nothing renews by itself, so there is nothing to cancel."],
-  ["What if a Reel fails?", "Its credits come back to you automatically."],
-  ["Do I own my Reels?", "Yes. Download them, post them anywhere, use them for your business."],
-  ["Is my footage kept?", "Uploaded clips are deleted automatically after a short time for your privacy. Download your Reel before then."],
-] as const;
-
-/** A section's heading on this page: the title and one line under it. */
-function Heading({ title, sub, center = false }: { title: string; sub?: string; center?: boolean }) {
-  return (
-    <div className={cn("flex flex-col gap-1", center && "items-center text-center")}>
-      <h2 className="m-0 font-[family-name:var(--font-display)] text-[22px] font-extrabold tracking-[-0.01em] md:text-[26px]">{title}</h2>
-      {sub && <p className="m-0 max-w-xl text-[14px] text-muted">{sub}</p>}
-    </div>
-  );
-}
 
 function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
+  const t = useT();
   return (
-    <Card as="section" aria-label="Your credits" className="flex flex-col gap-4">
+    <Card as="section" aria-label={t("pricing.yourCredits")} className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-col">
-          <span className="text-[13px] font-semibold text-muted">Your credits</span>
-          <span className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[34px] font-extrabold leading-tight tabular-nums">
+          <span className="text-[13px] font-semibold text-muted">{t("pricing.yourCredits")}</span>
+          <span className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[28px] font-semibold leading-tight tabular-nums">
             <Icon name="bolt" size={26} stroke={2.2} color="#6d8bff" />
             {c.balance.toLocaleString("en-IN")}
           </span>
         </div>
         <Badge tone="brand" className="h-8 px-3 text-[12.5px]">
           <Icon name="crown" size={14} />
-          {c.planName} plan
+          {t("pricing.planBadge", { plan: c.planName })}
         </Badge>
       </div>
       <p className="m-0 text-[12.5px] text-muted">
-        {c.plan !== "free" && c.planEnds ? `Active until ${day(c.planEnds)} · ` : ""}
-        {c.plan !== "free" && c.renews ? `New credits on ${day(c.renews)} · ` : ""}
-        {c.extra.toLocaleString("en-IN")} never expire
+        {c.plan !== "free" && c.planEnds ? `${t("pricing.activeUntil", { date: day(c.planEnds) })} · ` : ""}
+        {c.plan !== "free" && c.renews ? `${t("pricing.renews", { date: day(c.renews) })} · ` : ""}
+        {c.extra > 0 ? t("pricing.extraLeft", { n: c.extra.toLocaleString("en-IN") }) : c.plan === "free" ? t("pricing.freeNote") : ""}
       </p>
       {c.history.length > 0 && (
         <ul className="m-0 flex list-none flex-col divide-y divide-border p-0">
@@ -62,7 +44,7 @@ function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
             <li key={i} className="flex items-center justify-between gap-3 py-2 text-[13px]">
               <span className="min-w-0 truncate text-muted">{h.reason}</span>
               <span className={cn("shrink-0 font-bold tabular-nums", h.delta > 0 && "text-success")}>
-                {h.delta > 0 ? `+${h.delta.toLocaleString("en-IN")}` : `−${Math.abs(h.delta).toLocaleString("en-IN")}`}
+                {h.delta > 0 ? `+${h.delta.toLocaleString("en-IN")}` : h.delta < 0 ? `−${Math.abs(h.delta).toLocaleString("en-IN")}` : "0"}
               </span>
             </li>
           ))}
@@ -78,8 +60,11 @@ export default function PricingPage() {
   const q = useQuery({ queryKey: ["plans"], queryFn: api.plans, staleTime: 300_000 });
   const me = useMe();
   const credits = useCredits();
+  const t = useT();
+  const faq = useList("pricing.faq"); // the questions: Admin → CMS → Pricing → Questions
   const [yearly, setYearly] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(null); // the plan card tapped (until then: your plan, or the popular one)
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const signedIn = !!me.data?.user || me.data?.authEnabled === false;
   const mine = credits.data?.enabled ? credits.data : null;
@@ -88,10 +73,10 @@ export default function PricingPage() {
     setNotice(null);
     setBuying(item);
     try {
-      const r = await pay(item);
+      const r = await pay(item, { name: t("checkout.name"), logo: t("checkout.logo"), color: t("checkout.color") });
       if (r.status === "paid") {
         qc.setQueryData(["credits"], r.credits);
-        setNotice({ ok: true, text: `Payment received: ${label} is active. Thank you!` });
+        setNotice({ ok: true, text: t("pricing.paid", { item: label }) });
       } else if (r.status === "failed") {
         setNotice({ ok: false, text: r.message });
       }
@@ -107,6 +92,8 @@ export default function PricingPage() {
   const p = q.data;
   const period = yearly ? "yearly" : "monthly";
   const freeMonths = 12 - p.yearlyMonthsCharged;
+  const shown = p.plans.filter((x) => !x.hidden);
+  const selectedId = picked ?? (mine && mine.plan !== "free" && shown.some((x) => x.id === mine.plan) ? mine.plan : shown.find((x) => x.highlight)?.id ?? shown[0]?.id);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 pb-4 md:gap-16">
@@ -115,12 +102,12 @@ export default function PricingPage() {
         <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 -z-10 mx-auto h-64 max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(176,92,255,.28),transparent)] blur-2xl" />
         <Badge tone="brand" className="h-8 px-3.5 text-[12.5px] uppercase tracking-wider">
           <Icon name="coins" size={15} />
-          Pricing
+          {t("pricing.badge")}
         </Badge>
-        <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(34px,6.5vw,60px)] font-extrabold leading-[1.04] tracking-[-0.035em]">
-          Simple plans. <span className="bg-[linear-gradient(90deg,#c084fc,#e040fb_55%,#ff4fd8)] bg-clip-text text-transparent">Pay for what you make.</span>
+        <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(28px,5.5vw,44px)] font-semibold leading-[1.08] tracking-[-0.025em]">
+          {t("pricing.title1")} <span className="bg-[linear-gradient(90deg,#c084fc,#e040fb_55%,#ff4fd8)] bg-clip-text text-transparent">{t("pricing.title2")}</span>
         </h1>
-        <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">Make Reels free on your phone. Shubix AI edits them for you in Editor and Pro: an AI Reel uses {p.costs.studio_ai ?? 10} credits. No card for Free, nothing renews by itself, every price includes GST.</p>
+        <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">{t("pricing.sub", { aiCost: p.costs.studio_ai ?? 10 })}</p>
 
         {/* Monthly / Yearly */}
         <div role="radiogroup" aria-label="Billing period" className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-surface p-1.5 shadow-[var(--shadow)]">
@@ -136,10 +123,10 @@ export default function PricingPage() {
                 yearly === y ? "text-white [background:var(--gold-gradient)] shadow-[0_8px_20px_-10px_var(--brand-glow)]" : "text-muted hover:text-foreground",
               )}
             >
-              {y ? "Yearly" : "Monthly"}
+              {t(y ? "pricing.yearly" : "pricing.monthly")}
               {y && freeMonths > 0 && (
                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-extrabold", yearly ? "bg-white/20 text-white" : "bg-success/15 text-[color-mix(in_srgb,var(--success)_75%,var(--foreground))]")}>
-                  {freeMonths} months free
+                  {t("pricing.monthsFree", { n: freeMonths })}
                 </span>
               )}
             </button>
@@ -155,7 +142,7 @@ export default function PricingPage() {
       )}
 
       {/* the plans */}
-      <section aria-label="Plans" className={cn("grid items-start gap-5 sm:grid-cols-2 lg:gap-4", p.plans.filter((x) => !x.hidden).length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
+      <section aria-label="Plans" className={cn("mx-auto grid w-full gap-5 lg:max-w-none lg:gap-4", p.plans.filter((x) => !x.hidden).length === 3 ? "max-w-md lg:grid-cols-3" : "max-w-3xl sm:grid-cols-2 2xl:grid-cols-4")}>
         {p.plans.filter((x) => !x.hidden).map((plan) => {
           const item = `plan:${plan.id}:${period}`;
           const current = !!mine && mine.plan === plan.id && plan.id !== "free";
@@ -164,6 +151,8 @@ export default function PricingPage() {
               key={plan.id}
               plan={plan}
               yearly={yearly}
+              selected={plan.id === selectedId}
+              onSelect={() => setPicked(plan.id)}
               action={
                 <PlanAction
                   plan={plan}
@@ -171,6 +160,7 @@ export default function PricingPage() {
                   paymentsOpen={p.paymentsOpen}
                   current={current}
                   busy={buying === item}
+                  selected={plan.id === selectedId}
                   onBuy={() => void buy(item, `${plan.name} (${yearly ? "1 year" : "1 month"})`)}
                 />
               }
@@ -179,26 +169,26 @@ export default function PricingPage() {
         })}
       </section>
 
-      <PlanCompare />
+      <PlanCompare t={t} plans={p.plans.filter((x) => !x.hidden).map((x) => x.id)} />
 
       {/* your credits and top-ups */}
-      <section aria-label="Credits" className={cn("grid gap-5", mine && "md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]")}>
+      <section aria-label="Credits" className={cn("grid gap-5", mine && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]")}>
         {mine && <MyCredits c={mine} />}
         <Card as="section" aria-label="Top up" className="flex flex-col gap-4">
-          <Heading title="Need more credits?" sub="Top up any time. Top-up credits never expire." />
+          <SectionHeading title={t("pricing.topUpTitle")} sub={t("pricing.topUpSub")} />
           <div className="grid gap-3 sm:grid-cols-2">
-            {p.topUps.map((t) => {
-              const item = `topup:${t.id}`;
+            {p.topUps.map((tu) => {
+              const item = `topup:${tu.id}`;
               return (
-                <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 p-4">
+                <div key={tu.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 p-4">
                   <div className="flex flex-col">
-                    <span className="flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[22px] font-extrabold tabular-nums">
-                      <Icon name="bolt" size={18} stroke={2.2} color="#6d8bff" />+{t.credits.toLocaleString("en-IN")}
+                    <span className="flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[20px] font-semibold tabular-nums">
+                      <Icon name="bolt" size={18} stroke={2.2} color="#6d8bff" />+{tu.credits.toLocaleString("en-IN")}
                     </span>
-                    <span className="text-[12px] text-muted">{rupees(Math.round((t.price / t.credits) * 10) / 10)} a credit</span>
+                    <span className="text-[12px] text-muted">{t("pricing.perCredit", { price: rupees(Math.round((tu.price / tu.credits) * 10) / 10) })}</span>
                   </div>
-                  <Button size="sm" variant="secondary" loading={buying === item} disabled={!p.paymentsOpen || !signedIn || (buying !== null && buying !== item)} title={!p.paymentsOpen ? "Online payment opens soon" : !signedIn ? "Sign in to top up" : undefined} onClick={() => void buy(item, `${t.credits} credits`)}>
-                    {rupees(t.price)}
+                  <Button size="sm" variant="secondary" loading={buying === item} disabled={!p.paymentsOpen || !signedIn || (buying !== null && buying !== item)} title={!p.paymentsOpen ? t("pricing.soon") : undefined} onClick={() => void buy(item, `${tu.credits} ${t("pricing.credits")}`)}>
+                    {rupees(tu.price)}
                   </Button>
                 </div>
               );
@@ -209,13 +199,11 @@ export default function PricingPage() {
 
       {/* what a credit buys */}
       <section aria-labelledby="costs-h" className="flex flex-col gap-5">
-        <div id="costs-h">
-          <Heading title="What a credit buys" sub="Previews and the edits made on your phone are free. A Reel that fails gives its credits back." center />
-        </div>
+        <SectionHeading id="costs-h" title={t("pricing.costsTitle")} sub={t("pricing.costsSub")} center />
         <Card className="!p-2 md:!p-3">
-          <ul className="m-0 grid list-none gap-x-6 p-0 md:grid-cols-2">
+          <ul className="m-0 grid list-none gap-x-6 p-0 lg:grid-cols-2">
             {p.creditCosts.filter((c) => c.id.startsWith("studio_") || c.credits > 0).filter((c) => !["clip_reel", "version", "story_render", "preview"].includes(c.id)).map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-3 border-b border-border px-3 py-3.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
+              <li key={c.id} className="flex items-center justify-between gap-3 border-b border-border px-3 py-3.5 last:border-b-0 lg:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
                 <span className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">
                     <Icon name={c.credits === 0 ? "sparkle" : "bolt"} size={15} stroke={2} />
@@ -223,7 +211,7 @@ export default function PricingPage() {
                   <span className="min-w-0">{c.action}</span>
                 </span>
                 <Badge tone={c.credits === 0 ? "success" : "brand"} className="h-7 shrink-0 px-3 text-[12px]">
-                  {c.credits === 0 ? "Free" : `${c.credits} credit${c.credits > 1 ? "s" : ""}`}
+                  {c.credits === 0 ? t("pricing.costFree") : c.credits === 1 ? t("pricing.costCredit") : t("pricing.costCredits", { n: c.credits })}
                 </Badge>
               </li>
             ))}
@@ -233,11 +221,9 @@ export default function PricingPage() {
 
       {/* questions */}
       <section aria-labelledby="faq-h" className="flex flex-col gap-5">
-        <div id="faq-h">
-          <Heading title="Questions" sub="Everything about plans, credits and payments." center />
-        </div>
-        <div className="grid items-start gap-3 md:grid-cols-2">
-          {FAQ.map(([qq, a]) => (
+        <SectionHeading id="faq-h" title={t("pricing.faqTitle")} sub={t("pricing.faqSub")} center />
+        <div className="grid items-start gap-3 lg:grid-cols-2">
+          {faq.map(({ q: qq, a }) => (
             <details key={qq} className="group rounded-2xl border border-border bg-surface px-5 shadow-[var(--shadow)] open:border-accent/50">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-[14.5px] font-bold [&::-webkit-details-marker]:hidden">
                 {qq}
@@ -253,7 +239,7 @@ export default function PricingPage() {
 
       <p className="m-0 flex items-center justify-center gap-2 text-center text-[12.5px] text-muted">
         <Icon name="lock" size={15} />
-        {p.paymentsOpen ? "Payments are handled securely by Razorpay. We never see your card or UPI details." : "Online payment opens soon."}
+        {t(p.paymentsOpen ? "pricing.secure" : "pricing.soon")}
       </p>
     </div>
   );

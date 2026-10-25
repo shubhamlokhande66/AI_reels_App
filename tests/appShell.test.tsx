@@ -6,12 +6,17 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/projects", useRouter: (
 
 const admin = vi.hoisted(() => ({ value: false }));
 const features = vi.hoisted(() => ({ value: { fastStudio: true, studioAI: true, brands: true } as Record<string, boolean> }));
-vi.mock("@/hooks/useApi", () => ({
-  useAdmin: () => ({ admin: admin.value, required: true, loading: false }),
-  useMe: () => ({ data: { authEnabled: true, user: { id: "u", email: "me@example.com" } } }),
-  useCredits: () => ({ data: { enabled: false } }),
-  useFeatures: () => features.value,
-}));
+vi.mock("@/hooks/useApi", async () => {
+  const { tDefaults } = await import("./helpers/texts");
+  return {
+    useT: () => tDefaults,
+    useLockCheck: () => () => "",
+    useAdmin: () => ({ admin: admin.value, required: true, loading: false }),
+    useMe: () => ({ data: { authEnabled: true, user: { id: "u", email: "me@example.com" } } }),
+    useCredits: () => ({ data: { enabled: false } }),
+    useFeatures: () => features.value,
+  };
+});
 
 vi.mock("@/lib/usePresence", () => ({ usePresence: () => {} }));
 

@@ -44,19 +44,18 @@ beforeEach(() => {
 });
 
 describe("Voices page", () => {
-  it("shows honest language coverage and lists profiles", async () => {
+  it("lists the person's profiles, not the server's voice list", async () => {
     wrap(<VoicesPage />);
     expect(await screen.findByText("Warm")).toBeInTheDocument();
-    expect(await screen.findByText(/Hindi: no voice installed/)).toBeInTheDocument();
-    expect(screen.getByText(/English: voice available/)).toBeInTheDocument();
-    expect(screen.getByText(/Hindi and Marathi need a Windows voice pack/)).toBeInTheDocument();
+    // the server's voice list is not shown to people (no engine or vendor names)
+    expect(screen.queryByText(/Hindi and Marathi need a Windows voice pack/)).toBeNull();
   });
 
   it("saves a profile with parsed pronunciations", async () => {
     api.createVoice.mockResolvedValue(voiceProfile);
     wrap(<VoicesPage />);
     await userEvent.click(await screen.findByRole("button", { name: /New voice profile/ }));
-    await userEvent.type(screen.getByPlaceholderText(/My Marathi Voice/), "Crisp");
+    await userEvent.type(screen.getByPlaceholderText(/My Marathi voice/), "Crisp");
     await userEvent.type(screen.getByLabelText("Pronunciation"), "GIF = jif");
     await userEvent.click(screen.getByRole("button", { name: "Save voice profile" }));
     await waitFor(() => expect(api.createVoice).toHaveBeenCalled());
@@ -82,7 +81,7 @@ describe("Templates page", () => {
   it("shows the ready-made templates, each opening the Create page with it", async () => {
     wrap(<TemplatesPage />);
     expect(await screen.findByRole("link", { name: /Make a Reel with Beat montage|Beat montage/ })).toHaveAttribute("href", "/create/edit?tpl=montage");
-    expect(screen.getByText("Festivals")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Festivals" })).toBeInTheDocument(); // a section per group (and its filter chip)
   });
 
   it("shows the administrator's list from the server, by its groups", async () => {
@@ -90,7 +89,7 @@ describe("Templates page", () => {
     api.templates.mockResolvedValueOnce({ templates: [{ ...DEFAULT_TEMPLATES[0], id: "pongal", name: "Pongal", group: "Harvest", isNew: true }] });
     wrap(<TemplatesPage />);
     expect(await screen.findByRole("link", { name: /Pongal/ })).toHaveAttribute("href", "/create/edit?tpl=pongal");
-    expect(screen.getByText("Harvest")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Harvest" })).toBeInTheDocument();
     expect(screen.getByText("✨ New")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Beat montage/ })).toBeNull();
     localStorage.clear();   // the list is kept for the next visit

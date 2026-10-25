@@ -1,6 +1,9 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { useT } from "@/hooks/useApi";
+import { cn } from "@/lib/cn";
+import { buttonClass } from "@/components/atoms/Button";
 
 interface Props {
   label: string;
@@ -15,6 +18,7 @@ interface Props {
 }
 
 export function Dropzone({ label, hint, accept, multiple = false, validate, onFiles, onReject, disabled }: Props) {
+  const t = useT();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -41,8 +45,7 @@ export function Dropzone({ label, hint, accept, multiple = false, validate, onFi
         setOver(false);
         handle(e.dataTransfer.files);
       }}
-      className={`card items-center text-center transition-colors ${over ? "!border-[var(--accent)] !bg-[var(--chip-on)]" : ""} ${disabled ? "opacity-50" : ""}`}
-      style={{ borderStyle: "dashed", borderWidth: 1.5 }}
+      className={cn("flex flex-col items-center rounded-2xl border-[1.5px] border-dashed p-4 text-center transition-colors", over ? "border-accent bg-[var(--chip-on)]" : "border-border bg-surface", disabled && "opacity-50")}
     >
       <input
         ref={inputRef}
@@ -55,9 +58,9 @@ export function Dropzone({ label, hint, accept, multiple = false, validate, onFi
         onChange={(e) => handle(e.target.files)}
       />
       <label htmlFor={inputId} className="flex cursor-pointer flex-col items-center gap-1.5">
-        <b className="sm">{label}</b>
-        <span className="mu xs">{hint}</span>
-        <span className="btn sm mt-1.5">Choose files</span>
+        <b className="text-[12.5px]">{label}</b>
+        <span className="text-[11px] text-muted">{hint}</span>
+        <span className={buttonClass({ variant: "secondary", size: "sm", className: "mt-1.5" })}>{t("common.chooseFiles")}</span>
       </label>
     </div>
   );

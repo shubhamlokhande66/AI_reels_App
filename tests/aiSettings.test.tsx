@@ -48,6 +48,10 @@ vi.mock("@/hooks/useApi", async (orig) => ({
 
 import SettingsPage from "@/app/settings/page";
 
+/** AI settings is a list of sections; a tap opens one's form on the right */
+const openSection = async (name: RegExp) => userEvent.click(await screen.findByRole("button", { name }));
+const OLLAMA = /Ollama model \(on this computer\)/, PROVIDER = /AI provider & models/, USAGE = /Usage & budget/;
+
 const wrap = (ui: React.ReactNode) => render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
 
 beforeEach(() => {
@@ -69,6 +73,7 @@ describe("Settings: choose the AI model", () => {
   it("lists installed models with what they can do and hides embedding-only ones", async () => {
     api.aiModels.mockResolvedValue(models());
     wrap(<SettingsPage />);
+    await openSection(OLLAMA);
     const select = await screen.findByLabelText("AI model");
     const opts = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
     expect(opts).toEqual(["gemma3:4b · 3.3 GB · vision (in use)", "qwen3.5:4b · 3.4 GB · vision · reasoning"]);
@@ -80,6 +85,7 @@ describe("Settings: choose the AI model", () => {
     api.aiModels.mockResolvedValue(models());
     api.chooseModel.mockResolvedValue(models({ current: "qwen3.5:4b", source: "settings" }));
     wrap(<SettingsPage />);
+    await openSection(OLLAMA);
     await userEvent.selectOptions(await screen.findByLabelText("AI model"), "qwen3.5:4b");
     expect(screen.getByText(/turns that off for structured answers/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Use this model" }));
@@ -92,6 +98,7 @@ describe("Settings: choose the AI model", () => {
     api.aiModels.mockResolvedValue(models());
     api.testModel.mockResolvedValue({ model: "qwen3.5:4b", ok: false, seconds: 109.2, verdict: "over-eager", detail: "Understood it but also added actions you did not ask for: style." });
     wrap(<SettingsPage />);
+    await openSection(OLLAMA);
     await userEvent.selectOptions(await screen.findByLabelText("AI model"), "qwen3.5:4b");
     await userEvent.click(screen.getByRole("button", { name: "Test it" }));
     const box = await screen.findByRole("status", { name: "Model test result" });
@@ -103,6 +110,7 @@ describe("Settings: choose the AI model", () => {
   it("explains when Ollama is not running", async () => {
     api.aiModels.mockResolvedValue(models({ reachable: false, detail: "Cannot reach Ollama at http://localhost:11434.", models: [] }));
     wrap(<SettingsPage />);
+    await openSection(OLLAMA);
     expect(await screen.findByText("Ollama is not reachable")).toBeInTheDocument();
     expect(screen.getByText(/Cannot reach Ollama/)).toBeInTheDocument();
   });
@@ -113,6 +121,7 @@ describe("Settings: choose the AI model", () => {
       { name: "phi:2b", sizeGb: 1.6, capabilities: ["completion"], vision: false, thinking: false, embeddingOnly: false, current: false },
     ] }));
     wrap(<SettingsPage />);
+    await openSection(OLLAMA);
     await userEvent.selectOptions(await screen.findByLabelText("AI model"), "phi:2b");
     expect(screen.getByText(/does not report vision/)).toBeInTheDocument();
   });
@@ -122,6 +131,7 @@ describe("Settings: AI provider, fallback, test, usage", () => {
   it("shows the provider choice, LOCAL AI badge and never asks for an API key in the browser", async () => {
     api.aiModels.mockResolvedValue({ provider: "ollama", reachable: true, detail: null, current: "gemma3:4b", source: "env", envModel: "gemma3:4b", needsVision: "", models: [] });
     wrap(<SettingsPage />);
+    await openSection(PROVIDER);
     const select = await screen.findByLabelText("AI Provider");
     expect(Array.from(select.querySelectorAll("option")).map((o) => o.textContent)).toEqual(["Ollama (local)", "OpenAI (cloud)", "Gemini (no API key)"]);
     expect(screen.getAllByText("LOCAL AI").length).toBeGreaterThan(0);
@@ -147,6 +157,7 @@ describe("Settings: AI provider, fallback, test, usage", () => {
     api.saveAiConfig.mockResolvedValue(aiConfig());
     api.testAi.mockResolvedValue({ provider: "openai", model: "text-model-y", ok: true, correct: true, detail: "Connected; the answer was correct.", latencyMs: 820 });
     wrap(<SettingsPage />);
+    await openSection(PROVIDER);
     await userEvent.selectOptions(await screen.findByLabelText("AI Provider"), "openai");
     await userEvent.selectOptions(await screen.findByLabelText("Text Model"), "text-model-y");
     await userEvent.click(screen.getByLabelText("Enable fallback"));
@@ -168,6 +179,7 @@ describe("Settings: AI provider, fallback, test, usage", () => {
       budget: { exceeded: true, reason: "today's AI budget is used up", dailySpent: 3.5, monthlySpent: 20, daily: 3, monthly: 0, override: false },
     });
     wrap(<SettingsPage />);
+    await openSection(USAGE);
     expect(await screen.findByText("12 calls")).toBeInTheDocument();
     expect(screen.getByText(/Estimated cost: ₹3.50/)).toBeInTheDocument();
     expect(screen.getByText(/some models not priced/)).toBeInTheDocument();

@@ -35,7 +35,7 @@ describe("the tool bar's plan tags", () => {
   });
   it("the tag names the plan the administrator set", () => {
     plan("free", false, { ...needMap(DEFAULT_LOCKS), "studio:voice": "creator" });
-    expect(tool("voice").querySelector(".protag")!.textContent).toBe("CREATOR");
+    expect(tool("voice").querySelector(".protag")!.textContent).toBe("EDITOR"); // the creator plan is called Editor
     plan("creator", false, { ...needMap(DEFAULT_LOCKS), "studio:voice": "creator" });
     expect(tool("voice").dataset.locked).toBe("false");
     expect(tool("motion").dataset.locked).toBe("true");
@@ -48,7 +48,7 @@ describe("the tool bar's plan tags", () => {
   });
   it("the administrator has everything, and View as Free shows the free plan's tags", () => {
     plan("free");
-    root.classList.add("admin");
+    root.classList.add("admin", "planadmin"); // a real administrator (an admin key or email set up)
     root.querySelector<HTMLButtonElement>("#tbasfree")!.click(); // turns View as Free on
     expect(tool("layers").dataset.locked).toBe("true");
     root.querySelector<HTMLButtonElement>("#tbasfree")!.click(); // and off

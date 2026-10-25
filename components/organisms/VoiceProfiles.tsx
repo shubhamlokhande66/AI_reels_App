@@ -2,38 +2,34 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { btnPrimary, btnSecondary, Card, Icon, Spinner } from "@/components/atoms";
-import { EmptyState, ErrorBanner, PageHeader } from "@/components/molecules";
-import { api, errorMessage } from "@/lib/api";
-import { LANGUAGES, type Language, type VoiceProfile, type VoiceProfileInput } from "@/types/api";
+import { Badge, Button, Card, Icon, IconButton, Input, Select, Spinner, TextArea } from "@/components/atoms";
+import { EmptyState, ErrorBanner, Field, PageHeader, SidePanel } from "@/components/molecules";
 import { confirmAction } from "@/components/molecules/ConfirmDialog";
+import { useT } from "@/hooks/useApi";
+import { api, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/cn";
+import { TONE_BG } from "@/lib/ui";
+import { LANGUAGES, type Language, type VoiceProfile, type VoiceProfileInput } from "@/types/api";
 
-const FIELD = "w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent";
-const EMPTY: VoiceProfileInput = {
-  name: "",
-  voice: null,
-  language: "en",
-  speed: 1,
-  pitch: 0,
-  energy: "medium",
-  emotion: "friendly",
-  pauseStyle: "natural",
-  pronunciations: {},
-};
+const EMPTY: VoiceProfileInput = { name: "", voice: null, language: "en", speed: 1, pitch: 0, energy: "medium", emotion: "friendly", pauseStyle: "natural", pronunciations: {} };
+const EMOTIONS = ["neutral", "friendly", "energetic", "calm", "serious"] as const;
+const ENERGIES = ["low", "medium", "high"] as const;
+const PAUSES = ["tight", "natural", "dramatic"] as const;
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** a voice's name as people read it: no engine or vendor ("Kore · firm (AI, any language)" → "Kore · firm",
+ * "Microsoft David Desktop" → "David") */
+const voiceName = (n: string) => n.replace(/\s*\([^)]*\)\s*$/, "").replace(/^Microsoft\s+/, "").replace(/\s+Desktop$/, "");
 
 const toLines = (p: Record<string, string>) => Object.entries(p).map(([k, v]) => `${k} = ${v}`).join("\n");
 const fromLines = (t: string) =>
-  Object.fromEntries(
-    t
-      .split("\n")
-      .map((l) => l.split("="))
-      .filter((p) => p.length >= 2 && p[0].trim() && p.slice(1).join("=").trim())
-      .map((p) => [p[0].trim(), p.slice(1).join("=").trim()]),
-  );
+  Object.fromEntries(t.split("\n").map((l) => l.split("=")).filter((p) => p.length >= 2 && p[0].trim() && p.slice(1).join("=").trim()).map((p) => [p[0].trim(), p.slice(1).join("=").trim()]));
 
-/** Voice profiles: the /voices page, and a tab of the admin dashboard (embedded: the dashboard's header has the title). */
-export function VoiceProfiles({ embedded = false }: { embedded?: boolean } = {}) {
+/** Voice profiles (/voices, a Pro page: lib/plan-locks.ts page:voices): each person's own voices for voice-overs. One
+ * loader while it loads; the profiles as cards (play a sample, edit, delete); the form on the right (the voices by
+ * name only: no engine or vendor). */
+export function VoiceProfiles() {
   const qc = useQueryClient();
+  const t = useT();
   const system = useQuery({ queryKey: ["system-voices"], queryFn: api.systemVoices });
   const profiles = useQuery({ queryKey: ["voices"], queryFn: api.voices });
   const [editing, setEditing] = useState<{ id: string | null; data: VoiceProfileInput; pron: string } | null>(null);
@@ -45,10 +41,7 @@ export function VoiceProfiles({ embedded = false }: { embedded?: boolean } = {})
       const data = { ...e.data, pronunciations: fromLines(e.pron) };
       return e.id ? api.updateVoice(e.id, data) : api.createVoice(data);
     },
-    onSuccess: () => {
-      setEditing(null);
-      qc.invalidateQueries({ queryKey: ["voices"] });
-    },
+    onSuccess: () => { setEditing(null); qc.invalidateQueries({ queryKey: ["voices"] }); },
   });
   const del = useMutation({ mutationFn: api.deleteVoice, onSuccess: () => qc.invalidateQueries({ queryKey: ["voices"] }) });
 
@@ -56,8 +49,7 @@ export function VoiceProfiles({ embedded = false }: { embedded?: boolean } = {})
     setPreviewError(null);
     setPreviewing(p.id);
     try {
-      const blob = await api.previewVoice(p.id);
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(await api.previewVoice(p.id));
       const audio = new Audio(url);
       audio.onended = () => URL.revokeObjectURL(url);
       await audio.play();
@@ -70,168 +62,97 @@ export function VoiceProfiles({ embedded = false }: { embedded?: boolean } = {})
 
   const coverage = system.data?.languages;
   const set = <K extends keyof VoiceProfileInput>(k: K, v: VoiceProfileInput[K]) => setEditing((e) => e && { ...e, data: { ...e.data, [k]: v } });
-
   const startNew = () => setEditing({ id: null, data: EMPTY, pron: "" });
-  return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
-      {(() => {
-        const action = (profiles.data?.length ?? 0) > 0 ? <button type="button" className="btn g sm" onClick={startNew}>+ New voice profile</button> : undefined;
-        return embedded ? action && <div className="flex justify-end">{action}</div> : <PageHeader title="Voice profiles" subtitle="How your voice-overs sound. Runs offline on this computer." action={action} />;
-      })()}
+  const list = profiles.data ?? [];
 
-      {system.isLoading && <Spinner />}
-      {system.data && (
-        <section className="card" aria-label="Installed voices">
-          <span className="h2">Installed voices</span>
-          {system.data.available ? (
-            system.data.voices.map((v, k) => (
-              <div key={v.id} className="lr" style={{ boxShadow: "none" }}>
-                <span className={`it ${k % 2 ? "b1" : "b6"}`} style={{ width: 36, height: 36 }}>
-                  <Icon name="mic" size={18} />
-                </span>
-                <span className="meta">
-                  {/* the whole name, on two lines when it must (a phone): never cut off */}
-                  <b className="whitespace-normal leading-snug">{v.name}</b>
-                  <span className="mu xs">{v.language}</span>
-                </span>
-              </div>
-            ))
-          ) : (
-            <span className="sm text-danger">No offline voice engine was found on this computer.</span>
-          )}
-          {coverage && (
-            <div className="chips w" aria-label="Language coverage">
-              {LANGUAGES.map((l) => (
-                <span key={l.id} className={`badge ${coverage[l.id] ? "b-ok" : "b-run"}`}>
-                  {l.label}: {coverage[l.id] ? "voice available" : "no voice installed"}
-                </span>
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      <PageHeader title={t("nav.voices")} subtitle={t("voices.sub")} action={list.length > 0 ? <Button size="sm" icon="plus" onClick={startNew}>{t("voices.new")}</Button> : undefined} />
+
+      {/* one loader while either list loads */}
+      {(profiles.isLoading || system.isLoading) ? <Spinner label={t("voices.loading")} /> : (
+        <>
+          {profiles.error && <ErrorBanner message={errorMessage(profiles.error)} onRetry={() => profiles.refetch()} />}
+          {previewError && <ErrorBanner message={previewError} />}
+
+          {profiles.data && !list.length && <EmptyState icon="mic" title={t("voices.none")} hint={t("voices.noneText")} action={<Button icon="plus" onClick={startNew}>{t("voices.new")}</Button>} />}
+
+          {list.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {list.map((p) => (
+                <Card key={p.id} as="article" className="flex flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white", TONE_BG.story)}><Icon name="mic" size={20} /></span>
+                    <div className="min-w-0 flex-1">
+                      <b className="block truncate text-[14.5px]">{p.name}</b>
+                      <span className="text-[12px] text-muted">{LANGUAGES.find((l) => l.id === p.language)?.label}</span>
+                    </div>
+                    <Button size="sm" variant="secondary" icon={previewing === p.id ? undefined : "play"} loading={previewing === p.id} aria-label={t("voices.play", { name: p.name })} onClick={() => void preview(p)}>Play</Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge tone="brand">{cap(p.emotion)}</Badge>
+                    <Badge>{t("voices.speed", { n: p.speed.toFixed(2) })}</Badge>
+                    <Badge>{cap(p.energy)} energy</Badge>
+                    <Badge>{cap(p.pauseStyle)} pauses</Badge>
+                    {Object.keys(p.pronunciations ?? {}).length > 0 && <Badge>{Object.keys(p.pronunciations).length} words</Badge>}
+                  </div>
+                  <div className="flex items-center gap-1 border-t border-border pt-2">
+                    <Button size="sm" variant="ghost" icon="pen" onClick={() => setEditing({ id: p.id, data: { ...p }, pron: toLines(p.pronunciations) })}>{t("voices.edit")}</Button>
+                    <IconButton icon="trash" size={34} iconSize={16} plain label={`${t("voices.delete")} ${p.name}`} className="ml-auto text-danger"
+                      onClick={() => void confirmAction({ title: t("voices.deleteTitle", { name: p.name }), danger: true, ok: t("voices.delete") }).then((ok) => ok && del.mutate(p.id))} />
+                  </div>
+                </Card>
               ))}
             </div>
           )}
-          {system.data.note && <span className="mu xs">{system.data.note}</span>}
-        </section>
+
+        </>
       )}
 
-      {previewError && <ErrorBanner message={previewError} />}
-      {profiles.isLoading && <Spinner />}
-      {profiles.error && <ErrorBanner message={errorMessage(profiles.error)} />}
-      {profiles.data && profiles.data.length === 0 && !editing && (
-        <EmptyState icon="mic" title="No voice profiles yet" hint="A profile sets the voice, speed and tone for a brand's voice-overs." action={<button type="button" className="btn g" onClick={startNew}>New voice profile</button>} />
-      )}
-
-      {profiles.data?.map((p) => (
-        <div key={p.id} className="lr">
-          <span className="it b6" style={{ width: 36, height: 36 }}>
-            <Icon name="mic" size={18} />
-          </span>
-          <span className="meta">
-            <b>{p.name}</b>
-            <span className="mu xs truncate">
-              {LANGUAGES.find((l) => l.id === p.language)?.label} · {p.emotion} · {p.speed}× speed
-            </span>
-          </span>
-          <button type="button" className="ib plain" disabled={previewing === p.id} onClick={() => preview(p)} aria-label={`Play a sample of ${p.name}`}>
-            <Icon name={previewing === p.id ? "refresh" : "play"} size={18} />
-          </button>
-          <button type="button" className="btn sm" onClick={() => setEditing({ id: p.id, data: { ...p }, pron: toLines(p.pronunciations) })}>
-            Edit
-          </button>
-          <button type="button" className="ib plain" aria-label={`Delete ${p.name}`} onClick={() => void confirmAction({ title: `Delete the voice profile "${p.name}"?`, danger: true, ok: "Delete" }).then((ok) => ok && del.mutate(p.id))}>
-            <Icon name="trash" size={18} />
-          </button>
-        </div>
-      ))}
-
-      {editing && (
-        <Card>
-          <form
-            aria-label="Voice profile"
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              save.mutate(editing);
-            }}
-          >
-            <h2 className="font-medium">{editing.id ? "Edit voice profile" : "New voice profile"}</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Name</span>
-                <input required maxLength={60} className={FIELD} value={editing.data.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. My Marathi Voice" />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Language</span>
-                <select className={FIELD} value={editing.data.language} onChange={(e) => set("language", e.target.value as Language)}>
-                  {LANGUAGES.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.label}
-                      {coverage && !coverage[l.id] ? " (no voice installed)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Voice</span>
-                <select className={FIELD} value={editing.data.voice ?? ""} onChange={(e) => set("voice", e.target.value || null)}>
-                  <option value="">Automatic (by language)</option>
-                  {system.data?.voices.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.language})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Emotion</span>
-                <select className={FIELD} value={editing.data.emotion} onChange={(e) => set("emotion", e.target.value as VoiceProfileInput["emotion"])}>
-                  {["neutral", "friendly", "energetic", "calm", "serious"].map((v) => (
-                    <option key={v}>{v}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Speaking speed · {editing.data.speed.toFixed(2)}x</span>
-                <input type="range" aria-label="Speaking speed" min={0.5} max={2} step={0.01} value={editing.data.speed} onChange={(e) => set("speed", Number(e.target.value))} className="w-full accent-[var(--accent)]" />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Pitch · {editing.data.pitch > 0 ? "+" : ""}{editing.data.pitch}%</span>
-                <input type="range" aria-label="Pitch" min={-30} max={30} step={1} value={editing.data.pitch} onChange={(e) => set("pitch", Number(e.target.value))} className="w-full accent-[var(--accent)]" />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Energy</span>
-                <select className={FIELD} value={editing.data.energy} onChange={(e) => set("energy", e.target.value as VoiceProfileInput["energy"])}>
-                  {["low", "medium", "high"].map((v) => (
-                    <option key={v}>{v}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs text-muted">Pauses</span>
-                <select className={FIELD} value={editing.data.pauseStyle} onChange={(e) => set("pauseStyle", e.target.value as VoiceProfileInput["pauseStyle"])}>
-                  {["tight", "natural", "dramatic"].map((v) => (
-                    <option key={v}>{v}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label className="block text-sm">
-              <span className="mb-1 block text-xs text-muted">Pronunciation (one per line: written word = how to say it)</span>
-              <textarea aria-label="Pronunciation" rows={3} className={FIELD} value={editing.pron} onChange={(e) => setEditing({ ...editing, pron: e.target.value })} placeholder="Namora = Nuh-more-uh" />
-            </label>
-            {save.error && <ErrorBanner message={errorMessage(save.error)} />}
-            <div className="flex gap-2">
-              <button type="submit" className={btnPrimary} disabled={save.isPending || !editing.data.name.trim()}>
-                {save.isPending ? "Saving…" : "Save voice profile"}
-              </button>
-              <button type="button" className={btnSecondary} onClick={() => setEditing(null)}>
-                Cancel
-              </button>
-            </div>
-            <p className="text-xs text-muted">
-              Pitch, energy and emotion are applied as speech prosody by the engine. Voice cloning is not available in this version.
-            </p>
+      {/* the profile's form, on the right */}
+      <SidePanel open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? t("voices.formEdit") : t("voices.formNew")} where={t("nav.voices")}
+        footer={editing && <>
+          {save.error ? <span className="mr-auto text-[12.5px] text-danger">{errorMessage(save.error)}</span> : <span className="mr-auto" />}
+          <Button variant="secondary" onClick={() => setEditing(null)}>{t("common.cancel")}</Button>
+          <Button icon="check" loading={save.isPending} disabled={!editing.data.name.trim()} onClick={() => save.mutate(editing)}>{save.isPending ? t("voices.saving") : t("voices.save")}</Button>
+        </>}>
+        {editing && (
+          <form aria-label="Voice profile" className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); save.mutate(editing); }}>
+            <Card className="flex flex-col gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={t("voices.name")} className="sm:col-span-2"><Input required maxLength={60} value={editing.data.name} onChange={(e) => set("name", e.target.value)} placeholder={t("voices.namePlaceholder")} /></Field>
+                <Field label={t("voices.language")}>
+                  <Select value={editing.data.language} onChange={(e) => set("language", e.target.value as Language)}>
+                    {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+                  </Select>
+                </Field>
+                <Field label={t("voices.voice")}>
+                  <Select value={editing.data.voice ?? ""} onChange={(e) => set("voice", e.target.value || null)}>
+                    <option value="">{t("voices.auto")}</option>
+                    {system.data?.voices.map((v) => <option key={v.id} value={v.id}>{voiceName(v.name)}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              {coverage && !coverage[editing.data.language] && <p className="m-0 text-[12.5px] text-warning">{t("voices.noLanguage")}</p>}
+            </Card>
+            <Card className="flex flex-col gap-3">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label={t("voices.emotion")}><Select value={editing.data.emotion} onChange={(e) => set("emotion", e.target.value as VoiceProfileInput["emotion"])}>{EMOTIONS.map((v) => <option key={v} value={v}>{cap(v)}</option>)}</Select></Field>
+                <Field label={t("voices.energy")}><Select value={editing.data.energy} onChange={(e) => set("energy", e.target.value as VoiceProfileInput["energy"])}>{ENERGIES.map((v) => <option key={v} value={v}>{cap(v)}</option>)}</Select></Field>
+                <Field label={t("voices.pauses")}><Select value={editing.data.pauseStyle} onChange={(e) => set("pauseStyle", e.target.value as VoiceProfileInput["pauseStyle"])}>{PAUSES.map((v) => <option key={v} value={v}>{cap(v)}</option>)}</Select></Field>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={`${t("voices.speedLabel")} · ${editing.data.speed.toFixed(2)}×`}><input type="range" aria-label="Speaking speed" min={0.5} max={2} step={0.01} value={editing.data.speed} onChange={(e) => set("speed", Number(e.target.value))} className="h-11 accent-[var(--accent)]" /></Field>
+                <Field label={`${t("voices.pitch")} · ${editing.data.pitch > 0 ? "+" : ""}${editing.data.pitch}%`}><input type="range" aria-label="Pitch" min={-30} max={30} step={1} value={editing.data.pitch} onChange={(e) => set("pitch", Number(e.target.value))} className="h-11 accent-[var(--accent)]" /></Field>
+              </div>
+            </Card>
+            <Card className="flex flex-col gap-2">
+              <Field label={t("voices.pron")}><TextArea aria-label="Pronunciation" rows={4} value={editing.pron} onChange={(e) => setEditing({ ...editing, pron: e.target.value })} placeholder="Namora = Nuh-more-uh" /></Field>
+              <p className="m-0 text-[12px] text-muted">{t("voices.note")}</p>
+            </Card>
           </form>
-        </Card>
-      )}
+        )}
+      </SidePanel>
     </div>
   );
 }

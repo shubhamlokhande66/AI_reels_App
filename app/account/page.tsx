@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { ThemeChoice } from "@/components/molecules/ThemeToggle";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { useCredits, useMe } from "@/hooks/useApi";
-import { Spinner } from "@/components/atoms";
-import { ErrorBanner, PageHeader } from "@/components/molecules";
+import { cn } from "@/lib/cn";
+import { useCredits, useMe, useT } from "@/hooks/useApi";
+import { Avatar, Badge, Button, Card, Heading, Icon, Input, Spinner } from "@/components/atoms";
+import { ErrorBanner, Field, PageHeader, PasswordInput, SidePanel } from "@/components/molecules";
+import { passwordOk } from "@/lib/validate";
 
+const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 
-function ChangePassword({ email }: { email: string }) {
+function ChangePassword({ email, onDone }: { email: string; onDone: () => void }) {
+  const t = useT();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [again, setAgain] = useState("");
@@ -21,17 +24,16 @@ function ChangePassword({ email }: { email: string }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
-    if (!current) return setMsg({ ok: false, text: "Enter your current password." });
-    if (next.length < 8) return setMsg({ ok: false, text: "Your new password needs at least 8 characters." });
-    if (next !== again) return setMsg({ ok: false, text: "The two new passwords don't match." });
-    if (next === current) return setMsg({ ok: false, text: "The new password is the same as your current one." });
+    if (!current) return setMsg({ ok: false, text: t("account.errCurrent") });
+    if (!passwordOk(next)) return setMsg({ ok: false, text: t("account.errShort") });
+    if (next !== again) return setMsg({ ok: false, text: t("account.errMismatch") });
+    if (next === current) return setMsg({ ok: false, text: t("account.errSame") });
     setBusy(true);
     try {
       await api.changePassword(current, next);
-      setCurrent("");
-      setNext("");
-      setAgain("");
-      setMsg({ ok: true, text: "Password updated. You've been signed out on your other devices." });
+      setCurrent(""); setNext(""); setAgain("");
+      setMsg({ ok: true, text: t("account.updated") });
+      setTimeout(onDone, 1500);
     } catch (err) {
       setMsg({ ok: false, text: errorMessage(err) });
     } finally {
@@ -40,36 +42,56 @@ function ChangePassword({ email }: { email: string }) {
   }
 
   return (
-    <form onSubmit={submit} className="card" aria-label="Change password">
-      <span className="h2">Change password</span>
-      <label className="f">
-        Email
-        <input className="inp" value={email} disabled readOnly />
-      </label>
-      <label className="f">
-        Current password
-        <input type="password" autoComplete="current-password" placeholder="••••••••" value={current} onChange={(e) => setCurrent(e.target.value)} className="inp" />
-      </label>
-      <label className="f">
-        New password
-        <input type="password" autoComplete="new-password" placeholder="At least 8 characters" value={next} onChange={(e) => setNext(e.target.value)} className="inp" />
-      </label>
-      <label className="f">
-        Confirm new password
-        <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} className="inp" />
-      </label>
-      {msg && <p className={`sm ${msg.ok ? "text-success" : "text-danger"}`}>{msg.text}</p>}
-      <button type="submit" className="btn g" disabled={busy}>
-        {busy ? "Saving…" : "Update password"}
-      </button>
+    <form onSubmit={submit} className="flex flex-col gap-3" aria-label={t("account.changeTitle")}>
+      <Card className="flex flex-col gap-3">
+        <Field label={t("auth.email")}><Input value={email} disabled readOnly /></Field>
+        <Field label={t("account.current")}><PasswordInput autoComplete="current-password" placeholder="••••••••" value={current} onChange={(e) => setCurrent(e.target.value)} /></Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t("account.newPassword")} hint={t("auth.lengthHint")} error={next && !passwordOk(next) ? t("account.errShort") : next && next === current ? t("account.errSame") : ""} ok={passwordOk(next) && next !== current ? t("auth.strongEnough") : ""}>
+            <PasswordInput autoComplete="new-password" placeholder={t("auth.newPasswordPlaceholder")} value={next} invalid={!!next && (!passwordOk(next) || next === current)} onChange={(e) => setNext(e.target.value)} />
+          </Field>
+          <Field label={t("account.confirmNew")} error={again && again !== next ? t("account.errMismatch") : ""} ok={again && again === next ? t("auth.match") : ""}>
+            <PasswordInput autoComplete="new-password" placeholder={t("auth.confirmPlaceholder")} value={again} invalid={!!again && again !== next} onChange={(e) => setAgain(e.target.value)} />
+          </Field>
+        </div>
+      </Card>
+      {msg && <p className={cn("m-0 rounded-xl border px-3 py-2 text-[13px] font-semibold", msg.ok ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger")}>{msg.text}</p>}
+      <Button type="submit" icon="check" loading={busy} disabled={!current || !passwordOk(next) || next === current || again !== next} className="self-end">{busy ? t("account.saving") : t("account.update")}</Button>
     </form>
+  );
+}
+
+function Sessions() {
+  const t = useT();
+  const qc = useQueryClient();
+  const [done, setDone] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="flex flex-col gap-3">
+      <Card className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-success/15 text-success"><Icon name="check" size={18} /></span>
+        <span className="min-w-0 flex-1"><b className="block text-[14px]">{t("account.thisDevice")}</b><span className="text-[12.5px] text-muted">{t("account.sessionsTitle")}</span></span>
+        <Badge tone="success">{t("account.signedIn")}</Badge>
+      </Card>
+      <p className="m-0 text-[13px] text-muted">{t("account.sessionsText")}</p>
+      {done && <p className="m-0 rounded-xl border border-success/40 bg-success/10 px-3 py-2 text-[13px] font-semibold text-success">{done}</p>}
+      <Button variant="secondary" icon="signout" loading={busy} className="self-end"
+        onClick={async () => {
+          setBusy(true);
+          try { await api.logoutEverywhere(); await qc.invalidateQueries({ queryKey: ["me"] }); setDone(t("account.everywhereDone")); }
+          catch (e) { setDone(errorMessage(e)); }
+          finally { setBusy(false); }
+        }}>
+        {t("account.everywhere")}
+      </Button>
+    </div>
   );
 }
 
 function DeleteAccount({ email }: { email: string }) {
   const router = useRouter();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const t = useT();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +100,8 @@ function DeleteAccount({ email }: { email: string }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (confirm.trim().toLowerCase() !== email) return setError("Type your email address exactly to confirm.");
-    if (!password) return setError("Enter your password.");
+    if (confirm.trim().toLowerCase() !== email) return setError(t("account.errEmail"));
+    if (!password) return setError(t("auth.noPassword"));
     setBusy(true);
     try {
       await api.deleteAccount(password, confirm.trim());
@@ -92,123 +114,123 @@ function DeleteAccount({ email }: { email: string }) {
   }
 
   return (
-    <section className="card" style={{ borderColor: "color-mix(in srgb, var(--danger) 30%, var(--border))" }} aria-label="Delete account">
-      <span className="h2 text-danger">Delete account</span>
-      <span className="mu sm">Removes your projects, clips and songs. This cannot be undone. Download anything you want to keep first.</span>
-      {!open ? (
-        <button type="button" className="btn danger" onClick={() => setOpen(true)}>
-          Delete my account
-        </button>
-      ) : (
-        <form onSubmit={submit} className="flex flex-col gap-2.5">
-          <label className="f">
-            <span>
-              Type <strong className="text-foreground">{email}</strong> to confirm
-            </span>
-            <input value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" className="inp" />
-          </label>
-          <label className="f">
-            Your password
-            <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="inp" />
-          </label>
-          {error && <ErrorBanner message={error} />}
-          <div className="g2">
-            <button type="button" className="btn" disabled={busy} onClick={() => setOpen(false)}>
-              Keep my account
-            </button>
-            <button type="submit" className="btn danger fill" disabled={busy}>
-              {busy ? "Deleting…" : "Delete everything"}
-            </button>
-          </div>
-        </form>
-      )}
-    </section>
+    <form onSubmit={submit} className="flex flex-col gap-3" aria-label={t("account.deleteTitle")}>
+      <p className="m-0 flex gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2.5 text-[13px] text-danger"><Icon name="warn" size={17} className="mt-px shrink-0" />{t("account.deleteText")}</p>
+      <Card className="flex flex-col gap-3">
+        <Field label={t("account.typeEmail", { email })} error={confirm && confirm.trim().toLowerCase() !== email ? t("account.errEmail") : ""} ok={confirm.trim().toLowerCase() === email ? "✓" : ""}>
+          <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="off" />
+        </Field>
+        <Field label={t("account.yourPassword")}><PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
+      </Card>
+      {error && <ErrorBanner message={error} />}
+      <Button type="submit" variant="danger" icon="trash" loading={busy} disabled={confirm.trim().toLowerCase() !== email || !password} className="self-end bg-danger text-white hover:bg-danger">{busy ? t("account.deleting") : t("account.deleteAll")}</Button>
+    </form>
   );
 }
 
-/** The signed-in person's account: email, plan and credits, password, sign out everywhere, delete. */
+type Panel = "password" | "sessions" | "delete";
+
+/** My account: who you are and your plan at the top, your credits, then the account's settings as rows (a tap opens the
+ * form on the right: password, devices, delete), the look, and Sign out. Every text is in Admin → CMS → My account. */
 export default function AccountPage() {
   const me = useMe();
   const credits = useCredits();
   const qc = useQueryClient();
-  const [everywhere, setEverywhere] = useState<string | null>(null);
-  const [tab, setTab] = useState<"password" | "sessions" | "delete">("password");
+  const router = useRouter();
+  const t = useT();
+  const [panel, setPanel] = useState<Panel | null>(null);
 
-  if (me.isLoading) return <Spinner label="Loading your account…" />;
+  if (me.isLoading) return <Spinner label={t("account.loading")} />;
   if (!me.data?.authEnabled)
     return (
-      <div className="mx-auto w-full max-w-xl">
-        <PageHeader title="My account" />
-        <p className="card mu sm">This studio runs without accounts, so there is nothing to manage here.</p>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+        <PageHeader title={t("nav.myAccount")} />
+        <Card><p className="m-0 text-[12.5px] text-muted">{t("account.noAccounts")}</p></Card>
         <ThemeChoice />
       </div>
     );
   const user = me.data.user;
-  if (!user) return <Spinner label="Signing in…" />;
+  if (!user) return <Spinner label={t("account.signingIn")} />;
   const c = credits.data?.enabled ? credits.data : null;
   const name = user.email.split("@")[0];
+  const paid = !!c && c.plan !== "free";
+  const signOut = async () => { await api.logout(); await qc.invalidateQueries(); router.replace("/login"); };
+
+  const row = (id: Panel, icon: string, title: string, line: string, danger = false) => (
+    <button type="button" onClick={() => setPanel(id)} aria-haspopup="dialog"
+      className="flex w-full items-center gap-3 border-t border-border px-4 py-3.5 text-left transition-colors first:border-t-0 hover:bg-accent/6 md:px-5">
+      <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", danger ? "bg-danger/12 text-danger" : "bg-accent/12 text-accent")}><Icon name={icon} size={18} /></span>
+      <span className="min-w-0 flex-1">
+        <b className={cn("block text-[14px]", danger && "text-danger")}>{title}</b>
+        <span className="block truncate text-[12.5px] text-muted">{line}</span>
+      </span>
+      <Icon name="chevron" size={18} className="shrink-0 text-muted" />
+    </button>
+  );
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
-      <PageHeader title="My account" />
-      <div className="row">
-        <span className="avatar h-[52px] w-[52px] font-display text-[22px] font-semibold">{name[0]?.toUpperCase()}</span>
-        <span className="flex min-w-0 flex-col">
-          <b className="truncate capitalize">{name}</b>
-          <span className="mu sm truncate">
-            {user.email} · {c ? `${c.planName} plan` : "Free"}
-          </span>
-        </span>
-        {c && (
-          <Link href="/pricing" className="cred ml-auto">
-            <i aria-hidden />
-            {c.balance.toLocaleString("en-IN")}
-            <span className="sr-only"> credits</span>
-          </Link>
-        )}
-      </div>
-      <div className="tabs2" role="tablist" aria-label="Account sections">
-        {(
-          [
-            ["password", "Password"],
-            ["sessions", "Sessions"],
-            ["delete", "Delete"],
-          ] as const
-        ).map(([k, l]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
-            {l}
-          </button>
-        ))}
-      </div>
-      {tab === "password" && <ChangePassword email={user.email} />}
-      {tab === "sessions" && (
-        <section className="card" aria-label="Sessions">
-          <span className="h2">Signed in somewhere else?</span>
-          <div className="between sm">
-            <span>This device</span>
-            <span className="badge b-ok">Signed in</span>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <PageHeader title={t("nav.myAccount")} />
+
+      {/* who you are, and your plan */}
+      <Card className="relative flex flex-col gap-4 overflow-hidden sm:flex-row sm:items-center">
+        <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[radial-gradient(closest-side,rgba(176,92,255,.28),transparent)]" />
+        <div className="relative flex min-w-0 flex-1 items-center gap-4">
+          <Avatar email={name} size={64} />
+          <div className="min-w-0">
+            <Heading className="truncate capitalize">{name}</Heading>
+            <p className="m-0 flex min-w-0 items-center gap-1.5 text-[13px] text-muted"><span className="truncate">{user.email}</span>
+              {user.emailVerified === false ? <Badge tone="warning" className="h-5 shrink-0 px-2 text-[11px]">{t("auth.unverifiedBadge")}</Badge>
+                : <Badge tone="success" className="h-5 shrink-0 px-2 text-[11px]"><Icon name="check" size={11} />{t("auth.verifiedBadge")}</Badge>}</p>
+            <Badge tone={paid ? "brand" : "neutral"} className="mt-1.5 h-6 px-2.5">{paid && <Icon name="crown" size={12} />}{c ? t("nav.planSuffix", { plan: c.planName }) : t("plan.free")}</Badge>
           </div>
-          <span className="mu sm">Sign out on every other phone and computer. You stay signed in here.</span>
-          {everywhere && <p className="sm text-success">{everywhere}</p>}
-          <button
-            type="button"
-            className="btn"
-            onClick={async () => {
-              try {
-                await api.logoutEverywhere();
-                await qc.invalidateQueries({ queryKey: ["me"] });
-                setEverywhere("Done: you're signed out everywhere else.");
-              } catch (e) {
-                setEverywhere(errorMessage(e));
-              }
-            }}
-          >
-            Sign out everywhere else
-          </button>
-        </section>
+        </div>
+        <div className="relative flex flex-col gap-1.5 sm:items-end">
+          <Button href="/pricing" icon={paid ? "coins" : "crown"} variant={paid ? "secondary" : "primary"}>{t(paid ? "account.manage" : "account.upgrade")}</Button>
+          {!paid && <span className="max-w-[260px] text-[12px] text-muted sm:text-right">{t("account.freeLine")}</span>}
+        </div>
+      </Card>
+
+      {/* your credits */}
+      {c && (
+        <Card className="grid grid-cols-3 divide-x divide-border p-0 md:p-0">
+          {([
+            ["bolt", t("account.statCredits"), c.balance.toLocaleString("en-IN"), c.monthly ? t("account.monthly", { n: c.monthly.toLocaleString("en-IN") }) : ""],
+            ["crown", t("account.statPlan"), c.planName, paid && c.planEnds ? t("account.until", { date: day(c.planEnds) }) : t("account.forever")],
+            ["coins", t("account.statExtra"), c.extra.toLocaleString("en-IN"), t("account.neverExpire")],
+          ] as const).map(([icon, label, value, note]) => (
+            <div key={label} className="flex min-w-0 flex-col gap-1 px-3 py-3.5 sm:px-4">
+              <span className="flex items-center gap-1.5 text-[11.5px] font-semibold text-muted"><Icon name={icon} size={13} className="hidden text-accent sm:block" /><span className="truncate">{label}</span></span>
+              <b className="truncate font-[family-name:var(--font-display)] text-[20px] font-semibold leading-tight tracking-[-0.01em] sm:text-[22px]">{value}</b>
+              {note && <span className="truncate text-[11px] text-muted">{note}</span>}
+            </div>
+          ))}
+        </Card>
       )}
-      {tab === "delete" && <DeleteAccount email={user.email} />}
+
+      {/* the account's settings */}
+      <section aria-label={t("account.security")} className="flex flex-col gap-2">
+        <span className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted">{t("account.security")}</span>
+        <Card className="overflow-hidden p-0 md:p-0">
+          {row("password", "key", t("account.changeTitle"), t("account.rowPassword"))}
+          {row("sessions", "shield", t("account.devices"), t("account.rowSessions"))}
+        </Card>
+      </section>
+
       <ThemeChoice />
+
+      <section aria-label={t("account.danger")} className="flex flex-col gap-2">
+        <span className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted">{t("account.danger")}</span>
+        <Card className="overflow-hidden border-danger/30 p-0 md:p-0">{row("delete", "trash", t("account.deleteTitle"), t("account.rowDelete"), true)}</Card>
+      </section>
+
+      <Button variant="secondary" icon="signout" onClick={() => void signOut()} className="self-center">{t("nav.signOut")}</Button>
+
+      <SidePanel open={panel === "password"} onClose={() => setPanel(null)} title={t("account.changeTitle")} where={t("nav.myAccount")}>
+        <ChangePassword email={user.email} onDone={() => setPanel(null)} />
+      </SidePanel>
+      <SidePanel open={panel === "sessions"} onClose={() => setPanel(null)} title={t("account.devices")} where={t("nav.myAccount")}><Sessions /></SidePanel>
+      <SidePanel open={panel === "delete"} onClose={() => setPanel(null)} title={t("account.deleteTitle")} where={t("nav.myAccount")}><DeleteAccount email={user.email} /></SidePanel>
     </div>
   );
 }

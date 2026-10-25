@@ -186,12 +186,14 @@ export interface UploadResult {
 
 export const api = {
   health: () => request<Health>("/api/health"),
-  me: () => request<{ authEnabled: boolean; user: { id: string; email: string; iosApp?: boolean } | null }>("/api/auth/me"),
+  me: () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me"),
   login: (email: string, password: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   register: (email: string, password: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  verifyEmail: (token: string) => request<{ ok: boolean; email: string }>("/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) }),
+  resendVerify: () => request<{ ok: boolean; sent?: boolean; verified?: boolean }>("/api/auth/verify/resend", { method: "POST" }),
   forgotPassword: (email: string) => request<{ ok: boolean }>("/api/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
   resetPassword: (token: string, password: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/reset", { method: "POST", body: JSON.stringify({ token, password }) }),
@@ -219,8 +221,16 @@ export const api = {
   setPlanLocks: (body: import("@/lib/plan-locks").LockOverrides) => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks", { method: "PUT", body: JSON.stringify(body) }),
   adminErrors: () => request<{ errors: { id: string; kind: string; message: string; where: string; count: number; firstAt: string; lastAt: string; path: string; ua: string; stack: string }[] }>("/api/admin/errors"),
   clearAdminError: (id: string) => request<{ ok: boolean }>("/api/admin/errors", { method: "DELETE", body: JSON.stringify({ id }) }),
-  setPricing: (body: { plans: { id: string; name?: string; monthly: number; credits: number; freeChats?: number; ai?: boolean; ads?: boolean; hidden?: boolean; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
+  setPricing: (body: { plans: { id: string; name?: string; monthly: number; credits: number; freeChats?: number; highlight?: boolean; ai?: boolean; ads?: boolean; hidden?: boolean; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
     request<Pricing>("/api/admin/pricing", { method: "PUT", body: JSON.stringify(body) }),
+  /** The administrator's texts (Admin → CMS; lib/texts.ts has the defaults). */
+  texts: () => request<import("@/lib/texts").Texts>("/api/texts"),
+  setTexts: (patch: Record<string, string | null>) => request<import("@/lib/texts").Texts>("/api/admin/texts", { method: "PUT", body: JSON.stringify(patch) }),
+  /** Admin → Settings → Business details (empty fields: the server's environment). */
+  setSite: (patch: Partial<SiteInfo>) => request<SiteInfo>("/api/admin/site", { method: "PUT", body: JSON.stringify(patch) }),
+  /** The administrator's lists (Admin → CMS; lib/collections.ts has the first items). */
+  content: () => request<import("@/lib/collections").Content>("/api/content"),
+  setContent: (patch: Record<string, import("@/lib/collections").ListItem[] | null>) => request<import("@/lib/collections").Content>("/api/admin/content", { method: "PUT", body: JSON.stringify(patch) }),
   /** Which parts of the app are on (Administration → Features). */
   features: () => request<Features>("/api/features"),
   aiDirectorReport: () => request<AiDirectorReport>("/api/admin/ai-director"),

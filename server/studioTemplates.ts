@@ -36,6 +36,7 @@ export const TemplateIn = z.object({
   showFrom: day,
   showTo: day,
   isNew: z.boolean().optional(),
+  plan: z.enum(["free", "creator", "pro", "business"]).optional(),
   edit: z.object({
     look: z.enum(keys(TPL_LOOKS)),
     mode: z.enum(keys(TPL_MODES)).optional(),

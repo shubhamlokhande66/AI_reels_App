@@ -21,7 +21,7 @@ const I = (plan: PlanId, list: [string, string][]): LockItem[] => list.map(([key
 export const DEFAULT_LOCKS: PlanLocks = {
   groups: [
     // whole pages: on a lower plan the Home card carries the plan's tag, and the page itself asks to upgrade (PlanGate)
-    { id: "page", name: "Pages", items: [...I("creator", [["copy", "Copy a Reel"], ["templates", "Templates"], ["story", "Story Maker"]]), ...I("pro", [["brand", "Brand kit"]])] },
+    { id: "page", name: "Pages", items: [...I("creator", [["copy", "Copy a Reel"], ["templates", "Templates"], ["story", "Story Maker"]]), ...I("pro", [["brand", "Brand kit"], ["voices", "Voice profiles"]])] },
     // the tool bar's tools (components/studio/views.ts): on a lower plan they carry their plan's tag and open /pricing
     { id: "studio", name: "Studio tools", items: I("pro", [["motion", "Motion (keyframes)"], ["layers", "Layers (overlay, green screen, blend, GIF)"], ["bg", "Background"], ["voice", "Voice"]]) },
     { id: "fx", name: "Effects", items: [
@@ -66,10 +66,10 @@ export function applyOverrides(o: LockOverrides | null | undefined): PlanLocks {
 export const needMap = (L: PlanLocks) => Object.fromEntries(L.groups.flatMap((g) => g.items.map((it) => [`${g.id}:${it.key}`, it.plan])));
 
 /** the page an address opens, for its lock ("/create/copy" -> "page:copy") */
-export const PAGE_LOCK: Record<string, string> = { "/create/copy": "page:copy", "/templates": "page:templates", "/create/story": "page:story", "/brands": "page:brand" };
+export const PAGE_LOCK: Record<string, string> = { "/create/copy": "page:copy", "/templates": "page:templates", "/create/story": "page:story", "/brands": "page:brand", "/voices": "page:voices" };
 /** The tag on a locked page or card: "Upgrade", never a plan's name (a Free user is not left choosing between Editor and
  * Pro from a tag); a tap opens the plans. */
-export const lockTag = (need: PlanId) => (need ? "👑 Upgrade" : "");
+export const lockTag = (need: PlanId) => (need ? "Upgrade" : ""); // shown with a crown (components/molecules/LockBadge.tsx)
 /** what a person may open: billing off (or signed out with billing off) and the administrator see everything */
 export function lockedFor(need: string | undefined, who: { plan?: string | null; open: boolean }) {
   return !who.open && planRank(need) > planRank(who.plan);

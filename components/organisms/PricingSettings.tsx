@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import type { Pricing } from "@/types/api";
-import { btnPrimary, Card } from "@/components/atoms";
-import { ErrorBanner } from "@/components/molecules";
+import { cn } from "@/lib/cn";
+import { Badge, Button, Card, Heading, Icon, Input, TextArea, Toggle } from "@/components/atoms";
+import { ErrorBanner, Field } from "@/components/molecules";
 
 const COST_LABELS: Record<string, string> = {
   clip_reel: "Reel from clips",
@@ -17,18 +18,16 @@ const COST_LABELS: Record<string, string> = {
 };
 
 type Form = {
-  plans: { id: string; name: string; monthly: number; credits: number; freeChats: number; ai: boolean; ads: boolean; hidden: boolean; features: string[] }[];
+  plans: { id: string; name: string; monthly: number; credits: number; freeChats: number; highlight: boolean; ai: boolean; ads: boolean; hidden: boolean; features: string[] }[];
   topUps: { id: string; credits: number; price: number }[];
   costs: Record<string, number>;
 };
 
 const toForm = (p: Pricing): Form => ({
-  plans: p.plans.map(({ id, name, monthly, credits, freeChats, ai, ads, hidden, features }) => ({ id, name, monthly, credits, freeChats: freeChats ?? 0, ai: ai ?? id !== "free", ads: ads ?? id === "free", hidden: !!hidden, features })),
+  plans: p.plans.map(({ id, name, monthly, credits, freeChats, highlight, ai, ads, hidden, features }) => ({ id, name, monthly, credits, freeChats: freeChats ?? 0, highlight: !!highlight, ai: ai ?? id !== "free", ads: ads ?? id === "free", hidden: !!hidden, features })),
   topUps: p.topUps.map((t) => ({ ...t })),
   costs: { ...p.costs },
 });
-
-const NUM = "w-24 rounded-xl border border-border bg-surface px-2.5 py-1.5 text-right outline-none focus:border-accent";
 
 /** Admin: plan prices, credits per plan, top-ups and how many credits each action uses. */
 export function PricingSettings() {
@@ -75,109 +74,90 @@ export function PricingSettings() {
   const setPlan = (i: number, k: "monthly" | "credits" | "freeChats", v: number) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
   const setTop = (i: number, k: "credits" | "price", v: number) => setForm((f) => f && { ...f, topUps: f.topUps.map((t, j) => (j === i ? { ...t, [k]: v } : t)) });
 
+  const setPopular = (i: number) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => ({ ...p, highlight: j === i })) });
+  const num = (v: number) => (Number.isFinite(v) ? v : "");
+
   return (
-    <Card className="max-w-2xl space-y-6">
-      <div>
-        <h2 className="font-medium">Plans & credits</h2>
-        <p className="mt-1 text-sm text-muted">
-          Prices in rupees, GST included. Yearly = 10 × the monthly price. Shubix AI off: that plan&apos;s Reels are edited on the phone (no AI, no
-          credits). An AI Reel uses &quot;Shubix AI edits a Reel&quot; credits once; the first &quot;Free chats / Reel&quot; Ask Shubix changes on a Reel are free, then each uses the small or whole-Reel credits. Changes show on the pricing page at once; people who already paid keep
-          what they bought.
+    <div className="flex flex-col gap-4">
+      {/* what this is, and what the server still needs */}
+      <Card className="flex flex-col gap-2">
+        <p className="m-0 text-[13px] leading-relaxed text-muted">
+          Prices in rupees, GST included; yearly is 10 × the monthly price. With Shubix AI off, a plan&apos;s Reels are edited on the phone (no AI, no credits).
+          Changes show on the pricing page at once; people who already paid keep what they bought.
         </p>
-        {!q.data.billingEnabled && (
-          <p className="mt-2 text-xs text-warning">Billing is off on this server (BILLING_ENABLED): credits are not counted yet.</p>
-        )}
-        {q.data.billingEnabled && !q.data.paymentsOpen && (
-          <p className="mt-2 text-xs text-warning">Payments are closed: add the Razorpay keys (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) to open them.</p>
-        )}
-      </div>
+        {!q.data.billingEnabled && <p className="m-0 text-[12.5px] font-semibold text-warning">Billing is off on this server (BILLING_ENABLED): credits are not counted yet.</p>}
+        {q.data.billingEnabled && !q.data.paymentsOpen && <p className="m-0 text-[12.5px] font-semibold text-warning">Payments are closed: add the Razorpay keys (RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET) to open them.</p>}
+      </Card>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-muted">
-            <tr>
-              <th className="pb-2 font-normal">Plan</th>
-              <th className="pb-2 text-right font-normal">₹ / month</th>
-              <th className="pb-2 text-right font-normal">Credits</th>
-              <th className="pb-2 text-right font-normal" title="Ask Shubix changes per Reel that use no credits; after them each change uses credits">Free chats / Reel</th>
-              <th className="pb-2 text-center font-normal" title="Shubix AI in this plan (off: Reels are edited on the phone)">Shubix AI</th>
-              <th className="pb-2 text-center font-normal" title="Ads shown to this plan">Ads</th>
-              <th className="pb-2 text-center font-normal" title="Shown on the pricing page">Offered</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {form.plans.map((p, i) => (
-              <tr key={p.id}>
-                <td className="py-2"><input aria-label="Plan name" className="w-28 rounded-xl border border-border bg-surface px-2.5 py-1.5 outline-none focus:border-accent" value={p.name} maxLength={30} onChange={(e) => setName(i, e.target.value)} /></td>
-                <td className="py-2 text-right">
-                  {p.id === "free" ? (
-                    <span className="text-muted">free</span>
-                  ) : (
-                    <input type="number" min={1} inputMode="numeric" aria-label={`${p.name} price`} className={NUM} value={p.monthly} onChange={(e) => setPlan(i, "monthly", e.target.valueAsNumber)} />
-                  )}
-                </td>
-                <td className="py-2 text-right">
-                  <input type="number" min={0} inputMode="numeric" aria-label={`${p.name} credits`} className={NUM} value={p.credits} onChange={(e) => setPlan(i, "credits", e.target.valueAsNumber)} />
-                </td>
-                <td className="py-2 text-right">
-                  <input type="number" min={0} max={50} inputMode="numeric" aria-label={`${p.name} free chat changes per Reel`} className={NUM} value={p.freeChats} onChange={(e) => setPlan(i, "freeChats", e.target.valueAsNumber)} />
-                </td>
-                <td className="py-2 text-center"><input type="checkbox" aria-label={`${p.name}: Shubix AI`} checked={p.ai} onChange={(e) => setFlag(i, "ai", e.target.checked)} /></td>
-                <td className="py-2 text-center"><input type="checkbox" aria-label={`${p.name}: ads`} checked={p.ads} onChange={(e) => setFlag(i, "ads", e.target.checked)} /></td>
-                <td className="py-2 text-center">{p.id === "free" ? <span className="text-muted">always</span> : <input type="checkbox" aria-label={`${p.name}: offered`} checked={!p.hidden} onChange={(e) => setFlag(i, "hidden", !e.target.checked)} />}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* one card per plan */}
+      <section aria-label="Plans" className="grid gap-4 xl:grid-cols-2">
+        {form.plans.map((p, i) => (
+          <Card key={p.id} as="article" aria-label={p.name} className={cn("flex flex-col gap-4", p.highlight && "border-accent shadow-[0_18px_40px_-28px_var(--brand-glow)]", p.hidden && "opacity-70")}>
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Icon name={p.id === "free" ? "sparkle" : p.id === "pro" ? "crown" : "bolt"} size={20} /></span>
+              <div className="min-w-0 flex-1">
+                <Heading size="section" as="h3">{p.name || p.id}</Heading>
+                <span className="text-[12px] text-muted">{p.id === "free" ? "Free" : `₹${num(p.monthly)} a month`} · {num(p.credits)} credits</span>
+              </div>
+              {p.highlight && <Badge tone="brand">Most popular</Badge>}
+              {p.hidden && <Badge>Not offered</Badge>}
+            </div>
 
-      <div>
-        <p className="mb-2 text-sm font-medium">What each plan says (one line each, on the pricing page)</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {form.plans.filter((p) => !p.hidden).map((p) => { const i = form.plans.indexOf(p); return (
-            <label key={p.id} className="grid gap-1 text-sm"><span className="text-muted">{p.name}</span>
-              <textarea rows={5} className="rounded-xl border border-border bg-surface px-2.5 py-1.5 outline-none focus:border-accent" value={p.features.join("\n")} onChange={(e) => setFeatures(i, e.target.value)} />
-            </label>); })}
-        </div>
-      </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Field label="Name" className="col-span-2 sm:col-span-1"><Input aria-label="Plan name" value={p.name} maxLength={30} onChange={(e) => setName(i, e.target.value)} /></Field>
+              <Field label="₹ a month">
+                {p.id === "free" ? <Input value="Free" disabled /> : <Input type="number" min={1} inputMode="numeric" aria-label={`${p.name} price`} value={num(p.monthly)} onChange={(e) => setPlan(i, "monthly", e.target.valueAsNumber)} />}
+              </Field>
+              <Field label="Credits a month"><Input type="number" min={0} inputMode="numeric" aria-label={`${p.name} credits`} value={num(p.credits)} onChange={(e) => setPlan(i, "credits", e.target.valueAsNumber)} /></Field>
+              <Field label="Free chats / Reel"><Input type="number" min={0} max={50} inputMode="numeric" aria-label={`${p.name} free chat changes per Reel`} value={num(p.freeChats)} onChange={(e) => setPlan(i, "freeChats", e.target.valueAsNumber)} /></Field>
+            </div>
 
-      <div>
-        <p className="mb-2 text-sm font-medium">Top-ups</p>
-        <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-2.5 rounded-xl border border-border bg-surface-2/50 p-3 sm:grid-cols-2">
+              <Toggle label="Shubix AI" hint="Off: Reels are edited on the phone" on={p.ai} onChange={(v) => setFlag(i, "ai", v)} />
+              <Toggle label="Ads" hint="Shown on Home and My Reels" on={p.ads} onChange={(v) => setFlag(i, "ads", v)} />
+              <Toggle label="Offered" hint={p.id === "free" ? "Free is always offered" : "On the pricing page"} on={!p.hidden} disabled={p.id === "free"} onChange={(v) => setFlag(i, "hidden", !v)} />
+              <Toggle label="Most popular" hint="The badge (one plan)" on={p.highlight} onChange={(v) => v && setPopular(i)} />
+            </div>
+
+            <Field label="What it includes (one line each, on the pricing page)">
+              <TextArea rows={5} value={p.features.join("\n")} onChange={(e) => setFeatures(i, e.target.value)} />
+            </Field>
+          </Card>
+        ))}
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        {/* top-ups */}
+        <Card as="section" aria-label="Top-ups" className="flex flex-col gap-3">
+          <Heading size="section" as="h3">Top-ups</Heading>
           {form.topUps.map((t, i) => (
-            <div key={t.id} className="flex items-center gap-2 rounded-xl border border-border p-3 text-sm">
-              <input type="number" min={1} aria-label="Top-up credits" className={NUM} value={t.credits} onChange={(e) => setTop(i, "credits", e.target.valueAsNumber)} />
-              <span className="text-muted">credits for ₹</span>
-              <input type="number" min={1} aria-label="Top-up price" className={NUM} value={t.price} onChange={(e) => setTop(i, "price", e.target.valueAsNumber)} />
+            <div key={t.id} className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface-2/50 p-3">
+              <Field label="Credits"><Input type="number" min={1} inputMode="numeric" aria-label="Top-up credits" value={num(t.credits)} onChange={(e) => setTop(i, "credits", e.target.valueAsNumber)} /></Field>
+              <Field label="Price (₹)"><Input type="number" min={1} inputMode="numeric" aria-label="Top-up price" value={num(t.price)} onChange={(e) => setTop(i, "price", e.target.valueAsNumber)} /></Field>
             </div>
           ))}
-        </div>
+        </Card>
+
+        {/* credits per action */}
+        <Card as="section" aria-label="Credits per action" className="flex flex-col gap-3">
+          <Heading size="section" as="h3">Credits per action</Heading>
+          <div className="flex flex-col divide-y divide-border">
+            {Object.entries(form.costs).map(([k, v]) => (
+              <label key={k} className="flex items-center justify-between gap-3 py-2 text-[13px]">
+                <span className="min-w-0">{labels[k] ?? k}</span>
+                <Input type="number" min={0} max={100} inputMode="numeric" className="w-20 shrink-0 text-right" value={num(v)} onChange={(e) => setForm((f) => f && { ...f, costs: { ...f.costs, [k]: e.target.valueAsNumber } })} />
+              </label>
+            ))}
+          </div>
+        </Card>
       </div>
 
-      <div>
-        <p className="mb-2 text-sm font-medium">Credits per action</p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {Object.entries(form.costs).map(([k, v]) => (
-            <label key={k} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2 text-sm">
-              <span>{labels[k] ?? k}</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                className={NUM}
-                value={v}
-                onChange={(e) => setForm((f) => f && { ...f, costs: { ...f.costs, [k]: e.target.valueAsNumber } })}
-              />
-            </label>
-          ))}
-        </div>
+      {/* save */}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        {(formError || save.error) && <div className="mr-auto min-w-0 flex-1"><ErrorBanner message={formError ?? errorMessage(save.error)} /></div>}
+        {saved && !save.isPending && <span className="mr-auto text-[13px] font-semibold text-success">✓ Saved. The pricing page shows the new prices.</span>}
+        <Button icon="check" loading={save.isPending} onClick={submit}>{save.isPending ? "Saving…" : "Save prices"}</Button>
       </div>
-
-      {(formError || save.error) && <ErrorBanner message={formError ?? errorMessage(save.error)} />}
-      {saved && !save.isPending && <p className="text-sm text-success">✓ Saved. The pricing page shows the new prices.</p>}
-      <button type="button" className={btnPrimary} disabled={save.isPending} onClick={submit}>
-        {save.isPending ? "Saving…" : "Save prices"}
-      </button>
-    </Card>
+    </div>
   );
 }

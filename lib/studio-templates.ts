@@ -53,6 +53,8 @@ export interface StudioTemplate {
   showTo?: string;
   /** a "New" badge on the card */
   isNew?: boolean;
+  /** the plan that opens it (Admin → Templates); none = free for everyone. A lower plan sees the Upgrade tag. */
+  plan?: "free" | "creator" | "pro" | "business";
   edit: TplEdit;
 }
 

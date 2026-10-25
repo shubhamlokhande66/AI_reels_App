@@ -14,7 +14,7 @@ export function cardClass({ variant = "default", className }: { variant?: CardVa
   return cn("rounded-2xl", VARIANT[variant], className);
 }
 
-export function Card({ variant = "default", className = "", children, as: Tag = "div", ...rest }: { variant?: CardVariant; className?: string; children: React.ReactNode; as?: "div" | "section" | "article" | "li" } & React.HTMLAttributes<HTMLElement>) {
+export function Card({ variant = "default", className = "", children, as: Tag = "div", ...rest }: { variant?: CardVariant; className?: string; children: React.ReactNode; as?: "div" | "section" | "article" | "li" | "nav" } & React.HTMLAttributes<HTMLElement>) {
   // its content keeps its own spacing; the default padding is the design's 16 (20 on computers)
   return (
     <Tag className={cardClass({ variant, className: cn("lux-enter block p-4 md:p-5", className) })} {...rest}>

@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { Icon } from "@/components/atoms/Icon";
 import { cn } from "@/lib/cn";
+import { useT } from "@/hooks/useApi";
 
 export type NavTab = { href: string; label: string; icon: string; primary?: boolean; full?: boolean; active?: boolean };
 
 /** The phones' bottom bar (UI/ design: Bottom Navigation): four tabs around a raised gradient Create button, and More.
  * The open tab is purple with a line under its name. `full`: a full page load (Fast Studio). */
 export function BottomNav({ tabs, moreOpen, onMore }: { tabs: NavTab[]; moreOpen: boolean; onMore: () => void }) {
+  const t = useT();
   const item = "relative flex min-h-[52px] flex-col items-center justify-end gap-1 pb-1 text-[11px] font-semibold transition-colors";
   const mark = (on: boolean) => on && <span aria-hidden className="absolute -bottom-0.5 h-[3px] w-7 rounded-full bg-accent" />;
   return (
@@ -37,7 +39,7 @@ export function BottomNav({ tabs, moreOpen, onMore }: { tabs: NavTab[]; moreOpen
       })}
       <button type="button" onClick={onMore} aria-expanded={moreOpen} className={cn(item, moreOpen ? "text-accent" : "text-muted hover:text-foreground")}>
         <Icon name="more" size={23} stroke={1.8} />
-        More
+        {t("nav.more")}
         {mark(moreOpen)}
       </button>
     </nav>

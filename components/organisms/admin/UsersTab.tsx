@@ -2,36 +2,30 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Icon, Spinner } from "@/components/atoms";
-import { EmptyState, ErrorBanner } from "@/components/molecules";
+import { Avatar, Badge, Button, Card, Chip, ChipRow, Icon, Spinner } from "@/components/atoms";
+import { EmptyState, ErrorBanner, SearchBox } from "@/components/molecules";
+import { confirmAction } from "@/components/molecules/ConfirmDialog";
+import { StatTile } from "@/components/molecules/StatTile";
 import { api, errorMessage } from "@/lib/api";
 import type { AdminUserRow } from "@/types/api";
 import { ago, count, date, rupees } from "./format";
 import { LiveDot } from "./OverviewTab";
 
+/** Admin → Users: everyone who signed up. Numbers at the top, then search, filters and sort; on a computer a table
+ * (who, activity, plan, credits, spent, Reels), on a phone a card per person. A row opens the person's panel; the
+ * plan can be changed right here (asked first). */
+
 type Filter = "all" | "online" | "paying" | "free";
-type SortKey = "email" | "createdAt" | "lastLoginAt" | "lastSeenAt" | "logins" | "credits" | "creditsUsed" | "spent" | "reels";
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "online", label: "Online now" },
-  { id: "paying", label: "Paying" },
-  { id: "free", label: "Free" },
-];
-const COLUMNS: { key: SortKey; label: string; num?: boolean }[] = [
-  { key: "email", label: "User" },
-  { key: "createdAt", label: "Joined" },
-  { key: "lastLoginAt", label: "Last login" },
-  { key: "lastSeenAt", label: "Last seen" },
-  { key: "logins", label: "Logins", num: true },
-  { key: "credits", label: "Credits left", num: true },
-  { key: "creditsUsed", label: "Used", num: true },
-  { key: "spent", label: "Spent", num: true },
-  { key: "reels", label: "Reels", num: true },
+type SortKey = "createdAt" | "lastSeenAt" | "email" | "credits" | "creditsUsed" | "spent" | "reels" | "logins";
+const SORTS: { key: SortKey; label: string; desc: boolean }[] = [
+  { key: "createdAt", label: "Newest first", desc: true }, { key: "lastSeenAt", label: "Last seen", desc: true }, { key: "email", label: "Email A–Z", desc: false },
+  { key: "spent", label: "Spent most", desc: true }, { key: "credits", label: "Most credits left", desc: true }, { key: "creditsUsed", label: "Most credits used", desc: true },
+  { key: "reels", label: "Most Reels", desc: true }, { key: "logins", label: "Most logins", desc: true },
 ];
 
 export const useAdminUsers = () => useQuery({ queryKey: ["admin", "users"], queryFn: api.adminUsers, refetchInterval: 60_000 });
 
-const value = (u: AdminUserRow, k: SortKey): string | number => {
+const sortValue = (u: AdminUserRow, k: SortKey): string | number => {
   const v = u[k];
   if (k === "email") return String(v).toLowerCase();
   if (typeof v === "number") return v;
@@ -48,18 +42,22 @@ function csv(rows: AdminUserRow[]) {
   URL.revokeObjectURL(url);
 }
 
+/** online now, else when last seen */
+const Seen = ({ u }: { u: AdminUserRow }) => (u.online ? <span className="inline-flex items-center gap-1.5 font-semibold text-success"><LiveDot />Online now</span> : <span>{u.lastSeenAt ? `Seen ${ago(u.lastSeenAt)}` : "Never seen"}</span>);
+
 export function UsersTab({ onOpenUser }: { onOpenUser: (id: string) => void }) {
   const q = useAdminUsers();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: "createdAt", desc: true });
+  const [sortKey, setSortKey] = useState<SortKey>("createdAt");
+  const sort = SORTS.find((s) => s.key === sortKey)!;
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
     return (q.data ?? [])
       .filter((u) => !s || u.email.toLowerCase().includes(s))
       .filter((u) => filter === "all" || (filter === "online" ? u.online : filter === "paying" ? u.spent > 0 : u.spent === 0))
       .sort((a, b) => {
-        const x = value(a, sort.key), y = value(b, sort.key);
+        const x = sortValue(a, sort.key), y = sortValue(b, sort.key);
         return (x < y ? -1 : x > y ? 1 : 0) * (sort.desc ? -1 : 1);
       });
   }, [q.data, search, filter, sort]);
@@ -68,102 +66,118 @@ export function UsersTab({ onOpenUser }: { onOpenUser: (id: string) => void }) {
   if (q.error || !q.data) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   const all = q.data;
   const online = all.filter((u) => u.online).length, paying = all.filter((u) => u.spent > 0).length;
+  const filters: { id: Filter; label: string; n: number }[] = [
+    { id: "all", label: "All", n: all.length }, { id: "online", label: "Online now", n: online },
+    { id: "paying", label: "Paying", n: paying }, { id: "free", label: "Never paid", n: all.length - paying },
+  ];
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          ["Users", count(all.length)],
-          ["Online now", count(online)],
-          ["Paying", count(paying)],
-          ["Total spent", rupees(all.reduce((s, u) => s + u.spent, 0))],
-        ].map(([label, v]) => (
-          <div key={label} className="stat" style={{ gridTemplateColumns: "1fr" }}>
-            <b>{v}</b>
-            <span className="mu xs">{label}</span>
-          </div>
-        ))}
+        <StatTile icon="user" label="Users" value={count(all.length)} />
+        <StatTile icon="eye" label="Online now" value={count(online)} lead={online ? <LiveDot /> : undefined} />
+        <StatTile icon="crown" label="Paying" value={count(paying)} note={all.length ? `${Math.round((paying / all.length) * 100)}% of users` : undefined} />
+        <StatTile icon="coins" label="Total spent" value={rupees(all.reduce((s, u) => s + u.spent, 0))} />
       </div>
 
-      <div className="flex flex-col gap-2 md:flex-row md:items-center">
-        <label className="srch md:w-80">
-          <Icon name="search" size={16} />
-          <input type="search" placeholder="Search by email" aria-label="Search users" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </label>
-        <div className="chips" role="radiogroup" aria-label="Show">
-          {FILTERS.map((f) => (
-            <button key={f.id} type="button" role="radio" aria-checked={filter === f.id} className={`chip ${filter === f.id ? "on" : ""}`} onClick={() => setFilter(f.id)}>
-              {f.label}
-            </button>
-          ))}
+      {/* search, filters, sort, export */}
+      <Card className="flex flex-col gap-3 p-3 md:p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <SearchBox value={search} onChange={setSearch} label="Search users" placeholder="Search by email" className="h-10 sm:max-w-xs" />
+          <label className="flex items-center gap-2 text-[12.5px] text-muted sm:ml-auto">
+            Sort
+            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} aria-label="Sort users"
+              className="h-10 cursor-pointer rounded-xl border border-border bg-surface px-3 text-[13px] font-semibold text-foreground outline-none focus:border-accent">
+              {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+            </select>
+          </label>
+          <Button size="sm" variant="secondary" icon="download" className="h-10" onClick={() => csv(rows)} disabled={!rows.length}>Export CSV</Button>
         </div>
-        <button type="button" className="btn sm md:ml-auto" onClick={() => csv(rows)} disabled={!rows.length}>
-          <Icon name="download" size={16} />
-          Export CSV
-        </button>
-      </div>
+        <ChipRow role="radiogroup" aria-label="Show">
+          {filters.map((f) => (
+            <Chip key={f.id} role="radio" aria-checked={filter === f.id} on={filter === f.id} onClick={() => setFilter(f.id)}>
+              {f.label}<span className="rounded-full bg-surface-2 px-1.5 text-[11px] text-muted">{f.n}</span>
+            </Chip>
+          ))}
+        </ChipRow>
+      </Card>
 
       {!all.length ? (
-        <EmptyState title="No accounts yet" hint="People appear here as soon as they sign up." />
+        <EmptyState icon="user" title="No accounts yet" hint="People appear here as soon as they sign up." />
+      ) : !rows.length ? (
+        <EmptyState icon="search" title="No user matches" hint="Try another email or filter." />
       ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="w-full min-w-[920px] border-collapse text-left text-[13px]">
-            <thead>
-              <tr className="border-b border-border">
-                {COLUMNS.map((c) => (
-                  <th key={c.key} scope="col" className={`px-3 py-2.5 ${c.num ? "text-right" : ""}`} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : "none"}>
-                    <button
-                      type="button"
-                      className={`eb inline-flex items-center gap-1 hover:text-foreground ${sort.key === c.key ? "text-foreground" : ""}`}
-                      onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : c.key !== "email" }))}
-                    >
-                      {c.label}
-                      {sort.key === c.key && <Icon name="down" size={12} className={sort.desc ? "" : "rotate-180"} />}
-                    </button>
-                  </th>
-                ))}
-                <th scope="col" className="px-3 py-2.5">
-                  <span className="eb">Plan</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((u) => (
-                <tr key={u.id} onClick={() => onOpenUser(u.id)} className="cursor-pointer border-b border-border last:border-b-0 hover:bg-[var(--chip-on)]">
-                  <td className="max-w-[260px] px-3 py-2.5">
-                    <button type="button" className="row w-full min-w-0 gap-2 text-left font-bold" onClick={(e) => { e.stopPropagation(); onOpenUser(u.id); }}>
-                      {u.online ? <LiveDot /> : <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-surface-2" aria-hidden />}
-                      <span className="truncate">{u.email}</span>
-                      {u.online && <span className="sr-only">(online now)</span>}
-                    </button>
-                  </td>
-                  <td className="mu whitespace-nowrap px-3 py-2.5">{date(u.createdAt)}</td>
-                  <td className="mu whitespace-nowrap px-3 py-2.5">{ago(u.lastLoginAt)}</td>
-                  <td className="mu whitespace-nowrap px-3 py-2.5">{u.online ? <span className="text-success">online</span> : ago(u.lastSeenAt)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{count(u.logins)}</td>
-                  <td className="px-3 py-2.5 text-right font-bold tabular-nums">{u.credits === null ? "—" : count(u.credits)}</td>
-                  <td className="mu px-3 py-2.5 text-right tabular-nums">{count(u.creditsUsed)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">
-                    {u.spent ? rupees(u.spent) : "—"}
-                    {u.purchases > 0 && <span className="mu block text-[11px]">{u.purchases} purchase{u.purchases === 1 ? "" : "s"}</span>}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">{count(u.reels)}</td>
-                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
-                    <PlanPicker user={u} />
-                  </td>
+        <>
+          {/* computers: the table */}
+          <Card className="hidden overflow-hidden p-0 lg:block md:p-0">
+            <table className="w-full border-collapse text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-surface-2/50 text-[12px] font-semibold text-muted">
+                  <th scope="col" className="px-4 py-3">User</th>
+                  <th scope="col" className="px-3 py-3">Activity</th>
+                  <th scope="col" className="px-3 py-3">Plan</th>
+                  <th scope="col" className="px-3 py-3 text-right">Credits</th>
+                  <th scope="col" className="px-3 py-3 text-right">Spent</th>
+                  <th scope="col" className="px-3 py-3 text-right">Reels</th>
+                  <th scope="col" className="w-10 px-2 py-3"><span className="sr-only">Open</span></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {!rows.length && <p className="mu sm p-4 text-center">No user matches.</p>}
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((u) => (
+                  <tr key={u.id} onClick={() => onOpenUser(u.id)} className="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-accent/6">
+                    <td className="px-4 py-3">
+                      <span className="flex min-w-0 items-center gap-3">
+                        <Avatar email={u.email} size={36} />
+                        <span className="flex min-w-0 flex-col">
+                          <button type="button" className="truncate text-left font-bold hover:text-accent" onClick={(e) => { e.stopPropagation(); onOpenUser(u.id); }}>{u.email}</button>
+                          <span className="text-[12px] text-muted">Joined {date(u.createdAt)}</span>
+                        </span>
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-muted"><Seen u={u} /><span className="block text-[12px]">{count(u.logins)} login{u.logins === 1 ? "" : "s"}</span></td>
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}><PlanPicker user={u} /></td>
+                    <td className="px-3 py-3 text-right tabular-nums"><b className="text-[14px]">{u.credits === null ? "—" : count(u.credits)}</b><span className="block text-[12px] text-muted">{count(u.creditsUsed)} used</span></td>
+                    <td className="px-3 py-3 text-right tabular-nums">{u.spent ? <b>{rupees(u.spent)}</b> : <span className="text-muted">₹0</span>}<span className="block text-[12px] text-muted">{u.purchases} purchase{u.purchases === 1 ? "" : "s"}</span></td>
+                    <td className="px-3 py-3 text-right tabular-nums">{count(u.reels)}</td>
+                    <td className="px-2 py-3 text-muted"><Icon name="chevron" size={16} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+
+          {/* phones and tablets: a card per person */}
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:hidden">
+            {rows.map((u) => (
+              <Card key={u.id} as="article" variant="interactive" className="flex cursor-pointer flex-col gap-3 p-3.5 md:p-3.5" onClick={() => onOpenUser(u.id)}>
+                <div className="flex items-center gap-3">
+                  <Avatar email={u.email} size={40} />
+                  <div className="min-w-0 flex-1">
+                    <b className="block truncate text-[14px]">{u.email}</b>
+                    <span className="text-[12px] text-muted"><Seen u={u} /></span>
+                  </div>
+                  <Icon name="chevron" size={16} className="text-muted" />
+                </div>
+                <div className="grid grid-cols-3 gap-2 rounded-xl bg-surface-2/60 p-2.5 text-center">
+                  <span><b className="block tabular-nums">{u.credits === null ? "—" : count(u.credits)}</b><span className="text-[11px] text-muted">credits left</span></span>
+                  <span><b className="block tabular-nums">{u.spent ? rupees(u.spent) : "₹0"}</b><span className="text-[11px] text-muted">spent</span></span>
+                  <span><b className="block tabular-nums">{count(u.reels)}</b><span className="text-[11px] text-muted">Reels</span></span>
+                </div>
+                <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-[12px] text-muted">Joined {date(u.createdAt)} · {count(u.logins)} login{u.logins === 1 ? "" : "s"}</span>
+                  <PlanPicker user={u} />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
-/** The administrator changes a person's plan from the list: Free, or a paid plan for a month or a year (its credits
- * come with it, no payment). The choice asks once before it is made. */
+/** The person's plan, and "Change": Free, or a paid plan for a month or a year (its credits come with it, no payment),
+ * asked first. */
 function PlanPicker({ user }: { user: AdminUserRow }) {
   const qc = useQueryClient();
   const plans = useQuery({ queryKey: ["plans"], queryFn: api.plans });
@@ -172,27 +186,27 @@ function PlanPicker({ user }: { user: AdminUserRow }) {
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["admin", "users"] }); void qc.invalidateQueries({ queryKey: ["admin", "user", user.id] }); },
   });
   const list = plans.data?.plans ?? [];
-  const choose = (v: string) => {
+  const choose = async (v: string) => {
     if (!v) return;
     const [plan, m] = v.split(":"), months = Number(m || 1), p = list.find((x) => x.id === plan);
     const what = plan === "free" ? "the Free plan (Shubix AI off; their credits stay)" : `${p?.name ?? plan} for ${months === 12 ? "1 year" : "1 month"} (${p?.credits ?? 0} credits a month, no payment)`;
-    if (window.confirm(`Put ${user.email} on ${what}?`)) set.mutate({ plan, months });
+    if (await confirmAction({ title: `Change ${user.email}'s plan?`, body: `They move to ${what}.`, ok: "Change plan" })) set.mutate({ plan, months });
   };
+  const paid = user.plan !== "free";
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <select
-        aria-label={`Plan of ${user.email}`}
-        className={`badge cursor-pointer border-0 ${user.plan === "free" ? "" : "b-run"}`}
-        value=""
-        disabled={set.isPending || !list.length}
-        onChange={(e) => choose(e.target.value)}
-      >
-        <option value="">{set.isPending ? "Saving…" : user.planName} ▾</option>
-        {list.map((p) => p.id === "free"
-          ? <option key="free" value="free:1">Free</option>
-          : [<option key={p.id + "1"} value={`${p.id}:1`}>{p.name} · 1 month</option>, <option key={p.id + "12"} value={`${p.id}:12`}>{p.name} · 1 year</option>])}
-      </select>
-      {set.error && <span className="text-[11px] text-danger" title={errorMessage(set.error)}>!</span>}
+    <span className="inline-flex items-center gap-2">
+      <Badge tone={paid ? "brand" : "neutral"} className="h-6 px-2.5">{paid && <Icon name="crown" size={12} />}{set.isPending ? "Saving…" : user.planName}</Badge>
+      <label className="relative inline-flex">
+        <span className="pointer-events-none inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-surface px-2 text-[11.5px] font-semibold text-muted">Change<Icon name="down" size={12} /></span>
+        <select aria-label={`Change the plan of ${user.email}`} value="" disabled={set.isPending || !list.length} onChange={(e) => void choose(e.target.value)}
+          className="absolute inset-0 cursor-pointer opacity-0">
+          <option value="">Change plan…</option>
+          {list.map((p) => p.id === "free"
+            ? <option key="free" value="free:1">Free</option>
+            : [<option key={p.id + "1"} value={`${p.id}:1`}>{p.name} · 1 month</option>, <option key={p.id + "12"} value={`${p.id}:12`}>{p.name} · 1 year</option>])}
+        </select>
+      </label>
+      {set.error && <span className="text-[11px] text-danger" title={errorMessage(set.error)}>Failed</span>}
     </span>
   );
 }

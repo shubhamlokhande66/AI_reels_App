@@ -28,8 +28,12 @@ function loadScript(): Promise<void> {
 
 export type PayResult = { status: "paid"; credits: Credits } | { status: "closed" } | { status: "failed"; message: string };
 
+/** The payment window's look (Admin → CMS → Payment window): the name, a square logo (a link, or a path on
+ * this site) and the colour. */
+export type CheckoutLook = { name: string; logo: string; color: string };
+
 /** Pay for "plan:creator:monthly", "plan:pro:yearly", "topup:topup_30" ... Resolves when the window closes. */
-export async function pay(item: string): Promise<PayResult> {
+export async function pay(item: string, look: CheckoutLook): Promise<PayResult> {
   const [order] = await Promise.all([api.createOrder(item), loadScript()]);
   const Razorpay = (window as unknown as { Razorpay: RazorpayCtor }).Razorpay;
   return new Promise<PayResult>((resolve) => {
@@ -45,10 +49,12 @@ export async function pay(item: string): Promise<PayResult> {
       amount: order.amount,
       currency: order.currency,
       order_id: order.orderId,
-      name: "Shubix",
+      name: look.name,
       description: order.label,
+      // the logo at the top of Razorpay's window: square (Razorpay asks for 256×256 or more); a path is on this site
+      image: look.logo ? new URL(look.logo, window.location.origin).href : undefined,
       prefill: order.email ? { email: order.email } : undefined,
-      theme: { color: "#C9A46A" },
+      theme: { color: /^#[0-9a-f]{6}$/i.test(look.color) ? look.color : "#9b5cff" },
       handler: async (r: RazorpayResponse) => {
         try {
           const credits = await api.verifyPayment({

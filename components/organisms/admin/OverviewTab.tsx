@@ -1,9 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Icon, Spinner } from "@/components/atoms";
-import { ErrorBanner } from "@/components/molecules";
+import { Avatar, Badge, Heading, Icon, Spinner } from "@/components/atoms";
+import { EmptyState, ErrorBanner, SectionCard } from "@/components/molecules";
+import { StatTile } from "@/components/molecules/StatTile";
 import { api, errorMessage } from "@/lib/api";
+import { cn } from "@/lib/cn";
 import type { AdminOverview } from "@/types/api";
 import { BarChart } from "./BarChart";
 import { ago, count, page, rupees } from "./format";
@@ -11,22 +13,6 @@ import { ago, count, page, rupees } from "./format";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export const useOverview = () => useQuery({ queryKey: ["admin", "overview"], queryFn: api.adminOverview, refetchInterval: 60_000 });
-
-function Stat({ label, value, note, icon, live }: { label: string; value: string; note?: string; icon: string; live?: boolean }) {
-  return (
-    <div className="stat">
-      <span className="mu xs font-bold">{label}</span>
-      <span className="ic" style={{ color: "var(--accent)", background: "var(--chip-on)" }}>
-        <Icon name={icon} size={18} />
-      </span>
-      <span className="row gap-2">
-        {live && <LiveDot />}
-        <b>{value}</b>
-      </span>
-      {note && <span className="mu xs col-span-2">{note}</span>}
-    </div>
-  );
-}
 
 export function LiveDot() {
   return (
@@ -37,146 +23,141 @@ export function LiveDot() {
   );
 }
 
+/** "Good morning" by the clock here */
+const greeting = () => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"; };
+
+/** where the dashboard can take you: a tab of the admin, or the CMS (its own tab of the browser) */
+export type QuickTab = "users" | "templates" | "settings" | "ai";
+const QUICK: { icon: string; label: string; tab?: QuickTab; href?: string }[] = [
+  { icon: "text", label: "Open CMS", href: "/cms" }, { icon: "user", label: "Users", tab: "users" }, { icon: "grid", label: "Templates", tab: "templates" },
+  { icon: "gear", label: "Settings", tab: "settings" }, { icon: "wand", label: "AI settings", tab: "ai" },
+];
+
 function LiveVisitors({ o }: { o: AdminOverview }) {
   return (
-    <section className="card" aria-label="Live visitors">
-      <div className="between">
-        <span className="row gap-2">
-          <LiveDot />
-          <span className="h2">Live visitors</span>
-        </span>
-        <span className="mu xs">updates every minute</span>
-      </div>
-      <span className="mu sm">
-        {o.visitors.online} on the site now · {o.visitors.onlineSignedIn} signed in · {o.visitors.onlineGuests} guest{o.visitors.onlineGuests === 1 ? "" : "s"}
-      </span>
+    <SectionCard icon="eye" title="Live visitors" sub={`${o.visitors.onlineSignedIn} signed in · ${o.visitors.onlineGuests} guest${o.visitors.onlineGuests === 1 ? "" : "s"} · updates every minute`}
+      aside={<Badge tone="success" className="h-6"><LiveDot />{o.visitors.online} now</Badge>}>
       {o.online.length ? (
-        <ul className="flex max-h-72 flex-col overflow-y-auto">
+        <ul className="m-0 flex max-h-80 list-none flex-col overflow-y-auto p-0">
           {o.online.map((v) => (
-            <li key={v.id} className="between border-t border-border py-2 first:border-t-0">
-              <span className="row min-w-0 gap-2.5">
-                <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${v.email ? "bg-[var(--chip-on)] text-accent" : "bg-surface-2 text-muted"}`}>
-                  <Icon name="user" size={15} />
-                </span>
-                <span className="flex min-w-0 flex-col">
-                  <span className={`sm truncate font-bold ${v.email ? "" : "mu"}`}>{v.email ?? "Guest"}</span>
-                  <span className="mu xs truncate">
-                    {page(v.path)} · {v.device}
-                  </span>
-                </span>
+            <li key={v.id} className="flex items-center gap-3 border-t border-border py-2.5 first:border-t-0">
+              {v.email ? <Avatar email={v.email} size={32} /> : <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-surface-2 text-muted"><Icon name="user" size={15} /></span>}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className={cn("truncate text-[13px] font-bold", !v.email && "text-muted")}>{v.email ?? "Guest"}</span>
+                <span className="truncate text-[11.5px] text-muted">{page(v.path)} · {v.device}</span>
               </span>
-              <span className="mu xs shrink-0">here since {ago(v.since).replace(" ago", "")}</span>
+              <span className="shrink-0 text-[11.5px] text-muted">{ago(v.since).replace(" ago", "")}</span>
             </li>
           ))}
         </ul>
-      ) : (
-        <span className="mu sm">Nobody else is on the site right now.</span>
-      )}
-    </section>
+      ) : <p className="m-0 rounded-xl bg-surface-2/50 py-6 text-center text-[12.5px] text-muted">Nobody else is on the site right now.</p>}
+    </SectionCard>
   );
 }
 
-export function OverviewTab({ onOpenUser }: { onOpenUser: (id: string) => void }) {
+export function OverviewTab({ onOpenUser, onOpenTab }: { onOpenUser: (id: string) => void; onOpenTab?: (t: QuickTab) => void }) {
   const q = useOverview();
   if (q.isLoading) return <Spinner label="Loading the dashboard…" />;
   if (q.error || !q.data) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   const o = q.data;
   const signups = o.signupsByDay.map((d) => ({ key: d.day, short: String(Number(d.day.slice(8))), value: d.users }));
   const revenue = o.revenueByMonth.map((m) => ({ key: m.month, short: MONTHS[Number(m.month.slice(5)) - 1], value: m.rupees }));
-  const planMax = Math.max(1, ...o.plans.map((p) => p.users));
+  const planTotal = Math.max(1, o.plans.reduce((s, p) => s + p.users, 0));
+  const today = new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Online now" value={count(o.visitors.online)} note={`${o.visitors.today} visitors today · ${o.visitors.week} this week`} icon="eye" live />
-        <Stat label="Users" value={count(o.users.total)} note={`+${o.users.today} today · +${o.users.week} this week`} icon="user" />
-        <Stat label="Revenue" value={rupees(o.revenue.total)} note={`${rupees(o.revenue.month)} in 30 days · ${o.revenue.payments} payments`} icon="coins" />
-        <Stat label="Credits left" value={o.billing ? count(o.credits.left) : "—"} note={o.billing ? `${count(o.credits.used30d)} used in 30 days` : "Billing is off"} icon="bolt" />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <LiveVisitors o={o} />
+      {/* hello, and where to go */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="m-0 text-[12.5px] text-muted">{today}</p>
+          <Heading size="page" className="text-[26px] md:text-[28px]">{greeting()} 👋</Heading>
         </div>
-        <section className="card" aria-label="Customers">
-          <span className="h2">Customers</span>
-          <div className="g2">
-            <div className="stat" style={{ gridTemplateColumns: "1fr" }}>
-              <b>{count(o.users.buyers)}</b>
-              <span className="mu xs">have paid</span>
-            </div>
-            <div className="stat" style={{ gridTemplateColumns: "1fr" }}>
-              <b>{count(o.reels.total)}</b>
-              <span className="mu xs">Reels in My Reels</span>
-            </div>
-          </div>
-          <span className="eb pt-1">Plans</span>
-          {o.plans.length ? (
-            o.plans.map((p) => (
-              <div key={p.plan} className="flex flex-col gap-1">
-                <span className="between sm">
-                  <span>{p.name}</span>
-                  <b>{count(p.users)}</b>
-                </span>
-                <span className="bar">
-                  <i style={{ width: `${(p.users / planMax) * 100}%` }} />
-                </span>
-              </div>
-            ))
+        <div className="flex flex-wrap gap-2">
+          {QUICK.map((x) => x.href ? (
+            <a key={x.label} href={x.href} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-accent/50 bg-accent/10 px-3 text-[12.5px] font-bold text-accent hover:bg-accent/15">
+              <Icon name={x.icon} size={15} />{x.label} ↗
+            </a>
           ) : (
-            <span className="mu sm">No wallets yet{o.billing ? "" : " (billing is off)"}.</span>
-          )}
-        </section>
+            <button key={x.label} type="button" onClick={() => x.tab && onOpenTab?.(x.tab)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 text-[12.5px] font-bold hover:border-accent/60">
+              <Icon name={x.icon} size={15} className="text-accent" />{x.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="card" aria-label="Sign-ups">
-          <span className="h2">Sign-ups · last 14 days</span>
+      {/* the numbers */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile icon="eye" label="Online now" value={count(o.visitors.online)} lead={<LiveDot />} note={`${o.visitors.today} visitors today · ${o.visitors.week} this week`} />
+        <StatTile icon="user" label="Users" value={count(o.users.total)} note={`+${o.users.today} today · +${o.users.week} this week`} />
+        <StatTile icon="coins" label="Revenue" value={rupees(o.revenue.total)} note={`${rupees(o.revenue.month)} in 30 days · ${o.revenue.payments} payments`} />
+        <StatTile icon="bolt" label="Credits left" value={o.billing ? count(o.credits.left) : "—"} note={o.billing ? `${count(o.credits.used30d)} used in 30 days` : "Billing is off"} />
+      </div>
+
+      {/* growth */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <SectionCard icon="trend" title="Sign-ups" sub="New accounts per day, last 14 days" className="lg:col-span-2"
+          aside={<Badge tone="brand">+{o.users.week} this week</Badge>}>
           <BarChart label="New accounts per day, last 14 days" data={signups} format={count} />
-        </section>
-        <section className="card" aria-label="Revenue">
-          <span className="h2">Revenue · last 12 months</span>
-          <BarChart label="Paid revenue per month, last 12 months" data={revenue} format={rupees} />
-        </section>
+        </SectionCard>
+        <SectionCard icon="crown" title="Plans & customers" sub={`${count(o.users.buyers)} have paid · ${count(o.reels.total)} Reels in My Reels`}>
+          {o.plans.length ? (
+            <div className="flex flex-col gap-3">
+              {o.plans.map((p) => {
+                const share = Math.round((p.users / planTotal) * 100);
+                return (
+                  <div key={p.plan} className="flex flex-col gap-1.5">
+                    <span className="flex items-center justify-between gap-2 text-[13px]">
+                      <span className="flex items-center gap-1.5 font-semibold">{p.plan !== "free" && <Icon name="crown" size={13} color="#f5c84c" />}{p.name}</span>
+                      <span className="text-muted"><b className="text-foreground">{count(p.users)}</b> · {share}%</span>
+                    </span>
+                    <span className="block h-2 overflow-hidden rounded-full bg-surface-2"><i className="block h-full rounded-full [background:var(--gold-gradient)]" style={{ width: `${Math.max(share, p.users ? 3 : 0)}%` }} /></span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <p className="m-0 text-[12.5px] text-muted">No wallets yet{o.billing ? "" : " (billing is off)"}.</p>}
+        </SectionCard>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="card" aria-label="Newest users">
-          <span className="h2">Newest users</span>
+      <SectionCard icon="coins" title="Revenue" sub="Paid revenue per month, last 12 months" aside={<Badge tone="success">{rupees(o.revenue.month)} in 30 days</Badge>}>
+        <BarChart label="Paid revenue per month, last 12 months" data={revenue} format={rupees} />
+      </SectionCard>
+
+      {/* what is happening */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <LiveVisitors o={o} />
+        <SectionCard icon="user" title="Newest users" sub="Tap one to see everything about them" aside={onOpenTab && <button type="button" onClick={() => onOpenTab("users")} className="text-[12px] font-bold text-accent">All users</button>}>
           {o.recentUsers.length ? (
-            <ul className="flex flex-col">
+            <ul className="m-0 flex list-none flex-col p-0">
               {o.recentUsers.map((u) => (
                 <li key={u.id}>
-                  <button type="button" onClick={() => onOpenUser(u.id)} className="between w-full border-t border-border py-2 text-left hover:text-accent">
-                    <span className="sm truncate">{u.email}</span>
-                    <span className="mu xs shrink-0">{ago(u.createdAt)}</span>
+                  <button type="button" onClick={() => onOpenUser(u.id)} className="flex w-full items-center gap-3 border-t border-border py-2.5 text-left hover:text-accent">
+                    <Avatar email={u.email} size={32} />
+                    <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{u.email}</span>
+                    <span className="shrink-0 text-[11.5px] text-muted">{ago(u.createdAt)}</span>
                   </button>
                 </li>
               ))}
             </ul>
-          ) : (
-            <span className="mu sm">No accounts yet.</span>
-          )}
-        </section>
-        <section className="card" aria-label="Latest payments">
-          <span className="h2">Latest payments</span>
+          ) : <EmptyState icon="user" title="No accounts yet" hint="New sign-ups show up here." />}
+        </SectionCard>
+        <SectionCard icon="coins" title="Latest payments" sub={`${o.revenue.payments} payments in all`}>
           {o.recentPayments.length ? (
-            <ul className="flex flex-col">
+            <ul className="m-0 flex list-none flex-col p-0">
               {o.recentPayments.map((p) => (
-                <li key={p.id} className="between border-t border-border py-2">
-                  <span className="flex min-w-0 flex-col">
-                    <span className="sm truncate">{p.email}</span>
-                    <span className="mu xs truncate">
-                      {p.label} · {ago(p.paidAt)}
-                    </span>
+                <li key={p.id} className="flex items-center gap-3 border-t border-border py-2.5">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-success/15 text-success"><Icon name="check" size={15} /></span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-[13px] font-semibold">{p.email}</span>
+                    <span className="truncate text-[11.5px] text-muted">{p.label} · {ago(p.paidAt)}</span>
                   </span>
-                  <b className="sm shrink-0">{rupees(p.rupees)}</b>
+                  <b className="shrink-0 text-[13px] text-success">{rupees(p.rupees)}</b>
                 </li>
               ))}
             </ul>
-          ) : (
-            <span className="mu sm">No payments yet.</span>
-          )}
-        </section>
+          ) : <EmptyState icon="coins" title="No payments yet" hint="Payments show up here as soon as they are made." />}
+        </SectionCard>
       </div>
     </div>
   );

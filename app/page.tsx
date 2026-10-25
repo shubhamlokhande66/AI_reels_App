@@ -3,11 +3,11 @@
 import { AdSlot } from "@/components/organisms/AdSlot";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Skeleton } from "@/components/atoms";
+import { DurationTag, Photo, Skeleton } from "@/components/atoms";
 import { ProBanner, Scroller, SectionHeader, TipsBanner } from "@/components/molecules";
 import { HomeHero } from "@/components/organisms/home/HomeHero";
 import { ContinueSection, CreateSection, TemplatesSection, TipsSection } from "@/components/organisms/home/HomeSections";
-import { useCredits, useFeatures, useMe } from "@/hooks/useApi";
+import { useCredits, useFeatures, useMe, useT } from "@/hooks/useApi";
 import { listCloudReels, type CloudReel } from "@/lib/cloudReels";
 import { clock, useDrafts } from "@/lib/drafts";
 
@@ -32,19 +32,20 @@ function useSaved(on: boolean) {
 
 /** The Reels saved in My Reels (cloud), as a row. */
 function SavedSection({ reels }: { reels: CloudReel[] | null }) {
+  const t = useT();
   if (reels === null) return <Skeleton className="h-40 w-full" />;
   if (!reels.length) return null;
   return (
     <section aria-labelledby="saved-h" className="flex flex-col gap-3">
-      <SectionHeader id="saved-h" title="Saved in My Reels" href="/reels?tab=saved" />
+      <SectionHeader id="saved-h" title={t("home.savedTitle")} href="/reels?tab=saved" />
       <Scroller label="Saved Reels" grid="md:grid md:grid-cols-6 md:overflow-visible">
         {reels.slice(0, 6).map((r) => (
           <Link key={r.id} href="/reels?tab=saved" className="group flex w-[31vw] max-w-[150px] shrink-0 snap-start flex-col gap-1.5 md:w-auto md:max-w-none" title={r.name}>
-            <div className="photo relative aspect-[9/16] w-full overflow-hidden rounded-2xl">
+            <Photo className="aspect-[9/16] w-full rounded-2xl">
               {/* eslint-disable-next-line @next/next/no-img-element -- a small picture kept with the Reel */}
               {r.thumb && <img src={r.thumb} alt="" loading="lazy" className="h-full w-full object-cover" />}
-              <span className="tag">{clock(r.dur)}</span>
-            </div>
+              <DurationTag>{clock(r.dur)}</DurationTag>
+            </Photo>
             <b className="truncate text-[13px] group-hover:text-accent">{r.name}</b>
           </Link>
         ))}
