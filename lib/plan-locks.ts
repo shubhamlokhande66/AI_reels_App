@@ -67,6 +67,9 @@ export const needMap = (L: PlanLocks) => Object.fromEntries(L.groups.flatMap((g)
 
 /** the page an address opens, for its lock ("/create/copy" -> "page:copy") */
 export const PAGE_LOCK: Record<string, string> = { "/create/copy": "page:copy", "/templates": "page:templates", "/create/story": "page:story", "/brands": "page:brand" };
+/** The tag on a locked page or card: "Upgrade", never a plan's name (a Free user is not left choosing between Editor and
+ * Pro from a tag); a tap opens the plans. */
+export const lockTag = (need: PlanId) => (need ? "👑 Upgrade" : "");
 /** what a person may open: billing off (or signed out with billing off) and the administrator see everything */
 export function lockedFor(need: string | undefined, who: { plan?: string | null; open: boolean }) {
   return !who.open && planRank(need) > planRank(who.plan);

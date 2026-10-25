@@ -11,7 +11,7 @@ import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { Button } from "@/components/atoms/Button";
 import { clock, deleteDraft, draftPreview, type Draft } from "@/lib/drafts";
 import { linkOn, type Features } from "@/lib/features-list";
-import { PAGE_LOCK } from "@/lib/plan-locks";
+import { lockTag, PAGE_LOCK, type PlanId } from "@/lib/plan-locks";
 import { useLockCheck } from "@/hooks/useApi";
 import { formatRelative } from "@/lib/format";
 import { useTemplates } from "@/lib/useTemplates";
@@ -43,7 +43,7 @@ export function CreateSection({ features }: { features: Features }) {
       <SectionHeader id="create-h" title="Create Your Reel" />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7 lg:gap-3">
         {createOptions(features).map((o) => (
-          <CreateCard key={o.title} {...o} lock={PAGE_LOCK[o.href] && check ? check(PAGE_LOCK[o.href]) : ""} />
+          <CreateCard key={o.title} {...o} lock={PAGE_LOCK[o.href] && check && check(PAGE_LOCK[o.href]) ? lockTag(check(PAGE_LOCK[o.href]) as PlanId) : ""} />
         ))}
       </div>
     </section>

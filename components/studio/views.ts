@@ -69,7 +69,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   try { if (localStorage.getItem("brs-asfree") === "1") root.classList.add("asfree"); } catch {}
   const asFree = () => root.classList.contains("admin") && root.classList.contains("asfree");
   const needOf = (k: string) => (need["studio:" + k] || "free") as PlanId;
-  const locked = (k: string) => PLAN_TOOLS.has(k) && (asFree() ? planRank(needOf(k)) > 0 : !open && !root.classList.contains("admin") && planRank(needOf(k)) > planRank(plan));
+  const locked = (k: string) => PLAN_TOOLS.has(k) && (asFree() ? planRank(needOf(k)) > 0 : !open && !root.classList.contains("planadmin") && planRank(needOf(k)) > planRank(plan));
   // each plan's tool: locked or not, and its tag says the plan it needs
   const paintLocks = () => root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) => {
     const k = b.dataset.tool!, lock = String(locked(k)), tag = b.querySelector(".protag b");

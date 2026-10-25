@@ -5,7 +5,7 @@ import { DEFAULTS, type Features } from "@/lib/features-list";
 import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { api } from "@/lib/api";
 import { getAdminKey, setAdminKey } from "@/lib/admin";
-import { DEFAULT_LOCKS, lockedFor, needMap, PLAN_NAME, type PlanId } from "@/lib/plan-locks";
+import { DEFAULT_LOCKS, lockedFor, needMap, type PlanId } from "@/lib/plan-locks";
 
 /** The signed-in account (accounts on), or null; ``authEnabled`` false = a local studio without accounts. */
 export function useMe() {
@@ -52,12 +52,12 @@ export function useFeatures(): Features {
 export function usePlanLocks() {
   return useQuery({ queryKey: ["plan-locks"], queryFn: api.planLocks, staleTime: 60_000, retry: false });
 }
-/** A page's lock for this person: null while it is not known yet, else (key) => the plan it needs ("Editor", "Pro"),
+/** A page's lock for this person: null while it is not known yet, else (key) => the plan it needs ("creator", "pro"),
  * or "" when it is open (billing off, the administrator, or the plan has it). */
-export function useLockCheck(): ((key: string) => string) | null {
+export function useLockCheck(): ((key: string) => PlanId | "") | null {
   const L = usePlanLocks(), c = useCredits(), a = useAdmin();
   if (L.isLoading || c.isLoading || a.loading) return null;
   const need = needMap(L.data ?? DEFAULT_LOCKS), d = c.data;
-  const open = a.admin || !d || (!d.enabled && !d.billing), plan = d?.enabled ? d.plan : "free";
-  return (key) => (lockedFor(need[key], { plan, open }) ? PLAN_NAME[need[key] as PlanId] : "");
+  const open = (a.admin && a.required) || !d || (!d.enabled && !d.billing), plan = d?.enabled ? d.plan : "free";
+  return (key) => (lockedFor(need[key], { plan, open }) ? (need[key] as PlanId) : "");
 }
