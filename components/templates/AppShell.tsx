@@ -24,7 +24,7 @@ import { InstallApp } from "@/components/molecules/InstallApp";
 import { InstallBanner } from "@/components/molecules/InstallBanner";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useLockCheck, useMe } from "@/hooks/useApi";
-import { PAGE_LOCK } from "@/lib/plan-locks";
+import { lockTag, PAGE_LOCK } from "@/lib/plan-locks";
 import { usePresence } from "@/lib/usePresence";
 import { useErrorReport } from "@/lib/useErrorReport";
 import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
@@ -123,10 +123,10 @@ function CreditPill({ balance, full = false }: { balance: number; full?: boolean
 /** A page on a higher plan (lib/plan-locks.ts "page:…"): the plan it needs ("Editor", "Pro"), or "". */
 function useNavLock() {
   const check = useLockCheck();
-  return (href: string) => (PAGE_LOCK[href] && check ? check(PAGE_LOCK[href]) : "");
+  return (href: string) => { const need = PAGE_LOCK[href] && check ? check(PAGE_LOCK[href]) : ""; return need ? lockTag(need) : ""; };
 }
 const LockTag = ({ plan }: { plan: string }) => (
-  <span className="ml-auto rounded-full border border-[#f5c84c]/70 px-1.5 py-px text-[10.5px] font-bold text-[#f5c84c]">👑 {plan}</span>
+  <span className="ml-auto rounded-full border border-[#f5c84c]/70 px-1.5 py-px text-[10.5px] font-bold text-[#f5c84c]" title="In a paid plan: see the plans">{plan}</span>
 );
 
 /** The sidebar's and the drawer's page list. */

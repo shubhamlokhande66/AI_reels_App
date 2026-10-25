@@ -38,7 +38,7 @@ type PlanDef = { id: string; name: string; monthly: number; credits: number; cre
 const DEFAULT_PRICING = {
   plans: [
     { id: "free", name: "Free", monthly: 0, credits: 0, creditsNote: "Reels made on your phone", tagline: "Edit Reels on your phone, free", highlight: false, ai: false, ads: true, hidden: false, freeChats: 0,
-      features: ["Unlimited Reels, edited on your phone (on the beat)", "Full editor: timeline, text, music, effects", "1080p export with a small watermark", "Ads", "No Shubix AI · Copy a Reel, Templates and Story Maker in Editor"] },
+      features: ["Unlimited Reels, edited on your phone (on the beat)", "Full editor: timeline, text, music, effects", "1080p export with a small watermark", "Ads", "No Shubix AI · Copy a Reel, Templates and Story Maker in Editor & Pro"] },
     { id: "creator", name: "Editor", monthly: 199, credits: 250, creditsNote: "every month · about 20 AI Reels", tagline: "Shubix AI edits your Reels", highlight: true, ai: true, ads: false, hidden: false, freeChats: 2,
       features: ["Everything in Free, no ads, no watermark", "Shubix AI: about 20 AI Reels a month", "Ask Shubix: 2 free chat changes per Reel", "Copy a Reel, Templates, Story Maker", "All 👑 effects, Beauty, Stabilize, 60 fps"] },
     { id: "pro", name: "Pro", monthly: 499, credits: 720, creditsNote: "every month · about 60 AI Reels", tagline: "For daily posting and brands", highlight: false, ai: true, ads: false, hidden: false, freeChats: 5,
