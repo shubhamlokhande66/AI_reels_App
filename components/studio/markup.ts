@@ -453,6 +453,12 @@ export const STUDIO_HTML = `
 <div class="openload" id="openload" role="status" aria-live="polite"><span class="openspin" aria-hidden="true"></span><b id="openh">Opening your Reel…</b><small id="openstep">Getting the song and the clips</small><a class="btn" href="/reels" id="openback">Back to My Reels</a></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
+<!-- credits: asked before Shubix AI uses them (an AI Reel, a chat change); Free: the plans -->
+<div class="cconf" id="cconf" hidden><div class="cconfb" role="dialog" aria-modal="true" aria-labelledby="cconft">
+  <span class="cconfi" aria-hidden="true">${IC.spark}</span>
+  <b id="cconft"></b><p id="cconfp"></p><p class="cconfbal" id="cconfbal"></p>
+  <div class="cconfa"><button type="button" class="btn" id="cconfno"></button><button type="button" class="btn hot" id="cconfok"></button></div>
+</div></div>
 <div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
 <section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">
   <div class="ctpoph"><b id="ctpoph"></b><button type="button" class="ctpopok" id="ctpopok" aria-label="Done">${IC.check}</button></div>

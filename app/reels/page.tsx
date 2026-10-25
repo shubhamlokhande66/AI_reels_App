@@ -1,5 +1,6 @@
 "use client";
 
+import { AdSlot } from "@/components/organisms/AdSlot";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { clock, deleteDraft, useDrafts } from "@/lib/drafts";
@@ -230,6 +231,7 @@ function MyReels() {
           </Button>
         }
       />
+      <AdSlot place="reels" />
       <div role="tablist" aria-label="My Reels" className="chips">
         {(
           [

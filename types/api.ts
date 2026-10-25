@@ -349,9 +349,14 @@ export interface Pricing {
     creditsNote: string;
     tagline: string;
     highlight: boolean;
+    /** Shubix AI in this plan (Free: the phone edits); ads shown; not offered on the pricing page */
+    ai?: boolean;
+    ads?: boolean;
+    hidden?: boolean;
     features: string[];
   }[];
   topUps: { id: string; credits: number; price: number }[];
+  costLabels?: Record<string, string>;
   creditCosts: { id: string; action: string; credits: number }[];
   costs: Record<string, number>;
   paymentsOpen: boolean;

@@ -219,7 +219,7 @@ export const api = {
   setPlanLocks: (body: import("@/lib/plan-locks").LockOverrides) => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks", { method: "PUT", body: JSON.stringify(body) }),
   adminErrors: () => request<{ errors: { id: string; kind: string; message: string; where: string; count: number; firstAt: string; lastAt: string; path: string; ua: string; stack: string }[] }>("/api/admin/errors"),
   clearAdminError: (id: string) => request<{ ok: boolean }>("/api/admin/errors", { method: "DELETE", body: JSON.stringify({ id }) }),
-  setPricing: (body: { plans: { id: string; monthly: number; credits: number; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
+  setPricing: (body: { plans: { id: string; name?: string; monthly: number; credits: number; ai?: boolean; ads?: boolean; hidden?: boolean; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
     request<Pricing>("/api/admin/pricing", { method: "PUT", body: JSON.stringify(body) }),
   /** Which parts of the app are on (Administration → Features). */
   features: () => request<Features>("/api/features"),
@@ -228,6 +228,10 @@ export const api = {
   adminOverview: () => request<AdminOverview>("/api/admin/overview"),
   adminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
   adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
+  ads: () => request<{ enabled: boolean; client: string; slot: string }>("/api/ads"),
+  setAds: (b: { enabled?: boolean; client?: string; slot?: string }) => request<{ enabled: boolean; client: string; slot: string }>("/api/admin/ads", { method: "PUT", body: JSON.stringify(b) }),
+  /** Admin: a plan by hand (Free, or a paid plan for 1 or 12 months with its credits) */
+  adminSetPlan: (id: string, plan: string, months: number) => request<unknown>(`/api/admin/users/${id}/plan`, { method: "POST", body: JSON.stringify({ plan, months }) }),
   adminGiveCredits: (id: string, credits: number, note: string) =>
     request<AdminUserDetail>(`/api/admin/users/${id}/credits`, { method: "POST", body: JSON.stringify({ credits, note }) }),
   /** This tab is still open (the admin dashboard's "online now"); quiet: no activity bar, no retries. */

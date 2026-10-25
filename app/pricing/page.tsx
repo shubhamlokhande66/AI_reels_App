@@ -120,7 +120,7 @@ export default function PricingPage() {
         <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(34px,6.5vw,60px)] font-extrabold leading-[1.04] tracking-[-0.035em]">
           Simple plans. <span className="bg-[linear-gradient(90deg,#c084fc,#e040fb_55%,#ff4fd8)] bg-clip-text text-transparent">Pay for what you make.</span>
         </h1>
-        <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">Start free with {p.plans.find((x) => x.monthly === 0)?.credits ?? 15} credits. No card needed, nothing renews by itself, and every price includes GST.</p>
+        <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">Make Reels free on your phone. Shubix AI edits them for you in Editor and Pro: an AI Reel uses {p.costs.studio_ai ?? 10} credits. No card for Free, nothing renews by itself, every price includes GST.</p>
 
         {/* Monthly / Yearly */}
         <div role="radiogroup" aria-label="Billing period" className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-surface p-1.5 shadow-[var(--shadow)]">
@@ -155,8 +155,8 @@ export default function PricingPage() {
       )}
 
       {/* the plans */}
-      <section aria-label="Plans" className="grid items-start gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
-        {p.plans.map((plan) => {
+      <section aria-label="Plans" className={cn("grid items-start gap-5 sm:grid-cols-2 lg:gap-4", p.plans.filter((x) => !x.hidden).length === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4")}>
+        {p.plans.filter((x) => !x.hidden).map((plan) => {
           const item = `plan:${plan.id}:${period}`;
           const current = !!mine && mine.plan === plan.id && plan.id !== "free";
           return (
@@ -214,7 +214,7 @@ export default function PricingPage() {
         </div>
         <Card className="!p-2 md:!p-3">
           <ul className="m-0 grid list-none gap-x-6 p-0 md:grid-cols-2">
-            {p.creditCosts.map((c) => (
+            {p.creditCosts.filter((c) => c.id.startsWith("studio_") || c.credits > 0).filter((c) => !["clip_reel", "version", "story_render", "preview"].includes(c.id)).map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-3 border-b border-border px-3 py-3.5 last:border-b-0 md:[&:nth-last-child(2):nth-child(odd)]:border-b-0">
                 <span className="flex min-w-0 items-center gap-2.5 text-[14px] font-semibold">
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/12 text-accent">

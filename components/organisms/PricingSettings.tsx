@@ -17,13 +17,13 @@ const COST_LABELS: Record<string, string> = {
 };
 
 type Form = {
-  plans: { id: string; name: string; monthly: number; credits: number }[];
+  plans: { id: string; name: string; monthly: number; credits: number; ai: boolean; ads: boolean; hidden: boolean; features: string[] }[];
   topUps: { id: string; credits: number; price: number }[];
   costs: Record<string, number>;
 };
 
 const toForm = (p: Pricing): Form => ({
-  plans: p.plans.map(({ id, name, monthly, credits }) => ({ id, name, monthly, credits })),
+  plans: p.plans.map(({ id, name, monthly, credits, ai, ads, hidden, features }) => ({ id, name, monthly, credits, ai: ai ?? id !== "free", ads: ads ?? id === "free", hidden: !!hidden, features })),
   topUps: p.topUps.map((t) => ({ ...t })),
   costs: { ...p.costs },
 });
@@ -44,7 +44,7 @@ export function PricingSettings() {
   }
 
   const save = useMutation({
-    mutationFn: (f: Form) => api.setPricing({ plans: f.plans, topUps: f.topUps, costs: f.costs }),
+    mutationFn: (f: Form) => api.setPricing({ plans: f.plans.map((p) => ({ ...p, features: p.features.map((x) => x.trim()).filter(Boolean) })), topUps: f.topUps, costs: f.costs }),
     onSuccess: (p) => {
       qc.setQueryData(["plans"], p);
       setSaved(true);
@@ -63,10 +63,14 @@ export function PricingSettings() {
       if (!whole(p.credits, 0)) return setFormError(`${p.name}: credits must be a whole number.`);
     }
     for (const t of form.topUps) if (!whole(t.credits, 1) || !whole(t.price, 1)) return setFormError("Top-ups need whole numbers of credits and rupees.");
-    for (const [k, v] of Object.entries(form.costs)) if (!whole(v, 0) || v > 100) return setFormError(`${COST_LABELS[k] ?? k}: use 0 to 100 credits.`);
+    for (const [k, v] of Object.entries(form.costs)) if (!whole(v, 0) || v > 100) return setFormError(`${COST_LABELS[k] ?? q.data?.costLabels?.[k] ?? k}: use 0 to 100 credits.`);
     save.mutate(form);
   }
 
+  const labels = { ...COST_LABELS, ...(q.data.costLabels ?? {}) };
+  const setFlag = (i: number, k: "ai" | "ads" | "hidden", v: boolean) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
+  const setName = (i: number, v: string) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, name: v } : p)) });
+  const setFeatures = (i: number, v: string) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, features: v.split("\n") } : p)) });
   const setPlan = (i: number, k: "monthly" | "credits", v: number) => setForm((f) => f && { ...f, plans: f.plans.map((p, j) => (j === i ? { ...p, [k]: v } : p)) });
   const setTop = (i: number, k: "credits" | "price", v: number) => setForm((f) => f && { ...f, topUps: f.topUps.map((t, j) => (j === i ? { ...t, [k]: v } : t)) });
 
@@ -75,7 +79,8 @@ export function PricingSettings() {
       <div>
         <h2 className="font-medium">Plans & credits</h2>
         <p className="mt-1 text-sm text-muted">
-          Prices in rupees, GST included. Yearly = 10 × the monthly price. Changes show on the pricing page at once; people who already paid keep
+          Prices in rupees, GST included. Yearly = 10 × the monthly price. Shubix AI off: that plan&apos;s Reels are edited on the phone (no AI, no
+          credits). An AI Reel uses &quot;Shubix AI edits a Reel&quot; credits once; each Ask Shubix change uses the small or whole-Reel credits. Changes show on the pricing page at once; people who already paid keep
           what they bought.
         </p>
         {!q.data.billingEnabled && (
@@ -93,12 +98,15 @@ export function PricingSettings() {
               <th className="pb-2 font-normal">Plan</th>
               <th className="pb-2 text-right font-normal">₹ / month</th>
               <th className="pb-2 text-right font-normal">Credits</th>
+              <th className="pb-2 text-center font-normal" title="Shubix AI in this plan (off: Reels are edited on the phone)">Shubix AI</th>
+              <th className="pb-2 text-center font-normal" title="Ads shown to this plan">Ads</th>
+              <th className="pb-2 text-center font-normal" title="Shown on the pricing page">Offered</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {form.plans.map((p, i) => (
               <tr key={p.id}>
-                <td className="py-2">{p.name}</td>
+                <td className="py-2"><input aria-label="Plan name" className="w-28 rounded-xl border border-border bg-surface px-2.5 py-1.5 outline-none focus:border-accent" value={p.name} maxLength={30} onChange={(e) => setName(i, e.target.value)} /></td>
                 <td className="py-2 text-right">
                   {p.id === "free" ? (
                     <span className="text-muted">free</span>
@@ -109,10 +117,23 @@ export function PricingSettings() {
                 <td className="py-2 text-right">
                   <input type="number" min={0} inputMode="numeric" aria-label={`${p.name} credits`} className={NUM} value={p.credits} onChange={(e) => setPlan(i, "credits", e.target.valueAsNumber)} />
                 </td>
+                <td className="py-2 text-center"><input type="checkbox" aria-label={`${p.name}: Shubix AI`} checked={p.ai} onChange={(e) => setFlag(i, "ai", e.target.checked)} /></td>
+                <td className="py-2 text-center"><input type="checkbox" aria-label={`${p.name}: ads`} checked={p.ads} onChange={(e) => setFlag(i, "ads", e.target.checked)} /></td>
+                <td className="py-2 text-center">{p.id === "free" ? <span className="text-muted">always</span> : <input type="checkbox" aria-label={`${p.name}: offered`} checked={!p.hidden} onChange={(e) => setFlag(i, "hidden", !e.target.checked)} />}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium">What each plan says (one line each, on the pricing page)</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {form.plans.filter((p) => !p.hidden).map((p) => { const i = form.plans.indexOf(p); return (
+            <label key={p.id} className="grid gap-1 text-sm"><span className="text-muted">{p.name}</span>
+              <textarea rows={5} className="rounded-xl border border-border bg-surface px-2.5 py-1.5 outline-none focus:border-accent" value={p.features.join("\n")} onChange={(e) => setFeatures(i, e.target.value)} />
+            </label>); })}
+        </div>
       </div>
 
       <div>
@@ -133,7 +154,7 @@ export function PricingSettings() {
         <div className="grid gap-2 sm:grid-cols-2">
           {Object.entries(form.costs).map(([k, v]) => (
             <label key={k} className="flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2 text-sm">
-              <span>{COST_LABELS[k] ?? k}</span>
+              <span>{labels[k] ?? k}</span>
               <input
                 type="number"
                 min={0}
