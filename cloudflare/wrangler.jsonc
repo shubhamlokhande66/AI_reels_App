@@ -1,6 +1,7 @@
 // Reel Maker on Cloudflare (Workers + Containers + R2). Deploy: see docs/deploy-cloudflare.md.
 // Secrets (never in this file): npx wrangler secret put <NAME>  for MONGODB_URI, SECRET_KEY, ADMIN_KEY,
-// R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, OPENAI_API_KEY / GEMINI_API_KEY ... (every secret is passed to the app).
+// R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, OPENAI_API_KEY / GEMINI_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET ...
+// (every secret is passed to the app).
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "reel-maker",
@@ -32,6 +33,10 @@
     "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",
     "PUBLIC_BASE_URL": "https://reel-maker.shubhlokhande850.workers.dev",
     "AUTH_ENABLED": "true",
+    // plans and credits: Free / Editor / Pro, page locks and Shubix AI credits (off: every page open, no credits counted)
+    "BILLING_ENABLED": "true",
+    // the administrator: only these accounts open Admin and skip the plan locks (empty: everyone is the administrator)
+    "ADMIN_EMAILS": "shubhlokhande850@gmail.com",
     "COOKIE_SECURE": "true",
     "AI_PROVIDER": "openai",
     "OPENAI_TEXT_MODEL": "gpt-5.6-luna",
