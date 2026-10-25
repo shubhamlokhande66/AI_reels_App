@@ -63,7 +63,7 @@ let planNow = 'free', planOpen = false, LOCKS = needMap(DEFAULT_LOCKS), EXR = DE
 try{ const c = JSON.parse(localStorage.getItem(PLAN_KEY) || 'null'); if(c && Date.now() - c.at < 7*864e5){ planNow = c.plan; planOpen = !!c.open; if(c.need) LOCKS = c.need; if(c.ex) EXR = c.ex; } }catch(e){}
 const lockNeed = (cat, key) => LOCKS[cat + ':' + key] || 'free';
 const asFree = () => root.classList.contains('admin') && root.classList.contains('asfree');
-const allOpen = () => !asFree() && (planOpen || root.classList.contains('admin'));
+const allOpen = () => !asFree() && (planOpen || root.classList.contains('planadmin'));
 const isLocked = (cat, key) => !allOpen() && planRank(lockNeed(cat, key)) > planRank(asFree() ? 'free' : planNow);
 const crown = (cat, key, name) => (isLocked(cat, key) ? '👑 ' : '') + name;
 const exRule = () => allOpen() ? { maxRes: '4k', fps60: true, noWatermark: true } : asFree() ? EXR.free : (EXR[planNow] || EXR.free);

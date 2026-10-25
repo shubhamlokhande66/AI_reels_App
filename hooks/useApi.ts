@@ -58,6 +58,6 @@ export function useLockCheck(): ((key: string) => string) | null {
   const L = usePlanLocks(), c = useCredits(), a = useAdmin();
   if (L.isLoading || c.isLoading || a.loading) return null;
   const need = needMap(L.data ?? DEFAULT_LOCKS), d = c.data;
-  const open = a.admin || !d || (!d.enabled && !d.billing), plan = d?.enabled ? d.plan : "free";
+  const open = (a.admin && a.required) || !d || (!d.enabled && !d.billing), plan = d?.enabled ? d.plan : "free";
   return (key) => (lockedFor(need[key], { plan, open }) ? PLAN_NAME[need[key] as PlanId] : "");
 }

@@ -1,4 +1,4 @@
-import { isAdmin } from "@/server/core/admin";
+import { isPlanAdmin } from "@/server/core/admin";
 import { requireAiPlan } from "@/server/credits";
 import { body } from "@/server/core/body";
 import { requireFeature } from "@/server/core/features";
@@ -10,7 +10,7 @@ import { limits } from "@/server/core/rateLimit";
  * the phone sends. On only when the administrator turned on Fast Studio AI (GET /api/studio/rank-shots says so). */
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");
-  await requireAiPlan(await isAdmin(req));
+  await requireAiPlan(await isPlanAdmin(req));
   limits.ai(req); // each AI call costs money
   return refLook(await body(req, LookIn));
 });
