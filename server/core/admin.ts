@@ -40,6 +40,13 @@ export async function isAdmin(req: Request): Promise<boolean> {
   return Boolean(email && list.has(email));
 }
 
+/** The administrator for plans and credits: only a real one (an admin key or an admin email is set up and matches).
+ * With no administrator set up, every visitor counts as the administrator for the admin pages, but plans, locks and
+ * credits still follow each person's own plan. */
+export async function isPlanAdmin(req: Request): Promise<boolean> {
+  return adminRequired() && (await isAdmin(req));
+}
+
 export async function requireAdmin(req: Request) {
   if (!(await isAdmin(req))) throw new AppError("This part of the app is for the administrator.", { code: "ADMIN_ONLY", status: 403 });
 }

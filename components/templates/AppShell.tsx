@@ -23,7 +23,8 @@ import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { InstallApp } from "@/components/molecules/InstallApp";
 import { InstallBanner } from "@/components/molecules/InstallBanner";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
-import { useAdmin, useCredits, useFeatures, useMe } from "@/hooks/useApi";
+import { useAdmin, useCredits, useFeatures, useLockCheck, useMe } from "@/hooks/useApi";
+import { PAGE_LOCK } from "@/lib/plan-locks";
 import { usePresence } from "@/lib/usePresence";
 import { useErrorReport } from "@/lib/useErrorReport";
 import { FEATURE_LIST, linkOn, pageFeature } from "@/lib/features-list";
@@ -119,20 +120,30 @@ function CreditPill({ balance, full = false }: { balance: number; full?: boolean
   );
 }
 
+/** A page on a higher plan (lib/plan-locks.ts "page:…"): the plan it needs ("Editor", "Pro"), or "". */
+function useNavLock() {
+  const check = useLockCheck();
+  return (href: string) => (PAGE_LOCK[href] && check ? check(PAGE_LOCK[href]) : "");
+}
+const LockTag = ({ plan }: { plan: string }) => (
+  <span className="ml-auto rounded-full border border-[#f5c84c]/70 px-1.5 py-px text-[10.5px] font-bold text-[#f5c84c]">👑 {plan}</span>
+);
+
 /** The sidebar's and the drawer's page list. */
 export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pathname: string; onNavigate?: () => void }) {
+  const lockOf = useNavLock();
   return (
     <>
       {groups.map((g) => (
         <div key={g.title} className="flex flex-col gap-0.5">
           <span className="eb px-2.5 pb-1 pt-3 first:pt-1">{g.title}</span>
           {g.items.map((item) => {
-            const active = isActive(pathname, item.href);
-            const Tag = item.fullLoad ? "a" : Link;
+            const active = isActive(pathname, item.href), lock = lockOf(item.href);
+            const Tag = item.fullLoad && !lock ? "a" : Link;
             return (
               <Tag
                 key={item.href}
-                href={item.href}
+                href={lock ? "/pricing?need=" + encodeURIComponent(item.href) : item.href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-[13.5px] transition-colors ${
@@ -141,6 +152,7 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
               >
                 <Icon name={item.icon} size={18} stroke={1.7} color={active ? "var(--accent)" : undefined} />
                 {item.label}
+                {lock && <LockTag plan={lock} />}
               </Tag>
             );
           })}
@@ -180,19 +192,21 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
 }) {
   // the computer's sidebar list, by group (Studio, Library, Account with Pricing & plans), then the Admin dashboard button
   const main = groups.filter((g) => !g.admin);
+  const lockOf = useNavLock();
   const link = (item: (typeof GROUPS)[number]["items"][number]) => {
-    const active = isActive(pathname, item.href);
-    const Tag = item.fullLoad ? "a" : Link;
+    const active = isActive(pathname, item.href), lock = lockOf(item.href);
+    const Tag = item.fullLoad && !lock ? "a" : Link;
     return (
       <Tag
         key={item.href}
-        href={item.href}
+        href={lock ? "/pricing?need=" + encodeURIComponent(item.href) : item.href}
         onClick={onClose}
         aria-current={active ? "page" : undefined}
         className={`row min-h-[44px] rounded-xl px-2.5 ${active ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-bold" : ""}`}
       >
         <Icon name={item.icon} size={20} stroke={1.7} color={active ? "var(--accent)" : "var(--muted)"} />
         {item.label}
+        {lock && <LockTag plan={lock} />}
       </Tag>
     );
   };

@@ -1,4 +1,4 @@
-import { isAdmin } from "@/server/core/admin";
+import { isPlanAdmin } from "@/server/core/admin";
 import { body } from "@/server/core/body";
 import { balanceNow, chargeOnce, chatTurn, requireAiPlan } from "@/server/credits";
 import { chatSize } from "@/lib/chatSize";
@@ -12,7 +12,7 @@ import { limits } from "@/server/core/rateLimit";
  * its hits, decided from the music map and the footage. The phone checks that each choice can be played. */
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");
-  await requireAiPlan(await isAdmin(req));
+  await requireAiPlan(await isPlanAdmin(req));
   limits.ai(req); // each AI call costs money
   const d = await body(req, DirectIn), t0 = Date.now();
   // the Reel's AI (once per Reel), then the chat message it answers (once per message: small or the whole Reel)

@@ -1,4 +1,4 @@
-import { isAdmin } from "@/server/core/admin";
+import { isPlanAdmin } from "@/server/core/admin";
 import { body } from "@/server/core/body";
 import { chargeOnce, requireAiPlan } from "@/server/credits";
 import { requireFeature } from "@/server/core/features";
@@ -11,7 +11,7 @@ import { limits } from "@/server/core/rateLimit";
  * The phone then places the cuts on the real beats. */
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");
-  await requireAiPlan(await isAdmin(req));
+  await requireAiPlan(await isPlanAdmin(req));
   limits.ai(req); // each AI call costs money
   const d = await body(req, PaceIn), t0 = Date.now();
   if (d.reelId) await chargeOnce("studio_ai", d.reelId, "Shubix AI Reel");

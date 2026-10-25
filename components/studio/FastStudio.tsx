@@ -40,11 +40,13 @@ function loadScript(src: string): Promise<void> {
 export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "copy" } = {}) {
   const root = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const { admin } = useAdmin();
-  // the style library (teaching the AI new styles) is the administrator's
+  const { admin, required } = useAdmin();
+  // the style library (teaching the AI new styles) is the administrator's; plans open only for a real administrator
+  // (an admin key or email set up), not for everyone on a server without one
   useEffect(() => {
     root.current?.classList.toggle("admin", admin);
-  }, [admin]);
+    root.current?.classList.toggle("planadmin", admin && required);
+  }, [admin, required]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
