@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { DEFAULTS, type Features } from "@/lib/features-list";
 import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { api } from "@/lib/api";
@@ -12,7 +13,11 @@ export function useMe() {
 
 /** The signed-in user's credits (`enabled: false` when billing is off or nobody is signed in). */
 export function useCredits() {
-  return useQuery({ queryKey: ["credits"], queryFn: api.credits, staleTime: 15_000, refetchOnWindowFocus: true }); // no timer: each request keeps the server awake (Cloudflare); read again when the tab comes back and after each charge
+  const q = useQuery({ queryKey: ["credits"], queryFn: api.credits, staleTime: 15_000, refetchOnWindowFocus: true }); // no timer: each request keeps the server awake (Cloudflare); read again when the tab comes back and after each charge
+  // the studio used credits (Shubix AI, a chat change): the balance everywhere is read again
+  const { refetch } = q;
+  useEffect(() => { const on = () => { void refetch(); }; window.addEventListener("brs-credits", on); return () => window.removeEventListener("brs-credits", on); }, [refetch]);
+  return q;
 }
 
 /** Admin mode in this browser (settings and diagnostics are admin only; see lib/admin.ts). */

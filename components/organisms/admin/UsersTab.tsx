@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon, Spinner } from "@/components/atoms";
 import { EmptyState, ErrorBanner } from "@/components/molecules";
 import { api, errorMessage } from "@/lib/api";
@@ -148,8 +148,8 @@ export function UsersTab({ onOpenUser }: { onOpenUser: (id: string) => void }) {
                     {u.purchases > 0 && <span className="mu block text-[11px]">{u.purchases} purchase{u.purchases === 1 ? "" : "s"}</span>}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{count(u.reels)}</td>
-                  <td className="px-3 py-2.5">
-                    <span className={`badge ${u.plan === "free" ? "" : "b-run"}`}>{u.planName}</span>
+                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <PlanPicker user={u} />
                   </td>
                 </tr>
               ))}
@@ -159,5 +159,40 @@ export function UsersTab({ onOpenUser }: { onOpenUser: (id: string) => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** The administrator changes a person's plan from the list: Free, or a paid plan for a month or a year (its credits
+ * come with it, no payment). The choice asks once before it is made. */
+function PlanPicker({ user }: { user: AdminUserRow }) {
+  const qc = useQueryClient();
+  const plans = useQuery({ queryKey: ["plans"], queryFn: api.plans });
+  const set = useMutation({
+    mutationFn: ({ plan, months }: { plan: string; months: number }) => api.adminSetPlan(user.id, plan, months),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["admin", "users"] }); void qc.invalidateQueries({ queryKey: ["admin", "user", user.id] }); },
+  });
+  const list = plans.data?.plans ?? [];
+  const choose = (v: string) => {
+    if (!v) return;
+    const [plan, m] = v.split(":"), months = Number(m || 1), p = list.find((x) => x.id === plan);
+    const what = plan === "free" ? "the Free plan (Shubix AI off; their credits stay)" : `${p?.name ?? plan} for ${months === 12 ? "1 year" : "1 month"} (${p?.credits ?? 0} credits a month, no payment)`;
+    if (window.confirm(`Put ${user.email} on ${what}?`)) set.mutate({ plan, months });
+  };
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <select
+        aria-label={`Plan of ${user.email}`}
+        className={`badge cursor-pointer border-0 ${user.plan === "free" ? "" : "b-run"}`}
+        value=""
+        disabled={set.isPending || !list.length}
+        onChange={(e) => choose(e.target.value)}
+      >
+        <option value="">{set.isPending ? "Saving…" : user.planName} ▾</option>
+        {list.map((p) => p.id === "free"
+          ? <option key="free" value="free:1">Free</option>
+          : [<option key={p.id + "1"} value={`${p.id}:1`}>{p.name} · 1 month</option>, <option key={p.id + "12"} value={`${p.id}:12`}>{p.name} · 1 year</option>])}
+      </select>
+      {set.error && <span className="text-[11px] text-danger" title={errorMessage(set.error)}>!</span>}
+    </span>
   );
 }

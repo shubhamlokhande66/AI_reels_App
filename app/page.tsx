@@ -1,5 +1,6 @@
 "use client";
 
+import { AdSlot } from "@/components/organisms/AdSlot";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/atoms";
@@ -67,6 +68,7 @@ export default function Home() {
     <div className="flex flex-col gap-7 md:gap-9">
       <HomeHero {...create} />
       <CreateSection features={features} />
+      <AdSlot place="home" />
       <TemplatesSection />
       <ContinueSection drafts={drafts} onChange={() => setReload((n) => n + 1)} />
       {/* the shortcut to the tips, when Saved Reels stand between (else the tips are right here) */}

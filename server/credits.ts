@@ -64,6 +64,47 @@ export async function charge(action: string, ref: string, reason: string, times 
   }
   throw new AppError("Your credits are being updated by another request. Try again.", { code: "CREDITS_BUSY" });
 }
+// ------------------------------------------------------------------ Shubix AI by plan, and per Reel
+export class PlanNeeded extends AppError {
+  constructor(message: string, details: unknown) { super(message, { code: "PLAN_NEEDED", status: 402, details }); }
+}
+/** Has this person's plan Shubix AI? Billing off (a private studio) or the administrator: always. */
+export async function aiAllowed(admin = false): Promise<{ ok: boolean; plan: string; planName: string; balance: number | null }> {
+  const uid = currentUser();
+  if (!enabled() || admin) return { ok: true, plan: "", planName: "", balance: null };
+  if (!uid) return { ok: false, plan: "free", planName: "Free", balance: 0 };
+  const w = await wallet(uid), plan = (await plansById()).get(String(w.plan)) as { ai?: boolean; name?: string } | undefined;
+  return { ok: !!plan?.ai, plan: String(w.plan), planName: plan?.name ?? String(w.plan), balance: balanceOf(w) };
+}
+export async function requireAiPlan(admin = false) {
+  const a = await aiAllowed(admin);
+  if (!a.ok) throw new PlanNeeded("Shubix AI is part of the Editor and Pro plans. Your Reel is still edited on your phone, free.", { plan: a.plan });
+  return a;
+}
+/** What the signed-in person has: their balance (null: credits are not counted here). */
+export async function balanceNow(): Promise<number | null> { const uid = currentUser(); if (!enabled() || !uid) return null; return balanceOf(await wallet(uid)); }
+/** Charge once for a key (an AI Reel, one chat message): asking again with the same key (more clips, a retry, a long
+ * Reel planned in parts) takes nothing more. A refunded charge counts as not taken. */
+export async function chargeOnce(action: string, key: string, reason: string): Promise<{ taken: number; ref: string }> {
+  const uid = currentUser();
+  if (!enabled() || !uid) return { taken: 0, ref: "" };
+  const ref = `${action}:${uid}:${key}`;
+  if (await (await col("credit_ledger")).findOne({ ref, delta: { $lt: 0 }, refunded: { $ne: true } })) return { taken: 0, ref };
+  return { taken: await charge(action, ref, reason), ref };
+}
+/** The AI's price list for the phone: an AI Reel, a small and a whole-Reel chat change, Change Reel's versions */
+export async function aiCosts() { const [reel, small, big, mix] = await Promise.all(["studio_ai", "studio_chat_small", "studio_chat_big", "studio_mix"].map((k) => costOf(k))); return { reel, small, big, mix }; }
+/** Admin: put a person on a plan by hand (no payment): Free, or a paid plan for 1 or 12 months with its credits. */
+export async function setPlanByAdmin(userId: string, planId: string, months: number) {
+  const plans = await plansById();
+  if (!plans.has(planId)) throw new ValidationFailed("Unknown plan.", { code: "UNKNOWN_PLAN" });
+  await wallet(userId);
+  if (planId === "free") {
+    const res = await (await col("wallets")).findOneAndUpdate({ _id: userId }, { $set: { plan: "free", period: null, monthly: 0, planEnds: null, cycleEnds: null, updatedAt: new Date() } }, { returnDocument: "after" });
+    await log(userId, 0, "Moved to the Free plan by the administrator", "admin", res);
+  } else await givePlan(userId, planId, months >= 12 ? "yearly" : "monthly", "admin");
+  return summary(userId);
+}
 /** Give back what a job took (it failed or was cancelled); each charge is refunded at most once. */
 export async function refund(ref: string): Promise<number> {
   const entry = await (await col("credit_ledger")).findOneAndUpdate({ ref, delta: { $lt: 0 }, refunded: { $ne: true } }, { $set: { refunded: true } });

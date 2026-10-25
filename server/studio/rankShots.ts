@@ -5,7 +5,7 @@ import { getProvider, type ManagedProvider } from "@/server/ai";
 import { effective, keyConfigured, providerFor } from "@/server/ai/config";
 import { clean, Text } from "@/server/ai/text";
 import { AIResponseError } from "@/server/ai/types";
-import { charge, costOf, enabled as creditsOn, refund } from "@/server/credits";
+import { chargeOnce, costOf, enabled as creditsOn, refund } from "@/server/credits";
 
 /** Fast Studio's optional AI step: the phone sends a few small frames of each clip, a vision model says how strong each
  * moment is as a Reel shot, what it is good for (opening, action, calm, detail, ending), what is wrong with it and where
@@ -25,6 +25,8 @@ export const RankIn = z.object({
     name: z.string().max(200).default(""),
     frames: z.array(z.object({ t: z.number().min(0).max(36_000), image: b64 })).min(1).max(LIMITS.frames),
   })).min(1).max(LIMITS.clips),
+  /** the Reel these clips are for (the phone's id of it): Shubix AI is charged once per Reel, however many clips come */
+  reelId: z.string().regex(/^[\w-]{6,64}$/).optional(),
 });
 export type RankIn = z.infer<typeof RankIn>;
 
@@ -122,8 +124,7 @@ async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Prom
 export async function rankShots(input: RankIn, provider: ManagedProvider = getProvider(TASK)) {
   for (const c of input.clips) for (const f of c.frames)
     if (Buffer.byteLength(f.image, "base64") > LIMITS.imageBytes) throw new AIResponseError("A frame is too large (keep each under 120 KB).");
-  const ref = `studio_ai_${crypto.randomUUID().slice(0, 12)}`;
-  const charged = await charge(COST_ACTION, ref, "Shubix shot picking");
+  const { taken: charged, ref } = await chargeOnce(COST_ACTION, input.reelId || crypto.randomUUID().slice(0, 12), "Shubix AI Reel");
   const results = await pool(input.clips, 4, (c) => rankClip(provider, c));
   const clips = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   const failed = results.flatMap((r, i) => (r.status === "rejected" ? [{ id: input.clips[i].id, error: clean((r.reason as Error)?.message ?? r.reason, 200) }] : []));
