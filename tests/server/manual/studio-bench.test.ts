@@ -104,7 +104,8 @@ async function server(file: string, key: string) {
 const fmtS = (s: ReturnType<typeof score>) => `F ${s.f.toFixed(2)} (P ${s.p.toFixed(2)} R ${s.r.toFixed(2)}, ${Number.isNaN(s.off) ? "-" : s.off.toFixed(0) + "ms"})`;
 const bpmOf = (beats: number[]) => { const d = beats.slice(1).map((b, i) => b - beats[i]).sort((a, b) => a - b); return d.length ? 60 / d[d.length >> 1] : 0; };
 
-it("Fast Studio vs server beat accuracy", { timeout: 3_600_000 }, async () => {
+// a manual benchmark (up to an hour, needs real songs): run it with STUDIO_BENCH=1 npx vitest run tests/server/manual
+it.skipIf(!process.env.STUDIO_BENCH)("Fast Studio vs server beat accuracy", { timeout: 3_600_000 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bench_")), lines: string[] = [];
   const log = (s: string) => { lines.push(s); console.log(s); };
   log("## Synthetic songs (true beats known), F-measure at +-70 ms");
@@ -123,7 +124,8 @@ it("Fast Studio vs server beat accuracy", { timeout: 3_600_000 }, async () => {
   }
   log("\n## Real songs (no ground truth: measured against Beat This!, the server's neural tracker)");
   const songs = fs.readdirSync("storage/songs").filter((f) => /\.(mp3|mpeg)$/.test(f)).map((f) => path.join("storage/songs", f));
-  songs.push("TestFile/songs_20261014_154722/songs_20261014_154722.mp3");
+  const extra = "TestFile/songs_20261014_154722/songs_20261014_154722.mp3";
+  if (fs.existsSync(extra)) songs.push(extra);
   const seen = new Set<number>();
   for (const f of songs) {
     const size = fs.statSync(f).size; if (seen.has(size)) continue; seen.add(size);

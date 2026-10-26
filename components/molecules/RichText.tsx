@@ -3,6 +3,7 @@ import { Fragment } from "react";
 
 /** A long text the administrator writes (Admin → CMS), shown as a page: a line starting "## " is a heading,
  * lines starting "- " make a list, a blank line starts a new paragraph; inside a line **bold** and [a link](/refunds). */
+const SAFE_LINK = /^(\/(?!\/)|https?:\/\/|mailto:|tel:)/i;
 function inline(s: string, key: string) {
   const out: React.ReactNode[] = [];
   const re = /\*\*(.+?)\*\*|\[(.+?)\]\((.+?)\)/g;
@@ -10,6 +11,7 @@ function inline(s: string, key: string) {
   while ((m = re.exec(s))) {
     if (m.index > at) out.push(s.slice(at, m.index));
     if (m[1]) out.push(<strong key={`${key}b${i++}`}>{m[1]}</strong>);
+    else if (!SAFE_LINK.test(m[3])) out.push(m[2]); // only this site's pages, http(s), mail and phone links (no "javascript:" or "//elsewhere")
     else out.push(m[3].startsWith("/") ? <Link key={`${key}l${i++}`} href={m[3]} className="text-accent hover:underline">{m[2]}</Link> : <a key={`${key}l${i++}`} href={m[3]} target="_blank" rel="noreferrer" className="text-accent hover:underline">{m[2]}</a>);
     at = m.index + m[0].length;
   }

@@ -22,7 +22,7 @@ const LOOK: Record<string, { icon: string; tone: Tone }> = {
 /** One plan (Pricing page): its name and line, the price for the chosen period, the credits, the button, and
  * everything it includes. A tap selects a plan: the selected one stands out (a gradient edge, a glow, a check); the
  * popular one carries the "Most popular" badge. */
-export function PlanCard({ plan, yearly, action, selected, onSelect }: { plan: Plan; yearly: boolean; action: React.ReactNode; selected: boolean; onSelect: () => void }) {
+export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { plan: Plan; yearly: boolean; action: React.ReactNode; selected: boolean; onSelect: () => void; offer?: number }) {
   const free = plan.monthly === 0;
   const pop = plan.highlight;
   const price = free ? 0 : yearly ? plan.yearly : plan.monthly;
@@ -57,8 +57,13 @@ export function PlanCard({ plan, yearly, action, selected, onSelect }: { plan: P
       </header>
 
       <div className="flex flex-col gap-1">
-        <p className="m-0 flex items-baseline gap-1">
-          <span className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-none tracking-[-0.03em] tabular-nums">{rupees(price)}</span>
+        {/* a sale running (Admin → Marketing → Offers): the price after it, the old one struck through */}
+        {offer && !free ? (
+          <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-[image:var(--gold-gradient)] px-2.5 py-0.5 text-[11px] font-bold text-white">{t("pricing.offerTag", { percent: offer })}</span>
+        ) : null}
+        <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-none tracking-[-0.03em] tabular-nums">{rupees(offer && !free ? Math.round((price * (100 - offer)) / 100) : price)}</span>
+          {offer && !free ? <s className="text-[16px] font-semibold text-muted tabular-nums">{rupees(price)}</s> : null}
           {!free && <span className="text-[14px] font-semibold text-muted">{t(yearly ? "pricing.perYear" : "pricing.perMonth")}</span>}
         </p>
         <p className="m-0 h-5 text-[12.5px] text-muted">{free ? t("pricing.freeForever") : perMonth ? t("pricing.billedYearly", { price: rupees(perMonth) }) : t("pricing.billedMonthly")}</p>

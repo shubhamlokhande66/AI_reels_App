@@ -33,8 +33,8 @@ export type PayResult = { status: "paid"; credits: Credits } | { status: "closed
 export type CheckoutLook = { name: string; logo: string; color: string };
 
 /** Pay for "plan:creator:monthly", "plan:pro:yearly", "topup:topup_30" ... Resolves when the window closes. */
-export async function pay(item: string, look: CheckoutLook): Promise<PayResult> {
-  const [order] = await Promise.all([api.createOrder(item), loadScript()]);
+export async function pay(item: string, look: CheckoutLook, coupon?: string): Promise<PayResult> {
+  const [order] = await Promise.all([api.createOrder(item, coupon), loadScript()]); // the server prices it (offer, coupon)
   const Razorpay = (window as unknown as { Razorpay: RazorpayCtor }).Razorpay;
   return new Promise<PayResult>((resolve) => {
     let settled = false;

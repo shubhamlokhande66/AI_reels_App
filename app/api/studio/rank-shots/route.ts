@@ -1,3 +1,4 @@
+import { getMarketing } from "@/server/marketing";
 import { isPlanAdmin } from "@/server/core/admin";
 import { body } from "@/server/core/body";
 import { aiAllowed, aiCosts, balanceNow, requireAiPlan } from "@/server/credits";
@@ -10,13 +11,13 @@ import { limits } from "@/server/core/rateLimit";
  * turned on "Fast Studio AI"; people never choose) and its credit cost; POST scores the frames the phone sends (a few
  * small JPEGs per clip) and returns per-frame scores, roles, issues and subject boxes. */
 export const GET = route(async (req) => {
-  const a = await availability(), admin = await isPlanAdmin(req), p = await aiAllowed(admin);
+  const a = await availability(), admin = await isPlanAdmin(req), p = await aiAllowed(admin, { credits: true });
   // planAi: this person's plan has Shubix AI (Free: the phone edits); costs and balance for the phone's confirmations
-  return { ...a, available: !!a.available && ((await getFeatures()).studioAI || admin), planAi: p.ok, plan: p.plan, planName: p.planName, balance: p.balance, freeChats: p.freeChats, costs: await aiCosts() };
+  return { ...a, available: !!a.available && ((await getFeatures()).studioAI || admin), planAi: p.ok, viaCredits: !!p.viaCredits, creditsOpen: (await getMarketing()).ai.freeWithCredits, plan: p.plan, planName: p.planName, balance: p.balance, freeChats: p.freeChats, costs: await aiCosts() };
 });
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");
-  await requireAiPlan(await isPlanAdmin(req));
+  await requireAiPlan(await isPlanAdmin(req), { credits: true }); // part of the AI Reel (its credits)
   limits.ai(req); // each AI call costs money
   const res = await rankShots(await body(req, RankIn));
   return { ...res, balance: await balanceNow() };

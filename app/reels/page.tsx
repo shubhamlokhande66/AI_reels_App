@@ -3,6 +3,7 @@
 import { AdSlot } from "@/components/organisms/AdSlot";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { clock, deleteDraft, useDrafts, type Draft } from "@/lib/drafts";
 import { formatRelative } from "@/lib/format";
 import { useT } from "@/hooks/useApi";
@@ -179,12 +180,14 @@ function MyReels() {
   const all = useDrafts();
   const [gone, setGone] = useState<string[]>([]);
   const drafts = all && all.filter((d) => !gone.includes(d.id));
+  const qc = useQueryClient();
   const [saved, setSaved] = useState<{ reels: CloudReel[]; usage: CloudUsage } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
   useEffect(() => {
     let live = true;
-    listCloudReels().then((d) => live && (setError(null), setSaved(d)), (e) => live && setError(e instanceof Error ? e.message : t("reels.failed")));
+    // always read fresh, but joined with the notification bell's read when both ask at once (one request, not two)
+    qc.fetchQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, staleTime: 0 }).then((d) => live && (setError(null), setSaved(d)), (e) => live && setError(e instanceof Error ? e.message : t("reels.failed")));
     return () => { live = false; };
   }, [tries]); // eslint-disable-line react-hooks/exhaustive-deps -- t only words the error
 

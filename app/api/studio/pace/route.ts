@@ -11,7 +11,7 @@ import { limits } from "@/server/core/rateLimit";
  * The phone then places the cuts on the real beats. */
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");
-  await requireAiPlan(await isPlanAdmin(req));
+  await requireAiPlan(await isPlanAdmin(req), { credits: true }); // part of the AI Reel (its credits)
   limits.ai(req); // each AI call costs money
   const d = await body(req, PaceIn), t0 = Date.now();
   if (d.reelId) await chargeOnce("studio_ai", d.reelId, "Shubix AI Reel");

@@ -1,3 +1,4 @@
+import { viaBoot } from "@/lib/boot";
 import type { Features } from "@/lib/features-list";
 import { tracked } from "./activity";
 import { adminHeaders } from "./admin";
@@ -186,11 +187,11 @@ export interface UploadResult {
 
 export const api = {
   health: () => request<Health>("/api/health"),
-  me: () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me"),
+  me: () => viaBoot("me", () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me")),
   login: (email: string, password: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
-  register: (email: string, password: string) =>
-    request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) }),
+  register: (email: string, password: string, ref?: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password, ...(ref ? { ref } : {}) }) }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   verifyEmail: (token: string) => request<{ ok: boolean; email: string }>("/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) }),
   resendVerify: () => request<{ ok: boolean; sent?: boolean; verified?: boolean }>("/api/auth/verify/resend", { method: "POST" }),
@@ -202,13 +203,36 @@ export const api = {
   logoutEverywhere: () => request<{ ok: boolean }>("/api/auth/logout-everywhere", { method: "POST" }),
   deleteAccount: (password: string, confirm: string) =>
     request<{ ok: boolean }>("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),
-  site: () => request<SiteInfo>("/api/site"),
+  site: () => viaBoot("site", () => request<SiteInfo>("/api/site")),
   /** Is this browser in admin mode? (required = the server has an admin key; without one everyone is admin) */
-  adminSession: (key?: string) =>
-    request<{ admin: boolean; required: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined),
+  adminSession: (key?: string) => {
+    const ask = () => request<{ admin: boolean; required: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined);
+    return key ? ask() : viaBoot("admin", ask); // signing in with a key always asks the server
+  },
   plans: () => request<Pricing>("/api/plans"),
-  credits: () => request<Credits>("/api/credits"),
-  createOrder: (item: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item }) }),
+  credits: () => viaBoot("credits", () => request<Credits>("/api/credits")),
+  createOrder: (item: string, coupon?: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
+  quote: (item: string, coupon?: string) => request<import("@/lib/marketing").Quote>("/api/billing/quote", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
+  offer: () => viaBoot("offer", () => request<{ offer: import("@/lib/marketing").Offer | null }>("/api/offer")),
+  // Invite & earn
+  myMarketing: () => request<import("@/lib/marketing").MyMarketing>("/api/marketing"),
+  setUsername: (username: string) => request<{ username: string }>("/api/marketing/username", { method: "POST", body: JSON.stringify({ username }) }),
+  sendCredits: (to: string, amount: number, note?: string) => request<{ ok: boolean; sent: number; to: string; balance: number }>("/api/marketing/send", { method: "POST", body: JSON.stringify({ to, amount, note }) }),
+  myAffiliate: () => request<{ affiliate: import("@/lib/marketing").AffiliateDetail | null }>("/api/marketing/affiliate/dashboard"),
+  affiliate: (id: string) => request<import("@/lib/marketing").AffiliateDetail>(`/api/admin/affiliates/${encodeURIComponent(id)}`),
+  applyAffiliate: () => request<{ ok: boolean }>("/api/marketing/affiliate", { method: "POST" }),
+  // Admin → Marketing
+  adminMarketing: () => request<{ settings: import("@/lib/marketing").MarketingSettings; report: import("@/lib/marketing").MarketingReport }>("/api/admin/marketing"),
+  setMarketing: (s: import("@/lib/marketing").MarketingSettings) => request<{ settings: import("@/lib/marketing").MarketingSettings }>("/api/admin/marketing", { method: "PUT", body: JSON.stringify(s) }),
+  coupons: () => request<{ coupons: import("@/lib/marketing").Coupon[] }>("/api/admin/coupons"),
+  saveCoupon: (c: Omit<import("@/lib/marketing").Coupon, "uses" | "live">) => request<{ ok: boolean; code: string }>("/api/admin/coupons", { method: "PUT", body: JSON.stringify(c) }),
+  deleteCoupon: (code: string) => request<{ ok: boolean }>(`/api/admin/coupons?code=${encodeURIComponent(code)}`, { method: "DELETE", headers: adminHeaders() }),
+  offers: () => request<{ offers: import("@/lib/marketing").AdminOffer[] }>("/api/admin/offers"),
+  saveOffer: (o: Partial<import("@/lib/marketing").AdminOffer>) => request<{ ok: boolean; id: string }>("/api/admin/offers", { method: "PUT", body: JSON.stringify(o) }),
+  deleteOffer: (id: string) => request<{ ok: boolean }>(`/api/admin/offers?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: adminHeaders() }),
+  affiliates: () => request<{ affiliates: import("@/lib/marketing").Affiliate[] }>("/api/admin/affiliates"),
+  updateAffiliate: (d: { id: string; status?: string; percent?: number; months?: number; validUntil?: string | null }) => request<{ ok: boolean }>("/api/admin/affiliates", { method: "PUT", body: JSON.stringify(d) }),
+  payAffiliate: (id: string, note: string) => request<{ ok: boolean; total: number }>("/api/admin/affiliates", { method: "POST", body: JSON.stringify({ id, note }) }),
   verifyPayment: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) =>
     request<Credits>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
   templates: () => request<{ templates: import("@/lib/studio-templates").StudioTemplate[] }>("/api/templates"),
@@ -217,14 +241,14 @@ export const api = {
   resetTemplates: () => request<{ templates: import("@/lib/studio-templates").StudioTemplate[]; saved: boolean }>("/api/templates", { method: "DELETE" }),
   reelsKeep: () => request<{ days: Record<string, number>; limits: Record<string, number> }>("/api/admin/reels-keep"),
   setReelsKeep: (days: Record<string, number>) => request<{ days: Record<string, number>; limits: Record<string, number> }>("/api/admin/reels-keep", { method: "PUT", body: JSON.stringify(days) }),
-  planLocks: () => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks"),
+  planLocks: () => viaBoot("planLocks", () => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks")),
   setPlanLocks: (body: import("@/lib/plan-locks").LockOverrides) => request<import("@/lib/plan-locks").PlanLocks>("/api/plan-locks", { method: "PUT", body: JSON.stringify(body) }),
   adminErrors: () => request<{ errors: { id: string; kind: string; message: string; where: string; count: number; firstAt: string; lastAt: string; path: string; ua: string; stack: string }[] }>("/api/admin/errors"),
   clearAdminError: (id: string) => request<{ ok: boolean }>("/api/admin/errors", { method: "DELETE", body: JSON.stringify({ id }) }),
   setPricing: (body: { plans: { id: string; name?: string; monthly: number; credits: number; freeChats?: number; highlight?: boolean; ai?: boolean; ads?: boolean; hidden?: boolean; features?: string[] }[]; topUps: { id: string; credits: number; price: number }[]; costs: Record<string, number> }) =>
     request<Pricing>("/api/admin/pricing", { method: "PUT", body: JSON.stringify(body) }),
   /** The administrator's texts (Admin → CMS; lib/texts.ts has the defaults). */
-  texts: () => request<import("@/lib/texts").Texts>("/api/texts"),
+  texts: () => viaBoot("texts", () => request<import("@/lib/texts").Texts>("/api/texts")),
   setTexts: (patch: Record<string, string | null>) => request<import("@/lib/texts").Texts>("/api/admin/texts", { method: "PUT", body: JSON.stringify(patch) }),
   /** Admin → Settings → Business details (empty fields: the server's environment). */
   setSite: (patch: Partial<SiteInfo>) => request<SiteInfo>("/api/admin/site", { method: "PUT", body: JSON.stringify(patch) }),
@@ -232,7 +256,7 @@ export const api = {
   content: () => request<import("@/lib/collections").Content>("/api/content"),
   setContent: (patch: Record<string, import("@/lib/collections").ListItem[] | null>) => request<import("@/lib/collections").Content>("/api/admin/content", { method: "PUT", body: JSON.stringify(patch) }),
   /** Which parts of the app are on (Administration → Features). */
-  features: () => request<Features>("/api/features"),
+  features: () => viaBoot("features", () => request<Features>("/api/features")),
   aiDirectorReport: () => request<AiDirectorReport>("/api/admin/ai-director"),
   setFeatures: (patch: Partial<Features>) => request<Features>("/api/admin/features", { method: "PUT", body: JSON.stringify(patch) }),
   adminOverview: () => request<AdminOverview>("/api/admin/overview"),
