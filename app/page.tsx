@@ -1,6 +1,7 @@
 "use client";
 
 import { AdSlot } from "@/components/organisms/AdSlot";
+import { GetAppSection } from "@/components/molecules/StoreBadges";
 import Link from "next/link";
 import { useState } from "react";
 import { DurationTag, Photo, Skeleton } from "@/components/atoms";
@@ -8,7 +9,7 @@ import { ProBanner, Scroller, SectionHeader, TipsBanner } from "@/components/mol
 import { HomeHero } from "@/components/organisms/home/HomeHero";
 import { ContinueSection, CreateSection, TemplatesSection, TipsSection } from "@/components/organisms/home/HomeSections";
 import { useCredits, useFeatures, useMe, useT } from "@/hooks/useApi";
-import { useQuery } from "@tanstack/react-query";
+import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { listCloudReels, type CloudReel } from "@/lib/cloudReels";
 import { clock, useDrafts } from "@/lib/drafts";
 
@@ -67,7 +68,9 @@ export default function Home() {
       {/* the shortcut to the tips, when Saved Reels stand between (else the tips are right here) */}
       {saved && saved.length > 0 && <TipsBanner />}
       <SavedSection reels={saved} />
+      <AdSlot place="homeEnd" />
       <TipsSection />
+      <GetAppSection />
       {!paid && <ProBanner />}
     </div>
   );

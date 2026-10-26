@@ -40,5 +40,7 @@ export const limits = {
   adminKey: (req: Request) => limit(`adminkey:${clientIp(req)}`, 10, 15 * MIN, "Too many admin password tries."),
   ping: (req: Request, visitor: string) => limit(`ping:${visitor}:${clientIp(req)}`, 8, MIN, "Too many pings."),
   clientError: (req: Request) => limit(`clienterr:${clientIp(req)}`, 10, MIN, "Too many error reports."),
+  contact: (req: Request, email: string) => { limit(`contact:ip:${clientIp(req)}`, 5, 60 * MIN, "Too many messages from here."); limit(`contact:email:${email.trim().toLowerCase()}`, 3, 60 * MIN, "We already have your messages: we'll reply soon."); },
+  helpChat: (req: Request) => { limit(`help:${currentUser() ?? clientIp(req)}`, 20, 10 * MIN, "Too many questions at once. Wait a moment."); limit(`help:day:${clientIp(req)}`, 150, 24 * 60 * MIN, "That's a lot of questions today. Use the Contact page for more help."); },
   ai: (req: Request) => limit(`ai:${currentUser() ?? clientIp(req)}`, 40, MIN, "The AI is being asked too often. Wait a moment."),
 };

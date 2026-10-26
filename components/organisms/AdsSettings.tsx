@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, errorMessage } from "@/lib/api";
+import { api, errorMessage, type AdPlace, type AdsConfig } from "@/lib/api";
+
+const SPOTS: [AdPlace, string][] = [["home", "Home: under Create"], ["homeEnd", "Home: lower down"], ["reels", "My Reels"], ["rewards", "Invite & earn"], ["account", "My account"]];
 import { btnPrimary, Card } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 
@@ -11,7 +13,7 @@ import { ErrorBanner } from "@/components/molecules";
 export function AdsSettings() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["ads"], queryFn: api.ads });
-  const [f, setF] = useState<{ enabled: boolean; client: string; slot: string } | null>(null);
+  const [f, setF] = useState<AdsConfig | null>(null);
   const cur = f ?? q.data ?? null;
   const save = useMutation({ mutationFn: api.setAds, onSuccess: (d) => { qc.setQueryData(["ads"], d); setF(null); } });
   if (!cur) return null;
@@ -20,9 +22,17 @@ export function AdsSettings() {
     <Card className="max-w-2xl space-y-4">
       <div>
         <h2 className="font-medium">Ads</h2>
-        <p className="mt-1 text-sm text-muted">Shown on Home and My Reels to the plans with &quot;Ads&quot; ticked in Plans &amp; pricing (Free). Never in the editor. Without AdSense ids, the app shows its own card for Editor and Pro there.</p>
+        <p className="mt-1 text-sm text-muted">Shown in the spots below to the plans with &quot;Ads&quot; ticked in Plans &amp; pricing (Free). Never in the editor. Without AdSense ids, the app shows its own card there (Shubix AI on Editor and Pro, or invite friends).</p>
       </div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={cur.enabled} onChange={(e) => setF({ ...cur, enabled: e.target.checked })} /> Show ads</label>
+      <fieldset className="grid gap-1.5 text-sm" disabled={!cur.enabled}>
+        <legend className="mb-1 text-muted">Where ({SPOTS.filter(([k]) => cur.places?.[k] !== false).length} of {SPOTS.length} spots)</legend>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {SPOTS.map(([k, name]) => (
+            <label key={k} className="flex items-center gap-2"><input type="checkbox" checked={cur.places?.[k] !== false} onChange={(e) => setF({ ...cur, places: { ...cur.places, [k]: e.target.checked } })} /> {name}</label>
+          ))}
+        </div>
+      </fieldset>
       <label className="grid gap-1 text-sm"><span className="text-muted">AdSense publisher id</span><input className={IN} placeholder="ca-pub-1234567890123456" value={cur.client} onChange={(e) => setF({ ...cur, client: e.target.value })} /></label>
       <label className="grid gap-1 text-sm"><span className="text-muted">Ad slot (AdSense → Ads → By ad unit)</span><input className={IN} placeholder="1234567890" value={cur.slot} onChange={(e) => setF({ ...cur, slot: e.target.value })} /></label>
       {save.error && <ErrorBanner message={errorMessage(save.error)} />}

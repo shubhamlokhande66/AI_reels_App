@@ -33,7 +33,11 @@ export type AffiliateDetail = {
   customers: { username: string; email?: string; joined: string; paid: number; commission: number; countsUntil: string | null }[];
   sales: { id: string; at: string; customer: string; paid: number; percent: number; commission: number; status: string; paidAt: string | null }[];
   payouts: { id: string; at: string; total: number; count: number; note?: string }[];
+  payout: PayoutDetails | null;
 };
+/** where an affiliate is paid (the partner sees their account number's last 4 only) */
+export type PayoutDetails = { method: "upi"; upi: string; updatedAt: string | null } | { method: "bank"; name: string; account: string; ifsc: string; updatedAt: string | null };
+export type PayoutInput = { method: "upi"; upi: string } | { method: "bank"; name: string; account: string; ifsc: string };
 export function clearRef() { try { localStorage.removeItem(REF_KEY); } catch { /* nothing kept */ } }
 
 export type RewardStep = "signup" | "verified" | "purchase";
@@ -55,6 +59,7 @@ export type MarketingSettings = {
   share: { on: boolean; min: number; max: number; dailyMax: number; source: "extra" | "all" };
   affiliate: { on: boolean; percent: number; months: number; minPayout: number; applyOpen: boolean };
   ai: { freeWithCredits: boolean };
+  emails: { notes: boolean; cartReminder: boolean; cartHours: number };
 };
 export type MarketingReport = {
   referrals: { total: number; last30: number; rewarded: number }; coupons: { total: number; uses30: number; discount30: number };
@@ -63,4 +68,4 @@ export type MarketingReport = {
 export type Coupon = { code: string; kind: "percent" | "flat"; value: number; appliesTo: "all" | "plans" | "topups"; audience: "all" | "new"; minAmount: number; maxUses: number;
   perUserOnce: boolean; starts: string | null; ends: string | null; active: boolean; note: string; uses: number; live: boolean };
 export type AdminOffer = Offer & { starts: string | null; active: boolean; live: boolean };
-export type Affiliate = { id: string; email: string; username: string; status: "pending" | "active" | "paused"; percent: number; months: number | null; validUntil: string | null; createdAt: string; brought: number; due: number; paid: number; sales: number };
+export type Affiliate = { id: string; email: string; username: string; status: "pending" | "active" | "paused"; percent: number; months: number | null; validUntil: string | null; payout: boolean; createdAt: string; brought: number; due: number; paid: number; sales: number };

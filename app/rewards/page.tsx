@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { api, errorMessage } from "@/lib/api";
 import { useCredits, useT } from "@/hooks/useApi";
 import { Badge, Button, Card, Heading, Icon, Input } from "@/components/atoms";
@@ -9,6 +10,7 @@ import { EmptyState, ErrorBanner, Field, PageHeader, StatTile } from "@/componen
 import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { Spinner } from "@/components/atoms";
 import type { MyMarketing } from "@/lib/marketing";
+import { AdSlot } from "@/components/organisms/AdSlot";
 
 /** Invite & earn: invite friends (both get credits), send credits to a friend by @username, the affiliate program and
  * your username. Every rule (credits, limits, %) is the administrator's (Admin → Marketing); every word is in the CMS. */
@@ -29,6 +31,7 @@ export default function RewardsPage() {
         <Username m={m} />
       </div>
       {m.affiliate.on && <Affiliate m={m} />}
+      <AdSlot place="rewards" />
     </div>
   );
 }

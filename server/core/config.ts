@@ -75,6 +75,8 @@ export const settings = {
   reviewThreshold: num("REVIEW_THRESHOLD", 70),
   adminKey: env("ADMIN_KEY", ""),
   adminEmails: env("ADMIN_EMAILS", ""),
+  // a scheduler's key for /api/cron/* (empty: those routes are off; the jobs still run as people use the site)
+  cronSecret: env("CRON_SECRET", ""),
   authEnabled: bool("AUTH_ENABLED", false),
   billingEnabled: bool("BILLING_ENABLED", false),
   businessName: env("BUSINESS_NAME", "Shubix"),
@@ -88,6 +90,13 @@ export const settings = {
   smtpPassword: env("SMTP_PASSWORD", ""),
   smtpFrom: env("SMTP_FROM", ""),
   smtpSsl: bool("SMTP_SSL", false),
+  // a second email service, used when the first one fails (its daily limit, an outage, a wrong password)
+  smtpFallbackHost: env("SMTP_FALLBACK_HOST", ""),
+  smtpFallbackPort: num("SMTP_FALLBACK_PORT", 587),
+  smtpFallbackUser: env("SMTP_FALLBACK_USER", ""),
+  smtpFallbackPassword: env("SMTP_FALLBACK_PASSWORD", ""),
+  smtpFallbackFrom: env("SMTP_FALLBACK_FROM", ""),
+  smtpFallbackSsl: bool("SMTP_FALLBACK_SSL", false),
   razorpayKeyId: env("RAZORPAY_KEY_ID", ""),
   razorpayKeySecret: env("RAZORPAY_KEY_SECRET", ""),
   razorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),

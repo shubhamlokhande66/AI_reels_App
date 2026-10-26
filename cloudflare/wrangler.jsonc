@@ -43,6 +43,16 @@
     "GEMINI_TEXT_MODEL": "gemini-3.5-flash-lite",
     "MAX_CONCURRENT_JOBS": "1",
     // uploads pass through the Worker, which accepts request bodies up to 100 MB on the Free and Pro plans
-    "MAX_VIDEO_SIZE_MB": "95"
+    "MAX_VIDEO_SIZE_MB": "95",
+    // email (codes, receipts, contact, notes): Gmail first, Brevo when Gmail fails. The logins and passwords are secrets:
+    // SMTP_USER, SMTP_PASSWORD, SMTP_FALLBACK_USER, SMTP_FALLBACK_PASSWORD (npx wrangler secret put …)
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "587",
+    "SMTP_SSL": "false",
+    "SMTP_FROM": "Shubix <shubix.smempire@gmail.com>",
+    "SMTP_FALLBACK_HOST": "smtp-relay.brevo.com",
+    "SMTP_FALLBACK_PORT": "587",
+    "SMTP_FALLBACK_SSL": "false",
+    "SMTP_FALLBACK_FROM": "Shubix <shubix.smempire@gmail.com>"
   }
 }

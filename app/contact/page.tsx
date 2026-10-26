@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Card, Heading, IconTile, Input, TextArea } from "@/components/atoms";
-import { Field, Hero } from "@/components/molecules";
+import { useEffect, useState } from "react";
+import { api, errorMessage } from "@/lib/api";
+import { emailOk } from "@/lib/validate";
+import { Button, Card, Heading, Icon, IconTile, Input, Select, TextArea } from "@/components/atoms";
+import { ErrorBanner, Field, Hero } from "@/components/molecules";
 import { siteOr, useSite } from "@/components/molecules/Legal";
 import { useList, useMe, useT } from "@/hooks/useApi";
 import type { Tone } from "@/lib/ui";
@@ -22,21 +24,38 @@ function Way({ href, icon, tone, title, line }: { href: string; icon: string; to
   );
 }
 
-/** Contact us (design: "Contact"): email, WhatsApp, and a message that opens in your email app. */
+const TOPICS = ["account", "payment", "reels", "rewards", "other"] as const;
+
+/** Contact us (design: "Contact"): email, WhatsApp, and a message sent straight to the team (a ticket number back, and a
+ * copy by email). The Help chat sends people here with their question filled in (?topic=…&message=…). */
 export default function ContactPage() {
   const s = siteOr(useSite().data);
   const me = useMe();
   const t = useT();
   const ways = useList("contact.ways").filter((w) => w.title && w.link);
-  const [from, setFrom] = useState("");
-  const [text, setText] = useState("");
+  const [from, setFrom] = useState(""), [name, setName] = useState(""), [topic, setTopic] = useState<string>("other");
+  const [text, setText] = useState(""), [trap, setTrap] = useState("");
+  const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null), [ticket, setTicket] = useState<string | null>(null);
   const email = from || me.data?.user?.email || "";
   const realEmail = !!s.email;
   const wa = s.phone.replace(/[^\d]/g, "");
-  const send = (e: React.FormEvent) => {
+  // from the Help chat: the topic and the question already written
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const tp = q.get("topic"), msg = q.get("message");
+    if (tp || msg) void Promise.resolve().then(() => { if (tp && (TOPICS as readonly string[]).includes(tp)) setTopic(tp); if (msg) setText(msg.slice(0, 4000)); });
+  }, []);
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    const body = `${text.trim()}\n\n— ${email}`;
-    window.location.href = `mailto:${s.email}?subject=${encodeURIComponent(t("contact.subject"))}&body=${encodeURIComponent(body)}`;
+    setError(null);
+    if (!emailOk(email)) return setError(t("auth.badEmail"));
+    setBusy(true);
+    try {
+      let page = "";
+      try { page = document.referrer ? new URL(document.referrer).pathname : ""; } catch { /* no referrer */ }
+      const r = await api.contact({ email: email.trim(), name: name.trim(), topic, message: text.trim(), page, website: trap });
+      setTicket(r.ticket);
+    } catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   };
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
@@ -45,27 +64,42 @@ export default function ContactPage() {
       {s.phone && <Way href={`https://wa.me/${wa}`} icon="chat" tone="story" title={t("contact.whatsapp")} line={s.phone} />}
       {/* more ways: Admin → CMS → Contact us → Ways to reach us */}
       {ways.map((w) => <Way key={w.id} href={w.link} icon={w.icon || "send"} tone={(w.tone || "brand") as Tone} title={w.title} line={w.text} />)}
-      {realEmail && (
-        <Card as="section" aria-label={t("contact.formTitle")}>
-          <form className="flex flex-col gap-3" onSubmit={send}>
+      <Card as="section" aria-label={t("contact.formTitle")}>
+        {ticket ? (
+          <div className="flex flex-col items-center gap-2 py-3 text-center">
+            <span className="grid size-12 place-items-center rounded-full bg-success/15 text-success"><Icon name="check" size={24} /></span>
+            <Heading size="section">{t("contact.sentTitle")}</Heading>
+            <p className="m-0 text-[13px] text-muted">{t("contact.sentText", { ticket, email: email.trim() })}</p>
+            <Button size="sm" variant="secondary" onClick={() => { setTicket(null); setText(""); }}>{t("contact.another")}</Button>
+          </div>
+        ) : (
+          <form className="relative flex flex-col gap-3" onSubmit={send}>
             <Heading size="section">{t("contact.formTitle")}</Heading>
-            <Field label={t("contact.yourEmail")}>
-              <Input type="email" required placeholder={t("auth.emailPlaceholder")} value={email} onChange={(e) => setFrom(e.target.value)} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={t("contact.yourEmail")}>
+                <Input type="email" required autoComplete="email" placeholder={t("auth.emailPlaceholder")} value={email} onChange={(e) => setFrom(e.target.value)} />
+              </Field>
+              <Field label={t("contact.yourName")}>
+                <Input autoComplete="name" placeholder={t("contact.namePlaceholder")} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+              </Field>
+            </div>
+            <Field label={t("contact.topic")}>
+              <Select value={topic} onChange={(e) => setTopic(e.target.value)}>
+                {TOPICS.map((k) => <option key={k} value={k}>{t(`contact.topic.${k}`)}</option>)}
+              </Select>
             </Field>
+            {topic === "payment" && <p className="m-0 rounded-xl bg-surface-2 px-3 py-2 text-[12px] text-muted">{t("contact.paymentHint")}</p>}
             <Field label={t("contact.message")}>
-              <TextArea required placeholder={t("contact.messagePlaceholder")} value={text} onChange={(e) => setText(e.target.value)} />
+              <TextArea required rows={5} maxLength={4000} placeholder={t("contact.messagePlaceholder")} value={text} onChange={(e) => setText(e.target.value)} />
             </Field>
-            <Button type="submit" disabled={!text.trim()}>{t("contact.send")}</Button>
-            <span className="text-[11px] text-muted">{t("contact.opensMail")}</span>
+            {/* a field people never see: form-filling bots fill it in */}
+            <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden value={trap} onChange={(e) => setTrap(e.target.value)} className="pointer-events-none absolute left-0 top-0 h-0 w-0 opacity-0" />
+            {error && <ErrorBanner message={error} />}
+            <Button type="submit" icon="send" loading={busy} disabled={text.trim().length < 10 || !emailOk(email)}>{t("contact.send")}</Button>
+            <span className="text-[11px] text-muted">{t("contact.replyNote")}</span>
           </form>
-        </Card>
-      )}
-      {!realEmail && !s.phone && !ways.length && (
-        <Card className="flex flex-col gap-1">
-          <b>{t("contact.soonTitle")}</b>
-          <span className="text-[12.5px] text-muted">{t("contact.soonText")}</span>
-        </Card>
-      )}
+        )}
+      </Card>
       <p className="m-0 text-center text-[11px] text-muted">
         {s.name}
         {s.address ? ` · ${s.address}` : ""}

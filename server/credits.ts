@@ -5,6 +5,8 @@ import { settings } from "@/server/core/config";
 import { mainDb, ObjectId } from "@/server/core/db";
 import { AppError, NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { getPricing, paymentsOpen } from "@/server/workspace";
+import { mailUser } from "@/server/core/mail";
+import { sendReceipt } from "@/server/receipts";
 import { affiliateCommission, couponUsed, getMarketing, quote, rewardFor, startOfDay, userByUsername } from "@/server/marketing";
 
 /** Credits and payments (were services/credits.py and api/billing.py). A wallet (`wallets`, _id = user id) has
@@ -180,6 +182,9 @@ export async function sendCredits(toName: string, amount: number, note = "") {
     await log(uid, -amount, `Sent to @${to.username}`, `send:${id}`, res);
     await giveExtra(to.id, amount, `Gift from @${me?.username ?? "a friend"}`, `send:${id}`);
     await (await col("credit_transfers")).insertOne({ _id: id, from: uid, to: to.id, amount, note: note.slice(0, 140), at: new Date() });
+    const from = `@${me?.username ?? "a friend"}`;
+    void mailUser(to.id, `${from} sent you ${amount} credits`, `${amount} credits from ${from}`,
+      `${from} sent you ${amount} credits${note.trim() ? `: “${note.trim().slice(0, 140)}”` : ""}. They are in your account now; use them for Shubix AI.`, "Make a Reel", "/");
     return { ok: true, sent: amount, to: to.username, balance: balanceOf(await wallet(uid)) };
   }
   throw new AppError("Your credits are being updated by another request. Try again.", { code: "CREDITS_BUSY" });
@@ -237,6 +242,7 @@ async function fulfil(orderId: string, paymentId: string, via: string) {
     coupon ? couponUsed(String(coupon.code), uid, orderId, Number(coupon.off)) : Promise.resolve(),
     rewardFor(uid, "purchase", grantCredits),
     affiliateCommission(uid, orderId, Number(pay.amount) / 100),
+    sendReceipt(orderId), // the receipt by email (server/receipts.ts)
   ]);
 }
 export async function createOrder(itemKey: string, couponCode?: string | null) {
@@ -277,5 +283,5 @@ export async function webhook(req: Request) {
 }
 export async function myPayments() {
   const uid = uidOrThrow();
-  return (await (await col("payments")).find({ userId: uid }).sort({ createdAt: -1 }).limit(30).toArray()).map((p) => ({ id: p._id, label: (p.item as Doc).label, amount: Number(p.amount) / 100, status: p.status, createdAt: p.createdAt, paidAt: p.paidAt ?? null }));
+  return (await (await col("payments")).find({ userId: uid }).sort({ createdAt: -1 }).limit(30).toArray()).map((p) => ({ id: p._id, label: (p.item as Doc).label, amount: Number(p.amount) / 100, status: p.status, createdAt: p.createdAt, paidAt: p.paidAt ?? null, receiptNo: p.receiptNo ?? null, paymentId: p.paymentId ?? null }));
 }

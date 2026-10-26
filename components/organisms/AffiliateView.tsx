@@ -66,7 +66,7 @@ export function AffiliateView({ a, admin = false }: { a: AffiliateDetail; admin?
               right={<>{c.paid ? <span className="tabular-nums text-muted">{rupee(c.paid)}</span> : null}<span className="text-[11.5px] text-muted">{c.countsUntil ? t("aff.countsUntil", { date: dayOf(c.countsUntil) }) : t("aff.afterEnd")}</span></>} />
           )) : <Empty text={t("aff.noCustomers")} />)}
           {tab === "payouts" && (a.payouts.length ? a.payouts.map((p) => (
-            <Row key={p.id} left={<><b className="tabular-nums">{rupee(p.total)}</b> <span className="text-muted">· {dayOf(p.at)} · {t("aff.payoutSales", { n: p.count })}{admin && p.note ? ` · ${p.note}` : ""}</span></>}
+            <Row key={p.id} left={<><b className="tabular-nums">{rupee(p.total)}</b> <span className="text-muted">· {dayOf(p.at)} · {t("aff.payoutSales", { n: p.count })}{p.note ? ` · ${t("aff.ref", { ref: p.note })}` : ""}</span></>}
               right={<Badge tone="success"><Icon name="check" size={11} />{t("aff.statusPaid")}</Badge>} />
           )) : <Empty text={t("aff.noPayouts")} />)}
         </div>

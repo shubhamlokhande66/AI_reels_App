@@ -16,13 +16,15 @@ import { SettingsTab } from "./SettingsTab";
 import { UserPanel } from "./UserPanel";
 import { UsersTab } from "./UsersTab";
 import { MarketingTab } from "./MarketingTab";
+import { SupportTab } from "./SupportTab";
 
 /** The admin panel (like the shop's): a grouped sidebar, a header with who is online and Refresh, then the open tab. */
-type Tab = "overview" | "users" | "marketing" | "templates" | "settings" | "errors" | "ai" | "trends";
+type Tab = "overview" | "users" | "marketing" | "support" | "templates" | "settings" | "errors" | "ai" | "trends";
 const NAV: { title: string; items: { id: Tab; label: string; icon: string; hint: string }[] }[] = [
   { title: "Overview", items: [{ id: "overview", label: "Dashboard", icon: "home", hint: "Visitors, sign-ups, revenue and credits at a glance" }] },
   { title: "People", items: [{ id: "users", label: "Users", icon: "user", hint: "Everyone who signed up: logins, purchases, credits left" },
-    { id: "marketing", label: "Marketing", icon: "gift", hint: "Invite rewards, sending credits, affiliates, coupon codes and sales" }] },
+    { id: "marketing", label: "Marketing", icon: "gift", hint: "Invite rewards, sending credits, affiliates, coupon codes and sales" },
+    { id: "support", label: "Support", icon: "mail", hint: "Messages from the Contact page, and what people ask the Help chat" }] },
   { title: "Content", items: [{ id: "templates", label: "Templates", icon: "grid", hint: "Every template of the studio: add, change, hide, order, its times and its days" }] },
   { title: "System", items: [{ id: "settings", label: "Settings", icon: "gear", hint: "Every setting of the studio, managed here" }, { id: "errors", label: "Errors", icon: "key", hint: "What broke in people's browsers, newest first" }] },
   // the AI's tools open here too (before, they were links that left the dashboard)
@@ -166,6 +168,7 @@ export function AdminDashboard() {
             {tab === "overview" && <OverviewTab onOpenUser={setUser} onOpenTab={setTab} />}
             {tab === "users" && <UsersTab onOpenUser={setUser} />}
             {tab === "marketing" && <MarketingTab />}
+            {tab === "support" && <SupportTab />}
             {tab === "settings" && <SettingsTab />}
             {tab === "templates" && <TemplatesTab />}
             {tab === "errors" && <ErrorsTab />}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { StoreBadges } from "@/components/molecules/StoreBadges";
 import { api, errorMessage } from "@/lib/api";
 import { emailOk, passwordOk } from "@/lib/validate";
 import { clearRef, savedRef } from "@/lib/marketing";
@@ -44,7 +45,7 @@ export default function LoginPage() {
       await (signin ? api.login(email.trim(), password) : api.register(email.trim(), password, savedRef()));
       if (!signin) clearRef(); // the invite is used
       await qc.invalidateQueries();
-      router.replace("/");
+      router.replace(signin ? "/" : "/verify?sent=1"); // a new account: the code from the email first
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -93,7 +94,8 @@ export default function LoginPage() {
           {t(signin ? "auth.createLink" : "auth.signIn")}
         </button>
       </p>
-      <LegalFooter className="mt-4" />
+      <StoreBadges className="mt-3 justify-center" />
+      <LegalFooter className="mt-2" />
     </div>
   );
 }

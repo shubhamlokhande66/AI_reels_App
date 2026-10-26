@@ -10,6 +10,8 @@ import { useCredits, useMe, useT } from "@/hooks/useApi";
 import { Avatar, Badge, Button, Card, Heading, Icon, Input, Spinner } from "@/components/atoms";
 import { ErrorBanner, Field, PageHeader, PasswordInput, SidePanel } from "@/components/molecules";
 import { passwordOk } from "@/lib/validate";
+import { AdSlot } from "@/components/organisms/AdSlot";
+import { useSafeQuery } from "@/lib/useSafeQuery";
 
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 
@@ -128,7 +130,32 @@ function DeleteAccount({ email }: { email: string }) {
   );
 }
 
-type Panel = "password" | "sessions" | "delete";
+type Panel = "password" | "sessions" | "payments" | "delete";
+
+/** Payments & receipts: every order (paid ones with their receipt number; the receipt itself was emailed). */
+function Payments() {
+  const t = useT();
+  const q = useSafeQuery({ queryKey: ["my-payments"], queryFn: api.payments });
+  if (q.isLoading) return <Spinner />;
+  if (q.error) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => void q.refetch()} />;
+  const list = q.data ?? [];
+  if (!list.length) return <p className="m-0 text-[13px] text-muted">{t("account.noPayments")}</p>;
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="m-0 text-[12.5px] text-muted">{t("account.paymentsNote")}</p>
+      {list.map((p) => (
+        <div key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-border bg-surface px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <b className="block truncate text-[14px]">{p.label}</b>
+            <span className="text-[12px] text-muted">{new Date(p.paidAt ?? p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}{p.receiptNo ? ` · ${p.receiptNo}` : ""}</span>
+          </div>
+          <b className="tabular-nums">₹{p.amount.toLocaleString("en-IN")}</b>
+          <Badge tone={p.status === "paid" ? "success" : "neutral"}>{p.status === "paid" ? t("account.paid") : t("account.notPaid")}</Badge>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /** My account: who you are and your plan at the top, your credits, then the account's settings as rows (a tap opens the
  * form on the right: password, devices, delete), the look, and Sign out. Every text is in Admin → CMS → My account. */
@@ -208,12 +235,15 @@ export default function AccountPage() {
         </Card>
       )}
 
+      <AdSlot place="account" />
+
       {/* the account's settings */}
       <section aria-label={t("account.security")} className="flex flex-col gap-2">
         <span className="px-1 text-[11px] font-bold uppercase tracking-[0.2em] text-muted">{t("account.security")}</span>
         <Card className="overflow-hidden p-0 md:p-0">
           {row("password", "key", t("account.changeTitle"), t("account.rowPassword"))}
           {row("sessions", "shield", t("account.devices"), t("account.rowSessions"))}
+          {row("payments", "coins", t("account.paymentsTitle"), t("account.rowPayments"))}
         </Card>
       </section>
 
@@ -230,6 +260,7 @@ export default function AccountPage() {
         <ChangePassword email={user.email} onDone={() => setPanel(null)} />
       </SidePanel>
       <SidePanel open={panel === "sessions"} onClose={() => setPanel(null)} title={t("account.devices")} where={t("nav.myAccount")}><Sessions /></SidePanel>
+      <SidePanel open={panel === "payments"} onClose={() => setPanel(null)} title={t("account.paymentsTitle")} where={t("nav.myAccount")}><Payments /></SidePanel>
       <SidePanel open={panel === "delete"} onClose={() => setPanel(null)} title={t("account.deleteTitle")} where={t("nav.myAccount")}><DeleteAccount email={user.email} /></SidePanel>
     </div>
   );

@@ -13,7 +13,7 @@ import type { AdminOffer, Coupon, MarketingSettings } from "@/lib/marketing";
 
 /** Admin → Marketing: invite rewards, sending credits, the affiliate program, coupon codes, offers (sales) and how they
  * all do. Like Settings: a list of sections, each opening its form on the right. Every rule here is live for everyone. */
-type Id = "referral" | "freeai" | "share" | "affiliates" | "coupons" | "offers" | "report";
+type Id = "referral" | "freeai" | "emails" | "share" | "affiliates" | "coupons" | "offers" | "report";
 
 const stepName = (s: string) => (s === "signup" ? "signs up" : s === "verified" ? "verifies their email" : "makes a first purchase");
 const num = (v: string, d = 0) => (v === "" || Number.isNaN(Number(v)) ? d : Number(v));
@@ -33,6 +33,7 @@ export function MarketingTab() {
   const sections: { id: Id; icon: string; title: string; line: string; badge?: { text: string; tone: "success" | "neutral" | "brand" | "warning" | "danger" } }[] = [
     { id: "referral", icon: "gift", title: "Invite rewards", line: s ? (s.referral.on ? `Friend ${s.referral.inviteeCredits} when they ${stepName(s.referral.inviteeOn)} · inviter ${s.referral.inviterCredits} when the friend ${stepName(s.referral.inviterOn)}` : "Turned off") : "…", badge: s && { text: s.referral.on ? "On" : "Off", tone: s.referral.on ? "success" : "neutral" } },
     { id: "freeai", icon: "wand", title: "Shubix AI on Free", line: s ? (s.ai.freeWithCredits ? "Free users pay for AI Reels and Ask Shubix with their credits" : "Free users keep their credits for when they upgrade") : "…", badge: s && { text: s.ai.freeWithCredits ? "With credits" : "Plans only", tone: s.ai.freeWithCredits ? "brand" : "neutral" } },
+    { id: "emails", icon: "mail", title: "Email notes", line: s ? (s.emails.notes ? "Affiliate approved / paid, credits received, invite rewards, new affiliate requests" : "Only sign-up and password codes are emailed") : "…", badge: s && { text: s.emails.notes ? "On" : "Off", tone: s.emails.notes ? "success" : "neutral" } },
     { id: "share", icon: "send", title: "Sending credits", line: s ? (s.share.on ? `${s.share.min}–${s.share.max} a time · ${s.share.dailyMax} a day · ${s.share.source === "extra" ? "top-up & gift credits" : "all credits"}` : "Turned off") : "…", badge: s && { text: s.share.on ? "On" : "Off", tone: s.share.on ? "success" : "neutral" } },
     { id: "affiliates", icon: "coins", title: "Affiliate program", line: s ? `${affiliates.filter((a) => a.status === "active").length} active · default ${s.affiliate.percent}% for ${s.affiliate.months} months · ${rupee(r?.affiliates.due ?? 0)} due` : "…", badge: pending ? { text: `${pending} waiting`, tone: "warning" } : s && { text: s.affiliate.on ? "On" : "Off", tone: s.affiliate.on ? "success" : "neutral" } },
     { id: "coupons", icon: "tag", title: "Coupon codes", line: coupons.length ? coupons.slice(0, 4).map((c) => `${c.code} (${c.kind === "percent" ? `${c.value}%` : rupee(c.value)})`).join(" · ") : "No codes yet", badge: { text: `${coupons.filter((c) => c.live).length} live`, tone: "brand" } },
@@ -59,6 +60,7 @@ export function MarketingTab() {
         {s && open === "referral" && <ReferralForm s={s} />}
         {s && open === "share" && <ShareForm s={s} />}
         {s && open === "freeai" && <FreeAiForm s={s} />}
+        {s && open === "emails" && <EmailsForm s={s} />}
         {s && open === "affiliates" && <Affiliates s={s} />}
         {open === "coupons" && <Coupons list={coupons} />}
         {open === "offers" && <Offers list={offers} />}
@@ -124,6 +126,27 @@ function FreeAiForm({ s }: { s: MarketingSettings }) {
   );
 }
 
+function EmailsForm({ s }: { s: MarketingSettings }) {
+  const { save, busy, msg } = useSaveSettings(s), [on, setOn] = useState(s.emails.notes);
+  const [cart, setCart] = useState(s.emails.cartReminder), [hours, setHours] = useState(s.emails.cartHours);
+  return (
+    <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void save({ ...s, emails: { notes: on, cartReminder: cart, cartHours: hours } }); }}>
+      <Toggle label="Email the notes" hint="Sign-up and password codes are always emailed; this switch is only for the notes below." on={on} onChange={setOn} />
+      <ul className="m-0 flex list-none flex-col gap-1.5 rounded-2xl bg-surface-2 p-3.5 text-[12.5px] text-muted">
+        <li><b className="text-foreground">To partners:</b> approved, paused, paid (with the amount and reference).</li>
+        <li><b className="text-foreground">To people:</b> credits a friend sent them, an invite reward they earned.</li>
+        <li><b className="text-foreground">To you (ADMIN_EMAILS):</b> a new affiliate request to approve.</li>
+        <li><b className="text-foreground">Off:</b> fewer emails; people still see all of it in the app (Invite &amp; earn, their affiliate dashboard).</li>
+      </ul>
+      <Toggle label="Remind unfinished checkouts" hint="One email to someone who opened the payment for a plan or top-up and did not pay; never if they bought since, at most once a week." on={cart} onChange={setCart} />
+      {cart && <Field label="Send it after (hours)" hint="1 to 72"><Input type="number" min={1} max={72} value={hours} onChange={(e) => setHours(Math.min(72, Math.max(1, num(e.target.value, 3))))} className="w-28" /></Field>}
+      <p className="m-0 text-[12px] text-muted">Payment receipts are always emailed.</p>
+      <Saved msg={msg} />
+      <Button type="submit" icon="check" loading={busy} className="self-end">Save</Button>
+    </form>
+  );
+}
+
 function ShareForm({ s }: { s: MarketingSettings }) {
   const { save, busy, msg } = useSaveSettings(s), [v, setV] = useState(s.share);
   return (
@@ -174,6 +197,7 @@ function Affiliates({ s }: { s: MarketingSettings }) {
               <span className="block truncate text-[12px] text-muted">{a.email} · {a.percent}% · brought {a.brought} · {a.sales} sales · due {rupee(a.due)} · paid {rupee(a.paid)}{a.validUntil ? ` · link until ${day(a.validUntil)}` : ""}</span>
             </div>
             {a.due > 0 && <Badge tone="warning">{rupee(a.due)} due</Badge>}
+            {a.status !== "pending" && !a.payout && <Badge tone="neutral">No payout details</Badge>}
             <Icon name="chevron" size={16} className="shrink-0 text-muted" />
           </button>
         ))}
@@ -187,6 +211,9 @@ function Affiliates({ s }: { s: MarketingSettings }) {
 function Partner({ id, s, onClose }: { id: string; s: MarketingSettings; onClose: () => void }) {
   const qc = useQueryClient(), q = useQuery({ queryKey: ["admin-affiliate", id], queryFn: () => api.affiliate(id) }), a = q.data;
   const [form, setForm] = useState<{ percent: string; months: string; until: string } | null>(null), [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
+  const [ref, setRef] = useState(""), [copied, setCopied] = useState("");
+  const copy = (v: string) => { void navigator.clipboard?.writeText(v).then(() => { setCopied(v); setTimeout(() => setCopied(""), 1400); }, () => {}); };
+  const payTo = a?.payout ? (a.payout.method === "upi" ? `UPI ${a.payout.upi}` : `${a.payout.name}, account ${a.payout.account}, IFSC ${a.payout.ifsc}`) : "";
   useEffect(() => { if (a && !form) void Promise.resolve().then(() => setForm({ percent: String(a.percent), months: a.monthsOwn ? String(a.monthsOwn) : "", until: dateOnly(a.validUntil) })); }, [a, form]);
   useEffect(() => {
     // Esc closes this pop-up only (not the panel under it)
@@ -222,6 +249,17 @@ function Partner({ id, s, onClose }: { id: string; s: MarketingSettings; onClose
           {err && <ErrorBanner message={err} />}
           {a && form && terms && (
             <>
+              {/* where to pay them (they set it on their dashboard) */}
+              <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
+                <Heading size="section" as="h3">Payout details</Heading>
+                {!a.payout ? <p className="m-0 text-[12.5px] text-muted">Not given yet. They add a UPI ID or bank account on their dashboard (/affiliate).</p>
+                  : (a.payout.method === "upi" ? [["UPI ID", a.payout.upi]] : [["Name", a.payout.name], ["Account", a.payout.account], ["IFSC", a.payout.ifsc]]).map(([k, v]) => (
+                    <div key={k} className="flex items-center gap-2 text-[13px]">
+                      <span className="w-20 shrink-0 text-muted">{k}</span><b className="min-w-0 flex-1 truncate font-mono">{v}</b>
+                      <Button size="sm" variant="ghost" icon={copied === v ? "check" : "copy"} onClick={() => copy(v)}>{copied === v ? "Copied" : "Copy"}</Button>
+                    </div>
+                  ))}
+              </div>
               <AffiliateView a={a} admin />
               <form className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4"
                 onSubmit={(e) => { e.preventDefault(); void act({ title: `Change ${who}'s terms?`, body: `${terms.percent}% commission · ${terms.months || s.affiliate.months} months per customer${terms.months ? "" : " (the program's)"} · link ${terms.validUntil ? `valid until ${day(terms.validUntil)}` : "with no end date"}. Sales already made keep their commission.`, ok: "Save terms" }, () => api.updateAffiliate({ id, ...terms })); }}>
@@ -242,8 +280,11 @@ function Partner({ id, s, onClose }: { id: string; s: MarketingSettings; onClose
               onClick={() => void act({ title: `${a.status === "pending" ? "Approve" : "Resume"} ${who}?`, body: `Their link earns ${a.percent}% of what the people they bring pay.`, ok: a.status === "pending" ? "Approve" : "Resume" }, () => api.updateAffiliate({ id, status: "active" }))}>{a.status === "pending" ? "Approve" : "Resume"}</Button>}
             {a.status === "active" && <Button size="sm" variant="secondary" loading={busy}
               onClick={() => void act({ title: `Pause ${who}?`, body: "Their sales earn no commission while paused. What is already due stays due.", ok: "Pause", danger: true }, () => api.updateAffiliate({ id, status: "paused" }))}>Pause</Button>}
+            {a.stats.due > 0 && <Input value={ref} onChange={(e) => setRef(e.target.value)} maxLength={120} placeholder="Payment reference (UTR / UPI ref)" aria-label="Payment reference" className="h-9 min-w-0 flex-1 sm:max-w-[260px]" />}
             {a.stats.due > 0 && <Button size="sm" icon="coins" loading={busy}
-              onClick={() => void act({ title: `Mark ${rupee(a.stats.due)} paid to ${who}?`, body: `Pay them by bank or UPI first; this marks their ${dueSales} due sale${dueSales === 1 ? "" : "s"} as paid.${a.stats.due < a.minPayout ? ` (Below the ₹${a.minPayout} payout minimum.)` : ""}`, ok: "Mark paid" }, () => api.payAffiliate(id, ""))}>Mark {rupee(a.stats.due)} paid</Button>}
+              onClick={() => void act({ title: `Mark ${rupee(a.stats.due)} paid to ${who}?`,
+                body: `${payTo ? `Paid to ${payTo}.` : "They have not given payout details yet."} ${ref.trim() ? `Reference ${ref.trim()} (they see it).` : "No reference."} This marks their ${dueSales} due sale${dueSales === 1 ? "" : "s"} as paid and emails them.${a.stats.due < a.minPayout ? ` (Below the ₹${a.minPayout} payout minimum.)` : ""}`,
+                ok: "Mark paid" }, async () => { await api.payAffiliate(id, ref.trim()); setRef(""); })}>Mark {rupee(a.stats.due)} paid</Button>}
           </div>
         )}
       </div>

@@ -31,6 +31,8 @@ import { Spinner } from "@/components/atoms/Spinner";
 import { DesktopHeader } from "@/components/organisms/DesktopHeader";
 import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { InstallApp } from "@/components/molecules/InstallApp";
+import { StoreBadges } from "@/components/molecules/StoreBadges";
+import { HelpChat } from "@/components/organisms/HelpChat";
 import { InstallBanner } from "@/components/molecules/InstallBanner";
 import { VerifyBanner } from "@/components/molecules/VerifyBanner";
 import { captureRef } from "@/lib/marketing";
@@ -244,6 +246,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
           {admin && <AdminButton onClick={onClose} />}
           <ThemeToggle className="mt-2" />
           <InstallApp className="px-1 pt-2" />
+          <StoreBadges compact className="px-1 pt-2" />
           {credits && (
             <div className="flex items-center justify-between gap-3 px-1 py-2.5">
               <span onClick={onClose}>
@@ -357,6 +360,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className="rm min-h-screen">
         <GlobalActivity />
         {authPage ? children : null}
+        {authPage && <HelpChat raised={false} />}
       </main>
     );
   }
@@ -383,6 +387,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="rm min-h-screen md:flex">
       <GlobalActivity />
       <ConfirmHost />
+      <HelpChat raised={tabs} />
 
       {/* phones: the top bar */}
       <header className="grid items-center gap-2 border-b border-border bg-[var(--bar)] px-4 pb-2.5 pt-[max(12px,env(safe-area-inset-top))] sticky top-0 z-30 grid-cols-[44px_1fr_minmax(44px,auto)] md:hidden">
@@ -437,6 +442,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {admin && <AdminButton />}
         <ThemeToggle />
         <InstallApp />
+        <StoreBadges compact />
         {credits && (
           <div className="flex items-center justify-between gap-3">
             <CreditPill balance={credits.balance} full />

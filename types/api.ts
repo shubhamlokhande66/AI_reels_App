@@ -396,6 +396,11 @@ export interface SiteInfo {
   supportPhone: string;
   businessAddress: string;
   legalUpdated: string;
+  /** the phone apps' store pages; empty = "Coming soon" */
+  playStoreUrl: string;
+  appStoreUrl: string;
+  /** GST number, on receipts (empty: not shown) */
+  gstin: string;
 }
 
 /** Administration → Overview (server/adminDashboard.ts). Dates arrive as ISO strings. */

@@ -185,6 +185,9 @@ export interface UploadResult {
   failed: { name: string; error: ApiErrorBody }[];
 }
 
+/** Ads (Admin → Settings → Ads): on or off, the pages with an ad spot, and the Google AdSense ids. */
+export type AdPlace = "home" | "homeEnd" | "reels" | "rewards" | "account";
+export type AdsConfig = { enabled: boolean; client: string; slot: string; places: Record<AdPlace, boolean> };
 export const api = {
   health: () => request<Health>("/api/health"),
   me: () => viaBoot("me", () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me")),
@@ -193,9 +196,12 @@ export const api = {
   register: (email: string, password: string, ref?: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password, ...(ref ? { ref } : {}) }) }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
+  verifyCode: (code: string) => request<{ ok: boolean; email: string }>("/api/auth/verify", { method: "POST", body: JSON.stringify({ code }) }),
+  resetWithCode: (email: string, code: string, password: string) =>
+    request<{ user: { id: string; email: string } }>("/api/auth/reset", { method: "POST", body: JSON.stringify({ email, code, password }) }),
   verifyEmail: (token: string) => request<{ ok: boolean; email: string }>("/api/auth/verify", { method: "POST", body: JSON.stringify({ token }) }),
-  resendVerify: () => request<{ ok: boolean; sent?: boolean; verified?: boolean }>("/api/auth/verify/resend", { method: "POST" }),
-  forgotPassword: (email: string) => request<{ ok: boolean }>("/api/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
+  resendVerify: () => request<{ ok: boolean; sent?: boolean; verified?: boolean; wait?: number }>("/api/auth/verify/resend", { method: "POST" }),
+  forgotPassword: (email: string) => request<{ ok: boolean; wait?: number }>("/api/auth/forgot", { method: "POST", body: JSON.stringify({ email }) }),
   resetPassword: (token: string, password: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/reset", { method: "POST", body: JSON.stringify({ token, password }) }),
   changePassword: (currentPassword: string, newPassword: string) =>
@@ -218,8 +224,24 @@ export const api = {
   myMarketing: () => request<import("@/lib/marketing").MyMarketing>("/api/marketing"),
   setUsername: (username: string) => request<{ username: string }>("/api/marketing/username", { method: "POST", body: JSON.stringify({ username }) }),
   sendCredits: (to: string, amount: number, note?: string) => request<{ ok: boolean; sent: number; to: string; balance: number }>("/api/marketing/send", { method: "POST", body: JSON.stringify({ to, amount, note }) }),
+  payments: () => request<{ id: string; label: string; amount: number; status: string; createdAt: string; paidAt: string | null; receiptNo: string | null; paymentId: string | null }[]>("/api/billing/payments"),
+  // support: the Contact page, the Help chat, Admin → Support
+  contact: (d: { email: string; name?: string; topic: string; message: string; page?: string; website?: string }) =>
+    request<{ ok: boolean; ticket: string }>("/api/contact", { method: "POST", body: JSON.stringify(d) }),
+  helpOn: () => request<{ on: boolean }>("/api/help"),
+  help: (messages: { role: "user" | "assistant"; content: string }[], page = "") =>
+    // quiet (no "Working…" pill over the chat): the chat shows its own typing dots
+    send<{ answer: string; needsHuman: boolean; suggestions: string[] }>("/api/help", { method: "POST", body: JSON.stringify({ messages, page }) }, 60_000),
+  adminSupport: (status: "open" | "done" | "all") => request<{
+    settings: { chat: boolean; autoReply: boolean }; open: number;
+    messages: { id: string; email: string; name: string; topic: string; message: string; page: string; status: string; at: string; account: { email: string; username: string | null; plan: string } | null }[];
+    questions: { q: string; needsHuman: boolean; at: string; signedIn: boolean }[];
+  }>(`/api/admin/support?status=${status}`),
+  setSupport: (d: { chat?: boolean; autoReply?: boolean }) => request<{ chat: boolean; autoReply: boolean }>("/api/admin/support", { method: "PUT", body: JSON.stringify(d) }),
+  setSupportStatus: (id: string, status: "open" | "done") => request<{ ok: boolean }>("/api/admin/support", { method: "POST", body: JSON.stringify({ id, status }) }),
   myAffiliate: () => request<{ affiliate: import("@/lib/marketing").AffiliateDetail | null }>("/api/marketing/affiliate/dashboard"),
   affiliate: (id: string) => request<import("@/lib/marketing").AffiliateDetail>(`/api/admin/affiliates/${encodeURIComponent(id)}`),
+  setPayout: (d: import("@/lib/marketing").PayoutInput) => request<{ ok: boolean }>("/api/marketing/affiliate/payout", { method: "PUT", body: JSON.stringify(d) }),
   applyAffiliate: () => request<{ ok: boolean }>("/api/marketing/affiliate", { method: "POST" }),
   // Admin → Marketing
   adminMarketing: () => request<{ settings: import("@/lib/marketing").MarketingSettings; report: import("@/lib/marketing").MarketingReport }>("/api/admin/marketing"),
@@ -262,8 +284,8 @@ export const api = {
   adminOverview: () => request<AdminOverview>("/api/admin/overview"),
   adminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
   adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
-  ads: () => request<{ enabled: boolean; client: string; slot: string }>("/api/ads"),
-  setAds: (b: { enabled?: boolean; client?: string; slot?: string }) => request<{ enabled: boolean; client: string; slot: string }>("/api/admin/ads", { method: "PUT", body: JSON.stringify(b) }),
+  ads: () => request<AdsConfig>("/api/ads"),
+  setAds: (b: Partial<AdsConfig>) => request<AdsConfig>("/api/admin/ads", { method: "PUT", body: JSON.stringify(b) }),
   /** Admin: a plan by hand (Free, or a paid plan for 1 or 12 months with its credits) */
   adminSetPlan: (id: string, plan: string, months: number) => request<unknown>(`/api/admin/users/${id}/plan`, { method: "POST", body: JSON.stringify({ plan, months }) }),
   adminGiveCredits: (id: string, credits: number, note: string) =>

@@ -222,7 +222,60 @@ describe("affiliates", () => {
     expect(full).toMatchObject({ email: "dash@x.com", customers: [{ email: "cust@x.com" }], sales: [{ customer: "cust", commission: 100, status: "due" }] });
     await M.markAffiliatePaid(aff, "UPI ref 1");
     expect((await M.affiliateDetail(aff, true)).payouts[0]).toMatchObject({ total: 100, count: 1, note: "UPI ref 1" });
-    expect((await M.affiliateDetail(aff, false)).payouts[0].note).toBeUndefined();
+    expect((await M.affiliateDetail(aff, false)).payouts[0].note).toBe("UPI ref 1"); // the partner sees the reference too
     await expect(M.affiliateDetail(buyer, true)).rejects.toThrow(/No such affiliate/);
+  });
+
+  it("keep payout details (checked; the partner sees the account's last 4), pay once even on two clicks, and only for real accounts", async () => {
+    const aff = await user("payme@x.com"), buyer = await user("b2@x.com");
+    await M.ensureUsername(aff);
+    await M.noteReferral(buyer, "payme", C.grantCredits);
+    await expect(as(aff, () => M.setPayoutDetails({ method: "upi", upi: "me@okaxis" }))).rejects.toThrow(/join the affiliate program first/);
+    await as(aff, () => M.applyAffiliate());
+    expect(() => M.PayoutIn.parse({ method: "upi", upi: "not a upi" })).toThrow();
+    expect(() => M.PayoutIn.parse({ method: "bank", name: "A B", account: "12ab", ifsc: "SBIN0001234" })).toThrow();
+    expect(() => M.PayoutIn.parse({ method: "bank", name: "A B", account: "123456789012", ifsc: "SBIN1001234" })).toThrow();
+    await as(aff, () => M.setPayoutDetails(M.PayoutIn.parse({ method: "bank", name: "Asha Rao", account: "123456789012", ifsc: "sbin0001234" })));
+    expect((await M.affiliateDetail(aff, false)).payout).toMatchObject({ method: "bank", account: "•••• 9012", ifsc: "SBIN0001234" });
+    expect((await M.affiliateDetail(aff, true)).payout).toMatchObject({ method: "bank", name: "Asha Rao", account: "123456789012" });
+    expect((await M.listAffiliates()).find((x) => x.id === aff)?.payout).toBe(true);
+
+    await M.updateAffiliate({ id: aff, status: "active", percent: 10 });
+    const since = (await M.affiliateDetail(aff, true)).since;
+    await M.updateAffiliate({ id: aff, status: "paused" });
+    await new Promise((r) => setTimeout(r, 20));
+    await M.updateAffiliate({ id: aff, status: "active" });
+    expect(new Date((await M.affiliateDetail(aff, true)).since!).getTime()).toBe(new Date(since!).getTime()); // "partner since" kept
+    await expect(M.updateAffiliate({ id: new ObjectId().toHexString(), status: "active" })).rejects.toThrow(/No such account/);
+
+    await M.affiliateCommission(buyer, "p1", 1000);
+    await M.affiliateCommission(buyer, "p2", 500);
+    const both = await Promise.allSettled([M.markAffiliatePaid(aff, "UTR 1"), M.markAffiliatePaid(aff, "UTR 2")]);
+    const paid = both.filter((r) => r.status === "fulfilled").map((r) => (r as PromiseFulfilledResult<{ total: number }>).value.total);
+    expect(paid.reduce((t, n) => t + n, 0)).toBe(150); // ₹150 due, paid once in all
+    expect(await (await mainDb()).collection("affiliate_payouts").countDocuments({ affiliateId: aff })).toBe(paid.length);
+  });
+});
+
+describe("Ads and the store links", () => {
+  it("each ad spot can be switched off; ads.txt follows the publisher id", async () => {
+    const A = await import("@/server/ads");
+    expect(Object.values((await A.getAds()).places).every(Boolean)).toBe(true);
+    await A.setAds({ places: { account: false } as never });
+    const a = await A.getAds();
+    expect(a.places).toMatchObject({ home: true, homeEnd: true, reels: true, rewards: true, account: false });
+    const { GET } = await import("@/app/ads.txt/route");
+    expect((await GET()).status).toBe(404);
+    await A.setAds({ client: "ca-pub-1234567890123456" });
+    expect(await (await GET()).text()).toBe("google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n");
+  });
+  it("keeps the app store links (https only); empty means Coming soon", async () => {
+    const S = await import("@/server/site");
+    expect(await S.getSite()).toMatchObject({ playStoreUrl: "", appStoreUrl: "" });
+    await expect(S.setSite({ playStoreUrl: "javascript:alert(1)" })).rejects.toThrow(/https/);
+    await S.setSite({ playStoreUrl: "https://play.google.com/store/apps/details?id=app.shubix" });
+    expect((await S.getSite()).playStoreUrl).toBe("https://play.google.com/store/apps/details?id=app.shubix");
+    await S.setSite({ playStoreUrl: "" });
+    expect((await S.getSite()).playStoreUrl).toBe("");
   });
 });

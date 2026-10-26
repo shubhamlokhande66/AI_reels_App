@@ -40,16 +40,23 @@ const LEGAL_TERMS = `These terms apply when you use {name} (“we”, “the ser
 - Credits are used when a Reel is made. If a Reel fails, its credits are returned automatically.
 - All purchases are final and **non-refundable**; see our [Refund & Cancellation Policy](/refunds).
 
-## 5. Fair use
+## 5. Invites, sending credits, coupons and affiliates
+- **Invites:** when a friend joins with your link, you and your friend get the credits shown on the Invite & earn page, at the step shown there (for example when they verify their email, or make a first purchase). There is a monthly limit, and the amounts and rules can change for new invites.
+- **Sending credits:** credits you send to another user by username are moved at once and cannot be taken back. Only top-up and gift credits can be sent, not a plan's monthly credits.
+- **Coupons and offers:** each has its own rules (dates, plans, uses). They have no cash value and cannot be exchanged for money.
+- **Affiliates:** an approved affiliate earns the commission shown on their dashboard, only on successful payments by the people who joined with their link, for the period shown. Commission is paid by UPI or bank transfer once it reaches the payout amount; you must give correct payout details and are responsible for your own taxes on it.
+- **No abuse:** inviting yourself, fake or duplicate accounts, spam, or misleading promotion are not allowed. We may hold or cancel the credits or commission they earned, and pause or close the accounts involved.
+
+## 6. Fair use
 Do not try to break, overload or copy the service, share accounts, or use it to make spam or misleading content. We may limit or close accounts that do.
 
-## 6. Availability and liability
+## 7. Availability and liability
 We work to keep the service running well but cannot promise it is always available or error-free. To the extent the law allows, our liability for any claim is limited to the amount you paid us in the 3 months before it.
 
-## 7. Changes
+## 8. Changes
 We may update these terms. If a change matters, we will tell you in the app or by email before it applies.
 
-## 8. Law and contact
+## 9. Law and contact
 These terms are governed by the laws of India. Questions: {contact}. {business}.`;
 
 const LEGAL_PRIVACY = `This policy explains what {name} collects, why, and the choices you have. We collect as little as we can and keep it only as long as needed.
@@ -59,22 +66,30 @@ const LEGAL_PRIVACY = `This policy explains what {name} collects, why, and the c
 - **Your content:** the clips, music, photos and stories you upload, and the Reels made from them.
 - **Usage:** your projects, credits and their history, and payment records (amount, date, plan).
 - **Payments:** handled by Razorpay. Your card, UPI or bank details go to Razorpay, not to us; we only receive a payment confirmation.
+- **Invites and rewards:** your username (people you share it with can send you credits with it), who invited you, and the credits you send or receive.
+- **Affiliates:** if you join the affiliate program, the payout details you give us (a UPI ID or bank account), used only to pay your commission, and the sales made through your link (the customers' usernames are shown to you, never their emails).
 
 ## Why we use it
 - To make your Reels, keep your account and credits, take payments and answer your questions.
-- To keep the service secure and working. We do not sell your data and do not use it for advertising.
+- To keep the service secure and working, and to stop abuse of invites, coupons and the affiliate program.
+- We do not sell your data. On the Free plan the app may show ads (see Ads and cookies below); paid plans see none.
 
 ## Services that help us
 - AI services (for example Google Gemini) receive the text or keyframes needed for a feature you use, such as planning a story or making a narration.
 - Cloud services host the app and its database, and may make AI pictures for story scenes.
 - Razorpay processes payments. Social networks receive a Reel only when you ask us to post it.
+- Google AdSense may show ads on the Free plan (only on pages like Home and My Reels, never in the editor).
+- An email service sends account emails (sign-up and password codes, payment receipts) and notes about your invites, credits and affiliate earnings.
+- The Help chat sends your questions to the AI service that answers them. Messages you send from the Contact page, and the questions you ask the Help chat, are kept so our team can help you and improve the answers.
 
 ## How long we keep it
 - Uploaded clips and finished projects are deleted automatically after the period shown in the app.
-- When you delete your account, your content, projects and credits are deleted. Payment records are kept as tax law requires, without the link to you.
+- When you delete your account, your content, projects and credits are deleted. Payment records (and affiliate payouts) are kept as tax law requires, without the link to you.
 
-## Cookies
-We use one essential cookie to keep you signed in. We do not use advertising or tracking cookies.
+## Ads and cookies
+- We use one essential cookie to keep you signed in. Your browser also remembers a friend's invite link for 30 days, so the sign-up knows who invited you.
+- On the Free plan, ads may be shown by Google AdSense. Google and its partners may use cookies to show ads based on your visits to this and other websites. You can turn off personalised ads in [Google's Ads Settings](https://adssettings.google.com), and read [how Google uses data](https://policies.google.com/technologies/partner-sites).
+- Paid plans see no ads, and we do not use other advertising or tracking cookies.
 
 ## Your rights
 You can see and download your Reels, correct your details, and delete your account and all its data at any time from the Account page. Under India's Digital Personal Data Protection Act you may also ask us about your data or raise a concern: write to {reach}.
@@ -163,7 +178,13 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Lists", C("Tabs & rows", T("aff.sales", "Sales tab", "Sales"), T("aff.payouts", "Payouts tab", "Payouts"), T("aff.statusDue", "Due", "Due"), T("aff.statusPaid", "Paid", "Paid"),
       T("aff.joined", "Customer joined ({date})", "joined {date}"), T("aff.countsUntil", "Customer counts until ({date})", "counts until {date}"), T("aff.afterEnd", "Joined after the link ended", "joined after your link ended"),
       T("aff.payoutSales", "Payout: sales ({n})", "{n} sales"), T("aff.noSales", "No sales", "No sales yet. Share your link to start earning."), T("aff.noCustomers", "No customers", "No one has joined with your link yet."),
-      T("aff.noPayouts", "No payouts", "No payouts yet."))),
+      T("aff.noPayouts", "No payouts", "No payouts yet."), T("aff.ref", "Payout reference ({ref})", "Ref {ref}"))),
+    S("Payout details", C("Card", T("aff.payTitle", "Title", "Where we pay you"), T("aff.paySub", "Line", "Your commission is sent here by UPI or bank transfer once it reaches the payout amount."),
+      T("aff.payMissing", "Not given yet", "Add your UPI ID or bank account so we can pay you."), T("aff.payUpi", "UPI tab", "UPI"), T("aff.payBank", "Bank tab", "Bank account"),
+      T("aff.upiLabel", "UPI ID label", "UPI ID"), T("aff.upiHint", "UPI ID hint", "Like yourname@okaxis"), T("aff.bankName", "Account holder label", "Account holder's name"),
+      T("aff.bankAccount", "Account number label", "Account number"), T("aff.bankAccountKeep", "Account number placeholder when saved ({last4})", "Saved: ending {last4} · type again to change"),
+      T("aff.bankIfsc", "IFSC label", "IFSC code"), T("aff.paySave", "Save button", "Save payout details"), T("aff.payEdit", "Change button", "Change"), T("aff.paySaved", "After saving", "Saved. We pay you here."),
+      T("aff.payConfirm", "Confirm ({where})", "Get paid at {where}?"), T("aff.payNow", "Saved: where ({where})", "Paid to {where}"))),
   ),
   page(PAGES, "rewards", "Invite & earn",
     S("Page", C("Header", T("nav.rewards", "Title (also in the menu)", "Invite & earn"), T("rewards.sub", "Line under the title", "Invite friends, send credits and earn with Shubix."),
@@ -203,16 +224,24 @@ export const TEXT_GROUPS: TextGroup[] = [
         T("auth.haveAccount", "Before “Sign in”", "Already have an account?"))),
     S("Forgot password",
       C("Form", T("auth.back", "Back link", "Back to sign in"), T("auth.forgotTitle", "Title", "Forgot your password?"), T("auth.forgotText", "Line", "We'll email you a link to choose a new one."),
-        T("auth.sendLink", "Button", "Send reset link"), T("auth.sending", "While sending", "Sending…")),
+        T("auth.sendLink", "Button (old link emails)", "Send reset link"), T("auth.sending", "While sending", "Sending…"),
+        T("auth.forgotCodeText", "Line", "Enter your email: we'll send you a 6-digit code to choose a new password."), T("auth.sendCode", "Button", "Send code")),
+      C("Code and new password", T("auth.resetCodeSent", "Line ({email})", "If an account exists for {email}, we've emailed it a 6-digit code. It works for 10 minutes.", true),
+        T("auth.otherEmail", "Use another email", "Use another email")),
       C("After sending", T("auth.forgotSent", "Message ({email})", "If an account exists for {email}, we've emailed it a link to choose a new password. The link works for one hour. Check your spam folder too.", true))),
     S("Choose a new password",
       C("Form", T("auth.resetTitle", "Title", "Choose a new password"), T("auth.newPassword", "New password", "New password"), T("auth.confirmPassword", "Confirm", "Confirm password"),
         T("auth.resetButton", "Button", "Reset password"), T("auth.saving", "While saving", "Saving…")),
       C("Bad link", T("auth.badLink", "Incomplete link", "This link is incomplete."), T("auth.askNew", "Ask again (incomplete)", "Ask for a new one"), T("auth.askNewLink", "Ask again (expired)", "Ask for a new link"))),
     S("Verify email",
+      C("Code", T("auth.codeSentTo", "Line ({email})", "We sent a 6-digit code to {email}. Enter it below; it works for 10 minutes.", true), T("auth.codeLabel", "Code boxes (screen readers)", "6-digit code"),
+        T("auth.verifyButton", "Button", "Verify"), T("auth.noCode", "Before resend", "Didn't get it?"), T("auth.resendCode", "Resend", "Send a new code"),
+        T("auth.resendIn", "Resend wait ({s})", "Send again in {s}s"), T("auth.codeResent", "After resending", "A new code is on its way."),
+        T("auth.checkSpam", "Spam hint", "Check your spam folder too."), T("auth.enterSixDigits", "Code missing", "Enter the 6-digit code from the email."),
+        T("auth.enterCode", "Banner button", "Enter code"), T("auth.signInToVerify", "Signed out", "Sign in to verify your email.")),
       C("Verify page", T("auth.verifyTitle", "Title", "Verify your email"), T("auth.verifying", "While checking", "Checking your link…"),
         T("auth.verifiedTitle", "Done: title", "Email verified"), T("auth.verifiedText", "Done: line ({email})", "Thanks! {email} is confirmed.", true), T("auth.continue", "Done: button", "Continue to Shubix")),
-      C("Banner (not verified yet)", T("auth.verifyBanner", "Line ({email})", "Verify your email: we sent a link to {email}.", true), T("auth.resend", "Resend button", "Resend link"),
+      C("Banner (not verified yet)", T("auth.verifyBannerCode", "Line ({email})", "Verify your email: enter the code we sent to {email}.", true), T("auth.resend", "Resend button", "Resend link"),
         T("auth.resent", "After resending", "Sent! Check your inbox and spam."), T("auth.verifiedBadge", "My account: verified", "Verified"), T("auth.unverifiedBadge", "My account: not verified", "Not verified"))),
     S("Password help",
       C("As people type", T("auth.showPassword", "Eye: show the password", "Show password"), T("auth.hidePassword", "Eye: hide the password", "Hide password"),
@@ -234,7 +263,9 @@ export const TEXT_GROUPS: TextGroup[] = [
         T("account.monthly", "Left of this month's plan credits ({n})", "{n} from this month's plan"))),
     S("Settings list",
       C("Rows", T("account.security", "Heading: security", "Security"), T("account.rowPassword", "Change password: line", "Choose a new password for this account"),
-        T("account.rowSessions", "Devices: line", "Sign out on every other phone and computer"), T("account.devices", "Devices: title", "Signed-in devices"),
+        T("account.rowSessions", "Devices: line", "Sign out on every other phone and computer"), T("account.paymentsTitle", "Payments: title", "Payments & receipts"), T("account.rowPayments", "Payments: row line", "Your purchases and receipt numbers"),
+        T("account.paymentsNote", "Payments: note", "A receipt for every payment was emailed to you. All purchases are final."), T("account.noPayments", "Payments: none", "No payments yet."),
+        T("account.paid", "Payments: paid", "Paid"), T("account.notPaid", "Payments: not finished", "Not completed"), T("account.devices", "Devices: title", "Signed-in devices"),
         T("account.danger", "Heading: danger zone", "Danger zone"), T("account.rowDelete", "Delete: line", "Remove your account and everything in it"),
         T("account.lookHeading", "Heading: appearance", "Appearance"))),
     S("Password",
@@ -318,7 +349,14 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Message",
       C("Message form", T("contact.formTitle", "Title", "Send us a message"), T("contact.yourEmail", "Your email", "Your email"), T("contact.message", "Message", "Message"),
         T("contact.messagePlaceholder", "Message placeholder", "How can we help?"), T("contact.send", "Button", "Send"), T("contact.subject", "Email subject", "Help with Shubix"),
-        T("contact.opensMail", "Note", "This opens your email app with the message ready. We reply within 3 working days.", true)),
+        T("contact.opensMail", "Note (old)", "This opens your email app with the message ready. We reply within 3 working days.", true),
+        T("contact.yourName", "Your name", "Your name (optional)"), T("contact.namePlaceholder", "Name placeholder", "Riya"), T("contact.topic", "Topic", "What is it about?"),
+        T("contact.topic.account", "Topic: account", "Account & sign-in"), T("contact.topic.payment", "Topic: payment", "Payments & credits"), T("contact.topic.reels", "Topic: Reels", "Making Reels"),
+        T("contact.topic.rewards", "Topic: rewards", "Invites & affiliates"), T("contact.topic.other", "Topic: other", "Something else"),
+        T("contact.paymentHint", "Payment topic hint", "Add your receipt number (from the receipt email) or the payment date and amount, so we can find it quickly.", true),
+        T("contact.replyNote", "Note under the button", "We reply by email within 3 working days, usually much sooner.", true)),
+      C("After sending", T("contact.sentTitle", "Title", "Message sent"), T("contact.sentText", "Line ({ticket} {email})", "Your ticket is {ticket}. We've emailed a copy to {email} and will reply there soon.", true),
+        T("contact.another", "Button", "Send another message")),
       C("Support not set up yet", T("contact.soonTitle", "Title", "Support is being set up"), T("contact.soonText", "Line", "Our support email will be here very soon. Please check back in a little while.", true))),
   ),
   page(PAGES, "legal", "Legal pages",
@@ -351,8 +389,19 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Bottom bar (phones)", C("Tabs", T("nav.create", "Create", "Create"), T("nav.more", "More", "More"))),
     S("Notifications", C("Bell", T("bell.title", "Title", "Notifications"), T("bell.new", "Unread ({n})", "Notifications, {n} new"), T("bell.empty", "None", "You're all caught up. Reels you save to My Reels show up here.", true))),
     S("Look switch", C("Switch", T("look.dark", "Dark", "Dark look"), T("look.light", "Light", "Light look"), T("look.toLight", "Hover: to light", "Switch to the light look"), T("look.toDark", "Hover: to dark", "Switch to the dark look"))),
+    S("Help chat (on/off: Admin → Support)",
+      C("Button & panel", T("help.button", "Button", "Help"), T("help.open", "Button (screen readers)", "Open the Help chat"), T("help.title", "Title", "Shubix Help"),
+        T("help.sub", "Line under the title", "Answers in seconds, any time"), T("help.close", "Close (screen readers)", "Close"), T("help.clear", "Clear", "Clear"),
+        T("help.welcome", "First message", "Hi! I'm Shubix Help. Ask me anything about making Reels, credits, plans, payments or your account.", true),
+        T("help.placeholder", "Box placeholder", "Ask a question…"), T("help.send", "Send (screen readers)", "Send"), T("help.thinking", "While answering (screen readers)", "Thinking"),
+        T("help.contact", "Button to the team", "Contact our team"), T("help.footer", "Note under the box", "AI answers can be wrong. For payments and account problems, contact our team.", true)),
+      C("Starter questions", T("help.q1", "Question 1", "How do I make my first Reel?"), T("help.q2", "Question 2", "How do credits work?"),
+        T("help.q3", "Question 3", "I didn't get my code"), T("help.q4", "Question 4", "Which plan is right for me?"))),
     S("Install the app",
       C("Banner", T("install.title", "Title", "Get the Shubix app"), T("install.sub", "Line", "full screen, one tap from your home screen"), T("install.button", "Button", "Install"), T("install.notNow", "Close", "Not now")),
+      C("Store badges (links: Admin → Settings → Business details)", T("store.title", "Home: title", "Get the Shubix app"), T("store.sub", "Home: line", "Make Reels anywhere: Shubix on Android and iPhone."),
+        T("store.playTop", "Google Play: small line", "Get it on"), T("store.play", "Google Play: name", "Google Play"), T("store.appleTop", "App Store: small line", "Download on the"),
+        T("store.apple", "App Store: name", "App Store"), T("store.soon", "No link yet", "Coming soon"), T("store.soonShort", "No link yet (small)", "Soon")),
       C("Sidebar", T("install.sidebar", "Button", "Install the Shubix app"), T("install.ios", "iPhone steps", "In Safari, tap the **Share** button, then **Add to Home Screen**. Shubix then opens full screen like any app.", true))),
   ),
   page(EVERY, "plan", "Plan pill & upgrade",
@@ -365,7 +414,9 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Shubix AI card",
       C("Card", T("plan.aiAdTitle", "Title", "Let Shubix AI edit your Reels"), T("plan.aiAdText", "Line ({price}: the first paid plan)", "The best moments, transitions and captions picked for you, no ads, no watermark · Editor from {price}/month"),
         T("plan.aiAdButton", "Button", "See plans")),
-      C("Above an ad", T("plan.adLabel", "Label", "Ad"), T("plan.removeAds", "Link", "remove ads"))),
+      C("Above an ad", T("plan.adLabel", "Label", "Ad"), T("plan.removeAds", "Link", "remove ads")),
+      C("Invite card (in an ad spot without AdSense)", T("plan.inviteAdTitle", "Title", "Invite friends, earn credits"),
+        T("plan.inviteAdText", "Line", "Share your link: your friend gets free credits, and so do you."), T("plan.inviteAdButton", "Button", "Invite & earn"))),
     S("Not enough credits",
       C("Dialog", T("plan.noCreditsTitle", "Title", "Not enough credits"), T("plan.noCreditsText", "Line", "Top up or choose a plan to keep making Reels."),
         T("plan.noCreditsButton", "Button", "See plans & top-ups"), T("plan.noCreditsLater", "Close", "Not now"))),

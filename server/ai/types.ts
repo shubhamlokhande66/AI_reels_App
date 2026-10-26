@@ -136,6 +136,6 @@ export async function runStructured<S extends z.ZodType>(provider: Generator, re
 export interface TaskSpec { id: string; kind: "text" | "vision"; essential: boolean; label: string }
 export const TASKS: Record<string, TaskSpec> = Object.fromEntries(([
   ["shot_ranking", "vision", false, "AI shot picking"], ["studio_director", "text", false, "AI director"], ["studio_translate", "text", false, "Caption translation"],
-  ["clip_understanding", "vision", false, "Trend video analysis"], ["test", "text", true, "Connection test"], ["general", "text", true, "Other"],
+  ["clip_understanding", "vision", false, "Trend video analysis"], ["support_chat", "text", false, "Help chat (support)"], ["test", "text", true, "Connection test"], ["general", "text", true, "Other"],
 ] as const).map(([id, kind, essential, label]) => [id, { id, kind, essential, label }]));
 export const getTask = (task: string | null | undefined) => TASKS[task || "general"] ?? TASKS.general;

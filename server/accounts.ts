@@ -2,12 +2,13 @@ import "server-only";
 import { ensureUsername, noteReferral, rewardFor } from "@/server/marketing";
 import { grantCredits } from "@/server/credits";
 import crypto from "node:crypto";
-import nodemailer from "nodemailer";
 import { AuthRequired, clearCookie, currentUser, forgetSessionCache, hashPassword, sessionCookie, verifyPassword } from "@/server/core/auth";
 import { settings } from "@/server/core/config";
+import { codeLetter, sendMail } from "@/server/core/mail";
 import { mainDb, ObjectId, OWNER, UNSCOPED } from "@/server/core/db";
 import { ConflictError, ValidationFailed } from "@/server/core/errors";
 import { deletePrefix } from "@/server/storage/local";
+export { sendMail };
 import fs from "node:fs";
 import { localPath } from "@/server/storage/local";
 
@@ -15,7 +16,7 @@ import { localPath } from "@/server/storage/local";
  * the account. With accounts off, /me says so and nothing else is needed. */
 
 type Doc = Record<string, unknown>;
-const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/, RESET_MINUTES = 60, VERIFY_HOURS = 48, MIN_PASSWORD = 8;
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/, CODE_MINUTES = 10, CODE_TRIES = 5, RESEND_SECONDS = 60, MIN_PASSWORD = 8;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const users = async () => (await mainDb()).collection<any>("users");
 const userOut = (u: Doc) => ({ id: String(u._id), email: u.email, emailVerified: u.emailVerified !== false, username: (u.username as string | undefined) ?? null });
@@ -35,61 +36,70 @@ async function newSessionVersion(id: unknown): Promise<Doc & { _id: unknown }> {
   return u!;
 }
 
-/** Email over plain SMTP; without SMTP settings the message is written to the server log (a local install still works). */
-export async function sendMail(to: string, subject: string, text: string, html?: string): Promise<boolean> {
-  const s = settings;
-  if (!(s.smtpHost && s.smtpFrom)) {
-    // the message (a reset link is a key to the account) is shown only while developing, never in a live server's log
-    console.warn(`email is not set up (SMTP_HOST / SMTP_FROM); would have sent to ${to}: ${subject}${process.env.NODE_ENV === "production" ? "" : `\n${text}`}`);
-    return false;
+// ---------------------------------------------------------------- one-time codes (sign-up and password reset)
+// A 6-digit code by email, CODE_MINUTES long, CODE_TRIES wrong tries (then a new one is needed), a new one at most every
+// RESEND_SECONDS. Only its hash is kept, tied to the account and the purpose (a sign-up code never resets a password).
+const newCode = () => String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+const codeHash = (id: unknown, purpose: string, code: string) => hashToken(`${String(id)}:${purpose}:${code}`);
+type Otp = { hash: string; expires: Date; tries: number; sentAt: Date };
+async function sendCode(u: Doc, purpose: "verify" | "reset") {
+  const code = newCode(), b = settings.businessName;
+  const otp: Otp = { hash: codeHash(u._id, purpose, code), expires: new Date(Date.now() + CODE_MINUTES * 60_000), tries: 0, sentAt: new Date() };
+  await (await users()).updateOne({ _id: u._id }, { $set: { [purpose === "verify" ? "verifyOtp" : "resetOtp"]: otp } });
+  const m = purpose === "verify"
+    ? codeLetter("Confirm your email", `Welcome to ${b}. Enter this code in the app to confirm your email address and finish setting up your account.`, code,
+      `The code works for ${CODE_MINUTES} minutes. If you did not create a ${b} account, you can safely ignore this email.`, "Email verification")
+    : codeLetter("Reset your password", `We received a request to reset the password of your ${b} account. Enter this code in the app to choose a new one.`, code,
+      `The code works for ${CODE_MINUTES} minutes. If you did not ask for this, ignore this email: your password stays the same.`, "Password reset");
+  return sendMail(String(u.email), purpose === "verify" ? `${code} is your ${b} code` : `${code} is your ${b} password reset code`, m.text, m.html);
+}
+/** a code may be sent again once RESEND_SECONDS have passed (the wait left, in seconds, or 0) */
+const waitLeft = (otp: Otp | undefined) => (otp?.sentAt ? Math.max(0, Math.ceil((new Date(otp.sentAt).getTime() + RESEND_SECONDS * 1000 - Date.now()) / 1000)) : 0);
+/** Check a code (a wrong one counts a try; the last try or an old code means a new one is needed). Throws when wrong. */
+async function checkCode(u: Doc, purpose: "verify" | "reset", code: string) {
+  const field = purpose === "verify" ? "verifyOtp" : "resetOtp", otp = u[field] as Otp | undefined;
+  const fail = (msg: string, c: string) => new ValidationFailed(msg, { code: c });
+  if (!otp || new Date(otp.expires).getTime() < Date.now()) throw fail("This code has expired. Ask for a new one.", "CODE_EXPIRED");
+  if (otp.tries >= CODE_TRIES) throw fail("Too many wrong tries. Ask for a new code.", "CODE_LOCKED");
+  const ok = /^\d{6}$/.test(code) && crypto.timingSafeEqual(Buffer.from(codeHash(u._id, purpose, code)), Buffer.from(otp.hash));
+  if (!ok) {
+    // counted atomically: several guesses at once still count each one
+    const after = await (await users()).findOneAndUpdate({ _id: u._id, [`${field}.hash`]: otp.hash }, { $inc: { [`${field}.tries`]: 1 } }, { returnDocument: "after" });
+    const left = CODE_TRIES - Number((after?.[field] as Otp | undefined)?.tries ?? CODE_TRIES);
+    throw left > 0 ? fail(`That code is not right. ${left} ${left === 1 ? "try" : "tries"} left.`, "CODE_WRONG") : fail("Too many wrong tries. Ask for a new code.", "CODE_LOCKED");
   }
-  const m = /^(.*)<([^>]+)>\s*$/.exec(s.smtpFrom), name = (m?.[1] ?? "").trim().replace(/^"|"$/g, "") || s.businessName, addr = (m?.[2] ?? s.smtpFrom).trim();
-  try {
-    const t = nodemailer.createTransport({ host: s.smtpHost, port: s.smtpPort, secure: s.smtpSsl, requireTLS: !s.smtpSsl, auth: s.smtpUser ? { user: s.smtpUser, pass: s.smtpPassword } : undefined, connectionTimeout: 20_000 });
-    await t.sendMail({ from: { name, address: addr }, to, subject, text, ...(html ? { html } : {}) });
-    return true;
-  } catch (e) { console.warn(`email to ${to} failed: ${(e as Error).message}`); return false; }
+  // used once: only the request that removes it goes on
+  const r = await (await users()).updateOne({ _id: u._id, [`${field}.hash`]: otp.hash }, { $unset: { [field]: "" } });
+  if (!r.modifiedCount) throw fail("This code was already used. Ask for a new one.", "CODE_EXPIRED");
 }
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-/** A short branded email: the title, a line, one button, a note under it; and the same as plain text. */
-function letter(title: string, line: string, button: string, link: string, note: string): { text: string; html: string } {
-  const b = esc(settings.businessName);
-  const html = `<!doctype html><html><body style="margin:0;background:#f4f1fb;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1d1730">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:32px 12px"><tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:18px;padding:32px 28px;box-shadow:0 10px 30px rgba(60,30,120,.08)">
-<tr><td style="font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#9b5cff">${b}</td></tr>
-<tr><td style="padding-top:14px;font-size:22px;font-weight:600;letter-spacing:-.01em">${esc(title)}</td></tr>
-<tr><td style="padding-top:10px;font-size:15px;line-height:1.55;color:#4b4463">${esc(line)}</td></tr>
-<tr><td style="padding-top:22px"><a href="${esc(link)}" style="display:inline-block;background:linear-gradient(135deg,#c084fc,#9b5cff 55%,#6d5dfc);color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;padding:13px 22px;border-radius:12px">${esc(button)}</a></td></tr>
-<tr><td style="padding-top:20px;font-size:12.5px;line-height:1.5;color:#7a7390">${esc(note)}<br><br>If the button does not work, open this link:<br><a href="${esc(link)}" style="color:#9b5cff;word-break:break-all">${esc(link)}</a></td></tr>
-</table></td></tr></table></body></html>`;
-  return { text: `${title}\n\n${line}\n\n${button}: ${link}\n\n${note}\n`, html };
-}
-
-/** A new account's "Verify my email" link (VERIFY_HOURS, once); sent at sign-up and again from the app. */
-async function sendVerify(u: Doc) {
-  const token = crypto.randomBytes(32).toString("base64url");
-  await (await users()).updateOne({ _id: u._id }, { $set: { verify: { hash: hashToken(token), expires: new Date(Date.now() + VERIFY_HOURS * 3600_000) } } });
-  const b = settings.businessName, m = letter(`Verify your email`, `Welcome to ${b}! Tap the button to confirm this is your email address.`, "Verify my email",
-    `${siteUrl()}/verify?token=${token}`, `The link works for ${VERIFY_HOURS} hours, once. If you did not create a ${b} account, ignore this email.`);
-  return sendMail(String(u.email), `Verify your ${b} email`, m.text, m.html);
-}
-export async function verifyEmail(token: string) {
-  const col = await users(), u = await col.findOne({ "verify.hash": hashToken(token) }), expires = (u?.verify as Doc | undefined)?.expires as Date | undefined;
-  if (!u || !expires || new Date(expires).getTime() < Date.now()) throw new ValidationFailed("This link has expired or was already used. Sign in and ask for a new one.", { code: "VERIFY_LINK_INVALID" });
-  await col.updateOne({ _id: u._id }, { $set: { emailVerified: true, emailVerifiedAt: new Date() }, $unset: { verify: "" } });
+async function markVerified(u: Doc) {
+  await (await users()).updateOne({ _id: u._id }, { $set: { emailVerified: true, emailVerifiedAt: new Date() }, $unset: { verify: "", verifyOtp: "" } });
   await rewardFor(String(u._id), "verified", grantCredits).catch(() => {}); // an invite rewarded on a verified email
   return { ok: true, email: String(u.email) };
 }
-/** The signed-in person asks for the link again (a few minutes apart). */
+/** The signed-in person enters the code from their sign-up email. */
+export async function verifyCode(code: string) {
+  needAccounts();
+  const u = await meDoc();
+  if (u.emailVerified !== false) return { ok: true, email: String(u.email) };
+  await checkCode(u, "verify", code.trim());
+  return markVerified(u);
+}
+/** A "Verify my email" link emailed before the codes (it keeps working until it expires). */
+export async function verifyEmail(token: string) {
+  const col = await users(), u = await col.findOne({ "verify.hash": hashToken(token) }), expires = (u?.verify as Doc | undefined)?.expires as Date | undefined;
+  if (!u || !expires || new Date(expires).getTime() < Date.now()) throw new ValidationFailed("This link has expired or was already used. Sign in and ask for a new code.", { code: "VERIFY_LINK_INVALID" });
+  return markVerified(u);
+}
+/** The signed-in person asks for the code again (a minute apart). */
 export async function resendVerify() {
   needAccounts();
   const u = await meDoc();
   if (u.emailVerified !== false) return { ok: true, verified: true };
-  const last = (u.verify as Doc | undefined)?.expires as Date | undefined;
-  if (last && new Date(last).getTime() - VERIFY_HOURS * 3600_000 > Date.now() - 60_000) throw new ValidationFailed("We just sent one: wait a minute, then try again.", { code: "VERIFY_TOO_SOON" });
-  return { ok: true, sent: await sendVerify(u) };
+  const wait = waitLeft(u.verifyOtp as Otp | undefined);
+  if (wait) throw new ValidationFailed(`We just sent one: wait ${wait} seconds, then try again.`, { code: "VERIFY_TOO_SOON", details: { wait } });
+  return { ok: true, sent: await sendCode(u, "verify"), wait: RESEND_SECONDS };
 }
 
 export async function me() {
@@ -114,7 +124,7 @@ export async function register(email0: string, password: string, ref?: string) {
     if ((e as { code?: number }).code === 11000) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
     throw e;
   }
-  await sendVerify(u); // "Verify your email" (not sent: the server log says so, the account works anyway)
+  await sendCode(u, "verify"); // the sign-up code (not sent: the server log says so, the account works anyway)
   // a username (also the invite code) and, if a friend's link brought them, the invite (its rewards follow the admin's rule)
   const uid = String(u._id);
   try { (u as Doc).username = await ensureUsername(uid); await noteReferral(uid, ref, grantCredits); } catch (e) { console.warn("sign-up marketing:", (e as Error).message); }
@@ -128,27 +138,32 @@ export async function login(email: string, password: string) {
   return withCookie({ user: userOut(u) }, sessionCookie(u));
 }
 export const logout = () => withCookie({ ok: true }, clearCookie());
-const siteUrl = () => (settings.publicBaseUrl || "http://localhost:3100").replace(/\/+$/, "");
-/** Email a reset link; the answer is the same whether or not the email has an account (nobody can find out who is signed up). */
+/** Email a reset code; the answer is the same whether or not the email has an account (nobody can find out who is signed
+ * up). A new code at most once a minute (the earlier one keeps working until then). */
 export async function forgot(email: string) {
   needAccounts();
-  const col = await users(), u = await col.findOne({ email: email.trim().toLowerCase() });
-  if (u) {
-    const token = crypto.randomBytes(32).toString("base64url");
-    await col.updateOne({ _id: u._id }, { $set: { reset: { hash: hashToken(token), expires: new Date(Date.now() + RESET_MINUTES * 60_000) } } });
-    const b = settings.businessName, link = `${siteUrl()}/reset?token=${token}`;
-    const m = letter("Reset your password", `Someone (hopefully you) asked to reset the password of your ${b} account. Choose a new one here.`, "Choose a new password", link,
-      `The link works for ${RESET_MINUTES} minutes, once. If you did not ask for this, ignore this email: your password stays the same.`);
-    await sendMail(String(u.email), `Reset your ${b} password`, m.text, m.html);
-  }
-  return { ok: true };
+  const u = await (await users()).findOne({ email: email.trim().toLowerCase() });
+  if (u && !waitLeft(u.resetOtp as Otp | undefined)) await sendCode(u, "reset");
+  return { ok: true, wait: RESEND_SECONDS };
 }
+/** The code from the reset email and a new password: signed in here, every other session ends. */
+export async function resetWithCode(email: string, code: string, password: string) {
+  needAccounts();
+  checkPassword(password);
+  const u = await (await users()).findOne({ email: email.trim().toLowerCase() });
+  if (!u) throw new ValidationFailed("This code has expired. Ask for a new one.", { code: "CODE_EXPIRED" }); // the same as a wrong code
+  await checkCode(u, "reset", code.trim());
+  await (await users()).updateOne({ _id: u._id }, { $set: { password: hashPassword(password), emailVerified: true }, $unset: { reset: "", resetOtp: "" } }); // the code proves the email too
+  const fresh = await newSessionVersion(u._id);
+  return withCookie({ user: userOut(fresh) }, sessionCookie(fresh));
+}
+/** A reset link emailed before the codes (it keeps working until it expires). */
 export async function reset(token: string, password: string) {
   needAccounts();
   checkPassword(password);
   const col = await users(), u = await col.findOne({ "reset.hash": hashToken(token) }), expires = (u?.reset as Doc | undefined)?.expires as Date | undefined;
-  if (!u || !expires || new Date(expires).getTime() < Date.now()) throw new ValidationFailed("This link has expired or was already used. Ask for a new one.", { code: "RESET_LINK_INVALID" });
-  await col.updateOne({ _id: u._id }, { $set: { password: hashPassword(password) }, $unset: { reset: "" } });
+  if (!u || !expires || new Date(expires).getTime() < Date.now()) throw new ValidationFailed("This link has expired or was already used. Ask for a new code.", { code: "RESET_LINK_INVALID" });
+  await col.updateOne({ _id: u._id }, { $set: { password: hashPassword(password) }, $unset: { reset: "", resetOtp: "" } });
   const fresh = await newSessionVersion(u._id);
   return withCookie({ user: userOut(fresh) }, sessionCookie(fresh)); // signed in here; every other session ends
 }

@@ -5,6 +5,7 @@ import { currentUser, AuthRequired } from "@/server/core/auth";
 import { settings } from "@/server/core/config";
 import { mainDb, ObjectId } from "@/server/core/db";
 import { ConflictError, NotFoundError, ValidationFailed } from "@/server/core/errors";
+import { mailAdmins, mailUser } from "@/server/core/mail";
 
 /** Marketing, all of it set by the administrator (Admin → Marketing): invite rewards (both sides get credits), sending
  * credits to a friend by @username, affiliates (a commission on what the people they brought pay), coupon codes and
@@ -24,6 +25,7 @@ export const MarketingIn = z.object({
   share: z.object({ on: z.boolean(), min: z.number().int().min(1).max(100000), max: z.number().int().min(1).max(100000), dailyMax: z.number().int().min(1).max(1000000), source: z.enum(["extra", "all"]) }),
   affiliate: z.object({ on: z.boolean(), percent: z.number().min(0).max(90), months: z.number().int().min(1).max(120), minPayout: z.number().int().min(0).max(10000000), applyOpen: z.boolean() }),
   ai: z.object({ freeWithCredits: z.boolean() }).default({ freeWithCredits: true }),
+  emails: z.object({ notes: z.boolean(), cartReminder: z.boolean().default(true), cartHours: z.number().int().min(1).max(72).default(3) }).default({ notes: true, cartReminder: true, cartHours: 3 }),
 });
 export type Marketing = z.infer<typeof MarketingIn>;
 export const MARKETING_DEFAULTS: Marketing = {
@@ -38,13 +40,16 @@ export const MARKETING_DEFAULTS: Marketing = {
   // Free users spend their credits (invites, gifts, top-ups) on Shubix AI: an AI Reel and Ask Shubix, charged as on any
   // plan. Captions, translation and the Editor / Pro tools stay with those plans.
   ai: { freeWithCredits: true },
+  // email notes: affiliate approved / paused / paid, credits received, invite rewards, new affiliate requests (to the
+  // admins). Off: people see them in the app only. Sign-up and password codes are always emailed.
+  emails: { notes: true, cartReminder: true, cartHours: 3 }, // + one reminder 3 hours after an unfinished checkout
 };
 export async function getMarketing(): Promise<Marketing> {
   const d = (await (await col("app_settings")).findOne({ _id: SETTINGS_ID })) as (Partial<Marketing> & { referral?: { rewardOn?: Marketing["referral"]["inviteeOn"] } }) | null;
   const old = d?.referral?.rewardOn;
   if (d?.referral && old) d.referral = Object.assign({ inviteeOn: old, inviterOn: old }, d.referral);
   return { referral: { ...MARKETING_DEFAULTS.referral, ...(d?.referral ?? {}) }, share: { ...MARKETING_DEFAULTS.share, ...(d?.share ?? {}) }, affiliate: { ...MARKETING_DEFAULTS.affiliate, ...(d?.affiliate ?? {}) },
-    ai: { ...MARKETING_DEFAULTS.ai, ...(d?.ai ?? {}) } };
+    ai: { ...MARKETING_DEFAULTS.ai, ...(d?.ai ?? {}) }, emails: { ...MARKETING_DEFAULTS.emails, ...(d?.emails ?? {}) } };
 }
 export async function setMarketing(m: Marketing) {
   if (m.share.min > m.share.max) throw new ValidationFailed("The smallest amount to send is more than the largest.", { code: "INVALID_MARKETING" });
@@ -122,7 +127,11 @@ export async function rewardFor(inviteeId: string, event: keyof typeof RANK, gra
     const gets = m.referral.monthlyCap && thisMonth >= m.referral.monthlyCap ? 0 : m.referral.inviterCredits; // over the month's cap: nothing for this one
     const claimed = await refs.findOneAndUpdate(notYet("inviterRewarded"), { $set: { inviterRewarded: true, inviterRewardedAt: new Date(), inviterCredits: gets } });
     const why = event === "purchase" ? "made a first purchase" : event === "verified" ? "joined" : "signed up";
-    if (claimed && gets) await grant(String(r.inviterId), gets, `Invite reward: ${(await names())(inviteeId)} ${why}`, `ref:${inviteeId}:inviter`);
+    if (claimed && gets) {
+      const who = (await names())(inviteeId);
+      await grant(String(r.inviterId), gets, `Invite reward: ${who} ${why}`, `ref:${inviteeId}:inviter`);
+      void mailUser(String(r.inviterId), `You earned ${gets} credits`, `${gets} credits for inviting ${who}`, `${who} ${why}, so ${gets} credits were added to your account. Keep sharing your link to earn more.`, "Invite more friends", "/rewards");
+    }
   }
 }
 
@@ -229,7 +238,11 @@ export async function applyAffiliate() {
   const uid = currentUser(); if (!uid) throw new AuthRequired();
   const m = await getMarketing();
   if (!m.affiliate.on || !m.affiliate.applyOpen) throw new ValidationFailed("The affiliate program is not taking new partners right now.", { code: "AFFILIATE_CLOSED" });
-  await (await col("affiliates")).updateOne({ _id: uid }, { $setOnInsert: { status: "pending", percent: m.affiliate.percent, createdAt: new Date() } }, { upsert: true });
+  const r = await (await col("affiliates")).updateOne({ _id: uid }, { $setOnInsert: { status: "pending", percent: m.affiliate.percent, createdAt: new Date() } }, { upsert: true });
+  if (r.upsertedCount) {
+    const name = await ensureUsername(uid);
+    void mailAdmins(`New affiliate request: @${name}`, "A new affiliate request", `@${name} asked to join the affiliate program. Approve or decline them in Admin → Marketing → Affiliate program.`, "Open Marketing", "/admin#marketing");
+  }
   return { ok: true };
 }
 export async function listAffiliates() {
@@ -243,19 +256,53 @@ export async function listAffiliates() {
     const id = String(a._id), u = users.find((x) => String(x._id) === id), e = (s: string) => earn.find((x) => x._id.a === id && x._id.s === s);
     return { id, email: u?.email ?? "", username: u?.username ?? "", status: a.status, percent: Number(a.percent), months: a.months ? Number(a.months) : null, validUntil: a.validUntil ?? null,
       createdAt: a.createdAt, brought: brought.find((b) => b._id === id)?.n ?? 0,
-      due: round2(e("due")?.sum ?? 0), paid: round2(e("paid")?.sum ?? 0), sales: (e("due")?.n ?? 0) + (e("paid")?.n ?? 0) };
+      due: round2(e("due")?.sum ?? 0), paid: round2(e("paid")?.sum ?? 0), sales: (e("due")?.n ?? 0) + (e("paid")?.n ?? 0), payout: !!a.payout };
   });
 }
 export const AffiliateIn = z.object({ id: z.string().max(40), status: z.enum(["pending", "active", "paused"]).optional(), percent: z.number().min(0).max(90).optional(),
   months: z.number().int().min(0).max(120).optional(), validUntil: z.string().nullable().optional() }); // months 0 = the program's; validUntil null = no end
 export async function updateAffiliate(d: z.infer<typeof AffiliateIn>) {
+  if (!ObjectId.isValid(d.id) || !(await (await col("users")).findOne({ _id: new ObjectId(d.id) }, { projection: { _id: 1 } })))
+    throw new NotFoundError("No such account.", { code: "USER_NOT_FOUND" });
+  const affs = await col("affiliates"), before = await affs.findOne({ _id: d.id });
   const set: Doc = { updatedAt: new Date() };
-  if (d.status) { set.status = d.status; if (d.status === "active") set.approvedAt = new Date(); }
+  if (d.status) { set.status = d.status; if (d.status === "active" && !before?.approvedAt) set.approvedAt = new Date(); } // "partner since": the first approval
   if (d.percent !== undefined) set.percent = d.percent;
   if (d.months !== undefined) set.months = d.months || null;
   if (d.validUntil !== undefined) set.validUntil = d.validUntil ? new Date(d.validUntil) : null;
-  await (await col("affiliates")).updateOne({ _id: d.id }, { $set: set, $setOnInsert: { createdAt: new Date() } }, { upsert: true });
+  await affs.updateOne({ _id: d.id }, { $set: set, $setOnInsert: { createdAt: new Date() } }, { upsert: true });
+  if (d.status && d.status !== before?.status) {
+    const pct = d.percent ?? Number(before?.percent ?? (await getMarketing()).affiliate.percent);
+    if (d.status === "active")
+      void mailUser(d.id, "You are a Shubix affiliate", before?.status === "paused" ? "Your affiliate link is active again" : "You are approved as an affiliate",
+        `Share your link: you earn ${pct}% of what the people you bring pay. Your dashboard shows your clicks, customers and earnings.`, "Open my dashboard", "/affiliate");
+    if (d.status === "paused")
+      void mailUser(d.id, "Your affiliate link is paused", "Your affiliate link is paused",
+        "New purchases through your link earn no commission for now. What is already due to you stays due. Reply to this email if you have questions.", "Open my dashboard", "/affiliate");
+  }
   return { ok: true };
+}
+
+/** Where an affiliate is paid: a UPI ID, or a bank account (name, number, IFSC). Only they set it; the admin sees it to pay. */
+export const PayoutIn = z.discriminatedUnion("method", [
+  z.object({ method: z.literal("upi"), upi: z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{2,64}@[a-z][a-z0-9]{1,30}$/, "That does not look like a UPI ID (name@bank).") }),
+  z.object({ method: z.literal("bank"), name: z.string().trim().min(2, "The account holder's name, please.").max(80),
+    account: z.string().trim().regex(/^\d{9,18}$/, "An account number is 9 to 18 digits."),
+    ifsc: z.string().trim().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "That does not look like an IFSC code (like SBIN0001234).") }),
+]);
+export type Payout = z.infer<typeof PayoutIn>;
+export async function setPayoutDetails(d: Payout) {
+  const uid = currentUser(); if (!uid) throw new AuthRequired();
+  const r = await (await col("affiliates")).updateOne({ _id: uid }, { $set: { payout: { ...d, updatedAt: new Date() } } });
+  if (!r.matchedCount) throw new NotFoundError("Ask to join the affiliate program first.", { code: "AFFILIATE_NOT_FOUND" });
+  return { ok: true };
+}
+/** the payout details as shown: in full to the administrator (to pay), the account number hidden but its last 4 to the partner */
+function payoutOut(p: Doc | undefined, full: boolean) {
+  if (!p?.method) return null;
+  if (p.method === "upi") return { method: "upi" as const, upi: String(p.upi), updatedAt: p.updatedAt ?? null };
+  const acc = String(p.account ?? "");
+  return { method: "bank" as const, name: String(p.name ?? ""), account: full ? acc : `•••• ${acc.slice(-4)}`, ifsc: String(p.ifsc ?? ""), updatedAt: p.updatedAt ?? null };
 }
 // ------------------------------------------------------------------ link clicks and the full picture of one affiliate
 const day = (d = new Date()) => d.toISOString().slice(0, 10);
@@ -294,7 +341,8 @@ export async function affiliateDetail(id: string, forAdmin: boolean) {
       return { username: p?.username ? String(p.username) : "", email: forAdmin ? String(p?.email ?? "") : undefined, joined: r.at, paid: round2(b?.paid ?? 0), commission: round2(b?.commission ?? 0), countsUntil: counts };
     }),
     sales: earnings.map((e) => ({ id: String(e._id), at: e.at, customer: people.find((x) => String(x._id) === String(e.payerId))?.username ?? "", paid: Number(e.paid), percent: Number(e.percent), commission: Number(e.commission), status: String(e.status), paidAt: e.paidAt ?? null })),
-    payouts: payouts.map((p) => ({ id: String(p._id), at: p.at, total: Number(p.total), count: Number(p.count), note: forAdmin ? String(p.note ?? "") : undefined })),
+    payouts: payouts.map((p) => ({ id: String(p._id), at: p.at, total: Number(p.total), count: Number(p.count), note: String(p.note ?? "") })), // the reference: for both
+    payout: payoutOut(a.payout as Doc | undefined, forAdmin),
   };
 }
 /** The affiliate's own dashboard (active or not: a pending one sees its status). */
@@ -307,12 +355,16 @@ export async function myAffiliateDashboard() {
 
 /** The administrator paid an affiliate (by hand: bank, UPI): their due commission is marked paid. */
 export async function markAffiliatePaid(id: string, note: string) {
-  const due = await (await col("affiliate_earnings")).find({ affiliateId: id, status: "due" }).toArray();
-  const total = round2(due.reduce((s, e) => s + Number(e.commission), 0));
-  if (!total) throw new ValidationFailed("Nothing is due to this affiliate.", { code: "NOTHING_DUE" });
-  const payoutId = crypto.randomBytes(6).toString("hex");
-  await (await col("affiliate_earnings")).updateMany({ _id: { $in: due.map((e) => e._id) } }, { $set: { status: "paid", paidAt: new Date(), payoutId } });
-  await (await col("affiliate_payouts")).insertOne({ _id: payoutId, affiliateId: id, total, count: due.length, note, at: new Date() });
+  const earnings = await col("affiliate_earnings"), payoutId = crypto.randomBytes(6).toString("hex"), at = new Date();
+  // each due sale is flipped once, by one payout: a second click (or a second admin) at the same moment finds nothing left
+  await earnings.updateMany({ affiliateId: id, status: "due" }, { $set: { status: "paid", paidAt: at, payoutId } });
+  const mine = await earnings.find({ payoutId }).toArray();
+  const total = round2(mine.reduce((s, e) => s + Number(e.commission), 0));
+  if (!mine.length) throw new ValidationFailed("Nothing is due to this affiliate.", { code: "NOTHING_DUE" });
+  const ref = note.trim().slice(0, 120);
+  await (await col("affiliate_payouts")).insertOne({ _id: payoutId, affiliateId: id, total, count: mine.length, note: ref, at });
+  void mailUser(id, `You were paid ₹${total}`, `₹${total.toLocaleString("en-IN")} paid to you`,
+    `We sent your affiliate commission for ${mine.length} sale${mine.length === 1 ? "" : "s"}${ref ? ` (reference: ${ref})` : ""}. It can take a little while to show in your account.`, "See my payouts", "/affiliate");
   return { ok: true, total };
 }
 
