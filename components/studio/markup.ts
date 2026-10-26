@@ -48,7 +48,9 @@ const AI_STEPS: [string, string, string][] = [
   ["faces", "Auto transitions and effects", "ai"],
   ["look", "Colour and quality enhancement", "make"],
 ];
-const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${IC.scan}<span>${t}</span></li>`).join("")}</ul>`;
+// each step its own picture (scenes, beats, transitions, colour); a dot says waiting / working / done
+const AI_ICONS: Record<string, string> = { scenes: IC.scan, beats: IC.music, faces: IC.motion, look: IC.look };
+const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${AI_ICONS[k] ?? IC.scan}<span>${t}</span><i class="faidot" aria-hidden="true"></i></li>`).join("")}</ul>`;
 // a tool: a button in the tool bar and the heading of its panel
 // in the editor's order (the tool bar on a phone, the rail on a computer)
 const TOOLS: [string, string, string][] = [
@@ -65,7 +67,15 @@ export const STUDIO_HTML = `
 <div class="topbar" id="topbar">
   <button type="button" class="ibtn tb-back" id="tbback" aria-label="Back">${IC.back}</button>
   <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
-  <label class="tb-aspect" title="Format"><select id="tbaspect" aria-label="Format"><option value="9:16">9:16</option><option value="4:5">4:5</option><option value="1:1">1:1</option><option value="16:9">16:9</option></select></label>
+  <div class="tb-aspect" id="tbasp">
+    <button type="button" class="tbaspbtn" id="tbaspbtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Format" title="Format"><span id="tbaspv">9:16</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+    <div class="tbaspmenu" id="tbaspmenu" role="listbox" aria-label="Format" hidden>
+      <button type="button" role="option" data-a="9:16"><i class="r916"></i><span><b>9:16</b><small>Reels, Shorts, Stories</small></span></button>
+      <button type="button" role="option" data-a="4:5"><i class="r45"></i><span><b>4:5</b><small>Instagram feed</small></span></button>
+      <button type="button" role="option" data-a="1:1"><i class="r11"></i><span><b>1:1</b><small>Square post</small></span></button>
+      <button type="button" role="option" data-a="16:9"><i class="r169"></i><span><b>16:9</b><small>YouTube, wide</small></span></button>
+    </div>
+  </div>
   <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
   <button type="button" class="btn tb-asfree" id="tbasfree" aria-pressed="false" title="Administrator only: shows the studio the way a Free plan user sees it (locked tools, watermark). Press again to see everything.">Preview as Free user</button>
   <button type="button" class="ibtn tb-chat" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix">${IC.spark}</button>
@@ -81,6 +91,25 @@ export const STUDIO_HTML = `
     </ol>
     <button type="button" class="fskip" id="fskip">Skip</button>
   </div>
+  <form class="askbar" id="askbar" aria-labelledby="askbarh">
+    <button type="button" class="askbarhd" id="asktoggle" aria-expanded="false" aria-controls="askbody">
+      <span class="chatorb" aria-hidden="true">${IC.spark}</span>
+      <span class="askbart"><b id="askbarh">Ask Shubix <em>AI</em></b><small>Say how you want your Reel: the pace, the moments, zooms, transitions, slow-mo, text… Shubix edits it for you.</small></span>
+      <span class="askchev" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+    </button>
+    <div class="askbody" id="askbody">
+    <div class="chatfield askfield">
+      <input id="askin" maxlength="300" autocomplete="off" placeholder="e.g. Fast cuts, zoom on the drop">
+      <button type="submit" class="chatsend" aria-label="Ask Shubix"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </div>
+    <div class="askchips" id="askchips"><span>Try:</span>
+      <button type="button" data-say="Fast cuts on every beat, high energy">Fast & energetic</button>
+      <button type="button" data-say="Make it calm and cinematic, slower cuts">Calm & cinematic</button>
+      <button type="button" data-say="Zoom in on the drop and add camera moves on the beats">Zoom on the drop</button>
+      <button type="button" data-say="Slow motion on the best moment at the end">Slow-mo ending</button>
+    </div>
+    </div>
+  </form>
   <section class="fintro" id="fintro" aria-labelledby="fintroh">
     <span class="fbadge" id="fintroic">${IC.music}</span>
     <h2 id="fintroh">Create a Music Reel</h2>
@@ -216,7 +245,7 @@ export const STUDIO_HTML = `
     <div class="sh3"><span class="num">3</span><span class="fh"><h2>Shubix Edit</h2><small class="fsh">We'll analyse your clips, match them with the beats and create a stunning Reel.</small></span></div>
     <div class="faibody">
       ${aiList("faiList")}
-      <div class="fready" id="fready">${IC.spark}<b id="freadyt">Ready to create your Reel!</b><small id="freadys">Add a song and your clips, then press Generate.</small></div>
+      <div class="fready" id="fready"><span class="freadyic" aria-hidden="true">${IC.spark}</span><span class="freadytx"><b id="freadyt">Ready to create your Reel!</b><small id="freadys">Add a song and your clips, then press Generate.</small></span></div>
     </div>
   </section>
   </div>
@@ -225,8 +254,11 @@ export const STUDIO_HTML = `
     <div class="fprevh"><b>Reel Preview</b><span class="fslot" id="faspslot"></span></div>
     <div class="fprevbox" id="fprevbox"><span class="fplay">${IC.play}</span><small id="fprevnote">Your Reel appears here</small></div>
     <button type="button" class="btn primary big fgen" id="fgen" disabled>${IC.spark}<span id="fgent">Generate Reel</span>${IC.arrow}</button>
-    <p class="fnote">Shubix will analyse your clips and create a stunning edit</p>
-    <p class="fnote fsmall">${IC.lock}Everything happens on this device. Your videos are never uploaded.</p>
+    <ul class="fperks">
+      <li><span class="fperkic">${IC.spark}</span><span><b>Shubix edits it for you</b><small>Finds the best moments and cuts them on the beat</small></span></li>
+      <li><span class="fperkic">${IC.lock}</span><span><b>Private by design</b><small>Made on this device. Your videos are never uploaded.</small></span></li>
+    </ul>
+    <button type="button" class="chatcard" id="chatcard" aria-controls="chatbox"><span class="chatorb" aria-hidden="true">${IC.spark}</span><span class="chatcardt"><b>Ask Shubix</b><small>Tell the AI how to edit: faster, calmer, zooms…</small></span><span class="chatcardgo" aria-hidden="true">${IC.arrow}</span></button>
   </aside>
   </div>
 
@@ -283,6 +315,7 @@ export const STUDIO_HTML = `
         <nav class="dock" id="dock" aria-label="Tools">${dock}</nav>
 
         <div class="panels" id="panels">
+          <button type="button" class="pclose" id="pclose" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <!-- the left panel's tabs on a computer (the design): each opens its tool, Effects / Transitions the shot sheet -->
           <nav class="ptabs" id="ptabs" aria-label="Library">
             <button type="button" data-pt="media" aria-pressed="false">${IC.image}<span>Media</span></button><button type="button" data-pt="music" aria-pressed="false">${IC.music}<span>Music</span></button><button type="button" data-pt="text" aria-pressed="false">${IC.text}<span>Text</span></button><button type="button" data-pt="stickers" aria-pressed="false">${I('<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>')}<span>Stickers</span></button><button type="button" data-pt="effects" aria-pressed="false">${IC.spark}<span>Effects</span></button><button type="button" data-pt="transitions" aria-pressed="false">${I('<path d="M4 6l7 6-7 6zM20 6l-7 6 7 6z"/>')}<span>Transitions</span></button><button type="button" data-pt="filters" aria-pressed="false">${I('<path d="M4 6h16M7 12h10M10 18h4"/>')}<span>Filters</span></button>
@@ -447,7 +480,6 @@ export const STUDIO_HTML = `
 </div>
 <div class="savebar" id="savebar">
   <button class="btn save big" id="export" disabled>${IC.save}<span>Export</span></button>
-  <label class="tog" title="For adding the same song as Instagram's own sound (trending audio)"><input type="checkbox" id="nosong"> Without the song (add it in Instagram)</label>
 </div>
 <!-- a saved Reel opening (/create/edit?p=): engine.ts openProject; flow.ts shows it from the first paint -->
 <div class="openload" id="openload" role="status" aria-live="polite"><span class="openspin" aria-hidden="true"></span><b id="openh">Opening your Reel…</b><small id="openstep">Getting the song and the clips</small><a class="btn" href="/reels" id="openback">Back to My Reels</a></div>
@@ -455,17 +487,18 @@ export const STUDIO_HTML = `
 <!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
 <!-- credits: asked before Shubix AI uses them (an AI Reel, a chat change); Free: the plans -->
 <div class="cconf" id="cconf" hidden><div class="cconfb" role="dialog" aria-modal="true" aria-labelledby="cconft">
+  <button type="button" class="cconfx" id="cconfx" aria-label="Close" title="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
   <span class="cconfi" aria-hidden="true">${IC.spark}</span>
-  <b id="cconft"></b><p id="cconfp"></p><p class="cconfbal" id="cconfbal"></p>
+  <b id="cconft"></b><p id="cconfp"></p><ul class="cconfl" id="cconfl" hidden></ul><p class="cconfbal" id="cconfbal"></p>
   <div class="cconfa"><button type="button" class="btn" id="cconfno"></button><button type="button" class="btn hot" id="cconfok"></button></div>
 </div></div>
 <div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
 <section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">
-  <div class="ctpoph"><b id="ctpoph"></b><button type="button" class="ctpopok" id="ctpopok" aria-label="Done">${IC.check}</button></div>
+  <div class="ctpoph"><b id="ctpoph"></b><span class="ctpopbtns"><button type="button" class="ctpopx" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button><button type="button" class="ctpopok" id="ctpopok" aria-label="Apply" title="Apply">${IC.check}</button></span></div>
   <div class="ctpopb" id="ctpopb"></div>
 </section>
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
-  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
+  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button><button type="button" class="ss-ok" id="ssok" aria-label="Apply" title="Apply">${IC.check}</button></div>
   <div class="ss-body shotcard" id="ssbody"></div>
   <span class="ss-rs" aria-hidden="true" title="Drag to resize"></span>
 </section>
@@ -497,6 +530,7 @@ export const STUDIO_HTML = `
     <p class="xsh-size" id="xsize"></p>
     <label class="xtog"><span class="xti">${I('<path d="M4 7h16M4 12h10M4 17h7"/><path d="M15 15l5 5M20 15l-5 5"/>')}</span><span class="xtt">Remove Watermark <a class="xpro" id="xwmpro" href="/pricing" title="Paid plans can remove the watermark">Pro</a></span><input type="checkbox" id="xwm" role="switch"><i aria-hidden="true"></i></label>
     <label class="xtog" id="xmyrow" hidden><span class="xti">${I('<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor"/>')}</span><span class="xtt">Save to My Reels</span><input type="checkbox" id="xmy" role="switch" checked><i aria-hidden="true"></i></label>
+    <label class="xtog" title="For adding the same song as Instagram's own sound (trending audio)"><span class="xti">${IC.music}</span><span class="xtt">Without the song <small>Add it in Instagram as its own sound</small></span><input type="checkbox" id="nosong" role="switch"><i aria-hidden="true"></i></label>
     <button type="button" class="btn save big" id="xgo">${IC.save}<span>Export to phone</span></button>
     <button type="button" class="btn big" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>
     <p class="xsh-note" id="xcloudnote" hidden></p>
@@ -505,8 +539,14 @@ export const STUDIO_HTML = `
 <!-- Ask Shubix: tell the AI in your own words how the Reel should be; it edits the Reel that way (engine.ts, chat) -->
 <button type="button" class="chatfab" id="chatfab" aria-expanded="false" aria-controls="chatbox">${IC.spark}<span>Ask Shubix</span></button>
 <section class="chatbox" id="chatbox" role="dialog" aria-labelledby="chath" hidden>
-  <div class="chath"><b id="chath">${IC.spark} Ask Shubix</b><button type="button" class="ibtn" id="chatclose" aria-label="Close">✕</button></div>
+  <span class="chatgrab" aria-hidden="true"></span>
+  <div class="chath">
+    <span class="chatorb" aria-hidden="true">${IC.spark}</span>
+    <span class="chatttl"><b id="chath">Ask Shubix</b><small>Your AI editor · changes this Reel</small></span>
+    <button type="button" class="chatx" id="chatclose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
   <div class="chatlog" id="chatlog" aria-live="polite"></div>
+  <span class="chatideas">Quick ideas</span>
   <div class="chatchips" id="chatchips">
     <button type="button" data-say="Make it faster and more energetic">Faster</button>
     <button type="button" data-say="Make it calm and cinematic, slower cuts">Calmer</button>
@@ -516,7 +556,10 @@ export const STUDIO_HTML = `
     <button type="button" data-say="Make a completely different version">New version</button>
   </div>
   <form class="chatform" id="chatform">
-    <textarea id="chatin" rows="2" maxlength="300" placeholder="Tell Shubix what you want, e.g. &quot;start with my face, zoom on the drop, slow-mo at the end&quot;"></textarea>
-    <button type="submit" class="btn hot" id="chatsend">Send</button>
+    <div class="chatfield">
+      <textarea id="chatin" rows="1" maxlength="300" placeholder="Describe a change… e.g. zoom on the drop"></textarea>
+      <button type="submit" class="chatsend" id="chatsend" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </div>
+    <small class="chathint">Enter to send · Shift + Enter for a new line</small>
   </form>
 </section>`;

@@ -65,7 +65,7 @@ const found = new Map(); // text -> [page, section]
 for (const f of readdirSync(DIR).filter((f) => /\.(ts|tsx)$/.test(f) && !/^(textSwap|i18n)\.ts$/.test(f))) {
   // comments are not on screen: blanked, keeping every position (a text's screen is found by its place)
   const src = readFileSync(join(DIR, f), "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|\s)\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " ")) // a comment, not "video/*" in an accept list
     .replace(/^\s*\/\/.*$/gm, (m) => m.replace(/[^\n]/g, " "))
     .replace(/([^:"'`])(\/\/[^\n"'`]*)$/gm, (m, a, b) => a + b.replace(/./g, " "));
   if (f === "markup.ts") markers = MARKUP.flatMap(([re, page, section]) => [...src.matchAll(re)].map((m) => [m.index, page, section])).sort((a, b) => a[0] - b[0]);

@@ -8,12 +8,12 @@
 :root[data-theme="light"] .brs{ --drop:#e2501a; --hit:#b98500; --cut:#0e8f83; --break:#5b45e0; }
 .brs *{box-sizing:border-box}
 .brs .wrap{display:grid;gap:18px}
-.brs h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,5vw,40px);line-height:1.05;margin:0;letter-spacing:-.01em}
+.brs h1{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.4vw,28px);line-height:1.15;margin:0;letter-spacing:-.01em}
 .brs .sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
 .brs .step{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:14px;min-width:0}
 .brs .step.locked{opacity:.55}
 .brs .sh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.brs .num{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:700 16px var(--mono);background:var(--chip);border:1px solid var(--line)}
+.brs .num{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:600 16px var(--mono);background:var(--chip);border:1px solid var(--line)}
 .brs .step.done .num{background:var(--ok);color:#fff;border-color:transparent}
 .brs .sh h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0}
 .brs .sh .st{margin-left:auto;font-size:13.5px;color:var(--muted)}
@@ -38,7 +38,7 @@
 .brs .clip .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brs .clip .dd{font:12px var(--mono);color:var(--muted)}
 .brs .clip .meta canvas{width:100%;height:22px;display:block}
-.brs .clip .del{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,0.65);color:#fff;font:700 16px/1 var(--body);cursor:pointer;display:grid;place-items:center}
+.brs .clip .del{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,0.65);color:#fff;font:600 16px/1 var(--body);cursor:pointer;display:grid;place-items:center}
 .brs .clip .del:hover{background:var(--drop)}
 .brs .clip .del:focus-visible{outline:2px solid var(--drop);outline-offset:2px}
 .brs .drop:focus-visible{outline:2px solid var(--drop);outline-offset:2px}
@@ -64,7 +64,7 @@
 .brs th{position:sticky;top:0;background:var(--surface);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .brs td.t{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .brs tr.cur td{background:color-mix(in srgb,var(--drop) 14%,var(--surface))}
-.brs .pill{display:inline-block;padding:1px 7px;border-radius:999px;font:700 11px var(--mono);color:#fff}
+.brs .pill{display:inline-block;padding:1px 7px;border-radius:999px;font:600 11px var(--mono);color:#fff}
 .brs .note{font-size:14px;color:var(--muted);margin:0}
 .brs .msg{font-size:14px;border-radius:10px;padding:10px 12px;background:var(--chip);border:1px solid var(--line)}
 .brs .msg.err{border-color:var(--drop)}
@@ -131,7 +131,7 @@
 .brs .stdetails ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px}
 /* ◆ keyframes */
 .brs .kfbox{border:1px solid var(--line);border-radius:12px;padding:8px 10px;display:grid;gap:8px}
-.brs .kfbox summary{cursor:pointer;font-weight:700}
+.brs .kfbox summary{cursor:pointer;font-weight:600}
 .brs .kfbox[open]{display:grid}
 .brs .kfhead{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:6px}
 .brs .kftl{width:100%;height:34px;display:block;touch-action:none;cursor:pointer}
@@ -256,11 +256,11 @@
 .brs .dock{display:none;gap:2px;overflow-x:auto;scrollbar-width:none}
 .brs .dock::-webkit-scrollbar{display:none}
 .brs .tool{flex:0 0 62px;height:58px;border:0;border-radius:14px;background:transparent;color:var(--muted);display:none;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:500 11px var(--body);cursor:pointer}
-.brs .tool[aria-pressed=true]{color:var(--accent);font-weight:700}
+.brs .tool[aria-pressed=true]{color:var(--accent);font-weight:600}
 .brs .panels{display:grid;gap:14px;min-width:0}
 .brs .panel{display:none;gap:12px;padding:16px;border-radius:18px;border:1px solid var(--line);background:var(--surface);min-width:0;align-content:start}
 .brs .panel.on{display:grid}
-.brs .ph{display:flex;align-items:center;gap:10px;margin:0;font:700 15px var(--body)}
+.brs .ph{display:flex;align-items:center;gap:10px;margin:0;font:600 15px var(--body)}
 .brs .ph svg{color:var(--accent)}
 .brs .panel .refbox{grid-column:auto}
 .brs .panel input[type=text]{font:600 15px var(--body);padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--background);color:var(--ink);width:100%}
@@ -334,7 +334,7 @@
   .brs .tb-gap{display:block;flex:1}
   .brs .tb-right{display:flex;align-items:center;gap:10px}
   .brs .tbcred{font-size:13.5px;color:var(--muted);text-decoration:none;white-space:nowrap}
-  .brs .tbavatar{width:42px;height:42px;border-radius:21px;border:0;background:var(--surface-2);color:var(--ink);font:700 15px var(--body);cursor:pointer}
+  .brs .tbavatar{width:42px;height:42px;border-radius:21px;border:0;background:var(--surface-2);color:var(--ink);font:600 15px var(--body);cursor:pointer}
   .brs.made .tb-export{display:inline-flex}
 
   /* the preview beside the tools (the editor's own grid, v-one at the end, takes over from 1024px) */
@@ -372,16 +372,16 @@
 
 /* cards and panels: the app's corners and shadow */
 .brs .panel,.brs .shotcard{border-radius:16px;box-shadow:var(--shadow)}
-.brs .label{font-size:11px;letter-spacing:.2em;font-weight:700}
+.brs .label{font-size:11px;letter-spacing:.2em;font-weight:600}
 
 /* steps: the app's numbered gold steps */
 .brs .step{border-radius:16px;box-shadow:var(--shadow);padding:14px}
-.brs .num{width:26px;height:26px;border:0;background:var(--gold-gradient);color:var(--on-accent);font:800 12px var(--body)}
+.brs .num{width:26px;height:26px;border:0;background:var(--gold-gradient);color:var(--on-accent);font:600 12px var(--body)}
 .brs .step.done .num{background:var(--success);color:#fff}
-.brs .sh h2{font:700 15px var(--body)}
+.brs .sh h2{font:600 15px var(--body)}
 
 /* buttons, progress */
-.brs .btn{font:700 14px var(--body)}
+.brs .btn{font:600 14px var(--body)}
 .brs .btn.primary,.brs .btn.hot,.brs .btn.save{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 10px 22px -14px var(--brand-glow)}
 .brs .btn.big{border-radius:14px;min-height:52px;font-size:15.5px}
 .brs .bar i{background:var(--gold-gradient)}
@@ -406,6 +406,7 @@
 /* photos instead of videos in step 3 */
 .brs .ponly{display:none}
 .brs.photomode .ponly{display:inline}
+@media (min-width:1024px){.brs.photomode .ponly.fmob{display:none}} /* computers: "Drag & drop photos", not the phones' "Tap to Add Photos" */
 .brs.photomode .vonly{display:none}
 /* notifications: short notes at the bottom (above the save bar on phones), and the in-app yes / no question */
 .brs .toasts{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;display:grid;gap:8px;width:min(92vw,420px);pointer-events:none}
@@ -429,7 +430,7 @@
 .brs .xsh{width:min(100%,460px);background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));display:grid;gap:10px;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
 .brs .xsh-h{display:flex;align-items:center;justify-content:space-between}
 .brs .xsh-h h2{margin:0;font-family:var(--display);font-size:24px}
-.brs .xsh-l{margin:6px 0 0;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.brs .xsh-l{margin:6px 0 0;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .brs .xsh .seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
 .brs .xsh .seg button{min-height:44px}
 .brs .xsh .seg button:disabled{opacity:.4;cursor:not-allowed}
@@ -441,25 +442,57 @@
 /* ---- Story -> Reel (components/studio/auto.ts): a page inside the app, like every other page (the app's
    header, menu and footer stay); the studio's own content steps aside while it is open ---- */
 /* (kept rendered, just out of sight: the engine still reads sizes and draws its frames) */
+.brs.autoing{background:transparent !important;border-color:transparent !important;box-shadow:none !important;padding-left:0;padding-right:0}
 .brs.autoing > :not(.autoov){position:fixed !important;left:-200vw !important;top:0 !important;width:100vw !important;opacity:0 !important;pointer-events:none !important}
 .brs .autoov{display:block;padding:4px 0 24px}
 .brs .autoov > div{width:min(560px,100%);margin:0 auto;display:grid;gap:14px}
 .brs .aoback{justify-self:start;display:inline-flex;align-items:center;gap:4px;border:0;background:transparent;color:var(--muted);font:600 14px var(--body);padding:6px 0;cursor:pointer}
+.brs .aoback[hidden]{display:none}
 .brs .aoback svg{width:18px;height:18px}
 .brs .aohead{display:grid;gap:6px}
-.brs .autoov h1{margin:0;font:500 clamp(30px,7vw,42px)/1.05 var(--display);color:var(--ink)}
-.brs .autoov h2{margin:0;font:500 22px/1.2 var(--display);color:var(--ink)}
+.brs .autoov h1{margin:0;font:600 clamp(24px,5vw,28px)/1.15 var(--display);letter-spacing:-.02em;color:var(--ink)}
+.brs .autoov h2{margin:0;font:600 18px/1.25 var(--display);color:var(--ink)}
 .brs .autoov .sub{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
-.brs .aolabel{font:700 12px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.brs .aolabel{font:600 12px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .brs .aostory{gap:8px}
 .brs .aostory textarea{width:100%;border-radius:14px;border:1px solid var(--line);background:var(--background);color:var(--ink);font:15px var(--body);padding:12px;resize:vertical}
 .brs .aostory select{height:44px;border-radius:12px;border:1px solid var(--line);background:var(--background);color:var(--ink);font:14px var(--body);padding:0 10px}
+/* Story Maker: the story on the left, its pictures and voice on the right (one column on phones) */
+.brs .autoov > .aopick.aowide{width:min(980px,100%)}
+.brs .aostory{display:grid;gap:14px}
+.brs .aostory:not([hidden]){display:grid}
+.brs .aocol{display:grid;gap:14px;align-content:start;min-width:0}
+.brs .aorow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.brs .aocount{font:600 12px var(--body);color:var(--muted);background:var(--chip);border-radius:999px;padding:3px 9px;font-variant-numeric:tabular-nums}
+.brs .aolabel{display:inline-flex;align-items:center;gap:6px}
+.brs .aolabel svg{width:15px;height:15px;color:var(--accent)}
+.brs .aowrite textarea{min-height:190px;line-height:1.55}
+.brs .aowrite textarea:focus,.brs .aostory select:focus{outline:2px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:1px;border-color:var(--accent)}
+.brs .aoex{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.brs .aochip{border:1px solid var(--line);background:var(--background);color:var(--ink);border-radius:999px;padding:6px 12px;font:600 12.5px var(--body);cursor:pointer;transition:border-color .15s,background .15s}
+.brs .aochip:hover{border-color:var(--accent)}
+.brs .aochip em{font:600 10px var(--body);font-style:normal;color:var(--accent);margin-left:2px}
+.brs .aochip[aria-checked=true]{background:color-mix(in srgb,var(--accent) 14%,transparent);border-color:var(--accent);color:var(--accent)}
+.brs .aochip:disabled{opacity:.45;cursor:not-allowed}
+.brs .aostyles{display:flex;flex-wrap:wrap;gap:6px}
+.brs .aohint{margin:0;font-size:12.5px;color:var(--muted)}
+.brs .aopics{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;width:100%}
+.brs .aopic{aspect-ratio:9/16;border-radius:10px;background:var(--chip) center/cover no-repeat;border:1px solid var(--line);display:grid;place-items:end start;padding:4px;transition:opacity .3s}
+.brs .aopic b{font:600 10px var(--body);color:#fff;background:rgba(0,0,0,.55);border-radius:6px;padding:1px 5px}
+.brs .aopic:not(.ok):not(.same){animation:aopulse 1.2s ease-in-out infinite}
+.brs .aopic.same{opacity:.5}
+@keyframes aopulse{50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){.brs .aopic{animation:none !important}}
+@media (min-width:900px){
+  .brs .aopick.aowide > .aostory{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);column-gap:22px}
+  .brs .aopick.aowide .aowrite textarea{min-height:300px}
+}
 .brs .aobig{width:100%;display:flex;align-items:center;gap:14px;text-align:left;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:14px var(--body);box-shadow:var(--shadow);transition:border-color .15s}
 .brs .aobig:hover,.brs .aobig:focus-visible{border-color:var(--accent)}
 .brs .aoic{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff}
 .brs .aoic1{background:linear-gradient(135deg,#e040fb,#7c3aed)}.brs .aoic2{background:linear-gradient(135deg,#3b8bff,#1d4ed8)}
 .brs .aotx{flex:1;min-width:0;display:grid;gap:3px}
-.brs .aotx b{font:700 15px var(--body)}
+.brs .aotx b{font:600 15px var(--body)}
 .brs .aotx b em{font:600 11px var(--body);font-style:normal;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
 .brs .aotx > span{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .brs .aochev{color:var(--muted);flex:none}
@@ -467,34 +500,91 @@
 .brs .aonote svg{color:var(--accent);flex:none;width:18px;height:18px}
 .brs .aogo{width:100%;justify-content:center;min-height:52px;font-size:16px;background:var(--gold-gradient);color:var(--on-accent)}
 .brs .aogo:disabled{opacity:.45;cursor:not-allowed}
-.brs .aorun{justify-items:center;text-align:center;gap:14px;padding:24px 18px}
 .brs .aoring{position:relative;width:150px;height:150px;display:grid;place-items:center}
 .brs .aoring svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .brs .aoring circle{fill:none;stroke-width:8}
 .brs .aoring .bg{stroke:var(--line)}
 .brs .aoring .fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .4s}
 .brs .aoring b{font:500 34px var(--display);color:var(--ink)}
-.brs .aolist{list-style:none;margin:0;padding:0;display:grid;gap:8px;text-align:left;width:100%}
-.brs .aolist li{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:var(--background);border:1px solid var(--line);color:var(--muted);font-size:14px}
-.brs .aolist li::before{content:"";flex:none;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);box-sizing:border-box}
-.brs .aolist li.now{color:var(--ink);border-color:var(--accent)}
+@keyframes aospin{to{transform:rotate(360deg)}}
+/* making the Reel: a 9:16 poster (the pictures as they arrive, or a soft glow) with the ring, the steps beside it */
+.brs .autoov > .aorun{width:min(920px,100%);gap:22px;justify-items:center;padding:8px 0 20px}
+.brs .aoposter{position:relative;width:min(300px,62vw);aspect-ratio:9/16;border-radius:24px;overflow:hidden;display:grid;place-items:center;isolation:isolate;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 30%,#1b1033),#0d0a18 70%);box-shadow:0 30px 60px -30px rgba(40,10,90,.6),inset 0 0 0 1px rgba(255,255,255,.08)}
+.brs .aoposterimg{position:absolute;inset:0;background:center/cover no-repeat;opacity:0;transform:scale(1.02);z-index:-2}
+.brs .aoposterimg.on{opacity:1;animation:aokb 7s ease-out forwards;transition:opacity .6s}
+.brs .aoglow{position:absolute;inset:0;z-index:-1;background:radial-gradient(60% 40% at 50% 50%,rgba(13,10,24,.25),rgba(13,10,24,.7)),linear-gradient(transparent 55%,rgba(0,0,0,.55))}
+.brs .aoposterimg:not(.on) + .aoglow{background:radial-gradient(50% 35% at 50% 45%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%);animation:aobreath 3s ease-in-out infinite}
+@keyframes aokb{to{transform:scale(1.12)}}
+@keyframes aobreath{50%{opacity:.55}}
+.brs .aorun .aoring{width:132px;height:132px;border-radius:50%;background:rgba(10,8,20,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.brs .aorun .aoring circle{stroke-width:7}
+.brs .aorun .aoring .bg{stroke:rgba(255,255,255,.16)}
+.brs .aorun .aoring .fg{stroke:url(#aograd);filter:drop-shadow(0 0 6px rgba(192,132,252,.7))}
+.brs .aorun .aoring b{font:600 28px var(--display);color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.brs .aoinfo{display:grid;gap:12px;width:100%;max-width:440px;align-content:start}
+.brs .aoeyebrow{display:inline-flex;align-items:center;gap:6px;font:600 11px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.brs .aoeyebrow svg{width:15px;height:15px}
+.brs .aorun h2{min-height:1.25em}
+.brs .aobar{height:6px;border-radius:999px;background:var(--chip);overflow:hidden}
+.brs .aobar i{display:block;height:100%;width:0;border-radius:inherit;background:var(--gold-gradient);transition:width .4s}
+.brs .aolist{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:0;text-align:left;width:100%}
+.brs .aolist li{position:relative;display:flex;align-items:center;gap:12px;padding:8px 0;color:var(--muted);font-size:13.5px}
+.brs .aolist li:not(:last-child)::after{content:"";position:absolute;left:8px;top:30px;bottom:-6px;width:2px;border-radius:2px;background:var(--line)}
+.brs .aolist li.ok:not(:last-child)::after{background:var(--accent)}
+.brs .aolist li::before{content:"";flex:none;width:18px;height:18px;border-radius:50%;border:2px solid var(--line);box-sizing:border-box;background:var(--surface)}
+.brs .aolist li.now{color:var(--ink);font-weight:600}
 .brs .aolist li.now::before{border-color:var(--accent);border-right-color:transparent;animation:aospin .8s linear infinite}
 .brs .aolist li.ok{color:var(--ink)}
 .brs .aolist li.ok::before{border:0;background:var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/12px no-repeat}
-@keyframes aospin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.brs .aolist li.now::before{animation:none}}
-.brs .aodonebox{justify-items:center;gap:16px}
-.brs .aodone video{height:min(64vh,620px);max-width:100%;aspect-ratio:9/16;border-radius:18px;background:#000}
-.brs .aoacts{display:grid;gap:10px;width:100%}
-.brs .aoacts .btn{width:100%;justify-content:center}
-.brs .aoacts .btn.save{background:var(--gold-gradient);color:var(--on-accent)}
+.brs .aokeep{margin:0;font-size:12.5px;color:var(--muted)}
+@media (max-width:899px){
+  .brs .aoposter{width:min(220px,56vw)}
+  .brs .aorun .aoring{width:104px;height:104px}
+  .brs .aorun .aoring b{font-size:22px}
+}
 @media (min-width:900px){
-  .brs .autoov > .aodone{width:min(900px,100%)}
-  .brs .aodonebox{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start}
+  .brs .autoov > .aorun{grid-template-columns:auto minmax(0,440px);justify-content:center;align-items:center;column-gap:44px;padding-top:24px}
+}
+@media (prefers-reduced-motion:reduce){.brs .aoposterimg.on,.brs .aoglow{animation:none !important}}
+@media (prefers-reduced-motion:reduce){.brs .aolist li.now::before{animation:none}}
+/* the finished Reel: the video large, a slim panel beside it (under it on phones) with small buttons */
+.brs .autoov > .aodone{width:min(1000px,100%)}
+.brs .aodonebox{display:grid;gap:18px;justify-items:center}
+.brs .aovidwrap{display:grid;place-items:center;width:100%;padding:14px;border-radius:24px;background:radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 70%),var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
+.brs .aodone video{display:block;height:min(72vh,680px);max-width:100%;aspect-ratio:9/16;border-radius:16px;background:#000;box-shadow:0 24px 50px -24px rgba(0,0,0,.55)}
+.brs .aoside{display:grid;gap:8px;width:100%;align-content:start}
+.brs .aoready{justify-self:start;display:inline-flex;align-items:center;gap:5px;font:600 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--success,#16a34a);background:color-mix(in srgb,var(--success,#16a34a) 13%,transparent);border-radius:999px;padding:4px 10px 4px 8px}
+.brs .aoready svg{width:13px;height:13px;stroke-width:2.6}
+.brs .aodone h1{font-size:clamp(22px,4vw,26px)}
+.brs .aometa{margin:0;font:600 12.5px var(--body);color:var(--muted);font-variant-numeric:tabular-nums}
+.brs .aometa:empty{display:none}
+.brs .aoacts{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.brs .aobtn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:42px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 14px var(--body);cursor:pointer;white-space:nowrap;transition:border-color .15s,transform .15s,box-shadow .15s}
+.brs .aobtn svg{width:17px;height:17px;flex:none}
+.brs .aobtn:hover{border-color:var(--accent)}
+.brs .aobtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.brs .aobtn.pri{border:0;background:var(--gold-gradient);color:var(--on-accent);box-shadow:0 10px 22px -12px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs .aobtn.pri:hover{transform:translateY(-1px)}
+.brs .aobtn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.brs .aobtn.ghost:hover{color:var(--ink);border-color:var(--line)}
+.brs .aocredits{margin-top:8px;font-size:12px;color:var(--muted)}
+.brs .aocredits summary{cursor:pointer;font-weight:600}
+.brs .aocredits ol{margin:6px 0 0;padding-left:0;list-style:none;display:grid;gap:3px;max-height:140px;overflow:auto}
+@media (max-width:899px){
+  .brs .aovidwrap{padding:0;border:0;background:none;box-shadow:none}
+  .brs .aodone video{width:100%;height:auto;max-height:70vh}
+  .brs .aoacts{display:grid;grid-template-columns:1fr 1fr}
+  .brs .aoacts .aobtn.pri{grid-column:1 / -1}
+}
+@media (min-width:900px){
+  .brs .aodonebox{grid-template-columns:auto minmax(240px,320px);align-items:center;justify-content:center;column-gap:36px}
+  .brs .aoacts{flex-direction:column;align-items:stretch}
+  .brs .aobtn{justify-content:flex-start}
 }
 /* the clips' own sound under the song (Fast Studio -> Music) */
 .brs .clipsnd{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--background)}
-.brs .clipsnd b{font:700 14px var(--body)}
+.brs .clipsnd b{font:600 14px var(--body)}
 .brs .clipsnd small{color:var(--muted);font-size:12.5px}
 .brs .clipsnd .seg{display:flex;width:100%}
 .brs .clipsnd .seg button{flex:1 1 auto;white-space:nowrap}
@@ -524,22 +614,22 @@
 .brs.fopen .step > .sh::after{display:none}
 .brs.fopen .step > .sh .st{display:none}
 .brs.fopen .step{border-radius:20px;padding:16px 18px;gap:16px;background:var(--surface)}
-.brs.fopen .num{width:34px;height:34px;border-radius:12px;font:800 15px var(--body);background:var(--gold-gradient);color:var(--on-accent)}
+.brs.fopen .num{width:34px;height:34px;border-radius:12px;font:600 15px var(--body);background:var(--gold-gradient);color:var(--on-accent)}
 .brs.fopen .step.done .num{background:var(--gold-gradient)}
-.brs.fopen .sh h2{font:800 20px var(--display);letter-spacing:-.01em}
+.brs.fopen .sh h2{font:600 18px var(--display);letter-spacing:-.01em}
 .brs.fopen #s1 .legend{display:none}
 
 /* the head: back, the title, the four steps */
 .brs .fhead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}
 .brs .fback{width:46px;height:46px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer}
 .brs .fback:hover{border-color:var(--accent)}
-.brs .ft h1{font:800 clamp(22px,3vw,30px)/1.1 var(--display);letter-spacing:-.02em}
+.brs .ft h1{font:600 clamp(22px,2.4vw,26px)/1.15 var(--display);letter-spacing:-.02em}
 .brs .ft p{margin:4px 0 0;color:var(--muted);font-size:14px}
 .brs .fsteps{list-style:none;margin:0;padding:0;display:flex;align-items:flex-start;gap:0}
 .brs .fsteps li{position:relative;display:grid;justify-items:center;gap:6px;min-width:96px;font:600 13px var(--body);color:var(--muted)}
 .brs .fsteps li + li::before{content:"";position:absolute;top:15px;right:calc(50% + 18px);width:calc(100% - 36px);height:2px;background:var(--line)}
 .brs .fsteps li.ok + li::before,.brs .fsteps li.on::before{background:var(--accent)}
-.brs .fsteps i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:800 13px var(--body);font-style:normal;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+.brs .fsteps i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:600 13px var(--body);font-style:normal;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
 .brs .fsteps li.on{color:var(--accent)}
 .brs .fsteps li.on i{background:var(--gold-gradient);color:#fff;border-color:transparent;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 .brs .fsteps li.ok i{background:color-mix(in srgb,var(--accent) 25%,var(--surface));color:var(--ink);border-color:var(--accent)}
@@ -559,7 +649,7 @@
 .brs.fopen .rsong.cur{border:2px solid var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent)}
 .brs.fopen .rsong.cur::after{content:"";position:absolute;right:10px;bottom:10px;width:24px;height:24px;border-radius:50%;background:var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/13px no-repeat}
 .brs.fopen .rpick{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;gap:2px;padding:12px;max-width:none;text-align:left}
-.brs.fopen .rn{font:800 14px var(--body);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.brs.fopen .rn{font:600 14px var(--body);white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .brs.fopen .rd{font:500 12px var(--body)}
 .brs.fopen .rdel{position:absolute;top:6px;right:6px;width:26px;height:26px;padding:0;border-radius:50%;background:rgba(0,0,0,.35);color:#fff}
 .brs.fopen .fwavebox{border:1px solid var(--line);border-radius:16px;padding:12px;background:var(--surface-2)}
@@ -571,28 +661,28 @@
 .brs.fopen #slen button[aria-pressed=true]{background:var(--gold-gradient);color:#fff;border-color:transparent}
 .brs.fopen .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:8px}
 .brs.fopen .stats span{display:grid;justify-items:center;gap:0;padding:10px 6px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);font-size:11.5px;text-align:center}
-.brs.fopen .stats b{order:-1;font:800 18px var(--body)}
+.brs.fopen .stats b{order:-1;font:600 18px var(--body)}
 .brs .fsugg{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface-2)}
 .brs .fsugg > svg{width:28px;height:28px;color:#e879f9;flex:none}
 .brs .fsugg span{display:grid;gap:2px}
-.brs .fsugg b{font:800 14px var(--body)}
+.brs .fsugg b{font:600 14px var(--body)}
 .brs .fsugg small{color:var(--muted);font-size:12.5px;line-height:1.4}
 .brs.talkmode .fsugg{display:none}
 
 /* 2 Add Your Clips: Videos / Photos, the drop area, the clips as pictures */
 .brs .ftabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);max-width:420px}
-.brs .ftabs button{height:40px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:700 14px var(--body);cursor:pointer}
+.brs .ftabs button{height:40px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:600 14px var(--body);cursor:pointer}
 .brs .ftabs button[aria-pressed=true]{background:var(--gold-gradient);color:#fff}
 .brs.fopen .drop{display:grid;justify-items:center;gap:4px;padding:28px 18px;border-radius:18px;background:var(--surface-2);color:var(--muted)}
 .brs.fopen .drop > svg{width:34px;height:34px;color:var(--ink);margin-bottom:6px}
-.brs.fopen .drop b{color:var(--ink);font:700 15px var(--body)}
+.brs.fopen .drop b{color:var(--ink);font:600 15px var(--body)}
 .brs.fopen .drop small{margin-top:8px;font-size:12px}
 .brs.fopen .clips{grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
 .brs.fopen .clip{border-radius:14px;border:0;background:transparent;position:relative}
 .brs.fopen .clip .th{aspect-ratio:1/1;border-radius:14px;object-fit:cover}
 .brs.fopen .clip .meta{position:absolute;inset:auto 6px 6px auto;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.65);display:block}
 .brs.fopen .clip .meta :is(.nm,canvas){display:none}
-.brs.fopen .clip .dd{font:700 11px var(--body);color:#fff}
+.brs.fopen .clip .dd{font:600 11px var(--body);color:#fff}
 .brs.fopen .clip .del{width:24px;height:24px;font-size:14px;background:rgba(0,0,0,.7)}
 .brs.fopen #clipsnd{background:var(--surface-2)}
 .brs.fopen #clipsnd .seg{gap:8px;border:0;background:transparent;overflow:visible}
@@ -612,13 +702,13 @@
 .brs .faiList li.ok svg{background:var(--accent);color:#fff;border-color:transparent}
 .brs .fready{display:grid;justify-items:center;gap:6px;padding:22px;border:1px solid color-mix(in srgb,var(--accent) 55%,var(--line));border-radius:18px;background:color-mix(in srgb,var(--accent) 7%,var(--surface-2));text-align:center}
 .brs .fready > svg{width:38px;height:38px;color:var(--accent)}
-.brs .fready b{font:800 16px var(--body)}
+.brs .fready b{font:600 16px var(--body)}
 .brs .fready small{color:var(--muted);font-size:13px}
 
 /* the Reel Preview (computers) */
 .brs .fprev{display:grid;gap:14px;align-content:start}
 .brs .fprevh{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.brs .fprevh b{font:800 15px var(--body)}
+.brs .fprevh b{font:600 15px var(--body)}
 .brs .fprevh .seg{flex-wrap:nowrap}
 .brs .fprevh .seg button{padding:7px 9px;font-size:12px}
 .brs .fprevbox{position:relative;aspect-ratio:9/16;border-radius:18px;overflow:hidden;display:grid;place-items:center;align-content:center;gap:10px;background:radial-gradient(60% 50% at 50% 35%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%),linear-gradient(170deg,#2b1d63,#0d0b26);color:#fff}
@@ -638,17 +728,17 @@
 .brs .fintro{display:grid;justify-items:center;gap:14px;text-align:center;padding:12px 4px 4px}
 .brs .fbadge{width:96px;height:96px;border-radius:28px;display:grid;place-items:center;background:linear-gradient(135deg,#e040fb,#7c3aed);box-shadow:0 0 0 10px color-mix(in srgb,var(--accent) 12%,transparent),0 18px 40px -16px var(--brand-glow)}
 .brs .fbadge svg{width:48px !important;height:48px !important;padding:0 !important;background:none !important;color:#fff}
-.brs .fintro h2{margin:6px 0 0;font:800 26px var(--display);letter-spacing:-.02em}
+.brs .fintro h2{margin:6px 0 0;font:600 22px var(--display);letter-spacing:-.02em}
 .brs .fintro p{margin:0;color:var(--muted);font-size:14.5px;max-width:30ch}
 .brs .fchecks{list-style:none;margin:10px 0 6px;padding:0;display:grid;gap:14px;justify-self:stretch;text-align:left}
 .brs .fchecks li{display:flex;align-items:center;gap:12px;font:600 15px var(--body)}
 .brs .fchecks svg{flex:none;width:24px;height:24px;padding:4px;border-radius:50%;background:var(--accent);color:#fff;stroke-width:3}
 .brs .fnext,.brs .fgo{width:100%;justify-content:center;gap:8px}
 .brs .fan{display:grid;justify-items:center;gap:16px;text-align:center;padding:8px 0}
-.brs .fan h2{margin:0;font:800 22px var(--display)}
-.brs .fan .aoring b{font:800 34px var(--body)}
+.brs .fan h2{margin:0;font:600 22px var(--display)}
+.brs .fan .aoring b{font:600 34px var(--body)}
 .brs .fanst{display:grid;gap:2px;margin:0}
-.brs .fanst b{font:700 16px var(--body)}
+.brs .fanst b{font:600 16px var(--body)}
 .brs .fanst small{color:var(--muted);font-size:13px}
 .brs .fanList{grid-template-columns:1fr;width:100%;text-align:left}
 .brs .fanList li{justify-content:flex-start;padding:4px 0}
@@ -721,10 +811,10 @@
 /* phones: the progress cards (song, beats, clips, AI) stay in view, above the button pinned at the bottom */
 /* the export sheet (UI/ design: Export Settings): quality and frame rate as cards, each with its line */
 .brs .xsh{gap:12px;border:1px solid var(--line)}
-.brs .xsh-h h2{font:800 22px var(--display)}
-.brs .xsh-l{letter-spacing:.02em;text-transform:none;font:700 14px var(--body);color:var(--ink)}
+.brs .xsh-h h2{font:600 22px var(--display)}
+.brs .xsh-l{letter-spacing:.02em;text-transform:none;font:600 14px var(--body);color:var(--ink)}
 .brs .xsh .seg{display:grid;gap:10px;border:0;background:transparent;overflow:visible}
-.brs .xsh .seg button{display:grid;place-items:center;gap:2px;min-height:76px;border:1px solid var(--line) !important;border-radius:14px;background:var(--surface-2);font:800 15px var(--body);color:var(--ink)}
+.brs .xsh .seg button{display:grid;place-items:center;gap:2px;min-height:76px;border:1px solid var(--line) !important;border-radius:14px;background:var(--surface-2);font:600 15px var(--body);color:var(--ink)}
 .brs .xsh .seg button::after{font:500 11.5px var(--body);color:var(--muted)}
 .brs .xsh #xres [data-r="720"]::after{content:"Fast export"}
 .brs .xsh #xres [data-r="1080"]::after{content:"Best quality"}
@@ -748,7 +838,7 @@
   .brs.fopen .fhead,.brs.fpost .fhead{display:grid !important;grid-template-columns:40px minmax(0,1fr) auto;grid-template-areas:"back title skip" "steps steps steps";align-items:center;row-gap:12px;column-gap:12px;position:sticky;top:0;z-index:20;margin:-16px -16px 0;padding:max(12px,env(safe-area-inset-top)) 16px 12px;background:var(--background);border:0;visibility:visible}
   .brs.fopen[data-fstep="intro"] .fhead,.brs.fopen[data-fstep="analyse"] .fhead,.brs.fpost:not([data-tool]) .fhead,.brs.fpost[data-tool=""] .fhead{grid-template-areas:"back steps skip"}
   .brs .fhead .fback{grid-area:back;width:40px;height:40px;border-radius:12px}
-  .brs .fhead .fptitle{grid-area:title;display:block;font:800 17px var(--display);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brs .fhead .fptitle{grid-area:title;display:block;font:600 17px var(--display);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brs .fhead .fptitle:empty{display:none}
   .brs .fhead .fskip{grid-area:skip}
   .brs .fhead .ft{display:none}
@@ -760,7 +850,7 @@
   .brs .fhead .fsteps li.ok + li::before,.brs .fhead .fsteps li.on::before{background:var(--accent)}
   .brs .fhead .fsteps i{width:10px;height:10px;font-size:0;border:0;background:color-mix(in srgb,var(--muted) 55%,transparent);flex:none}
   .brs .fhead .fsteps li.ok i{background:var(--accent)}
-  .brs .fhead .fsteps li.on i{width:30px;height:30px;font:800 13px var(--body);color:#fff;background:var(--gold-gradient);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .brs .fhead .fsteps li.on i{width:30px;height:30px;font:600 13px var(--body);color:#fff;background:var(--gold-gradient);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 
   /* ---- the screens are the page itself: no cards, no card headings; the button at the bottom ---- */
   .brs.fopen .wrap{gap:18px;padding-bottom:104px}
@@ -768,7 +858,7 @@
   .brs.fopen #s1 > .sh,.brs.fopen #s2 > .sh{display:none !important}
   .brs.fopen :is(.fgo,.fnext){position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));width:auto;z-index:30;min-height:52px;border-radius:14px;font-size:16px;box-shadow:0 14px 30px -12px var(--brand-glow)}
   .brs.fopen .fnext:disabled{opacity:.55}
-  .brs.fopen .label{font:700 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
+  .brs.fopen .label{font:600 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
 
   /* 1 Music Reel Start */
   .brs.fopen .fintro{min-height:calc(100svh - 190px);align-content:start;padding-top:36px;gap:16px}
@@ -782,16 +872,16 @@
   .brs.fopen #mpick svg{color:var(--accent)}
   .brs.fopen #mname{display:none}
   .brs.fopen #skipmusic{justify-self:start;border:0;background:none;padding:0;color:var(--accent);font:600 13.5px var(--body)}
-  .brs.fopen .recent .label{font:700 13px var(--body);color:var(--muted)}
+  .brs.fopen .recent .label{font:600 13px var(--body);color:var(--muted)}
   .brs.fopen .rlist{display:grid;grid-template-columns:1fr;gap:4px}
   .brs.fopen .rsong{display:flex;align-items:center;min-height:0;border:0;border-radius:14px;background:transparent;box-shadow:none !important;padding:6px 0}
   .brs.fopen .rsong.cur{background:color-mix(in srgb,var(--accent) 10%,transparent)}
   .brs.fopen .rpick{flex:1;display:grid;grid-template-columns:48px minmax(0,1fr) 34px;grid-template-rows:auto auto;column-gap:12px;align-items:center;padding:0 8px;text-align:left}
-  .brs.fopen .rpick::before{content:"♪";grid-row:1/3;width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:#fff;font:800 20px var(--body);background:linear-gradient(135deg,#e040fb,#7c3aed)}
+  .brs.fopen .rpick::before{content:"♪";grid-row:1/3;width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:#fff;font:600 20px var(--body);background:linear-gradient(135deg,#e040fb,#7c3aed)}
   .brs.fopen .rpick::after{content:"+";grid-column:3;grid-row:1/3;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:600 20px/1 var(--body)}
   .brs.fopen .rsong.cur .rpick::after{content:"✓";background:var(--gold-gradient);border-color:transparent;color:#fff;font-size:15px}
   .brs.fopen .rsong.cur::after{display:none}
-  .brs.fopen .rn{grid-column:2;font:700 14.5px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .brs.fopen .rn{grid-column:2;font:600 14.5px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   .brs.fopen .rn::first-letter{color:transparent;font-size:0}
   .brs.fopen .rd{grid-column:2;font:500 12.5px var(--body);color:var(--muted)}
   .brs.fopen .rdel{display:none}
@@ -801,7 +891,7 @@
   .brs.fopen .fsongic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#e040fb,#7c3aed);flex:none}
   .brs.fopen .fsongic svg{width:24px;height:24px}
   .brs.fopen .fsongt{display:grid;min-width:0}
-  .brs.fopen .fsongt b{font:800 16px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brs.fopen .fsongt b{font:600 16px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brs.fopen .fsongt small{color:var(--muted);font-size:13px}
   .brs.fopen .fwavebox{border:0;background:transparent;padding:0}
   .brs.fopen .lenrow{gap:12px}
@@ -815,9 +905,9 @@
   .brs.fopen.photomode .vonly.fmob,.brs.fopen:not(.photomode) .ponly.fmob{display:none}
   .brs.fopen .ftabs{max-width:none}
   .brs.fopen .drop{min-height:190px;align-content:center;border-radius:18px;padding:24px 16px}
-  .brs.fopen .drop b.fmob{font:700 16px var(--body)}
+  .brs.fopen .drop b.fmob{font:600 16px var(--body)}
   .brs.fopen #s2 .row:has(#addv),.brs.fopen #s2 .row:has(#aspect){display:none}
-  .brs.fopen #s2:has(.clip) .fcliplabel{display:block;font:700 15px var(--body)}
+  .brs.fopen #s2:has(.clip) .fcliplabel{display:block;font:600 15px var(--body)}
   .brs.fopen .fclipgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
   .brs.fopen .fclipgrid .clips{display:contents}
   .brs.fopen #s2:has(.clip) .fadd{display:grid;place-items:center;aspect-ratio:1/1;border-radius:14px;border:1.5px dashed var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
@@ -835,7 +925,7 @@
   .brs.fpost .create{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
   .brs.fpost .stage{display:flex;flex-direction:column;align-items:stretch;gap:12px}
   .brs.fpost .pv,.brs.fpost .summary{display:contents}
-  .brs.fpost .sumh{order:-3;margin:0;text-align:center;font:800 24px var(--display);letter-spacing:-.02em}
+  .brs.fpost .sumh{order:-3;margin:0;text-align:center;font:600 21px var(--display);letter-spacing:-.02em}
   .brs.fpost .sumi{order:-2;margin:-6px 0 2px;text-align:center;color:var(--muted);font-size:13.5px}
   .brs.fpost .sumi b{font-weight:600;color:var(--muted)}
   .brs.fpost .pvbox{order:-1;align-self:center;border-radius:18px;overflow:hidden}
@@ -864,7 +954,7 @@
   .brs.fpost .panel{border:0;background:none;box-shadow:none;padding:4px 0}
   .brs.fpost .panel .ph{display:none}
   .brs.fpost #mode{display:grid;grid-template-columns:1fr 1fr;gap:12px;border:0;background:none;overflow:visible}
-  .brs.fpost #mode button{position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;gap:2px;aspect-ratio:4/3;padding:12px;border:1px solid var(--line) !important;border-radius:16px;color:#fff;font:800 15px var(--body);text-align:left;overflow:hidden}
+  .brs.fpost #mode button{position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;gap:2px;aspect-ratio:4/3;padding:12px;border:1px solid var(--line) !important;border-radius:16px;color:#fff;font:600 15px var(--body);text-align:left;overflow:hidden}
   .brs.fpost #mode button::after{font:500 11.5px var(--body);color:rgba(255,255,255,.85)}
   .brs.fpost #mode [data-m="auto"]{background:linear-gradient(160deg,#5fb6ff,#2a6fb0 50%,#123a2e)}
   .brs.fpost #mode [data-m="auto"]::after{content:"(Recommended)"}
@@ -881,9 +971,9 @@
   .brs .xsheet{place-items:stretch;background:var(--background)}
   .brs .xsh{width:100%;min-height:100%;border-radius:0;border:0;box-shadow:none;align-content:start;padding:max(14px,env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));gap:14px;background:var(--background)}
   .brs .xsh-h{justify-content:flex-start;gap:12px}
-  .brs .xsh-h h2{font:800 18px var(--display)}
+  .brs .xsh-h h2{font:600 18px var(--display)}
   .brs #xshclose{order:-1;width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:transparent;font-size:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a1c9' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 12H5M11 6l-6 6 6 6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center;background-size:20px}
-  .brs .xsh-l{margin-top:10px;font:700 15px var(--body)}
+  .brs .xsh-l{margin-top:10px;font:600 15px var(--body)}
   .brs .xsh #xres{grid-template-columns:repeat(3,minmax(0,1fr))}
   .brs .xsh #xfps{grid-template-columns:repeat(2,minmax(0,1fr))}
   .brs .xsh .seg button{min-height:86px}
@@ -892,10 +982,10 @@
   /* ---- 9 Exporting and 10 Reel Exported: full screens over the Reel ---- */
   .brs .fexp,.brs .fdone{position:fixed;inset:0;z-index:96;background:var(--background);color:var(--ink);overflow-y:auto;display:grid;justify-items:center;align-content:start;text-align:center;padding:max(18px,env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom))}
   .brs .fexp{gap:22px;padding-top:max(60px,env(safe-area-inset-top))}
-  .brs .fexp h2,.brs .fdone h2{margin:0;font:800 22px var(--display)}
+  .brs .fexp h2,.brs .fdone h2{margin:0;font:600 22px var(--display)}
   .brs .fexp .aoring{width:190px;height:190px}
-  .brs .fexp .aoring b{font:800 38px var(--body)}
-  .brs .fexp .fanst b{font:800 20px var(--body)}
+  .brs .fexp .aoring b{font:600 38px var(--body)}
+  .brs .fexp .fanst b{font:600 20px var(--body)}
   .brs .fexp .fanList{max-width:320px}
   .brs .fdone{gap:12px}
   .brs .fdhead{justify-self:stretch;display:flex}
@@ -903,12 +993,12 @@
   .brs .fdvid{width:min(100%,260px);aspect-ratio:9/16;max-height:44svh;border-radius:18px;overflow:hidden;background:#000}
   .brs .fdvid video{width:100%;height:100%;object-fit:cover;display:block}
   .brs .fdsaved{display:grid;gap:2px;margin:4px 0}
-  .brs .fdsaved b{font:700 15px var(--body)}
+  .brs .fdsaved b{font:600 15px var(--body)}
   .brs .fdsaved small{color:var(--muted);font-size:13px}
   .brs .fdone > .btn{width:100%;justify-content:center;gap:8px;min-height:52px;border-radius:14px}
   .brs .fdone > .btn:not(.primary){background:var(--surface);border:1px solid var(--line)}
   .brs .fdcap{width:100%;display:grid;gap:8px;text-align:left;margin-top:8px}
-  .brs .fdcap > b{font:700 15px var(--body)}
+  .brs .fdcap > b{font:600 15px var(--body)}
   .brs .fdcap .postcap{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
   .brs .fdcap .postcap label{display:none}
   .brs .fdcap textarea{width:100%;border:0;background:transparent;color:var(--ink);font:14px/1.5 var(--body);resize:none}
@@ -919,13 +1009,13 @@
 /* phones: each clip says only how far it is read (%), then its length; a clip that cannot play says so */
 @media (max-width:1023px){
   .brs.fopen .clip .dd{font-size:0;line-height:1}
-  .brs.fopen .clip .dd::after{content:"…";font:800 11.5px var(--body);color:#fff}
+  .brs.fopen .clip .dd::after{content:"…";font:600 11.5px var(--body);color:#fff}
   .brs.fopen .clip .dd[data-st="read"]::after{content:attr(data-p) "%"}
   .brs.fopen .clip .dd[data-st="ok"]::after{content:attr(data-len)}
   .brs.fopen .clip .dd[data-st="bad"]::after{content:"Cannot play"}
 }
 /* phones and computers: a clip read and ready shows a green tick; a clip that cannot play, a red outline */
-.brs.fopen .clip:has(.dd[data-st="ok"])::before{content:"✓";position:absolute;top:6px;left:6px;z-index:2;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#22c55e;color:#fff;font:800 12px var(--body);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.brs.fopen .clip:has(.dd[data-st="ok"])::before{content:"✓";position:absolute;top:6px;left:6px;z-index:2;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#22c55e;color:#fff;font:600 12px var(--body);box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .brs.fopen .clip:has(.dd[data-st="bad"]){outline:2px solid var(--danger);outline-offset:-2px}
 @media (max-width:1023px){
   /* 5: the privacy note in one line */
@@ -959,7 +1049,7 @@
 /* the Create flow before it has its words (a moment while the studio starts): the loader in the middle of the screen */
 .brs.fopen:not(.flive)::before{content:"";position:fixed;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 18%,transparent);border-top-color:var(--accent);border-right-color:#e040fb;animation:busy-spin .8s linear infinite;z-index:40}
 /* Remove Watermark is for paid plans: a small "Pro" tag (to the plans) while it is locked */
-.brs .xpro{display:inline-flex;align-items:center;margin-left:6px;padding:1px 8px;border-radius:999px;font:800 11px var(--body);color:#1a1205;background:#f5c84c;vertical-align:1px;text-decoration:none}
+.brs .xpro{display:inline-flex;align-items:center;margin-left:6px;padding:1px 8px;border-radius:999px;font:600 11px var(--body);color:#1a1205;background:#f5c84c;vertical-align:1px;text-decoration:none}
 .brs .xpro[hidden]{display:none}
 .brs .xtog:has(input:disabled){cursor:default}
 
@@ -973,7 +1063,7 @@
 .brs .fcrumbs :is(a,button){font:inherit;color:inherit;background:none;border:0;padding:4px 2px;border-radius:6px;cursor:pointer;text-decoration:none}
 .brs .fcrumbs :is(a,button):hover{color:var(--accent)}
 .brs .fcrumbs :is(a,button):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.brs .fcrumbs [aria-current]{color:var(--ink);font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.brs .fcrumbs [aria-current]{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:1023px){
   /* above the phones' sticky head, which reaches up to the page's edge */
   .brs .fcrumbs{margin:0 0 16px;font-size:12.5px}
@@ -989,7 +1079,7 @@
 .brs.v-one .tool:hover{color:var(--ink)}
 .brs.v-one .tool[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,transparent)}
 .brs.v-one .tool:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.brs .protag{position:absolute;top:3px;right:3px;display:inline-flex;align-items:center;gap:2px;padding:1px 5px 1px 4px;border-radius:6px;background:var(--gold-gradient);color:var(--on-accent,#fff);font:800 8.5px/1.5 var(--body);font-style:normal;letter-spacing:.04em;pointer-events:none}
+.brs .protag{position:absolute;top:3px;right:3px;display:inline-flex;align-items:center;gap:2px;padding:1px 5px 1px 4px;border-radius:6px;background:var(--gold-gradient);color:var(--on-accent,#fff);font:600 8.5px/1.5 var(--body);font-style:normal;letter-spacing:.04em;pointer-events:none}
 .brs .protag svg{width:9px;height:9px;flex:none}
 .brs .protag b{font:inherit}
 .brs .tool:not([data-locked="true"]) .protag{display:none}   /* its plan (or the administrator): the tool is simply there */
@@ -1086,7 +1176,7 @@
 /* a note under the preview (clips too short, saved…): one line, the accent's tint; the whole text on hover */
 .brs.made.v-one #xmsg:not([hidden]){display:block;min-width:0;max-width:100%;padding:8px 12px;border-radius:12px;font:500 13px/1.3 var(--body);
   color:var(--ink);background:color-mix(in srgb,var(--accent) 10%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));box-shadow:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brs.made.v-one #xmsg:not([hidden])::before{content:"i";display:inline-grid;vertical-align:-4px;margin-right:8px;width:18px;height:18px;border-radius:50%;place-items:center;background:var(--accent);color:#fff;font:700 11px/1 var(--body)}
+.brs.made.v-one #xmsg:not([hidden])::before{content:"i";display:inline-grid;vertical-align:-4px;margin-right:8px;width:18px;height:18px;border-radius:50%;place-items:center;background:var(--accent);color:#fff;font:600 11px/1 var(--body)}
 .brs.made.v-one #xmsg.err:not([hidden]){background:color-mix(in srgb,var(--warning) 10%,var(--surface));border-color:color-mix(in srgb,var(--warning) 45%,var(--line))}
 .brs.made.v-one #xmsg.err:not([hidden])::before{content:"!";background:var(--warning)}
 /* the timeline's bar: a beat where the playhead is, zoom */
@@ -1145,7 +1235,7 @@
 .brs .ss-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 16px 16px !important;border:0 !important;border-radius:0 !important;background:none !important;box-shadow:none !important;gap:12px}
 /* every choice in sight (it wraps), the shot's own one lit */
 .brs .ss-body .chips{flex-wrap:wrap;overflow:visible;padding:0;-webkit-mask-image:none;mask-image:none}
-.brs .ss-body .chip[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff);border-color:transparent;font-weight:700}
+.brs .ss-body .chip[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff);border-color:transparent;font-weight:600}
 .brs .ss-body .shh{position:sticky;top:0;z-index:1;margin:0 -16px;padding:4px 16px 10px;background:var(--surface);border-bottom:1px solid var(--line)}
 .brs .ss-body .shtab{font-size:14px}
 .brs .ss-body .shtab[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff)}
@@ -1165,7 +1255,7 @@
   body:has(.brs.fpost) .brs .fcrumbs{display:none}
   .brs.fpost .topbar{display:flex !important;flex-wrap:nowrap;align-items:center;gap:6px;position:sticky;top:0;z-index:40;margin:0 -16px 4px;
     padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:var(--background);border-bottom:1px solid var(--line)}
-  .brs.fpost .tb-name{font-size:16px;font-weight:800}
+  .brs.fpost .tb-name{font-size:16px;font-weight:600}
   .brs.fpost .tb-sub{font-size:11px}
   .brs.fpost .tb-undo{display:inline-flex;gap:0;margin-left:0}
   .brs.fpost .tb-undo .btn.icon{width:36px;height:36px;min-height:36px}
@@ -1273,7 +1363,7 @@
   .brs.noir #mslot .clip .dd::after{content:attr(data-len);font:600 10.5px var(--mono)}
   .brs.noir #mslot .clip .dd:not([data-len])::after{content:"…"}
   .brs.noir #mslot .clip::after{content:"✓";position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;
-    background:var(--gold-gradient);color:#fff;font:800 11px var(--body)}
+    background:var(--gold-gradient);color:#fff;font:600 11px var(--body)}
   .brs.noir #mslot .clip .del{left:5px;right:auto;top:5px;width:22px;height:22px;font-size:13px;opacity:0;transition:opacity .15s}
   .brs.noir #mslot .clip:hover .del,.brs.noir #mslot .clip .del:focus-visible{opacity:1}
   .brs.noir #mslot .fadd{display:none}
@@ -1289,9 +1379,9 @@
 .brs .ss-body{padding:14px 16px 16px !important;display:grid;align-content:start}
 .brs .ss-body .ssh{display:flex;align-items:center;gap:10px;padding-right:40px}
 .brs .ss-body .ssth{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;box-shadow:0 0 0 1px var(--line)}
-.brs .ss-body .ssh b{font:800 15.5px var(--body);flex:1;min-width:0}
+.brs .ss-body .ssh b{font:600 15.5px var(--body);flex:1;min-width:0}
 .brs .ss-body .ssnav{display:inline-flex;gap:4px}
-.brs .ss-body .ssnav button{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:700 16px/1 var(--body);cursor:pointer}
+.brs .ss-body .ssnav button{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 16px/1 var(--body);cursor:pointer}
 .brs .ss-body .ssnav button:disabled{opacity:.35;cursor:default}
 .brs .ss-body .sstabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:3px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
 .brs .ss-body .sstabs .shtab{height:34px;padding:0 6px;border-radius:9px;font:600 12.5px var(--body);color:var(--muted);white-space:nowrap}
@@ -1305,7 +1395,7 @@
 .brs :is(.ss-body,.shtilebox) .sstimg.none{background:var(--surface-2) !important;position:relative}
 .brs :is(.ss-body,.shtilebox) .sstimg.none::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font:400 22px var(--body);color:var(--muted)}
 .brs :is(.ss-body,.shtilebox) .sstt{line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.brs .ss-body .sslab{font:700 12.5px var(--body);color:var(--ink);margin-top:2px}
+.brs .ss-body .sslab{font:600 12.5px var(--body);color:var(--ink);margin-top:2px}
 .brs .ss-body .sslab small{font-weight:500;color:var(--muted)}
 .brs .ss-body .sschips .chip{height:32px;padding:0 12px;font-size:12px}
 .brs .ss-body .ssacts{display:flex;flex-wrap:wrap;gap:6px}
@@ -1386,7 +1476,7 @@
 .brs [data-lykey]{display:inline-flex;align-items:center;flex-direction:row-reverse;gap:6px}
 .brs [data-lykey] .keydot{margin:0}
 .brs [data-lydel]{color:var(--danger,#f87171);border:1px solid color-mix(in srgb,var(--danger,#f87171) 45%,var(--line)) !important;border-radius:10px;justify-self:start}
-.brs .lyedit .label{font:700 12.5px var(--body);color:var(--ink);text-transform:none;letter-spacing:0;margin-top:4px}
+.brs .lyedit .label{font:600 12.5px var(--body);color:var(--ink);text-transform:none;letter-spacing:0;margin-top:4px}
 
 /* ---- Motion / Keyframes (the design's frame 7): the keyframe buttons as one row, the ready-made moves as tiles ---- */
 .brs .kfbtns{display:flex;flex-wrap:wrap;gap:6px}
@@ -1394,7 +1484,7 @@
 .brs #kfadd{background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
 .brs #kfclear{color:var(--danger,#f87171)}
 .brs .kfhead #kfpreset{display:none}
-.brs .kfml{font:700 12.5px var(--body);color:var(--ink);text-transform:none;letter-spacing:0}
+.brs .kfml{font:600 12.5px var(--body);color:var(--ink);text-transform:none;letter-spacing:0}
 .brs .kfmoves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .brs .kfmove{display:grid;gap:5px;padding:0;border:0;background:none;color:var(--muted);font:600 11px var(--body);cursor:pointer;text-align:center}
 .brs .kfmove:hover{color:var(--ink)}
@@ -1415,11 +1505,11 @@
 .brs .ask.lockpop{position:relative;display:grid;justify-items:center;gap:10px;text-align:center;padding:28px 24px 24px;width:min(100%,420px)}
 .brs .ask.lockpop .askx{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;border:0;background:var(--surface-2);color:var(--ink);cursor:pointer}
 .brs .ask.lockpop .lkcrown{font-size:40px;line-height:1;filter:drop-shadow(0 6px 14px rgba(250,204,21,.45))}
-.brs .ask.lockpop .lkt{margin:0;font:800 19px var(--display,var(--body))}
+.brs .ask.lockpop .lkt{margin:0;font:600 19px var(--display,var(--body))}
 .brs .ask.lockpop .gt{margin:0;font-size:13.5px;color:var(--muted);line-height:1.45}
 .brs .ask.lockpop .gl{justify-self:stretch;display:grid;gap:8px;margin:6px 0 4px;padding:0;list-style:none;text-align:left}
 .brs .ask.lockpop .gl li{display:flex;align-items:center;gap:10px;font-size:13.5px}
-.brs .ask.lockpop .gl li::before{content:"✓";flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:800 11px var(--body)}
+.brs .ask.lockpop .gl li::before{content:"✓";flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:600 11px var(--body)}
 .brs .ask.lockpop .askrow{justify-self:stretch;margin-top:6px}
 .brs .ask.lockpop .btn.gold{background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
 
@@ -1436,7 +1526,7 @@
 /* the shot sheet's custom speed: a slider with its marks (0.2× 0.5× 1× 2× 4×) and the number as it moves */
 .brs .ss-body .ssspd{display:grid;gap:6px;padding:12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
 .brs .ss-body .ssspdh{display:flex;justify-content:space-between;align-items:baseline;font:600 12.5px var(--body);color:var(--ink)}
-.brs .ss-body .ssspdh output{font:800 16px var(--mono);color:var(--accent)}
+.brs .ss-body .ssspdh output{font:600 16px var(--mono);color:var(--accent)}
 .brs .ss-body #ssspd{width:100%;accent-color:var(--accent);height:22px;margin:0;cursor:pointer;touch-action:none}
 .brs .ss-body .ssspdt{position:relative;height:14px;margin:0 8px}
 .brs .ss-body .ssspdt span{position:absolute;transform:translateX(-50%);font:600 10px var(--mono);color:var(--muted)}
@@ -1447,7 +1537,7 @@
 .brs.opening .openload,.brs.openfail .openload{display:grid;justify-items:center;align-content:center;gap:10px;min-height:60vh;padding:40px 20px;text-align:center}
 .brs.opening :is(.wrap,.topbar,.savebar){display:none !important}
 .brs .openspin{width:46px;height:46px;border-radius:50%;border:4px solid color-mix(in srgb,var(--accent) 22%,transparent);border-top-color:var(--accent);animation:aospin .8s linear infinite}
-.brs .openload b{font:800 19px var(--display,var(--body));color:var(--ink)}
+.brs .openload b{font:600 19px var(--display,var(--body));color:var(--ink)}
 .brs .openload small{font-size:13.5px;color:var(--muted);max-width:420px}
 .brs .openload #openback{display:none;margin-top:6px}
 .brs.openfail .openspin{display:none}
@@ -1540,7 +1630,7 @@
 .brs .fref .fsongic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#22d3ee,#0369a1);flex:none}
 .brs .fref .fsongic svg{width:22px;height:22px}
 .brs .fref .fsongt{display:grid;gap:2px;min-width:0;flex:1 1 180px}
-.brs .fref .fsongt b{font:800 15px var(--body)}
+.brs .fref .fsongt b{font:600 15px var(--body)}
 .brs .fref .fsongt small{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
 .brs .fref .frefbtns{display:flex;flex-wrap:wrap;gap:8px}
 /* Copy a Reel: its song comes with the Reel copied, so the Music card shows only after "Different song?" (.pickown) */
@@ -1557,7 +1647,7 @@
 .brs.talkmode #seqrow{display:none}
 .brs.seqon .clips{counter-reset:clipn}
 .brs.seqon .clips .clip{position:relative}
-.brs.seqon .clips .clip::before{counter-increment:clipn;content:counter(clipn);position:absolute;top:6px;left:6px;z-index:2;min-width:22px;height:22px;padding:0 6px;border-radius:11px;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font:700 12px var(--body)}
+.brs.seqon .clips .clip::before{counter-increment:clipn;content:counter(clipn);position:absolute;top:6px;left:6px;z-index:2;min-width:22px;height:22px;padding:0 6px;border-radius:11px;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);font:600 12px var(--body)}
 /* a button forward that waits (flow.ts: reading the song, the clips, making the Reel): a spinner in place of its arrow */
 .brs :is(.fnext,.fgen)[aria-busy="true"]{cursor:progress}
 .brs :is(.fnext,.fgen)[aria-busy="true"] > svg:last-child{display:none}
@@ -1568,7 +1658,7 @@
 .brs.aithink .pvbox > canvas{visibility:hidden}
 .brs.aithink .aiwait{position:absolute;inset:0;z-index:4;display:grid;place-content:center;justify-items:center;gap:10px;padding:16px;text-align:center;line-height:1.3;
   background:radial-gradient(120% 80% at 50% 40%,color-mix(in srgb,var(--accent) 22%,#000) 0%,#000 70%);color:#fff;border-radius:inherit}
-.brs .aiwait b{font:800 16px var(--body)}
+.brs .aiwait b{font:600 16px var(--body)}
 .brs .aiwait small{font-size:12.5px;opacity:.75;max-width:24ch}
 .brs .aiorb{position:relative;width:64px;height:64px;border-radius:50%;background:conic-gradient(from 0deg,var(--accent),#7c3aed,#22d3ee,var(--accent));animation:aospin 1.6s linear infinite;
   -webkit-mask:radial-gradient(circle,transparent 46%,#000 48%);mask:radial-gradient(circle,transparent 46%,#000 48%)}
@@ -1580,31 +1670,64 @@
 .brs .fmtrow:not(:has(#aspect)){display:none}
 
 /* ---- Ask Shubix: the chat about the Reel (first page and the editor) ---- */
-.brs .chatfab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:80;display:none;align-items:center;gap:8px;
-  padding:12px 16px;border-radius:999px;border:0;background:var(--ink-btn);color:var(--ink-btn-fg);font:600 14px var(--body);cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-.brs .chatfab:focus-visible{outline:2px solid var(--drop);outline-offset:3px}
+/* the button: a glowing pill (an orb on phones) */
+.brs .chatfab{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:80;display:none;align-items:center;gap:8px;
+  padding:12px 18px 12px 14px;border-radius:999px;border:0;background:var(--gold-gradient);color:#fff;font:600 14px var(--body);cursor:pointer;
+  box-shadow:0 12px 28px -10px color-mix(in srgb,var(--accent) 75%,transparent),0 0 0 1px rgba(255,255,255,.18) inset;transition:transform .15s,box-shadow .15s}
+.brs .chatfab:hover{transform:translateY(-2px)}
+.brs .chatfab svg{width:18px;height:18px}
+.brs .chatfab:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 /* where it shows: the flow's first screens (before anything is made), and the Reel's editor once it is made */
 /* on every page of the studio (the phones' editor has it in its top bar instead) */
 .brs .chatfab:not([hidden]){display:inline-flex}
 .brs.made.fpost .chatfab{bottom:calc(max(16px,env(safe-area-inset-bottom)) + 72px)}
-.brs .chatbox{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:86;width:min(380px,calc(100vw - 24px));
-  max-height:min(560px,calc(100dvh - 24px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.35);overflow:hidden}
+/* the panel: a floating card on computers, a bottom sheet on phones */
+.brs .chatbox{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:86;width:min(400px,calc(100vw - 36px));
+  height:min(620px,calc(100dvh - 36px));display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:22px;
+  box-shadow:0 30px 70px -20px rgba(30,10,70,.45),0 0 0 1px rgba(255,255,255,.04) inset;overflow:hidden;animation:chatin .22s ease-out}
+@keyframes chatin{from{opacity:0;transform:translateY(12px) scale(.98)}}
 .brs .chatbox[hidden]{display:none}
-.brs .chath{display:flex;align-items:center;justify-content:space-between;padding:10px 10px 10px 16px;border-bottom:1px solid var(--line)}
-.brs .chath b{display:inline-flex;align-items:center;gap:8px;font:600 15px var(--display)}
-.brs .chatlog{flex:1;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-height:120px}
-.brs .chatlog p{margin:0;padding:8px 12px;border-radius:14px;max-width:88%;font-size:14px;line-height:1.4;white-space:pre-wrap;overflow-wrap:anywhere}
-.brs .chatlog .me{align-self:flex-end;background:var(--ink-btn);color:var(--ink-btn-fg);border-bottom-right-radius:4px}
-.brs .chatlog .ai{align-self:flex-start;background:var(--chip);border-bottom-left-radius:4px}
+.brs .chatgrab{display:none}
+.brs .chath{display:flex;align-items:center;gap:12px;padding:14px 12px 14px 16px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 9%,transparent),transparent)}
+.brs .chatorb{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:#fff;background:var(--gold-gradient);box-shadow:0 8px 18px -8px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs .chatorb svg{width:19px;height:19px}
+.brs .chatttl{flex:1;min-width:0;display:grid;gap:1px}
+.brs .chatttl b{font:600 15.5px var(--display);letter-spacing:-.01em}
+.brs .chatttl small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brs .chatx{flex:none;width:34px;height:34px;border-radius:10px;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.brs .chatx:hover{background:var(--chip);color:var(--ink)}
+.brs .chatlog{flex:1;overflow:auto;padding:16px 16px 10px;display:flex;flex-direction:column;gap:10px;min-height:120px;overscroll-behavior:contain}
+.brs .chatlog p{margin:0;padding:9px 13px;border-radius:16px;max-width:85%;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
+.brs .chatlog .me{align-self:flex-end;background:var(--gold-gradient);color:#fff;border-bottom-right-radius:5px;box-shadow:0 8px 18px -12px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs .chatlog .ai{position:relative;align-self:flex-start;margin-left:30px;background:var(--chip);color:var(--ink);border-bottom-left-radius:5px}
+.brs .chatlog .ai::before{content:"";position:absolute;left:-30px;bottom:0;width:22px;height:22px;border-radius:8px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z'/%3E%3C/svg%3E") center/13px no-repeat,var(--gold-gradient)}
 .brs .chatlog .ai.wait::after{content:"…";animation:chatdots 1.2s steps(3) infinite}
 @keyframes chatdots{0%{opacity:.2}50%{opacity:1}100%{opacity:.2}}
-.brs .chatchips{display:flex;gap:6px;overflow-x:auto;padding:0 14px 8px;scrollbar-width:none}
-.brs .chatchips button{flex-shrink:0;font:600 12.5px var(--body);padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
-.brs .chatchips button:hover{border-color:var(--accent)}
-.brs .chatform{display:flex;gap:8px;align-items:flex-end;padding:10px 12px;border-top:1px solid var(--line)}
-.brs .chatform textarea{flex:1;resize:none;font:14px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:8px 10px;min-height:42px;max-height:120px}
-.brs .chatform textarea:focus{outline:2px solid var(--drop);outline-offset:1px}
-@media (max-width:599px){ .brs .chatbox{right:0;left:0;bottom:0;width:100%;border-radius:18px 18px 0 0;max-height:75dvh} .brs .chatfab span{display:none} .brs .chatfab{padding:14px} }
+.brs .chatideas{padding:0 16px 6px;font:600 10.5px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.brs .chatchips{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;max-height:76px;overflow:auto;scrollbar-width:none}
+.brs .chatchips button{flex-shrink:0;font:600 12.5px var(--body);padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--background);color:var(--ink);cursor:pointer;transition:border-color .15s,color .15s,background .15s}
+.brs .chatchips button:hover{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.brs .chatform{display:grid;gap:6px;padding:12px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--surface)}
+.brs .chatfield{display:flex;align-items:flex-end;gap:8px;padding:6px 6px 6px 14px;border:1px solid var(--line);border-radius:16px;background:var(--background);transition:border-color .15s,box-shadow .15s}
+.brs .chatfield:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+.brs .chatform textarea{flex:1;resize:none;border:0;outline:0;background:transparent;font:14px/1.45 var(--body);color:var(--ink);padding:7px 0;min-height:22px;max-height:120px}
+.brs .chatform textarea::placeholder{color:var(--muted)}
+.brs .chatsend{flex:none;width:36px;height:36px;border-radius:11px;border:0;display:grid;place-items:center;color:#fff;background:var(--gold-gradient);cursor:pointer;transition:transform .15s,opacity .15s}
+.brs .chatsend:hover{transform:translateY(-1px)}
+.brs .chatsend:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.brs .chathint{font-size:11px;color:var(--muted);padding-left:4px}
+@media (max-width:599px){
+  .brs .chatbox{right:0;left:0;bottom:0;width:100%;height:auto;max-height:86dvh;border-radius:22px 22px 0 0;border-bottom:0;box-shadow:0 -20px 60px -10px rgba(20,8,50,.4),0 0 0 100vmax rgba(10,6,25,.42);animation:chatup .25s ease-out}
+  @keyframes chatup{from{transform:translateY(40px);opacity:0}}
+  .brs .chatgrab{display:block;width:40px;height:4px;border-radius:4px;background:var(--line);margin:8px auto -4px}
+  .brs .chath{background:none}
+  .brs .chatlog{min-height:180px}
+  .brs .chathint{display:none}
+  .brs .chatfab{padding:14px}
+  .brs .chatfab span{display:none}
+}
+@media (prefers-reduced-motion:reduce){.brs .chatbox{animation:none}}
 .brs .chatfab.news::after{content:"";position:absolute;top:6px;right:6px;width:10px;height:10px;border-radius:50%;background:var(--drop);border:2px solid var(--bg)}
 .brs .chatfab{position:fixed}
 .brs .chatlog .rep{align-self:stretch;max-width:100%;background:var(--chip);border-radius:14px;padding:10px 12px;display:grid;gap:6px;font-size:13.5px}
@@ -1630,7 +1753,7 @@
   .brs.fpost.editing .tb-sub{display:none}
   .brs.fpost.editing .tb-undo{display:none !important}
   .brs.fpost .tb-aspect{display:inline-flex !important}
-  .brs.fpost .tb-aspect select{height:36px;padding:0 24px 0 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:700 12.5px var(--body);cursor:pointer;
+  .brs.fpost .tb-aspect select{height:36px;padding:0 24px 0 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);cursor:pointer;
     appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
     background-position:calc(100% - 13px) 15px,calc(100% - 8px) 15px;background-size:5px 5px;background-repeat:no-repeat}
   .brs.fpost.editing .tb-chat{display:grid;width:38px;height:38px;border-radius:12px;color:var(--accent)}
@@ -1662,7 +1785,7 @@
   .brs.fpost.editing .clipbar:not([hidden]){display:grid;position:fixed;left:0;right:0;bottom:0;z-index:46;gap:2px;padding:6px 0 calc(6px + env(safe-area-inset-bottom));
     background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -8px 24px -16px rgba(0,0,0,.5)}
   .brs .cbhead{display:flex;align-items:center;gap:8px;padding:0 12px}
-  .brs .cbhead b{font:700 13.5px var(--body)}
+  .brs .cbhead b{font:600 13.5px var(--body)}
   .brs .cbhead small{color:var(--muted);font:600 12px var(--mono)}
   .brs .cbx{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);display:grid;place-items:center;cursor:pointer}
   .brs .cbx svg{width:15px;height:15px}
@@ -1678,7 +1801,7 @@
   .brs.fpost.editing .ctpop:not([hidden]){display:grid;position:fixed;left:0;right:0;bottom:calc(112px + env(safe-area-inset-bottom));z-index:47;max-height:44svh;overflow-y:auto;
     padding:10px 16px 14px;gap:8px;background:var(--surface);border-top:1px solid var(--line);border-radius:18px 18px 0 0;box-shadow:0 -14px 34px -14px rgba(0,0,0,.55)}
   .brs .ctpoph{display:flex;align-items:center;justify-content:space-between}
-  .brs .ctpoph b{font:700 15px var(--display)}
+  .brs .ctpoph b{font:600 15px var(--display)}
   .brs .ctpopok{width:36px;height:36px;border-radius:50%;border:0;background:var(--ink-btn);color:var(--ink-btn-fg);display:grid;place-items:center;cursor:pointer}
   .brs .ctpop :is(.ctrow,[data-act="reset"]){display:none !important}
   .brs .ctpop .ctbody{display:grid;gap:10px}
@@ -1741,10 +1864,468 @@
 .brs .cconf[hidden]{display:none}
 .brs .cconfb{width:min(400px,100%);display:grid;gap:10px;justify-items:center;text-align:center;padding:22px 20px 18px;border-radius:20px;background:var(--surface);border:1px solid var(--line);box-shadow:0 24px 60px rgba(0,0,0,.45)}
 .brs .cconfi{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;background:var(--ink-btn);color:var(--ink-btn-fg)}
-.brs .cconfb b{font:700 18px var(--display)}
+.brs .cconfb b{font:600 18px var(--display)}
 .brs .cconfb p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
 .brs .cconfbal{font:600 13px var(--mono) !important;color:var(--ink) !important}
 .brs .cconfa{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
 .brs .cconfa .btn{min-height:44px;padding:0 18px;border-radius:12px}
 .brs .chatlog .up{align-self:flex-start;display:inline-flex;margin-top:-2px}
 .brs .chatlog .rep li.chg{border-left:3px solid var(--accent);padding-left:6px}
+@media (max-width:767px){.brs .aopick.aowide .aohead h1{display:none}}
+
+/* computers: Ask Shubix as a card in the Reel Preview column (not a pill over the preview) */
+.brs .chatcard{display:none}
+@media (min-width:1024px){
+  .brs.fopen .chatcard{display:flex;align-items:center;gap:12px;width:100%;margin-top:2px;padding:12px 14px;border-radius:16px;cursor:pointer;text-align:left;color:var(--ink);
+    border:1px solid color-mix(in srgb,var(--accent) 28%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),var(--surface));transition:border-color .15s,transform .15s,box-shadow .15s}
+  .brs.fopen .chatcard:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 12px 26px -16px color-mix(in srgb,var(--accent) 70%,transparent)}
+  .brs.fopen .chatcard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .brs .chatcardt{flex:1;min-width:0;display:grid;gap:2px}
+  .brs .chatcardt b{font:600 14.5px var(--display)}
+  .brs .chatcardt small{font-size:12px;color:var(--muted);line-height:1.35}
+  .brs .chatcardgo{flex:none;color:var(--accent);display:grid}
+  .brs .chatcardgo svg{width:18px;height:18px}
+  .brs.fopen .chatfab{display:none !important}
+}
+
+/* the Ask Shubix bar under the page title: the first thing people see, so they know they can just say what they want */
+.brs .askbar{display:none}
+.brs.fopen .askbar{position:relative;display:grid;gap:12px;margin:4px 0 2px;padding:16px 18px;border-radius:20px;isolation:isolate;
+  background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(120deg,#e879f9,#8b5cf6 45%,#22d3ee) border-box;border:1.5px solid transparent;
+  box-shadow:0 18px 40px -26px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs.fopen .askbar::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:radial-gradient(70% 120% at 0% 0%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 60%)}
+.brs .askbarhd{display:flex;align-items:center;gap:12px}
+.brs .askbar .chatorb{width:42px;height:42px;border-radius:13px;animation:askglow 2.8s ease-in-out infinite}
+@keyframes askglow{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 16%,transparent),0 8px 18px -8px color-mix(in srgb,var(--accent) 80%,transparent)}}
+.brs .askbart{display:grid;gap:2px;min-width:0}
+.brs .askbart b{font:600 16px var(--display);letter-spacing:-.01em;display:inline-flex;align-items:center;gap:8px}
+.brs .askbart b em{font:600 10px var(--body);font-style:normal;letter-spacing:.08em;color:#fff;background:var(--gold-gradient);border-radius:6px;padding:2px 6px}
+.brs .askbart small{font-size:13px;line-height:1.45;color:var(--muted)}
+.brs .askfield{align-items:center}
+.brs .askfield input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:14.5px var(--body);color:var(--ink);padding:8px 0}
+.brs .askfield input::placeholder{color:var(--muted)}
+.brs .askchips{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;font-size:12.5px;color:var(--muted)}
+.brs .askchips::-webkit-scrollbar{display:none}
+.brs .askchips button{flex-shrink:0;font:600 12.5px var(--body);padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--background);color:var(--ink);cursor:pointer;transition:border-color .15s,color .15s}
+.brs .askchips button:hover{border-color:var(--accent);color:var(--accent)}
+@media (max-width:1023px){
+  .brs.fopen .askbar{margin:12px 0 4px;padding:14px}
+  .brs .askbart small{font-size:12.5px}
+}
+@media (prefers-reduced-motion:reduce){.brs .askbar .chatorb{animation:none}}
+.brs.fopen .askbar{gap:0;padding:12px 14px}
+.brs .askbarhd{width:100%;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer;padding:0;font:inherit}
+.brs .askbarhd:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:12px}
+.brs .askbart{flex:1}
+.brs .askbar:not(.open) .askbart small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brs .askchev{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);transition:transform .25s}
+.brs .askbar.open .askchev{transform:rotate(180deg)}
+.brs .askbody{display:none}
+.brs .askbar.open .askbody{display:grid;gap:10px;margin-top:12px;animation:askopen .22s ease-out}
+@keyframes askopen{from{opacity:0;transform:translateY(-4px)}}
+/* the talk inside the bar: the messages above the box, a few at a time (scrolls) */
+.brs .askbody > .chatlog{display:none;flex:none;min-height:0;max-height:min(340px,46vh);padding:4px 2px 2px;margin:0;border:0;background:none}
+.brs .askbar.talking .askbody > .chatlog{display:flex}
+.brs .askbody > .chatlog p{font-size:14px}
+.brs .askbar.talking .askchips{display:none}
+
+/* ---- luxury scale for the Create steps (October 2026): quieter type, slimmer buttons, compact song cards ---- */
+.brs.fopen .ft h1{font-size:clamp(21px,2vw,24px);letter-spacing:-.015em}
+.brs.fopen .ft p{font-size:13px}
+.brs.fopen .sh h2{font-size:16px;letter-spacing:-.005em}
+.brs.fopen .sh small,.brs.fopen .sh p,.brs.fopen .st{font-size:12.5px}
+.brs.fopen .num{width:28px;height:28px;border-radius:9px;font-size:13px}
+.brs.fopen .step{padding:18px 20px;gap:12px}
+.brs.fopen .label{font-size:11px;letter-spacing:.1em}
+.brs.fopen .btn{min-height:38px;padding:8px 14px;font-size:13.5px;border-radius:11px}
+.brs.fopen .btn svg{width:16px;height:16px}
+.brs.fopen #mpick{min-height:40px;border-radius:11px;padding:0 16px}
+.brs.fopen .btn.big{min-height:44px;font-size:14.5px;border-radius:13px}
+.brs .fgen{min-height:46px;font-size:15px;border-radius:13px;gap:8px}
+.brs .fgen svg{width:18px;height:18px}
+.brs.fopen .rlist{grid-auto-columns:minmax(128px,148px);gap:10px}
+.brs.fopen .rsong{min-height:68px;border-radius:13px;background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 16%,var(--surface)),var(--surface-2))}
+.brs.fopen .rpick{padding:10px 11px;gap:1px}
+.brs.fopen .rn{font-size:13px}
+.brs.fopen .rd{font-size:11.5px}
+.brs.fopen .rdel{width:22px;height:22px;top:5px;right:5px}
+.brs .ftabs{max-width:340px;padding:3px;border-radius:12px}
+.brs .ftabs button{height:34px;font-size:13px;border-radius:9px}
+.brs.fopen .drop{padding:22px 16px;border-radius:16px}
+.brs.fopen .drop b{font-size:14px}
+.brs.fopen .drop svg{width:22px;height:22px}
+.brs .fready{padding:18px;gap:4px}
+.brs .fready b{font-size:14.5px}
+.brs .fready small{font-size:12.5px}
+.brs .fprevh b{font-size:14px}
+.brs .fsteps li{font-size:12px;min-width:84px}
+.brs .fsteps i{width:28px;height:28px;font-size:12px}
+.brs .fsteps li + li::before{top:13px}
+.brs.fopen .stats b{font-size:16px}
+.brs.fopen #slen button{padding:7px 13px;font-size:13px;border-radius:10px}
+@media (max-width:1023px){
+  .brs.fopen .step{padding:14px}
+  .brs.fopen .rsong{min-height:0}
+  .brs.fopen .rpick{padding:10px 40px 10px 12px}
+  .brs.fopen .fnext .btn,.brs.fopen .btn.big{min-height:44px}
+}
+/* the song: its waveform across the whole width, the Reel length and the numbers under it */
+@media (min-width:1024px){
+  .brs.fopen .fadjust{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:18px;row-gap:14px;align-items:end}
+  .brs.fopen .fadjust > :is(.fsong,.fwavebox,.hint,.fsugg,.legend){grid-column:1 / -1}
+  .brs.fopen .fadjust .fwavebox{grid-row:auto}
+  .brs.fopen .fadjust canvas.wave{height:120px}
+  .brs.fopen .fadjust .lenrow{grid-column:1}
+  .brs.fopen .fadjust .stats{grid-column:2}
+}
+/* "Suggested Part": a small note, not a card */
+.brs.fopen .fsugg{align-items:center;gap:8px;padding:7px 12px;border-radius:11px;background:color-mix(in srgb,var(--accent) 7%,transparent);border-color:color-mix(in srgb,var(--accent) 22%,transparent)}
+.brs.fopen .fsugg > svg{width:15px;height:15px;color:var(--accent)}
+.brs.fopen .fsugg span{display:block;font-size:12px;line-height:1.4;color:var(--muted)}
+.brs.fopen .fsugg b{font-size:12px;color:var(--ink);margin-right:4px}
+.brs.fopen .fsugg b::after{content:" ·"}
+.brs.fopen .fsugg small{font-size:12px}
+/* the length choices on their own row, the numbers as a compact row under them (every width) */
+.brs.fopen .fadjust .lenrow,.brs.fopen .fadjust .stats{grid-column:1 / -1}
+.brs.fopen .lenrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px}
+.brs.fopen .lenrow .label{flex-basis:100%}
+.brs.fopen #slen{display:flex;flex-wrap:wrap;gap:6px}
+.brs.fopen .fadjust .stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.brs.fopen .fadjust .stats span{flex-direction:row;display:flex;align-items:baseline;justify-content:center;gap:5px;padding:8px 6px;border-radius:10px;font-size:11.5px}
+.brs.fopen .fadjust .stats b{order:-1;font-size:15px}
+.brs.fopen .fadjust .stats span:first-child{display:none}
+@media (max-width:1023px){ .brs.fopen .fadjust{display:grid;gap:12px} .brs.fopen .fadjust .stats span{padding:7px 4px} .brs.fopen .fadjust .stats b{font-size:14px} }
+.brs.fopen .fsongic{width:42px;height:42px;border-radius:12px}
+.brs.fopen .fsongic svg{width:20px;height:20px}
+.brs.fopen .fsongt b{font-size:14.5px}
+.brs.fopen .fsongt small{font-size:12px}
+/* 3 Shubix Edit (computers): four small step cards, each with a status dot, then a slim status line */
+.brs.fopen .fai .faibody{display:grid;grid-template-columns:1fr;gap:12px}
+.brs.fopen .fai .faiList{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.brs.fopen .fai .faiList li{position:relative;display:grid;align-content:start;gap:10px;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--surface-2);font:500 12.5px/1.35 var(--body);color:var(--muted);transition:border-color .2s,background .2s,color .2s}
+.brs.fopen .fai .faiList li svg{width:32px;height:32px;padding:7px;border-radius:10px;border:0;background:var(--surface);color:var(--accent);animation:none;box-shadow:0 0 0 1px var(--line) inset}
+.brs.fopen .fai .faidot{position:absolute;top:12px;right:12px;width:9px;height:9px;border-radius:50%;background:var(--line)}
+.brs.fopen .fai .faiList li.now{color:var(--ink);border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.brs.fopen .fai .faiList li.now .faidot{background:var(--accent);animation:faipulse 1.2s ease-in-out infinite}
+.brs.fopen .fai .faiList li.ok{color:var(--ink)}
+.brs.fopen .fai .faiList li.ok svg{background:var(--gold-gradient);color:#fff;box-shadow:none}
+.brs.fopen .fai .faiList li.ok .faidot{width:16px;height:16px;top:10px;right:10px;background:var(--success,#16a34a) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/10px no-repeat}
+@keyframes faipulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}}
+.brs.fopen .fai .fready{display:flex;align-items:center;justify-items:start;gap:12px;padding:12px 14px;border-radius:14px;text-align:left;
+  border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface))}
+.brs.fopen .fai .freadyic{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:#fff;background:var(--gold-gradient)}
+.brs.fopen .fai .freadyic svg{width:18px;height:18px;color:#fff}
+.brs.fopen .fai .freadytx{display:grid;gap:1px;min-width:0}
+.brs.fopen .fai .fready b{font:600 14px var(--display)}
+.brs.fopen .fai .fready small{font-size:12.5px;color:var(--muted)}
+@media (max-width:1279px){ .brs.fopen .fai .faiList{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (prefers-reduced-motion:reduce){ .brs.fopen .fai .faiList li.now .faidot{animation:none} }
+.brs .faidot{display:none}
+.brs.fopen .fai .faidot{display:block}
+/* recent songs (computers): a music tile, the name and length; a quiet ✕ on hover; the chosen one ringed with a small check */
+@media (min-width:1024px){
+  .brs.fopen .rsong{min-height:0;border:1px solid var(--line);border-radius:14px;background:var(--surface-2);transition:border-color .15s,box-shadow .15s,background .15s}
+  .brs.fopen .rsong:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+  .brs.fopen .rpick{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:10px;align-items:center;padding:10px 12px}
+  .brs.fopen .rpick::before{content:"♪";grid-row:1 / 3;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font:600 14px var(--body);background:var(--gold-gradient)}
+  .brs.fopen .rn{grid-column:2;font:600 13px var(--body);-webkit-line-clamp:1;padding-right:14px}
+  .brs.fopen .rd{grid-column:2;font:500 11.5px var(--body);color:var(--muted)}
+  .brs.fopen .rdel{display:grid;place-items:center;top:6px;right:6px;width:22px;height:22px;border-radius:50%;padding:0;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+    opacity:0;transform:scale(.9);transition:opacity .15s,transform .15s,color .15s,border-color .15s}
+  .brs.fopen .rsong:is(:hover,:focus-within) .rdel{opacity:1;transform:none}
+  .brs.fopen .rdel:hover{color:var(--danger,#e11d48);border-color:color-mix(in srgb,var(--danger,#e11d48) 50%,var(--line))}
+  .brs.fopen .rsong.cur{border:1.5px solid var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--surface));box-shadow:0 8px 20px -14px color-mix(in srgb,var(--accent) 80%,transparent)}
+  .brs.fopen .rsong.cur::after{top:auto;bottom:-6px;right:-6px;left:auto;transform:none;width:20px;height:20px;border:2px solid var(--background);
+    background:var(--gold-gradient);box-shadow:0 4px 10px -4px color-mix(in srgb,var(--accent) 80%,transparent)}
+  .brs.fopen .rsong.cur::before{content:"";position:absolute;bottom:-6px;right:-6px;z-index:1;width:20px;height:20px;border-radius:50%;pointer-events:none;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/11px no-repeat}
+  .brs.fopen .rlist{padding:4px 8px 8px 2px}
+  .brs.fopen .rsong{overflow:visible}
+}
+@media (hover:none){ .brs.fopen .rdel{opacity:1 !important;transform:none !important} }
+@media (min-width:1024px){ .brs.fopen .rlist{grid-auto-columns:minmax(180px,220px)} .brs.fopen .rd:empty{display:none} .brs.fopen .rpick{grid-template-rows:auto} }
+/* under Generate: what Shubix does and that it stays private, as two quiet rows */
+.brs .fperks{list-style:none;margin:0;padding:4px 12px;display:grid;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}
+.brs .fperks li{display:flex;align-items:center;gap:10px;padding:9px 0}
+.brs .fperks li + li{border-top:1px solid var(--line)}
+.brs .fperkic{flex:none;width:28px;height:28px;border-radius:9px;display:grid;place-items:center;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.brs .fperkic svg{width:15px;height:15px}
+.brs .fperks li > span:last-child{display:grid;gap:1px;min-width:0}
+.brs .fperks b{font:600 12.5px var(--body);color:var(--ink)}
+.brs .fperks small{font-size:11.5px;line-height:1.35;color:var(--muted)}
+/* the Reel Preview takes the chosen format (9:16, 4:5, 1:1, 16:9), before and after the Reel is made */
+.brs[data-asp="4:5"] .fprevbox{aspect-ratio:4/5}
+.brs[data-asp="1:1"] .fprevbox{aspect-ratio:1/1}
+.brs[data-asp="16:9"] .fprevbox{aspect-ratio:16/9}
+@media (min-width:1024px){
+  .brs.fopen:is([data-asp="4:5"],[data-asp="1:1"],[data-asp="16:9"]) .fprevbox{width:100%;height:auto;max-height:clamp(260px,calc(100vh - 320px),680px)}
+  .brs.fopen[data-asp="4:5"] .fprevbox{width:min(100%,calc(clamp(260px,calc(100vh - 320px),680px) * .8))}
+}
+@media (min-width:1024px){
+  .brs.fopen .fprevbox{--pvh:clamp(260px,calc(100vh - 320px),680px)}
+  .brs.fopen[data-asp="1:1"] .fprevbox{width:min(100%,var(--pvh))}
+  .brs.fopen[data-asp="16:9"] .fprevbox{width:min(100%,calc(var(--pvh) * 16 / 9))}
+}
+
+/* the editor's format menu (9:16 ▾): a button and a small list with each shape drawn */
+.brs .tb-aspect{position:relative}
+.brs .tbaspbtn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px 0 12px;border-radius:11px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 13px var(--body);cursor:pointer;font-variant-numeric:tabular-nums}
+.brs .tbaspbtn:hover,.brs .tbaspbtn[aria-expanded=true]{border-color:var(--accent)}
+.brs .tbaspbtn svg{color:var(--muted);transition:transform .2s}
+.brs .tbaspbtn[aria-expanded=true] svg{transform:rotate(180deg)}
+.brs .tbaspmenu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:220px;display:grid;gap:2px;padding:6px;border-radius:14px;border:1px solid var(--line);background:var(--surface);box-shadow:0 18px 40px -18px rgba(20,8,50,.45);animation:aspin .15s ease-out}
+.brs .tbaspmenu[hidden]{display:none}
+@keyframes aspin{from{opacity:0;transform:translateY(-4px)}}
+.brs .tbaspmenu button{display:flex;align-items:center;gap:12px;padding:8px 10px;border:0;border-radius:10px;background:transparent;color:var(--ink);cursor:pointer;text-align:left}
+.brs .tbaspmenu button:hover,.brs .tbaspmenu button:focus-visible{background:var(--surface-2);outline:0}
+.brs .tbaspmenu button[aria-selected=true]{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.brs .tbaspmenu button[aria-selected=true] b{color:var(--accent)}
+.brs .tbaspmenu i{flex:none;width:26px;height:26px;display:grid;place-items:center}
+.brs .tbaspmenu i::before{content:"";display:block;border:1.6px solid currentColor;border-radius:3px;color:var(--muted)}
+.brs .tbaspmenu button[aria-selected=true] i::before{color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.brs .tbaspmenu .r916::before{width:12px;height:21px}
+.brs .tbaspmenu .r45::before{width:16px;height:20px}
+.brs .tbaspmenu .r11::before{width:18px;height:18px}
+.brs .tbaspmenu .r169::before{width:22px;height:13px}
+.brs .tbaspmenu span{display:grid;gap:1px}
+.brs .tbaspmenu b{font:600 13px var(--body)}
+.brs .tbaspmenu small{font-size:11.5px;color:var(--muted)}
+@media (max-width:1023px){ .brs .tbaspmenu{left:auto;right:-60px;min-width:210px} }
+/* the Reel's name in the editor's top bar: a quiet title, cut with … when long */
+.brs .tb-name{font-size:18px;letter-spacing:-.01em;max-width:min(420px,100%)}
+.brs .tb-sub{font-size:11.5px}
+@media (max-width:1023px){ .brs .tb-name,.brs.fpost .tb-name,.brs.fpost.editing .tb-name{font-size:14.5px} }
+
+/* the editor on a computer, laid out like the phone: the Reel first and large, the play bar, the timeline, the tools at the
+   bottom; a tool's panel opens beside the Reel (✕ or the tool again closes it) */
+.brs .pclose{display:none}
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .create{grid-template-columns:minmax(340px,380px) minmax(0,1fr)}
+  .brs.made.v-one:not(.fopen):is([data-tool=""],:not([data-tool])) .create{grid-template-columns:0 minmax(0,1fr)}
+  .brs.made.v-one:not(.fopen):is([data-tool=""],:not([data-tool])) .panels{display:none !important}
+  .brs.made.v-one:not(.fopen) .panels{position:relative}
+  .brs.made.v-one:not(.fopen) .pclose{display:grid;place-items:center;position:absolute;top:10px;right:10px;z-index:5;width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
+  .brs.made.v-one:not(.fopen) .pclose:hover{color:var(--ink);border-color:var(--accent)}
+  .brs.made.v-one:not(.fopen) .ptabs{padding-right:44px}
+  /* the play bar as on the phone: the times on the left, play in the middle, the rest on the right */
+  .brs.made.v-one:not(.fopen) .transport{justify-content:flex-start}
+  /* the tools at the bottom: icon over name, like the phone's tool bar */
+  .brs.made.v-one:not(.fopen) .dock{gap:4px;padding:8px 12px;background:var(--surface)}
+  .brs.made.v-one:not(.fopen) .dock .tool{flex:0 0 76px;height:58px;gap:4px;border:0;background:transparent;color:var(--muted);font:500 12px var(--body)}
+  .brs.made.v-one:not(.fopen) .dock .tool svg{width:22px;height:22px}
+  .brs.made.v-one:not(.fopen) .dock .tool:hover{color:var(--ink);background:var(--surface-2)}
+  .brs.made.v-one:not(.fopen) .dock .tool[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:none}
+}
+
+/* computers: the selected clip's toolbar (as on the phone) floats at the bottom in place of the tools; a tool's controls above it */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen).clipsel .dock{visibility:hidden}
+  .brs.made.v-one:not(.fopen) .clipbar:not([hidden]){display:grid;position:fixed;bottom:16px;left:calc(240px + (100vw - 240px) / 2);transform:translateX(-50%);z-index:46;
+    width:min(980px,calc(100vw - 300px));gap:4px;padding:8px 0 8px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 22px 50px -22px rgba(20,8,50,.55)}
+  .brs.made.v-one:not(.fopen) .cbhead{display:flex;align-items:center;gap:8px;padding:0 12px}
+  .brs.made.v-one:not(.fopen) .cbhead b{font:600 13.5px var(--body)}
+  .brs.made.v-one:not(.fopen) .cbhead small{color:var(--muted);font:600 12px var(--mono)}
+  .brs.made.v-one:not(.fopen) .cbx{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+  .brs.made.v-one:not(.fopen) .cbx svg{width:15px;height:15px}
+  .brs.made.v-one:not(.fopen) .cbrow{display:flex;justify-content:center;flex-wrap:wrap;gap:2px;padding:0 8px}
+  .brs.made.v-one:not(.fopen) .cb{flex:0 0 72px;height:58px;display:grid;justify-items:center;align-content:center;gap:4px;border:0;border-radius:12px;background:transparent;color:var(--ink);font:500 11.5px var(--body);cursor:pointer;padding:4px 2px}
+  .brs.made.v-one:not(.fopen) .cb:hover{background:var(--surface-2)}
+  .brs.made.v-one:not(.fopen) .cb span{max-width:68px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brs.made.v-one:not(.fopen) .cb svg{width:21px;height:21px}
+  .brs.made.v-one:not(.fopen) .cb.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+  .brs.made.v-one:not(.fopen) .cb:disabled{opacity:.35;cursor:default}
+  .brs.made.v-one:not(.fopen) .cb[data-cb="delete"]{color:#ff6a7a}
+  .brs.made.v-one:not(.fopen) .ctpop:not([hidden]){display:grid;position:fixed;bottom:150px;left:calc(240px + (100vw - 240px) / 2);transform:translateX(-50%);z-index:47;
+    width:min(460px,calc(100vw - 300px));max-height:50vh;overflow-y:auto;padding:12px 16px 16px;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 26px 60px -24px rgba(20,8,50,.6)}
+  .brs.made.v-one:not(.fopen) .ctpoph{display:flex;align-items:center;justify-content:space-between}
+  .brs.made.v-one:not(.fopen) .ctpoph b{font:600 15px var(--display)}
+  .brs.made.v-one:not(.fopen) .ctpopok{width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:#fff;display:grid;place-items:center;cursor:pointer}
+  .brs.made.v-one:not(.fopen) .ctpop :is(.ctrow,[data-act="reset"]){display:none !important}
+  .brs.made.v-one:not(.fopen) .ctpop .ctbody{display:grid;gap:10px}
+}
+/* computers: the clip's tools in one bar at the bottom, as on the phone: "✕ Shot 13" then every tool in a row that scrolls */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .clipbar:not([hidden]){grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:4px;padding:6px 6px 6px 4px;bottom:12px;border-radius:16px}
+  .brs.made.v-one:not(.fopen) .cbhead{padding:0 10px 0 8px;border-right:1px solid var(--line);flex-direction:column;align-items:flex-start;gap:4px}
+  .brs.made.v-one:not(.fopen) .cbhead{display:grid;grid-template-columns:auto auto;grid-template-rows:auto auto;column-gap:8px;row-gap:0;align-items:center}
+  .brs.made.v-one:not(.fopen) .cbx{grid-row:1 / 3}
+  .brs.made.v-one:not(.fopen) .cbrow{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;scroll-snap-type:x proximity;padding:0 4px 2px;
+    -webkit-mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,transparent,#000 12px,#000 calc(100% - 24px),transparent)}
+  .brs.made.v-one:not(.fopen) .cb{flex:0 0 70px;scroll-snap-align:start}
+  .brs.made.v-one:not(.fopen) .ctpop:not([hidden]){bottom:104px}
+}
+/* computers, as on the phone: the tools in a bar pinned at the bottom; whatever opens (a tool, a clip's picker, its controls)
+   opens right above that bar, the same width; the Reel and the timeline keep the page */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .create,.brs.made.v-one:not(.fopen)[data-tool] .create{grid-template-columns:0 minmax(0,1fr)}
+  .brs.made.v-one:not(.fopen) .create{margin-bottom:96px}
+  .brs.made.v-one:not(.fopen) .dock{position:fixed;bottom:12px;left:calc(240px + (100vw - 240px) / 2);transform:translateX(-50%);z-index:45;width:min(980px,calc(100vw - 300px));
+    justify-content:center;border:1px solid var(--line);border-radius:16px;box-shadow:0 22px 50px -22px rgba(20,8,50,.55)}
+  .brs.made.v-one:not(.fopen)[data-tool]:not([data-tool=""]) .panels{display:block !important;position:fixed;bottom:100px;left:calc(240px + (100vw - 240px) / 2);transform:translateX(-50%);z-index:44;
+    width:min(980px,calc(100vw - 300px));max-height:min(46vh,440px);overflow-y:auto;padding:14px 16px 16px;background:var(--surface);border:1px solid var(--line);border-radius:18px;
+    box-shadow:0 26px 60px -24px rgba(20,8,50,.6);grid-column:auto;grid-row:auto;animation:sheetup .18s ease-out}
+  @keyframes sheetup{from{opacity:0;transform:translate(-50%,8px)}}
+  .brs.made.v-one:not(.fopen) .ctpop:not([hidden]){bottom:100px;width:min(980px,calc(100vw - 300px));max-height:min(46vh,440px)}
+  .brs.made.v-one:not(.fopen) .shotsheet.atbottom{border-radius:18px;border:1px solid var(--line);box-shadow:0 26px 60px -24px rgba(20,8,50,.6)}
+  .brs.made.v-one:not(.fopen) .shotsheet.atbottom::after{display:none}
+}
+
+/* computers: the bottom never changes: the tools (row 1, at the very bottom) and the clip's tools (row 2, above them) are always
+   there; whatever opens sits right above both */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen).clipsel .dock{visibility:visible}
+  .brs.made.v-one:not(.fopen) .clipbar:not([hidden]){bottom:96px}
+  .brs.made.v-one:not(.fopen)[data-tool]:not([data-tool=""]) .panels,.brs.made.v-one:not(.fopen) .ctpop:not([hidden]){bottom:184px;max-height:min(40vh,420px)}
+  .brs.made.v-one:not(.fopen) .create{margin-bottom:180px}
+}
+
+/* computers: the tools and the clip's tools merged into one bar at the bottom (one row, scrolls sideways) */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .clipbar:not([hidden]){display:flex;align-items:center;gap:0;bottom:12px;padding:6px 8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;
+    grid-template-columns:none}
+  .brs.made.v-one:not(.fopen) .clipbar .dock{position:static;transform:none;width:auto;flex:none;display:flex;gap:2px;padding:0;margin:0;border:0;border-radius:0;box-shadow:none;background:none;overflow:visible;z-index:auto}
+  .brs.made.v-one:not(.fopen) .clipbar .dock .tool{flex:0 0 70px;height:58px}
+  .brs.made.v-one:not(.fopen) .cbin{display:flex;align-items:center;flex:none;margin-left:6px;padding-left:10px;border-left:1px solid var(--line)}
+  .brs.made.v-one:not(.fopen) .cbin .cbhead{flex:none;border-right:0;padding:0 8px 0 0}
+  .brs.made.v-one:not(.fopen) .cbin .cbrow{flex:none;overflow:visible;-webkit-mask-image:none;mask-image:none;padding:0}
+  .brs.made.v-one:not(.fopen) .cbin .cbrow .cb{flex:0 0 70px}
+  .brs.made.v-one:not(.fopen)[data-tool]:not([data-tool=""]) .panels,.brs.made.v-one:not(.fopen) .ctpop:not([hidden]){bottom:100px}
+  .brs.made.v-one:not(.fopen) .create{margin-bottom:96px}
+}
+/* the tool's panel at the bottom: its own height (the side column's size containment made it collapse) */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen)[data-tool]:not([data-tool=""]) .panels{display:grid !important;align-content:start;gap:14px;contain:none;height:auto;min-height:120px;border-right:1px solid var(--line)}
+}
+/* computers: the library's buttons (Media, Music, Text, Stickers, Effects, Transitions, Filters) lead the bottom bar */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .clipbar .ptabs{position:static;display:flex !important;flex:none;gap:2px;margin:0 6px 0 0;padding:0 6px 0 0;border:0;border-right:1px solid var(--line);background:none;order:0;grid-template-columns:none;box-shadow:none}
+  .brs.made.v-one:not(.fopen) .clipbar .ptabs button{flex:0 0 70px;height:58px;display:grid;justify-items:center;align-content:center;gap:4px;padding:4px 2px;border-radius:12px;font:500 11.5px var(--body);color:var(--muted);box-shadow:none}
+  .brs.made.v-one:not(.fopen) .clipbar .ptabs button svg{width:22px;height:22px}
+  .brs.made.v-one:not(.fopen) .clipbar .ptabs button:hover{color:var(--ink);background:var(--surface-2)}
+  .brs.made.v-one:not(.fopen) .clipbar .ptabs button[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:none}
+  .brs.made.v-one:not(.fopen) .clipbar .dock{order:1}
+  .brs.made.v-one:not(.fopen) .clipbar .cbin{order:2}
+  .brs.made.v-one:not(.fopen)[data-tool]:not([data-tool=""]) .panels{padding-bottom:16px}
+}
+/* computers: one button per thing in the bottom bar: the library's Effects / Transitions (= the clip's Effect / Transition),
+   Music / Text (= the tools) and the tools' Look (= Filters) are not repeated */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .clipbar .ptabs button:is([data-pt="effects"],[data-pt="transitions"],[data-pt="music"],[data-pt="text"]){display:none}
+  .brs.made.v-one:not(.fopen) .clipbar .dock .tool[data-tool="look"]{display:none}
+}
+
+/* a clip pop-up's ✕ (cancel: back as it was) and ✓ (apply); the ✕ in the clip-tool pop-up and ✓ in the picker are for computers */
+.brs .ss-ok,.brs .ctpopx{display:none}
+.brs .ctpopbtns{display:flex;align-items:center;gap:8px}
+@media (min-width:1024px){
+  .brs .ss-head{display:flex !important;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px 0}
+  .brs .ss-ok{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:#fff;cursor:pointer;order:2}
+  .brs .ss-ok svg{width:16px;height:16px}
+  .brs .ss-x{order:1}
+  .brs .ctpopx{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
+  .brs .ctpopx svg{width:15px;height:15px}
+}
+/* computers: no zoom buttons (− 1× +) or "whole Reel" square on the timeline (Ctrl + wheel still zooms) */
+@media (min-width:1024px){ .brs.made.v-one:not(.fopen) .tlzs{display:none !important} }
+/* Export (computers): a calm two-column dialog: the Reel on the left, compact choices on the right */
+@media (min-width:1024px){
+  .brs .xsheet .xsh{width:min(760px,calc(100vw - 48px));max-height:calc(100vh - 48px);overflow-y:auto;padding:22px 24px;gap:10px;border-radius:22px;
+    box-shadow:0 40px 90px -30px rgba(10,4,30,.7)}
+  .brs .xsheet .xsh:has(.xprev[src]){grid-template-columns:240px minmax(0,1fr);column-gap:26px;width:min(760px,calc(100vw - 48px))}
+  .brs .xsheet .xsh .xprev[src]{width:240px;border-radius:18px;grid-row:1 / span 14;align-self:start;position:sticky;top:0;
+    background:#000;box-shadow:0 24px 50px -24px rgba(0,0,0,.75),0 0 0 6px color-mix(in srgb,var(--accent) 10%,transparent)}
+  .brs .xsheet .xsh-h h2{font:600 19px var(--display);letter-spacing:-.01em}
+  .brs .xsheet .xsh-h .ibtn{width:34px;height:34px;border-radius:10px}
+  .brs .xsheet .xsh-l{margin:8px 0 0;font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .brs .xsheet .xsh .seg{gap:8px}
+  .brs .xsheet .xsh .seg button{min-height:54px;border-radius:12px;font:600 14px var(--body);gap:1px;padding:6px 8px}
+  .brs .xsheet .xsh .seg button::after{font-size:11px}
+  .brs .xsheet .xsh-size{justify-self:start;margin:2px 0 0;padding:4px 10px;border-radius:999px;background:var(--surface-2);font:600 12px var(--body);color:var(--muted)}
+  .brs .xsheet .xsh-size:empty{display:none}
+  .brs .xsheet .xtog{min-height:46px;padding:4px 12px;margin:0;font:600 13.5px var(--body);border:1px solid var(--line);border-radius:0;background:var(--surface)}
+  .brs .xsheet .xtog + .xtog{border-top:0}
+  .brs .xsheet .xsh-size + .xtog,.brs .xsheet .xtog:first-of-type{border-radius:14px 14px 0 0;margin-top:8px}
+  .brs .xsheet .xtog:has(+ .btn){border-radius:0 0 14px 14px}
+  .brs .xsheet .xtt small{display:block;font:500 11.5px var(--body);color:var(--muted);margin-top:1px}
+  .brs .xsheet .xti{width:24px}
+  .brs .xsheet .xti svg{width:19px;height:19px}
+  .brs .xsheet .xtog i{width:42px;height:26px}
+  .brs .xsheet .xtog i::after{width:18px;height:18px}
+  .brs .xsheet .xtog input:checked + i::after{transform:translateX(16px)}
+  .brs .xsheet .xsh .btn.big{min-height:46px;font-size:14.5px;border-radius:13px}
+  .brs .xsheet .xsh #xgo{margin-top:10px}
+}
+/* the editor (computers): no empty space under the timeline (the bar at the bottom is fixed, only its height is kept free) */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .create{margin-bottom:84px}
+  .brs.made.v-one:not(.fopen) .lanesbox{margin-bottom:4px}
+  .brs.made.v-one:not(.fopen) .tlbar{padding-top:6px;padding-bottom:2px}
+  .brs.made.v-one:not(.fopen) .savebar{display:none !important}
+}
+
+/* computers: the bar is the editor's last row (right under the timeline, nothing covered, no gap); a tool's panel and the
+   clip tools' pop-up open inside the editor, right above it */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .create{position:relative;margin-bottom:0}
+  .brs.made.v-one:not(.fopen) .create > .clipbar:not([hidden]){position:static;transform:none;left:auto;bottom:auto;width:auto;grid-column:1 / -1;grid-row:7;
+    margin:0 16px 12px;box-shadow:none;border-radius:16px;z-index:auto}
+  .brs.made.v-one:not(.fopen)[data-tool]:not([data-tool=""]) .panels,.brs.made.v-one:not(.fopen) .create > .ctpop:not([hidden]){position:absolute;left:16px;right:16px;bottom:104px;
+    transform:none;width:auto;animation:none}
+}
+/* the editor's note under the play bar (e.g. "6 shots repeat…"): a slim amber line with its icon and, for the repeat note, "Add clips →" */
+.brs.made.v-one #xmsg:not([hidden]){display:flex;align-items:center;gap:10px;justify-self:center;width:fit-content;max-width:min(680px,100%);padding:7px 8px 7px 8px;border-radius:12px;
+  font:500 12.5px/1.35 var(--body);color:var(--ink);background:color-mix(in srgb,#f59e0b 9%,var(--surface));border:1px solid color-mix(in srgb,#f59e0b 32%,var(--line))}
+.brs.made.v-one #xmsg:not([hidden])::before{content:"";flex:none;width:26px;height:26px;margin:0;border-radius:8px;vertical-align:0;
+  background:color-mix(in srgb,#f59e0b 18%,transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d97706' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 2l4 4-4 4'/%3E%3Cpath d='M3 11v-1a4 4 0 0 1 4-4h14'/%3E%3Cpath d='M7 22l-4-4 4-4'/%3E%3Cpath d='M21 13v1a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E") center/15px no-repeat}
+.brs.made.v-one #xmsg.addclips:not([hidden]){cursor:pointer}
+.brs.made.v-one #xmsg.addclips:not([hidden])::after{content:"Add clips →";flex:none;padding:5px 10px;border-radius:9px;background:var(--gold-gradient);color:#fff;font:600 12px var(--body)}
+.brs.made.v-one #xmsg.addclips:not([hidden]):hover{border-color:color-mix(in srgb,#f59e0b 55%,var(--line))}
+.brs.made.v-one #xmsg:not(.addclips):not(.err):not([hidden]){background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 28%,var(--line))}
+.brs.made.v-one #xmsg:not(.addclips):not(.err):not([hidden])::before{background:color-mix(in srgb,var(--accent) 16%,transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239b5cff' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E") center/15px no-repeat}
+/* computers: the video keeps its size with the bar inside the editor: the note sits in the timeline's head (beside
+   "Done editing"), not on a row of its own, and the editor is taller by the rest of the bar */
+@media (min-width:1024px){
+  .brs.made.v-one:not(.fopen) .create{height:max(calc(100vh - 85px),705px)}
+  .brs.made.v-one:not(.fopen) :is(.stage .msg,#xmsg){grid-column:2;grid-row:5;justify-self:end;align-self:center;margin:0 16px 0 0;z-index:2}
+  .brs.made.v-one:not(.fopen) .tlbar{min-height:44px}
+}
+/* phones: under the timeline only the room of the bar that is showing (the tools, or a selected clip's two-row toolbar) */
+@media (max-width:1023px){
+  .brs.fpost.editing .wrap{padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+  .brs.fpost.editing.clipsel .wrap{padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+}
+/* phones: the tools' box takes no room under the timeline (its tool bar and sheets float at the bottom of the screen) */
+@media (max-width:1023px){ .brs.fpost.editing .tools{display:contents} }
+/* phones: no empty panel box under the timeline when no tool is open (a tool's panel opens as the sheet, as before) */
+@media (max-width:1023px){ .brs.fpost.editing:is([data-tool=""],:not([data-tool])) .panels{display:none !important} }
+@media (max-width:1023px){
+  .brs.fpost.editing .wrap{padding-bottom:calc(32px + env(safe-area-inset-bottom))}
+  .brs.fpost.editing.clipsel .wrap{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+}
+
+/* the AI / credits dialog: a ✕ in its corner; the Free upsell with its points and a bold Upgrade */
+.brs .cconfb{position:relative}
+.brs .cconfx{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+.brs .cconfx:hover{background:var(--surface-2);color:var(--ink)}
+.brs .cconfx svg{width:16px;height:16px}
+.brs .cconfl{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:7px;text-align:left;width:100%}
+.brs .cconfl[hidden]{display:none}
+.brs .cconfl li{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.4;color:var(--ink)}
+.brs .cconfl li::before{content:"";flex:none;width:18px;height:18px;margin-top:1px;border-radius:50%;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/11px no-repeat,var(--gold-gradient)}
+.brs .cconf.upsell .cconfi{width:56px;height:56px;background:var(--gold-gradient);color:#fff;box-shadow:0 12px 28px -10px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs .cconf.upsell .cconfa{flex-direction:column-reverse;width:100%;align-items:stretch}
+.brs .cconf.upsell #cconfok{min-height:48px;font-size:15px;background:var(--gold-gradient);color:#fff;border:0}
+.brs .cconf.upsell #cconfno{min-height:36px;border:0;background:transparent;color:var(--muted);font-weight:500;font-size:13px}
+.brs .cconf.upsell #cconfno:hover{color:var(--ink)}
+.brs .cconfa .btn[hidden]{display:none}
+
+.brs .cconfbal{font:600 12.5px var(--body) !important;color:var(--muted) !important;background:var(--surface-2);padding:5px 10px;border-radius:999px}
+.brs .cconfbal:empty{display:none}
+.brs .cconf .btn:focus-visible,.brs .cconf .btn:focus{outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
+.brs .cconfl{width:auto;justify-self:center}
+/* a pop-up open (the AI / credits question, Export): the page behind it does not scroll */
+html:has(.brs .cconf:not([hidden])),html:has(.brs .xsheet:not([hidden])){overflow:hidden}
+html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) body{overflow:hidden;overscroll-behavior:none}
+.brs .cconf,.brs .xsheet{overscroll-behavior:contain;touch-action:none}
+.brs .cconfb,.brs .xsh{touch-action:auto}
