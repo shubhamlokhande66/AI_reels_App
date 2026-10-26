@@ -23,9 +23,13 @@ function visitorId(): string {
   }
 }
 
+const last = { path: "", at: 0 };
 export function usePresence(pathname: string) {
   useEffect(() => {
     const beat = () => {
+      // the same page counted once (React may start the page twice; a tab coming back right away is not a new visit)
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now(); if (last.path === pathname && now - last.at < 3000) return; last.path = pathname; last.at = now;
       // app: opened from the home screen (an iPhone's Safari then knows the app is installed: InstallBanner)
       if (document.visibilityState === "visible") api.ping(visitorId(), pathname, isStandalone()).catch(() => {}); // never in anyone's way
     };

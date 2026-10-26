@@ -197,6 +197,14 @@ export function initFlow(root: HTMLElement): () => void {
     }
     setData(root, "fstep", step);
     setData(root, "fkind", kind);
+    // the step in the address (/create/music?step=clips): each screen of the flow has its own; a made Reel moves to /create/edit?p=…
+    if (location.pathname !== "/create/edit") {
+      const u = new URL(location.href), want = step === "intro" ? "" : step;
+      if ((u.searchParams.get("step") ?? "") !== want) {
+        if (want) u.searchParams.set("step", want); else u.searchParams.delete("step");
+        history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+      }
+    }
     setClass(root, "flive", true); // the kind's own words are in: the flow can be seen
     // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
     const adj = phone() && step === "adjust", copy = kind === "copy";
@@ -308,8 +316,17 @@ export function initFlow(root: HTMLElement): () => void {
     if (fd) { done10(fd.dataset.fd!); return; }
     if (t.closest("#fskip")) { go(order()[1]); return; }
     if (t.closest("#fgen")) {
-      if (made()) { revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); } // the editor from its top: the breadcrumb, the Reel's name and Export
-      else if (phone()) go("analyse");
+      // Free: first, once per Reel, why Shubix AI is worth it (Upgrade, Create basic Reel, or ✕ to stay here)
+      const st = (root as unknown as { __studio?: { upsell?: () => Promise<string>; projId?: () => string } }).__studio;
+      void (async () => {
+        const r = st?.upsell ? await st.upsell() : "skip";
+        if (r === "upgrade" || r === "close") return;
+        if (made()) {
+          revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
+          const id = st?.projId?.(); if (id) history.replaceState(history.state, "", "/create/edit?p=" + id); // the made Reel's own address
+        }
+        else if (phone()) go("analyse");
+      })();
       return;
     }
     const ft = t.closest<HTMLButtonElement>("#ftabs button");

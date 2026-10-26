@@ -1,4 +1,6 @@
 import "server-only";
+import { ensureUsername, noteReferral, rewardFor } from "@/server/marketing";
+import { grantCredits } from "@/server/credits";
 import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { AuthRequired, clearCookie, currentUser, forgetSessionCache, hashPassword, sessionCookie, verifyPassword } from "@/server/core/auth";
@@ -16,7 +18,7 @@ type Doc = Record<string, unknown>;
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/, RESET_MINUTES = 60, VERIFY_HOURS = 48, MIN_PASSWORD = 8;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const users = async () => (await mainDb()).collection<any>("users");
-const userOut = (u: Doc) => ({ id: String(u._id), email: u.email, emailVerified: u.emailVerified !== false });
+const userOut = (u: Doc) => ({ id: String(u._id), email: u.email, emailVerified: u.emailVerified !== false, username: (u.username as string | undefined) ?? null });
 const withCookie = (body: unknown, cookie: string, status = 200) => Response.json(body, { status, headers: { "Set-Cookie": cookie } });
 function needAccounts() { if (!settings.authEnabled) throw new ValidationFailed("Accounts are not switched on for this studio.", { code: "AUTH_DISABLED" }); }
 function checkPassword(p: string) { if (p.length < MIN_PASSWORD) throw new ValidationFailed(`Use a password of at least ${MIN_PASSWORD} characters.`, { code: "WEAK_PASSWORD" }); }
@@ -77,6 +79,7 @@ export async function verifyEmail(token: string) {
   const col = await users(), u = await col.findOne({ "verify.hash": hashToken(token) }), expires = (u?.verify as Doc | undefined)?.expires as Date | undefined;
   if (!u || !expires || new Date(expires).getTime() < Date.now()) throw new ValidationFailed("This link has expired or was already used. Sign in and ask for a new one.", { code: "VERIFY_LINK_INVALID" });
   await col.updateOne({ _id: u._id }, { $set: { emailVerified: true, emailVerifiedAt: new Date() }, $unset: { verify: "" } });
+  await rewardFor(String(u._id), "verified", grantCredits).catch(() => {}); // an invite rewarded on a verified email
   return { ok: true, email: String(u.email) };
 }
 /** The signed-in person asks for the link again (a few minutes apart). */
@@ -96,7 +99,7 @@ export async function me() {
   const iosApp = !!u && u.iosAppAt instanceof Date && Date.now() - u.iosAppAt.getTime() < 14 * 864e5;
   return { authEnabled: settings.authEnabled, user: u ? { ...userOut(u), iosApp } : null };
 }
-export async function register(email0: string, password: string) {
+export async function register(email0: string, password: string, ref?: string) {
   needAccounts();
   const email = email0.trim().toLowerCase();
   if (!EMAIL.test(email)) throw new ValidationFailed("Enter a valid email address.", { code: "INVALID_EMAIL" });
@@ -112,6 +115,9 @@ export async function register(email0: string, password: string) {
     throw e;
   }
   await sendVerify(u); // "Verify your email" (not sent: the server log says so, the account works anyway)
+  // a username (also the invite code) and, if a friend's link brought them, the invite (its rewards follow the admin's rule)
+  const uid = String(u._id);
+  try { (u as Doc).username = await ensureUsername(uid); await noteReferral(uid, ref, grantCredits); } catch (e) { console.warn("sign-up marketing:", (e as Error).message); }
   return withCookie({ user: userOut(u) }, sessionCookie(u), 201);
 }
 export async function login(email: string, password: string) {

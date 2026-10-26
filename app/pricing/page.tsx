@@ -11,6 +11,8 @@ import { Badge, Button, Card, Icon, Spinner } from "@/components/atoms";
 import { ErrorBanner } from "@/components/molecules";
 import { SectionHeading } from "@/components/molecules/SectionHeading";
 import { PlanAction, PlanCard, rupees } from "@/components/organisms/pricing/PlanCard";
+import { Checkout } from "@/components/organisms/pricing/Checkout";
+import { OfferStrip } from "@/components/molecules/OfferStrip";
 import { PlanCompare } from "@/components/organisms/pricing/PlanCompare";
 
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
@@ -66,14 +68,18 @@ export default function PricingPage() {
   const [buying, setBuying] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null); // the plan card tapped (until then: your plan, or the popular one)
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [checkout, setCheckout] = useState<{ item: string; label: string } | null>(null); // "Your order": the price, the offer, a coupon
+  const offer = useQuery({ queryKey: ["offer"], queryFn: api.offer, staleTime: 60_000 }).data?.offer ?? null;
   const signedIn = !!me.data?.user || me.data?.authEnabled === false;
   const mine = credits.data?.enabled ? credits.data : null;
 
-  async function buy(item: string, label: string) {
+  function buy(item: string, label: string) { setNotice(null); setCheckout({ item, label }); }
+  async function payNow(item: string, label: string, coupon?: string) {
     setNotice(null);
     setBuying(item);
     try {
-      const r = await pay(item, { name: t("checkout.name"), logo: t("checkout.logo"), color: t("checkout.color") });
+      const r = await pay(item, { name: t("checkout.name"), logo: t("checkout.logo"), color: t("checkout.color") }, coupon);
+      if (r.status !== "closed") setCheckout(null);
       if (r.status === "paid") {
         qc.setQueryData(["credits"], r.credits);
         setNotice({ ok: true, text: t("pricing.paid", { item: label }) });
@@ -134,6 +140,11 @@ export default function PricingPage() {
         </div>
       </header>
 
+      {offer && <OfferStrip offer={offer} />}
+
+      <Checkout item={checkout?.item ?? null} label={checkout?.label ?? ""} busy={!!checkout && buying === checkout.item}
+        onClose={() => setCheckout(null)} onPay={(coupon) => checkout && void payNow(checkout.item, checkout.label, coupon)} />
+
       {notice && (
         <p role="status" className={cn("m-0 -mt-6 flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-center text-[14px] font-semibold", notice.ok ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger")}>
           <Icon name={notice.ok ? "check" : "warn"} size={18} stroke={2.2} />
@@ -153,6 +164,7 @@ export default function PricingPage() {
               yearly={yearly}
               selected={plan.id === selectedId}
               onSelect={() => setPicked(plan.id)}
+              offer={offer && offer.appliesTo !== "topups" ? offer.percent : undefined}
               action={
                 <PlanAction
                   plan={plan}
@@ -188,7 +200,7 @@ export default function PricingPage() {
                     <span className="text-[12px] text-muted">{t("pricing.perCredit", { price: rupees(Math.round((tu.price / tu.credits) * 10) / 10) })}</span>
                   </div>
                   <Button size="sm" variant="secondary" loading={buying === item} disabled={!p.paymentsOpen || !signedIn || (buying !== null && buying !== item)} title={!p.paymentsOpen ? t("pricing.soon") : undefined} onClick={() => void buy(item, `${tu.credits} ${t("pricing.credits")}`)}>
-                    {rupees(tu.price)}
+                    {offer && offer.appliesTo !== "plans" ? <><s className="mr-1 opacity-60">{rupees(tu.price)}</s>{rupees(Math.round((tu.price * (100 - offer.percent)) / 100))}</> : rupees(tu.price)}
                   </Button>
                 </div>
               );

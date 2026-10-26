@@ -1652,7 +1652,7 @@ dz.addEventListener('drop', e=>addVideos(e.dataTransfer.files));
 
 let aspect = '9:16';
 const SIZES = {'9:16':[1080,1920], '4:5':[1080,1350], '1:1':[1080,1080], '16:9':[1920,1080]};   // Instagram / YouTube full HD
-$('aspect').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return; aspect=b.dataset.a;
+$('aspect').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return; aspect=b.dataset.a; root.dataset.asp = aspect; // the preview card takes this shape too
   [...$('aspect').children].forEach(x=>x.setAttribute('aria-pressed', x===b)); setCanvas(); if(edit.length && !playing && !recording) captureLoop(); });
 
 /* =============== STEP 3: AUTO-EDIT =============== */
@@ -1840,32 +1840,65 @@ const chatSync = res => { if(res && res.chat && typeof res.chat.used === 'number
 function askCredits(o){
   return new Promise(res => {
     $('cconft').textContent = o.title; $('cconfp').textContent = o.text;
+    const L = $('cconfl'); L.hidden = !(o.list && o.list.length); L.textContent = ''; (o.list || []).forEach(t => { const li = document.createElement('li'); li.textContent = t; L.appendChild(li); });
+    $('cconf').classList.toggle('upsell', !!o.upsell);
     $('cconfbal').textContent = o.bal == null ? '' : 'You have ' + creditWord(o.bal) + (o.after != null ? ' · ' + creditWord(Math.max(0, o.after)) + ' left after this' : '');
-    $('cconfok').textContent = o.ok; $('cconfno').textContent = o.no; $('cconf').hidden = false; $('cconfok').focus();
-    const done = v => { $('cconf').hidden = true; $('cconfok').onclick = $('cconfno').onclick = null; res(v); };
+    // no second choice (o.no empty): just the button and ✕
+    $('cconfok').textContent = o.ok; $('cconfno').textContent = o.no || ''; $('cconfno').hidden = !o.no;
+    $('cconf').hidden = false; $('cconfok').focus();
+    const esc = e => { if(e.key === 'Escape') done(null); };
+    const done = v => { $('cconf').hidden = true; $('cconfok').onclick = $('cconfno').onclick = $('cconfx').onclick = $('cconf').onclick = null; removeEventListener('keydown', esc); res(v); };
     $('cconfok').onclick = () => done(true); $('cconfno').onclick = () => done(false);
+    $('cconfx').onclick = () => done(null); addEventListener('keydown', esc);   // ✕ / Escape: closed, nothing chosen
+    $('cconf').onclick = e => { if(e.target === $('cconf')) done(null); };
   });
 }
 function aiOff(msg){ aiOn = false; aiStat(msg); const pr = [...$('mode').children].find(x => x.getAttribute('aria-pressed') === 'true'); modeWords(pr ? pr.dataset.m : mode); if(buf && sources.length && !recording) makeEdit(); }
 // asked once per Reel: Shubix AI for this Reel (its credits), or the phone's own edit (free)
-function aiGate(){
+// The Reel's gate: asked before ANY Shubix AI work on a Reel (reading the clips, the pace, the shots), for every plan and every
+// Reel: Use = its credits and the AI starts; ✕ = nothing runs and nothing is taken (asked again on Generate, `again`).
+let gateNo = '';
+function aiGate(again = false){
   if(!aiOn) return Promise.resolve(false);
-  const id = reelIdNow(); if(aiReel === id) return Promise.resolve(true); if(aiReel === 'no:' + id) return Promise.resolve(false);
+  const id = reelIdNow(); if(aiReel === id) return Promise.resolve(true);
+  if(!again && (aiReel === 'no:' + id || gateNo === id)) return Promise.resolve(false);
   if(gateP) return gateP;
   gateP = (async () => {
     const cost = aiCostOf('reel'), bal = aiBal();
-    if(!cost || bal === null){ aiReel = id; return true; }
-    if(bal < cost){
-      const go = await askCredits({ title: 'Not enough credits for Shubix AI', text: 'A Shubix AI Reel uses ' + creditWord(cost) + '. Top up or change your plan, or let your phone edit this Reel (free).', bal, ok: 'Top up / plans', no: 'Edit on my phone' });
-      aiReel = 'no:' + id; aiOff('Edited on your phone (free) · not enough credits for Shubix AI'); if(go) location.assign('/pricing'); return false; }
-    const ok = await askCredits({ title: 'Let Shubix AI edit this Reel?', text: 'Shubix picks the best moments, transitions and effects on the beat. It uses ' + creditWord(cost) + ' once for this Reel; adding clips later costs nothing more.', bal, after: bal - cost, ok: 'Use ' + creditWord(cost), no: 'Edit on my phone (free)' });
-    aiReel = ok ? id : 'no:' + id;
-    if(!ok) aiOff('Edited on your phone (free) · Shubix AI not used for this Reel');
-    return ok;
+    if(cost && bal !== null && bal < cost){
+      const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Not now' });
+      gateNo = id; aiStat('Shubix AI is waiting for credits · top up to use it on this Reel'); if(go) location.assign('/pricing'); return false; }
+    // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
+    const ok = await askCredits({ title: 'Shubix AI will edit this Reel',
+      text: cost ? 'It uses ' + creditWord(cost) + ' once for this Reel. Adding clips or changing them later costs nothing more.' : 'Included in your plan for this Reel.',
+      list: ['The best moments of every clip', 'Trendy transitions and effects on the beat', 'Pro colour and framing'],
+      bal, after: bal !== null && cost ? bal - cost : null, ok: cost ? 'Use ' + creditWord(cost) : 'Use Shubix AI' });
+    if(ok){ aiReel = id; gateNo = ''; return true; }
+    gateNo = id; aiStat('Shubix AI is off for this Reel · press Generate to turn it on');
+    return false;
   })().finally(() => { gateP = null; });
   return gateP;
 }
 const aiReelOk = () => aiOn && !!reelId && aiReel === reelId;
+// Free (no Shubix AI in the plan): on Generate, once per Reel, what Shubix AI would do and the way to it.
+// 'upgrade' (to Plans), 'basic' (the phone's own edit), 'close' (✕: nothing) or 'skip' (a plan with Shubix AI, or already asked)
+let upsold = '';
+async function upsell(){
+  if(!aiLocked){
+    if(!aiOn || aiReelOk()) return 'skip';
+    const go = await aiGate(true);
+    if(go){ aiRun(); return 'skip'; }   // Use: the AI starts on this Reel
+    return 'close';                      // ✕: back, nothing generated
+  }
+  const id = reelIdNow(); if(upsold === id) return 'skip';
+  const cost = aiCostOf('reel');
+  const v = await askCredits({ upsell: true, title: 'Make it perfect with Shubix AI', text: 'Your Reel is ready. With the Editor or Pro plan, Shubix AI edits it like a pro' + (cost ? ' (' + creditWord(cost) + ' per Reel)' : '') + ':' + (aiInfo && aiInfo.creditsOpen ? ' Or invite friends on Invite & earn: your credits pay for AI Reels on Free too.' : ''),
+    list: ['The best moments of every clip, picked for you', 'Trendy transitions and effects, right on the beat', 'Ask Shubix: change anything in your own words', 'Captions and pro colour, automatically'],
+    bal: null, ok: 'Upgrade to Shubix AI', no: 'Create basic Reel' });
+  if(v !== null) upsold = id;
+  if(v === true){ location.assign('/pricing?feature=ai'); return 'upgrade'; }
+  return v === false ? 'basic' : 'close';
+}
 const aiCache = new Map();
 const fpOf = src => [src.name, src.file ? src.file.size : 0, src.file ? src.file.lastModified : 0].join('|');
 function aiStat(t, err){ const el = $('aistat'); el.hidden = !t; el.textContent = t || '';
@@ -2075,7 +2108,7 @@ async function chatPatch(text, n, id){
 async function chatSend(text){
   text = String(text || '').trim().slice(0, 300); if(!text || chatWaiting) return;
   chatSay('me', text); chatMsgs.push({ who: 'me', text });
-  $('chatin').value = '';
+  $('chatin').value = ''; chatFit();
   const ready = buf && sources.length && edit.length && !recording;
   // no Shubix AI in this plan (Free): the phone's own changes, and the way to get the AI
   if(!aiOn){
@@ -2094,6 +2127,9 @@ async function chatSend(text){
     const left = freeN - chatUsed - 1;
     const ok = await askCredits({ title: size === 'small' ? 'A small change · free' : 'Change the whole Reel · free', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + 'Your plan has ' + freeN + ' free changes per Reel: this one is free, ' + (left ? left + ' more free after it.' : 'after it each change uses credits.'), bal, ok: 'Make the change', no: 'Cancel' });
     if(!ok){ chatAnswer('OK, nothing changed.'); return; }
+  } else if(!cost || bal === null){
+    const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (cost ? 'It uses ' + creditWord(cost) + '.' : 'Included in your plan.'), bal, ok: 'Make the change', no: 'Cancel' });
+    if(!ok){ chatAnswer('OK, nothing changed.'); return; }
   } else if(cost && bal !== null){
     if(bal < cost){ chatAnswer('This change needs ' + creditWord(cost) + ' and you have ' + creditWord(bal) + '.'); const a = document.createElement('a'); a.href = '/pricing'; a.className = 'btn hot up'; a.textContent = 'Top up'; $('chatlog').appendChild(a); return; }
     const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (freeN ? 'The ' + freeN + ' free changes for this Reel are used, so this' : 'It') + ' uses ' + creditWord(cost) + '.', bal, after: bal - cost, ok: 'Use ' + creditWord(cost), no: 'Cancel' });
@@ -2111,12 +2147,34 @@ async function chatSend(text){
   // an answer that never comes (the AI waits for the clips' check, or nothing was asked): not a spinner for ever
   setTimeout(() => { if(chatWaiting && chatMsgs.length === asked) chatFail(dirBusy || paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : 'Your Reel is updated.'); }, 120000);
 }
-function chatOpen(on){ $('chatfab').classList.remove('news'); $('tbchat').classList.remove('news'); $('chatbox').hidden = !on; $('chatfab').setAttribute('aria-expanded', String(on)); $('chatfab').hidden = on;
+// the chat's messages live where it is used: in the Ask Shubix bar under the title (the Create steps), or in the chat panel
+function chatInline(on){
+  const log = $('chatlog'), home = on ? $('askbody') : $('chatbox');
+  if(log.parentElement === home) return;
+  if(on) home.insertBefore(log, home.firstChild); else home.insertBefore(log, $('chatbox').querySelector('.chatideas'));
+  $('askbar').classList.toggle('talking', on && !!log.children.length);
+}
+function chatOpen(on){ if(on) chatInline(false); $('chatfab').classList.remove('news'); $('tbchat').classList.remove('news'); $('chatbox').hidden = !on; $('chatfab').setAttribute('aria-expanded', String(on)); $('chatfab').hidden = on;
   if(on){ if(!chatMsgs.length && !$('chatlog').children.length) chatSay('ai', 'Hi! Tell me how you want this Reel: the mood, the pace, which moments, zooms, transitions, slow-mo… I\'ll edit it that way.'); $('chatin').focus(); } }
-$('chatfab').addEventListener('click', () => chatOpen(true), SIG);
+// the Ask Shubix bar under the page title (the Create steps): opens on a tap, ready to type; the talk stays in it (no panel)
+const inSteps = () => root.classList.contains('fopen') && getComputedStyle($('askbar')).display !== 'none';
+function askBar(on, focus = true){
+  $('askbar').classList.toggle('open', on); $('asktoggle').setAttribute('aria-expanded', String(on));
+  if(on){ chatOpen(false); chatInline(true); if(focus) setTimeout(() => { $('askbar').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); $('askin').focus(); }, 60); }
+}
+const askFromBar = (text) => { text = String(text || '').trim(); if(!text){ $('askin').focus(); return; } if(chatWaiting) return; $('askin').value = ''; askBar(true, false); chatSend(text); $('askbar').classList.add('talking'); };
+$('asktoggle').addEventListener('click', () => askBar(!$('askbar').classList.contains('open')), SIG);
+// the button and the card take people to the bar while it is on screen; the chat panel otherwise (the editor)
+$('chatfab').addEventListener('click', () => inSteps() ? askBar(true) : chatOpen(true), SIG);
+$('chatcard').addEventListener('click', () => inSteps() ? askBar(true) : chatOpen(true), SIG); // computers: the card under the Reel Preview
+$('askbar').addEventListener('submit', e => { e.preventDefault(); askFromBar($('askin').value); }, SIG);
+$('askchips').addEventListener('click', e => { const b = e.target.closest('button'); if(b) askFromBar(b.dataset.say); }, SIG);
 $('chatclose').addEventListener('click', () => chatOpen(false), SIG);
 $('chatform').addEventListener('submit', e => { e.preventDefault(); chatSend($('chatin').value); }, SIG);
 $('chatin').addEventListener('keydown', e => { if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); chatSend($('chatin').value); } }, SIG);
+// the message box grows with what is written (up to a few lines)
+const chatFit = () => { const t = $('chatin'); t.style.height = 'auto'; t.style.height = Math.min(120, t.scrollHeight) + 'px'; };
+$('chatin').addEventListener('input', chatFit, SIG);
 $('chatchips').addEventListener('click', e => { const b = e.target.closest('button'); if(b) chatSend(b.dataset.say); }, SIG);
 /* ---- AI director: one text call plans the Reel as a story ----
    The cut times are fixed by the music. For every cut the phone offers its 3 best different moments (rules + AI scores);
@@ -2803,7 +2861,7 @@ function makeEditNow(){
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = edit.length + ' shots · ' + fmt(buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
   showCopyMatch();
-  if(dupCount) showMsg(dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + ': your clips are short for this song · add more clips to avoid it');
+  if(dupCount) showMsg(dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + ': your clips are short for this song · add more clips to avoid it', false, 'addclips');
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(dirInfo && !director.interim){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
@@ -3071,6 +3129,15 @@ function histGo(back){
   if(s.ly){ layers = s.ly.map(L => ({ ...L })); lySel = Math.min(lySel, layers.length - 1); lyUI(); clipMixKey = ''; }
   if(edit.length) showShot(Math.min(segAt(pos), edit.length - 1)); else redrawFrame();
   hist.cur = histSnap(); histUI(); notify(back ? 'Undone' : 'Redone');
+}
+// a pop-up's changes are tried live; its ✕ puts the Reel back as it was when it opened (views.ts)
+function snapRestore(s){
+  if(!s || exporting || recording || restoring) return false;
+  if(kind !== 'talk' && s.ed.length) restoreEdit(s.ed);
+  overlays = s.ov.map(o => ({ ...o })); ovSel = -1; renderOvList();
+  if(s.ly){ layers = s.ly.map(L => ({ ...L })); lySel = Math.min(lySel, layers.length - 1); lyUI(); clipMixKey = ''; }
+  if(edit.length) showShot(Math.min(segAt(pos), edit.length - 1)); else redrawFrame();
+  return true;
 }
 function histUI(){ const u = $('undo'), r = $('redo'); if(u) u.disabled = !hist.u.length; if(r) r.disabled = !hist.r.length; }
 setInterval(histTick, 500);
@@ -4797,7 +4864,7 @@ function saveFile(blob, name){
   return false;
 }
 const savedMsg = (shared, what) => shared ? what + ' is ready: tap the button below to save it to Photos or share it.' : what + ' saved';
-function showMsg(t, err){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.title=t; m.classList.toggle('err', !!err); if(err) notify(t, 'err'); }
+function showMsg(t, err, cls){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.title=t; m.classList.toggle('err', !!err); m.classList.toggle('addclips', cls === 'addclips'); if(err) notify(t, 'err'); }
 // a short note that pops up at the bottom and goes away by itself (errors stay a little longer)
 function notify(t, kind){
   const box = $('toasts'); if(!box || !t) return;
@@ -5593,6 +5660,7 @@ $('refchange').addEventListener('click', ()=>$('reffile').click());
 let refLookBusy = false;
 async function refLookRun(file, R){
   if(!aiOn || !R || refLookBusy) return;
+  if(!aiReelOk() && !(await aiGate())) return;   // Shubix AI only after the Reel's gate (Use), as everything else
   refLookBusy = true; const url = URL.createObjectURL(file), note = t => { if(refProfile === R) $('refinfo').textContent = '“' + R.name + '”: ' + describeRef(R) + (t ? ' · ' + t : ''); };
   try{
     note('Shubix is reading its texts and stickers…');
@@ -6069,7 +6137,7 @@ function storyEdit(){
   const D = buf.duration, n = sources.length, list = [], sc = story.scenes;
   sc.forEach((s, j) => { const a = j ? (sc[j-1].b + s.a)/2 : 0, b = j < sc.length - 1 ? (s.b + sc[j+1].a)/2 : D, parts = Math.max(1, Math.round((b - a)/3.2));
     for(let k=0;k<parts;k++) list.push({ start: a + (b - a)*k/parts, end: a + (b - a)*(k + 1)/parts, type: k ? 'cut' : 'hit', fx: 'Story', tr: k ? 'hard' : j ? 'dissolve' : 'fadein',
-      efx: (j + k) % 2 ? 'pan-soft' : 'punch-soft', sp: 'normal', src: (j + k) % n, in: 0, scaleR: 1, cx: 0.5, cy: 0.45, face: 0, fs: 0 }); });
+      efx: (j + k) % 2 ? 'pan-soft' : 'punch-soft', sp: 'normal', src: story.per ? Math.min(n - 1, Math.floor(j / story.per)) : (j + k) % n, in: 0, scaleR: 1, cx: 0.5, cy: 0.45, face: 0, fs: 0 }); });
   if(!restoreEdit(list)) return false;
   edit.forEach((e, i) => { if(!repick(i, false, e.src)) repick(i, false); });
   assignPlayers(); edit.forEach(e => { e.cam = null; e.kf = keyframesFor(e); camAt(e, 0); }); renderEDL(); autoTools();
@@ -6077,10 +6145,10 @@ function storyEdit(){
   captureLoop(); editGen++; return true;
 }
 // the whole story: voice, sound, clips, captions (Story -> Reel drives it and shows the progress)
-async function storyRun(text, voice, songFile, clipFiles, onStage){
+async function storyRun(text, voice, songFile, clipFiles, onStage, per){
   onStage && onStage('voice', 0);
   const S = await storyVoice(text, voice, (p, stage) => onStage && onStage('voice', p, stage));
-  story = { scenes: S.scenes, dur: S.dur };
+  story = { scenes: S.scenes, dur: S.dur, per: per || 0 }; // per: Shubix's pictures in order, each covering that many sentences
   vo = { raw: S.pcm, sr: S.sr, key: 'story' + Date.now().toString(36), clean: null };
   Object.defineProperty(vo, 'pcm', { configurable: true, get(){ return this.raw; } });
   capCache.set('vo|' + vo.key + '|0.00|' + $('caplang').value, { from: 0, words: S.words });
@@ -6267,6 +6335,9 @@ async function saveProject(st, sig){
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
     life({ saving: 0, proj: proj.id });
+    // a made Reel has its own address (/create/edit?p=…): a reload, a shared link or Back to it opens this Reel, not a new one
+    // (only once the editor is open: still in the Create steps the address stays /create/music?step=…; flow.ts sets it on Generate)
+    if(edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', '/create/edit?p=' + proj.id);
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }catch(err){ console.warn('project not saved:', err); $('psaved').textContent = 'Not saved'; notify('Could not save this Reel on your phone. It may be low on space.', 'err'); }
   finally{ saving = false; if(lifeNote.saving) life({ saving: 0 }); }
@@ -6360,8 +6431,8 @@ async function listRecent(){
   const box = $('rlist'); box.innerHTML = '';
   for(const sg of all){
     const d = document.createElement('div'); d.className = 'rsong' + (song && song.file && fileFp(song.file) === sg.fp ? ' cur' : '');
-    d.innerHTML = '<button class="rpick" type="button"><span class="rn"></span><span class="rd"></span></button><button class="rdel" type="button" aria-label="Remove from recent songs" title="Remove">×</button>';
-    d.querySelector('.rn').textContent = '♪ ' + sg.name.replace(/\.[^.]+$/, ''); d.querySelector('.rd').textContent = fmt(sg.dur || 0).replace(/\.\d+$/, '');
+    d.innerHTML = '<button class="rpick" type="button"><span class="rn"></span><span class="rd"></span></button><button class="rdel" type="button" aria-label="Remove from recent songs" title="Remove"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    d.querySelector('.rn').textContent = sg.name.replace(/\.[^.]+$/, ''); // the note is the card's picture d.querySelector('.rd').textContent = fmt(sg.dur || 0).replace(/\.\d+$/, '');
     d.querySelector('.rpick').addEventListener('click', () => pickRecent(sg.fp));
     d.querySelector('.rdel').addEventListener('click', () => forgetSong(sg.fp));
     box.appendChild(d);
@@ -6378,7 +6449,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, copyMatch, get grade(){ return GRADES[look]; },
-  shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 

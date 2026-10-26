@@ -11,7 +11,7 @@ import { useT } from "@/hooks/useApi";
 
 /** The computers' header (UI/ design): search the templates, the plan pill, the credits, the bell and the account
  * menu. Phones have the top bar instead (AppShell). */
-export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: string; credits: { balance: number; planName: string } | null; admin: boolean; onSignOut?: () => void }) {
+export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: string; credits: { balance: number; planName: string; plan?: string } | null; admin: boolean; onSignOut?: () => void }) {
   const t = useT();
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -36,7 +36,7 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
       </form>
       <div className="ml-auto flex shrink-0 items-center gap-2 lg:gap-3">
         <InstallBanner />
-        <ProPill plan={credits?.planName} />
+        <ProPill plan={credits?.planName} planId={credits?.plan} />
         {credits && (
           <a href="/pricing" title={t("nav.creditsHint")} className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-xl border border-border bg-surface px-3.5 text-[14px] font-bold transition-colors hover:border-accent/60">
             <Icon name="bolt" size={18} stroke={2} color="#6d8bff" />

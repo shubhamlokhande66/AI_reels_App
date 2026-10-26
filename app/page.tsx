@@ -2,12 +2,13 @@
 
 import { AdSlot } from "@/components/organisms/AdSlot";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DurationTag, Photo, Skeleton } from "@/components/atoms";
 import { ProBanner, Scroller, SectionHeader, TipsBanner } from "@/components/molecules";
 import { HomeHero } from "@/components/organisms/home/HomeHero";
 import { ContinueSection, CreateSection, TemplatesSection, TipsSection } from "@/components/organisms/home/HomeSections";
 import { useCredits, useFeatures, useMe, useT } from "@/hooks/useApi";
+import { useQuery } from "@tanstack/react-query";
 import { listCloudReels, type CloudReel } from "@/lib/cloudReels";
 import { clock, useDrafts } from "@/lib/drafts";
 
@@ -15,18 +16,9 @@ import { clock, useDrafts } from "@/lib/drafts";
 // Editing, Tips, Go Pro.
 
 function useSaved(on: boolean) {
-  const [reels, setReels] = useState<CloudReel[] | null>(null);
-  useEffect(() => {
-    if (!on) return;
-    let live = true;
-    listCloudReels().then(
-      (d) => live && setReels(d.reels),
-      () => live && setReels([]),
-    );
-    return () => {
-      live = false;
-    };
-  }, [on]);
+  // the same list (and request) as the notification bell's: one read for the page, kept a minute
+  const q = useQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, enabled: on, staleTime: 60_000, retry: false });
+  const reels: CloudReel[] | null = !on ? null : q.data ? q.data.reels : q.isError ? [] : null;
   return reels;
 }
 

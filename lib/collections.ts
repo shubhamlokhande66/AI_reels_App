@@ -52,6 +52,7 @@ export const LISTS: ListDef[] = [
       { id: "gst", q: "Are prices including GST?", a: "Yes. The price you see is the price you pay." },
       { id: "unused", q: "What happens to unused credits?", a: "Plan credits renew every month and do not carry over. Starter and top-up credits never expire." },
       { id: "cancel", q: "Can I cancel any time?", a: "Yes. You pay for a month or a year at a time and nothing renews by itself, so there is nothing to cancel." },
+      { id: "refund", q: "Can I get a refund?", a: "No. Plans and top-ups are final and non-refundable. Try everything on the Free plan first; if a payment went wrong (charged twice, or nothing added), contact us and we will add what you paid for." },
       { id: "fails", q: "What if a Reel fails?", a: "Its credits come back to you automatically." },
       { id: "own", q: "Do I own my Reels?", a: "Yes. Download them, post them anywhere, use them for your business." },
       { id: "footage", q: "Is my footage kept?", a: "Uploaded clips are deleted automatically after a short time for your privacy. Download your Reel before then." },

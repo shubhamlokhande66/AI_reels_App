@@ -5,6 +5,7 @@ import { settings } from "@/server/core/config";
 import { mainDb, ObjectId } from "@/server/core/db";
 import { AppError, NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { getPricing, paymentsOpen } from "@/server/workspace";
+import { affiliateCommission, couponUsed, getMarketing, quote, rewardFor, startOfDay, userByUsername } from "@/server/marketing";
 
 /** Credits and payments (were services/credits.py and api/billing.py). A wallet (`wallets`, _id = user id) has
  * `monthly` (the plan's credits for this month, replaced when it renews) and `extra` (starter credits and top-ups, never
@@ -69,16 +70,25 @@ export class PlanNeeded extends AppError {
   constructor(message: string, details: unknown) { super(message, { code: "PLAN_NEEDED", status: 402, details }); }
 }
 /** Has this person's plan Shubix AI? Billing off (a private studio) or the administrator: always. */
-export async function aiAllowed(admin = false): Promise<{ ok: boolean; plan: string; planName: string; balance: number | null; freeChats: number }> {
+/** `credits`: an AI action paid with credits (an AI Reel, Ask Shubix): on a plan without Shubix AI (Free) it is open
+ * too when the administrator lets credits pay for it (Admin → Marketing) and the person has credits (viaCredits).
+ * Without it (captions, translation…) only a plan with Shubix AI opens it. */
+export async function aiAllowed(admin = false, o: { credits?: boolean } = {}): Promise<{ ok: boolean; plan: string; planName: string; balance: number | null; freeChats: number; viaCredits?: boolean }> {
   const uid = currentUser();
   if (!enabled() || admin) return { ok: true, plan: "", planName: "", balance: null, freeChats: 0 };
   if (!uid) return { ok: false, plan: "free", planName: "Free", balance: 0, freeChats: 0 };
   const w = await wallet(uid), plan = (await plansById()).get(String(w.plan)) as { ai?: boolean; name?: string; freeChats?: number } | undefined;
-  return { ok: !!plan?.ai, plan: String(w.plan), planName: plan?.name ?? String(w.plan), balance: balanceOf(w), freeChats: Number(plan?.freeChats ?? 0) };
+  const out = { ok: !!plan?.ai, plan: String(w.plan), planName: plan?.name ?? String(w.plan), balance: balanceOf(w), freeChats: Number(plan?.freeChats ?? 0) };
+  if (!out.ok && o.credits && out.balance > 0 && (await getMarketing()).ai.freeWithCredits) return { ...out, ok: true, viaCredits: true };
+  return out;
 }
-export async function requireAiPlan(admin = false) {
-  const a = await aiAllowed(admin);
-  if (!a.ok) throw new PlanNeeded("Shubix AI is part of the Editor and Pro plans. Your Reel is still edited on your phone, free.", { plan: a.plan });
+export async function requireAiPlan(admin = false, o: { credits?: boolean } = {}) {
+  const a = await aiAllowed(admin, o);
+  if (!a.ok) {
+    const withCredits = o.credits && (await getMarketing()).ai.freeWithCredits;
+    throw new PlanNeeded(withCredits ? "Shubix AI uses credits: earn them by inviting friends (Invite & earn), top up, or choose Editor or Pro. Your Reel is still edited on your phone, free."
+      : "Shubix AI is part of the Editor and Pro plans. Your Reel is still edited on your phone, free.", { plan: a.plan });
+  }
   return a;
 }
 /** What the signed-in person has: their balance (null: credits are not counted here). */
@@ -140,6 +150,40 @@ async function giveExtra(userId: string, credits: number, reason: string, ref: s
   const res = await (await col("wallets")).findOneAndUpdate({ _id: userId }, { $inc: { extra: credits }, $set: { updatedAt: new Date() } }, { returnDocument: "after" });
   await log(userId, credits, reason, ref, res);
 }
+/** Credits given by the app itself (an invite reward): to `extra`, never expiring; once per `ref`. */
+export async function grantCredits(userId: string, credits: number, reason: string, ref: string) {
+  if (!enabled() || credits <= 0) return;
+  if (await (await col("credit_ledger")).findOne({ ref, userId, delta: { $gt: 0 } })) return;
+  await giveExtra(userId, credits, reason, ref);
+}
+/** Send credits to a friend by @username (Invite & earn): the administrator's limits (on, the smallest and largest
+ * amount, a day's total) and which credits may go (top-up and gift credits only, or all). Taken and given together. */
+export async function sendCredits(toName: string, amount: number, note = "") {
+  const uid = currentUser(); if (!uid) throw new AuthRequired();
+  if (!enabled()) throw new ValidationFailed("Credits are not counted in this studio.", { code: "BILLING_OFF" });
+  const m = (await getMarketing()).share;
+  if (!m.on) throw new ValidationFailed("Sending credits is turned off right now.", { code: "SHARE_OFF" });
+  if (!Number.isInteger(amount) || amount < m.min || amount > m.max) throw new ValidationFailed(`Send between ${m.min} and ${m.max} credits at a time.`, { code: "SHARE_AMOUNT" });
+  const to = await userByUsername(toName);
+  if (!to) throw new NotFoundError("No one has that username. Check it and try again.", { code: "USER_NOT_FOUND" });
+  if (to.id === uid) throw new ValidationFailed("You cannot send credits to yourself.", { code: "SHARE_SELF" });
+  const today = await (await col("credit_transfers")).aggregate<{ _id: null; n: number }>([{ $match: { from: uid, at: { $gte: startOfDay() } } }, { $group: { _id: null, n: { $sum: "$amount" } } }]).toArray();
+  if ((today[0]?.n ?? 0) + amount > m.dailyMax) throw new ValidationFailed(`You can send up to ${m.dailyMax} credits a day (${Math.max(0, m.dailyMax - (today[0]?.n ?? 0))} left today).`, { code: "SHARE_DAILY" });
+  const wallets = await col("wallets");
+  for (let i = 0; i < 5; i++) { // optimistic, as charge(): retry if the wallet changed in between
+    const w = await wallet(uid), monthly = Number(w.monthly ?? 0), extra = Number(w.extra ?? 0), can = m.source === "extra" ? extra : monthly + extra;
+    if (can < amount) throw new ValidationFailed(m.source === "extra" ? `You have ${extra} top-up or gift credits to send (a plan's monthly credits stay with the plan).` : `You have ${can} credits.`, { code: "SHARE_NOT_ENOUGH" });
+    const fromExtra = Math.min(extra, amount);
+    const res = await wallets.findOneAndUpdate({ _id: uid, monthly, extra }, { $set: { extra: extra - fromExtra, monthly: monthly - (amount - fromExtra), updatedAt: new Date() } }, { returnDocument: "after" });
+    if (!res) continue;
+    const id = crypto.randomBytes(8).toString("hex"), me = await (await col("users")).findOne({ _id: new ObjectId(uid) }, { projection: { username: 1 } });
+    await log(uid, -amount, `Sent to @${to.username}`, `send:${id}`, res);
+    await giveExtra(to.id, amount, `Gift from @${me?.username ?? "a friend"}`, `send:${id}`);
+    await (await col("credit_transfers")).insertOne({ _id: id, from: uid, to: to.id, amount, note: note.slice(0, 140), at: new Date() });
+    return { ok: true, sent: amount, to: to.username, balance: balanceOf(await wallet(uid)) };
+  }
+  throw new AppError("Your credits are being updated by another request. Try again.", { code: "CREDITS_BUSY" });
+}
 /** The administrator gives credits (to `extra`, never expiring) or takes them back (from `extra`, then `monthly`, never below 0). */
 export async function adjustCredits(userId: string, credits: number, reason: string) {
   const w = await wallet(userId), monthly = Number(w.monthly ?? 0), extra = Number(w.extra ?? 0);
@@ -172,6 +216,11 @@ async function describe(item: string) {
   }
   throw new ValidationFailed("Unknown plan or top-up.", { code: "UNKNOWN_ITEM" });
 }
+/** What this person pays for an item (the best offer, then a coupon), shown before the payment window opens. */
+export async function quoteItem(itemKey: string, coupon?: string | null) {
+  const item = await describe(itemKey), q = await quote(currentUser(), item, coupon);
+  return { item: itemKey, label: item.label, ...q };
+}
 const hmacHex = (secret: string, data: string | Buffer) => crypto.createHmac("sha256", secret).update(data).digest("hex");
 const same = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 /** Apply a paid order exactly once (the browser and the webhook may both report it). */
@@ -179,13 +228,22 @@ async function fulfil(orderId: string, paymentId: string, via: string) {
   const payments = await col("payments");
   const pay = await payments.findOneAndUpdate({ _id: orderId, status: "created" }, { $set: { status: "paid", paymentId, paidAt: new Date(), via } }, { returnDocument: "after" });
   if (!pay) { if (!(await payments.findOne({ _id: orderId }))) throw new NotFoundError("Payment not found.", { code: "PAYMENT_NOT_FOUND" }); return; }
-  const item = pay.item as Doc;
-  if (item.kind === "plan") await givePlan(String(pay.userId), String(item.plan), String(item.period), orderId);
-  else await giveExtra(String(pay.userId), Number(item.credits), `Top-up: ${item.label}`, orderId);
+  const item = pay.item as Doc, uid = String(pay.userId);
+  if (item.kind === "plan") await givePlan(uid, String(item.plan), String(item.period), orderId);
+  else await giveExtra(uid, Number(item.credits), `Top-up: ${item.label}`, orderId);
+  // marketing, never in the way of the purchase itself: the coupon's use, an invite rewarded on a purchase, the affiliate's commission
+  const coupon = (pay.price as Doc | undefined)?.coupon as Doc | null | undefined;
+  await Promise.allSettled([
+    coupon ? couponUsed(String(coupon.code), uid, orderId, Number(coupon.off)) : Promise.resolve(),
+    rewardFor(uid, "purchase", grantCredits),
+    affiliateCommission(uid, orderId, Number(pay.amount) / 100),
+  ]);
 }
-export async function createOrder(itemKey: string) {
+export async function createOrder(itemKey: string, couponCode?: string | null) {
   if (!paymentsOpen()) throw new ValidationFailed("Online payment is not open yet.", { code: "PAYMENTS_CLOSED" });
-  const uid = uidOrThrow(), item = await describe(itemKey);
+  const uid = uidOrThrow(), base = await describe(itemKey), price = await quote(uid, base, couponCode);
+  if (couponCode && price.couponError) throw new ValidationFailed(price.couponError, { code: "COUPON_INVALID" });
+  const item = { ...base, rupees: price.final };
   const user = ObjectId.isValid(uid) ? await (await col("users")).findOne({ _id: new ObjectId(uid) }) : null;
   const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(2, 14);
   let order: Doc;
@@ -195,7 +253,8 @@ export async function createOrder(itemKey: string) {
     if (r.status >= 300) { console.warn(`razorpay order failed: ${r.status} ${(await r.text()).slice(0, 200)}`); throw new AppError("The payment could not be started. Try again in a minute.", { code: "PAYMENT_START_FAILED" }); }
     order = (await r.json()) as Doc;
   } catch (e) { if (e instanceof AppError) throw e; throw new AppError("The payment service could not be reached. Try again in a minute.", { code: "PAYMENT_START_FAILED" }); }
-  await (await col("payments")).insertOne({ _id: order.id, userId: uid, item, itemKey, amount: order.amount, currency: "INR", status: "created", createdAt: new Date() });
+  await (await col("payments")).insertOne({ _id: order.id, userId: uid, item, itemKey, amount: order.amount, currency: "INR", status: "created", createdAt: new Date(),
+    price: { base: price.base, offer: price.offer, coupon: price.coupon, final: price.final } }); // the receipt shows the discount
   return { orderId: order.id, keyId: settings.razorpayKeyId, amount: order.amount, currency: "INR", label: item.label, email: user?.email ?? "" };
 }
 export async function verifyPayment(orderId: string, paymentId: string, signature: string) {

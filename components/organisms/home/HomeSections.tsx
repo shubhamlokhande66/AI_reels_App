@@ -33,12 +33,14 @@ export function createOptions(f: Features, cards: ListItem[]): Option[] {
 }
 
 export function CreateSection({ features }: { features: Features }) {
-  const check = useLockCheck(), t = useT(), cards = useList("home.cards");
+  const check = useLockCheck(), t = useT(), cards = useList("home.cards"), opts = createOptions(features, cards);
   return (
     <section aria-labelledby="create-h" className="flex flex-col gap-3">
       <SectionHeader id="create-h" title={t("home.createTitle")} />
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fill,minmax(132px,1fr))] lg:gap-3">
-        {createOptions(features, cards).map(({ key, ...o }) => (
+      {/* wide screens: every card in one row (up to 7), so none is left alone on a second row */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-[repeat(var(--n),minmax(0,1fr))] [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1"
+        style={{ "--n": Math.min(7, Math.max(1, opts.length)) } as React.CSSProperties}>
+        {opts.map(({ key, ...o }) => (
           <CreateCard key={key} {...o} lock={PAGE_LOCK[o.href] && check && check(PAGE_LOCK[o.href]) ? lockTag(check(PAGE_LOCK[o.href]) as PlanId) : ""} />
         ))}
       </div>

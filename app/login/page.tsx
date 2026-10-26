@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { api, errorMessage } from "@/lib/api";
 import { emailOk, passwordOk } from "@/lib/validate";
+import { clearRef, savedRef } from "@/lib/marketing";
 import { useT } from "@/hooks/useApi";
 import { Button, Card, Input, LogoTile } from "@/components/atoms";
 import { ErrorBanner, Field, PasswordInput } from "@/components/molecules";
@@ -40,7 +41,8 @@ export default function LoginPage() {
     if (!valid) return;
     setBusy(true);
     try {
-      await (signin ? api.login(email.trim(), password) : api.register(email.trim(), password));
+      await (signin ? api.login(email.trim(), password) : api.register(email.trim(), password, savedRef()));
+      if (!signin) clearRef(); // the invite is used
       await qc.invalidateQueries();
       router.replace("/");
     } catch (err) {

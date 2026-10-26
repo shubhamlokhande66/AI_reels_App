@@ -12,7 +12,7 @@ import { limits } from "@/server/core/rateLimit";
  * its hits, decided from the music map and the footage. The phone checks that each choice can be played. */
 export const POST = route(async (req) => {
   await requireFeature(req, "studioAI");
-  await requireAiPlan(await isPlanAdmin(req));
+  await requireAiPlan(await isPlanAdmin(req), { credits: true }); // paid with credits: Free may use it with credits (Admin → Marketing)
   limits.ai(req); // each AI call costs money
   const d = await body(req, DirectIn), t0 = Date.now();
   // the Reel's AI (once per Reel), then the chat message it answers (once per message: small or the whole Reel)

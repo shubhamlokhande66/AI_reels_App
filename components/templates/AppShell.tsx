@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { applyTheme } from "@/lib/theme";
 import { useTheme } from "@/lib/useTheme";
@@ -27,11 +27,14 @@ import { NoticeCard } from "@/components/molecules/NoticeCard";
 import { Card } from "@/components/atoms/Card";
 import { ProBanner } from "@/components/molecules/ProBanner";
 import { Button } from "@/components/atoms/Button";
+import { Spinner } from "@/components/atoms/Spinner";
 import { DesktopHeader } from "@/components/organisms/DesktopHeader";
 import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { InstallApp } from "@/components/molecules/InstallApp";
 import { InstallBanner } from "@/components/molecules/InstallBanner";
 import { VerifyBanner } from "@/components/molecules/VerifyBanner";
+import { captureRef } from "@/lib/marketing";
+import { OfferStrip } from "@/components/molecules/OfferStrip";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useLockCheck, useMe, useT } from "@/hooks/useApi";
 import { lockTag, PAGE_LOCK } from "@/lib/plan-locks";
@@ -74,6 +77,7 @@ export const GROUPS: { title: string; tk?: string; admin?: boolean; items: { hre
     items: [
       { href: "/account", label: "My account", tk: "nav.myAccount", icon: "user" },
       { href: "/pricing", label: "Pricing & plans", tk: "nav.pricing", icon: "coins" },
+      { href: "/rewards", label: "Invite & earn", tk: "nav.rewardsLink", icon: "gift" },
     ],
   },
   {
@@ -110,6 +114,8 @@ function pageMeta(p: string): Meta {
     "/templates": { title: "Templates", tk: "nav.templates" },
     "/brands": { title: "My Brands", tk: "nav.myBrands" },
     "/account": { title: "My account", tk: "nav.myAccount" },
+    "/rewards": { title: "Invite & earn", tk: "nav.rewards" },
+    "/affiliate": { title: "Affiliate dashboard", tk: "nav.affiliate", back: "/rewards" },
     "/pricing": { title: "Pricing & plans", tk: "nav.pricing", credits: true },
     "/terms": { title: "Legal", tk: "nav.legal", back: "/" },
     "/privacy": { title: "Legal", tk: "nav.legal", back: "/" },
@@ -283,6 +289,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
   usePresence(pathname); // "online now" on the admin dashboard
+  useEffect(() => { captureRef(); }, []); // a friend's invite link (?ref=username): kept for the sign-up
+  const offer = useQuery({ queryKey: ["offer"], queryFn: api.offer, staleTime: 60_000 }).data?.offer ?? null; // a sale running: a slim bar
   useErrorReport(); // errors on people's phones reach Admin → Errors
 
   // one look for every page: the person's choice (Light / Dark / same as the phone), kept on this device
@@ -392,7 +400,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ) : !studio ? (
               <span className="flex items-center gap-1">
                 <InstallBanner compact />
-                <ProPill plan={credits?.planName} compact={pathname !== "/"} />
+                <ProPill plan={credits?.planName} planId={credits?.plan} compact={pathname !== "/"} />
                 <NotificationBell />
               </span>
             ) : meta.credits && credits ? (
@@ -476,6 +484,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <NoticeCard dialog icon="shield" eyebrow={t("common.adminOnly")} title={t("common.adminTitle")} text={t("common.adminText")}
                 actions={<div className="grid grid-cols-2 gap-2"><Button href="/" variant="secondary">{t("common.back")}</Button><Button href="/admin">{t("common.adminSignIn")}</Button></div>} />
             </div>
+          ) : adminPage && loading ? (
+            // an admin page waits for the admin check (its parts ask admin-only data: not before we know)
+            <div className="mt-16 flex justify-center"><Spinner /></div>
           ) : off && !admin ? (
             <div className="mx-auto mt-6 max-w-md">
               <EmptyState icon="lock" title={t("common.offTitle", { page: off.label })} hint={t("common.offText")} action={<Button href="/">{t("common.backHome")}</Button>} />
@@ -486,6 +497,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Card role="status" className="mb-3 text-[12.5px] text-warning">{t("common.offAdmin", { page: off.label })}</Card>
               )}
               {me.data?.user?.emailVerified === false && <VerifyBanner email={me.data.user.email} />}
+              {offer && pathname !== "/pricing" && !pathname.startsWith("/create") && <OfferStrip offer={offer} bar />}
               {children}
             </>
           )}

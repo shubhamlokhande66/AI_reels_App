@@ -19,7 +19,7 @@ type Trim = { i: number; to: number; left?: boolean };
 type Studio = {
   now: number; playing: boolean; dur: number; audio: AudioBuffer | null; beats: number[]; songName: string; title: string; hook: string; capsOn: boolean;
   edit: Shot[]; overlays: Ov[]; vo: unknown; kind: string; editGen: number;
-  sources: { name: string; card?: HTMLElement; strip?: { t: number; c: HTMLCanvasElement }[] }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace" | "freeze", arg?: number) => boolean; shotRipple: (i: number, to: number) => boolean; shotMove: (from: number, to: number) => boolean; shotRoll: (i: number, to: number) => boolean;
+  sources: { name: string; card?: HTMLElement; strip?: { t: number; c: HTMLCanvasElement }[] }[]; shotCs: ClipApi["shotCs"]; shotSet: ClipApi["shotSet"]; shotSlip: ClipApi["shotSlip"]; shotTrim: ClipApi["shotTrim"]; shotExtract: ClipApi["shotExtract"]; shotReverse: ClipApi["shotReverse"]; shotOp: (op: "split" | "dup" | "delete" | "replace" | "freeze", arg?: number) => boolean; snap: () => unknown; unsnap: (s: unknown) => boolean; shotRipple: (i: number, to: number) => boolean; shotMove: (from: number, to: number) => boolean; shotRoll: (i: number, to: number) => boolean;
   ovSelect: (i: number) => void; ovRefresh: () => void; ovSel: number;
   kfTarget: () => { what: string; a: number; b: number } | null;
   section: { start: number; len: number; whole: number; auto: boolean };
@@ -62,7 +62,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const made = () => !$("s3").classList.contains("locked");
   // computers keep a tool open beside the preview (the shot first); phones show the Reel, a tool opens over it
   const wide = () => window.matchMedia("(min-width: 1024px)").matches;
-  const defTool = () => (wide() ? "media" : ""); // computers: the left panel opens on Media (the design); phones: the Reel
+  const defTool = () => ""; // the Reel first, as on the phone: a tool's panel opens from the dock (computers: beside the preview)
   // the plan's tools: the plan seen last (the engine keeps it on the phone), then what the engine reads from the server
   // ("brs-plan" below). Billing off or the administrator: all open; the administrator's View as Free: the free plan.
   let plan = "free", open = false, need: Record<string, string> = needMap(DEFAULT_LOCKS);
@@ -160,9 +160,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       const k = b.dataset.tool!;
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- plain DOM code, the pricing page is a full load
       if (locked(k)) { location.assign("/pricing?feature=" + encodeURIComponent(k)); return; } // a Pro tool on a free plan
-      // phones: Shots = the clip under the playhead, selected (its toolbar has every shot tool)
-      if (k === "shots" && !wide()) { const st = S(); if (st && st.edit.length) { if (!editing) setEditing(true); selectClip(Math.max(0, st.segAt(st.now))); } return; }
-      tool = tool === k && !wide() ? "" : k; // phones: a second tap closes it again (computers always show one)
+      // Shots, as on the phone: the clip under the playhead, selected (its tools are in the bar), not a panel of the same tools
+      if (k === "shots") { const st = S(); if (st && st.edit.length) { if (!editing) setEditing(true); selectClip(Math.max(0, st.segAt(st.now))); } return; }
+      tool = tool === k ? "" : k; // a second tap closes it again
       if (sel >= 0) selectClip(-1, false);
       apply();
       return;
@@ -171,6 +171,10 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (sh) { const s = sh.parentElement!; openStep(s.id, s.classList.contains("folded")); }
   }, sig);
 
+  // the "shots repeat" note: a tap opens Media to add clips
+  $("xmsg").addEventListener("click", () => { if ($("xmsg").classList.contains("addclips")) { tool = "media"; apply(); } }, sig);
+  // computers: the tool panel's ✕ closes it (the Reel takes the whole width again)
+  $("pclose").addEventListener("click", () => { tool = ""; apply(); }, sig);
   // play over the preview, previous / next shot
   $("playov").addEventListener("click", () => $("play").click(), sig);
   // the progress bar under the preview: tap or drag along it to move through the Reel
@@ -209,7 +213,15 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     box.querySelectorAll<HTMLElement>(".kfmimg").forEach((el) => { const v = th ? `url(${th})` : ""; if (el.style.backgroundImage !== v) el.style.backgroundImage = v; });
   };
   // the top bar's format (9:16 ▾): the clips step's own Format buttons
-  $<HTMLSelectElement>("tbaspect").addEventListener("change", (e) => root.querySelector<HTMLButtonElement>(`#aspect [data-a="${(e.target as HTMLSelectElement).value}"]`)?.click(), sig);
+  // (a menu of its own, not a <select>: the bar is redrawn while it plays, which closed a native list before a choice was made)
+  const aspMenu = (on: boolean) => { $("tbaspmenu").hidden = !on; $("tbaspbtn").setAttribute("aria-expanded", String(on)); };
+  $("tbaspbtn").addEventListener("click", (e) => { e.stopPropagation(); aspMenu($("tbaspmenu").hidden); }, sig);
+  $("tbaspmenu").addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>("[data-a]"); if (!b) return;
+    root.querySelector<HTMLButtonElement>(`#aspect [data-a="${b.dataset.a}"]`)?.click(); aspMenu(false); $("tbaspbtn").focus();
+  }, sig);
+  document.addEventListener("click", (e) => { if (!$("tbaspmenu").hidden && !$("tbasp").contains(e.target as Node)) aspMenu(false); }, sig);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("tbaspmenu").hidden) { aspMenu(false); $("tbaspbtn").focus(); } }, sig);
   // the top bar's Back: the Create flow's own (the screen before: the clips, or where the page came from)
   $("tbback").addEventListener("click", () => { if (editing && !wide() && made()) { selectClip(-1); closeShot(); setEditing(false); return; } $("fback").click(); }, sig);
   $("tbchat").addEventListener("click", () => $("chatfab").click(), sig);
@@ -220,7 +232,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const setText = (el: Element | null, v: string) => { v = tx(v); if (el && el.textContent !== v) el.textContent = v; }; // the admin's wording (i18n.ts)
   const values = () => {
     const st = S();
-    const asp = root.querySelector<HTMLElement>('#aspect [aria-pressed="true"]')?.dataset.a; const sel = $<HTMLSelectElement>("tbaspect"); if (asp && sel.value !== asp) sel.value = asp;
+    const asp = root.querySelector<HTMLElement>('#aspect [aria-pressed="true"]')?.dataset.a; if (asp) { if ($("tbaspv").textContent !== asp) $("tbaspv").textContent = asp; $("tbaspmenu").querySelectorAll<HTMLElement>("[data-a]").forEach((b) => { const on = String(b.dataset.a === asp); if (b.getAttribute("aria-selected") !== on) b.setAttribute("aria-selected", on); }); }
     if (st && made()) {
       setText($("tbname"), st.title || "Your Reel");
       const talk = st.kind === "talk";
@@ -297,9 +309,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const actions = st.kind === "talk" ? "" : `<div class="sslab">Actions</div><div class="ssacts">${act("split", "Split")}${act("dup", "Duplicate")}${act("freeze", "Freeze")}${act("delete", "Delete", st.edit.length < 2 ? " disabled" : "")}`
       + `<button type="button" class="ssact" data-other="1">${sign("other")}<span>Other moment</span></button>`
  + `</div>`;
-    const pick = !wide();
+    const pick = true; // as on the phone: only what was tapped (Transition, Effect or Speed), not every tool at once
     return `<div class="ssh">${th ? `<img class="ssth" src="${th}" alt="">` : ""}<b>Shot ${i + 1} · ${(e.end - e.start).toFixed(2)} s</b><span class="ssnav"><button type="button" data-snav="-1" aria-label="The shot before"${i ? "" : " disabled"}>‹</button><button type="button" data-snav="1" aria-label="The next shot"${i < st.edit.length - 1 ? "" : " disabled"}>›</button></span></div>`
-      + `<div class="sstabs">${tabs}</div>` + (shotTab < 2 ? tiles(shotTab) : shotTab === 2 ? speed : "") + (pick ? "" : (shotTab < 2 ? speed : "") + actions
+      + (wide() ? "" : `<div class="sstabs">${tabs}</div>`) + (shotTab < 2 ? tiles(shotTab) : shotTab === 2 ? speed : "") + (pick ? "" : (shotTab < 2 ? speed : "") + actions
       + (st.kind === "talk" ? "" : `<div class="sslab">Clip Tools <small>(scroll)</small></div><div class="cliptools"></div>`));
   };
   // the clip tools (rotate, fit, adjust, mosaic…): drawn again when the shot's settings change, never during a slider drag
@@ -368,7 +380,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const vidH = () => ROWS()[0];
   // phones: a tap selects a clip (its toolbar opens under the timeline); a second tap on it opens its picker
   let phoneZoomed = false, sel = -1, move: { from: number; x: number } | null = null, press: { k: number; x: number; y: number; tm: ReturnType<typeof setTimeout> } | null = null;
-  const phone = () => !wide();
+  // the timeline's taps work as on the phone on every screen (a tap selects a clip and shows its toolbar, a second tap opens its picker)
+  const phone = () => true;
   // the names people see for a transition and an effect: the edit list's own choices
   let namesGen = -1, names = { tr: new Map<string, string>(), efx: new Map<string, string>() };
   const nameOf = (kind: "tr" | "efx", v: string) => {
@@ -702,7 +715,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const st = S(), yy = y - lanes.getBoundingClientRect().top; if (!st) return;
     const [vh, th, oh] = ROWS(), text = VTOP + vh + GAP, voice = text + th + GAP, music = voice + oh + GAP;
     // the Music head: its sound on / off (a computer: the speaker; "+ Add" there opens Music)
-    if (yy >= music && (phone() || (x > labW() - 64 && x < labW() - 42))) { muteMusic(); return; }
+    if (yy >= music && (!wide() || (x > labW() - 64 && x < labW() - 42))) { muteMusic(); return; } // phones: the whole lane; computers: its speaker
     if (yy >= RUL && yy < RUL + FXH) { const k = Math.max(0, st.segAt(st.now)); openShot(k, 1, xOf((st.edit[k].start + st.edit[k].end) / 2)); }
     else if (yy >= VTOP && yy < text) $("addv").click();
     else { const t = yy < voice ? "text" : yy < music ? "voice" : "music"; const b = root.querySelector<HTMLButtonElement>(`.tool[data-tool="${t}"]`); if (b && tool !== t) b.click(); }
@@ -722,6 +735,21 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   }
   // ---- phones: the selected clip and its own toolbar (as VN): Transition, Effect, Speed, Split … every clip tool ----
   const clipbar = $("clipbar"), ctpop = $("ctpop");
+  // computers: ONE bar at the bottom: the tools (the dock, moved in), then the clip's tools; phones keep them apart (as designed)
+  const dock = $("dock"), dockHome = dock.parentElement!, dockNext = dock.nextElementSibling;
+  // …and the library's own buttons (Media, Stickers) at its very start: nothing to pick from at the top of a panel any more
+  const ptabs = $("ptabs"), ptHome = ptabs.parentElement!, ptNext = ptabs.nextElementSibling;
+  // …and the bar itself (with the clip tools' pop-up) is the editor's last row, right under the timeline, on a computer
+  const create = root.querySelector<HTMLElement>(".create")!, cbHome = clipbar.parentElement!, cbNext = clipbar.nextElementSibling;
+  const dockIn = (on: boolean) => {
+    if (on && clipbar.parentElement !== create) { create.append(clipbar); create.append(ctpop); }
+    if (!on && clipbar.parentElement === create) { cbHome.insertBefore(clipbar, cbNext); cbHome.insertBefore(ctpop, clipbar.nextSibling); }
+    if (on && dock.parentElement !== clipbar) clipbar.prepend(dock);
+    if (on && ptabs.parentElement !== clipbar) clipbar.prepend(ptabs);
+    if (!on && dock.parentElement === clipbar) dockHome.insertBefore(dock, dockNext);
+    if (!on && ptabs.parentElement === clipbar) ptHome.insertBefore(ptabs, ptNext);
+  };
+  const clipBox = () => { let b = clipbar.querySelector<HTMLElement>(":scope > .cbin"); if (!b) { b = document.createElement("div"); b.className = "cbin"; clipbar.append(b); } return b; };
   let ctPopKey = "";
   const CB_SIGN: Record<string, string> = {
     tr: '<path d="M4 6l7 6-7 6zM20 6l-7 6 7 6z"/>', fx: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
@@ -730,18 +758,21 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const svg = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ONE_TAP = new Set(["rot", "fh", "fv", "fit", "rev"]);
   function renderClipBar() {
-    const st = S(), on = phone() && sel >= 0 && !!st && !!st.edit[sel] && editing && made();
+    // a computer: always under the timeline, for the clicked clip or else the one under the playhead (the tools never change place)
+    const st0 = S(), cur = sel >= 0 ? sel : wide() && st0 ? st0.segAt(st0.now) : -1;
+    const st = st0, on = cur >= 0 && !!st && !!st.edit[cur] && editing && made();
     if (clipbar.hidden === on) clipbar.hidden = !on;
     root.classList.toggle("clipsel", on);
+    dockIn(on && wide());
     if (!on || !st) { if (!ctpop.hidden) { ctpop.hidden = true; ctPopKey = ""; } return; }
-    const e = st.edit[sel], c = st.segAt(st.now) === sel ? st.shotCs() : null;
+    const e = st.edit[cur], c = st.segAt(st.now) === cur ? st.shotCs() : null;
     const isOn = (k: string) => !!c && (k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "rev" ? c.rev : k === "vol" ? c.vol > 0 : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm) : false);
     const b = (k: string, n: string, ic: string, extra = "") => `<button type="button" class="cb${isOn(k) ? " on" : ""}" data-cb="${k}"${extra}>${ic}<span>${n}</span></button>`;
     const tools = st.kind === "talk" ? [] : CLIP_TOOLS;
-    const key = [sel, st.editGen, st.edit.length, JSON.stringify(c), e.tr, e.efx, e.sp?.label].join("|");
+    const key = [cur, sel, st.editGen, st.edit.length, JSON.stringify(c), e.tr, e.efx, e.sp?.label].join("|");
     if (clipbar.dataset.k === key) return; clipbar.dataset.k = key;
-    clipbar.innerHTML = `<div class="cbhead"><button type="button" class="cbx" data-cb="close" aria-label="Back to the tools">${svg(CB_SIGN.close)}</button><b>Shot ${sel + 1}</b><small>${(e.end - e.start).toFixed(1)} s</small></div><div class="cbrow">`
-      + b("tr", "Transition", svg(CB_SIGN.tr), sel ? "" : " disabled") + b("fx", "Effect", svg(CB_SIGN.fx)) + b("sp", "Speed", svg(CB_SIGN.sp))
+    (wide() ? clipBox() : clipbar).innerHTML = `<div class="cbhead"><button type="button" class="cbx" data-cb="close" aria-label="Back to the tools">${svg(CB_SIGN.close)}</button><b>Shot ${cur + 1}</b><small>${(e.end - e.start).toFixed(1)} s</small></div><div class="cbrow">`
+      + b("tr", "Transition", svg(CB_SIGN.tr), cur ? "" : " disabled") + b("fx", "Effect", svg(CB_SIGN.fx)) + b("sp", "Speed", svg(CB_SIGN.sp))
       + (st.kind === "talk" ? "" : b("split", "Split", sign("split")) + b("dup", "Duplicate", sign("dup")) + b("freeze", "Freeze", sign("freeze")) + b("other", "Other moment", sign("other")))
       + tools.map(([k, n, ic]) => b(k, n, ic)).join("")
       + (st.kind === "talk" ? "" : b("reset", "Reset", svg(CB_SIGN.reset)) + b("delete", "Delete", sign("delete"), st.edit.length < 2 ? " disabled" : ""))
@@ -759,10 +790,13 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // a tool on the selected clip works on that clip (the playhead goes into it first, if it was elsewhere)
   const into = async (k: number) => { const st = S(); if (st && st.edit[k] && st.segAt(st.now) !== k) await st.kfSeek(st.edit[k].start + 0.05); };
   const ctPopRender = () => { const st = S(), c = st?.shotCs(); if (!c || !ctPopKey) return; $("ctpopb").innerHTML = clipToolsHtml(c, ctPopKey); };
+  // computers: the mouse wheel moves the clip's tools sideways (one row, as on the phone)
+  clipbar.addEventListener("wheel", (ev) => { const row = wide() ? clipbar : clipbar.querySelector<HTMLElement>(".cbrow"); if (row && Math.abs(ev.deltaY) > Math.abs(ev.deltaX)) { row.scrollLeft += ev.deltaY; ev.preventDefault(); } }, { passive: false, signal: sig.signal });
   clipbar.addEventListener("click", async (ev) => {
     const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-cb]"); const st = S(); if (!btn || !st || btn.disabled) return;
     const k = btn.dataset.cb!;
     if (k === "close") { selectClip(-1); return; }
+    if (sel < 0 && wide()) selectClip(st.segAt(st.now), false); // a computer: the clip under the playhead
     if (sel < 0) return;
     await into(sel);
     if (k === "tr" || k === "fx" || k === "sp") { openShot(sel, { tr: 0, fx: 1, sp: 2 }[k], xOf((st.edit[sel].start + st.edit[sel].end) / 2)); return; }
@@ -775,10 +809,13 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       clipbar.dataset.k = ""; renderClipBar(); return;
     }
     // every other tool: its own controls, alone, over the timeline
-    ctPopKey = k; $("ctpoph").textContent = CLIP_TOOLS.find((x) => x[0] === k)?.[1] ?? ""; ctPopRender(); ctpop.hidden = false;
+    ctPopKey = k; $("ctpoph").textContent = CLIP_TOOLS.find((x) => x[0] === k)?.[1] ?? ""; ctPopRender(); if (ctpop.hidden) ctSnap = st.snap(); ctpop.hidden = false;
   }, sig);
   clipToolsEvents(ctpop, () => S(), () => ctPopKey, (k) => { if (k) ctPopKey = k; }, () => { ctPopRender(); clipbar.dataset.k = ""; renderClipBar(); }, sig);
-  $("ctpopok").addEventListener("click", () => { ctpop.hidden = true; ctPopKey = ""; }, sig);
+  // computers: ✓ keeps what was tried in the pop-up, ✕ puts the clip back as it was when it opened
+  let ctSnap: unknown = null;
+  $("ctpopok").addEventListener("click", () => { ctpop.hidden = true; ctPopKey = ""; ctSnap = null; }, sig);
+  $("ctpopx").addEventListener("click", () => { const st = S(); if (st && ctSnap) st.unsnap(ctSnap); ctSnap = null; ctpop.hidden = true; ctPopKey = ""; clipbar.dataset.k = ""; renderClipBar(); }, sig);
   // the shot sheet (like CapCut / VN): over the clip on a computer (an arrow points at it), from the bottom on a phone;
   // its chips show every choice with the shot's own one selected; ✕, Escape or a tap outside closes it
   const sheet = $("shotsheet");
@@ -802,27 +839,20 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (free) { placeFree(); return; }
     sheet.classList.remove("free"); sheet.style.top = sheet.style.height = sheet.style.right = "";
     if (!wide()) { sheet.classList.remove("docked"); for (const k of ["left", "bottom", "width", "maxHeight"] as const) sheet.style[k] = ""; return; } // a phone: the CSS sheet
-    // a computer: in the left panel, under its tabs (as Media, Music and Text), not floating over the preview
-    const pn = root.querySelector<HTMLElement>(".panels"), pt = root.querySelector<HTMLElement>("#ptabs");
-    if (pn && pn.offsetParent) {
-      const r = pn.getBoundingClientRect(), tb = pt && pt.offsetParent ? pt.getBoundingClientRect().bottom : r.top;
-      const top = Math.max(8, r.top, tb), bottom = Math.min(window.innerHeight - 8, r.bottom);
-      if (r.width >= 260 && bottom - top >= 240) {
-        Object.assign(sheet.style, { left: r.left + "px", top: top + "px", width: r.width + "px", height: bottom - top + "px", right: "auto", bottom: "auto", maxHeight: "none" });
-        sheet.classList.add("docked"); markTabs(); return;
-      }
-    }
-    sheet.classList.remove("docked");
-    const lr = lanes.getBoundingClientRect(), w = Math.min(460, window.innerWidth - 24), left = Math.max(12, Math.min(window.innerWidth - w - 12, sheetX - w / 2));
-    sheet.style.width = w + "px"; sheet.style.left = left + "px";
-    sheet.style.bottom = Math.max(12, window.innerHeight - lr.top + 12) + "px";
-    sheet.style.maxHeight = Math.max(240, lr.top - 24) + "px";
-    sheet.style.setProperty("--ax", Math.max(18, Math.min(w - 18, sheetX - left)) + "px");
+    // a computer: at the bottom, as on the phone: right above the bar there (the clip's toolbar or the tools), the same width
+    sheet.classList.remove("docked"); sheet.classList.add("atbottom");
+    const cb = $("clipbar"), dk = root.querySelector<HTMLElement>(".dock"), bar = !cb.hidden ? cb : dk && dk.offsetParent ? dk : null;
+    const br = bar ? bar.getBoundingClientRect() : null, w = br ? br.width : Math.min(980, window.innerWidth - 300);
+    sheet.style.width = w + "px"; sheet.style.left = (br ? br.left : (window.innerWidth - w) / 2) + "px";
+    sheet.style.bottom = (br ? window.innerHeight - br.top + 8 : 12) + "px";
+    sheet.style.maxHeight = Math.max(220, Math.min(window.innerHeight * 0.46, (br ? br.top : window.innerHeight) - 90)) + "px";
   };
+  let sheetSnap: unknown = null;
   const openShot = (k: number, tab: number, x: number) => {
     const st = S(); if (!st || !st.edit[k]) return;
     void st.kfSeek(st.edit[k].start + 0.05);
     shotTab = tab; shotKey = ""; sheetX = xOf((st.edit[k].start + st.edit[k].end) / 2) || x;
+    if (sheet.hidden) sheetSnap = st.snap(); // what ✕ puts back
     sheet.hidden = false; root.classList.add("sheeton"); placeSheet();
   };
   const closeShot = () => { if (sheet.hidden) return; sheet.hidden = true; root.classList.remove("sheeton"); markTabs(); };
@@ -874,7 +904,9 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   sheet.addEventListener("pointerup", dragEnd, sig);
   sheet.addEventListener("pointercancel", dragEnd, sig);
   sheet.addEventListener("dblclick", (e) => { const t = e.target as HTMLElement; if (!t.closest(".ssh, .ss-head") || t.closest("button, select, input")) return; free = null; keepFree(); placeSheet(); }, sig);
-  $("ssx").addEventListener("click", closeShot, sig);
+  // computers: ✕ puts the shot back as it was when the picker opened, ✓ keeps the choice (phones: ✕ closes, as before)
+  $("ssx").addEventListener("click", () => { const st = S(); if (wide() && st && sheetSnap) st.unsnap(sheetSnap); sheetSnap = null; closeShot(); }, sig);
+  $("ssok").addEventListener("click", () => { sheetSnap = null; closeShot(); }, sig);
   // the custom speed: the number while dragging, the shot's speed when let go (a constant speed curve, the engine's own)
   $("ssbody").addEventListener("input", (e) => { const t = e.target as HTMLInputElement; if (t.id === "ssspd") { const o = $("ssspdv"); o.textContent = spdTxt(spdOf(+t.value)); } }, sig);
   $("ssbody").addEventListener("change", (e) => {
@@ -897,7 +929,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
       setText($("tcur"), fmt2(st.now)); setText($("ttot"), fmt2(st.dur));
       if (root.classList.contains("playing") !== st.playing) { root.classList.toggle("playing", st.playing); $("playov").setAttribute("aria-label", st.playing ? "Pause preview" : "Play preview"); }
       shotUI(); clipUI(); drawLanes();
-      if (sel >= 0 && (sel >= st.edit.length || wide() || !editing)) selectClip(-1, false); else if (sel >= 0) renderClipBar();
+      if (sel >= 0 && (sel >= st.edit.length || !editing)) selectClip(-1, false); else if (sel >= 0 || wide() || dock.parentElement === clipbar || clipbar.parentElement === create) renderClipBar(); // (a narrowed window: the bars go back to the phone's places)
     }
     raf = requestAnimationFrame(tick);
   };

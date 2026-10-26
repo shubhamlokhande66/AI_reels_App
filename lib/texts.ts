@@ -38,7 +38,7 @@ const LEGAL_TERMS = `These terms apply when you use {name} (“we”, “the ser
 - Prices are in Indian rupees and include GST. Payments are processed by Razorpay.
 - Paid plans are prepaid for one month or one year and do **not** renew automatically. Plan credits refresh every 30 days during the paid period and do not carry over; starter and top-up credits do not expire.
 - Credits are used when a Reel is made. If a Reel fails, its credits are returned automatically.
-- Refunds are described in our [Refund & Cancellation Policy](/refunds).
+- All purchases are final and **non-refundable**; see our [Refund & Cancellation Policy](/refunds).
 
 ## 5. Fair use
 Do not try to break, overload or copy the service, share accounts, or use it to make spam or misleading content. We may limit or close accounts that do.
@@ -91,13 +91,13 @@ Plans do not renew automatically, so there is nothing to cancel: a plan simply e
 ## Failed Reels
 If a Reel cannot be made, the credits it used are returned to your account automatically. No request is needed.
 
-## Refunds
-- **Unused purchase:** if you have not used any credits from a plan or top-up, you can ask for a full refund within 7 days of the payment.
-- **Charged by mistake:** a duplicate payment, or a payment that did not give you your plan or credits, is refunded in full.
-- Credits that were used to make Reels are not refundable.
+## No refunds
+- All purchases (plans and credit top-ups) are **final and non-refundable**, whether the credits are used or not.
+- You can make Reels on your phone with the Free plan before you buy, so you know what you get.
+- Unused credits are not exchanged for money.
 
-## How to ask
-Write to {reach} from your account's email with the payment date and amount. We answer within 3 working days. Approved refunds go back to the original payment method through Razorpay, usually within 5–7 working days.
+## A problem with a payment
+If you were charged twice, or a payment did not add your plan or credits, write to {reach} from your account's email with the payment date and amount. We check it within 3 working days and make it right by adding what you paid for.
 
 ## Delivery
 {name} is a digital service. Plans and credits are added to your account immediately after a successful payment; nothing is shipped.`;
@@ -144,6 +144,54 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Payments",
       C("Notes", T("pricing.secure", "At the end: payments open", "Payments are handled securely by Razorpay. We never see your card or UPI details."),
         T("pricing.soon", "At the end: payments closed", "Online payment opens soon."), T("pricing.paid", "After a payment ({item})", "Payment received: {item} is active. Thank you!"))),
+    S("Coupons & offers",
+      C("Checkout", T("pricing.checkoutTitle", "Title", "Your order"), T("pricing.checkoutPrice", "Price line", "Price"), T("pricing.checkoutOffer", "Offer line ({title})", "{title}"),
+        T("pricing.checkoutCoupon", "Coupon line ({code})", "Coupon {code}"), T("pricing.checkoutTotal", "Total line", "You pay"), T("pricing.couponLabel", "Coupon field label", "Have a coupon code?"),
+        T("pricing.couponPlaceholder", "Coupon placeholder", "Enter code"), T("pricing.couponApply", "Apply button", "Apply"), T("pricing.couponRemove", "Remove button", "Remove"),
+        T("pricing.couponApplied", "After applying ({label})", "Applied: {label}"), T("pricing.payNow", "Pay button ({price})", "Pay {price}"), T("pricing.checking", "While checking the price", "Checking your price…")),
+      C("Offer", T("pricing.offerEnds", "Banner: ends ({when})", "ends {when}"), T("pricing.offerSee", "Banner: link", "See plans"), T("pricing.offerTag", "Price tag ({percent})", "{percent}% off"),
+        T("pricing.offerNew", "Banner: first purchase only", "on your first purchase"))),
+  ),
+  page(PAGES, "affiliate", "Affiliate dashboard",
+    S("Page", C("Header", T("nav.affiliate", "Title (also in the menu)", "Affiliate dashboard"), T("aff.sub", "Line under the title", "Your link, your customers and what you earn."),
+      T("aff.loading", "While loading", "Loading your dashboard…"), T("aff.notYet", "Not an affiliate", "You are not in the affiliate program yet."), T("aff.toRewards", "Link to Invite & earn", "Go to Invite & earn"),
+      T("aff.pendingTitle", "Waiting: title", "Your request is with our team"), T("aff.pausedTitle", "Paused: title", "Your affiliate account is paused"), T("aff.open", "Button on Invite & earn", "Open dashboard"))),
+    S("Link & terms", C("Card", T("aff.link", "Link label", "Your affiliate link"), T("aff.termPercent", "Term: % ({n})", "{n}% commission"), T("aff.termMonths", "Term: months ({n})", "for {n} months a customer"),
+      T("aff.termUntil", "Term: link end ({date})", "link valid until {date}"), T("aff.termNoEnd", "Term: no end", "link never ends"), T("aff.termPayout", "Term: payout ({n})", "paid out from ₹{n}"))),
+    S("Numbers", C("Tiles", T("aff.clicks", "Clicks", "Link clicks"), T("aff.last30", "Clicks note ({n})", "{n} in 30 days"), T("aff.customers", "Customers", "Customers"),
+      T("aff.buyers", "Customers note ({n})", "{n} bought"), T("aff.revenue", "Paid note ({n})", "from {n} in sales"))),
+    S("Lists", C("Tabs & rows", T("aff.sales", "Sales tab", "Sales"), T("aff.payouts", "Payouts tab", "Payouts"), T("aff.statusDue", "Due", "Due"), T("aff.statusPaid", "Paid", "Paid"),
+      T("aff.joined", "Customer joined ({date})", "joined {date}"), T("aff.countsUntil", "Customer counts until ({date})", "counts until {date}"), T("aff.afterEnd", "Joined after the link ended", "joined after your link ended"),
+      T("aff.payoutSales", "Payout: sales ({n})", "{n} sales"), T("aff.noSales", "No sales", "No sales yet. Share your link to start earning."), T("aff.noCustomers", "No customers", "No one has joined with your link yet."),
+      T("aff.noPayouts", "No payouts", "No payouts yet."))),
+  ),
+  page(PAGES, "rewards", "Invite & earn",
+    S("Page", C("Header", T("nav.rewards", "Title (also in the menu)", "Invite & earn"), T("rewards.sub", "Line under the title", "Invite friends, send credits and earn with Shubix."),
+      T("rewards.loading", "While loading", "Loading your rewards…"), T("rewards.off", "Billing off", "Rewards need accounts and credits, which are off in this studio."))),
+    S("Invite friends",
+      C("Card", T("rewards.inviteTitle", "Title", "Invite friends, you both get credits"), T("rewards.inviteLine2", "Line ({friend} {friendWhen} {you} {youWhen})", "Your friend gets {friend} credits when they {friendWhen}; you get {you} when they {youWhen}.", true),
+        T("rewards.whenSignup", "When: sign up", "sign up"), T("rewards.whenVerified", "When: verify their email", "join and verify their email"), T("rewards.whenPurchase", "When: first purchase", "make their first purchase"),
+        T("rewards.yourLink", "Link label", "Your invite link"), T("rewards.copy", "Copy button", "Copy link"), T("rewards.copied", "After copying", "Copied!"), T("rewards.whatsapp", "WhatsApp button", "WhatsApp"),
+        T("rewards.creditsFreeAi", "On Free: what credits do ({n})", "On Free, credits pay for Shubix AI: {n} credits make 1 AI Reel"), T("rewards.creditsKept", "On Free: credits kept", "Your credits are kept for Shubix AI when you upgrade"),
+        T("rewards.shareText", "Message shared ({link})", "Make stunning Reels with Shubix, edited on the beat by AI. Join with my link and get free credits: {link}", true)),
+      C("Your invites", T("rewards.invited", "Friends joined", "Friends joined"), T("rewards.rewarded", "Rewarded", "Rewarded"), T("rewards.earned", "Credits earned", "Credits earned"),
+        T("rewards.inviteOff", "Invites turned off", "Invites are paused right now."))),
+    S("Send credits",
+      C("Form", T("rewards.sendTitle", "Title", "Send credits to a friend"), T("rewards.sendLine", "Line ({min} {max} {left})", "Send {min} to {max} credits at a time · {left} left to send today.", true),
+        T("rewards.sendExtraOnly", "Which credits", "Top-up and gift credits can be sent; a plan's monthly credits stay with the plan."),
+        T("rewards.to", "To label", "Friend's username"), T("rewards.toPlaceholder", "To placeholder", "@username"), T("rewards.amount", "Amount label", "Credits"),
+        T("rewards.send", "Button", "Send credits"), T("rewards.sending", "While sending", "Sending…"), T("rewards.confirm", "Confirm ({n} {to})", "Send {n} credits to @{to}?"),
+        T("rewards.sent", "After sending ({n} {to})", "Sent {n} credits to @{to}."), T("rewards.sendOff", "Sending off", "Sending credits is paused right now."))),
+    S("Affiliate",
+      C("Program", T("rewards.affTitle", "Title", "Affiliate program"), T("rewards.affLine", "Line ({percent} {months})", "Earn {percent}% of what the people you bring pay in their first {months} months.", true),
+        T("rewards.affApply", "Apply button", "Apply to join"), T("rewards.affPending", "Waiting", "Your request is with our team. We will let you know."),
+        T("rewards.affPaused", "Paused", "Your affiliate account is paused. Contact us to know more."), T("rewards.affClosed", "Closed", "The program is not taking new partners right now."),
+        T("rewards.affUntil", "Link end date ({date})", "Your link brings new customers until {date}.")),
+      C("Your earnings", T("rewards.affDue", "Due", "To be paid"), T("rewards.affPaid", "Paid", "Paid so far"), T("rewards.affSales", "Sales", "Sales"),
+        T("rewards.affPayout", "Payout note ({min})", "Paid out by bank or UPI from ₹{min}.", true), T("rewards.affRecent", "Recent", "Recent sales"))),
+    S("Username",
+      C("Form", T("rewards.userTitle", "Title", "Your username"), T("rewards.userLine", "Line", "Friends send you credits with it, and it is your invite code."),
+        T("rewards.userSave", "Save button", "Save"), T("rewards.userSaved", "After saving", "Saved"))),
   ),
   page(PAGES, "auth", "Sign in & passwords",
     S("Sign in",
@@ -183,7 +231,7 @@ export const TEXT_GROUPS: TextGroup[] = [
         T("account.freeLine", "Line on Free", "Make Reels free on your phone. Upgrade for Shubix AI, no ads and no watermark.", true)),
       C("Tiles", T("account.statCredits", "Credits left", "Credits left"), T("account.statPlan", "Plan", "Plan"), T("account.statExtra", "Top-up credits", "Top-up credits"),
         T("account.until", "Plan ends ({date})", "Until {date}"), T("account.forever", "Free plan: no end", "Free forever"), T("account.neverExpire", "Top-ups: never expire", "Never expire"),
-        T("account.monthly", "Credits a month ({n})", "{n} a month"))),
+        T("account.monthly", "Left of this month's plan credits ({n})", "{n} from this month's plan"))),
     S("Settings list",
       C("Rows", T("account.security", "Heading: security", "Security"), T("account.rowPassword", "Change password: line", "Choose a new password for this account"),
         T("account.rowSessions", "Devices: line", "Sign out on every other phone and computer"), T("account.devices", "Devices: title", "Signed-in devices"),
@@ -291,7 +339,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   page(EVERY, "nav", "Menu & top bar",
     S("Menu",
       C("Headings", T("nav.studio", "Studio", "Studio"), T("nav.library", "Library", "Library"), T("nav.account", "Account", "Account")),
-      C("Links", T("nav.voices", "Voice profiles", "Voice profiles"), T("nav.home", "Home", "Home"), T("nav.music", "Music Reel", "Music Reel"), T("nav.talking", "Talking Reel", "Talking Reel"), T("nav.photo", "Photo Reel", "Photo Reel"),
+      C("Links", T("nav.voices", "Voice profiles", "Voice profiles"), T("nav.rewardsLink", "Invite & earn", "Invite & earn"), T("nav.home", "Home", "Home"), T("nav.music", "Music Reel", "Music Reel"), T("nav.talking", "Talking Reel", "Talking Reel"), T("nav.photo", "Photo Reel", "Photo Reel"),
         T("nav.copy", "Copy a Reel", "Copy a Reel"), T("nav.story", "Story Maker", "Story Maker"), T("nav.reels", "My Reels", "My Reels"), T("nav.templates", "Templates", "Templates"),
         T("nav.brands", "Brands", "Brands"), T("nav.pricing", "Pricing & plans", "Pricing & plans")),
       C("Bottom", T("nav.newReel", "New Reel button", "New Reel"), T("nav.signOut", "Sign out", "Sign out"), T("common.adminDashboard", "Admin dashboard", "Admin dashboard"))),
@@ -309,7 +357,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   ),
   page(EVERY, "plan", "Plan pill & upgrade",
     S("Plan pill",
-      C("Pill", T("plan.free", "On Free", "Free"), T("plan.freeUpgrade", "On Free, after the name", "· Upgrade"), T("plan.plans", "Before sign-in", "Plans"), T("common.planHint", "Hover on Free", "Free plan: see Editor & Pro"))),
+      C("Pill", T("plan.free", "On Free", "Free"), T("plan.freeUpgrade", "On Free, after the name", "· Upgrade"), T("plan.upgrade", "On Free: the upgrade chip", "Upgrade"), T("plan.plans", "Before sign-in", "Plans"), T("common.planHint", "Hover on Free", "Free plan: see Editor & Pro"))),
     S("Locked pages", C("Upgrade tag", T("plan.lockTag", "Tag (cards and menu)", "Upgrade"), T("plan.lockHint", "Hover", "In a paid plan: see the plans"))),
     S("Upgrade banners",
       C("Home banner", T("plan.bannerTitle", "Title", "Go Pro with Shubix"), T("plan.bannerText", "Line", "More templates, premium styles and advanced Shubix edits."), T("plan.bannerButton", "Button", "Upgrade")),
