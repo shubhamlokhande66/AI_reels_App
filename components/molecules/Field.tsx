@@ -6,7 +6,7 @@ import { Icon } from "@/components/atoms/Icon";
 export function Field({ label, hint, error, ok, className, children }: { label: React.ReactNode; hint?: React.ReactNode; error?: React.ReactNode; ok?: React.ReactNode; className?: string; children: React.ReactNode }) {
   const note = error || ok || hint;
   return (
-    <label className={cn("flex flex-col gap-1.5 text-[12px] font-semibold text-muted", className)}>
+    <label className={cn("flex min-w-0 flex-col gap-1.5 text-[12px] font-semibold text-muted", className)}>
       {label}
       {children}
       {note && (

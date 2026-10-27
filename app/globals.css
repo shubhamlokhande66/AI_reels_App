@@ -349,6 +349,28 @@ input[type="range"]:not(:disabled),
 input[type="file"]:not(:disabled) {
   cursor: pointer;
 }
+/* date and time fields: phone browsers (iPhone Safari above all) give them a fixed inner width and a centred value, so
+   they spill out of their box and look unlike the other fields. Everywhere: as wide as their box, never wider; on touch
+   screens also the app's own look, the value on the left. Computers keep their calendar button. */
+input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"]) {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+@media (pointer: coarse) {
+  input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"]) {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    text-align: left;
+    font-size: 13.5px;
+    line-height: 44px;
+  }
+  input:is([type="date"], [type="datetime-local"], [type="time"], [type="month"])::-webkit-date-and-time-value {
+    text-align: left;
+    margin: 0;
+  }
+}
 button:disabled,
 select:disabled,
 input:disabled {

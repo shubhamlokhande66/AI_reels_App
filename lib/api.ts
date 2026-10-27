@@ -295,6 +295,8 @@ export const api = {
   adminOverview: () => request<AdminOverview>("/api/admin/overview"),
   adminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
   adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
+  /** the account and everything in it (Reels, drafts, credits, affiliate account); its payments stay, unnamed */
+  adminDeleteUser: (id: string) => request<{ ok: boolean; email: string }>(`/api/admin/users/${id}`, { method: "DELETE" }),
   ads: () => request<AdsConfig>("/api/ads"),
   setAds: (b: Partial<AdsConfig>) => request<AdsConfig>("/api/admin/ads", { method: "PUT", body: JSON.stringify(b) }),
   /** Admin: a plan by hand (Free, or a paid plan for 1 or 12 months with its credits) */

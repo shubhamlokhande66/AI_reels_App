@@ -5,6 +5,7 @@ import { mainDb, ObjectId, OWNER, parseId } from "@/server/core/db";
 import { NotFoundError } from "@/server/core/errors";
 import { adjustCredits, enabled as billingOn, wallet } from "@/server/credits";
 import { getPricing } from "@/server/workspace";
+import { adminEmails } from "@/server/core/admin";
 
 /** The admin dashboard (Administration → Overview / Users): who is on the site right now, who signed up, who paid what,
  * how many credits each person has left. Presence: every open tab pings /api/public/ping about every 30 s (signed in or
@@ -106,12 +107,13 @@ export async function listUsers() {
     (await col("presence")).distinct("uid", { at: { $gte: new Date(Date.now() - ONLINE_MS) }, uid: { $ne: null } }),
     getPricing(),
   ]);
+  const admins = new Set(await adminEmails()); // the administrators: marked, and they cannot be deleted here
   const by = <T extends Doc>(rows: T[]) => new Map(rows.map((r) => [String(r._id), r]));
   const P = by(paid), W = by(ws), U = by(used), M = by(made), on = new Set(online.map(String)), names = new Map(pricing.plans.map((p) => [p.id, p.name]));
   return list.map((u) => {
     const id = String(u._id), w = W.get(id), pay = P.get(id);
     return {
-      id, email: String(u.email), createdAt: u.createdAt ?? null, lastLoginAt: u.lastLoginAt ?? null, lastSeenAt: u.lastSeenAt ?? null, logins: Number(u.loginCount ?? 0), online: on.has(id),
+      id, email: String(u.email), admin: admins.has(String(u.email).toLowerCase()), createdAt: u.createdAt ?? null, lastLoginAt: u.lastLoginAt ?? null, lastSeenAt: u.lastSeenAt ?? null, logins: Number(u.loginCount ?? 0), online: on.has(id),
       plan: String(w?.plan ?? "free"), planName: names.get(String(w?.plan ?? "free")) ?? String(w?.plan ?? "Free"), planEnds: w?.planEnds ?? null,
       credits: w ? Number(w.monthly ?? 0) + Number(w.extra ?? 0) : null, creditsUsed: -Number(U.get(id)?.credits ?? 0),
       spent: Number(pay?.rupees ?? 0) / 100, purchases: Number(pay?.n ?? 0), lastPurchase: pay?.last ?? null, reels: Number(M.get(id)?.n ?? 0),
@@ -131,7 +133,8 @@ export async function userDetail(id: string) {
   ]);
   const w = billingOn() ? await wallet(id) : null, names = new Map((await getPricing()).plans.map((p) => [p.id, p.name]));
   return {
-    id, email: String(u.email), createdAt: u.createdAt ?? null, lastLoginAt: u.lastLoginAt ?? null, lastSeenAt: u.lastSeenAt ?? null, logins: Number(u.loginCount ?? 0),
+    id, email: String(u.email), admin: (await adminEmails()).includes(String(u.email).toLowerCase()), self: id === currentUser(),
+    createdAt: u.createdAt ?? null, lastLoginAt: u.lastLoginAt ?? null, lastSeenAt: u.lastSeenAt ?? null, logins: Number(u.loginCount ?? 0),
     wallet: w ? { plan: String(w.plan), planName: names.get(String(w.plan)) ?? String(w.plan), period: w.period ?? null, monthly: Number(w.monthly ?? 0), extra: Number(w.extra ?? 0), balance: Number(w.monthly ?? 0) + Number(w.extra ?? 0), planEnds: w.planEnds ?? null, renews: w.cycleEnds ?? null } : null,
     payments: payments.map((p) => ({ id: String(p._id), label: String((p.item as Doc)?.label ?? ""), rupees: Number(p.amount) / 100, status: String(p.status), createdAt: p.createdAt ?? null, paidAt: p.paidAt ?? null, via: p.via ?? null })),
     history: history.map((e) => ({ delta: Number(e.delta), reason: String(e.reason ?? ""), at: e.at ?? null, balance: e.balance ?? null, refunded: Boolean(e.refunded) })),

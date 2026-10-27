@@ -9,6 +9,7 @@ import { api, errorMessage } from "@/lib/api";
 import type { AdminUserDetail } from "@/types/api";
 import { ago, count, date, dateTime, page, rupees } from "./format";
 import { LiveDot } from "./OverviewTab";
+import { AdminPlan, PlanPicker } from "./UsersTab";
 import { cn } from "@/lib/cn";
 
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
@@ -17,6 +18,49 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
       <span className="text-muted text-[11px]">{label}</span>
       <span className="text-[12.5px] truncate font-bold">{value}</span>
     </div>
+  );
+}
+
+/** Delete the account, at the bottom of the panel: the email typed to confirm, then asked once more. */
+function DeleteUser({ user, onDone }: { user: AdminUserDetail; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false), [typed, setTyped] = useState("");
+  const del = useMutation({
+    mutationFn: () => api.adminDeleteUser(user.id),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ["admin"] }); onDone(); },
+  });
+  const match = typed.trim().toLowerCase() === user.email.toLowerCase();
+  const go = async () => {
+    if (!match) return;
+    if (await confirmAction({ title: `Delete ${user.email}?`, body: "Their account, Reels, drafts, credits and affiliate account are deleted for good. Payments stay in your records, without their name. This cannot be undone.", ok: "Delete for good", danger: true })) del.mutate();
+  };
+  return (
+    <section className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-danger/40 bg-surface p-3.5" aria-label="Delete account">
+      <span className="m-0 text-[15px] font-bold text-danger">Delete account</span>
+      {!open ? (
+        <>
+          <span className="text-[12.5px] text-muted">Deletes the account and everything in it. It cannot be undone.</span>
+          <button type="button" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-danger/40 bg-surface px-4 text-sm font-bold text-danger hover:border-danger" onClick={() => setOpen(true)}>
+            <Icon name="trash" size={16} />Delete this account
+          </button>
+        </>
+      ) : (
+        <>
+          <label className="flex flex-col gap-1.5 text-[12px] font-semibold text-muted">
+            Type <b className="text-foreground">{user.email}</b> to confirm
+            <input className="h-11 w-full min-w-0 rounded-xl border border-border bg-surface px-3 text-[14px] font-medium text-foreground outline-none focus:border-danger" autoComplete="off" spellCheck={false}
+              value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={user.email} />
+          </label>
+          {del.error && <ErrorBanner message={errorMessage(del.error)} />}
+          <div className="grid grid-cols-2 gap-2.5">
+            <button type="button" className="h-11 rounded-xl border border-border bg-surface px-4 text-sm font-bold text-muted hover:text-foreground" onClick={() => { setOpen(false); setTyped(""); del.reset(); }}>Cancel</button>
+            <button type="button" disabled={!match || del.isPending} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-danger px-4 text-sm font-bold text-white disabled:opacity-50" onClick={() => void go()}>
+              {del.isPending ? "Deleting…" : "Delete for good"}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -75,13 +119,16 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
   }, [onClose]);
   const u = q.data, online = u?.devices.some((d) => d.online);
   return (
-    <div className="fixed inset-0 z-[60]">
-      <div className="absolute inset-0 bg-[var(--overlay)]" onClick={onClose} />
-      <aside role="dialog" aria-modal="true" aria-label="User details" className="absolute inset-y-0 right-0 flex w-full max-w-[520px] flex-col bg-background shadow-2xl">
+    // a popup in the middle of the screen (phones too), over a dimmed page; a tap outside or Esc closes it
+    <div className="fixed inset-0 z-[60] grid place-items-center p-3 sm:p-6">
+      <div className="absolute inset-0 bg-[var(--overlay)] backdrop-blur-[2px]" onClick={onClose} />
+      <aside role="dialog" aria-modal="true" aria-label="User details"
+        className="relative flex max-h-[calc(100dvh-24px)] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl sm:max-h-[min(860px,calc(100dvh-48px))]">
         <div className="flex items-center justify-between gap-2.5 border-b border-border px-4 py-3">
           <span className="flex items-center min-w-0 gap-2">
             {online && <LiveDot />}
             <span className="m-0 text-[15px] font-bold truncate">{u?.email ?? "User"}</span>
+            {u?.admin && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--chip-on)] px-2 py-0.5 text-[11px] font-bold text-accent"><Icon name="shield" size={11} />Admin</span>}
           </span>
           <button type="button" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-border p-0 text-foreground transition-colors hover:text-accent border-0 bg-transparent" aria-label="Close" onClick={onClose}>
             <Icon name="close" />
@@ -108,13 +155,17 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
                   <div className="flex items-center justify-between gap-2.5">
                     <span className="m-0 text-[15px] font-bold">Credits</span>
                     <span className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-[11px] font-bold bg-[var(--chip-on)] text-accent">
-                      {u.wallet.planName} plan{u.wallet.period ? ` · ${u.wallet.period}` : ""}
+                      {u.admin ? "Admin · all open" : `${u.wallet.planName} plan${u.wallet.period ? ` · ${u.wallet.period}` : ""}`}
                     </span>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <Fact label="Left" value={count(u.wallet.balance)} />
                     <Fact label="This month's" value={count(u.wallet.monthly)} />
                     <Fact label="Top-ups" value={count(u.wallet.extra)} />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 border-t border-border pt-2.5">
+                    <span className="text-[12.5px] text-muted">Plan</span>
+                    {u.admin ? <AdminPlan /> : <PlanPicker user={{ id: u.id, email: u.email, plan: u.wallet.plan, planName: u.wallet.planName }} />}
                   </div>
                   {u.wallet.planEnds && <span className="text-muted text-[11px]">Plan ends {date(u.wallet.planEnds)}{u.wallet.renews ? ` · credits renew ${date(u.wallet.renews)}` : ""}</span>}
                 </section>
@@ -204,6 +255,13 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
                   </ul>
                 </section>
               )}
+
+              {u.admin || u.self ? (
+                <section className="flex min-w-0 items-start gap-2.5 rounded-2xl border border-border bg-surface p-3.5" aria-label="Delete account">
+                  <Icon name="shield" size={16} className="mt-0.5 shrink-0 text-accent" />
+                  <span className="text-[12.5px] text-muted">{u.admin ? "This is an administrator account, so it cannot be deleted. Remove it from the administrators (Admin → Settings → Administrators, or ADMIN_EMAILS on the server) first." : "This is your own account: it cannot be deleted from here."}</span>
+                </section>
+              ) : <DeleteUser user={u} onDone={onClose} />}
             </>
           )}
         </div>

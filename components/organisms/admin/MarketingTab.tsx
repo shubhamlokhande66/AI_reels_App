@@ -157,9 +157,10 @@ function ShareForm({ s }: { s: MarketingSettings }) {
         <Field label="Largest"><Input type="number" min={1} value={v.max} onChange={(e) => setV({ ...v, max: num(e.target.value, 1) })} /></Field>
         <Field label="A day (total)"><Input type="number" min={1} value={v.dailyMax} onChange={(e) => setV({ ...v, dailyMax: num(e.target.value, 1) })} /></Field>
       </div>
-      <Field label="Which credits can be sent">
-        <Select value={v.source} onChange={(e) => setV({ ...v, source: e.target.value as typeof v.source })}>
-          <option value="extra">{"Top-up and gift credits only (a plan's monthly credits stay)"}</option><option value="all">All credits</option>
+      {/* short choices (a phone's box is narrow), what each means under it */}
+      <Field label="Which credits can be sent" hint={v.source === "extra" ? "A plan's monthly credits stay with the person; only top-ups and gifts can be sent." : "Any credits, the plan's monthly ones too."}>
+        <Select value={v.source} onChange={(e) => setV({ ...v, source: e.target.value as typeof v.source })} className="text-[13.5px]">
+          <option value="extra">Top-ups &amp; gifts only</option><option value="all">All credits</option>
         </Select>
       </Field>
       <Saved msg={msg} />

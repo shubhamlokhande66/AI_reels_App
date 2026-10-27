@@ -12,6 +12,7 @@ import { deletePrefix } from "@/server/storage/local";
 export { sendMail };
 import fs from "node:fs";
 import { localPath } from "@/server/storage/local";
+import { deleteReelFile } from "@/server/studio/reels";
 
 /** Accounts (was api/auth.py and core/mailer.py): sign up / in / out, forgot + reset password, change password, delete
  * the account. With accounts off, /me says so and nothing else is needed. */
@@ -221,18 +222,36 @@ async function deleteUserData(userId: string) {
     for (const doc of await d.collection(name).find({ [OWNER]: userId }).toArray()) {
       for (const [k, v] of Object.entries(doc)) if (k.endsWith("Key") && typeof v === "string" && v) fs.rmSync(localPath(v), { force: true, recursive: true });
       if (name === "projects") deletePrefix(`projects/${doc._id}`); // a project from the old server editor: its folder
+      if (name === "studio_reels") await deleteReelFile(doc as { key?: unknown; uploadId?: unknown }).catch((e) => console.warn("account deleted: a Reel's file stays:", (e as Error).message)); // My Reels (R2)
     }
     await d.collection(name).deleteMany({ [OWNER]: userId });
   }
   await d.collection<Doc>("wallets").deleteMany({ _id: userId as never });
   await d.collection("credit_ledger").deleteMany({ userId });
   await d.collection("payments").updateMany({ userId }, { $set: { userId: null, accountDeleted: true } });
+  await d.collection<Doc>("affiliates").deleteOne({ _id: userId as never }); // the affiliate account, payout details too (their sales stay counted)
+}
+/** Admin → Users → a person → Delete: the account and everything in it, as if they had deleted it themselves (their
+ * payments stay, unnamed, for the accounts). An administrator's own account and the other administrators are not. */
+export async function adminDeleteUser(id: string) {
+  needAccounts();
+  if (!ObjectId.isValid(id)) throw new ValidationFailed("No such account.", { code: "USER_NOT_FOUND" });
+  if (id === currentUser()) throw new ValidationFailed("You cannot delete your own account from here.", { code: "SELF_DELETE" });
+  const u = await (await users()).findOne({ _id: new ObjectId(id) });
+  if (!u) throw new ValidationFailed("No such account.", { code: "USER_NOT_FOUND" });
+  if (await isAdminEmail(String(u.email))) throw new ValidationFailed("This is an administrator. Remove them from Admin → Settings → Administrators first.", { code: "ADMIN_ACCOUNT" });
+  await deleteUserData(id);
+  await (await users()).deleteOne({ _id: u._id });
+  forgetSessionCache(id); // their sessions end (a session of a deleted account is not accepted)
+  return { ok: true, email: String(u.email) };
 }
 export async function deleteAccount(password: string, confirm: string) {
   needAccounts();
   const u = await meDoc();
   if (confirm.trim().toLowerCase() !== u.email) throw new ValidationFailed("Type your email address exactly to confirm.", { code: "CONFIRMATION_MISMATCH" });
   if (!verifyPassword(password, String(u.password))) throw new ValidationFailed("The password is not correct.", { code: "BAD_CREDENTIALS" });
+  // the administrator's account stays (deleting it would leave the studio without one): take it off the admins first
+  if (await isAdminEmail(String(u.email))) throw new ValidationFailed("This is the administrator's account, so it cannot be deleted. Remove it from ADMIN_EMAILS (or Admin → Settings → Administrators) first.", { code: "ADMIN_ACCOUNT" });
   await deleteUserData(String(u._id));
   await (await users()).deleteOne({ _id: u._id as ObjectId });
   forgetSessionCache(String(u._id));

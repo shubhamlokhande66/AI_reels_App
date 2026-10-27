@@ -96,4 +96,24 @@ describe("administrators", () => {
     expect(await (await Acc.login("n@x.com", "password123")).json()).toMatchObject({ adminCode: false });
     await expect(withUser(String(normal.insertedId), () => Acc.sendAdminCode())).rejects.toThrow(/not an administrator/);
   });
+
+  it("delete a person's account with everything in it, but never their own or another administrator's", async () => {
+    const d = await mainDb(), admin = await user("owner1@x.com"), other = await user("owner2@x.com"), gone = await user("gone@x.com", false);
+    await d.collection("drafts").insertOne({ ownerId: gone, name: "my draft" });
+    await d.collection("wallets").insertOne({ _id: gone as never, plan: "free", monthly: 0, extra: 5 });
+    await d.collection("affiliates").insertOne({ _id: gone as never, status: "active", payout: { method: "upi", sealed: "v1.x" } });
+    await d.collection("payments").insertOne({ _id: "order1" as never, userId: gone, status: "paid" });
+    await expect(withUser(admin, () => Acc.adminDeleteUser(admin))).rejects.toThrow(/your own account/);
+    await expect(withUser(admin, () => Acc.adminDeleteUser(other))).rejects.toThrow(/administrator/);
+    await d.collection("users").updateOne({ _id: new ObjectId(admin) }, { $set: { password: hashPassword("password123") } });
+    await expect(withUser(admin, () => Acc.deleteAccount("password123", "owner1@x.com"))).rejects.toThrow(/administrator's account/); // not even by themselves
+    expect(await d.collection("users").countDocuments({ _id: new ObjectId(admin) })).toBe(1);
+    expect(await withUser(admin, () => Acc.adminDeleteUser(gone))).toEqual({ ok: true, email: "gone@x.com" });
+    expect(await d.collection("users").countDocuments({ email: "gone@x.com" })).toBe(0);
+    expect(await d.collection("drafts").countDocuments({ ownerId: gone })).toBe(0);
+    expect(await d.collection("wallets").countDocuments({ _id: gone as never })).toBe(0);
+    expect(await d.collection("affiliates").countDocuments({ _id: gone as never })).toBe(0);
+    expect(await d.collection("payments").findOne({ _id: "order1" as never })).toMatchObject({ userId: null, accountDeleted: true }); // kept for the accounts
+    await d.collection("drafts").deleteMany({}); await d.collection("affiliates").deleteMany({}); await d.collection("payments").deleteMany({});
+  });
 });

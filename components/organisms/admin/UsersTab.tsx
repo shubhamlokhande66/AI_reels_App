@@ -12,8 +12,8 @@ import { ago, count, date, rupees } from "./format";
 import { LiveDot } from "./OverviewTab";
 
 /** Admin → Users: everyone who signed up. Numbers at the top, then search, filters and sort; on a computer a table
- * (who, activity, plan, credits, spent, Reels), on a phone a card per person. A row opens the person's panel; the
- * plan can be changed right here (asked first). */
+ * (who, activity, plan, credits, spent, Reels), on a phone the same table, compact. A row opens the person's panel;
+ * the plan can be changed in the computer's table and in the panel (asked first). */
 
 type Filter = "all" | "online" | "paying" | "free";
 type SortKey = "createdAt" | "lastSeenAt" | "email" | "credits" | "creditsUsed" | "spent" | "reels" | "logins";
@@ -129,13 +129,15 @@ export function UsersTab({ onOpenUser }: { onOpenUser: (id: string) => void }) {
                       <span className="flex min-w-0 items-center gap-3">
                         <Avatar email={u.email} size={36} />
                         <span className="flex min-w-0 flex-col">
-                          <button type="button" className="truncate text-left font-bold hover:text-accent" onClick={(e) => { e.stopPropagation(); onOpenUser(u.id); }}>{u.email}</button>
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <button type="button" className="truncate text-left font-bold hover:text-accent" onClick={(e) => { e.stopPropagation(); onOpenUser(u.id); }}>{u.email}</button>
+                          </span>
                           <span className="text-[12px] text-muted">Joined {date(u.createdAt)}</span>
                         </span>
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-3 text-muted"><Seen u={u} /><span className="block text-[12px]">{count(u.logins)} login{u.logins === 1 ? "" : "s"}</span></td>
-                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}><PlanPicker user={u} /></td>
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>{u.admin ? <AdminPlan /> : <PlanPicker user={u} />}</td>
                     <td className="px-3 py-3 text-right tabular-nums"><b className="text-[14px]">{u.credits === null ? "—" : count(u.credits)}</b><span className="block text-[12px] text-muted">{count(u.creditsUsed)} used</span></td>
                     <td className="px-3 py-3 text-right tabular-nums">{u.spent ? <b>{rupees(u.spent)}</b> : <span className="text-muted">₹0</span>}<span className="block text-[12px] text-muted">{u.purchases} purchase{u.purchases === 1 ? "" : "s"}</span></td>
                     <td className="px-3 py-3 text-right tabular-nums">{count(u.reels)}</td>
@@ -146,39 +148,58 @@ export function UsersTab({ onOpenUser }: { onOpenUser: (id: string) => void }) {
             </table>
           </Card>
 
-          {/* phones and tablets: a card per person */}
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:hidden">
-            {rows.map((u) => (
-              <Card key={u.id} as="article" variant="interactive" className="flex cursor-pointer flex-col gap-3 p-3.5 md:p-3.5" onClick={() => onOpenUser(u.id)}>
-                <div className="flex items-center gap-3">
-                  <Avatar email={u.email} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <b className="block truncate text-[14px]">{u.email}</b>
-                    <span className="text-[12px] text-muted"><Seen u={u} /></span>
-                  </div>
-                  <Icon name="chevron" size={16} className="text-muted" />
-                </div>
-                <div className="grid grid-cols-3 gap-2 rounded-xl bg-surface-2/60 p-2.5 text-center">
-                  <span><b className="block tabular-nums">{u.credits === null ? "—" : count(u.credits)}</b><span className="text-[11px] text-muted">credits left</span></span>
-                  <span><b className="block tabular-nums">{u.spent ? rupees(u.spent) : "₹0"}</b><span className="text-[11px] text-muted">spent</span></span>
-                  <span><b className="block tabular-nums">{count(u.reels)}</b><span className="text-[11px] text-muted">Reels</span></span>
-                </div>
-                <div className="flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
-                  <span className="text-[12px] text-muted">Joined {date(u.createdAt)} · {count(u.logins)} login{u.logins === 1 ? "" : "s"}</span>
-                  <PlanPicker user={u} />
-                </div>
-              </Card>
-            ))}
-          </div>
+          {/* phones and tablets: the same table, compact (who, plan, credits left, spent); a row opens the person, where
+              the plan is changed */}
+          <Card className="overflow-hidden p-0 lg:hidden md:p-0">
+            <table className="w-full table-fixed border-collapse text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-border bg-surface-2/50 text-[11.5px] font-semibold text-muted">
+                  <th scope="col" className="px-3 py-2.5">User</th>
+                  <th scope="col" className="w-[60px] px-1 py-2.5">Plan</th>
+                  <th scope="col" className="w-[54px] px-1 py-2.5 text-right">Credits</th>
+                  <th scope="col" className="w-[58px] px-1 py-2.5 text-right">Spent</th>
+                  <th scope="col" className="w-7 py-2.5"><span className="sr-only">Open</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((u) => (
+                  <tr key={u.id} onClick={() => onOpenUser(u.id)} className="cursor-pointer border-b border-border transition-colors last:border-b-0 hover:bg-accent/6">
+                    <td className="min-w-0 px-3 py-2.5">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <button type="button" className="min-w-0 truncate text-left font-semibold hover:text-accent" onClick={(e) => { e.stopPropagation(); onOpenUser(u.id); }}>{u.email}</button>
+                      </span>
+                      <span className="block truncate text-[11.5px] text-muted"><Seen u={u} /></span>
+                    </td>
+                    <td className="px-1 py-2.5">
+                      {u.admin ? <AdminPlan small /> : <span className={`inline-flex max-w-full items-center truncate rounded-full px-2 py-0.5 text-[11px] font-bold ${u.plan !== "free" ? "bg-[var(--chip-on)] text-accent" : "bg-surface-2 text-muted"}`}>{u.planName}</span>}
+                    </td>
+                    <td className="px-1 py-2.5 text-right font-semibold tabular-nums">{u.credits === null ? "—" : count(u.credits)}</td>
+                    <td className="px-1 py-2.5 text-right tabular-nums">{u.spent ? <b>{rupees(u.spent)}</b> : <span className="text-muted">₹0</span>}</td>
+                    <td className="py-2.5 pr-2 text-muted"><Icon name="chevron" size={14} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
         </>
       )}
     </div>
   );
 }
 
+/** An administrator's plan: every plan's pages and Shubix AI open, no credits taken (no plan to change). */
+export function AdminPlan({ small = false }: { small?: boolean }) {
+  return (
+    <span title="Administrator: everything open, no credits taken"
+      className={`inline-flex max-w-full items-center gap-1 truncate rounded-full bg-[var(--chip-on)] font-bold text-accent ${small ? "px-2 py-0.5 text-[11px]" : "h-6 px-2.5 text-[12px]"}`}>
+      <Icon name="shield" size={small ? 10 : 12} />Admin
+    </span>
+  );
+}
+
 /** The person's plan, and "Change": Free, or a paid plan for a month or a year (its credits come with it, no payment),
  * asked first. */
-function PlanPicker({ user }: { user: AdminUserRow }) {
+export function PlanPicker({ user }: { user: Pick<AdminUserRow, "id" | "email" | "plan" | "planName"> }) {
   const qc = useQueryClient();
   const plans = useQuery({ queryKey: ["plans"], queryFn: api.plans });
   const set = useMutation({

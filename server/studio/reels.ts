@@ -214,6 +214,15 @@ export async function shareReel(id: string, on: boolean) {
   return out({ ...d, shareToken });
 }
 
+/** A saved Reel's file, wherever it is kept (R2, else the disk): gone. For an account deleted with everything in it. */
+export async function deleteReelFile(d: { key?: unknown; uploadId?: unknown }) {
+  if (typeof d.key !== "string" || !d.key) return;
+  const c = r2Config();
+  if (c) {
+    if (typeof d.uploadId === "string" && d.uploadId) await abortMultipart(c, d.key, d.uploadId).catch(() => {});
+    await deleteObject(c, d.key);
+  } else await fs.promises.rm(localPath(d.key), { force: true });
+}
 export async function deleteReel(id: string) {
   const d = await getReel(id), c = r2Config();
   if (c) {

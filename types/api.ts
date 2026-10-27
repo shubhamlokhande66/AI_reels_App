@@ -421,12 +421,12 @@ export interface AdminOverview {
 }
 /** Administration → Users: one row per account. credits = null before the person's wallet exists. */
 export interface AdminUserRow {
-  id: string; email: string; createdAt: string | null; lastLoginAt: string | null; lastSeenAt: string | null; logins: number; online: boolean;
+  id: string; email: string; admin: boolean; createdAt: string | null; lastLoginAt: string | null; lastSeenAt: string | null; logins: number; online: boolean;
   plan: string; planName: string; planEnds: string | null; credits: number | null; creditsUsed: number;
   spent: number; purchases: number; lastPurchase: string | null; reels: number;
 }
 export interface AdminUserDetail {
-  id: string; email: string; createdAt: string | null; lastLoginAt: string | null; lastSeenAt: string | null; logins: number;
+  id: string; email: string; admin: boolean; self: boolean; createdAt: string | null; lastLoginAt: string | null; lastSeenAt: string | null; logins: number;
   wallet: { plan: string; planName: string; period: string | null; monthly: number; extra: number; balance: number; planEnds: string | null; renews: string | null } | null;
   payments: { id: string; label: string; rupees: number; status: string; createdAt: string | null; paidAt: string | null; via: string | null }[];
   history: { delta: number; reason: string; at: string | null; balance: number | null; refunded: boolean }[];
