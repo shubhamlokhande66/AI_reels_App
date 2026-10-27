@@ -39,7 +39,7 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
         <ProPill plan={credits?.planName} planId={credits?.plan} />
         {credits && (
           <a href="/pricing" title={t("nav.creditsHint")} className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-xl border border-border bg-surface px-3.5 text-[14px] font-bold transition-colors hover:border-accent/60">
-            <Icon name="bolt" size={18} stroke={2} color="#6d8bff" />
+            <Icon name="bolt" size={18} stroke={2} color="var(--accent)" />
             {credits.balance.toLocaleString("en-IN")}<span className="hidden capitalize lg:inline"> {t("nav.credits")}</span>
           </a>
         )}
@@ -51,7 +51,7 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
           triggerClass="flex items-center gap-1.5 rounded-full p-0.5 pr-1.5 text-muted transition-colors hover:bg-surface-2"
           trigger={
             <>
-              <span title={email} className="grid h-10 w-10 place-items-center rounded-full text-[15px] font-extrabold text-white [background:var(--gold-gradient)]">
+              <span title={email} className="grid h-10 w-10 place-items-center rounded-full text-[15px] font-extrabold text-[var(--on-accent)] [background:var(--gold-gradient)]">
                 {email ? email[0]?.toUpperCase() : <Icon name="user" size={20} stroke={2} />}
               </span>
               <Icon name="down" size={16} />

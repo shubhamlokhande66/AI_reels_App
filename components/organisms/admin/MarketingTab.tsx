@@ -377,7 +377,7 @@ function Offers({ list }: { list: AdminOffer[] }) {
       )}
       {list.map((o) => (
         <div key={o.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface p-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[image:var(--gold-gradient)] text-white"><Icon name="sparkle" size={16} /></span>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[image:var(--gold-gradient)] text-[var(--on-accent)]"><Icon name="sparkle" size={16} /></span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2"><b className="text-[14px]">{o.title}</b><Badge tone="brand">{o.percent}% off</Badge><Badge tone={o.live ? "success" : "neutral"}>{o.live ? "Live" : o.active ? "Not in dates" : "Off"}</Badge></div>
             <span className="block truncate text-[12px] text-muted">{o.appliesTo === "all" ? "Plans & top-ups" : o.appliesTo === "plans" ? "Plans" : "Top-ups"}{o.audience === "new" ? " · first purchase" : ""}{o.starts ? ` · from ${day(o.starts)}` : ""}{o.ends ? ` · until ${day(o.ends)}` : ""}{o.banner ? ` · “${o.banner}”` : ""}</span>

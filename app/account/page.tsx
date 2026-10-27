@@ -201,7 +201,7 @@ export default function AccountPage() {
 
       {/* who you are, and your plan */}
       <Card className="relative flex flex-col gap-4 overflow-hidden sm:flex-row sm:items-center">
-        <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[radial-gradient(closest-side,rgba(176,92,255,.28),transparent)]" />
+        <span aria-hidden className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,123,.2),transparent)]" />
         <div className="relative flex min-w-0 flex-1 items-center gap-4">
           <Avatar email={name} size={64} />
           <div className="min-w-0">
@@ -220,7 +220,7 @@ export default function AccountPage() {
 
       {/* your credits */}
       {c && (
-        <Card className="grid grid-cols-3 divide-x divide-border p-0 md:p-0">
+        <Card className="grid divide-y divide-border p-0 md:grid-cols-3 md:divide-x md:divide-y-0 md:p-0">
           {([
             ["bolt", t("account.statCredits"), c.balance.toLocaleString("en-IN"), c.monthly ? t("account.monthly", { n: c.monthly.toLocaleString("en-IN") }) : ""],
             ["crown", t("account.statPlan"), c.planName, paid && c.planEnds ? t("account.until", { date: day(c.planEnds) }) : t("account.forever")],

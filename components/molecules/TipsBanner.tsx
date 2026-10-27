@@ -9,9 +9,9 @@ export function TipsBanner({ href = "#tips-h" }: { href?: string }) {
   return (
     <a
       href={href}
-      className="group flex items-center gap-3 rounded-2xl border border-accent/40 bg-[linear-gradient(100deg,rgba(176,92,255,.28),rgba(91,76,245,.12))] px-4 py-3 transition-colors hover:border-accent"
+      className="group flex items-center gap-3 rounded-2xl border border-accent/40 bg-[linear-gradient(100deg,color-mix(in_srgb,var(--accent)_18%,var(--surface)),color-mix(in_srgb,var(--accent)_5%,var(--surface)))] px-4 py-3 shadow-[var(--shadow)] transition-[border-color,box-shadow,translate] duration-300 hover:-translate-y-0.5 hover:border-accent hover:shadow-[0_16px_34px_-24px_var(--brand-glow)]"
     >
-      <Icon name="bulb" size={30} stroke={2} color="#c084fc" />
+      <Icon name="bulb" size={30} stroke={2} color="var(--accent)" />
       <span className="flex min-w-0 flex-1 flex-col">
         <b className="text-[15px] font-extrabold">{t("home.tipsTitle")}</b>
         <span className="text-[12px] text-muted">{t("home.tipsSub")}</span>

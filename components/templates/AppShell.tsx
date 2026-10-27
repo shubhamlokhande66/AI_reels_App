@@ -111,6 +111,7 @@ function pageMeta(p: string): Meta {
     "/reels": { title: "My Reels", tk: "nav.reels", credits: true, tabs: true },
     "/create/story": { title: "Story Maker", tk: "nav.story", back: "/", credits: true },
     "/create/edit": { title: "Your Reel", tk: "nav.yourReel", credits: true },
+    "/editor": { title: "Reel Studio", credits: true },
     "/create/music": { title: "Music Reel", tk: "nav.music", credits: true }, // the flow has its own back (components/studio/flow.ts)
     "/create/talking": { title: "Talking Reel", tk: "nav.talking", credits: true }, // the flow has its own back (components/studio/flow.ts)
     "/create/photo": { title: "Photo Reel", tk: "nav.photo", credits: true }, // the flow has its own back (components/studio/flow.ts)
@@ -369,10 +370,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (authPage || (signedOut && !publicPage)) {
     // the sign-in pages stand alone, without the studio around them
     return (
-      <main className="rm min-h-screen">
+      <main className="rm relative min-h-screen">
         <GlobalActivity />
         {authPage ? children : null}
-        {authPage && <HelpChat raised={false} />}
+        {authPage && <HelpChat raised={false} authPlacement />}
       </main>
     );
   }
@@ -392,7 +393,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const back = meta.back;
   // phones: the bottom tab bar, the plan pill and the bell on every page; the studio (/create/…) keeps the whole screen
   // for its own tool bars, and the admin pages keep their Admin badge
-  const studio = pathname.startsWith("/create");
+  const studio = pathname.startsWith("/create") || pathname === "/editor";
   const tabs = meta.tabs || (!studio && !meta.admin);
 
   return (

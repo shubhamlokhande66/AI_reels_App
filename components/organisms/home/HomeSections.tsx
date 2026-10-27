@@ -133,7 +133,7 @@ export function TipsSection() {
       <SectionHeader id="tips-h" title={t("home.tipsTitle")} />
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
         {tips.map((tip, i) => (
-          <TipCard key={tip.id} n={i + 1} icon={tip.icon || "bulb"} color={tip.color || "#b05cff"} title={tip.title} text={tip.text} />
+          <TipCard key={tip.id} n={i + 1} icon={tip.icon || "bulb"} color={tip.color || "#d8bd7b"} title={tip.title} text={tip.text} />
         ))}
       </div>
     </section>

@@ -317,13 +317,17 @@ export function initFlow(root: HTMLElement): () => void {
     if (t.closest("#fskip")) { go(order()[1]); return; }
     if (t.closest("#fgen")) {
       // Free: first, once per Reel, why Shubix AI is worth it (Upgrade, Create basic Reel, or ✕ to stay here)
-      const st = (root as unknown as { __studio?: { upsell?: () => Promise<string>; projId?: () => string } }).__studio;
+      const st = (root as unknown as { __studio?: { upsell?: () => Promise<string>; saveNow?: () => Promise<string> } }).__studio;
       void (async () => {
         const r = st?.upsell ? await st.upsell() : "skip";
         if (r === "upgrade" || r === "close") return;
         if (made()) {
           revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
-          const id = st?.projId?.(); if (id) history.replaceState(history.state, "", "/create/edit?p=" + id); // the made Reel's own address
+          history.replaceState(history.state, "", "/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
+          requestAnimationFrame(() => {
+            $<HTMLButtonElement>("fedit").click(); // open the real timeline editor; playback stays attached to this Reel
+            void st?.saveNow?.(); // persist only after the live editor is open
+          });
         }
         else if (phone()) go("analyse");
       })();

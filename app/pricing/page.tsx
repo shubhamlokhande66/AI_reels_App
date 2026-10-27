@@ -26,7 +26,7 @@ function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
         <div className="flex flex-col">
           <span className="text-[13px] font-semibold text-muted">{t("pricing.yourCredits")}</span>
           <span className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[28px] font-semibold leading-tight tabular-nums">
-            <Icon name="bolt" size={26} stroke={2.2} color="#6d8bff" />
+            <Icon name="bolt" size={26} stroke={2.2} color="var(--accent)" />
             {c.balance.toLocaleString("en-IN")}
           </span>
         </div>
@@ -105,13 +105,13 @@ export default function PricingPage() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 pb-4 md:gap-16">
       {/* the hero: what it costs, in one line */}
       <header className="relative flex flex-col items-center gap-4 pt-4 text-center md:pt-8">
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 -z-10 mx-auto h-64 max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(176,92,255,.28),transparent)] blur-2xl" />
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 -z-10 mx-auto h-64 max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(216,189,123,.2),transparent)] blur-2xl" />
         <Badge tone="brand" className="h-8 px-3.5 text-[12.5px] uppercase tracking-wider">
           <Icon name="coins" size={15} />
           {t("pricing.badge")}
         </Badge>
         <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(28px,5.5vw,44px)] font-semibold leading-[1.08] tracking-[-0.025em]">
-          {t("pricing.title1")} <span className="bg-[linear-gradient(90deg,#c084fc,#e040fb_55%,#ff4fd8)] bg-clip-text text-transparent">{t("pricing.title2")}</span>
+          {t("pricing.title1")} <span className="bg-[image:var(--gold-gradient)] bg-clip-text text-transparent">{t("pricing.title2")}</span>
         </h1>
         <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">{t("pricing.sub", { aiCost: p.costs.studio_ai ?? 10 })}</p>
 
@@ -126,7 +126,7 @@ export default function PricingPage() {
               onClick={() => setYearly(y)}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-full px-5 text-[14px] font-bold transition-colors",
-                yearly === y ? "text-white [background:var(--gold-gradient)] shadow-[0_8px_20px_-10px_var(--brand-glow)]" : "text-muted hover:text-foreground",
+                yearly === y ? "text-[var(--on-accent)] [background:var(--gold-gradient)] shadow-[0_8px_20px_-10px_var(--brand-glow)]" : "text-muted hover:text-foreground",
               )}
             >
               {t(y ? "pricing.yearly" : "pricing.monthly")}
@@ -195,7 +195,7 @@ export default function PricingPage() {
                 <div key={tu.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 p-4">
                   <div className="flex flex-col">
                     <span className="flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[20px] font-semibold tabular-nums">
-                      <Icon name="bolt" size={18} stroke={2.2} color="#6d8bff" />+{tu.credits.toLocaleString("en-IN")}
+                      <Icon name="bolt" size={18} stroke={2.2} color="var(--accent)" />+{tu.credits.toLocaleString("en-IN")}
                     </span>
                     <span className="text-[12px] text-muted">{t("pricing.perCredit", { price: rupees(Math.round((tu.price / tu.credits) * 10) / 10) })}</span>
                   </div>

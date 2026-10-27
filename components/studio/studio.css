@@ -1,11 +1,10 @@
 /* Fast Studio (on-device editor). Scoped under .brs; colours follow the app theme (globals.css), shot-type colours are its own. */
 .brs{
-  --bg:var(--background); --ink:var(--foreground); --line:var(--border); --chip:var(--surface-2); --wave:color-mix(in srgb,var(--muted) 45%,transparent);
-  --drop:#ff6a33; --hit:#f2bb1d; --cut:#22c3b3; --break:#8f80ff; --ok:var(--success);
+  --bg:var(--background); --ink:var(--foreground); --line:var(--border); --chip:var(--surface-2); --wave:var(--accent);
+  --drop:var(--danger); --hit:var(--warning); --cut:var(--success); --break:var(--muted); --ok:var(--success);
   --display:var(--font-display),system-ui,sans-serif; --body:var(--font-body),system-ui,sans-serif; --mono:var(--font-geist-mono),ui-monospace,Menlo,monospace;
   color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.5;
 }
-:root[data-theme="light"] .brs{ --drop:#e2501a; --hit:#b98500; --cut:#0e8f83; --break:#5b45e0; }
 .brs *{box-sizing:border-box}
 .brs .wrap{display:grid;gap:18px}
 .brs h1{font-family:var(--display);font-weight:600;font-size:clamp(24px,3.4vw,28px);line-height:1.15;margin:0;letter-spacing:-.01em}
@@ -146,7 +145,7 @@
 /* ================= Layout (the design "D · Combined"): top bar, the editor ================= */
 .brs{min-height:100vh;background:var(--background);
   --ink-btn:var(--gold-gradient); --ink-btn-fg:var(--on-accent); --chipbg:color-mix(in srgb,var(--accent) 14%,var(--surface));}
-:root[data-theme="light"] .brs{--ink-btn:#17142e; --ink-btn-fg:#f6f4ff}
+:root[data-theme="light"] .brs{--ink-btn:var(--gold-gradient); --ink-btn-fg:var(--on-accent)}
 .brs svg{flex-shrink:0}
 .brs [hidden]{display:none !important}
 
@@ -193,7 +192,7 @@
 
 /* ---- the page ---- */
 .brs .wrap{max-width:1240px;margin:0 auto;padding:16px 16px 140px;gap:16px}
-.brs .btn.ink{background:var(--ink-btn);color:var(--ink-btn-fg);border-color:transparent;height:52px;padding:0 22px;border-radius:14px;font-size:15.5px}
+.brs .btn.ink{background:var(--ink-btn);color:var(--ink-btn-fg);border-color:transparent;height:46px;padding:0 18px;border-radius:12px;font-size:14px}
 
 
 /* templates: one row of chips (in the Style panel once the Reel is made) */
@@ -383,7 +382,7 @@
 /* buttons, progress */
 .brs .btn{font:600 14px var(--body)}
 .brs .btn.primary,.brs .btn.hot,.brs .btn.save{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 10px 22px -14px var(--brand-glow)}
-.brs .btn.big{border-radius:14px;min-height:52px;font-size:15.5px}
+.brs .btn.big{border-radius:13px;min-height:48px;font-size:14px}
 .brs .bar i{background:var(--gold-gradient)}
 .brs .drop{border:1.5px dashed color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:16px;background:var(--surface)}
 .brs .drop:hover,.brs .drop.over{border-color:var(--accent)}
@@ -490,7 +489,7 @@
 .brs .aobig{width:100%;display:flex;align-items:center;gap:14px;text-align:left;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;font:14px var(--body);box-shadow:var(--shadow);transition:border-color .15s}
 .brs .aobig:hover,.brs .aobig:focus-visible{border-color:var(--accent)}
 .brs .aoic{flex:none;width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff}
-.brs .aoic1{background:linear-gradient(135deg,#e040fb,#7c3aed)}.brs .aoic2{background:linear-gradient(135deg,#3b8bff,#1d4ed8)}
+.brs .aoic1{background:var(--gold-gradient)}.brs .aoic2{background:linear-gradient(135deg,#7187a1,#33445a)}
 .brs .aotx{flex:1;min-width:0;display:grid;gap:3px}
 .brs .aotx b{font:600 15px var(--body)}
 .brs .aotx b em{font:600 11px var(--body);font-style:normal;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
@@ -510,10 +509,10 @@
 /* making the Reel: a 9:16 poster (the pictures as they arrive, or a soft glow) with the ring, the steps beside it */
 .brs .autoov > .aorun{width:min(920px,100%);gap:22px;justify-items:center;padding:8px 0 20px}
 .brs .aoposter{position:relative;width:min(300px,62vw);aspect-ratio:9/16;border-radius:24px;overflow:hidden;display:grid;place-items:center;isolation:isolate;
-  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 30%,#1b1033),#0d0a18 70%);box-shadow:0 30px 60px -30px rgba(40,10,90,.6),inset 0 0 0 1px rgba(255,255,255,.08)}
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 28%,#29251b),#111110 70%);box-shadow:0 30px 60px -30px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.08)}
 .brs .aoposterimg{position:absolute;inset:0;background:center/cover no-repeat;opacity:0;transform:scale(1.02);z-index:-2}
 .brs .aoposterimg.on{opacity:1;animation:aokb 7s ease-out forwards;transition:opacity .6s}
-.brs .aoglow{position:absolute;inset:0;z-index:-1;background:radial-gradient(60% 40% at 50% 50%,rgba(13,10,24,.25),rgba(13,10,24,.7)),linear-gradient(transparent 55%,rgba(0,0,0,.55))}
+.brs .aoglow{position:absolute;inset:0;z-index:-1;background:radial-gradient(60% 40% at 50% 50%,rgba(17,17,16,.25),rgba(17,17,16,.7)),linear-gradient(transparent 55%,rgba(0,0,0,.55))}
 .brs .aoposterimg:not(.on) + .aoglow{background:radial-gradient(50% 35% at 50% 45%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%);animation:aobreath 3s ease-in-out infinite}
 @keyframes aokb{to{transform:scale(1.12)}}
 @keyframes aobreath{50%{opacity:.55}}
@@ -631,7 +630,7 @@
 .brs .fsteps li.ok + li::before,.brs .fsteps li.on::before{background:var(--accent)}
 .brs .fsteps i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:600 13px var(--body);font-style:normal;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
 .brs .fsteps li.on{color:var(--accent)}
-.brs .fsteps li.on i{background:var(--gold-gradient);color:#fff;border-color:transparent;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
+.brs .fsteps li.on i{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 .brs .fsteps li.ok i{background:color-mix(in srgb,var(--accent) 25%,var(--surface));color:var(--ink);border-color:var(--accent)}
 .brs .fskip{border:0;background:transparent;color:var(--muted);font:600 14px var(--body);cursor:pointer;display:none}
 
@@ -658,12 +657,12 @@
 .brs.fopen #slen{border:0;background:transparent;gap:8px;overflow:visible}
 .brs.fopen #slen button{border:1px solid var(--line);border-radius:12px;padding:10px 16px;background:var(--surface-2)}
 .brs.fopen #slen button+button{border-left:1px solid var(--line)}
-.brs.fopen #slen button[aria-pressed=true]{background:var(--gold-gradient);color:#fff;border-color:transparent}
+.brs.fopen #slen button[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent}
 .brs.fopen .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:8px}
 .brs.fopen .stats span{display:grid;justify-items:center;gap:0;padding:10px 6px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);font-size:11.5px;text-align:center}
 .brs.fopen .stats b{order:-1;font:600 18px var(--body)}
 .brs .fsugg{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface-2)}
-.brs .fsugg > svg{width:28px;height:28px;color:#e879f9;flex:none}
+.brs .fsugg > svg{width:28px;height:28px;color:var(--accent);flex:none}
 .brs .fsugg span{display:grid;gap:2px}
 .brs .fsugg b{font:600 14px var(--body)}
 .brs .fsugg small{color:var(--muted);font-size:12.5px;line-height:1.4}
@@ -672,7 +671,7 @@
 /* 2 Add Your Clips: Videos / Photos, the drop area, the clips as pictures */
 .brs .ftabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line);max-width:420px}
 .brs .ftabs button{height:40px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:600 14px var(--body);cursor:pointer}
-.brs .ftabs button[aria-pressed=true]{background:var(--gold-gradient);color:#fff}
+.brs .ftabs button[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent)}
 .brs.fopen .drop{display:grid;justify-items:center;gap:4px;padding:28px 18px;border-radius:18px;background:var(--surface-2);color:var(--muted)}
 .brs.fopen .drop > svg{width:34px;height:34px;color:var(--ink);margin-bottom:6px}
 .brs.fopen .drop b{color:var(--ink);font:600 15px var(--body)}
@@ -711,22 +710,22 @@
 .brs .fprevh b{font:600 15px var(--body)}
 .brs .fprevh .seg{flex-wrap:nowrap}
 .brs .fprevh .seg button{padding:7px 9px;font-size:12px}
-.brs .fprevbox{position:relative;aspect-ratio:9/16;border-radius:18px;overflow:hidden;display:grid;place-items:center;align-content:center;gap:10px;background:radial-gradient(60% 50% at 50% 35%,color-mix(in srgb,var(--accent) 45%,transparent),transparent 70%),linear-gradient(170deg,#2b1d63,#0d0b26);color:#fff}
+.brs .fprevbox{position:relative;aspect-ratio:9/16;border-radius:18px;overflow:hidden;display:grid;place-items:center;align-content:center;gap:10px;background:radial-gradient(60% 50% at 50% 35%,color-mix(in srgb,var(--accent) 38%,transparent),transparent 70%),linear-gradient(170deg,#373124,#10100f);color:#fff}
 .brs .fplay{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.75)}
 .brs .fplay svg{width:26px;height:26px}
 .brs .fprevbox small{font:600 13px var(--body);color:rgba(255,255,255,.8)}
 .brs .fprevbox.ready{box-shadow:0 0 0 2px var(--accent)}
 /* computers: the card fits the window (Generate Reel always in reach on a short laptop screen); the preview 9:16 inside */
 @media (min-width:1024px){ .brs.fopen .fprevbox{height:clamp(260px,calc(100vh - 320px),680px);width:auto;justify-self:center} }
-.brs .fgen{width:100%;justify-content:center;gap:10px;min-height:58px;font-size:17px;border-radius:16px}
-.brs .fgen svg{width:22px;height:22px}
+.brs .fgen{width:100%;justify-content:center;gap:9px;min-height:48px;font-size:14.5px;border-radius:13px}
+.brs .fgen svg{width:19px;height:19px}
 .brs .fnote{display:flex;align-items:center;justify-content:center;gap:6px;margin:0;color:var(--muted);font-size:12.5px;text-align:center}
 .brs .fnote svg{width:15px;height:15px;flex:none}
 .brs .fsmall{font-size:11.5px}
 
 /* the phones' intro and Analysing screens */
 .brs .fintro{display:grid;justify-items:center;gap:14px;text-align:center;padding:12px 4px 4px}
-.brs .fbadge{width:96px;height:96px;border-radius:28px;display:grid;place-items:center;background:linear-gradient(135deg,#e040fb,#7c3aed);box-shadow:0 0 0 10px color-mix(in srgb,var(--accent) 12%,transparent),0 18px 40px -16px var(--brand-glow)}
+.brs .fbadge{width:96px;height:96px;border-radius:28px;display:grid;place-items:center;background:var(--gold-gradient);box-shadow:0 0 0 10px color-mix(in srgb,var(--accent) 12%,transparent),0 18px 40px -16px var(--brand-glow)}
 .brs .fbadge svg{width:48px !important;height:48px !important;padding:0 !important;background:none !important;color:#fff}
 .brs .fintro h2{margin:6px 0 0;font:600 22px var(--display);letter-spacing:-.02em}
 .brs .fintro p{margin:0;color:var(--muted);font-size:14.5px;max-width:30ch}
@@ -800,8 +799,7 @@
 .brs .fprevbox .pvbox #out{width:100%;height:100%;max-height:none;object-fit:contain;border-radius:0}
 .brs .fprevbox:has(.pvbox) :is(.fplay,small){display:none}
 /* the engine reads its canvas colours from the page root (engine.ts css()): the same values there */
-:root{--wave:#b05cff;--drop:#ff6a33;--hit:#f2bb1d;--cut:#22c3b3;--break:#8f80ff}
-:root[data-theme="light"]{--wave:#9b4dff;--drop:#e2501a;--hit:#b98500;--cut:#0e8f83;--break:#5b45e0}
+:root{--wave:var(--accent);--drop:var(--danger);--hit:var(--warning);--cut:var(--success);--break:var(--muted)}
 /* length and beats: one row each, as designed */
 .brs.fopen #slen{flex-wrap:nowrap}
 .brs.fopen #slen button{padding:9px 11px;font-size:13px;white-space:nowrap}
@@ -823,7 +821,7 @@
 .brs .xsh #xfps [data-f="60"]::after{content:"Smoother"}
 .brs .xsh .seg button[aria-pressed=true]{border:2px solid var(--accent) !important;background:color-mix(in srgb,var(--accent) 16%,var(--surface-2));color:var(--ink)}
 .brs .xsh .seg button[aria-pressed=true]::after{color:var(--ink)}
-.brs .xsh .btn.save{background:var(--gold-gradient);color:#fff}
+.brs .xsh .btn.save{background:var(--gold-gradient);color:var(--on-accent)}
 /* until the flow has written the kind (Talking / Photo words), its place stays empty: never anything else first */
 .brs.fopen:not(.flive) :is(.fhead,.fintro,.fgrid,.fan){visibility:hidden}
 
@@ -850,7 +848,7 @@
   .brs .fhead .fsteps li.ok + li::before,.brs .fhead .fsteps li.on::before{background:var(--accent)}
   .brs .fhead .fsteps i{width:10px;height:10px;font-size:0;border:0;background:color-mix(in srgb,var(--muted) 55%,transparent);flex:none}
   .brs .fhead .fsteps li.ok i{background:var(--accent)}
-  .brs .fhead .fsteps li.on i{width:30px;height:30px;font:600 13px var(--body);color:#fff;background:var(--gold-gradient);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .brs .fhead .fsteps li.on i{width:30px;height:30px;font:600 13px var(--body);color:var(--on-accent);background:var(--gold-gradient);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 
   /* ---- the screens are the page itself: no cards, no card headings; the button at the bottom ---- */
   /* room for the fixed button at the bottom (the page under it adds 40px more): nothing empty to scroll to */
@@ -880,9 +878,9 @@
   .brs.fopen .rsong{display:flex;align-items:center;min-height:0;border:0;border-radius:14px;background:transparent;box-shadow:none !important;padding:6px 0}
   .brs.fopen .rsong.cur{background:color-mix(in srgb,var(--accent) 10%,transparent)}
   .brs.fopen .rpick{flex:1;display:grid;grid-template-columns:48px minmax(0,1fr) 34px;grid-template-rows:auto auto;column-gap:12px;align-items:center;padding:0 8px;text-align:left}
-  .brs.fopen .rpick::before{content:"♪";grid-row:1/3;width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:#fff;font:600 20px var(--body);background:linear-gradient(135deg,#e040fb,#7c3aed)}
+  .brs.fopen .rpick::before{content:"♪";grid-row:1/3;width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:var(--on-accent);font:600 20px var(--body);background:var(--gold-gradient)}
   .brs.fopen .rpick::after{content:"+";grid-column:3;grid-row:1/3;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:600 20px/1 var(--body)}
-  .brs.fopen .rsong.cur .rpick::after{content:"✓";background:var(--gold-gradient);border-color:transparent;color:#fff;font-size:15px}
+  .brs.fopen .rsong.cur .rpick::after{content:"✓";background:var(--gold-gradient);border-color:transparent;color:var(--on-accent);font-size:15px}
   .brs.fopen .rsong.cur::after{display:none}
   .brs.fopen .rn{grid-column:2;font:600 14.5px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
   .brs.fopen .rd{grid-column:2;font:500 12.5px var(--body);color:var(--muted)}
@@ -890,7 +888,7 @@
 
   /* 3 Adjust Music: the song, the waveform with its part, the length, the beats, the suggested part */
   .brs.fopen .fsong{display:flex;align-items:center;gap:12px}
-  .brs.fopen .fsongic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#e040fb,#7c3aed);flex:none}
+  .brs.fopen .fsongic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;color:var(--on-accent);background:var(--gold-gradient);flex:none}
   .brs.fopen .fsongic svg{width:24px;height:24px}
   .brs.fopen .fsongt{display:grid;min-width:0}
   .brs.fopen .fsongt b{font:600 16px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1049,7 +1047,7 @@
 .brs .xtog input:focus-visible + i{outline:2px solid var(--accent);outline-offset:2px}
 .brs .xtog input:disabled + i{opacity:.45}
 /* the Create flow before it has its words (a moment while the studio starts): the loader in the middle of the screen */
-.brs.fopen:not(.flive)::before{content:"";position:fixed;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 18%,transparent);border-top-color:var(--accent);border-right-color:#e040fb;animation:busy-spin .8s linear infinite;z-index:40}
+.brs.fopen:not(.flive)::before{content:"";position:fixed;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 18%,transparent);border-top-color:var(--accent);border-right-color:var(--accent-hover);animation:busy-spin .8s linear infinite;z-index:40}
 /* Remove Watermark is for paid plans: a small "Pro" tag (to the plans) while it is locked */
 .brs .xpro{display:inline-flex;align-items:center;margin-left:6px;padding:1px 8px;border-radius:999px;font:600 11px var(--body);color:#1a1205;background:#f5c84c;vertical-align:1px;text-decoration:none}
 .brs .xpro[hidden]{display:none}
@@ -1328,7 +1326,7 @@
 .brs.made.v-one .transport #ttot{order:2}
 .brs.made.v-one .transport #cover{order:6}
 .brs.made.v-one .transport #pvfull{order:7}
-.brs.made.v-one .transport #remix{order:8;margin-left:6px;border:0;background:var(--gold-gradient);color:var(--on-accent,#fff);box-shadow:0 8px 20px -10px var(--brand-glow,rgba(176,92,255,.55))}
+.brs.made.v-one .transport #remix{order:8;margin-left:6px;border:0;background:var(--gold-gradient);color:var(--on-accent,#fff);box-shadow:0 8px 20px -10px var(--brand-glow,rgba(168,139,78,.5))}
 .brs.made.v-one .transport #pvfull{display:inline-flex}
 .brs #pvfull{display:none}
 .brs .pvbox:fullscreen{display:grid;place-items:center;background:#000;padding:0}
@@ -1365,7 +1363,7 @@
   .brs.noir #mslot .clip .dd::after{content:attr(data-len);font:600 10.5px var(--mono)}
   .brs.noir #mslot .clip .dd:not([data-len])::after{content:"…"}
   .brs.noir #mslot .clip::after{content:"✓";position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;
-    background:var(--gold-gradient);color:#fff;font:600 11px var(--body)}
+    background:var(--gold-gradient);color:var(--on-accent);font:600 11px var(--body)}
   .brs.noir #mslot .clip .del{left:5px;right:auto;top:5px;width:22px;height:22px;font-size:13px;opacity:0;transition:opacity .15s}
   .brs.noir #mslot .clip:hover .del,.brs.noir #mslot .clip .del:focus-visible{opacity:1}
   .brs.noir #mslot .fadd{display:none}
@@ -1393,7 +1391,7 @@
 .brs :is(.ss-body,.shtilebox) .sstile{display:grid;gap:5px;height:auto;padding:0;border:0;border-radius:0;background:none;color:var(--muted);font:600 10.5px var(--body);text-align:center;white-space:normal}
 .brs :is(.ss-body,.shtilebox) .sstile[aria-pressed=true]{background:none;color:var(--ink)}
 .brs :is(.ss-body,.shtilebox) .sstimg{display:block;aspect-ratio:1/1;border-radius:10px;background:var(--surface-2) center/cover no-repeat;box-shadow:inset 0 0 0 1px var(--line)}
-.brs :is(.ss-body,.shtilebox) .sstile[aria-pressed=true] .sstimg{box-shadow:0 0 0 2px var(--accent),0 6px 16px -8px var(--brand-glow,rgba(176,92,255,.55))}
+.brs :is(.ss-body,.shtilebox) .sstile[aria-pressed=true] .sstimg{box-shadow:0 0 0 2px var(--accent),0 6px 16px -8px var(--brand-glow,rgba(168,139,78,.5))}
 .brs :is(.ss-body,.shtilebox) .sstimg.none{background:var(--surface-2) !important;position:relative}
 .brs :is(.ss-body,.shtilebox) .sstimg.none::after{content:"×";position:absolute;inset:0;display:grid;place-items:center;font:400 22px var(--body);color:var(--muted)}
 .brs :is(.ss-body,.shtilebox) .sstt{line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -1629,7 +1627,7 @@
 /* Copy a Reel (/create/copy): the Reel being copied, above the song; only on that page */
 .brs .fref{display:none}
 .brs.fopen[data-fkind="copy"] .fref{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--surface-2)}
-.brs .fref .fsongic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#22d3ee,#0369a1);flex:none}
+.brs .fref .fsongic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--on-accent,#fff);background:var(--gold-gradient);flex:none}
 .brs .fref .fsongic svg{width:22px;height:22px}
 .brs .fref .fsongt{display:grid;gap:2px;min-width:0;flex:1 1 180px}
 .brs .fref .fsongt b{font:600 15px var(--body)}
@@ -1662,7 +1660,7 @@
   background:radial-gradient(120% 80% at 50% 40%,color-mix(in srgb,var(--accent) 22%,#000) 0%,#000 70%);color:#fff;border-radius:inherit}
 .brs .aiwait b{font:600 16px var(--body)}
 .brs .aiwait small{font-size:12.5px;opacity:.75;max-width:24ch}
-.brs .aiorb{position:relative;width:64px;height:64px;border-radius:50%;background:conic-gradient(from 0deg,var(--accent),#7c3aed,#22d3ee,var(--accent));animation:aospin 1.6s linear infinite;
+.brs .aiorb{position:relative;width:64px;height:64px;border-radius:50%;background:conic-gradient(from 0deg,var(--accent),#a98a4a,#f0d99b,var(--accent));animation:aospin 1.6s linear infinite;
   -webkit-mask:radial-gradient(circle,transparent 46%,#000 48%);mask:radial-gradient(circle,transparent 46%,#000 48%)}
 .brs .aiorb::after{content:"";position:absolute;inset:-10px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 45%,transparent),transparent 65%);animation:aipulse 1.6s ease-in-out infinite}
 @keyframes aipulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:.9;transform:scale(1.08)}}
@@ -1674,7 +1672,7 @@
 /* ---- Ask Shubix: the chat about the Reel (first page and the editor) ---- */
 /* the button: a glowing pill (an orb on phones) */
 .brs .chatfab{position:fixed;right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:80;display:none;align-items:center;gap:8px;
-  padding:12px 18px 12px 14px;border-radius:999px;border:0;background:var(--gold-gradient);color:#fff;font:600 14px var(--body);cursor:pointer;
+  padding:12px 18px 12px 14px;border-radius:999px;border:0;background:var(--gold-gradient);color:var(--on-accent);font:600 14px var(--body);cursor:pointer;
   box-shadow:0 12px 28px -10px color-mix(in srgb,var(--accent) 75%,transparent),0 0 0 1px rgba(255,255,255,.18) inset;transition:transform .15s,box-shadow .15s}
 .brs .chatfab:hover{transform:translateY(-2px)}
 .brs .chatfab svg{width:18px;height:18px}
@@ -1692,7 +1690,7 @@
 .brs .chatgrab{display:none}
 .brs .chath{display:flex;align-items:center;gap:12px;padding:14px 12px 14px 16px;border-bottom:1px solid var(--line);
   background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 9%,transparent),transparent)}
-.brs .chatorb{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:#fff;background:var(--gold-gradient);box-shadow:0 8px 18px -8px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs .chatorb{flex:none;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:var(--on-accent);background:var(--gold-gradient);box-shadow:0 8px 18px -8px color-mix(in srgb,var(--accent) 80%,transparent)}
 .brs .chatorb svg{width:19px;height:19px}
 .brs .chatttl{flex:1;min-width:0;display:grid;gap:1px}
 .brs .chatttl b{font:600 15.5px var(--display);letter-spacing:-.01em}
@@ -1701,7 +1699,7 @@
 .brs .chatx:hover{background:var(--chip);color:var(--ink)}
 .brs .chatlog{flex:1;overflow:auto;padding:16px 16px 10px;display:flex;flex-direction:column;gap:10px;min-height:120px;overscroll-behavior:contain}
 .brs .chatlog p{margin:0;padding:9px 13px;border-radius:16px;max-width:85%;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
-.brs .chatlog .me{align-self:flex-end;background:var(--gold-gradient);color:#fff;border-bottom-right-radius:5px;box-shadow:0 8px 18px -12px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs .chatlog .me{align-self:flex-end;background:var(--gold-gradient);color:var(--on-accent);border-bottom-right-radius:5px;box-shadow:0 8px 18px -12px color-mix(in srgb,var(--accent) 80%,transparent)}
 .brs .chatlog .ai{position:relative;align-self:flex-start;margin-left:30px;background:var(--chip);color:var(--ink);border-bottom-left-radius:5px}
 .brs .chatlog .ai::before{content:"";position:absolute;left:-30px;bottom:0;width:22px;height:22px;border-radius:8px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z'/%3E%3C/svg%3E") center/13px no-repeat,var(--gold-gradient)}
 .brs .chatlog .ai.wait::after{content:"…";animation:chatdots 1.2s steps(3) infinite}
@@ -1715,7 +1713,7 @@
 .brs .chatfield:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
 .brs .chatform textarea{flex:1;resize:none;border:0;outline:0;background:transparent;font:14px/1.45 var(--body);color:var(--ink);padding:7px 0;min-height:22px;max-height:120px}
 .brs .chatform textarea::placeholder{color:var(--muted)}
-.brs .chatsend{flex:none;width:36px;height:36px;border-radius:11px;border:0;display:grid;place-items:center;color:#fff;background:var(--gold-gradient);cursor:pointer;transition:transform .15s,opacity .15s}
+.brs .chatsend{flex:none;width:36px;height:36px;border-radius:11px;border:0;display:grid;place-items:center;color:var(--on-accent);background:var(--gold-gradient);cursor:pointer;transition:transform .15s,opacity .15s}
 .brs .chatsend:hover{transform:translateY(-1px)}
 .brs .chatsend:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .brs .chathint{font-size:11px;color:var(--muted);padding-left:4px}
@@ -1893,7 +1891,7 @@
 /* the Ask Shubix bar under the page title: the first thing people see, so they know they can just say what they want */
 .brs .askbar{display:none}
 .brs.fopen .askbar{position:relative;display:grid;gap:12px;margin:4px 0 2px;padding:16px 18px;border-radius:20px;isolation:isolate;
-  background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(120deg,#e879f9,#8b5cf6 45%,#22d3ee) border-box;border:1.5px solid transparent;
+  background:linear-gradient(var(--surface),var(--surface)) padding-box,linear-gradient(120deg,#f0d99b,#d2b66e 55%,#a98a4a) border-box;border:1.5px solid transparent;
   box-shadow:0 18px 40px -26px color-mix(in srgb,var(--accent) 80%,transparent)}
 .brs.fopen .askbar::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:radial-gradient(70% 120% at 0% 0%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 60%)}
 .brs .askbarhd{display:flex;align-items:center;gap:12px}
@@ -1901,7 +1899,7 @@
 @keyframes askglow{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 16%,transparent),0 8px 18px -8px color-mix(in srgb,var(--accent) 80%,transparent)}}
 .brs .askbart{display:grid;gap:2px;min-width:0}
 .brs .askbart b{font:600 16px var(--display);letter-spacing:-.01em;display:inline-flex;align-items:center;gap:8px}
-.brs .askbart b em{font:600 10px var(--body);font-style:normal;letter-spacing:.08em;color:#fff;background:var(--gold-gradient);border-radius:6px;padding:2px 6px}
+.brs .askbart b em{font:600 10px var(--body);font-style:normal;letter-spacing:.08em;color:var(--on-accent);background:var(--gold-gradient);border-radius:6px;padding:2px 6px}
 .brs .askbart small{font-size:13px;line-height:1.45;color:var(--muted)}
 .brs .askfield{align-items:center}
 .brs .askfield input{flex:1;min-width:0;border:0;outline:0;background:transparent;font:14.5px var(--body);color:var(--ink);padding:8px 0}
@@ -2010,12 +2008,12 @@
 .brs.fopen .fai .faiList li.now{color:var(--ink);border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
 .brs.fopen .fai .faiList li.now .faidot{background:var(--accent);animation:faipulse 1.2s ease-in-out infinite}
 .brs.fopen .fai .faiList li.ok{color:var(--ink)}
-.brs.fopen .fai .faiList li.ok svg{background:var(--gold-gradient);color:#fff;box-shadow:none}
+.brs.fopen .fai .faiList li.ok svg{background:var(--gold-gradient);color:var(--on-accent);box-shadow:none}
 .brs.fopen .fai .faiList li.ok .faidot{width:16px;height:16px;top:10px;right:10px;background:var(--success,#16a34a) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/10px no-repeat}
 @keyframes faipulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}}
 .brs.fopen .fai .fready{display:flex;align-items:center;justify-items:start;gap:12px;padding:12px 14px;border-radius:14px;text-align:left;
   border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface))}
-.brs.fopen .fai .freadyic{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:#fff;background:var(--gold-gradient)}
+.brs.fopen .fai .freadyic{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:var(--on-accent);background:var(--gold-gradient)}
 .brs.fopen .fai .freadyic svg{width:18px;height:18px;color:#fff}
 .brs.fopen .fai .freadytx{display:grid;gap:1px;min-width:0}
 .brs.fopen .fai .fready b{font:600 14px var(--display)}
@@ -2029,7 +2027,7 @@
   .brs.fopen .rsong{min-height:0;border:1px solid var(--line);border-radius:14px;background:var(--surface-2);transition:border-color .15s,box-shadow .15s,background .15s}
   .brs.fopen .rsong:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
   .brs.fopen .rpick{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:10px;align-items:center;padding:10px 12px}
-  .brs.fopen .rpick::before{content:"♪";grid-row:1 / 3;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font:600 14px var(--body);background:var(--gold-gradient)}
+  .brs.fopen .rpick::before{content:"♪";grid-row:1 / 3;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:var(--on-accent);font:600 14px var(--body);background:var(--gold-gradient)}
   .brs.fopen .rn{grid-column:2;font:600 13px var(--body);-webkit-line-clamp:1;padding-right:14px}
   .brs.fopen .rd{grid-column:2;font:500 11.5px var(--body);color:var(--muted)}
   .brs.fopen .rdel{display:grid;place-items:center;top:6px;right:6px;width:22px;height:22px;border-radius:50%;padding:0;color:var(--muted);background:var(--surface);border:1px solid var(--line);
@@ -2141,7 +2139,7 @@
     width:min(460px,calc(100vw - 300px));max-height:50vh;overflow-y:auto;padding:12px 16px 16px;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 26px 60px -24px rgba(20,8,50,.6)}
   .brs.made.v-one:not(.fopen) .ctpoph{display:flex;align-items:center;justify-content:space-between}
   .brs.made.v-one:not(.fopen) .ctpoph b{font:600 15px var(--display)}
-  .brs.made.v-one:not(.fopen) .ctpopok{width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:#fff;display:grid;place-items:center;cursor:pointer}
+  .brs.made.v-one:not(.fopen) .ctpopok{width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:var(--on-accent);display:grid;place-items:center;cursor:pointer}
   .brs.made.v-one:not(.fopen) .ctpop :is(.ctrow,[data-act="reset"]){display:none !important}
   .brs.made.v-one:not(.fopen) .ctpop .ctbody{display:grid;gap:10px}
 }
@@ -2221,7 +2219,7 @@
 .brs .ctpopbtns{display:flex;align-items:center;gap:8px}
 @media (min-width:1024px){
   .brs .ss-head{display:flex !important;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px 0}
-  .brs .ss-ok{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:#fff;cursor:pointer;order:2}
+  .brs .ss-ok{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:var(--on-accent);cursor:pointer;order:2}
   .brs .ss-ok svg{width:16px;height:16px}
   .brs .ss-x{order:1}
   .brs .ctpopx{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
@@ -2280,7 +2278,7 @@
 .brs.made.v-one #xmsg:not([hidden])::before{content:"";flex:none;width:26px;height:26px;margin:0;border-radius:8px;vertical-align:0;
   background:color-mix(in srgb,#f59e0b 18%,transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d97706' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 2l4 4-4 4'/%3E%3Cpath d='M3 11v-1a4 4 0 0 1 4-4h14'/%3E%3Cpath d='M7 22l-4-4 4-4'/%3E%3Cpath d='M21 13v1a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E") center/15px no-repeat}
 .brs.made.v-one #xmsg.addclips:not([hidden]){cursor:pointer}
-.brs.made.v-one #xmsg.addclips:not([hidden])::after{content:"Add clips →";flex:none;padding:5px 10px;border-radius:9px;background:var(--gold-gradient);color:#fff;font:600 12px var(--body)}
+.brs.made.v-one #xmsg.addclips:not([hidden])::after{content:"Add clips →";flex:none;padding:5px 10px;border-radius:9px;background:var(--gold-gradient);color:var(--on-accent);font:600 12px var(--body)}
 .brs.made.v-one #xmsg.addclips:not([hidden]):hover{border-color:color-mix(in srgb,#f59e0b 55%,var(--line))}
 .brs.made.v-one #xmsg:not(.addclips):not(.err):not([hidden]){background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 28%,var(--line))}
 .brs.made.v-one #xmsg:not(.addclips):not(.err):not([hidden])::before{background:color-mix(in srgb,var(--accent) 16%,transparent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239b5cff' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E") center/15px no-repeat}
@@ -2315,9 +2313,9 @@
 .brs .cconfl li{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.4;color:var(--ink)}
 .brs .cconfl li::before{content:"";flex:none;width:18px;height:18px;margin-top:1px;border-radius:50%;
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/11px no-repeat,var(--gold-gradient)}
-.brs .cconf.upsell .cconfi{width:56px;height:56px;background:var(--gold-gradient);color:#fff;box-shadow:0 12px 28px -10px color-mix(in srgb,var(--accent) 80%,transparent)}
+.brs .cconf.upsell .cconfi{width:56px;height:56px;background:var(--gold-gradient);color:var(--on-accent);box-shadow:0 12px 28px -10px color-mix(in srgb,var(--accent) 80%,transparent)}
 .brs .cconf.upsell .cconfa{flex-direction:column-reverse;width:100%;align-items:stretch}
-.brs .cconf.upsell #cconfok{min-height:48px;font-size:15px;background:var(--gold-gradient);color:#fff;border:0}
+.brs .cconf.upsell #cconfok{min-height:48px;font-size:15px;background:var(--gold-gradient);color:var(--on-accent);border:0}
 .brs .cconf.upsell #cconfno{min-height:36px;border:0;background:transparent;color:var(--muted);font-weight:500;font-size:13px}
 .brs .cconf.upsell #cconfno:hover{color:var(--ink)}
 .brs .cconfa .btn[hidden]{display:none}
@@ -2337,7 +2335,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 .brs.fopen .rsong{align-items:center}
 .brs.fopen .rpick::before{content:none !important;display:none !important}
 .brs.fopen .rplay{display:grid;place-items:center;flex:0 0 auto;align-self:center;width:48px;height:48px;margin-left:8px;padding:0;border:0;border-radius:12px;cursor:pointer;color:#fff;
-  background:linear-gradient(135deg,#e040fb,#7c3aed);transition:transform .15s,box-shadow .15s}
+  background:var(--gold-gradient);transition:transform .15s,box-shadow .15s}
 .brs.fopen .rplay svg{width:20px;height:20px}
 .brs.fopen .rplay:hover{transform:scale(1.05)}
 .brs.fopen .rplay.on{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
@@ -2352,4 +2350,61 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.fopen .rplay svg{width:13px;height:13px}
   .brs.fopen .rpick{grid-template-columns:minmax(0,1fr);padding-left:10px}
   .brs.fopen :is(.rn,.rd){grid-column:1}
+}
+
+/* The editor's finishing pass: warm metal, quiet glass and restrained motion across every editing surface. */
+.brs{
+  background:
+    radial-gradient(900px 460px at 88% -12%,color-mix(in srgb,var(--accent) 8%,transparent),transparent 68%),
+    var(--background);
+}
+.brs .topbar{
+  background:color-mix(in srgb,var(--background) 84%,transparent);
+  border-bottom-color:color-mix(in srgb,var(--accent) 16%,var(--line));
+  box-shadow:0 12px 28px -24px rgba(0,0,0,.65);
+}
+.brs .wrap{gap:18px}
+.brs .step,.brs .panel{
+  border-color:color-mix(in srgb,var(--accent) 13%,var(--line));
+  background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 98%,var(--accent)),var(--surface));
+  box-shadow:0 18px 44px -36px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.035) inset;
+  transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease;
+}
+.brs .step:not(.locked):hover{border-color:color-mix(in srgb,var(--accent) 34%,var(--line));box-shadow:0 20px 44px -34px rgba(0,0,0,.72),0 1px 0 rgba(255,255,255,.04) inset}
+.brs .step.locked{filter:saturate(.72)}
+.brs .step.done .num{background:var(--gold-gradient);color:var(--on-accent);box-shadow:0 6px 16px -10px var(--brand-glow)}
+.brs .create{gap:18px}
+.brs .stage{min-width:0;padding:clamp(12px,2vw,20px);border:1px solid color-mix(in srgb,var(--accent) 16%,var(--line));border-radius:24px;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 92%,var(--accent)),color-mix(in srgb,var(--background) 94%,var(--surface)));
+  box-shadow:0 26px 64px -48px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.04) inset}
+.brs .pvbox{overflow:hidden;border-radius:20px;background:#090909;box-shadow:0 28px 70px -38px rgba(0,0,0,.86),0 0 0 1px color-mix(in srgb,var(--accent) 20%,transparent)}
+.brs #out{border-radius:inherit;transition:box-shadow .25s ease}
+.brs .bar{overflow:hidden;border-radius:99px;background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
+.brs .bar i{background:var(--gold-gradient);box-shadow:0 0 14px color-mix(in srgb,var(--accent) 50%,transparent)}
+.brs .tool,.brs .ptabs button,.brs .ct,.brs .ibtn,.brs .btn{transition:color .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .2s ease,transform .18s ease}
+.brs .tool:hover,.brs .ptabs button:hover,.brs .ct:hover{background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 22%,var(--line))}
+.brs .tool[aria-pressed=true],.brs .ptabs button[aria-pressed=true]{background:color-mix(in srgb,var(--accent) 13%,var(--surface));border-color:color-mix(in srgb,var(--accent) 32%,var(--line));color:var(--accent-hover)}
+.brs .btn:not(:disabled):active,.brs .ibtn:active{transform:translateY(1px) scale(.985)}
+.brs .btn.save,.brs .btn.ink,.brs .btn.gold,.brs .btn.primary{box-shadow:0 12px 26px -17px var(--brand-glow),0 1px 0 rgba(255,255,255,.12) inset}
+.brs .panel.on{animation:studio-panel-in .22s ease-out both}
+.brs .feditbar #fedit{min-height:50px;border-radius:14px;font-size:14.5px;box-shadow:0 14px 28px -18px var(--brand-glow),0 1px 0 rgba(255,255,255,.12) inset}
+.brs.openfail .openload{width:min(calc(100% - 32px),560px);min-height:unset;margin:clamp(28px,7vh,72px) auto;padding:clamp(26px,5vw,44px);border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:26px;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 96%,var(--accent)),var(--surface));box-shadow:0 30px 80px -48px rgba(0,0,0,.7),0 1px 0 rgba(255,255,255,.65) inset;animation:studio-panel-in .32s ease-out both}
+.brs.openfail .openload::before{content:"♫";display:grid;place-items:center;width:54px;height:54px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line));border-radius:18px;background:color-mix(in srgb,var(--accent) 12%,var(--surface));color:var(--accent);font:600 24px var(--display);box-shadow:0 10px 28px -20px var(--brand-glow)}
+.brs.openfail .openload b{font-size:21px;letter-spacing:-.025em}
+.brs.openfail .openload small{line-height:1.65}
+.brs.openfail .openload #openback{min-height:44px;margin-top:8px;padding:0 18px;border:0;border-radius:12px;background:var(--gold-gradient);color:var(--on-accent);font-weight:700;box-shadow:0 12px 26px -16px var(--brand-glow);transition:transform .18s ease,filter .18s ease}
+.brs.openfail .openload #openback:hover{transform:translateY(-1px);filter:brightness(1.06)}
+@keyframes studio-panel-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media (max-width:599px){
+  .brs .wrap{padding-left:12px;padding-right:12px;gap:12px}
+  .brs .stage{padding:10px;border-radius:19px}
+  .brs .step{padding:14px;border-radius:17px}
+  .brs.openfail .openload{width:calc(100% - 24px);margin:24px auto;padding:26px 20px;border-radius:22px}
+  .brs .openfail .openload b{font-size:19px}
+}
+@media (prefers-reduced-motion:reduce){
+  .brs .panel.on,.brs.openfail .openload{animation:none}
+  .brs :is(.step,.panel,.tool,.ptabs button,.ct,.ibtn,.btn,#out,#openback){transition:none}
+  .brs .step:not(.locked):hover,.brs.openfail .openload #openback:hover{transform:none}
 }

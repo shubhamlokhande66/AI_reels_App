@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
  * an <img> or <video> inside fills it. */
 export function Photo({ className, children, ...rest }: { className?: string; children?: React.ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("relative overflow-hidden rounded-xl bg-[#2a2350] [&>img]:absolute [&>img]:inset-0 [&>img]:h-full [&>img]:w-full [&>img]:object-cover [&>video]:absolute [&>video]:inset-0 [&>video]:h-full [&>video]:w-full [&>video]:object-cover", className)} {...rest}>
+    <div className={cn("relative overflow-hidden rounded-xl bg-surface-2 [&>img]:absolute [&>img]:inset-0 [&>img]:h-full [&>img]:w-full [&>img]:object-cover [&>video]:absolute [&>video]:inset-0 [&>video]:h-full [&>video]:w-full [&>video]:object-cover", className)} {...rest}>
       {children}
     </div>
   );

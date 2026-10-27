@@ -11,17 +11,17 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const BASE =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-[filter,border-color,background-color,color] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-[filter,border-color,background-color,color,box-shadow,translate] duration-200 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:translate-y-px";
 const VARIANT: Record<ButtonVariant, string> = {
   primary: "border border-transparent bg-[image:var(--gold-gradient)] text-[var(--on-accent)] shadow-[0_12px_26px_-14px_var(--brand-glow)] hover:brightness-110",
-  secondary: "border border-border bg-surface text-foreground hover:border-accent/60",
+  secondary: "border border-border bg-surface text-foreground shadow-[var(--shadow)] hover:border-accent/60 hover:bg-surface-2",
   ghost: "border border-transparent bg-transparent text-foreground hover:bg-surface-2",
-  danger: "border border-danger/40 bg-surface text-danger hover:border-danger",
+  danger: "border border-danger/35 bg-surface text-danger shadow-[var(--shadow)] hover:border-danger/70 hover:bg-danger/5",
 };
 const SIZE: Record<ButtonSize, string> = {
-  sm: "h-9 rounded-[10px] px-3 text-[12.5px]",
-  md: "h-11 rounded-xl px-4 text-sm",
-  lg: "h-14 rounded-2xl px-6 text-base",
+  sm: "h-9 rounded-[10px] px-3 text-[12px]",
+  md: "h-10 rounded-xl px-3.5 text-[13px]",
+  lg: "h-12 rounded-xl px-5 text-[14px]",
 };
 
 export function buttonClass({ variant = "primary", size = "md", full = false, className }: { variant?: ButtonVariant; size?: ButtonSize; full?: boolean; className?: string } = {}) {

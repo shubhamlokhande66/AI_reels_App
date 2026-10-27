@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
  *  - the administrator: the Pro look, "Admin · all open"
  * Every pill leads to the plans. `compact`: beside a page's title on phones. */
 const RING = {
-  editor: "[background:linear-gradient(var(--surface),var(--surface))_padding-box,linear-gradient(120deg,#c084fc,#7c3aed_60%,#6d5dfc)_border-box]",
+  editor: "[background:linear-gradient(var(--surface),var(--surface))_padding-box,linear-gradient(120deg,#f0d99b,#d2b66e_60%,#a98a4a)_border-box]",
   pro: "[background:linear-gradient(135deg,color-mix(in_srgb,#f5c84c_14%,var(--surface)),var(--surface))_padding-box,linear-gradient(120deg,#fde68a,#f5c84c_40%,#d4932c)_border-box] shadow-[0_6px_18px_-10px_rgba(212,147,44,.75)]",
 };
 export function ProPill({ plan, planId, compact = false }: { plan?: string | null; planId?: string | null; compact?: boolean }) {
@@ -28,7 +28,7 @@ export function ProPill({ plan, planId, compact = false }: { plan?: string | nul
     return (
       <Link href="/pricing" title={title} className={cn(base, "border-border bg-surface text-foreground hover:border-accent/50", compact ? "pr-1.5" : "pr-1.5")}>
         <span className="pl-2 text-muted">{tier === "free" ? t("plan.free") : t("plan.plans")}</span>
-        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-[image:var(--gold-gradient)] px-2.5 text-[11.5px] font-bold text-white shadow-[0_6px_14px_-8px_var(--accent)]">
+        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-[image:var(--gold-gradient)] px-2.5 text-[11.5px] font-bold text-[var(--on-accent)] shadow-[0_6px_14px_-8px_var(--accent)]">
           {!compact && t("plan.upgrade")}
           <Icon name="back" size={12} stroke={2.6} className="rotate-[135deg]" />
         </span>

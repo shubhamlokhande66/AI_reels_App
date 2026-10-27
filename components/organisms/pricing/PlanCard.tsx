@@ -42,11 +42,11 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
       )}
     >
       {selected && (
-        <span aria-hidden className="absolute right-4 top-4 grid h-6 w-6 place-items-center rounded-full text-white [background:var(--gold-gradient)] shadow-[0_6px_14px_-6px_var(--brand-glow)]">
+        <span aria-hidden className="absolute right-4 top-4 grid h-6 w-6 place-items-center text-[var(--on-accent)] [background:var(--gold-gradient)] shadow-[0_6px_14px_-6px_var(--brand-glow)]">
           <Icon name="check" size={13} stroke={3} />
         </span>
       )}
-      {pop && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3.5 py-1 text-[11.5px] font-extrabold uppercase tracking-wider text-white [background:var(--gold-gradient)]">{t("pricing.popular")}</span>}
+      {pop && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3.5 py-1 text-[11.5px] font-extrabold uppercase tracking-wider text-[var(--on-accent)] [background:var(--gold-gradient)]">{t("pricing.popular")}</span>}
 
       <header className="flex items-center gap-3 pr-7">
         <IconTile icon={look.icon} tone={look.tone} size={44} />
@@ -59,7 +59,7 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
       <div className="flex flex-col gap-1">
         {/* a sale running (Admin → Marketing → Offers): the price after it, the old one struck through */}
         {offer && !free ? (
-          <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-[image:var(--gold-gradient)] px-2.5 py-0.5 text-[11px] font-bold text-white">{t("pricing.offerTag", { percent: offer })}</span>
+            <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-[image:var(--gold-gradient)] px-2.5 py-0.5 text-[11px] font-bold text-[var(--on-accent)]">{t("pricing.offerTag", { percent: offer })}</span>
         ) : null}
         <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-none tracking-[-0.03em] tabular-nums">{rupees(offer && !free ? Math.round((price * (100 - offer)) / 100) : price)}</span>
@@ -83,7 +83,7 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
       <ul className="m-0 flex list-none flex-col gap-2.5 border-t border-border p-0 pt-5">
         {plan.features.map((f) => (
           <li key={f} className="flex items-start gap-2.5 text-[13.5px] leading-snug">
-            <span className={cn("mt-px grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full", selected ? "bg-accent text-white" : "bg-accent/15 text-accent")}>
+            <span className={cn("mt-px grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full", selected ? "bg-accent text-[var(--on-accent)]" : "bg-accent/15 text-accent")}>
               <Icon name="check" size={11} stroke={3} />
             </span>
             {f}

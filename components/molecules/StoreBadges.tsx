@@ -67,7 +67,7 @@ export function GetAppSection() {
   if (inApp) return null;
   return (
     <section aria-labelledby="getapp-h" className="relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl border border-border bg-[linear-gradient(120deg,color-mix(in_srgb,var(--accent)_18%,var(--surface)),var(--surface)_60%)] p-5 md:flex-row md:items-center md:justify-between md:p-7">
-      <span aria-hidden className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[radial-gradient(closest-side,rgba(176,92,255,.28),transparent)]" />
+      <span aria-hidden className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,123,.2),transparent)]" />
       <div className="relative min-w-0">
         <h2 id="getapp-h" className="m-0 font-display text-[20px] font-semibold tracking-[-0.01em] md:text-[24px]">{t("store.title")}</h2>
         <p className="m-0 mt-1 max-w-md text-[13.5px] text-muted">{t("store.sub")}</p>
