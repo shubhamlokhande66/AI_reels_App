@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { DEFAULTS, type Features } from "@/lib/features-list";
 import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
 import { api } from "@/lib/api";
-import { getAdminKey, setAdminKey } from "@/lib/admin";
 import { DEFAULT_LOCKS, lockedFor, needMap, type PlanId } from "@/lib/plan-locks";
 import { fill, TEXT_DEFAULTS, type Texts } from "@/lib/texts";
 import { listDef, type ListItem } from "@/lib/collections";
@@ -33,12 +32,9 @@ const waiting = (q: { isLoading: boolean; errorUpdatedAt: number }) => q.isLoadi
 export function useAdmin(): { admin: boolean; required: boolean; otp: boolean; loading: boolean } {
   const q = useQuery({
     queryKey: ["admin"],
-    queryFn: async () => {
-      const s = await api.adminSession();
-      // an admin key the server no longer takes (ADMIN_KEY changed): forgotten, so it is not sent with every request
-      // (wrong keys are counted against guessing, server/core/rateLimit.ts)
-      if (!s.admin && getAdminKey()) setAdminKey(null);
-      return s;
+    queryFn: () => {
+      try { localStorage.removeItem("reel-admin-key"); } catch { /* an admin password kept before there were admin emails: gone */ }
+      return api.adminSession();
     },
     staleTime: 60_000,
     retry: false,

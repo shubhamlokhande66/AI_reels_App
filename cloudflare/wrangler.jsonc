@@ -1,5 +1,5 @@
 // Reel Maker on Cloudflare (Workers + Containers + R2). Deploy: see docs/deploy-cloudflare.md.
-// Secrets (never in this file): npx wrangler secret put <NAME>  for MONGODB_URI, SECRET_KEY, ADMIN_KEY,
+// Secrets (never in this file): npx wrangler secret put <NAME>  for MONGODB_URI, SECRET_KEY,
 // R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, OPENAI_API_KEY / GEMINI_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET ...
 // (every secret is passed to the app).
 {

@@ -75,6 +75,9 @@ describe("partner dashboard", () => {
     expect(after.affiliate).toMatchObject({ status: "active", username: "riya" });
     await P.partnerPayout(req(cookie), { method: "upi", upi: "riya@okaxis" });
     expect((await M.affiliateDetail(String(u!._id), true)).payout).toMatchObject({ upi: "riya@okaxis" });
+    const raw = await (await mainDb()).collection("affiliates").findOne({ _id: String(u!._id) as never });
+    expect(JSON.stringify(raw)).not.toContain("riya@okaxis"); // encrypted in the database (server/core/sealed.ts)
+    expect(raw!.payout).toMatchObject({ method: "upi", sealed: expect.stringMatching(/^v1\./) });
   });
 
   it("lets a Shubix user straight in (no code), and never opens the studio with the partner cookie", async () => {

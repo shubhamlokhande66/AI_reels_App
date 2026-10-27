@@ -11,7 +11,6 @@
  */
 import { createTasks } from './tasks';
 import { chatSize } from '../../lib/chatSize';
-import { adminHeaders } from '../../lib/admin';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '../../lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '../../lib/studio-templates';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
@@ -5730,7 +5729,7 @@ function fingerprintOf(R){
     shotBeats: (R.shotBeats || []).slice(0, 300).map(x => clip(x, 0, 64)), shotSec: (R.shotSec || []).slice(0, 300).map(x => clip(x, 0, 60)),
     moments: cleanMoments(R.moments) };
 }
-async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts, headers: { ...adminHeaders(), ...(opts && opts.headers) } }); const j = await r.json().catch(() => ({}));
+async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts, headers: { ...(opts && opts.headers) } }); const j = await r.json().catch(() => ({}));
   if(r.status === 401) throw new Error('sign in to keep a style library'); if(!r.ok) throw new Error((j.error && j.error.message) || ('error ' + r.status)); return j; }
 // only the administrator teaches the styles (FastStudio.tsx sets the 'admin' class): a creator's copied Reel is offered
 // to the administrator (its fingerprint, never the video), who uses it under a kind or removes it (Admin → My trends)

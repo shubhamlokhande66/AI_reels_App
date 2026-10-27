@@ -1,5 +1,4 @@
 import "server-only";
-import os from "node:os";
 import { ObjectId } from "mongodb";
 import { getProvider } from "@/server/ai";
 import { effective } from "@/server/ai/config";
@@ -23,10 +22,6 @@ export async function health() {
   return { status: mongo ? "ok" : "degraded", mongodb: mongo, ai: { provider: cfg.textProvider || settings.aiProvider, local, fallback, ...ai } };
 }
 export const site = () => ({ businessName: settings.businessName, supportEmail: settings.supportEmail, supportPhone: settings.supportPhone, businessAddress: settings.businessAddress, legalUpdated: settings.legalUpdated });
-
-const PRIVATE = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
-export const phone = () => ({ enabled: ["1", "true", "yes", "on"].includes((process.env.CORS_ALLOW_LAN ?? "").toLowerCase()),
-  addresses: Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal && PRIVATE.test(i.address)).map((i) => i!.address) });
 
 // ------------------------------------------------------------------ plans and pricing (services/plans.py)
 const YEARLY_MONTHS_CHARGED = 10;

@@ -27,7 +27,6 @@ npm install
 npx wrangler login
 npx wrangler secret put MONGODB_URI
 npx wrangler secret put SECRET_KEY            # a long random string (openssl rand -base64 48)
-npx wrangler secret put ADMIN_KEY             # another long random string: unlocks /admin
 npx wrangler secret put R2_ACCESS_KEY_ID
 npx wrangler secret put R2_SECRET_ACCESS_KEY
 npx wrangler secret put OPENAI_API_KEY        # and/or GEMINI_API_KEY, SMTP_PASSWORD, RAZORPAY_KEY_SECRET ...
@@ -43,7 +42,8 @@ Building the container image needs Docker. Either:
 - **From your computer:** install Docker Desktop, run `npm install` once in the repo root, then `cd cloudflare && npm run deploy`
   (it first makes the static assets, see below; a plain `npx wrangler deploy` works too, without them).
 
-Open the address it prints, create the first account, then `/admin` with `ADMIN_KEY`.
+Open the address it prints and create the account of an `ADMIN_EMAILS` address (wrangler.jsonc); `/admin` then asks for
+the code emailed to it.
 
 ## 4. How it behaves
 - **Reels are made on the phone**: every Music, Talking and Photo Reel and Story Maker Reel is edited and exported in

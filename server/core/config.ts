@@ -73,7 +73,6 @@ export const settings = {
   aiFallbackProvider: env("AI_FALLBACK_PROVIDER", ""),
   aiMaxRetries: num("AI_MAX_RETRIES", 2),
   reviewThreshold: num("REVIEW_THRESHOLD", 70),
-  adminKey: env("ADMIN_KEY", ""),
   adminEmails: env("ADMIN_EMAILS", ""),
   // a scheduler's key for /api/cron/* (empty: those routes are off; the jobs still run as people use the site)
   cronSecret: env("CRON_SECRET", ""),

@@ -1,10 +1,9 @@
 import { viaBoot } from "@/lib/boot";
 import type { Features } from "@/lib/features-list";
 import { tracked } from "./activity";
-import { adminHeaders } from "./admin";
 
 /** Admin → Settings → Administrators: owner = set on the server (ADMIN_EMAILS), not removable here */
-export interface AdminList { admins: { email: string; owner: boolean }[]; keySet: boolean }
+export interface AdminList { admins: { email: string; owner: boolean }[] }
 
 /** Administration: how the Fast Studio AI director did in the last days (server/studio/brain.ts report) */
 export interface AiDirectorReport {
@@ -132,7 +131,7 @@ async function send<T>(path: string, init: RequestInit | undefined, timeoutMs: n
       ...init,
       signal: init?.signal ?? ctrl.signal,
       credentials: "include", // the session cookie (accounts on)
-      headers: { ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...adminHeaders(), ...init?.headers },
+      headers: { ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}), ...init?.headers },
     });
   } catch {
     clearTimeout(timer);
@@ -164,7 +163,6 @@ function upload<T>(path: string, form: FormData, onProgress?: (fraction: number)
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_URL}${path}`);
     xhr.withCredentials = true; // the session cookie (accounts on)
-    for (const [k, v] of Object.entries(adminHeaders())) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
     xhr.onerror = () =>
       reject(new ApiError(0, { code: "NETWORK_ERROR", message: "Cannot reach the server. Is the backend running?" }));
@@ -213,11 +211,8 @@ export const api = {
   deleteAccount: (password: string, confirm: string) =>
     request<{ ok: boolean }>("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),
   site: () => viaBoot("site", () => request<SiteInfo>("/api/site")),
-  /** Is this browser in admin mode? (required = the server has an admin key; without one everyone is admin) */
-  adminSession: (key?: string) => {
-    const ask = () => request<{ admin: boolean; required: boolean; otp?: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined);
-    return key ? ask() : viaBoot("admin", ask); // signing in with a key always asks the server
-  },
+  /** Is this person the administrator? (required: accounts are on, so only admin accounts are; otp: their daily code is due) */
+  adminSession: () => viaBoot("admin", () => request<{ admin: boolean; required: boolean; otp?: boolean }>("/api/admin/session")),
   /** the administrator's daily code (an admin account signed in: the admin pages open after it, for a day) */
   adminCode: () => request<{ ok: boolean; wait: number; email: string }>("/api/admin/code", { method: "POST" }),
   adminVerify: (code: string) => request<{ ok: boolean; until: string }>("/api/admin/code/verify", { method: "POST", body: JSON.stringify({ code }) }),
@@ -261,10 +256,10 @@ export const api = {
   setMarketing: (s: import("@/lib/marketing").MarketingSettings) => request<{ settings: import("@/lib/marketing").MarketingSettings }>("/api/admin/marketing", { method: "PUT", body: JSON.stringify(s) }),
   coupons: () => request<{ coupons: import("@/lib/marketing").Coupon[] }>("/api/admin/coupons"),
   saveCoupon: (c: Omit<import("@/lib/marketing").Coupon, "uses" | "live">) => request<{ ok: boolean; code: string }>("/api/admin/coupons", { method: "PUT", body: JSON.stringify(c) }),
-  deleteCoupon: (code: string) => request<{ ok: boolean }>(`/api/admin/coupons?code=${encodeURIComponent(code)}`, { method: "DELETE", headers: adminHeaders() }),
+  deleteCoupon: (code: string) => request<{ ok: boolean }>(`/api/admin/coupons?code=${encodeURIComponent(code)}`, { method: "DELETE" }),
   offers: () => request<{ offers: import("@/lib/marketing").AdminOffer[] }>("/api/admin/offers"),
   saveOffer: (o: Partial<import("@/lib/marketing").AdminOffer>) => request<{ ok: boolean; id: string }>("/api/admin/offers", { method: "PUT", body: JSON.stringify(o) }),
-  deleteOffer: (id: string) => request<{ ok: boolean }>(`/api/admin/offers?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: adminHeaders() }),
+  deleteOffer: (id: string) => request<{ ok: boolean }>(`/api/admin/offers?id=${encodeURIComponent(id)}`, { method: "DELETE" }),
   admins: () => request<AdminList>("/api/admin/admins"),
   addAdmin: (email: string) => request<AdminList>("/api/admin/admins", { method: "POST", body: JSON.stringify({ email }) }),
   removeAdmin: (email: string) => request<AdminList>("/api/admin/admins", { method: "DELETE", body: JSON.stringify({ email }) }),

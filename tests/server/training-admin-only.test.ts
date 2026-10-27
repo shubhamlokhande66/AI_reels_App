@@ -5,7 +5,15 @@ import { describe, expect, it, vi } from "vitest";
  * (the pages hide them too); reading them (to make Reels) and offering a copied Reel stay open. */
 vi.mock("@/server/core/config", async (orig) => {
   const m = await orig<typeof import("@/server/core/config")>();
-  return { ...m, settings: { ...m.settings, authEnabled: false, adminKey: "the-admin-key", adminEmails: "" } };
+  return { ...m, settings: { ...m.settings, authEnabled: false } };
+});
+// who is the administrator is server/core/admin.ts's job (tested in admins.test.ts): here, a request marked as theirs
+vi.mock("@/server/core/admin", async (orig) => {
+  const m = await orig<typeof import("@/server/core/admin")>();
+  const { AppError } = await import("@/server/core/errors");
+  const isAdmin = async (req: Request) => req.headers.get("x-test-admin") === "1";
+  return { ...m, isAdmin, isPlanAdmin: isAdmin,
+    requireAdmin: async (req: Request) => { if (!(await isAdmin(req))) throw new AppError("This part of the app is for the administrator.", { code: "ADMIN_ONLY", status: 403 }); } };
 });
 vi.mock("@/server/trends/references", () => ({
   listReferences: async () => [], createReference: async () => ({ id: "t" }), updateReference: async () => ({}), deleteReference: async () => undefined,
@@ -14,7 +22,7 @@ vi.mock("@/server/trends/references", () => ({
 vi.mock("@/server/studio/styles", async (orig) => ({ ...(await orig<typeof import("@/server/studio/styles")>()), saveStyle: async () => ({ id: "s" }), suggestStyle: async () => ({ ok: true }), listSuggestions: async () => ({ items: [], total: 0 }) }));
 
 const req = (url: string, method: string, admin: boolean, body?: unknown) =>
-  new Request("http://x" + url, { method, headers: { "content-type": "application/json", ...(admin ? { "x-admin-key": "the-admin-key" } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  new Request("http://x" + url, { method, headers: { "content-type": "application/json", ...(admin ? { "x-test-admin": "1" } : {}) }, body: body ? JSON.stringify(body) : undefined });
 const ctx = (p: Record<string, string> = {}) => ({ params: Promise.resolve(p) });
 
 describe("training is the administrator's", () => {

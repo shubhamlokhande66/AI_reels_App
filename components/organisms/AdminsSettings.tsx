@@ -39,7 +39,7 @@ export function AdminsSettings({ bare = false }: { bare?: boolean }) {
               : <Button size="sm" variant="ghost" loading={remove.isPending && remove.variables === a.email} onClick={() => void drop(a.email)}>Remove</Button>}
           </div>
         ))}
-        {!q.data.admins.length && <p className="m-0 text-[12.5px] text-muted">No administrator email yet{q.data.keySet ? " (this browser is unlocked with the admin key)" : ""}.</p>}
+        {!q.data.admins.length && <p className="m-0 text-[12.5px] text-muted">No administrator email yet: set ADMIN_EMAILS on the server.</p>}
       </div>
       <form className="flex flex-col gap-2 sm:flex-row sm:items-end" onSubmit={(e) => { e.preventDefault(); if (emailOk(email)) add.mutate(email.trim()); }}>
         <Field label="Add an administrator (their account's email)" className="flex-1">

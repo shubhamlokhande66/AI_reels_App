@@ -6,6 +6,7 @@ import { settings } from "@/server/core/config";
 import { mainDb, ObjectId } from "@/server/core/db";
 import { ConflictError, NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { mailAdmins, mailUser } from "@/server/core/mail";
+import { seal, unseal } from "@/server/core/sealed";
 
 /** Marketing, all of it set by the administrator (Admin → Marketing): invite rewards (both sides get credits), sending
  * credits to a friend by @username, affiliates (a commission on what the people they brought pay), coupon codes and
@@ -296,16 +297,25 @@ export const PayoutIn = z.discriminatedUnion("method", [
 export type Payout = z.infer<typeof PayoutIn>;
 export async function setPayoutDetails(d: Payout, uid = currentUser()) {
   if (!uid) throw new AuthRequired();
-  const r = await (await col("affiliates")).updateOne({ _id: uid }, { $set: { payout: { ...d, updatedAt: new Date() } } });
+  // kept encrypted (server/core/sealed.ts): only the method is readable in the database
+  const r = await (await col("affiliates")).updateOne({ _id: uid }, { $set: { payout: { method: d.method, sealed: seal("payout", d), updatedAt: new Date() } } });
   if (!r.matchedCount) throw new NotFoundError("Ask to join the affiliate program first.", { code: "AFFILIATE_NOT_FOUND" });
   return { ok: true };
 }
 /** the payout details as shown: in full to the administrator (to pay), the account number hidden but its last 4 to the partner */
-function payoutOut(p: Doc | undefined, full: boolean) {
-  if (!p?.method) return null;
+function payoutOut(p0: Doc | undefined, full: boolean) {
+  if (!p0?.method) return null;
+  const p = payoutDetails(p0);
+  if (!p) return null; // unreadable (SECRET_KEY changed): the partner adds them again
   if (p.method === "upi") return { method: "upi" as const, upi: String(p.upi), updatedAt: p.updatedAt ?? null };
   const acc = String(p.account ?? "");
   return { method: "bank" as const, name: String(p.name ?? ""), account: full ? acc : `•••• ${acc.slice(-4)}`, ifsc: String(p.ifsc ?? ""), updatedAt: p.updatedAt ?? null };
+}
+/** the stored payout details, opened (older ones were kept as they are: read as they are) */
+function payoutDetails(p: Doc): Doc | null {
+  if (typeof p.sealed !== "string") return p;
+  const d = unseal<Doc>("payout", p.sealed);
+  return d ? { ...d, updatedAt: p.updatedAt ?? null } : null;
 }
 // ------------------------------------------------------------------ link clicks and the full picture of one affiliate
 const day = (d = new Date()) => d.toISOString().slice(0, 10);
@@ -320,6 +330,10 @@ export async function linkClick(ref: string) {
 export async function affiliateDetail(id: string, forAdmin: boolean) {
   const m = await getMarketing(), a = await (await col("affiliates")).findOne({ _id: id });
   if (!a) throw new NotFoundError("No such affiliate.", { code: "AFFILIATE_NOT_FOUND" });
+  if (a.payout?.method && typeof a.payout.sealed !== "string") { // saved before they were encrypted: encrypted now
+    const { updatedAt, ...d } = a.payout as Doc;
+    await (await col("affiliates")).updateOne({ _id: id, "payout.sealed": { $exists: false } }, { $set: { payout: { method: d.method, sealed: seal("payout", d), updatedAt: updatedAt ?? new Date() } } });
+  }
   const users = await col("users"), me = await users.findOne({ _id: uidObj(id) }, { projection: { email: 1, username: 1, createdAt: 1 } });
   const username = me?.username ? String(me.username) : await ensureUsername(id);
   const months = Number(a.months ?? 0) || m.affiliate.months;

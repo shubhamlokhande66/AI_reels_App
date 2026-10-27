@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button, Card, Heading, Icon } from "@/components/atoms";
-import { adminHeaders } from "@/lib/admin";
 import { cn } from "@/lib/cn";
 
 /** Admin → Settings → Backup: the whole database as one file (server/backup.ts). MongoDB's free tier keeps no backups:
@@ -15,7 +14,7 @@ export function BackupSettings({ bare = false }: { bare?: boolean }) {
   const download = async () => {
     setBusy(true); setMsg(""); setErr("");
     try {
-      const r = await fetch("/api/admin/backup", { headers: adminHeaders(), credentials: "same-origin" });
+      const r = await fetch("/api/admin/backup", { credentials: "same-origin" });
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.error?.message ?? `The server answered ${r.status}.`);
       const blob = await r.blob(), name = /filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") ?? "")?.[1] ?? "shubix-backup.ndjson";
       const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name });

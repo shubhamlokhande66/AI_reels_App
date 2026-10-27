@@ -1,13 +1,12 @@
 import "server-only";
-import crypto from "node:crypto";
 import { currentUser, sessionAdminUntil } from "./auth";
 import { settings } from "./config";
 import { AppError } from "./errors";
-import { limits } from "./rateLimit";
 
 /** Admin access (was core/admin.py). An administrator is a signed-in account whose email is in ADMIN_EMAILS (the owners,
- * comma-separated), or one an administrator added in Admin → Settings → Administrators, or a browser that sends the
- * ADMIN_KEY in the X-Admin-Key header. With neither ADMIN_EMAILS nor ADMIN_KEY set (a local install) everyone is admin.
+ * comma-separated), or one an administrator added in Admin → Settings → Administrators. There is no admin password.
+ * With accounts on (any real server) only those accounts are ever admin: no ADMIN_EMAILS means nobody, never everyone.
+ * With accounts off (a private install on one computer, no sign-in) the one person there is the admin.
  * An administrator has everything open: every plan's pages and Shubix AI, and no credits are taken (server/credits.ts).
  * An admin email's powers need a 6-digit code emailed to it, once a day (ADMIN_CODE_HOURS): the session carries until
  * when (auth.ts), so a stolen password or an old session alone never opens Admin. */
@@ -46,17 +45,11 @@ async function emailOf(uid: string): Promise<string | null> {
   return email;
 }
 
-function keyMatches(req: Request): boolean {
-  const key = settings.adminKey, given = req.headers.get("x-admin-key") ?? "";
-  const ok = Boolean(key && given) && given.length === key.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(key));
-  if (given && !ok) limits.adminKey(req); // a wrong key: counted, so it cannot be guessed (429 after a few)
-  return ok;
-}
-
-export const adminRequired = () => Boolean(settings.adminKey || ownerEmails().size);
+/** an administrator is needed (accounts on): fail-safe, an empty ADMIN_EMAILS opens Admin to nobody */
+export const adminRequired = () => settings.authEnabled;
 
 export async function isAdmin(req: Request): Promise<boolean> {
-  if (!adminRequired() || keyMatches(req)) return true;
+  if (!adminRequired()) return true;
   const uid = currentUser();
   return Boolean(uid && sessionAdminUntil(req) > Date.now() && (await isAdminAccount(uid)));
 }
@@ -80,7 +73,7 @@ export async function isAdminUser(uid: string): Promise<boolean> {
 // ------------------------------------------------------------------ Admin → Settings → Administrators
 export async function listAdmins() {
   const owners = ownerEmails();
-  return { admins: (await adminEmails()).map((email) => ({ email, owner: owners.has(email) })), keySet: !!settings.adminKey };
+  return { admins: (await adminEmails()).map((email) => ({ email, owner: owners.has(email) })) };
 }
 export async function addAdmin(email0: string) {
   const email = email0.trim().toLowerCase();

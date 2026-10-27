@@ -8,7 +8,6 @@ import { ThemeToggle } from "@/components/molecules/ThemeToggle";
 import { AiSettingsPanel } from "@/components/organisms/AiSettingsPanel";
 import { TrendLibrary } from "@/components/organisms/TrendLibrary";
 import { useMe } from "@/hooks/useApi";
-import { getAdminKey, setAdminKey } from "@/lib/admin";
 import { LiveDot, OverviewTab, useOverview } from "./OverviewTab";
 import { ErrorsTab } from "./ErrorsTab";
 import { TemplatesTab } from "./TemplatesTab";
@@ -40,7 +39,6 @@ const onHash = (fn: () => void) => {
   window.addEventListener("hashchange", fn);
   return () => window.removeEventListener("hashchange", fn);
 };
-const never = () => () => {};
 
 export function AdminDashboard() {
   const qc = useQueryClient();
@@ -50,7 +48,6 @@ export function AdminDashboard() {
   const [menu, setMenu] = useState(false);
   const [user, setUser] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const byKey = useSyncExternalStore(never, () => Boolean(getAdminKey()), () => false); // unlocked with the ADMIN_KEY
   const setTab = (t: Tab) => {
     setMenu(false);
     history.replaceState(null, "", t === "overview" ? location.pathname : `#${t}`);
@@ -61,10 +58,6 @@ export function AdminDashboard() {
     await qc.invalidateQueries({ queryKey: ["admin"] });
     setRefreshing(false);
   }, [qc]);
-  async function leave() {
-    setAdminKey(null);
-    await qc.invalidateQueries();
-  }
   const current = TABS.find((t) => t.id === tab)!;
   const email = me.data?.user?.email;
 
@@ -107,12 +100,6 @@ export function AdminDashboard() {
       </nav>
       <div className="flex-1" />
       <ThemeToggle />
-      {byKey && (
-        <button type="button" className="flex items-center gap-2.5 text-muted text-[12.5px] min-h-[40px] px-1 text-left hover:text-foreground" onClick={() => void leave()}>
-          <Icon name="key" size={18} />
-          Leave admin mode
-        </button>
-      )}
       <Link href="/" className="flex items-center gap-2.5 text-muted text-[12.5px] min-h-[40px] px-1 hover:text-foreground">
         <Icon name="signout" size={18} />
         Back to the studio

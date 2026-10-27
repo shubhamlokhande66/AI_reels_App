@@ -2,7 +2,7 @@ import "server-only";
 import { currentUser } from "./auth";
 import { RateLimited } from "./errors";
 
-/** Limits on what can be abused: guessing passwords or the admin key, flooding sign-ups and reset emails, the visitor
+/** Limits on what can be abused: guessing passwords or codes, flooding sign-ups and reset emails, the visitor
  * ping, the AI (each call costs money). A fixed window per key, kept in this server's memory (with several servers each
  * counts on its own: a guard against floods, not an exact quota). Over the limit: 429 RATE_LIMITED with when to retry. */
 
@@ -37,7 +37,6 @@ export const limits = {
   forgot: (req: Request, email: string) => { limit(`forgot:ip:${clientIp(req)}`, 5, 60 * MIN); limit(`forgot:email:${email.trim().toLowerCase()}`, 3, 60 * MIN, "A reset email was already sent. Check your inbox and spam."); },
   reset: (req: Request) => limit(`reset:${clientIp(req)}`, 10, 15 * MIN),
   account: (req: Request) => limit(`account:${currentUser() ?? clientIp(req)}`, 10, 15 * MIN),
-  adminKey: (req: Request) => limit(`adminkey:${clientIp(req)}`, 10, 15 * MIN, "Too many admin password tries."),
   ping: (req: Request, visitor: string) => limit(`ping:${visitor}:${clientIp(req)}`, 8, MIN, "Too many pings."),
   clientError: (req: Request) => limit(`clienterr:${clientIp(req)}`, 10, MIN, "Too many error reports."),
   contact: (req: Request, email: string) => { limit(`contact:ip:${clientIp(req)}`, 5, 60 * MIN, "Too many messages from here."); limit(`contact:email:${email.trim().toLowerCase()}`, 3, 60 * MIN, "We already have your messages: we'll reply soon."); },

@@ -3,7 +3,6 @@
  * The video goes from the phone straight to storage in parts (three at a time, each retried), never through our server.
  */
 
-import { adminHeaders } from "@/lib/admin";
 
 export type CloudReel = {
   id: string; name: string; size: number; type: string; dur: number; width: number; height: number; fps: number;
@@ -27,7 +26,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
     res = await fetch(path, {
       ...init,
       credentials: "include",
-      headers: { ...(init.body && typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...adminHeaders(), ...init.headers },
+      headers: { ...(init.body && typeof init.body === "string" ? { "Content-Type": "application/json" } : {}), ...init.headers },
     });
   } catch {
     throw new CloudError("We cannot connect right now. Check your internet and try again.", "NETWORK_ERROR");

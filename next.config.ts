@@ -25,6 +25,9 @@ const nextConfig: NextConfig = {
       { key: "X-Frame-Options", value: "SAMEORIGIN" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(), interest-cohort=()" },
+      // a Content-Security-Policy that blocks what is never needed here (plugins, a changed <base>, framing by other
+      // sites); scripts are left as they are (Razorpay, ads, the studio's workers), so nothing of the app breaks
+      { key: "Content-Security-Policy", value: "object-src 'none'; base-uri 'self'; frame-ancestors 'self'" },
       ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
     ];
     return [
