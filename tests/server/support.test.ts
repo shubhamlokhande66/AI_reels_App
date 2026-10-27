@@ -26,6 +26,7 @@ beforeAll(async () => {
   process.env.AUTH_ENABLED = "true";
   process.env.BILLING_ENABLED = "true";
   process.env.ADMIN_EMAILS = "boss@shop.com";
+  process.env.SUPPORT_EMAIL = ""; // the team is the administrator here, whatever the local .env says
   R = await import("@/server/receipts");
   Rem = await import("@/server/reminders");
   S = await import("@/server/support");
