@@ -276,6 +276,7 @@ export const STUDIO_HTML = `
       <div class="stage">
         <div class="pv">
           <div class="pvbox"><canvas id="out" width="1080" height="1920"></canvas>
+            <div class="refwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Reading the Reel to copy</b><small id="refwaitp">its cuts, flickers and transitions…</small></div>
             <div class="aiwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Shubix is making your Reel</b><small>Watching your clips and listening to the song…</small></div>
             <button type="button" class="playov" id="playov" aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button></div>
           <div class="summary" id="summary">
