@@ -8,7 +8,7 @@ import { useSite } from "@/components/molecules/Legal";
 
 /** "Get it on Google Play" / "Download on the App Store", like other brands show them. The links are the administrator's
  * (Admin → Settings → Business details); a store without a link shows "Coming soon" and is not a link. Hidden inside
- * the phone app itself. `compact`: one small row (the sidebar, the menu). */
+ * the phone app itself. `compact`: the sidebar and the menu: "Get the app" over two small badges side by side. */
 export function StoreBadges({ compact = false, className }: { compact?: boolean; className?: string }) {
   const t = useT(), site = useSite().data;
   const inApp = useSyncExternalStore(() => () => {}, isApp, () => false);
@@ -17,15 +17,17 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
     { id: "play", url: site.playStoreUrl, top: t("store.playTop"), name: t("store.play"), logo: <PlayLogo /> },
     { id: "apple", url: site.appStoreUrl, top: t("store.appleTop"), name: t("store.apple"), logo: <AppleLogo /> },
   ];
-  return (
-    <div className={cn(compact ? "flex flex-col gap-1.5" : "flex flex-wrap gap-2", className)}>
+  const badges = (
+    <div className={cn(compact ? "grid grid-cols-2 gap-1.5" : "flex flex-wrap gap-2", !compact && className)}>
       {stores.map((s) => {
         const soon = !s.url;
         const inner = compact ? (
           <>
-            <span className="h-4 w-4 shrink-0">{s.logo}</span>
-            <span className="truncate text-[12px] font-semibold">{s.name}</span>
-            {soon && <span className="ml-auto rounded-full bg-white/15 px-1.5 text-[9.5px] font-bold uppercase tracking-wide">{t("store.soonShort")}</span>}
+            <span className="h-[18px] w-[18px] shrink-0">{s.logo}</span>
+            <span className="flex min-w-0 flex-col leading-none">
+              <span className="truncate text-[8px] font-medium uppercase tracking-[0.05em] opacity-75">{soon ? t("store.soonShort") : s.top}</span>
+              <span className="mt-[3px] truncate text-[11.5px] font-semibold tracking-[-0.01em]">{s.name}</span>
+            </span>
           </>
         ) : (
           <>
@@ -38,8 +40,8 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
         );
         const look = cn(
           "relative flex items-center gap-2 rounded-xl border border-white/20 bg-black text-white shadow-[0_6px_18px_rgba(0,0,0,.22)] transition-[transform,border-color] duration-200",
-          compact ? "h-8 w-full px-2.5" : "h-[52px] min-w-[168px] px-3.5",
-          soon ? "cursor-default opacity-70" : "hover:-translate-y-0.5 hover:border-white/45",
+          compact ? "h-10 min-w-0 gap-1.5 rounded-lg border-white/15 px-2 shadow-none" : "h-[52px] min-w-[168px] px-3.5",
+          soon ? "cursor-default opacity-60" : "hover:-translate-y-0.5 hover:border-white/45",
         );
         return soon ? (
           <span key={s.id} className={look} aria-label={`${s.name}: ${t("store.soon")}`}>{inner}</span>
@@ -47,6 +49,13 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
           <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className={look} aria-label={`${s.top} ${s.name}`}>{inner}</a>
         );
       })}
+    </div>
+  );
+  if (!compact) return badges;
+  return (
+    <div className={cn("flex flex-col gap-2", className)}>
+      <span className="px-0.5 text-[11px] font-semibold text-muted">{t("store.title")}</span>
+      {badges}
     </div>
   );
 }

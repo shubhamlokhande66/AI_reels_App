@@ -171,7 +171,7 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
 }
 
 /** Phones: the Noir drawer with every page (design: Menu). */
-/** Only an administrator sees it: opens the admin dashboard. */
+/** Only an administrator sees it: opens the admin dashboard (its daily code first, when due). */
 export function AdminButton({ onClick }: { onClick?: () => void }) {
   return (
     <Button href="/admin" onClick={onClick} variant="secondary" icon="admin" full className="!border-accent/70 text-accent">
@@ -280,7 +280,8 @@ const tabsFor = (f: Parameters<typeof linkOn>[1]) => TABS.filter((t) => linkOn(t
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
-  const { admin, loading } = useAdmin();
+  const { admin, otp, loading } = useAdmin();
+  const adminLink = admin || otp; // an admin account whose daily code is due: its button leads to the code
   const router = useRouter();
   const qc = useQueryClient();
   const me = useMe();
@@ -431,7 +432,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         onClose={() => setDrawer(false)}
         groups={groups}
         pathname={pathname}
-        admin={admin}
+        admin={adminLink}
         email={me.data?.user?.email}
         credits={credits}
         onSignOut={signOut}
@@ -450,7 +451,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="flex-1" />
         {!paid && <ProBanner compact />}
-        {admin && <AdminButton />}
+        {adminLink && <AdminButton />}
         <ThemeToggle />
         <InstallApp />
         <StoreBadges compact />
@@ -483,7 +484,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${tabs ? "pb-28" : "pb-10"}`}>
-        <DesktopHeader email={me.data?.user?.email} credits={credits} admin={admin} onSignOut={signOut} />
+        <DesktopHeader email={me.data?.user?.email} credits={credits} admin={adminLink} onSignOut={signOut} />
         {/* "Get the Shubix app" until it is installed (not over the studio while a Reel is made) */}
         <div className="mx-auto w-full max-w-6xl">
           {back && (

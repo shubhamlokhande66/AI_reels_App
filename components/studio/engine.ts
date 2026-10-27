@@ -6426,14 +6426,38 @@ async function forgetSong(fp, quiet){
   if(!used) await idb('files', 'readwrite', s => s.delete('f:' + fp));
   if(!quiet) listRecent();
 }
+// a recent song heard before it is chosen: its play button (one at a time; choosing a song, leaving or the list
+// drawn again stops it)
+let preview = null, previewFp = '', previewUrl = '';
+function stopPreview(){
+  if(preview){ preview.pause(); preview.removeAttribute('src'); }
+  if(previewUrl) URL.revokeObjectURL(previewUrl);
+  preview = null; previewFp = ''; previewUrl = '';
+  document.querySelectorAll('#rlist .rplay.on').forEach(b => { b.classList.remove('on'); b.innerHTML = PLAY_SVG; b.setAttribute('aria-label', 'Play ' + (b.dataset.name || 'song')); });
+}
+async function togglePreview(fp, btn){
+  const again = previewFp === fp; stopPreview(); if(again) return;   // its own button again: pause
+  const b = await idb('files', 'readonly', s => s.get('f:' + fp)).catch(() => null);
+  if(!b){ await forgetSong(fp); return; }
+  previewUrl = URL.createObjectURL(b); preview = new Audio(previewUrl); previewFp = fp;
+  preview.onended = stopPreview;
+  btn.classList.add('on'); btn.innerHTML = PAUSE_SVG; btn.setAttribute('aria-label', 'Pause ' + (btn.dataset.name || 'song'));
+  try{ await preview.play(); }catch(e){ stopPreview(); }
+}
+ac.signal.addEventListener('abort', stopPreview);
 async function listRecent(){
   let all = []; try{ all = (await idb('songs', 'readonly', s => s.getAll()) || []).sort((a, b) => b.usedAt - a.usedAt); }catch(e){ return; }
+  stopPreview();
   const box = $('rlist'); box.innerHTML = '';
   for(const sg of all){
     const d = document.createElement('div'); d.className = 'rsong' + (song && song.file && fileFp(song.file) === sg.fp ? ' cur' : '');
-    d.innerHTML = '<button class="rpick" type="button"><span class="rn"></span><span class="rd"></span></button><button class="rdel" type="button" aria-label="Remove from recent songs" title="Remove"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
-    d.querySelector('.rn').textContent = sg.name.replace(/\.[^.]+$/, ''); // the note is the card's picture d.querySelector('.rd').textContent = fmt(sg.dur || 0).replace(/\.\d+$/, '');
-    d.querySelector('.rpick').addEventListener('click', () => pickRecent(sg.fp));
+    d.innerHTML = '<button class="rplay" type="button">' + PLAY_SVG + '</button><button class="rpick" type="button"><span class="rn"></span><span class="rd"></span></button><button class="rdel" type="button" aria-label="Remove from recent songs" title="Remove"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+    d.querySelector('.rn').textContent = sg.name.replace(/\.[^.]+$/, ''); // the note is the card's picture (::before)
+    d.querySelector('.rd').textContent = fmt(sg.dur || 0).replace(/\.\d+$/, '');
+    const name = sg.name.replace(/\.[^.]+$/, ''), play = d.querySelector('.rplay');
+    play.dataset.name = name; play.setAttribute('aria-label', 'Play ' + name); play.title = 'Listen';
+    play.addEventListener('click', () => togglePreview(sg.fp, play));
+    d.querySelector('.rpick').addEventListener('click', () => { stopPreview(); pickRecent(sg.fp); });
     d.querySelector('.rdel').addEventListener('click', () => forgetSong(sg.fp));
     box.appendChild(d);
   }

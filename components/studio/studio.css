@@ -853,7 +853,8 @@
   .brs .fhead .fsteps li.on i{width:30px;height:30px;font:600 13px var(--body);color:#fff;background:var(--gold-gradient);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 
   /* ---- the screens are the page itself: no cards, no card headings; the button at the bottom ---- */
-  .brs.fopen .wrap{gap:18px;padding-bottom:104px}
+  /* room for the fixed button at the bottom (the page under it adds 40px more): nothing empty to scroll to */
+  .brs.fopen .wrap{gap:18px;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   .brs.fopen #s1,.brs.fopen #s2{background:none !important;border:0;box-shadow:none;padding:4px 0 0 !important;border-radius:0}
   .brs.fopen #s1 > .sh,.brs.fopen #s2 > .sh{display:none !important}
   .brs.fopen :is(.fgo,.fnext){position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));width:auto;z-index:30;min-height:52px;border-radius:14px;font-size:16px;box-shadow:0 14px 30px -12px var(--brand-glow)}
@@ -861,10 +862,12 @@
   .brs.fopen .label{font:600 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
 
   /* 1 Music Reel Start */
-  .brs.fopen .fintro{min-height:calc(100svh - 190px);align-content:start;padding-top:36px;gap:16px}
-  .brs.fopen .fbadge{width:104px;height:104px;border-radius:30px}
-  .brs.fopen .fintro h2{font-size:27px;margin-top:18px}
-  .brs.fopen .fchecks{margin-top:28px;gap:20px;padding:0 6px}
+  /* its own height (no screen-tall minimum: with the title and Ask Shubix above it, that made the page scroll to
+     nothing); compact enough to fit a phone screen whole */
+  .brs.fopen .fintro{align-content:start;padding-top:8px;gap:12px}
+  .brs.fopen .fbadge{width:76px;height:76px;border-radius:22px}
+  .brs.fopen .fintro h2{font-size:27px;margin-top:6px}
+  .brs.fopen .fchecks{margin-top:14px;gap:12px;padding:0 6px}
 
   /* 2 Choose Music: the phone's songs as a list (picture, name, length, + / chosen) */
   .brs.fopen .fpickrow{display:grid;gap:10px}
@@ -882,7 +885,6 @@
   .brs.fopen .rsong.cur .rpick::after{content:"✓";background:var(--gold-gradient);border-color:transparent;color:#fff;font-size:15px}
   .brs.fopen .rsong.cur::after{display:none}
   .brs.fopen .rn{grid-column:2;font:600 14.5px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  .brs.fopen .rn::first-letter{color:transparent;font-size:0}
   .brs.fopen .rd{grid-column:2;font:500 12.5px var(--body);color:var(--muted)}
   .brs.fopen .rdel{display:none}
 
@@ -2329,3 +2331,25 @@ html:has(.brs .cconf:not([hidden])),html:has(.brs .xsheet:not([hidden])){overflo
 html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) body{overflow:hidden;overscroll-behavior:none}
 .brs .cconf,.brs .xsheet{overscroll-behavior:contain;touch-action:none}
 .brs .cconfb,.brs .xsh{touch-action:auto}
+
+/* recent songs: a play / pause button in place of the ♪ tile, to listen before choosing (the row still chooses) */
+.brs .rplay{display:none}
+.brs.fopen .rsong{align-items:center}
+.brs.fopen .rpick::before{content:none !important;display:none !important}
+.brs.fopen .rplay{display:grid;place-items:center;flex:0 0 auto;align-self:center;width:48px;height:48px;margin-left:8px;padding:0;border:0;border-radius:12px;cursor:pointer;color:#fff;
+  background:linear-gradient(135deg,#e040fb,#7c3aed);transition:transform .15s,box-shadow .15s}
+.brs.fopen .rplay svg{width:20px;height:20px}
+.brs.fopen .rplay:hover{transform:scale(1.05)}
+.brs.fopen .rplay.on{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+.brs.fopen .rplay:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:1023px){
+  .brs.fopen .rpick{grid-template-columns:minmax(0,1fr) 34px}
+  .brs.fopen :is(.rn,.rd){grid-column:1}
+  .brs.fopen .rpick::after{grid-column:2}
+}
+@media (min-width:1024px){
+  .brs.fopen .rplay{width:30px;height:30px;margin-left:12px;border-radius:9px;background:var(--gold-gradient)}
+  .brs.fopen .rplay svg{width:13px;height:13px}
+  .brs.fopen .rpick{grid-template-columns:minmax(0,1fr);padding-left:10px}
+  .brs.fopen :is(.rn,.rd){grid-column:1}
+}
