@@ -1,3 +1,4 @@
+import { trendText } from "@/server/studio/styles";
 import { isPlanAdmin } from "@/server/core/admin";
 import { body } from "@/server/core/body";
 import { chargeOnce, requireAiPlan } from "@/server/credits";
@@ -16,7 +17,7 @@ export const POST = route(async (req) => {
   const d = await body(req, PaceIn), t0 = Date.now();
   if (d.reelId) await chargeOnce("studio_ai", d.reelId, "Shubix AI Reel");
   try {
-    const res = await pace(d, undefined, await taste());
+    const res = await pace(d, undefined, await taste(), await trendText(d.reelKind));
     recordRun({ kind: "pace", cuts: d.sections.length, mode: d.mode, provider: res.provider, model: res.model, ms: Date.now() - t0, ok: true });
     return res;
   } catch (e) {

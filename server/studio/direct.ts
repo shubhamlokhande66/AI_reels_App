@@ -100,6 +100,8 @@ export const DirectIn = z.object({
   allowed: z.object({ fx: z.array(z.string().max(24)).max(80), tr: z.array(z.string().max(24)).max(80) }).optional(),
   /** what the creator asked for in the studio's chat ("more zooms", "calm, cinematic", "show my face first"): it wins */
   wish: z.string().max(WISH_MAX).default(""),
+  /** the template's kind of Reel (car, wedding...): its trend comes first in the AI's guide */
+  reelKind: z.string().regex(/^[a-z]{2,16}$/).optional(),
   /** the Reel (the phone's id of it): Shubix AI is charged once per Reel */
   reelId: z.string().regex(/^[\w-]{6,64}$/).optional(),
   /** a chat message this plan answers (its number in the chat): charged once, small or whole-Reel by its words */
@@ -183,7 +185,7 @@ const COPY_GUIDE = `COPY THE REFERENCE: the creator wants this Reel to feel like
 - its hook length, its mix of transitions (the budget follows it), how many shots move.
 Where the reference and the general rules disagree, the reference wins.`;
 
-export function prompt(d: DirectIn, taste = "") {
+export function prompt(d: DirectIn, taste = "", trends = "") {
   const first = d.slots[0].i, last = d.slots[d.slots.length - 1].i;
   return `Plan this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s.${d.hook ? ` On-screen hook text: "${clean(d.hook, 60)}".` : ""}${d.story ? ` The story so far: "${clean(d.story, 160)}".` : ""}${first > 0 ? ` These are cuts ${first}-${last} of a longer Reel (the hook is not in this part).` : ""}
 Clips: ${JSON.stringify(d.clips.map((c) => ({ alias: c.alias, summary: clean(c.summary, 140), mood: clean(c.mood, 20) })))}
@@ -191,7 +193,7 @@ ${d.recent.length ? `Used in this creator's last Reels (make this one feel diffe
     ...(s.music ? { music: s.music } : {}),
     candidates: s.candidates.map((c) => ({ id: c.id, clip: c.clip, at: +c.at.toFixed(1), score: +c.score.toFixed(2), note: clean(c.note, 60), roles: c.roles, motion: c.motion, people: c.people, camera: c.camera })) })))}
 ${GUIDE}
-${wishText(d.wish)}Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
+${trends ? `${clean(trends, 2400)}\n` : ""}${wishText(d.wish)}Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
 Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>"} with one entry for every cut.`;
 }
 
@@ -211,9 +213,9 @@ export async function directPatch(d: DirectIn, provider: ManagedProvider = getPr
 }
 
 /** New mix: the same cuts, edited differently (the first plan is the one the creator has now) */
-export function variantsPrompt(d: DirectIn, taste = "", n = d.variants) {
+export function variantsPrompt(d: DirectIn, taste = "", n = d.variants, trends = "") {
   const first = d.slots[0].i;
-  return `${prompt(d, taste).replace(/\nReturn JSON: \{"slots"[\s\S]*$/, "")}
+  return `${prompt(d, taste, trends).replace(/\nReturn JSON: \{"slots"[\s\S]*$/, "")}
 The creator pressed "New mix": make ${n} DIFFERENT plans for these same cuts, each one a complete, good edit with its own idea (for example: one more energetic, one calmer and more cinematic, one with other moments of the clips, one with other transitions and camera moves). Across the plans, pick other candidate moments where a good one exists and vary transitions, effects, speeds and keys; each plan still follows the music and every rule above.
 Return JSON: {"plans": [{"slots": [{"i": ${first}, "shot": "${first}b", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [], "move": []}], "story": "<one sentence>"}]} with exactly ${n} plans, each with one entry for every cut. Leave out "why". "move" only where a camera move adds something.`;
 }
@@ -288,10 +290,10 @@ export function parsePlan(d: DirectIn, a: AnswerIn): { slots: DirectedSlot[]; st
 
 /** New mix: up to MAX_VARIANTS other plans, each checked like the plan; a long Reel is asked in parts, the parts' plans
  * joined in order (a part that returned fewer plans repeats its last one). */
-export async function directVariants(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
+export async function directVariants(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "", trends = "") {
   const n = Math.max(1, Math.min(MAX_VARIANTS, d.variants || 1)), parts = chunks(d);
   const per = await Promise.all(parts.map(async (p) => {
-    const ans = await provider.structured(SYSTEM, variantsPrompt(p, taste, n), VariantsAnswer, { task: TASK, temperature: 0.9, maxOutputTokens: Math.min(16_000, 400 + p.slots.length * 100 * n) });
+    const ans = await provider.structured(SYSTEM, variantsPrompt(p, taste, n, trends), VariantsAnswer, { task: TASK, temperature: 0.9, maxOutputTokens: Math.min(16_000, 400 + p.slots.length * 100 * n) });
     const plans: { slots: DirectedSlot[]; story: string }[] = [];
     for (const a of ans.plans.slice(0, n)) { try { plans.push(parsePlan(p, a)); } catch { /* an unusable plan is left out */ } }
     if (!plans.length) throw new AIResponseError("The AI director returned no usable new mix.");
@@ -305,10 +307,10 @@ export async function directVariants(d: DirectIn, provider: ManagedProvider = ge
   return { plans, model: provider.model, provider: provider.name };
 }
 
-export async function direct(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
+export async function direct(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "", trends = "") {
   const parts = chunks(d);
   const plans = await Promise.all(parts.map(async (p) => {
-    const ans = await provider.structured(SYSTEM, prompt(p, taste), Answer, { task: TASK, temperature: 0.7, maxOutputTokens: Math.min(12_000, 400 + p.slots.length * 170) });
+    const ans = await provider.structured(SYSTEM, prompt(p, taste, trends), Answer, { task: TASK, temperature: 0.7, maxOutputTokens: Math.min(12_000, 400 + p.slots.length * 170) });
     return parsePlan(p, ans);
   }));
   return { slots: plans.flatMap((p) => p.slots), story: plans[0].story || d.story, model: provider.model, provider: provider.name };
@@ -328,6 +330,8 @@ export const PaceIn = z.object({
   /** the Reel's own length when the sections cover the whole song (the creator uses a part of it, and may move it) */
   reel: z.number().min(1).max(600).optional(),
   wish: z.string().max(WISH_MAX).default(""),
+  /** the template's kind of Reel (car, wedding...): its trend comes first in the AI's guide */
+  reelKind: z.string().regex(/^[a-z]{2,16}$/).optional(),
   sections: z.array(z.object({
     i: z.number().int().min(0).max(LIMITS.sections - 1),
     t: z.number().min(0).max(600), len: z.number().min(0.1).max(600), beats: z.number().int().min(0).max(2000),
@@ -343,11 +347,11 @@ export const PACE_WORDS = ["hits", "flicker"] as const;
 /** any pace in any style: the style is a direction the AI reads, not a limit */
 export const PACE_OK: Record<(typeof MODES)[number], number[]> = { auto: [1, 2, 4, 8], smooth: [1, 2, 4, 8], fast: [1, 2, 4, 8], copy: [1, 2, 4, 8] };
 
-export function pacePrompt(d: PaceIn, taste = "") {
+export function pacePrompt(d: PaceIn, taste = "", trends = "") {
   const whole = d.reel && d.reel < d.duration - 0.5 ? ` The Reel uses a ${d.reel.toFixed(1)} s part of this song, and the creator may move that part: choose the pace for every section of the whole song, as if each could be in the Reel.` : "";
   return `Choose the pace of this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s (one beat = ${(60 / d.bpm).toFixed(2)} s).${whole} Footage: ${d.clips} ${d.kind === "photo" ? "photos" : "clips"}, ${Math.round(d.footage)} s in all.
 ${taste ? `This creator's taste: ${clean(taste, 400)}\n` : ""}Sections of the song (loud/bass/drums/voice 0-1 for this song; hitRate = strong hits per second; starts = what opens the section; now = beats per cut the phone's rules would use): ${JSON.stringify(d.sections)}
-${d.reference ? `Reference Reel (copy its pace by musical situation: how many beats its shots last on loud / quiet parts, drops and build-ups, and its hook): ${referenceText(d.reference)}\n` : ""}${wishText(d.wish)}For each section choose "every": a cut every 1, 2, 4 or 8 beats, or "hits" (a cut on every strong drum hit: the beat edits of car, bike and sports Reels, a dhol or snare roll, a dense fast part with hitRate 5 or more), or "flicker" (a different picture on every frame, up to 3 s at the end of the section: a riser or a held note right before a drop). Use your own knowledge of what trending Reels do right now. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
+${trends ? `${clean(trends, 2400)}\n` : ""}${d.reference ? `Reference Reel (copy its pace by musical situation: how many beats its shots last on loud / quiet parts, drops and build-ups, and its hook): ${referenceText(d.reference)}\n` : ""}${wishText(d.wish)}For each section choose "every": a cut every 1, 2, 4 or 8 beats, or "hits" (a cut on every strong drum hit: the beat edits of car, bike and sports Reels, a dhol or snare roll, a dense fast part with hitRate 5 or more), or "flicker" (a different picture on every frame, up to 3 s at the end of the section: a riser or a held note right before a drop). Use your own knowledge of what trending Reels do right now. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
 Return JSON: {"sections": [{"i": 0, "every": 2, "why": "<max 8 words>"}], "story": "<one sentence: how the Reel's energy moves>"} with one entry per section.`;
 }
 export function parsePace(d: PaceIn, a: z.infer<typeof PaceAnswer>) {
@@ -364,7 +368,7 @@ export function parsePace(d: PaceIn, a: z.infer<typeof PaceAnswer>) {
   if (!sections.length) throw new AIResponseError("The AI returned no usable pace.");
   return { sections: sections.sort((x, y) => x.i - y.i), story: clean(a.story, 160) };
 }
-export async function pace(d: PaceIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
-  const ans = await provider.structured(SYSTEM, pacePrompt(d, taste), PaceAnswer, { task: TASK, temperature: 0.3, maxOutputTokens: 300 + d.sections.length * 60 });
+export async function pace(d: PaceIn, provider: ManagedProvider = getProvider(TASK), taste = "", trends = "") {
+  const ans = await provider.structured(SYSTEM, pacePrompt(d, taste, trends), PaceAnswer, { task: TASK, temperature: 0.3, maxOutputTokens: 300 + d.sections.length * 60 });
   return { ...parsePace(d, ans), model: provider.model, provider: provider.name };
 }

@@ -191,3 +191,40 @@ export async function removeSuggestion(id: string) {
   if (!r.deletedCount) throw new NotFoundError("This Reel is no longer waiting.", { code: "SUGGESTION_NOT_FOUND" });
   return { ok: true };
 }
+
+// ---- what trending Reels of each kind do, for the AI (its brain and the learning combined) ----
+/** One short line per kind, from the Reels this studio learned from (the app's seeds and everyone's shared styles):
+ * pace, how many shots are flicker montages or quick cuts on the hits, the transition mix, camera zooms, a black end.
+ * The AI reads it as a guide to place THIS song's cuts, never as a Reel to copy. Kept 10 minutes. */
+let digestCache: { at: number; lines: Record<string, string> } | null = null;
+export function kindLine(kind: string, fps: Fingerprint[]): string {
+  const st = learnStyle(fps); if (!st) return "";
+  const shots = fps.map((f) => f.moments ?? []).filter((m) => m.length > 2);
+  const share = (test: (m: Fingerprint["moments"][number]) => boolean) => (shots.length ? median(shots.map((ms) => ms.filter(test).length / ms.length)) : 0);
+  const flick = share((m) => !!m.flick), quick = share((m) => m.sec > 0 && m.sec < 0.25), black = fps.filter((f) => (f.moments ?? []).some((m) => m.black)).length / fps.length;
+  const pace = st.medianBeats ? `a cut every ${st.medianBeats} beat${st.medianBeats === 1 ? "" : "s"}` : `a cut every ${st.medianSec.toFixed(1)} s`;
+  const tr = Object.entries(st.trans).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${Math.round(v * 100)}% ${k}`).join(", ");
+  const parts = [pace, `${Math.round(quick * 100)}% of shots are quick cuts under 0.25 s (on the hits)`, flick > 0 ? `${Math.round(flick * 100)}% flicker montages` : "", `transitions ${tr}`, `camera zooms in ${Math.round(st.zoomShare * 100)}% of shots`, black >= 0.5 ? "ends on black" : "", `pace ${st.energy}`];
+  return `- ${kind} (${fps.length} Reels): ${parts.filter(Boolean).join("; ")}`;
+}
+export async function trendDigest(): Promise<Record<string, string>> {
+  if (digestCache && Date.now() - digestCache.at < 600_000) return digestCache.lines;
+  const by: Record<string, Fingerprint[]> = {};
+  for (const c of CATEGORIES) by[c] = seedFps(c);
+  try {
+    for (const d of await (await everyone()).find({ shared: true }).limit(3000).toArray()) { const r = Fingerprint.safeParse(d.fp); if (r.success && by[d.category as string]) by[d.category as string].push(r.data); }
+  } catch { /* no database: the app's own Reels */ }
+  const lines: Record<string, string> = {};
+  for (const [k, fps] of Object.entries(by)) if (fps.length >= 2) lines[k] = kindLine(k, fps);
+  digestCache = { at: Date.now(), lines };
+  return lines;
+}
+/** The text the AI gets: every kind's trend; the template's kind first when there is one, else the AI picks the kind */
+export async function trendText(kind?: string): Promise<string> {
+  const lines = await trendDigest(), keys = Object.keys(lines); if (!keys.length) return "";
+  const known = kind && lines[kind] ? kind : "";
+  const order = known ? [known, ...keys.filter((k) => k !== known)] : keys;
+  return `WHAT TRENDING REELS OF EACH KIND DO (learned from the Reels this studio studied: a guide for THIS song and these clips, never a Reel to copy; the creator's own words come first):
+${order.map((k) => lines[k]).join("\n")}
+${known ? `This Reel is a ${known} Reel (its template): follow the ${known} trend.` : "Decide from the clips which kind this Reel is and follow that kind's trend (none fits: your own taste)."}`;
+}
