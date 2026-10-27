@@ -570,7 +570,8 @@ function snap(t, w){
 
 /* =============== STEP 1: MUSIC =============== */
 let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0, editGen = 0;
-let refReading = false;   // a Reel to copy is being read: the AI waits for it (its pace and plan are for the copy)
+let refReading = false;
+let tplKind = '';   // the template's kind of Reel (car, wedding...): with Shubix AI its trend leads the AI's guide   // a Reel to copy is being read: the AI waits for it (its pace and plan are for the copy)
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
 // (a copied Reel keeps its short shots: no flash-cut merging; another song puts them on its beats, copyPlan)
 function adaptPlan(){ return copyTimed() ? copyPlanTimed() : mode === 'copy' && refProfile ? endWell(adaptPlan0()) : beatEdit(endWell(noFlashCuts(adaptPlan0()))); }
@@ -2253,7 +2254,7 @@ $('chatchips').addEventListener('click', e => { const b = e.target.closest('butt
    the shot and the style and stay within its ration, effects and speeds must suit the cut. Whatever fails keeps the
    rule choice. One plan per edit (style, mix and clips); a new mix or style asks again. */
 let director = null, dirBusy = false, dirFailedKey = '', dirCands = null;
-const dirKey = () => [wish, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
+const dirKey = () => [wish, tplKind, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
 let mixNo = 0;   // which mix: 0 = the AI's plan, 1-4 = its other mixes (one call), then the phone's own mixes in its style
 const dirSlotOf = i => (aiOn && director && director.key===dirKey() && director.slots[i]) || null;
 const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
@@ -2473,7 +2474,7 @@ function rememberTools(){ if(!edit.length) return; const used = new Set();
   try{ const L = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); L.push([...used].slice(0, 30)); localStorage.setItem(RECENT_KEY, JSON.stringify(L.slice(-6))); }catch(e){} }
 function dirRequest(cands){
   const per = Math.max(1, buf.duration/30), music = cutMusic(), pc = paceNow();
-  const req = { mode, reelId: reelIdNow(), ...(chatAsk ? { chat: { n: chatAsk.n, id: chatAsk.id, text: chatAsk.text } } : {}), wish: wish.slice(-800), duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
+  const req = { mode, reelId: reelIdNow(), ...(tplKind ? { reelKind: tplKind } : {}), ...(chatAsk ? { chat: { n: chatAsk.n, id: chatAsk.id, text: chatAsk.text } } : {}), wish: wish.slice(-800), duration: +buf.duration.toFixed(2), bpm: +(60/period).toFixed(1), hook: hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: refContext(),
     clips: sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
     recent: recentTools(),
     allowed: { fx: Object.keys(FX_NAME).filter(k => !isLocked('fx', k)), tr: Object.keys(TR_DUR).filter(k => !isLocked('tr', k)) },
@@ -2584,7 +2585,7 @@ function getSoundMap(){
    the phone's own pace shows first and the AI's replaces it when it arrives. */
 let pacing = null, paceBusy = false, paceFailedKey = '';
 const paceCache = new Map();
-const paceKey = () => [wish, musicKey, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
+const paceKey = () => [wish, tplKind, musicKey, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', sources.length, Math.round(sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
 const paceUsable = () => aiOn && kind !== 'talk' && buf && beats.length >= 8 && sources.length && !recording && !(mode === 'copy' && refProfile);   // a copied Reel keeps its own rhythm
 const paceNow = () => (paceUsable() && pacing && pacing.key === paceKey()) ? pacing : null;
 const paceWanted = () => paceUsable() && !paceNow() && paceFailedKey !== paceKey();
@@ -2647,7 +2648,7 @@ async function paceRun(key){
   paceBusy = true; aiStat('Shubix is listening to the song and choosing the pace…');
   const tm = timeoutSignal(25000);
   try{
-    const req = { mode, reelId: reelIdNow(), wish: wish.slice(-800), duration: +(whole ? song.buf.duration : buf.duration).toFixed(2), bpm: +(60/(whole ? song.r.period : period)).toFixed(1), clips: sources.filter(s=>!s.removed).length,
+    const req = { mode, reelId: reelIdNow(), ...(tplKind ? { reelKind: tplKind } : {}), wish: wish.slice(-800), duration: +(whole ? song.buf.duration : buf.duration).toFixed(2), bpm: +(60/(whole ? song.r.period : period)).toFixed(1), clips: sources.filter(s=>!s.removed).length,
       footage: +sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext(),
       ...(whole ? { reel: +buf.duration.toFixed(2) } : {}) };
     const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
@@ -2703,6 +2704,8 @@ async function directorRun(key){
     // a plan without Shubix AI (Free): the phone edits; the chat and the plans say how to get it
     if(aiInfo.planAi === false){ aiLocked = true; aiStat('Edited on your phone · Shubix AI is in the Editor and Pro plans'); return; }
     aiOn = true;
+    // a template's learned style was put on before the AI was known: the AI combines it now (its trend, this song)
+    if(refProfile && refProfile.learned && refProfile.byTpl){ const sh = refProfile.shown || 'auto'; refProfile = null; learnedKind = ''; if(mode === 'copy') setMode(sh); }
     const pressed = [...$('mode').children].find(x => x.getAttribute('aria-pressed') === 'true');
     modeWords(pressed ? pressed.dataset.m : mode);
     if(sources.length) aiRun();
@@ -6003,9 +6006,13 @@ const TPL_STYLE = { wedding: 'wedding', travel: 'travel', tripphotos: 'travel', 
 let styleGen = 0;
 async function styleForTemplate(name){
   const k = TPL_STYLE[name], g = ++styleGen, shown = mode === 'copy' ? (refProfile && refProfile.shown) || 'auto' : mode;
+  tplKind = k || '';
   const drop = () => { if(refProfile && refProfile.learned && !refProfile.cuts.length && learnedKind && refProfile.byTpl){ refProfile = null; learnedKind = ''; if(mode === 'copy') setMode(shown); } };
   if(refProfile && !refProfile.learned) return;
   if(!k || kind === 'talk'){ drop(); return; }
+  // Shubix AI on: its brain and the learning combined (the AI reads every kind's trend, this template's first, and fits
+  // it to this song); the learned Reel copied as it is only for a Reel made without the AI
+  if(aiOn){ drop(); return; }
   try{ const r = await api('/api/studio/styles/learned?category=' + encodeURIComponent(k) + '&scope=all');
     if(g !== styleGen || (refProfile && !refProfile.learned)) return;
     if(!r.fp){ drop(); return; }
