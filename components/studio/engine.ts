@@ -5516,7 +5516,7 @@ async function analyzeReference(file, onP){
       if(r.beats && r.beats.length > 8) rb = r.beats;
       rr = r; try{ rmap = soundMap(m, ab.sampleRate); }catch(e){ rmap = null; } }catch(e){ /* no soundtrack: pace in seconds */ }
     // its cuts: the same reading as a clip (scene changes, frame-accurate)
-    const ps = { url, dur, w, h }; let refCutsOut = [];
+    const ps = { url, dur, w, h, file }; let refCutsOut = [];   // file: the scene reading decodes it with WebCodecs (without it, one seek a frame: minutes)
     await scanMotion(ps, p => onP(0.05 + 0.35*p, 'finding its cuts'));
     const shots = [], looks = [];
     const fs = await frameSource(file, v, w, h);
