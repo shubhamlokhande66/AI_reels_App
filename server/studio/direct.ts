@@ -50,7 +50,7 @@ const Trend = z.enum(["rising", "falling", "steady"]);
 /** A Reel the creator wants theirs to feel like ("Copy a Reel" or a saved / learned style), measured on the phone:
  * its pace, its transition mix, and shot by shot: how long, the transition into it, whether it zooms, and the music
  * under it. The AI copies its behaviour (what it does on which kind of musical moment), not just its order. */
-const RefKind = z.enum(["start", "hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars"]);
+const RefKind = z.enum(["start", "hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars", "blur"]);
 /** a camera move measured in the reference: keyframes at fractions f of the shot (0 = start, 1 = end) */
 const RefKey = z.object({ f: z.number().min(0).max(1), s: z.number().min(0.4).max(2.5), x: z.number().min(-0.6).max(0.6), y: z.number().min(-0.6).max(0.6), r: z.number().min(-60).max(60) });
 export const RefMoment = z.object({

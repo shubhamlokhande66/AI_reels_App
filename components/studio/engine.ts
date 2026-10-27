@@ -572,7 +572,42 @@ function snap(t, w){
 let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0, editGen = 0;
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
 // (a copied Reel keeps its short shots: no flash-cut merging; another song puts them on its beats, copyPlan)
-function adaptPlan(){ return copyTimed() ? copyPlanTimed() : mode === 'copy' && refProfile ? endWell(adaptPlan0()) : endWell(noFlashCuts(adaptPlan0())); }
+function adaptPlan(){ return copyTimed() ? copyPlanTimed() : mode === 'copy' && refProfile ? endWell(adaptPlan0()) : beatEdit(endWell(noFlashCuts(adaptPlan0()))); }
+/* ---- the beat edit of car, bike and sports Reels (measured on such Reels: cuts land on the drum hits, 88% of them) ----
+ * Where the song's strong drum hits are dense (5 a second or more, for 2 s or longer: a fast verse, a dhol or snare roll,
+ * a build-up) a cut on every hit, never closer than a third of a beat; where it stays loud with no strong hits for 1.5 s
+ * or more and the drums come back right after (a riser, a held note before the drop) a flicker montage (a different still
+ * of the clips on every frame, at most 3 s); elsewhere the plan as it is. "Strong": at least the song's median hit (all of
+ * a busy mix's onsets are dense everywhere). Smooth keeps its calm; a copied Reel keeps its own edit. */
+function beatEdit(p){
+  if(!(mode === 'auto' || mode === 'fast') || !buf || !rmsF || !hopSec || !hitsRaw || hitsRaw.length < 8 || p.length < 2 || !(period > 0)) return p;
+  const dur = buf.duration, H = hitsRaw.filter(t => t > 0.1 && t < dur - 0.15), W = 1, step = 0.25;
+  const ss = (hitsStr || []).slice().sort((a,b)=>a-b), sMed = ss.length ? ss[ss.length>>1] : 0;
+  const HS = hitsRaw.filter((t, i) => (hitsStr[i] || 0) >= sMed && t > 0.1 && t < dur - 0.15);   // the strong hits
+  const dbAt = (a, b) => { const fa = Math.max(0, Math.floor(a/hopSec)), fb = Math.min(rmsF.length, Math.ceil(b/hopSec)); let s2 = 0; for(let f=fa; f<fb; f++) s2 += rmsF[f]*rmsF[f]; return 10*Math.log10(s2/Math.max(1, fb-fa) + 1e-10); };
+  const cnt = (A, a, b) => { let n = 0; for(const h of A) if(h >= a && h < b) n++; return n; };
+  const wins = []; for(let t=0; t+W <= dur + 1e-6; t+=step) wins.push({ t, n: cnt(HS, t, t+W), db: dbAt(t, t+W) });
+  if(wins.length < 8) return p;
+  const lv = wins.map(w => w.db).filter(x => x > -60).sort((a,b)=>a-b), med = lv.length ? lv[lv.length>>1] : -20;
+  const runsOf = (test, minLen) => { const out = []; let a = null;
+    wins.forEach((w, i) => { const on = test(w); if(on && a === null) a = w.t; if((!on || i === wins.length-1) && a !== null){ const b = on ? w.t + W : wins[i-1].t + W; if(b - a >= minLen) out.push([a, Math.min(dur, b)]); a = null; } });
+    return out; };
+  const burst = runsOf(w => w.n >= 5 && w.db >= med - 3, 2);
+  const flick = runsOf(w => w.n <= 1 && w.db >= med + 1, 1.5).filter(([, b]) => cnt(HS, b, b + 2) >= 6)
+    .map(([a, b]) => [Math.max(a + 0.25, b - 3.25), b - 0.25]).filter(([a, b]) => b - a >= 1);
+  if(!burst.length && !flick.length) return p;
+  const inR = (t, R) => R.some(([a, b]) => t > a + 0.02 && t < b - 0.02);
+  // the cut points: the plan's own, outside the bursts and flickers; every hit inside a burst; both ends of a flicker
+  let pts = p.slice(1).map(x => x.start).filter(t => !inR(t, burst) && !inR(t, flick));
+  const gap = Math.max(0.13, period/3);
+  burst.forEach(([a, b]) => { let last = -9; H.forEach(h => { const t = h - 1/30; if(t > a && t < b && t - last >= gap && !inR(t, flick)){ pts.push(t); last = t; } }); });
+  flick.forEach(([a, b]) => { pts.push(a, b); });
+  pts = pts.filter(t => t > 0.12 && t < dur - 0.15).sort((x,y)=>x-y).filter((t, i, A) => !i || t - A[i-1] >= 0.1);
+  const of = t => p.find(x => t >= x.start - 1e-3 && t < x.end) || p[p.length-1];
+  const starts = [0, ...pts], out = starts.map((a, i) => { const b = i + 1 < starts.length ? starts[i+1] : dur, src = of(a), own = Math.abs(src.start - a) < 0.02;
+    return { ...src, start: a, end: b, type: own ? src.type : 'cut', fx: own ? src.fx : 'Hard cut', flick: flick.some(([fa, fb]) => Math.abs(fa - a) < 0.02 && Math.abs(fb - b) < 0.02) || undefined }; });
+  return out;
+}
 function noFlashCuts(p){
   for(let i=1;i<p.length;i++){ const s = p[i], pt = partAt(s.start + 0.05); if(s.end - s.start >= (pt === 'drop' || pt === 'up' ? 0.4 : 0.6)) continue;
     const keepStart = s.type === 'drop' || s.type === 'break' || isPartStart(s.start + 1/30);
@@ -2842,7 +2877,7 @@ function makeEditNow(){
   if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
   const keptUk = ukKeep();
-  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = endWell(noFlashCuts(withPartCuts(repace(basePlan, pc.secs, beats, buf.duration, mode)))); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
+  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = beatEdit(endWell(noFlashCuts(withPartCuts(repace(basePlan, pc.secs, beats, buf.duration, mode))))); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
   // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
@@ -5311,7 +5346,7 @@ $('cover').onclick = async () => {
    that pace on this song's beats, uses that mix of transitions and effects, and grades the clips toward that look. */
 let refProfile = null;
 const REF_KINDS = { hard:'hard cuts', dissolve:'dissolves', fade:'fades', flash:'flashes', whip:'whip pans', zoom:'zoom-throughs', glitch:'glitches', spin:'spins',
-  iris:'circle reveals', diamond:'diamond reveals', heart:'heart reveals', star:'star reveals', wipe:'wipes', bars:'bar reveals' };
+  iris:'circle reveals', diamond:'diamond reveals', heart:'heart reveals', star:'star reveals', wipe:'wipes', bars:'bar reveals', blur:'blur transitions' };
 // colour statistics of the frame drawn into g (w x h), plus a 1:1 crop for grain
 function lookStats(g, w, h, crop){
   const d = g.getImageData(0,0,w,h).data, n = w*h, L = new Float32Array(n);
@@ -5516,13 +5551,23 @@ async function analyzeReference(file, onP){
         if(c.exact && s0 !== null && s0 > 1.5*Math.max(0.006, s1)) c.one = true;   // the next shot may start moving (blur): the cut is still the biggest step
         if(c.one && c.kind !== 'flash' && c.kind !== 'fade') c.kind = 'hard';
         if(c.flick || c.flickEnd) c.kind = 'hard';
+        // how sharp the picture stays through the cut: a moving transition (a blur, a zoom or whip through) goes soft in
+        // its middle frames; smoke drifting in, a car rolling past posts or a slide inside one shot stays sharp
+        const sharpOf = f => { const Y = f.Y, W2 = f.FW; let s2 = 0, n2 = 0; for(let q=0; q+W2+1<Y.length; q+=2){ s2 += Math.abs(Y[q+1]-Y[q]) + Math.abs(Y[q+W2]-Y[q]); n2++; } return n2 ? s2/n2 : 0; };
+        const shA = fr.filter(f => f.k <= -5).map(sharpOf), shB = fr.filter(f => f.k >= 5).map(sharpOf), shM = fr.filter(f => Math.abs(f.k) <= 3).map(sharpOf);
+        const avg = a => a.length ? a.reduce((q,x)=>q+x,0)/a.length : 0, ends = Math.min(avg(shA), avg(shB));
+        c.blurDip = ends > 0.004 && shM.length ? Math.min(...shM)/ends : 1;
+        // a cut only the scene reading found (no jump on one frame): kept when it goes soft (a moving transition), dropped
+        // when it stays sharp (something moved inside the shot); fades and dissolves keep their own reading
+        if(!c.exact && !c.flick && !c.flickEnd && c.hint === 'cut'){ if(c.blurDip >= 0.65) c.drop = true; else if(!['whip','zoom','spin','flash','glitch'].includes(c.kind)) c.kind = 'blur'; }
         if(['hard','dissolve'].includes(c.kind) && !c.one){ const A = at(-CUT_K), B = at(CUT_K);
           if(A && B) for(const k of [0,-1,1,-2,2,-3,3]){ const F = at(k); if(!F) continue; const sh = revealShape(A.Y, B.Y, F.Y, A.FW, A.FH); if(sh){ c.kind = sh; break; } } } });
+      for(let i=cuts.length-1;i>=0;i--) if(cuts[i].drop) cuts.splice(i, 1);
       // two cuts under 0.2 s apart are one moving transition (a whip's first blurred frames read as a cut of their own),
       // unless both are clean one-frame jumps (a strobe of hard cuts)
       for(let i=cuts.length-1;i>0;i--){ const a = cuts[i-1], b = cuts[i];
         if(b.t - a.t < 0.2 && !a.one && !b.one && !(a.exact && b.exact) && !a.flick && !b.flick && !a.flickEnd && !b.flickEnd){ if(b.kind === 'hard' && a.kind !== 'hard') b.kind = a.kind; else if(b.kind === 'hard' && !a.one) b.kind = 'whip'; cuts.splice(i-1, 1); } }
-      cuts.forEach(c=>{ delete c.one; delete c.flick; delete c.flickEnd; delete c.exact; });   // (c.after stays: the black end)
+      cuts.forEach(c=>{ delete c.one; delete c.flick; delete c.flickEnd; delete c.exact; delete c.blurDip; });   // (c.after stays: the black end)
       // shots: a zoom inside them (two frames) and the colour look (the middle frame)
       onP(0.85, 'reading its look');
       const bounds = [0, ...cuts.map(c=>c.t), dur], sh = [];
@@ -5632,7 +5677,7 @@ function copyPlan(){
 }
 // the reference's mix of transitions and effects, placed where they suit (energetic ones on drops and hits, soft ones
 // on calm, long shots), counted so the shares match
-const REF_TR = { hard:'hard', dissolve:'dissolve', fade:'dip', flash:'flash', whip:'whip', zoom:'zoom', glitch:'glitch', spin:'spin', iris:'iris', diamond:'diamond', heart:'heart', star:'star', wipe:'wipe', bars:'bars' };
+const REF_TR = { hard:'hard', dissolve:'dissolve', fade:'dip', flash:'flash', whip:'whip', zoom:'zoom', glitch:'glitch', spin:'spin', iris:'iris', diamond:'diamond', heart:'heart', star:'star', wipe:'wipe', bars:'bars', blur:'blur' };
 let copyBudget = null;
 function copyStyle(){
   const R = refProfile, n = plan.length - 1; if(n < 1) return;
@@ -5646,7 +5691,7 @@ function copyStyle(){
       if(plan[i-1] && plan[i-1].tr === REF_TR[k] && k !== 'hard') continue; plan[i].tr = REF_TR[k]; free.delete(i); c--; }
     for(const i of order){ if(!c) break; if(free.has(i)){ plan[i].tr = REF_TR[k]; free.delete(i); c--; } } };
   const hot = [...idx].sort((a,b)=>energy(b)-energy(a)), calm = [...idx].sort((a,b)=>energy(a)-energy(b));
-  ['flash','zoom','whip','glitch','spin'].forEach(k=>place(k, hot)); ['dissolve','fade','iris','diamond','heart','star','wipe','bars'].forEach(k=>place(k, calm));
+  ['flash','zoom','whip','glitch','spin','blur'].forEach(k=>place(k, hot)); ['dissolve','fade','iris','diamond','heart','star','wipe','bars'].forEach(k=>place(k, calm));
   // zooms inside shots: on that share of shots, the longest first
   const longI = [...plan.keys()].filter(i=>plan[i].end-plan[i].start >= 0.9), zn = Math.round(Math.min(1, R.zoomShare)*longI.length);
   longI.sort((a,b)=>(plan[b].end-plan[b].start)-(plan[a].end-plan[a].start)).slice(0, zn).forEach(i=>{ plan[i].efx = (plan[i].end-plan[i].start) > 1.2 ? 'pan' : 'punch-soft'; });
