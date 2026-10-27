@@ -1926,6 +1926,19 @@ function aiOff(msg){ aiOn = false; aiStat(msg); const pr = [...$('mode').childre
 // The Reel's gate: asked before ANY Shubix AI work on a Reel (reading the clips, the pace, the shots), for every plan and every
 // Reel: Use = its credits and the AI starts; ✕ = nothing runs and nothing is taken (asked again on Generate, `again`).
 let gateNo = '';
+// A plan with Shubix AI makes every Reel with it: when the creator closes the credits question (or has too few credits)
+// the Reel is not shown, played or exported; the preview says so and its button asks again (or opens the top-ups)
+function aiNeed(on, low){
+  root.classList.toggle('aineed', !!on); if(!on) return;
+  const cost = aiCostOf('reel');
+  $('aiaskt').textContent = low ? 'Top up to make this Reel' : 'Your Reel is waiting for Shubix AI';
+  $('aiaskp').textContent = low ? 'Shubix AI uses ' + creditWord(cost) + ' for this Reel.' : 'It picks the best moments and edits them on the beat' + (cost ? ' · ' + creditWord(cost) + ' for this Reel' : '') + '.';
+  $('aiaskgo').textContent = low ? 'Top up' : 'Make it with Shubix AI'; $('aiaskgo').dataset.low = low ? '1' : '';
+}
+$('aiaskgo').addEventListener('click', async () => {
+  if($('aiaskgo').dataset.low){ location.assign('/pricing'); return; }
+  if(await aiGate(true)) aiRun();
+}, SIG);
 function aiGate(again = false){
   if(!aiOn) return Promise.resolve(false);
   const id = reelIdNow(); if(aiReel === id) return Promise.resolve(true);
@@ -1935,14 +1948,14 @@ function aiGate(again = false){
     const cost = aiCostOf('reel'), bal = aiBal();
     if(cost && bal !== null && bal < cost){
       const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Not now' });
-      gateNo = id; aiStat('Shubix AI is waiting for credits · top up to use it on this Reel'); if(go) location.assign('/pricing'); return false; }
+      gateNo = id; aiNeed(true, true); aiStat('Shubix AI is waiting for credits · top up to use it on this Reel'); if(go) location.assign('/pricing'); return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
     const ok = await askCredits({ title: 'Shubix AI will edit this Reel',
       text: cost ? 'It uses ' + creditWord(cost) + ' once for this Reel. Adding clips or changing them later costs nothing more.' : 'Included in your plan for this Reel.',
       list: ['The best moments of every clip', 'Trendy transitions and effects on the beat', 'Pro colour and framing'],
       bal, after: bal !== null && cost ? bal - cost : null, ok: cost ? 'Use ' + creditWord(cost) : 'Use Shubix AI' });
-    if(ok){ aiReel = id; gateNo = ''; return true; }
-    gateNo = id; aiStat('Shubix AI is off for this Reel · press Generate to turn it on');
+    if(ok){ aiReel = id; gateNo = ''; aiNeed(false); return true; }
+    gateNo = id; aiNeed(true); aiStat('Your Reel waits for Shubix AI · tap "Make it with Shubix AI"');
     return false;
   })().finally(() => { gateP = null; });
   return gateP;
@@ -2189,7 +2202,7 @@ async function chatSend(text){
     return;
   }
   if(!ready){ wish = chatMsgs.filter(m => m.who === 'me').map(m => m.text).join(' · ').slice(-800); chatAnswer('Got it! I\'ll edit your Reel this way as soon as it is made.'); return; }
-  if(!aiReelOk() && !(await aiGate())){ chatAnswer('This Reel is edited on your phone, so I can only switch its style (say "faster" or "calmer").'); return; }
+  if(!aiReelOk() && !(await aiGate(root.classList.contains('aineed')))){ chatAnswer('This Reel is edited on your phone, so I can only switch its style (say "faster" or "calmer").'); return; }
   // what this change costs, asked first: a few named shots or the whole Reel
   const size = chatSize(text), freeN = aiFreeChats(), free = bal0 => bal0 !== null && chatUsed < freeN, bal = aiBal();
   const cost = free(bal) ? 0 : aiCostOf(size === 'small' ? 'small' : 'big');
@@ -4773,6 +4786,7 @@ function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '
 function stopAll(){ playGen++; starting = false; stopPart(); stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
 async function startPlayback(from, destNode){
+  if(!destNode && root.classList.contains('aineed')) return;   // waiting for Shubix AI: nothing to play yet
   stopAll();
   const g0 = playGen; starting = true; setPlayLabel(true);
   life({ stage: destNode ? 'exporting' : 'playing the preview', players: sources.reduce((n, s) => n + (s.els || []).filter(v => v.getAttribute('src')).length, 0) });
@@ -5178,6 +5192,7 @@ async function autoExport(){
 }
 async function runExport(toCloud){
   if(recording || exportBusy) return;
+  if(root.classList.contains('aineed')){ $('aiaskgo').click(); return; }   // no Reel without its Shubix AI (the creator closed the question)
   exportBusy = true; $('saverow').hidden = true; lastVideo = null;
   tasks.start('export', 'export', 'Exporting your Reel', 'Getting ready');   // in view at once, whatever comes next
   await holdScreen();
@@ -5285,7 +5300,7 @@ $('xgo').addEventListener('click', async () => { const L = lockedUsed(); if(L.le
   wmOff = wmPaid && xq.nowm; sheetOpen(false); runExport(!!cloudInfo && cloudInfo.used < cloudInfo.limit && xq.my); }, SIG);
 $('xgocloud').addEventListener('click', async () => { const L = lockedUsed(); if(L.length){ if(!(await planGate(L))) return; renderEDL(true); renderOvList(); }
   sheetOpen(false); runExport(true); }, SIG);
-$('export').onclick = () => { if(recording || exportBusy) return; sheetOpen(true); };
+$('export').onclick = () => { if(recording || exportBusy) return; if(root.classList.contains('aineed')){ $('aiaskgo').click(); return; } sheetOpen(true); };
 
 async function saveToMyReels(blob){
   if(!cloud) return;
