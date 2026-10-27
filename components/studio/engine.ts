@@ -570,8 +570,11 @@ function snap(t, w){
 
 /* =============== STEP 1: MUSIC =============== */
 let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0, editGen = 0;
-let refReading = false;
-let tplKind = '';   // the template's kind of Reel (car, wedding...): with Shubix AI its trend leads the AI's guide   // a Reel to copy is being read: the AI waits for it (its pace and plan are for the copy)
+let refReading = false, refWaiters = [];   // a Reel to copy is being read: the AI waits for it (its pace and plan are for the copy)
+// Copy a Reel: clips added while the Reel to copy is read wait for it (one heavy job at a time on a phone), and no Reel is
+// made meanwhile (it would be an ordinary Reel, replaced moments later by the copy)
+const refDone = () => refReading ? new Promise(r => refWaiters.push(r)) : Promise.resolve();
+let tplKind = '';   // the template's kind of Reel (car, wedding...): with Shubix AI its trend leads the AI's guide
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
 // (a copied Reel keeps its short shots: no flash-cut merging; another song puts them on its beats, copyPlan)
 function adaptPlan(){ return copyTimed() ? copyPlanTimed() : mode === 'copy' && refProfile ? endWell(adaptPlan0()) : beatEdit(endWell(noFlashCuts(adaptPlan0()))); }
@@ -1400,6 +1403,7 @@ async function keptSweep(){
 async function readVideo(src){
   if(src.removed) return;
   const card = src.card, dd = card.querySelector('.dd');
+  if(refReading){ dd.textContent = 'waiting for the Reel to copy…'; dd.dataset.st = 'read'; dd.dataset.p = '0'; await refDone(); if(src.removed) return; }
   let stage = 'metadata', v = null;   // where reading stopped, for the report below
   // still reading after 2 minutes: reported too (a phone where it hangs instead of failing)
   const slow = setTimeout(() => { try{ window.__shubixReport && window.__shubixReport('clip', 'Clip still reading after 2 min at "' + stage + '" · ' + ((src.file && src.file.type) || 'no type') + ' · ' + dd.textContent, JSON.stringify({ size: src.file && src.file.size, dur: src.dur, w: src.w, h: src.h, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){} }, 120000);
@@ -2891,6 +2895,7 @@ function makeEdit(){
   if(was && buf && edit.length && !playing && !starting && !recording) startPlayback(Math.min(Math.max(0, at), Math.max(0, buf.duration - 0.2)));
 }
 function makeEditNow(){
+  if(refReading) return;   // the Reel to copy is being read: its copy is made right after (no ordinary Reel meanwhile)
   life({ stage: 'making the Reel', clips: sources.length });
   if(exportBusy){ remakeAfterExport = true; return; }   // a late AI answer: the video being made keeps its edit
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
@@ -5843,7 +5848,9 @@ async function copyLook(){
 $('reffile').addEventListener('change', async e=>{
   const f = e.target.files && e.target.files[0]; e.target.value = ''; if(!f) return;
   $('refbox').hidden = false; $('refinfo').textContent = 'Reading the Reel…';
-  refReading = true;   // the AI waits for it: its pace and plan are for the copied Reel, not the Reel made meanwhile
+  refReading = true; root.classList.add('refread');   // the AI and the Reel wait for it: they are the copy's, not an ordinary Reel's
+  const mirror = new MutationObserver(() => { $('refwaitp').textContent = $('refinfo').textContent.replace(/^Reading the Reel:?\s*/, ''); });
+  mirror.observe($('refinfo'), { childList: true, characterData: true, subtree: true });
   try{
     refProfile = await analyzeReference(f, (p, what)=>{ $('refinfo').textContent = 'Reading the Reel: ' + what + ' ' + Math.round(p*100) + '%'; });
     $('refinfo').textContent = '“' + f.name + '”: ' + describeRef(refProfile); $('stsaverow').hidden = false; $('ststat').textContent = ''; learnedKind = '';
@@ -5854,7 +5861,7 @@ $('reffile').addEventListener('change', async e=>{
     setMode('copy');
     refLookRun(f, refProfile);   // its texts, stickers, captions, background: the AI reads them (when it is on)
   }catch(err){ console.warn('reference not read:', err); $('refinfo').textContent = 'We could not read that Reel. Please try another video.'; notify('We could not read that Reel. Please try another video.', 'err'); }
-  finally{ refReading = false; if(buf && sources.length && !recording) makeEdit(); }   // now the AI may plan (the copy, or the Reel as it is)
+  finally{ refReading = false; root.classList.remove('refread'); mirror.disconnect(); refWaiters.splice(0).forEach(r => r()); if(buf && sources.length && !recording) makeEdit(); }   // now the AI may plan (the copy, or the Reel as it is)
 });
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 /* ---- Copy a Reel, what is written and stuck on it ----
