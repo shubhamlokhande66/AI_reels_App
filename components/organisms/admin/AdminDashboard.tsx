@@ -15,13 +15,15 @@ import { SettingsTab } from "./SettingsTab";
 import { UserPanel } from "./UserPanel";
 import { UsersTab } from "./UsersTab";
 import { MarketingTab } from "./MarketingTab";
+import { MessagesTab } from "./MessagesTab";
 import { SupportTab } from "./SupportTab";
 
 /** The admin panel (like the shop's): a grouped sidebar, a header with who is online and Refresh, then the open tab. */
-type Tab = "overview" | "users" | "marketing" | "support" | "templates" | "settings" | "errors" | "ai" | "trends";
+type Tab = "overview" | "users" | "messages" | "marketing" | "support" | "templates" | "settings" | "errors" | "ai" | "trends";
 const NAV: { title: string; items: { id: Tab; label: string; icon: string; hint: string }[] }[] = [
   { title: "Overview", items: [{ id: "overview", label: "Dashboard", icon: "home", hint: "Visitors, sign-ups, revenue and credits at a glance" }] },
   { title: "People", items: [{ id: "users", label: "Users", icon: "user", hint: "Everyone who signed up: logins, purchases, credits left" },
+    { id: "messages", label: "Messages", icon: "bell", hint: "Tell everyone (or the paying, free or affiliates) something: in their bell, on the site and the app, and by email" },
     { id: "marketing", label: "Marketing", icon: "gift", hint: "Invite rewards, sending credits, affiliates, coupon codes and sales" },
     { id: "support", label: "Support", icon: "mail", hint: "Messages from the Contact page, and what people ask the Help chat" }] },
   { title: "Content", items: [{ id: "templates", label: "Templates", icon: "grid", hint: "Every template of the studio: add, change, hide, order, its times and its days" }] },
@@ -154,6 +156,7 @@ export function AdminDashboard() {
           <div className="mx-auto w-full max-w-7xl">
             {tab === "overview" && <OverviewTab onOpenUser={setUser} onOpenTab={setTab} />}
             {tab === "users" && <UsersTab onOpenUser={setUser} />}
+            {tab === "messages" && <MessagesTab />}
             {tab === "marketing" && <MarketingTab />}
             {tab === "support" && <SupportTab />}
             {tab === "settings" && <SettingsTab />}

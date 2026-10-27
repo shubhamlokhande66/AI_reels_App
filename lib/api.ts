@@ -2,6 +2,13 @@ import { viaBoot } from "@/lib/boot";
 import type { Features } from "@/lib/features-list";
 import { tracked } from "./activity";
 
+/** Admin → Messages: a message to a group, in their bell and (email) by email */
+export type Audience = "all" | "paying" | "free" | "affiliates";
+export interface BroadcastInput { title: string; body: string; link: string; button: string; audience: Audience; email: boolean }
+export interface Broadcast extends BroadcastInput { id: string; people: number; emailed: number; emailFailed: number; at: string }
+/** one message in a person's bell */
+export interface Notice { id: string; title: string; body: string; link: string; button: string; at: string; unread: boolean }
+
 /** Admin → Settings → Administrators: owner = set on the server (ADMIN_EMAILS), not removable here */
 export interface AdminList { admins: { email: string; owner: boolean }[] }
 
@@ -295,6 +302,12 @@ export const api = {
   adminOverview: () => request<AdminOverview>("/api/admin/overview"),
   adminUsers: () => request<AdminUserRow[]>("/api/admin/users"),
   adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
+  // Admin → Messages, and the bell's messages
+  broadcasts: () => request<{ broadcasts: Broadcast[] }>("/api/admin/broadcasts"),
+  sendBroadcast: (d: BroadcastInput & { dryRun?: boolean }) => request<{ ok: boolean; people: number; emails?: number; emailsOff?: number; emailed?: number; emailFailed?: number; over?: boolean }>("/api/admin/broadcasts", { method: "POST", body: JSON.stringify(d) }),
+  deleteBroadcast: (id: string) => request<{ ok: boolean }>("/api/admin/broadcasts", { method: "DELETE", body: JSON.stringify({ id }) }),
+  notifications: () => request<{ items: Notice[]; unread: number }>("/api/notifications"),
+  readNotifications: () => request<{ ok: boolean }>("/api/notifications", { method: "POST" }),
   /** the account and everything in it (Reels, drafts, credits, affiliate account); its payments stay, unnamed */
   adminDeleteUser: (id: string) => request<{ ok: boolean; email: string }>(`/api/admin/users/${id}`, { method: "DELETE" }),
   ads: () => request<AdsConfig>("/api/ads"),
