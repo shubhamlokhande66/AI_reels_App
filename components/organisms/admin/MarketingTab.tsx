@@ -177,7 +177,7 @@ function Affiliates({ s }: { s: MarketingSettings }) {
       {pick && <Partner id={pick} s={s} onClose={() => setPick(null)} />}
       <form className="flex flex-col gap-4 rounded-2xl border border-border bg-surface-2 p-4" onSubmit={(e) => { e.preventDefault(); void save({ ...s, affiliate: v }); }}>
         <Toggle label="Affiliate program on" hint="Partners earn a % of what the people they bring pay." on={v.on} onChange={(on) => setV({ ...v, on })} />
-        <Toggle label="Open for new partners" hint="People can ask to join from Invite & earn; you approve them below." on={v.applyOpen} onChange={(applyOpen) => setV({ ...v, applyOpen })} />
+        <Toggle label="Open for new partners" hint="People ask to join on the partner dashboard (/affiliate: Shubix users, or anyone by an email code) or from Invite & earn; you approve them below." on={v.applyOpen} onChange={(applyOpen) => setV({ ...v, applyOpen })} />
         <div className="grid grid-cols-3 gap-3">
           <Field label="Default %"><Input type="number" min={0} max={90} value={v.percent} onChange={(e) => setV({ ...v, percent: num(e.target.value) })} /></Field>
           <Field label="For (months)"><Input type="number" min={1} value={v.months} onChange={(e) => setV({ ...v, months: num(e.target.value, 1) })} /></Field>
@@ -188,13 +188,14 @@ function Affiliates({ s }: { s: MarketingSettings }) {
       </form>
       <div className="flex flex-col gap-2">
         <Heading size="section" as="h3">Partners ({list.length})</Heading>
-        {!list.length && <p className="m-0 text-[12.5px] text-muted">No one yet. People ask to join from Invite & earn.</p>}
+        {!list.length && <p className="m-0 text-[12.5px] text-muted">No one yet. People ask to join on the partner dashboard (/affiliate) or from Invite & earn.</p>}
         {list.map((a) => (
           <button key={a.id} type="button" onClick={() => setPick(a.id)}
             className="flex w-full items-center gap-3 rounded-2xl border border-border bg-surface p-3 text-left transition-colors hover:border-[color-mix(in_srgb,var(--accent)_45%,var(--border))] hover:bg-surface-2">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2"><b className="truncate text-[13.5px]">@{a.username || "—"}</b><Badge tone={a.status === "active" ? "success" : a.status === "pending" ? "warning" : "neutral"}>{a.status}</Badge></div>
+              <div className="flex items-center gap-2"><b className="truncate text-[13.5px]">@{a.username || "—"}</b><Badge tone={a.status === "active" ? "success" : a.status === "pending" ? "warning" : "neutral"}>{a.status}</Badge>{a.partnerOnly && <Badge tone="neutral">Partner only</Badge>}</div>
               <span className="block truncate text-[12px] text-muted">{a.email} · {a.percent}% · brought {a.brought} · {a.sales} sales · due {rupee(a.due)} · paid {rupee(a.paid)}{a.validUntil ? ` · link until ${day(a.validUntil)}` : ""}</span>
+              {a.note && <span className="block truncate text-[12px] italic text-muted">“{a.note}”</span>}
             </div>
             {a.due > 0 && <Badge tone="warning">{rupee(a.due)} due</Badge>}
             {a.status !== "pending" && !a.payout && <Badge tone="neutral">No payout details</Badge>}

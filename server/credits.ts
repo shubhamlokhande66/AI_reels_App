@@ -1,6 +1,7 @@
 import "server-only";
 import crypto from "node:crypto";
 import { AuthRequired, currentUser } from "@/server/core/auth";
+import { isAdminUser } from "@/server/core/admin";
 import { settings } from "@/server/core/config";
 import { mainDb, ObjectId } from "@/server/core/db";
 import { AppError, NotFoundError, ValidationFailed } from "@/server/core/errors";
@@ -54,7 +55,7 @@ export async function costOf(action: string, times = 1) { return Number((await g
 /** Take the credits for an action from the signed-in user, or 402 INSUFFICIENT_CREDITS; returns what was taken. */
 export async function charge(action: string, ref: string, reason: string, times = 1): Promise<number> {
   const uid = currentUser();
-  if (!enabled() || !uid) return 0;
+  if (!enabled() || !uid || (await isAdminUser(uid))) return 0; // the administrator: everything open, nothing taken
   const cost = await costOf(action, times);
   if (cost <= 0) return 0;
   const wallets = await col("wallets");
@@ -99,7 +100,7 @@ export async function balanceNow(): Promise<number | null> { const uid = current
  * Reel planned in parts) takes nothing more. A refunded charge counts as not taken. */
 export async function chargeOnce(action: string, key: string, reason: string): Promise<{ taken: number; ref: string }> {
   const uid = currentUser();
-  if (!enabled() || !uid) return { taken: 0, ref: "" };
+  if (!enabled() || !uid || (await isAdminUser(uid))) return { taken: 0, ref: "" };
   const ref = `${action}:${uid}:${key}`;
   if (await (await col("credit_ledger")).findOne({ ref, delta: { $lt: 0 }, refunded: { $ne: true } })) return { taken: 0, ref };
   return { taken: await charge(action, ref, reason), ref };
@@ -109,7 +110,7 @@ export async function chargeOnce(action: string, key: string, reason: string): P
  * same message is the same turn and a Reel opened again keeps its count. `undo` gives a failed turn back. */
 export async function chatTurn(reelId: string, msgId: string, action: string, reason: string) {
   const uid = currentUser();
-  if (!enabled() || !uid) return { taken: 0, ref: "", free: false, used: 0, left: 0, undo: async () => {} };
+  if (!enabled() || !uid || (await isAdminUser(uid))) return { taken: 0, ref: "", free: true, used: 0, left: 0, undo: async () => {} };
   const w = await wallet(uid), freeChats = Number(((await plansById()).get(String(w.plan)) as { freeChats?: number } | undefined)?.freeChats ?? 0);
   const chats = await col("reel_chats"), _id = `${uid}:${reelId}` as unknown as ObjectId;
   const doc = (await chats.findOneAndUpdate({ _id }, { $addToSet: { ids: msgId }, $set: { at: new Date() } }, { upsert: true, returnDocument: "after" })) as { ids?: string[] } | null;

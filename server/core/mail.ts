@@ -108,10 +108,10 @@ export async function mailUser(userId: string, subject: string, title: string, l
     return await sendMail(String(u.email), subject, m.text, m.html);
   } catch { return false; }
 }
-/** The administrators (ADMIN_EMAILS), for things they need to act on (a new affiliate to approve). */
+/** The administrators (ADMIN_EMAILS and Admin → Settings → Administrators), for things they need to act on (a new affiliate to approve). */
 export async function mailAdmins(subject: string, title: string, line: string, button: string, path: string) {
   if (!(await notesOn())) return false;
-  const to = settings.adminEmails.split(",").map((e) => e.trim()).filter(Boolean);
+  const to = await (await import("./admin")).adminEmails(); // the owners (ADMIN_EMAILS) and the ones added in the app
   if (!to.length) return false;
   const m = letter(title, line, button, siteUrl() + path, "You get this email because you are an administrator.");
   try { return await sendMail(to.join(", "), subject, m.text, m.html); } catch { return false; }

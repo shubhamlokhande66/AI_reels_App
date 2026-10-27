@@ -94,6 +94,7 @@ export const GROUPS: { title: string; tk?: string; admin?: boolean; items: { hre
 
 const AUTH_PAGES = ["/login", "/forgot", "/reset", "/verify"];
 const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact"];
+const PARTNER_PAGE = "/affiliate"; // the partner dashboard: its own page, with its own sign-in (by an emailed code)
 
 export function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -117,7 +118,6 @@ function pageMeta(p: string): Meta {
     "/brands": { title: "My Brands", tk: "nav.myBrands" },
     "/account": { title: "My account", tk: "nav.myAccount" },
     "/rewards": { title: "Invite & earn", tk: "nav.rewards" },
-    "/affiliate": { title: "Affiliate dashboard", tk: "nav.affiliate", back: "/rewards" },
     "/pricing": { title: "Pricing & plans", tk: "nav.pricing", credits: true },
     "/terms": { title: "Legal", tk: "nav.legal", back: "/" },
     "/privacy": { title: "Legal", tk: "nav.legal", back: "/" },
@@ -332,7 +332,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [drawer, needCredits]);
   const authPage = AUTH_PAGES.includes(pathname); // sign in, forgot / reset password: shown on their own
-  const publicPage = PUBLIC_PAGES.includes(pathname); // open to everyone, also before signing in
+  const partnerPage = pathname === PARTNER_PAGE;
+  const publicPage = partnerPage || PUBLIC_PAGES.includes(pathname); // open to everyone, also before signing in
   const signedOut = !!me.data?.authEnabled && !me.data.user;
   useEffect(() => {
     if (signedOut && !authPage && !publicPage) router.replace("/login"); // accounts on and nobody signed in: the sign-in page
@@ -346,6 +347,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const off = offKey && !features[offKey] ? FEATURE_LIST.find((f) => f.key === offKey)! : null;
   if ((pathname.startsWith("/admin") || pathname.startsWith("/cms")) && !signedOut) {
     // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
+    return (
+      <main className="rm min-h-screen">
+        <GlobalActivity />
+        <ConfirmHost />
+        {children}
+      </main>
+    );
+  }
+  if (partnerPage) {
+    // the affiliate partner dashboard stands alone: partners who never use the studio see only it
     return (
       <main className="rm min-h-screen">
         <GlobalActivity />

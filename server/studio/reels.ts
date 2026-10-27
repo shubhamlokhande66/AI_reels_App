@@ -6,6 +6,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { z } from "zod";
 import { currentUser } from "@/server/core/auth";
+import { isAdminUser } from "@/server/core/admin";
 import { db, mainDb, ObjectId, OWNER, parseId } from "@/server/core/db";
 import { AppError, NotFoundError, ValidationFailed } from "@/server/core/errors";
 import { sendFile } from "@/server/core/http";
@@ -43,11 +44,13 @@ type ReelDoc = {
 
 const reels = async () => (await db()).collection<ReelDoc>("studio_reels");
 
-async function planOf(): Promise<string> {
-  const uid = currentUser();
+/** an account's plan for My Reels (the administrator: the top plan, everything open) */
+async function planFor(uid: string): Promise<string> {
   if (!uid || !creditsOn()) return "free";
+  if (await isAdminUser(uid)) return "business";
   return String((await wallet(uid)).plan ?? "free");
 }
+const planOf = async () => planFor(currentUser() ?? "");
 
 /* ---- how long a saved Reel is kept, per plan (Admin → Settings → My Reels; 0 = until deleted, the default) ----
  * Keeps R2 inside its free 10 GB. There is no scheduler (the container sleeps): old Reels are removed when someone opens
@@ -77,7 +80,7 @@ export async function sweepOld(now = Date.now()) {
   let n = 0;
   for (const d of await all.find({ status: "ready", createdAt: { $lt: new Date(now - shortest * 86400_000) } }).sort({ createdAt: 1 }).limit(200).toArray()) {
     const owner = d[OWNER] ?? "";
-    if (!plans.has(owner)) plans.set(owner, owner && creditsOn() ? String((await wallet(owner)).plan ?? "free") : "free");
+    if (!plans.has(owner)) plans.set(owner, await planFor(owner));
     const days = keep[plans.get(owner) as keyof KeepDays] ?? keep.free;
     if (!days || d.createdAt.getTime() > now - days * 86400_000) continue;
     try { if (c) await deleteObject(c, d.key); else await fs.promises.rm(localPath(d.key), { force: true }); } catch { continue; } // try again next time

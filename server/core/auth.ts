@@ -10,7 +10,7 @@ import { AppError } from "./errors";
  * and `db()` then shows only that user's documents. Same password hashes and tokens as the Python backend. */
 
 export const COOKIE = "reel_session", SESSION_DAYS = 30;
-const PUBLIC_PATHS = ["/api/cron/", "/api/contact", "/api/help", "/api/boot", "/api/offer", "/api/marketing/click", "/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/", "/api/plans", "/api/site", "/api/texts", "/api/content"];
+const PUBLIC_PATHS = ["/api/cron/", "/api/contact", "/api/help", "/api/boot", "/api/offer", "/api/marketing/click", "/api/health", "/api/auth/", "/api/admin/session", "/api/phone", "/api/public/", "/api/partner/", "/api/plans", "/api/site", "/api/texts", "/api/content"];
 const userCtx = new AsyncLocalStorage<string | null>();
 export const currentUser = (): string | null => userCtx.getStore() ?? null;
 export const withUser = <T>(uid: string | null, fn: () => T): T => userCtx.run(uid, fn);
@@ -66,17 +66,33 @@ async function sessionValid(userId: string, version: number): Promise<boolean> {
   }
   return hit[0] === version;
 }
+/** The affiliate-only session (the partner dashboard, /affiliate, signed in by an emailed code): its own cookie, so it
+ * opens the partner dashboard and nothing else of the studio (the /api/partner routes read it, resolveUser never does). */
+export const PARTNER_COOKIE = "partner_session";
+function cookieOf(req: Request, name: string): string | null {
+  for (const part of (req.headers.get("cookie") ?? "").split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+  }
+  return null;
+}
+export async function partnerSession(req: Request): Promise<string | null> {
+  if (!settings.authEnabled) return null;
+  const s = readSession(cookieOf(req, PARTNER_COOKIE));
+  return s && (await sessionValid(s[0], s[1])) ? s[0] : null;
+}
+export function partnerCookie(user: { _id: unknown; sessionVersion?: unknown }): string {
+  const token = makeToken(String(user._id), SESSION_DAYS, Number(user.sessionVersion ?? 0));
+  return `${PARTNER_COOKIE}=${token}; Max-Age=${SESSION_DAYS * 86400}; Path=/; HttpOnly; SameSite=Lax${settings.cookieSecure ? "; Secure" : ""}`;
+}
+export const clearPartnerCookie = () => `${PARTNER_COOKIE}=""; Max-Age=0; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax`;
 const isPublic = (path: string) => !path.startsWith("/api") || PUBLIC_PATHS.some((p) => path === p || (p.endsWith("/") && path.startsWith(p)));
 
 /** The signed-in user of a request (null with accounts off or no valid session); throws AuthRequired for a private
  * path without one. */
 export async function resolveUser(req: Request): Promise<string | null> {
   if (!settings.authEnabled) return null;
-  let token: string | null = null;
-  for (const part of (req.headers.get("cookie") ?? "").split(";")) {
-    const i = part.indexOf("=");
-    if (i > 0 && part.slice(0, i).trim() === COOKIE) token = part.slice(i + 1).trim();
-  }
+  let token = cookieOf(req, COOKIE);
   const authz = req.headers.get("authorization") ?? "";
   if (!token && authz.toLowerCase().startsWith("bearer ")) token = authz.slice(7);
   let uid: string | null = null;

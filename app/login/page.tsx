@@ -94,6 +94,9 @@ export default function LoginPage() {
           {t(signin ? "auth.createLink" : "auth.signIn")}
         </button>
       </p>
+      <Link href={emailOk(email) ? `/affiliate?email=${encodeURIComponent(email.trim())}` : "/affiliate"} className="text-center text-[12.5px] font-bold text-muted hover:text-foreground">
+        {t("auth.partnerLink")}
+      </Link>
       <StoreBadges className="mt-3 justify-center" />
       <LegalFooter className="mt-2" />
     </div>

@@ -35,8 +35,8 @@
     "AUTH_ENABLED": "true",
     // plans and credits: Free / Editor / Pro, page locks and Shubix AI credits (off: every page open, no credits counted)
     "BILLING_ENABLED": "true",
-    // the administrator: only these accounts open Admin and skip the plan locks (empty: everyone is the administrator)
-    "ADMIN_EMAILS": "shubhlokhande850@gmail.com",
+    // the administrators (the owners; several separated by commas): Admin, every plan open, no credits taken (empty: everyone is the administrator). More can be added in Admin → Settings → Administrators
+    "ADMIN_EMAILS": "shubhlokhande850@gmail.com,lokhandeshubham66@gmail.com",
     "COOKIE_SECURE": "true",
     "AI_PROVIDER": "openai",
     "OPENAI_TEXT_MODEL": "gpt-5.6-luna",

@@ -68,4 +68,9 @@ export type MarketingReport = {
 export type Coupon = { code: string; kind: "percent" | "flat"; value: number; appliesTo: "all" | "plans" | "topups"; audience: "all" | "new"; minAmount: number; maxUses: number;
   perUserOnce: boolean; starts: string | null; ends: string | null; active: boolean; note: string; uses: number; live: boolean };
 export type AdminOffer = Offer & { starts: string | null; active: boolean; live: boolean };
-export type Affiliate = { id: string; email: string; username: string; status: "pending" | "active" | "paused"; percent: number; months: number | null; validUntil: string | null; payout: boolean; createdAt: string; brought: number; due: number; paid: number; sales: number };
+export type Affiliate = { id: string; email: string; username: string; status: "pending" | "active" | "paused"; percent: number; months: number | null; validUntil: string | null; payout: boolean; createdAt: string; note: string; partnerOnly: boolean; brought: number; due: number; paid: number; sales: number };
+/** the partner dashboard: who is here (via: their Shubix session, or a partner-only one; null: signed out), the terms */
+export type PartnerMe = {
+  via: "shubix" | "partner" | null; email: string | null; affiliate: AffiliateDetail | null;
+  program: { on: boolean; applyOpen: boolean; percent: number; months: number; minPayout: number };
+};

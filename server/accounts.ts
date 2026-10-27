@@ -21,6 +21,8 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/, CODE_MINUTES = 10, CODE_TRIES = 5, R
 const users = async () => (await mainDb()).collection<any>("users");
 const userOut = (u: Doc) => ({ id: String(u._id), email: u.email, emailVerified: u.emailVerified !== false, username: (u.username as string | undefined) ?? null });
 const withCookie = (body: unknown, cookie: string, status = 200) => Response.json(body, { status, headers: { "Set-Cookie": cookie } });
+// an affiliate partner's account (made on the partner dashboard, no password): "Forgot password" gives it one, by a code
+const PARTNER_ONLY = "This email is an affiliate partner account. Use “Forgot password” to set a password and use Shubix with it.";
 function needAccounts() { if (!settings.authEnabled) throw new ValidationFailed("Accounts are not switched on for this studio.", { code: "AUTH_DISABLED" }); }
 function checkPassword(p: string) { if (p.length < MIN_PASSWORD) throw new ValidationFailed(`Use a password of at least ${MIN_PASSWORD} characters.`, { code: "WEAK_PASSWORD" }); }
 const hashToken = (t: string) => crypto.createHash("sha256").update(t).digest("hex");
@@ -115,7 +117,9 @@ export async function register(email0: string, password: string, ref?: string) {
   if (!EMAIL.test(email)) throw new ValidationFailed("Enter a valid email address.", { code: "INVALID_EMAIL" });
   checkPassword(password);
   const col = await users();
-  if (await col.findOne({ email })) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
+  const taken = await col.findOne({ email }, { projection: { partnerOnly: 1, password: 1 } });
+  if (taken && taken.partnerOnly && !taken.password) throw new ConflictError(PARTNER_ONLY, { code: "PARTNER_ONLY" });
+  if (taken) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
   const now = new Date(), u = { _id: new ObjectId(), email, password: hashPassword(password), sessionVersion: 0, createdAt: now, lastLoginAt: now, loginCount: 1, emailVerified: false };
   try {
     await col.insertOne(u);
@@ -133,6 +137,7 @@ export async function register(email0: string, password: string, ref?: string) {
 export async function login(email: string, password: string) {
   needAccounts();
   const u = await (await users()).findOne({ email: email.trim().toLowerCase() });
+  if (u && u.partnerOnly && !u.password) throw new AuthRequired(PARTNER_ONLY, "PARTNER_ONLY");
   if (!u || !verifyPassword(password, String(u.password))) throw new AuthRequired("The email or password is not correct.", "BAD_CREDENTIALS");
   await (await users()).updateOne({ _id: u._id }, { $set: { lastLoginAt: new Date() }, $inc: { loginCount: 1 } }); // for the admin dashboard
   return withCookie({ user: userOut(u) }, sessionCookie(u));
@@ -153,7 +158,7 @@ export async function resetWithCode(email: string, code: string, password: strin
   const u = await (await users()).findOne({ email: email.trim().toLowerCase() });
   if (!u) throw new ValidationFailed("This code has expired. Ask for a new one.", { code: "CODE_EXPIRED" }); // the same as a wrong code
   await checkCode(u, "reset", code.trim());
-  await (await users()).updateOne({ _id: u._id }, { $set: { password: hashPassword(password), emailVerified: true }, $unset: { reset: "", resetOtp: "" } }); // the code proves the email too
+  await (await users()).updateOne({ _id: u._id }, { $set: { password: hashPassword(password), emailVerified: true }, $unset: { reset: "", resetOtp: "", partnerOnly: "" } }); // the code proves the email too (a partner-only account is now a full one)
   const fresh = await newSessionVersion(u._id);
   return withCookie({ user: userOut(fresh) }, sessionCookie(fresh));
 }

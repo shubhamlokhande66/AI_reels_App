@@ -3,6 +3,9 @@ import type { Features } from "@/lib/features-list";
 import { tracked } from "./activity";
 import { adminHeaders } from "./admin";
 
+/** Admin → Settings → Administrators: owner = set on the server (ADMIN_EMAILS), not removable here */
+export interface AdminList { admins: { email: string; owner: boolean }[]; keySet: boolean }
+
 /** Administration: how the Fast Studio AI director did in the last days (server/studio/brain.ts report) */
 export interface AiDirectorReport {
   days: number; plans: number; paces: number; mixes: number; failed: number; cuts: number; creators: number; avgSeconds: number | null;
@@ -243,6 +246,13 @@ export const api = {
   affiliate: (id: string) => request<import("@/lib/marketing").AffiliateDetail>(`/api/admin/affiliates/${encodeURIComponent(id)}`),
   setPayout: (d: import("@/lib/marketing").PayoutInput) => request<{ ok: boolean }>("/api/marketing/affiliate/payout", { method: "PUT", body: JSON.stringify(d) }),
   applyAffiliate: () => request<{ ok: boolean }>("/api/marketing/affiliate", { method: "POST" }),
+  // the partner dashboard (/affiliate): signed in to Shubix, or by an emailed code (a partner-only session)
+  partnerMe: () => request<import("@/lib/marketing").PartnerMe>("/api/partner/me"),
+  partnerCode: (email: string) => request<{ ok: boolean; wait: number }>("/api/partner/code", { method: "POST", body: JSON.stringify({ email }) }),
+  partnerVerify: (email: string, code: string) => request<{ ok: boolean }>("/api/partner/verify", { method: "POST", body: JSON.stringify({ email, code }) }),
+  partnerApply: (note: string) => request<{ ok: boolean }>("/api/partner/apply", { method: "POST", body: JSON.stringify({ note }) }),
+  partnerPayout: (d: import("@/lib/marketing").PayoutInput) => request<{ ok: boolean }>("/api/partner/payout", { method: "PUT", body: JSON.stringify(d) }),
+  partnerLogout: () => request<{ ok: boolean }>("/api/partner/logout", { method: "POST" }),
   // Admin → Marketing
   adminMarketing: () => request<{ settings: import("@/lib/marketing").MarketingSettings; report: import("@/lib/marketing").MarketingReport }>("/api/admin/marketing"),
   setMarketing: (s: import("@/lib/marketing").MarketingSettings) => request<{ settings: import("@/lib/marketing").MarketingSettings }>("/api/admin/marketing", { method: "PUT", body: JSON.stringify(s) }),
@@ -252,6 +262,9 @@ export const api = {
   offers: () => request<{ offers: import("@/lib/marketing").AdminOffer[] }>("/api/admin/offers"),
   saveOffer: (o: Partial<import("@/lib/marketing").AdminOffer>) => request<{ ok: boolean; id: string }>("/api/admin/offers", { method: "PUT", body: JSON.stringify(o) }),
   deleteOffer: (id: string) => request<{ ok: boolean }>(`/api/admin/offers?id=${encodeURIComponent(id)}`, { method: "DELETE", headers: adminHeaders() }),
+  admins: () => request<AdminList>("/api/admin/admins"),
+  addAdmin: (email: string) => request<AdminList>("/api/admin/admins", { method: "POST", body: JSON.stringify({ email }) }),
+  removeAdmin: (email: string) => request<AdminList>("/api/admin/admins", { method: "DELETE", body: JSON.stringify({ email }) }),
   affiliates: () => request<{ affiliates: import("@/lib/marketing").Affiliate[] }>("/api/admin/affiliates"),
   updateAffiliate: (d: { id: string; status?: string; percent?: number; months?: number; validUntil?: string | null }) => request<{ ok: boolean }>("/api/admin/affiliates", { method: "PUT", body: JSON.stringify(d) }),
   payAffiliate: (id: string, note: string) => request<{ ok: boolean; total: number }>("/api/admin/affiliates", { method: "POST", body: JSON.stringify({ id, note }) }),

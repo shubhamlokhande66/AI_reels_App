@@ -33,7 +33,7 @@ vi.mock("@/server/core/db", () => ({ mainDb: async () => ({ collection: coll }),
 vi.mock("@/server/core/auth", () => ({ currentUser: () => st.user, AuthRequired: Error }));
 vi.mock("@/server/ai", () => ({ getProvider: () => ({}) }));
 vi.mock("@/server/ai/config", () => ({ effective: () => ({}) }));
-vi.mock("@/server/core/config", () => ({ settings: { billingEnabled: true, authEnabled: true, razorpayKeyId: "", razorpayKeySecret: "" }, env: () => "" }));
+vi.mock("@/server/core/config", () => ({ settings: { billingEnabled: true, authEnabled: true, razorpayKeyId: "", razorpayKeySecret: "", adminEmails: "", adminKey: "" }, env: () => "" }));
 
 beforeEach(() => { st.cols.clear(); st.user = "u1"; });
 

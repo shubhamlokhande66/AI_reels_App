@@ -5,10 +5,30 @@ import { settings } from "./config";
 import { AppError } from "./errors";
 import { limits } from "./rateLimit";
 
-/** Admin access (was core/admin.py). An administrator is a signed-in account whose email is in ADMIN_EMAILS, or a
- * browser that sends the ADMIN_KEY in the X-Admin-Key header. With neither set (a local install) everyone is admin. */
+/** Admin access (was core/admin.py). An administrator is a signed-in account whose email is in ADMIN_EMAILS (the owners,
+ * comma-separated), or one an administrator added in Admin → Settings → Administrators, or a browser that sends the
+ * ADMIN_KEY in the X-Admin-Key header. With neither ADMIN_EMAILS nor ADMIN_KEY set (a local install) everyone is admin.
+ * An administrator has everything open: every plan's pages and Shubix AI, and no credits are taken (server/credits.ts). */
 
-const emails = () => new Set(settings.adminEmails.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean));
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/, ADMINS_ID = "admins";
+const split = (s: string) => s.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+/** the owners: ADMIN_EMAILS (only the server's settings change them) */
+export const ownerEmails = () => new Set(split(settings.adminEmails));
+let added: [string[], number] | null = null;
+const ADDED_TTL = 30_000;
+/** the administrators added in the app (Admin → Settings → Administrators), cached half a minute */
+async function addedEmails(): Promise<string[]> {
+  if (added && Date.now() - added[1] < ADDED_TTL) return added[0];
+  try {
+    const { mainDb } = await import("./db");
+    const d = await (await mainDb()).collection("app_settings").findOne({ _id: ADMINS_ID as never }, { projection: { emails: 1 } });
+    added = [Array.isArray(d?.emails) ? d.emails.map((e: unknown) => String(e).toLowerCase()) : [], Date.now()];
+  } catch { added = [added?.[0] ?? [], Date.now()]; } // no database: the owners only
+  return added[0];
+}
+/** every administrator's email: the owners and the added ones */
+export async function adminEmails(): Promise<string[]> { return [...new Set([...ownerEmails(), ...(await addedEmails())])]; }
+const emails = async () => new Set(await adminEmails());
 const emailCache = new Map<string, [string | null, number]>(), EMAIL_TTL = 60_000;
 
 /** The email of a user id (cached a minute: every admin request asks). */
@@ -30,14 +50,40 @@ function keyMatches(req: Request): boolean {
   return ok;
 }
 
-export const adminRequired = () => Boolean(settings.adminKey || emails().size);
+export const adminRequired = () => Boolean(settings.adminKey || ownerEmails().size);
 
 export async function isAdmin(req: Request): Promise<boolean> {
   if (!adminRequired() || keyMatches(req)) return true;
-  const uid = currentUser(), list = emails();
-  if (!uid || !list.size) return false;
+  const uid = currentUser();
+  return uid ? isAdminUser(uid) : false;
+}
+/** Is this account an administrator (by its email)? For the places without the request (credits). */
+export async function isAdminUser(uid: string): Promise<boolean> {
+  if (!adminRequired()) return false; // a local install: everyone opens the admin pages, but plans and credits still count
   const email = await emailOf(uid);
-  return Boolean(email && list.has(email));
+  return Boolean(email && (await emails()).has(email));
+}
+
+// ------------------------------------------------------------------ Admin → Settings → Administrators
+export async function listAdmins() {
+  const owners = ownerEmails();
+  return { admins: (await adminEmails()).map((email) => ({ email, owner: owners.has(email) })), keySet: !!settings.adminKey };
+}
+export async function addAdmin(email0: string) {
+  const email = email0.trim().toLowerCase();
+  if (!EMAIL.test(email)) throw new AppError("Enter a valid email address.", { code: "INVALID_EMAIL", status: 422 });
+  const { mainDb } = await import("./db");
+  await (await mainDb()).collection("app_settings").updateOne({ _id: ADMINS_ID as never }, { $addToSet: { emails: email }, $set: { updatedAt: new Date() } }, { upsert: true });
+  added = null;
+  return listAdmins();
+}
+export async function removeAdmin(email0: string) {
+  const email = email0.trim().toLowerCase();
+  if (ownerEmails().has(email)) throw new AppError("This administrator is set on the server (ADMIN_EMAILS): change it there.", { code: "OWNER_ADMIN", status: 422 });
+  const { mainDb } = await import("./db");
+  await (await mainDb()).collection("app_settings").updateOne({ _id: ADMINS_ID as never }, { $pull: { emails: email } as never, $set: { updatedAt: new Date() } });
+  added = null;
+  return listAdmins();
 }
 
 /** The administrator for plans and credits: only a real one (an admin key or an admin email is set up and matches).

@@ -1,9 +1,9 @@
 import "server-only";
+import { adminEmails } from "@/server/core/admin";
 import crypto from "node:crypto";
 import { z } from "zod";
 import { getProvider } from "@/server/ai";
 import { currentUser } from "@/server/core/auth";
-import { settings } from "@/server/core/config";
 import { mainDb, ObjectId } from "@/server/core/db";
 import { NotFoundError } from "@/server/core/errors";
 import { esc, frame, mailParts as P, sendMail } from "@/server/core/mail";
@@ -54,7 +54,7 @@ export async function sendContact(d: z.infer<typeof ContactIn>) {
   await (await col("support_messages")).insertOne({ _id: ticket, userId: uid ?? null, email: d.email, name: d.name, topic: d.topic, message: d.message, page: d.page,
     status: "open", at: new Date(), account: user ? { email: user.email, username: user.username ?? null, plan: w?.plan ?? "free" } : null });
 
-  const to = site.supportEmail || settings.adminEmails.split(",").map((e) => e.trim()).filter(Boolean).join(", ");
+  const to = site.supportEmail || (await adminEmails()).join(", ");
   const who = `${d.name ? `${d.name} · ` : ""}${d.email}${user ? ` (account @${user.username ?? "—"}, ${w?.plan ?? "free"} plan${user.email !== d.email ? `, signed in as ${user.email}` : ""})` : " (not signed in)"}`;
   if (to) {
     const html = frame(`${TOPIC_NAMES[d.topic]} · ${d.message.slice(0, 80)}`,

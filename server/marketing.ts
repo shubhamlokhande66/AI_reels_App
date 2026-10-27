@@ -234,14 +234,16 @@ export async function affiliateCommission(payerId: string, orderId: string, paid
   if (commission <= 0) return;
   try { await (await col("affiliate_earnings")).insertOne({ _id: orderId, affiliateId: String(ref.inviterId), payerId, paid: paidRupees, percent, commission, status: "due", at: new Date() }); } catch { /* counted already */ }
 }
-export async function applyAffiliate() {
-  const uid = currentUser(); if (!uid) throw new AuthRequired();
+/** uid: the Shubix account (its session) or the partner-only one (the partner dashboard's emailed code); note: how they
+ * will promote (an Instagram page, a website…), for the administrator deciding. */
+export async function applyAffiliate(uid = currentUser(), note = "") {
+  if (!uid) throw new AuthRequired();
   const m = await getMarketing();
   if (!m.affiliate.on || !m.affiliate.applyOpen) throw new ValidationFailed("The affiliate program is not taking new partners right now.", { code: "AFFILIATE_CLOSED" });
-  const r = await (await col("affiliates")).updateOne({ _id: uid }, { $setOnInsert: { status: "pending", percent: m.affiliate.percent, createdAt: new Date() } }, { upsert: true });
+  const r = await (await col("affiliates")).updateOne({ _id: uid }, { $setOnInsert: { status: "pending", percent: m.affiliate.percent, createdAt: new Date(), ...(note.trim() ? { note: note.trim() } : {}) } }, { upsert: true });
   if (r.upsertedCount) {
-    const name = await ensureUsername(uid);
-    void mailAdmins(`New affiliate request: @${name}`, "A new affiliate request", `@${name} asked to join the affiliate program. Approve or decline them in Admin → Marketing → Affiliate program.`, "Open Marketing", "/admin#marketing");
+    const name = await ensureUsername(uid), u = await (await col("users")).findOne({ _id: uidObj(uid) }, { projection: { email: 1 } });
+    void mailAdmins(`New affiliate request: @${name}`, "A new affiliate request", `@${name}${u?.email ? ` (${String(u.email)})` : ""} asked to join the affiliate program.${note.trim() ? ` They said: “${note.trim()}”.` : ""} Approve or decline them in Admin → Marketing → Affiliate program.`, "Open Marketing", "/admin#marketing");
   }
   return { ok: true };
 }
@@ -249,21 +251,22 @@ export async function listAffiliates() {
   const all = await (await col("affiliates")).find({}).sort({ createdAt: -1 }).limit(500).toArray();
   if (!all.length) return [];
   const ids = all.map((a) => String(a._id));
-  const users = await (await col("users")).find({ _id: { $in: ids.filter((i) => ObjectId.isValid(i)).map((i) => new ObjectId(i)) } }, { projection: { email: 1, username: 1 } }).toArray();
+  const users = await (await col("users")).find({ _id: { $in: ids.filter((i) => ObjectId.isValid(i)).map((i) => new ObjectId(i)) } }, { projection: { email: 1, username: 1, partnerOnly: 1 } }).toArray();
   const earn = await (await col("affiliate_earnings")).aggregate<{ _id: { a: string; s: string }; sum: number; n: number }>([{ $match: { affiliateId: { $in: ids } } }, { $group: { _id: { a: "$affiliateId", s: "$status" }, sum: { $sum: "$commission" }, n: { $sum: 1 } } }]).toArray();
   const brought = await (await col("referrals")).aggregate<{ _id: string; n: number }>([{ $match: { inviterId: { $in: ids } } }, { $group: { _id: "$inviterId", n: { $sum: 1 } } }]).toArray();
   return all.map((a) => {
     const id = String(a._id), u = users.find((x) => String(x._id) === id), e = (s: string) => earn.find((x) => x._id.a === id && x._id.s === s);
     return { id, email: u?.email ?? "", username: u?.username ?? "", status: a.status, percent: Number(a.percent), months: a.months ? Number(a.months) : null, validUntil: a.validUntil ?? null,
-      createdAt: a.createdAt, brought: brought.find((b) => b._id === id)?.n ?? 0,
+      createdAt: a.createdAt, note: a.note ?? "", partnerOnly: !!u?.partnerOnly, brought: brought.find((b) => b._id === id)?.n ?? 0,
       due: round2(e("due")?.sum ?? 0), paid: round2(e("paid")?.sum ?? 0), sales: (e("due")?.n ?? 0) + (e("paid")?.n ?? 0), payout: !!a.payout };
   });
 }
 export const AffiliateIn = z.object({ id: z.string().max(40), status: z.enum(["pending", "active", "paused"]).optional(), percent: z.number().min(0).max(90).optional(),
   months: z.number().int().min(0).max(120).optional(), validUntil: z.string().nullable().optional() }); // months 0 = the program's; validUntil null = no end
 export async function updateAffiliate(d: z.infer<typeof AffiliateIn>) {
-  if (!ObjectId.isValid(d.id) || !(await (await col("users")).findOne({ _id: new ObjectId(d.id) }, { projection: { _id: 1 } })))
-    throw new NotFoundError("No such account.", { code: "USER_NOT_FOUND" });
+  const who = ObjectId.isValid(d.id) ? await (await col("users")).findOne({ _id: new ObjectId(d.id) }, { projection: { email: 1 } }) : null;
+  if (!who) throw new NotFoundError("No such account.", { code: "USER_NOT_FOUND" });
+  const dash = dashPath(who.email); // the partner dashboard, their email filled in (signed out there: a code, and in)
   const affs = await col("affiliates"), before = await affs.findOne({ _id: d.id });
   const set: Doc = { updatedAt: new Date() };
   if (d.status) { set.status = d.status; if (d.status === "active" && !before?.approvedAt) set.approvedAt = new Date(); } // "partner since": the first approval
@@ -275,10 +278,10 @@ export async function updateAffiliate(d: z.infer<typeof AffiliateIn>) {
     const pct = d.percent ?? Number(before?.percent ?? (await getMarketing()).affiliate.percent);
     if (d.status === "active")
       void mailUser(d.id, "You are a Shubix affiliate", before?.status === "paused" ? "Your affiliate link is active again" : "You are approved as an affiliate",
-        `Share your link: you earn ${pct}% of what the people you bring pay. Your dashboard shows your clicks, customers and earnings.`, "Open my dashboard", "/affiliate");
+        `Share your link: you earn ${pct}% of what the people you bring pay. Your dashboard shows your clicks, customers and earnings.`, "Open my dashboard", dash);
     if (d.status === "paused")
       void mailUser(d.id, "Your affiliate link is paused", "Your affiliate link is paused",
-        "New purchases through your link earn no commission for now. What is already due to you stays due. Reply to this email if you have questions.", "Open my dashboard", "/affiliate");
+        "New purchases through your link earn no commission for now. What is already due to you stays due. Reply to this email if you have questions.", "Open my dashboard", dash);
   }
   return { ok: true };
 }
@@ -291,8 +294,8 @@ export const PayoutIn = z.discriminatedUnion("method", [
     ifsc: z.string().trim().toUpperCase().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "That does not look like an IFSC code (like SBIN0001234).") }),
 ]);
 export type Payout = z.infer<typeof PayoutIn>;
-export async function setPayoutDetails(d: Payout) {
-  const uid = currentUser(); if (!uid) throw new AuthRequired();
+export async function setPayoutDetails(d: Payout, uid = currentUser()) {
+  if (!uid) throw new AuthRequired();
   const r = await (await col("affiliates")).updateOne({ _id: uid }, { $set: { payout: { ...d, updatedAt: new Date() } } });
   if (!r.matchedCount) throw new NotFoundError("Ask to join the affiliate program first.", { code: "AFFILIATE_NOT_FOUND" });
   return { ok: true };
@@ -346,14 +349,16 @@ export async function affiliateDetail(id: string, forAdmin: boolean) {
   };
 }
 /** The affiliate's own dashboard (active or not: a pending one sees its status). */
-export async function myAffiliateDashboard() {
-  const uid = currentUser(); if (!uid) throw new AuthRequired();
+export async function myAffiliateDashboard(uid = currentUser()) {
+  if (!uid) throw new AuthRequired();
   const a = await (await col("affiliates")).findOne({ _id: uid });
   if (!a) return { affiliate: null };
   return { affiliate: await affiliateDetail(uid, false) };
 }
 
 /** The administrator paid an affiliate (by hand: bank, UPI): their due commission is marked paid. */
+/** the partner dashboard's address in an email: the person's email filled in on its sign-in step */
+const dashPath = (email: unknown) => `/affiliate${email ? `?email=${encodeURIComponent(String(email))}` : ""}`;
 export async function markAffiliatePaid(id: string, note: string) {
   const earnings = await col("affiliate_earnings"), payoutId = crypto.randomBytes(6).toString("hex"), at = new Date();
   // each due sale is flipped once, by one payout: a second click (or a second admin) at the same moment finds nothing left

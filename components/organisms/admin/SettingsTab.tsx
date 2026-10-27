@@ -9,6 +9,7 @@ import { PLAN_NAME } from "@/lib/plan-locks";
 import { Badge, Heading, Icon } from "@/components/atoms";
 import { SidePanel } from "@/components/molecules";
 import { useSite } from "@/components/molecules/Legal";
+import { AdminsSettings } from "@/components/organisms/AdminsSettings";
 import { BackupSettings } from "@/components/organisms/BackupSettings";
 import { BusinessSettings } from "@/components/organisms/BusinessSettings";
 import { FeatureSettings } from "@/components/organisms/FeatureSettings";
@@ -16,7 +17,7 @@ import { ReelsKeepSettings } from "@/components/organisms/ReelsKeepSettings";
 
 /** Admin → Settings: the studio's system settings as a list of sections (like the CMS); a tap opens the section's form
  * on the right. Texts, plans and prices are in the CMS; the AI's settings and its report in Tools → AI settings. */
-type Id = "business" | "features" | "reels" | "backup";
+type Id = "business" | "admins" | "features" | "reels" | "backup";
 type Tone = "success" | "neutral" | "brand" | "danger";
 
 export function SettingsTab() {
@@ -24,6 +25,7 @@ export function SettingsTab() {
   const site = useSite().data;
   const features = useQuery({ queryKey: ["features"], queryFn: api.features }).data ?? DEFAULTS;
   const keep = useQuery({ queryKey: ["reels-keep"], queryFn: api.reelsKeep }).data;
+  const admins = useQuery({ queryKey: ["admins"], queryFn: api.admins }).data;
 
   const missing = site ? [!site.supportEmail && "support email", !site.businessAddress && "address"].filter(Boolean) : [];
   const on = FEATURE_LIST.filter((f) => features[f.key]).length;
@@ -32,6 +34,11 @@ export function SettingsTab() {
       id: "business", icon: "bag", title: "Business details",
       line: (site && [site.businessName, site.supportEmail, site.supportPhone].filter(Boolean).join(" · ")) || "Name, email, phone and address",
       badge: missing.length ? { text: `${missing.length} missing`, tone: "danger" } : { text: "Complete", tone: "success" }, body: <BusinessSettings bare />,
+    },
+    {
+      id: "admins", icon: "shield", title: "Administrators",
+      line: admins ? admins.admins.map((a) => a.email).join(" · ") || "No administrator email yet" : "Who runs the studio: they have everything open",
+      badge: admins && { text: `${admins.admins.length} admin${admins.admins.length === 1 ? "" : "s"}`, tone: "brand" }, body: <AdminsSettings bare />,
     },
     {
       id: "features", icon: "sparkle", title: "Features", line: FEATURE_LIST.map((f) => `${f.label}: ${features[f.key] ? "on" : "off"}`).join(" · "),
