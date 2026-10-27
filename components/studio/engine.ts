@@ -2586,13 +2586,13 @@ const paceUsable = () => aiOn && kind !== 'talk' && buf && beats.length >= 8 && 
 const paceNow = () => (paceUsable() && pacing && pacing.key === paceKey()) ? pacing : null;
 const paceWanted = () => paceUsable() && !paceNow() && paceFailedKey !== paceKey();
 // a reference's shots, kept inside what the server accepts (numbers in range, known words only)
-function cleanMoments(list){
+function cleanMoments(list, max = 40){   // max: 40 for the AI's request, 200 in a fingerprint (the style library)
   const c = (v, a, b) => Math.min(b, Math.max(a, Number.isFinite(+v) ? +v : 0)), KINDS = ['start', ...Object.keys(REF_KINDS)];
-  return (list || []).slice(0, 40).map(m => { const o = { beats: c(m.beats, 0, 64), sec: c(m.sec, 0, 60), tr: KINDS.includes(m.tr) ? m.tr : 'hard', zoom: ['in','out','none'].includes(m.zoom) ? m.zoom : 'none' };
+  return (list || []).slice(0, max).map(m => { const o = { beats: c(m.beats, 0, 64), sec: c(m.sec, 0, 60), tr: KINDS.includes(m.tr) ? m.tr : 'hard', zoom: ['in','out','none'].includes(m.zoom) ? m.zoom : 'none' };
     for(const k of ['loud','drums','bass','voice']) if(m[k] !== undefined) o[k] = c(m[k], 0, 1);
     if(['rising','falling','steady'].includes(m.trend)) o.trend = m.trend;
     if(['kick','dhol','snare','hat'].includes(m.hit)) o.hit = m.hit;
-    if(m.drop) o.drop = true; if(m.shake) o.shake = true; if(m.freeze !== undefined && m.freeze !== null) o.freeze = c(m.freeze, 0, 1);
+    if(m.drop) o.drop = true; if(m.shake) o.shake = true; if(m.flick) o.flick = true; if(m.black) o.black = true; if(Number.isFinite(+m.at)) o.at = c(m.at, 0, 600); if(m.freeze !== undefined && m.freeze !== null) o.freeze = c(m.freeze, 0, 1);
     if(Array.isArray(m.move) && m.move.length >= 2){ o.move = m.move.slice(0, 5).map(k => ({ f: c(k.f, 0, 1), s: c(k.s, 0.4, 2.5), x: c(k.x, -0.6, 0.6), y: c(k.y, -0.6, 0.6), r: c(k.r, -60, 60) }));
       if(['lin','inOut','outCubic','outExpo','outBack'].includes(m.ease)) o.ease = m.ease; }
     return o; });
@@ -5885,7 +5885,7 @@ function refLookApply(R){
  * only its measured fingerprint goes to the server (never the video). "Use a learned style" asks the server what the
  * Reels of a kind have in common (mine, or with everyone's shared ones) and copies that like a reference Reel. Every
  * change made to a shot's transition, effect or speed is sent too, so the learned styles follow the creator's taste. */
-const STYLE_KINDS = { wedding: 'Wedding', travel: 'Travel', festival: 'Festival', dance: 'Dance', talking: 'Talking', product: 'Product', food: 'Food', fitness: 'Fitness', vlog: 'Vlog', birthday: 'Birthday', other: 'Other' };
+const STYLE_KINDS = { wedding: 'Wedding', travel: 'Travel', festival: 'Festival', dance: 'Dance', talking: 'Talking', product: 'Product', food: 'Food', fitness: 'Fitness', vlog: 'Vlog', birthday: 'Birthday', car: 'Car & bike', shop: 'Shop & opening', event: 'Event & party', other: 'Other' };
 let learnedKind = '', editsQ = [], editsT = 0;
 const clip = (x, a, b) => Math.min(b, Math.max(a, Number.isFinite(x) ? x : a));
 function fingerprintOf(R){
@@ -5894,7 +5894,7 @@ function fingerprintOf(R){
   return { dur: clip(R.dur, 1, 600), bpm: clip(R.bpm || 0, 0, 300), medianBeats: clip(R.medianBeats || 0, 0, 64), medianSec: clip(R.medianSec || 0, 0, 60), hookBeats: clip(R.hookBeats || 0, 0, 64), hookSec: clip(R.hookSec || 0, 0, 60),
     onBeat: clip(R.onBeat || 0, 0, 1), energy: ['steady','rising','falling'].includes(R.energy) ? R.energy : 'steady', zoomShare: clip(R.zoomShare || 0, 0, 1), trans: tr, look,
     shotBeats: (R.shotBeats || []).slice(0, 300).map(x => clip(x, 0, 64)), shotSec: (R.shotSec || []).slice(0, 300).map(x => clip(x, 0, 60)),
-    moments: cleanMoments(R.moments) };
+    moments: cleanMoments(R.moments, 200) };
 }
 async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts, headers: { ...(opts && opts.headers) } }); const j = await r.json().catch(() => ({}));
   if(r.status === 401) throw new Error('sign in to keep a style library'); if(!r.ok) throw new Error((j.error && j.error.message) || ('error ' + r.status)); return j; }
@@ -5977,7 +5977,7 @@ $('tfiles').addEventListener('change', async e => {
  * style of that kind (the Reels the administrator taught, with everyone's corrections), when there is one: the edit
  * follows its pace and transitions, nothing about it is shown (silentStyle). A Reel being copied comes first. */
 const TPL_STYLE = { wedding: 'wedding', travel: 'travel', tripphotos: 'travel', ganpati: 'festival', diwali: 'festival', navratri: 'festival', holi: 'festival', padwa: 'festival', eid: 'festival',
-  christmas: 'festival', newyear: 'festival', product: 'product', sale: 'product', recipe: 'food', gym: 'fitness', birthday: 'birthday', bdayphotos: 'birthday', dayinlife: 'vlog' };
+  christmas: 'festival', newyear: 'festival', product: 'product', sale: 'product', recipe: 'food', gym: 'fitness', birthday: 'birthday', bdayphotos: 'birthday', dayinlife: 'vlog', cardelivery: 'car', opening: 'shop', party: 'event' };
 let styleGen = 0;
 async function styleForTemplate(name){
   const k = TPL_STYLE[name], g = ++styleGen, shown = mode === 'copy' ? (refProfile && refProfile.shown) || 'auto' : mode;
@@ -6639,7 +6639,7 @@ async function pickRecent(fp){
 }
 listRecent();
 
-root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, copyMatch, get grade(){ return GRADES[look]; },
+root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
   snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests

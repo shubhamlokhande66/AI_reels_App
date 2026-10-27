@@ -58,6 +58,8 @@ export const RefMoment = z.object({
   loud: lvl.optional(), trend: Trend.optional(), drums: lvl.optional(), bass: lvl.optional(), voice: lvl.optional(),
   hit: z.enum(HIT_KINDS).optional(), drop: z.boolean().optional(),
   move: z.array(RefKey).max(5).optional(), ease: z.enum(EASES).optional(), shake: z.boolean().optional(), freeze: z.number().min(0).max(1).optional(),
+  /** where the shot starts in the Reel (s), a flicker montage, the Reel's black end card */
+  at: z.number().min(0).max(600).optional(), flick: z.boolean().optional(), black: z.boolean().optional(),
 });
 export const Reference = z.object({
   name: word(80), medianBeats: z.number().min(0).max(64), hookBeats: z.number().min(0).max(64), onBeat: lvl,

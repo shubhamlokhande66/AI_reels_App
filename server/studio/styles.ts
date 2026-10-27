@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { currentUser } from "@/server/core/auth";
 import { db, mainDb, parseId } from "@/server/core/db";
 import { NotFoundError } from "@/server/core/errors";
+import SEEDS from "@/server/studio/seed-styles.json";
 
 /** Fast Studio's style library: every Reel a creator gives as a reference is measured on the phone ("Copy a Reel") and
  * only its style fingerprint is kept here (never the video): its pace in beats, the mix of transitions, how often shots
@@ -13,8 +14,8 @@ import { NotFoundError } from "@/server/core/errors";
  * private (the user's view of the database); shared ones also teach everyone's learned styles. How well a learned style
  * predicts a new Reel of its kind is measured by leaving each Reel out in turn. */
 
-export const CATEGORIES = ["wedding", "travel", "festival", "dance", "talking", "product", "food", "fitness", "vlog", "birthday", "other"] as const;
-export const KINDS = ["hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars"] as const;
+export const CATEGORIES = ["wedding", "travel", "festival", "dance", "talking", "product", "food", "fitness", "vlog", "birthday", "car", "shop", "event", "other"] as const;
+export const KINDS = ["hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars", "blur"] as const;
 const FIELDS = ["tr", "efx", "sp"] as const;
 const num = (a: number, b: number) => z.number().finite().min(a).max(b);
 export const Look = z.object({ mean: num(0, 1), std: num(0, 1), sat: num(0, 2), warm: num(-1, 1), p5: num(0, 1), p95: num(0, 1), vig: num(-1, 1), grain: num(0, 1), split: num(-1, 1) }).partial();
@@ -24,7 +25,7 @@ export const Fingerprint = z.object({
   trans: z.partialRecord(z.enum(KINDS), num(0, 1)), look: Look.nullable().default(null),
   shotBeats: z.array(num(0, 64)).max(300).default([]), shotSec: z.array(num(0, 60)).max(300).default([]),
   /** shot by shot: the transition into it, its zoom and the music under it, so the AI can copy what it does where */
-  moments: z.array(RefMoment).max(60).default([]),
+  moments: z.array(RefMoment).max(200).default([]),
 });
 export type Fingerprint = z.infer<typeof Fingerprint>;
 export const SaveIn = z.object({ name: z.string().trim().min(1).max(120), category: z.enum(CATEGORIES), shared: z.boolean().default(false), fp: Fingerprint });
@@ -71,7 +72,7 @@ export function withCorrections(fp: Fingerprint, edits: { field: string; from: s
   const tr = edits.filter((e) => e.field === "tr" && e.from !== e.to); if (!tr.length) return fp;
   // the studio's names of the transitions the reference reader knows (the others, a push or a page turn, are not in a style)
   const map: Record<string, string> = { hard: "hard", flash: "flash", dip: "fade", fadein: "fade", whip: "whip", zoom: "zoom", dissolve: "dissolve", glitch: "glitch", spin: "spin",
-    iris: "iris", diamond: "diamond", heart: "heart", star: "star", wipe: "wipe", bars: "bars" };
+    iris: "iris", diamond: "diamond", heart: "heart", star: "star", wipe: "wipe", bars: "bars", blur: "blur" };
   const t: Record<string, number> = { ...fp.trans }, step = Math.min(0.5, 1 / Math.max(4, tr.length));
   for (const e of tr) { const a = map[e.from], b = map[e.to]; if (a) t[a] = (t[a] ?? 0) - step * 0.5 * (t[a] ?? 0); if (b) t[b] = (t[b] ?? 0) + step * 0.5 * (1 - (t[b] ?? 0)); }
   return { ...fp, trans: norm(t) as Fingerprint["trans"] };
@@ -112,9 +113,9 @@ export async function saveStyle(d: z.infer<typeof SaveIn>) {
 export async function listStyles() {
   const docs = await (await mine()).find({}).sort({ createdAt: -1 }).limit(500).toArray();
   const counts: Record<string, { mine: number; shared: number }> = {};
-  for (const c of CATEGORIES) counts[c] = { mine: 0, shared: 0 };
+  for (const c of CATEGORIES) counts[c] = { mine: 0, shared: seedCount(c) };   // the app's own Reels count as shared
   for (const d of docs) counts[d.category as string].mine++;
-  for (const row of await (await everyone()).aggregate<{ _id: string; n: number }>([{ $match: { shared: true } }, { $group: { _id: "$category", n: { $sum: 1 } } }]).toArray()) if (counts[row._id]) counts[row._id].shared = row.n;
+  for (const row of await (await everyone()).aggregate<{ _id: string; n: number }>([{ $match: { shared: true } }, { $group: { _id: "$category", n: { $sum: 1 } } }]).toArray()) if (counts[row._id]) counts[row._id].shared += row.n;
   return { mine: docs.map((d) => ({ id: String(d._id), name: d.name, category: d.category, shared: !!d.shared, createdAt: d.createdAt, ...summary(d.fp as Fingerprint) })), categories: counts };
 }
 export async function deleteStyle(id: string) {
@@ -122,12 +123,17 @@ export async function deleteStyle(id: string) {
   if (!r.deletedCount) throw new NotFoundError("No such style.", { code: "STYLE_NOT_FOUND" });
   return { ok: true };
 }
-/** the learned style of a kind: from my Reels, or from mine and everyone's shared ones; with my corrections */
+/** The styles the app ships with: Reels measured once (cuts to the frame, flickers, transitions) and kept as fingerprints,
+ * so a learned style works before the administrator has taught any Reel of its kind; taught Reels join them. */
+type Seed = { name: string; category: string; fp: unknown };
+const seedFps = (category: string): Fingerprint[] => (SEEDS as Seed[]).filter((s) => s.category === category).flatMap((s) => { const r = Fingerprint.safeParse(s.fp); return r.success ? [r.data] : []; });
+export const seedCount = (category: string) => (SEEDS as Seed[]).filter((s) => s.category === category).length;
+/** the learned style of a kind: from my Reels, or from mine and everyone's shared ones (and the app's own); with my corrections */
 export async function learnedStyle(category: string, scope: "mine" | "all") {
   if (!(CATEGORIES as readonly string[]).includes(category)) throw new NotFoundError("No such kind of Reel.", { code: "STYLE_CATEGORY" });
   const own = (await (await mine()).find({ category }).limit(500).toArray()).map((d) => d.fp as Fingerprint);
   const shared = scope === "all" ? (await (await everyone()).find({ category, shared: true }).limit(2000).toArray()).map((d) => d.fp as Fingerprint) : [];
-  const fps = [...own, ...shared.filter((s) => !own.some((o) => JSON.stringify(o) === JSON.stringify(s)))];
+  const fps = [...own, ...shared.filter((s) => !own.some((o) => JSON.stringify(o) === JSON.stringify(s))), ...(scope === "all" ? seedFps(category) : [])];
   const base = learn(fps); if (!base) return { category, n: 0, fp: null, accuracy: null };
   const ed = await (await editsCol()).find({ category: { $in: [category, "general"] } }).sort({ at: -1 }).limit(300).toArray();
   return { category, n: fps.length, fp: withCorrections(base, ed as unknown as { field: string; from: string; to: string }[]), accuracy: accuracy(fps), corrections: ed.length };
