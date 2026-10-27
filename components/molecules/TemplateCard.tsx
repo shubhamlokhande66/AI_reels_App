@@ -19,6 +19,12 @@ const ART: Record<string, string> = {
   ganpati: "bg-[radial-gradient(circle_at_60%_35%,rgba(255,190,90,.85),transparent_38%),linear-gradient(160deg,#ff7a1a,#b0201f_55%,#2a0606)]",
   diwali: "bg-[radial-gradient(circle_at_40%_40%,rgba(255,210,110,.85),transparent_30%),radial-gradient(circle_at_75%_70%,rgba(255,120,60,.6),transparent_28%),linear-gradient(160deg,#4a1d6b,#1a0b3d)]",
 };
+const ART_MORE: Record<string, string> = {
+  cardelivery: "bg-[radial-gradient(circle_at_50%_70%,rgba(255,60,60,.7),transparent_35%),linear-gradient(160deg,#2b2b2b,#0d0d0d_60%,#000)]",
+  opening: "bg-[radial-gradient(circle_at_50%_30%,rgba(255,215,90,.8),transparent_35%),linear-gradient(160deg,#d4a017,#7a1f1f_60%,#1c0707)]",
+  party: "bg-[radial-gradient(circle_at_30%_30%,rgba(120,80,255,.8),transparent_35%),radial-gradient(circle_at_75%_60%,rgba(255,60,200,.6),transparent_30%),linear-gradient(160deg,#120a2e,#05030f)]",
+};
+Object.assign(ART, ART_MORE);
 const FALLBACK = "bg-[radial-gradient(circle_at_60%_30%,rgba(200,140,255,.6),transparent_38%),linear-gradient(160deg,#7c3aed,#2a1660_60%,#0b0b22)]";
 
 /** A Fast Studio template: a 9:16 poster with its name and length; opens Fast Studio with it picked. `link={false}`:
