@@ -29,7 +29,8 @@ export function useCredits() {
  * page's parts would ask again, and so on, for ever. */
 const waiting = (q: { isLoading: boolean; errorUpdatedAt: number }) => q.isLoading && !q.errorUpdatedAt;
 
-export function useAdmin(): { admin: boolean; required: boolean; loading: boolean } {
+/** otp: an admin account is signed in but its daily admin code is due (the admin pages ask for it) */
+export function useAdmin(): { admin: boolean; required: boolean; otp: boolean; loading: boolean } {
   const q = useQuery({
     queryKey: ["admin"],
     queryFn: async () => {
@@ -42,7 +43,7 @@ export function useAdmin(): { admin: boolean; required: boolean; loading: boolea
     staleTime: 60_000,
     retry: false,
   });
-  return { admin: q.data?.admin ?? false, required: q.data?.required ?? true, loading: waiting(q) };
+  return { admin: q.data?.admin ?? false, required: q.data?.required ?? true, otp: q.data?.otp ?? false, loading: waiting(q) };
 }
 
 export function useHealth() {

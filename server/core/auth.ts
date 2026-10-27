@@ -34,21 +34,22 @@ function secret(): string {
   return settings.secretKey;
 }
 const sign = (payload: string) => crypto.createHmac("sha256", secret()).update(payload).digest("hex");
-/** version: the user's session version; a password change or "sign out everywhere" raises it, ending older sessions. */
-export function makeToken(userId: string, days = SESSION_DAYS, version = 0): string {
-  const payload = Buffer.from(JSON.stringify({ u: userId, e: Math.trunc(Date.now() / 1000) + days * 86400, v: version })).toString("base64url");
+/** version: the user's session version; a password change or "sign out everywhere" raises it, ending older sessions.
+ * adminUntil: until when (ms) this session has admin powers, set by the emailed admin code (a day: server/core/admin.ts). */
+export function makeToken(userId: string, days = SESSION_DAYS, version = 0, adminUntil = 0): string {
+  const payload = Buffer.from(JSON.stringify({ u: userId, e: Math.trunc(Date.now() / 1000) + days * 86400, v: version, ...(adminUntil ? { a: adminUntil } : {}) })).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
-export function readSession(tokenIn: string | null | undefined): [string, number] | null {
+export function readSession(tokenIn: string | null | undefined): [string, number, number] | null {
   const token = (tokenIn ?? "").trim().replace(/^"|"$/g, "");
   const at = token.lastIndexOf(".");
   if (!token || at < 0) return null;
   const payload = token.slice(0, at), sig = token.slice(at + 1), want = sign(payload);
   if (sig.length !== want.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return null;
   try {
-    const d = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { u?: string; e?: number; v?: number };
+    const d = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { u?: string; e?: number; v?: number; a?: number };
     if ((d.e ?? 0) <= Date.now() / 1000 || !d.u) return null;
-    return [String(d.u), Number(d.v ?? 0)];
+    return [String(d.u), Number(d.v ?? 0), Number(d.a ?? 0)];
   } catch { return null; }
 }
 const versions = new Map<string, [number, number]>(), VERSION_TTL = 20_000;
@@ -92,16 +93,24 @@ const isPublic = (path: string) => !path.startsWith("/api") || PUBLIC_PATHS.some
  * path without one. */
 export async function resolveUser(req: Request): Promise<string | null> {
   if (!settings.authEnabled) return null;
-  let token = cookieOf(req, COOKIE);
-  const authz = req.headers.get("authorization") ?? "";
-  if (!token && authz.toLowerCase().startsWith("bearer ")) token = authz.slice(7);
+  const token = sessionToken(req);
   let uid: string | null = null;
   if (token) { const s = readSession(token); if (s && (await sessionValid(s[0], s[1]))) uid = s[0]; }
   if (!uid && !isPublic(new URL(req.url).pathname) && req.method !== "OPTIONS") throw new AuthRequired();
   return uid;
 }
-export function sessionCookie(user: { _id: unknown; sessionVersion?: unknown }): string {
-  const token = makeToken(String(user._id), SESSION_DAYS, Number(user.sessionVersion ?? 0));
+/** the request's session token: the cookie, or a Bearer header (the phone app) */
+function sessionToken(req: Request): string | null {
+  const authz = req.headers.get("authorization") ?? "";
+  return cookieOf(req, COOKIE) ?? (authz.toLowerCase().startsWith("bearer ") ? authz.slice(7) : null);
+}
+/** Until when (ms) this request's session has admin powers (0: none). Its user is the request's (resolveUser checked it). */
+export function sessionAdminUntil(req: Request): number {
+  const s = settings.authEnabled ? readSession(sessionToken(req)) : null;
+  return s && s[0] === currentUser() ? s[2] : 0;
+}
+export function sessionCookie(user: { _id: unknown; sessionVersion?: unknown }, adminUntil = 0): string {
+  const token = makeToken(String(user._id), SESSION_DAYS, Number(user.sessionVersion ?? 0), adminUntil);
   return `${COOKIE}=${token}; Max-Age=${SESSION_DAYS * 86400}; Path=/; HttpOnly; SameSite=Lax${settings.cookieSecure ? "; Secure" : ""}`;
 }
 export const clearCookie = () => `${COOKIE}=""; Max-Age=0; Path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax`;

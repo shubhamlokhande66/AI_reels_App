@@ -6,7 +6,8 @@ import { AuthRequired, clearCookie, currentUser, forgetSessionCache, hashPasswor
 import { settings } from "@/server/core/config";
 import { codeLetter, sendMail } from "@/server/core/mail";
 import { mainDb, ObjectId, OWNER, UNSCOPED } from "@/server/core/db";
-import { ConflictError, ValidationFailed } from "@/server/core/errors";
+import { AppError, ConflictError, ValidationFailed } from "@/server/core/errors";
+import { ADMIN_CODE_HOURS, isAdminEmail } from "@/server/core/admin";
 import { deletePrefix } from "@/server/storage/local";
 export { sendMail };
 import fs from "node:fs";
@@ -44,10 +45,17 @@ async function newSessionVersion(id: unknown): Promise<Doc & { _id: unknown }> {
 const newCode = () => String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
 const codeHash = (id: unknown, purpose: string, code: string) => hashToken(`${String(id)}:${purpose}:${code}`);
 type Otp = { hash: string; expires: Date; tries: number; sentAt: Date };
-async function sendCode(u: Doc, purpose: "verify" | "reset") {
+type Purpose = "verify" | "reset" | "admin";
+const FIELD: Record<Purpose, string> = { verify: "verifyOtp", reset: "resetOtp", admin: "adminOtp" };
+async function sendCode(u: Doc, purpose: Purpose) {
   const code = newCode(), b = settings.businessName;
   const otp: Otp = { hash: codeHash(u._id, purpose, code), expires: new Date(Date.now() + CODE_MINUTES * 60_000), tries: 0, sentAt: new Date() };
-  await (await users()).updateOne({ _id: u._id }, { $set: { [purpose === "verify" ? "verifyOtp" : "resetOtp"]: otp } });
+  await (await users()).updateOne({ _id: u._id }, { $set: { [FIELD[purpose]]: otp } });
+  if (purpose === "admin") {
+    const a = codeLetter("Your admin sign-in code", `Someone (we hope you) signed in to the ${b} administration with your account. Enter this code to open it for the next ${ADMIN_CODE_HOURS} hours.`, code,
+      `The code works for ${CODE_MINUTES} minutes. If this was not you, change your password now: without this code nobody can open the administration.`, "Admin security");
+    return sendMail(String(u.email), `${code} is your ${b} admin code`, a.text, a.html);
+  }
   const m = purpose === "verify"
     ? codeLetter("Confirm your email", `Welcome to ${b}. Enter this code in the app to confirm your email address and finish setting up your account.`, code,
       `The code works for ${CODE_MINUTES} minutes. If you did not create a ${b} account, you can safely ignore this email.`, "Email verification")
@@ -58,8 +66,8 @@ async function sendCode(u: Doc, purpose: "verify" | "reset") {
 /** a code may be sent again once RESEND_SECONDS have passed (the wait left, in seconds, or 0) */
 const waitLeft = (otp: Otp | undefined) => (otp?.sentAt ? Math.max(0, Math.ceil((new Date(otp.sentAt).getTime() + RESEND_SECONDS * 1000 - Date.now()) / 1000)) : 0);
 /** Check a code (a wrong one counts a try; the last try or an old code means a new one is needed). Throws when wrong. */
-async function checkCode(u: Doc, purpose: "verify" | "reset", code: string) {
-  const field = purpose === "verify" ? "verifyOtp" : "resetOtp", otp = u[field] as Otp | undefined;
+async function checkCode(u: Doc, purpose: Purpose, code: string) {
+  const field = FIELD[purpose], otp = u[field] as Otp | undefined;
   const fail = (msg: string, c: string) => new ValidationFailed(msg, { code: c });
   if (!otp || new Date(otp.expires).getTime() < Date.now()) throw fail("This code has expired. Ask for a new one.", "CODE_EXPIRED");
   if (otp.tries >= CODE_TRIES) throw fail("Too many wrong tries. Ask for a new code.", "CODE_LOCKED");
@@ -140,7 +148,28 @@ export async function login(email: string, password: string) {
   if (u && u.partnerOnly && !u.password) throw new AuthRequired(PARTNER_ONLY, "PARTNER_ONLY");
   if (!u || !verifyPassword(password, String(u.password))) throw new AuthRequired("The email or password is not correct.", "BAD_CREDENTIALS");
   await (await users()).updateOne({ _id: u._id }, { $set: { lastLoginAt: new Date() }, $inc: { loginCount: 1 } }); // for the admin dashboard
-  return withCookie({ user: userOut(u) }, sessionCookie(u));
+  // an administrator: signed in, and a code is emailed at once; the admin pages open after it (adminCode below)
+  const adminCode = await isAdminEmail(String(u.email));
+  if (adminCode && !waitLeft(u.adminOtp as Otp | undefined)) await sendCode(u, "admin");
+  return withCookie({ user: userOut(u), adminCode }, sessionCookie(u));
+}
+/** The administrator asks for their daily admin code (a minute apart). */
+export async function sendAdminCode() {
+  const u = await meDoc();
+  if (!(await isAdminEmail(String(u.email)))) throw new AppError("This account is not an administrator.", { code: "ADMIN_ONLY", status: 403 });
+  const wait = waitLeft(u.adminOtp as Otp | undefined);
+  if (wait) throw new ValidationFailed(`We just sent one: wait ${wait} seconds, then try again.`, { code: "VERIFY_TOO_SOON", details: { wait } });
+  await sendCode(u, "admin");
+  return { ok: true, wait: RESEND_SECONDS, email: String(u.email) };
+}
+/** The code from the admin email: this session has admin powers for ADMIN_CODE_HOURS (then a new code). */
+export async function verifyAdminCode(code: string) {
+  const u = await meDoc();
+  if (!(await isAdminEmail(String(u.email)))) throw new AppError("This account is not an administrator.", { code: "ADMIN_ONLY", status: 403 });
+  await checkCode(u, "admin", code.trim());
+  const until = new Date(Date.now() + ADMIN_CODE_HOURS * 3600_000);
+  await (await users()).updateOne({ _id: u._id }, { $set: { adminUntil: until, emailVerified: true } }); // the code proves the email too
+  return withCookie({ ok: true, until }, sessionCookie(u, until.getTime()));
 }
 export const logout = () => withCookie({ ok: true }, clearCookie());
 /** Email a reset code; the answer is the same whether or not the email has an account (nobody can find out who is signed

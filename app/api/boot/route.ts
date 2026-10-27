@@ -1,4 +1,4 @@
-import { adminRequired, isAdmin } from "@/server/core/admin";
+import { adminState } from "@/server/core/admin";
 import { currentUser } from "@/server/core/auth";
 import { settings } from "@/server/core/config";
 import { getFeatures } from "@/server/core/features";
@@ -19,7 +19,7 @@ export const GET = route(async (req) => {
   if (settings.billingEnabled) sweepSoon(); // unfinished checkouts' reminder emails, now and then, in the background
   const part = async <T,>(f: () => Promise<T> | T) => { try { return await f(); } catch { return undefined; } };
   const [texts, account, site, admin, features, planLocks, credits, offer] = await Promise.all([
-    part(getTexts), part(me), part(getSite), part(async () => ({ admin: await isAdmin(req), required: adminRequired() })),
+    part(getTexts), part(me), part(getSite), part(() => adminState(req)),
     signedIn ? part(getFeatures) : undefined, signedIn ? part(getLocks) : undefined, signedIn ? part(myCredits) : undefined,
     part(async () => ({ offer: await currentOffer() })),
   ]);

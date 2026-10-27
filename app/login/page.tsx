@@ -42,10 +42,11 @@ export default function LoginPage() {
     if (!valid) return;
     setBusy(true);
     try {
-      await (signin ? api.login(email.trim(), password) : api.register(email.trim(), password, savedRef()));
+      const r = signin ? await api.login(email.trim(), password) : await api.register(email.trim(), password, savedRef());
       if (!signin) clearRef(); // the invite is used
       await qc.invalidateQueries();
-      router.replace(signin ? "/" : "/verify?sent=1"); // a new account: the code from the email first
+      // a new account: the code from the email first; an administrator: the admin code (emailed now) first
+      router.replace(!signin ? "/verify?sent=1" : "adminCode" in r && r.adminCode ? "/admin?code=sent" : "/");
     } catch (err) {
       setError(errorMessage(err));
     } finally {

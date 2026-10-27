@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { currentUser } from "./auth";
+import { currentUser, sessionAdminUntil } from "./auth";
 import { settings } from "./config";
 import { AppError } from "./errors";
 import { limits } from "./rateLimit";
@@ -8,7 +8,10 @@ import { limits } from "./rateLimit";
 /** Admin access (was core/admin.py). An administrator is a signed-in account whose email is in ADMIN_EMAILS (the owners,
  * comma-separated), or one an administrator added in Admin → Settings → Administrators, or a browser that sends the
  * ADMIN_KEY in the X-Admin-Key header. With neither ADMIN_EMAILS nor ADMIN_KEY set (a local install) everyone is admin.
- * An administrator has everything open: every plan's pages and Shubix AI, and no credits are taken (server/credits.ts). */
+ * An administrator has everything open: every plan's pages and Shubix AI, and no credits are taken (server/credits.ts).
+ * An admin email's powers need a 6-digit code emailed to it, once a day (ADMIN_CODE_HOURS): the session carries until
+ * when (auth.ts), so a stolen password or an old session alone never opens Admin. */
+export const ADMIN_CODE_HOURS = 24;
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/, ADMINS_ID = "admins";
 const split = (s: string) => s.split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -55,13 +58,23 @@ export const adminRequired = () => Boolean(settings.adminKey || ownerEmails().si
 export async function isAdmin(req: Request): Promise<boolean> {
   if (!adminRequired() || keyMatches(req)) return true;
   const uid = currentUser();
-  return uid ? isAdminUser(uid) : false;
+  return Boolean(uid && sessionAdminUntil(req) > Date.now() && (await isAdminAccount(uid)));
 }
-/** Is this account an administrator (by its email)? For the places without the request (credits). */
+/** an administrator's email (before its daily code) */
+export async function isAdminEmail(email: string) { return adminRequired() && (await emails()).has(email.trim().toLowerCase()); }
+async function isAdminAccount(uid: string) { const email = await emailOf(uid); return Boolean(email && (await isAdminEmail(email))); }
+/** What the browser is told: admin mode, whether the server has an administrator set up, and otp: an admin account
+ * signed in whose daily code is due (the admin pages ask for it). */
+export async function adminState(req: Request) {
+  const admin = await isAdmin(req), uid = currentUser();
+  return { admin, required: adminRequired(), otp: !admin && !!uid && (await isAdminAccount(uid)) };
+}
+/** Is this account an administrator, its code entered in the last day? For the places without the request (credits). */
 export async function isAdminUser(uid: string): Promise<boolean> {
-  if (!adminRequired()) return false; // a local install: everyone opens the admin pages, but plans and credits still count
-  const email = await emailOf(uid);
-  return Boolean(email && (await emails()).has(email));
+  if (!adminRequired() || !(await isAdminAccount(uid))) return false; // a local install: plans and credits still count
+  const { mainDb, ObjectId } = await import("./db");
+  const u = await (await mainDb()).collection("users").findOne({ _id: new ObjectId(uid) }, { projection: { adminUntil: 1 } });
+  return u?.adminUntil instanceof Date && u.adminUntil.getTime() > Date.now();
 }
 
 // ------------------------------------------------------------------ Admin → Settings → Administrators

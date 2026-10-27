@@ -195,7 +195,7 @@ export const api = {
   health: () => request<Health>("/api/health"),
   me: () => viaBoot("me", () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me")),
   login: (email: string, password: string) =>
-    request<{ user: { id: string; email: string } }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    request<{ user: { id: string; email: string }; adminCode?: boolean }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   register: (email: string, password: string, ref?: string) =>
     request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password, ...(ref ? { ref } : {}) }) }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
@@ -215,9 +215,12 @@ export const api = {
   site: () => viaBoot("site", () => request<SiteInfo>("/api/site")),
   /** Is this browser in admin mode? (required = the server has an admin key; without one everyone is admin) */
   adminSession: (key?: string) => {
-    const ask = () => request<{ admin: boolean; required: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined);
+    const ask = () => request<{ admin: boolean; required: boolean; otp?: boolean }>("/api/admin/session", key ? { headers: { "X-Admin-Key": key } } : undefined);
     return key ? ask() : viaBoot("admin", ask); // signing in with a key always asks the server
   },
+  /** the administrator's daily code (an admin account signed in: the admin pages open after it, for a day) */
+  adminCode: () => request<{ ok: boolean; wait: number; email: string }>("/api/admin/code", { method: "POST" }),
+  adminVerify: (code: string) => request<{ ok: boolean; until: string }>("/api/admin/code/verify", { method: "POST", body: JSON.stringify({ code }) }),
   plans: () => request<Pricing>("/api/plans"),
   credits: () => viaBoot("credits", () => request<Credits>("/api/credits")),
   createOrder: (item: string, coupon?: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
