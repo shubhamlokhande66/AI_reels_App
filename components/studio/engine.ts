@@ -5403,8 +5403,12 @@ async function frameSource(file, v, w, h){
   }
 }
 const CUT_K = 7;   // frames each side of a cut that are looked at (a fade's dark middle and its clean ends both fit)
+// the Reel being read is letterboxed (wide footage between black bars): its frames are measured without the bars, or every
+// cut looks small and every shot looks dark (a night party read as fades to black)
+let refBars = null;   // { y0, y1 }: the picture's rows, as fractions of the height
 function greyOf(canvas){
-  const FW = canvas.width, FH = canvas.height, d = canvas.getContext('2d', {willReadFrequently:true}).getImageData(0,0,FW,FH).data, Y = new Float32Array(FW*FH); let m = 0, gx = 0, gy = 0;
+  const W0 = canvas.width, H0 = canvas.height, y0 = refBars ? Math.round(refBars.y0*H0) : 0, FH = refBars ? Math.max(4, Math.round(refBars.y1*H0) - y0) : H0, FW = W0;
+  const d = canvas.getContext('2d', {willReadFrequently:true}).getImageData(0,y0,FW,FH).data, Y = new Float32Array(FW*FH); let m = 0, gx = 0, gy = 0;
   for(let i=0;i<Y.length;i++){ Y[i] = (0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2])/255; m += Y[i]; }
   for(let y=1;y<FH-1;y++) for(let x=1;x<FW-1;x++){ const i=y*FW+x; gx += (Y[i+1]-Y[i-1])**2; gy += (Y[i+FW]-Y[i-FW])**2; }
   return { Y, FW, FH, mean: m/Y.length, aniso: gx/Math.max(1e-6, gy) };
@@ -5517,6 +5521,13 @@ async function analyzeReference(file, onP){
     const shots = [], looks = [];
     const fs = await frameSource(file, v, w, h);
     try{
+      // black bars (letterbox): the rows that stay dark in every one of 12 frames
+      refBars = null;
+      { const smp = await fs.small(Array.from({ length: 12 }, (_, i) => Math.min(dur - 0.05, (i + 0.5)*dur/12)));
+        const ok = smp.filter(Boolean); if(ok.length >= 6){ const H0 = ok[0].height, W0 = ok[0].width, rowMax = new Float32Array(H0);
+          for(const c of ok){ const d = c.getContext('2d', {willReadFrequently:true}).getImageData(0,0,W0,H0).data; for(let y=0;y<H0;y++){ let s2 = 0; for(let x=0;x<W0;x++){ const i=(y*W0+x)*4; s2 += 0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; } rowMax[y] = Math.max(rowMax[y], s2/W0/255); } }
+          let t = 0; while(t < H0 && rowMax[t] < 0.07) t++; let b = H0 - 1; while(b > t && rowMax[b] < 0.07) b--;
+          if((t > 0.06*H0 || H0 - 1 - b > 0.06*H0) && b - t > 0.25*H0) refBars = { y0: t/H0, y1: (b + 1)/H0 }; } }
       // every frame: the hard cuts to the frame and the flickers; the scene reading adds its fades, dissolves and the
       // cuts hidden in a moving transition (a whip's blur)
       const fc = await frameCuts(fs, dur, p => onP(0.4 + 0.1*p, 'finding every cut'));
@@ -5543,6 +5554,7 @@ async function analyzeReference(file, onP){
           fr.spin = Math.max(cw, ccw) >= 2; }   // turned the same way on two frames or more
         // a glitch: red and blue pulled apart on two frames or more around the cut
         fr.glitch = cv.slice(CUT_K-3, CUT_K+4).filter(x=>rgbShiftOf(x) >= 2).length >= 2;
+        if(!c.exact && c.hint === 'fade'){ const mid = fr.filter(f => Math.abs(f.k) <= 3).map(f => f.mean); if(mid.length && Math.min(...mid) > 0.08 && Math.max(...mid) < 0.9) c.hint = 'cut'; }   // not dark (nor white) in its middle: not a fade
         c.kind = cutKind(fr, c.hint); if(fr.shiftTo) c.t += fr.shiftTo/30;
         { const af = fr.filter(f => f.k >= 3); c.after = af.length ? af.reduce((q,f)=>q+f.mean,0)/af.length : 1; }   // how bright the next shot is
         // a reveal through a shape (circle, diamond, heart, star, wipe, bars): the frames in the middle of the transition
@@ -5567,6 +5579,9 @@ async function analyzeReference(file, onP){
         if(['hard','dissolve'].includes(c.kind) && !c.one){ const A = at(-CUT_K), B = at(CUT_K);
           if(A && B) for(const k of [0,-1,1,-2,2,-3,3]){ const F = at(k); if(!F) continue; const sh = revealShape(A.Y, B.Y, F.Y, A.FW, A.FH); if(sh){ c.kind = sh; break; } } } });
       for(let i=cuts.length-1;i>=0;i--) if(cuts[i].drop) cuts.splice(i, 1);
+      // a flash moves its cut onto its brightest frame: in time order again, never two on the same frame
+      cuts.sort((x, y) => x.t - y.t);
+      for(let i=cuts.length-1;i>0;i--) if(cuts[i].t - cuts[i-1].t < 1.5/30){ if(cuts[i].kind !== 'hard' && cuts[i-1].kind === 'hard') cuts[i-1].kind = cuts[i].kind; cuts.splice(i, 1); }
       // two cuts under 0.2 s apart are one moving transition (a whip's first blurred frames read as a cut of their own),
       // unless both are clean one-frame jumps (a strobe of hard cuts)
       for(let i=cuts.length-1;i>0;i--){ const a = cuts[i-1], b = cuts[i];
@@ -5588,7 +5603,7 @@ async function analyzeReference(file, onP){
         shots.push({ a: x.a, b: x.b, zoom: move ? (move.zoom === 'in' ? 1.06 : move.zoom === 'out' ? 0.94 : 1) : 1, move, flick: x.flick });
         const lk = lf[i] ? lookOfImage(lf[i], lf[i].width, lf[i].height) : null; if(lk) looks.push(lk); });
       refCutsOut = cuts;
-    } finally { fs.close(); }
+    } finally { fs.close(); refBars = null; }
     const cuts = refCutsOut;
     v.removeAttribute('src'); v.load();
     // pace
