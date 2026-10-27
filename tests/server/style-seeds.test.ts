@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/server/core/db", () => ({ db: async () => ({}), mainDb: async () => ({}), parseId: String }));
+vi.mock("@/server/core/db", () => ({ db: async () => ({}), mainDb: async () => { throw new Error("no database here"); }, parseId: String }));
 vi.mock("@/server/core/auth", () => ({ currentUser: () => null }));
 
 /** The style library: the app's own Reels (seed-styles.json) must all be valid fingerprints of a known kind, and the
@@ -42,5 +42,18 @@ describe("style seeds", async () => {
       l += a.learned * fps.length; d += a.baseline * fps.length; n += fps.length;
     }
     if (n) expect(l / n).toBeGreaterThan(d / n);
+  });
+
+  it("gives the AI every kind's trend, the template's kind first, and lets it pick the kind otherwise", async () => {
+    const { trendText } = await import("@/server/studio/styles");
+    const any = await trendText();
+    expect(any).toMatch(/^WHAT TRENDING REELS OF EACH KIND DO/);
+    expect(any).toMatch(/- car \(\d+ Reels\): a cut every/);
+    expect(any).toMatch(/flicker montages/);
+    expect(any).toMatch(/Decide from the clips which kind this Reel is/);
+    const car = await trendText("shop");
+    expect(car.split("\n")[1]).toMatch(/^- shop /);
+    expect(car).toMatch(/This Reel is a shop Reel/);
+    expect(await trendText("wedding")).toMatch(/Decide from the clips/);   // no Reels of that kind: the AI picks
   });
 });
