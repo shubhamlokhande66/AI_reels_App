@@ -49,8 +49,11 @@ export function learn(fps: Fingerprint[]): Fingerprint | null {
   const m = (k: keyof Fingerprint) => median(fps.map((f) => Number(f[k])));
   // a Reel without a steady beat has 0 here (it is paced in seconds): it does not pull the others' beats down
   const mb = (k: "medianBeats" | "hookBeats" | "bpm") => { const v = fps.map((f) => Number(f[k])).filter((x) => x > 0); return v.length * 2 >= fps.length ? median(v) : 0; };
-  const trans: Record<string, number> = {};
-  for (const f of fps) for (const [k, v] of Object.entries(f.trans)) trans[k] = (trans[k] ?? 0) + v / fps.length;
+  // each transition's typical share: the median over the Reels (one Reel made of flashes does not turn the style into
+  // flashes); with 1-2 Reels, their average
+  const trans: Record<string, number> = {}, tk = [...new Set(fps.flatMap((f) => Object.keys(f.trans)))];
+  for (const k of tk) { const v = fps.map((f) => Number(f.trans[k as keyof typeof f.trans] ?? 0)); trans[k] = fps.length >= 3 ? median(v) : mean(v); }
+  if (!Object.values(trans).some((v) => v > 0)) for (const f of fps) for (const [k, v] of Object.entries(f.trans)) trans[k] = (trans[k] ?? 0) + v / fps.length;
   const looks = fps.map((f) => f.look).filter(Boolean) as z.infer<typeof Look>[];
   // each colour number averaged over the Reels that have it
   const lookKeys = [...new Set(looks.flatMap((l) => Object.keys(l)))] as (keyof z.infer<typeof Look>)[];
@@ -65,6 +68,23 @@ export function learn(fps: Fingerprint[]): Fingerprint | null {
     energy: energies.reduce((a, e) => (fps.filter((f) => f.energy === e).length > fps.filter((f) => f.energy === a).length ? e : a), "steady" as Fingerprint["energy"]),
     zoomShare: m("zoomShare"), trans: norm(trans) as Fingerprint["trans"], look: look as Fingerprint["look"], shotBeats: typical.shotBeats, shotSec: typical.shotSec, moments: typical.moments ?? [],
   };
+}
+/** the style served and measured: what the Reels share (learn), pulled toward the default when they differ a lot */
+export function learnStyle(fps: Fingerprint[]): Fingerprint | null { const l = learn(fps); return l && shrink(l, fps); }
+/** A style learned from a few Reels that differ a lot (a 0.4 s montage and a 4 s showroom walk of the same kind) is
+ * pulled toward the default style: alone they predict a new Reel of their kind worse than the default (measured on the
+ * app's own seed Reels). Reels that agree are not pulled at all; the pull fades as Reels are taught (weight n / (n + k),
+ * k up to 3 for Reels far apart). The rhythm (shot by shot, from the most typical Reel) always stays its own. */
+function shrink(fp: Fingerprint, fps: Fingerprint[]): Fingerprint {
+  const spread = median(fps.map((f) => distance(fp, f).total)), k = spread < 0.15 ? 0 : Math.min(3, (spread - 0.15) * 10);
+  if (!k) return fp;
+  const n = fps.length, w = n / (n + k), D = DEFAULT_STYLE, mix = (a: number, b: number) => w * a + (1 - w) * b;
+  const tr: Record<string, number> = {};
+  for (const k of new Set([...Object.keys(fp.trans), ...Object.keys(D.trans)])) tr[k] = mix(Number(fp.trans[k as keyof typeof fp.trans] ?? 0), Number(D.trans[k as keyof typeof D.trans] ?? 0));
+  const look = fp.look ? Object.fromEntries(Object.entries(fp.look).map(([k, v]) => { const d = (D.look as Record<string, number> | null)?.[k]; return [k, Number.isFinite(d) ? +mix(Number(v), d as number).toFixed(4) : v]; })) : fp.look;
+  const geo = (a: number, b: number) => (a > 0 && b > 0 ? Math.exp(mix(Math.log(a), Math.log(b))) : a);
+  return { ...fp, trans: norm(tr) as Fingerprint["trans"], zoomShare: +mix(fp.zoomShare, D.zoomShare).toFixed(3), medianBeats: fp.medianBeats ? +geo(fp.medianBeats, D.medianBeats).toFixed(2) : 0,
+    medianSec: +geo(fp.medianSec, D.medianSec).toFixed(2), look: look as Fingerprint["look"] };
 }
 
 /** the creator's corrections move the transition mix: each change from one kind to another shifts a little share */
@@ -95,7 +115,7 @@ export const DEFAULT_STYLE: Fingerprint = { dur: 15, bpm: 120, medianBeats: 2, m
 export function accuracy(fps: Fingerprint[]): { n: number; learned: number; baseline: number } | null {
   if (fps.length < 3) return null;
   let a = 0, b = 0;
-  fps.forEach((f, i) => { const rest = fps.filter((_, j) => j !== i); a += distance(learn(rest)!, f).total; b += distance(DEFAULT_STYLE, f).total; });
+  fps.forEach((f, i) => { const rest = fps.filter((_, j) => j !== i); a += distance(learnStyle(rest)!, f).total; b += distance(DEFAULT_STYLE, f).total; });
   return { n: fps.length, learned: +(1 - a / fps.length).toFixed(3), baseline: +(1 - b / fps.length).toFixed(3) };
 }
 
@@ -134,7 +154,7 @@ export async function learnedStyle(category: string, scope: "mine" | "all") {
   const own = (await (await mine()).find({ category }).limit(500).toArray()).map((d) => d.fp as Fingerprint);
   const shared = scope === "all" ? (await (await everyone()).find({ category, shared: true }).limit(2000).toArray()).map((d) => d.fp as Fingerprint) : [];
   const fps = [...own, ...shared.filter((s) => !own.some((o) => JSON.stringify(o) === JSON.stringify(s))), ...(scope === "all" ? seedFps(category) : [])];
-  const base = learn(fps); if (!base) return { category, n: 0, fp: null, accuracy: null };
+  const base = learnStyle(fps); if (!base) return { category, n: 0, fp: null, accuracy: null };
   const ed = await (await editsCol()).find({ category: { $in: [category, "general"] } }).sort({ at: -1 }).limit(300).toArray();
   return { category, n: fps.length, fp: withCorrections(base, ed as unknown as { field: string; from: string; to: string }[]), accuracy: accuracy(fps), corrections: ed.length };
 }
