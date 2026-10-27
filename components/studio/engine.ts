@@ -5582,6 +5582,10 @@ async function analyzeReference(file, onP){
       // a flash moves its cut onto its brightest frame: in time order again, never two on the same frame
       cuts.sort((x, y) => x.t - y.t);
       for(let i=cuts.length-1;i>0;i--) if(cuts[i].t - cuts[i-1].t < 1.5/30){ if(cuts[i].kind !== 'hard' && cuts[i-1].kind === 'hard') cuts[i-1].kind = cuts[i].kind; cuts.splice(i, 1); }
+      // a cut to a plain white (or black) screen and the next picture fading in from it within 0.8 s: one transition (a
+      // fade through white / black), not two cuts around a white shot
+      for(let i=cuts.length-1;i>0;i--){ const a = cuts[i-1], b = cuts[i], white = a.after > 0.88, black = a.after < 0.05;
+        if(b.t - a.t <= 0.8 && (white || black) && !(b.exact && b.kind === 'hard')){ a.kind = white ? 'flash' : 'fade'; cuts.splice(i, 1); } }
       // two cuts under 0.2 s apart are one moving transition (a whip's first blurred frames read as a cut of their own),
       // unless both are clean one-frame jumps (a strobe of hard cuts)
       for(let i=cuts.length-1;i>0;i--){ const a = cuts[i-1], b = cuts[i];
