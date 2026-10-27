@@ -580,8 +580,9 @@ function adaptPlan(){ return copyTimed() ? copyPlanTimed() : mode === 'copy' && 
  * or more and the drums come back right after (a riser, a held note before the drop) a flicker montage (a different still
  * of the clips on every frame, at most 3 s); elsewhere the plan as it is. "Strong": at least the song's median hit (all of
  * a busy mix's onsets are dense everywhere). Smooth keeps its calm; a copied Reel keeps its own edit. */
-function beatEdit(p){
-  if(!(mode === 'auto' || mode === 'fast') || !buf || !rmsF || !hopSec || !hitsRaw || hitsRaw.length < 8 || p.length < 2 || !(period > 0)) return p;
+// ai: the AI's pace (its sections with "hits" and "flicker" are used as they are, in any style; nothing else is added)
+function beatEdit(p, ai){
+  if(!(mode === 'auto' || mode === 'fast' || ai) || mode === 'copy' || !buf || !rmsF || !hopSec || !hitsRaw || hitsRaw.length < 8 || p.length < 2 || !(period > 0)) return p;
   const dur = buf.duration, H = hitsRaw.filter(t => t > 0.1 && t < dur - 0.15), W = 1, step = 0.25;
   const ss = (hitsStr || []).slice().sort((a,b)=>a-b), sMed = ss.length ? ss[ss.length>>1] : 0;
   const HS = hitsRaw.filter((t, i) => (hitsStr[i] || 0) >= sMed && t > 0.1 && t < dur - 0.15);   // the strong hits
@@ -593,9 +594,9 @@ function beatEdit(p){
   const runsOf = (test, minLen) => { const out = []; let a = null;
     wins.forEach((w, i) => { const on = test(w); if(on && a === null) a = w.t; if((!on || i === wins.length-1) && a !== null){ const b = on ? w.t + W : wins[i-1].t + W; if(b - a >= minLen) out.push([a, Math.min(dur, b)]); a = null; } });
     return out; };
-  const burst = runsOf(w => w.n >= 5 && w.db >= med - 3, 2);
-  const flick = runsOf(w => w.n <= 1 && w.db >= med + 1, 1.5).filter(([, b]) => cnt(HS, b, b + 2) >= 6)
-    .map(([a, b]) => [Math.max(a + 0.25, b - 3.25), b - 0.25]).filter(([a, b]) => b - a >= 1);
+  const burst = ai ? ai.filter(x => x.every === 'hits').map(x => [x.t, Math.min(dur, x.t + x.len)]) : runsOf(w => w.n >= 5 && w.db >= med - 3, 2);
+  const flick = (ai ? ai.filter(x => x.every === 'flicker').map(x => { const b = Math.min(dur - 0.15, x.t + x.len); return [Math.max(x.t, b - 3), b]; })
+    : runsOf(w => w.n <= 1 && w.db >= med + 1, 1.5).filter(([, b]) => cnt(HS, b, b + 2) >= 6).map(([a, b]) => [Math.max(a + 0.25, b - 3.25), b - 0.25])).filter(([a, b]) => b - a >= 0.5);
   if(!burst.length && !flick.length) return p;
   const inR = (t, R) => R.some(([a, b]) => t > a + 0.02 && t < b - 0.02);
   // the cut points: the plan's own, outside the bursts and flickers; every hit inside a burst; both ends of a flicker
@@ -2065,7 +2066,9 @@ function aiDone(charged, failed){
  * choices then). A few plain words also work without the AI: faster / calmer switch the style, "new version" remixes. */
 let wish = '', chatMsgs = [], chatWaiting = false, chatAsk = null, chatN = 0;
 // asked for anything in the chat: the AI's choices stand (the house taste steps aside)
-const aiTrusted = () => (!!wish || chatN > 0) && aiOn && !!director && director.key === dirKey();
+// the AI's plan is applied as it is: its transitions, keyframes and effects are not cut back by the rules' taste (that is
+// for a Reel made without the AI); what the creator asks for in Ask Shubix comes first
+const aiTrusted = () => aiOn && !!director && director.key === dirKey();
 function chatSay(who, text, wait){
   const p = document.createElement('p'); p.className = who + (wait ? ' wait' : ''); p.textContent = text;
   $('chatlog').appendChild(p); $('chatlog').scrollTop = $('chatlog').scrollHeight; return p;
@@ -2267,7 +2270,7 @@ function applyDirectorStyle(){
   const exact = copyExact();
   plan.forEach((s,i)=>{
     const d = director.slots[i], len = s.end - s.start;
-    if(exact) return;   // copying a Reel exactly: its own transitions, effects and moves (copyShots); the AI picks the moments
+    if(exact && !wish && !chatN) return;   // copying a Reel exactly: its own transitions, effects and moves (copyShots), the AI picks the moments; what the creator asks in the chat changes them
     // The AI decides the whole Reel: the rules' own choices (styleEdit: a bounce, a shake, a hook, a speed) go, and what
     // the AI leaves out of a shot stays plain (its answer's own defaults: a hard cut, no effect, normal speed)
     s.tr = 'hard'; s.efx = 'none'; s.sp = SPEED.normal; s.trByDir = false; s.fxByDir = false; s.ak = []; s.acc = [];
@@ -2878,7 +2881,7 @@ function makeEditNow(){
   if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
   const keptUk = ukKeep();
-  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = beatEdit(endWell(noFlashCuts(withPartCuts(repace(basePlan, pc.secs, beats, buf.duration, mode))))); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
+  stopAll(); plan = adaptPlan(); { const pc = paceNow(); if(pc) plan = beatEdit(endWell(noFlashCuts(withPartCuts(repace(basePlan, pc.secs.map(x => ({ ...x, every: x.every === 'hits' ? 1 : x.every === 'flicker' ? 8 : x.every })), beats, buf.duration, mode)))), pc.secs); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
   const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
   const used = sources.map(()=>[]);
   // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest

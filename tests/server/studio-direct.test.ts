@@ -121,6 +121,9 @@ describe("pace", () => {
     const out = parsePace(pin("smooth"), { story: "builds", sections: [{ i: 0, every: 1, why: "" }, { i: 1, every: 3, why: "drop" }, { i: 1, every: 8, why: "dup" }, { i: 9, every: 2, why: "" }] });
     expect(out.sections).toEqual([{ i: 0, every: 1, why: "" }, { i: 1, every: 2, why: "drop" }]);
     expect(parsePace(pin("fast"), { story: "", sections: [{ i: 2, every: 8, why: "" }] }).sections[0].every).toBe(8);
+    // a cut on every hit and a flicker are the AI's own choices too (the car and sports Reels' beat edits)
+    const w = parsePace(pin("auto"), { story: "", sections: [{ i: 0, every: "hits", why: "dense drums" }, { i: 1, every: "Flicker", why: "riser" }, { i: 2, every: "fast", why: "?" }] }).sections;
+    expect(w.map((x) => x.every)).toEqual(["hits", "flicker"]);
   });
   it("refuses an answer with no usable section, and asks the model once", async () => {
     expect(() => parsePace(pin(), { story: "", sections: [{ i: 7, every: 2, why: "" }] })).toThrow();
