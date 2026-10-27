@@ -570,6 +570,7 @@ function snap(t, w){
 
 /* =============== STEP 1: MUSIC =============== */
 let plan = [], basePlan = [], normGain = 1, mode = 'auto', musicToken = 0, editGen = 0;
+let refReading = false;   // a Reel to copy is being read: the AI waits for it (its pace and plan are for the copy)
 // Style: Auto follows the music as analysed; Smooth keeps fewer, longer shots on the strong beats; Fast cuts on every beat.
 // (a copied Reel keeps its short shots: no flash-cut merging; another song puts them on its beats, copyPlan)
 function adaptPlan(){ return copyTimed() ? copyPlanTimed() : mode === 'copy' && refProfile ? endWell(adaptPlan0()) : beatEdit(endWell(noFlashCuts(adaptPlan0()))); }
@@ -2519,7 +2520,7 @@ function refitDirector(src, withShots){
   return slots;
 }
 function directorMaybe(){
-  if(!aiOn || dirBusy || !edit.length || recording || !aiReelOk()) return;
+  if(!aiOn || dirBusy || !edit.length || recording || !aiReelOk() || refReading) return;
   if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
   if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
   const key = dirKey(); if((director && director.key===key && !director.interim) || dirFailedKey===key) return;
@@ -2628,7 +2629,7 @@ function paceFromSong(sp){
     return { t: x.t, len: x.len, every: best ? best.every : x.now }; }) };
 }
 function paceMaybe(){
-  if(paceBusy || !paceWanted() || !aiReelOk()) return;
+  if(paceBusy || !paceWanted() || !aiReelOk() || refReading) return;
   const key = paceKey();
   if(paceCache.has(key)){ pacing = paceCache.get(key); makeEdit(); return; }
   const sp = songPace.get(paceSongKey()), p = sp && paceFromSong(sp);
@@ -5802,6 +5803,7 @@ async function copyLook(){
 $('reffile').addEventListener('change', async e=>{
   const f = e.target.files && e.target.files[0]; e.target.value = ''; if(!f) return;
   $('refbox').hidden = false; $('refinfo').textContent = 'Reading the Reel…';
+  refReading = true;   // the AI waits for it: its pace and plan are for the copied Reel, not the Reel made meanwhile
   try{
     refProfile = await analyzeReference(f, (p, what)=>{ $('refinfo').textContent = 'Reading the Reel: ' + what + ' ' + Math.round(p*100) + '%'; });
     $('refinfo').textContent = '“' + f.name + '”: ' + describeRef(refProfile); $('stsaverow').hidden = false; $('ststat').textContent = ''; learnedKind = '';
@@ -5812,6 +5814,7 @@ $('reffile').addEventListener('change', async e=>{
     setMode('copy');
     refLookRun(f, refProfile);   // its texts, stickers, captions, background: the AI reads them (when it is on)
   }catch(err){ console.warn('reference not read:', err); $('refinfo').textContent = 'We could not read that Reel. Please try another video.'; notify('We could not read that Reel. Please try another video.', 'err'); }
+  finally{ refReading = false; if(buf && sources.length && !recording) makeEdit(); }   // now the AI may plan (the copy, or the Reel as it is)
 });
 $('refchange').addEventListener('click', ()=>$('reffile').click());
 /* ---- Copy a Reel, what is written and stuck on it ----
