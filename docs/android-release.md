@@ -5,7 +5,7 @@ its own icon, startup screen, microphone (the voiceover) and native save / share
 
 ## What is set up in the code
 
-- `com.shubix.app`, the Shubix icon and startup screen, target SDK 36 (Play asks for 35 or newer)
+- `in.shubix.reelmaker` (the Play app's package name), the Shubix icon and startup screen, target SDK 36 (Play asks for 35 or newer)
 - permissions: internet and the microphone (voiceover); https only; no cloud backup of the sign-in session
 - the version in `android/app/version.properties` (`--bump` raises it for each upload)
 - release signing from `android/keystore.properties` (never in git)
