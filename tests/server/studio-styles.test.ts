@@ -143,27 +143,28 @@ describe("storage", () => {
 });
 
 describe("Reels from creators wait for the administrator", () => {
+  // (a kind without the app's own seed Reels, so the counts are only the creators')
   it("a copied Reel teaches nothing until the administrator uses it under a kind; removing drops it", async () => {
     const { suggestStyle, listSuggestions, approveSuggestion, removeSuggestion, learnedStyle } = await import("@/server/studio/styles");
     store.cols.clear();
     store.user = "carol"; const fp = dance();
     await suggestStyle({ name: "trend 1", fp }); await suggestStyle({ name: "trend 1 again", fp });   // the same Reel twice: kept once
     await suggestStyle({ name: "trend 2", fp: dance() });
-    expect((await learnedStyle("dance", "all")).n).toBe(0);                     // waiting: teaches nothing
+    expect((await learnedStyle("fitness", "all")).n).toBe(0);                     // waiting: teaches nothing
     store.user = "admin"; const list = await listSuggestions();
     expect(list.total).toBe(2); expect(list.items.map((s) => s.name).sort()).toEqual(["trend 1", "trend 2"]);
     const one = list.items.find((s) => s.name === "trend 1")!, two = list.items.find((s) => s.name === "trend 2")!;
-    await approveSuggestion({ id: one.id, category: "dance" });
+    await approveSuggestion({ id: one.id, category: "fitness" });
     await removeSuggestion(two.id);
     expect((await listSuggestions()).total).toBe(0);
-    store.user = "dave"; expect((await learnedStyle("dance", "all")).n).toBe(1);  // used: it teaches everyone's styles
-    await expect(approveSuggestion({ id: one.id, category: "dance" })).rejects.toThrow();
+    store.user = "dave"; expect((await learnedStyle("fitness", "all")).n).toBe(1);  // used: it teaches everyone's styles
+    await expect(approveSuggestion({ id: one.id, category: "fitness" })).rejects.toThrow();
   });
   it("a Reel a creator made and saved waits the same way, marked as made", async () => {
     const { suggestStyle, listSuggestions, learnedStyle } = await import("@/server/studio/styles");
     store.cols.clear();
     store.user = "carol"; await suggestStyle({ name: "my reel", fp: dance(), from: "made" }); await suggestStyle({ name: "copied", fp: dance() });
-    expect((await learnedStyle("dance", "all")).n).toBe(0);
+    expect((await learnedStyle("fitness", "all")).n).toBe(0);
     store.user = "admin"; const by = Object.fromEntries((await listSuggestions()).items.map((s) => [s.name, s.from]));
     expect(by).toEqual({ "my reel": "made", copied: "copy" });
   });

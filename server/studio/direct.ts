@@ -50,7 +50,7 @@ const Trend = z.enum(["rising", "falling", "steady"]);
 /** A Reel the creator wants theirs to feel like ("Copy a Reel" or a saved / learned style), measured on the phone:
  * its pace, its transition mix, and shot by shot: how long, the transition into it, whether it zooms, and the music
  * under it. The AI copies its behaviour (what it does on which kind of musical moment), not just its order. */
-const RefKind = z.enum(["start", "hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars"]);
+const RefKind = z.enum(["start", "hard", "flash", "fade", "whip", "zoom", "dissolve", "glitch", "spin", "iris", "diamond", "heart", "star", "wipe", "bars", "blur"]);
 /** a camera move measured in the reference: keyframes at fractions f of the shot (0 = start, 1 = end) */
 const RefKey = z.object({ f: z.number().min(0).max(1), s: z.number().min(0.4).max(2.5), x: z.number().min(-0.6).max(0.6), y: z.number().min(-0.6).max(0.6), r: z.number().min(-60).max(60) });
 export const RefMoment = z.object({
@@ -58,6 +58,8 @@ export const RefMoment = z.object({
   loud: lvl.optional(), trend: Trend.optional(), drums: lvl.optional(), bass: lvl.optional(), voice: lvl.optional(),
   hit: z.enum(HIT_KINDS).optional(), drop: z.boolean().optional(),
   move: z.array(RefKey).max(5).optional(), ease: z.enum(EASES).optional(), shake: z.boolean().optional(), freeze: z.number().min(0).max(1).optional(),
+  /** where the shot starts in the Reel (s), a flicker montage, the Reel's black end card */
+  at: z.number().min(0).max(600).optional(), flick: z.boolean().optional(), black: z.boolean().optional(),
 });
 export const Reference = z.object({
   name: word(80), medianBeats: z.number().min(0).max(64), hookBeats: z.number().min(0).max(64), onBeat: lvl,
@@ -98,6 +100,8 @@ export const DirectIn = z.object({
   allowed: z.object({ fx: z.array(z.string().max(24)).max(80), tr: z.array(z.string().max(24)).max(80) }).optional(),
   /** what the creator asked for in the studio's chat ("more zooms", "calm, cinematic", "show my face first"): it wins */
   wish: z.string().max(WISH_MAX).default(""),
+  /** the template's kind of Reel (car, wedding...): its trend comes first in the AI's guide */
+  reelKind: z.string().regex(/^[a-z]{2,16}$/).optional(),
   /** the Reel (the phone's id of it): Shubix AI is charged once per Reel */
   reelId: z.string().regex(/^[\w-]{6,64}$/).optional(),
   /** a chat message this plan answers (its number in the chat): charged once, small or whole-Reel by its words */
@@ -149,7 +153,7 @@ Decide like this:
 - Variety: never two moments of the same clip, or two that look alike, next to each other; alternate wide and close, still and moving.
 - Transitions follow the music. Hard cuts give the special ones their punch; use the special ones freely wherever the music invites them: flash or zoom on a drop or a big hit after a gap, whip when the camera already moves or on a fast snare roll, glitch on electronic hits, dissolve or dip when the music gets calm or the voice holds a long note, iris/wipe/bars on a section change. Avoid the same special transition twice in a row. The budget is a guide for how many look good in this Reel.
 - Effects follow the sound: zoomburst or punch on a drop or a p=3 hit, shake on heavy bass and kicks, tilt on snares, pan/pan-soft on long calm shots, drift on breaks, bounce when the drums are steady, none when the moment is strong by itself.
-- Keyframes ("keys"): place up to ${LIMITS.accents} moments INSIDE a shot, exactly on its hits ("at" copied from hits): "punch" (quick zoom) on a strong dhol/snare/tabla hit, "shake" on a heavy kick or bass, "flash" (light burst) on the biggest hit, "pulse" (small bump) on lighter repeated hits. Only where a hit really deserves it; most shots need none.
+- Keyframes ("keys"): place up to ${LIMITS.accents} moments INSIDE a shot, exactly on its hits ("at" copied from hits): "punch" (quick zoom) on a strong dhol/snare/tabla hit, "shake" on a heavy kick or bass, "flash" (light burst) on the biggest hit, "pulse" (small bump) on lighter repeated hits. Trending edits put a key on most strong hits: use them freely, as many as the music asks for.
 - Camera moves ("move"): keyframes of the camera inside the shot, like an editor's keyframes: at = fraction of the shot (0 = its start, 1 = its end), s = zoom (1 = as filmed, 1.2 = 20% closer), x / y = slide (fraction of the frame, -0.15..0.15), r = turn in degrees (-15..15), ez = how it moves into that keyframe (lin, inOut, outCubic, outExpo = fast then settles, outBack = overshoots). E.g. a push-in on a build-up: [{"at":0,"s":1},{"at":1,"s":1.18,"ez":"inOut"}]; a snap zoom on the drop: [{"at":0,"s":1.3},{"at":0.25,"s":1,"ez":"outExpo"}]; a slow tilt: [{"at":0,"r":-4},{"at":1,"r":3}]. Use moves for long shots and for anything the reference does; leave "effect" "none" on a shot with a move.
 - Shapes: iris (circle), diamond, heart, star, wipe and bars open the next shot through that shape: use them for a section change, a calm reveal, or when the reference does.
 - More transitions: slideleft / slideright / slideup / slidedown (push), swipeup (a feed scroll), zoomout, blur (blur through), flip (card flip), luma (light fade by brightness), pixelate, clock (clock wipe), doors (doors open), ripple, burn (film burn), dropin (drops in and bounces).
@@ -158,6 +162,7 @@ Decide like this:
 - Beat shapes and beat effects (effect names) step on the beats INSIDE a shot, best on shots of 1 s or more with 2+ beats: boxgrow (the shot in a small box on the subject that grows on each beat to full frame), grid (2x2 or 3x3 windows opening one per beat), strips (3 strips one per beat), circle / heartbeat / starbeat (the shot in that shape, pulsing on each beat), frame (frame in frame on its blurred copy), mirror, kaleido (kaleidoscope), triple (the shot three times, one band per beat), vhs (retro tape), strobe (black and white flash on each beat), rgbpulse (colour split on each beat), blurpulse (blur on each beat).
 - Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm / hi (highlights) / sh (shadows) / hue (-1..1), sharp / vig (vignette) / beauty (smooth skin) / stab (stabilize a shaky shot) (0..1), fin / fout (fade in / out, seconds). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
 - Camera moves are as free as the creator's own keyframes: zoom 0.1-4, slide -1..1 of the frame, turn -360..360 degrees, up to ${LIMITS.moveKeys} keyframes; keys on hits up to ${LIMITS.keys} a shot.
+- Use everything you know about what is trending in Reels right now (velocity edits, beat-synced zoom punches, speed ramps, 3D zooms, shake on the bass, whips on snare rolls, flash on drops...): the app applies your choices as they are, nothing is cut back.
 - There are no limits on style or budget: use the WHOLE toolbox, combine tools (a grid on the drop with an RGB split key, a box that grows while the camera turns), invent. Every Reel must feel new and different from the creator's recent ones.`;
 
 /** a long Reel is planned in parts of CHUNK cuts, each with the whole song's context */
@@ -180,7 +185,7 @@ const COPY_GUIDE = `COPY THE REFERENCE: the creator wants this Reel to feel like
 - its hook length, its mix of transitions (the budget follows it), how many shots move.
 Where the reference and the general rules disagree, the reference wins.`;
 
-export function prompt(d: DirectIn, taste = "") {
+export function prompt(d: DirectIn, taste = "", trends = "") {
   const first = d.slots[0].i, last = d.slots[d.slots.length - 1].i;
   return `Plan this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s.${d.hook ? ` On-screen hook text: "${clean(d.hook, 60)}".` : ""}${d.story ? ` The story so far: "${clean(d.story, 160)}".` : ""}${first > 0 ? ` These are cuts ${first}-${last} of a longer Reel (the hook is not in this part).` : ""}
 Clips: ${JSON.stringify(d.clips.map((c) => ({ alias: c.alias, summary: clean(c.summary, 140), mood: clean(c.mood, 20) })))}
@@ -188,7 +193,7 @@ ${d.recent.length ? `Used in this creator's last Reels (make this one feel diffe
     ...(s.music ? { music: s.music } : {}),
     candidates: s.candidates.map((c) => ({ id: c.id, clip: c.clip, at: +c.at.toFixed(1), score: +c.score.toFixed(2), note: clean(c.note, 60), roles: c.roles, motion: c.motion, people: c.people, camera: c.camera })) })))}
 ${GUIDE}
-${wishText(d.wish)}Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
+${trends ? `${clean(trends, 2400)}\n` : ""}${wishText(d.wish)}Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
 Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>"} with one entry for every cut.`;
 }
 
@@ -208,9 +213,9 @@ export async function directPatch(d: DirectIn, provider: ManagedProvider = getPr
 }
 
 /** New mix: the same cuts, edited differently (the first plan is the one the creator has now) */
-export function variantsPrompt(d: DirectIn, taste = "", n = d.variants) {
+export function variantsPrompt(d: DirectIn, taste = "", n = d.variants, trends = "") {
   const first = d.slots[0].i;
-  return `${prompt(d, taste).replace(/\nReturn JSON: \{"slots"[\s\S]*$/, "")}
+  return `${prompt(d, taste, trends).replace(/\nReturn JSON: \{"slots"[\s\S]*$/, "")}
 The creator pressed "New mix": make ${n} DIFFERENT plans for these same cuts, each one a complete, good edit with its own idea (for example: one more energetic, one calmer and more cinematic, one with other moments of the clips, one with other transitions and camera moves). Across the plans, pick other candidate moments where a good one exists and vary transitions, effects, speeds and keys; each plan still follows the music and every rule above.
 Return JSON: {"plans": [{"slots": [{"i": ${first}, "shot": "${first}b", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [], "move": []}], "story": "<one sentence>"}]} with exactly ${n} plans, each with one entry for every cut. Leave out "why". "move" only where a camera move adds something.`;
 }
@@ -285,10 +290,10 @@ export function parsePlan(d: DirectIn, a: AnswerIn): { slots: DirectedSlot[]; st
 
 /** New mix: up to MAX_VARIANTS other plans, each checked like the plan; a long Reel is asked in parts, the parts' plans
  * joined in order (a part that returned fewer plans repeats its last one). */
-export async function directVariants(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
+export async function directVariants(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "", trends = "") {
   const n = Math.max(1, Math.min(MAX_VARIANTS, d.variants || 1)), parts = chunks(d);
   const per = await Promise.all(parts.map(async (p) => {
-    const ans = await provider.structured(SYSTEM, variantsPrompt(p, taste, n), VariantsAnswer, { task: TASK, temperature: 0.9, maxOutputTokens: Math.min(16_000, 400 + p.slots.length * 100 * n) });
+    const ans = await provider.structured(SYSTEM, variantsPrompt(p, taste, n, trends), VariantsAnswer, { task: TASK, temperature: 0.9, maxOutputTokens: Math.min(16_000, 400 + p.slots.length * 100 * n) });
     const plans: { slots: DirectedSlot[]; story: string }[] = [];
     for (const a of ans.plans.slice(0, n)) { try { plans.push(parsePlan(p, a)); } catch { /* an unusable plan is left out */ } }
     if (!plans.length) throw new AIResponseError("The AI director returned no usable new mix.");
@@ -302,10 +307,10 @@ export async function directVariants(d: DirectIn, provider: ManagedProvider = ge
   return { plans, model: provider.model, provider: provider.name };
 }
 
-export async function direct(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
+export async function direct(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "", trends = "") {
   const parts = chunks(d);
   const plans = await Promise.all(parts.map(async (p) => {
-    const ans = await provider.structured(SYSTEM, prompt(p, taste), Answer, { task: TASK, temperature: 0.7, maxOutputTokens: Math.min(12_000, 400 + p.slots.length * 170) });
+    const ans = await provider.structured(SYSTEM, prompt(p, taste, trends), Answer, { task: TASK, temperature: 0.7, maxOutputTokens: Math.min(12_000, 400 + p.slots.length * 170) });
     return parsePlan(p, ans);
   }));
   return { slots: plans.flatMap((p) => p.slots), story: plans[0].story || d.story, model: provider.model, provider: provider.name };
@@ -325,6 +330,8 @@ export const PaceIn = z.object({
   /** the Reel's own length when the sections cover the whole song (the creator uses a part of it, and may move it) */
   reel: z.number().min(1).max(600).optional(),
   wish: z.string().max(WISH_MAX).default(""),
+  /** the template's kind of Reel (car, wedding...): its trend comes first in the AI's guide */
+  reelKind: z.string().regex(/^[a-z]{2,16}$/).optional(),
   sections: z.array(z.object({
     i: z.number().int().min(0).max(LIMITS.sections - 1),
     t: z.number().min(0).max(600), len: z.number().min(0.1).max(600), beats: z.number().int().min(0).max(2000),
@@ -334,30 +341,34 @@ export const PaceIn = z.object({
   })).min(1).max(LIMITS.sections),
 });
 export type PaceIn = z.infer<typeof PaceIn>;
-const PaceAnswer = z.object({ sections: z.array(z.object({ i: z.coerce.number(), every: z.coerce.number(), why: z.string().default("") })), story: z.string().default("") });
+const PaceAnswer = z.object({ sections: z.array(z.object({ i: z.coerce.number(), every: z.union([z.number(), z.string()]), why: z.string().default("") })), story: z.string().default("") });
+/** besides a cut every 1-8 beats: "hits" (a cut on every strong drum hit) and "flicker" (a new picture on every frame) */
+export const PACE_WORDS = ["hits", "flicker"] as const;
 /** any pace in any style: the style is a direction the AI reads, not a limit */
 export const PACE_OK: Record<(typeof MODES)[number], number[]> = { auto: [1, 2, 4, 8], smooth: [1, 2, 4, 8], fast: [1, 2, 4, 8], copy: [1, 2, 4, 8] };
 
-export function pacePrompt(d: PaceIn, taste = "") {
+export function pacePrompt(d: PaceIn, taste = "", trends = "") {
   const whole = d.reel && d.reel < d.duration - 0.5 ? ` The Reel uses a ${d.reel.toFixed(1)} s part of this song, and the creator may move that part: choose the pace for every section of the whole song, as if each could be in the Reel.` : "";
   return `Choose the pace of this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s (one beat = ${(60 / d.bpm).toFixed(2)} s).${whole} Footage: ${d.clips} ${d.kind === "photo" ? "photos" : "clips"}, ${Math.round(d.footage)} s in all.
 ${taste ? `This creator's taste: ${clean(taste, 400)}\n` : ""}Sections of the song (loud/bass/drums/voice 0-1 for this song; hitRate = strong hits per second; starts = what opens the section; now = beats per cut the phone's rules would use): ${JSON.stringify(d.sections)}
-${d.reference ? `Reference Reel (copy its pace by musical situation: how many beats its shots last on loud / quiet parts, drops and build-ups, and its hook): ${referenceText(d.reference)}\n` : ""}${wishText(d.wish)}For each section choose "every": a cut every 1, 2, 4 or 8 beats. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
+${trends ? `${clean(trends, 2400)}\n` : ""}${d.reference ? `Reference Reel (copy its pace by musical situation: how many beats its shots last on loud / quiet parts, drops and build-ups, and its hook): ${referenceText(d.reference)}\n` : ""}${wishText(d.wish)}For each section choose "every": a cut every 1, 2, 4 or 8 beats, or "hits" (a cut on every strong drum hit: the beat edits of car, bike and sports Reels, a dhol or snare roll, a dense fast part with hitRate 5 or more), or "flicker" (a different picture on every frame, up to 3 s at the end of the section: a riser or a held note right before a drop). Use your own knowledge of what trending Reels do right now. Like a top editor: the hook section and drops cut fast (1-2), build-ups speed up toward the drop, verses and calm voice parts breathe (2-4), breaks and long held notes hold (4-8), a strong steady groove cuts on every beat or every 2. Little footage: avoid 1 on long sections. Allowed for this style: ${PACE_OK[d.mode].join(", ")}. Shots longer than about 4 s look slow on Reels.
 Return JSON: {"sections": [{"i": 0, "every": 2, "why": "<max 8 words>"}], "story": "<one sentence: how the Reel's energy moves>"} with one entry per section.`;
 }
 export function parsePace(d: PaceIn, a: z.infer<typeof PaceAnswer>) {
   const ok = PACE_OK[d.mode], ids = new Set(d.sections.map((s) => s.i)), seen = new Set<number>();
-  const sections: { i: number; every: number; why: string }[] = [];
+  const sections: { i: number; every: number | (typeof PACE_WORDS)[number]; why: string }[] = [];
   for (const s of a.sections) {
-    const i = Math.trunc(Number(s.i)), e = Number(s.every);
-    if (!ids.has(i) || seen.has(i) || !Number.isFinite(e)) continue;
+    const i = Math.trunc(Number(s.i)), word = String(s.every).trim().toLowerCase(), e = Number(s.every);
+    if (!ids.has(i) || seen.has(i)) continue;
+    if ((PACE_WORDS as readonly string[]).includes(word)) { seen.add(i); sections.push({ i, every: word as (typeof PACE_WORDS)[number], why: clean(s.why, 60) }); continue; }
+    if (!Number.isFinite(e)) continue;
     seen.add(i);
     sections.push({ i, every: ok.reduce((b, x) => (Math.abs(x - e) < Math.abs(b - e) ? x : b), ok[0]), why: clean(s.why, 60) });
   }
   if (!sections.length) throw new AIResponseError("The AI returned no usable pace.");
   return { sections: sections.sort((x, y) => x.i - y.i), story: clean(a.story, 160) };
 }
-export async function pace(d: PaceIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
-  const ans = await provider.structured(SYSTEM, pacePrompt(d, taste), PaceAnswer, { task: TASK, temperature: 0.3, maxOutputTokens: 300 + d.sections.length * 60 });
+export async function pace(d: PaceIn, provider: ManagedProvider = getProvider(TASK), taste = "", trends = "") {
+  const ans = await provider.structured(SYSTEM, pacePrompt(d, taste, trends), PaceAnswer, { task: TASK, temperature: 0.3, maxOutputTokens: 300 + d.sections.length * 60 });
   return { ...parsePace(d, ans), model: provider.model, provider: provider.name };
 }

@@ -1,3 +1,4 @@
+import { trendText } from "@/server/studio/styles";
 import { isPlanAdmin } from "@/server/core/admin";
 import { body } from "@/server/core/body";
 import { balanceNow, chargeOnce, chatTurn, requireAiPlan } from "@/server/credits";
@@ -28,7 +29,7 @@ export const POST = route(async (req) => {
     if (d.reelId) await chargeOnce("studio_mix", `${d.reelId}:mix:${d.slots.length}:${d.slots.map((s) => s.t.toFixed(1)).join(",").slice(0, 120)}`, "Change Reel: Shubix's versions");
     // New mix: other plans for the same cuts, in one call
     try {
-      const res = await directVariants(d, undefined, await taste());
+      const res = await directVariants(d, undefined, await taste(), await trendText(d.reelKind));
       recordRun({ kind: "mix", cuts: d.slots.length, mode: d.mode, provider: res.provider, model: res.model, ms: Date.now() - t0, ok: true });
       return res;
     } catch (e) {
@@ -37,7 +38,7 @@ export const POST = route(async (req) => {
     }
   }
   try {
-    const res = await direct(d, undefined, await taste()).catch(async (e) => { await chatCharge?.undo(); throw e; });
+    const res = await direct(d, undefined, await taste(), await trendText(d.reelKind)).catch(async (e) => { await chatCharge?.undo(); throw e; });
     recordRun({ kind: "plan", cuts: d.slots.length, mode: d.mode, provider: res.provider, model: res.model, ms: Date.now() - t0, ok: true,
       transitions: res.slots.filter((s) => s.transition && s.transition !== "hard").length,
       effects: res.slots.filter((s) => s.effect && s.effect !== "none").length, keys: res.slots.reduce((n, s) => n + s.keys.length, 0) });

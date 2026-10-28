@@ -151,7 +151,7 @@ function TrendCard({ t }: { t: LearnedTrend }) {
 }
 
 const KINDS: [string, string][] = [["wedding", "Wedding"], ["travel", "Travel"], ["festival", "Festival"], ["dance", "Dance"], ["talking", "Talking"], ["product", "Product"],
-  ["food", "Food"], ["fitness", "Fitness"], ["vlog", "Vlog"], ["birthday", "Birthday"], ["other", "Other"]]; // server/studio/styles.ts CATEGORIES
+  ["food", "Food"], ["fitness", "Fitness"], ["vlog", "Vlog"], ["birthday", "Birthday"], ["car", "Car & bike"], ["shop", "Shop & opening"], ["event", "Event & party"], ["other", "Other"]]; // server/studio/styles.ts CATEGORIES
 
 function SuggestionRow({ s }: { s: StyleSuggestion }) {
   const qc = useQueryClient();
