@@ -12,13 +12,14 @@ import { useT } from "@/hooks/useApi";
 import { Button, Card, Eyebrow, Icon, Input, Logo } from "@/components/atoms";
 import { ErrorBanner, Field, PasswordInput } from "@/components/molecules";
 import { LegalFooter } from "@/components/molecules/Legal";
+import { useIsApp } from "@/lib/nativeApp";
 
 /** Sign in, or create an account (accounts on: AUTH_ENABLED on the server). Each field says what is wrong as people
  * type (after they leave it); the button waits until the form is right. */
 export default function LoginPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const t = useT();
+  const t = useT(), inApp = useIsApp();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -154,9 +155,9 @@ export default function LoginPage() {
               </div>
             </Card>
 
-            <Link href={emailOk(email) ? "/affiliate?email=" + encodeURIComponent(email.trim()) : "/affiliate"} className="mt-4 block text-center text-[12px] font-semibold text-muted transition-colors hover:text-foreground">
+            {!inApp && <Link href={emailOk(email) ? "/affiliate?email=" + encodeURIComponent(email.trim()) : "/affiliate"} className="mt-4 block text-center text-[12px] font-semibold text-muted transition-colors hover:text-foreground">
               {t("auth.partnerLink")}
-            </Link>
+            </Link>}
             <div className="mt-4 flex justify-center"><StoreBadges compact className="w-full max-w-[340px]" /></div>
           </div>
           <LegalFooter compact className="mx-auto mt-6 w-full max-w-[440px] border-t border-border/70 pt-3 lg:mt-8" />

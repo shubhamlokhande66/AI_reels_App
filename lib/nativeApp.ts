@@ -1,5 +1,7 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
+
 /** Shubix inside its phone app (Capacitor, capacitor.config.ts): what the web cannot do there. An app's web view has no
  * file download and no share sheet of its own, so the exported Reel is written to the phone (the app's cache) and handed
  * to the phone's share sheet: save it, post it to Instagram, send it on WhatsApp. On the website nothing here is used. */
@@ -10,6 +12,9 @@ export const isApp = () => {
   const cap = (window as unknown as { Capacitor?: CapGlobal }).Capacitor;
   return !!cap?.isNativePlatform?.();
 };
+const noSub = () => () => {};
+/** isApp() for a component (false on the server and the first paint, then the truth: it never changes while open). */
+export const useIsApp = () => useSyncExternalStore(noSub, isApp, () => false);
 
 // base64 of a piece of the file, without the data: prefix (pieces of 3 MB: never the whole video in one string)
 const PIECE = 3 * 1024 * 1024;

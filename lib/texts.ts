@@ -169,7 +169,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   ),
   page(PAGES, "affiliate", "Affiliate dashboard",
     S("Page", C("Header", T("nav.affiliate", "Title (also in the menu)", "Affiliate dashboard"), T("aff.sub", "Line under the title", "Your link, your customers and what you earn."),
-      T("aff.loading", "While loading", "Loading your dashboard…"), T("aff.notYet", "Not an affiliate", "You are not in the affiliate program yet."), T("aff.toRewards", "Link to Invite & earn", "Go to Invite & earn"),
+      T("aff.loading", "While loading", "Loading your dashboard…"), T("aff.webOnlyTitle", "In the phone app: title", "The affiliate program is on our website"), T("aff.webOnlyLine", "In the phone app: line", "Open Shubix in your browser to join the affiliate program and see your earnings."), T("aff.notYet", "Not an affiliate", "You are not in the affiliate program yet."), T("aff.toRewards", "Link to Invite & earn", "Go to Invite & earn"),
       T("aff.pendingTitle", "Waiting: title", "Your request is with our team"), T("aff.pausedTitle", "Paused: title", "Your affiliate account is paused"), T("aff.open", "Button on Invite & earn", "Open dashboard"))),
     S("Sign in & join", C("Sign in (by email code)", T("aff.signTitle", "Title", "Affiliate partner dashboard"),
       T("aff.signLine", "Line ({percent}, {months})", "Earn {percent}% of what the people you bring pay, for {months} months. Enter your email: we send you a code, no password needed.", true),
