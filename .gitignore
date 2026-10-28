@@ -76,3 +76,8 @@ scripts/studio-keyframes/out/
 
 # made by scripts/cf-assets.mjs before a Cloudflare deploy
 /cloudflare/assets/
+
+# Android upload key (docs/android-release.md)
+*.jks
+*.keystore
+android/keystore.properties

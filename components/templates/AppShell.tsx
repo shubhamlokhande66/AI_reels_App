@@ -236,7 +236,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
       >
         <div className="relative grid grid-cols-[1fr_44px] items-center gap-2 border-b border-[color-mix(in_srgb,var(--accent)_16%,var(--line))] bg-[color-mix(in_srgb,var(--bar)_88%,transparent)] px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] shadow-[0_12px_30px_-28px_rgba(0,0,0,.8)] backdrop-blur-2xl before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-accent/50 before:to-transparent before:content-['']">
           <span className="flex min-w-0 items-center">
-            <Logo height={48} />
+            <Logo height={72} />
           </span>
           <IconButton icon="close" plain label={t("common.closeMenu")} onClick={onClose} />
         </div>
@@ -463,9 +463,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* computers: the Noir sidebar */}
       <aside className="relative hidden border-r border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] text-foreground [background:var(--sidebar)] md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-60 md:flex-col md:gap-3 md:overflow-y-auto md:px-3.5 md:py-4 [&>*]:shrink-0">
-        <Link href="/" className="group relative flex h-[66px] items-center justify-center overflow-hidden rounded-[17px] border border-[color-mix(in_srgb,var(--accent)_17%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] shadow-[0_12px_30px_-26px_rgba(0,0,0,.8)] transition-[border-color,background] duration-200 hover:border-accent/35 hover:bg-surface/80" aria-label="Shubix home">
+        <Link href="/" className="group relative flex h-[128px] items-center justify-center overflow-hidden rounded-[17px] border border-[color-mix(in_srgb,var(--accent)_17%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] shadow-[0_12px_30px_-26px_rgba(0,0,0,.8)] transition-[border-color,background] duration-200 hover:border-accent/35 hover:bg-surface/80" aria-label="Shubix home">
           <span aria-hidden className="pointer-events-none absolute -right-5 -top-9 h-20 w-20 rounded-full bg-accent/10 blur-2xl transition-transform duration-300 group-hover:scale-125" />
-          <Logo height={54} className="relative max-w-full" />
+          <Logo height={112} className="relative max-w-full" />
         </Link>
         <Button href="/create/music" reload icon="plus" full size="md" className="!h-11 !rounded-[14px] !text-[12.5px] !shadow-[0_12px_30px_-18px_var(--brand-glow)]">
           {t("nav.newReel")}

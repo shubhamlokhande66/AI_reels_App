@@ -1,13 +1,13 @@
-// The Shubix logo (logo/ → public/brand): the neon film-ribbon S, SHUBIX and "Reels video studio", on a clear
-// background (it reads on the dark and the light look). The installed app's icons are made from the same picture.
+// The Shubix logo with its name (logo/ → public/brand, scripts/brand-assets.mjs): the gold S with the play button and the
+// brain, SHUBIX and "Brain reels maker" under it, as designed, on its clear ground. The browser tab uses the emblem alone.
 /* eslint-disable @next/next/no-img-element -- a small static picture; no image optimisation needed */
 export function Logo({ height = 40, className = "" }: { height?: number; className?: string }) {
   return (
     <img
-      src={height > 60 ? "/brand/shubix-logo.webp" : "/brand/shubix-logo-sm.webp"}
+      src={height > 60 ? "/brand/shubix-gold.webp" : "/brand/shubix-gold-sm.webp"}
       alt="Shubix · Reels video studio"
       height={height}
-      width={height * 2}
+      width={Math.round(height * 1.36)}
       className={`block select-none ${className}`}
       style={{ height, width: "auto" }}
       draggable={false}

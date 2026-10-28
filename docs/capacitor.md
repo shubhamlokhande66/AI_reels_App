@@ -34,9 +34,12 @@ Install it on a phone over USB (`adb install -r app-debug.apk`) or send the file
 Needs Xcode. `npm run cap:ios` opens the project in Xcode: choose your iPhone and press Run (a free Apple ID can run it
 on your own phone for 7 days; TestFlight and the App Store need the Apple Developer Program).
 
+## Google Play
+
+The signed release bundle, the upload key and the Play Console steps: docs/android-release.md.
+
 ## Still to do for the stores
 
 - saving the exported Reel to Photos / Gallery and the share sheet through native plugins (the web download and
   share are limited inside an app)
-- app icon and splash screen from `public/icon-512.png` (`npx @capacitor/assets generate`)
 - iOS payments: Apple In-App Purchase instead of Razorpay (App Store rule 3.1.1)
