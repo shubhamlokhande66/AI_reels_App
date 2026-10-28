@@ -56,7 +56,10 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const q = new URLSearchParams(location.search).get("tool");
   // The made Reel opens as a review: the preview big, Change Reel, Export and Edit. Edit opens the timeline and the tools
   // (✓ Done editing goes back). A saved Reel opened again (?p=) or a tool asked for (?tool=) opens in the editor.
-  let editing = /[?&](p|tool)=/.test(location.search);
+  // The new design shows the preview, Clip Controls, the timeline and the tools together, on phones too: the made Reel
+  // always opens in the editor (the older "review" screen hid the timeline behind an Edit button the design no longer has,
+  // so a phone coming from Generate had no timeline at all)
+  let editing = true;
   const reviewNow = () => made() && !root.classList.contains("fopen") && !editing;
   const setEditing = (on: boolean) => { editing = on; if (!on && !wide()) tool = ""; apply(); if (on) requestAnimationFrame(() => $("lanes").scrollIntoView({ block: "nearest" })); };
 
@@ -246,7 +249,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   document.addEventListener("click", (e) => { if (!$("tbaspmenu").hidden && !$("tbasp").contains(e.target as Node)) aspMenu(false); }, sig);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("tbaspmenu").hidden) { aspMenu(false); $("tbaspbtn").focus(); } }, sig);
   // the top bar's Back: the Create flow's own (the screen before: the clips, or where the page came from)
-  $("tbback").addEventListener("click", () => { if (editing && !wide() && made()) { selectClip(-1); closeShot(); setEditing(false); return; } $("fback").click(); }, sig);
+  $("tbback").addEventListener("click", () => { $("fback").click(); }, sig);
   $("tbchat").addEventListener("click", () => $("chatfab").click(), sig);
   const mirror = () => { if (top.disabled !== exp.disabled) top.disabled = exp.disabled; // only on a change: a write is a mutation too
     for (const [a, b] of [["tundo", "undo"], ["tredo", "redo"]] as const) { const x = $<HTMLButtonElement>(a), y = $<HTMLButtonElement>(b); if (x.disabled !== y.disabled) x.disabled = y.disabled; } };

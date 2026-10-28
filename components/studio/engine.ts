@@ -43,7 +43,7 @@ if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3){
   queueMicrotask(() => {
     if(ac.signal.aborted) return;
     const q = new URLSearchParams(location.search);
-    if(lifeBefore.proj && !q.get('p')){ location.replace('/create/edit?p=' + encodeURIComponent(lifeBefore.proj)); return; }
+    if(lifeBefore.proj && !q.get('p')){ location.replace('/editor?p=' + encodeURIComponent(lifeBefore.proj)); return; }
     setTimeout(() => { try{ notify('Your phone ran short of memory and reloaded. Add your clips again: what was read is kept, so it is quick now.', 'err'); }catch(e){} }, 800);
   });
 }
@@ -1104,12 +1104,13 @@ async function scanMotion(src, onProgress, faces){
   };
   // a frame every 1/30 s for short clips, sparser for long ones (at most every 0.2 s): about what playing the clip at 2-12x
   // speed on a 60 Hz screen used to sample, which the thresholds below were tuned on
-  const step = Math.max(1/30, Math.min(12, Math.max(2, src.dur/6))/60), ts = [];
+  const step = Math.max(1/30, Math.min(12, Math.max(2, src.dur/6))/60);
+  const ts = [];
   for(let t=0; t<src.dur-0.02; t+=step) ts.push(+t.toFixed(4));
   try{
     let k = 0;
     let fi = 0; const half = step/2;
-    for await (const img of rd.frames(ts)){ const t = ts[k++]; if(img) grab(img, t); if(k % 8 === 0) onProgress(t/src.dur);
+    for await (const img of rd.frames(ts)){ const t = ts[k++]; if(img) grab(img, t); if(k % 8 === 0){ onProgress(t/src.dur); await new Promise(r=>setTimeout(r,0)); }
       // the faces' times this frame stands for (within half a step: at most 0.1 s off)
       if(faces && img) while(fi < faces.ts.length && faces.ts[fi] <= t + half){ if(faces.ts[fi] >= t - half && !(await faces.each(img, faces.ts[fi]))){ faces = null; break; } fi++; }
     }
@@ -1415,7 +1416,9 @@ async function readVideo(src){
     src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight;
     if(!isFinite(src.dur) || src.dur<=0 || !src.w) throw new Error('bad');
     stage = 'first picture'; await videoData(v);
-    stage = 'seek'; v.currentTime = Math.min(src.dur*0.3, 2); await waitEv(v,'seeked');
+    // The first decoded frame is enough for the clip's small queue thumbnail. Avoid a second iPhone seek here;
+    // thumbnail choice has no effect on the Reel analysis or export. Keep the existing Android thumbnail unchanged.
+    if(!IOS){ stage = 'seek'; v.currentTime = Math.min(src.dur*0.3, 2); await waitEv(v,'seeked'); }
     stage = 'thumbnail';
     const th = card.querySelector('.th'); th.width=320; th.height=180; const tg=th.getContext('2d');
     const r = Math.max(320/src.w, 180/src.h); tg.drawImage(v,(320-src.w*r)/2,(180-src.h*r)/2,src.w*r,src.h*r);
