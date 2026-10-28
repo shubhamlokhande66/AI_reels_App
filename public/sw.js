@@ -3,13 +3,13 @@
    - Pages always come from the network when there is one (fresh data); with no connection, the last copy of the page
      is shown, else a friendly "You're offline" page.
    - Nothing from /api is ever cached: projects, credits and accounts are always live. */
-const VERSION = "shubix-v2"; // v2: the neon logo and icons
+const VERSION = "shubix-v3"; // v3: the gold logo and icons
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(STATIC).then((c) => c.addAll([OFFLINE, "/icon-192.png", "/icon-512.png", "/brand/shubix-logo-sm.webp"])).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(STATIC).then((c) => c.addAll([OFFLINE, "/icon-192.png", "/icon-512.png", "/brand/shubix-gold-sm.webp"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {

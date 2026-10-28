@@ -58,7 +58,7 @@ export function LegalFooter({ className = "", compact = false }: { className?: s
       <div className="pointer-events-none absolute -right-10 -top-16 h-36 w-36 rounded-full bg-accent/5 blur-3xl" />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
         <Link href="/" aria-label="Shubix home" className="w-fit rounded-lg transition-opacity duration-200 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
-          <Logo height={34} />
+          <Logo height={72} />
         </Link>
         <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-4 gap-y-1.5 sm:justify-end">
           {[...LEGAL_LINKS, ["/pricing", "legal.pricing"] as const].map(([href, key]) => (

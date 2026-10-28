@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "cap:sync": "cap sync",
     "cap:android": "cap sync android && cd android && gradlew.bat assembleDebug",
-    "cap:ios": "cap sync ios && cap open ios"
+    "cap:ios": "cap sync ios && cap open ios",
+    "android:release": "node scripts/android-release.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

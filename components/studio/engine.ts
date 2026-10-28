@@ -79,7 +79,7 @@ function planLoad(){
 planLoad();
 root.addEventListener('brs-asfree', () => { try{ planPaint(); if(!$('xsheet').hidden) sheetPaint(); }catch(e){} }, SIG);   // View as Free switched (views.ts)
 const crownMap = (cat, M) => Object.fromEntries(Object.entries(M).map(([k, v]) => [k, crown(cat, k, v)]));
-const wmImg = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: '/brand/shubix-logo-sm.webp' }) : null;
+const wmImg = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: '/brand/shubix-gold-sm.webp' }) : null;
 /* ---- a flicker montage (Copy a Reel): a different picture on every frame, from sharp stills of the clips taken once at
  * the Reel's size (preview and export draw the same stills) ---- */
 let flickPool = [], flickKey = '', flickBusy = false;
