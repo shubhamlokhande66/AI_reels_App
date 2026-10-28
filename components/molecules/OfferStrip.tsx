@@ -32,12 +32,12 @@ export function OfferStrip({ offer, bar = false }: { offer: Offer; bar?: boolean
   );
   if (bar)
     return (
-      <div role="note" className="mb-3 flex items-center gap-2.5 rounded-2xl border border-accent/30 bg-[linear-gradient(90deg,color-mix(in_srgb,var(--accent)_14%,var(--surface)),var(--surface))] px-3.5 py-2 text-[12.5px]">
+      <div role="note" className="relative mb-3 flex items-center gap-2.5 overflow-hidden rounded-[16px] border border-[color-mix(in_srgb,var(--accent)_24%,var(--line))] bg-[linear-gradient(100deg,color-mix(in_srgb,var(--accent)_13%,var(--surface)),color-mix(in_srgb,var(--surface)_94%,transparent))] px-3 py-2.5 text-[11.5px] shadow-[0_14px_34px_-28px_rgba(0,0,0,.76)] backdrop-blur-xl sm:px-3.5 sm:text-[12px]">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[image:var(--gold-gradient)] text-[var(--on-accent)]"><Icon name="sparkle" size={14} /></span>
         <span className="min-w-0 flex-1 truncate">{text}</span>
         <span className="hidden shrink-0 rounded-full bg-[image:var(--gold-gradient)] px-2 py-0.5 text-[11px] font-bold text-[var(--on-accent)] sm:inline">{t("pricing.offerTag", { percent: offer.percent })}</span>
         <Link href="/pricing" className="shrink-0 font-semibold text-accent hover:underline">{t("pricing.offerSee")}</Link>
-        <button type="button" aria-label="Close" onClick={() => { setHidden(true); try { localStorage.setItem(key, "1"); } catch { /* closed for now */ } }} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface-2 hover:text-foreground"><Icon name="close" size={14} /></button>
+        <button type="button" aria-label="Close" onClick={() => { setHidden(true); try { localStorage.setItem(key, "1"); } catch { /* closed for now */ } }} className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-transparent text-muted transition-[background,border-color,color] duration-200 hover:border-border hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"><Icon name="close" size={14} /></button>
       </div>
     );
   return (

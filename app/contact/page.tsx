@@ -58,13 +58,19 @@ export default function ContactPage() {
     } catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   };
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-3">
-      <Hero title={t("contact.title")} subtitle={t("contact.sub")} />
-      {realEmail && <Way href={`mailto:${s.email}`} icon="mail" tone="talk" title={t("contact.email")} line={s.email} />}
-      {s.phone && <Way href={`https://wa.me/${wa}`} icon="chat" tone="story" title={t("contact.whatsapp")} line={s.phone} />}
-      {/* more ways: Admin → CMS → Contact us → Ways to reach us */}
-      {ways.map((w) => <Way key={w.id} href={w.link} icon={w.icon || "send"} tone={(w.tone || "brand") as Tone} title={w.title} line={w.text} />)}
-      <Card as="section" aria-label={t("contact.formTitle")}>
+    <div className="relative mx-auto w-full max-w-5xl pb-5">
+      <div aria-hidden className="pointer-events-none absolute -top-10 left-1/2 -z-10 h-56 w-[min(90vw,48rem)] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,color-mix(in_srgb,var(--accent)_12%,transparent),transparent_68%)] blur-2xl" />
+      <div className="mb-5 sm:mb-7"><Hero title={t("contact.title")} subtitle={t("contact.sub")} /></div>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(250px,.78fr)_minmax(0,1.22fr)] lg:gap-6">
+        <aside className="flex flex-col gap-3">
+          <div className="mb-1 flex items-center gap-2 px-1 text-[9px] font-extrabold uppercase tracking-[.18em] text-muted"><span className="h-px w-5 bg-accent/70" />{t("contact.title")}</div>
+          {realEmail && <Way href={`mailto:${s.email}`} icon="mail" tone="talk" title={t("contact.email")} line={s.email} />}
+          {s.phone && <Way href={`https://wa.me/${wa}`} icon="chat" tone="story" title={t("contact.whatsapp")} line={s.phone} />}
+          {/* more ways: Admin → CMS → Contact us → Ways to reach us */}
+          {ways.map((w) => <Way key={w.id} href={w.link} icon={w.icon || "send"} tone={(w.tone || "brand") as Tone} title={w.title} line={w.text} />)}
+          {(s.address || s.name) && <p className="m-0 mt-1 rounded-xl border border-border/70 bg-surface/50 px-3.5 py-3 text-[11px] leading-relaxed text-muted">{s.name}{s.address ? ` · ${s.address}` : ""}</p>}
+        </aside>
+        <Card as="section" aria-label={t("contact.formTitle")} className="relative !rounded-[22px] !border-[color-mix(in_srgb,var(--accent)_15%,var(--line))] !p-4 sm:!p-6">
         {ticket ? (
           <div className="flex flex-col items-center gap-2 py-3 text-center">
             <span className="grid size-12 place-items-center rounded-full bg-success/15 text-success"><Icon name="check" size={24} /></span>
@@ -99,11 +105,8 @@ export default function ContactPage() {
             <span className="text-[11px] text-muted">{t("contact.replyNote")}</span>
           </form>
         )}
-      </Card>
-      <p className="m-0 text-center text-[11px] text-muted">
-        {s.name}
-        {s.address ? ` · ${s.address}` : ""}
-      </p>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -19,9 +19,9 @@ export function VerifyBanner({ email }: { email: string }) {
     }
   };
   return (
-    <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-warning/30 bg-warning/10 px-4 py-3 text-[13px]">
-      <Icon name="mail" size={18} className="shrink-0 text-warning" />
-      <p className="m-0 min-w-0 flex-1">{state.text ? <span className={state.ok ? "text-success" : "text-danger"}>{state.text}</span> : t("auth.verifyBannerCode", { email })}</p>
+    <div role="status" className="relative mb-4 flex flex-wrap items-center gap-3 overflow-hidden rounded-[18px] border border-[color-mix(in_srgb,var(--warning)_28%,var(--line))] bg-[linear-gradient(105deg,color-mix(in_srgb,var(--warning)_10%,var(--surface)),var(--surface)_72%)] px-3.5 py-3 shadow-[0_14px_34px_-28px_rgba(0,0,0,.7)] sm:px-4">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-warning/20 bg-warning/10 text-warning"><Icon name="mail" size={17} /></span>
+      <p className="m-0 min-w-0 flex-1 text-[12.5px] leading-relaxed">{state.text ? <span className={state.ok ? "text-success" : "text-danger"}>{state.text}</span> : t("auth.verifyBannerCode", { email })}</p>
       <Button size="sm" href="/verify">{t("auth.enterCode")}</Button>
       {!state.ok && <Button size="sm" variant="secondary" loading={state.busy} onClick={resend}>{t("auth.resendCode")}</Button>}
     </div>

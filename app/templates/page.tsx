@@ -46,15 +46,27 @@ function Templates() {
   const byGroup = group === "all" && !s; // the whole library: a section per group
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-      <PageHeader title={t("nav.templates")} subtitle={t("templates.sub")} />
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-4 md:gap-8">
+      <header className="relative isolate overflow-hidden rounded-[24px] border border-[color-mix(in_srgb,var(--accent)_18%,var(--line))] bg-[linear-gradient(125deg,color-mix(in_srgb,var(--accent)_10%,var(--surface)),var(--surface)_55%,color-mix(in_srgb,var(--accent)_4%,var(--surface)))] px-4 py-5 shadow-[0_20px_50px_-38px_rgba(0,0,0,.8)] sm:px-6 sm:py-6 md:rounded-[28px] md:px-8 md:py-8">
+        <span aria-hidden className="pointer-events-none absolute -right-8 -top-16 -z-10 h-48 w-48 rounded-full bg-accent/10 blur-3xl" />
+        <span aria-hidden className="pointer-events-none absolute -bottom-24 left-[30%] -z-10 h-40 w-72 rounded-full bg-accent/5 blur-3xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+          <div className="flex min-w-0 flex-col gap-2">
+            <span className="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[.2em] text-accent"><span className="h-px w-5 bg-accent/70" />Shubix · Reel collection</span>
+            <PageHeader title={t("nav.templates")} subtitle={t("templates.sub")} />
+          </div>
+          <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--accent)_18%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_66%,transparent)] px-3 py-2 text-[10px] font-semibold text-muted backdrop-blur-xl">
+            <Icon name="reels" size={14} className="text-accent" />{t("templates.count", { n: templates.length })}
+          </span>
+        </div>
+      </header>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 rounded-[20px] border border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_54%,transparent)] p-3 shadow-[0_14px_36px_-34px_rgba(0,0,0,.8)] sm:p-4">
         <SearchBox value={q} onChange={setQ} label={t("templates.search")} className="md:max-w-md" />
-        <ChipRow role="radiogroup" aria-label={t("nav.templates")}>
+        <ChipRow role="radiogroup" aria-label={t("nav.templates")} className="gap-2">
           {chips.map((c) => (
-            <Chip key={c.id} role="radio" aria-checked={group === c.id} on={group === c.id} onClick={() => setGroup(c.id)}>
-              {c.id === "new" && <Icon name="sparkle" size={13} className="text-accent" />}{c.label}<span className="rounded-full bg-surface-2 px-1.5 text-[11px] text-muted">{c.n}</span>
+            <Chip key={c.id} role="radio" aria-checked={group === c.id} on={group === c.id} onClick={() => setGroup(c.id)} className="!h-9 !px-3.5 !text-[11.5px]">
+              {c.id === "new" && <Icon name="sparkle" size={13} className="text-accent" />}{c.label}<span className="rounded-full bg-surface-2 px-1.5 text-[10px] text-muted">{c.n}</span>
             </Chip>
           ))}
         </ChipRow>
@@ -67,18 +79,18 @@ function Templates() {
         groups.map((g) => {
           const list = templates.filter((x) => x.group === g);
           return (
-            <section key={g} aria-label={g} className="flex flex-col gap-3">
-              <div className="flex items-baseline justify-between gap-3">
+            <section key={g} aria-label={g} className="flex flex-col gap-3.5 border-t border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] pt-5 first:border-t-0 first:pt-0 md:gap-4 md:pt-6">
+              <div className="flex items-center justify-between gap-3">
                 <SectionHeader title={g} />
-                <button type="button" onClick={() => setGroup(g)} className="shrink-0 text-[12.5px] font-semibold text-muted hover:text-accent">{t("templates.count", { n: list.length })}</button>
+                <button type="button" onClick={() => setGroup(g)} className="shrink-0 rounded-full border border-border/70 bg-surface/60 px-3 py-1.5 text-[10.5px] font-semibold text-muted transition-[border-color,color,background] duration-200 hover:border-accent/40 hover:bg-accent/5 hover:text-accent">{t("templates.count", { n: list.length })}</button>
               </div>
               <div className={GRID}>{list.map((x) => <TemplateCard key={x.id} t={x} />)}</div>
             </section>
           );
         })
       ) : (
-        <section aria-label={t("nav.templates")} className="flex flex-col gap-3">
-          <p className="m-0 text-[12.5px] text-muted">{t("templates.count", { n: shown.length })}</p>
+        <section aria-label={t("nav.templates")} className="flex flex-col gap-3.5">
+          <p className="m-0 text-[10.5px] font-semibold uppercase tracking-[.13em] text-muted">{t("templates.count", { n: shown.length })}</p>
           <div className={GRID}>{shown.map((x) => <TemplateCard key={x.id} t={x} />)}</div>
         </section>
       )}

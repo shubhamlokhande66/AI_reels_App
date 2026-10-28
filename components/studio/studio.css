@@ -408,12 +408,15 @@
 @media (min-width:1024px){.brs.photomode .ponly.fmob{display:none}} /* computers: "Drag & drop photos", not the phones' "Tap to Add Photos" */
 .brs.photomode .vonly{display:none}
 /* notifications: short notes at the bottom (above the save bar on phones), and the in-app yes / no question */
-.brs .toasts{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;display:grid;gap:8px;width:min(92vw,420px);pointer-events:none}
-.brs .toast{font:600 14px/1.35 var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:12px;padding:11px 14px;box-shadow:0 10px 30px rgba(0,0,0,.18);opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
-.brs .toast.in{opacity:1;transform:none}
-.brs .toast.ok{border-left-color:var(--ok)}
-.brs .toast.err{border-left-color:var(--drop)}
-@media (min-width:900px){ .brs .toasts{bottom:24px} }
+.brs .toasts{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;display:grid;gap:9px;width:min(92vw,420px);pointer-events:none}
+.brs .toast{position:relative;display:flex;align-items:center;gap:10px;font:600 13px/1.45 var(--body);letter-spacing:.005em;color:var(--ink);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,var(--line));border-radius:16px;padding:13px 15px;box-shadow:0 18px 46px rgba(0,0,0,.28),0 1px 0 rgba(255,255,255,.06) inset;backdrop-filter:blur(18px);opacity:0;transform:translateY(12px) scale(.985);transition:opacity .24s ease,transform .24s cubic-bezier(.2,.8,.2,1)}
+.brs .toast:before{content:"";display:block;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 14%,transparent),0 0 16px color-mix(in srgb,var(--accent) 40%,transparent)}
+.brs .toast.in{opacity:1;transform:translateY(0) scale(1)}
+.brs .toast.ok{border-color:color-mix(in srgb,var(--ok) 30%,var(--line))}
+.brs .toast.ok:before{background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 14%,transparent),0 0 16px color-mix(in srgb,var(--ok) 38%,transparent)}
+.brs .toast.err{border-color:color-mix(in srgb,var(--drop) 32%,var(--line))}
+.brs .toast.err:before{background:var(--drop);box-shadow:0 0 0 4px color-mix(in srgb,var(--drop) 14%,transparent),0 0 16px color-mix(in srgb,var(--drop) 38%,transparent)}
+@media (min-width:900px){ .brs .toasts{left:auto;right:26px;bottom:24px;transform:none;width:min(38vw,390px)} }
 @media (prefers-reduced-motion:reduce){ .brs .toast{transition:none} }
 .brs .askbg{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.5);display:grid;place-items:end center;padding:16px}
 .brs .ask{width:min(100%,400px);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
@@ -1102,42 +1105,30 @@
 }
 
 @media (min-width:1024px){
-  .brs.made.v-one .wrap{gap:14px}
-  .brs.made.v-one .create{grid-template-columns:88px minmax(0,1fr) minmax(340px,400px);grid-template-rows:minmax(0,1fr) auto auto auto auto auto;gap:0;
-    height:calc(100vh - 140px);min-height:600px;border:1px solid var(--line);border-radius:18px;background:var(--surface);overflow:hidden;box-shadow:var(--shadow)}
-  .brs.made.v-one :is(.stage,.tools,.pv){display:contents}
-  /* the tool rail */
-  .brs.made.v-one .dock{grid-column:1;grid-row:1/-1;align-self:stretch;flex-direction:column;gap:4px;padding:12px 8px;overflow-y:auto;contain:size;border-right:1px solid var(--line);background:color-mix(in srgb,var(--surface-2) 45%,var(--surface))}
-  .brs.made.v-one .tool{flex:0 0 66px;width:100%;height:66px;border-radius:14px;font-size:11.5px}
-  /* the preview and its controls */
-  /* the preview takes the room its row has (never over the bar under it), 9:16 inside */
-  .brs.made.v-one:not(.fopen) .pvbox{grid-column:2;grid-row:1;align-self:stretch;justify-self:stretch;display:grid;place-items:center;margin:14px 20px 6px;min-height:0}
-  .brs.made.v-one:not(.fopen) #out{width:auto;height:auto;max-width:100%;max-height:100%;min-height:0;border-radius:16px}
-  .brs.made.v-one .bar{grid-column:2;grid-row:2;width:min(360px,80%)}
-  .brs.made.v-one .transport{grid-column:2;grid-row:3;gap:10px;padding:8px 0 12px}
-  .brs.made.v-one #pshot,.brs.made.v-one #nshot{display:inline-flex}
-  .brs.made.v-one #play{background:var(--gold-gradient);color:var(--on-accent);border:0}
-  .brs.made.v-one :is(.stage .msg,#saverow,.postcap){grid-column:2;grid-row:4;justify-self:center;max-width:520px;margin:0 24px 10px}
-  /* the open tool */
-  /* contain:size: a long panel scrolls on its own instead of stretching the rows it spans (and covering the tracks) */
-  .brs.made.v-one .panels{grid-column:3;grid-row:1/5;align-self:stretch;align-content:start;gap:16px;padding:18px 20px;overflow-y:auto;contain:size;border-left:1px solid var(--line);min-height:0}
-  .brs.made.v-one .panel{padding:0;border:0;background:none;box-shadow:none}
-  .brs.made.v-one .panel .ph{font-size:16px;padding-bottom:4px}
-  .brs.made.v-one .panel[data-panel="shots"] .shotcard{gap:14px;padding:0;border:0;background:none;box-shadow:none}
-  /* the clip tools: four even tiles a row */
-  .brs.made.v-one .ctrow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;overflow:visible}
-  .brs.made.v-one .ct{min-width:0;padding:10px 4px;border-color:var(--line);background:color-mix(in srgb,var(--surface-2) 55%,var(--surface))}
-  .brs.made.v-one .ct span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .brs.made.v-one .shtools{display:flex;flex-wrap:wrap;gap:8px}
-  /* Export is in the Reel's row above: under the editor only "Without the song" stays */
-  .brs.made.v-one .savebar{padding:10px 0 24px}
-  .brs.made.v-one #export{display:none}
-  /* the tracks: video, text, voice, music */
-  .brs.made.v-one .tlbar{grid-column:2/-1;grid-row:5;margin:10px 18px 4px}
-  .brs.made.v-one .lanesbox{grid-column:2/-1;grid-row:6;margin:0 18px 14px;min-width:0}
+  .brs.made.v-one .wrap{gap:16px}
+  .brs.made.v-one .create{
+    display:flex;flex-direction:column;gap:16px;width:100%;min-width:0;
+    height:auto;min-height:unset;border:0;border-radius:0;background:none;box-shadow:none;overflow:visible;
+  }
+  .brs.made.v-one :is(.tools){display:contents}
+  .brs.made.v-one .workbench{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,360px);gap:16px;min-width:0;width:100%;
+  }
+  .brs.made.v-one .previewPanel{
+    min-width:0;min-height:520px;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto;overflow:hidden;padding:14px;border-radius:19px;
+  }
+  .brs.made.v-one .inspector{
+    min-width:0;display:flex !important;flex-direction:column;padding:16px;border-radius:19px;
+  }
+  .brs.made.v-one .timelineCard{
+    min-width:0;overflow:hidden;border-radius:19px;width:100%;
+  }
+  .brs.made.v-one .toolDock{
+    display:grid !important;grid-template-columns:repeat(12,minmax(62px,1fr)) !important;gap:4px;min-width:0;overflow-x:auto;padding:8px;border-radius:17px;width:100%;
+  }
   .brs.made.v-one .lanes{display:block}
-  .brs.made.v-one .transport{border-bottom:1px solid var(--line)}
-  .brs.made.v-one .strip,.brs.made.v-one .summary,.brs.made.v-one .inspector{display:none}
+  .brs.made.v-one .savebar{display:none}
+  .brs.made.v-one #export{display:none}
 }
 
 /* the play button inside the preview (phones and computers): it fades while the Reel plays and comes back on a hover,
@@ -1292,28 +1283,18 @@
 /* ===================== the computer editor, as the design (UI/ "Editor Page – Desktop (Main)") =====================
    the tool's panel on the left · the preview and the play bar in the middle · the timeline across · the ten tools under it */
 @media (min-width:1024px){
-  .brs.made.v-one:not(.fopen) .create{grid-template-columns:minmax(280px,320px) minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto auto auto auto auto auto;
-    height:max(calc(100vh - 130px),660px);min-height:0}
-  .brs.made.v-one:not(.fopen) .panels{grid-column:1;grid-row:1/5;border-left:0;border-right:1px solid var(--line);padding:16px 16px 20px}
-  .brs.made.v-one:not(.fopen) .panel .ph{font-size:15px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:4px}
-  .brs.made.v-one:not(.fopen) .pvbox{grid-column:2;grid-row:1;margin:14px 20px 6px}
-  .brs.made.v-one:not(.fopen) .bar{grid-column:2;grid-row:3;justify-self:stretch;width:auto;max-width:none;margin:0 20px 8px}
-  .brs.made.v-one:not(.fopen) .transport{grid-column:2;grid-row:2;border-bottom:0}
-  .brs.made.v-one:not(.fopen) :is(.stage .msg,#saverow,.postcap){grid-column:2;grid-row:4;justify-self:center;margin:0 20px 8px}
-  .brs.made.v-one:not(.fopen) .tlbar{grid-column:1/-1;grid-row:5;margin:0;padding:8px 16px 4px;border-top:1px solid var(--line)}
-  .brs.made.v-one:not(.fopen) .lanesbox{grid-column:1/-1;grid-row:6;margin:0 16px 10px}
-  .brs.made.v-one:not(.fopen) .inspector{display:none !important}
-  /* the ten tools under the timeline, side by side (the active one lit) */
-  .brs.made.v-one:not(.fopen) .dock{grid-column:1/-1;grid-row:7;align-self:end;flex-direction:row;justify-content:center;gap:6px;padding:6px 12px;
-    overflow-x:auto;overflow-y:hidden;contain:none;border-right:0;border-top:1px solid var(--line)}
-  .brs.made.v-one:not(.fopen) .dock .tool{flex:0 0 84px;width:auto;height:60px;border-radius:12px;font-size:12px}
-  .brs.made.v-one:not(.fopen) .dock .tool[aria-pressed=true]{background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:inset 0 -2px 0 var(--accent)}
+  .brs.made.v-one:not(.fopen) .create{display:flex !important;flex-direction:column !important;gap:16px !important;width:100% !important;min-width:0 !important;height:auto !important;min-height:unset !important;border:0 !important;background:none !important;box-shadow:none !important;overflow:visible !important}
+  .brs.made.v-one:not(.fopen) .workbench{display:grid !important;grid-template-columns:minmax(0,1fr) minmax(300px,360px) !important;gap:16px !important;min-width:0 !important;width:100% !important}
+  .brs.made.v-one:not(.fopen) .previewPanel{min-width:0 !important;min-height:520px !important;display:flex !important;flex-direction:column !important;overflow:hidden !important;padding:14px !important;border-radius:19px !important}
+  .brs.made.v-one:not(.fopen) .inspector{min-width:0 !important;display:flex !important;flex-direction:column !important;padding:16px !important;border-radius:19px !important}
+  .brs.made.v-one:not(.fopen) .timelineCard{min-width:0 !important;overflow:hidden !important;border-radius:19px !important;width:100% !important;margin-top:0 !important}
+  .brs.made.v-one:not(.fopen) .toolDock{display:grid !important;grid-template-columns:repeat(12,minmax(62px,1fr)) !important;gap:4px !important;min-width:0 !important;overflow-x:auto !important;padding:8px !important;border-radius:17px !important;width:100% !important;position:static !important;transform:none !important;margin-top:0 !important}
 }
 
 /* the editor as a dark workspace (views.ts adds .noir once the Reel is made): a framed window on a computer */
-.brs.noir{background:var(--background);color:var(--foreground)}
+.brs.noir{color:var(--foreground)}
 @media (min-width:1024px){
-  .brs.noir{border:1px solid var(--line);border-radius:20px;padding:12px 16px 16px;box-shadow:0 30px 60px -40px rgba(10,5,40,.6)}
+  .brs.noir{border-radius:20px;padding:12px 16px 16px}
   .brs.noir .fcrumbs{margin:0 0 6px}
   .brs.noir .topbar{padding:0 0 10px}
   .brs.noir .create{background:var(--surface);border-color:var(--line)}
@@ -1608,7 +1589,7 @@
 /* computers, the editor open: it fills the page beside the app's sidebar (no side gaps; the tool panel had too little
    room and its tabs' names were cut) */
 @media (min-width:1024px){
-  main > .max-w-6xl:has(.brs.made.editing){max-width:none;width:auto;margin-left:-32px;margin-right:-32px}   /* past main's 32 px sides */
+  main > .max-w-6xl:has(.brs.made.editing){max-width:none;width:auto;margin-left:0;margin-right:0}   /* the new design: main's 32 px sides, as the editor preview */
   .brs.made.editing:not(.fopen) .create{grid-template-columns:minmax(340px,380px) minmax(0,1fr)}   /* room for the tool tabs' names */
   .brs.noir.made.editing .ptabs{grid-template-columns:repeat(7,minmax(max-content,1fr));padding-left:4px;padding-right:4px}   /* each name whole */
   .brs.made.editing{padding-left:0;padding-right:0;border-left:0;border-right:0;border-radius:0}
@@ -1854,8 +1835,8 @@
 .brs.made:not(.fopen) .tb-chat{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--accent)}
 @media (min-width:1024px){
   .brs.made:not(.fopen) .tb-chat{width:auto;height:38px;padding:0 14px;border-radius:12px;font:600 13.5px var(--body)}
-  .brs.made:not(.fopen) .tb-chat::after{content:"Ask Shubix"}
 }
+@media (max-width:1023px){ .brs .tb-chat > span{display:none} }
 .brs .tb-chat{position:relative}
 .brs .tb-chat.news::before{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--drop)}
 
@@ -2407,4 +2388,1191 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs .panel.on,.brs.openfail .openload{animation:none}
   .brs :is(.step,.panel,.tool,.ptabs button,.ct,.ibtn,.btn,#out,#openback){transition:none}
   .brs .step:not(.locked):hover,.brs.openfail .openload #openback:hover{transform:none}
+}
+
+/* ==================== Modern Reactor UI Design System for FastStudio ==================== */
+.brs {
+  --ed-bg: color-mix(in srgb, var(--background) 94%, #080807);
+  --ed-line: color-mix(in srgb, var(--accent) 14%, var(--border));
+  --ed-glow: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.brs .projectBar,
+.brs .previewPanel,
+.brs .inspector,
+.brs .timelineCard,
+.brs .toolDock {
+  border: 1px solid var(--ed-line);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 97%, var(--accent)), var(--surface));
+  box-shadow: var(--shadow);
+}
+
+/* Project Bar (Top) */
+.brs .projectBar {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto 16px;
+}
+
+.brs .projectIdentity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.brs .projectMark {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 13px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.brs .projectCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.brs .projectCopy small,
+.brs .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .13em;
+}
+
+.brs .projectCopy small i,
+.brs .previewHeader > span i,
+.brs .timelineFooter > span:first-child i,
+.brs .noteDot {
+  width: 6px;
+  height: 6px;
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  background: #72bd91;
+  box-shadow: 0 0 10px color-mix(in srgb, #72bd91 55%, transparent);
+}
+
+.brs .projectCopy strong {
+  max-width: 34ch;
+  overflow: hidden;
+  color: var(--foreground);
+  font: 600 15px/1.2 var(--font-display), var(--font-body), sans-serif;
+  letter-spacing: -.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brs .projectActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+}
+
+.brs .undoButton {
+  width: 34px;
+  height: 34px;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+  font: 22px/1 var(--font-body), sans-serif;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+}
+
+.brs .undoButton:disabled {
+  opacity: .48;
+  cursor: default !important;
+}
+
+.brs .shareButton,
+.brs .exportButton {
+  height: 36px;
+  padding: 0 13px;
+  border-radius: 11px;
+  font: 600 12px var(--font-body), sans-serif;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  border: 1px solid var(--ed-line);
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+  color: var(--foreground);
+  transition: transform .18s ease, border-color .18s ease;
+}
+
+.brs .exportButton {
+  color: var(--on-accent) !important;
+  border-color: transparent !important;
+  background: var(--gold-gradient) !important;
+  box-shadow: 0 9px 18px -13px var(--brand-glow);
+}
+
+.brs .exportButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+/* Workbench (Preview on Left, Inspector on Right) */
+.brs .workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+
+.brs .previewPanel {
+  min-width: 0;
+  min-height: 520px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  overflow: hidden;
+  padding: 14px;
+  border-radius: 19px;
+}
+
+.brs .previewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.brs .previewHeader > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brs .previewHeader > span i {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--brand-glow);
+  border-radius: 50%;
+}
+
+.brs .prevAspectBtn {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  font: 600 11px var(--font-body), sans-serif;
+  border: 1px solid var(--ed-line);
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+  color: var(--foreground);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brs .previewStage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.brs .videoFrame {
+  position: relative;
+  isolation: isolate;
+  width: min(100%, 238px);
+  height: min(100%, 364px);
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 17px;
+  background: #000;
+  box-shadow: 0 22px 50px -24px rgba(0,0,0,.75), 0 0 0 5px color-mix(in srgb, var(--accent) 7%, transparent);
+  display: grid;
+  place-items: center;
+}
+
+.brs .videoFrame #out {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain;
+  border-radius: inherit;
+}
+
+.brs .previewPlay {
+  /* centred by inset + margin, not a translate: the older :hover / :active rules set their own transform */
+  position: absolute !important;
+  inset: 0 !important;
+  margin: auto !important;
+  width: 48px !important;
+  height: 48px !important;
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .36);
+  border-radius: 50% !important;
+  background: rgba(22, 22, 18, .44);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transform: none;
+  transition: background .2s ease, transform .2s ease, opacity .2s ease;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.brs .previewPlay > span { display: grid; place-items: center; width: 100%; height: 100%; }
+.brs.brs .previewPlay svg { width: 20px; height: 20px; margin: 0 0 0 2px; }
+.brs.brs.playing .previewPlay svg { margin: 0; }
+
+.brs.brs .previewPlay:hover {
+  background: color-mix(in srgb, var(--accent) 68%, rgba(15, 15, 13, .4));
+  transform: scale(1.06);
+}
+
+.brs.brs .previewPlay:active { transform: scale(.96); }
+
+.brs .frameCounter {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 7px;
+  color: rgba(255, 255, 255, .9);
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .28);
+  font: 600 9px var(--mono);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 10;
+}
+
+.brs .transport {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font: 11px var(--mono);
+}
+
+/* the new transport: time · skip, play, skip · sound · full screen, in that order (the older layouts above set their own) */
+.brs .previewPanel .transport {
+  position: static !important;
+  display: flex !important;
+  justify-content: flex-start !important;
+  flex-wrap: nowrap;
+  gap: 8px !important;
+  padding: 0 2px !important;
+}
+.brs .previewPanel .transport > * {
+  order: 0 !important;
+  position: static !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+.brs .previewPanel .transport .tc { min-width: 0; font-size: 11px; }
+.brs .previewPanel .transport #ttot::before { content: none !important; }
+.brs .previewPanel .transport :is(#pshot, #nshot) { display: inline-grid !important; place-items: center; width: auto; height: 28px; min-height: 0; }
+.brs .previewPanel .transport #play { width: 30px !important; height: 30px !important; min-height: 30px !important; padding: 0 !important; }
+.brs .previewPanel .transport #play svg { width: 14px; height: 14px; }
+.brs .previewPanel .transport #play > span:not(.ic-play, .ic-pause), .brs .previewPanel .transport #play .ic-pause, .brs.playing .previewPanel .transport #play .ic-play { display: none; }
+.brs.playing .previewPanel .transport #play .ic-pause { display: grid; }
+.brs .previewPanel .transport #pvfull { width: 30px; height: 30px; min-height: 0; padding: 0; display: inline-grid !important; place-items: center; border: 0; background: none; color: var(--muted); }
+.brs .previewPanel .transport #pvfull svg { width: 16px; height: 16px; }
+.brs .previewPanel .soundState { cursor: pointer; white-space: nowrap; }
+.brs .previewPanel .previewProgress { width: 100%; max-width: none; height: 3px; justify-self: stretch; }
+.brs .previewPanel .previewProgress i::after { width: 10px !important; height: 10px !important; right: -5px !important; opacity: 0; transition: opacity .15s ease; }
+.brs .previewPanel .previewProgress:hover i::after { opacity: 1; }
+
+.brs .timeCurrent { color: var(--foreground); font-weight: 700; }
+.brs .timeDivider { color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.brs .timeTotal { color: var(--muted); }
+
+.brs .transportSkip {
+  padding: 4px;
+  color: var(--muted);
+  border: 0;
+  background: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.brs .transportPlay {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: var(--on-accent);
+  border: 0;
+  border-radius: 50%;
+  background: var(--gold-gradient);
+  box-shadow: 0 6px 16px -10px var(--brand-glow);
+  cursor: pointer;
+}
+
+.brs .transportSpacer { flex: 1; }
+.brs .soundState {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font: 700 8px var(--font-body), sans-serif;
+  letter-spacing: .1em;
+}
+.brs .soundState svg { color: var(--accent); }
+
+.brs .previewProgress {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.brs .previewProgress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--gold-gradient);
+  box-shadow: 0 0 12px var(--brand-glow);
+}
+
+/* Inspector / Clip Controls (Right) */
+.brs .inspector {
+  min-width: 0;
+  display: flex !important;
+  flex-direction: column;
+  padding: 16px;
+  border-radius: 19px;
+}
+
+.brs .inspectorHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.brs .inspectorHead h2 {
+  margin: 5px 0 0;
+  font: 600 20px/1.1 var(--font-display), var(--font-body), sans-serif;
+  letter-spacing: -.035em;
+  color: var(--foreground);
+}
+
+.brs .durationPill {
+  padding: 6px 9px;
+  color: var(--accent-hover);
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  font: 600 10px var(--mono);
+}
+
+.brs .shotToolGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.brs .shotTool {
+  min-width: 0;
+  min-height: 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 3px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  font: 500 9px/1.1 var(--font-body), sans-serif;
+  text-align: center;
+  cursor: pointer;
+  transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
+}
+
+.brs .shotTool svg {
+  color: color-mix(in srgb, var(--accent) 76%, var(--muted));
+}
+
+.brs .shotTool:hover {
+  color: var(--foreground);
+  border-color: var(--ed-line);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  transform: translateY(-1px);
+}
+
+.brs .shotToolActive {
+  color: var(--accent-hover) !important;
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border)) !important;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035);
+}
+
+.brs .shotToolActive svg {
+  color: var(--accent-hover) !important;
+}
+
+.brs .shotTool:disabled {
+  opacity: .38;
+  cursor: default;
+  transform: none;
+}
+
+.brs .shotTool.on svg {
+  color: var(--accent-hover);
+}
+
+/* the inspector's Clip Controls replace the old floating clip bar */
+.brs.made.v-one .clipbar {
+  display: none !important;
+}
+
+.brs .deleteTool {
+  color: color-mix(in srgb, var(--danger) 82%, var(--muted)) !important;
+}
+
+.brs .deleteTool svg {
+  color: inherit !important;
+}
+
+.brs .activeToolNote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding: 10px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.brs .activeToolNote b {
+  color: var(--foreground);
+  font-weight: 650;
+}
+
+.brs .noteDot {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  box-shadow: 0 0 9px var(--brand-glow);
+  border-radius: 50%;
+  flex: none;
+}
+
+/* Timeline Card */
+.brs .timelineCard {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 19px;
+  width: 100%;
+}
+
+.brs .timelineHeader {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--ed-line);
+}
+
+.brs .timelineTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brs .timelineIcon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.brs .timelineTitle > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.brs .timelineTitle b {
+  font: 600 14px var(--font-display), var(--font-body), sans-serif;
+  color: var(--foreground);
+}
+
+.brs .timelineTitle small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.brs .timelineActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.brs .timelineTime {
+  margin-right: 8px;
+  color: var(--foreground);
+  font: 600 10px var(--mono);
+}
+
+.brs .timelineActions button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 16px;
+  border: 1px solid var(--ed-line);
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
+  color: var(--foreground);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brs .zoomValue {
+  min-width: 32px;
+  color: var(--muted);
+  font: 600 9px var(--mono);
+  text-align: center;
+}
+
+.brs .timelineActions .fitButton {
+  width: auto;
+  padding: 0 8px;
+  font: 600 9px var(--font-body), sans-serif;
+}
+
+.brs .timelineScroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-color: color-mix(in srgb, var(--accent) 38%, var(--muted)) transparent;
+  scrollbar-width: thin;
+}
+
+.brs .timelineCanvas {
+  position: relative;
+  min-width: 850px;
+  padding: 10px 12px 8px;
+}
+
+.brs .timelineFooter {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 14px;
+  color: var(--muted);
+  border-top: 1px solid var(--ed-line);
+  font-size: 9px;
+}
+
+.brs .timelineFooter > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.brs .timelineFooter > span:first-child {
+  color: color-mix(in srgb, #72bd91 74%, var(--foreground));
+}
+
+/* Tool Dock */
+.brs .toolDock {
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(62px, 1fr)) !important;
+  gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 8px;
+  border-radius: 17px;
+  width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 32%, var(--muted)) transparent;
+}
+
+.brs .categoryTool {
+  position: relative;
+  min-width: 62px;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  font: 550 9px var(--font-body), sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .18s ease, background .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.brs .categoryTool > svg {
+  color: color-mix(in srgb, var(--accent) 76%, var(--muted));
+}
+
+.brs .categoryTool:hover {
+  color: var(--foreground);
+  border-color: var(--ed-line);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  transform: translateY(-1px);
+}
+
+.brs .categoryActive {
+  color: var(--accent-hover) !important;
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border)) !important;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface)) !important;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.brs .categoryActive > svg {
+  color: var(--accent-hover) !important;
+}
+
+.brs .proTag {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  padding: 2px 4px;
+  color: var(--on-accent);
+  border-radius: 4px;
+  background: var(--gold-gradient);
+  font: 800 6px var(--font-body), sans-serif;
+  letter-spacing: .04em;
+  font-style: normal;
+}
+
+/* Option popups (the shot sheet, a clip tool, a dock tool's panel): the new design's centred sheet over a shade */
+.brs:has(#shotsheet:not([hidden]))::before,
+.brs:has(#ctpop:not([hidden]))::before,
+.brs:has(.panels:not([hidden]) .panel.on)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  background: rgba(8, 8, 7, .62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: shadeIn .2s ease both;
+  pointer-events: auto;
+}
+
+.brs.sheeton #shotsheet:not([hidden]),
+.brs #ctpop:not([hidden]),
+.brs .panels:not([hidden]):has(.panel.on) {
+  position: fixed !important;
+  z-index: 9999 !important;
+  inset: 50% auto auto 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: min(calc(100vw - 32px), 660px) !important;
+  height: auto !important;
+  max-height: min(80vh, 720px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 20px !important;
+  color: var(--foreground) !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)) !important;
+  border-radius: 24px !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 96%, var(--accent)), var(--surface)) !important;
+  box-shadow: 0 36px 100px -35px rgba(0,0,0,.82), 0 1px 0 rgba(255,255,255,.08) inset !important;
+  animation: sheetIn .24s cubic-bezier(.2,.8,.25,1) both !important;
+}
+.brs.sheeton #shotsheet:not([hidden])::after { display: none !important; } /* no arrow to a clip: the sheet is centred */
+.brs #shotsheet .ss-rs, .brs #shotsheet .ss-grip { display: none !important; }
+
+/* header: the tool's sign in a square, the shot over the tool's name, ✕ at the right */
+.brs .sheetHeader {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 !important;
+  cursor: default !important;
+}
+.brs .sheetHeading { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.brs .sheetIcon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.brs .sheetHeading > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.brs .sheetHeading small { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+.brs .sheetHeading b {
+  margin: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font: 600 21px/1.1 var(--font-display), var(--font-body), sans-serif !important;
+  letter-spacing: -.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.brs .sheetDescription { margin: 12px 0 18px !important; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+/* the shot sheet: ✕ beside the title row's ‹ › */
+.brs.sheeton #shotsheet .ss-head {
+  position: absolute !important;
+  inset: 24px 20px auto auto !important;
+  display: flex !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  z-index: 2;
+}
+.brs.sheeton #shotsheet .ssh { padding-right: 46px !important; }
+.brs #shotsheet .ssnav { display: flex; gap: 6px; margin-left: auto; }
+.brs #shotsheet .ssnav button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border: 1px solid var(--ed-line);
+  border-radius: 11px;
+  background: var(--surface-2);
+  font-size: 18px;
+  cursor: pointer;
+}
+.brs #shotsheet .ssnav button:disabled { opacity: .4; cursor: default; }
+
+.brs #shotsheet .ss-x,
+.brs #ctpop .ctpopx,
+.brs .panels .pclose {
+  position: static !important;
+  width: 34px !important;
+  height: 34px !important;
+  display: grid !important;
+  flex: none;
+  place-items: center !important;
+  border-radius: 11px !important;
+  border: 1px solid var(--ed-line) !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  cursor: pointer !important;
+  transition: color .18s ease, border-color .18s ease, transform .18s ease !important;
+}
+.brs .panels .pclose { position: absolute !important; top: 24px !important; right: 20px !important; z-index: 2; }
+.brs #shotsheet .ss-x:hover,
+.brs #ctpop .ctpopx:hover,
+.brs .panels .pclose:hover {
+  color: var(--accent-hover) !important;
+  border-color: var(--accent) !important;
+  transform: rotate(5deg) !important;
+}
+
+/* the body scrolls between the header and the footer */
+.brs #shotsheet .ss-body,
+.brs #ctpop .ctpopb {
+  flex: 1 1 auto !important;
+  min-height: 0;
+  overflow-y: auto !important;
+  padding: 2px 2px 8px !important;
+  scrollbar-color: color-mix(in srgb, var(--accent) 36%, var(--muted)) transparent !important;
+  scrollbar-width: thin !important;
+}
+.brs #shotsheet .ss-body { display: flex; flex-direction: column; overflow: hidden !important; padding: 0 !important; }
+.brs #shotsheet .ss-body > :not(.ssh, .sheetDescription) { overflow-y: auto; }
+.brs #shotsheet .sstiles { min-height: 0; padding: 2px 2px 8px; }
+
+/* choices as the design's option cards: a framed preview, the name, a ✓ on the chosen one */
+.brs #shotsheet .sstiles {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)) !important;
+  gap: 10px !important;
+}
+.brs #shotsheet .sstile {
+  position: relative;
+  min-width: 0;
+  min-height: 100px;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch !important;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px !important;
+  color: var(--muted) !important;
+  border: 1px solid var(--ed-line) !important;
+  border-radius: 14px !important;
+  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface)) !important;
+  text-align: left;
+  box-shadow: none !important;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+}
+.brs #shotsheet .sstile:hover { color: var(--foreground) !important; border-color: color-mix(in srgb, var(--accent) 42%, var(--border)) !important; transform: translateY(-2px); }
+.brs #shotsheet .sstile[aria-pressed="true"] {
+  color: var(--foreground) !important;
+  border-color: color-mix(in srgb, var(--accent) 65%, var(--border)) !important;
+  background: color-mix(in srgb, var(--accent) 11%, var(--surface)) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent) inset, 0 10px 22px -18px var(--brand-glow) !important;
+}
+.brs #shotsheet .sstile[aria-pressed="true"]::after {
+  content: "✓";
+  position: absolute;
+  right: 9px;
+  bottom: 8px;
+  color: var(--accent-hover);
+  font-size: 12px;
+  font-weight: 800;
+}
+.brs #shotsheet .sstimg {
+  width: 100% !important;
+  height: 56px !important;
+  aspect-ratio: auto !important;
+  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border)) !important;
+  border-radius: 9px !important;
+  background-color: color-mix(in srgb, var(--background) 65%, var(--surface)) !important;
+  background-size: cover;
+  background-position: center;
+}
+.brs #shotsheet .sstt {
+  overflow: hidden;
+  padding-right: 14px;
+  font-size: 10px !important;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: left !important;
+  white-space: normal !important;
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* footer: where the choice is, and Done */
+.brs .sheetFooter {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ed-line);
+}
+.brs .sheetFooter > span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+.brs .sheetFooter > span i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.brs #shotsheet .ss-ok,
+.brs #ctpop .ctpopok {
+  position: static !important;
+  width: auto !important;
+  min-height: 38px;
+  height: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center;
+  gap: 8px !important;
+  padding: 0 14px !important;
+  color: var(--on-accent) !important;
+  border: 0 !important;
+  border-radius: 11px !important;
+  background: var(--gold-gradient) !important;
+  box-shadow: 0 9px 18px -13px var(--brand-glow);
+  font: 650 11px var(--font-body), sans-serif !important;
+  cursor: pointer !important;
+  transition: transform .18s ease, filter .18s ease;
+}
+.brs #shotsheet .ss-ok svg, .brs #ctpop .ctpopok svg { width: 15px; height: 15px; }
+.brs #shotsheet .ss-ok:hover, .brs #ctpop .ctpopok:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+/* a dock tool's panel: its tabs under the sheet's top edge, ✕ in the corner */
+.brs .panels:not([hidden]):has(.panel.on) .panel.on {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  min-height: 0;
+  overflow-y: auto !important;
+  border-radius: 14px;
+}
+
+.brs .panels:not([hidden]):has(.panel.on) .panel.on {
+  padding: 0 2px 4px !important;
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+/* the dock already picks the tool: no library tabs inside its popup; Done at the bottom, as every sheet */
+.brs .panels:not([hidden]):has(.panel.on) .ptabs { display: none !important; }
+.brs.brs #panels:not([hidden]):has(.panel.on) { display: flex !important; flex-direction: column !important; }
+.brs .panels:not([hidden]):has(.panel.on) .panel.on { flex: 1 1 auto; min-height: 0; }
+.brs .panels:not([hidden]):has(.panel.on) .panel.on > * { flex-shrink: 0; }
+.brs .pfoot { display: none; }
+.brs .panels:not([hidden]):has(.panel.on) .pfoot { display: flex; }
+.brs .pfoot .applyOption {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--on-accent);
+  border: 0;
+  border-radius: 11px;
+  background: var(--gold-gradient);
+  box-shadow: 0 9px 18px -13px var(--brand-glow);
+  font: 650 11px var(--font-body), sans-serif;
+  cursor: pointer;
+  transition: transform .18s ease, filter .18s ease;
+}
+.brs .pfoot .applyOption svg { width: 15px; height: 15px; }
+.brs .pfoot .applyOption:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.brs .panels .panel.on > .sheetDescription { margin: -4px 0 4px !important; }
+/* the header stays in view when the list scrolls to the chosen one (Filters) */
+.brs .panels .panel.on > .ph.sheetHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -2px !important;
+  padding: 0 2px 10px !important;
+  background: color-mix(in srgb, var(--surface) 96%, var(--accent));
+}
+.brs .panels .panel.on > .ph {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  color: var(--foreground);
+  font: 600 21px/1.1 var(--font-display), var(--font-body), sans-serif !important;
+  letter-spacing: -.025em;
+}
+.brs .panels .panel.on > .ph > svg {
+  box-sizing: border-box;
+  width: 42px !important;
+  height: 42px !important;
+  flex: none;
+  padding: 11px;
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+@keyframes shadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheetIn { from { opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(.985); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .brs.made.v-one .workbench { display: contents; }
+  .brs.made.v-one .previewPanel { order: 1; min-height: 480px; padding: 12px; }
+  .brs.made.v-one .timelineCard { order: 2; }
+  .brs.made.v-one .toolDock { order: 3; grid-template-columns: repeat(12, 66px) !important; }
+  .brs.made.v-one .inspector { order: 4; padding: 13px; }
+  .brs.made.v-one .shotToolGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .brs.made.v-one .shotTool { min-height: 54px; font-size: 8px; }
+  .brs.made.v-one .timelineCanvas { min-width: 0; }
+}
+
+@media (max-width: 680px) {
+  .brs.made.v-one .projectBar { min-height: 58px; gap: 8px; padding: 8px 10px; border-radius: 15px; }
+  .brs.made.v-one .projectMark { width: 34px; height: 34px; border-radius: 11px; }
+  .brs.made.v-one .projectCopy small { font-size: 7px; }
+  .brs.made.v-one .projectCopy strong { max-width: 22ch; font-size: 13px; }
+  .brs.made.v-one .undoButton { display: none !important; }
+  .brs.made.v-one .shareButton { display: none !important; }
+  .brs.made.v-one .exportButton { height: 34px; padding: 0 10px; font-size: 11px; }
+  .brs.made.v-one .previewPanel { order: 1; min-height: 0; padding: 10px; border-radius: 16px; }
+  .brs.made.v-one .videoFrame { width: min(60vw, 236px); max-height: 430px; border-radius: 15px; }
+  .brs.made.v-one .transport { gap: 6px; min-height: 40px; }
+  .brs.made.v-one .timelineCard { order: 2; border-radius: 16px; }
+  .brs.made.v-one .timelineHeader { min-height: 54px; padding: 9px 10px; }
+  .brs.made.v-one .timelineIcon { width: 30px; height: 30px; }
+  .brs.made.v-one .timelineTime { display: none; }
+  .brs.made.v-one .toolDock { order: 3; position: sticky; bottom: 72px; z-index: 5; grid-template-columns: repeat(12, 64px) !important; padding: 6px; border-radius: 14px; background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(16px); }
+  .brs.made.v-one .inspector { order: 4; padding: 13px; border-radius: 16px; }
+  .brs.made.v-one .inspectorHead h2 { font-size: 18px; }
+  .brs.made.v-one .shotToolGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .brs.made.v-one .shotTool { min-height: 58px; font-size: 9px; }
+}
+
+/* the preview card's notes (e.g. "shots repeat · Add clips"): the button stays whole, the words wrap */
+.brs .previewPanel #xmsg { flex-wrap: wrap; row-gap: 8px; }
+.brs .previewPanel #xmsg :is(button, a) { flex: none; white-space: nowrap; }
+/* no empty band under the tool dock */
+.brs.made.v-one:not(.fopen) .wrap { padding-bottom: 0 !important; }
+
+/* phones and tablets: the timeline is as wide as its card. The Reel slides under the playhead in the middle (views.ts vn()),
+   so a wider canvas in a side scroller drew the clips and the playhead out of view */
+@media (max-width: 1023px) {
+  .brs .timelineScroll { overflow: hidden !important; }
+  .brs .timelineCanvas { min-width: 0 !important; padding: 8px 6px 6px !important; }
+}
+
+/* phones: every popup is the design's bottom sheet (full width, round top, a grip), as the editor preview */
+@media (max-width: 680px) {
+  .brs.sheeton #shotsheet:not([hidden]),
+  .brs #ctpop:not([hidden]),
+  .brs .panels:not([hidden]):has(.panel.on) {
+    inset: auto 0 0 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: min(78svh, 760px) !important;
+    padding: 24px 16px calc(14px + env(safe-area-inset-bottom)) !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    border-radius: 23px 23px 0 0 !important;
+    animation: sheetUp .26s cubic-bezier(.2,.8,.25,1) both !important;
+  }
+  .brs.sheeton #shotsheet:not([hidden])::before,
+  .brs #ctpop:not([hidden])::before,
+  .brs .panels:not([hidden]):has(.panel.on)::before {
+    content: "";
+    position: absolute;
+    top: 9px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    margin-left: -19px;
+    border-radius: 99px;
+    background: color-mix(in srgb, var(--muted) 42%, transparent);
+  }
+  .brs.sheeton #shotsheet .ss-head { inset: 28px 16px auto auto !important; }
+  .brs .panels .pclose { top: 28px !important; right: 16px !important; }
+  .brs .sheetIcon { width: 38px; height: 38px; border-radius: 12px; }
+  .brs .sheetHeading b, .brs .panels .panel.on > .ph { font-size: 19px !important; }
+  .brs .sheetDescription { margin: 9px 0 14px !important; font-size: 11px; }
+  .brs #shotsheet .ssnav button { width: 30px; height: 30px; }
+  .brs.sheeton #shotsheet .ssh { padding-right: 40px !important; gap: 8px; }
+  .brs #shotsheet .sstiles { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .brs #shotsheet .sstile { min-height: 86px; padding: 8px !important; border-radius: 12px !important; }
+  .brs #shotsheet .sstimg { height: 43px !important; }
+  .brs #shotsheet .sstt { font-size: 9px !important; }
+  .brs .sheetFooter { margin-top: 10px; padding-top: 10px; }
+}
+@media (max-width: 380px) {
+  .brs #shotsheet .sstiles { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@keyframes sheetUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+/* phones and tablets: the preview card as the design: its header, the video in the middle, the play bar, the progress line
+   (the older phone layout flattened the card and put the video first) */
+@media (max-width: 1023px) {
+  .brs.made.v-one .previewPanel { display: flex !important; flex-direction: column !important; gap: 0 !important; }
+  .brs.made.v-one .previewPanel > * { order: 0 !important; }
+  .brs.made.v-one .previewStage { display: grid !important; place-items: center !important; padding: 12px 0 !important; min-height: 0; }
+  .brs.made.v-one .previewStage > .videoFrame { order: 0 !important; margin: 0 auto !important; position: relative !important; inset: auto !important; }
+  .brs.made.v-one .previewPanel .previewProgress { display: block !important; position: relative !important; }
+}
+
+/* phones: the project bar is one row, as the design: the sign, "Reel Studio · saved" over the name, Export */
+@media (max-width: 680px) {
+  .brs.made.v-one .projectBar { flex-wrap: nowrap !important; }
+  .brs.made.v-one .projectBar :is(.tb-back, .tb-aspect, .tb-undo, .tb-asfree) { display: none !important; }
+  .brs.made.v-one .projectIdentity { flex: 1 1 auto; min-width: 0; }
+  .brs.made.v-one .projectCopy { min-width: 0; max-width: 100%; }
+  .brs.made.v-one .projectCopy small { max-width: 100%; overflow: hidden; white-space: nowrap; }
+  .brs.made.v-one .projectCopy small #psaved { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .brs.made.v-one .projectCopy strong { max-width: 100%; }
+  .brs.made.v-one .videoFrame { width: min(63vw, 236px) !important; height: auto !important; max-height: 430px; }
+  .brs.made.v-one .previewPanel { min-height: 0 !important; }
+}
+@media (max-width: 380px) {
+  .brs.made.v-one .videoFrame { width: min(63vw, 220px) !important; }
+}
+@media (max-width: 680px) {
+  .brs.made.v-one .projectBar { position: relative !important; top: auto !important; }   /* scrolls with the page, as the design */
+}
+/* the sheet's own footer has Done: not the older phone flow's corner button too */
+.brs.brs .panels .fapply { display: none !important; }
+
+/* the preview video as big as the card allows: the stage takes the card's free height (the room above and under the frame
+   is the video now), and the frame is the largest one of the Reel's shape (--ar, views.ts) that fits in it */
+.brs.brs .previewPanel .previewStage {
+  container-type: size;
+  flex: 1 1 0 !important;
+  min-height: 320px;   /* the card's height comes from Clip Controls beside it: the stage takes what is left, the page stays */
+  display: grid !important;
+  place-items: center !important;
+  padding: 2px 0 !important;
+}
+@media (min-width: 1024px) { .brs.brs.made.v-one .previewPanel { gap: 6px !important; } }
+.brs.brs .previewPanel .videoFrame {
+  width: min(100cqw, 100cqh * var(--ar, .5625)) !important;
+  height: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 auto !important;
+}
+/* phones and tablets: the card has no column beside it to take its height from: the stage gets most of the screen */
+@media (max-width: 1023px) {
+  .brs.brs .previewPanel .previewStage { flex: none !important; height: min(64svh, 640px); min-height: 0; padding: 6px 0 !important; }
+}
+
+/* the Format menu opened from the preview card's 9:16 button: under that button, over the page (phones hide the top bar's
+   own Format button, never its menu) */
+.brs.brs .tbaspmenu.atprev { position: fixed !important; right: auto !important; z-index: 9995 !important; }
+@media (max-width: 680px) {
+  .brs.brs.made.v-one .projectBar .tb-aspect { display: contents !important; }
+  .brs.brs.made.v-one .projectBar .tb-aspect > .tbaspbtn { display: none !important; }
+}
+
+/* the play button in the middle of the video: on phones too (the older phone layout hid it) */
+.brs.brs.made .previewPanel .previewPlay { display: grid !important; }
+
+/* the frame's shape decides its height, never the canvas in it (a phone's older rules gave the canvas a height of its own,
+   and 16:9 or 1:1 grew as tall as 9:16 and wider than the screen) */
+.brs.brs .previewPanel .videoFrame { min-height: 0 !important; align-self: center !important; justify-self: center !important; }
+.brs.brs .previewPanel .videoFrame > #out {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  object-fit: contain;
+}
+/* phones and tablets: the stage is as tall as the video (a 16:9 Reel leaves no empty band); the frame is as wide as the card,
+   or as wide as two thirds of the screen's height allow for its shape */
+@media (max-width: 1023px) {
+  .brs.brs .previewPanel .previewStage { container-type: inline-size; height: auto !important; }
+  .brs.brs .previewPanel .videoFrame { width: min(100cqw, min(64svh, 640px) * var(--ar, .5625)) !important; }
 }

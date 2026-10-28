@@ -332,7 +332,7 @@ textarea {
 .rm main > div > div > article,
 .rm main > div > div > div > section,
 .rm main > div > div > div > article {
-  animation: luxury-arrive 480ms cubic-bezier(.2,.7,.25,1) both;
+  animation: luxury-arrive 480ms cubic-bezier(.2,.7,.25,1) backwards;   /* not "both": a transform kept after it ends would hold every fixed bar or sheet inside the section (Let's start, the editor's sheets) */
 }
 .rm main > div > div > section:nth-of-type(2),
 .rm main > div > div > div > section:nth-of-type(2) { animation-delay: 45ms; }

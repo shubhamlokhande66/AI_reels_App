@@ -159,7 +159,7 @@ export default function LoginPage() {
             </Link>
             <div className="mt-4 flex justify-center"><StoreBadges compact className="w-full max-w-[340px]" /></div>
           </div>
-          <LegalFooter className="mx-auto mt-6 w-full max-w-[440px] border-t border-border/70 pt-3 lg:mt-8" />
+          <LegalFooter compact className="mx-auto mt-6 w-full max-w-[440px] border-t border-border/70 pt-3 lg:mt-8" />
         </section>
       </div>
     </main>

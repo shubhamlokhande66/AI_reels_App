@@ -93,7 +93,7 @@ export const GROUPS: { title: string; tk?: string; admin?: boolean; items: { hre
 ];
 
 const AUTH_PAGES = ["/login", "/forgot", "/reset", "/verify"];
-const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact"];
+const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact", "/editor"];
 const PARTNER_PAGE = "/affiliate"; // the partner dashboard: its own page, with its own sign-in (by an emailed code)
 
 export function isActive(pathname: string, href: string): boolean {
@@ -144,8 +144,8 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
   return (
     <>
       {groups.map((g) => (
-        <div key={g.title} className="flex flex-col gap-0.5">
-          <Eyebrow className="px-2.5 pb-1 pt-3 first:pt-1">{g.tk ? t(g.tk) : g.title}</Eyebrow>
+        <div key={g.title} className="flex flex-col gap-1">
+          <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-1 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? t(g.tk) : g.title}</Eyebrow>
           {g.items.map((item) => {
             const active = isActive(pathname, item.href), lock = lockOf(item.href);
             const Tag = item.fullLoad && !lock ? "a" : Link;
@@ -155,11 +155,16 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
                 href={lock ? "/pricing?need=" + encodeURIComponent(item.href) : item.href}
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-[40px] items-center gap-3 rounded-[10px] px-2.5 text-[13.5px] transition-colors ${
-                  active ? "bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] font-bold text-foreground" : "text-muted hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] hover:text-foreground"
-                }`}
+                className={cn(
+                  "group relative flex min-h-[42px] items-center gap-2.5 rounded-[13px] border px-2 text-[12.5px] transition-[background,border-color,color,box-shadow,transform] duration-200",
+                  active
+                    ? "border-[color-mix(in_srgb,var(--accent)_24%,var(--line))] bg-[linear-gradient(100deg,color-mix(in_srgb,var(--accent)_13%,var(--surface)),color-mix(in_srgb,var(--accent)_5%,var(--surface)))] font-bold text-foreground shadow-[0_8px_24px_-20px_var(--brand-glow)]"
+                    : "border-transparent text-muted hover:translate-x-0.5 hover:border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] hover:bg-[color-mix(in_srgb,var(--accent)_5%,var(--surface))] hover:text-foreground",
+                )}
               >
-                <Icon name={item.icon} size={18} stroke={1.7} color={active ? "var(--accent)" : undefined} />
+                <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition-colors duration-200", active ? "bg-accent/12 text-accent" : "text-muted group-hover:bg-accent/8 group-hover:text-accent")}>
+                  <Icon name={item.icon} size={17} stroke={1.8} />
+                </span>
                 <span className="min-w-0 truncate">{item.tk ? t(item.tk) : item.label}</span>
                 {lock && <LockBadge />}
               </Tag>
@@ -203,9 +208,16 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
         href={lock ? "/pricing?need=" + encodeURIComponent(item.href) : item.href}
         onClick={onClose}
         aria-current={active ? "page" : undefined}
-        className={cn("flex min-h-[44px] items-center gap-2.5 rounded-xl px-2.5", active && "bg-accent/12 font-bold")}
+        className={cn(
+          "group relative flex min-h-[44px] items-center gap-2.5 rounded-[13px] border px-2 text-[12.5px] transition-[background,border-color,color,box-shadow,transform] duration-200",
+          active
+            ? "border-[color-mix(in_srgb,var(--accent)_24%,var(--line))] bg-[linear-gradient(100deg,color-mix(in_srgb,var(--accent)_13%,var(--surface)),color-mix(in_srgb,var(--accent)_5%,var(--surface)))] font-bold text-foreground shadow-[0_8px_24px_-20px_var(--brand-glow)]"
+            : "border-transparent text-muted hover:translate-x-0.5 hover:border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] hover:bg-[color-mix(in_srgb,var(--accent)_5%,var(--surface))] hover:text-foreground",
+        )}
       >
-        <Icon name={item.icon} size={20} stroke={1.7} color={active ? "var(--accent)" : "var(--muted)"} />
+        <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition-colors duration-200", active ? "bg-accent/12 text-accent" : "text-muted group-hover:bg-accent/8 group-hover:text-accent")}>
+          <Icon name={item.icon} size={17} stroke={1.8} />
+        </span>
         <span className="min-w-0 truncate">{item.tk ? t(item.tk) : item.label}</span>
         {lock && <LockBadge />}
       </Tag>
@@ -218,46 +230,49 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
         role="dialog"
         aria-modal="true"
         aria-label="Menu"
-        className={`absolute inset-y-0 left-0 flex w-[86%] max-w-[340px] flex-col bg-background text-foreground shadow-2xl transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "-translate-x-full"
+        className={`absolute inset-y-0 left-0 flex w-[88%] max-w-[360px] flex-col overflow-hidden border-r border-[color-mix(in_srgb,var(--accent)_18%,var(--line))] text-foreground [background:var(--sidebar)] transition-transform duration-300 ease-out ${
+          open ? "translate-x-0 shadow-[24px_0_70px_-28px_rgba(0,0,0,.72)]" : "-translate-x-full shadow-none"
         }`}
       >
-        <div className="grid items-center gap-2 border-b border-border bg-[var(--bar)] px-4 pb-2.5 pt-[max(12px,env(safe-area-inset-top))] grid-cols-[1fr_44px]">
+        <div className="relative grid grid-cols-[1fr_44px] items-center gap-2 border-b border-[color-mix(in_srgb,var(--accent)_16%,var(--line))] bg-[color-mix(in_srgb,var(--bar)_88%,transparent)] px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] shadow-[0_12px_30px_-28px_rgba(0,0,0,.8)] backdrop-blur-2xl before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-accent/50 before:to-transparent before:content-['']">
           <span className="flex min-w-0 items-center">
-            <Logo height={44} />
+            <Logo height={48} />
           </span>
           <IconButton icon="close" plain label={t("common.closeMenu")} onClick={onClose} />
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-4 pt-3 [&>*]:shrink-0">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4 pt-3.5 [&>*]:shrink-0">
           {email && (
-            <div className="flex items-center gap-3 px-1 pb-2.5 pt-1">
+            <div className="flex items-center gap-3 rounded-[15px] border border-[color-mix(in_srgb,var(--accent)_14%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] px-3 py-2.5 shadow-[0_8px_24px_-22px_rgba(0,0,0,.7)]">
               <Avatar email={email} />
-              <span className="truncate text-[12.5px] text-muted">{email}</span>
+              <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{email}</span>
+              <span className="shrink-0 rounded-full border border-accent/20 bg-accent/8 px-2 py-1 text-[8px] font-extrabold tracking-[.14em] text-accent">STUDIO</span>
             </div>
           )}
-          <nav aria-label="Pages" className="flex flex-col">
+          <nav aria-label="Pages" className="flex flex-col border-t border-[color-mix(in_srgb,var(--accent)_10%,var(--line))] pt-1">
             {main.map((g) => (
-              <div key={g.title} className="flex flex-col">
-                <Eyebrow className="px-2.5 pb-1 pt-3 first:pt-1">{g.tk ? t(g.tk) : g.title}</Eyebrow>
+              <div key={g.title} className="flex flex-col gap-1">
+                <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-2 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? t(g.tk) : g.title}</Eyebrow>
                 {g.items.map(link)}
               </div>
             ))}
           </nav>
           <div className="flex-1" />
           {admin && <AdminButton onClick={onClose} />}
-          <ThemeToggle className="mt-2" />
-          <InstallApp className="px-1 pt-2" />
-          <StoreBadges compact className="px-1 pt-2" />
+          <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] pt-3">
+            <ThemeToggle />
+            <InstallApp />
+            <StoreBadges compact />
+          </div>
           {credits && (
-            <div className="flex items-center justify-between gap-3 px-1 py-2.5">
+            <div className="flex items-center justify-between gap-2 rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_14%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] p-2">
               <span onClick={onClose}>
                 <CreditPill balance={credits.balance} full />
               </span>
-              <span className="text-[12.5px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
+              <span className="truncate text-[10px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
             </div>
           )}
           {onSignOut && (
-            <button type="button" onClick={onSignOut} className="flex min-h-[44px] items-center gap-3 px-1 text-left text-[12.5px] text-muted hover:text-foreground">
+            <button type="button" onClick={onSignOut} className="flex min-h-[44px] items-center gap-3 rounded-[12px] border border-transparent px-2.5 text-left text-[12px] text-muted transition-[background,border-color,color] duration-200 hover:border-danger/20 hover:bg-danger/5 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
               <Icon name="signout" size={18} />
               {t("nav.signOut")}
             </button>
@@ -403,14 +418,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <HelpChat raised={tabs} />
 
       {/* phones: the top bar */}
-      <header className="grid items-center gap-2 border-b border-border bg-[var(--bar)] px-4 pb-2.5 pt-[max(12px,env(safe-area-inset-top))] sticky top-0 z-30 grid-cols-[44px_1fr_minmax(44px,auto)] md:hidden">
+      <header className="relative isolate sticky top-0 z-30 grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[color-mix(in_srgb,var(--accent)_16%,var(--line))] bg-[color-mix(in_srgb,var(--bar)_90%,transparent)] px-3.5 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] shadow-[0_12px_30px_-28px_rgba(0,0,0,.85)] backdrop-blur-2xl md:hidden before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-accent/45 before:to-transparent before:content-['']">
         {back ? (
           <IconButton icon="back" plain label={t("common.back")} onClick={() => (window.history.length > 1 ? router.back() : router.push(back))} />
         ) : (
           <IconButton icon="menu" plain iconSize={22} label={t("common.openMenu")} aria-expanded={drawer} onClick={() => setDrawer(true)} />
         )}
-        <span className={cn("min-w-0 truncate whitespace-nowrap font-[family-name:var(--font-display)] text-[16px] font-semibold tracking-[-0.01em]", meta.left || pathname === "/" ? "text-left" : "text-center")}>{pathname === "/" ? <Logo height={44} /> : title}</span>
-        <span className="flex items-center justify-end gap-2 [&:has(#rm-top-action:not(:empty))>.dflt]:hidden">
+        <span className={cn("min-w-0", meta.left || pathname === "/" ? "text-left" : "text-center")}>
+          {pathname === "/" ? <Logo height={42} /> : (
+            <span className={cn("mx-auto grid min-w-0 max-w-full leading-tight", meta.left || pathname === "/" ? "justify-items-start" : "justify-items-center")}>
+              <span className="mb-1 text-[8px] font-extrabold uppercase tracking-[.2em] text-accent">Shubix · Studio</span>
+              <span className="max-w-full truncate whitespace-nowrap font-[family-name:var(--font-display)] text-[14px] font-semibold tracking-[-.015em] text-foreground">{title}</span>
+            </span>
+          )}
+        </span>
+        <span className="flex min-w-0 items-center justify-end gap-1.5 [&:has(#rm-top-action:not(:empty))>.dflt]:hidden">
           <span id={TOP_SLOT} className="contents" />
           <span className="dflt contents">
             {meta.admin ? (
@@ -440,30 +462,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       />
 
       {/* computers: the Noir sidebar */}
-      <aside className="hidden border-r border-border text-foreground [background:var(--sidebar)] md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-60 md:flex-col md:gap-4 md:overflow-y-auto md:px-4 md:py-[22px] [&>*]:shrink-0">
-        <Link href="/" className="flex" aria-label="Shubix home">
-          <Logo height={100} className="-mx-1 max-w-full" />
+      <aside className="relative hidden border-r border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] text-foreground [background:var(--sidebar)] md:fixed md:inset-y-0 md:left-0 md:z-30 md:flex md:w-60 md:flex-col md:gap-3 md:overflow-y-auto md:px-3.5 md:py-4 [&>*]:shrink-0">
+        <Link href="/" className="group relative flex h-[66px] items-center justify-center overflow-hidden rounded-[17px] border border-[color-mix(in_srgb,var(--accent)_17%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] shadow-[0_12px_30px_-26px_rgba(0,0,0,.8)] transition-[border-color,background] duration-200 hover:border-accent/35 hover:bg-surface/80" aria-label="Shubix home">
+          <span aria-hidden className="pointer-events-none absolute -right-5 -top-9 h-20 w-20 rounded-full bg-accent/10 blur-2xl transition-transform duration-300 group-hover:scale-125" />
+          <Logo height={54} className="relative max-w-full" />
         </Link>
-        <Button href="/create/music" reload icon="plus" full>
+        <Button href="/create/music" reload icon="plus" full size="md" className="!h-11 !rounded-[14px] !text-[12.5px] !shadow-[0_12px_30px_-18px_var(--brand-glow)]">
           {t("nav.newReel")}
         </Button>
-        <nav aria-label="Main" className="flex flex-col">
+        <nav aria-label="Main" className="flex flex-col border-t border-[color-mix(in_srgb,var(--accent)_10%,var(--line))] pt-1">
           <NavGroups groups={groups} pathname={pathname} />
         </nav>
         <div className="flex-1" />
         {!paid && <ProBanner compact />}
         {adminLink && <AdminButton />}
-        <ThemeToggle />
-        <InstallApp />
-        <StoreBadges compact />
+        <div className="flex flex-col gap-2 border-t border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] pt-3">
+          <ThemeToggle />
+          <InstallApp />
+          <StoreBadges compact />
+        </div>
         {credits && (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-2 rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] p-2">
             <CreditPill balance={credits.balance} full />
-            <span className="text-[11px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
+            <span className="truncate text-[10px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
           </div>
         )}
         {me.data?.user && (
-          <div className="flex items-center justify-between gap-3 text-[11px] text-muted">
+          <div className="flex items-center justify-between gap-2 border-t border-[color-mix(in_srgb,var(--accent)_10%,var(--line))] pt-2 text-[10px] text-muted">
             <span className="truncate" title={me.data.user.email}>
               {me.data.user.email}
             </span>
