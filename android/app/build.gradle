@@ -15,7 +15,7 @@ android {
     namespace = "com.shubix.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.shubix.app"
+        applicationId "in.shubix.reelmaker"   // the Google Play app's package name (fixed by Play); the code stays in com.shubix.app
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode Integer.parseInt(versionProps.getProperty('VERSION_CODE', '1'))

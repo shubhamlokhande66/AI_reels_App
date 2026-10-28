@@ -3590,3 +3590,8 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.brs .previewPanel .previewStage { container-type: inline-size; height: auto !important; }
   .brs.brs .previewPanel .videoFrame { width: min(100cqw, min(64svh, 640px) * var(--ar, .5625)) !important; }
 }
+
+/* the tool bar (Media, Style, Music…) is always there in the new design, a clip selected or not: the older layouts hid it
+   while a clip was selected, for a clip bar the new design no longer shows (phones lost every tool) */
+.brs.brs.made .toolDock { visibility: visible !important; }
+@media (max-width: 1023px) { .brs.brs.made.editing .toolDock { display: grid !important; } }

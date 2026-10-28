@@ -8,7 +8,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const server = process.env.CAP_SERVER_URL?.trim();
 
 const config: CapacitorConfig = {
-  appId: "com.shubix.app",
+  appId: "in.shubix.reelmaker", // the Google Play package name
   appName: "Shubix",
   webDir: "capacitor/www",
   backgroundColor: "#0a0a1f",

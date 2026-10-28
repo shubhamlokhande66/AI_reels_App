@@ -39,5 +39,6 @@ console.log(`Shubix for Android ${v.VERSION_NAME} (code ${v.VERSION_CODE}), open
 
 const run = (cmd, cwd = root) => execSync(cmd, { cwd, stdio: "inherit", env: { ...process.env, CAP_SERVER_URL: url } });
 run("npx cap sync android");
-run(process.platform === "win32" ? "gradlew.bat bundleRelease" : "./gradlew bundleRelease", android);
+// by its full path: a Windows shell need not look in the current folder for it
+run(`"${join(android, process.platform === "win32" ? "gradlew.bat" : "gradlew")}" bundleRelease`, android);
 console.log("\n✓ android/app/build/outputs/bundle/release/app-release.aab: upload it in Google Play Console (Testing → Internal testing first).\n");
