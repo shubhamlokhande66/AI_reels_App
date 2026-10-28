@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { Button } from "@/components/atoms/Button";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef } from "react";
 import { useCredits, useT } from "@/hooks/useApi";
 import { api, type AdPlace } from "@/lib/api";
 import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
-import { isApp } from "@/lib/nativeApp";
+import { isApp, useIsApp } from "@/lib/nativeApp";
 
 declare global { interface Window { adsbygoogle?: unknown[] } }
-const noSub = () => () => {};
 
 /** An ad for the plans that show ads (Free by default) in one of the spots (Home twice, My Reels, Invite & earn, My account;
  * each can be switched off in Admin → Settings → Ads): Google AdSense when the administrator set it up, otherwise the
@@ -22,7 +21,7 @@ export function AdSlot({ place }: { place: AdPlace }) {
   const ads = useQuery({ queryKey: ["ads"], queryFn: api.ads, staleTime: 300_000 });
   const c = credits.data, plan = c && c.enabled ? plans.data?.plans.find((p) => p.id === c.plan) : undefined;
   const show = !!c && c.enabled && !!plan && (plan.ads ?? plan.id === "free") && ads.data?.enabled !== false && ads.data?.places?.[place] !== false;
-  const inApp = useSyncExternalStore(noSub, isApp, () => false); // the app or not never changes while the page is open
+  const inApp = useIsApp();
   const adsense = show && !inApp && !!ads.data?.client && !!ads.data?.slot;
   const ins = useRef<HTMLModElement>(null);
   useEffect(() => {
