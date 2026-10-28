@@ -18,7 +18,7 @@ export function Logo({ height = 40, className = "" }: { height?: number; classNa
 /** The logo on its own dark tile, for a page of its own (sign-in, Contact) in the light look too. */
 export function LogoTile({ height = 64 }: { height?: number }) {
   return (
-    <span className="inline-flex rounded-2xl bg-[#0a0a1f] px-4 py-3 shadow-[0_18px_40px_-24px_rgba(0,0,0,.6)]">
+    <span className="inline-flex rounded-2xl bg-[#10100f] px-4 py-3 shadow-[0_18px_40px_-24px_rgba(0,0,0,.6)]">
       <Logo height={height} />
     </span>
   );

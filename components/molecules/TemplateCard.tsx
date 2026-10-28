@@ -25,7 +25,7 @@ const ART_MORE: Record<string, string> = {
   party: "bg-[radial-gradient(circle_at_30%_30%,rgba(120,80,255,.8),transparent_35%),radial-gradient(circle_at_75%_60%,rgba(255,60,200,.6),transparent_30%),linear-gradient(160deg,#120a2e,#05030f)]",
 };
 Object.assign(ART, ART_MORE);
-const FALLBACK = "bg-[radial-gradient(circle_at_60%_30%,rgba(200,140,255,.6),transparent_38%),linear-gradient(160deg,#7c3aed,#2a1660_60%,#0b0b22)]";
+const FALLBACK = "bg-[radial-gradient(circle_at_60%_30%,rgba(216,189,123,.45),transparent_38%),linear-gradient(160deg,#70603c,#332c20_60%,#151411)]";
 
 /** A Fast Studio template: a 9:16 poster with its name and length; opens Fast Studio with it picked. `link={false}`:
  * only the poster and its words (the admin's preview). */
@@ -35,12 +35,13 @@ export function TemplateCard({ t, compact = false, link = true }: { t: StudioTem
   const need = usePlanNeed(), locked = link && !!need && need(t.plan);
   const Tag = link ? "a" : "div";
   return (
-    <Tag {...(link ? { href: locked ? `/pricing?need=${encodeURIComponent(`template:${t.id}`)}` : templateHref(t), title: locked ? `${t.name}: in a paid plan` : `Make a Reel with ${t.name}` } : {})} className="group flex min-w-0 flex-col gap-1.5">
-      <div className={cn("relative aspect-[9/16] w-full overflow-hidden rounded-2xl [container-type:inline-size] border border-white/10 transition-transform duration-300 group-hover:-translate-y-1", ART[t.id] ?? FALLBACK)}>
+    <Tag {...(link ? { href: locked ? `/pricing?need=${encodeURIComponent(`template:${t.id}`)}` : templateHref(t), title: locked ? `${t.name}: in a paid plan` : `Make a Reel with ${t.name}` } : {})} className="group flex min-w-0 flex-col gap-2 rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+      <div className={cn("relative aspect-[9/16] w-full overflow-hidden rounded-[20px] [container-type:inline-size] border border-white/12 shadow-[0_14px_34px_-24px_rgba(0,0,0,.78)] transition-[transform,border-color,box-shadow] duration-300 group-hover:-translate-y-1 group-hover:border-accent/35 group-hover:shadow-[0_24px_44px_-26px_rgba(0,0,0,.8)] group-active:scale-[.99]", ART[t.id] ?? FALLBACK)}>
         {/* eslint-disable-next-line @next/next/no-img-element -- a small static cover */}
         {t.cover && <img src={t.cover} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />}
-        <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-        <span className="absolute inset-x-2.5 bottom-9 -rotate-6 font-[family-name:var(--font-display)] text-[clamp(15px,5.2cqw+8px,24px)] font-extrabold uppercase leading-[0.95] text-white [text-shadow:0_2px_0_rgba(0,0,0,.45),0_6px_16px_rgba(0,0,0,.4)]">
+        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,.06)_8%,transparent_38%,rgba(0,0,0,.14)_58%,rgba(0,0,0,.78)_100%)] transition-opacity duration-300 group-hover:opacity-90" />
+        <span aria-hidden className="pointer-events-none absolute -right-[18%] top-[18%] h-[44%] w-[70%] rounded-full border border-white/15 bg-white/10 opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100" />
+        <span className="absolute inset-x-3 bottom-10 -rotate-3 font-[family-name:var(--font-display)] text-[clamp(15px,5.2cqw+8px,24px)] font-extrabold uppercase leading-[0.95] text-white [text-shadow:0_2px_0_rgba(0,0,0,.45),0_6px_16px_rgba(0,0,0,.4)] transition-transform duration-300 group-hover:-rotate-1 group-hover:translate-y-[-2px]">
           {words.map((w) => (
             <span key={w} className="block">
               {w}
@@ -54,9 +55,9 @@ export function TemplateCard({ t, compact = false, link = true }: { t: StudioTem
       </div>
       {!compact && (
         <>
-          <b className="truncate text-[13px] group-hover:text-accent">{t.name}</b>
-          <span className="text-[11px] text-muted">{templateMeta(t)}</span>
-          <span className="line-clamp-2 text-[11px] leading-snug text-muted">{t.text}</span>
+          <b className="truncate text-[12px] font-bold leading-tight transition-colors duration-200 group-hover:text-accent sm:text-[13px]">{t.name}</b>
+          <span className="truncate text-[10px] font-medium text-muted sm:text-[11px]">{templateMeta(t)}</span>
+          <span className="line-clamp-2 min-h-[2.5em] text-[10px] leading-[1.35] text-muted sm:text-[11px]">{t.text}</span>
         </>
       )}
     </Tag>

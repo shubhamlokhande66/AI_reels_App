@@ -121,8 +121,8 @@ export const TEXT_GROUPS: TextGroup[] = [
   // ---------------------------------------------------------------- pages
   page(PAGES, "home", "Home",
     S("Hero",
-      C("Title", T("home.hero1", "Line 1", "Your moments."), T("home.hero2", "Line 2 (purple)", "Your story."), T("home.hero3", "Line 3 (pink)", "Your Reel.")),
-      C("Text and button", T("home.heroText", "Text", "Add your clips, choose a style or just give an idea — let Shubix create stunning reels for you in minutes.", true), T("home.heroButton", "Button", "Create Reel"))),
+      C("Title", T("home.hero1", "Line 1", "Your clips."), T("home.hero2", "Line 2 (champagne accent)", "On the beat."), T("home.hero3", "Line 3", "Your Reel.")),
+      C("Text and button", T("home.heroText", "Text", "Choose a track, add your favorite moments, and let Shubix cut them into a Reel that moves with the music.", true), T("home.heroButton", "Button", "Create Music Reel"))),
     S("Create Your Reel", C("Section", T("home.createTitle", "Title", "Create Your Reel"))),
     S("Popular Templates", C("Section", T("home.templatesTitle", "Title", "Popular Templates"), T("home.seeAll", "“See all” link (every section)", "See All"))),
     S("Continue Editing",
@@ -225,12 +225,12 @@ export const TEXT_GROUPS: TextGroup[] = [
   ),
   page(PAGES, "auth", "Sign in & passwords",
     S("Sign in",
-      C("Form", T("auth.signIn", "Title and button", "Sign in"), T("auth.email", "Email label", "Email"), T("auth.emailPlaceholder", "Email placeholder", "you@email.com"),
+      C("Form", T("auth.signIn", "Title and button", "Sign in"), T("auth.signInSub", "Line under sign in title", "Sign in to get back to your Reel studio."), T("auth.email", "Email label", "Email"), T("auth.emailPlaceholder", "Email placeholder", "you@email.com"),
         T("auth.password", "Password label", "Password"), T("auth.passwordPlaceholder", "Password placeholder", "Your password"), T("auth.wait", "While signing in", "Please wait…")),
       C("Links", T("auth.forgotLink", "Forgot password", "Forgot your password?"), T("auth.newHere", "Before “Create an account”", "New here?"), T("auth.createLink", "Create an account", "Create an account"),
         T("auth.partnerLink", "Affiliate partners link", "Affiliate partner? Open your dashboard"))),
     S("Create an account",
-      C("Form", T("auth.signUp", "Title", "Create your account"), T("auth.signUpButton", "Button", "Create account"), T("auth.newPasswordPlaceholder", "Password placeholder", "At least 8 characters"),
+      C("Form", T("auth.signUp", "Title", "Create your account"), T("auth.signUpSub", "Line under sign up title", "Create your account and start making Reels with music."), T("auth.signUpButton", "Button", "Create account"), T("auth.newPasswordPlaceholder", "Password placeholder", "At least 8 characters"),
         T("auth.haveAccount", "Before “Sign in”", "Already have an account?"))),
     S("Forgot password",
       C("Form", T("auth.back", "Back link", "Back to sign in"), T("auth.forgotTitle", "Title", "Forgot your password?"), T("auth.forgotText", "Line", "We'll email you a link to choose a new one."),
@@ -446,7 +446,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   // ---------------------------------------------------------------- plans & payments
   page(PLANS, "checkout", "Payment window (Razorpay)",
     S("Payment window", C("Look", T("checkout.name", "Business name at the top", "Shubix"),
-      T("checkout.logo", "Logo (a square picture: a link, or /icon-512.png from this site)", "/icon-512.png"), T("checkout.color", "Colour (#rrggbb)", "#9b5cff")))),
+      T("checkout.logo", "Logo (a square picture: a link, or /icon-512.png from this site)", "/icon-512.png"), T("checkout.color", "Colour (#rrggbb)", "#d8bd7b")))),
 ];
 
 export const TEXT_DEFAULTS: Record<string, string> = Object.fromEntries(TEXT_GROUPS.flatMap((g) => g.items.map((t) => [t.key, t.value])));

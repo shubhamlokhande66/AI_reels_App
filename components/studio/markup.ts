@@ -53,20 +53,117 @@ const AI_ICONS: Record<string, string> = { scenes: IC.scan, beats: IC.music, fac
 const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${AI_ICONS[k] ?? IC.scan}<span>${t}</span><i class="faidot" aria-hidden="true"></i></li>`).join("")}</ul>`;
 // a tool: a button in the tool bar and the heading of its panel
 // in the editor's order (the tool bar on a phone, the rail on a computer)
-const TOOLS: [string, string, string][] = [
-  ["style", "Style", IC.style], ["shots", "Shots", IC.shot], ["music", "Music", IC.music], ["text", "Text", IC.text], ["captions", "Captions", IC.captions],
-  ["look", "Look", IC.look], ["bg", "Background", IC.bg], ["layers", "Layers", IC.layers], ["voice", "Voice", IC.voice], ["motion", "Motion", IC.motion],
+export const GLYPH_PATHS: Record<string, string> = {
+  Media: "M4 5h16v14H4zM8 15l3-3 2 2 2-3 3 4",
+  Stickers: "M12 3a9 9 0 1 0 9 9h-6a3 3 0 0 1-3-3zM15 3v5h5",
+  Filters: "M4 6h16M7 12h10M10 18h4",
+  Style: "m12 3 2 6 6 3-6 2-2 7-2-7-6-2 6-3z",
+  Shots: "M4 4h16v16H4zM8 4v16M16 4v16",
+  Music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-3-3",
+  Text: "M4 6V4h16v2M12 4v16",
+  Captions: "M4 5h16v14H4zM7 10h4M13 10h4M7 14h3",
+  Background: "M4 6h16v12H4zM7 15l3-3 2 2 3-4",
+  Layers: "m12 3 9 5-9 5-9-5zM3 12l9 5 9-5",
+  Voice: "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6M6 10v1a6 6 0 0 0 12 0v-1",
+  Motion: "M4 12h4l2-7 4 14 2-7h4",
+  Transition: "M4 6l7 6-7 6zM20 6l-7 6 7 6z",
+  Effect: "m12 3 2 6 6 3-6 2-2 7-2-7-6-2 6-3z",
+  Speed: "M12 3v9l6 3",
+  Split: "M12 3v18M5 8l7 4 7-4M5 16l7-4 7 4",
+  Duplicate: "M8 8h12v12H8zM4 16V4h12",
+  Freeze: "M12 3v18M4 7l16 10M4 17 20 7",
+  "Other moment": "M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5",
+  Volume: "M4 10v4h4l5 4V6l-5 4zM17 9a5 5 0 0 1 0 6",
+  "Extract audio": "M9 18V5l12-2v13M9 18a3 3 0 1 1-3-3",
+  Crop: "M6 3v15a3 3 0 0 0 3 3h12M3 6h15a3 3 0 0 1 3 3",
+  Reverse: "M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3",
+  Rotate: "M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7",
+  Mirror: "M12 3v18M8 7L3 12l5 5zM16 7l5 5-5 5z",
+  Flip: "M3 12h18M7 8l5-5 5 5zM7 16l5 5 5-5z",
+  Fit: "M3 3h18v18H3zM7 7h10v10H7z",
+  Canvas: "M3 3h18v18H3zM3 15l5-5 4 4 3-3 6 6",
+  Border: "M3 3h18v18H3zM6.5 6.5h11v11h-11z",
+  Adjust: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0",
+  "Speed curve": "M3 18c4 0 4-12 9-12s5 12 9 12",
+  Stabilize: "M6 6h12v12H6zM2 12h2M20 12h2M12 2v2M12 20v2",
+  Beauty: "M12 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM6 21c1.5-3 4-4 6-4s4.5 1 6 4",
+  Fade: "M3 20L12 4l9 16zM12 4v16",
+  Mosaic: "M3 3h6v6H3zM15 3h6v6h-6zM9 9h6v6H9zM3 15h6v6H3zM15 15h6v6h-6z",
+  Magnifier: "M10.5 4a6.5 6.5 0 1 0 4.2 11.5L21 21",
+  Slip: "M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
+  Trim: "M7 4v16M17 4v16M7 12h10",
+  Reset: "M3 12a9 9 0 1 0 2.6-6.4L2 9M2 4v5h5",
+  Delete: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
+  play: "M8 5v14l11-7z"
+};
+
+export const Glyph = (name: string, size = 18) => {
+  const d = GLYPH_PATHS[name] ?? "m12 3 2 6 6 3-6 2-2 7-2-7-6-2 6-3z";
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}" /></svg>`;
+};
+
+export const SHOT_TOOLS_DEF: [string, string][] = [
+  ["Transition", "tr"], ["Effect", "fx"], ["Speed", "sp"], ["Split", "split"], ["Duplicate", "dup"], ["Freeze", "freeze"], ["Other moment", "other"],
+  ["Volume", "vol"], ["Extract audio", "extract"], ["Crop", "crop"], ["Reverse", "rev"], ["Rotate", "rot"], ["Mirror", "fh"], ["Flip", "fv"], ["Fit", "fit"],
+  ["Canvas", "canvas"], ["Border", "border"], ["Adjust", "adjust"], ["Speed curve", "curve"], ["Stabilize", "stab"], ["Beauty", "beauty"], ["Fade", "fade"],
+  ["Mosaic", "mosaic"], ["Magnifier", "lens"], ["Slip", "slip"], ["Trim", "trim"], ["Reset", "reset"], ["Delete", "delete"]
 ];
-// every tool in one bar; a plan's tool (views.ts PLAN_TOOLS) carries its plan's tag (views.ts writes the plan's name), and
-// on a lower plan it opens /pricing
-const dock = TOOLS.map(([k, n, ic]) => `<button type="button" class="tool" data-tool="${k}" aria-pressed="false">${ic}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag">${IC.crown}<b>PRO</b></em>` : ""}</button>`).join("");
-const panelHead = (k: string) => { const t = TOOLS.find((x) => x[0] === k)!; return `<h3 class="ph">${t[2]}${t[1]}</h3>`; };
+
+export const DOCK_CATEGORIES_DEF: [string, string, boolean][] = [
+  ["media", "Media", false],
+  ["stickers", "Stickers", false],
+  ["look", "Filters", false],
+  ["style", "Style", false],
+  ["shots", "Shots", false],
+  ["music", "Music", false],
+  ["text", "Text", false],
+  ["captions", "Captions", false],
+  ["bg", "Background", true],
+  ["layers", "Layers", true],
+  ["voice", "Voice", true],
+  ["motion", "Motion", true]
+];
+
+export const shotToolGridHtml = SHOT_TOOLS_DEF.map(([name, act]) =>
+  `<button type="button" class="shotTool${name === "Delete" ? " deleteTool" : ""}" data-st="${act}" data-stname="${name}">${Glyph(name, 18)}<span>${name}</span></button>`
+).join("");
+
+// a plan's tool (views.ts PLAN_TOOLS) carries its plan's tag (views.ts writes the plan's name); on a lower plan it opens /pricing
+const dock = DOCK_CATEGORIES_DEF.map(([k, n]) =>
+  `<button type="button" class="categoryTool tool" data-tool="${k}" aria-pressed="false">${Glyph(n, 18)}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag proTag"><b>PRO</b></em>` : ""}</button>`
+).join("");
+// what each tool's popup is for (the line under its name)
+const PANEL_NOTE: Record<string, string> = {
+  media: "Add or change the clips and photos in your Reel.",
+  style: "Choose how Shubix edits your Reel.",
+  music: "Change the song, the part that plays and how loud it is.",
+  text: "Add a hook, your own text and stickers to your Reel.",
+  captions: "Show the spoken words on screen, word by word.",
+  look: "Pick a filter and the colours of your Reel.",
+  bg: "Choose what fills the frame behind your clips.",
+  layers: "Put pictures and videos over your Reel.",
+  voice: "Record or make a voiceover for your Reel.",
+  motion: "Add camera moves and motion to your shots.",
+};
+// a tool's popup header, as the design's sheets: its sign in a square, "Editor tool" over its name, then what it is for
+const panelHead = (k: string) => {
+  const cat = DOCK_CATEGORIES_DEF.find((x) => x[0] === k);
+  const name = cat ? cat[1] : k.charAt(0).toUpperCase() + k.slice(1);
+  return `<header class="ph sheetHeader"><span class="sheetHeading"><span class="sheetIcon">${Glyph(name, 18)}</span><span><small>EDITOR TOOL</small><b>${name}</b></span></span></header>`
+    + (PANEL_NOTE[k] ? `<p class="sheetDescription">${PANEL_NOTE[k]}</p>` : "");
+};
 
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
-<div class="topbar" id="topbar">
+<header class="projectBar topbar" id="topbar">
   <button type="button" class="ibtn tb-back" id="tbback" aria-label="Back">${IC.back}</button>
-  <div class="tb-title"><span class="tb-name" id="tbname">Your Reel</span><span class="tb-sub" id="psaved"></span></div>
+  <div class="projectIdentity tb-title">
+    <span class="projectMark">${Glyph("Shots", 20)}</span>
+    <span class="projectCopy">
+      <small>REEL STUDIO <i aria-hidden="true"></i> <span id="psaved">SAVED REEL</span></small>
+      <strong id="tbname">Your Reel</strong>
+    </span>
+  </div>
   <div class="tb-aspect" id="tbasp">
     <button type="button" class="tbaspbtn" id="tbaspbtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Format" title="Format"><span id="tbaspv">9:16</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     <div class="tbaspmenu" id="tbaspmenu" role="listbox" aria-label="Format" hidden>
@@ -76,11 +173,16 @@ export const STUDIO_HTML = `
       <button type="button" role="option" data-a="16:9"><i class="r169"></i><span><b>16:9</b><small>YouTube, wide</small></span></button>
     </div>
   </div>
-  <span class="tb-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">${IC.undo}</button><button type="button" class="btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${IC.redo}</button></span>
-  <button type="button" class="btn tb-asfree" id="tbasfree" aria-pressed="false" title="Administrator only: shows the studio the way a Free plan user sees it (locked tools, watermark). Press again to see everything.">Preview as Free user</button>
-  <button type="button" class="ibtn tb-chat" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix">${IC.spark}</button>
-  <button type="button" class="btn save tb-export" id="topexport" disabled>${IC.save}<span>Export</span></button>
-</div>
+  <div class="projectActions">
+    <span class="tb-undo" role="group" aria-label="Undo and redo">
+      <button type="button" class="undoButton btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">↶</button>
+      <button type="button" class="undoButton btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">↷</button>
+    </span>
+    <button type="button" class="btn tb-asfree" id="tbasfree" aria-pressed="false" title="Preview as Free user">Preview as Free</button>
+    <button type="button" class="shareButton ibtn tb-chat" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix">${IC.spark}<span>Ask Shubix</span></button>
+    <button type="button" class="exportButton btn save tb-export" id="topexport" disabled>Export ${IC.arrow}</button>
+  </div>
+</header>
 <div class="wrap">
   <div class="fhead" id="fhead">
     <button type="button" class="fback" id="fback" aria-label="Back">${IC.back}</button>
@@ -270,51 +372,99 @@ export const STUDIO_HTML = `
     <p class="fnote fbox">${IC.lock}This happens on your phone. Your videos are never uploaded.</p>
   </section>
 
-  <section class="step locked" id="s3">
+  <section class="step locked editor" id="s3">
     <div class="sh3"><span class="num">4</span><h2>Your Reel</h2><span class="st" id="s3st">The edit appears once there are clips</span></div>
     <div class="create">
-      <div class="stage">
-        <div class="pv">
-          <div class="pvbox"><canvas id="out" width="1080" height="1920"></canvas>
-            <div class="refwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Reading the Reel to copy</b><small id="refwaitp">its cuts, flickers and transitions…</small></div>
-            <div class="aiask" id="aiask" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b id="aiaskt">Your Reel is waiting for Shubix AI</b><small id="aiaskp"></small><button type="button" class="btn hot" id="aiaskgo">Make it with Shubix AI</button></div>
-            <div class="aiwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Shubix is making your Reel</b><small>Watching your clips and listening to the song…</small></div>
-            <button type="button" class="playov" id="playov" aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button></div>
-          <div class="summary" id="summary">
-            <h2 class="sumh">Your Reel is ready</h2>
-            <p class="sumi" id="suminfo"></p>
-            <button type="button" class="btn" data-proxy="remix">${IC.mix}<span>Change Reel</span></button>
+      <div class="workbench">
+        <section class="previewPanel stage">
+          <div class="previewHeader">
+            <span><i></i> PREVIEW</span>
+            <button type="button" class="prevAspectBtn" id="prevaspbtn"><span id="prevaspv">9:16</span> <span>⌄</span></button>
           </div>
-          <div class="inspector" id="inspector"></div>
-        </div>
-        <div class="bar"><i id="prog"></i></div>
-        <div class="transport">
-          <span class="tc" id="tcur">0:00.0</span>
-          <button class="btn icon" id="pshot" type="button" aria-label="Previous shot">${IC.prev}</button>
-          <button class="btn icon" id="cover" disabled aria-label="Cover image" title="Cover image">${IC.image}<span>Cover</span></button>
-          <span class="tr-undo" role="group" aria-label="Undo and redo"><button type="button" class="btn icon" id="tundo" data-proxy="undo" disabled aria-label="Undo">${IC.undo}</button><button type="button" class="btn icon" id="tredo" data-proxy="redo" disabled aria-label="Redo">${IC.redo}</button></span>
-          <button class="btn primary" id="play" disabled>${IC.play}<span>Preview</span></button>
-          <button class="btn icon" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version">${IC.mix}<span>Change Reel</span></button>
-          <button class="btn icon" id="nshot" type="button" aria-label="Next shot">${IC.next}</button>
-          <span class="tc" id="ttot">0:00.0</span>
-          <button class="btn icon" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
-        </div>
-        <div class="feditbar"><button type="button" class="btn primary big" id="fedit">${IC.pen}<span>Edit</span></button><small>Change shots, effects, text, music and more on the timeline</small></div>
-        <div class="tlbar"><button class="btn mini feditdone" id="feditdone" type="button">${IC.check} Done editing</button><span class="tlzs"><button class="btn mini" id="tlzo" type="button" aria-label="Zoom the timeline out">−</button><span id="tlz" class="fname">1×</span><button class="btn mini" id="tlzi" type="button" aria-label="Zoom the timeline in">+</button><button class="btn mini" id="tlfit" type="button" aria-label="The whole Reel in view" title="The whole Reel in view">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button></span></div>
-        <div class="strip"><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
-        <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch to zoom. Tap a clip to select it, tap it again for its transition, effect and speed; hold a clip and drag it to move it; drag the selected clip's edge to make it longer or shorter"></canvas></div>
-        <label class="tog safe"><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
-        <div class="msg" id="xmsg" hidden></div>
-        <div class="row" id="saverow" hidden><button class="btn gold" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
-        <div class="postcap" id="postcap" hidden>
-          <label class="fname" for="postcapt">Caption for your post</label>
-          <textarea id="postcapt" rows="4" spellcheck="true"></textarea>
-          <div class="row"><button class="btn mini" id="postcopy" type="button">Copy caption</button><span class="fname" id="postcapst"></span></div>
-        </div>
+          <div class="previewStage pv">
+            <div class="videoFrame pvbox">
+              <canvas id="out" width="1080" height="1920"></canvas>
+              <div class="refwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Reading the Reel to copy</b><small id="refwaitp">its cuts, flickers and transitions…</small></div>
+              <div class="aiask" id="aiask" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b id="aiaskt">Your Reel is waiting for Shubix AI</b><small id="aiaskp"></small><button type="button" class="btn hot" id="aiaskgo">Make it with Shubix AI</button></div>
+              <div class="aiwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Shubix is making your Reel</b><small>Watching your clips and listening to the song…</small></div>
+              <button type="button" class="previewPlay playov" id="playov" aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button>
+              <div class="frameCounter" id="framecounter">01 / 08</div>
+            </div>
+            <div class="summary" id="summary" hidden>
+              <h2 class="sumh">Your Reel is ready</h2>
+              <p class="sumi" id="suminfo"></p>
+              <button type="button" class="btn" data-proxy="remix">${IC.mix}<span>Change Reel</span></button>
+            </div>
+          </div>
+          <div class="transport">
+            <span class="timeCurrent tc" id="tcur">0:00.0</span>
+            <span class="timeDivider">/</span>
+            <span class="timeTotal tc" id="ttot">0:00.0</span>
+            <button class="transportSkip btn icon" id="pshot" type="button" aria-label="Previous shot">|◂</button>
+            <button class="transportPlay btn primary" id="play" disabled aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button>
+            <button class="transportSkip btn icon" id="nshot" type="button" aria-label="Next shot">▸|</button>
+            <span class="transportSpacer"></span>
+            <span class="soundState" id="soundstate">${Glyph("Music", 14)} SOUND ON</span>
+            <button class="btn icon" id="cover" disabled aria-label="Cover image" title="Cover image" hidden>${IC.image}<span>Cover</span></button>
+            <span class="tr-undo" role="group" aria-label="Undo and redo" hidden><button type="button" class="btn icon" id="tundo" data-proxy="undo" disabled aria-label="Undo">${IC.undo}</button><button type="button" class="btn icon" id="tredo" data-proxy="redo" disabled aria-label="Redo">${IC.redo}</button></span>
+            <button class="btn icon" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version" hidden>${IC.mix}<span>Change Reel</span></button>
+            <button class="btn icon" id="pvfull" type="button" aria-label="Full screen" title="Full screen" style="margin-left:6px">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
+          </div>
+          <div class="previewProgress bar"><i id="prog" style="width:0%"></i></div>
+          <div class="feditbar" hidden><button type="button" class="btn primary big" id="fedit">${IC.pen}<span>Edit</span></button><small>Change shots, effects, text, music and more on the timeline</small></div>
+          <label class="tog safe" hidden><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
+          <div class="msg" id="xmsg" hidden></div>
+          <div class="row" id="saverow" hidden><button class="btn gold" id="savevid">Save to Photos / Share</button><a class="btn" id="dlvid">Download</a></div>
+          <div class="postcap" id="postcap" hidden>
+            <label class="fname" for="postcapt">Caption for your post</label>
+            <textarea id="postcapt" rows="4" spellcheck="true"></textarea>
+            <div class="row"><button class="btn mini" id="postcopy" type="button">Copy caption</button><span class="fname" id="postcapst"></span></div>
+          </div>
+        </section>
+
+        <aside class="inspector" id="inspector-card">
+          <div class="inspectorHead">
+            <div><span class="eyebrow">CLIP CONTROLS</span><h2 id="inspect-shot-title">Shot 01</h2></div>
+            <span class="durationPill" id="inspect-shot-dur">0.0 s</span>
+          </div>
+          <div class="shotToolGrid" id="shottoolgrid">
+            ${shotToolGridHtml}
+          </div>
+          <div class="activeToolNote" id="inspect-tool-note"><i class="noteDot"></i> <span id="inspect-tool-text">Transition selected for Shot 01</span></div>
+          <div class="inspector-old" id="inspector" hidden></div>
+          <div class="shotcard-old" id="shotcard" hidden></div>
+        </aside>
       </div>
 
+      <section class="timelineCard" id="timelinecard">
+        <header class="timelineHeader">
+          <div class="timelineTitle">
+            <span class="timelineIcon">${Glyph("Shots", 18)}</span>
+            <span><b>Timeline</b><small id="tlsub">8 clips · 5 layers</small></span>
+          </div>
+          <div class="timelineActions">
+            <span class="timelineTime" id="tltime">00:04.8 / 00:29.6</span>
+            <button type="button" id="tlzo" aria-label="Zoom out">−</button>
+            <span class="zoomValue" id="tlz">100%</span>
+            <button type="button" id="tlzi" aria-label="Zoom in">+</button>
+            <button type="button" class="fitButton" id="tlfit">Fit</button>
+            <button class="btn mini feditdone" id="feditdone" type="button" hidden>${IC.check} Done</button>
+          </div>
+        </header>
+        <div class="timelineScroll">
+          <div class="timelineCanvas">
+            <div class="strip" hidden><div class="tlscroll"><canvas id="tl" class="tl" aria-label="Timeline, one block per shot"></canvas></div><div class="tlmusic" id="tlmusic"></div></div>
+            <div class="lanesbox"><canvas class="lanes" id="lanes" aria-label="Timeline: effects, video, text, voice and music. Pinch to zoom. Tap a clip to select it, tap it again for its transition, effect and speed; hold a clip and drag it to move it; drag the selected clip's edge to make it longer or shorter"></canvas></div>
+          </div>
+        </div>
+        <footer class="timelineFooter">
+          <span><i></i> <span id="psaved-status">All changes saved</span></span>
+          <span>Drag clips to rearrange · Select a shot to edit</span>
+        </footer>
+      </section>
+
       <div class="tools">
-        <nav class="dock" id="dock" aria-label="Tools">${dock}</nav>
+        <nav class="toolDock dock" id="dock" aria-label="Editor tools">${dock}</nav>
 
         <div class="panels" id="panels">
           <button type="button" class="pclose" id="pclose" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -322,7 +472,7 @@ export const STUDIO_HTML = `
           <nav class="ptabs" id="ptabs" aria-label="Library">
             <button type="button" data-pt="media" aria-pressed="false">${IC.image}<span>Media</span></button><button type="button" data-pt="music" aria-pressed="false">${IC.music}<span>Music</span></button><button type="button" data-pt="text" aria-pressed="false">${IC.text}<span>Text</span></button><button type="button" data-pt="stickers" aria-pressed="false">${I('<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>')}<span>Stickers</span></button><button type="button" data-pt="effects" aria-pressed="false">${IC.spark}<span>Effects</span></button><button type="button" data-pt="transitions" aria-pressed="false">${I('<path d="M4 6l7 6-7 6zM20 6l-7 6 7 6z"/>')}<span>Transitions</span></button><button type="button" data-pt="filters" aria-pressed="false">${I('<path d="M4 6h16M7 12h10M10 18h4"/>')}<span>Filters</span></button>
           </nav>
-          <section class="panel" data-panel="media"><h3 class="ph">${IC.image}Media</h3><div class="mslot" id="mslot"></div></section>
+          <section class="panel" data-panel="media">${panelHead("media")}<div class="mslot" id="mslot"></div></section>
           <section class="panel" data-panel="style">${panelHead("style")}
             <div class="seg" id="mode">
               <button data-m="auto" aria-pressed="true">Auto</button>
@@ -475,6 +625,7 @@ export const STUDIO_HTML = `
               <div class="edl"><table><thead><tr><th>Time</th><th>Type</th><th>Clip</th><th>Transition</th><th>Effect</th><th>Speed</th></tr></thead><tbody id="edl"></tbody></table></div>
             </details>
           </section>
+          <footer class="sheetFooter pfoot"><span><i aria-hidden="true"></i>Changes show in the preview right away</span><button type="button" class="applyOption" id="pdone">Done ${IC.check}</button></footer>
         </div>
       </div>
     </div>
@@ -496,12 +647,15 @@ export const STUDIO_HTML = `
 </div></div>
 <div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
 <section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">
-  <div class="ctpoph"><b id="ctpoph"></b><span class="ctpopbtns"><button type="button" class="ctpopx" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button><button type="button" class="ctpopok" id="ctpopok" aria-label="Apply" title="Apply">${IC.check}</button></span></div>
+  <div class="ctpoph sheetHeader"><span class="sheetHeading"><span class="sheetIcon" id="ctpopic"></span><span><small id="ctpopsub">SHOT 01</small><b id="ctpoph"></b></span></span><span class="ctpopbtns"><button type="button" class="ctpopx" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></span></div>
+  <p class="sheetDescription">Adjust this shot. Your changes show in the preview right away.</p>
   <div class="ctpopb" id="ctpopb"></div>
+  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ctpopfoot">Preview selection</span></span><button type="button" class="ctpopok applyOption" id="ctpopok" title="Apply">Done ${IC.check}</button></footer>
 </section>
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
-  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button><button type="button" class="ss-ok" id="ssok" aria-label="Apply" title="Apply">${IC.check}</button></div>
+  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="ss-x" id="ssx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
   <div class="ss-body shotcard" id="ssbody"></div>
+  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ssfoot">Preview selection</span></span><button type="button" class="ss-ok applyOption" id="ssok" title="Apply">Done ${IC.check}</button></footer>
   <span class="ss-rs" aria-hidden="true" title="Drag to resize"></span>
 </section>
 <section class="fexp" id="fexp" hidden aria-live="polite" aria-labelledby="fexph">

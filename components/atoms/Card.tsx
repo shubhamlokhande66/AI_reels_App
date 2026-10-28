@@ -6,8 +6,8 @@ export type CardVariant = "default" | "interactive" | "glass";
 
 const VARIANT: Record<CardVariant, string> = {
   default: "border border-border bg-surface shadow-[var(--shadow)]",
-  interactive: "border border-border bg-surface shadow-[var(--shadow)] transition-[border-color,translate] hover:-translate-y-0.5 hover:border-accent/60",
-  glass: "border border-white/15 bg-white/10 backdrop-blur-md",
+  interactive: "border border-border bg-surface shadow-[var(--shadow)] transition-[border-color,translate,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-accent/60 hover:shadow-[0_18px_40px_-26px_var(--brand-glow)]",
+  glass: "border border-white/15 bg-white/10 shadow-[0_18px_44px_-28px_rgba(0,0,0,.65)] backdrop-blur-md",
 };
 
 export function cardClass({ variant = "default", className }: { variant?: CardVariant; className?: string } = {}) {

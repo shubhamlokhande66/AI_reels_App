@@ -46,7 +46,7 @@ function Invite({ m }: { m: MyMarketing }) {
     <Card className="relative flex flex-col gap-4 overflow-hidden p-5 md:p-6">
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--accent)_22%,transparent),transparent)]" />
       <div className="flex items-start gap-3">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[image:var(--gold-gradient)] text-white shadow-[0_10px_24px_-12px_var(--accent)]"><Icon name="gift" size={22} /></span>
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[image:var(--gold-gradient)] text-[var(--on-accent)] shadow-[0_10px_24px_-12px_var(--accent)]"><Icon name="gift" size={22} /></span>
         <div className="min-w-0">
           <Heading size="title" as="h2">{t("rewards.inviteTitle")}</Heading>
           <p className="m-0 mt-1 text-[13px] text-muted">{r.on ? t("rewards.inviteLine2", { you: r.inviterCredits, friend: r.inviteeCredits, friendWhen: step(r.inviteeOn), youWhen: step(r.inviterOn) }) : t("rewards.inviteOff")}</p>
@@ -69,7 +69,7 @@ function Invite({ m }: { m: MyMarketing }) {
               </div>
             </div>
           </Field>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid gap-2.5 sm:grid-cols-3">
             <StatTile value={r.invited} label={t("rewards.invited")} />
             <StatTile value={r.rewarded} label={t("rewards.rewarded")} />
             <StatTile value={r.earned} label={t("rewards.earned")} />
@@ -175,7 +175,7 @@ function Affiliate({ m }: { m: MyMarketing }) {
       {me?.status === "paused" && <p className="m-0 rounded-xl bg-surface-2 px-3 py-2.5 text-[12.5px] text-muted">{t("rewards.affPaused")}</p>}
       {me?.status === "active" && (
         <>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid gap-2.5 sm:grid-cols-3">
             <StatTile value={rupee(me.due)} label={t("rewards.affDue")} />
             <StatTile value={rupee(me.paid)} label={t("rewards.affPaid")} />
             <StatTile value={me.sales} label={t("rewards.affSales")} />

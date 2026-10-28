@@ -17,7 +17,7 @@ const keep = (m: Msg[]) => { try { sessionStorage.setItem(KEY, JSON.stringify(m.
 /** The Help chat (Admin → Support turns it on or off): a button at the bottom right of every page (not in the editor or
  * the admin), a chat that answers questions about Shubix, and the way to the team when a person is needed. Every word:
  * Admin → CMS → Every page → Help chat. */
-export function HelpChat({ raised = true }: { raised?: boolean }) {
+export function HelpChat({ raised = true, authPlacement = false }: { raised?: boolean; authPlacement?: boolean }) {
   const t = useT(), path = usePathname() ?? "/";
   const on = useQuery({ queryKey: ["help-on"], queryFn: api.helpOn, staleTime: 600_000, retry: false }).data?.on;
   const [open, setOpen] = useState(false), [msgs, setMsgs] = useState<Msg[]>([]), [text, setText] = useState("");
@@ -54,7 +54,7 @@ export function HelpChat({ raised = true }: { raised?: boolean }) {
     <>
       {!open && (
         <button type="button" onClick={() => setOpen(true)} aria-label={t("help.open")}
-          className={cn("fixed right-4 z-30", raised ? "bottom-[calc(84px+env(safe-area-inset-bottom))]" : "bottom-[calc(16px+env(safe-area-inset-bottom))]", " flex h-12 items-center gap-2 rounded-full bg-[linear-gradient(135deg,#c084fc,#9b5cff_55%,#6d5dfc)] pl-3.5 pr-4 text-[13.5px] font-semibold text-white shadow-[0_10px_30px_rgba(124,58,237,.38)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6")}>
+          className={cn(authPlacement ? "absolute right-4 top-[calc(72px+env(safe-area-inset-top))] z-30 lg:fixed lg:bottom-6 lg:right-6 lg:top-auto" : cn("fixed right-4 z-30", raised ? "bottom-[calc(84px+env(safe-area-inset-bottom))]" : "bottom-[calc(16px+env(safe-area-inset-bottom))]", "md:bottom-6 md:right-6"), "flex h-12 items-center gap-2 rounded-full text-[var(--on-accent)] [background:var(--gold-gradient)] px-4 text-[13.5px] font-bold shadow-[0_10px_30px_-12px_var(--brand-glow)] transition-transform hover:-translate-y-0.5")}>
           <Icon name="chat" size={20} />
           <span className="hidden sm:inline">{t("help.button")}</span>
         </button>
@@ -62,7 +62,7 @@ export function HelpChat({ raised = true }: { raised?: boolean }) {
       {open && (
         <section role="dialog" aria-label={t("help.title")}
           className={cn("fixed inset-x-3 z-40", raised ? "bottom-[calc(80px+env(safe-area-inset-bottom))]" : "bottom-[calc(12px+env(safe-area-inset-bottom))]", " flex max-h-[min(72vh,620px)] animate-sheet flex-col overflow-hidden rounded-3xl border border-border bg-background shadow-[0_24px_70px_rgba(20,10,40,.35)] md:inset-x-auto md:bottom-6 md:right-6 md:w-[390px]")}>
-          <header className="flex items-center gap-3 bg-[linear-gradient(135deg,#1a1326,#2a1840_60%,#3b1d5c)] px-4 py-3.5 text-white">
+          <header className="flex items-center gap-3 border-b border-white/10 bg-[linear-gradient(135deg,#29271f,#191917_62%,#393326)] px-4 py-3.5 text-white">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/15"><Icon name="sparkle" size={18} /></span>
             <div className="min-w-0 flex-1">
               <b className="block text-[14.5px] leading-tight">{t("help.title")}</b>
@@ -99,7 +99,7 @@ export function HelpChat({ raised = true }: { raised?: boolean }) {
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void ask(text); } }}
               className="max-h-28 min-h-[42px] flex-1 resize-none rounded-2xl border border-border bg-surface px-3.5 py-2.5 text-[14px] outline-none focus:border-accent" />
             <button type="submit" disabled={!text.trim() || busy} aria-label={t("help.send")}
-              className="grid size-[42px] shrink-0 place-items-center rounded-full bg-[linear-gradient(135deg,#c084fc,#9b5cff_55%,#6d5dfc)] text-white disabled:opacity-40">
+              className="grid size-[42px] shrink-0 place-items-center rounded-full text-[var(--on-accent)] [background:var(--gold-gradient)] shadow-[0_8px_20px_-12px_var(--brand-glow)] transition-transform hover:scale-[1.03] disabled:opacity-40">
               <Icon name="send" size={18} />
             </button>
           </form>
@@ -112,7 +112,7 @@ export function HelpChat({ raised = true }: { raised?: boolean }) {
 
 const Bubble = ({ role, children }: { role: "user" | "assistant"; children: React.ReactNode }) => (
   <div className={cn("max-w-[86%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed [&_p]:m-0 [&_p+p]:mt-1.5",
-    role === "user" ? "self-end rounded-br-md bg-[linear-gradient(135deg,#a855f7,#7c3aed)] text-white" : "self-start rounded-bl-md border border-border bg-surface")}>
+    role === "user" ? "self-end rounded-br-md text-[var(--on-accent)] [background:var(--gold-gradient)]" : "self-start rounded-bl-md border border-border bg-surface shadow-[var(--shadow)]")}>
     {children}
   </div>
 );

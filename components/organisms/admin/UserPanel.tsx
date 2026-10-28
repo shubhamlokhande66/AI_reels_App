@@ -158,7 +158,7 @@ export function UserPanel({ id, onClose }: { id: string; onClose: () => void }) 
                       {u.admin ? "Admin · all open" : `${u.wallet.planName} plan${u.wallet.period ? ` · ${u.wallet.period}` : ""}`}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
                     <Fact label="Left" value={count(u.wallet.balance)} />
                     <Fact label="This month's" value={count(u.wallet.monthly)} />
                     <Fact label="Top-ups" value={count(u.wallet.extra)} />

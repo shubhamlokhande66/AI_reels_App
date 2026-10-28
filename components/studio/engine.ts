@@ -122,8 +122,8 @@ let userMarks = [];   // beats the creator tapped in (song time): cuts can land 
 function withMarks(b, dur){ if(!userMarks.length) return b; const out = b.slice();
   for(const m of userMarks){ const t = m - secStart; if(t > 0.05 && t < dur - 0.05 && !out.some(x => Math.abs(x - t) < 0.08)) out.push(t); }
   return out.sort((x, y) => x - y); }
-function addMark(t){ if(!buf || !edit.length) return false; userMarks.push(+(secStart + t).toFixed(3)); beats = withMarks(beats, buf.duration); makeEdit(); notify('Beat added at ' + t.toFixed(1) + ' s: a cut can land there now'); return true; }
-function clearMarks(){ if(!userMarks.length) return false; const ts = userMarks.map(m => m - secStart); userMarks = []; beats = beats.filter(b => !ts.some(t => Math.abs(t - b) < 0.005)); makeEdit(); notify('Your beats are cleared'); return true; }
+function addMark(t){ if(!buf || !edit.length) return false; remakeOk(); userMarks.push(+(secStart + t).toFixed(3)); beats = withMarks(beats, buf.duration); makeEdit(); notify('Beat added at ' + t.toFixed(1) + ' s: a cut can land there now'); return true; }
+function clearMarks(){ if(!userMarks.length) return false; remakeOk(); const ts = userMarks.map(m => m - secStart); userMarks = []; beats = beats.filter(b => !ts.some(t => Math.abs(t - b) < 0.005)); makeEdit(); notify('Your beats are cleared'); return true; }
 // On an iPhone the page's sound is muted by the ring/silent switch unless it says it is playing media (Audio Session API)
 function getCtx(){ if(!ctx){ try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){} ctx = new (window.AudioContext||window.webkitAudioContext)(); } return ctx; }
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -722,6 +722,7 @@ async function decodeAnyAudio(file){
 function songBusy(on){ const b = $('mpick'); b.classList.toggle('busy', on); b.setAttribute('aria-busy', String(on)); b.disabled = on;
   b.querySelector('span').textContent = on ? 'Reading the song…' : 'Choose song'; $('rlist').classList.toggle('busy', on); }
 async function loadMusic(file, cached = null){
+  remakeOk();
   const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
   stopAll(); songBusy(true);
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
@@ -925,6 +926,7 @@ async function useSection(token = musicToken){
   if(sources.length && !recording) makeEdit();
 }
 function setLen(L){
+  remakeOk();
   if(recording) return;
   sec.len = L; sec.auto = true;
   [...$('slen').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.l === (L === 0 ? '0' : [15,30,60].includes(L) ? String(L) : 'c'))));
@@ -936,7 +938,7 @@ function setLen(L){
 $('slen').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return;
   setLen(b.dataset.l === 'c' ? Math.max(5, Math.min(180, +$('slenc').value || 45)) : +b.dataset.l); }, SIG);
 $('slenc').addEventListener('change', () => setLen(Math.max(5, Math.min(180, +$('slenc').value || 45))), SIG);
-$('sauto').addEventListener('click', () => { sec.auto = true; if(playing) stopAll(); useSection(); }, SIG);
+$('sauto').addEventListener('click', () => { remakeOk(); sec.auto = true; if(playing) stopAll(); useSection(); }, SIG);
 // the song's part, heard on the waveform: let go of the part and it plays from its start; a tap pauses it and a tap
 // plays it again from there; a line on the waveform shows where it is. It stops when the Reel plays.
 function partNow(){ return partSrc ? partFrom + (getCtx().currentTime - partT0) : partPos; }
@@ -972,7 +974,7 @@ function playPart(from, base){
     const L = secLenNow(); dragStart = Math.max(0, Math.min(song.buf.duration - L, tAt(ev) - grab)); drawMusic(); }, SIG);
   const end = () => { if(!down) return; down = false;
     if(!moved){ if(wasPlaying) stopPart(true); else { const at = partPos; if(playing) stopAll(); playPart(at); } return; }   // a tap: pause, or play (on from where it was)
-    sec.start = dragStart; sec.auto = false; dragStart = null; const st = sec.start; useSection(); playPart(st, st); };
+    remakeOk(); sec.start = dragStart; sec.auto = false; dragStart = null; const st = sec.start; useSection(); playPart(st, st); };
   cv.addEventListener('pointerup', end, SIG); cv.addEventListener('pointercancel', end, SIG); }
 let beatInfo = { source: 'own', note: '' };
 function applyAnalysis(r){
@@ -1425,7 +1427,12 @@ async function readVideo(src){
       tasks.update('clips', (batchDone + f) / Math.max(1, batchN), 'Clip ' + Math.min(batchN, batchDone + 1) + ' of ' + batchN + ' · ' + src.name); };
     src.readMs = {};
     const kept = await scanGet(src);   // read before (a saved Reel opened again, or the same clip added again): used as it is
-    if(kept){ src.scenes = kept.scenes; src.samples = kept.samples; src.faces = kept.faces; src.faceHow = kept.faceHow; src.readMs.kept = true; pm = pf = 1; show(); }
+    if(kept){
+      src.scenes = Array.isArray(kept.scenes) ? kept.scenes : [];
+      // Older saved scan records can lack face or per-sample fields. Keep the clip usable and let its saved edit restore.
+      src.samples = kept.samples.map((s, i) => ({ ...s, t: Number.isFinite(s.t) ? s.t : i * src.dur / kept.samples.length, m: Number.isFinite(s.m) ? s.m : 0, sh: Number.isFinite(s.sh) ? s.sh : 1 }));
+      src.faces = Array.isArray(kept.faces) ? kept.faces : []; src.faceHow = kept.faceHow; src.readMs.kept = true; pm = pf = 1; show();
+    }
     else {
       stage = 'motion and faces'; life({ stage: 'reading clips', clips: sources.length + pending, size: Math.round((src.file && src.file.size || 0) / 1e6) + ' MB', res: src.w + 'x' + src.h });
       const doMotion = () => scanMotion(src, p=>{ pm = p; show(); }).then(()=>{ src.readMs.motion = Math.round(performance.now()-tq); });
@@ -1453,6 +1460,19 @@ async function readVideo(src){
   }catch(e){
     if(src.removed) return;
     console.warn('clip not readable:', src.name, e && e.message || e);
+    // Reopening a saved edit should not fail just because optional motion/face analysis could not run again.
+    // The saved edit already contains its shot choices; keep the decoded source and use neutral scan data.
+    if(restoring && stage === 'motion and faces' && src.dur > 0 && src.w > 0 && src.h > 0){
+      if(!Array.isArray(src.scenes)) src.scenes = [];
+      if(!Array.isArray(src.samples) || !src.samples.length){
+        const count = Math.max(2, Math.ceil(src.dur * 2));
+        src.samples = Array.from({ length: count }, (_, i) => ({ t: Math.min(src.dur - 0.01, i * src.dur / count), m: 0, sh: 1 }));
+      } else src.samples = src.samples.map((s, i) => ({ ...s, t: Number.isFinite(s.t) ? s.t : i * src.dur / src.samples.length, m: Number.isFinite(s.m) ? s.m : 0, sh: Number.isFinite(s.sh) ? s.sh : 1 }));
+      if(!Array.isArray(src.faces)) src.faces = [];
+      src.shMed = 1; src.els = [lazyPlayer(src.url), lazyPlayer(src.url), lazyPlayer(src.url)]; sources.push(src); drawSpark(src);
+      dd.textContent = src.dur.toFixed(1) + ' s · ' + src.w + '×' + src.h; dd.dataset.st = 'ok'; dd.dataset.len = fmt(src.dur).replace(/\.\d+$/, '');
+      return;
+    }
     // to Admin → Errors: what the phone could not do with which kind of file, so it can be fixed for that phone
     try{ const f = src.file || {}, me = v && v.error;
       window.__shubixReport && window.__shubixReport('clip', 'Clip not readable at "' + stage + '": ' + String(e && e.message || e).slice(0, 160) + ' · ' + (f.type || 'no type') + ' · .' + String(src.name || '').split('.').pop().toLowerCase(),
@@ -1481,6 +1501,7 @@ $('csnd').addEventListener('click', e => { const b = e.target.closest('button');
   notify(au.clip === 'mute' ? "The clips' own sound is muted." : au.clip === 'voices' ? 'Only the voices in your clips are kept.' : "All of your clips' sound is kept, under the song.");
 }, SIG);
 function finishAdding(){
+  remakeOk();
   updateQ(); $('clearv').hidden = !$('clips').children.length; clipSoundCheck();
   if(sources.length) tasks.done('clips', sources.length + ' clip' + (sources.length > 1 ? 's' : '') + ' ready' + (buf || kind === 'talk' ? ' · making your Reel' : ' · now choose a song'));
   else tasks.fail('clips', 'These videos do not play here. Try MP4 or MOV.');
@@ -1635,6 +1656,7 @@ async function buildTalk(){
   captureLoop(); editGen++;
 }
 function setKind(k){
+  remakeOk();
   if(recording || k === kind) return;
   delete root.dataset.nomake;
   kind = k; if(playing) stopAll();
@@ -1696,6 +1718,7 @@ $('tmusic').addEventListener('click', e => { const b = e.target.closest('button'
 
 function removeVideo(src){
   if(recording) return;
+  remakeOk();
   if(playing){ pos = curTime(); stopAll(); }
   src.removed = true;
   const k = sources.indexOf(src); if(k>=0) sources.splice(k,1);
@@ -2139,6 +2162,7 @@ function chatProposal(pd){
   chatWaiting = false; $('chatsend').disabled = false;
 }
 function chatGenerate(btn){
+  remakeOk();
   const pd = chatPending; btn.disabled = true;
   if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\'ll plan it anew.'); return; }
   chatPending = null; chatReported = pd.key; director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
@@ -2194,6 +2218,7 @@ async function chatPatch(text, n, id){
   finally{ tm.done(); }
 }
 async function chatSend(text){
+  remakeOk();
   text = String(text || '').trim().slice(0, 300); if(!text || chatWaiting) return;
   chatSay('me', text); chatMsgs.push({ who: 'me', text });
   $('chatin').value = ''; chatFit();
@@ -2541,6 +2566,7 @@ function refitDirector(src, withShots){
   return slots;
 }
 function directorMaybe(){
+  if(keepSaved) return;
   if(!aiOn || dirBusy || !edit.length || recording || !aiReelOk() || refReading) return;
   if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
   if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
@@ -2650,6 +2676,7 @@ function paceFromSong(sp){
     return { t: x.t, len: x.len, every: best ? best.every : x.now }; }) };
 }
 function paceMaybe(){
+  if(keepSaved) return;
   if(paceBusy || !paceWanted() || !aiReelOk() || refReading) return;
   const key = paceKey();
   if(paceCache.has(key)){ pacing = paceCache.get(key); makeEdit(); return; }
@@ -2886,18 +2913,20 @@ function setSeq(on, remake = true){
   $('seqhelp').textContent = on ? 'Your clips play one after another, in the order you added them' : 'Shubix picks the best moments from all your clips';
   if(remake && buf && sources.length && kind !== 'talk' && !restoring) makeEdit();
 }
-$('seq').addEventListener('click', e => { const b = e.target.closest('button'); if(b && !recording) setSeq(b.dataset.q === 'order'); }, SIG);
+$('seq').addEventListener('click', e => { const b = e.target.closest('button'); if(b && !recording) remakeOk(); if(b && !recording) setSeq(b.dataset.q === 'order'); }, SIG);
 // The Reel is made again (a clip finished reading, the AI's plan came, a setting changed). If it was playing, it goes on
 // playing from the same moment instead of stopping: Play pressed while clips are read keeps playing when they are done.
 function makeEdit(){
-  const was = (playing || starting) && !recording && !exportBusy && kind !== 'talk', at = playing ? curTime() : pos;
+  const was = (playing || starting) && !recording && !exportBusy && kind !== 'talk', at = playing ? curTime() : pos, gen = editGen;
   makeEditNow();
+  if(editGen !== gen) histRebase();   // Shubix's plan / a new edit is the start of Undo, not a step in it
   if(was && buf && edit.length && !playing && !starting && !recording) startPlayback(Math.min(Math.max(0, at), Math.max(0, buf.duration - 0.2)));
 }
 function makeEditNow(){
   if(refReading) return;   // the Reel to copy is being read: its copy is made right after (no ordinary Reel meanwhile)
   life({ stage: 'making the Reel', clips: sources.length });
   if(exportBusy){ remakeAfterExport = true; return; }   // a late AI answer: the video being made keeps its edit
+  if(keepSaved) return;   // an opened Reel: as it was saved
   if(kind === 'talk'){ if(sources.length) buildTalk(); return; }
   if(story && storyEdit()) return;
   if(!buf || !sources.length) return;
@@ -3214,6 +3243,8 @@ function histTick(){
   if(now.sig !== hist.cand){ hist.cand = now.sig; return; }   // kept once it stops changing (a drag is one step)
   hist.u.push(hist.cur); if(hist.u.length > HIST_MAX) hist.u.shift(); hist.r = []; hist.cur = now; hist.cand = ''; histUI();
 }
+// a made (or re-made) edit: Undo / Redo hold only what the creator changes from here (the timeline, the tools, the texts)
+function histRebase(){ hist.u = []; hist.r = []; hist.cur = edit.length || overlays.length ? histSnap() : null; hist.cand = ''; histUI(); }
 function histGo(back){
   if(exporting || recording || restoring) return;
   const now = histSnap(); if(hist.cur && now.sig !== hist.cur.sig){ hist.u.push(hist.cur); hist.r = []; hist.cur = now; }
@@ -3291,7 +3322,7 @@ $('addbeat').addEventListener('click', () => addMark(playing ? curTime() : pos),
 $('clrbeat').addEventListener('click', () => clearMarks(), SIG);
 $('tl').addEventListener('click', ev=>{ if(!edit.length) return; const r=$('tl').getBoundingClientRect(), tt=(ev.clientX-r.left)/r.width*buf.duration;
   const i = segAt(tt); if(playing) startPlayback(tt); else { const rows=$('edl').children; rows[i] && rows[i].scrollIntoView({block:'nearest'}); showShot(i); } });
-$('remix').onclick = () => { seed = (seed*7919 + 13) % 2147483647 || 7; mixNo++; makeEdit(); };
+$('remix').onclick = () => { remakeOk(); seed = (seed*7919 + 13) % 2147483647 || 7; mixNo++; makeEdit(); };
 
 /* =============== RENDERER =============== */
 const out = $('out'), og = out.getContext('2d');
@@ -5351,7 +5382,7 @@ function setMode(m){ mode = m; const shown = m === 'copy' && silentStyle() ? ref
   $('refbox').hidden = !refProfile || silentStyle();
   if(buf){ plan = adaptPlan(); drawMusic(); $('mclips').textContent = plan.length; }
   if(buf && sources.length) makeEdit(); }
-$('mode').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b || recording) return;
+$('mode').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b || recording) return; remakeOk();
   if(b.dataset.m === 'copy' && (!refProfile || silentStyle())){ $('reffile').click(); return; }
   if(silentStyle() && mode === 'copy' && b.dataset.m === (refProfile.shown || 'auto')) return;   // already what they see
   setMode(b.dataset.m); });
@@ -6515,6 +6546,10 @@ $('postcopy').addEventListener('click', () => copyCaption($('postcapt').value.tr
  * "Your Reels" opens one again exactly as it was (the page reloads into it). */
 const PDB = 'brs-projects';
 let proj = null, lastSig = '', restoring = false, capKeyNow = '';
+// a saved Reel, opened: its edit is kept as it was saved (no new plan, no rebuild when the clips' check or the beats
+// finish) until the creator asks for a change that needs one (Change Reel, a style, the chat, clips, the song or its part)
+let keepSaved = false;
+function remakeOk(){ if(!restoring) keepSaved = false; }
 const fileFp = f => f ? [f.name, f.size, f.lastModified].join('|') : '';
 let voF = null; const voFile = () => (voF && voF.name === 'voiceover-' + vo.key + '.f32') ? voF : (voF = new File([vo.raw], 'voiceover-' + vo.key + '.f32', { type: 'application/octet-stream', lastModified: parseInt(vo.key, 36) || 1 }));
 function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB, 2);
@@ -6540,6 +6575,8 @@ async function putFile(f){ const k = 'f:' + fileFp(f); if(await idb('files', 're
 function thumbOf(){ if(!edit.length) return ''; const c = document.createElement('canvas'), H = 240, W = Math.round(H*out.width/out.height); c.width = W; c.height = H; c.getContext('2d').drawImage(out, 0, 0, W, H); try{ return c.toDataURL('image/jpeg', 0.7); }catch(e){ return ''; } }
 let saving = false;
 async function saveProject(st, sig){
+  // Keep a newly generated Reel live in the Create flow until Generate opens /editor.
+  if(root.classList.contains('made') && location.pathname !== '/editor') return;
   if(saving) return; saving = true;
   try{
     life({ saving: 1 });   // the stage stays what the studio is doing (a save every few seconds would hide it)
@@ -6554,10 +6591,17 @@ async function saveProject(st, sig){
     life({ saving: 0, proj: proj.id });
     // a made Reel has its own address (/create/edit?p=…): a reload, a shared link or Back to it opens this Reel, not a new one
     // (only once the editor is open: still in the Create steps the address stays /create/music?step=…; flow.ts sets it on Generate)
-    if(edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', '/create/edit?p=' + proj.id);
+    if(edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', (location.pathname === '/editor' ? '/editor' : '/create/edit') + '?p=' + proj.id);
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }catch(err){ console.warn('project not saved:', err); $('psaved').textContent = 'Not saved'; notify('Could not save this Reel on your phone. It may be low on space.', 'err'); }
   finally{ saving = false; if(lifeNote.saving) life({ saving: 0 }); }
+}
+async function saveNow(){
+  while(saving) await new Promise(resolve => setTimeout(resolve, 40));
+  const st = stateOf(), sig = JSON.stringify(st);
+  if(sig !== lastSig) await saveProject(st, sig);
+  while(saving) await new Promise(resolve => setTimeout(resolve, 40));
+  return proj ? proj.id : '';
 }
 setInterval(() => {
   if(restoring || recording || exporting || pending || (!song && !sources.length) || typeof indexedDB === 'undefined') return;
@@ -6569,11 +6613,13 @@ const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr
 async function openProject(id){
   // "Opening your Reel…" over the page until the edit is back (flow.ts shows it from the first paint); its line follows say()
   restoring = true; root.classList.add('opening'); const say = t => { $('psaved').textContent = t; $('openstep').textContent = t.replace(/…$/, ''); };
+  let expectedClips = 0;
   try{
     const p = await idb('meta', 'readonly', s => s.get(id)); if(!p){ say('That Reel is no longer on this phone.'); return; }
-    const st = p.state, getF = async (fp, name) => { const b = fp ? await idb('files', 'readonly', s => s.get('f:' + fp)) : null; return b ? new File([b], name || b.name || 'file', { type: b.type, lastModified: +fp.split('|').pop() || Date.now() }) : null; };
+    const st = p.state; expectedClips = (st.clips || []).length; const getF = async (fp, name) => { const b = fp ? await idb('files', 'readonly', s => s.get('f:' + fp)) : null; return b ? new File([b], name || b.name || 'file', { type: b.type, lastModified: +fp.split('|').pop() || Date.now() }) : null; };
     say('Opening "' + p.name + '"…'); proj = { id: p.id, created: p.created };
     const S = st.settings || {};
+    keepSaved = st.kind !== 'talk' && !!(st.edit && st.edit.length);   // no plan / rebuild while it opens: its own edit comes back
     talkKfs = st.kind === 'talk' && st.kfs ? st.kfs : null;
     if(st.kind === 'talk') setKind('talk');
     press('aspect', 'a', S.aspect); press('look', 'l', S.look); press('tstyle', 't', S.textStyle); if(S.mode && S.mode !== 'auto') press('mode', 'm', S.mode);
@@ -6599,7 +6645,11 @@ async function openProject(id){
     const sf = st.song ? await getF(st.song.fp, st.song.name) : null;
     if(sf){ let cs = null; try{ cs = await idb('songs', 'readonly', s => s.get(st.song.fp)); }catch(e){} await loadMusic(sf, cs && cs.r ? { r: cs.r, aiDone: cs.aiDone } : null); }
     if(clips.length){ addVideos(clips); await addQueue; }
-    if(st.kind !== 'talk' && st.edit && st.edit.length && st.edit.length && clips.length === (st.clips || []).length) restoreEdit(st.edit);
+    if(st.kind !== 'talk' && st.edit && st.edit.length && clips.length === (st.clips || []).length && restoreEdit(st.edit)){ keepSaved = true;
+      // the editor opens on it, as after making a Reel (the step, Play / Change Reel / Export)
+      $('s3').classList.remove('locked'); $('s3').classList.add('done'); $('s3st').textContent = edit.length + ' shots · ' + fmt(buf ? buf.duration : 0);
+      ['play','remix','export','cover'].forEach(id => $(id).disabled = false); }
+    else if(keepSaved){ keepSaved = false; if(buf && sources.length) makeEdit(); }   // the saved edit does not fit (a clip is missing): a new one
     if(st.layers && st.layers.length){ const ms = []; for(const c of st.lmedia || []){ const f = await getF(c.fp, c.name); try{ ms.push(f ? await addLayerMedia(f) : null); }catch(e){ ms.push(null); } }
       lmedia = ms.filter(Boolean); const idx = ms.map((m, i) => m ? ms.slice(0, i).filter(Boolean).length : -1);
       layers = st.layers.filter(L => idx[L.m] >= 0).map(L => ({ ...L, m: idx[L.m] })); lySeq = layers.reduce((q, L) => Math.max(q, L.id), 0); lyUI(); }
@@ -6607,11 +6657,12 @@ async function openProject(id){
     if(vo) afterVo();
     redrawFrame();
     const missing = (st.clips || []).length - clips.length + (st.song && !sf ? 1 : 0);
-    say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : 'Opened "' + p.name + '" · saved on this phone');
+    const unreadable = (st.clips || []).length - sources.length;
+    say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : unreadable ? unreadable + ' clip(s) could not be read on this device' : 'Opened "' + p.name + '" · saved on this phone');
   }catch(err){ console.warn('project not opened:', err); say('This Reel could not be opened.'); notify('This Reel could not be opened.', 'err'); }
   finally{ lastSig = JSON.stringify(stateOf()); restoring = false; root.classList.remove('opening');
     // nothing to show (gone, or its files are not on this phone): say so, not a blank page
-    if(!edit.length && !sources.length){ root.classList.add('openfail'); $('openh').textContent = 'This Reel could not be opened'; } }
+    if(!edit.length && !sources.length && expectedClips){ root.classList.add('openfail'); $('openh').textContent = 'This Reel could not be opened'; } }
 }
 function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
@@ -6691,7 +6742,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
-  snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
 

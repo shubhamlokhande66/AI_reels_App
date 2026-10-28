@@ -18,7 +18,7 @@ export function Spinner({ label = "Loading…", size = "md", className }: { labe
     <div role="status" aria-live="polite" className={cn("flex w-full flex-col items-center justify-center gap-3 text-center", size === "sm" ? "py-4" : "min-h-[30vh] py-10", className)}>
       <span className="relative inline-grid place-items-center" style={{ width: ring, height: ring }} aria-hidden>
         <span className="absolute inset-0 rounded-full border-[3px] border-accent/15" />
-        <span className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-t-accent border-r-[#e040fb]" />
+        <span className="absolute inset-0 animate-spin rounded-full border-[3px] border-transparent border-t-accent border-r-accent-hover" />
       </span>
       {label && <span className="text-sm font-semibold text-muted">{label}</span>}
     </div>

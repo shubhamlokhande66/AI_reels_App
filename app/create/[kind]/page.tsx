@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { FastStudio } from "@/components/studio/FastStudio";
 import { PlanGate } from "@/components/organisms/PlanGate";
 import { TemplateGate } from "@/components/organisms/TemplateGate";
@@ -8,8 +8,7 @@ import { TemplateGate } from "@/components/organisms/TemplateGate";
  * - /create/music, /create/talking, /create/photo, /create/copy: the Create flow of that kind, its defaults set
  *   (components/studio/flow.ts); Copy a Reel starts by picking the Reel to copy
  * - /create/story: Story Maker on the phone (components/studio/auto.ts)
- * - /create/edit: a saved Reel opened again (?p=<draft>) or a template (?tpl=<id>); with neither there is nothing to
- *   open, so it is a 404 */
+ * - /create/edit: legacy saved Reel / template links redirect to /editor with their original query parameters */
 const KINDS = { music: "Music Reel", talking: "Talking Reel", photo: "Photo Reel", copy: "Copy a Reel", story: "Story Maker", edit: "Your Reel" } as const;
 type Kind = keyof typeof KINDS;
 const FLOW = new Set<Kind>(["music", "talking", "photo", "copy"]); // drawn in the Create flow from the first paint
@@ -29,6 +28,14 @@ export default async function CreatePage({ params, searchParams }: { params: Pro
   if (!(kind in KINDS)) notFound();
   const q = await searchParams;
   if (kind === "edit" && !q.p && !q.tpl) notFound();
+  if (kind === "edit") {
+    const target = new URLSearchParams();
+    for (const [key, value] of Object.entries(q)) {
+      if (typeof value === "string") target.set(key, value);
+      else if (Array.isArray(value)) value.forEach((item) => target.append(key, item));
+    }
+    redirect(`/editor?${target.toString()}`);
+  }
   const studio = <FastStudio kind={FLOW.has(kind as Kind) ? (kind as "music" | "talking" | "photo" | "copy") : undefined} />;
   // Copy a Reel, Story Maker and a template open on their plan (lib/plan-locks.ts "page:…"); a saved Reel always opens
   const lock = kind === "copy" ? "page:copy" : kind === "story" ? "page:story" : kind === "edit" && q.tpl && !q.p ? "page:templates" : "";

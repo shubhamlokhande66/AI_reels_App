@@ -54,7 +54,7 @@ export async function pay(item: string, look: CheckoutLook, coupon?: string): Pr
       // the logo at the top of Razorpay's window: square (Razorpay asks for 256×256 or more); a path is on this site
       image: look.logo ? new URL(look.logo, window.location.origin).href : undefined,
       prefill: order.email ? { email: order.email } : undefined,
-      theme: { color: /^#[0-9a-f]{6}$/i.test(look.color) ? look.color : "#9b5cff" },
+      theme: { color: /^#[0-9a-f]{6}$/i.test(look.color) ? look.color : "#d8bd7b" },
       handler: async (r: RazorpayResponse) => {
         try {
           const credits = await api.verifyPayment({

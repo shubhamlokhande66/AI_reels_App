@@ -12,15 +12,15 @@ export function ProBanner({ href = "/pricing", compact = false }: { href?: strin
     <section
       aria-label="Go Pro"
       className={cn(
-        "relative flex overflow-hidden rounded-2xl border border-accent/50 bg-[linear-gradient(100deg,rgba(176,92,255,.22),rgba(91,76,245,.12))]",
+        "relative flex overflow-hidden rounded-2xl border border-accent/45 bg-[linear-gradient(105deg,color-mix(in_srgb,var(--accent)_18%,var(--surface)),color-mix(in_srgb,var(--accent)_5%,var(--surface)))] shadow-[var(--shadow)]",
         compact ? "flex-col gap-2.5 p-3.5" : "items-center gap-3 p-4 md:gap-4 md:p-5",
       )}
     >
-      <span aria-hidden className="pointer-events-none absolute -right-5 -top-6 text-[#f0abfc] opacity-15">
+      <span aria-hidden className="pointer-events-none absolute -right-5 -top-6 text-accent opacity-15">
         <Icon name="crown" size={compact ? 70 : 96} />
       </span>
       <span className={cn("flex min-w-0 gap-3", compact ? "items-center" : "flex-1 items-center md:gap-4")}>
-        <span className={cn("grid shrink-0 place-items-center text-[#f0abfc]", compact ? "h-8 w-8" : "h-12 w-12")}>
+        <span className={cn("grid shrink-0 place-items-center text-accent", compact ? "h-8 w-8" : "h-12 w-12")}>
           <Icon name="crown" size={compact ? 26 : 34} />
         </span>
         <span className="flex min-w-0 flex-col">
