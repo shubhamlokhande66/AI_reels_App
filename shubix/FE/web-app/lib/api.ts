@@ -195,7 +195,8 @@ export interface UploadResult {
 
 /** Ads (Admin → Settings → Ads): on or off, the pages with an ad spot, and the Google AdSense ids. */
 export type AdPlace = "home" | "homeEnd" | "reels" | "rewards" | "account";
-export type AdsConfig = { enabled: boolean; client: string; slot: string; places: Record<AdPlace, boolean> };
+/** AdSense (client, slot) is the website; admob holds the phone app banner ad units */
+export type AdsConfig = { enabled: boolean; client: string; slot: string; places: Record<AdPlace, boolean>; admob: { android: string; ios: string } };
 export const api = {
   health: () => request<Health>("/api/health"),
   me: () => viaBoot("me", () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me")),

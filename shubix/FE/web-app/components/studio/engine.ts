@@ -17,7 +17,7 @@ import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 
 export function initStudio(root, deps) {
-  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null, app = null } = deps;
+  const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
 
 const $ = id => root.querySelector('#'+id);
 const tasks = createTasks(root);   // what is happening now, always in view (components/studio/tasks.ts)
@@ -4952,24 +4952,10 @@ async function copyCaption(text, sharing){
 }
 let lastVideo = null;
 let exportKeep = false, exportP = 0, lastName = '';
-// the phone app: "Download" (the Create flow's Reel Exported screen) opens the share sheet too (a download does nothing there)
-let appShare = null;
-if(app && app.isApp()) $('dlvid').addEventListener('click', e => { if(!appShare) return; e.preventDefault(); appShare(); }, SIG);
 function saveFile(blob, name){
   if(/^video\//.test(blob.type)){ lastVideo = blob; fillCaption(); rememberTools(); offerMade(); }
   if(exportKeep){ lastName = name; return false; }
   const file = new File([blob], name, { type: blob.type });
-  // inside the phone app (Capacitor: lib/nativeApp.ts): no web download or share there, the phone's own share sheet
-  if(app && app.isApp()){
-    if(savedUrl) URL.revokeObjectURL(savedUrl);
-    savedUrl = URL.createObjectURL(blob); $('dlvid').href = savedUrl; $('dlvid').download = name;
-    appShare = () => { const isVid = /^video\//.test(blob.type), text = isVid ? $('postcapt').value.trim() : ''; if(text) copyCaption(text, true);
-      return app.share(blob, name, text).catch(err => { console.warn('app share:', err); notify('Could not open the share sheet. Please try again.', 'err'); }); };
-    $('saverow').hidden = false;
-    $('savevid').textContent = /^image\//.test(blob.type) ? 'Save / Share' : 'Save video / Share';
-    $('savevid').onclick = () => { appShare(); };
-    return true;
-  }
   const phone = matchMedia('(pointer: coarse)').matches;
   let canShare = false; try{ canShare = phone && !!navigator.canShare && navigator.canShare({ files: [file] }); }catch(e){}
   if(savedUrl) URL.revokeObjectURL(savedUrl);

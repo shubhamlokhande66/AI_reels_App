@@ -15,6 +15,8 @@ export const TEXT_DEFAULTS = {
   "auth.verifyTitle": "Verify your email", "auth.showPassword": "Show password", "auth.hidePassword": "Hide password", "auth.lengthHint": "At least 8 characters",
   "auth.strongEnough": "Strong enough", "auth.match": "Passwords match", "auth.confirmPlaceholder": "Type your password again",
   "auth.badEmail": "Enter a valid email address.", "auth.shortPassword": "Use a password of at least 8 characters.", "auth.mismatch": "The two passwords don't match.",
+  "plan.adLabel": "Ad", "plan.removeAds": "remove ads", "plan.aiAdTitle": "Let Shubix AI edit your Reels",
+  "plan.aiAdText": "The best moments, transitions and captions picked for you, no ads, no watermark · Editor from {price}/month", "plan.aiAdButton": "See plans",
   "auth.signOut": "Sign out", "home.welcome": "Welcome to Shubix", "home.signedInAs": "Signed in as {email}", "home.notVerified": "Your email is not verified yet.",
 } as const;
 export type TextKey = keyof typeof TEXT_DEFAULTS;

@@ -6,7 +6,6 @@ import { useEffect, useRef } from "react";
 import { useCredits, useT } from "@/hooks/useApi";
 import { api, type AdPlace } from "@/lib/api";
 import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
-import { isApp, useIsApp } from "@/lib/nativeApp";
 
 declare global { interface Window { adsbygoogle?: unknown[] } }
 
@@ -21,11 +20,10 @@ export function AdSlot({ place }: { place: AdPlace }) {
   const ads = useQuery({ queryKey: ["ads"], queryFn: api.ads, staleTime: 300_000 });
   const c = credits.data, plan = c && c.enabled ? plans.data?.plans.find((p) => p.id === c.plan) : undefined;
   const show = !!c && c.enabled && !!plan && (plan.ads ?? plan.id === "free") && ads.data?.enabled !== false && ads.data?.places?.[place] !== false;
-  const inApp = useIsApp();
-  const adsense = show && !inApp && !!ads.data?.client && !!ads.data?.slot;
+  const adsense = show && !!ads.data?.client && !!ads.data?.slot;
   const ins = useRef<HTMLModElement>(null);
   useEffect(() => {
-    if (!adsense || !ads.data || isApp()) return;
+    if (!adsense || !ads.data) return;
     const id = "adsbygoogle-js";
     if (!document.getElementById(id)) {
       const s = document.createElement("script"); s.id = id; s.async = true; s.crossOrigin = "anonymous";

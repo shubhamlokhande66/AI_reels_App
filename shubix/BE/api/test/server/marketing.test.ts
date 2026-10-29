@@ -268,6 +268,13 @@ describe("Ads and the store links", () => {
     expect((await GET()).status).toBe(404);
     await A.setAds({ client: "ca-pub-1234567890123456" });
     expect(await (await GET()).text()).toBe("google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n");
+    // the phone app: AdMob ad units, checked, and /app-ads.txt from their publisher id
+    const app = await import("../../src/routes/app-ads.txt/route");
+    expect((await app.GET()).status).toBe(404);
+    await expect(A.setAds({ admob: { android: "ca-app-pub-123/1" } as never })).rejects.toThrow(/AdMob/);
+    await A.setAds({ admob: { android: "ca-app-pub-9876543210987654/1234567890" } as never });
+    expect((await A.getAds()).admob).toEqual({ android: "ca-app-pub-9876543210987654/1234567890", ios: "" });
+    expect(await (await app.GET()).text()).toBe("google.com, pub-9876543210987654, DIRECT, f08c47fec0942fa0\n");
   });
   it("keeps the app store links (https only); empty means Coming soon", async () => {
     const S = await import("../../src/server/site");

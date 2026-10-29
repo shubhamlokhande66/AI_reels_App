@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/api/:path*", destination: `${API_URL}/api/:path*` },
       { source: "/ads.txt", destination: `${API_URL}/ads.txt` },
+      { source: "/app-ads.txt", destination: `${API_URL}/app-ads.txt` },
     ];
   },
   // the clip analysis runs OpenCV in the browser too (lib/clipAnalysis): its Node-only branch requires these, never used there

@@ -6,6 +6,10 @@ import * as SecureStore from "expo-secure-store";
  * secure storage, the app's error messages, the same logic as the website. */
 const json = <T = unknown>(path: string, init?: RequestInit) => api.request<T>(path, init);
 
+/** the spots with an ad (the same as the website's) */
+export type AdPlace = "home" | "homeEnd" | "reels" | "rewards" | "account";
+export type AdsConfig = { enabled: boolean; places: Record<AdPlace, boolean>; admob: { android: string; ios: string } };
+
 export const mobileApi = {
   me: () => api.auth.me(),
   signIn: (email: string, password: string) => api.auth.login(email, password),
@@ -16,7 +20,8 @@ export const mobileApi = {
   reels: () => json<{ reels: { id: string; name: string; dur: number; thumb: string | null; createdAt: string }[]; usage?: unknown }>("/api/studio/reels"),
   deleteReel: (id: string) => json(`/api/studio/reels/${encodeURIComponent(id)}`, { method: "DELETE" }),
   templates: () => json<{ templates: { id: string; name: string; kind: string; group: string; text: string; cover?: string; plan?: string; on: boolean }[] }>("/api/templates"),
-  pricing: () => json<{ currency: string; yearlyMonthsCharged: number; plans: { id: string; name: string; monthly: number; yearly: number; credits: number; tagline: string; highlight: boolean; features: string[]; hidden?: boolean }[]; topUps: { id: string; credits: number; price: number }[]; billingEnabled: boolean }>("/api/plans"),
+  pricing: () => json<{ currency: string; yearlyMonthsCharged: number; plans: { id: string; name: string; monthly: number; yearly: number; credits: number; tagline: string; highlight: boolean; features: string[]; hidden?: boolean; ads?: boolean }[]; topUps: { id: string; credits: number; price: number }[]; billingEnabled: boolean }>("/api/plans"),
+  ads: () => json<AdsConfig>("/api/ads"),
   credits: () => json<{ enabled: boolean; balance?: number; planName?: string; plan?: string; extra?: number }>("/api/credits"),
   createOrder: (item: string, coupon?: string) => json<{ orderId: string; keyId: string; amount: number; currency: string; label: string; email: string }>("/api/billing/order", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
   verifyPayment: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) => json<{ enabled: boolean; balance?: number; plan?: string; planName?: string; monthly?: number; extra?: number }>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
@@ -36,8 +41,6 @@ export const mobileApi = {
   marketing: () => json<Record<string, any>>("/api/marketing"),
   setUsername: (username: string) => json("/api/marketing/username", { method: "POST", body: JSON.stringify({ username }) }),
   sendCredits: (to: string, amount: number, note?: string) => json("/api/marketing/send", { method: "POST", body: JSON.stringify({ to, amount, note }) }),
-  applyAffiliate: () => json("/api/marketing/affiliate", { method: "POST", body: JSON.stringify({}) }),
-  affiliateDashboard: () => json<Record<string, any>>("/api/marketing/affiliate/dashboard"),
   changePassword: (currentPassword: string, newPassword: string) => api.auth.changePassword(currentPassword, newPassword),
   logoutEverywhere: () => api.auth.logoutEverywhere(),
   deleteAccount: (password: string, confirm: string) => json("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),

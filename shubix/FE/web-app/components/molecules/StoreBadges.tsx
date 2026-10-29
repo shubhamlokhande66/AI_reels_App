@@ -1,9 +1,8 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+
 import { useT } from "@/hooks/useApi";
 import { cn } from "@/lib/cn";
-import { isApp } from "@/lib/nativeApp";
 import { useSite } from "@/components/molecules/Legal";
 
 /** "Get it on Google Play" / "Download on the App Store", like other brands show them. The links are the administrator's
@@ -11,8 +10,7 @@ import { useSite } from "@/components/molecules/Legal";
  * the phone app itself. `compact`: the sidebar and the menu: "Get the app" over two small badges side by side. */
 export function StoreBadges({ compact = false, className }: { compact?: boolean; className?: string }) {
   const t = useT(), site = useSite().data;
-  const inApp = useSyncExternalStore(() => () => {}, isApp, () => false);
-  if (inApp || !site) return null;
+  if (!site) return null;
   const stores = [
     { id: "play", url: site.playStoreUrl, top: t("store.playTop"), name: t("store.play"), logo: <PlayLogo /> },
     { id: "apple", url: site.appStoreUrl, top: t("store.appleTop"), name: t("store.apple"), logo: <AppleLogo /> },
@@ -63,8 +61,6 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
 /** Home's "Get the app" band: the title, a line and the two badges. */
 export function GetAppSection() {
   const t = useT();
-  const inApp = useSyncExternalStore(() => () => {}, isApp, () => false);
-  if (inApp) return null;
   return (
     <section aria-labelledby="getapp-h" className="relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl border border-border bg-[linear-gradient(120deg,color-mix(in_srgb,var(--accent)_18%,var(--surface)),var(--surface)_60%)] p-5 md:flex-row md:items-center md:justify-between md:p-7">
       <span aria-hidden className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,123,.2),transparent)]" />

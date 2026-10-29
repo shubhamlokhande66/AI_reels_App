@@ -24,13 +24,13 @@ The mobile implementation is being built natively. Browser-only components and t
 | Templates | `/(tabs)/templates` | Live catalog, search and create-from-template entry point |
 | Account / sign-in | `/(tabs)/profile`, `/auth/*` | Native auth forms and secure token storage |
 | Pricing, brands, voices, trends, rewards, settings, legal and support | `/pricing`, `/brands`, `/voices`, `/trends`, `/rewards`, `/settings`, `/privacy`, `/terms`, `/contact` | Native screens with calls to the existing server |
-| Affiliate tools | `/affiliate` | Dashboard summary; admin-only browser console remains web-only |
 
 ## Important remaining work
 
 - Endpoint types, schemas and the sign-in logic live in `Shared/*` (`@shubix/types`, `@shubix/validations`, `@shubix/api-client`, `@shubix/hooks`); the screens use the atoms/molecules of `@shubix/ui-mobile`.
 - Verify native sign-in and existing API behavior against a reachable backend host on an Android device.
 - Replace browser media analysis and WebCodecs export with Android-native media probing, timeline transforms, rendering, audio mixing, progress, background recovery, and saving/sharing.
+- Ads: Google AdMob banners (AdBanner) in the same spots and for the same plans as the website (AdSense there); the AdMob app ids come from ADMOB_ANDROID_APP_ID / ADMOB_IOS_APP_ID at build time (Google test ids otherwise), the banner ad units from Admin → Settings → Ads. Needs a development build (not Expo Go). The affiliate program is on the website only.
 - Port the admin-only console and remaining secondary account flows, then run a complete route-by-route parity review.
 - Build and run on an Android emulator and a physical device, then compare each important screen against the web reference and address phone-size issues.
 

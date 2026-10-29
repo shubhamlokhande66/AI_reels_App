@@ -13,9 +13,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@capacitor/core": "^8.5.3",
-    "@capacitor/filesystem": "^8.1.5",
-    "@capacitor/share": "^8.0.3",
     "@diffusionstudio/piper-wasm": "1.0.0",
     "@mediabunny/aac-encoder": "1.60.0",
     "@shiguredo/rnnoise-wasm": "2025.1.5",

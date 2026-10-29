@@ -15,7 +15,6 @@ import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { OtpInput } from "@/components/molecules/OtpInput";
 import type { AffiliateDetail, PartnerMe, PayoutInput } from "@/lib/marketing";
 import { AffiliateView, dayOf } from "@/components/organisms/AffiliateView";
-import { useIsApp } from "@/lib/nativeApp";
 
 const KEY = ["partner-me"];
 
@@ -30,9 +29,8 @@ export default function AffiliatePage() {
 function Partner() {
   const t = useT();
   const q = useQuery({ queryKey: KEY, queryFn: api.partnerMe, retry: false });
-  const d = q.data, inApp = useIsApp();
+  const d = q.data;
   // cash payouts are on the website only: in the Play app they make the app rated 18+ (content rating, cash rewards)
-  if (inApp) return <div className="mx-auto w-full max-w-md px-4 pt-10"><EmptyState icon="trend" title={t("aff.webOnlyTitle")} hint={t("aff.webOnlyLine")} /></div>;
   return (
     <div className="mx-auto flex min-h-svh w-full max-w-5xl flex-col gap-5 px-4 pb-10 pt-[max(16px,env(safe-area-inset-top))] md:px-6">
       <TopBar me={d} />

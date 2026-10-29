@@ -11,12 +11,11 @@ import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { Spinner } from "@/components/atoms";
 import type { MyMarketing } from "@/lib/marketing";
 import { AdSlot } from "@/components/organisms/AdSlot";
-import { useIsApp } from "@/lib/nativeApp";
 
 /** Invite & earn: invite friends (both get credits), send credits to a friend by @username, the affiliate program and
  * your username. Every rule (credits, limits, %) is the administrator's (Admin → Marketing); every word is in the CMS. */
 export default function RewardsPage() {
-  const t = useT(), inApp = useIsApp();
+  const t = useT();
   const q = useQuery({ queryKey: ["my-marketing"], queryFn: api.myMarketing, retry: false });
   const credits = useCredits();
   if (q.isLoading) return <Spinner label={t("rewards.loading")} />;
@@ -31,7 +30,7 @@ export default function RewardsPage() {
         <SendCredits m={m} />
         <Username m={m} />
       </div>
-      {m.affiliate.on && !inApp && <Affiliate m={m} />}{/* cash payouts: the website only (in the Play app they rate it 18+) */}
+      {m.affiliate.on && <Affiliate m={m} />}{/* cash payouts: the website only (the phone app has no affiliate program) */}
       <AdSlot place="rewards" />
     </div>
   );
