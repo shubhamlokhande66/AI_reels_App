@@ -1,0 +1,13 @@
+{
+  "name": "shubix",
+  "private": true,
+  "packageManager": "pnpm@10.20.0",
+  "scripts": {
+    "dev:api": "pnpm --filter @shubix/api dev",
+    "dev:web": "pnpm --filter @shubix/web-app dev",
+    "dev:mobile": "pnpm --filter @shubix/mobile-app start",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --workspace-concurrency=1 test"
+  }
+}

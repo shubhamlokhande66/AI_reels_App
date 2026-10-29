@@ -1,0 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
+import { Pressable, Text, View } from "react-native";
+import { router } from "expo-router";
+import { ActivityIndicator } from "react-native";
+import { Eyebrow, H1, Page, Surface, C } from "../components/ui";
+import { mobileApi } from "../lib/api";
+export default function TermsScreen(){const q=useQuery({queryKey:["mobile-content"],queryFn:mobileApi.content});const page=q.data?.terms;return <Page><Pressable onPress={()=>router.back()} className="mt-2"><Text className="text-sm text-muted">‹  Privacy & terms</Text></Pressable><View className="mt-5"><Eyebrow>THE STUDIO, CLEARLY</Eyebrow><H1>Terms of use</H1><Text className="mt-2 text-sm leading-6 text-muted">The terms that apply when you create with Shubix.</Text></View>{q.isLoading?<View className="mt-10 items-center"><ActivityIndicator color={C.gold}/></View>:page?.length?<View className="mt-5 gap-3">{page.map((item:any,i:number)=><Surface key={item.id||i}><Text className="text-sm font-semibold text-ivory">{item.title||"Terms"}</Text><Text className="mt-2 text-sm leading-6 text-muted">{item.body||item.text||""}</Text></Surface>)}</View>:<Surface className="mt-5"><Text className="text-sm font-semibold text-ivory">Using Shubix</Text><Text className="mt-2 text-sm leading-6 text-muted">Use Shubix lawfully and only with media you have the right to use. Plans and credits are subject to the terms shown at purchase. You retain ownership of the Reels you create.</Text></Surface>}</Page>}

@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.next/
+.expo/
+.env
+*.tsbuildinfo
+android/
+ios/
+.wrangler/
+.dev.vars
+infra/cloudflare/assets/
+# copied from node_modules before a build (FE/web-app/scripts/copy-ort.mjs)
+FE/web-app/public/vendor/ort/
+FE/web-app/public/vendor/piper/
+# local app data and manual test output
+**/storage/
+BE/api/test/server/manual/*.json
+BE/api/test/server/manual/out/

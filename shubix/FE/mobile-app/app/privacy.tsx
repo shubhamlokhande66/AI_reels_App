@@ -1,0 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
+import { Pressable, Text, View } from "react-native";
+import { router } from "expo-router";
+import { ActivityIndicator } from "react-native";
+import { Eyebrow, H1, Page, Surface, C } from "../components/ui";
+import { mobileApi } from "../lib/api";
+export default function PrivacyScreen(){const q=useQuery({queryKey:["mobile-content"],queryFn:mobileApi.content});const page=q.data?.privacy;return <Page><Pressable onPress={()=>router.back()} className="mt-2"><Text className="text-sm text-muted">‹  More</Text></Pressable><View className="mt-5"><Eyebrow>YOUR WORK IS YOURS</Eyebrow><H1>Privacy & terms</H1><Text className="mt-2 text-sm leading-6 text-muted">Clear information about your account, footage, and the studio.</Text></View>{q.isLoading?<View className="mt-10 items-center"><ActivityIndicator color={C.gold}/></View>:page?.length?<View className="mt-5 gap-3">{page.map((item:any,i:number)=><Surface key={item.id||i}><Text className="text-sm font-semibold text-ivory">{item.title||"Privacy"}</Text><Text className="mt-2 text-sm leading-6 text-muted">{item.body||item.text||""}</Text></Surface>)}</View>:<Surface className="mt-5"><Text className="text-sm font-semibold text-ivory">Privacy at Shubix</Text><Text className="mt-2 text-sm leading-6 text-muted">Your account and creative projects are private. Uploaded clips are used to create your Reel and are removed according to the studio’s retention policy. You can manage your account and request its deletion in Settings.</Text></Surface>}</Page>}

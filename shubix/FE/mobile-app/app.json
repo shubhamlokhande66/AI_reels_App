@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Shubix",
+    "slug": "shubix-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "shubix",
+    "icon": "./assets/icon.png",
+    "plugins": [
+      "expo-router",
+      ["expo-image-picker", { "photosPermission": "Choose clips and photos to create your Reel." }],
+      ["expo-media-library", { "photosPermission": "Save finished Reels to your library." }],
+      "expo-secure-store"
+    ],
+    "android": { "package": "com.shubix.reels", "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#10100f" } },
+    "experiments": { "typedRoutes": true }
+  }
+}
