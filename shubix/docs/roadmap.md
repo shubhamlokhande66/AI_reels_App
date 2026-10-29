@@ -100,3 +100,20 @@ Mapping of the "expert short-form video director" brief:
 Python type hints + Pydantic, strict TypeScript, service interfaces, no hard-coded brands/models/paths, background
 queue rendering (API never blocks), temp-file cleanup, structured errors, unit + integration tests: in place and
 kept as the bar for every phase.
+
+## Phone app: the website's edit engine on the phone
+
+Decided 2026-10-29: the phone runs **the website's own engine code**, split out of `FE/web-app/components/studio/engine.ts`
+into `Shared/core/src/engine/studio/` (one module per job), in a hidden page in the phone's browser engine
+(`FE/mobile-app/lib/engine.tsx`: V8, as fast as the website, the same results). The screens stay native; export is native
+(Media3, `modules/shubix-video`). After changing the shared modules: `pnpm engine` in `FE/mobile-app`.
+
+| Step | What | Status |
+|---|---|---|
+| 1 | Song analysis (`song.ts`: beats, hits, drops, breaks, cuts), shared by the website and the phone | ✅ |
+| 2 | Song parts and the length (`useSection`, `bestPart`, `songParts`) | ⬜ |
+| 3 | The plan: shots on the beats by style (`buildPlan`, `adaptPlan`, `beatEdit`, `noFlashCuts`, `endWell`) | ⬜ |
+| 4 | Clip reading (motion, sharpness, scenes, faces) and the moments (`scoreWindow`, `makeEditNow` pick, `seqPick`) | ⬜ |
+| 5 | Style: transitions, effects, speed, keyframes, camera (`styleEdit`, `finishTransitions`, `tasteFx`, `keyframesFor`, `camPath`) | ⬜ |
+| 6 | Native export draws the transitions and effects; the editor's preview shows them | ⬜ |
+| TODO (later) | The same engine in Kotlin instead of the hidden page (faster; checked against the shared modules' results) | ⬜ |

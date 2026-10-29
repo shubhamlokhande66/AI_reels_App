@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import type { SongAnalysis } from "../../lib/engine";
 import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
@@ -133,7 +134,7 @@ const bars = (seed: string) => Array.from({ length: 56 }, (_, i) => { let h = 7;
 export const LENGTHS = [0, 15, 30, 60];
 
 /** Adjust Music: the song in a row, its bars (the part the Reel uses in gold, play to hear it) and the Reel's length. */
-export function FlowAdjust({ song, length, onLength }: { song: Song; length: number; onLength: (n: number) => void }) {
+export function FlowAdjust({ song, music, length, onLength }: { song: Song; music?: SongAnalysis | null; length: number; onLength: (n: number) => void }) {
   const words = useStudioText(), look = useColors(), player = useAudioPlayer(song.uri), status = useAudioPlayerStatus(player);
   const duration = song.duration || status.duration || 0, used = length && duration ? Math.min(length, duration) / duration : 1;
   const heard = duration ? status.currentTime / duration : 0;
@@ -157,6 +158,12 @@ export function FlowAdjust({ song, length, onLength }: { song: Song; length: num
           {used < 1 && <View pointerEvents="none" className="absolute bottom-0 left-0 top-0 rounded-lg border-2 border-accent bg-accent/10" style={{ width: `${used * 100}%` }} />}
           {heard > 0 && <View pointerEvents="none" className="absolute bottom-0 top-0 w-0.5 bg-foreground" style={{ left: `${Math.min(heard, 1) * 100}%` }} />}
         </View>
+      </View>
+      {/* the website's numbers under the waves: what the engine heard */}
+      <View className="flex-row flex-wrap gap-x-5 gap-y-2">
+        {([["Length", clock(music?.duration ?? duration)], ["BPM", music ? String(music.bpm) : "—"], ["Drops", music ? String(music.drops) : "—"], ["Breaks", music ? String(music.breaks) : "—"]] as const).map(([k, v]) => (
+          <Text key={k} className="text-[14px] text-muted">{words(k)} <Text className="font-mono font-semibold text-foreground">{v}</Text></Text>
+        ))}
       </View>
       <View className="gap-2.5">
         <Label>{words("Reel length")}</Label>

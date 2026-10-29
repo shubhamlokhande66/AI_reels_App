@@ -15,6 +15,8 @@ export const projectSchema = z.object({
   audioUri: z.string().optional(), audioName: z.string().optional(), templateId: z.string().optional(), overlays: z.array(overlaySchema),
   createdAt: z.string(), updatedAt: z.string(), status: z.enum(["draft", "rendered"]), outputUri: z.string().optional(),
   // the Create flow's choices: how much of the song (seconds, 0 = all), the clip order, the format, a Talking Reel's pauses and music under the voice, and what was asked of Shubix AI
+  // the song as the engine heard it (Shared/core engine/studio/song: the website's analysis): its tempo, beats and cuts
+  music: z.object({ duration: z.number(), bpm: z.number(), beats: z.array(z.number()), cuts: z.array(z.number()), cutType: z.array(z.enum(["drop", "hit", "cut", "break"])) }).optional(),
   settings: z.object({ length: z.number(), order: z.enum(["mix", "order"]), aspect: z.enum(["9:16", "4:5", "1:1", "16:9"]), pace: z.enum(["tight", "natural", "relaxed", "off"]), under: z.string(), wish: z.string().max(800) }).partial().optional(),
 });
 export type ProjectClip = z.infer<typeof clipSchema>;

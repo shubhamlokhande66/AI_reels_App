@@ -10,6 +10,7 @@ import { ThemeProvider, themes } from "@shubix/ui-mobile";
 import { api } from "../lib/session";
 import { useThemePref } from "../lib/theme";
 import { AppFrame } from "../components/templates/AppFrame";
+import { EngineHost } from "../lib/engine";
 
 export default function RootLayout() {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 45_000, retry: 1 } } }));
@@ -18,6 +19,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><ApiProvider api={api}><QueryClientProvider client={client}><ThemeProvider {...look}>
       <StatusBar style={look.theme === "dark" ? "light" : "dark"} />
       <AppFrame><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: themes[look.theme].background }, animation: "fade" }} /></AppFrame>
+      <EngineHost />
     </ThemeProvider></QueryClientProvider></ApiProvider></SafeAreaProvider></GestureHandlerRootView>
   );
 }

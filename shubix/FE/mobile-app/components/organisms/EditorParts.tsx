@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,7 +28,7 @@ export function StudioBar({ title, saved, onBack, onExport }: { title: string; s
         <View className="flex-row items-center gap-1.5"><Text className="text-[8px] font-bold tracking-[1px] text-muted">REEL STUDIO</Text><View className={`h-1.5 w-1.5 rounded-full ${saved ? "bg-[#72bd91]" : "bg-border"}`} /><Text numberOfLines={1} className="text-[8px] font-bold tracking-[1px] text-muted">{words(saved ? "SAVED REEL" : "SAVING…")}</Text></View>
         <Text numberOfLines={1} className="text-[13px] text-foreground">{title}</Text>
       </View>
-      <Button title={words("Export")} iconAfter="arrow" className="h-[38px] px-4" onPress={onExport} />
+      <View><Button title={words("Export")} iconAfter="arrow" onPress={onExport} /></View>
     </View>
   );
 }
@@ -105,7 +105,8 @@ const Head = ({ glyph, name, h, onAdd }: { glyph: string; name: string; h: numbe
   );
 };
 const LANES: [string, string, number][] = [["Media", "Video", 52], ["Text", "Text", 36], ["Voice", "Voice", 36], ["Music", "Music", 36]];
-const ClipPicture = ({ clip }: { clip: ProjectClip }) => { const t = useThumb(clip.uri, clip.kind); return t ? <Image source={{ uri: t }} className="h-full w-full" resizeMode="cover" /> : null; };
+// a clip's picture, drawn once (the timeline redraws on every frame of a zoom)
+const ClipPicture = memo(function ClipPicture({ uri, kind }: { uri: string; kind: ProjectClip["kind"] }) { const t = useThumb(uri, kind); return t ? <Image source={{ uri: t }} className="h-full w-full" resizeMode="cover" /> : null; });
 const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onPress: () => void }) => (
   <Pressable onPress={onPress} accessibilityLabel={label} className="h-8 min-w-8 items-center justify-center rounded-lg border border-border px-1.5"><Text className="text-[13px] font-bold text-foreground">{text}</Text></Pressable>
 );
@@ -116,7 +117,14 @@ const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onP
 export function Timeline({ clips, selected, overlays, song, now, playing, onSelect, onSeek, onAddClip, onText, onVoice, onMusic }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void }) {
   const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), layers = 1 + (overlays.length ? 1 : 0) + (song ? 1 : 0);
   const [px, setPx] = useState(34), [view, setView] = useState(240), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
-  const zoom = (to: number) => setPx(Math.max(8, Math.min(160, to)));
+  const clamp = (to: number) => Math.max(8, Math.min(160, to)), frame = useRef(0), want = useRef(34);
+  // zooming follows the fingers once a frame, and − / + / Fit glide there over a few frames
+  const zoom = (to: number, glide = false) => {
+    want.current = clamp(to); cancelAnimationFrame(frame.current);
+    const step = () => setPx((x) => { const next = glide ? x + (want.current - x) * 0.35 : want.current; if (Math.abs(next - want.current) > 0.3) frame.current = requestAnimationFrame(step); return Math.abs(next - want.current) > 0.3 ? next : want.current; });
+    frame.current = requestAnimationFrame(step);
+  };
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
   // the Reel follows the playhead while it plays, and when the time changes from elsewhere
   useEffect(() => { if (!dragging.current) scroller.current?.scrollTo({ x: now * px, animated: false }); }, [now, px]);
   const pinch = Gesture.Pinch().runOnJS(true).onStart(() => { pinchFrom.current = px; }).onUpdate((e) => zoom(pinchFrom.current * e.scale));
@@ -125,10 +133,10 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
       <View className="flex-row items-center gap-1.5 border-b border-border px-3 py-2.5">
         <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-accent/10"><Glyph name="Shots" size={16} color="accent" /></View>
         <View className="min-w-0 flex-1"><Text className="text-[14px] font-semibold text-foreground">{words("Timeline")}</Text><Text numberOfLines={1} className="text-[11px] text-muted">{mmss(now)} / {mmss(total)} · {clips.length} {words(clips.length === 1 ? "clip" : "clips")}</Text></View>
-        <ZoomButton label={words("Zoom out")} text="−" onPress={() => zoom(px / 1.5)} />
+        <ZoomButton label={words("Zoom out")} text="−" onPress={() => zoom(px / 1.5, true)} />
         <Text className="w-10 text-center text-[11px] font-semibold text-muted">{Math.round((px / 34) * 100)}%</Text>
-        <ZoomButton label={words("Zoom in")} text="+" onPress={() => zoom(px * 1.5)} />
-        <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total); }} />
+        <ZoomButton label={words("Zoom in")} text="+" onPress={() => zoom(px * 1.5, true)} />
+        <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total, true); }} />
       </View>
       <View className="flex-row py-2.5 pl-3">
         <View style={{ width: HEAD }} className="gap-1.5 border-r border-border">{LANES.map(([g, n, h], i) => <Head key={n} glyph={g} name={n} h={h} onAdd={[onAddClip, onText, onVoice, onMusic][i]} />)}</View>
@@ -141,7 +149,7 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
               <View className="gap-1.5">
                 <View className="h-[52px] flex-row">{clips.map((c, i) => (
                   <Pressable key={c.id} onPress={() => onSelect(i)} accessibilityLabel={`${words("Shot")} ${i + 1}`} className={`mr-[2px] h-[52px] justify-end overflow-hidden rounded-lg ${i === selected ? "border-2 border-accent" : ""}`} style={{ width: Math.max(16, clipDuration(c) * px - 2), backgroundColor: CLIP_COL[i % CLIP_COL.length] }}>
-                    <View className="absolute inset-0 opacity-70"><ClipPicture clip={c} /></View>
+                    <View className="absolute inset-0 opacity-70"><ClipPicture uri={c.uri} kind={c.kind} /></View>
                     <Text numberOfLines={1} className="px-1.5 pb-1 text-[9px] font-semibold text-white">{clipDuration(c).toFixed(1)}s{c.speed !== 1 ? ` · ${c.speed}×` : ""}</Text>
                   </Pressable>
                 ))}</View>
