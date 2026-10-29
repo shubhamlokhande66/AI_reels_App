@@ -55,3 +55,12 @@ export const heroArt = {
   bars: [8, 14, 22, 11, 28, 17, 34, 12, 23, 38, 18, 29, 13, 35, 20, 10, 31, 16, 39, 24, 12, 30, 19, 36, 14, 25, 9, 33, 18, 28, 12, 38, 20, 30, 14, 24],
   bar: { angle: 180, stops: ["#f0d99b", "#a98a4a"] } as Paint,
 };
+
+/** Each plan's icon and tone on the Pricing page (a plan the administrator adds gets the star on the gold). */
+export const planLooks: Record<string, { icon: string; tone: Tone }> = {
+  free: { icon: "sparkle", tone: "talk" },
+  creator: { icon: "bolt", tone: "music" },
+  pro: { icon: "crown", tone: "photo" },
+  business: { icon: "bag", tone: "recreate" },
+};
+export const planLook = (id: string) => planLooks[id] ?? { icon: "star", tone: "brand" as Tone };

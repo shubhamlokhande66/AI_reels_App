@@ -16,6 +16,11 @@ import { Card } from "../atoms/Card";
 export const ToneFill = ({ tone }: { tone: Tone }) =>
   tone === "brand" ? <Gold /> : tone === "neutral" ? <View className="absolute inset-0 bg-surface-2" /> : <Paint paint={tones[tone]} />;
 
+/** An icon on its tone's square (a plan, a Music Reel's note): the website's IconTile. */
+export const IconTile = ({ icon, tone = "brand", size = 42 }: { icon: IconName; tone?: Tone; size?: number }) => (
+  <View className="items-center justify-center overflow-hidden rounded-xl" style={{ width: size, height: size }}><ToneFill tone={tone} /><Icon name={icon} size={Math.round(size * 0.5)} stroke={2} color="#fff" /></View>
+);
+
 /** One way to start a Reel: its tone, a white icon, a title, a line and the arrow chip. `width`: a column of the grid,
  * or the whole row (the Music Reel, a last odd card); `big`: the Music Reel. */
 export function CreateCard({ icon, title, text, tone, width, big = false, lock, onPress }: { icon: IconName; title: string; text: string; tone: Tone; width: number; big?: boolean; lock?: ReactNode; onPress: () => void }) {

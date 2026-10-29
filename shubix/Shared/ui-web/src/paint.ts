@@ -11,4 +11,4 @@ export function paintCss({ angle, stops, glows = [] }: Paint): string {
 export const toneBackground = (tone: Tone): string =>
   tone === "brand" ? "var(--gold-gradient)" : tone === "neutral" ? "var(--surface-2)" : paintCss(tones[tone]);
 export { gradients } from "@shubix/ui-core";
-export { heroArt, posterShade, templateArt, templateArtFallback, tones, type Paint, type Tone } from "@shubix/ui-core";
+export { heroArt, planLook, posterShade, templateArt, templateArtFallback, tones, type Paint, type Tone } from "@shubix/ui-core";

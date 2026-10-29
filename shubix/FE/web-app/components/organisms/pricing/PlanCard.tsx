@@ -4,20 +4,13 @@ import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
 import { IconTile } from "@/components/atoms/IconTile";
 import { cn } from "@/lib/cn";
-import type { Tone } from "@/lib/ui";
 import type { Pricing } from "@/types/api";
 import { useText } from "@/hooks/useApi";
 
 export type Plan = Pricing["plans"][number];
-export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
-
-// each plan's own icon and tone (unknown plans from the administrator's pricing get the last one)
-const LOOK: Record<string, { icon: string; tone: Tone }> = {
-  free: { icon: "sparkle", tone: "talk" },
-  creator: { icon: "bolt", tone: "music" },
-  pro: { icon: "crown", tone: "photo" },
-  business: { icon: "bag", tone: "recreate" },
-};
+export { rupees } from "@shubix/utils";
+import { rupees } from "@shubix/utils";
+import { planLook } from "@shubix/ui-web";
 
 /** One plan (Pricing page): its name and line, the price for the chosen period, the credits, the button, and
  * everything it includes. A tap selects a plan: the selected one stands out (a gradient edge, a glow, a check); the
@@ -27,7 +20,7 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
   const pop = plan.highlight;
   const price = free ? 0 : yearly ? plan.yearly : plan.monthly;
   const perMonth = yearly && !free ? Math.round(plan.yearly / 12) : null;
-  const look = LOOK[plan.id] ?? { icon: "star", tone: "brand" as Tone };
+  const look = planLook(plan.id);
   const text = useText();
   return (
     <article

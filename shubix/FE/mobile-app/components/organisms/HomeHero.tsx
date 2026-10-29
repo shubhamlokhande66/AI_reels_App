@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
-import Svg, { Defs, Ellipse, LinearGradient, Polygon, Stop, Text as SvgText } from "react-native-svg";
+import Svg, { Defs, Ellipse, LinearGradient, Polygon } from "react-native-svg";
 import { LinearGradient as Fill } from "expo-linear-gradient";
 import { useText } from "@shubix/hooks";
-import { Button, Gold, Icon, Paint, cssLine, mix, places, stopsOf, useColors } from "@shubix/ui-mobile";
-import { gradients, heroArt } from "@shubix/ui-core";
+import { Button, Gold, GoldText, Icon, Paint, cssLine, mix, places, stopsOf, useColors } from "@shubix/ui-mobile";
+import { heroArt } from "@shubix/ui-core";
 
 /** Home's hero (the website's components/organisms/home/HomeHero.tsx): the tag, the three-line title, the line, the
  * Create button and the three steps, then the studio picture: a 9:16 Reel at sunset, the soundtrack's bars moving to
@@ -22,7 +22,7 @@ export function HomeHero({ onCreate }: { onCreate: () => void }) {
         </View>
         <View accessibilityRole="header" className="self-stretch">
           <Text className="text-[30px] font-semibold leading-[30.6px] tracking-[-1.35px] text-foreground">{text("home.hero1")}</Text>
-          <GoldLine text={text("home.hero2")} />
+          <GoldText text={text("home.hero2")} className="text-[30px] font-semibold leading-[30.6px] tracking-[-1.35px]" />
           <Text className="text-[30px] font-semibold leading-[30.6px] tracking-[-1.35px] text-foreground/80">{text("home.hero3")}</Text>
         </View>
         <Text className="text-[13.5px] leading-[22px] text-muted">{text("home.heroText")}</Text>
@@ -37,25 +37,6 @@ export function HomeHero({ onCreate }: { onCreate: () => void }) {
         </View>
       </View>
       <StudioPicture />
-    </View>
-  );
-}
-
-/** The title's middle line in the gold gradient (the website: bg-clip-text). */
-function GoldLine({ text }: { text: string }) {
-  const [width, setWidth] = useState(0);
-  return (
-    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: 30.6 }}>
-      {width > 0 && (
-        <Svg width={width} height={30.6}>
-          <Defs>
-            <LinearGradient id="heroGold" x1="0" y1="0.41" x2="1" y2="0.59">
-              <Stop offset="0" stopColor={gradients.gold[0]} /><Stop offset="0.65" stopColor="#c5a45e" /><Stop offset="1" stopColor={gradients.gold[2]} />
-            </LinearGradient>
-          </Defs>
-          <SvgText x={0} y={25} fontSize={30} fontWeight="600" letterSpacing={-1.35} fill="url(#heroGold)">{text}</SvgText>
-        </Svg>
-      )}
     </View>
   );
 }

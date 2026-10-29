@@ -10,3 +10,4 @@ export * from "./LinkText";
 export * from "./Paint";
 export * from "./LockBadge";
 export * from "./Avatar";
+export * from "./GoldText";

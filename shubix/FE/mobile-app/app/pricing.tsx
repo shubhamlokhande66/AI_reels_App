@@ -1,33 +1,176 @@
 import { useState } from "react";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { router } from "expo-router";
 import RazorpayCheckout from "react-native-razorpay";
-import { ActivityIndicator, Alert, Pressable, Text, TextInput, View } from "react-native";
-import { BadgeCheck, Check, Coins, Crown, Sparkles, Zap } from "lucide-react-native";
-import { Button, Card, Eyebrow, Heading, Page, SectionHeader, colors } from "@shubix/ui-mobile";
+import { useApi, useText } from "@shubix/hooks";
+import { Badge, Button, Card, ErrorBanner, Gold, GoldText, Icon, Page, useColors } from "@shubix/ui-mobile";
+import type { Credits } from "@shubix/types";
+import { rupees } from "@shubix/utils";
+import { errorMessage } from "@shubix/api-client";
+import { Checkout, OfferBand, PlanAction, PlanCard, PlanCompare, SectionHeading } from "../components/organisms/Pricing";
 import { mobileApi } from "../lib/api";
+import { useCredits, useList } from "../lib/data";
+import { open } from "../lib/navigate";
+
+const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
+
+/** Plans and credits (the website's app/pricing/page.tsx): open to everyone; signed in, people can buy and see their
+ * credits. Every text: Admin → CMS → Pricing. */
 export default function PricingScreen() {
-  const qc = useQueryClient();
-  const plansQ = useQuery({ queryKey: ["native-plans"], queryFn: mobileApi.pricing, staleTime: 300_000 });
-  const creditsQ = useQuery({ queryKey: ["native-credits"], queryFn: mobileApi.credits, retry: false });
-  const [yearly, setYearly] = useState(false), [coupon, setCoupon] = useState(""), [buying, setBuying] = useState("");
-  async function buy(item: string, label: string) {
-    setBuying(item);
+  const text = useText(), queryClient = useQueryClient(), { me } = useApi(), look = useColors();
+  const plans = useQuery({ queryKey: ["native-plans"], queryFn: mobileApi.pricing, staleTime: 300_000 });
+  const offer = useQuery({ queryKey: ["offer"], queryFn: mobileApi.offer, staleTime: 60_000, retry: false }).data?.offer ?? null;
+  const credits = useCredits().data, faq = useList("pricing.faq");
+  const [yearly, setYearly] = useState(false), [buying, setBuying] = useState<string | null>(null), [picked, setPicked] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null), [checkout, setCheckout] = useState<{ item: string; label: string } | null>(null);
+  const [openQuestion, setOpenQuestion] = useState<string | null>(null);
+  const signedIn = !!me?.user || me?.authEnabled === false, mine = credits?.enabled ? credits : null;
+
+  async function pay(item: string, label: string, coupon?: string) {
+    setNotice(null); setBuying(item);
     try {
-      const order = await mobileApi.createOrder(item, coupon.trim() || undefined);
-      const result = await RazorpayCheckout.open({ key: order.keyId, amount: String(order.amount), currency: order.currency, name: "Shubix", description: order.label || label, order_id: order.orderId, image: mobileApi.absoluteAsset("/icon-512.png"), prefill: { email: order.email }, theme: { color: colors.accent } });
+      const order = await mobileApi.createOrder(item, coupon);
+      const result = await RazorpayCheckout.open({ key: order.keyId, amount: String(order.amount), currency: order.currency, name: text("checkout.name"), description: order.label || label, order_id: order.orderId,
+        image: mobileApi.absoluteAsset(text("checkout.logo")), prefill: { email: order.email }, theme: { color: text("checkout.color") } });
       const updated = await mobileApi.verifyPayment({ razorpayOrderId: result.razorpay_order_id, razorpayPaymentId: result.razorpay_payment_id, razorpaySignature: result.razorpay_signature });
-      qc.setQueryData(["native-credits"], updated);
-      Alert.alert("Payment verified", `${label} is ready on your account.`);
-      setCoupon("");
+      queryClient.setQueryData(["native-credits"], updated);
+      setCheckout(null); setNotice({ ok: true, text: text("pricing.paid", { item: label }) });
     } catch (e) {
-      const nativeError = e as { code?: string; description?: string; message?: string };
-      if (nativeError.code === "PAYMENT_CANCELLED") return;
-      Alert.alert("Payment not completed", nativeError.description || nativeError.message || "Please try again.");
-    } finally { setBuying(""); }
+      const failure = e as { code?: number | string; description?: string };
+      if (failure.code !== "PAYMENT_CANCELLED" && failure.code !== 0) { setCheckout(null); setNotice({ ok: false, text: failure.description || errorMessage(e) }); }
+    } finally { setBuying(null); }
   }
-  if (plansQ.isLoading) return <Page><View className="mt-10 items-center"><ActivityIndicator color="accent"/><Text className="mt-3 text-xs text-muted">Loading your plans…</Text></View></Page>;
-  if (plansQ.isError || !plansQ.data) return <Page><View className="mt-2"><Eyebrow>SHUBIX MEMBERSHIP</Eyebrow><Heading size="page" className="mt-2">Choose your plan.</Heading><Text className="mt-3 text-sm text-muted">{plansQ.error instanceof Error ? plansQ.error.message : "Plans are not available right now."}</Text><View className="mt-5"><Button size="lg" full title="Try again" onPress={() => void plansQ.refetch()}/></View></View></Page>;
-  const data = plansQ.data;
-  return <Page><Pressable onPress={() => router.back()} className="mt-2"><Text className="text-sm text-muted">‹  More</Text></Pressable><View className="mt-5"><View className="mb-3 h-11 w-11 items-center justify-center rounded-2xl border border-[#76633b] bg-[#29251c]"><Crown size={20} color="accent"/></View><Eyebrow>THE CREATOR'S EDIT</Eyebrow><Heading size="page" className="mt-2">More room to create.</Heading><Text className="mt-2 text-sm leading-6 text-muted">Pick the plan that gives your ideas space to grow.</Text></View>{creditsQ.data?.enabled && <Card className="mt-5"><View className="flex-row items-center gap-3"><View className="h-10 w-10 items-center justify-center rounded-xl bg-[#29251c]"><Zap size={18} color="accent"/></View><View className="flex-1"><Text className="text-xs text-muted">Your balance</Text><Text className="mt-0.5 text-lg font-semibold text-foreground">{creditsQ.data.balance ?? 0} credits</Text></View><Text className="text-xs font-semibold text-accent">{creditsQ.data.planName || "Free"}</Text></View></Card>}<SectionHeader className="mb-3 mt-7" title="Membership"/><View className="mb-2 flex-row rounded-full border border-border bg-surface p-1">{[false, true].map((v) => <Pressable onPress={() => setYearly(v)} key={String(v)} className={`flex-1 rounded-full py-2.5 ${yearly === v ? "bg-[#383120]" : ""}`}><Text className={`text-center text-xs font-semibold ${yearly === v ? "text-accent" : "text-muted"}`}>{v ? `Yearly · ${12 - data.yearlyMonthsCharged} months free` : "Monthly"}</Text></Pressable>)}</View><View className="gap-3">{data.plans.filter((p) => !p.hidden).map((plan) => { const price = yearly ? plan.yearly : plan.monthly; const item = `plan:${plan.id}:${yearly ? "yearly" : "monthly"}`; const current = creditsQ.data?.enabled && creditsQ.data.plan === plan.id; return <View key={plan.id} className={`rounded-[22px] border p-4 ${plan.highlight ? "border-[#927846] bg-[#211f1a]" : "border-border bg-surface"}`}>{plan.highlight && <View className="mb-3 self-start rounded-full bg-[#393020] px-2.5 py-1"><Text className="text-[9px] font-bold uppercase tracking-[1px] text-accent">Most loved</Text></View>}<View className="flex-row items-start justify-between"><View className="flex-1"><Text className="text-base font-semibold text-foreground">{plan.name}</Text><Text className="mt-1 text-xs text-muted">{plan.tagline}</Text></View><View className="items-end"><Text className="text-xl font-semibold text-foreground">{data.currency} {price.toLocaleString("en-IN")}</Text><Text className="text-[10px] text-muted">/{yearly ? "year" : "month"}</Text></View></View><View className="mt-3 flex-row items-center gap-1.5"><Coins size={14} color="accent"/><Text className="text-xs font-semibold text-accent">{plan.credits.toLocaleString("en-IN")} credits included</Text></View><View className="mt-3 gap-2">{plan.features.slice(0, 5).map((feature) => <View key={feature} className="flex-row items-center gap-2"><Check size={14} color="accent"/><Text className="flex-1 text-xs text-muted">{feature}</Text></View>)}</View><View className="mt-4">{plan.id === "free" ? <View className="items-center rounded-xl border border-border py-3"><Text className="text-xs font-semibold text-muted">Included</Text></View> : current ? <View className="items-center rounded-xl border border-[#806b40] py-3"><Text className="text-xs font-semibold text-accent">Your current plan</Text></View> : <Button size="lg" full title={buying === item ? "Opening secure checkout…" : `Choose ${plan.name}`} onPress={() => void buy(item, plan.name)} variant={(!plan.highlight) ? "secondary" : "primary"}/>}</View></View>; })}</View><SectionHeader className="mb-3 mt-7" title="Discount code"/><TextInput value={coupon} onChangeText={setCoupon} autoCapitalize="characters" placeholder="Enter code at checkout" placeholderTextColor={colors.muted} className="rounded-xl border border-border bg-surface px-4 py-3.5 text-sm text-foreground"/><Text className="mt-2 text-[10px] leading-4 text-muted">Any coupon or current offer is checked by Shubix when the order is created.</Text>{data.topUps.length > 0 && <><SectionHeader className="mb-3 mt-7" title="Need a few more credits?"/><View className="gap-2">{data.topUps.map((top) => <Card key={top.id}><View className="flex-row items-center gap-3"><Sparkles size={17} color="accent"/><Text className="flex-1 text-sm font-semibold text-foreground">{top.credits.toLocaleString()} credits</Text><Text className="mr-1 text-xs text-muted">{data.currency} {top.price.toLocaleString("en-IN")}</Text><Pressable onPress={() => void buy(`topup:${top.id}`, `${top.credits} credits`)} className="rounded-lg bg-accent px-3 py-2"><Text className="text-[10px] font-bold text-on-accent">Add</Text></Pressable></View></Card>)}</View></>}</Page>;
+
+  if (plans.isLoading) return <Page><ActivityIndicator color={look.accent} /></Page>;
+  if (plans.error || !plans.data) return <Page><ErrorBanner message={errorMessage(plans.error ?? new Error("Plans are not available."))} /></Page>;
+  const p = plans.data, period = yearly ? "yearly" : "monthly", freeMonths = 12 - p.yearlyMonthsCharged, shown = p.plans.filter((x) => !x.hidden);
+  const selectedId = picked ?? (mine && mine.plan !== "free" && shown.some((x) => x.id === mine.plan) ? mine.plan : shown.find((x) => x.highlight)?.id ?? shown[0]?.id);
+
+  return (
+    <Page>
+      <View className="gap-12 pb-4">
+        <View className="items-center gap-4 pt-4">
+          <Badge tone="brand" className="h-8 px-3.5 text-[12.5px] uppercase leading-8 tracking-[0.6px]">{text("pricing.badge")}</Badge>
+          <GoldText before={text("pricing.title1")} text={text("pricing.title2")} className="text-center text-[28px] font-semibold leading-[30px] tracking-[-0.7px]" />
+          <Text className="text-center text-[15.5px] leading-[25px] text-muted">{text("pricing.sub", { aiCost: p.costs.studio_ai ?? 10 })}</Text>
+          <View accessibilityRole="radiogroup" className="mt-2 flex-row items-center gap-1 rounded-full border border-border bg-surface p-1.5">
+            {([false, true] as const).map((y) => (
+              <Pressable key={String(y)} onPress={() => setYearly(y)} accessibilityRole="radio" accessibilityState={{ checked: yearly === y }} className="h-10 flex-row items-center gap-2 overflow-hidden rounded-full px-5">
+                {yearly === y && <Gold />}
+                <Text className={`text-[14px] font-bold ${yearly === y ? "text-on-accent" : "text-muted"}`}>{text(y ? "pricing.yearly" : "pricing.monthly")}</Text>
+                {y && freeMonths > 0 && <Text className={`overflow-hidden rounded-full px-2 py-0.5 text-[11px] font-extrabold ${yearly ? "bg-white/20 text-white" : "bg-success/15 text-success"}`}>{text("pricing.monthsFree", { n: freeMonths })}</Text>}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {offer && <OfferBand offer={offer} />}
+        {notice && (
+          <View className={`-mt-6 flex-row items-center justify-center gap-2 rounded-2xl border px-4 py-3 ${notice.ok ? "border-success/40 bg-success/10" : "border-danger/40 bg-danger/10"}`}>
+            <Icon name={notice.ok ? "check" : "warn"} size={18} stroke={2.2} color={notice.ok ? "success" : "danger"} />
+            <Text className={`text-center text-[14px] font-semibold ${notice.ok ? "text-success" : "text-danger"}`}>{notice.text}</Text>
+          </View>
+        )}
+
+        <View className="gap-5">
+          {shown.map((plan) => {
+            const item = `plan:${plan.id}:${period}`;
+            return (
+              <PlanCard key={plan.id} plan={plan} yearly={yearly} selected={plan.id === selectedId} onSelect={() => setPicked(plan.id)} offer={offer && offer.appliesTo !== "topups" ? offer.percent : undefined}
+                action={<PlanAction plan={plan} signedIn={signedIn} paymentsOpen={p.paymentsOpen} current={!!mine && mine.plan === plan.id && plan.id !== "free"} busy={buying === item} selected={plan.id === selectedId}
+                  onGo={open} onBuy={() => { setNotice(null); setCheckout({ item, label: `${plan.name} (${yearly ? "1 year" : "1 month"})` }); }} />} />
+            );
+          })}
+        </View>
+
+        <PlanCompare plans={shown.map((x) => x.id)} />
+
+        <View className="gap-5">
+          {mine && <MyCredits c={mine} />}
+          <Card className="gap-4">
+            <SectionHeading title={text("pricing.topUpTitle")} sub={text("pricing.topUpSub")} />
+            <View className="gap-3">
+              {p.topUps.map((topUp) => {
+                const item = `topup:${topUp.id}`, sale = offer && offer.appliesTo !== "plans";
+                return (
+                  <View key={topUp.id} className="flex-row items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 p-4">
+                    <View>
+                      <View className="flex-row items-center gap-1.5"><Icon name="bolt" size={18} stroke={2.2} color="accent" /><Text className="text-[20px] font-semibold text-foreground">+{topUp.credits.toLocaleString("en-IN")}</Text></View>
+                      <Text className="text-[12px] text-muted">{text("pricing.perCredit", { price: rupees(Math.round((topUp.price / topUp.credits) * 10) / 10) })}</Text>
+                    </View>
+                    <Button size="sm" variant="secondary" loading={buying === item} disabled={!p.paymentsOpen || !signedIn || (buying !== null && buying !== item)}
+                      title={sale ? rupees(Math.round((topUp.price * (100 - offer.percent)) / 100)) : rupees(topUp.price)} onPress={() => setCheckout({ item, label: `${topUp.credits} ${text("pricing.credits")}` })} />
+                  </View>
+                );
+              })}
+            </View>
+          </Card>
+        </View>
+
+        <View className="gap-5">
+          <SectionHeading title={text("pricing.costsTitle")} sub={text("pricing.costsSub")} center />
+          <Card className="p-2">
+            {p.creditCosts.filter((c) => c.id.startsWith("studio_") || c.credits > 0).filter((c) => !["clip_reel", "version", "story_render", "preview"].includes(c.id)).map((c, i, list) => (
+              <View key={c.id} className={`flex-row items-center justify-between gap-3 px-3 py-3.5 ${i < list.length - 1 ? "border-b border-border" : ""}`}>
+                <View className="min-w-0 flex-1 flex-row items-center gap-2.5">
+                  <View className="h-7 w-7 items-center justify-center rounded-lg bg-accent/[0.12]"><Icon name={c.credits === 0 ? "sparkle" : "bolt"} size={15} stroke={2} color="accent" /></View>
+                  <Text className="min-w-0 flex-1 text-[14px] font-semibold text-foreground">{c.action}</Text>
+                </View>
+                <Badge tone={c.credits === 0 ? "success" : "brand"} className="h-7 px-3 text-[12px] leading-7">{c.credits === 0 ? text("pricing.costFree") : c.credits === 1 ? text("pricing.costCredit") : text("pricing.costCredits", { n: c.credits })}</Badge>
+              </View>
+            ))}
+          </Card>
+        </View>
+
+        <View className="gap-5">
+          <SectionHeading title={text("pricing.faqTitle")} sub={text("pricing.faqSub")} center />
+          <View className="gap-3">
+            {faq.map(({ q, a }) => (
+              <Pressable key={q} onPress={() => setOpenQuestion(openQuestion === q ? null : q)} accessibilityState={{ expanded: openQuestion === q }} className={`rounded-2xl border bg-surface px-5 ${openQuestion === q ? "border-accent/50" : "border-border"}`}>
+                <View className="flex-row items-center justify-between gap-3 py-4">
+                  <Text className="min-w-0 flex-1 text-[14.5px] font-bold text-foreground">{q}</Text>
+                  <View className="h-7 w-7 items-center justify-center rounded-full bg-surface-2" style={{ transform: [{ rotate: openQuestion === q ? "180deg" : "0deg" }] }}><Icon name="down" size={16} color="muted" /></View>
+                </View>
+                {openQuestion === q && <Text className="pb-4 text-[14px] leading-[22px] text-muted">{a}</Text>}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View className="flex-row items-center justify-center gap-2"><Icon name="lock" size={15} color="muted" /><Text className="text-center text-[12.5px] text-muted">{text(p.paymentsOpen ? "pricing.secure" : "pricing.soon")}</Text></View>
+      </View>
+      <Checkout item={checkout?.item ?? null} label={checkout?.label ?? ""} busy={!!checkout && buying === checkout.item} onClose={() => setCheckout(null)} onPay={(coupon) => checkout && void pay(checkout.item, checkout.label, coupon)} />
+    </Page>
+  );
+}
+
+/** Your credits: the balance and plan, when it ends or renews, and the last five changes. */
+function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
+  const text = useText();
+  return (
+    <Card className="gap-4">
+      <View className="flex-row items-center justify-between gap-3">
+        <View>
+          <Text className="text-[13px] font-semibold text-muted">{text("pricing.yourCredits")}</Text>
+          <View className="flex-row items-center gap-2"><Icon name="bolt" size={26} stroke={2.2} color="accent" /><Text className="text-[28px] font-semibold leading-[34px] text-foreground">{c.balance.toLocaleString("en-IN")}</Text></View>
+        </View>
+        <Badge tone="brand" className="h-8 px-3 text-[12.5px] leading-8">{text("pricing.planBadge", { plan: c.planName })}</Badge>
+      </View>
+      <Text className="text-[12.5px] text-muted">
+        {c.plan !== "free" && c.planEnds ? `${text("pricing.activeUntil", { date: day(c.planEnds) })} · ` : ""}
+        {c.plan !== "free" && c.renews ? `${text("pricing.renews", { date: day(c.renews) })} · ` : ""}
+        {c.extra > 0 ? text("pricing.extraLeft", { n: c.extra.toLocaleString("en-IN") }) : c.plan === "free" ? text("pricing.freeNote") : ""}
+      </Text>
+      {c.history.length > 0 && (
+        <View>
+          {c.history.slice(0, 5).map((h, i) => (
+            <View key={i} className={`flex-row items-center justify-between gap-3 py-2 ${i ? "border-t border-border" : ""}`}>
+              <Text numberOfLines={1} className="min-w-0 flex-1 text-[13px] text-muted">{h.reason}</Text>
+              <Text className={`text-[13px] font-bold ${h.delta > 0 ? "text-success" : "text-foreground"}`}>{h.delta > 0 ? `+${h.delta.toLocaleString("en-IN")}` : h.delta < 0 ? `−${Math.abs(h.delta).toLocaleString("en-IN")}` : "0"}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </Card>
+  );
 }

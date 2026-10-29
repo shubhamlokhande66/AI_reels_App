@@ -7,14 +7,7 @@ import { Icon } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import type { Offer } from "@/lib/marketing";
 
-/** "Ends in 2 days" / "ends in 5 h" / "ends today": the time left of a sale. */
-function left(ends: string | null) {
-  if (!ends) return "";
-  const ms = new Date(ends).getTime() - Date.now();
-  if (ms <= 0) return "";
-  const h = Math.floor(ms / 3600_000), d = Math.floor(h / 24);
-  return d >= 1 ? `in ${d} day${d > 1 ? "s" : ""}` : h >= 1 ? `in ${h} h` : "soon";
-}
+import { timeLeft as left } from "@shubix/utils";
 
 /** A sale running (Admin → Marketing → Offers): its name, its line, how much off and when it ends. On the pricing page as
  * a band; across the app (`bar`) a slim line with a link to the plans, closed for that sale with ✕. */

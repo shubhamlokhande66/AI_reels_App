@@ -3,7 +3,7 @@ import { fetchWithToken } from "./device";
 import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
 import type { Features } from "@shubix/core/lib/features-list";
 import type { Content } from "@shubix/core/lib/collections";
-import type { CloudReel, CloudUsage } from "@shubix/types";
+import type { CloudReel, CloudUsage, Credits, Offer, Pricing, Quote } from "@shubix/types";
 import type { PlanLocks } from "@shubix/core/lib/plan-locks";
 
 /** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
@@ -26,9 +26,11 @@ export const mobileApi = {
   deleteReel: (id: string) => json(`/api/studio/reels/${encodeURIComponent(id)}`, { method: "DELETE" }),
   templates: () => json<{ templates: StudioTemplate[] }>("/api/templates"),
   features: () => json<Features>("/api/features"),
-  pricing: () => json<{ currency: string; yearlyMonthsCharged: number; plans: { id: string; name: string; monthly: number; yearly: number; credits: number; tagline: string; highlight: boolean; features: string[]; hidden?: boolean; ads?: boolean }[]; topUps: { id: string; credits: number; price: number }[]; billingEnabled: boolean }>("/api/plans"),
+  pricing: () => json<Pricing>("/api/plans"),
+  offer: () => json<{ offer: Offer | null }>("/api/offer"),
+  quote: (item: string, coupon?: string) => json<Quote>("/api/billing/quote", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
   ads: () => json<AdsConfig>("/api/ads"),
-  credits: () => json<{ enabled: boolean; billing?: boolean; balance?: number; planName?: string; plan?: string; extra?: number; monthly?: number; planEnds?: string | null }>("/api/credits"),
+  credits: () => json<Credits>("/api/credits"),
   payments: () => json<{ id: string; label: string; amount: number; status: string; createdAt: string; paidAt: string | null; receiptNo: string | null }[]>("/api/billing/payments"),
   planLocks: () => json<PlanLocks>("/api/plan-locks"),
   createOrder: (item: string, coupon?: string) => json<{ orderId: string; keyId: string; amount: number; currency: string; label: string; email: string }>("/api/billing/order", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),

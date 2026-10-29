@@ -20,3 +20,13 @@ export function formatRelative(iso: string, now: Date = new Date()): string {
 export const megabytes = (b: number) => (b < 1e7 ? (b / 1e6).toFixed(1) : String(Math.round(b / 1e6))) + " MB";
 /** A video's quality: "720p", "1080p" or "4K", and its frame rate above 30 ("1080p · 60 fps"). */
 export const videoQuality = (r: { width: number; height: number; fps: number }) => (Math.min(r.width, r.height) >= 2000 ? "4K" : Math.min(r.width, r.height) >= 1000 ? "1080p" : "720p") + (r.fps > 30 ? ` · ${r.fps} fps` : "");
+/** An amount in rupees: "₹1,499". */
+export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+/** The time left of a sale: "in 2 days", "in 5 h", "soon"; "" when it has no end or has ended. */
+export function timeLeft(ends: string | null) {
+  if (!ends) return "";
+  const ms = new Date(ends).getTime() - Date.now();
+  if (ms <= 0) return "";
+  const h = Math.floor(ms / 3600_000), d = Math.floor(h / 24);
+  return d >= 1 ? `in ${d} day${d > 1 ? "s" : ""}` : h >= 1 ? `in ${h} h` : "soon";
+}
