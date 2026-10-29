@@ -12,13 +12,19 @@ export async function saveProject(project: MobileProject) { const parsed = proje
 export async function removeProject(id: string) { const items = await read(); await AsyncStorage.setItem(KEY, JSON.stringify(items.filter((x) => x.id !== id))); }
 
 /** A picked file kept in the app's own folder (`folder` under its documents), so it is still there after the picker's
- * permission ends; the same name again replaces it. Returns its new address. */
+ * permission ends; the same name again replaces it. Returns its new address, or where it is when the phone does not let
+ * the app copy it (Expo Go: the pickers' cache is Expo Go's, readable to play but not to copy). */
 export async function keepFile(from: string, folder: string, name: string): Promise<string> {
-  const dir = new Directory(Paths.document, ...folder.split("/"));
-  if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
-  const to = new File(dir, name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-90) || "file");
-  await new File(from).copy(to, { overwrite: true });
-  return to.uri;
+  try {
+    const dir = new Directory(Paths.document, ...folder.split("/"));
+    if (!dir.exists) dir.create({ intermediates: true, idempotent: true });
+    const to = new File(dir, name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-90) || "file");
+    await new File(from).copy(to, { overwrite: true });
+    return to.uri;
+  } catch (e) {
+    console.warn("Kept where it was picked:", e instanceof Error ? e.message : e);
+    return from;
+  }
 }
 
 /** Copy picker URIs into app-private storage so Android's temporary photo-picker grant survives reloads. */
