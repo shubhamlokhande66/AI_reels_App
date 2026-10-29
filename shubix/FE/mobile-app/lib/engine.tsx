@@ -49,7 +49,7 @@ export const engine = {
   /** the song's part moved on the waves: the Reel uses the song from `start` */
   part: (start: number) => call<{ start: number }>("part", { start }),
   /** the clips: the website reads them (motion, scenes, faces) and makes the Reel on the beats */
-  clips: (list: { uri: string; name: string }[]) => call("clips", { paths: list.map((c) => ({ path: pathOf(c.uri), name: c.name })) }),
+  clips: (list: { uri: string; name: string }[]) => call<{ clips: number; names: string[] }>("clips", { paths: list.map((c) => ({ path: pathOf(c.uri), name: c.name })) }),
   /** once the Reel is made: its shots (`id`: the phone's draft, which the studio now holds) */
   ready: (id: string) => call<EngineReel>("ready").then((r) => { held = id; return r; }),
   /** whether the studio holds this draft as it made it (then the website's export makes it, with its transitions and effects) */
@@ -61,7 +61,7 @@ export const engine = {
 // the studio's speeds as the phone plays them (ramps, freezes and curves play at 1× here; the studio's export keeps them)
 const SPEED: Record<string, number> = { normal: 1, slow: 0.5, fast: 1.6 };
 /** The Reel's shots as the phone editor's clips: each shot its part of its clip (from `in`, as long as the shot at its
- * speed), the transition into it and its effect. `sources`: the clips in the order they were given to the studio. */
+ * speed), the transition into it and its effect. `sources`: the clips the studio kept, in its order (its `src`). */
 export function shotsOf(shots: EngineShot[], sources: ProjectClip[]): ProjectClip[] {
   return shots.map((e, i) => {
     const c = sources[e.src] ?? sources[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;

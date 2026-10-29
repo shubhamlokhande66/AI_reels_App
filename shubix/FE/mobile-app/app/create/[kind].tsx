@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useStudioText } from "@shubix/hooks";
 import { askAction, Button, tasks, toast } from "@shubix/ui-mobile";
 import { usePlanAi } from "../../lib/data";
+import type { ProjectClip } from "@shubix/validations";
 import { engine, engineOn, shotsOf, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@shubix/api-client";
 import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
@@ -77,9 +78,11 @@ export default function CreateScreen() {
       let studio = false;
       if (engineOn && music) {
         await engine.choose({ order: settings.order, aspect: settings.aspect, mode: style || "auto" }); // (the length and the part are set already)
-        await engine.clips(clips.map((c) => ({ uri: c.uri, name: c.name })));
+        // each clip numbered (phones name many clips the same): the ones the studio kept, in its order
+        const kept = (await engine.clips(clips.map((c, i) => ({ uri: c.uri, name: `${i + 1}-${c.name}` })))).names;
         at(0.7, 2);
-        clips = shotsOf((await engine.ready(id)).state.edit, clips); studio = true;
+        const sources = kept.map((n) => clips[parseInt(n, 10) - 1]).filter((c): c is ProjectClip => !!c);
+        clips = shotsOf((await engine.ready(id)).state.edit, sources.length ? sources : clips); studio = true;
       } else clips = clips.map((c) => ({ ...c, speed }));
       at(0.92, 3);
       const now = new Date().toISOString();

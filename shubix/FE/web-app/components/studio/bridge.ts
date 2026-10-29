@@ -7,7 +7,7 @@
  * Reel goes back to it. Ops:
  *   setup { files: "http://127.0.0.1:port", key, token } where the files are; the sign-in for the API
  *   song { path, name }                                  the song (the website analyses it and checks its beats)
- *   clips { paths: [{ path, name }] }                     the clips (read: motion, scenes, faces, the best moments)
+ *   clips { paths: [{ path, name }] }                     the clips (read: motion, scenes, faces, the best moments) -> { clips, names: the ones it kept, in its order }
  *   choose { length?, order?, aspect?, mode? }            Reel length (0 / 15 / 30 / 60 / seconds), "mix" | "order", 9:16…, auto | smooth | fast
  *                                                         -> { start }: where the song's part starts (Shubix picks the best part)
  *   part { start }                                       the part dragged on the waves: from there -> { start }
@@ -17,7 +17,7 @@
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; state: () => unknown; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; state: () => unknown; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -25,7 +25,7 @@ export function initBridge(root: HTMLElement): () => void {
   const post = (m: object) => (window as unknown as { ReactNativeWebView?: Native }).ReactNativeWebView?.postMessage(JSON.stringify(m));
   const $ = <T extends HTMLElement>(id: string) => root.querySelector<T>("#" + id);
   const studio = () => (root as unknown as { __studio?: Studio }).__studio;
-  let files = "", key = "";
+  let files = "", key = "", reading = false;
 
   // the phone's sign-in on the API's requests (the page has no sign-in cookie)
   const send = window.fetch.bind(window);
@@ -65,8 +65,9 @@ export function initBridge(root: HTMLElement): () => void {
     async clips(a) {
       const list = a.paths as { path: string; name: string }[], got: File[] = [];
       for (const c of list) got.push(await fileOf(c.path, c.name));
-      put($("vfile"), got); await until(() => (studio()?.work.clips ?? 0) >= list.length && !studio()!.work.pending);
-      return { clips: studio()!.work.clips };
+      // the studio may leave a clip out (one it cannot play, the same footage twice): done when its reading is over
+      reading = true; put($("vfile"), got); await until(() => !reading && !studio()!.work.pending);
+      return { clips: studio()!.work.clips, names: studio()!.sources.map((s) => s.name) };
     },
     async choose(a) {
       if (a.mode) press("mode", "data-m", String(a.mode));
@@ -85,6 +86,8 @@ export function initBridge(root: HTMLElement): () => void {
     async answer(a) { const b = $({ ok: "cconfok", no: "cconfno" }[String(a.pick)] ?? "cconfx"); b?.click(); return { ok: !!b }; },
     async exportReel(a) {
       await until(made);
+      // the creator closed Shubix AI's question: the studio keeps the Reel for Shubix AI (its own words say so)
+      if (root.classList.contains("aineed")) throw new Error($("aiaskt")?.textContent || "Your Reel is waiting for Shubix AI");
       const blob = await studio()!.autoExport();
       if (!blob) throw new Error("The Reel could not be made");
       const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(String(a.name || "reel.mp4"))}`, { method: "PUT", body: blob });
@@ -93,7 +96,7 @@ export function initBridge(root: HTMLElement): () => void {
     },
   };
 
-  const onTask = (e: Event) => post({ event: "task", ...(e as CustomEvent).detail });
+  const onTask = (e: Event) => { const d = (e as CustomEvent).detail; if (d.id === "clips" && (d.state === "done" || d.state === "fail")) reading = false; post({ event: "task", ...d }); };
   root.addEventListener("studio-task", onTask);
   // the studio's question opens (#cconf shown): the phone asks it
   const box = $("cconf"), text = (id: string) => $(id)?.textContent?.trim() ?? "";

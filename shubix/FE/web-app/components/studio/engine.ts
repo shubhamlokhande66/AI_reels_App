@@ -40,7 +40,8 @@ try{ lifeBefore = JSON.parse(sessionStorage.getItem(LIFE_KEY) || 'null'); }catch
 life({ path: location.pathname + location.search, stage: 'open' });
 window.addEventListener('pagehide', lifeEnd, SIG);
 ac.signal.addEventListener('abort', lifeEnd);
-if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3){
+// (not on the phone app's hidden engine page, app/engine: the phone itself starts it again and says so)
+if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3 && location.pathname !== '/engine'){
   try{ window.__shubixReport && window.__shubixReport('crash', 'The phone reloaded the studio at "' + (lifeBefore.stage || '?') + '"' + (lifeBefore.saving ? ' while saving' : '') + (IOS ? ' (iPhone)' : ''), JSON.stringify(lifeBefore)); }catch(e){}
   queueMicrotask(() => {
     if(ac.signal.aborted) return;
