@@ -61,10 +61,15 @@ function usePlanReach() {
 }
 /** A page's lock (Shared/core plan-locks "page:…"): (address) => the plan it needs, or "" when open. */
 export function useLockCheck(): ((href: string) => PlanId | "") | null {
+  const locked = useLocked();
+  return locked && ((href) => { const key = PAGE_LOCK[href]; return key ? locked(key) : ""; });
+}
+/** A plan lock by its key (a studio tool: "motion", "bg"…): the plan it needs when out of reach, else "". */
+export function useLocked(): ((key: string) => PlanId | "") | null {
   const locks = useQuery({ queryKey: ["plan-locks"], queryFn: mobileApi.planLocks, staleTime: 60_000, retry: false }), reach = usePlanReach();
   if (locks.isLoading || !reach) return null;
   const need = needMap(locks.data ?? DEFAULT_LOCKS);
-  return (href) => { const key = PAGE_LOCK[href]; return key && lockedFor(need[key], reach) ? (need[key] as PlanId) : ""; };
+  return (key) => (need[key] && lockedFor(need[key], reach) ? (need[key] as PlanId) : "");
 }
 /** Something with its own plan (a template): (plan) => true when it is out of reach. */
 export function usePlanNeed(): ((need: PlanId | undefined) => boolean) | null {

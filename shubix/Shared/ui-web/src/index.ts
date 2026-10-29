@@ -5,4 +5,4 @@ export * from "./chip";
 export * from "./seg";
 export * from "./tile";
 export * from "./paint";
-export { icons, type IconName } from "@shubix/ui-core";
+export { GLYPH_PATHS, icons, type IconName } from "@shubix/ui-core";

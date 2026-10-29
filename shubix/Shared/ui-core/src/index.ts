@@ -6,4 +6,5 @@ export const { palette, light, surfaces, gradients, lightGradients, radii, typog
 export const theme = tokens;
 export type Palette = typeof palette;
 export * from "./icons";
+export * from "./glyphs";
 export * from "./paint";

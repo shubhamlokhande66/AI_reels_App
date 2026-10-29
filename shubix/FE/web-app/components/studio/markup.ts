@@ -5,6 +5,9 @@
  * motion, background, overlay, voice, style), one panel open at a time. A plan's tools carry its tag (views.ts PLAN_TOOLS).
  * ?view=all opens every panel at once (checks and support). */
 import { PLAN_TOOLS } from "./views";
+import { GLYPH_PATHS } from "@shubix/ui-web";
+import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
+export { DOCK_CATEGORIES_DEF, SHOT_TOOLS_DEF };
 import { Button, Chip, Segmented, Tile } from "./ui";
 
 const I = (d: string, extra = "") =>
@@ -72,76 +75,14 @@ const AI_ICONS: Record<string, string> = { scenes: IC.scan, beats: IC.music, fac
 const aiList = (cls: string) => `<ul class="${cls}">${AI_STEPS.map(([k, t, d]) => `<li data-ai="${k}" data-t="${d}">${AI_ICONS[k] ?? IC.scan}<span>${t}</span><i class="faidot" aria-hidden="true"></i></li>`).join("")}</ul>`;
 // a tool: a button in the tool bar and the heading of its panel
 // in the editor's order (the tool bar on a phone, the rail on a computer)
-export const GLYPH_PATHS: Record<string, string> = {
-  Media: "M4 5h16v14H4zM8 15l3-3 2 2 2-3 3 4",
-  Stickers: "M12 3a9 9 0 1 0 9 9h-6a3 3 0 0 1-3-3zM15 3v5h5",
-  Filters: "M4 6h16M7 12h10M10 18h4",
-  Style: "m12 3 2 6 6 3-6 2-2 7-2-7-6-2 6-3z",
-  Shots: "M4 4h16v16H4zM8 4v16M16 4v16",
-  Music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-3-3",
-  Text: "M4 6V4h16v2M12 4v16",
-  Captions: "M4 5h16v14H4zM7 10h4M13 10h4M7 14h3",
-  Background: "M4 6h16v12H4zM7 15l3-3 2 2 3-4",
-  Layers: "m12 3 9 5-9 5-9-5zM3 12l9 5 9-5",
-  Voice: "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6M6 10v1a6 6 0 0 0 12 0v-1",
-  Motion: "M4 12h4l2-7 4 14 2-7h4",
-  Transition: "M4 6l7 6-7 6zM20 6l-7 6 7 6z",
-  Effect: "m12 3 2 6 6 3-6 2-2 7-2-7-6-2 6-3z",
-  Speed: "M12 3v9l6 3",
-  Split: "M12 3v18M5 8l7 4 7-4M5 16l7-4 7 4",
-  Duplicate: "M8 8h12v12H8zM4 16V4h12",
-  Freeze: "M12 3v18M4 7l16 10M4 17 20 7",
-  "Other moment": "M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5",
-  Volume: "M4 10v4h4l5 4V6l-5 4zM17 9a5 5 0 0 1 0 6",
-  "Extract audio": "M9 18V5l12-2v13M9 18a3 3 0 1 1-3-3",
-  Crop: "M6 3v15a3 3 0 0 0 3 3h12M3 6h15a3 3 0 0 1 3 3",
-  Reverse: "M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3",
-  Rotate: "M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7",
-  Mirror: "M12 3v18M8 7L3 12l5 5zM16 7l5 5-5 5z",
-  Flip: "M3 12h18M7 8l5-5 5 5zM7 16l5 5 5-5z",
-  Fit: "M3 3h18v18H3zM7 7h10v10H7z",
-  Canvas: "M3 3h18v18H3zM3 15l5-5 4 4 3-3 6 6",
-  Border: "M3 3h18v18H3zM6.5 6.5h11v11h-11z",
-  Adjust: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0",
-  "Speed curve": "M3 18c4 0 4-12 9-12s5 12 9 12",
-  Stabilize: "M6 6h12v12H6zM2 12h2M20 12h2M12 2v2M12 20v2",
-  Beauty: "M12 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12zM6 21c1.5-3 4-4 6-4s4.5 1 6 4",
-  Fade: "M3 20L12 4l9 16zM12 4v16",
-  Mosaic: "M3 3h6v6H3zM15 3h6v6h-6zM9 9h6v6H9zM3 15h6v6H3zM15 15h6v6h-6z",
-  Magnifier: "M10.5 4a6.5 6.5 0 1 0 4.2 11.5L21 21",
-  Slip: "M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4",
-  Trim: "M7 4v16M17 4v16M7 12h10",
-  Reset: "M3 12a9 9 0 1 0 2.6-6.4L2 9M2 4v5h5",
-  Delete: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
-  play: "M8 5v14l11-7z"
-};
+export { GLYPH_PATHS }; // the tools' line signs, shared with the phone app (Shared/ui-core/src/glyphs.ts)
 
 export const Glyph = (name: string, size = 18) => {
   const d = GLYPH_PATHS[name] ?? "m12 3 2 6 6 3-6 2-2 7-2-7-6-2 6-3z";
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${d}" /></svg>`;
 };
 
-export const SHOT_TOOLS_DEF: [string, string][] = [
-  ["Transition", "tr"], ["Effect", "fx"], ["Speed", "sp"], ["Split", "split"], ["Duplicate", "dup"], ["Freeze", "freeze"], ["Other moment", "other"],
-  ["Volume", "vol"], ["Extract audio", "extract"], ["Crop", "crop"], ["Reverse", "rev"], ["Rotate", "rot"], ["Mirror", "fh"], ["Flip", "fv"], ["Fit", "fit"],
-  ["Canvas", "canvas"], ["Border", "border"], ["Adjust", "adjust"], ["Speed curve", "curve"], ["Stabilize", "stab"], ["Beauty", "beauty"], ["Fade", "fade"],
-  ["Mosaic", "mosaic"], ["Magnifier", "lens"], ["Slip", "slip"], ["Trim", "trim"], ["Reset", "reset"], ["Delete", "delete"]
-];
 
-export const DOCK_CATEGORIES_DEF: [string, string, boolean][] = [
-  ["media", "Media", false],
-  ["stickers", "Stickers", false],
-  ["look", "Filters", false],
-  ["style", "Style", false],
-  ["shots", "Shots", false],
-  ["music", "Music", false],
-  ["text", "Text", false],
-  ["captions", "Captions", false],
-  ["bg", "Background", true],
-  ["layers", "Layers", true],
-  ["voice", "Voice", true],
-  ["motion", "Motion", true]
-];
 
 export const shotToolGridHtml = SHOT_TOOLS_DEF.map(([name, act]) =>
   `<button type="button" class="${Tile} min-h-[58px]"${name === "Delete" ? " data-danger" : ""} data-st="${act}" data-stname="${name}">${Glyph(name, 18)}<span>${name}</span></button>`
@@ -151,19 +92,6 @@ export const shotToolGridHtml = SHOT_TOOLS_DEF.map(([name, act]) =>
 const dock = DOCK_CATEGORIES_DEF.map(([k, n]) =>
   `<button type="button" class="tool group ${Tile} min-h-[60px] min-w-[62px] whitespace-nowrap" data-tool="${k}" aria-pressed="false">${Glyph(n, 18)}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag proTag hidden group-data-[locked=true]:inline-flex"><b>PRO</b></em>` : ""}</button>`
 ).join("");
-// what each tool's popup is for (the line under its name)
-const PANEL_NOTE: Record<string, string> = {
-  media: "Add or change the clips and photos in your Reel.",
-  style: "Choose how Shubix edits your Reel.",
-  music: "Change the song, the part that plays and how loud it is.",
-  text: "Add a hook, your own text and stickers to your Reel.",
-  captions: "Show the spoken words on screen, word by word.",
-  look: "Pick a filter and the colours of your Reel.",
-  bg: "Choose what fills the frame behind your clips.",
-  layers: "Put pictures and videos over your Reel.",
-  voice: "Record or make a voiceover for your Reel.",
-  motion: "Add camera moves and motion to your shots.",
-};
 // a tool's popup header, as the design's sheets: its sign in a square, "Editor tool" over its name, then what it is for
 const panelHead = (k: string) => {
   const cat = DOCK_CATEGORIES_DEF.find((x) => x[0] === k);
