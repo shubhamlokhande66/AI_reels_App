@@ -12,7 +12,7 @@ const DATE = 'input:is([type="date"], [type="datetime-local"], [type="time"], [t
 export default {
   theme: {
     extend: {
-      colors: Object.fromEntries(COLORS.map((c) => [c, v(c)])),
+      colors: { ...Object.fromEntries(COLORS.map((c) => [c, v(c)])), edge: "color-mix(in srgb, var(--accent) 14%, var(--border))" }, // edge: a card's gold-tinted line
       backgroundImage: { gold: v("gold-gradient") },
       fontFamily: { sans: ["var(--font-body)", "system-ui", "sans-serif"], display: ["var(--font-display)", "system-ui", "sans-serif"], mono: ["var(--font-geist-mono)"] },
       borderRadius: { "3xl": "1rem" }, // the design's corners: cards 16, buttons 12
@@ -33,6 +33,7 @@ export default {
         glow: { "0%, 100%": { boxShadow: "0 0 12px 0 color-mix(in srgb, var(--accent) 35%, transparent)" }, "50%": { boxShadow: "0 0 22px 2px color-mix(in srgb, var(--accent) 60%, transparent)" } },
         drift: { from: { transform: "translate3d(-8px, 8px, 0) scale(.92)" }, to: { transform: "translate3d(14px, -12px, 0) scale(1.08)" } },
         breathe: { "0%, 100%": { transform: "scale(.96)", opacity: ".88" }, "50%": { transform: "scale(1.04)", opacity: "1" } },
+        drop: { from: { opacity: "0", transform: "translateY(-4px)" } }, // a menu opening under its button
         spin: { to: { transform: "rotate(360deg)" } },
       },
       animation: {
@@ -51,6 +52,7 @@ export default {
         progress: "stripes 1s linear infinite, glow 2.4s ease-in-out infinite", // a gold bar at work
         "progress-sheen": "sweep 1.8s ease-in-out infinite",
         drift: "drift 10s ease-in-out infinite alternate",
+        drop: "drop .15s ease-out",
         breathe: "breathe 5s ease-in-out infinite",
       },
     },

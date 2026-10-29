@@ -42,6 +42,9 @@ const IC = {
   crown: '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"/></svg>',
 };
 // the Create flow's AI checklist (step 3 on computers, the Analysing screen on phones); data-t: the tasks it follows
+// the top bar: the format menu (each format's shape) and undo / redo
+const ASPECTS: [string, string, string, string][] = [["9:16", "Reels, Shorts, Stories", "before:w-3", "before:h-[21px]"], ["4:5", "Instagram feed", "before:w-4", "before:h-5"], ["1:1", "Square post", "before:w-[18px]", "before:h-[18px]"], ["16:9", "YouTube, wide", "before:w-[22px]", "before:h-[13px]"]];
+const UNDO = "grid size-11 min-h-11 place-items-center justify-center rounded-xl text-muted disabled:cursor-default disabled:opacity-35 in-[.fpost]:size-9 in-[.fpost]:min-h-9";
 const AI_STEPS: [string, string, string][] = [
   ["scenes", "Detecting scenes and best moments", "clips"],
   ["beats", "Matching with music beats", "beats"],
@@ -155,32 +158,29 @@ const panelHead = (k: string) => {
 
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
-<header class="projectBar topbar" id="topbar">
-  <button type="button" class="ibtn tb-back" id="tbback" aria-label="Back">${IC.back}</button>
-  <div class="projectIdentity tb-title">
-    <span class="projectMark">${Glyph("Shots", 20)}</span>
-    <span class="projectCopy">
-      <small>REEL STUDIO <i aria-hidden="true"></i> <span id="psaved">SAVED REEL</span></small>
-      <strong id="tbname">Your Reel</strong>
+<header id="topbar" class="hidden in-[.made]:flex in-[.fopen]:hidden! in-[.opening]:hidden! top-0 z-30 w-full max-w-[1240px] min-h-[66px] mx-auto mb-4 items-center justify-between gap-3.5 rounded-[18px] border border-edge shadow-(--shadow) bg-[linear-gradient(145deg,color-mix(in_srgb,var(--surface)_97%,var(--accent)),var(--surface))] lg:pb-2.5 lg:in-[.editing]:px-4 in-[.fpost]:sticky in-[.fpost]:z-40 in-[.fpost]:-mx-4 in-[.fpost]:mb-1 in-[.fpost]:px-3 in-[.fpost]:pb-2 in-[.fpost]:pt-[max(8px,env(safe-area-inset-top))] in-[.fpost]:gap-1.5 in-[.fpost]:in-[.editing]:gap-1 in-[.fpost]:border-b-border in-[.fpost]:bg-none in-[.fpost]:bg-background max-[680px]:relative! max-[680px]:min-h-[58px] max-[680px]:px-2.5! max-[680px]:gap-2! max-[680px]:rounded-[15px]">
+  <button type="button" id="tbback" aria-label="Back" class="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-surface hover:border-accent hover:text-accent max-[680px]:hidden">${IC.back}</button>
+  <div class="flex flex-1 items-center gap-[11px] leading-[1.15] max-[680px]:basis-auto">
+    <span class="grid size-10 shrink-0 place-items-center rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] text-accent max-[680px]:size-[34px] max-[680px]:rounded-[11px]">${Glyph("Shots", 20)}</span>
+    <span class="flex flex-col items-start gap-[3px] max-[680px]:max-w-full">
+      <small class="flex items-center gap-[7px] text-[9px] font-[750] tracking-[.13em] text-muted max-[680px]:max-w-full max-[680px]:overflow-hidden max-[680px]:whitespace-nowrap max-[680px]:text-[7px]">REEL STUDIO <i aria-hidden="true" class="inline-block size-1.5 shrink-0 rounded-full bg-[#72bd91] shadow-[0_0_10px_color-mix(in_srgb,#72bd91_55%,transparent)]"></i> <span id="psaved" class="max-[680px]:truncate">SAVED REEL</span></small>
+      <strong id="tbname" class="block max-w-[34ch] truncate text-[15px] font-normal tracking-[-.02em] max-[680px]:max-w-full max-[680px]:text-[13px]">Your Reel</strong>
     </span>
   </div>
-  <div class="tb-aspect" id="tbasp">
-    <button type="button" class="tbaspbtn" id="tbaspbtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Format" title="Format"><span id="tbaspv">9:16</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
-    <div class="tbaspmenu" id="tbaspmenu" role="listbox" aria-label="Format" hidden>
-      <button type="button" role="option" data-a="9:16"><i class="r916"></i><span><b>9:16</b><small>Reels, Shorts, Stories</small></span></button>
-      <button type="button" role="option" data-a="4:5"><i class="r45"></i><span><b>4:5</b><small>Instagram feed</small></span></button>
-      <button type="button" role="option" data-a="1:1"><i class="r11"></i><span><b>1:1</b><small>Square post</small></span></button>
-      <button type="button" role="option" data-a="16:9"><i class="r169"></i><span><b>16:9</b><small>YouTube, wide</small></span></button>
+  <div id="tbasp" class="relative flex max-[680px]:contents">
+    <button type="button" id="tbaspbtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Format" title="Format" class="group inline-flex h-9 items-center gap-1.5 rounded-[11px] border border-border bg-surface-2 pl-3 pr-2.5 tabular-nums hover:border-accent aria-expanded:border-accent max-[680px]:hidden"><span id="tbaspv">9:16</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="text-muted transition-transform duration-200 group-aria-expanded:rotate-180"><path d="M6 9l6 6 6-6"/></svg></button>
+    <div id="tbaspmenu" role="listbox" aria-label="Format" hidden class="absolute left-0 top-[calc(100%+6px)] z-60 grid min-w-[220px] animate-drop gap-0.5 rounded-[14px] border border-border bg-surface p-1.5 shadow-[0_18px_40px_-18px_rgba(20,8,50,.45)] max-lg:-right-[60px] max-lg:left-auto max-lg:min-w-[210px] [&.atprev]:fixed! [&.atprev]:right-auto! [&.atprev]:z-[9995]!">
+      ${ASPECTS.map(([a, label, w, h]) => `<button type="button" role="option" data-a="${a}" class="group/o flex items-center gap-3 rounded-[10px] px-2.5 py-2 text-left hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-0 aria-selected:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"><i class="grid size-[26px] shrink-0 place-items-center before:block before:rounded-[3px] before:border-[1.6px] before:border-current before:text-muted before:content-[''] group-aria-selected/o:before:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] group-aria-selected/o:before:text-accent ${w} ${h}"></i><span class="grid gap-px"><b class="text-[13px] font-semibold group-aria-selected/o:text-accent">${a}</b><small class="text-[11.5px] text-muted">${label}</small></span></button>`).join("")}
     </div>
   </div>
-  <div class="projectActions">
-    <span class="tb-undo" role="group" aria-label="Undo and redo">
-      <button type="button" class="undoButton btn icon" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)">↶</button>
-      <button type="button" class="undoButton btn icon" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)">↷</button>
+  <div class="flex shrink-0 items-center gap-[7px]">
+    <span role="group" aria-label="Undo and redo" class="flex gap-1 in-[.fpost]:gap-0 in-[.fpost]:in-[.editing]:hidden max-[680px]:hidden">
+      <button type="button" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)" class="${UNDO}">↶</button>
+      <button type="button" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)" class="${UNDO}">↷</button>
     </span>
-    <button type="button" class="btn tb-asfree" id="tbasfree" aria-pressed="false" title="Preview as Free user">Preview as Free</button>
-    <button type="button" class="shareButton ibtn tb-chat" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix">${IC.spark}<span>Ask Shubix</span></button>
-    <button type="button" class="exportButton btn save tb-export" id="topexport" disabled>Export ${IC.arrow}</button>
+    <button type="button" id="tbasfree" aria-pressed="false" title="Preview as Free user" class="hidden in-[.admin.made]:inline-flex max-lg:hidden! items-center gap-1.5 rounded-[10px] border border-border bg-surface px-[15px] py-2.5 text-[12.5px] font-semibold hover:border-muted aria-pressed:border-transparent aria-pressed:bg-gold aria-pressed:text-on-accent">Preview as Free</button>
+    <button type="button" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix" class="relative flex h-9 items-center justify-center justify-items-center gap-1.5 rounded-[11px] border border-edge bg-[color-mix(in_srgb,var(--surface-2)_70%,var(--surface))] px-[13px] text-accent lg:h-[38px] lg:rounded-xl lg:px-3.5 in-[.fpost]:in-[.editing]:size-[38px] in-[.fpost]:in-[.editing]:rounded-xl max-[680px]:hidden! [&.news]:before:absolute [&.news]:before:right-1 [&.news]:before:top-1 [&.news]:before:size-[9px] [&.news]:before:rounded-full [&.news]:before:bg-danger [&.news]:before:content-['']">${IC.spark}<span class="max-lg:hidden">Ask Shubix</span></button>
+    <button type="button" id="topexport" disabled class="inline-flex min-h-11 items-center justify-center gap-[7px] rounded-xl border border-transparent bg-gold px-[13px] text-on-accent shadow-[0_12px_26px_-17px_var(--brand-glow),inset_0_1px_0_rgba(255,255,255,.12)] transition-transform hover:enabled:-translate-y-px disabled:cursor-default disabled:opacity-45 max-[680px]:h-[38px] max-[680px]:min-h-[38px] in-[.fpost]:shrink-0 in-[.fpost]:gap-1.5 in-[.fpost]:px-3.5 in-[.fpost]:text-[14px] in-[.fpost]:*:size-4 in-[.fpost]:in-[.editing]:px-3 max-[680px]:px-2.5! max-[680px]:text-[11px]!">Export ${IC.arrow}</button>
   </div>
 </header>
 <div class="wrap">

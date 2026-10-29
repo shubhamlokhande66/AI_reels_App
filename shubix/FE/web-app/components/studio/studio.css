@@ -150,23 +150,13 @@
 .brs [hidden]{display:none !important}
 
 /* ---- top bar ---- */
-.brs .topbar{position:sticky;top:0;z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;
-  padding:max(12px,env(safe-area-inset-top)) 14px 8px;background:color-mix(in srgb,var(--background) 88%,transparent);
-  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 .brs .ibtn{width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex-shrink:0}
 .brs .ibtn:hover{border-color:var(--accent);color:var(--accent)}
-.brs .tb-title{flex:1;min-width:0;display:grid;line-height:1.15}
 .brs .tb-name{font-family:var(--display);font-size:21px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brs .tb-sub{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brs .tb-brand,.brs .tb-nav,.brs .tb-right,.brs .tb-gap{display:none}
 .brs .btn.save{background:var(--ink-btn);color:var(--ink-btn-fg);border-color:transparent;box-shadow:0 10px 24px -14px rgba(0,0,0,.6)}
-.brs .tb-undo{display:none;gap:4px;margin-left:auto}
-.brs.made .tb-undo{display:inline-flex}
 /* the administrator's View as Free (views.ts): the studio as a free plan sees it, tags and crowns */
-.brs .tb-asfree{display:none;font-size:12.5px}
-.brs.admin.made .tb-asfree{display:inline-flex}
-.brs .tb-asfree[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff);border-color:transparent}
-.brs .tb-undo .btn:disabled{opacity:.35}
 .brs .cliptools{display:grid;gap:10px}
 .brs .ctrow{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .brs .ctrow::-webkit-scrollbar{display:none}
@@ -187,8 +177,6 @@
 .brs .shtools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .brs .shtools .btn{height:36px;padding:0 12px;font-size:13px}
 .brs .shtools select{height:36px;max-width:190px}
-.brs .tb-export{display:none;border-radius:22px;padding:0 18px;height:44px}
-:root:not([data-theme="light"]) .brs .tb-export{background:var(--gold-gradient)}
 
 /* ---- the page ---- */
 .brs .wrap{max-width:1240px;margin:0 auto;padding:16px 16px 140px;gap:16px}
@@ -320,10 +308,9 @@
 .brs .savebar .tog{font-size:13.5px;color:var(--muted)}
 
 /* ---- computers ---- */
-@media (min-width:760px){ .brs .wrap{padding:24px 24px 120px} .brs .topbar{padding-left:24px;padding-right:24px} }
+@media (min-width:760px){ .brs .wrap{padding:24px 24px 120px} }
 @media (min-width:1000px){
-  .brs .topbar{flex-wrap:nowrap;gap:20px;padding-top:12px;background:color-mix(in srgb,var(--surface) 70%,var(--background))}
-  .brs .tb-menu,.brs .tb-title{display:none}
+  .brs .tb-menu{display:none}
   .brs .tb-brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font:600 20px var(--display);white-space:nowrap}
   .brs .tb-logo{width:34px;height:34px;border-radius:10px;background:var(--accent);color:var(--background);display:grid;place-items:center;font:600 18px var(--display)}
   .brs .tb-nav{display:flex;gap:2px;flex-wrap:nowrap;overflow:hidden}
@@ -334,7 +321,6 @@
   .brs .tb-right{display:flex;align-items:center;gap:10px}
   .brs .tbcred{font-size:13.5px;color:var(--muted);text-decoration:none;white-space:nowrap}
   .brs .tbavatar{width:42px;height:42px;border-radius:21px;border:0;background:var(--surface-2);color:var(--ink);font:600 15px var(--body);cursor:pointer}
-  .brs.made .tb-export{display:inline-flex}
 
   /* the preview beside the tools (the editor's own grid, v-one at the end, takes over from 1024px) */
   .brs.made .create{grid-template-columns:minmax(300px,400px) minmax(0,1fr);gap:28px;align-items:start}
@@ -359,15 +345,7 @@
 @media (min-width:760px){ .brs .wrap{padding:0 0 24px} }
 
 /* the Reel's own row: its name and "saved", undo / redo and Export (the app's top bar is above) */
-.brs .topbar{position:static;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border:0;padding:0 0 4px;gap:10px 14px}
-.brs:not(.made) .topbar{display:none}
-.brs .tb-title{display:grid}
 .brs .tb-name{font-size:26px}
-@media (min-width:1000px){
-  .brs .topbar{padding:0 0 6px;background:transparent}
-  .brs .tb-title{display:grid}
-}
-.brs .tb-export,:root:not([data-theme="light"]) .brs .tb-export{background:var(--gold-gradient);color:var(--on-accent);border-radius:12px;height:44px}
 
 /* cards and panels: the app's corners and shadow */
 .brs .panel,.brs .shotcard{border-radius:16px;box-shadow:var(--shadow)}
@@ -392,8 +370,6 @@
 /* the save bar on phones sits on the page (no app tab bar here) */
 
 /* Pro on a computer: one big card inside the page */
-@media (min-width:1000px){
-}
 .brs .fname{font:500 12.5px var(--body);color:var(--muted)}
 .brs .msg{border-radius:14px;background:var(--surface);box-shadow:var(--shadow)}
 .brs .msg.err{border-color:color-mix(in srgb,var(--warning) 45%,var(--line));background:color-mix(in srgb,var(--warning) 7%,var(--surface))}
@@ -603,7 +579,6 @@
 .brs:not(.fopen) :is(.fgrid,.fmain){display:contents}
 .brs .fh{display:grid;gap:1px;min-width:0}
 .brs .fsh{font:500 13px var(--body);color:var(--muted)}
-.brs.fopen :is(.topbar,.savebar){display:none !important}
 /* the edit is made behind the flow (kept rendered out of sight: the engine reads sizes and draws its frames) */
 .brs.fopen #s3{position:fixed !important;left:-200vw !important;top:0 !important;width:100vw !important;opacity:0 !important;pointer-events:none !important}
 .brs.fopen #s1,.brs.fopen #s2{display:grid !important}
@@ -1070,7 +1045,6 @@
 @media (max-width:1023px){
   /* above the phones' sticky head, which reaches up to the page's edge */
   .brs .fcrumbs{margin:0 0 16px;font-size:12.5px}
-  .brs.fopen .fcrumbs + .topbar + .wrap > .fhead,.brs.fpost .fcrumbs + .topbar + .wrap > .fhead{margin-top:0}
 }
 
 /* ================= the editor: one view for everyone (views.ts v-one), like CapCut or VN =================
@@ -1197,9 +1171,6 @@
    Top bar: ← Back, the Reel's name, ↶ ↷, Export · the preview (9:16, ▶ inside) · the play bar: ▶/⏸, 0:03.20 / 0:15.00,
    Change Reel · the timeline · the tools (a rail on a computer, a bar at the bottom of a phone) · a tool's panel (on the
    right on a computer, a sheet over the editor on a phone) · the shot sheet (a shot tapped on the timeline). */
-.brs .tb-back{display:none}
-.brs.made:not(.fopen) .tb-back{display:grid;width:40px;height:40px;border-radius:12px;flex:none}
-.brs.made:not(.fopen) .tb-title{flex:1;min-width:0}
 .brs.made:not(.fopen) .tb-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* the play bar: ▶/⏸ · the time (current / total) · previous / next shot · Change Reel at the end */
@@ -1244,14 +1215,8 @@
   /* ---- the phone editor (the finished Reel) ---- */
   .brs.fpost .fhead{display:none !important}
   body:has(.brs.fpost) .brs .fcrumbs{display:none}
-  .brs.fpost .topbar{display:flex !important;flex-wrap:nowrap;align-items:center;gap:6px;position:sticky;top:0;z-index:40;margin:0 -16px 4px;
-    padding:max(8px,env(safe-area-inset-top)) 12px 8px;background:var(--background);border-bottom:1px solid var(--line)}
   .brs.fpost .tb-name{font-size:16px;font-weight:600}
   .brs.fpost .tb-sub{font-size:11px}
-  .brs.fpost .tb-undo{display:inline-flex;gap:0;margin-left:0}
-  .brs.fpost .tb-undo .btn.icon{width:36px;height:36px;min-height:36px}
-  .brs.fpost .tb-export{display:inline-flex !important;height:38px;min-height:38px;padding:0 14px;gap:6px;border-radius:12px;font-size:14px;flex:none}
-  .brs.fpost .tb-export svg{width:16px;height:16px}
   /* the old "Your Reel is ready" screen: its title, line and big buttons go (the top bar has Export, the play bar Change Reel) */
   .brs.fpost :is(.sumh,.sumi,.summary > .btn){display:none !important}
   .brs.fpost #export{display:none !important}
@@ -1296,7 +1261,6 @@
 @media (min-width:1024px){
   .brs.noir{border-radius:20px;padding:12px 16px 16px}
   .brs.noir .fcrumbs{margin:0 0 6px}
-  .brs.noir .topbar{padding:0 0 10px}
   .brs.noir .create{background:var(--surface);border-color:var(--line)}
 }
 /* the play bar, as the design: the time on the left · ⏮ ▶ ⏭ in the middle · full screen and Change Reel on the right */
@@ -1317,7 +1281,7 @@
 @media (max-width:1023px){ .brs.fpost .transport #play{order:0} .brs.fpost .transport #remix{margin-left:auto} }
 
 /* ---- the computer editor's left panel, as the design: tabs, then the tool (Media: the clips) ---- */
-.brs .ptabs,.brs .panel[data-panel="media"]:not(.on),.brs .tb-aspect{display:none}
+.brs .ptabs,.brs .panel[data-panel="media"]:not(.on){display:none}
 @media (min-width:1024px){
   .brs.noir .ptabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;position:sticky;top:-16px;z-index:3;margin:-16px -16px 6px;padding:8px 6px 6px;
     background:var(--surface);border-bottom:1px solid var(--line)}
@@ -1349,8 +1313,6 @@
   .brs.noir #mslot .clip:hover .del,.brs.noir #mslot .clip .del:focus-visible{opacity:1}
   .brs.noir #mslot .fadd{display:none}
   /* the top bar: 9:16 ▾ */
-  .brs.noir .tb-aspect{display:inline-flex}
-  .brs.noir .tb-aspect select{height:38px;padding:0 30px 0 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 13px var(--body);cursor:pointer}
 }
 
 /* ---- the shot sheet, as the design (frame 3) ---- */
@@ -1516,7 +1478,6 @@
 /* a saved Reel opening: a loader where the editor will be (never a blank page); if it cannot open, why and the way back */
 .brs .openload{display:none}
 .brs.opening .openload,.brs.openfail .openload{display:grid;justify-items:center;align-content:center;gap:10px;min-height:60vh;padding:40px 20px;text-align:center}
-.brs.opening :is(.wrap,.topbar,.savebar){display:none !important}
 .brs .openspin{width:46px;height:46px;border-radius:50%;border:4px solid color-mix(in srgb,var(--accent) 22%,transparent);border-top-color:var(--accent);animation:aospin .8s linear infinite}
 .brs .openload b{font:600 19px var(--display,var(--body));color:var(--ink)}
 .brs .openload small{font-size:13.5px;color:var(--muted);max-width:420px}
@@ -1594,7 +1555,6 @@
   .brs.noir.made.editing .ptabs{grid-template-columns:repeat(7,minmax(max-content,1fr));padding-left:4px;padding-right:4px}   /* each name whole */
   .brs.made.editing{padding-left:0;padding-right:0;border-left:0;border-right:0;border-radius:0}
   .brs.made.editing .create{border-left:0;border-right:0;border-radius:0}
-  .brs.made.editing :is(.topbar,.fcrumbs){padding-left:16px;padding-right:16px}
 }
 /* computers: previous · play · next sit in the very middle of the play bar (under the preview and the Edit button);
    the times stay on the left and the picture / full screen / Change Reel on the right */
@@ -1737,22 +1697,12 @@
 /* ===================== the phones' editor, like VN: one screen, no page scroll =====================
    top bar (back = done, the Reel's name, format, Ask Shubix, Export) · the preview · time, undo / redo, play, full screen ·
    tall tracks · the tools at the bottom, or the selected clip's own toolbar (views.ts .clipsel) */
-.brs .tb-chat,.brs .tr-undo,.brs .clipbar,.brs .ctpop{display:none}
+.brs .tr-undo,.brs .clipbar,.brs .ctpop{display:none}
 .brs .beatmarks{display:grid;gap:6px;margin-top:6px}
 .brs .beatmarks .hint{margin:0}
-@media (max-width:1023px){
-  .brs .tb-asfree{display:none !important}   /* an administrator's check, for a computer */
-  .brs.fpost.editing .topbar{gap:4px}
-  .brs.fpost.editing .tb-title{min-width:0;flex:1}
+@media (max-width:1023px){   /* an administrator's check, for a computer */
   .brs.fpost.editing .tb-name{font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .brs.fpost.editing .tb-sub{display:none}
-  .brs.fpost.editing .tb-undo{display:none !important}
-  .brs.fpost .tb-aspect{display:inline-flex !important}
-  .brs.fpost .tb-aspect select{height:36px;padding:0 24px 0 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);cursor:pointer;
-    appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
-    background-position:calc(100% - 13px) 15px,calc(100% - 8px) 15px;background-size:5px 5px;background-repeat:no-repeat}
-  .brs.fpost.editing .tb-chat{display:grid;width:38px;height:38px;border-radius:12px;color:var(--accent)}
-  .brs.fpost.editing .tb-export{padding:0 12px}
   .brs.fpost.editing .chatfab{display:none !important}
   /* the preview: big, with nothing over the picture (play is in the bar under it) */
   .brs.fpost.editing .pvbox{height:40svh !important;min-height:220px}
@@ -1846,13 +1796,6 @@
 
 /* the made Reel: Ask Shubix sits in the top bar (a floating button would cover the tools and the timeline) */
 .brs.made:not(.fopen) .chatfab{display:none !important}
-.brs.made:not(.fopen) .tb-chat{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:var(--accent)}
-@media (min-width:1024px){
-  .brs.made:not(.fopen) .tb-chat{width:auto;height:38px;padding:0 14px;border-radius:12px;font:600 13.5px var(--body)}
-}
-@media (max-width:1023px){ .brs .tb-chat > span{display:none} }
-.brs .tb-chat{position:relative}
-.brs .tb-chat.news::before{content:"";position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--drop)}
 
 /* the credits question (Shubix AI) */
 .brs .cconf{position:fixed;inset:0;z-index:95;display:grid;place-items:center;padding:16px;background:rgba(6,4,20,.55)}
@@ -2063,29 +2006,7 @@
 }
 
 /* the editor's format menu (9:16 ▾): a button and a small list with each shape drawn */
-.brs .tb-aspect{position:relative}
-.brs .tbaspbtn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px 0 12px;border-radius:11px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 13px var(--body);cursor:pointer;font-variant-numeric:tabular-nums}
-.brs .tbaspbtn:hover,.brs .tbaspbtn[aria-expanded=true]{border-color:var(--accent)}
-.brs .tbaspbtn svg{color:var(--muted);transition:transform .2s}
-.brs .tbaspbtn[aria-expanded=true] svg{transform:rotate(180deg)}
-.brs .tbaspmenu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:220px;display:grid;gap:2px;padding:6px;border-radius:14px;border:1px solid var(--line);background:var(--surface);box-shadow:0 18px 40px -18px rgba(20,8,50,.45);animation:aspin .15s ease-out}
-.brs .tbaspmenu[hidden]{display:none}
 @keyframes aspin{from{opacity:0;transform:translateY(-4px)}}
-.brs .tbaspmenu button{display:flex;align-items:center;gap:12px;padding:8px 10px;border:0;border-radius:10px;background:transparent;color:var(--ink);cursor:pointer;text-align:left}
-.brs .tbaspmenu button:hover,.brs .tbaspmenu button:focus-visible{background:var(--surface-2);outline:0}
-.brs .tbaspmenu button[aria-selected=true]{background:color-mix(in srgb,var(--accent) 10%,transparent)}
-.brs .tbaspmenu button[aria-selected=true] b{color:var(--accent)}
-.brs .tbaspmenu i{flex:none;width:26px;height:26px;display:grid;place-items:center}
-.brs .tbaspmenu i::before{content:"";display:block;border:1.6px solid currentColor;border-radius:3px;color:var(--muted)}
-.brs .tbaspmenu button[aria-selected=true] i::before{color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent)}
-.brs .tbaspmenu .r916::before{width:12px;height:21px}
-.brs .tbaspmenu .r45::before{width:16px;height:20px}
-.brs .tbaspmenu .r11::before{width:18px;height:18px}
-.brs .tbaspmenu .r169::before{width:22px;height:13px}
-.brs .tbaspmenu span{display:grid;gap:1px}
-.brs .tbaspmenu b{font:600 13px var(--body)}
-.brs .tbaspmenu small{font-size:11.5px;color:var(--muted)}
-@media (max-width:1023px){ .brs .tbaspmenu{left:auto;right:-60px;min-width:210px} }
 /* the Reel's name in the editor's top bar: a quiet title, cut with … when long */
 .brs .tb-name{font-size:18px;letter-spacing:-.01em;max-width:min(420px,100%)}
 .brs .tb-sub{font-size:11.5px}
@@ -2353,11 +2274,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     radial-gradient(900px 460px at 88% -12%,color-mix(in srgb,var(--accent) 8%,transparent),transparent 68%),
     var(--background);
 }
-.brs .topbar{
-  background:color-mix(in srgb,var(--background) 84%,transparent);
-  border-bottom-color:color-mix(in srgb,var(--accent) 16%,var(--line));
-  box-shadow:0 12px 28px -24px rgba(0,0,0,.65);
-}
 .brs .wrap{gap:18px}
 .brs .step,.brs .panel{
   border-color:color-mix(in srgb,var(--accent) 13%,var(--line));
@@ -2411,58 +2327,14 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   --ed-glow: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
-.brs .projectBar,
-.brs .previewPanel,
-.brs .inspector,
-.brs .timelineCard,
-.brs .toolDock {
+.brs .previewPanel,.brs .inspector,.brs .timelineCard,.brs .toolDock {
   border: 1px solid var(--ed-line);
   background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 97%, var(--accent)), var(--surface));
   box-shadow: var(--shadow);
 }
 
 /* Project Bar (Top) */
-.brs .projectBar {
-  min-height: 66px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 10px 14px;
-  border-radius: 18px;
-  width: 100%;
-  max-width: 1240px;
-  margin: 0 auto 16px;
-}
 
-.brs .projectIdentity {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-
-.brs .projectMark {
-  width: 40px;
-  height: 40px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: 13px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-}
-
-.brs .projectCopy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-}
-
-.brs .projectCopy small,
 .brs .eyebrow {
   display: flex;
   align-items: center;
@@ -2473,10 +2345,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   letter-spacing: .13em;
 }
 
-.brs .projectCopy small i,
-.brs .previewHeader > span i,
-.brs .timelineFooter > span:first-child i,
-.brs .noteDot {
+.brs .previewHeader > span i,.brs .timelineFooter > span:first-child i,.brs .noteDot {
   width: 6px;
   height: 6px;
   display: inline-block;
@@ -2484,68 +2353,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   border-radius: 50%;
   background: #72bd91;
   box-shadow: 0 0 10px color-mix(in srgb, #72bd91 55%, transparent);
-}
-
-.brs .projectCopy strong {
-  max-width: 34ch;
-  overflow: hidden;
-  color: var(--foreground);
-  font: 600 15px/1.2 var(--font-display), var(--font-body), sans-serif;
-  letter-spacing: -.02em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.brs .projectActions {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex: none;
-}
-
-.brs .undoButton {
-  width: 34px;
-  height: 34px;
-  border: 0 !important;
-  background: transparent !important;
-  color: var(--muted) !important;
-  font: 22px/1 var(--font-body), sans-serif;
-  cursor: pointer;
-  display: inline-grid;
-  place-items: center;
-}
-
-.brs .undoButton:disabled {
-  opacity: .48;
-  cursor: default !important;
-}
-
-.brs .shareButton,
-.brs .exportButton {
-  height: 36px;
-  padding: 0 13px;
-  border-radius: 11px;
-  font: 600 12px var(--font-body), sans-serif;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  cursor: pointer;
-  border: 1px solid var(--ed-line);
-  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
-  color: var(--foreground);
-  transition: transform .18s ease, border-color .18s ease;
-}
-
-.brs .exportButton {
-  color: var(--on-accent) !important;
-  border-color: transparent !important;
-  background: var(--gold-gradient) !important;
-  box-shadow: 0 9px 18px -13px var(--brand-glow);
-}
-
-.brs .exportButton:hover:not(:disabled) {
-  transform: translateY(-1px);
 }
 
 /* Workbench (Preview on Left, Inspector on Right) */
@@ -3424,13 +3231,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 
 @media (max-width: 680px) {
-  .brs.made.v-one .projectBar { min-height: 58px; gap: 8px; padding: 8px 10px; border-radius: 15px; }
-  .brs.made.v-one .projectMark { width: 34px; height: 34px; border-radius: 11px; }
-  .brs.made.v-one .projectCopy small { font-size: 7px; }
-  .brs.made.v-one .projectCopy strong { max-width: 22ch; font-size: 13px; }
-  .brs.made.v-one .undoButton { display: none !important; }
-  .brs.made.v-one .shareButton { display: none !important; }
-  .brs.made.v-one .exportButton { height: 34px; padding: 0 10px; font-size: 11px; }
   .brs.made.v-one .previewPanel { order: 1; min-height: 0; padding: 10px; border-radius: 16px; }
   .brs.made.v-one .videoFrame { width: min(60vw, 236px); max-height: 430px; border-radius: 15px; }
   .brs.made.v-one .transport { gap: 6px; min-height: 40px; }
@@ -3518,21 +3318,13 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 
 /* phones: the project bar is one row, as the design: the sign, "Reel Studio · saved" over the name, Export */
 @media (max-width: 680px) {
-  .brs.made.v-one .projectBar { flex-wrap: nowrap !important; }
-  .brs.made.v-one .projectBar :is(.tb-back, .tb-aspect, .tb-undo, .tb-asfree) { display: none !important; }
-  .brs.made.v-one .projectIdentity { flex: 1 1 auto; min-width: 0; }
-  .brs.made.v-one .projectCopy { min-width: 0; max-width: 100%; }
-  .brs.made.v-one .projectCopy small { max-width: 100%; overflow: hidden; white-space: nowrap; }
-  .brs.made.v-one .projectCopy small #psaved { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-  .brs.made.v-one .projectCopy strong { max-width: 100%; }
   .brs.made.v-one .videoFrame { width: min(63vw, 236px) !important; height: auto !important; max-height: 430px; }
   .brs.made.v-one .previewPanel { min-height: 0 !important; }
 }
 @media (max-width: 380px) {
   .brs.made.v-one .videoFrame { width: min(63vw, 220px) !important; }
 }
-@media (max-width: 680px) {
-  .brs.made.v-one .projectBar { position: relative !important; top: auto !important; }   /* scrolls with the page, as the design */
+@media (max-width: 680px) {   /* scrolls with the page, as the design */
 }
 /* the sheet's own footer has Done: not the older phone flow's corner button too */
 .brs.brs .panels .fapply { display: none !important; }
@@ -3562,11 +3354,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 
 /* the Format menu opened from the preview card's 9:16 button: under that button, over the page (phones hide the top bar's
    own Format button, never its menu) */
-.brs.brs .tbaspmenu.atprev { position: fixed !important; right: auto !important; z-index: 9995 !important; }
-@media (max-width: 680px) {
-  .brs.brs.made.v-one .projectBar .tb-aspect { display: contents !important; }
-  .brs.brs.made.v-one .projectBar .tb-aspect > .tbaspbtn { display: none !important; }
-}
 
 /* the play button in the middle of the video: on phones too (the older phone layout hid it) */
 .brs.brs.made .previewPanel .previewPlay { display: grid !important; }
