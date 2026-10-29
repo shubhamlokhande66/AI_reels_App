@@ -2,7 +2,7 @@ import { router } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { View } from "react-native";
 import { useForgotFlow } from "@shubix/hooks";
-import { AuthHeader, Button, colors, ErrorBanner, Field, Input, LinkText, Page, PasswordInput } from "@shubix/ui-mobile";
+import { AuthHeader, Button, ErrorBanner, Field, Input, LinkText, Page, PasswordInput, colors } from "@shubix/ui-mobile";
 
 /** Forgot password: email → 6-digit code + new password (logic: @shubix/hooks useForgotFlow, the same as the website). */
 export function ForgotForm() {
@@ -22,7 +22,7 @@ export function ForgotForm() {
           </>
         )}
         {f.error ? <ErrorBanner message={f.error} /> : null}
-        <Button title={first ? (f.busy ? t("auth.sending") : t("auth.sendCode")) : (f.busy ? t("auth.saving") : t("auth.resetButton"))} loading={f.busy} onPress={() => void (first ? f.send() : f.reset())} />
+        <Button size="lg" full title={first ? (f.busy ? t("auth.sending") : t("auth.sendCode")) : (f.busy ? t("auth.saving") : t("auth.resetButton"))} loading={f.busy} onPress={() => void (first ? f.send() : f.reset())} />
       </View>
     </Page>
   );

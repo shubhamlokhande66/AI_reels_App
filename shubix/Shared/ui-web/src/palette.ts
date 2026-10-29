@@ -1,8 +1,9 @@
-import { palette } from "@shubix/ui-core";
+import { gradients, palette } from "@shubix/ui-core";
 import web from "./tokens.json";
 
 /** The website's looks: Dark = the shared brand colours (Shared/ui-core) + the web's effects; Light is web-only. */
-export const dark = { ...palette, ...web.dark };
+const [g1, g2, g3] = gradients.gold;
+export const dark = { ...palette, ...web.dark, goldGradient: `linear-gradient(110deg, ${g1} 0%, ${g2} 50%, ${g3} 100%)` };
 export const light = web.light;
 export type WebPalette = typeof dark;
 

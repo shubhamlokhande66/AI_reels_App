@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 import { Sparkles } from "lucide-react-native";
 import { Brand } from "../atoms/Brand";
-import { Eyebrow, Muted } from "../atoms/Text";
+import { Eyebrow } from "../atoms/Text";
 import { colors } from "../colors";
 /** The top of the sign-in screens: close, brand, the gold tile, a title and line. */
 export function AuthHeader({ eyebrow, title, subtitle, onClose, closeLabel = "Close" }: { eyebrow?: string; title: string; subtitle?: string; onClose?: () => void; closeLabel?: string }) {
@@ -12,7 +12,7 @@ export function AuthHeader({ eyebrow, title, subtitle, onClose, closeLabel = "Cl
         <View className="mb-5 h-14 w-14 items-center justify-center rounded-[18px] border border-[#76633b] bg-[#29251c]"><Sparkles size={24} color={colors.accent} /></View>
         {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
         <Text className="mt-2 text-[30px] font-semibold text-foreground">{title}</Text>
-        {subtitle ? <Muted className="mt-2">{subtitle}</Muted> : null}
+        {subtitle ? <Text className="mt-2 text-sm leading-6 text-muted">{subtitle}</Text> : null}
       </View>
     </>
   );

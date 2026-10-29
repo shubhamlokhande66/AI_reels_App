@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, Te
 import { VideoView, useVideoPlayer } from "expo-video";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { clipDuration, makeClip, projectDuration, splitClip, type ClipAction, type ProjectClip, type ReelProject, type TimelineTool } from "@shubix/validations";
-import { Surface, colors } from "@shubix/ui-mobile";
+import { Card, colors } from "@shubix/ui-mobile";
 import { getProject, keepPickedAssets, keepPickedFile, listProjects, saveProject, type MobileProject } from "../../lib/projects";
 
 const groups: { name: TimelineTool; icon: typeof Film; options: string[] }[] = [
