@@ -2,12 +2,13 @@ import type { ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 
 /** The website's chip (Shared/ui-web/src/chip.ts): a pill to pick one of a few (a tab, a filter, a style). */
-export function Chip({ label, on = false, onPress, icon }: { label: string; on?: boolean; onPress: () => void; icon?: ReactNode }) {
+export function Chip({ label, on = false, onPress, icon, count, tall = false }: { label: string; on?: boolean; onPress: () => void; icon?: ReactNode; count?: number; tall?: boolean }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }}
-      className={`h-[34px] flex-row items-center gap-1.5 rounded-full border px-3.5 active:opacity-80 ${on ? "border-accent bg-chip-on" : "border-border bg-surface"}`}>
+      className={`flex-row items-center gap-1.5 rounded-full border px-3.5 active:opacity-80 ${tall ? "h-9" : "h-[34px]"} ${on ? "border-accent bg-chip-on" : "border-border bg-surface"}`}>
       {icon}
-      <Text numberOfLines={1} className="text-[12.5px] font-semibold text-foreground">{label}</Text>
+      <Text numberOfLines={1} className={`font-semibold text-foreground ${tall ? "text-[11.5px]" : "text-[12.5px]"}`}>{label}</Text>
+      {count !== undefined && <Text className="overflow-hidden rounded-full bg-surface-2 px-1.5 text-[10px] text-muted">{count}</Text>}
     </Pressable>
   );
 }

@@ -356,6 +356,7 @@ export const TEXT_GROUPS: TextGroup[] = [
       T("templates.search", "Search placeholder", "Search templates"), T("templates.none", "Nothing found ({q})", "No template matches “{q}”."), T("templates.all", "Filter: all", "All"), T("templates.newChip", "Filter: new", "New"),
       T("templates.noneHint", "Nothing found: line", "Try another word, or pick a group."), T("templates.clear", "Nothing found: button", "Clear search"),
       T("templates.count", "Number of templates ({n})", "{n} templates"), T("templates.loading", "While loading", "Loading templates…")),
+    C("Header line", T("templates.eyebrow", "Small line above the line", "Shubix · Reel collection")),
     C("Poster tags", T("templates.newTag", "New", "✨ New"), T("templates.kindTalk", "Talking template", "Talk"), T("templates.kindPhotos", "Photo template", "Photos"), T("templates.kindMusic", "Music template without a length", "Music")))),
   page(PAGES, "contact", "Contact us",
     S("Page", C("Header", T("nav.contact", "Title (also in the menu)", "Contact us"), T("contact.title", "Big title", "We're here to help"), T("contact.sub", "Line", "Questions about a Reel, credits or your account."))),

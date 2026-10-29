@@ -3,7 +3,7 @@
  * timeline is always dark, like any video editor). Kept on this device (localStorage). */
 export type ThemePref = "light" | "dark" | "system";
 export const THEME_KEY = "shubix-theme";
-export const DEFAULT_PREF: ThemePref = "light";
+export const DEFAULT_PREF: ThemePref = "dark"; // Noir first, as the app; Light is the person's choice
 /** the browser / installed app bar colour for each look */
 export const BAR_COLOR = { light: "#f7f3ec", dark: "#0a0908" } as const;
 

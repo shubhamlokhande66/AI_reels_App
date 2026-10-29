@@ -52,6 +52,18 @@ export function TemplatePoster({ id, name, cover, tag, badge }: { id: string; na
   );
 }
 
+/** A template with its name, kind and look, and what it does (the Templates page). */
+export function TemplateCard({ name, meta, text, ...poster }: Parameters<typeof TemplatePoster>[0] & { meta: string; text: string }) {
+  return (
+    <View className="min-w-0 gap-2">
+      <TemplatePoster name={name} {...poster} />
+      <Text numberOfLines={1} className="text-[12px] font-bold leading-[15px] text-foreground">{name}</Text>
+      <Text numberOfLines={1} className="text-[10px] font-medium text-muted">{meta}</Text>
+      <Text numberOfLines={2} className="min-h-[27px] text-[10px] leading-[13.5px] text-muted">{text}</Text>
+    </View>
+  );
+}
+
 /** A Reel being edited: its picture with a play button and its length, its name and when it was last edited. */
 export function DraftCard({ name, thumb, duration, edited, onPress, onMore, moreLabel }: { name: string; thumb?: string | null; duration: string; edited: string; onPress: () => void; onMore?: () => void; moreLabel?: string }) {
   return (

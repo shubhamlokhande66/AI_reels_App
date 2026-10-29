@@ -1,24 +1,19 @@
 import { useRef, type ComponentRef } from "react";
 import { router } from "expo-router";
-import { Alert, Image, Linking, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Alert, Image, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useApi, useText } from "@shubix/hooks";
 import { Badge, Button, CreateCard, DraftCard, EmptyState, LockBadge, Page, ProBanner, Scroller, SectionHeader, TemplatePoster, TipCard, TipsBanner, colors } from "@shubix/ui-mobile";
 import type { IconName, Tone } from "@shubix/ui-core";
 import { linkOn } from "@shubix/core/lib/features-list";
 import { templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
 import { clock, formatRelative } from "@shubix/utils";
+import { open, openTemplate } from "../lib/navigate";
 import { HomeHero } from "../components/organisms/HomeHero";
 import { AdBanner } from "../components/molecules/AdBanner";
 import { useCredits, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
 import { mobileApi } from "../lib/api";
 import { removeProject, type MobileProject } from "../lib/projects";
 import { useQueryClient } from "@tanstack/react-query";
-
-/** A page of the app, another site, or the plans when the page is on a higher plan. */
-const open = (href: string, locked = false) =>
-  locked ? router.push({ pathname: "/pricing", params: { need: href } }) : /^https?:/.test(href) ? void Linking.openURL(href) : router.push(href as never);
-/** A template opens the Create flow of its kind with it picked. */
-const openTemplate = (t: StudioTemplate) => router.push({ pathname: "/create/[kind]", params: { kind: t.kind === "talk" ? "talking" : t.kind, templateId: t.id } });
 
 /** Home (the website's app/page.tsx): the hero, Create Your Reel, Popular Templates, Continue Editing, Saved in My
  * Reels, Tips for Better Reels, Go Pro; the same CMS texts and lists. */
@@ -95,7 +90,7 @@ function TemplatesSection({ width }: { width: number }) {
         {templates.slice(0, 6).map((t) => {
           const locked = !!need?.(t.plan);
           return (
-            <Pressable key={t.id} style={{ width: step }} accessibilityLabel={t.name} onPress={() => (locked ? open(`template:${t.id}`, true) : openTemplate(t))}>
+            <Pressable key={t.id} style={{ width: step }} accessibilityLabel={t.name} onPress={() => openTemplate(t, locked)}>
                 <TemplatePoster id={t.id} name={t.name} cover={t.cover && mobileApi.absoluteAsset(t.cover)} badge={templateTag(t, text)}
                   tag={locked ? <LockBadge card label={text("plan.lockTag")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
             </Pressable>

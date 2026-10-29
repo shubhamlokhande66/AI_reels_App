@@ -52,7 +52,7 @@ function Templates() {
         <span aria-hidden className="pointer-events-none absolute -bottom-24 left-[30%] -z-10 h-40 w-72 rounded-full bg-accent/5 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
           <div className="flex min-w-0 flex-col gap-2">
-            <span className="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[.2em] text-accent"><span className="h-px w-5 bg-accent/70" />Shubix · Reel collection</span>
+            <span className="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[.2em] text-accent"><span className="h-px w-5 bg-accent/70" />{text("templates.eyebrow")}</span>
             <PageHeader title={text("nav.templates")} subtitle={text("templates.sub")} />
           </div>
           <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--accent)_18%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_66%,transparent)] px-3 py-2 text-[10px] font-semibold text-muted backdrop-blur-xl">

@@ -5,3 +5,4 @@ export * from "./Page";
 export * from "./SectionHeader";
 export * from "./Cards";
 export * from "./AuthHeader";
+export * from "./SearchBox";
