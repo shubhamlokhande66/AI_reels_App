@@ -18,7 +18,7 @@ async function bootstrap() {
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     next();
   });
-  const origins = env("WEB_ORIGINS", "http://localhost:3001").split(",").map((s) => s.trim()).filter(Boolean);
+  const origins = env("WEB_ORIGINS", "http://localhost:3001,http://localhost:8081") /* the website, Expo web */.split(",").map((s) => s.trim()).filter(Boolean);
   app.enableCors({ origin: origins, credentials: true });
   app.enableShutdownHooks();
   // the database indexes, once per server start (was instrumentation.ts)
