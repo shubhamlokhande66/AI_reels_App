@@ -60,7 +60,7 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
           triggerClass="flex items-center gap-1.5 rounded-full p-0.5 pr-1.5 text-muted transition-colors hover:bg-surface-2"
           trigger={
             <>
-              <span title={email} className="grid h-10 w-10 place-items-center rounded-full text-[15px] font-extrabold text-[var(--on-accent)] [background:var(--gold-gradient)]">
+              <span title={email} className="grid h-10 w-10 place-items-center rounded-full text-[15px] font-extrabold text-on-accent [background:var(--gold-gradient)]">
                 {email ? email[0]?.toUpperCase() : <Icon name="user" size={20} stroke={2} />}
               </span>
               <Icon name="down" size={16} />

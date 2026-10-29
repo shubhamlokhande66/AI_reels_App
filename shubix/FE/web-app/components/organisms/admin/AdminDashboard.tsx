@@ -146,7 +146,7 @@ export function AdminDashboard() {
             </button>
             {email && (
               <span className="hidden items-center gap-2 border-l border-border pl-3 lg:flex">
-                <span className="grid h-8 w-8 place-items-center rounded-full font-bold text-[var(--on-accent)] [background:var(--gold-gradient)]">{email[0]?.toUpperCase()}</span>
+                <span className="grid h-8 w-8 place-items-center rounded-full font-bold text-on-accent [background:var(--gold-gradient)]">{email[0]?.toUpperCase()}</span>
                 <span className="text-[12.5px] max-w-[180px] truncate">{email}</span>
               </span>
             )}

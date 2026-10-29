@@ -216,7 +216,7 @@ export function TrendLibrary({ embedded = false }: { embedded?: boolean } = {}) 
       <div className="grid gap-2 sm:grid-cols-2">
         <button type="button" onClick={() => setPanel("learn")} aria-haspopup="dialog"
           className="flex items-center gap-3 rounded-2xl border border-accent/50 bg-[linear-gradient(120deg,color-mix(in_srgb,var(--accent)_14%,var(--surface)),var(--surface))] px-4 py-3.5 text-left shadow-[var(--shadow)] transition-colors hover:border-accent">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[var(--on-accent)] [background:var(--gold-gradient)]"><Icon name="plus" size={19} /></span>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-on-accent [background:var(--gold-gradient)]"><Icon name="plus" size={19} /></span>
           <span className="min-w-0 flex-1"><Heading size="section" as="h2">Learn a new trend</Heading><span className="block truncate text-[12.5px] text-muted">Upload 1–6 Reels you like: their cuts, pace and look are learned</span></span>
           <Icon name="chevron" size={18} className="shrink-0 text-muted" />
         </button>

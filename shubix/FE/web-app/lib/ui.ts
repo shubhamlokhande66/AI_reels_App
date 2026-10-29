@@ -10,7 +10,7 @@ export const TONE_BG: Record<Tone, string> = {
   template: "bg-[linear-gradient(135deg,#aa7d91,#624657)]",
   copy: "bg-[linear-gradient(135deg,#65949a,#345b60)]",
   recreate: "bg-[linear-gradient(135deg,#82799f,#4c4567)]",
-  brand: "bg-[image:var(--gold-gradient)]",
+  brand: "bg-gold",
   neutral: "bg-surface-2",
 };
 

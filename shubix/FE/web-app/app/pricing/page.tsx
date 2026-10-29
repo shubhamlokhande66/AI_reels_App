@@ -111,7 +111,7 @@ export default function PricingPage() {
           {t("pricing.badge")}
         </Badge>
         <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(28px,5.5vw,44px)] font-semibold leading-[1.08] tracking-[-0.025em]">
-          {t("pricing.title1")} <span className="bg-[image:var(--gold-gradient)] bg-clip-text text-transparent">{t("pricing.title2")}</span>
+          {t("pricing.title1")} <span className="bg-gold bg-clip-text text-transparent">{t("pricing.title2")}</span>
         </h1>
         <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">{t("pricing.sub", { aiCost: p.costs.studio_ai ?? 10 })}</p>
 
@@ -126,7 +126,7 @@ export default function PricingPage() {
               onClick={() => setYearly(y)}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-full px-5 text-[14px] font-bold transition-colors",
-                yearly === y ? "text-[var(--on-accent)] [background:var(--gold-gradient)] shadow-[0_8px_20px_-10px_var(--brand-glow)]" : "text-muted hover:text-foreground",
+                yearly === y ? "text-on-accent [background:var(--gold-gradient)] shadow-[0_8px_20px_-10px_var(--brand-glow)]" : "text-muted hover:text-foreground",
               )}
             >
               {t(y ? "pricing.yearly" : "pricing.monthly")}

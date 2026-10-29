@@ -19,7 +19,7 @@ const PANEL = "border border-(--ed-line) bg-[linear-gradient(145deg,color-mix(in
 const EASE = "duration-[180ms] ease-[ease]";
 /** a small framed button (the project bar, the preview header, the timeline) */
 const FRAMED = `inline-flex cursor-pointer items-center justify-center gap-[7px] border border-(--ed-line) bg-[color:color-mix(in_srgb,var(--surface-2)_70%,var(--surface))] text-foreground transition-[transform,border-color,background,box-shadow] ${EASE} enabled:hover:-translate-y-px enabled:hover:border-[color:color-mix(in_srgb,var(--accent)_45%,var(--border))]`;
-const GOLD = "bg-[image:var(--gold-gradient)] text-[color:var(--on-accent)]";
+const GOLD = "bg-gold text-on-accent";
 const GREEN_DOT = "inline-block size-1.5 flex-none rounded-full bg-[#72bd91] shadow-[0_0_10px_color-mix(in_srgb,#72bd91_55%,transparent)]";
 const EYEBROW = "flex items-center gap-[7px] text-[9px] font-[750] tracking-[.13em] text-muted";
 const TILE_ICON = "grid flex-none place-items-center text-accent";
@@ -112,7 +112,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
           <span className="flex-1" />
           <span className="inline-flex items-center gap-[5px] [font:700_8px_var(--font-body),sans-serif] tracking-[.1em] text-muted [&_svg]:text-accent"><Glyph name="Music" size={14} /> SOUND ON</span>
         </div>
-        <div className="h-[3px] overflow-hidden rounded-[10px] bg-surface-2"><i className="block h-full rounded-[inherit] bg-[image:var(--gold-gradient)] shadow-[0_0_12px_var(--brand-glow)]" style={{ width: "19%" }} /></div>
+        <div className="h-[3px] overflow-hidden rounded-[10px] bg-surface-2"><i className="block h-full rounded-[inherit] bg-gold shadow-[0_0_12px_var(--brand-glow)]" style={{ width: "19%" }} /></div>
       </section>
 
       <aside className={cn(PANEL, "flex min-w-0 flex-col rounded-[19px] p-4 max-[900px]:order-4 max-[900px]:p-[13px] max-[680px]:rounded-2xl")}>
@@ -164,9 +164,9 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
                 <span className="absolute right-1 bottom-[3px] z-2 text-white/86"><Glyph name="play" size={10} /></span>
               </button>)
               : name === "Effects" ? [["2%", "15%", "Slow drift"], ["22%", "18%", "Zoom burst"], ["48%", "14%", "Film glow"]].map(([left, width, label]) => <span key={label} style={{ left, width }}
-                className="absolute z-1 flex h-6 items-center truncate rounded-[7px] border border-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[linear-gradient(110deg,#d8bd7b,#aa8b4e)] px-2 text-[9px] font-bold text-[color:var(--on-accent)] shadow-[0_4px_12px_-8px_var(--brand-glow)]">✦ {label}</span>)
+                className="absolute z-1 flex h-6 items-center truncate rounded-[7px] border border-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[linear-gradient(110deg,#d8bd7b,#aa8b4e)] px-2 text-[9px] font-bold text-on-accent shadow-[0_4px_12px_-8px_var(--brand-glow)]">✦ {label}</span>)
               : name === "Text" ? [["4%", "24%", "golden hour memories"], ["55%", "19%", "little moments ✦"]].map(([left, width, label]) => <span key={label} style={{ left, width }}
-                className="absolute z-1 min-w-0 truncate rounded-md border border-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_75%,#514126)] px-2 py-[5px] text-[8px] font-[650] text-[color:var(--on-accent)]">{label}</span>)
+                className="absolute z-1 min-w-0 truncate rounded-md border border-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_75%,#514126)] px-2 py-[5px] text-[8px] font-[650] text-on-accent">{label}</span>)
               : name === "Voice" ? <div className="absolute inset-y-2 right-[48%] left-[5%] z-1 overflow-hidden rounded-md border border-[color:color-mix(in_srgb,#6a9f82_35%,transparent)] bg-[color:color-mix(in_srgb,#507a64_22%,var(--surface))]"><Waveform compact bar="bg-[#89b798]" /></div>
               : <div className="absolute inset-x-0 inset-y-[7px] z-1 overflow-hidden rounded-[7px] border border-[color:color-mix(in_srgb,var(--accent)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_9%,var(--surface-2))]">
                 <Waveform className="top-3 h-[calc(100%-12px)] opacity-[.68]" />

@@ -1,6 +1,7 @@
 import tokens from "./tokens.json";
 
-/** Design tokens + theme: one source for Tailwind (web), NativeWind (mobile) and inline styles. */
+/** The design both apps share (web: Shared/ui-web builds on it; phone: FE/mobile-app/tailwind.config.js): the brand
+ * colours of the dark look, corners, type and spacing. Web-only looks (Light, gradients, glows) are in Shared/ui-web. */
 export const { palette, radii, typography, spacing } = tokens;
 export const theme = tokens;
 export type Palette = typeof palette;

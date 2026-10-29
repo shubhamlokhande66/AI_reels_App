@@ -13,7 +13,7 @@ export type ButtonSize = "sm" | "md" | "lg";
 const BASE =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-[filter,border-color,background-color,color,box-shadow,translate] duration-200 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:translate-y-px";
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "border border-transparent bg-[image:var(--gold-gradient)] text-[var(--on-accent)] shadow-[0_12px_26px_-14px_var(--brand-glow)] hover:brightness-110",
+  primary: "border border-transparent bg-gold text-on-accent shadow-[0_12px_26px_-14px_var(--brand-glow)] hover:brightness-110",
   secondary: "border border-border bg-surface text-foreground shadow-[var(--shadow)] hover:border-accent/60 hover:bg-surface-2",
   ghost: "border border-transparent bg-transparent text-foreground hover:bg-surface-2",
   danger: "border border-danger/35 bg-surface text-danger shadow-[var(--shadow)] hover:border-danger/70 hover:bg-danger/5",

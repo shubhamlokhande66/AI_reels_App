@@ -1,5 +1,6 @@
 /** Molecules: small groups of atoms with one job (feature components live in organisms/, page frames in templates/). */
 export { EmptyState } from "./EmptyState";
+export { SoundBars } from "./SoundBars";
 export { ErrorBanner } from "./ErrorBanner";
 export { Hero, PageHeader } from "./PageHeader";
 export { CreateCard } from "./CreateCard";

@@ -18,7 +18,7 @@ export function AdminSignIn() {
         <span className="text-[12.5px] text-muted">
           {email ? `${email} is not an administrator account. Sign out and sign in with the administrator's email.` : "Sign in with the administrator's email; a code is then emailed to it."}
         </span>
-        <Link href="/login" className="inline-flex h-11 items-center justify-center rounded-xl bg-[image:var(--gold-gradient)] px-4 text-sm font-bold text-[var(--on-accent)]">
+        <Link href="/login" className="inline-flex h-11 items-center justify-center rounded-xl bg-gold px-4 text-sm font-bold text-on-accent">
           {email ? "Sign in with another account" : "Sign in"}
         </Link>
         <Link href="/" className="text-center text-[12.5px] font-bold text-accent">

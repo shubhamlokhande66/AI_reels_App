@@ -23,7 +23,7 @@ export function BottomNav({ tabs, moreOpen, onMore }: { tabs: NavTab[]; moreOpen
         if (t.primary)
           return (
             <Tag key={t.href} href={t.href} aria-label={t.label} className={cn(item, "text-foreground")}>
-              <span className="-mt-8 grid h-[60px] w-[60px] place-items-center rounded-full border-4 border-background bg-[image:var(--gold-gradient)] text-[var(--on-accent)] shadow-[0_10px_24px_-8px_var(--brand-glow)]">
+              <span className="-mt-8 grid h-[60px] w-[60px] place-items-center rounded-full border-4 border-background bg-gold text-on-accent shadow-[0_10px_24px_-8px_var(--brand-glow)]">
                 <Icon name="plus" size={26} stroke={2.4} />
               </span>
               {t.label}

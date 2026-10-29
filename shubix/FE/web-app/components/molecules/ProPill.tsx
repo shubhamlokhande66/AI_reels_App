@@ -28,7 +28,7 @@ export function ProPill({ plan, planId, compact = false }: { plan?: string | nul
     return (
       <Link href="/pricing" title={title} className={cn(base, "border-border bg-surface text-foreground hover:border-accent/50", compact ? "pr-1.5" : "pr-1.5")}>
         <span className="pl-2 text-muted">{tier === "free" ? t("plan.free") : t("plan.plans")}</span>
-        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-[image:var(--gold-gradient)] px-2.5 text-[11.5px] font-bold text-[var(--on-accent)] shadow-[0_6px_14px_-8px_var(--accent)]">
+        <span className="inline-flex h-7 items-center gap-1 rounded-full bg-gold px-2.5 text-[11.5px] font-bold text-on-accent shadow-[0_6px_14px_-8px_var(--accent)]">
           {!compact && t("plan.upgrade")}
           <Icon name="back" size={12} stroke={2.6} className="rotate-[135deg]" />
         </span>
@@ -37,7 +37,7 @@ export function ProPill({ plan, planId, compact = false }: { plan?: string | nul
   return (
     <Link href="/pricing" title={title} className={cn(base, "border-transparent text-foreground", RING[tier])}>
       <span className={cn("grid h-7 w-7 place-items-center rounded-full text-white",
-        tier === "pro" ? "bg-[linear-gradient(135deg,#fde68a,#f5c84c_45%,#c98a1f)] text-[#3a2604] shadow-[inset_0_1px_0_rgba(255,255,255,.6)]" : "bg-[image:var(--gold-gradient)]")}>
+        tier === "pro" ? "bg-[linear-gradient(135deg,#fde68a,#f5c84c_45%,#c98a1f)] text-[#3a2604] shadow-[inset_0_1px_0_rgba(255,255,255,.6)]" : "bg-gold")}>
         <Icon name={tier === "pro" ? "crown" : "sparkle"} size={14} stroke={2.2} />
       </span>
       <span className={tier === "pro" ? "bg-[linear-gradient(90deg,#b7791f,#d4932c)] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,#fde68a,#f5c84c)]" : ""}>{plan}</span>

@@ -57,9 +57,9 @@ export function ProgressBar({ value, label, showEta = false, size = "md" }: {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={shown}
-        className={`lux-progress-track ${height} w-full`}
+        className={`relative w-full overflow-hidden rounded-full bg-(--track) shadow-[inset_0_0_0_1px_var(--track)] ${height}`}
       >
-        <div className="lux-progress-fill" data-done={done} style={{ width: `${Math.max(pct, pct > 0 ? 2 : 0)}%` }} />
+        <div data-done={done} className="relative h-full animate-progress rounded-full bg-gold bg-[repeating-linear-gradient(115deg,rgba(255,255,255,.1)_0_6px,transparent_6px_14px),var(--gold-gradient)] bg-size-[28px_100%,100%_100%] transition-[width] duration-600 ease-[cubic-bezier(0.22,1,0.36,1)] after:absolute after:inset-0 after:w-2/5 after:animate-progress-sheen after:bg-[linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent)] after:content-[''] data-[done=true]:animate-none data-[done=true]:bg-[linear-gradient(135deg,#b8e6c3,#8fcf9f)] data-[done=true]:shadow-[0_0_14px_0_rgba(143,207,159,.35)] data-[done=true]:after:hidden motion-reduce:animate-none motion-reduce:after:animate-none" style={{ width: `${Math.max(pct, pct > 0 ? 2 : 0)}%` }} />
       </div>
       {showEta && (
         <div className="mt-1.5 flex items-baseline justify-between text-xs text-muted">

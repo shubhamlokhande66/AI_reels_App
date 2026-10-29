@@ -18,12 +18,12 @@ export function GlobalActivity() {
   return (
     <>
       <div className="pointer-events-none fixed inset-x-0 top-0 z-[90] h-[3px] overflow-hidden" role="progressbar" aria-label={acting ? "Working" : "Loading"} aria-busy="true">
-        <div className="lux-activity h-full w-1/3" />
+        <div className="h-full w-1/3 animate-sweep bg-gold shadow-[0_0_12px_color-mix(in_srgb,var(--accent)_80%,transparent)]" />
       </div>
       {acting && (
         <div
           role="status"
-          className="lux-enter pointer-events-none fixed bottom-[calc(96px+env(safe-area-inset-bottom))] right-4 z-[90] flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold shadow-[0_12px_30px_-14px_rgba(0,0,0,.6)] md:bottom-5 md:right-5"
+          className="animate-enter motion-reduce:animate-none pointer-events-none fixed bottom-[calc(96px+env(safe-area-inset-bottom))] right-4 z-[90] flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold shadow-[0_12px_30px_-14px_rgba(0,0,0,.6)] md:bottom-5 md:right-5"
         >
           <SpinnerIcon size={16} className="text-accent" />
           Working…
