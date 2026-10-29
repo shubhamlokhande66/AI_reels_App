@@ -4,3 +4,5 @@
 
 expo-env.d.ts
 # @end expo-cli
+# the video engine module is source, not generated
+!modules/*/android/
