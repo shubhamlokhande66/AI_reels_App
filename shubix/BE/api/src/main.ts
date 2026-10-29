@@ -18,8 +18,11 @@ async function bootstrap() {
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     next();
   });
-  const origins = env("WEB_ORIGINS", "http://localhost:3001,http://localhost:8081") /* the website, Expo web */.split(",").map((s) => s.trim()).filter(Boolean);
-  app.enableCors({ origin: origins, credentials: true });
+  // CORS: the WEB_ORIGINS list; while developing also any port on this computer or the local network (the website,
+  // Expo web on 8081, 8082, …). Production lists its origins (the website itself calls /api on its own address).
+  const listed = env("WEB_ORIGINS").split(",").map((s) => s.trim()).filter(Boolean);
+  const local = env("NODE_ENV") !== "production" ? /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|10(\.\d+){3}|192\.168(\.\d+){2}|172\.(1[6-9]|2\d|3[01])(\.\d+){2})(:\d+)?$/ : null;
+  app.enableCors({ origin: (o, ok) => ok(null, !o || listed.includes(o) || !!local?.test(o)), credentials: true });
   app.enableShutdownHooks();
   // the database indexes, once per server start (was instrumentation.ts)
   void import("./server/core/indexes").then((m) => m.ensureIndexes()).catch((e) => console.warn("database indexes:", e));

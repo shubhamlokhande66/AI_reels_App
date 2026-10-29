@@ -4,7 +4,24 @@
   "private": true,
   "main": "./src/index.tsx",
   "types": "./src/index.tsx",
-  "exports": { ".": "./src/index.tsx" },
-  "scripts": { "typecheck": "tsc --noEmit" },
-  "dependencies": { "@shubix/types": "workspace:*", "@shubix/validations": "workspace:*", "@shubix/api-client": "workspace:*", "@shubix/utils": "workspace:*" }, "peerDependencies": { "react": ">=19" }, "devDependencies": { "typescript": "^5.9.2", "@types/react": "^19.2.0", "react": "19.2.3" }
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@shubix/types": "workspace:*",
+    "@shubix/validations": "workspace:*",
+    "@shubix/api-client": "workspace:*",
+    "@shubix/utils": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "@types/react": "~19.3.0",
+    "react": "19.3.0"
+  }
 }
