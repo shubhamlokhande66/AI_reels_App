@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useStudioText } from "@shubix/hooks";
 import { askAction, Button, tasks, toast } from "@shubix/ui-mobile";
 import { usePlanAi } from "../../lib/data";
-import { engine, type SongAnalysis } from "../../lib/engine";
+import { engine, engineOn, shotsOf, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@shubix/api-client";
 import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
@@ -40,51 +40,44 @@ export default function CreateScreen() {
   async function pickRecent(s: Song) {
     setReading(true); setSong(s.duration ? s : { ...s, duration: await songLength(s.uri) }); await hear(s); setReading(false);
   }
-  // the song as the website's engine hears it (its beats, drops and breaks: the Reel is cut on them); without it the clips play in turn
+  // the song as the website's engine hears it (its beats, drops and breaks, checked by Shubix: the Reel is cut on them); its cards show the way
   async function hear(s: Song) {
     setMusic(null);
-    tasks.start("song", "music", words("Adding your song"), `${words("Reading the sound of")} ${s.name}`);
-    try { setMusic(await engine.song(s.uri, (step) => tasks.update("song", null, words(step)))); tasks.done("song", words(media.length ? "Song ready" : "Song ready · now add your clips")); }
-    catch (e) { console.warn("song analysis", e); tasks.fail("song", words("This file has no sound we can read. Try an MP3, M4A or WAV.")); return; }
-    void checkBeats();
-  }
-  // the second opinion on the beats, as on the website: Beat This! on this phone, the first edit never waits for it
-  async function checkBeats() {
-    let stage = "";
-    tasks.start("beats", "ai", words("Checking the beats"), words("Shubix listens to your song on this phone"));
-    try {
-      const better = await engine.checkBeats((s) => {
-        if (s.stage !== stage) { stage = s.stage; tasks.start("beats", "ai", words(stage === "download" ? "Getting the Shubix beat tracker" : "Checking the beats"), words(stage === "download" ? "Only the first time · kept on this phone" : "Shubix listens to your song on this phone")); }
-        tasks.update("beats", s.p, s.stage === "download" && s.p >= 1 ? words("Downloaded · starting Shubix") : undefined);
-      });
-      setMusic(better); tasks.done("beats", words("Beats checked"));
-    } catch (e) { console.info("on-device beat tracker not used:", e); tasks.clear("beats"); }
+    if (!engineOn) return toast(words("The song's beats and the Reel's edit are made by the Shubix app: Expo Go cannot run them."), "info");
+    try { setMusic(await engine.song(s.uri, s.name)); } catch (e) { toast(errorMessage(e), "danger"); }
   }
   async function addMedia() {
     const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: photos ? ["images"] : ["videos"], allowsMultipleSelection: true, selectionLimit: Math.max(1, 30 - media.length), quality: 0.9 });
     if (!r.canceled) setMedia((old) => [...old, ...r.assets].slice(0, 30));
   }
-  // Analysing: the clips and the song kept on the phone, the draft saved, then the editor
+  // Analysing: the clips and the song kept on the phone, the Reel made by the website's engine (its shots on the beats,
+  // their transitions and effects), the draft saved, then the editor. Without the engine (Expo Go) the clips play in turn.
   async function make() {
     setStep("analyse");
     const id = `draft-${Date.now()}`, at = (pct: number, done: number) => setProgress({ pct, done, status: words(AI_STEPS[Math.min(done, 3)][1]) });
     try {
       at(0.02, 0); setProgress((p) => ({ ...p, status: words("Reading your clips…") }));
-      const speed = { fast: 1.25, smooth: 0.8, "": 1 }[styleFromWords(wish)]; // what was asked of Shubix AI, as the phone can do it
-      tasks.start("clips", "clips", words("Reading your clips"), `${words("Clip")} 1 / ${media.length}`);
-      const clips = (await keepPickedAssets(id, media, (n) => { setProgress((p) => ({ ...p, pct: 0.02 + (0.58 * n) / media.length })); tasks.update("clips", n / media.length, `${words("Clip")} ${Math.min(media.length, n + 1)} / ${media.length}`); })).map((c) => ({ ...c, speed }));
-      tasks.done("clips", `${clips.length} ${words(clips.length === 1 ? "clip" : "clips")} ${words("ready · making your Reel")}`);
-      at(0.62, 1);
+      const style = styleFromWords(wish), speed = { fast: 1.25, smooth: 0.8, "": 1 }[style];
+      tasks.start("keep", "clips", words("Adding your clips"), `${words("Clip")} 1 / ${media.length}`);
+      let clips = await keepPickedAssets(id, media, (n) => { setProgress((p) => ({ ...p, pct: 0.02 + (0.3 * n) / media.length })); tasks.update("keep", n / media.length, `${words("Clip")} ${Math.min(media.length, n + 1)} / ${media.length}`); });
+      tasks.clear("keep");
+      at(0.35, 1);
       const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
-      at(0.8, 2);
-      const now = new Date().toISOString();
-      await saveProject({ id, title: words(KINDS[kind].title), kind, clips, audioUri, audioName: song?.name, overlays: [], ...(music ? { music: { duration: music.duration, bpm: music.bpm, beats: music.beats, cuts: music.cuts, cutType: music.cutType } } : {}), createdAt: now, updatedAt: now, status: "draft",
-        ...(params.templateId ? { templateId: params.templateId } : {}), settings: { length, ...settings, ...(wish ? { wish } : {}) } });
+      let studio = false;
+      if (engineOn && music) {
+        await engine.choose({ length, order: settings.order, aspect: settings.aspect, mode: style || "auto" });
+        await engine.clips(clips.map((c) => ({ uri: c.uri, name: c.name })));
+        at(0.7, 2);
+        clips = shotsOf((await engine.ready(id)).state.edit, clips); studio = true;
+      } else clips = clips.map((c) => ({ ...c, speed }));
       at(0.92, 3);
+      const now = new Date().toISOString();
+      await saveProject({ id, title: words(KINDS[kind].title), kind, clips, audioUri, audioName: song?.name, overlays: [], ...(music ? { music } : {}), studio, createdAt: now, updatedAt: now, status: "draft",
+        ...(params.templateId ? { templateId: params.templateId } : {}), settings: { length, ...settings, ...(wish ? { wish } : {}) } });
       await queryClient.invalidateQueries({ queryKey: ["drafts"] });
       setProgress({ pct: 1, done: 4, status: words("Your Reel is ready!") });
       setTimeout(() => { setStep("clips"); router.push({ pathname: "/editor", params: { id } }); }, 450); // back from the editor: the clips again
-    } catch (e) { tasks.clear("clips"); toast(errorMessage(e), "danger"); setStep("clips"); }
+    } catch (e) { tasks.clear("keep"); toast(errorMessage(e), "danger"); setStep("clips"); }
   }
 
   // Free (no Shubix AI in the plan): before the Reel is made, what Shubix AI would do and the way to it (the website's upsell)

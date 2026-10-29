@@ -50,7 +50,7 @@ export default function EditorScreen() {
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
   useEffect(() => { if (!p?.audioUri) return; if (playing && sound) { song.seekTo(now).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; return { ...old, ...next }; });
+  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; return { ...old, ...next, studio: false }; }); // changed here: the phone's export makes it (the studio holds the Reel as it made it)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };

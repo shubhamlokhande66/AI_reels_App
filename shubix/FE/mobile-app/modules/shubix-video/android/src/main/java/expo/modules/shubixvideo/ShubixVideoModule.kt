@@ -46,6 +46,7 @@ import java.io.File
 class ShubixVideoModule : Module() {
   private val main = Handler(Looper.getMainLooper())
   private var running: Transformer? = null
+  private var files: FileServer? = null
 
   override fun definition() = ModuleDefinition {
     Name("ShubixVideo")
@@ -57,6 +58,13 @@ class ShubixVideoModule : Module() {
       }
     }
     AsyncFunction("cancel") { main.post { running?.cancel(); running = null } }
+    // the engine page's way to the app's files (FileServer): started once, its port and key
+    Function("fileServer") {
+      val c = appContext.reactContext ?: throw IllegalStateException("No app")
+      val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out")).also { files = it }
+      mapOf("port" to s.port, "key" to s.key)
+    }
+    OnDestroy { files?.close(); files = null }
   }
 
   private fun start(spec: JSONObject, promise: Promise) {

@@ -7,7 +7,7 @@
  * Create flow's "Analysing" screen (flow.ts) shows the same progress.
  */
 
-export type TaskEvent = { id: string; kind?: TaskKind; state: "start" | "progress" | "done" | "fail" | "clear"; p: number | null; title?: string };
+export type TaskEvent = { id: string; kind?: TaskKind; state: "start" | "progress" | "done" | "fail" | "clear"; p: number | null; title?: string; detail?: string };
 
 export type TaskKind = "music" | "clips" | "ai" | "export" | "cloud" | "voice";
 type Card = { el: HTMLElement; kind: TaskKind; t0: number; p: number | null; timer?: ReturnType<typeof setTimeout> };
@@ -89,7 +89,7 @@ export function createTasks(host: HTMLElement) {
       c.el.querySelector("[data-ic]")!.className = "grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-accent/15 text-accent";
     }
     paint(c, title, detail);
-    emit({ id, kind, state: "start", p: null, title });
+    emit({ id, kind, state: "start", p: null, title, detail });
   }
 
   /** Progress (0..1, or null when unknown) and the step in words. */
@@ -98,7 +98,7 @@ export function createTasks(host: HTMLElement) {
     if (!c) return;
     c.p = p;
     paint(c, title, detail);
-    emit({ id, kind: c.kind, state: "progress", p, title });
+    emit({ id, kind: c.kind, state: "progress", p, title, detail });
   }
 
   function finish(id: string, ok: boolean, text: string, ms: number) {

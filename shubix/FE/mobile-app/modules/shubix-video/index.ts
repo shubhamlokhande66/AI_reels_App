@@ -4,6 +4,8 @@ import { requireOptionalNativeModule, type EventSubscription } from "expo";
 type Engine = {
   exportReel(spec: string): Promise<{ uri: string; size: number; duration: number }>;
   cancel(): Promise<void>;
+  /** the tiny web server on the phone (127.0.0.1) through which the engine page reads the app's files and sends the Reel back */
+  fileServer(): { port: number; key: string };
   addListener(event: "onProgress", fn: (e: { progress: number }) => void): EventSubscription;
 };
 export const ShubixVideo = requireOptionalNativeModule<Engine>("ShubixVideo");

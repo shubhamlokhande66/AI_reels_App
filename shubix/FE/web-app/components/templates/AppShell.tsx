@@ -264,7 +264,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [drawer, needCredits]);
   const authPage = AUTH_PAGES.includes(pathname); // sign in, forgot / reset password: shown on their own
   const partnerPage = pathname === PARTNER_PAGE;
-  const publicPage = partnerPage || PUBLIC_PAGES.includes(pathname); // open to everyone, also before signing in
+  const enginePage = pathname === "/engine"; // the phone app's hidden engine (app/engine): the studio alone, the phone signs its requests
+  const publicPage = partnerPage || enginePage || PUBLIC_PAGES.includes(pathname); // open to everyone, also before signing in
   const signedOut = !!me.data?.authEnabled && !me.data.user;
   useEffect(() => {
     if (signedOut && !authPage && !publicPage) router.replace("/login"); // accounts on and nobody signed in: the sign-in page
@@ -276,6 +277,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const features = useFeatures();
   const offKey = pageFeature(pathname, features);
   const off = offKey && !features[offKey] ? FEATURE_LIST.find((f) => f.key === offKey)! : null;
+  if (enginePage) return <main className="rm min-h-screen">{children}</main>;
   if ((pathname.startsWith("/admin") || pathname.startsWith("/cms")) && !signedOut) {
     // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
     return (

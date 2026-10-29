@@ -9,14 +9,16 @@ export const clipSchema = z.object({
   sourceDuration: z.number().positive(), start: z.number().min(0), end: z.number().positive(), speed: z.number().min(0.25).max(4),
   reverse: z.boolean(), muted: z.boolean(), volume: z.number().min(0).max(2), filter: z.string(), transition: z.string(),
   rotation: z.number(), mirror: z.boolean(), flip: z.boolean(), fit: z.enum(["cover", "contain"]),
+  // the studio's effect during the shot (its name: punch, shake, glow…) when the website's engine made the Reel
+  effect: z.string().optional(),
 }).refine((clip) => clip.end <= clip.sourceDuration && clip.end > clip.start, { message: "The selected clip range must be inside the original media." });
 export const projectSchema = z.object({
   id: z.string(), title: z.string().max(120), kind: z.enum(["music", "talking", "photo", "copy", "story"]), clips: z.array(clipSchema).min(1),
   audioUri: z.string().optional(), audioName: z.string().optional(), templateId: z.string().optional(), overlays: z.array(overlaySchema),
   createdAt: z.string(), updatedAt: z.string(), status: z.enum(["draft", "rendered"]), outputUri: z.string().optional(),
   // the Create flow's choices: how much of the song (seconds, 0 = all), the clip order, the format, a Talking Reel's pauses and music under the voice, and what was asked of Shubix AI
-  // the song as the engine heard it (Shared/core engine/studio/song: the website's analysis): its tempo, beats and cuts
-  music: z.object({ duration: z.number(), bpm: z.number(), beats: z.array(z.number()), cuts: z.array(z.number()), cutType: z.array(z.enum(["drop", "hit", "cut", "break"])) }).optional(),
+  // the song as the website's engine heard it (its tempo, beats, drops, breaks), and whether that engine made the Reel (its shots: the clips)
+  music: z.object({ duration: z.number(), bpm: z.number(), beats: z.number(), drops: z.number(), breaks: z.number() }).optional(), studio: z.boolean().optional(),
   settings: z.object({ length: z.number(), order: z.enum(["mix", "order"]), aspect: z.enum(["9:16", "4:5", "1:1", "16:9"]), pace: z.enum(["tight", "natural", "relaxed", "off"]), under: z.string(), wish: z.string().max(800) }).partial().optional(),
 });
 export type ProjectClip = z.infer<typeof clipSchema>;

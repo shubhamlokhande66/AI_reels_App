@@ -13,6 +13,7 @@ import type { ReelProject } from "@shubix/validations";
 import { cancelExport, exportReel } from "../../lib/video";
 import { FlowAnalyse } from "./CreateFlow";
 import { notifyAway } from "../../lib/notify";
+import { engine } from "../../lib/engine";
 
 // the website's Exporting list: each line done once the Reel is that far
 const STEPS: [IconName, string, number][] = [["search", "Preparing clips", 0.02], ["sparkle", "Applying effects", 0.3], ["image", "Rendering video", 0.85], ["music", "Finalizing audio", 1]];
@@ -27,7 +28,8 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     if (!reel) return;
     let live = true;
     setPct(0); setDone(null); setSaved(false);
-    exportReel(reel, (p) => live && setPct(p))
+    // made by the website's engine and not changed since: its own export (the transitions and effects); else the phone's
+    (reel.studio && engine.holds(reel.id) ? engine.exportReel(`${reel.id}.mp4`) : exportReel(reel, (p) => live && setPct(p)))
       .then(async (r) => {
         if (!live) return;
         setPct(1); setDone(r); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");

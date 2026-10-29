@@ -38,7 +38,8 @@ function loadScript(src: string): Promise<void> {
 
 /** `kind`: the Create flow's page (/create/music|talking|photo|copy) is drawn in its flow from the very first paint, so the
  * studio's home never shows before it (components/studio/flow.ts takes over once the studio has started). */
-export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "copy" } = {}) {
+/** `engine`: the phone app's hidden engine page (app/engine): the phone works the studio through components/studio/bridge.ts. */
+export function FastStudio({ kind, engine = false }: { kind?: "music" | "talking" | "photo" | "copy"; engine?: boolean } = {}) {
   const root = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const { admin, required } = useAdmin();
@@ -97,6 +98,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "c
           personMask: (rgba: Uint8ClampedArray) => import("@/lib/vision/client").then((m) => m.personMask(rgba)),
           findFaces: (squares: Uint8ClampedArray[]) => import("@/lib/vision/client").then((m) => m.findFaces(squares)),
         });
+        if (engine && root.current) { const { initBridge } = await import("@/components/studio/bridge"); const stop = initBridge(root.current), stopStudio = cleanup; cleanup = () => { stop(); stopStudio?.(); }; }
       } catch (e) {
         setFailed(e instanceof Error ? e.message : String(e));
         reportError("studio", "Fast Studio could not start: " + (e instanceof Error ? e.message : String(e)), e instanceof Error ? e.stack ?? "" : "");
@@ -108,7 +110,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "c
       stopSteps(); stopAuto(); stopFlow();
       cleanup?.();
     };
-  }, []);
+  }, [engine]);
 
   return (
     <>

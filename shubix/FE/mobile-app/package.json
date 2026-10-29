@@ -7,8 +7,7 @@
     "start": "expo start --lan --go",
     "android": "expo start --android --lan --go",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit",
-    "engine": "node scripts/engine-bundle.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/dom-webview": "~58.0.2",
@@ -66,8 +65,6 @@
     "@react-native/metro-config": "0.88.0",
     "@types/react": "~19.3.0",
     "babel-preset-expo": "~58.0.0",
-    "esbuild": "^0.28.2",
-    "onnxruntime-web": "1.29.0",
     "tailwindcss": "^3.4.17",
     "typescript": "~6.0.3"
   }
