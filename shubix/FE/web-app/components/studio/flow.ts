@@ -177,7 +177,7 @@ export function initFlow(root: HTMLElement): () => void {
       steps(4);
     }
     crumbs(on);
-    if (!on) { setFlag($("fintro"), "hidden", true); if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
+    if (!on) { setFlag($("fintro"), "hidden", true); setFlag($("s1"), "hidden", false); setFlag($("s2"), "hidden", false); if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
     const k = readKind();
     if (k !== kind || !$("ftitle").dataset.k) {
       kind = k;
@@ -200,6 +200,9 @@ export function initFlow(root: HTMLElement): () => void {
     }
     setData(root, "fstep", step);
     setFlag($("fintro"), "hidden", step !== "intro");
+    // the cards: all on computers, one screen at a time on phones
+    setFlag($("s1"), "hidden", phone() && step !== "choose" && step !== "adjust");
+    setFlag($("s2"), "hidden", phone() && step !== "clips");
     setData(root, "fkind", kind);
     // the step in the address (/create/music?step=clips): each screen of the flow has its own; a made Reel moves to /create/edit?p=…
     if (location.pathname !== "/create/edit") {

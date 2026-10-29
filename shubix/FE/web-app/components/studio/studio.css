@@ -318,7 +318,7 @@
 
 /* ================= The four steps, one after the other ================= */
 /* the next step appears once the one before it is done */
-.brs:not(.made):not(.c1) #s1,.brs:not(.made):not(.c2) #s2,.brs:not(.made):not(.c3) #s3{display:none}
+.brs:not(.made):not(.c3) #s3,.brs:not(.fopen):not(.made):not(.c1) #s1,.brs:not(.fopen):not(.made):not(.c2) #s2,.brs.made :is(#s1,#s2).folded{display:none}
 .brs:not(.made) .step.locked{opacity:1}
 /* photos instead of videos in step 3 */
 .brs .ponly{display:none}
@@ -508,10 +508,10 @@
 /* ================= The Create flow (components/studio/flow.ts; UI/ design "After Clip Music Reel") =================
    .fopen while a Music / Talking / Photo Reel is being set up: computers see the steps in a column and the Reel Preview
    beside them; phones see one screen at a time (data-fstep). Without .fopen these parts are not there at all. */
+.brs:not(.fopen) :is(.fai,.fprev,.fan,.ftabs,.fsugg){display:none !important}
 .brs:not(.fopen) :is(.fgrid,.fmain){display:contents}
 /* the edit is made behind the flow (kept rendered out of sight: the engine reads sizes and draws its frames) */
 .brs.fopen #s3{position:fixed !important;left:-200vw !important;top:0 !important;width:100vw !important;opacity:0 !important;pointer-events:none !important}
-.brs.fopen #s1,.brs.fopen #s2{display:grid !important}
 /* the waveform, length and beats once there is a song */
 .brs.fopen #s1:not(.done) .fadjust{display:none !important}
 .brs.fopen .stats span:first-child{display:none}
@@ -632,9 +632,9 @@
 }
 /* ---- phones: one screen at a time ---- */
 @media (max-width:1023px){
-  .brs.fopen :is(.fai,.fprev){display:none !important}
+  .brs.fopen .fprev{display:none !important}
   .brs.fopen :is(.fgrid,.fmain){display:contents}
-  .brs.fopen:not([data-fstep="choose"]):not([data-fstep="adjust"]) #s1,.brs.fopen:not([data-fstep="clips"]) #s2,.brs.fopen:not([data-fstep="analyse"]) .fan{display:none !important}
+  .brs.fopen:not([data-fstep="analyse"]) .fan{display:none !important}
   .brs.fopen[data-fstep="choose"] .fadjust,.brs.fopen[data-fstep="adjust"] .fchoose{display:none}
   .brs.fopen .step{padding:14px;border-radius:18px}
   .brs.fopen .rlist{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:1fr}
@@ -675,9 +675,11 @@
 .brs .xsh #xfps [data-f="30"]::after{content:"Smaller size"}
 .brs .xsh #xfps [data-f="60"]::after{content:"Smoother"}
 /* until the flow has written the kind (Talking / Photo words), its place stays empty: never anything else first */
+.brs.fopen:not(.flive) :is(.fgrid,.fan){visibility:hidden}
 
 /* ================= Phones: the 10 screens of the design (UI/New folder/AfterClipMusicReelsMobile.png) =================
    Computers are untouched: every piece below is hidden there, and every rule is inside the phones' breakpoint. */
+.brs :is(.fmob,.fcliplabel,.fapply,.fsong){display:none}
 .brs .fclipgrid{display:contents}
 .brs .fexp[hidden],.brs .fdone[hidden]{display:none !important}
 @media (max-width:1023px){
@@ -687,7 +689,6 @@
   /* ---- the screens are the page itself: no cards, no card headings; the button at the bottom ---- */
   /* room for the fixed button at the bottom (the page under it adds 40px more): nothing empty to scroll to */
   .brs.fopen .wrap{gap:18px;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
-  .brs.fopen #s1,.brs.fopen #s2{background:none !important;border:0;box-shadow:none;padding:4px 0 0 !important;border-radius:0}
   .brs.fopen .label{font:600 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
 
   /* 1 Music Reel Start */
@@ -768,6 +769,7 @@
 
   /* ---- 7 Edit Options: the tools as tabs, the chosen one's choices, Apply ---- */
   /* a tool open: the Reel stays in view, smaller, with its play button inside; then the tools as tabs and the panel */
+  .brs.fpost[data-tool]:not([data-tool=""]) :is(.sumh,.sumi,.summary > button,.inspector){display:none !important}
   .brs.fpost[data-tool]:not([data-tool=""]) .savebar,.brs.fpost[data-tool]:not([data-tool=""]) .stage > :not(.pv,.bar,.transport){display:none !important}
   .brs.fpost[data-tool]:not([data-tool=""]) #out{max-height:34svh}
   .brs.fpost[data-tool]:not([data-tool=""]) .stage{gap:8px}
@@ -1041,6 +1043,7 @@
   .brs.fpost .tb-name{font-size:16px;font-weight:600}
   .brs.fpost .tb-sub{font-size:11px}
   /* the old "Your Reel is ready" screen: its title, line and big buttons go (the top bar has Export, the play bar Change Reel) */
+  .brs.fpost :is(.sumh,.sumi,.summary > button){display:none !important}
   .brs.fpost #export{display:none !important}
   .brs.fpost .savebar{position:static !important;margin:0;padding:4px 0 8px;background:none}
   .brs.fpost .savebar .tog{display:block;justify-self:start;font-size:12.5px}
@@ -1210,6 +1213,8 @@
 
 /* ---- Layers (the design's frame 6): Layout and Mask as tiles with a small drawing; green screen colours; Remove ---- */
 .brs .lyedit .chips:has(> [data-lay]),.brs #lymask{display:grid;grid-template-columns:repeat(auto-fill,minmax(62px,1fr));gap:6px;overflow:visible;flex-wrap:wrap}
+.brs .lyedit :is([data-lay],[data-m]).chip{display:grid;justify-items:center;gap:5px;height:auto;padding:8px 4px;border-radius:12px;font-size:11px;white-space:nowrap}
+.brs .lyedit :is([data-lay],[data-m]).chip[aria-pressed=true],.brs .lyedit :is([data-lay],[data-m]).chip.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--ink)}
 .brs .lyic{position:relative;display:block;width:30px;height:22px;border:1.5px solid currentColor;border-radius:4px;opacity:.85}
 .brs .lyic::after{content:"";position:absolute;background:currentColor;border-radius:2px;opacity:.75}
 .brs .lay-full::after{inset:2px}
@@ -2072,6 +2077,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 @media (prefers-reduced-motion:reduce){
   .brs .panel.on,.brs.openfail .openload{animation:none}
+  .brs :is(.step,.panel,.tool,.ptabs button,.ct,#out,#openback){transition:none}
   .brs .step:not(.locked):hover,.brs.openfail .openload #openback:hover{transform:none}
 }
 

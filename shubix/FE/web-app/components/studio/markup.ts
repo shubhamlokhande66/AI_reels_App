@@ -46,6 +46,9 @@ const IC = {
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
 const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
+// a card of the flow (Music, Clips, Shubix Edit); on phones the Music and Clips screens have no card around them;
+// locked: waits for the step before it
+const flowCard = "grid min-w-0 gap-3 rounded-[20px] border border-[color-mix(in_srgb,var(--accent)_13%,var(--border))] bg-surface px-5 py-[18px] shadow-[0_18px_44px_-36px_rgba(0,0,0,.7),inset_0_1px_0_rgba(255,255,255,.035)] transition-[border-color,box-shadow] duration-200 hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] hover:shadow-[0_20px_44px_-34px_rgba(0,0,0,.72),inset_0_1px_0_rgba(255,255,255,.04)] [&.locked]:saturate-[.72] max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:px-0 max-lg:pt-1 max-lg:pb-0 max-lg:shadow-none max-lg:hover:shadow-none";
 // a step's head: its number, its name (and what it is for)
 const stepHead = "flex w-full items-start gap-3 text-left";
 const stepNumber = "grid size-7 flex-none place-items-center rounded-[9px] bg-gold text-[13px] font-semibold text-on-accent";
@@ -268,9 +271,9 @@ export const STUDIO_HTML = `
       <button type="button" class="justify-self-start text-[13px] font-semibold text-accent underline" id="frefother">Different song? Choose it here</button></span>
     <span class="frefbtns"><button type="button" class="${Button.primary}" id="frefpick">Pick the Reel</button><button type="button" class="${Button.ghost}" id="frefsong" hidden>Use its song</button></span>
   </section>
-  <section class="step" id="s1">
+  <section class="${flowCard}" id="s1">
     <button type="button" class="sh ${stepHead} max-lg:hidden" aria-expanded="true"><span class="${stepNumber}">1</span><span class="${stepText}"><h2 class="${stepTitle}">Choose Music</h2><small class="fsh ${stepNote}">Pick a song or sound for your Reel</small></span><span class="hidden" id="s1st">Choose a song to start</span></button>
-    <div class="sbody">
+    <div class="grid min-w-0 gap-3.5">
     <div class="fchoose">
     <div class="row fpickrow">
       <button class="${Button.primary}" id="mpick">${IC.music}<span>Choose song</span></button>
@@ -313,9 +316,9 @@ export const STUDIO_HTML = `
     </div>
   </section>
 
-  <section class="step locked" id="s2">
+  <section class="${flowCard} locked" id="s2">
     <button type="button" class="sh ${stepHead} max-lg:hidden" aria-expanded="true"><span class="${stepNumber}">2</span><span class="${stepText}"><h2 class="${stepTitle}">Clips</h2><small class="fsh ${stepNote}">Add multiple videos or photos. The more clips, the better!</small></span><span class="hidden" id="s2st">Several clips or one long video</span></button>
-    <div class="sbody">
+    <div class="grid min-w-0 gap-3.5">
     <div class="ftabs" id="ftabs" role="group" aria-label="Videos or photos"><button type="button" data-ft="videos" aria-pressed="true">Videos</button><button type="button" data-ft="photos" aria-pressed="false">Photos</button></div>
     <div class="drop" id="dropzone" role="button" tabindex="0">${IC.upload}<b class="vonly fdesk">Drag &amp; drop videos here</b><b class="ponly fdesk">Drag &amp; drop photos here</b><b class="vonly fmob">Tap to Add Videos</b><b class="ponly fmob">Tap to Add Photos</b><span class="vonly fdesk">or tap to choose · you can add more at any time</span><span class="ponly fdesk">or tap to choose · each photo becomes a short moving shot</span><span class="fmob">or choose from gallery</span><small>Supports MP4, MOV, 3GP, JPG, PNG</small></div>
     <input id="vfile" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden>
@@ -356,7 +359,7 @@ export const STUDIO_HTML = `
     </div>
   </section>
 
-  <section class="step fai" id="fai">
+  <section class="${flowCard} fai max-lg:hidden" id="fai">
     <div class="${stepHead}"><span class="${stepNumber}">3</span><span class="${stepText}"><h2 class="${stepTitle}">Shubix Edit</h2><small class="fsh ${stepNote}">We'll analyse your clips, match them with the beats and create a stunning Reel.</small></span></div>
     <div class="faibody">
       ${aiList("faiList")}
