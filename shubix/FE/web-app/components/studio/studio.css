@@ -11,11 +11,6 @@
 .brs .sub{color:var(--muted);margin:6px 0 0;max-width:62ch}
 .brs .step{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:14px;min-width:0}
 .brs .step.locked{opacity:.55}
-.brs .sh{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.brs .num{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font:600 16px var(--mono);background:var(--chip);border:1px solid var(--line)}
-.brs .step.done .num{background:var(--ok);color:#fff;border-color:transparent}
-.brs .sh h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0}
-.brs .sh .st{margin-left:auto;font-size:13.5px;color:var(--muted)}
 .brs .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .brs input[type=file]{display:none}
 .brs .fname{font-family:var(--mono);font-size:13px;color:var(--muted);overflow-wrap:anywhere}
@@ -168,15 +163,9 @@
 
 /* steps: a card each; the song and the clips fold into one line once the Reel is made */
 .brs .step{border-radius:20px;padding:16px;gap:14px}
-.brs .step > .sh,.brs .sh3{display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}
-.brs .sh3{cursor:default}
-.brs .step > .sh::after{content:"";width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin:0 4px 4px 4px}
-.brs .step.folded > .sh::after{transform:rotate(-45deg);margin-bottom:0}
 .brs .step.folded{padding:12px 16px}
 .brs .step.folded .sbody{display:none}
 .brs .sbody{display:grid;gap:14px;min-width:0}
-.brs .num{width:30px;height:30px;font-size:14px}
-.brs.made #s3 > .sh3{display:none}
 .brs.made #s3{background:transparent;border:0;padding:0}
 
 /* buttons and segmented choices */
@@ -312,9 +301,6 @@
 
 /* steps: the app's numbered gold steps */
 .brs .step{border-radius:16px;box-shadow:var(--shadow);padding:14px}
-.brs .num{width:26px;height:26px;border:0;background:var(--gold-gradient);color:var(--on-accent);font:600 12px var(--body)}
-.brs .step.done .num{background:var(--success);color:#fff}
-.brs .sh h2{font:600 15px var(--body)}
 
 /* buttons, progress */
 .brs .bar i{background:var(--gold-gradient)}
@@ -523,8 +509,6 @@
    .fopen while a Music / Talking / Photo Reel is being set up: computers see the steps in a column and the Reel Preview
    beside them; phones see one screen at a time (data-fstep). Without .fopen these parts are not there at all. */
 .brs:not(.fopen) :is(.fgrid,.fmain){display:contents}
-.brs .fh{display:grid;gap:1px;min-width:0}
-.brs .fsh{font:500 13px var(--body);color:var(--muted)}
 /* the edit is made behind the flow (kept rendered out of sight: the engine reads sizes and draws its frames) */
 .brs.fopen #s3{position:fixed !important;left:-200vw !important;top:0 !important;width:100vw !important;opacity:0 !important;pointer-events:none !important}
 .brs.fopen #s1,.brs.fopen #s2{display:grid !important}
@@ -533,13 +517,7 @@
 .brs.fopen .stats span:first-child{display:none}
 .brs.fopen .step.folded .sbody{display:grid}
 .brs.fopen .step.folded{padding:16px}
-.brs.fopen .step > .sh{cursor:default}
-.brs.fopen .step > .sh::after{display:none}
-.brs.fopen .step > .sh .st{display:none}
 .brs.fopen .step{border-radius:20px;padding:16px 18px;gap:16px;background:var(--surface)}
-.brs.fopen .num{width:34px;height:34px;border-radius:12px;font:600 15px var(--body);background:var(--gold-gradient);color:var(--on-accent)}
-.brs.fopen .step.done .num{background:var(--gold-gradient)}
-.brs.fopen .sh h2{font:600 18px var(--display);letter-spacing:-.01em}
 .brs.fopen #s1 .legend{display:none}
 
 /* the head: back, the title, the four steps */
@@ -686,8 +664,6 @@
 .brs.fopen #slen{flex-wrap:nowrap}
 .brs.fopen #slen button{padding:9px 11px;font-size:13px;white-space:nowrap}
 .brs.fopen .stats{grid-template-columns:repeat(4,minmax(0,1fr))}
-.brs.fopen .step > .sh,.brs.fopen .sh3{flex-wrap:nowrap;align-items:flex-start}
-.brs.fopen .fh{flex:1}
 /* phones: the progress cards (song, beats, clips, AI) stay in view, above the button pinned at the bottom */
 /* the export sheet (UI/ design: Export Settings): quality and frame rate as cards, each with its line */
 .brs .xsh{gap:12px;border:1px solid var(--line)}
@@ -712,7 +688,6 @@
   /* room for the fixed button at the bottom (the page under it adds 40px more): nothing empty to scroll to */
   .brs.fopen .wrap{gap:18px;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   .brs.fopen #s1,.brs.fopen #s2{background:none !important;border:0;box-shadow:none;padding:4px 0 0 !important;border-radius:0}
-  .brs.fopen #s1 > .sh,.brs.fopen #s2 > .sh{display:none !important}
   .brs.fopen .label{font:600 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
 
   /* 1 Music Reel Start */
@@ -770,7 +745,7 @@
 
   /* ---- 6 Reel Preview: "Your Reel is Ready!", the video, the shots, New Mix, the tools, Export ---- */
   .brs.fpost .wrap{padding-bottom:110px}
-  .brs.fpost #s3 > .sh3,.brs.fpost .tog.safe,.brs.fpost #tlmusic{display:none !important}
+  .brs.fpost .tog.safe,.brs.fpost #tlmusic{display:none !important}
   .brs.fpost #s3{background:none;border:0;box-shadow:none;padding:0}
   .brs.fpost .create{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
   .brs.fpost .stage{display:flex;flex-direction:column;align-items:stretch;gap:12px}
@@ -1690,9 +1665,6 @@
 .brs .askbar.talking .askchips{display:none}
 
 /* ---- luxury scale for the Create steps (October 2026): quieter type, slimmer buttons, compact song cards ---- */
-.brs.fopen .sh h2{font-size:16px;letter-spacing:-.005em}
-.brs.fopen .sh small,.brs.fopen .sh p,.brs.fopen .st{font-size:12.5px}
-.brs.fopen .num{width:28px;height:28px;border-radius:9px;font-size:13px}
 .brs.fopen .step{padding:18px 20px;gap:12px}
 .brs.fopen .label{font-size:11px;letter-spacing:.1em}
 .brs.fopen #mpick{min-height:40px;border-radius:11px;padding:0 16px}
@@ -2070,7 +2042,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 .brs .step:not(.locked):hover{border-color:color-mix(in srgb,var(--accent) 34%,var(--line));box-shadow:0 20px 44px -34px rgba(0,0,0,.72),0 1px 0 rgba(255,255,255,.04) inset}
 .brs .step.locked{filter:saturate(.72)}
-.brs .step.done .num{background:var(--gold-gradient);color:var(--on-accent);box-shadow:0 6px 16px -10px var(--brand-glow)}
 .brs .create{gap:18px}
 .brs .stage{min-width:0;padding:clamp(12px,2vw,20px);border:1px solid color-mix(in srgb,var(--accent) 16%,var(--line));border-radius:24px;
   background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 92%,var(--accent)),color-mix(in srgb,var(--background) 94%,var(--surface)));

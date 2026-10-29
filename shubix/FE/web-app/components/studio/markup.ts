@@ -46,6 +46,12 @@ const IC = {
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
 const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
+// a step's head: its number, its name (and what it is for)
+const stepHead = "flex w-full items-start gap-3 text-left";
+const stepNumber = "grid size-7 flex-none place-items-center rounded-[9px] bg-gold text-[13px] font-semibold text-on-accent";
+const stepText = "grid min-w-0 flex-1 gap-px";
+const stepNote = "text-[12.5px] font-medium text-muted";
+const stepTitle = "font-display text-[16px] font-semibold tracking-[-.005em]";
 // the flow's main button: on phones fixed at the bottom of the screen
 const phoneBottomButton = `${Button.primaryLarge} max-lg:fixed max-lg:inset-x-4 max-lg:bottom-[calc(14px+env(safe-area-inset-bottom))] max-lg:z-30 max-lg:min-h-[52px] max-lg:w-auto max-lg:rounded-[14px] max-lg:text-[16px] max-lg:shadow-[0_14px_30px_-12px_var(--brand-glow)]`;
 // a step of the flow's head (data-s: on = this one, ok = done); on phones a dot, the steps joined by a line
@@ -230,7 +236,7 @@ export const STUDIO_HTML = `
   <!-- the kind and the template, pressed by the address (/create/music|talking|photo, /create/story, ?tpl=): never
        shown (each kind has its own page now); the engine, steps.ts and auto.ts read and press these buttons -->
   <section class="step starts" id="s0" hidden>
-    <div class="sh3"><span class="num">1</span><h2>What are we making?</h2><span class="st" id="s0st">Choose one to start</span></div>
+    <div class="${stepHead}"><span class="${stepNumber}">1</span><h2 class="${stepTitle}">What are we making?</h2><span class="ml-auto text-[12.5px] text-muted" id="s0st">Choose one to start</span></div>
     <div class="sbody">
     <div class="makegrid">
       <button type="button" class="kindx storycard" id="storykind">${IC.text}<span><b>Story → Reel</b><small>Write it; Shubix narrates it, shows it scene by scene, adds captions</small></span></button>
@@ -263,7 +269,7 @@ export const STUDIO_HTML = `
     <span class="frefbtns"><button type="button" class="${Button.primary}" id="frefpick">Pick the Reel</button><button type="button" class="${Button.ghost}" id="frefsong" hidden>Use its song</button></span>
   </section>
   <section class="step" id="s1">
-    <button type="button" class="sh" aria-expanded="true"><span class="num">1</span><span class="fh"><h2>Choose Music</h2><small class="fsh">Pick a song or sound for your Reel</small></span><span class="st" id="s1st">Choose a song to start</span></button>
+    <button type="button" class="sh ${stepHead} max-lg:hidden" aria-expanded="true"><span class="${stepNumber}">1</span><span class="${stepText}"><h2 class="${stepTitle}">Choose Music</h2><small class="fsh ${stepNote}">Pick a song or sound for your Reel</small></span><span class="hidden" id="s1st">Choose a song to start</span></button>
     <div class="sbody">
     <div class="fchoose">
     <div class="row fpickrow">
@@ -308,7 +314,7 @@ export const STUDIO_HTML = `
   </section>
 
   <section class="step locked" id="s2">
-    <button type="button" class="sh" aria-expanded="true"><span class="num">2</span><span class="fh"><h2>Clips</h2><small class="fsh">Add multiple videos or photos. The more clips, the better!</small></span><span class="st" id="s2st">Several clips or one long video</span></button>
+    <button type="button" class="sh ${stepHead} max-lg:hidden" aria-expanded="true"><span class="${stepNumber}">2</span><span class="${stepText}"><h2 class="${stepTitle}">Clips</h2><small class="fsh ${stepNote}">Add multiple videos or photos. The more clips, the better!</small></span><span class="hidden" id="s2st">Several clips or one long video</span></button>
     <div class="sbody">
     <div class="ftabs" id="ftabs" role="group" aria-label="Videos or photos"><button type="button" data-ft="videos" aria-pressed="true">Videos</button><button type="button" data-ft="photos" aria-pressed="false">Photos</button></div>
     <div class="drop" id="dropzone" role="button" tabindex="0">${IC.upload}<b class="vonly fdesk">Drag &amp; drop videos here</b><b class="ponly fdesk">Drag &amp; drop photos here</b><b class="vonly fmob">Tap to Add Videos</b><b class="ponly fmob">Tap to Add Photos</b><span class="vonly fdesk">or tap to choose · you can add more at any time</span><span class="ponly fdesk">or tap to choose · each photo becomes a short moving shot</span><span class="fmob">or choose from gallery</span><small>Supports MP4, MOV, 3GP, JPG, PNG</small></div>
@@ -351,7 +357,7 @@ export const STUDIO_HTML = `
   </section>
 
   <section class="step fai" id="fai">
-    <div class="sh3"><span class="num">3</span><span class="fh"><h2>Shubix Edit</h2><small class="fsh">We'll analyse your clips, match them with the beats and create a stunning Reel.</small></span></div>
+    <div class="${stepHead}"><span class="${stepNumber}">3</span><span class="${stepText}"><h2 class="${stepTitle}">Shubix Edit</h2><small class="fsh ${stepNote}">We'll analyse your clips, match them with the beats and create a stunning Reel.</small></span></div>
     <div class="faibody">
       ${aiList("faiList")}
       <div class="fready" id="fready"><span class="freadyic" aria-hidden="true">${IC.spark}</span><span class="freadytx"><b id="freadyt">Ready to create your Reel!</b><small id="freadys">Add a song and your clips, then press Generate.</small></span></div>
@@ -380,7 +386,7 @@ export const STUDIO_HTML = `
   </section>
 
   <section class="step locked editor" id="s3">
-    <div class="sh3"><span class="num">4</span><h2>Your Reel</h2><span class="st" id="s3st">The edit appears once there are clips</span></div>
+    <div class="${stepHead} in-[.made]:hidden"><span class="${stepNumber}">4</span><h2 class="${stepTitle}">Your Reel</h2><span class="ml-auto text-[12.5px] text-muted" id="s3st">The edit appears once there are clips</span></div>
     <div class="create">
       <div class="workbench">
         <section class="previewPanel stage">
