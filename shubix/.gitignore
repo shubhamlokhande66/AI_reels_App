@@ -20,3 +20,5 @@ BE/api/test/server/manual/out/
 samples/
 # dev server logs (scripts/with-log.mjs)
 logs/
+# pnpm workspace: npm lockfiles never belong here
+package-lock.json
