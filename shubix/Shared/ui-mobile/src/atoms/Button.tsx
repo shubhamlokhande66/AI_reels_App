@@ -6,14 +6,15 @@ import { Gold } from "./Gold";
 import { Icon } from "./Icon";
 
 /** The website's one button (Shared/ui-web/src/button.ts), the same sizes and looks. primary: the gold gradient for
- * the main action; secondary: a quiet surface; ghost: no fill; danger: red. */
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+ * the main action; secondary: a quiet surface; ghost: no fill; danger: red words; destroy: red, for what cannot be undone. */
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "destroy";
 export type ButtonSize = "sm" | "md" | "lg";
 const VARIANT: Record<ButtonVariant, { box: string; text: string; color: ColorName }> = {
   primary: { box: "border border-transparent", text: "text-on-accent", color: "onAccent" as ColorName },
   secondary: { box: "border border-border bg-surface", text: "text-foreground", color: "foreground" as ColorName },
   ghost: { box: "border border-transparent", text: "text-foreground", color: "foreground" as ColorName },
   danger: { box: "border border-danger/35 bg-surface", text: "text-danger", color: "danger" as ColorName },
+  destroy: { box: "border border-transparent bg-danger", text: "text-white", color: "#fff" as ColorName },
 };
 const SIZE: Record<ButtonSize, { box: string; text: string; icon: number }> = {
   sm: { box: "h-9 rounded-[10px] px-3", text: "text-[12px]", icon: 15 },
@@ -27,7 +28,7 @@ export function Button({ title, onPress, variant = "primary", size = "md", full 
     <Pressable onPress={onPress} disabled={disabled || loading} accessibilityRole="button" accessibilityState={{ busy: loading, disabled }}
       className={`flex-row items-center justify-center gap-2 overflow-hidden active:opacity-80 ${v.box} ${s.box} ${full ? "w-full" : "self-start"} ${disabled ? "opacity-50" : ""} ${className}`}>
       {variant === "primary" && <Gold />}
-      {loading ? <ActivityIndicator size="small" color={look[v.color]} /> : typeof icon === "string" ? <Icon name={icon as IconName} size={s.icon} color={v.color} /> : icon}
+      {loading ? <ActivityIndicator size="small" color={look[v.color] ?? v.color} /> : typeof icon === "string" ? <Icon name={icon as IconName} size={s.icon} color={v.color} /> : icon}
       <Text numberOfLines={1} className={`font-bold ${v.text} ${s.text}`}>{title}</Text>
       {iconAfter && <Icon name={iconAfter} size={s.icon} color={v.color} />}
     </Pressable>

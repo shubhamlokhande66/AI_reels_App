@@ -26,6 +26,8 @@ export const mobileApi = {
   deleteReel: (id: string) => json(`/api/studio/reels/${encodeURIComponent(id)}`, { method: "DELETE" }),
   templates: () => json<{ templates: StudioTemplate[] }>("/api/templates"),
   features: () => json<Features>("/api/features"),
+  /** the business details (Admin → Settings → Business details) */
+  site: () => json<{ businessName: string; supportEmail: string; supportPhone: string; businessAddress: string; playStoreUrl: string; appStoreUrl: string }>("/api/site"),
   pricing: () => json<Pricing>("/api/plans"),
   offer: () => json<{ offer: Offer | null }>("/api/offer"),
   quote: (item: string, coupon?: string) => json<Quote>("/api/billing/quote", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
@@ -54,7 +56,7 @@ export const mobileApi = {
   changePassword: (currentPassword: string, newPassword: string) => api.auth.changePassword(currentPassword, newPassword),
   logoutEverywhere: () => api.auth.logoutEverywhere(),
   deleteAccount: (password: string, confirm: string) => json("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),
-  contact: (body: { email: string; name?: string; topic: string; message: string }) => json<{ ok: boolean; ticket: string }>("/api/contact", { method: "POST", body: JSON.stringify(body) }),
+  contact: (body: { email: string; name?: string; topic: string; message: string; website?: string }) => json<{ ok: boolean; ticket: string }>("/api/contact", { method: "POST", body: JSON.stringify(body) }),
   content: () => json<Content>("/api/content"),
   absoluteAsset: (path: string) => path.startsWith("http") ? path : `${API_URL}${path}`,
   /** A saved Reel needs the sign-in token, which a video player cannot send: a copy to play (device.ts). */

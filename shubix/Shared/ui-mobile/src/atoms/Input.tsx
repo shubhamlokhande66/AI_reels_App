@@ -11,3 +11,8 @@ export const Input = forwardRef<ComponentRef<typeof TextInput>, TextInputProps &
     </View>
   );
 });
+/** The website's TextArea: a taller box that grows with what is typed (a message, a note). */
+export const TextArea = ({ invalid, ...rest }: TextInputProps & { invalid?: boolean }) => (
+  <TextInput multiline textAlignVertical="top" placeholderTextColor={useColors().muted} {...rest}
+    className={`min-h-[120px] rounded-2xl border bg-surface px-4 py-3.5 text-sm leading-5 text-foreground ${invalid ? "border-danger" : "border-border"}`} />
+);

@@ -14,7 +14,7 @@ export function VerifyForm() {
         <Field label={text("auth.codeLabel")}><Input value={f.code} onChangeText={(v) => f.setCode(v.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" /></Field>
         {f.error ? <ErrorBanner message={f.error} /> : null}
         {f.note ? <NoteBanner message={f.note} /> : null}
-        <Button size="lg" full title={text("auth.verifyButton")} loading={f.busy} onPress={() => void f.verify()} />
+        <Button size="lg" full title={text("auth.verifyButton")} loading={f.busy} disabled={!/^\d{6}$/.test(f.code)} onPress={() => void f.verify()} />
         <LinkText className="self-center" title={`${text("auth.noCode")} ${text("auth.resendCode")}`} onPress={() => void f.resend()} />
       </View>
     </Page>

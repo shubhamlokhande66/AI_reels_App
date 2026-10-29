@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
-import { ActivityIndicator, Alert, Modal, Pressable, Share, Text, View, useWindowDimensions } from "react-native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ActivityIndicator, Modal, Pressable, Share, Text, View, useWindowDimensions } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import * as MediaLibrary from "expo-media-library";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useText } from "@shubix/hooks";
-import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors } from "@shubix/ui-mobile";
+import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors, confirmAction, toast } from "@shubix/ui-mobile";
 import type { CloudReel } from "@shubix/types";
 import { clock, formatRelative, megabytes, videoQuality } from "@shubix/utils";
 import { AdBanner } from "../components/molecules/AdBanner";
 import { mobileApi } from "../lib/api";
-import { useDrafts } from "../lib/data";
+import { useDraftActions, useDrafts } from "../lib/data";
 import { open } from "../lib/navigate";
-import { removeProject, type MobileProject } from "../lib/projects";
+import type { MobileProject } from "../lib/projects";
 
 /** My Reels (the website's app/reels/page.tsx): Drafts are the Reels being made, kept on this phone; Saved are the
  * finished Reels kept in the account (watch, save to the phone, share a link, delete). Every text: Admin → CMS → My Reels. */
@@ -37,14 +37,7 @@ const MakeReel = () => { const text = useText(); return <Button icon="plus" titl
 const useColumn = () => (useWindowDimensions().width - 32 - 12) / 2;
 
 function Drafts({ drafts }: { drafts: MobileProject[] | null }) {
-  const text = useText(), queryClient = useQueryClient(), column = useColumn();
-  const edit = (draft: MobileProject) => router.push({ pathname: "/editor", params: { id: draft.id } });
-  const remove = (draft: MobileProject) => Alert.alert(text("reels.deleteDraftTitle", { name: draft.title }), text("reels.deleteDraftText"), [
-    { text: text("common.cancel"), style: "cancel" },
-    { text: text("reels.delete"), style: "destructive", onPress: async () => {
-      try { await removeProject(draft.id); await queryClient.invalidateQueries({ queryKey: ["drafts"] }); } catch { Alert.alert(text("reels.deleteFailed")); }
-    } },
-  ]);
+  const text = useText(), column = useColumn(), { edit, menu } = useDraftActions();
   if (drafts === null) return <ActivityIndicator color={colors.accent} />;
   if (!drafts.length) return <EmptyState icon="projects" title={text("reels.noDrafts")} hint={text("reels.noDraftsText")} action={<MakeReel />} />;
   return (
@@ -62,9 +55,7 @@ function Drafts({ drafts }: { drafts: MobileProject[] | null }) {
                 <Text numberOfLines={1} className="text-[11.5px] text-muted">{text("reels.edited", { when: formatRelative(draft.updatedAt) })}</Text>
               </View>
             </Pressable>
-            <IconButton icon="more" look="muted" size={32} label={text("common.more")} onPress={() => Alert.alert(draft.title, undefined, [
-              { text: text("common.open"), onPress: () => edit(draft) }, { text: text("reels.delete"), style: "destructive", onPress: () => remove(draft) }, { text: text("common.cancel"), style: "cancel" },
-            ])} />
+            <IconButton icon="more" look="muted" size={32} label={text("common.more")} onPress={() => void menu(draft)} />
           </View>
         </View>
       ))}
@@ -117,10 +108,7 @@ function SavedCard({ reel, onWatch, onChange }: { reel: CloudReel; onWatch: (uri
     if (!reel.shared) onChange();
     await Share.share({ title: reel.name, message: mobileApi.absoluteAsset(next.shareUrl!) });
   });
-  const remove = () => Alert.alert(text("reels.deleteDraftTitle", { name: reel.name }), text("reels.deleteSavedText"), [
-    { text: text("common.cancel"), style: "cancel" },
-    { text: text("reels.delete"), style: "destructive", onPress: () => void run(async () => { await mobileApi.deleteReel(reel.id); onChange(); }) },
-  ]);
+  const remove = async () => { if (await confirmAction({ title: text("reels.deleteDraftTitle", { name: reel.name }), body: text("reels.deleteSavedText"), ok: text("reels.delete"), danger: true })) void run(async () => { await mobileApi.deleteReel(reel.id); onChange(); toast(text("reels.deleted", { name: reel.name }), "success"); }); };
   return (
     <View className="min-w-0 gap-2">
       <Pressable onPress={() => void watch()} accessibilityLabel={text("reels.watch", { name: reel.name })}>

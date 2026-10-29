@@ -7,3 +7,4 @@ export * from "./Cards";
 export * from "./AuthHeader";
 export * from "./SearchBox";
 export * from "./SidePanel";
+export * from "./Feedback";

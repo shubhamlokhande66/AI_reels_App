@@ -1,6 +1,6 @@
 import { useRef, type ComponentRef } from "react";
 import { router } from "expo-router";
-import { Alert, Image, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useApi, useText } from "@shubix/hooks";
 import { Badge, Button, CreateCard, DraftCard, EmptyState, LockBadge, Page, ProBanner, Scroller, SectionHeader, TemplatePoster, TipCard, TipsBanner, colors } from "@shubix/ui-mobile";
 import type { IconName, Tone } from "@shubix/ui-core";
@@ -10,10 +10,9 @@ import { clock, formatRelative } from "@shubix/utils";
 import { open, openTemplate } from "../lib/navigate";
 import { HomeHero } from "../components/organisms/HomeHero";
 import { AdBanner } from "../components/molecules/AdBanner";
-import { useCredits, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
+import { useCredits, useDraftActions, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
 import { mobileApi } from "../lib/api";
-import { removeProject, type MobileProject } from "../lib/projects";
-import { useQueryClient } from "@tanstack/react-query";
+import type { MobileProject } from "../lib/projects";
 
 /** Home (the website's app/page.tsx): the hero, Create Your Reel, Popular Templates, Continue Editing, Saved in My
  * Reels, Tips for Better Reels, Go Pro; the same CMS texts and lists. */
@@ -103,12 +102,7 @@ function TemplatesSection({ width }: { width: number }) {
 
 /** The drafts on this phone, newest first: a row of cards, or the empty card with the first step. */
 function ContinueSection({ width }: { width: number }) {
-  const text = useText(), drafts = useDrafts(), queryClient = useQueryClient(), step = Math.min(200, width * 0.44);
-  const edit = (draft: MobileProject) => router.push({ pathname: "/editor", params: { id: draft.id } });
-  const remove = (draft: MobileProject) => Alert.alert(text("reels.deleteDraftTitle", { name: draft.title }), text("reels.deleteDraftText"), [
-    { text: text("common.cancel"), style: "cancel" },
-    { text: text("reels.delete"), style: "destructive", onPress: async () => { await removeProject(draft.id); await queryClient.invalidateQueries({ queryKey: ["drafts"] }); } },
-  ]);
+  const text = useText(), drafts = useDrafts(), { edit, menu } = useDraftActions(), step = Math.min(200, width * 0.44);
   return (
     <View className="gap-3">
       <SectionHeader title={text("home.continueTitle")} more={text("home.seeAll")} onPress={drafts?.length ? () => open("/reels") : undefined} />
@@ -122,7 +116,7 @@ function ContinueSection({ width }: { width: number }) {
             <View key={draft.id} style={{ width: step }}>
               <DraftCard name={draft.title} thumb={draft.clips.find((c) => c.kind === "image")?.uri} duration={clock(draft.clips.reduce((sum, c) => sum + (c.end - c.start) / c.speed, 0))}
                 edited={text("common.edited", { when: formatRelative(draft.updatedAt) })} onPress={() => edit(draft)} moreLabel={text("common.more")}
-                onMore={() => Alert.alert(draft.title, undefined, [{ text: text("common.open"), onPress: () => edit(draft) }, { text: text("reels.delete"), style: "destructive", onPress: () => remove(draft) }, { text: text("common.cancel"), style: "cancel" }])} />
+                onMore={() => void menu(draft)} />
             </View>
           ))}
         </Scroller>

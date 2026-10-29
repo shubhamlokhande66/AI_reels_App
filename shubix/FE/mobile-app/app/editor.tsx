@@ -3,11 +3,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { AudioLines, AudioWaveform, Captions, ChevronDown, CirclePlay, Clapperboard, Crop, Expand, Film, Layers, Music2, Pause, Plus, Settings2, Sparkles, Sticker, Type, WandSparkles, X } from "lucide-react-native";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { clipDuration, makeClip, projectDuration, splitClip, type ClipAction, type ProjectClip, type ReelProject, type TimelineTool } from "@shubix/validations";
-import { Card, colors } from "@shubix/ui-mobile";
+import { Card, colors, confirmAction, toast } from "@shubix/ui-mobile";
 import { getProject, keepPickedAssets, keepPickedFile, listProjects, saveProject, type MobileProject } from "../lib/projects";
 
 const groups: { name: TimelineTool; icon: typeof Film; options: string[] }[] = [
@@ -89,22 +89,22 @@ export default function EditorScreen() {
   function openTool(name: TimelineTool) { setActive(name); setTab("Clip tools"); setSheet(true); }
   function chooseAction(name: string) { setTab(name); }
   function restore() { const previous = undo.current.pop(); if (previous) setClips(previous); }
-  function split() { if (!clip) return; const result = splitClip(clip, `${clip.id}-split-${Date.now()}`); if (!result) { Alert.alert("Shot is too short", "Keep at least a small moment on each side of the split."); return; } commit(clips.flatMap((x, i) => i === selected ? result : [x])); setSelected(selected + 1); }
+  function split() { if (!clip) return; const result = splitClip(clip, `${clip.id}-split-${Date.now()}`); if (!result) { toast("Keep at least a small moment on each side of the split.", "info"); return; } commit(clips.flatMap((x, i) => i === selected ? result : [x])); setSelected(selected + 1); }
   function duplicate() { if (!clip) return; const copy = { ...clip, id: `${clip.id}-copy-${Date.now()}` }; commit([...clips.slice(0, selected + 1), copy, ...clips.slice(selected + 1)]); setSelected(selected + 1); }
-  function removeClip() { if (!clip) return; if (clips.length === 1) { Alert.alert("Keep one shot", "A Reel needs at least one shot."); return; } commit(clips.filter((_, i) => i !== selected)); setSelected(Math.max(0, selected - 1)); }
+  function removeClip() { if (!clip) return; if (clips.length === 1) { toast("A Reel needs at least one shot.", "info"); return; } commit(clips.filter((_, i) => i !== selected)); setSelected(Math.max(0, selected - 1)); }
   async function addMedia(replace = false) {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos", "images"], allowsMultipleSelection: !replace, selectionLimit: 12, quality: 0.8, videoMaxDuration: 180 });
     if (result.canceled || !result.assets.length) return;
     setBusy(true);
     try { const next = await keepPickedAssets(projectId, result.assets); commit(replace && clip ? [...clips.slice(0, selected), { ...next[0], id: clip.id }, ...clips.slice(selected + 1)] : [...clips, ...next]); }
-    catch (e) { Alert.alert("Couldn't add your clips", e instanceof Error ? e.message : "Please try again."); }
+    catch (e) { toast(e instanceof Error ? e.message : "Please try again.", "danger"); }
     finally { setBusy(false); }
   }
   async function chooseMusic() {
     const result = await DocumentPicker.getDocumentAsync({ type: "audio/*", copyToCacheDirectory: true });
     if (result.canceled || !result.assets[0]) return;
     setBusy(true); try { const item = result.assets[0], saved = await keepPickedFile(projectId, item.uri, item.name); setAudioUri(saved); setAudioName(item.name); }
-    catch (e) { Alert.alert("Couldn't add soundtrack", e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); }
+    catch (e) { toast(e instanceof Error ? e.message : "Please try again.", "danger"); } finally { setBusy(false); }
   }
   function applyOption(option: string) {
     if (active === "Media") {
@@ -129,11 +129,11 @@ export default function EditorScreen() {
     else if (active === "Style") updateSelected({ filter: option === "Warm" ? "Golden" : option === "Clean" ? "Original" : option });
     else if (active === "Background") updateSelected({ fit: option === "Fit canvas" || option === "Blur" ? "contain" : "cover" });
     else if (active === "Motion") {
-      if (option === "Stabilize") Alert.alert("Stabilize shot", "Stabilization will be applied during native export.");
-      else if (option === "Keyframes") Alert.alert("Keyframes", "Select a point on the timeline to set a motion keyframe.");
+      if (option === "Stabilize") toast("Stabilization will be applied during native export.", "info");
+      else if (option === "Keyframes") toast("Select a point on the timeline to set a motion keyframe.", "info");
       else updateSelected({ speed: clip ? (clip.speed >= 2 ? 1 : clip.speed + 0.5) : 1 });
-    } else if (active === "Voice") Alert.alert(option, "Voice recording and synthesis will be connected to the native audio track in the next editor pass.");
-    else if (active === "Layers") Alert.alert(option, "Layer editing is available through the track lanes; choose a text or media track to edit.");
+    } else if (active === "Voice") toast("Voice recording and synthesis will be connected to the native audio track in the next editor pass.", "info");
+    else if (active === "Layers") toast("Layer editing is available through the track lanes; choose a text or media track to edit.", "info");
     setTab(option);
   }
   function doAction(action: ClipAction) {
@@ -154,17 +154,17 @@ export default function EditorScreen() {
       case "Transition": setTab("Transition"); break;
       case "Trim": setTab("Trim"); break;
       case "Crop": setTab("Crop"); break;
-      case "Extract audio": Alert.alert("Extract audio", "The clip's soundtrack will be added when the renderer is connected."); break;
+      case "Extract audio": toast("The clip's soundtrack will be added when the renderer is connected.", "info"); break;
       default: setTab(action);
     }
     if (!["Transition", "Trim", "Crop"].includes(action)) setTab(action);
   }
-  async function saveNow() { setBusy(true); try { const old = await getProject(projectId); await saveProject({ id: projectId, title, kind, clips, audioUri, audioName, overlays, createdAt: old?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(), status: "draft" }); Alert.alert("Draft saved", "Your Reel is saved on this device."); } catch (e) { Alert.alert("Couldn't save draft", e instanceof Error ? e.message : "Please try again."); } finally { setBusy(false); } }
+  async function saveNow() { setBusy(true); try { const old = await getProject(projectId); await saveProject({ id: projectId, title, kind, clips, audioUri, audioName, overlays, createdAt: old?.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString(), status: "draft" }); toast("Your Reel is saved on this device.", "info"); } catch (e) { toast(e instanceof Error ? e.message : "Please try again.", "danger"); } finally { setBusy(false); } }
   async function exportNow() {
-    if (!clips.length) return Alert.alert("Add a shot", "Choose a video or photo before exporting.");
+    if (!clips.length) return toast("Choose a video or photo before exporting.", "info");
     const drafts = await listProjects();
     const saved = drafts.find((p) => p.id === projectId);
-    Alert.alert("Ready to export", saved ? "Your edit is safely saved on this device. The Android export engine will render the final MP4 here." : "Save your Reel before exporting.");
+    toast(saved ? "Your edit is safely saved on this device. The Android export engine will render the final MP4 here." : "Save your Reel before exporting.", "info");
   }
 
   return <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom"]}>

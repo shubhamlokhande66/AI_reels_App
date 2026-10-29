@@ -1,12 +1,14 @@
 import { useCallback } from "react";
-import { useFocusEffect } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { router, useFocusEffect } from "expo-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useText } from "@shubix/hooks";
+import { chooseAction, confirmAction, toast } from "@shubix/ui-mobile";
 import { listDef, type ListItem } from "@shubix/core/lib/collections";
 import { DEFAULTS, type Features } from "@shubix/core/lib/features-list";
 import { DEFAULT_TEMPLATES } from "@shubix/core/lib/studio-templates";
 import { DEFAULT_LOCKS, PAGE_LOCK, lockedFor, needMap, type PlanId } from "@shubix/core/lib/plan-locks";
 import { mobileApi } from "./api";
-import { listProjects } from "./projects";
+import { listProjects, removeProject, type MobileProject } from "./projects";
 
 /** The data the website's pages read (FE/web-app/hooks/useApi.ts), the same requests and the same defaults. */
 export const useCredits = () => useQuery({ queryKey: ["native-credits"], queryFn: mobileApi.credits, staleTime: 60_000, retry: false });
@@ -32,6 +34,22 @@ export function useDrafts() {
   const { refetch } = q;
   useFocusEffect(useCallback(() => { void refetch(); }, [refetch]));
   return q.data ? [...q.data].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) : null;
+}
+
+/** A draft's actions (Home and My Reels): open it, delete it (asked first, then a toast), or its ⋯ menu of both. */
+export function useDraftActions() {
+  const text = useText(), queryClient = useQueryClient();
+  const edit = (draft: MobileProject) => router.push({ pathname: "/editor", params: { id: draft.id } });
+  async function remove(draft: MobileProject) {
+    if (!await confirmAction({ title: text("reels.deleteDraftTitle", { name: draft.title }), body: text("reels.deleteDraftText"), ok: text("reels.delete"), danger: true })) return;
+    try { await removeProject(draft.id); await queryClient.invalidateQueries({ queryKey: ["drafts"] }); toast(text("reels.deleted", { name: draft.title }), "success"); }
+    catch { toast(text("reels.deleteFailed"), "danger"); }
+  }
+  async function menu(draft: MobileProject) {
+    const picked = await chooseAction({ title: draft.title, actions: [{ label: text("common.open"), icon: "pen" }, { label: text("reels.delete"), icon: "trash", danger: true }] });
+    if (picked === 0) edit(draft); else if (picked === 1) await remove(draft);
+  }
+  return { edit, remove, menu };
 }
 
 /** Plans: what this person may open (the website's useLockCheck / usePlanNeed). null while not known yet. Open to
