@@ -7,7 +7,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const DIR = "components/studio";
-const OUT = "lib/texts-studio.ts";
+const OUT = "../../Shared/core/src/lib/texts-studio.ts";
 
 // a stable key for a text: the same words always get the same key (FNV-1a)
 const hash = (s) => { let h = 0x811c9dc5; for (const c of s) { h ^= c.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, "0"); };
