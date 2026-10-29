@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useSignOut, useText } from "@shubix/hooks";
-import { Gold, Hairline, Icon, IconButton, Sidebar, colors } from "@shubix/ui-mobile";
+import { Avatar, Hairline, Icon, IconButton, Sidebar, colors } from "@shubix/ui-mobile";
 import type { IconName } from "@shubix/ui-core";
 import { GROUPS, isActive, type NavItem } from "@shubix/core/lib/nav";
 import { Logo } from "../atoms/Logo";
@@ -48,7 +48,7 @@ export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose
         <ScrollView className="flex-1" contentContainerClassName="gap-2 p-4 pt-3.5" contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 + insets.bottom }}>
           {email && (
             <View className="flex-row items-center gap-3 rounded-[15px] border border-accent/15 bg-surface/60 px-3 py-2.5">
-              <View className="h-9 w-9 items-center justify-center overflow-hidden rounded-full"><Gold /><Text className="text-[15px] font-extrabold text-on-accent">{email[0].toUpperCase()}</Text></View>
+              <Avatar email={email} />
               <Text numberOfLines={1} className="min-w-0 flex-1 text-[12px] font-medium text-foreground">{email}</Text>
               <Text className="rounded-full border border-accent/20 bg-accent/10 px-2 py-1 text-[8px] font-extrabold tracking-[1.1px] text-accent">{text("nav.studioTag")}</Text>
             </View>
