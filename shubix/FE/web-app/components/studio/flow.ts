@@ -110,6 +110,8 @@ export function initFlow(root: HTMLElement): () => void {
   const setAttr = (el: Element, k: string, v: string) => { if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
   const setFlag = (el: HTMLElement & { disabled?: boolean }, k: "hidden" | "disabled", v: boolean) => { if (el[k] !== v) el[k] = v; };
   const setClass = (el: Element, c: string, on: boolean) => { if (el.classList.contains(c) !== on) el.classList.toggle(c, on); };
+  // the steps in the flow's head: at = the one you are on
+  const steps = (at: number) => root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => setAttr(li, "data-s", +li.dataset.f! === at ? "on" : +li.dataset.f! < at ? "ok" : "no"));
   const setData = (el: HTMLElement, k: string, v: string) => { if (el.dataset[k] !== v) el.dataset[k] = v; };
   /** Each kind starts as it is meant: a Music Reel and a Photo Reel mute the clips' own sound under the song, a Talking
    * Reel keeps only the voices (Videos or Photos follow the kind: photomode). Only changed when it differs. */
@@ -165,13 +167,14 @@ export function initFlow(root: HTMLElement): () => void {
   const apply = () => {
     const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
     setClass(root, "fopen", on);
+    setFlag($("fhead"), "hidden", !on);
     // phones, once the Reel is made: "Your Reel is Ready!" (the editor under the flow's head, step 4), and its
     // tools as "Edit Options" (screens 6 and 7 of the design)
     const post = !on && revealed && made() && !has("autoing") && phone();
     setClass(root, "fpost", post);
     if (post) {
       setText($("fptitle"), root.dataset.tool ? "Edit Options" : "");
-      root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => { setClass(li, "on", li.dataset.f === "4"); setClass(li, "ok", li.dataset.f !== "4"); });
+      steps(4);
     }
     crumbs(on);
     if (!on) { if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
@@ -205,7 +208,7 @@ export function initFlow(root: HTMLElement): () => void {
         history.replaceState(history.state, "", u.pathname + u.search + u.hash);
       }
     }
-    setClass(root, "flive", true); // the kind's own words are in: the flow can be seen
+    setClass(root, "flive", true); setClass($("fhead"), "invisible", false); // the kind's own words are in: the flow can be seen
     // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
     const adj = phone() && step === "adjust", copy = kind === "copy";
     // Copy a Reel: the song is the copied Reel's ("Different song?" in the Reel to copy box opens the picker: .pickown)
@@ -223,11 +226,7 @@ export function initFlow(root: HTMLElement): () => void {
     const cur = !songOk() ? 1 : !clipsOk() ? 2 : 3;
     const mob = { intro: 1, choose: 1, adjust: 1, clips: 2, analyse: 3 }[step];
     const at = phone() ? mob : cur;
-    root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => {
-      const n = +li.dataset.f!;
-      setClass(li, "on", n === at);
-      setClass(li, "ok", n < at);
-    });
+    steps(at);
     // clips: Videos / Photos
     root.querySelectorAll<HTMLButtonElement>("#ftabs button").forEach((b) => setAttr(b, "aria-pressed", String((b.dataset.ft === "photos") === has("photomode"))));
     setFlag($("ftabs"), "hidden", has("talkmode") || kind === "copy");

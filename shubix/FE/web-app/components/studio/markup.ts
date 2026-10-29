@@ -46,6 +46,9 @@ const IC = {
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
 const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
+// a step of the flow's head (data-s: on = this one, ok = done); on phones a dot, the steps joined by a line
+const stepItem = "group relative grid min-w-[84px] justify-items-center gap-1.5 text-xs font-semibold text-muted data-[s=on]:text-accent before:absolute before:top-[13px] before:right-[calc(50%+18px)] before:h-0.5 before:w-[calc(100%-36px)] before:bg-border first:before:hidden data-[s=on]:before:bg-accent data-[s=ok]:before:bg-accent max-lg:flex max-lg:min-w-0 max-lg:flex-1 max-lg:items-center max-lg:gap-0 max-lg:first:flex-none max-lg:before:static max-lg:before:mx-1.5 max-lg:before:w-auto max-lg:before:flex-1 max-lg:before:rounded-sm";
+const stepDot = "grid size-7 flex-none place-items-center rounded-full border border-border bg-surface-2 text-xs font-semibold not-italic text-muted group-data-[s=on]:border-transparent group-data-[s=on]:bg-gold group-data-[s=on]:text-on-accent group-data-[s=on]:shadow-[0_0_0_5px_color-mix(in_srgb,var(--accent)_22%,transparent)] group-data-[s=ok]:border-accent group-data-[s=ok]:bg-[color-mix(in_srgb,var(--accent)_25%,var(--surface))] group-data-[s=ok]:text-foreground max-lg:size-2.5 max-lg:border-0 max-lg:bg-muted/55 max-lg:text-[0] max-lg:group-data-[s=ok]:bg-accent max-lg:group-data-[s=on]:size-[30px] max-lg:group-data-[s=on]:bg-gold max-lg:group-data-[s=on]:text-[13px]";
 const undoRedoButton = `${Button.icon} size-11 in-[.fpost]:size-9`;
 const AI_STEPS: [string, string, string][] = [
   ["scenes", "Detecting scenes and best moments", "clips"],
@@ -186,14 +189,14 @@ export const STUDIO_HTML = `
   </div>
 </header>
 <div class="wrap">
-  <div class="fhead" id="fhead">
+  <div class="invisible grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3.5 max-lg:sticky max-lg:top-0 max-lg:z-20 max-lg:-mx-4 max-lg:-mt-4 max-lg:grid-cols-[40px_minmax(0,1fr)_auto] max-lg:gap-3 max-lg:bg-background max-lg:px-4 max-lg:pt-[max(12px,env(safe-area-inset-top))] max-lg:pb-3" id="fhead" hidden>
     <button type="button" class="${Button.iconBordered} size-11 max-lg:size-10" id="fback" aria-label="Back">${IC.back}</button>
-    <b class="fptitle" id="fptitle"></b>
-    <div class="ft"><h1 id="ftitle">Music Reel</h1><p id="fsub">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p></div>
-    <ol class="fsteps" id="fsteps" aria-label="Steps">
-      <li data-f="1"><i>1</i><span>Music</span></li><li data-f="2"><i>2</i><span>Clips</span></li><li data-f="3"><i>3</i><span>Shubix Edit</span></li><li data-f="4"><i>4</i><span>Preview &amp; Export</span></li>
+    <b class="peer hidden truncate font-display text-[17px] font-semibold tracking-[-.01em] max-lg:block max-lg:empty:hidden" id="fptitle"></b>
+    <div class="max-lg:hidden"><h1 class="font-display text-[clamp(21px,2vw,24px)] leading-[1.15] font-semibold tracking-[-.015em]" id="ftitle">Music Reel</h1><p class="mt-1 text-[13px] text-muted" id="fsub">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p></div>
+    <ol class="flex items-start max-lg:col-span-3 max-lg:row-start-2 max-lg:w-[190px] max-lg:items-center max-lg:justify-self-center max-lg:peer-empty:col-span-1 max-lg:peer-empty:col-start-2 max-lg:peer-empty:row-start-1" id="fsteps" aria-label="Steps">
+      <li class="${stepItem}" data-f="1"><i class="${stepDot}">1</i><span class="max-lg:hidden">Music</span></li><li class="${stepItem}" data-f="2"><i class="${stepDot}">2</i><span class="max-lg:hidden">Clips</span></li><li class="${stepItem}" data-f="3"><i class="${stepDot}">3</i><span class="max-lg:hidden">Shubix Edit</span></li><li class="${stepItem}" data-f="4"><i class="${stepDot}">4</i><span class="max-lg:hidden">Preview &amp; Export</span></li>
     </ol>
-    <button type="button" class="${Button.ghost} hidden max-lg:in-[.fopen[data-fstep=intro]]:inline-flex" id="fskip">Skip</button>
+    <button type="button" class="${Button.ghost} hidden max-lg:col-start-3 max-lg:row-start-1 max-lg:in-[.fopen[data-fstep=intro]]:inline-flex" id="fskip">Skip</button>
   </div>
   <form class="askbar" id="askbar" aria-labelledby="askbarh">
     <button type="button" class="askbarhd" id="asktoggle" aria-expanded="false" aria-controls="askbody">

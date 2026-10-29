@@ -522,7 +522,6 @@
 /* ================= The Create flow (components/studio/flow.ts; UI/ design "After Clip Music Reel") =================
    .fopen while a Music / Talking / Photo Reel is being set up: computers see the steps in a column and the Reel Preview
    beside them; phones see one screen at a time (data-fstep). Without .fopen these parts are not there at all. */
-.brs:not(.fopen) :is(.fhead,.fintro,.fai,.fprev,.fan,.fnext,.ftabs,.fsugg){display:none !important}
 .brs:not(.fopen) :is(.fgrid,.fmain){display:contents}
 .brs .fh{display:grid;gap:1px;min-width:0}
 .brs .fsh{font:500 13px var(--body);color:var(--muted)}
@@ -544,17 +543,6 @@
 .brs.fopen #s1 .legend{display:none}
 
 /* the head: back, the title, the four steps */
-.brs .fhead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}
-.brs .ft h1{font:600 clamp(22px,2.4vw,26px)/1.15 var(--display);letter-spacing:-.02em}
-.brs .ft p{margin:4px 0 0;color:var(--muted);font-size:14px}
-.brs .fsteps{list-style:none;margin:0;padding:0;display:flex;align-items:flex-start;gap:0}
-.brs .fsteps li{position:relative;display:grid;justify-items:center;gap:6px;min-width:96px;font:600 13px var(--body);color:var(--muted)}
-.brs .fsteps li + li::before{content:"";position:absolute;top:15px;right:calc(50% + 18px);width:calc(100% - 36px);height:2px;background:var(--line)}
-.brs .fsteps li.ok + li::before,.brs .fsteps li.on::before{background:var(--accent)}
-.brs .fsteps i{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:600 13px var(--body);font-style:normal;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
-.brs .fsteps li.on{color:var(--accent)}
-.brs .fsteps li.on i{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
-.brs .fsteps li.ok i{background:color-mix(in srgb,var(--accent) 25%,var(--surface));color:var(--ink);border-color:var(--accent)}
 
 /* 1 Choose Music: the song from the phone, the recent songs as cards, the waveform and the length */
 .brs.fopen .fpickrow{gap:12px}
@@ -677,11 +665,6 @@
 @media (max-width:1023px){
   .brs.fopen :is(.fai,.fprev){display:none !important}
   .brs.fopen :is(.fgrid,.fmain){display:contents}
-  .brs.fopen .ft{display:none}
-  .brs.fopen .fsteps{justify-content:center}
-  .brs.fopen .fsteps li{min-width:56px}
-  .brs.fopen .fsteps li span{display:none}
-  .brs.fopen .fsteps li:last-child{display:none}
   .brs.fopen:not([data-fstep="intro"]) .fintro,
   .brs.fopen:not([data-fstep="choose"]):not([data-fstep="adjust"]) #s1,
   .brs.fopen:not([data-fstep="clips"]) #s2,
@@ -702,7 +685,6 @@
 /* phones: the flow's own head (back, the step dots, Skip) is the top bar, as designed */
 @media (max-width:1023px){
   body:has(.brs.fopen) header.top{display:none}
-  .brs.fopen .fhead{position:sticky;top:0;z-index:20;margin:-16px -16px 0;padding:max(12px,env(safe-area-inset-top)) 16px 10px;background:var(--bar);border-bottom:1px solid var(--line)}
 }
 /* the waveform in the brand colour (the chosen part is outlined by the engine) */
 
@@ -730,7 +712,6 @@
 .brs .xsh #xfps [data-f="30"]::after{content:"Smaller size"}
 .brs .xsh #xfps [data-f="60"]::after{content:"Smoother"}
 /* until the flow has written the kind (Talking / Photo words), its place stays empty: never anything else first */
-.brs.fopen:not(.flive) :is(.fhead,.fintro,.fgrid,.fan){visibility:hidden}
 
 /* ================= Phones: the 10 screens of the design (UI/New folder/AfterClipMusicReelsMobile.png) =================
    Computers are untouched: every piece below is hidden there, and every rule is inside the phones' breakpoint. */
@@ -739,20 +720,6 @@
 @media (max-width:1023px){
   /* ---- the head (every screen): back, the screen's name, Skip; the step dots under it ---- */
   body:has(.brs.fpost) header.top{display:none}
-  .brs.fopen .fhead,.brs.fpost .fhead{display:grid !important;grid-template-columns:40px minmax(0,1fr) auto;grid-template-areas:"back title skip" "steps steps steps";align-items:center;row-gap:12px;column-gap:12px;position:sticky;top:0;z-index:20;margin:-16px -16px 0;padding:max(12px,env(safe-area-inset-top)) 16px 12px;background:var(--background);border:0;visibility:visible}
-  .brs.fopen[data-fstep="intro"] .fhead,.brs.fopen[data-fstep="analyse"] .fhead,.brs.fpost:not([data-tool]) .fhead,.brs.fpost[data-tool=""] .fhead{grid-template-areas:"back steps skip"}
-  .brs .fhead .fptitle{grid-area:title;display:block;font:600 17px var(--display);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .brs .fhead .fptitle:empty{display:none}
-  .brs .fhead .ft{display:none}
-  .brs .fhead .fsteps{grid-area:steps;display:flex;align-items:center;justify-content:center;width:190px;justify-self:center;gap:0}
-  .brs .fhead .fsteps li{display:flex !important;align-items:center;flex:1 1 0;min-width:0;gap:0}
-  .brs .fhead .fsteps li:first-child{flex:0 0 auto}
-  .brs .fhead .fsteps li span{display:none}
-  .brs .fhead .fsteps li + li::before{content:"";position:static;flex:1;width:auto;height:2px;margin:0 6px;background:var(--line);border-radius:2px}
-  .brs .fhead .fsteps li.ok + li::before,.brs .fhead .fsteps li.on::before{background:var(--accent)}
-  .brs .fhead .fsteps i{width:10px;height:10px;font-size:0;border:0;background:color-mix(in srgb,var(--muted) 55%,transparent);flex:none}
-  .brs .fhead .fsteps li.ok i{background:var(--accent)}
-  .brs .fhead .fsteps li.on i{width:30px;height:30px;font:600 13px var(--body);color:var(--on-accent);background:var(--gold-gradient);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 
   /* ---- the screens are the page itself: no cards, no card headings; the button at the bottom ---- */
   /* room for the fixed button at the bottom (the page under it adds 40px more): nothing empty to scroll to */
@@ -1115,7 +1082,6 @@
 
 @media (max-width:1023px){
   /* ---- the phone editor (the finished Reel) ---- */
-  .brs.fpost .fhead{display:none !important}
   body:has(.brs.fpost) .brs .fcrumbs{display:none}
   .brs.fpost .tb-name{font-size:16px;font-weight:600}
   .brs.fpost .tb-sub{font-size:11px}
@@ -1744,8 +1710,6 @@
 .brs .askbar.talking .askchips{display:none}
 
 /* ---- luxury scale for the Create steps (October 2026): quieter type, slimmer buttons, compact song cards ---- */
-.brs.fopen .ft h1{font-size:clamp(21px,2vw,24px);letter-spacing:-.015em}
-.brs.fopen .ft p{font-size:13px}
 .brs.fopen .sh h2{font-size:16px;letter-spacing:-.005em}
 .brs.fopen .sh small,.brs.fopen .sh p,.brs.fopen .st{font-size:12.5px}
 .brs.fopen .num{width:28px;height:28px;border-radius:9px;font-size:13px}
@@ -1769,9 +1733,6 @@
 .brs .fready b{font-size:14.5px}
 .brs .fready small{font-size:12.5px}
 .brs .fprevh b{font-size:14px}
-.brs .fsteps li{font-size:12px;min-width:84px}
-.brs .fsteps i{width:28px;height:28px;font-size:12px}
-.brs .fsteps li + li::before{top:13px}
 .brs.fopen .stats b{font-size:16px}
 .brs.fopen #slen button{padding:7px 13px;font-size:13px;border-radius:10px}
 @media (max-width:1023px){
