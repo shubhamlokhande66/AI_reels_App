@@ -102,9 +102,7 @@ export default {
       // the studio: an open dialog or sheet locks the page's scroll; on phones and tablets, no Legal links under the flow
       ":is(html, html body):has(.brs :is(.cconf, .xsheet):not([hidden]))": { overflow: "hidden" },
       "html:has(.brs :is(.cconf, .xsheet):not([hidden])) body": { overscrollBehavior: "none" },
-      "@media (max-width: 1023px)": { 'body:has(.brs:is(.fopen, .fpost)) :is(nav[aria-label="Legal"], header.top), .brs.fpost .fcrumbs': { display: "none" } },
-      // computers, the editor open: it fills the page beside the sidebar
-      "@media (min-width: 1024px)": { "main > .max-w-6xl:has(.brs.made.editing)": { maxWidth: "none", width: "auto", marginInline: "0" } },
+      "@media (max-width: 1023px)": { 'body:has(.brs:is(.fopen, .fpost)) nav[aria-label="Legal"]': { display: "none" } },
       "@media (max-width: 767px)": {
         // 16px text in fields: iPhones otherwise zoom in when one is tapped (important: it must win over smaller text sizes)
         'input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea': { fontSize: "16px !important" },
