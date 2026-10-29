@@ -7,7 +7,7 @@ import { AuthHeader, Button, ErrorBanner, Field, Input, LinkText, Page, Password
 
 /** Sign in / create an account (logic: @shubix/hooks useAuthForm, the same as the website). */
 export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signup" }) {
-  const f = useAuthForm((signedUp) => router.replace(signedUp ? "/auth/verify" : "/(tabs)"));
+  const f = useAuthForm((signedUp) => router.replace(signedUp ? "/verify" : "/"));
   const { t: text } = f;
   useEffect(() => { if (initial !== "signin") f.setMode(initial); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -30,7 +30,7 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
         )}
         {f.error ? <ErrorBanner message={f.error} /> : null}
       </View>
-      {f.signin && <LinkText className="mt-3 self-end" title={text("auth.forgotLink")} onPress={() => router.push("/auth/forgot")} />}
+      {f.signin && <LinkText className="mt-3 self-end" title={text("auth.forgotLink")} onPress={() => router.push("/forgot")} />}
       <View className="mt-6"><Button size="lg" full title={f.busy ? text("auth.wait") : text(f.signin ? "auth.signIn" : "auth.signUpButton")} loading={f.busy} disabled={!f.valid} onPress={() => void f.submit()} /></View>
       <LinkText className="mt-5 self-center" title={`${text(f.signin ? "auth.newHere" : "auth.haveAccount")} ${text(f.signin ? "auth.createLink" : "auth.signIn")}`} onPress={() => f.setMode(f.signin ? "signup" : "signin")} />
     </Page>

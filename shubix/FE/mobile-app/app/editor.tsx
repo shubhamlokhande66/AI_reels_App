@@ -8,7 +8,7 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { clipDuration, makeClip, projectDuration, splitClip, type ClipAction, type ProjectClip, type ReelProject, type TimelineTool } from "@shubix/validations";
 import { Card, colors } from "@shubix/ui-mobile";
-import { getProject, keepPickedAssets, keepPickedFile, listProjects, saveProject, type MobileProject } from "../../lib/projects";
+import { getProject, keepPickedAssets, keepPickedFile, listProjects, saveProject, type MobileProject } from "../lib/projects";
 
 const groups: { name: TimelineTool; icon: typeof Film; options: string[] }[] = [
   { name: "Media", icon: Film, options: ["Add clips", "Replace shot", "Reorder", "Remove"] },

@@ -2,9 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { errorMessage, type ApiClient } from "@shubix/api-client";
 import type { MeResponse } from "@shubix/types";
 import { emailOk, passwordOk } from "@shubix/validations";
-import { fill } from "@shubix/utils";
-import { TEXT_DEFAULTS, type TextKey } from "./texts";
-export { TEXT_DEFAULTS, type TextKey };
+import { fill, TEXT_DEFAULTS } from "@shubix/core/lib/texts";
 
 /** The logic both apps share (FE/web-app and FE/mobile-app). Only React, no DOM or React Native: the sign-in rules,
  * messages and flow exist once; each app only draws them with its own atoms/molecules. */
@@ -23,10 +21,10 @@ export function useApi(): Ctx {
   if (!c) throw new Error("useApi needs <ApiProvider>");
   return c;
 }
-/** Every text the person sees: the admin's (CMS) or the default. */
+/** Every text the person sees: the admin's (Admin → CMS) or the website's default (Shared/core/src/lib/texts.ts). */
 export function useText() {
   const { texts } = useApi();
-  return useCallback((key: TextKey, vars?: Record<string, string | number>) => fill(texts[key] ?? TEXT_DEFAULTS[key], vars), [texts]);
+  return useCallback((key: string, vars?: Record<string, string | number>) => fill(texts[key] ?? TEXT_DEFAULTS[key] ?? key, vars), [texts]);
 }
 
 /** Sign in / create an account: fields, messages as people type, submit. `onDone(signedUp)` decides where to go. */

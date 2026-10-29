@@ -6,7 +6,7 @@ import { AuthHeader, Button, ErrorBanner, Field, Input, LinkText, Page, Password
 
 /** Forgot password: email → 6-digit code + new password (logic: @shubix/hooks useForgotFlow, the same as the website). */
 export function ForgotForm() {
-  const f = useForgotFlow(() => router.replace("/(tabs)"));
+  const f = useForgotFlow(() => router.replace("/"));
   const { t: text } = f, first = f.step === "email";
   return (
     <Page>

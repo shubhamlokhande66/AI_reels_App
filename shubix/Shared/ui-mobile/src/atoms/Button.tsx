@@ -42,13 +42,13 @@ const ICON_LOOK = {
   muted: { box: "", color: colors.muted },
   main: { box: "", color: colors.onAccent },
 };
-export function IconButton({ icon, label, onPress, size = 44, look = "box", disabled = false, className = "" }: { icon: IconName; label: string; onPress: () => void; size?: number; look?: keyof typeof ICON_LOOK; disabled?: boolean; className?: string }) {
+export function IconButton({ icon, label, onPress, size = 44, iconSize, look = "box", disabled = false, className = "" }: { icon: IconName; label: string; onPress: () => void; size?: number; iconSize?: number; look?: keyof typeof ICON_LOOK; disabled?: boolean; className?: string }) {
   const l = ICON_LOOK[look];
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label} style={{ width: size, height: size }}
       className={`items-center justify-center overflow-hidden rounded-full active:opacity-70 ${l.box} ${disabled ? "opacity-50" : ""} ${className}`}>
       {look === "main" && <Gold />}
-      <Icon name={icon} size={Math.round(size * 0.45)} color={l.color} />
+      <Icon name={icon} size={iconSize ?? Math.round(size * 0.45)} color={l.color} />
     </Pressable>
   );
 }

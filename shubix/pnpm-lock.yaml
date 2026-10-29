@@ -101,6 +101,9 @@ importers:
       '@shubix/api-client':
         specifier: workspace:*
         version: link:../../Shared/api-client
+      '@shubix/core':
+        specifier: workspace:*
+        version: link:../../Shared/core
       '@shubix/hooks':
         specifier: workspace:*
         version: link:../../Shared/hooks
@@ -353,6 +356,9 @@ importers:
       '@shubix/api-client':
         specifier: workspace:*
         version: link:../api-client
+      '@shubix/core':
+        specifier: workspace:*
+        version: link:../core
       '@shubix/types':
         specifier: workspace:*
         version: link:../types

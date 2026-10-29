@@ -9,7 +9,7 @@ import type { ReelProject } from "@shubix/validations";
 
 const modes: { key: ReelProject["kind"]; name: string; sub: string; icon: typeof Music2 }[] = [{ key: "music", name: "Music Reel", sub: "Let your soundtrack set the pace", icon: Music2 }, { key: "talking", name: "Talking Reel", sub: "Shape a story from your words", icon: AudioLines }, { key: "photo", name: "Photo Reel", sub: "Give your memories movement", icon: ImagePlus }, { key: "copy", name: "Copy a Reel", sub: "Start with a reference video", icon: Clapperboard }, { key: "story", name: "Story Maker", sub: "Turn a written idea into a visual story", icon: Sparkles }];
 export default function CreateScreen() {
-  const params = useLocalSearchParams<{ kind?: string; templateId?: string }>();
+  const params = useLocalSearchParams<{ kind: string; templateId?: string }>();
   const selectedKind = ["music", "talking", "photo", "copy", "story"].includes(params.kind || "") ? params.kind as ReelProject["kind"] : "music";
   const [kind, setKind] = useState<ReelProject["kind"]>(selectedKind);
   const [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
@@ -26,7 +26,7 @@ export default function CreateScreen() {
       const clips = await keepPickedAssets(id, media);
       const project = { id, title: "Untitled Reel", kind, clips, ...(params.templateId ? { templateId: params.templateId } : {}), overlays: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), status: "draft" as const };
       await saveProject(project);
-      router.push({ pathname: "/editor/[id]", params: { id, projectId: id, kind, media: JSON.stringify(clips) } });
+      router.push({ pathname: "/editor", params: { id, projectId: id, kind, media: JSON.stringify(clips) } });
     } catch (e) { Alert.alert("Couldn't prepare your clips", e instanceof Error ? e.message : "Please try choosing the clips again."); }
     finally { setBusy(false); }
   }

@@ -14,7 +14,7 @@ import { Logo } from "@/components/atoms/Logo";
 import { GlobalActivity } from "@/components/molecules/GlobalActivity";
 import { LegalFooter } from "@/components/molecules/Legal";
 import { EmptyState } from "@/components/molecules/EmptyState";
-import { BottomNav, type NavTab } from "@/components/molecules/BottomNav";
+import { BottomNav } from "@/components/molecules/BottomNav";
 import { ProPill } from "@/components/molecules/ProPill";
 import { CreditPill } from "@/components/molecules/CreditPill";
 import { Avatar } from "@/components/atoms/Avatar";
@@ -43,94 +43,15 @@ import { lockTag, PAGE_LOCK } from "@shubix/core/lib/plan-locks";
 import { usePresence } from "@/lib/usePresence";
 import { useErrorReport } from "@/lib/useErrorReport";
 import { FEATURE_LIST, linkOn, pageFeature } from "@shubix/core/lib/features-list";
+import { AUTH_PAGES, GROUPS, PUBLIC_PAGES, TABS, isActive, isStudio, pageMeta, showTabs } from "@shubix/core/lib/nav";
+
+export { GROUPS, isActive };
 
 // The app's frame, as designed: a Noir sidebar on computers; on phones a top bar (menu or back · title · credits),
 // a bottom tab bar on Home, Projects and Editor, and a Noir menu drawer. An administrator sees one Admin dashboard
 // button (server/core/admin.ts decides who); the admin tools below are listed in the dashboard, not in the menu.
-// `tk`: the text key of a name (Admin → CMS, lib/texts.ts); the admin pages keep their own names
-export const GROUPS: { title: string; tk?: string; admin?: boolean; items: { href: string; label: string; tk?: string; icon: string; fullLoad?: boolean }[] }[] = [
-  {
-    title: "Studio",
-    tk: "nav.studio",
-    items: [
-      { href: "/", label: "Home", tk: "nav.home", icon: "home" },
-      // the Create flow, one link per kind; a full page load: it is cross-origin isolated (next.config.ts) so its AI beat
-      // tracker can use several cores
-      { href: "/create/music", label: "Music Reel", tk: "nav.music", icon: "music", fullLoad: true },
-      { href: "/create/talking", label: "Talking Reel", tk: "nav.talking", icon: "mic", fullLoad: true },
-      { href: "/create/photo", label: "Photo Reel", tk: "nav.photo", icon: "image", fullLoad: true },
-      { href: "/create/copy", label: "Copy a Reel", tk: "nav.copy", icon: "copy", fullLoad: true },
-      { href: "/create/story", label: "Story Maker", tk: "nav.story", icon: "book", fullLoad: true },
-      { href: "/reels", label: "My Reels", tk: "nav.reels", icon: "reels" },
-    ],
-  },
-  {
-    title: "Library",
-    tk: "nav.library",
-    items: [
-      { href: "/templates", label: "Templates", tk: "nav.templates", icon: "grid" },
-      { href: "/brands", label: "Brands", tk: "nav.brands", icon: "star" },
-      { href: "/voices", label: "Voice profiles", tk: "nav.voices", icon: "mic" }, // Pro (lib/plan-locks.ts page:voices)
-    ],
-  },
-  {
-    title: "Account",
-    tk: "nav.account",
-    items: [
-      { href: "/account", label: "My account", tk: "nav.myAccount", icon: "user" },
-      { href: "/pricing", label: "Pricing & plans", tk: "nav.pricing", icon: "coins" },
-      { href: "/rewards", label: "Invite & earn", tk: "nav.rewardsLink", icon: "gift" },
-    ],
-  },
-  {
-    title: "Admin",
-    admin: true,
-    items: [
-      { href: "/settings", label: "AI settings", icon: "gear" },
-      { href: "/trends", label: "My trends", icon: "trend" },
-    ],
-  },
-];
 
-const AUTH_PAGES = ["/login", "/forgot", "/reset", "/verify"];
-const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact", "/editor"];
 const PARTNER_PAGE = "/affiliate"; // the partner dashboard: its own page, with its own sign-in (by an emailed code)
-
-export function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  if (href === "/projects") return pathname === "/projects" || (pathname.startsWith("/projects/") && pathname !== "/projects/new");
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-type Meta = { title: string; tk?: string; back?: string; left?: boolean; credits?: boolean; tabs?: boolean; admin?: boolean };
-
-/** What the phone top bar shows on each page (the designs). */
-function pageMeta(p: string): Meta {
-  const fixed: Record<string, Meta> = {
-    "/": { title: "Shubix", credits: true, tabs: true },
-    "/reels": { title: "My Reels", tk: "nav.reels", credits: true, tabs: true },
-    "/create/story": { title: "Story Maker", tk: "nav.story", back: "/", credits: true },
-    "/create/edit": { title: "Your Reel", tk: "nav.yourReel", credits: true },
-    "/editor": { title: "Reel Studio", credits: true },
-    "/create/music": { title: "Music Reel", tk: "nav.music", credits: true }, // the flow has its own back (components/studio/flow.ts)
-    "/create/talking": { title: "Talking Reel", tk: "nav.talking", credits: true }, // the flow has its own back (components/studio/flow.ts)
-    "/create/photo": { title: "Photo Reel", tk: "nav.photo", credits: true }, // the flow has its own back (components/studio/flow.ts)
-    "/templates": { title: "Templates", tk: "nav.templates" },
-    "/brands": { title: "My Brands", tk: "nav.myBrands" },
-    "/account": { title: "My account", tk: "nav.myAccount" },
-    "/rewards": { title: "Invite & earn", tk: "nav.rewards" },
-    "/pricing": { title: "Pricing & plans", tk: "nav.pricing", credits: true },
-    "/terms": { title: "Legal", tk: "nav.legal", back: "/" },
-    "/privacy": { title: "Legal", tk: "nav.legal", back: "/" },
-    "/refunds": { title: "Legal", tk: "nav.legal", back: "/" },
-    "/contact": { title: "Contact us", tk: "nav.contact" },
-    "/settings": { title: "AI settings", admin: true },
-    "/voices": { title: "Voice profiles", tk: "nav.voices" },
-    "/trends": { title: "My trends", admin: true },
-    "/admin": { title: "Administration" },
-  };
-  return fixed[p] ?? { title: "Shubix" };
-}
 
 /** A page on a higher plan (lib/plan-locks.ts "page:…"): its tag ("Upgrade"), or "". */
 function useNavLock() {
@@ -179,9 +100,10 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
 /** Phones: the Noir drawer with every page (design: Menu). */
 /** Only an administrator sees it: opens the admin dashboard (its daily code first, when due). */
 export function AdminButton({ onClick }: { onClick?: () => void }) {
+  const text = useText();
   return (
     <Button href="/admin" onClick={onClick} variant="secondary" icon="admin" full className="!border-accent/70 text-accent">
-      Admin dashboard
+      {text("common.adminDashboard")}
     </Button>
   );
 }
@@ -245,7 +167,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
             <div className="flex items-center gap-3 rounded-[15px] border border-[color-mix(in_srgb,var(--accent)_14%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] px-3 py-2.5 shadow-[0_8px_24px_-22px_rgba(0,0,0,.7)]">
               <Avatar email={email} />
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{email}</span>
-              <span className="shrink-0 rounded-full border border-accent/20 bg-accent/8 px-2 py-1 text-[8px] font-extrabold tracking-[.14em] text-accent">STUDIO</span>
+              <span className="shrink-0 rounded-full border border-accent/20 bg-accent/8 px-2 py-1 text-[8px] font-extrabold tracking-[.14em] text-accent">{text("nav.studioTag")}</span>
             </div>
           )}
           <nav aria-label="Pages" className="flex flex-col border-t border-[color-mix(in_srgb,var(--accent)_10%,var(--line))] pt-1">
@@ -284,14 +206,6 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
   );
 }
 
-// Create opens Fast Studio when the server's Create Reel is off (Administration -> Features); at most four tabs and More
-// (the design's order: Home, Templates, Create, My Reels, More)
-const TABS: (NavTab & { tk: string })[] = [
-  { href: "/", label: "Home", tk: "nav.home", icon: "home" },
-  { href: "/templates", label: "Templates", tk: "nav.templates", icon: "grid" },
-  { href: "/create/music", label: "Create", tk: "nav.create", icon: "plus", primary: true, full: true },
-  { href: "/reels", label: "My Reels", tk: "nav.reels", icon: "reels" },
-];
 const tabsFor = (f: Parameters<typeof linkOn>[1]) => TABS.filter((t) => linkOn(t.href, f));
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -408,8 +322,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const back = meta.back;
   // phones: the bottom tab bar, the plan pill and the bell on every page; the studio (/create/…) keeps the whole screen
   // for its own tool bars, and the admin pages keep their Admin badge
-  const studio = pathname.startsWith("/create") || pathname === "/editor";
-  const tabs = meta.tabs || (!studio && !meta.admin);
+  const studio = isStudio(pathname), tabs = showTabs(pathname);
 
   return (
     <div className="rm min-h-screen md:flex">
@@ -427,7 +340,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <span className={cn("min-w-0", meta.left || pathname === "/" ? "text-left" : "text-center")}>
           {pathname === "/" ? <Logo height={42} /> : (
             <span className={cn("mx-auto grid min-w-0 max-w-full leading-tight", meta.left || pathname === "/" ? "justify-items-start" : "justify-items-center")}>
-              <span className="mb-1 text-[8px] font-extrabold uppercase tracking-[.2em] text-accent">Shubix · Studio</span>
+              <span className="mb-1 text-[8px] font-extrabold uppercase tracking-[.2em] text-accent">{text("nav.eyebrow")}</span>
               <span className="max-w-full truncate whitespace-nowrap font-[family-name:var(--font-display)] text-[14px] font-semibold tracking-[-.015em] text-foreground">{title}</span>
             </span>
           )}
