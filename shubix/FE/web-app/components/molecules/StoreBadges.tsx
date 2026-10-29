@@ -1,7 +1,7 @@
 "use client";
 
 
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 import { cn } from "@/lib/cn";
 import { useSite } from "@/components/molecules/Legal";
 
@@ -9,11 +9,11 @@ import { useSite } from "@/components/molecules/Legal";
  * (Admin → Settings → Business details); a store without a link shows "Coming soon" and is not a link. Hidden inside
  * the phone app itself. `compact`: the sidebar and the menu: "Get the app" over two small badges side by side. */
 export function StoreBadges({ compact = false, className }: { compact?: boolean; className?: string }) {
-  const t = useT(), site = useSite().data;
+  const text = useText(), site = useSite().data;
   if (!site) return null;
   const stores = [
-    { id: "play", url: site.playStoreUrl, top: t("store.playTop"), name: t("store.play"), logo: <PlayLogo /> },
-    { id: "apple", url: site.appStoreUrl, top: t("store.appleTop"), name: t("store.apple"), logo: <AppleLogo /> },
+    { id: "play", url: site.playStoreUrl, top: text("store.playTop"), name: text("store.play"), logo: <PlayLogo /> },
+    { id: "apple", url: site.appStoreUrl, top: text("store.appleTop"), name: text("store.apple"), logo: <AppleLogo /> },
   ];
   const badges = (
     <div className={cn(compact ? "grid grid-cols-2 gap-1.5" : "flex flex-wrap gap-2", !compact && className)}>
@@ -23,7 +23,7 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
           <>
             <span className="h-[18px] w-[18px] shrink-0">{s.logo}</span>
             <span className="flex min-w-0 flex-col leading-none">
-              <span className="truncate text-[8px] font-medium uppercase tracking-[0.05em] opacity-75">{soon ? t("store.soonShort") : s.top}</span>
+              <span className="truncate text-[8px] font-medium uppercase tracking-[0.05em] opacity-75">{soon ? text("store.soonShort") : s.top}</span>
               <span className="mt-[3px] truncate text-[11.5px] font-semibold tracking-[-0.01em]">{s.name}</span>
             </span>
           </>
@@ -31,7 +31,7 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
           <>
             <span className="h-7 w-7 shrink-0">{s.logo}</span>
             <span className="flex min-w-0 flex-col leading-none">
-              <span className="text-[9.5px] font-medium uppercase tracking-[0.06em] opacity-85">{soon ? t("store.soon") : s.top}</span>
+              <span className="text-[9.5px] font-medium uppercase tracking-[0.06em] opacity-85">{soon ? text("store.soon") : s.top}</span>
               <span className="mt-1 truncate text-[17px] font-semibold tracking-[-0.01em]">{s.name}</span>
             </span>
           </>
@@ -42,7 +42,7 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
           soon ? "cursor-default opacity-60" : "hover:-translate-y-0.5 hover:border-white/45",
         );
         return soon ? (
-          <span key={s.id} className={look} aria-label={`${s.name}: ${t("store.soon")}`}>{inner}</span>
+          <span key={s.id} className={look} aria-label={`${s.name}: ${text("store.soon")}`}>{inner}</span>
         ) : (
           <a key={s.id} href={s.url} target="_blank" rel="noreferrer" className={look} aria-label={`${s.top} ${s.name}`}>{inner}</a>
         );
@@ -52,7 +52,7 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
   if (!compact) return badges;
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <span className="px-0.5 text-[11px] font-semibold text-muted">{t("store.title")}</span>
+      <span className="px-0.5 text-[11px] font-semibold text-muted">{text("store.title")}</span>
       {badges}
     </div>
   );
@@ -60,13 +60,13 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
 
 /** Home's "Get the app" band: the title, a line and the two badges. */
 export function GetAppSection() {
-  const t = useT();
+  const text = useText();
   return (
     <section aria-labelledby="getapp-h" className="relative flex flex-col items-start gap-4 overflow-hidden rounded-3xl border border-border bg-[linear-gradient(120deg,color-mix(in_srgb,var(--accent)_18%,var(--surface)),var(--surface)_60%)] p-5 md:flex-row md:items-center md:justify-between md:p-7">
       <span aria-hidden className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[radial-gradient(closest-side,rgba(216,189,123,.2),transparent)]" />
       <div className="relative min-w-0">
-        <h2 id="getapp-h" className="m-0 font-display text-[20px] font-semibold tracking-[-0.01em] md:text-[24px]">{t("store.title")}</h2>
-        <p className="m-0 mt-1 max-w-md text-[13.5px] text-muted">{t("store.sub")}</p>
+        <h2 id="getapp-h" className="m-0 font-display text-[20px] font-semibold tracking-[-0.01em] md:text-[24px]">{text("store.title")}</h2>
+        <p className="m-0 mt-1 max-w-md text-[13.5px] text-muted">{text("store.sub")}</p>
       </div>
       <StoreBadges className="relative" />
     </section>

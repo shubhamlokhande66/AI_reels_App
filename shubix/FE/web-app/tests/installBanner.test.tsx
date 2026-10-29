@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * app was opened lately (iosApp); "Not now" hides it for this visit. */
 const s = vi.hoisted(() => ({ offer: false, standalone: false, ios: false, iosApp: false }));
 vi.mock("@/hooks/useApi", async () => {
-  const { tDefaults } = await import("./helpers/texts");
-  return { useT: () => tDefaults, useMe: () => ({ data: { authEnabled: true, user: { id: "u", email: "me@example.com", iosApp: s.iosApp } } }) };
+  const { defaultText } = await import("./helpers/texts");
+  return { useText: () => defaultText, useMe: () => ({ data: { authEnabled: true, user: { id: "u", email: "me@example.com", iosApp: s.iosApp } } }) };
 });
 vi.mock("@/lib/pwa", () => ({
   subscribeInstall: () => () => {},

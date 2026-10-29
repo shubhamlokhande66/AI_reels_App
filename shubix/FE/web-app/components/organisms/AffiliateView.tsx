@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 import { cn } from "@/lib/cn";
 import { Badge, Button, Icon, Input } from "@/components/atoms";
 import { StatTile } from "@/components/molecules";
@@ -13,37 +13,37 @@ export const rupee = (n: number) => `₹${n.toLocaleString("en-IN", { maximumFra
 export const dayOf = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—");
 
 export function AffiliateView({ a, admin = false }: { a: AffiliateDetail; admin?: boolean }) {
-  const t = useT(), [copied, setCopied] = useState(false), [tab, setTab] = useState<"customers" | "sales" | "payouts">("sales");
+  const text = useText(), [copied, setCopied] = useState(false), [tab, setTab] = useState<"customers" | "sales" | "payouts">("sales");
   const link = a.link.startsWith("/") && typeof window !== "undefined" ? window.location.origin + a.link : a.link;
   const copy = async () => { try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* select by hand */ } };
-  const tabs = [["sales", t("aff.sales"), a.sales.length], ["customers", t("aff.customers"), a.customers.length], ["payouts", t("aff.payouts"), a.payouts.length]] as const;
+  const tabs = [["sales", text("aff.sales"), a.sales.length], ["customers", text("aff.customers"), a.customers.length], ["payouts", text("aff.payouts"), a.payouts.length]] as const;
   return (
     <div className="flex flex-col gap-4">
       {/* the link */}
       <div className="flex flex-col gap-2 rounded-2xl border border-border bg-surface p-4">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{t("aff.link")}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{text("aff.link")}</span>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input readOnly value={link} onFocus={(e) => e.currentTarget.select()} className="min-w-0 font-mono text-[13px] sm:flex-1" />
           <div className="flex gap-2">
-            <Button icon={copied ? "check" : "copy"} onClick={copy} className="flex-1 sm:flex-none">{copied ? t("rewards.copied") : t("rewards.copy")}</Button>
-            {!admin && <Button variant="secondary" icon="share" href={`https://wa.me/?text=${encodeURIComponent(t("rewards.shareText", { link }))}`} className="flex-1 sm:flex-none">{t("rewards.whatsapp")}</Button>}
+            <Button icon={copied ? "check" : "copy"} onClick={copy} className="flex-1 sm:flex-none">{copied ? text("rewards.copied") : text("rewards.copy")}</Button>
+            {!admin && <Button variant="secondary" icon="share" href={`https://wa.me/?text=${encodeURIComponent(text("rewards.shareText", { link }))}`} className="flex-1 sm:flex-none">{text("rewards.whatsapp")}</Button>}
           </div>
         </div>
         {/* the terms */}
         <div className="flex flex-wrap gap-1.5 pt-1">
-          <Badge tone="brand">{t("aff.termPercent", { n: a.percent })}</Badge>
-          <Badge tone="neutral">{t("aff.termMonths", { n: a.months })}</Badge>
-          <Badge tone={a.validUntil ? "warning" : "neutral"}>{a.validUntil ? t("aff.termUntil", { date: dayOf(a.validUntil) }) : t("aff.termNoEnd")}</Badge>
-          <Badge tone="neutral">{t("aff.termPayout", { n: a.minPayout })}</Badge>
+          <Badge tone="brand">{text("aff.termPercent", { n: a.percent })}</Badge>
+          <Badge tone="neutral">{text("aff.termMonths", { n: a.months })}</Badge>
+          <Badge tone={a.validUntil ? "warning" : "neutral"}>{a.validUntil ? text("aff.termUntil", { date: dayOf(a.validUntil) }) : text("aff.termNoEnd")}</Badge>
+          <Badge tone="neutral">{text("aff.termPayout", { n: a.minPayout })}</Badge>
         </div>
       </div>
 
       {/* the numbers */}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        <StatTile value={a.stats.clicks} label={t("aff.clicks")} note={t("aff.last30", { n: a.stats.clicks30 })} />
-        <StatTile value={a.stats.customers} label={t("aff.customers")} note={t("aff.buyers", { n: a.stats.buyers })} />
-        <StatTile value={rupee(a.stats.due)} label={t("rewards.affDue")} />
-        <StatTile value={rupee(a.stats.paid)} label={t("rewards.affPaid")} note={t("aff.revenue", { n: rupee(a.stats.revenue) })} />
+        <StatTile value={a.stats.clicks} label={text("aff.clicks")} note={text("aff.last30", { n: a.stats.clicks30 })} />
+        <StatTile value={a.stats.customers} label={text("aff.customers")} note={text("aff.buyers", { n: a.stats.buyers })} />
+        <StatTile value={rupee(a.stats.due)} label={text("rewards.affDue")} />
+        <StatTile value={rupee(a.stats.paid)} label={text("rewards.affPaid")} note={text("aff.revenue", { n: rupee(a.stats.revenue) })} />
       </div>
 
       {/* the lists */}
@@ -59,16 +59,16 @@ export function AffiliateView({ a, admin = false }: { a: AffiliateDetail; admin?
         <div className="flex flex-col gap-1.5">
           {tab === "sales" && (a.sales.length ? a.sales.map((s) => (
             <Row key={s.id} left={<><b>{s.customer ? `@${s.customer}` : "—"}</b> <span className="text-muted">· {dayOf(s.at)} · {rupee(s.paid)} × {s.percent}%</span></>}
-              right={<><b className="tabular-nums">+{rupee(s.commission)}</b><Badge tone={s.status === "paid" ? "success" : "warning"}>{s.status === "paid" ? t("aff.statusPaid") : t("aff.statusDue")}</Badge></>} />
-          )) : <Empty text={t("aff.noSales")} />)}
+              right={<><b className="tabular-nums">+{rupee(s.commission)}</b><Badge tone={s.status === "paid" ? "success" : "warning"}>{s.status === "paid" ? text("aff.statusPaid") : text("aff.statusDue")}</Badge></>} />
+          )) : <Empty text={text("aff.noSales")} />)}
           {tab === "customers" && (a.customers.length ? a.customers.map((c, i) => (
-            <Row key={i} left={<><b>{c.username ? `@${c.username}` : "—"}</b>{admin && c.email ? <span className="text-muted"> · {c.email}</span> : null} <span className="text-muted">· {t("aff.joined", { date: dayOf(c.joined) })}</span></>}
-              right={<>{c.paid ? <span className="tabular-nums text-muted">{rupee(c.paid)}</span> : null}<span className="text-[11.5px] text-muted">{c.countsUntil ? t("aff.countsUntil", { date: dayOf(c.countsUntil) }) : t("aff.afterEnd")}</span></>} />
-          )) : <Empty text={t("aff.noCustomers")} />)}
+            <Row key={i} left={<><b>{c.username ? `@${c.username}` : "—"}</b>{admin && c.email ? <span className="text-muted"> · {c.email}</span> : null} <span className="text-muted">· {text("aff.joined", { date: dayOf(c.joined) })}</span></>}
+              right={<>{c.paid ? <span className="tabular-nums text-muted">{rupee(c.paid)}</span> : null}<span className="text-[11.5px] text-muted">{c.countsUntil ? text("aff.countsUntil", { date: dayOf(c.countsUntil) }) : text("aff.afterEnd")}</span></>} />
+          )) : <Empty text={text("aff.noCustomers")} />)}
           {tab === "payouts" && (a.payouts.length ? a.payouts.map((p) => (
-            <Row key={p.id} left={<><b className="tabular-nums">{rupee(p.total)}</b> <span className="text-muted">· {dayOf(p.at)} · {t("aff.payoutSales", { n: p.count })}{p.note ? ` · ${t("aff.ref", { ref: p.note })}` : ""}</span></>}
-              right={<Badge tone="success"><Icon name="check" size={11} />{t("aff.statusPaid")}</Badge>} />
-          )) : <Empty text={t("aff.noPayouts")} />)}
+            <Row key={p.id} left={<><b className="tabular-nums">{rupee(p.total)}</b> <span className="text-muted">· {dayOf(p.at)} · {text("aff.payoutSales", { n: p.count })}{p.note ? ` · ${text("aff.ref", { ref: p.note })}` : ""}</span></>}
+              right={<Badge tone="success"><Icon name="check" size={11} />{text("aff.statusPaid")}</Badge>} />
+          )) : <Empty text={text("aff.noPayouts")} />)}
         </div>
       </div>
     </div>

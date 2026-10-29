@@ -65,13 +65,13 @@ export function useTexts() {
     initialData: savedTexts, initialDataUpdatedAt: 0, staleTime: 60_000, retry: false,
   });
 }
-/** t("pricing.title1"), t("pricing.choose", { plan: "Pro" }): the administrator's text (Admin → CMS) or
+/** text("pricing.title1"), text("pricing.choose", { plan: "Pro" }): the administrator's text (Admin → CMS) or
  * the default (lib/texts.ts). */
-export function useT() {
+export function useText() {
   const q = useTexts(), saved = q.data;
   return (key: string, vars?: Record<string, string | number>) => fill(saved?.[key] ?? TEXT_DEFAULTS[key] ?? key, vars);
 }
-export type TFn = ReturnType<typeof useT>;
+export type TextFunction = ReturnType<typeof useText>;
 
 /** The administrator's lists (Admin → CMS) */
 export function useContent() {

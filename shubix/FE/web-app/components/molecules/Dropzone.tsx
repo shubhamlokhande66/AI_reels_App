@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 import { cn } from "@/lib/cn";
 import { buttonClass } from "@/components/atoms/Button";
 
@@ -18,7 +18,7 @@ interface Props {
 }
 
 export function Dropzone({ label, hint, accept, multiple = false, validate, onFiles, onReject, disabled }: Props) {
-  const t = useT();
+  const text = useText();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -60,7 +60,7 @@ export function Dropzone({ label, hint, accept, multiple = false, validate, onFi
       <label htmlFor={inputId} className="flex cursor-pointer flex-col items-center gap-1.5">
         <b className="text-[12.5px]">{label}</b>
         <span className="text-[11px] text-muted">{hint}</span>
-        <span className={buttonClass({ variant: "secondary", size: "sm", className: "mt-1.5" })}>{t("common.chooseFiles")}</span>
+        <span className={buttonClass({ variant: "secondary", size: "sm", className: "mt-1.5" })}>{text("common.chooseFiles")}</span>
       </label>
     </div>
   );

@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { clock, deleteDraft, useDrafts, type Draft } from "@/lib/drafts";
 import { formatRelative } from "@/lib/format";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { MoreMenu } from "@/components/molecules/MoreMenu";
 import { Badge, Button, Card, DurationTag, Icon, IconButton, Photo, Spinner } from "@/components/atoms";
@@ -24,8 +24,8 @@ const quality = (r: CloudReel) => (Math.min(r.width, r.height) >= 2000 ? "4K" : 
 const GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-4";
 
 function MakeReel() {
-  const t = useT();
-  return <Button href="/create/music" reload icon="plus">{t("reels.makeReel")}</Button>;
+  const text = useText();
+  return <Button href="/create/music" reload icon="plus">{text("reels.makeReel")}</Button>;
 }
 
 /** a Reel's cover: the picture, its length, ▶ on hover */
@@ -44,21 +44,21 @@ function Cover({ thumb, dur }: { thumb?: string | null; dur?: number }) {
 }
 
 function Drafts({ drafts, onGone }: { drafts: Draft[] | null; onGone: (id: string) => void }) {
-  const t = useT();
+  const text = useText();
   const [note, setNote] = useState<string | null>(null);
   const remove = async (d: Draft) => {
-    if (!(await confirmAction({ title: t("reels.deleteDraftTitle", { name: d.name }), body: t("reels.deleteDraftText"), ok: t("reels.delete"), danger: true }))) return;
+    if (!(await confirmAction({ title: text("reels.deleteDraftTitle", { name: d.name }), body: text("reels.deleteDraftText"), ok: text("reels.delete"), danger: true }))) return;
     try {
       await deleteDraft(d.id);
       onGone(d.id);
-      setNote(t("reels.deleted", { name: d.name }));
+      setNote(text("reels.deleted", { name: d.name }));
     } catch {
-      setNote(t("reels.deleteFailed"));
+      setNote(text("reels.deleteFailed"));
     }
     setTimeout(() => setNote(null), 3000);
   };
   if (drafts === null) return <Spinner />;
-  if (!drafts.length) return <EmptyState icon="projects" title={t("reels.noDrafts")} hint={t("reels.noDraftsText")} action={<MakeReel />} />;
+  if (!drafts.length) return <EmptyState icon="projects" title={text("reels.noDrafts")} hint={text("reels.noDraftsText")} action={<MakeReel />} />;
   return (
     <div className="flex flex-col gap-3">
       {note && <p role="status" className="m-0 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-[13px] font-semibold text-accent">{note}</p>}
@@ -67,18 +67,18 @@ function Drafts({ drafts, onGone }: { drafts: Draft[] | null; onGone: (id: strin
           const href = `/create/edit?p=${encodeURIComponent(d.id)}`;
           return (
             <article key={d.id} className="group flex min-w-0 flex-col gap-2">
-              <a href={href} title={t("reels.open", { name: d.name })}><Cover thumb={d.thumb} dur={d.dur} /></a>
+              <a href={href} title={text("reels.open", { name: d.name })}><Cover thumb={d.thumb} dur={d.dur} /></a>
               <div className="flex items-start gap-1">
                 <a href={href} className="min-w-0 flex-1">
                   <b className="block truncate text-[13.5px] group-hover:text-accent">{d.name}</b>
                   <span className="flex items-center gap-1.5 text-[11.5px] text-muted">
-                    {d.kind === "talk" && <Badge className="h-[18px] px-1.5 text-[10px]">{t("reels.talking")}</Badge>}
-                    <span className="truncate">{t("reels.edited", { when: formatRelative(new Date(d.updated).toISOString()) })}</span>
+                    {d.kind === "talk" && <Badge className="h-[18px] px-1.5 text-[10px]">{text("reels.talking")}</Badge>}
+                    <span className="truncate">{text("reels.edited", { when: formatRelative(new Date(d.updated).toISOString()) })}</span>
                   </span>
                 </a>
-                <MoreMenu label={t("common.more")} items={[
-                  { label: t("common.open"), icon: "scissors", href, reload: true },
-                  { label: t("reels.delete"), icon: "trash", danger: true, onClick: () => void remove(d) },
+                <MoreMenu label={text("common.more")} items={[
+                  { label: text("common.open"), icon: "scissors", href, reload: true },
+                  { label: text("reels.delete"), icon: "trash", danger: true, onClick: () => void remove(d) },
                 ]} />
               </div>
             </article>
@@ -90,7 +90,7 @@ function Drafts({ drafts, onGone }: { drafts: Draft[] | null; onGone: (id: strin
 }
 
 function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: CloudReel) => void; onDelete: () => void }) {
-  const t = useT();
+  const text = useText();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const flash = (s: string) => { setNote(s); setTimeout(() => setNote(null), 2500); };
@@ -101,34 +101,34 @@ function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: Clou
       onChange(next);
       const link = new URL(next.shareUrl!, location.origin).toString();
       if (navigator.share && matchMedia("(pointer: coarse)").matches) await navigator.share({ title: r.name, url: link }).catch(() => {});
-      else { await navigator.clipboard.writeText(link); flash(t("reels.copied")); }
+      else { await navigator.clipboard.writeText(link); flash(text("reels.copied")); }
     } catch (e) {
-      flash(e instanceof Error ? e.message : t("reels.failed"));
+      flash(e instanceof Error ? e.message : text("reels.failed"));
     } finally {
       setBusy(null);
     }
   };
   const remove = async () => {
-    if (!(await confirmAction({ title: t("reels.deleteDraftTitle", { name: r.name }), body: t("reels.deleteSavedText"), ok: t("reels.delete"), danger: true }))) return;
+    if (!(await confirmAction({ title: text("reels.deleteDraftTitle", { name: r.name }), body: text("reels.deleteSavedText"), ok: text("reels.delete"), danger: true }))) return;
     setBusy("delete");
     try { await deleteCloudReel(r.id); onDelete(); }
-    catch (e) { flash(e instanceof Error ? e.message : t("reels.failed")); setBusy(null); }
+    catch (e) { flash(e instanceof Error ? e.message : text("reels.failed")); setBusy(null); }
   };
   return (
     <article className="group flex min-w-0 flex-col gap-2">
-      <a href={cloudReelUrl(r.id)} target="_blank" rel="noreferrer" title={t("reels.watch", { name: r.name })} className="relative block">
+      <a href={cloudReelUrl(r.id)} target="_blank" rel="noreferrer" title={text("reels.watch", { name: r.name })} className="relative block">
         <Cover thumb={r.thumb} dur={r.dur} />
-        {r.shared && <Badge tone="dark" className="absolute right-2 top-2"><Icon name="share" size={11} />{t("reels.linkOn")}</Badge>}
+        {r.shared && <Badge tone="dark" className="absolute right-2 top-2"><Icon name="share" size={11} />{text("reels.linkOn")}</Badge>}
       </a>
       <div className="min-w-0">
         <b className="block truncate text-[13.5px]">{r.name}</b>
         <span className="block truncate text-[11.5px] text-muted">{quality(r)} · {mb(r.size)}</span>
       </div>
       <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1">
-        <a href={cloudReelUrl(r.id, true)} aria-label={`${t("reels.download")} ${r.name}`} title={t("reels.download")}
+        <a href={cloudReelUrl(r.id, true)} aria-label={`${text("reels.download")} ${r.name}`} title={text("reels.download")}
           className="grid h-8 flex-1 place-items-center rounded-lg text-foreground transition-colors hover:bg-accent/10 hover:text-accent"><Icon name="download" size={15} /></a>
-        <IconButton icon="share" plain size={32} iconSize={15} label={`${t("reels.share")}: ${r.name}`} title={t("reels.share")} disabled={!!busy} onClick={() => void share()} className="flex-1 rounded-lg hover:bg-accent/10" />
-        <IconButton icon="trash" plain size={32} iconSize={15} label={`${t("reels.delete")} ${r.name}`} title={t("reels.delete")} disabled={!!busy} onClick={() => void remove()} className="flex-1 rounded-lg text-danger hover:bg-danger/10" />
+        <IconButton icon="share" plain size={32} iconSize={15} label={`${text("reels.share")}: ${r.name}`} title={text("reels.share")} disabled={!!busy} onClick={() => void share()} className="flex-1 rounded-lg hover:bg-accent/10" />
+        <IconButton icon="trash" plain size={32} iconSize={15} label={`${text("reels.delete")} ${r.name}`} title={text("reels.delete")} disabled={!!busy} onClick={() => void remove()} className="flex-1 rounded-lg text-danger hover:bg-danger/10" />
       </div>
       {note && <span role="status" className="text-[11.5px] font-semibold text-accent">{note}</span>}
     </article>
@@ -136,28 +136,28 @@ function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: Clou
 }
 
 function Saved({ data, error, retry, setData }: { data: { reels: CloudReel[]; usage: CloudUsage } | null; error: string | null; retry: () => void; setData: React.Dispatch<React.SetStateAction<{ reels: CloudReel[]; usage: CloudUsage } | null>> }) {
-  const t = useT();
+  const text = useText();
   if (error) return <ErrorBanner message={error} onRetry={retry} />;
   if (!data) return <Spinner />;
   const { reels, usage } = data;
   const share = Math.min(100, (usage.used / Math.max(1, usage.limit)) * 100);
   return (
     <div className="flex flex-col gap-4">
-      <Card aria-label={t("reels.spaceTitle")} className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-5">
+      <Card aria-label={text("reels.spaceTitle")} className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-5">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex items-baseline justify-between gap-2">
-            <b className="text-[14px]">{t("reels.spaceTitle")}</b>
-            <span className="text-[12.5px] text-muted">{t("reels.space", { used: usage.used, limit: usage.limit })}</span>
+            <b className="text-[14px]">{text("reels.spaceTitle")}</b>
+            <span className="text-[12.5px] text-muted">{text("reels.space", { used: usage.used, limit: usage.limit })}</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-surface-2">
             <div className={share > 85 ? "h-full rounded-full bg-warning" : "h-full rounded-full [background:var(--gold-gradient)]"} style={{ width: `${Math.max(share, usage.used ? 3 : 0)}%` }} />
           </div>
-          {!!usage.keepDays && <p className="m-0 text-[11.5px] text-muted">{t("reels.keepDays", { days: usage.keepDays })}</p>}
+          {!!usage.keepDays && <p className="m-0 text-[11.5px] text-muted">{text("reels.keepDays", { days: usage.keepDays })}</p>}
         </div>
-        <Button href="/pricing" size="sm" variant="secondary" icon="crown" className="self-start sm:self-center">{t("reels.moreSpace")}</Button>
+        <Button href="/pricing" size="sm" variant="secondary" icon="crown" className="self-start sm:self-center">{text("reels.moreSpace")}</Button>
       </Card>
       {!reels.length ? (
-        <EmptyState icon="upload" title={t("reels.noSaved")} hint={t("reels.noSavedText")} action={<MakeReel />} />
+        <EmptyState icon="upload" title={text("reels.noSaved")} hint={text("reels.noSavedText")} action={<MakeReel />} />
       ) : (
         <div className={GRID}>
           {reels.map((r) => (
@@ -172,7 +172,7 @@ function Saved({ data, error, retry, setData }: { data: { reels: CloudReel[]; us
 }
 
 function MyReels() {
-  const t = useT();
+  const text = useText();
   const params = useSearchParams();
   const [tab, setTab] = useState<"drafts" | "saved">(params.get("tab") === "saved" ? "saved" : "drafts");
   const pick = (k: "drafts" | "saved") => { setTab(k); history.replaceState(null, "", k === "saved" ? "/reels?tab=saved" : "/reels"); };
@@ -187,17 +187,17 @@ function MyReels() {
   useEffect(() => {
     let live = true;
     // always read fresh, but joined with the notification bell's read when both ask at once (one request, not two)
-    qc.fetchQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, staleTime: 0 }).then((d) => live && (setError(null), setSaved(d)), (e) => live && setError(e instanceof Error ? e.message : t("reels.failed")));
+    qc.fetchQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, staleTime: 0 }).then((d) => live && (setError(null), setSaved(d)), (e) => live && setError(e instanceof Error ? e.message : text("reels.failed")));
     return () => { live = false; };
   }, [tries]); // eslint-disable-line react-hooks/exhaustive-deps -- t only words the error
 
   const count = (n: number | undefined) => (n === undefined ? "" : <span className="ml-1.5 rounded-full bg-surface-2 px-1.5 text-[11px] text-muted">{n}</span>);
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-      <PageHeader title={t("nav.reels")} subtitle={t("reels.sub")} desktopOnly action={<Button href="/create/music" reload icon="plus">{t("nav.newReel")}</Button>} />
+      <PageHeader title={text("nav.reels")} subtitle={text("reels.sub")} desktopOnly action={<Button href="/create/music" reload icon="plus">{text("nav.newReel")}</Button>} />
       <AdSlot place="reels" />
-      <Segmented label={t("nav.reels")} value={tab} onChange={pick} className="self-start"
-        options={[{ value: "drafts", label: <>{t("reels.drafts")}{count(drafts?.length)}</> }, { value: "saved", label: <>{t("reels.saved")}{count(saved?.reels.length)}</> }]} />
+      <Segmented label={text("nav.reels")} value={tab} onChange={pick} className="self-start"
+        options={[{ value: "drafts", label: <>{text("reels.drafts")}{count(drafts?.length)}</> }, { value: "saved", label: <>{text("reels.saved")}{count(saved?.reels.length)}</> }]} />
       <div role="tabpanel">
         {tab === "drafts"
           ? <Drafts drafts={drafts} onGone={(id) => setGone((g) => [...g, id])} />

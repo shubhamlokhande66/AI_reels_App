@@ -38,7 +38,7 @@ import { VerifyBanner } from "@/components/molecules/VerifyBanner";
 import { captureRef } from "@/lib/marketing";
 import { OfferStrip } from "@/components/molecules/OfferStrip";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
-import { useAdmin, useCredits, useFeatures, useLockCheck, useMe, useT } from "@/hooks/useApi";
+import { useAdmin, useCredits, useFeatures, useLockCheck, useMe, useText } from "@/hooks/useApi";
 import { lockTag, PAGE_LOCK } from "@shubix/core/lib/plan-locks";
 import { usePresence } from "@/lib/usePresence";
 import { useErrorReport } from "@/lib/useErrorReport";
@@ -140,12 +140,12 @@ function useNavLock() {
 
 /** The sidebar's and the drawer's page list. */
 export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GROUPS; pathname: string; onNavigate?: () => void }) {
-  const lockOf = useNavLock(), t = useT();
+  const lockOf = useNavLock(), text = useText();
   return (
     <>
       {groups.map((g) => (
         <div key={g.title} className="flex flex-col gap-1">
-          <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-1 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? t(g.tk) : g.title}</Eyebrow>
+          <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-1 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? text(g.tk) : g.title}</Eyebrow>
           {g.items.map((item) => {
             const active = isActive(pathname, item.href), lock = lockOf(item.href);
             const Tag = item.fullLoad && !lock ? "a" : Link;
@@ -165,7 +165,7 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
                 <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition-colors duration-200", active ? "bg-accent/12 text-accent" : "text-muted group-hover:bg-accent/8 group-hover:text-accent")}>
                   <Icon name={item.icon} size={17} stroke={1.8} />
                 </span>
-                <span className="min-w-0 truncate">{item.tk ? t(item.tk) : item.label}</span>
+                <span className="min-w-0 truncate">{item.tk ? text(item.tk) : item.label}</span>
                 {lock && <LockBadge />}
               </Tag>
             );
@@ -198,7 +198,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
 }) {
   // the computer's sidebar list, by group (Studio, Library, Account with Pricing & plans), then the Admin dashboard button
   const main = groups.filter((g) => !g.admin);
-  const lockOf = useNavLock(), t = useT();
+  const lockOf = useNavLock(), text = useText();
   const link = (item: (typeof GROUPS)[number]["items"][number]) => {
     const active = isActive(pathname, item.href), lock = lockOf(item.href);
     const Tag = item.fullLoad && !lock ? "a" : Link;
@@ -218,7 +218,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
         <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition-colors duration-200", active ? "bg-accent/12 text-accent" : "text-muted group-hover:bg-accent/8 group-hover:text-accent")}>
           <Icon name={item.icon} size={17} stroke={1.8} />
         </span>
-        <span className="min-w-0 truncate">{item.tk ? t(item.tk) : item.label}</span>
+        <span className="min-w-0 truncate">{item.tk ? text(item.tk) : item.label}</span>
         {lock && <LockBadge />}
       </Tag>
     );
@@ -238,7 +238,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
           <span className="flex min-w-0 items-center">
             <Logo height={72} />
           </span>
-          <IconButton icon="close" plain label={t("common.closeMenu")} onClick={onClose} />
+          <IconButton icon="close" plain label={text("common.closeMenu")} onClick={onClose} />
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-4 pt-3.5 [&>*]:shrink-0">
           {email && (
@@ -251,7 +251,7 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
           <nav aria-label="Pages" className="flex flex-col border-t border-[color-mix(in_srgb,var(--accent)_10%,var(--line))] pt-1">
             {main.map((g) => (
               <div key={g.title} className="flex flex-col gap-1">
-                <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-2 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? t(g.tk) : g.title}</Eyebrow>
+                <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-2 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? text(g.tk) : g.title}</Eyebrow>
                 {g.items.map(link)}
               </div>
             ))}
@@ -268,13 +268,13 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
               <span onClick={onClose}>
                 <CreditPill balance={credits.balance} full />
               </span>
-              <span className="truncate text-[10px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
+              <span className="truncate text-[10px] text-muted">{text("nav.planSuffix", { plan: credits.planName })}</span>
             </div>
           )}
           {onSignOut && (
             <button type="button" onClick={onSignOut} className="flex min-h-[44px] items-center gap-3 rounded-[12px] border border-transparent px-2.5 text-left text-[12px] text-muted transition-[background,border-color,color] duration-200 hover:border-danger/20 hover:bg-danger/5 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
               <Icon name="signout" size={18} />
-              {t("nav.signOut")}
+              {text("nav.signOut")}
             </button>
           )}
           <div className="pb-[env(safe-area-inset-bottom)]" />
@@ -301,7 +301,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const qc = useQueryClient();
   const me = useMe();
-  const t = useT();
+  const text = useText();
   const [drawer, setDrawer] = useState(false);
   const creditsQ = useCredits();
   const credits = creditsQ.data?.enabled ? creditsQ.data : null;
@@ -404,7 +404,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }
     : undefined;
   const meta = pageMeta(pathname);
-  const title = customTitle ?? (meta.tk ? t(meta.tk) : meta.title);
+  const title = customTitle ?? (meta.tk ? text(meta.tk) : meta.title);
   const back = meta.back;
   // phones: the bottom tab bar, the plan pill and the bell on every page; the studio (/create/…) keeps the whole screen
   // for its own tool bars, and the admin pages keep their Admin badge
@@ -420,9 +420,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* phones: the top bar */}
       <header className="relative isolate sticky top-0 z-30 grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-2 border-b border-[color-mix(in_srgb,var(--accent)_16%,var(--line))] bg-[color-mix(in_srgb,var(--bar)_90%,transparent)] px-3.5 pb-2.5 pt-[max(10px,env(safe-area-inset-top))] shadow-[0_12px_30px_-28px_rgba(0,0,0,.85)] backdrop-blur-2xl md:hidden before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-accent/45 before:to-transparent before:content-['']">
         {back ? (
-          <IconButton icon="back" plain label={t("common.back")} onClick={() => (window.history.length > 1 ? router.back() : router.push(back))} />
+          <IconButton icon="back" plain label={text("common.back")} onClick={() => (window.history.length > 1 ? router.back() : router.push(back))} />
         ) : (
-          <IconButton icon="menu" plain iconSize={22} label={t("common.openMenu")} aria-expanded={drawer} onClick={() => setDrawer(true)} />
+          <IconButton icon="menu" plain iconSize={22} label={text("common.openMenu")} aria-expanded={drawer} onClick={() => setDrawer(true)} />
         )}
         <span className={cn("min-w-0", meta.left || pathname === "/" ? "text-left" : "text-center")}>
           {pathname === "/" ? <Logo height={42} /> : (
@@ -468,7 +468,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Logo height={112} className="relative max-w-full" />
         </Link>
         <Button href="/create/music" reload icon="plus" full size="md" className="!h-11 !rounded-[14px] !text-[12.5px] !shadow-[0_12px_30px_-18px_var(--brand-glow)]">
-          {t("nav.newReel")}
+          {text("nav.newReel")}
         </Button>
         <nav aria-label="Main" className="flex flex-col border-t border-[color-mix(in_srgb,var(--accent)_10%,var(--line))] pt-1">
           <NavGroups groups={groups} pathname={pathname} />
@@ -484,7 +484,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {credits && (
           <div className="flex items-center justify-between gap-2 rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_12%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] p-2">
             <CreditPill balance={credits.balance} full />
-            <span className="truncate text-[10px] text-muted">{t("nav.planSuffix", { plan: credits.planName })}</span>
+            <span className="truncate text-[10px] text-muted">{text("nav.planSuffix", { plan: credits.planName })}</span>
           </div>
         )}
         {me.data?.user && (
@@ -493,19 +493,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {me.data.user.email}
             </span>
             <button type="button" className="shrink-0 font-bold hover:text-accent" onClick={signOut}>
-              {t("nav.signOut")}
+              {text("nav.signOut")}
             </button>
           </div>
         )}
       </aside>
 
       {/* phones: the bottom tab bar */}
-      {tabs && <BottomNav tabs={tabsFor(features).map((x) => ({ ...x, label: t(x.tk), active: isActive(pathname, x.href) }))} moreOpen={drawer} onMore={() => setDrawer(true)} />}
+      {tabs && <BottomNav tabs={tabsFor(features).map((x) => ({ ...x, label: text(x.tk), active: isActive(pathname, x.href) }))} moreOpen={drawer} onMore={() => setDrawer(true)} />}
 
       {needCredits && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-[rgba(5,4,4,.82)] p-5 backdrop-blur-sm" onClick={() => setNeedCredits(null)}>
-          <NoticeCard dialog icon="coins" eyebrow={t("nav.credits")} title={t("plan.noCreditsTitle")} text={`${needCredits} ${t("plan.noCreditsText")}`} onClick={(e) => e.stopPropagation()}
-            actions={<><Button href="/pricing" size="lg" onClick={() => setNeedCredits(null)}>{t("plan.noCreditsButton")}</Button><Button variant="secondary" full onClick={() => setNeedCredits(null)}>{t("plan.noCreditsLater")}</Button></>} />
+          <NoticeCard dialog icon="coins" eyebrow={text("nav.credits")} title={text("plan.noCreditsTitle")} text={`${needCredits} ${text("plan.noCreditsText")}`} onClick={(e) => e.stopPropagation()}
+            actions={<><Button href="/pricing" size="lg" onClick={() => setNeedCredits(null)}>{text("plan.noCreditsButton")}</Button><Button variant="secondary" full onClick={() => setNeedCredits(null)}>{text("plan.noCreditsLater")}</Button></>} />
         </div>
       )}
 
@@ -520,25 +520,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="mb-2 hidden items-center gap-2 text-[12.5px] font-bold text-muted hover:text-accent md:inline-flex"
             >
               <Icon name="back" size={16} />
-              {t("common.back")}
+              {text("common.back")}
             </button>
           )}
           {blocked ? (
             <div className="mx-auto mt-10 flex max-w-sm justify-center">
-              <NoticeCard dialog icon="shield" eyebrow={t("common.adminOnly")} title={t("common.adminTitle")} text={t("common.adminText")}
-                actions={<div className="grid grid-cols-2 gap-2"><Button href="/" variant="secondary">{t("common.back")}</Button><Button href="/admin">{t("common.adminSignIn")}</Button></div>} />
+              <NoticeCard dialog icon="shield" eyebrow={text("common.adminOnly")} title={text("common.adminTitle")} text={text("common.adminText")}
+                actions={<div className="grid grid-cols-2 gap-2"><Button href="/" variant="secondary">{text("common.back")}</Button><Button href="/admin">{text("common.adminSignIn")}</Button></div>} />
             </div>
           ) : adminPage && loading ? (
             // an admin page waits for the admin check (its parts ask admin-only data: not before we know)
             <div className="mt-16 flex justify-center"><Spinner /></div>
           ) : off && !admin ? (
             <div className="mx-auto mt-6 max-w-md">
-              <EmptyState icon="lock" title={t("common.offTitle", { page: off.label })} hint={t("common.offText")} action={<Button href="/">{t("common.backHome")}</Button>} />
+              <EmptyState icon="lock" title={text("common.offTitle", { page: off.label })} hint={text("common.offText")} action={<Button href="/">{text("common.backHome")}</Button>} />
             </div>
           ) : (
             <>
               {off && (
-                <Card role="status" className="mb-3 text-[12.5px] text-warning">{t("common.offAdmin", { page: off.label })}</Card>
+                <Card role="status" className="mb-3 text-[12.5px] text-warning">{text("common.offAdmin", { page: off.label })}</Card>
               )}
               {me.data?.user?.emailVerified === false && <VerifyBanner email={me.data.user.email} />}
               {offer && pathname !== "/pricing" && !pathname.startsWith("/create") && <OfferStrip offer={offer} bar />}

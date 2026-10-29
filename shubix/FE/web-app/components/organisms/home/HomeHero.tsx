@@ -3,13 +3,13 @@
 import { Button } from "@/components/atoms/Button";
 import { Icon } from "@/components/atoms/Icon";
 import { SoundBars } from "@/components/molecules/SoundBars";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 
 const WAVE = [8, 14, 22, 11, 28, 17, 34, 12, 23, 38, 18, 29, 13, 35, 20, 10, 31, 16, 39, 24, 12, 30, 19, 36, 14, 25, 9, 33, 18, 28, 12, 38, 20, 30, 14, 24];
 
 /** The studio home hero: music, a vertical Reel preview, a beat waveform and a clip timeline. */
 export function HomeHero({ href, reload }: { href: string; reload: boolean }) {
-  const t = useT();
+  const text = useText();
   return (
     <section
       aria-label="Make a Reel"
@@ -22,13 +22,13 @@ export function HomeHero({ href, reload }: { href: string; reload: boolean }) {
             <Icon name="music" size={14} /> Beat-synced reel studio
           </span>
           <h1 className="m-0 max-w-[13ch] font-[family-name:var(--font-display)] text-[clamp(30px,7.5vw,48px)] font-semibold leading-[1.02] tracking-[-0.045em]">
-            <span className="block text-foreground">{t("home.hero1")}</span>
-            <span className="block bg-[linear-gradient(100deg,#f0d99b,#c5a45e_65%,#a98a4a)] bg-clip-text text-transparent">{t("home.hero2")}</span>
-            <span className="block text-foreground/80">{t("home.hero3")}</span>
+            <span className="block text-foreground">{text("home.hero1")}</span>
+            <span className="block bg-[linear-gradient(100deg,#f0d99b,#c5a45e_65%,#a98a4a)] bg-clip-text text-transparent">{text("home.hero2")}</span>
+            <span className="block text-foreground/80">{text("home.hero3")}</span>
           </h1>
-          <p className="m-0 max-w-[43ch] text-[13.5px] leading-relaxed text-muted md:text-[14px]">{t("home.heroText")}</p>
+          <p className="m-0 max-w-[43ch] text-[13.5px] leading-relaxed text-muted md:text-[14px]">{text("home.heroText")}</p>
           <Button href={href} reload={reload} size="lg" icon="plus" iconRight="send" className="w-full max-w-[280px] md:w-auto">
-            {t("home.heroButton")}
+            {text("home.heroButton")}
           </Button>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1 text-[11px] font-semibold text-muted">
             <span className="inline-flex items-center gap-1.5"><i className="size-1.5 rounded-full bg-accent" />Pick a sound</span>

@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/atoms/Icon";
 import { cn } from "@/lib/cn";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 
 /** `reload`: a full page load (Fast Studio). */
 export type MoreItem = { label: string; icon?: string; href?: string; reload?: boolean; onClick?: () => void; danger?: boolean; disabled?: boolean };
@@ -15,7 +15,7 @@ const WIDTH = 240, GAP = 6, EDGE = 8;
 /** The "⋯" button (or a `trigger` of its own, e.g. the header's avatar) with its short list of actions. The list opens in a layer above the page (a portal), placed under
  * the button and kept on screen, so a card, a scrolling row or a small screen never cuts it off. */
 export function MoreMenu({ items, label: givenLabel, trigger, triggerClass }: { items: MoreItem[]; label?: string; trigger?: React.ReactNode; triggerClass?: string }) {
-  const t = useT(), label = givenLabel ?? t("common.more");
+  const text = useText(), label = givenLabel ?? text("common.more");
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; up: boolean } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);

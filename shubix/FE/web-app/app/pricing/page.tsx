@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { useCredits, useList, useMe, useT } from "@/hooks/useApi";
+import { useCredits, useList, useMe, useText } from "@/hooks/useApi";
 import { pay } from "@/lib/razorpay";
 import { cn } from "@/lib/cn";
 import type { Credits } from "@/types/api";
@@ -19,12 +19,12 @@ const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined,
 
 
 function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
-  const t = useT();
+  const text = useText();
   return (
-    <Card as="section" aria-label={t("pricing.yourCredits")} className="flex flex-col gap-4">
+    <Card as="section" aria-label={text("pricing.yourCredits")} className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-col">
-          <span className="text-[13px] font-semibold text-muted">{t("pricing.yourCredits")}</span>
+          <span className="text-[13px] font-semibold text-muted">{text("pricing.yourCredits")}</span>
           <span className="flex items-center gap-2 font-[family-name:var(--font-display)] text-[28px] font-semibold leading-tight tabular-nums">
             <Icon name="bolt" size={26} stroke={2.2} color="var(--accent)" />
             {c.balance.toLocaleString("en-IN")}
@@ -32,13 +32,13 @@ function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
         </div>
         <Badge tone="brand" className="h-8 px-3 text-[12.5px]">
           <Icon name="crown" size={14} />
-          {t("pricing.planBadge", { plan: c.planName })}
+          {text("pricing.planBadge", { plan: c.planName })}
         </Badge>
       </div>
       <p className="m-0 text-[12.5px] text-muted">
-        {c.plan !== "free" && c.planEnds ? `${t("pricing.activeUntil", { date: day(c.planEnds) })} · ` : ""}
-        {c.plan !== "free" && c.renews ? `${t("pricing.renews", { date: day(c.renews) })} · ` : ""}
-        {c.extra > 0 ? t("pricing.extraLeft", { n: c.extra.toLocaleString("en-IN") }) : c.plan === "free" ? t("pricing.freeNote") : ""}
+        {c.plan !== "free" && c.planEnds ? `${text("pricing.activeUntil", { date: day(c.planEnds) })} · ` : ""}
+        {c.plan !== "free" && c.renews ? `${text("pricing.renews", { date: day(c.renews) })} · ` : ""}
+        {c.extra > 0 ? text("pricing.extraLeft", { n: c.extra.toLocaleString("en-IN") }) : c.plan === "free" ? text("pricing.freeNote") : ""}
       </p>
       {c.history.length > 0 && (
         <ul className="m-0 flex list-none flex-col divide-y divide-border p-0">
@@ -62,7 +62,7 @@ export default function PricingPage() {
   const q = useQuery({ queryKey: ["plans"], queryFn: api.plans, staleTime: 300_000 });
   const me = useMe();
   const credits = useCredits();
-  const t = useT();
+  const text = useText();
   const faq = useList("pricing.faq"); // the questions: Admin → CMS → Pricing → Questions
   const [yearly, setYearly] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
@@ -78,11 +78,11 @@ export default function PricingPage() {
     setNotice(null);
     setBuying(item);
     try {
-      const r = await pay(item, { name: t("checkout.name"), logo: t("checkout.logo"), color: t("checkout.color") }, coupon);
+      const r = await pay(item, { name: text("checkout.name"), logo: text("checkout.logo"), color: text("checkout.color") }, coupon);
       if (r.status !== "closed") setCheckout(null);
       if (r.status === "paid") {
         qc.setQueryData(["credits"], r.credits);
-        setNotice({ ok: true, text: t("pricing.paid", { item: label }) });
+        setNotice({ ok: true, text: text("pricing.paid", { item: label }) });
       } else if (r.status === "failed") {
         setNotice({ ok: false, text: r.message });
       }
@@ -108,12 +108,12 @@ export default function PricingPage() {
         <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 -z-10 mx-auto h-64 max-w-3xl rounded-full bg-[radial-gradient(closest-side,rgba(216,189,123,.2),transparent)] blur-2xl" />
         <Badge tone="brand" className="h-8 px-3.5 text-[12.5px] uppercase tracking-wider">
           <Icon name="coins" size={15} />
-          {t("pricing.badge")}
+          {text("pricing.badge")}
         </Badge>
         <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(28px,5.5vw,44px)] font-semibold leading-[1.08] tracking-[-0.025em]">
-          {t("pricing.title1")} <span className="bg-gold bg-clip-text text-transparent">{t("pricing.title2")}</span>
+          {text("pricing.title1")} <span className="bg-gold bg-clip-text text-transparent">{text("pricing.title2")}</span>
         </h1>
-        <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">{t("pricing.sub", { aiCost: p.costs.studio_ai ?? 10 })}</p>
+        <p className="m-0 max-w-xl text-[15.5px] leading-relaxed text-muted md:text-[17px]">{text("pricing.sub", { aiCost: p.costs.studio_ai ?? 10 })}</p>
 
         {/* Monthly / Yearly */}
         <div role="radiogroup" aria-label="Billing period" className="mt-2 inline-flex items-center gap-1 rounded-full border border-border bg-surface p-1.5 shadow-[var(--shadow)]">
@@ -129,10 +129,10 @@ export default function PricingPage() {
                 yearly === y ? "text-on-accent [background:var(--gold-gradient)] shadow-[0_8px_20px_-10px_var(--brand-glow)]" : "text-muted hover:text-foreground",
               )}
             >
-              {t(y ? "pricing.yearly" : "pricing.monthly")}
+              {text(y ? "pricing.yearly" : "pricing.monthly")}
               {y && freeMonths > 0 && (
                 <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-extrabold", yearly ? "bg-white/20 text-white" : "bg-success/15 text-[color-mix(in_srgb,var(--success)_75%,var(--foreground))]")}>
-                  {t("pricing.monthsFree", { n: freeMonths })}
+                  {text("pricing.monthsFree", { n: freeMonths })}
                 </span>
               )}
             </button>
@@ -181,13 +181,13 @@ export default function PricingPage() {
         })}
       </section>
 
-      <PlanCompare t={t} plans={p.plans.filter((x) => !x.hidden).map((x) => x.id)} />
+      <PlanCompare text={text} plans={p.plans.filter((x) => !x.hidden).map((x) => x.id)} />
 
       {/* your credits and top-ups */}
       <section aria-label="Credits" className={cn("grid gap-5", mine && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]")}>
         {mine && <MyCredits c={mine} />}
         <Card as="section" aria-label="Top up" className="flex flex-col gap-4">
-          <SectionHeading title={t("pricing.topUpTitle")} sub={t("pricing.topUpSub")} />
+          <SectionHeading title={text("pricing.topUpTitle")} sub={text("pricing.topUpSub")} />
           <div className="grid gap-3 sm:grid-cols-2">
             {p.topUps.map((tu) => {
               const item = `topup:${tu.id}`;
@@ -197,9 +197,9 @@ export default function PricingPage() {
                     <span className="flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[20px] font-semibold tabular-nums">
                       <Icon name="bolt" size={18} stroke={2.2} color="var(--accent)" />+{tu.credits.toLocaleString("en-IN")}
                     </span>
-                    <span className="text-[12px] text-muted">{t("pricing.perCredit", { price: rupees(Math.round((tu.price / tu.credits) * 10) / 10) })}</span>
+                    <span className="text-[12px] text-muted">{text("pricing.perCredit", { price: rupees(Math.round((tu.price / tu.credits) * 10) / 10) })}</span>
                   </div>
-                  <Button size="sm" variant="secondary" loading={buying === item} disabled={!p.paymentsOpen || !signedIn || (buying !== null && buying !== item)} title={!p.paymentsOpen ? t("pricing.soon") : undefined} onClick={() => void buy(item, `${tu.credits} ${t("pricing.credits")}`)}>
+                  <Button size="sm" variant="secondary" loading={buying === item} disabled={!p.paymentsOpen || !signedIn || (buying !== null && buying !== item)} title={!p.paymentsOpen ? text("pricing.soon") : undefined} onClick={() => void buy(item, `${tu.credits} ${text("pricing.credits")}`)}>
                     {offer && offer.appliesTo !== "plans" ? <><s className="mr-1 opacity-60">{rupees(tu.price)}</s>{rupees(Math.round((tu.price * (100 - offer.percent)) / 100))}</> : rupees(tu.price)}
                   </Button>
                 </div>
@@ -211,7 +211,7 @@ export default function PricingPage() {
 
       {/* what a credit buys */}
       <section aria-labelledby="costs-h" className="flex flex-col gap-5">
-        <SectionHeading id="costs-h" title={t("pricing.costsTitle")} sub={t("pricing.costsSub")} center />
+        <SectionHeading id="costs-h" title={text("pricing.costsTitle")} sub={text("pricing.costsSub")} center />
         <Card className="!p-2 md:!p-3">
           <ul className="m-0 grid list-none gap-x-6 p-0 lg:grid-cols-2">
             {p.creditCosts.filter((c) => c.id.startsWith("studio_") || c.credits > 0).filter((c) => !["clip_reel", "version", "story_render", "preview"].includes(c.id)).map((c) => (
@@ -223,7 +223,7 @@ export default function PricingPage() {
                   <span className="min-w-0">{c.action}</span>
                 </span>
                 <Badge tone={c.credits === 0 ? "success" : "brand"} className="h-7 shrink-0 px-3 text-[12px]">
-                  {c.credits === 0 ? t("pricing.costFree") : c.credits === 1 ? t("pricing.costCredit") : t("pricing.costCredits", { n: c.credits })}
+                  {c.credits === 0 ? text("pricing.costFree") : c.credits === 1 ? text("pricing.costCredit") : text("pricing.costCredits", { n: c.credits })}
                 </Badge>
               </li>
             ))}
@@ -233,7 +233,7 @@ export default function PricingPage() {
 
       {/* questions */}
       <section aria-labelledby="faq-h" className="flex flex-col gap-5">
-        <SectionHeading id="faq-h" title={t("pricing.faqTitle")} sub={t("pricing.faqSub")} center />
+        <SectionHeading id="faq-h" title={text("pricing.faqTitle")} sub={text("pricing.faqSub")} center />
         <div className="grid items-start gap-3 lg:grid-cols-2">
           {faq.map(({ q: qq, a }) => (
             <details key={qq} className="group rounded-2xl border border-border bg-surface px-5 shadow-[var(--shadow)] open:border-accent/50">
@@ -251,7 +251,7 @@ export default function PricingPage() {
 
       <p className="m-0 flex items-center justify-center gap-2 text-center text-[12.5px] text-muted">
         <Icon name="lock" size={15} />
-        {t(p.paymentsOpen ? "pricing.secure" : "pricing.soon")}
+        {text(p.paymentsOpen ? "pricing.secure" : "pricing.soon")}
       </p>
     </div>
   );

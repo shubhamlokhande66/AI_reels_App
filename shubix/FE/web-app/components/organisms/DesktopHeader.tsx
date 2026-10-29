@@ -7,19 +7,19 @@ import { MoreMenu, type MoreItem } from "@/components/molecules/MoreMenu";
 import { NotificationBell } from "@/components/molecules/NotificationBell";
 import { ProPill } from "@/components/molecules/ProPill";
 import { InstallBanner } from "@/components/molecules/InstallBanner";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 
 /** The computers' header (UI/ design): search the templates, the plan pill, the credits, the bell and the account
  * menu. Phones have the top bar instead (AppShell). */
 export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: string; credits: { balance: number; planName: string; plan?: string } | null; admin: boolean; onSignOut?: () => void }) {
-  const t = useT();
+  const text = useText();
   const router = useRouter();
   const [q, setQ] = useState("");
   const menu: MoreItem[] = [
-    { label: t("nav.myAccount"), icon: "user", href: "/account" },
-    { label: t("nav.pricing"), icon: "coins", href: "/pricing" },
-    ...(admin ? [{ label: t("common.adminDashboard"), icon: "admin", href: "/admin" }] : []),
-    ...(onSignOut ? [{ label: t("nav.signOut"), icon: "signout", onClick: onSignOut, danger: true }] : []),
+    { label: text("nav.myAccount"), icon: "user", href: "/account" },
+    { label: text("nav.pricing"), icon: "coins", href: "/pricing" },
+    ...(admin ? [{ label: text("common.adminDashboard"), icon: "admin", href: "/admin" }] : []),
+    ...(onSignOut ? [{ label: text("nav.signOut"), icon: "signout", onClick: onSignOut, danger: true }] : []),
   ];
   return (
     <header className="relative isolate sticky top-0 z-30 -mx-8 -mt-5 mb-6 hidden h-[76px] items-center gap-3 border-b border-[color-mix(in_srgb,var(--accent)_14%,var(--line))] bg-[color-mix(in_srgb,var(--bar)_88%,transparent)] px-5 shadow-[0_16px_40px_-34px_rgba(0,0,0,.72)] backdrop-blur-2xl md:flex lg:gap-5 lg:px-8 before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-accent/50 before:to-transparent before:content-['']">
@@ -41,22 +41,22 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
         }}
       >
         <Icon name="search" size={18} />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("templates.headerSearch")} aria-label={t("templates.search")} className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={text("templates.headerSearch")} aria-label={text("templates.search")} className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted" />
       </form>
       <div className="ml-auto flex shrink-0 items-center gap-1.5 lg:gap-2.5">
         <InstallBanner />
         <ProPill plan={credits?.planName} planId={credits?.plan} />
         {credits && (
-          <a href="/pricing" title={t("nav.creditsHint")} className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-[14px] border border-[color-mix(in_srgb,var(--accent)_18%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] px-3 text-[13px] font-bold shadow-[0_1px_0_rgba(255,255,255,.035)_inset] transition-[border-color,background,transform] duration-200 hover:-translate-y-px hover:border-accent/50 hover:bg-surface">
+          <a href="/pricing" title={text("nav.creditsHint")} className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-[14px] border border-[color-mix(in_srgb,var(--accent)_18%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] px-3 text-[13px] font-bold shadow-[0_1px_0_rgba(255,255,255,.035)_inset] transition-[border-color,background,transform] duration-200 hover:-translate-y-px hover:border-accent/50 hover:bg-surface">
             <span className="grid h-6 w-6 place-items-center rounded-full bg-accent/12"><Icon name="bolt" size={14} stroke={2} color="var(--accent)" /></span>
-            {credits.balance.toLocaleString("en-IN")}<span className="hidden capitalize text-muted lg:inline"> {t("nav.credits")}</span>
+            {credits.balance.toLocaleString("en-IN")}<span className="hidden capitalize text-muted lg:inline"> {text("nav.credits")}</span>
           </a>
         )}
         <NotificationBell />
         {/* the account menu: the person's initial, or a person when accounts are off (a local studio) */}
         <MoreMenu
           items={menu}
-          label={t("common.account")}
+          label={text("common.account")}
           triggerClass="flex items-center gap-1.5 rounded-full p-0.5 pr-1.5 text-muted transition-colors hover:bg-surface-2"
           trigger={
             <>

@@ -24,25 +24,25 @@ export function useApi(): Ctx {
   return c;
 }
 /** Every text the person sees: the admin's (CMS) or the default. */
-export function useT() {
+export function useText() {
   const { texts } = useApi();
   return useCallback((key: TextKey, vars?: Record<string, string | number>) => fill(texts[key] ?? TEXT_DEFAULTS[key], vars), [texts]);
 }
 
 /** Sign in / create an account: fields, messages as people type, submit. `onDone(signedUp)` decides where to go. */
 export function useAuthForm(onDone: (signedUp: boolean) => void) {
-  const { api, refresh } = useApi(), t = useT();
+  const { api, refresh } = useApi(), text = useText();
   const [mode, setModeRaw] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [again, setAgain] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const signin = mode === "signin";
   const errors = {
-    email: touched.email && email && !emailOk(email) ? t("auth.badEmail") : "",
-    password: touched.password && !signin && password && !passwordOk(password) ? t("auth.shortPassword") : "",
-    again: !signin && again && again.length >= password.length && again !== password ? t("auth.mismatch") : "",
+    email: touched.email && email && !emailOk(email) ? text("auth.badEmail") : "",
+    password: touched.password && !signin && password && !passwordOk(password) ? text("auth.shortPassword") : "",
+    again: !signin && again && again.length >= password.length && again !== password ? text("auth.mismatch") : "",
   };
-  const ok = { password: !signin && passwordOk(password) ? t("auth.strongEnough") : "", again: again && again === password ? t("auth.match") : "" };
+  const ok = { password: !signin && passwordOk(password) ? text("auth.strongEnough") : "", again: again && again === password ? text("auth.match") : "" };
   const valid = emailOk(email) && (signin ? !!password : passwordOk(password) && again === password);
   const setMode = (m: "signin" | "signup") => { setModeRaw(m); setError(null); setAgain(""); setTouched({}); };
   const touch = (k: "email" | "password" | "again") => setTouched((x) => ({ ...x, [k]: true }));
@@ -56,36 +56,36 @@ export function useAuthForm(onDone: (signedUp: boolean) => void) {
       onDone(!signin);
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
-  return { mode, setMode, signin, email, setEmail, password, setPassword, again, setAgain, touch, errors, ok, valid, error, busy, submit, t };
+  return { mode, setMode, signin, email, setEmail, password, setPassword, again, setAgain, touch, errors, ok, valid, error, busy, submit, t: text };
 }
 
 /** Forgot password: the email, then the code + a new password (signed in at the end, every other session ends). */
 export function useForgotFlow(onDone: () => void) {
-  const { api, refresh } = useApi(), t = useT();
+  const { api, refresh } = useApi(), text = useText();
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState(""), [code, setCode] = useState(""), [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<unknown>) => { setError(null); setBusy(true); try { await fn(); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); } };
-  const send = () => (emailOk(email) ? run(async () => { await api.auth.forgot(email.trim()); setStep("code"); }) : setError(t("auth.badEmail")));
+  const send = () => (emailOk(email) ? run(async () => { await api.auth.forgot(email.trim()); setStep("code"); }) : setError(text("auth.badEmail")));
   const reset = () => {
-    if (!/^\d{6}$/.test(code.trim())) return setError(t("auth.enterSixDigits"));
-    if (!passwordOk(password)) return setError(t("auth.shortPassword"));
+    if (!/^\d{6}$/.test(code.trim())) return setError(text("auth.enterSixDigits"));
+    if (!passwordOk(password)) return setError(text("auth.shortPassword"));
     return run(async () => { await api.auth.reset(email.trim(), code.trim(), password); await refresh(); onDone(); });
   };
-  return { step, setStep, email, setEmail, code, setCode, password, setPassword, error, busy, send, reset, t };
+  return { step, setStep, email, setEmail, code, setCode, password, setPassword, error, busy, send, reset, t: text };
 }
 
 /** Verify the email with the 6-digit code from the sign-up email. */
 export function useVerifyFlow(onDone: () => void) {
-  const { api, me, refresh } = useApi(), t = useT();
+  const { api, me, refresh } = useApi(), text = useText();
   const [code, setCode] = useState(""), [error, setError] = useState<string | null>(null), [note, setNote] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const verify = async () => {
-    if (!/^\d{6}$/.test(code.trim())) return setError(t("auth.enterSixDigits"));
+    if (!/^\d{6}$/.test(code.trim())) return setError(text("auth.enterSixDigits"));
     setError(null); setBusy(true);
     try { await api.auth.verify(code.trim()); await refresh(); onDone(); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
-  const resend = async () => { setError(null); try { await api.auth.resendVerify(); setNote(t("auth.codeResent")); } catch (e) { setError(errorMessage(e)); } };
-  return { email: me?.user?.email ?? "", code, setCode, error, note, busy, verify, resend, t };
+  const resend = async () => { setError(null); try { await api.auth.resendVerify(); setNote(text("auth.codeResent")); } catch (e) { setError(errorMessage(e)); } };
+  return { email: me?.user?.email ?? "", code, setCode, error, note, busy, verify, resend, t: text };
 }
 
 /** Sign out on this device. */

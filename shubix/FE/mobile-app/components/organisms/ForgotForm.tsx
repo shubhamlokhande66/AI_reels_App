@@ -7,22 +7,22 @@ import { AuthHeader, Button, ErrorBanner, Field, Input, LinkText, Page, Password
 /** Forgot password: email → 6-digit code + new password (logic: @shubix/hooks useForgotFlow, the same as the website). */
 export function ForgotForm() {
   const f = useForgotFlow(() => router.replace("/(tabs)"));
-  const { t } = f, first = f.step === "email";
+  const { t: text } = f, first = f.step === "email";
   return (
     <Page>
-      <AuthHeader onClose={() => router.back()} title={t(first ? "auth.forgotTitle" : "auth.resetTitle")} subtitle={first ? t("auth.forgotCodeText") : t("auth.resetCodeSent", { email: f.email })} />
+      <AuthHeader onClose={() => router.back()} title={text(first ? "auth.forgotTitle" : "auth.resetTitle")} subtitle={first ? text("auth.forgotCodeText") : text("auth.resetCodeSent", { email: f.email })} />
       <View className="mt-6 gap-4">
         {first ? (
-          <Field label={t("auth.email")}><Input icon={<Mail size={17} color={colors.muted} />} value={f.email} onChangeText={f.setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder={t("auth.emailPlaceholder")} /></Field>
+          <Field label={text("auth.email")}><Input icon={<Mail size={17} color={colors.muted} />} value={f.email} onChangeText={f.setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder={text("auth.emailPlaceholder")} /></Field>
         ) : (
           <>
-            <Field label={t("auth.codeLabel")}><Input value={f.code} onChangeText={(v) => f.setCode(v.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" /></Field>
-            <Field label={t("auth.newPassword")} hint={t("auth.lengthHint")}><PasswordInput value={f.password} onChangeText={f.setPassword} autoComplete="new-password" placeholder={t("auth.newPasswordPlaceholder")} /></Field>
-            <LinkText title={t("auth.otherEmail")} onPress={() => f.setStep("email")} />
+            <Field label={text("auth.codeLabel")}><Input value={f.code} onChangeText={(v) => f.setCode(v.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" /></Field>
+            <Field label={text("auth.newPassword")} hint={text("auth.lengthHint")}><PasswordInput value={f.password} onChangeText={f.setPassword} autoComplete="new-password" placeholder={text("auth.newPasswordPlaceholder")} /></Field>
+            <LinkText title={text("auth.otherEmail")} onPress={() => f.setStep("email")} />
           </>
         )}
         {f.error ? <ErrorBanner message={f.error} /> : null}
-        <Button size="lg" full title={first ? (f.busy ? t("auth.sending") : t("auth.sendCode")) : (f.busy ? t("auth.saving") : t("auth.resetButton"))} loading={f.busy} onPress={() => void (first ? f.send() : f.reset())} />
+        <Button size="lg" full title={first ? (f.busy ? text("auth.sending") : text("auth.sendCode")) : (f.busy ? text("auth.saving") : text("auth.resetButton"))} loading={f.busy} onPress={() => void (first ? f.send() : f.reset())} />
       </View>
     </Page>
   );

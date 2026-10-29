@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { Icon } from "@/components/atoms/Icon";
-import { useMe, useT } from "@/hooks/useApi";
+import { useMe, useText } from "@/hooks/useApi";
 import { canInstall, install, isIos, isStandalone, subscribeInstall } from "@/lib/pwa";
 import { Button, IconButton } from "@/components/atoms";
 import { RichText } from "./RichText";
@@ -20,7 +20,7 @@ const LATER = "shubix-install-later";
 /** In the sticky header, top right (AppShell): a pill on computers ("Get the app · Install · ✕"); `compact` on phones,
  * a round install button. On an iPhone, Install opens the two taps in a small card under it. */
 export function InstallBanner({ className = "", compact = false }: { className?: string; compact?: boolean }) {
-  const t = useT();
+  const text = useText();
   const offer = useSyncExternalStore(subscribeInstall, canInstall, () => false);
   const standalone = useSyncExternalStore(subscribeInstall, isStandalone, () => true);
   const ios = useSyncExternalStore(() => () => {}, isIos, () => false);
@@ -43,23 +43,23 @@ export function InstallBanner({ className = "", compact = false }: { className?:
   };
   const go = () => (offer ? void install() : setHowTo((v) => !v));
   return (
-    <div role="region" aria-label={t("install.sidebar")} className={cn("relative", className)}>
+    <div role="region" aria-label={text("install.sidebar")} className={cn("relative", className)}>
       {compact ? (
-        <IconButton icon="download" label={t("install.button")} title={t("install.title")} onClick={go} className="border-accent/50 text-accent" />
+        <IconButton icon="download" label={text("install.button")} title={text("install.title")} onClick={go} className="border-accent/50 text-accent" />
       ) : (
-        <div className="flex h-10 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 py-1 pl-3 pr-1" title={`${t("install.title")} · ${t("install.sub")}`}>
+        <div className="flex h-10 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 py-1 pl-3 pr-1" title={`${text("install.title")} · ${text("install.sub")}`}>
           <Icon name="download" size={16} className="shrink-0 text-accent" />
-          <span className="hidden whitespace-nowrap text-[13px] font-semibold xl:inline">{t("install.title")}</span>
-          <Button size="sm" className="ml-1 h-8 rounded-full px-3" onClick={go}>{t("install.button")}</Button>
-          <IconButton icon="close" plain size={28} iconSize={14} label={t("install.notNow")} className="text-muted" onClick={notNow} />
+          <span className="hidden whitespace-nowrap text-[13px] font-semibold xl:inline">{text("install.title")}</span>
+          <Button size="sm" className="ml-1 h-8 rounded-full px-3" onClick={go}>{text("install.button")}</Button>
+          <IconButton icon="close" plain size={28} iconSize={14} label={text("install.notNow")} className="text-muted" onClick={notNow} />
         </div>
       )}
       {/* iPhone: a website cannot install itself, so the two taps */}
       {howTo && !offer && (
         <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(300px,calc(100vw-32px))] rounded-2xl border border-border bg-surface p-3.5 text-[12.5px] leading-snug text-muted shadow-[0_20px_44px_-18px_rgba(0,0,0,.6)]">
-          <b className="mb-1 block text-[13px] text-foreground">{t("install.title")}</b>
-          <RichText text={t("install.ios")} />
-          {compact && <button type="button" onClick={notNow} className="mt-2 text-[12px] font-semibold text-muted hover:text-foreground">{t("install.notNow")}</button>}
+          <b className="mb-1 block text-[13px] text-foreground">{text("install.title")}</b>
+          <RichText text={text("install.ios")} />
+          {compact && <button type="button" onClick={notNow} className="mt-2 text-[12px] font-semibold text-muted hover:text-foreground">{text("install.notNow")}</button>}
         </div>
       )}
     </div>

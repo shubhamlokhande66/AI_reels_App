@@ -7,7 +7,7 @@ import { Icon } from "@/components/atoms/Icon";
 import { listCloudReels } from "@/lib/cloudReels";
 import { api } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 
 const SEEN = "reel-notes-seen";
 const seenAt = () => {
@@ -21,7 +21,7 @@ const seenAt = () => {
 /** The top bar's bell (UI/ design): the administrator's messages (Admin → Messages) first, then the Reels saved to My
  * Reels lately; a red dot for what is new. Opening it marks the messages read (on the server: every device). */
 export function NotificationBell() {
-  const t = useT();
+  const text = useText();
   const q = useQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, staleTime: 60_000, retry: false });
   const notes = useQuery({ queryKey: ["notifications"], queryFn: api.notifications, staleTime: 60_000, refetchInterval: 5 * 60_000, retry: false });
   const [open, setOpen] = useState(false);
@@ -62,7 +62,7 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={toggle}
-        aria-label={fresh ? t("bell.new", { n: fresh }) : t("bell.title")}
+        aria-label={fresh ? text("bell.new", { n: fresh }) : text("bell.title")}
         aria-expanded={open}
         className="relative grid h-10 w-10 place-items-center rounded-full text-foreground transition-colors hover:bg-surface-2"
       >
@@ -70,8 +70,8 @@ export function NotificationBell() {
         {fresh > 0 && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--bar)] bg-[#ff3b5c]" />}
       </button>
       {open && (
-        <div role="dialog" aria-label={t("bell.title")} className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-32px))] rounded-2xl border border-border bg-surface p-2 shadow-[0_20px_44px_-18px_rgba(0,0,0,.7)]">
-          <b className="block px-2.5 pb-1.5 pt-1 text-[13px]">{t("bell.title")}</b>
+        <div role="dialog" aria-label={text("bell.title")} className="absolute right-0 top-[calc(100%+8px)] z-50 w-[min(320px,calc(100vw-32px))] rounded-2xl border border-border bg-surface p-2 shadow-[0_20px_44px_-18px_rgba(0,0,0,.7)]">
+          <b className="block px-2.5 pb-1.5 pt-1 text-[13px]">{text("bell.title")}</b>
           {msgs.length > 0 && (
             <div className="mb-1 flex max-h-[50vh] flex-col gap-1 overflow-y-auto border-b border-border pb-1.5">
               {msgs.map((m) => (
@@ -83,8 +83,8 @@ export function NotificationBell() {
                     <span className="flex items-center gap-2 text-[11px] text-muted">
                       {formatRelative(m.at)}
                       {m.link && (m.link.startsWith("/")
-                        ? <Link href={m.link} onClick={() => setOpen(false)} className="font-bold text-accent">{m.button || t("bell.open")}</Link>
-                        : <a href={m.link} target="_blank" rel="noreferrer" className="font-bold text-accent">{m.button || t("bell.open")}</a>)}
+                        ? <Link href={m.link} onClick={() => setOpen(false)} className="font-bold text-accent">{m.button || text("bell.open")}</Link>
+                        : <a href={m.link} target="_blank" rel="noreferrer" className="font-bold text-accent">{m.button || text("bell.open")}</a>)}
                     </span>
                   </span>
                 </div>
@@ -104,7 +104,7 @@ export function NotificationBell() {
               </Link>
             ))
           ) : msgs.length ? null : (
-            <p className="m-0 px-2.5 pb-2 text-[13px] text-muted">{t("bell.empty")}</p>
+            <p className="m-0 px-2.5 pb-2 text-[13px] text-muted">{text("bell.empty")}</p>
           )}
         </div>
       )}

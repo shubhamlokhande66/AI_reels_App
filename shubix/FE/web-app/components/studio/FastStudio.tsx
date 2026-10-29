@@ -8,7 +8,7 @@ import { initSteps } from "@/components/studio/steps";
 import { initAuto } from "@/components/studio/auto";
 import { initFlow } from "@/components/studio/flow";
 import { TTS_VOICES } from "@/lib/tts/voices";
-import { useAdmin, useTexts, useT } from "@/hooks/useApi";
+import { useAdmin, useTexts, useText } from "@/hooks/useApi";
 import { STUDIO_KEYS } from "@shubix/core/lib/texts-all";
 import { startTextSwap } from "@/components/studio/textSwap";
 import { ErrorBanner } from "@/components/molecules";
@@ -42,7 +42,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "c
   const root = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const { admin, required } = useAdmin();
-  const t = useT();
+  const text = useText();
   // the administrator's wording for the studio (Admin → CMS → Studio …): swapped where it shows
   const texts = useTexts().data;
   useEffect(() => {
@@ -112,7 +112,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "c
 
   return (
     <>
-      {failed && <ErrorBanner title={t("studio.failed")} message={failed} onRetry={() => location.reload()} />}
+      {failed && <ErrorBanner title={text("studio.failed")} message={failed} onRetry={() => location.reload()} />}
       <div ref={root} className={kind ? "brs fopen" : "brs"} data-fstep={kind ? "intro" : undefined} data-fkind={kind} dangerouslySetInnerHTML={{ __html: STUDIO_HTML }} />
     </>
   );

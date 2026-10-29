@@ -11,7 +11,7 @@ Shared/core         code both the website and the API run: CMS texts, plans/lock
 Shared/types        API types (SessionUser, AuthResponse, error shape)
 Shared/validations  Zod schemas + form rules + editor/plan rules (website, phone, API)
 Shared/api-client   one fetch client: cookie on the web, Bearer token on the phone
-Shared/hooks        the phone's sign-in logic and useT (CMS texts)
+Shared/hooks        the phone's sign-in logic and useText (CMS texts)
 Shared/utils        normalizeEmail, maskEmail, fill
 Shared/ui-core      design tokens (tokens.json) + brand assets
 Shared/ui-mobile    atoms + molecules for the phone (React Native + NativeWind)

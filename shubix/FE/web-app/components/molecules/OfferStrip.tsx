@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 import { Icon } from "@/components/atoms";
 import { cn } from "@/lib/cn";
 import type { Offer } from "@/lib/marketing";
@@ -19,32 +19,32 @@ function left(ends: string | null) {
 /** A sale running (Admin → Marketing → Offers): its name, its line, how much off and when it ends. On the pricing page as
  * a band; across the app (`bar`) a slim line with a link to the plans, closed for that sale with ✕. */
 export function OfferStrip({ offer, bar = false }: { offer: Offer; bar?: boolean }) {
-  const t = useT(), key = `shubix-offer-${offer.id}`;
+  const text = useText(), key = `shubix-offer-${offer.id}`;
   const [hidden, setHidden] = useState(false);
   useEffect(() => { void Promise.resolve().then(() => { try { if (bar && localStorage.getItem(key)) setHidden(true); } catch { /* shown */ } }); }, [bar, key]);
   if (hidden) return null;
   const when = left(offer.ends);
-  const text = (
+  const offerLine = (
     <>
       <b className="font-semibold">{offer.title}</b>
-      <span className="text-[color-mix(in_srgb,currentColor_80%,transparent)]">{offer.banner ? ` · ${offer.banner}` : ""}{offer.audience === "new" ? ` · ${t("pricing.offerNew")}` : ""}{when ? ` · ${t("pricing.offerEnds", { when })}` : ""}</span>
+      <span className="text-[color-mix(in_srgb,currentColor_80%,transparent)]">{offer.banner ? ` · ${offer.banner}` : ""}{offer.audience === "new" ? ` · ${text("pricing.offerNew")}` : ""}{when ? ` · ${text("pricing.offerEnds", { when })}` : ""}</span>
     </>
   );
   if (bar)
     return (
       <div role="note" className="relative mb-3 flex items-center gap-2.5 overflow-hidden rounded-[16px] border border-[color-mix(in_srgb,var(--accent)_24%,var(--line))] bg-[linear-gradient(100deg,color-mix(in_srgb,var(--accent)_13%,var(--surface)),color-mix(in_srgb,var(--surface)_94%,transparent))] px-3 py-2.5 text-[11.5px] shadow-[0_14px_34px_-28px_rgba(0,0,0,.76)] backdrop-blur-xl sm:px-3.5 sm:text-[12px]">
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gold text-on-accent"><Icon name="sparkle" size={14} /></span>
-        <span className="min-w-0 flex-1 truncate">{text}</span>
-        <span className="hidden shrink-0 rounded-full bg-gold px-2 py-0.5 text-[11px] font-bold text-on-accent sm:inline">{t("pricing.offerTag", { percent: offer.percent })}</span>
-        <Link href="/pricing" className="shrink-0 font-semibold text-accent hover:underline">{t("pricing.offerSee")}</Link>
+        <span className="min-w-0 flex-1 truncate">{offerLine}</span>
+        <span className="hidden shrink-0 rounded-full bg-gold px-2 py-0.5 text-[11px] font-bold text-on-accent sm:inline">{text("pricing.offerTag", { percent: offer.percent })}</span>
+        <Link href="/pricing" className="shrink-0 font-semibold text-accent hover:underline">{text("pricing.offerSee")}</Link>
         <button type="button" aria-label="Close" onClick={() => { setHidden(true); try { localStorage.setItem(key, "1"); } catch { /* closed for now */ } }} className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-transparent text-muted transition-[background,border-color,color] duration-200 hover:border-border hover:bg-surface-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"><Icon name="close" size={14} /></button>
       </div>
     );
   return (
     <div role="note" className={cn("mx-auto -mt-4 flex w-full max-w-3xl flex-wrap items-center justify-center gap-x-3 gap-y-1.5 rounded-2xl border border-accent/30 px-4 py-3 text-center text-[13.5px]",
       "bg-[linear-gradient(90deg,color-mix(in_srgb,var(--accent)_12%,var(--surface)),color-mix(in_srgb,var(--accent)_5%,var(--surface)))] shadow-[var(--shadow)]")}>
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-0.5 text-[11.5px] font-bold text-on-accent"><Icon name="sparkle" size={12} />{t("pricing.offerTag", { percent: offer.percent })}</span>
-      <span>{text}</span>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-0.5 text-[11.5px] font-bold text-on-accent"><Icon name="sparkle" size={12} />{text("pricing.offerTag", { percent: offer.percent })}</span>
+      <span>{offerLine}</span>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { IconTile } from "@/components/atoms/IconTile";
 import { cn } from "@/lib/cn";
 import type { Tone } from "@/lib/ui";
 import type { Pricing } from "@/types/api";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 
 export type Plan = Pricing["plans"][number];
 export const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -28,7 +28,7 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
   const price = free ? 0 : yearly ? plan.yearly : plan.monthly;
   const perMonth = yearly && !free ? Math.round(plan.yearly / 12) : null;
   const look = LOOK[plan.id] ?? { icon: "star", tone: "brand" as Tone };
-  const t = useT();
+  const text = useText();
   return (
     <article
       aria-label={`${plan.name}${selected ? " (selected)" : ""}`}
@@ -46,7 +46,7 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
           <Icon name="check" size={13} stroke={3} />
         </span>
       )}
-      {pop && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3.5 py-1 text-[11.5px] font-extrabold uppercase tracking-wider text-on-accent [background:var(--gold-gradient)]">{t("pricing.popular")}</span>}
+      {pop && <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3.5 py-1 text-[11.5px] font-extrabold uppercase tracking-wider text-on-accent [background:var(--gold-gradient)]">{text("pricing.popular")}</span>}
 
       <header className="flex items-center gap-3 pr-7">
         <IconTile icon={look.icon} tone={look.tone} size={44} />
@@ -59,21 +59,21 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
       <div className="flex flex-col gap-1">
         {/* a sale running (Admin → Marketing → Offers): the price after it, the old one struck through */}
         {offer && !free ? (
-            <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-gold px-2.5 py-0.5 text-[11px] font-bold text-on-accent">{t("pricing.offerTag", { percent: offer })}</span>
+            <span className="mb-1 inline-flex w-fit items-center gap-1 rounded-full bg-gold px-2.5 py-0.5 text-[11px] font-bold text-on-accent">{text("pricing.offerTag", { percent: offer })}</span>
         ) : null}
         <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="font-[family-name:var(--font-display)] text-[34px] font-bold leading-none tracking-[-0.03em] tabular-nums">{rupees(offer && !free ? Math.round((price * (100 - offer)) / 100) : price)}</span>
           {offer && !free ? <s className="text-[16px] font-semibold text-muted tabular-nums">{rupees(price)}</s> : null}
-          {!free && <span className="text-[14px] font-semibold text-muted">{t(yearly ? "pricing.perYear" : "pricing.perMonth")}</span>}
+          {!free && <span className="text-[14px] font-semibold text-muted">{text(yearly ? "pricing.perYear" : "pricing.perMonth")}</span>}
         </p>
-        <p className="m-0 h-5 text-[12.5px] text-muted">{free ? t("pricing.freeForever") : perMonth ? t("pricing.billedYearly", { price: rupees(perMonth) }) : t("pricing.billedMonthly")}</p>
+        <p className="m-0 h-5 text-[12.5px] text-muted">{free ? text("pricing.freeForever") : perMonth ? text("pricing.billedYearly", { price: rupees(perMonth) }) : text("pricing.billedMonthly")}</p>
       </div>
 
       {/* the credits, wrapping on a narrow card (never past its edge) */}
       <p className={cn("m-0 flex items-start gap-2 rounded-xl px-3 py-2 text-[12.5px] leading-snug", selected ? "bg-accent/10 text-foreground" : "bg-surface-2 text-muted")}>
         <Icon name="bolt" size={15} stroke={2.2} color="var(--accent)" className="mt-px shrink-0" />
         <span className="min-w-0">
-          {plan.credits > 0 && <b className="font-extrabold text-foreground">{plan.credits.toLocaleString("en-IN")} {t("pricing.credits")} </b>}
+          {plan.credits > 0 && <b className="font-extrabold text-foreground">{plan.credits.toLocaleString("en-IN")} {text("pricing.credits")} </b>}
           {plan.credits > 0 ? plan.creditsNote : plan.creditsNote.replace(/^./, (c) => c.toUpperCase())}
         </span>
       </p>
@@ -96,14 +96,14 @@ export function PlanCard({ plan, yearly, action, selected, onSelect, offer }: { 
 
 /** The plan's button, as far as this person and this studio allow (sign in, payments not open yet, your plan…). */
 export function PlanAction({ plan, signedIn, paymentsOpen, current, busy, selected, onBuy }: { plan: Plan; signedIn: boolean; paymentsOpen: boolean; current: boolean; busy: boolean; selected: boolean; onBuy: () => void }) {
-  const t = useT();
+  const text = useText();
   const variant = selected ? "primary" : "secondary";
-  if (plan.monthly === 0) return <Button href={signedIn ? "/" : "/login"} variant="secondary" full>{t(signedIn ? "pricing.makeReel" : "pricing.startFree")}</Button>;
-  if (!paymentsOpen) return <Button variant={variant} full disabled title={t("pricing.soon")}>{t(current ? "pricing.currentPlan" : "pricing.opensSoon")}</Button>;
-  if (!signedIn) return <Button href="/login" variant={variant} full>{t("pricing.signInFor", { plan: plan.name })}</Button>;
+  if (plan.monthly === 0) return <Button href={signedIn ? "/" : "/login"} variant="secondary" full>{text(signedIn ? "pricing.makeReel" : "pricing.startFree")}</Button>;
+  if (!paymentsOpen) return <Button variant={variant} full disabled title={text("pricing.soon")}>{text(current ? "pricing.currentPlan" : "pricing.opensSoon")}</Button>;
+  if (!signedIn) return <Button href="/login" variant={variant} full>{text("pricing.signInFor", { plan: plan.name })}</Button>;
   return (
     <Button variant={variant} full loading={busy} onClick={onBuy} iconRight={busy ? undefined : "send"}>
-      {busy ? t("pricing.opening") : t(current ? "pricing.extend" : "pricing.choose", { plan: plan.name })}
+      {busy ? text("pricing.opening") : text(current ? "pricing.extend" : "pricing.choose", { plan: plan.name })}
     </Button>
   );
 }

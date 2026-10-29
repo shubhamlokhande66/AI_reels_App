@@ -12,7 +12,7 @@ import { Button } from "@/components/atoms/Button";
 import { clock, deleteDraft, draftPreview, type Draft } from "@/lib/drafts";
 import { linkOn, type Features } from "@shubix/core/lib/features-list";
 import { lockTag, PAGE_LOCK, type PlanId } from "@shubix/core/lib/plan-locks";
-import { useList, useLockCheck, useT } from "@/hooks/useApi";
+import { useList, useLockCheck, useText } from "@/hooks/useApi";
 import type { ListItem } from "@shubix/core/lib/collections";
 import { formatRelative } from "@/lib/format";
 import { useTemplates } from "@/lib/useTemplates";
@@ -33,10 +33,10 @@ export function createOptions(f: Features, cards: ListItem[]): Option[] {
 }
 
 export function CreateSection({ features }: { features: Features }) {
-  const check = useLockCheck(), t = useT(), cards = useList("home.cards"), opts = createOptions(features, cards);
+  const check = useLockCheck(), text = useText(), cards = useList("home.cards"), opts = createOptions(features, cards);
   return (
     <section aria-labelledby="create-h" className="flex flex-col gap-3">
-      <SectionHeader id="create-h" title={t("home.createTitle")} />
+      <SectionHeader id="create-h" title={text("home.createTitle")} />
       {/* wide screens: every card in one row (up to 7), so none is left alone on a second row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-[repeat(var(--n),minmax(0,1fr))] [&>*:last-child:nth-child(odd)]:col-span-2 sm:[&>*:last-child:nth-child(odd)]:col-span-1"
         style={{ "--n": Math.min(7, Math.max(1, opts.length)) } as React.CSSProperties}>
@@ -49,10 +49,10 @@ export function CreateSection({ features }: { features: Features }) {
 }
 
 export function TemplatesSection() {
-  const { templates } = useTemplates(), t = useT();
+  const { templates } = useTemplates(), text = useText();
   return (
     <section aria-labelledby="tpl-h" className="flex flex-col gap-3">
-      <SectionHeader id="tpl-h" title={t("home.templatesTitle")} href="/templates" />
+      <SectionHeader id="tpl-h" title={text("home.templatesTitle")} href="/templates" />
       <Scroller label="Popular templates" grid="md:grid md:grid-cols-6 md:overflow-visible">
         {templates.slice(0, 6).map((t) => (
           <div key={t.id} className="w-[31vw] min-w-[108px] max-w-[150px] shrink-0 snap-start md:w-auto md:max-w-none">
@@ -66,16 +66,16 @@ export function TemplatesSection() {
 
 /** The drafts on this phone, newest first; null while they are being read. */
 export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; onChange?: () => void }) {
-  const t = useT();
+  const text = useText();
   async function remove(d: Draft) {
-    if (await confirmAction({ title: t("reels.deleteDraftTitle", { name: d.name }), body: t("reels.deleteDraftText"), ok: t("reels.delete"), danger: true })) {
+    if (await confirmAction({ title: text("reels.deleteDraftTitle", { name: d.name }), body: text("reels.deleteDraftText"), ok: text("reels.delete"), danger: true })) {
       await deleteDraft(d.id);
       onChange?.();
     }
   }
   return (
     <section aria-labelledby="cont-h" className="flex flex-col gap-3">
-      <SectionHeader id="cont-h" title={t("home.continueTitle")} href={drafts?.length ? "/reels" : undefined} />
+      <SectionHeader id="cont-h" title={text("home.continueTitle")} href={drafts?.length ? "/reels" : undefined} />
       {drafts === null ? (
         <div className="flex gap-3 overflow-hidden" role="status" aria-label="Loading your drafts">
           {[0, 1, 2].map((i) => (
@@ -98,10 +98,10 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
                   thumb={d.thumb}
                   preview={() => draftPreview(d.id)}
                   duration={clock(d.dur)}
-                  edited={t("common.edited", { when: formatRelative(new Date(d.updated).toISOString()) })}
+                  edited={text("common.edited", { when: formatRelative(new Date(d.updated).toISOString()) })}
                   menu={[
-                    { label: t("common.open"), icon: "scissors", href, reload: true },
-                    { label: t("reels.delete"), icon: "trash", danger: true, onClick: () => void remove(d) },
+                    { label: text("common.open"), icon: "scissors", href, reload: true },
+                    { label: text("reels.delete"), icon: "trash", danger: true, onClick: () => void remove(d) },
                   ]}
                 />
               </div>
@@ -111,11 +111,11 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
       ) : (
         <EmptyState
           icon="video"
-          title={t("home.emptyTitle")}
-          hint={t("home.emptyText")}
+          title={text("home.emptyTitle")}
+          hint={text("home.emptyText")}
           action={
             <Button href="/create/music" reload icon="plus">
-              {t("home.emptyButton")}
+              {text("home.emptyButton")}
             </Button>
           }
         />
@@ -125,12 +125,12 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
 }
 
 export function TipsSection() {
-  const t = useT();
+  const text = useText();
   // the administrator's tips (Admin → CMS → Home → Tips for Better Reels)
   const tips = useList("home.tips").filter((tip) => tip.title);
   return (
     <section aria-labelledby="tips-h" className="flex flex-col gap-3">
-      <SectionHeader id="tips-h" title={t("home.tipsTitle")} />
+      <SectionHeader id="tips-h" title={text("home.tipsTitle")} />
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
         {tips.map((tip, i) => (
           <TipCard key={tip.id} n={i + 1} icon={tip.icon || "bulb"} color={tip.color || "#d8bd7b"} title={tip.title} text={tip.text} />

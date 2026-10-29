@@ -7,9 +7,9 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/projects", useRouter: (
 const admin = vi.hoisted(() => ({ value: false }));
 const features = vi.hoisted(() => ({ value: { fastStudio: true, studioAI: true, brands: true } as Record<string, boolean> }));
 vi.mock("@/hooks/useApi", async () => {
-  const { tDefaults } = await import("./helpers/texts");
+  const { defaultText } = await import("./helpers/texts");
   return {
-    useT: () => tDefaults,
+    useText: () => defaultText,
     useLockCheck: () => () => "",
     useAdmin: () => ({ admin: admin.value, required: true, loading: false }),
     useMe: () => ({ data: { authEnabled: true, user: { id: "u", email: "me@example.com" } } }),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { useT } from "@/hooks/useApi";
+import { useText } from "@/hooks/useApi";
 import { buttonClass } from "@/components/atoms/Button";
 import { cn } from "@/lib/cn";
 
@@ -32,7 +32,7 @@ const close = (v: boolean) => {
 };
 
 export function ConfirmHost() {
-  const t = useT();
+  const text = useText();
   const ask = useSyncExternalStore(
     (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     () => pending,
@@ -71,10 +71,10 @@ export function ConfirmHost() {
         {ask.body && <p id="confirm-body" className="m-0 text-[12.5px] text-muted">{ask.body}</p>}
         <div className="mt-1 flex gap-2">
           <button ref={cancelRef} type="button" className={buttonClass({ variant: "secondary", className: "flex-1" })} onClick={() => close(false)}>
-            {ask.cancel ?? t("common.cancel")}
+            {ask.cancel ?? text("common.cancel")}
           </button>
           <button type="button" className={buttonClass({ variant: ask.danger ? "danger" : "primary", className: cn("flex-1", ask.danger && "bg-danger text-white hover:bg-danger") })} onClick={() => close(true)}>
-            {ask.ok ?? t("common.ok")}
+            {ask.ok ?? text("common.ok")}
           </button>
         </div>
       </div>

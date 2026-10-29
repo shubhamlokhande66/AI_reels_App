@@ -4,8 +4,8 @@ import { Dropzone } from "@/components/molecules/Dropzone";
 import { StatusBadge } from "@/components/atoms";
 
 vi.mock("@/hooks/useApi", async () => {
-  const { tDefaults } = await import("./helpers/texts");
-  return { useT: () => tDefaults };
+  const { defaultText } = await import("./helpers/texts");
+  return { useText: () => defaultText };
 });
 
 const file = (name: string) => new File(["x"], name, { type: "video/mp4" });

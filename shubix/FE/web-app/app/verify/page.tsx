@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
-import { useMe, useT } from "@/hooks/useApi";
+import { useMe, useText } from "@/hooks/useApi";
 import { useCountdown } from "@/lib/useCountdown";
 import { maskEmail } from "@/lib/validate";
 import { Button, Card, Icon, Spinner } from "@/components/atoms";
@@ -14,20 +14,20 @@ import { ErrorBanner } from "@/components/molecules";
 import { OtpInput } from "@/components/molecules/OtpInput";
 
 const Done = ({ email }: { email: string }) => {
-  const t = useT();
+  const text = useText();
   return (
     <div className="flex flex-col items-center gap-3 text-center">
       <span className="grid size-14 place-items-center rounded-full bg-success/15 text-success"><Icon name="check" size={28} /></span>
-      <h2 className="m-0 text-[17px] font-semibold">{t("auth.verifiedTitle")}</h2>
-      <p className="m-0 text-[13px] text-muted">{t("auth.verifiedText", { email })}</p>
-      <Button href="/" full>{t("auth.continue")}</Button>
+      <h2 className="m-0 text-[17px] font-semibold">{text("auth.verifiedTitle")}</h2>
+      <p className="m-0 text-[13px] text-muted">{text("auth.verifiedText", { email })}</p>
+      <Button href="/" full>{text("auth.continue")}</Button>
     </div>
   );
 };
 
 /** A "Verify my email" link emailed before the codes. */
 function ByLink({ token }: { token: string }) {
-  const qc = useQueryClient(), t = useT();
+  const qc = useQueryClient(), text = useText();
   const [state, setState] = useState<{ email?: string; error?: string }>({});
   const once = useRef(false); // the link works once: do not send it twice (React's dev double effect)
   useEffect(() => {
@@ -37,20 +37,20 @@ function ByLink({ token }: { token: string }) {
       .then((r) => { setState({ email: r.email }); void qc.invalidateQueries({ queryKey: ["me"] }); })
       .catch((e) => setState({ error: errorMessage(e) }));
   }, [token, qc]);
-  if (state.error) return <><ErrorBanner message={state.error} /><Button href="/verify">{t("auth.enterCode")}</Button></>;
-  if (!state.email) return <Spinner label={t("auth.verifying")} />;
+  if (state.error) return <><ErrorBanner message={state.error} /><Button href="/verify">{text("auth.enterCode")}</Button></>;
+  if (!state.email) return <Spinner label={text("auth.verifying")} />;
   return <Done email={state.email} />;
 }
 
 /** The 6-digit code from the sign-up email (the person is signed in). */
 function ByCode({ justSent }: { justSent: boolean }) {
-  const qc = useQueryClient(), t = useT(), me = useMe();
+  const qc = useQueryClient(), text = useText(), me = useMe();
   const [code, setCode] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null), [note, setNote] = useState<string | null>(null);
   const wait = useCountdown(justSent ? 60 : 0);
   const user = me.data?.user;
   if (me.isLoading) return <Spinner />;
-  if (!user) return <p className="m-0 text-[13px]">{t("auth.signInToVerify")} <Link href="/login" className="font-bold text-accent">{t("auth.signIn")}</Link></p>;
+  if (!user) return <p className="m-0 text-[13px]">{text("auth.signInToVerify")} <Link href="/login" className="font-bold text-accent">{text("auth.signIn")}</Link></p>;
   if (done || user.emailVerified !== false) return <Done email={done ?? user.email} />;
 
   const verify = async (c = code) => {
@@ -62,22 +62,22 @@ function ByCode({ justSent }: { justSent: boolean }) {
   };
   const resend = async () => {
     setError(null); setNote(null);
-    try { const r = await api.resendVerify(); wait.start(r.wait ?? 60); setNote(t("auth.codeResent")); }
+    try { const r = await api.resendVerify(); wait.start(r.wait ?? 60); setNote(text("auth.codeResent")); }
     catch (e) { setError(errorMessage(e)); }
   };
   return (
     <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void verify(); }}>
-      <p className="m-0 text-[13px] text-muted">{t("auth.codeSentTo", { email: maskEmail(user.email) })}</p>
-      <OtpInput label={t("auth.codeLabel")} value={code} onChange={(v) => { setCode(v); setError(null); }} onComplete={(v) => void verify(v)} invalid={!!error} disabled={busy} />
+      <p className="m-0 text-[13px] text-muted">{text("auth.codeSentTo", { email: maskEmail(user.email) })}</p>
+      <OtpInput label={text("auth.codeLabel")} value={code} onChange={(v) => { setCode(v); setError(null); }} onComplete={(v) => void verify(v)} invalid={!!error} disabled={busy} />
       {error && <ErrorBanner message={error} />}
       {note && !error && <p className="m-0 text-[12.5px] font-semibold text-success">{note}</p>}
-      <Button type="submit" loading={busy} disabled={code.length !== 6}>{t("auth.verifyButton")}</Button>
+      <Button type="submit" loading={busy} disabled={code.length !== 6}>{text("auth.verifyButton")}</Button>
       <p className="m-0 text-center text-[12.5px] text-muted">
-        {t("auth.noCode")}{" "}
-        {wait.left > 0 ? <span>{t("auth.resendIn", { s: wait.left })}</span>
-          : <button type="button" className="font-bold text-accent" onClick={() => void resend()}>{t("auth.resendCode")}</button>}
+        {text("auth.noCode")}{" "}
+        {wait.left > 0 ? <span>{text("auth.resendIn", { s: wait.left })}</span>
+          : <button type="button" className="font-bold text-accent" onClick={() => void resend()}>{text("auth.resendCode")}</button>}
       </p>
-      <p className="m-0 text-center text-[11.5px] text-muted">{t("auth.checkSpam")}</p>
+      <p className="m-0 text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</p>
     </form>
   );
 }
@@ -89,11 +89,11 @@ function Verify() {
 
 /** Verify the email: the 6-digit code from the sign-up email (or a link emailed before the codes). */
 export default function VerifyPage() {
-  const t = useT();
+  const text = useText();
   return (
     <AuthFrame>
       <Card className="flex flex-col gap-3">
-        <h1 className="m-0 font-[family-name:var(--font-display)] text-[21px] font-semibold tracking-[-0.015em]">{t("auth.verifyTitle")}</h1>
+        <h1 className="m-0 font-[family-name:var(--font-display)] text-[21px] font-semibold tracking-[-0.015em]">{text("auth.verifyTitle")}</h1>
         <Suspense fallback={null}><Verify /></Suspense>
       </Card>
     </AuthFrame>
