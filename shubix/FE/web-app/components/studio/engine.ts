@@ -15,6 +15,7 @@ import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/pl
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
+import { B } from "./ui";
 
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
@@ -2158,7 +2159,7 @@ function planReport(slots, story, changed){
 function chatProposal(pd){
   chatClearWait();
   const box = planReport(pd.slots, pd.story, pd.changed), go = document.createElement('button');
-  go.type = 'button'; go.className = 'btn hot repgo'; go.textContent = 'Generate Reel';
+  go.type = 'button'; go.className = `${B.main} repgo`; go.textContent = 'Generate Reel';
   go.addEventListener('click', () => chatGenerate(go), SIG);
   box.appendChild(go); $('chatlog').appendChild(box); $('chatlog').scrollTop = $('chatlog').scrollHeight;
   chatMsgs.push({ who: 'ai', text: 'Plan ready: ' + (pd.story || plan.length + ' shots') });
@@ -2231,7 +2232,7 @@ async function chatSend(text){
     const did = chatLocal(text);
     if(ready && did.length) makeEdit();
     chatAnswer((did.length ? 'Done ✓ I used ' + did.join(' and ') + ' (on your phone). ' : '') + (aiLocked ? 'Changing the Reel from your words is Shubix AI: it is in the Editor and Pro plans.' : 'Shubix AI is off for this Reel, so I can only switch the style (say "faster" or "calmer") or make a new version.'));
-    if(aiLocked){ const a = document.createElement('a'); a.href = '/pricing'; a.className = 'btn hot up'; a.textContent = 'See Editor & Pro'; $('chatlog').appendChild(a); }
+    if(aiLocked){ const a = document.createElement('a'); a.href = '/pricing'; a.className = `${B.main} up`; a.textContent = 'See Editor & Pro'; $('chatlog').appendChild(a); }
     return;
   }
   if(!ready){ wish = chatMsgs.filter(m => m.who === 'me').map(m => m.text).join(' · ').slice(-800); chatAnswer('Got it! I\'ll edit your Reel this way as soon as it is made.'); return; }
@@ -2247,7 +2248,7 @@ async function chatSend(text){
     const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (cost ? 'It uses ' + creditWord(cost) + '.' : 'Included in your plan.'), bal, ok: 'Make the change', no: 'Cancel' });
     if(!ok){ chatAnswer('OK, nothing changed.'); return; }
   } else if(cost && bal !== null){
-    if(bal < cost){ chatAnswer('This change needs ' + creditWord(cost) + ' and you have ' + creditWord(bal) + '.'); const a = document.createElement('a'); a.href = '/pricing'; a.className = 'btn hot up'; a.textContent = 'Top up'; $('chatlog').appendChild(a); return; }
+    if(bal < cost){ chatAnswer('This change needs ' + creditWord(cost) + ' and you have ' + creditWord(bal) + '.'); const a = document.createElement('a'); a.href = '/pricing'; a.className = `${B.main} up`; a.textContent = 'Top up'; $('chatlog').appendChild(a); return; }
     const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (freeN ? 'The ' + freeN + ' free changes for this Reel are used, so this' : 'It') + ' uses ' + creditWord(cost) + '.', bal, after: bal - cost, ok: 'Use ' + creditWord(cost), no: 'Cancel' });
     if(!ok){ chatAnswer('OK, nothing changed and no credits used.'); return; }
   }
@@ -3935,7 +3936,7 @@ function renderOvList(){
       <div class="ovpane" data-p="anim"><select class="ova" aria-label="Entrance" hidden></select><div class="ovchips" data-for="ova"></div></div>
       <div class="ovpane" data-p="loop"><select class="ovl" aria-label="Keeps moving" hidden></select><div class="ovchips" data-for="ovl"></div></div>
       <div class="ovctl ovflags"><label class="tog switch"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog switch"><input type="checkbox" class="ovbeh"> Behind the person</label><label class="tog switch"><input type="checkbox" class="ovall"> Whole Reel</label></div>
-      <div class="ovctl ovtime"><span class="ovtl">Start</span><button class="btn mini ovfrom" title="Start where the playhead is">Here</button><span class="fname ovtm"></span><span class="ovtl">End</span><button class="btn mini ovto" title="End where the playhead is">Here</button><button class="btn mini ovdel2" type="button">Delete</button></div>`;
+      <div class="ovctl ovtime"><span class="ovtl">Start</span><button class="${B.mini} ovfrom" title="Start where the playhead is">Here</button><span class="fname ovtm"></span><span class="ovtl">End</span><button class="${B.mini} ovto" title="End where the playhead is">Here</button><button class="${B.mini} ovdel2" type="button">Delete</button></div>`;
     const tk = row.querySelector('.ovtrk'); tk.checked = !!ov.track; if(isLocked('tool', 'track')) tk.parentElement.lastChild.textContent = ' 👑 Follow the person'; tk.addEventListener('change', () => { ov.track = tk.checked; if(tk.checked){ ov.x = 0.5; ov.y = ov.emoji ? 0.38 : 0.32; } redraw(); });
     const ti = row.querySelector('.ovt'); ti.value = ov.text; if(ov.emoji){ ti.readOnly = true; ti.classList.add('emoji'); }
     ti.addEventListener('input', () => { ov.text = ti.value; redraw(); });
@@ -4996,7 +4997,7 @@ function notify(t, kind){
 function askConfirm(text, okLabel){
   return new Promise(res => {
     const d = document.createElement('div'); d.className = 'askbg';
-    d.innerHTML = '<div class="ask" role="alertdialog" aria-modal="true"><p></p><div class="askrow"><button type="button" class="btn">Cancel</button><button type="button" class="btn danger"></button></div></div>';
+    d.innerHTML = `<div class="ask" role="alertdialog" aria-modal="true"><p></p><div class="askrow"><button type="button" class="${B.plain}">Cancel</button><button type="button" class="${B.danger}"></button></div></div>`;
     d.querySelector('p').textContent = text;
     const [no, yes] = d.querySelectorAll('button'); yes.textContent = okLabel;
     const key = e => { if(e.key === 'Escape') done(false); };
@@ -5274,7 +5275,7 @@ function planGate(list){
     const top = list.reduce((a, x) => planRank(x.need) > planRank(a) ? x.need : a, 'creator');
     const d = document.createElement('div'); d.className = 'askbg';
     // as the design (frame 9): ✕, a crown, what it is, what is in it, Upgrade Now · Take them out
-    d.innerHTML = '<div class="ask lockpop" role="alertdialog" aria-modal="true" aria-labelledby="lkt"><button type="button" class="askx" aria-label="Close">✕</button><div class="lkcrown" aria-hidden="true">👑</div><h3 class="lkt" id="lkt"></h3><p class="gt"></p><ul class="gl"></ul><div class="askrow"><a class="btn gold" href="/pricing">Upgrade Now</a><button type="button" class="btn">Take them out</button></div></div>';
+    d.innerHTML = `<div class="ask lockpop" role="alertdialog" aria-modal="true" aria-labelledby="lkt"><button type="button" class="${B.close} absolute top-3 right-3" aria-label="Close">✕</button><div class="lkcrown" aria-hidden="true">👑</div><h3 class="lkt" id="lkt"></h3><p class="gt"></p><ul class="gl"></ul><div class="askrow"><a class="${B.main}" href="/pricing">Upgrade Now</a><button type="button" class="${B.plain}">Take them out</button></div></div>`;
     d.querySelector('.lkt').textContent = 'This is a ' + PLAN_NAME[top] + ' Feature';
     d.querySelector('.gt').textContent = 'Your Reel uses ' + PLAN_NAME[top] + ' features. Upgrade to export it as it is, or take them out and export now.';
     const ul = d.querySelector('.gl'); for(const x of list.slice(0, 8)){ const li = document.createElement('li'); li.textContent = x.name + ' · ' + PLAN_NAME[x.need]; ul.appendChild(li); }
@@ -5986,7 +5987,7 @@ async function loadKinds(){
     const tc = $('tcat'); if(!tc.options.length) for(const [k, name] of Object.entries(STYLE_KINDS)) tc.add(new Option(name, k));
     autoUse();
     $('stlist').innerHTML = ''; for(const s of r.mine.slice(0, 40)){ const li = document.createElement('li'); li.textContent = STYLE_KINDS[s.category] + ': ' + s.name + ' · ' + s.pace + (s.trans ? ' · ' + s.trans : '') + (s.shared ? ' · shared' : '') + ' ';
-      const del = document.createElement('button'); del.className = 'btn mini'; del.textContent = 'Delete'; del.addEventListener('click', async () => { try{ await api('/api/studio/styles/' + s.id, { method: 'DELETE' }); loadKinds(); }catch(e){} }); li.appendChild(del); $('stlist').appendChild(li); }
+      const del = document.createElement('button'); del.className = B.mini; del.textContent = 'Delete'; del.addEventListener('click', async () => { try{ await api('/api/studio/styles/' + s.id, { method: 'DELETE' }); loadKinds(); }catch(e){} }); li.appendChild(del); $('stlist').appendChild(li); }
   }catch(err){ $('learnrow').hidden = true; }
 }
 $('luse').addEventListener('click', async () => {
@@ -6147,7 +6148,7 @@ async function ttsAdd(){
 function ttsList(){
   const box = $('ttslist'); box.innerHTML = '';
   for(const c of ttsClips){ const d = document.createElement('div'); d.className = 'ttsitem';
-    d.innerHTML = '<span class="tt"></span><span class="tm"></span><button type="button" class="btn mini" aria-label="Remove this speech">×</button>';
+    d.innerHTML = `<span class="tt"></span><span class="tm"></span><button type="button" class="${B.mini}" aria-label="Remove this speech">×</button>`;
     d.querySelector('.tt').textContent = '"' + c.text + '"'; d.querySelector('.tm').textContent = fmt(c.at).replace(/\.\d+$/, '') + ' · ' + ((tts && tts.voices.find(v => v.key === c.voice) || {}).label || c.voice) + (c.pcm ? ' · ' + (c.pcm.length/c.sr).toFixed(1) + ' s' : ' · not made yet');
     d.querySelector('button').addEventListener('click', () => { ttsClips = ttsClips.filter(x => x !== c); ttsList(); applyVo(); clipMixKey = ''; });
     box.appendChild(d); }

@@ -42,6 +42,7 @@ import { CLIP_TOOLS, clipToolsEvents, clipToolsHtml, type ClipApi } from "./clip
 import { DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, type PlanId } from "@shubix/core/lib/plan-locks";
 import { tx } from "./i18n";
 import { Glyph, GLYPH_PATHS } from "./markup";
+import { B } from "./ui";
 
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -306,13 +307,13 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const s0 = sels[shotTab];
     const chips = !s0 ? "" : shotTab < 2 ? `<div class="shtilebox">${tilesHtml(shotTab, sels, thumbOf(e.src))}</div>` : `<div class="chips">${[...s0.options].map((o) => `<button type="button" class="chip" data-c="${shotTab}" data-v="${esc(o.value)}" aria-pressed="${o.value === s0.value}">${esc(o.text)}</button>`).join("")}</div>`;
     const selects = sels.map((s, k) => !s ? "" : `<label class="isel"><span>${names[k]}</span><select data-c="${k}">${[...s.options].map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? " selected" : ""}>${esc(o.text)}</option>`).join("")}</select></label>`).join("");
-    const other = `<button type="button" class="btn ghost" data-other="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg><span>Use a different moment</span></button>`;
+    const other = `<button type="button" class="${B.ghost}" data-other="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg><span>Use a different moment</span></button>`;
     // split, duplicate, delete, replace (the music's timing stays; see the engine's shotOp)
     const tools = st.kind === "talk" ? "" : `<div class="shtools" role="group" aria-label="Shot tools">`
-      + `<button type="button" class="btn ghost" data-op="split" title="Split this shot where the playhead is">Split</button>`
-      + `<button type="button" class="btn ghost" data-op="dup" title="Play this moment twice">Duplicate</button>`
-      + `<button type="button" class="btn ghost" data-op="freeze" title="Freeze the picture at the playhead, then play on">Freeze</button>`
-      + `<button type="button" class="btn ghost" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
+      + `<button type="button" class="${B.ghost}" data-op="split" title="Split this shot where the playhead is">Split</button>`
+      + `<button type="button" class="${B.ghost}" data-op="dup" title="Play this moment twice">Duplicate</button>`
+      + `<button type="button" class="${B.ghost}" data-op="freeze" title="Freeze the picture at the playhead, then play on">Freeze</button>`
+      + `<button type="button" class="${B.ghost}" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
       + `</div><div class="cliptools"></div>`;
     $("shotcard").innerHTML = head + chips + other + tools;
     $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;

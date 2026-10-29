@@ -17,12 +17,7 @@
 .brs .sh h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0}
 .brs .sh .st{margin-left:auto;font-size:13.5px;color:var(--muted)}
 .brs .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-.brs .btn{font:600 14px var(--body);border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:10px 15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-.brs .btn:hover{border-color:var(--muted)}
-.brs .btn:focus-visible,.brs .seg button:focus-visible{outline:2px solid var(--drop);outline-offset:2px}
-.brs .btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.brs .btn.hot{background:var(--drop);border-color:var(--drop);color:#fff}
-.brs .btn:disabled{opacity:.45;cursor:default}
+.brs .seg button:focus-visible{outline:2px solid var(--drop);outline-offset:2px}
 .brs input[type=file]{display:none}
 .brs .fname{font-family:var(--mono);font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .brs canvas.wave{display:block;width:100%;height:84px;border-radius:10px;background:var(--chip)}
@@ -74,7 +69,6 @@
 
 /* app look: gold primary buttons, hidden really hidden */
 .brs [hidden]{display:none !important}
-.brs .btn.primary{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent}
 .brs .seg button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
 .brs .step{background:linear-gradient(180deg,var(--sheen),transparent),var(--surface)}
 
@@ -107,7 +101,6 @@
 .brs .sw.on{outline:2px solid var(--accent);outline-offset:1px}
 .brs .ovsz{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
 .brs .ovsz input{width:90px}
-.brs .btn.mini{padding:6px 10px;font-size:13px}
 .brs #out.ovdrag{touch-action:none}
 .brs.talkmode #vorow{display:none}
 .brs .tplrow{margin:0 0 14px;align-items:center;gap:10px}
@@ -150,12 +143,9 @@
 .brs [hidden]{display:none !important}
 
 /* ---- top bar ---- */
-.brs .ibtn{width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex-shrink:0}
-.brs .ibtn:hover{border-color:var(--accent);color:var(--accent)}
 .brs .tb-name{font-family:var(--display);font-size:21px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brs .tb-sub{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brs .tb-brand,.brs .tb-nav,.brs .tb-right,.brs .tb-gap{display:none}
-.brs .btn.save{background:var(--ink-btn);color:var(--ink-btn-fg);border-color:transparent;box-shadow:0 10px 24px -14px rgba(0,0,0,.6)}
 /* the administrator's View as Free (views.ts): the studio as a free plan sees it, tags and crowns */
 .brs .cliptools{display:grid;gap:10px}
 .brs .ctrow{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
@@ -175,12 +165,10 @@
 .brs .cnote{margin:0;font-size:12px;color:var(--muted)}
 .brs .chip.ghost{justify-self:start;color:var(--muted)}
 .brs .shtools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.brs .shtools .btn{height:36px;padding:0 12px;font-size:13px}
 .brs .shtools select{height:36px;max-width:190px}
 
 /* ---- the page ---- */
 .brs .wrap{max-width:1240px;margin:0 auto;padding:16px 16px 140px;gap:16px}
-.brs .btn.ink{background:var(--ink-btn);color:var(--ink-btn-fg);border-color:transparent;height:46px;padding:0 18px;border-radius:12px;font-size:14px}
 
 
 /* templates: one row of chips (in the Style panel once the Reel is made) */
@@ -205,10 +193,6 @@
 .brs.made #s3{background:transparent;border:0;padding:0}
 
 /* buttons and segmented choices */
-.brs .btn{min-height:44px;border-radius:12px;padding:10px 16px}
-.brs .btn.big{width:100%;min-height:56px;justify-content:center;font-size:16px;border-radius:18px}
-.brs .btn.mini{min-height:34px}
-.brs .btn.ghost{background:transparent}
 .brs .seg{gap:3px;padding:3px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)}
 .brs .seg button{border-radius:10px;padding:9px 14px;color:var(--muted)}
 .brs .seg button+button{border-left:0}
@@ -225,9 +209,6 @@
 .brs .bar{height:4px;width:100%;max-width:420px;justify-self:center}
 .brs .transport{display:flex;gap:6px;justify-content:center;align-items:center}
 .brs .transport .tc{font:12.5px var(--mono);color:var(--muted);min-width:52px;text-align:center;font-variant-numeric:tabular-nums}
-.brs .btn.icon{width:44px;height:44px;padding:0;justify-content:center;border:0;background:transparent;color:var(--muted)}
-.brs .btn.icon span{display:none}
-.brs .btn.icon:hover{color:var(--ink)}
 .brs #pshot,.brs #nshot{display:none}
 .brs #play{width:52px;height:52px;min-height:52px;padding:0;border-radius:26px;justify-content:center;background:var(--surface);color:var(--ink);border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line))}
 .brs #play span{display:none}
@@ -302,7 +283,6 @@
 .brs .sumh{margin:0;font:600 25px/1.12 var(--display)}
 .brs .sumi{margin:0;font-size:14px;color:var(--muted);line-height:1.45}
 .brs .sumi b{color:var(--ink)}
-.brs .summary .btn{justify-self:start;border-radius:20px;min-height:40px}
 .brs .savebar{display:none;gap:8px;justify-items:center;max-width:1240px;margin:0 auto;padding:12px 16px 40px}
 .brs.made .savebar{display:grid}
 .brs .savebar .tog{font-size:13.5px;color:var(--muted)}
@@ -358,9 +338,6 @@
 .brs .sh h2{font:600 15px var(--body)}
 
 /* buttons, progress */
-.brs .btn{font:600 14px var(--body)}
-.brs .btn.primary,.brs .btn.hot,.brs .btn.save{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 10px 22px -14px var(--brand-glow)}
-.brs .btn.big{border-radius:13px;min-height:48px;font-size:14px}
 .brs .bar i{background:var(--gold-gradient)}
 .brs .drop{border:1.5px dashed color-mix(in srgb,var(--accent) 45%,var(--line));border-radius:16px;background:var(--surface)}
 .brs .drop:hover,.brs .drop.over{border-color:var(--accent)}
@@ -398,8 +375,6 @@
 .brs .ask{width:min(100%,400px);background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:18px;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom))}
 .brs .ask p{margin:0 0 16px;font-size:16px}
 .brs .askrow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.brs .askrow .btn{justify-content:center;min-height:46px}
-.brs .btn.danger{background:var(--drop);border-color:var(--drop);color:#fff}
 @media (min-width:600px){ .brs .askbg{place-items:center} }
 
 /* the export sheet: a bottom sheet on phones, a centred card on bigger screens */
@@ -413,7 +388,6 @@
 .brs .xsh .seg button{min-height:44px}
 .brs .xsh .seg button:disabled{opacity:.4;cursor:not-allowed}
 .brs .xsh-size{margin:4px 0;font-size:13.5px;color:var(--muted)}
-.brs .xsh .btn.big{width:100%;justify-content:center;min-height:52px;font-size:15.5px}
 .brs .xsh-note{margin:-2px 0 0;font-size:12.5px;color:var(--muted);text-align:center}
 @media (min-width:600px){ .brs .xsheet{place-items:center} .brs .xsh{border-radius:22px} }
 
@@ -598,8 +572,6 @@
 
 /* the head: back, the title, the four steps */
 .brs .fhead{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}
-.brs .fback{width:46px;height:46px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer}
-.brs .fback:hover{border-color:var(--accent)}
 .brs .ft h1{font:600 clamp(22px,2.4vw,26px)/1.15 var(--display);letter-spacing:-.02em}
 .brs .ft p{margin:4px 0 0;color:var(--muted);font-size:14px}
 .brs .fsteps{list-style:none;margin:0;padding:0;display:flex;align-items:flex-start;gap:0}
@@ -767,7 +739,6 @@
 @media (max-width:1023px){
   body:has(.brs.fopen) header.top{display:none}
   .brs.fopen .fhead{position:sticky;top:0;z-index:20;margin:-16px -16px 0;padding:max(12px,env(safe-area-inset-top)) 16px 10px;background:var(--bar);border-bottom:1px solid var(--line)}
-  .brs.fopen .fback{width:40px;height:40px;border-radius:12px}
 }
 /* the waveform in the brand colour (the chosen part is outlined by the engine) */
 
@@ -799,7 +770,6 @@
 .brs .xsh #xfps [data-f="60"]::after{content:"Smoother"}
 .brs .xsh .seg button[aria-pressed=true]{border:2px solid var(--accent) !important;background:color-mix(in srgb,var(--accent) 16%,var(--surface-2));color:var(--ink)}
 .brs .xsh .seg button[aria-pressed=true]::after{color:var(--ink)}
-.brs .xsh .btn.save{background:var(--gold-gradient);color:var(--on-accent)}
 /* until the flow has written the kind (Talking / Photo words), its place stays empty: never anything else first */
 .brs.fopen:not(.flive) :is(.fhead,.fintro,.fgrid,.fan){visibility:hidden}
 
@@ -813,7 +783,6 @@
   body:has(.brs.fpost) header.top{display:none}
   .brs.fopen .fhead,.brs.fpost .fhead{display:grid !important;grid-template-columns:40px minmax(0,1fr) auto;grid-template-areas:"back title skip" "steps steps steps";align-items:center;row-gap:12px;column-gap:12px;position:sticky;top:0;z-index:20;margin:-16px -16px 0;padding:max(12px,env(safe-area-inset-top)) 16px 12px;background:var(--background);border:0;visibility:visible}
   .brs.fopen[data-fstep="intro"] .fhead,.brs.fopen[data-fstep="analyse"] .fhead,.brs.fpost:not([data-tool]) .fhead,.brs.fpost[data-tool=""] .fhead{grid-template-areas:"back steps skip"}
-  .brs .fhead .fback{grid-area:back;width:40px;height:40px;border-radius:12px}
   .brs .fhead .fptitle{grid-area:title;display:block;font:600 17px var(--display);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brs .fhead .fptitle:empty{display:none}
   .brs .fhead .fskip{grid-area:skip}
@@ -914,7 +883,6 @@
   .brs.fpost :is(.tlbar,.lanesbox){order:2}
   .brs.fpost .lanes{display:block;width:100%}
   .brs.fpost .tl{height:54px;border-radius:12px}
-  .brs.fpost .summary > .btn{order:3;width:100%;justify-content:center;min-height:48px;border-radius:14px;background:var(--surface-2)}
   .brs.fpost :is(#xmsg,#saverow){order:4}
   .brs.fpost .savebar{position:fixed;left:0;right:0;bottom:0;z-index:30;margin:0;padding:12px 16px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--background) 30%)}
   .brs.fpost .savebar .tog{display:none}
@@ -922,9 +890,7 @@
 
   /* ---- 7 Edit Options: the tools as tabs, the chosen one's choices, Apply ---- */
   /* a tool open: the Reel stays in view, smaller, with its play button inside; then the tools as tabs and the panel */
-  .brs.fpost[data-tool]:not([data-tool=""]) .savebar,
-  .brs.fpost[data-tool]:not([data-tool=""]) .stage > :not(.pv,.bar,.transport),
-  .brs.fpost[data-tool]:not([data-tool=""]) :is(.sumh,.sumi,.summary > .btn,.inspector){display:none !important}
+  .brs.fpost[data-tool]:not([data-tool=""]) .savebar,.brs.fpost[data-tool]:not([data-tool=""]) .stage > :not(.pv,.bar,.transport){display:none !important}
   .brs.fpost[data-tool]:not([data-tool=""]) #out{max-height:34svh}
   .brs.fpost[data-tool]:not([data-tool=""]) .stage{gap:8px}
   .brs.fpost[data-tool]:not([data-tool=""]) .fapply{display:flex;position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));width:auto;z-index:30;justify-content:center;min-height:56px;border-radius:16px;font-size:16px}
@@ -973,8 +939,6 @@
   .brs .fdsaved{display:grid;gap:2px;margin:4px 0}
   .brs .fdsaved b{font:600 15px var(--body)}
   .brs .fdsaved small{color:var(--muted);font-size:13px}
-  .brs .fdone > .btn{width:100%;justify-content:center;gap:8px;min-height:52px;border-radius:14px}
-  .brs .fdone > .btn:not(.primary){background:var(--surface);border:1px solid var(--line)}
   .brs .fdcap{width:100%;display:grid;gap:8px;text-align:left;margin-top:8px}
   .brs .fdcap > b{font:600 15px var(--body)}
   .brs .fdcap .postcap{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
@@ -1150,7 +1114,6 @@
 .brs .tlscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;min-width:0}
 .brs .tlscroll > canvas{min-width:100%;max-width:none}
 .brs .lanesbox{min-width:0}
-.brs .tlbar .btn.mini{min-height:32px;padding:4px 10px;font-size:12.5px}
 .brs .tlbar #tlz{min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
 /* an item of a higher plan: a crown; it can be tried, the export asks */
 .brs .crowned::after{content:" 👑";font-size:.85em}
@@ -1192,8 +1155,6 @@
 .brs .shotsheet[hidden]{display:none}
 .brs .ss-head{position:relative;display:flex;justify-content:center;align-items:center;min-height:34px;padding:6px 44px 0}
 .brs .ss-grip{width:38px;height:4px;border-radius:2px;background:var(--line)}
-.brs .ss-x{position:absolute;right:8px;top:6px;width:30px;height:30px;border-radius:50%;border:0;background:var(--surface-2);color:var(--ink);display:grid;place-items:center;cursor:pointer}
-.brs .ss-x svg{width:16px;height:16px}
 .brs .ss-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 16px 16px !important;border:0 !important;border-radius:0 !important;background:none !important;box-shadow:none !important;gap:12px}
 /* every choice in sight (it wraps), the shot's own one lit */
 .brs .ss-body .chips{flex-wrap:wrap;overflow:visible;padding:0;-webkit-mask-image:none;mask-image:none}
@@ -1218,7 +1179,6 @@
   .brs.fpost .tb-name{font-size:16px;font-weight:600}
   .brs.fpost .tb-sub{font-size:11px}
   /* the old "Your Reel is ready" screen: its title, line and big buttons go (the top bar has Export, the play bar Change Reel) */
-  .brs.fpost :is(.sumh,.sumi,.summary > .btn){display:none !important}
   .brs.fpost #export{display:none !important}
   .brs.fpost .savebar{position:static !important;margin:0;padding:4px 0 8px;background:none}
   .brs.fpost .savebar .tog{display:block;justify-self:start;font-size:12.5px}
@@ -1318,7 +1278,6 @@
 /* ---- the shot sheet, as the design (frame 3) ---- */
 .brs .shotsheet{width:min(460px,calc(100vw - 24px))}
 .brs .ss-head{position:absolute;top:0;right:0;left:auto;min-height:0;padding:0;z-index:3}
-.brs .ss-x{top:12px;right:12px}
 .brs .ss-body{padding:14px 16px 16px !important;display:grid;align-content:start}
 .brs .ss-body .ssh{display:flex;align-items:center;gap:10px;padding-right:40px}
 .brs .ss-body .ssth{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:none;box-shadow:0 0 0 1px var(--line)}
@@ -1423,7 +1382,6 @@
 
 /* ---- Motion / Keyframes (the design's frame 7): the keyframe buttons as one row, the ready-made moves as tiles ---- */
 .brs .kfbtns{display:flex;flex-wrap:wrap;gap:6px}
-.brs .kfbtns .btn.mini{height:32px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
 .brs #kfadd{background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
 .brs #kfclear{color:var(--danger,#f87171)}
 .brs .kfhead #kfpreset{display:none}
@@ -1446,7 +1404,6 @@
 /* ---- the lock popup (the design's frame 9) ---- */
 .brs .askbg:has(.lockpop){place-items:center;background:rgba(4,3,16,.72)}
 .brs .ask.lockpop{position:relative;display:grid;justify-items:center;gap:10px;text-align:center;padding:28px 24px 24px;width:min(100%,420px)}
-.brs .ask.lockpop .askx{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;border:0;background:var(--surface-2);color:var(--ink);cursor:pointer}
 .brs .ask.lockpop .lkcrown{font-size:40px;line-height:1;filter:drop-shadow(0 6px 14px rgba(250,204,21,.45))}
 .brs .ask.lockpop .lkt{margin:0;font:600 19px var(--display,var(--body))}
 .brs .ask.lockpop .gt{margin:0;font-size:13.5px;color:var(--muted);line-height:1.45}
@@ -1454,7 +1411,6 @@
 .brs .ask.lockpop .gl li{display:flex;align-items:center;gap:10px;font-size:13.5px}
 .brs .ask.lockpop .gl li::before{content:"✓";flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;border:1.5px solid var(--accent);color:var(--accent);font:600 11px var(--body)}
 .brs .ask.lockpop .askrow{justify-self:stretch;margin-top:6px}
-.brs .ask.lockpop .btn.gold{background:var(--gold-gradient);color:var(--on-accent,#fff);border:0}
 
 /* the shot sheet moved / resized by the person (views.ts): where they put it, no arrow; a corner to drag */
 .brs .shotsheet.free{border-radius:18px !important;border-bottom:1px solid var(--line) !important}
@@ -1650,8 +1606,6 @@
 .brs .chatttl{flex:1;min-width:0;display:grid;gap:1px}
 .brs .chatttl b{font:600 15.5px var(--display);letter-spacing:-.01em}
 .brs .chatttl small{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.brs .chatx{flex:none;width:34px;height:34px;border-radius:10px;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
-.brs .chatx:hover{background:var(--chip);color:var(--ink)}
 .brs .chatlog{flex:1;overflow:auto;padding:16px 16px 10px;display:flex;flex-direction:column;gap:10px;min-height:120px;overscroll-behavior:contain}
 .brs .chatlog p{margin:0;padding:9px 13px;border-radius:16px;max-width:85%;font-size:14px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere}
 .brs .chatlog .me{align-self:flex-end;background:var(--gold-gradient);color:var(--on-accent);border-bottom-right-radius:5px;box-shadow:0 8px 18px -12px color-mix(in srgb,var(--accent) 80%,transparent)}
@@ -1715,8 +1669,6 @@
   .brs.fpost.editing .transport #ttot::before{content:"/ ";color:var(--muted)}
   .brs.fpost.editing .transport #tcur{order:0}
   .brs.fpost.editing .tr-undo{display:inline-flex;gap:2px;order:2;margin-left:auto}
-  .brs.fpost.editing .tr-undo .btn.icon{width:38px;height:38px;min-height:38px;padding:0;border:0;background:transparent;justify-content:center}
-  .brs.fpost.editing .tr-undo .btn.icon:disabled{opacity:.35}
   .brs.fpost.editing .transport #play{order:3;width:46px;height:46px;min-height:46px;padding:0;border-radius:50%;justify-content:center}
   .brs.fpost.editing .transport #play span{display:none}
   .brs.fpost.editing .transport #pvfull{display:inline-flex !important;order:4;width:38px;height:38px;min-height:38px;padding:0;border:0;background:transparent;justify-content:center}
@@ -1806,7 +1758,6 @@
 .brs .cconfb p{margin:0;color:var(--muted);font-size:14px;line-height:1.45}
 .brs .cconfbal{font:600 13px var(--mono) !important;color:var(--ink) !important}
 .brs .cconfa{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
-.brs .cconfa .btn{min-height:44px;padding:0 18px;border-radius:12px}
 .brs .chatlog .up{align-self:flex-start;display:inline-flex;margin-top:-2px}
 .brs .chatlog .rep li.chg{border-left:3px solid var(--accent);padding-left:6px}
 @media (max-width:767px){.brs .aopick.aowide .aohead h1{display:none}}
@@ -1875,10 +1826,7 @@
 .brs.fopen .num{width:28px;height:28px;border-radius:9px;font-size:13px}
 .brs.fopen .step{padding:18px 20px;gap:12px}
 .brs.fopen .label{font-size:11px;letter-spacing:.1em}
-.brs.fopen .btn{min-height:38px;padding:8px 14px;font-size:13.5px;border-radius:11px}
-.brs.fopen .btn svg{width:16px;height:16px}
 .brs.fopen #mpick{min-height:40px;border-radius:11px;padding:0 16px}
-.brs.fopen .btn.big{min-height:44px;font-size:14.5px;border-radius:13px}
 .brs .fgen{min-height:46px;font-size:15px;border-radius:13px;gap:8px}
 .brs .fgen svg{width:18px;height:18px}
 .brs.fopen .rlist{grid-auto-columns:minmax(128px,148px);gap:10px}
@@ -1905,7 +1853,6 @@
   .brs.fopen .step{padding:14px}
   .brs.fopen .rsong{min-height:0}
   .brs.fopen .rpick{padding:10px 40px 10px 12px}
-  .brs.fopen .fnext .btn,.brs.fopen .btn.big{min-height:44px}
 }
 /* the song: its waveform across the whole width, the Reel length and the numbers under it */
 @media (min-width:1024px){
@@ -2014,14 +1961,11 @@
 
 /* the editor on a computer, laid out like the phone: the Reel first and large, the play bar, the timeline, the tools at the
    bottom; a tool's panel opens beside the Reel (✕ or the tool again closes it) */
-.brs .pclose{display:none}
 @media (min-width:1024px){
   .brs.made.v-one:not(.fopen) .create{grid-template-columns:minmax(340px,380px) minmax(0,1fr)}
   .brs.made.v-one:not(.fopen):is([data-tool=""],:not([data-tool])) .create{grid-template-columns:0 minmax(0,1fr)}
   .brs.made.v-one:not(.fopen):is([data-tool=""],:not([data-tool])) .panels{display:none !important}
   .brs.made.v-one:not(.fopen) .panels{position:relative}
-  .brs.made.v-one:not(.fopen) .pclose{display:grid;place-items:center;position:absolute;top:10px;right:10px;z-index:5;width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--muted);cursor:pointer}
-  .brs.made.v-one:not(.fopen) .pclose:hover{color:var(--ink);border-color:var(--accent)}
   .brs.made.v-one:not(.fopen) .ptabs{padding-right:44px}
   /* the play bar as on the phone: the times on the left, play in the middle, the rest on the right */
   .brs.made.v-one:not(.fopen) .transport{justify-content:flex-start}
@@ -2131,15 +2075,12 @@
 }
 
 /* a clip pop-up's ✕ (cancel: back as it was) and ✓ (apply); the ✕ in the clip-tool pop-up and ✓ in the picker are for computers */
-.brs .ss-ok,.brs .ctpopx{display:none}
+.brs .ss-ok{display:none}
 .brs .ctpopbtns{display:flex;align-items:center;gap:8px}
 @media (min-width:1024px){
   .brs .ss-head{display:flex !important;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px 0}
   .brs .ss-ok{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:var(--on-accent);cursor:pointer;order:2}
   .brs .ss-ok svg{width:16px;height:16px}
-  .brs .ss-x{order:1}
-  .brs .ctpopx{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
-  .brs .ctpopx svg{width:15px;height:15px}
 }
 /* computers: no zoom buttons (− 1× +) or "whole Reel" square on the timeline (Ctrl + wheel still zooms) */
 @media (min-width:1024px){ .brs.made.v-one:not(.fopen) .tlzs{display:none !important} }
@@ -2151,7 +2092,6 @@
   .brs .xsheet .xsh .xprev[src]{width:240px;border-radius:18px;grid-row:1 / span 14;align-self:start;position:sticky;top:0;
     background:#000;box-shadow:0 24px 50px -24px rgba(0,0,0,.75),0 0 0 6px color-mix(in srgb,var(--accent) 10%,transparent)}
   .brs .xsheet .xsh-h h2{font:600 19px var(--display);letter-spacing:-.01em}
-  .brs .xsheet .xsh-h .ibtn{width:34px;height:34px;border-radius:10px}
   .brs .xsheet .xsh-l{margin:8px 0 0;font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
   .brs .xsheet .xsh .seg{gap:8px}
   .brs .xsheet .xsh .seg button{min-height:54px;border-radius:12px;font:600 14px var(--body);gap:1px;padding:6px 8px}
@@ -2161,14 +2101,12 @@
   .brs .xsheet .xtog{min-height:46px;padding:4px 12px;margin:0;font:600 13.5px var(--body);border:1px solid var(--line);border-radius:0;background:var(--surface)}
   .brs .xsheet .xtog + .xtog{border-top:0}
   .brs .xsheet .xsh-size + .xtog,.brs .xsheet .xtog:first-of-type{border-radius:14px 14px 0 0;margin-top:8px}
-  .brs .xsheet .xtog:has(+ .btn){border-radius:0 0 14px 14px}
   .brs .xsheet .xtt small{display:block;font:500 11.5px var(--body);color:var(--muted);margin-top:1px}
   .brs .xsheet .xti{width:24px}
   .brs .xsheet .xti svg{width:19px;height:19px}
   .brs .xsheet .xtog i{width:42px;height:26px}
   .brs .xsheet .xtog i::after{width:18px;height:18px}
   .brs .xsheet .xtog input:checked + i::after{transform:translateX(16px)}
-  .brs .xsheet .xsh .btn.big{min-height:46px;font-size:14.5px;border-radius:13px}
   .brs .xsheet .xsh #xgo{margin-top:10px}
 }
 /* the editor (computers): no empty space under the timeline (the bar at the bottom is fixed, only its height is kept free) */
@@ -2221,9 +2159,6 @@
 
 /* the AI / credits dialog: a ✕ in its corner; the Free upsell with its points and a bold Upgrade */
 .brs .cconfb{position:relative}
-.brs .cconfx{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
-.brs .cconfx:hover{background:var(--surface-2);color:var(--ink)}
-.brs .cconfx svg{width:16px;height:16px}
 .brs .cconfl{list-style:none;margin:2px 0 0;padding:0;display:grid;gap:7px;text-align:left;width:100%}
 .brs .cconfl[hidden]{display:none}
 .brs .cconfl li{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;line-height:1.4;color:var(--ink)}
@@ -2234,11 +2169,9 @@
 .brs .cconf.upsell #cconfok{min-height:48px;font-size:15px;background:var(--gold-gradient);color:var(--on-accent);border:0}
 .brs .cconf.upsell #cconfno{min-height:36px;border:0;background:transparent;color:var(--muted);font-weight:500;font-size:13px}
 .brs .cconf.upsell #cconfno:hover{color:var(--ink)}
-.brs .cconfa .btn[hidden]{display:none}
 
 .brs .cconfbal{font:600 12.5px var(--body) !important;color:var(--muted) !important;background:var(--surface-2);padding:5px 10px;border-radius:999px}
 .brs .cconfbal:empty{display:none}
-.brs .cconf .btn:focus-visible,.brs .cconf .btn:focus{outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
 .brs .cconfl{width:auto;justify-self:center}
 /* a pop-up open (the AI / credits question, Export): the page behind it does not scroll */
 html:has(.brs .cconf:not([hidden])),html:has(.brs .xsheet:not([hidden])){overflow:hidden}
@@ -2292,11 +2225,9 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 .brs #out{border-radius:inherit;transition:box-shadow .25s ease}
 .brs .bar{overflow:hidden;border-radius:99px;background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
 .brs .bar i{background:var(--gold-gradient);box-shadow:0 0 14px color-mix(in srgb,var(--accent) 50%,transparent)}
-.brs .tool,.brs .ptabs button,.brs .ct,.brs .ibtn,.brs .btn{transition:color .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .2s ease,transform .18s ease}
+.brs .tool,.brs .ptabs button,.brs .ct{transition:color .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .2s ease,transform .18s ease}
 .brs .tool:hover,.brs .ptabs button:hover,.brs .ct:hover{background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 22%,var(--line))}
 .brs .tool[aria-pressed=true],.brs .ptabs button[aria-pressed=true]{background:color-mix(in srgb,var(--accent) 13%,var(--surface));border-color:color-mix(in srgb,var(--accent) 32%,var(--line));color:var(--accent-hover)}
-.brs .btn:not(:disabled):active,.brs .ibtn:active{transform:translateY(1px) scale(.985)}
-.brs .btn.save,.brs .btn.ink,.brs .btn.gold,.brs .btn.primary{box-shadow:0 12px 26px -17px var(--brand-glow),0 1px 0 rgba(255,255,255,.12) inset}
 .brs .panel.on{animation:studio-panel-in .22s ease-out both}
 .brs .feditbar #fedit{min-height:50px;border-radius:14px;font-size:14.5px;box-shadow:0 14px 28px -18px var(--brand-glow),0 1px 0 rgba(255,255,255,.12) inset}
 .brs.openfail .openload{width:min(calc(100% - 32px),560px);min-height:unset;margin:clamp(28px,7vh,72px) auto;padding:clamp(26px,5vw,44px);border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:26px;
@@ -2316,7 +2247,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 @media (prefers-reduced-motion:reduce){
   .brs .panel.on,.brs.openfail .openload{animation:none}
-  .brs :is(.step,.panel,.tool,.ptabs button,.ct,.ibtn,.btn,#out,#openback){transition:none}
   .brs .step:not(.locked):hover,.brs.openfail .openload #openback:hover{transform:none}
 }
 
@@ -3004,31 +2934,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 .brs #shotsheet .ssnav button:disabled { opacity: .4; cursor: default; }
 
-.brs #shotsheet .ss-x,
-.brs #ctpop .ctpopx,
-.brs .panels .pclose {
-  position: static !important;
-  width: 34px !important;
-  height: 34px !important;
-  display: grid !important;
-  flex: none;
-  place-items: center !important;
-  border-radius: 11px !important;
-  border: 1px solid var(--ed-line) !important;
-  background: var(--surface-2) !important;
-  color: var(--muted) !important;
-  cursor: pointer !important;
-  transition: color .18s ease, border-color .18s ease, transform .18s ease !important;
-}
-.brs .panels .pclose { position: absolute !important; top: 24px !important; right: 20px !important; z-index: 2; }
-.brs #shotsheet .ss-x:hover,
-.brs #ctpop .ctpopx:hover,
-.brs .panels .pclose:hover {
-  color: var(--accent-hover) !important;
-  border-color: var(--accent) !important;
-  transform: rotate(5deg) !important;
-}
-
 /* the body scrolls between the header and the footer */
 .brs #shotsheet .ss-body,
 .brs #ctpop .ctpopb {
@@ -3289,7 +3194,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     background: color-mix(in srgb, var(--muted) 42%, transparent);
   }
   .brs.sheeton #shotsheet .ss-head { inset: 28px 16px auto auto !important; }
-  .brs .panels .pclose { top: 28px !important; right: 16px !important; }
   .brs .sheetIcon { width: 38px; height: 38px; border-radius: 12px; }
   .brs .sheetHeading b, .brs .panels .panel.on > .ph { font-size: 19px !important; }
   .brs .sheetDescription { margin: 9px 0 14px !important; font-size: 11px; }

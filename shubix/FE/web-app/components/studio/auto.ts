@@ -5,6 +5,7 @@
  * make a talking Reel, otherwise the loudest clip's own sound becomes the song. */
 
 import { TTS_VOICES } from "@/lib/tts/voices";
+import { B } from "./ui";
 
 type Work = { song: boolean; songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; speech: boolean; exporting: boolean; exportP: number };
 type Studio = { work: Work; autoExport: () => Promise<Blob | null>; saveLast: () => void; autoSound: () => Promise<"talk" | "extract" | "none">;
@@ -82,7 +83,7 @@ export function initAuto(root: HTMLElement): () => void {
       <button type="button" class="aobig" data-ao="clips"><span class="aoic aoic1">${ICON.clips}</span><span class="aotx"><b id="aoclipsh">Your clips</b><span id="aoclips">Videos or photos from your phone</span></span><span class="aochev">${ICON.chev}</span></button>
       <button type="button" class="aobig" data-ao="song"><span class="aoic aoic2">${ICON.song}</span><span class="aotx"><b>A song <em>optional</em></b><span id="aosong">Without one, your clips' own sound is used</span></span><span class="aochev">${ICON.chev}</span></button>
       <p class="aonote">${ICON.spark}<span id="aonotetx">Made on your phone. Your videos are never uploaded.</span></p>
-      <button type="button" class="btn save big aogo" id="aogo" disabled>Make my Reel</button>
+      <button type="button" class="${B.mainBig} aogo" id="aogo" disabled>Make my Reel</button>
       <input type="file" id="aovfile" accept="video/*,image/*,.mov,.mp4,.m4v,.jpg,.jpeg,.png,.webp,.heic" multiple hidden><input type="file" id="aomfile" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav" hidden>
     </div>
     <div class="aorun" id="aorun" hidden>
