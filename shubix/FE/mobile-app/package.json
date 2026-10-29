@@ -4,8 +4,8 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
+    "start": "expo start --lan --go",
+    "android": "expo start --android --lan --go",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit"
   },

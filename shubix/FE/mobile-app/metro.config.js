@@ -1,10 +1,8 @@
 const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
-const path = require("node:path");
 
-// pnpm monorepo: watch the whole workspace (Shared/*) and resolve from this app and the root node_modules
-const root = path.resolve(__dirname, "../..");
+// Expo SDK 58 detects the pnpm workspace root and linked packages automatically.
+// Watching the entire monorepo here also watches its node_modules tree on Windows,
+// which can time out Metro's file watcher before the NativeWind transformer starts.
 const config = getDefaultConfig(__dirname);
-config.watchFolders = [root];
-config.resolver.nodeModulesPaths = [path.resolve(__dirname, "node_modules"), path.resolve(root, "node_modules")];
 module.exports = withNativeWind(config, { input: "./global.css" });
