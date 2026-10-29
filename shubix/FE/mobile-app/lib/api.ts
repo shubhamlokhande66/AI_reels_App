@@ -1,5 +1,9 @@
 import { api, API_URL } from "./session";
 import { fetchWithToken } from "./device";
+import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
+import type { Features } from "@shubix/core/lib/features-list";
+import type { Content } from "@shubix/core/lib/collections";
+import type { PlanLocks } from "@shubix/core/lib/plan-locks";
 
 /** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
  * secure storage, the app's error messages, the same logic as the website. */
@@ -18,10 +22,12 @@ export const mobileApi = {
   signOut: () => api.auth.logout(),
   reels: () => json<{ reels: { id: string; name: string; dur: number; thumb: string | null; createdAt: string }[]; usage?: unknown }>("/api/studio/reels"),
   deleteReel: (id: string) => json(`/api/studio/reels/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  templates: () => json<{ templates: { id: string; name: string; kind: string; group: string; text: string; cover?: string; plan?: string; on: boolean }[] }>("/api/templates"),
+  templates: () => json<{ templates: StudioTemplate[] }>("/api/templates"),
+  features: () => json<Features>("/api/features"),
   pricing: () => json<{ currency: string; yearlyMonthsCharged: number; plans: { id: string; name: string; monthly: number; yearly: number; credits: number; tagline: string; highlight: boolean; features: string[]; hidden?: boolean; ads?: boolean }[]; topUps: { id: string; credits: number; price: number }[]; billingEnabled: boolean }>("/api/plans"),
   ads: () => json<AdsConfig>("/api/ads"),
-  credits: () => json<{ enabled: boolean; balance?: number; planName?: string; plan?: string; extra?: number }>("/api/credits"),
+  credits: () => json<{ enabled: boolean; billing?: boolean; balance?: number; planName?: string; plan?: string; extra?: number }>("/api/credits"),
+  planLocks: () => json<PlanLocks>("/api/plan-locks"),
   createOrder: (item: string, coupon?: string) => json<{ orderId: string; keyId: string; amount: number; currency: string; label: string; email: string }>("/api/billing/order", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
   verifyPayment: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) => json<{ enabled: boolean; balance?: number; plan?: string; planName?: string; monthly?: number; extra?: number }>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
   brands: () => json<Record<string, unknown>[]>("/api/brands"),
@@ -44,7 +50,7 @@ export const mobileApi = {
   logoutEverywhere: () => api.auth.logoutEverywhere(),
   deleteAccount: (password: string, confirm: string) => json("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),
   contact: (body: { email: string; name?: string; topic: string; message: string }) => json<{ ok: boolean; ticket: string }>("/api/contact", { method: "POST", body: JSON.stringify(body) }),
-  content: () => json<Record<string, any>>("/api/content"),
+  content: () => json<Content>("/api/content"),
   absoluteAsset: (path: string) => path.startsWith("http") ? path : `${API_URL}${path}`,
   /** A saved Reel needs the sign-in token, which a video player cannot send: a copy to play (device.ts). */
   downloadReel: (id: string) => fetchWithToken(`${API_URL}/api/studio/reels/${encodeURIComponent(id)}/file`, `reel-${id}.mp4`),

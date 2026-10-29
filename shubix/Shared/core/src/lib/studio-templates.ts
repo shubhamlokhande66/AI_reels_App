@@ -159,3 +159,7 @@ export const lookName = (t: StudioTemplate) => TPL_LOOKS[t.edit.look] ?? "Natura
 export const templateMeta = (t: StudioTemplate) => `${t.kind === "talk" ? "Talking" : t.kind === "photo" ? "Photos" : "Music"}${t.len ? ` · ${t.len} s` : ""} · ${lookName(t)}`;
 /** a sample of the text the template puts on the Reel (the card's poster) */
 export const sampleOf = (t: StudioTemplate) => t.edit.texts?.[0]?.text || t.edit.hook || t.name;
+
+/** The tag in a poster's corner: its length ("15s"), or what it is made of ("Talk", "Photos · 10s"); text: the CMS texts. */
+export const templateTag = (t: StudioTemplate, text: (key: string) => string) =>
+  t.kind === "talk" ? text("templates.kindTalk") : t.kind === "photo" ? `${text("templates.kindPhotos")}${t.len ? ` · ${t.len}s` : ""}` : t.len ? `${t.len}s` : text("templates.kindMusic");

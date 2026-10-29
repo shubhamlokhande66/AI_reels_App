@@ -1,18 +1,7 @@
-/** The design's jewel tones (UI/ design: Create Options). One tone per kind of Reel, used by icon tiles and
- * create cards so actions are easy to scan while sharing the studio's quieter premium palette. */
-export type Tone = "music" | "talk" | "photo" | "story" | "template" | "copy" | "recreate" | "brand" | "neutral";
-
-export const TONE_BG: Record<Tone, string> = {
-  music: "bg-[linear-gradient(135deg,#d8bd7b,#80683a)]",
-  talk: "bg-[linear-gradient(135deg,#7187a1,#33445a)]",
-  photo: "bg-[linear-gradient(135deg,#c2845f,#704535)]",
-  story: "bg-[linear-gradient(135deg,#65977c,#315d49)]",
-  template: "bg-[linear-gradient(135deg,#aa7d91,#624657)]",
-  copy: "bg-[linear-gradient(135deg,#65949a,#345b60)]",
-  recreate: "bg-[linear-gradient(135deg,#82799f,#4c4567)]",
-  brand: "bg-gold",
-  neutral: "bg-surface-2",
-};
+/** The design's jewel tones (UI/ design: Create Options): one per kind of Reel, used by icon tiles and create cards.
+ * Their colours: Shared/ui-core/src/paint.ts (toneBackground). */
+export type { Tone } from "@shubix/ui-web";
+import type { Tone } from "@shubix/ui-web";
 
 /** the soft glow under a tone's card */
 export const TONE_GLOW: Record<Tone, string> = {

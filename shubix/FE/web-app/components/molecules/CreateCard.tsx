@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Icon } from "@/components/atoms/Icon";
 import { LockBadge } from "@/components/molecules/LockBadge";
 import { cn } from "@/lib/cn";
-import { TONE_BG, TONE_GLOW, type Tone } from "@/lib/ui";
+import { TONE_GLOW, type Tone } from "@/lib/ui";
+import { toneBackground } from "@shubix/ui-web";
 
 /** One way to start a Reel (UI/ design: Create Options): its tone's gradient, a white icon, a title, a line, and the
  * arrow chip. `reload`: a full page load (Fast Studio). `lock`: its tag on a lower plan ("Upgrade", with a crown), and a
@@ -17,9 +18,9 @@ export function CreateCard({ href, icon, title, text, tone, reload = false, lock
       className={cn(
         "group relative flex min-h-[108px] flex-col justify-between gap-3 overflow-hidden rounded-2xl border border-white/10 p-3.5 text-white transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-0.5 md:min-h-[128px] md:p-4",
         music && "col-span-2 min-h-[118px] border-white/30 shadow-[0_18px_38px_-24px_rgba(180,145,75,.75)] sm:col-span-1",
-        TONE_BG[tone],
         TONE_GLOW[tone],
       )}
+      style={{ background: toneBackground(tone) }}
     >
       <span aria-hidden className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/15 blur-2xl" />
       <span className="flex items-start justify-between gap-2">

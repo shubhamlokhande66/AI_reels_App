@@ -19,14 +19,14 @@ export function AdBanner({ place }: { place: AdPlace }) {
   if (!show) return null;
   const unit = __DEV__ ? TestIds.ADAPTIVE_BANNER : Platform.OS === "ios" ? ads.data?.admob?.ios : ads.data?.admob?.android;
   if (BannerAd && unit && !failed) return (
-    <View accessibilityLabel="Advertisement" className="mt-5 overflow-hidden rounded-2xl border border-border bg-surface p-2">
+    <View accessibilityLabel="Advertisement" className="overflow-hidden rounded-2xl border border-border bg-surface p-2">
       <Pressable onPress={() => router.push("/pricing")}><Text className="mb-1 text-[10px] uppercase tracking-[1px] text-muted">{text("plan.adLabel")} · <Text className="underline">{text("plan.removeAds")}</Text></Text></Pressable>
       <BannerAd unitId={unit} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} onAdFailedToLoad={() => setFailed(true)} />
     </View>
   );
   const price = plans.data?.plans.find((p) => p.id !== "free" && !p.hidden)?.monthly ?? 199;
   return (
-    <Pressable onPress={() => router.push("/pricing")} className="mt-5 rounded-2xl border border-border bg-surface p-4 active:opacity-75">
+    <Pressable onPress={() => router.push("/pricing")} className="rounded-2xl border border-border bg-surface p-4 active:opacity-75">
       <Text className="text-[15px] font-bold text-foreground">{text("plan.aiAdTitle")}</Text>
       <Text className="mt-1 text-xs leading-5 text-muted">{text("plan.aiAdText", { price: `₹${price}` })}</Text>
       <Text className="mt-2 text-xs font-semibold text-accent">{text("plan.aiAdButton")}</Text>

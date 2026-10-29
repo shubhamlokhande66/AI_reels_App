@@ -8,7 +8,7 @@ import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { useText } from "@/hooks/useApi";
 import { api, errorMessage } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { TONE_BG } from "@/lib/ui";
+import { toneBackground } from "@shubix/ui-web";
 import { LANGUAGES, type Language, type VoiceProfile, type VoiceProfileInput } from "@/types/api";
 
 const EMPTY: VoiceProfileInput = { name: "", voice: null, language: "en", speed: 1, pitch: 0, energy: "medium", emotion: "friendly", pauseStyle: "natural", pronunciations: {} };
@@ -82,7 +82,7 @@ export function VoiceProfiles() {
               {list.map((p) => (
                 <Card key={p.id} as="article" className="flex flex-col gap-3">
                   <div className="flex items-center gap-3">
-                    <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white", TONE_BG.story)}><Icon name="mic" size={20} /></span>
+                    <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white")} style={{ background: toneBackground("story") }}><Icon name="mic" size={20} /></span>
                     <div className="min-w-0 flex-1">
                       <b className="block truncate text-[14.5px]">{p.name}</b>
                       <span className="text-[12px] text-muted">{LANGUAGES.find((l) => l.id === p.language)?.label}</span>

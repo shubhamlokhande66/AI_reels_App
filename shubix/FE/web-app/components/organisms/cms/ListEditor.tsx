@@ -2,7 +2,8 @@
 
 import { cn } from "@/lib/cn";
 import { ICON_CHOICES, newItem, TONE_CHOICES, type ListDef, type ListItem } from "@shubix/core/lib/collections";
-import { TONE_BG, type Tone } from "@/lib/ui";
+import type { Tone } from "@/lib/ui";
+import { toneBackground } from "@shubix/ui-web";
 import { Button, Card, Heading, Icon, IconButton, Input, TextArea } from "@/components/atoms";
 import { Field } from "@/components/molecules/Field";
 
@@ -26,7 +27,7 @@ export function ListEditor({ def, items, onChange, changed, onReset }: { def: Li
         <div key={it.id} className="flex flex-col gap-3 rounded-xl border border-border bg-surface-2/50 p-3">
           <div className="flex items-center gap-2">
             {it.icon && (
-              <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white", it.tone ? TONE_BG[it.tone as Tone] : "bg-surface")} style={it.color ? { color: it.color } : undefined}>
+              <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white", !it.tone && "bg-surface")} style={{ ...(it.tone ? { background: toneBackground(it.tone as Tone) } : {}), ...(it.color ? { color: it.color } : {}) }}>
                 <Icon name={it.icon} size={16} stroke={2} />
               </span>
             )}
@@ -59,7 +60,7 @@ export function ListEditor({ def, items, onChange, changed, onReset }: { def: Li
                     <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={f.label}>
                       {TONE_CHOICES.map((tn) => (
                         <button key={tn} type="button" role="radio" aria-checked={v === tn} title={tn} onClick={() => set(i, f.key, tn)}
-                          className={cn("h-8 w-8 rounded-full border-2 transition-transform", TONE_BG[tn as Tone], v === tn ? "scale-110 border-foreground" : "border-transparent")} />
+                          className={cn("h-8 w-8 rounded-full border-2 transition-transform", v === tn ? "scale-110 border-foreground" : "border-transparent")} style={{ background: toneBackground(tn as Tone) }} />
                       ))}
                     </div>
                   </Field>

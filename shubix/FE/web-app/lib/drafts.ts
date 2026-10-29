@@ -42,7 +42,7 @@ export function useDrafts(reload = 0): Draft[] | null {
   return drafts;
 }
 
-export const clock = (s = 0) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+export { clock } from "@shubix/utils";
 
 /** Delete a draft from this phone: its entry and the files only it uses (a song or clip another draft or the recent
  * songs list still uses stays). Files a draft shares with another one, or with the recent songs, are kept (keptSweep in components/studio/engine.ts clears leftovers). */

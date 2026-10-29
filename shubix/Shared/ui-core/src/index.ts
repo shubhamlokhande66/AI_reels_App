@@ -6,3 +6,4 @@ export const { palette, gradients, radii, typography, spacing } = tokens;
 export const theme = tokens;
 export type Palette = typeof palette;
 export * from "./icons";
+export * from "./paint";

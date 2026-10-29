@@ -40,15 +40,7 @@ export function estimateProgress(createdAt: string, progressPct: number, now: Da
   return { elapsed: formatEta(elapsedMs / 1000), remaining: formatEta(remainingMs / 1000), total: formatEta(totalMs / 1000) };
 }
 
-export function formatRelative(iso: string, now: Date = new Date()): string {
-  const diff = (now.getTime() - new Date(iso).getTime()) / 1000;
-  if (!Number.isFinite(diff)) return "";
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} h ago`;
-  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} d ago`;
-  return new Date(iso).toLocaleDateString();
-}
+export { formatRelative } from "@shubix/utils";
 
 export const STYLE_LABELS: Record<string, string> = {
   viral: "Viral",

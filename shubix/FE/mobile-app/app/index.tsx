@@ -1,21 +1,152 @@
+import { useRef, type ComponentRef } from "react";
 import { router } from "expo-router";
-import { ArrowUpRight, AudioLines, Clapperboard, Film, ImagePlus, Sparkles, WandSparkles } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
-import { Brand, Button, Card, Eyebrow, Heading, Page, SectionTitle, colors } from "@shubix/ui-mobile";
-
-const modes = [
-  { title: "Music Reel", sub: "Make every beat a moment", icon: AudioLines, tint: "#d8bd7b", kind: "music" },
-  { title: "Talking Reel", sub: "Turn a story into a short", icon: Clapperboard, tint: "#cba4de", kind: "talking" },
-  { title: "Photo Reel", sub: "Bring your memories to life", icon: ImagePlus, tint: "#90c7ae", kind: "photo" },
-  { title: "Copy a Reel", sub: "Create your own version", icon: Film, tint: "#e2a98e", kind: "copy" },
-];
+import { Alert, Image, Linking, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { useApi, useText } from "@shubix/hooks";
+import { Badge, Button, CreateCard, DraftCard, EmptyState, LockBadge, Page, ProBanner, Scroller, SectionHeader, TemplatePoster, TipCard, TipsBanner, colors } from "@shubix/ui-mobile";
+import type { IconName, Tone } from "@shubix/ui-core";
+import { linkOn } from "@shubix/core/lib/features-list";
+import { templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
+import { clock, formatRelative } from "@shubix/utils";
+import { HomeHero } from "../components/organisms/HomeHero";
 import { AdBanner } from "../components/molecules/AdBanner";
+import { useCredits, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
+import { mobileApi } from "../lib/api";
+import { removeProject, type MobileProject } from "../lib/projects";
+import { useQueryClient } from "@tanstack/react-query";
+
+/** A page of the app, another site, or the plans when the page is on a higher plan. */
+const open = (href: string, locked = false) =>
+  locked ? router.push({ pathname: "/pricing", params: { need: href } }) : /^https?:/.test(href) ? void Linking.openURL(href) : router.push(href as never);
+/** A template opens the Create flow of its kind with it picked. */
+const openTemplate = (t: StudioTemplate) => router.push({ pathname: "/create/[kind]", params: { kind: t.kind === "talk" ? "talking" : t.kind, templateId: t.id } });
+
+/** Home (the website's app/page.tsx): the hero, Create Your Reel, Popular Templates, Continue Editing, Saved in My
+ * Reels, Tips for Better Reels, Go Pro; the same CMS texts and lists. */
 export default function HomeScreen() {
-  return <Page><View className="mb-7 mt-2 flex-row items-center justify-between"><Brand/><Pressable onPress={() => router.push("/login")} className="rounded-full border border-border bg-surface px-3.5 py-2"><Text className="text-xs font-semibold text-foreground">Sign in</Text></Pressable></View>
-    <View className="overflow-hidden rounded-[28px] border border-[#64583b] bg-[#211f1a] p-5"><View className="absolute -right-10 -top-12 h-44 w-44 rounded-full bg-[#8e7440]/20"/><Eyebrow>YOUR CREATIVE STUDIO</Eyebrow><Heading size="page" className="mt-2">Make a Reel{`\n`}worth replaying.</Heading><Text className="mt-2 max-w-[290px] text-sm leading-6 text-muted">Your clips, your sound, and a little Shubix magic.</Text><View className="mt-5"><Button size="lg" full title="Create a Reel" onPress={() => router.push("/create/music")} icon={<Sparkles size={17} color={colors.background}/>}/></View><View className="mt-5 flex-row items-center gap-2"><View className="h-1.5 w-1.5 rounded-full bg-accent"/><Text className="text-[11px] text-muted">A polished first cut, made for you</Text></View></View>
-    <SectionTitle title="Create your Reel" action="All modes"/><View className="gap-2.5">{modes.map(({ title, sub, icon: Icon, tint, kind }) => <Pressable key={kind} onPress={() => router.push({ pathname: "/create/[kind]", params: { kind } })} className="flex-row items-center gap-3.5 rounded-2xl border border-border bg-surface p-3.5 active:border-[#706243]"><View className="h-11 w-11 items-center justify-center rounded-[14px] bg-surface-2"><Icon size={20} color={tint}/></View><View className="flex-1"><Text className="text-[14px] font-semibold text-foreground">{title}</Text><Text className="mt-0.5 text-xs text-muted">{sub}</Text></View><ArrowUpRight size={17} color={colors.muted}/></Pressable>)}</View>
-    <AdBanner place="home"/><SectionTitle title="Pick a direction" action="Browse" onPress={() => router.push("/templates")}/><View className="flex-row gap-3"><Pressable onPress={() => router.push("/templates")} className="h-36 flex-1 justify-end overflow-hidden rounded-2xl border border-border bg-[#26231e] p-4"><View className="absolute right-3 top-3 h-20 w-14 rotate-6 rounded-xl border border-[#8d7548] bg-[#50432d]"/><Eyebrow>01 / EDITORIAL</Eyebrow><Text className="mt-1 text-base font-semibold text-foreground">Golden hour</Text></Pressable><Pressable onPress={() => router.push("/templates")} className="h-36 flex-1 justify-end overflow-hidden rounded-2xl border border-border bg-[#202226] p-4"><View className="absolute right-3 top-3 h-20 w-14 -rotate-6 rounded-xl border border-[#5d626b] bg-[#363a40]"/><Eyebrow>02 / CINEMA</Eyebrow><Text className="mt-1 text-base font-semibold text-foreground">After hours</Text></Pressable></View>
-    <SectionTitle title="Continue creating" action="My Reels" onPress={() => router.push("/reels")}/><Card><View className="flex-row items-center gap-3"><View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-2"><WandSparkles size={19} color={colors.accent}/></View><View className="flex-1"><Text className="text-sm font-semibold text-foreground">Your next story starts here</Text><Text className="mt-1 text-xs text-muted">Start a new Reel or pick up a draft.</Text></View><ArrowUpRight size={16} color={colors.muted}/></View></Card>
-    <View className="mt-6 flex-row items-center justify-center gap-1.5"><Sparkles size={12} color={colors.accentDeep}/><Text className="text-[11px] text-muted">Made for the moments you want to keep</Text></View>
-  <AdBanner place="homeEnd"/></Page>;
+  const text = useText(), { me } = useApi(), width = useWindowDimensions().width;
+  const credits = useCredits().data, signedIn = !me?.authEnabled || !!me?.user, saved = useSavedReels(signedIn);
+  const paid = credits?.enabled && credits.plan !== "free";
+  const page = useRef<ComponentRef<typeof ScrollView>>(null), tipsAt = useRef(0);
+  return (
+    <Page scrollRef={page}>
+      <View className="gap-7">
+        <HomeHero onCreate={() => open("/create/music")} />
+        <CreateSection width={width} />
+        <AdBanner place="home" />
+        <TemplatesSection width={width} />
+        <ContinueSection width={width} />
+        {saved && saved.length > 0 && <TipsBanner title={text("home.tipsTitle")} text={text("home.tipsSub")} onPress={() => page.current?.scrollTo({ y: tipsAt.current, animated: true })} />}
+        {saved && saved.length > 0 && (
+          <View className="gap-3">
+            <SectionHeader title={text("home.savedTitle")} more={text("home.seeAll")} onPress={() => open("/reels")} />
+            <Scroller label={text("home.savedTitle")} step={templateWidth(width)}>
+              {saved.slice(0, 6).map((reel) => (
+                <Pressable key={reel.id} onPress={() => open("/reels")} accessibilityLabel={reel.name} style={{ width: templateWidth(width) }} className="gap-1.5">
+                  <View className="aspect-[9/16] w-full overflow-hidden rounded-2xl border border-border bg-surface-2">
+                    {reel.thumb && <Image source={{ uri: mobileApi.absoluteAsset(reel.thumb) }} className="h-full w-full" resizeMode="cover" />}
+                    <Badge tone="dark" className="absolute bottom-2 right-2">{clock(reel.dur)}</Badge>
+                  </View>
+                  <Text numberOfLines={1} className="text-[13px] font-bold text-foreground">{reel.name}</Text>
+                </Pressable>
+              ))}
+            </Scroller>
+          </View>
+        )}
+        <AdBanner place="homeEnd" />
+        <View onLayout={(e) => { tipsAt.current = e.nativeEvent.layout.y; }}><TipsSection width={width} /></View>
+        {!paid && <ProBanner title={text("plan.bannerTitle")} text={text("plan.bannerText")} button={<Button size="sm" iconAfter="send" title={text("plan.bannerButton")} onPress={() => open("/pricing")} />} />}
+      </View>
+    </Page>
+  );
+}
+
+/** A template card's width on a phone: 31% of the screen, 108–150px (the website's w-[31vw] min/max). */
+const templateWidth = (width: number) => Math.min(150, Math.max(108, width * 0.31));
+
+/** The ways to start (and My Reels): the administrator's cards (Admin → CMS → Home), as far as their page is on. Two
+ * a row; the Music Reel and a last odd card take the whole row. */
+function CreateSection({ width }: { width: number }) {
+  const text = useText(), features = useFeatures(), lockOf = useLockCheck();
+  const cards = useList("home.cards").filter((c) => c.title && c.link && (!c.link.startsWith("/") || linkOn(c.link, features)));
+  const column = (width - 32 - 12) / 2;
+  return (
+    <View className="gap-3">
+      <SectionHeader title={text("home.createTitle")} />
+      <View className="flex-row flex-wrap gap-3">
+        {cards.map((card, i) => {
+          const music = card.link === "/create/music", locked = !!lockOf?.(card.link);
+          return (
+            <CreateCard key={card.id} icon={(card.icon || "sparkle") as IconName} title={card.title} text={card.text} tone={(card.tone || "brand") as Tone} big={music}
+              width={music || (i === cards.length - 1 && cards.length % 2 === 1) ? width - 32 : column}
+              lock={locked ? <LockBadge card label={text("plan.lockTag")} /> : undefined} onPress={() => open(card.link, locked)} />
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function TemplatesSection({ width }: { width: number }) {
+  const text = useText(), templates = useTemplates(), need = usePlanNeed(), step = templateWidth(width);
+  return (
+    <View className="gap-3">
+      <SectionHeader title={text("home.templatesTitle")} more={text("home.seeAll")} onPress={() => open("/templates")} />
+      <Scroller label={text("home.templatesTitle")} step={step}>
+        {templates.slice(0, 6).map((t) => {
+          const locked = !!need?.(t.plan);
+          return (
+            <Pressable key={t.id} style={{ width: step }} accessibilityLabel={t.name} onPress={() => (locked ? open(`template:${t.id}`, true) : openTemplate(t))}>
+                <TemplatePoster id={t.id} name={t.name} cover={t.cover && mobileApi.absoluteAsset(t.cover)} badge={templateTag(t, text)}
+                  tag={locked ? <LockBadge card label={text("plan.lockTag")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
+            </Pressable>
+          );
+        })}
+      </Scroller>
+    </View>
+  );
+}
+
+/** The drafts on this phone, newest first: a row of cards, or the empty card with the first step. */
+function ContinueSection({ width }: { width: number }) {
+  const text = useText(), drafts = useDrafts(), queryClient = useQueryClient(), step = Math.min(200, width * 0.44);
+  const edit = (draft: MobileProject) => router.push({ pathname: "/editor", params: { id: draft.id } });
+  const remove = (draft: MobileProject) => Alert.alert(text("reels.deleteDraftTitle", { name: draft.title }), text("reels.deleteDraftText"), [
+    { text: text("common.cancel"), style: "cancel" },
+    { text: text("reels.delete"), style: "destructive", onPress: async () => { await removeProject(draft.id); await queryClient.invalidateQueries({ queryKey: ["drafts"] }); } },
+  ]);
+  return (
+    <View className="gap-3">
+      <SectionHeader title={text("home.continueTitle")} more={text("home.seeAll")} onPress={drafts?.length ? () => open("/reels") : undefined} />
+      {drafts === null ? (
+        <View className="flex-row gap-3 overflow-hidden">
+          {[0, 1, 2].map((i) => <View key={i} className="gap-2" style={{ width: step }}><View className="aspect-[4/3] rounded-2xl bg-surface-2" /><View className="h-3.5 w-2/3 rounded bg-surface-2" /><View className="h-3 w-1/2 rounded bg-surface-2" /></View>)}
+        </View>
+      ) : drafts.length ? (
+        <Scroller label={text("home.continueTitle")} step={step}>
+          {drafts.slice(0, 10).map((draft) => (
+            <View key={draft.id} style={{ width: step }}>
+              <DraftCard name={draft.title} thumb={draft.clips.find((c) => c.kind === "image")?.uri} duration={clock(draft.clips.reduce((sum, c) => sum + (c.end - c.start) / c.speed, 0))}
+                edited={text("common.edited", { when: formatRelative(draft.updatedAt) })} onPress={() => edit(draft)} moreLabel={text("common.more")}
+                onMore={() => Alert.alert(draft.title, undefined, [{ text: text("common.open"), onPress: () => edit(draft) }, { text: text("reels.delete"), style: "destructive", onPress: () => remove(draft) }, { text: text("common.cancel"), style: "cancel" }])} />
+            </View>
+          ))}
+        </Scroller>
+      ) : (
+        <EmptyState icon="video" title={text("home.emptyTitle")} hint={text("home.emptyText")} action={<Button icon="plus" title={text("home.emptyButton")} onPress={() => open("/create/music")} />} />
+      )}
+    </View>
+  );
+}
+
+/** The administrator's tips (Admin → CMS → Home → Tips for Better Reels), two a row. */
+function TipsSection({ width }: { width: number }) {
+  const text = useText(), tips = useList("home.tips").filter((tip) => tip.title);
+  return (
+    <View className="gap-3">
+      <SectionHeader title={text("home.tipsTitle")} />
+      <View className="flex-row flex-wrap gap-2.5">
+        {tips.map((tip, i) => <TipCard key={tip.id} n={i + 1} icon={(tip.icon || "bulb") as IconName} color={tip.color || colors.accent} title={tip.title} text={tip.text} width={(width - 32 - 10) / 2} />)}
+      </View>
+    </View>
+  );
 }
