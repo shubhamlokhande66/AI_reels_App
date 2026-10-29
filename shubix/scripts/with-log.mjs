@@ -11,9 +11,12 @@ if (!name || !cmd.length) { console.error("usage: node scripts/with-log.mjs <nam
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "logs");
 fs.mkdirSync(dir, { recursive: true });
+/** the run before becomes <name>.prev.log; when Windows will not let go of it (the same server still running, an
+ * editor showing the file), this run writes <name>.<time>.log instead of stopping the server from starting */
 const open = (file) => {
   const p = path.join(dir, file);
-  if (fs.existsSync(p)) fs.renameSync(p, p.replace(/\.log$/, ".prev.log").replace(".err.prev.log", ".prev.err.log"));
+  try { if (fs.existsSync(p)) fs.renameSync(p, p.replace(/\.log$/, ".prev.log").replace(".err.prev.log", ".prev.err.log")); }
+  catch { const alt = p.replace(/\.log$/, `.${new Date().toISOString().replace(/[:.]/g, "-")}.log`); console.warn(`[with-log] ${file} is in use; logging to ${path.basename(alt)}`); return fs.createWriteStream(alt, { flags: "a" }); }
   return fs.createWriteStream(p, { flags: "a" });
 };
 const all = open(`${name}.log`), err = open(`${name}.err.log`);
