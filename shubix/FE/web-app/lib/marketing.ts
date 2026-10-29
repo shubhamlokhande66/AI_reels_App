@@ -40,17 +40,8 @@ export type PayoutDetails = { method: "upi"; upi: string; updatedAt: string | nu
 export type PayoutInput = { method: "upi"; upi: string } | { method: "bank"; name: string; account: string; ifsc: string };
 export function clearRef() { try { localStorage.removeItem(REF_KEY); } catch { /* nothing kept */ } }
 
-export type RewardStep = "signup" | "verified" | "purchase";
-export type MyMarketing = {
-  username: string; link: string;
-  referral: { on: boolean; inviterCredits: number; inviteeCredits: number; inviteeOn: RewardStep; inviterOn: RewardStep; invited: number; rewarded: number; earned: number };
-  share: { on: boolean; min: number; max: number; dailyMax: number; source: "extra" | "all"; sentToday: number };
-  ai: { planAi: boolean; freeWithCredits: boolean; reelCost: number };
-  affiliate: { on: boolean; applyOpen: boolean; percent: number; months: number; minPayout: number;
-    me: { status: "pending" | "active" | "paused"; percent: number; months: number; validUntil: string | null; due: number; paid: number; sales: number; recent: { at: string; paid: number; commission: number; status: string }[] } | null };
-};
-import type { Offer } from "@shubix/types";
-export type { Offer, Quote } from "@shubix/types";
+import type { Offer, RewardStep } from "@shubix/types";
+export type { MyMarketing, Offer, Quote, RewardStep } from "@shubix/types";
 export type MarketingSettings = {
   referral: { on: boolean; inviterCredits: number; inviteeCredits: number; inviteeOn: RewardStep; inviterOn: RewardStep; monthlyCap: number };
   share: { on: boolean; min: number; max: number; dailyMax: number; source: "extra" | "all" };

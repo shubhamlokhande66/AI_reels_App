@@ -16,6 +16,14 @@ import { Card } from "../atoms/Card";
 export const ToneFill = ({ tone }: { tone: Tone }) =>
   tone === "brand" ? <Gold /> : tone === "neutral" ? <View className="absolute inset-0 bg-surface-2" /> : <Paint paint={tones[tone]} />;
 
+/** A figure with its name under it (the website's StatTile: invited, credits earned…). */
+export const StatTile = ({ value, label }: { value: ReactNode; label: string }) => (
+  <View className="min-w-0 flex-1 gap-0.5 rounded-2xl border border-border bg-surface p-3">
+    <Text numberOfLines={1} className="text-[22px] font-semibold leading-[22px] tracking-[-0.2px] text-foreground">{value}</Text>
+    <Text numberOfLines={1} className="text-[11px] text-muted">{label}</Text>
+  </View>
+);
+
 /** An icon on its tone's square (a plan, a Music Reel's note): the website's IconTile. */
 export const IconTile = ({ icon, tone = "brand", size = 42 }: { icon: IconName; tone?: Tone; size?: number }) => (
   <View className="items-center justify-center overflow-hidden rounded-xl" style={{ width: size, height: size }}><ToneFill tone={tone} /><Icon name={icon} size={Math.round(size * 0.5)} stroke={2} color="#fff" /></View>

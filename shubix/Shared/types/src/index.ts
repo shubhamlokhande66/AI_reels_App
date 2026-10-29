@@ -65,3 +65,14 @@ export type Quote = {
   offer: { id: string; title: string; percent: number; off: number } | null; coupon: { code: string; off: number; label: string } | null;
 };
 export type Offer = { id: string; title: string; banner: string; percent: number; appliesTo: "all" | "plans" | "topups"; audience: "all" | "new"; ends: string | null };
+
+/** Invite & earn: when a reward is given, and what the server says about this person (Admin → Marketing). */
+export type RewardStep = "signup" | "verified" | "purchase";
+export type MyMarketing = {
+  username: string; link: string;
+  referral: { on: boolean; inviterCredits: number; inviteeCredits: number; inviteeOn: RewardStep; inviterOn: RewardStep; invited: number; rewarded: number; earned: number };
+  share: { on: boolean; min: number; max: number; dailyMax: number; source: "extra" | "all"; sentToday: number };
+  ai: { planAi: boolean; freeWithCredits: boolean; reelCost: number };
+  affiliate: { on: boolean; applyOpen: boolean; percent: number; months: number; minPayout: number;
+    me: { status: "pending" | "active" | "paused"; percent: number; months: number; validUntil: string | null; due: number; paid: number; sales: number; recent: { at: string; paid: number; commission: number; status: string }[] } | null };
+};

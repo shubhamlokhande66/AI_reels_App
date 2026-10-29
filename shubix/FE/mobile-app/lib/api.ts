@@ -3,7 +3,7 @@ import { fetchWithToken } from "./device";
 import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
 import type { Features } from "@shubix/core/lib/features-list";
 import type { Content } from "@shubix/core/lib/collections";
-import type { CloudReel, CloudUsage, Credits, Offer, Pricing, Quote } from "@shubix/types";
+import type { CloudReel, CloudUsage, Credits, MyMarketing, Offer, Pricing, Quote } from "@shubix/types";
 import type { PlanLocks } from "@shubix/core/lib/plan-locks";
 
 /** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
@@ -48,9 +48,9 @@ export const mobileApi = {
     return json<Record<string, unknown>>("/api/references", { method: "POST", body: data });
   },
   deleteReference: (id: string) => json<void>(`/api/references/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  marketing: () => json<Record<string, any>>("/api/marketing"),
+  marketing: () => json<MyMarketing>("/api/marketing"),
   setUsername: (username: string) => json("/api/marketing/username", { method: "POST", body: JSON.stringify({ username }) }),
-  sendCredits: (to: string, amount: number, note?: string) => json("/api/marketing/send", { method: "POST", body: JSON.stringify({ to, amount, note }) }),
+  sendCredits: (to: string, amount: number, note?: string) => json<{ ok: boolean; sent: number; to: string; balance: number }>("/api/marketing/send", { method: "POST", body: JSON.stringify({ to, amount, note }) }),
   changePassword: (currentPassword: string, newPassword: string) => api.auth.changePassword(currentPassword, newPassword),
   logoutEverywhere: () => api.auth.logoutEverywhere(),
   deleteAccount: (password: string, confirm: string) => json("/api/auth/delete-account", { method: "POST", body: JSON.stringify({ password, confirm }) }),
