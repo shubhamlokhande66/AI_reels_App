@@ -43,7 +43,8 @@ const IC = {
 };
 // the Create flow's AI checklist (step 3 on computers, the Analysing screen on phones); data-t: the tasks it follows
 // the top bar: the format menu (each format's shape) and undo / redo
-const ASPECTS: [string, string, string, string][] = [["9:16", "Reels, Shorts, Stories", "before:w-3", "before:h-[21px]"], ["4:5", "Instagram feed", "before:w-4", "before:h-5"], ["1:1", "Square post", "before:w-[18px]", "before:h-[18px]"], ["16:9", "YouTube, wide", "before:w-[22px]", "before:h-[13px]"]];
+// the format menu: ratio, its CMS label (texts-studio), the little frame's size
+const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
 const UNDO = "grid size-11 min-h-11 place-items-center justify-center rounded-xl text-muted disabled:cursor-default disabled:opacity-35 in-[.fpost]:size-9 in-[.fpost]:min-h-9";
 const AI_STEPS: [string, string, string][] = [
   ["scenes", "Detecting scenes and best moments", "clips"],
@@ -170,7 +171,7 @@ export const STUDIO_HTML = `
   <div id="tbasp" class="relative flex max-[680px]:contents">
     <button type="button" id="tbaspbtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Format" title="Format" class="group inline-flex h-9 items-center gap-1.5 rounded-[11px] border border-border bg-surface-2 pl-3 pr-2.5 tabular-nums hover:border-accent aria-expanded:border-accent max-[680px]:hidden"><span id="tbaspv">9:16</span><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="text-muted transition-transform duration-200 group-aria-expanded:rotate-180"><path d="M6 9l6 6 6-6"/></svg></button>
     <div id="tbaspmenu" role="listbox" aria-label="Format" hidden class="absolute left-0 top-[calc(100%+6px)] z-60 grid min-w-[220px] animate-drop gap-0.5 rounded-[14px] border border-border bg-surface p-1.5 shadow-[0_18px_40px_-18px_rgba(20,8,50,.45)] max-lg:-right-[60px] max-lg:left-auto max-lg:min-w-[210px] [&.atprev]:fixed! [&.atprev]:right-auto! [&.atprev]:z-[9995]!">
-      ${ASPECTS.map(([a, label, w, h]) => `<button type="button" role="option" data-a="${a}" class="group/o flex items-center gap-3 rounded-[10px] px-2.5 py-2 text-left hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:outline-0 aria-selected:bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"><i class="grid size-[26px] shrink-0 place-items-center before:block before:rounded-[3px] before:border-[1.6px] before:border-current before:text-muted before:content-[''] group-aria-selected/o:before:bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] group-aria-selected/o:before:text-accent ${w} ${h}"></i><span class="grid gap-px"><b class="text-[13px] font-semibold group-aria-selected/o:text-accent">${a}</b><small class="text-[11.5px] text-muted">${label}</small></span></button>`).join("")}
+      ${ASPECTS.map(([a, label, frame]) => `<button type="button" role="option" data-a="${a}" class="group flex items-center gap-3 rounded-[10px] px-2.5 py-2 text-left hover:bg-surface-2 aria-selected:bg-accent/10"><span class="grid size-[26px] place-items-center"><span class="rounded-[3px] border-[1.6px] border-current text-muted group-aria-selected:bg-accent/20 group-aria-selected:text-accent ${frame}"></span></span><span class="grid"><b class="text-[13px] font-semibold group-aria-selected:text-accent">${a}</b><small class="text-[11.5px] text-muted">${label}</small></span></button>`).join("")}
     </div>
   </div>
   <div class="flex shrink-0 items-center gap-[7px]">
