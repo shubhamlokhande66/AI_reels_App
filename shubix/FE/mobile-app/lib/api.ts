@@ -1,6 +1,5 @@
-import * as FileSystem from "expo-file-system/legacy";
-import { api, API_URL, TOKEN_KEY } from "./session";
-import * as SecureStore from "expo-secure-store";
+import { api, API_URL } from "./session";
+import { fetchWithToken } from "./device";
 
 /** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
  * secure storage, the app's error messages, the same logic as the website. */
@@ -47,11 +46,6 @@ export const mobileApi = {
   contact: (body: { email: string; name?: string; topic: string; message: string }) => json<{ ok: boolean; ticket: string }>("/api/contact", { method: "POST", body: JSON.stringify(body) }),
   content: () => json<Record<string, any>>("/api/content"),
   absoluteAsset: (path: string) => path.startsWith("http") ? path : `${API_URL}${path}`,
-  /** A saved Reel needs the sign-in token, which a video player cannot send: download it to the cache, play the copy. */
-  downloadReel: async (id: string) => {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
-    const r = await FileSystem.downloadAsync(`${API_URL}/api/studio/reels/${encodeURIComponent(id)}/file`, `${FileSystem.cacheDirectory}reel-${id}.mp4`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    if (r.status !== 200) throw new Error(`Could not open this Reel (${r.status}).`);
-    return r.uri;
-  },
+  /** A saved Reel needs the sign-in token, which a video player cannot send: a copy to play (device.ts). */
+  downloadReel: (id: string) => fetchWithToken(`${API_URL}/api/studio/reels/${encodeURIComponent(id)}/file`, `reel-${id}.mp4`),
 };
