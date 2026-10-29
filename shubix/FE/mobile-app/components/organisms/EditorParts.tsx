@@ -38,7 +38,7 @@ export function StudioBar({ title, saved, onBack, onExport }: { title: string; s
  * reports it while playing, `onEnded` when the shot is over. */
 export function Preview({ clip, n, of, playing, at, aspect, onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
-  const player = useVideoPlayer(null);
+  const player = useVideoPlayer(null, (p) => { p.audioMixingMode = "mixWithOthers"; });
   // a new shot: its video, from where the playhead is
   useEffect(() => {
     if (!video) { player.pause(); return; }
@@ -65,7 +65,7 @@ export function Preview({ clip, n, of, playing, at, aspect, onToggle, onTime, on
       <View className="flex-row items-center gap-1.5"><View className="h-1.5 w-1.5 rounded-full bg-danger" /><Text className="text-[10px] font-bold tracking-[1.2px] text-muted">{words("PREVIEW")}</Text></View>
       <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ height: 360, aspectRatio: aspect }}>
         {clip?.kind === "image" && <Image source={{ uri: clip.uri }} resizeMode={clip.fit} className="h-full w-full" style={{ transform: flip }} />}
-        {video && <VideoView player={player} contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
+        {video && <VideoView player={player} surfaceType="textureView" contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
         {!playing && <View className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}
         <View className="absolute bottom-2.5 right-2.5 rounded-full bg-black/55 px-2 py-0.5"><Text className="text-[10px] font-semibold text-white">{String(n + 1).padStart(2, "0")} / {String(of).padStart(2, "0")}</Text></View>
       </Pressable>

@@ -138,7 +138,7 @@ function Player({ uri, name, onClose }: { uri: string; name: string; onClose: ()
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View className="flex-1 bg-black">
-        <VideoView player={player} nativeControls contentFit="contain" style={{ flex: 1 }} accessibilityLabel={name} />
+        <VideoView player={player} surfaceType="textureView" nativeControls contentFit="contain" style={{ flex: 1 }} accessibilityLabel={name} />
         <View className="absolute right-4 top-12"><IconButton icon="close" label={text("common.close")} onPress={onClose} /></View>
       </View>
     </Modal>

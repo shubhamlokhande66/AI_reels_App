@@ -4,7 +4,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import type { ImagePickerAsset } from "expo-image-picker";
 import { useStudioText } from "@shubix/hooks";
-import { Button, Gold, Icon, IconButton, Segmented, useColors } from "@shubix/ui-mobile";
+import { Button, Gold, Icon, IconButton, Input, Segmented, useColors } from "@shubix/ui-mobile";
 import type { IconName } from "@shubix/ui-core";
 import { clock } from "@shubix/utils";
 import { forgetSong, type Song } from "../../lib/songs";
@@ -137,6 +137,7 @@ export function FlowAdjust({ song, length, onLength }: { song: Song; length: num
   const words = useStudioText(), look = useColors(), player = useAudioPlayer(song.uri), status = useAudioPlayerStatus(player);
   const duration = song.duration || status.duration || 0, used = length && duration ? Math.min(length, duration) / duration : 1;
   const heard = duration ? status.currentTime / duration : 0;
+  const [custom, setCustom] = useState(!LENGTHS.includes(length)), [typed, setTyped] = useState(LENGTHS.includes(length) ? 45 : length);
   useEffect(() => () => { try { player.pause(); } catch { /* already gone */ } }, [player]);
   const toggle = () => { if (status.playing) player.pause(); else { if (length && status.currentTime >= Math.min(length, duration)) void player.seekTo(0); player.play(); } };
   useEffect(() => { if (length && status.playing && status.currentTime >= length) player.pause(); }, [length, status.currentTime, status.playing, player]);
@@ -160,13 +161,18 @@ export function FlowAdjust({ song, length, onLength }: { song: Song; length: num
       <View className="gap-2.5">
         <Label>{words("Reel length")}</Label>
         <View className="flex-row flex-wrap gap-2">
-          {LENGTHS.map((n) => (
-            <Pressable key={n} onPress={() => onLength(n)} accessibilityRole="radio" accessibilityState={{ checked: length === n }} className={`h-10 items-center justify-center overflow-hidden rounded-xl px-4 ${length === n ? "" : "border border-border bg-surface-2"}`}>
-              {length === n && <Gold />}
-              <Text className={`text-[13px] font-semibold ${length === n ? "text-on-accent" : "text-foreground"}`}>{words(n === 0 ? "Full" : n === 60 ? "1 min" : `${n} s`)}</Text>
-            </Pressable>
-          ))}
+          {[...LENGTHS, -1].map((n) => {
+            const on = n === -1 ? custom : !custom && length === n; // -1: Custom
+            return (
+              <Pressable key={n} onPress={() => { setCustom(n === -1); onLength(n === -1 ? typed : n); }} accessibilityRole="radio" accessibilityState={{ checked: on }} className={`h-10 items-center justify-center overflow-hidden rounded-xl px-4 ${on ? "" : "border border-border bg-surface-2"}`}>
+                {on && <Gold />}
+                <Text className={`text-[13px] font-semibold ${on ? "text-on-accent" : "text-foreground"}`}>{words(n === -1 ? "Custom" : n === 0 ? "Full" : n === 60 ? "1 min" : `${n} s`)}</Text>
+              </Pressable>
+            );
+          })}
         </View>
+        {custom && <View className="w-[140px]"><Input keyboardType="number-pad" maxLength={3} value={String(typed || "")} accessibilityLabel={words("Reel length")} right={<Text className="text-[13px] text-muted">s</Text>}
+          onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5) onLength(Math.min(180, n)); }} onBlur={() => { const n = Math.max(5, Math.min(180, typed || 45)); setTyped(n); onLength(n); }} /></View>}
         {duration > 0 && <Text className="text-[12.5px] text-muted">{clock(0)} – {clock(length ? Math.min(length, duration) : duration)}</Text>}
       </View>
     </FlowCard>

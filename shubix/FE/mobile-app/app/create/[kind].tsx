@@ -24,7 +24,7 @@ export default function CreateScreen() {
   const [step, setStep] = useState<FlowStep>("intro");
   const [song, setSong] = useState<Song | null>(null), [recent, setRecent] = useState<Song[]>([]), [reading, setReading] = useState(false);
   const [length, setLength] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
-  const [settings, setSettings] = useState<ClipSettings>({ order: "mix", aspect: "9:16", pace: "natural", under: "0.09" });
+  const [settings, setSettings] = useState<ClipSettings>({ order: "order", aspect: "9:16", pace: "natural", under: "0.09" });
   const [progress, setProgress] = useState({ pct: 0, done: 0, status: "" }), [wish, setWish] = useState("");
   useEffect(() => { void recentSongs().then(setRecent); }, []);
 

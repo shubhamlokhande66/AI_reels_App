@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { useAudioPlayer } from "expo-audio";
+import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useStudioText } from "@shubix/hooks";
 import { Button, IconButton, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
@@ -47,6 +47,7 @@ export default function EditorScreen() {
   const clips = p?.clips ?? [], clip = clips[selected], total = projectDuration(clips);
   const before = clips.slice(0, selected).reduce((t, c) => t + clipDuration(c), 0), now = before + local;
   // the song plays with the Reel, from where the Reel is
+  useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
   useEffect(() => { if (!p?.audioUri) return; if (playing && sound) { song.seekTo(now).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; return { ...old, ...next }; });

@@ -57,7 +57,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
               <IconButton icon="back" label={words("Back to your Reel")} size={40} onPress={onClose} />
               <Text className="text-center text-[40px]">🎉</Text>
               <Text className="text-center text-[24px] font-semibold text-foreground">{words("Reel Exported!")}</Text>
-              <View className="h-[380px] self-center overflow-hidden rounded-[18px] bg-black" style={{ aspectRatio: 9 / 16 }}><VideoView player={player} nativeControls contentFit="contain" style={{ flex: 1 }} /></View>
+              <View className="h-[380px] self-center overflow-hidden rounded-[18px] bg-black" style={{ aspectRatio: 9 / 16 }}><VideoView player={player} surfaceType="textureView" nativeControls contentFit="contain" style={{ flex: 1 }} /></View>
               <View className="items-center"><Text className="text-[15px] font-semibold text-foreground">{words(saved ? "Saved to your phone" : "Your Reel is ready")}</Text><Text className="text-[12.5px] text-muted">{megabytes(done.size)}</Text></View>
               <Button full size="xl" icon="upload" title={words("Share")} onPress={() => void Sharing.shareAsync(done.uri, { mimeType: "video/mp4" })} />
               {!saved && <Button full size="lg" variant="secondary" icon="download" title={words("Save to Photos")} onPress={() => void save()} />}
