@@ -9,13 +9,15 @@
  *   song { path, name }                                  the song (the website analyses it and checks its beats)
  *   clips { paths: [{ path, name }] }                     the clips (read: motion, scenes, faces, the best moments)
  *   choose { length?, order?, aspect?, mode? }            Reel length (0 / 15 / 30 / 60 / seconds), "mix" | "order", 9:16…, auto | smooth | fast
+ *                                                         -> { start }: where the song's part starts (Shubix picks the best part)
+ *   part { start }                                       the part dragged on the waves: from there -> { start }
  *   ready {}                                              waits until the Reel is made -> the work and the Reel's shots
  *   state {} / exportReel { name }                        the Reel as the studio saves it / the MP4, sent back -> its path on the phone
  *   answer { pick: "ok" | "no" | "close" }               the phone's answer to the studio's question (Shubix AI's credits)
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; state: () => unknown; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
+type Studio = { section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; state: () => unknown; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -74,10 +76,12 @@ export function initBridge(root: HTMLElement): () => void {
         const n = Number(a.length);
         if (!press("slen", "data-l", String(n))) { press("slen", "data-l", "c"); const i = $<HTMLInputElement>("slenc"); if (i) { i.value = String(n); i.dispatchEvent(new Event("change", { bubbles: true })); } }
       }
-      return { mode: studio()?.mode };
+      await new Promise((r) => setTimeout(r, 400)); // the part is placed (useSection)
+      return { mode: studio()?.mode, start: studio()?.section.start ?? 0 };
     },
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
+    async part(a) { await studio()?.setPart(Number(a.start)); return { start: studio()?.section.start ?? 0 }; },
     async answer(a) { const b = $({ ok: "cconfok", no: "cconfno" }[String(a.pick)] ?? "cconfx"); b?.click(); return { ok: !!b }; },
     async exportReel(a) {
       await until(made);

@@ -24,7 +24,7 @@ export default function CreateScreen() {
   const planAi = usePlanAi();
   const [step, setStep] = useState<FlowStep>("intro");
   const [music, setMusic] = useState<SongAnalysis | null>(null), [song, setSong] = useState<Song | null>(null), [recent, setRecent] = useState<Song[]>([]), [reading, setReading] = useState(false);
-  const [length, setLength] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const [length, setLength] = useState(0), [start, setStart] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [settings, setSettings] = useState<ClipSettings>({ order: "order", aspect: "9:16", pace: "natural", under: "0.09" });
   const [progress, setProgress] = useState({ pct: 0, done: 0, status: "" }), [wish, setWish] = useState("");
   useEffect(() => { void recentSongs().then(setRecent); }, []);
@@ -42,9 +42,20 @@ export default function CreateScreen() {
   }
   // the song as the website's engine hears it (its beats, drops and breaks, checked by Shubix: the Reel is cut on them); its cards show the way
   async function hear(s: Song) {
-    setMusic(null);
+    setMusic(null); setStart(0);
     if (!engineOn) return toast(words("The song's beats and the Reel's edit are made by the Shubix app: Expo Go cannot run them."), "info");
     try { setMusic(await engine.song(s.uri, s.name)); } catch (e) { toast(errorMessage(e), "danger"); }
+  }
+  // the Reel's length: the website's engine places the part on the song's best part (without it, from the start)
+  async function lengthTo(n: number) {
+    setLength(n);
+    if (!engineOn || !music) return setStart((t) => (n ? Math.max(0, Math.min(t, (music?.duration ?? song?.duration ?? n) - n)) : 0));
+    try { setStart((await engine.choose({ length: n })).start); } catch (e) { toast(errorMessage(e), "danger"); }
+  }
+  // the part dragged on the waves
+  async function partFrom(t: number) {
+    setStart(t);
+    if (engineOn && music) try { setStart((await engine.part(t)).start); } catch (e) { toast(errorMessage(e), "danger"); }
   }
   async function addMedia() {
     const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: photos ? ["images"] : ["videos"], allowsMultipleSelection: true, selectionLimit: Math.max(1, 30 - media.length), quality: 0.9 });
@@ -65,7 +76,7 @@ export default function CreateScreen() {
       const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
       let studio = false;
       if (engineOn && music) {
-        await engine.choose({ length, order: settings.order, aspect: settings.aspect, mode: style || "auto" });
+        await engine.choose({ order: settings.order, aspect: settings.aspect, mode: style || "auto" }); // (the length and the part are set already)
         await engine.clips(clips.map((c) => ({ uri: c.uri, name: c.name })));
         at(0.7, 2);
         clips = shotsOf((await engine.ready(id)).state.edit, clips); studio = true;
@@ -73,7 +84,7 @@ export default function CreateScreen() {
       at(0.92, 3);
       const now = new Date().toISOString();
       await saveProject({ id, title: words(KINDS[kind].title), kind, clips, audioUri, audioName: song?.name, overlays: [], ...(music ? { music } : {}), studio, createdAt: now, updatedAt: now, status: "draft",
-        ...(params.templateId ? { templateId: params.templateId } : {}), settings: { length, ...settings, ...(wish ? { wish } : {}) } });
+        ...(params.templateId ? { templateId: params.templateId } : {}), settings: { start, length, ...settings, ...(wish ? { wish } : {}) } });
       await queryClient.invalidateQueries({ queryKey: ["drafts"] });
       setProgress({ pct: 1, done: 4, status: words("Your Reel is ready!") });
       setTimeout(() => { setStep("clips"); router.push({ pathname: "/editor", params: { id } }); }, 450); // back from the editor: the clips again
@@ -107,7 +118,7 @@ export default function CreateScreen() {
         {step !== "intro" && step !== "analyse" && <View className="mb-4"><AskShubix onAsk={(t) => { setWish((w) => `${w} · ${t}`.replace(/^ · /, "").slice(-800)); return words("Got it! I'll edit your Reel this way as soon as it is made."); }} /></View>}
         {step === "intro" && <FlowIntro kind={kind} />}
         {step === "choose" && <FlowChoose kind={kind} song={song} recent={recent} busy={reading} onPick={() => void choose(() => pickSong())} onPickReel={() => void choose(() => pickSong("video"))} onRecent={(s) => void pickRecent(s)} onForget={(uri) => { setRecent((r) => r.filter((s) => s.uri !== uri)); if (song?.uri === uri) setSong(null); }} />}
-        {step === "adjust" && song && <FlowAdjust song={song} music={music} length={length} onLength={setLength} />}
+        {step === "adjust" && song && <FlowAdjust song={song} music={music} length={length} start={start} onLength={(n) => void lengthTo(n)} onStart={(t) => void partFrom(t)} />}
         {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
         {step === "analyse" && <FlowAnalyse {...progress} />}
       </ScrollView>

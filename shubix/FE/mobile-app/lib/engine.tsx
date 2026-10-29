@@ -45,7 +45,9 @@ export const engine = {
   /** the song: the website analyses it (beats, drops, breaks) and checks its beats */
   song: (uri: string, name: string) => call<SongAnalysis>("song", { path: pathOf(uri), name }),
   /** the Reel's choices, as the website's buttons: length (0 = the whole song), clip order, format, style */
-  choose: (c: { length?: number; order?: "mix" | "order"; aspect?: string; mode?: "auto" | "smooth" | "fast" }) => call("choose", c),
+  choose: (c: { length?: number; order?: "mix" | "order"; aspect?: string; mode?: "auto" | "smooth" | "fast" }) => call<{ start: number }>("choose", c),
+  /** the song's part moved on the waves: the Reel uses the song from `start` */
+  part: (start: number) => call<{ start: number }>("part", { start }),
   /** the clips: the website reads them (motion, scenes, faces) and makes the Reel on the beats */
   clips: (list: { uri: string; name: string }[]) => call("clips", { paths: list.map((c) => ({ path: pathOf(c.uri), name: c.name })) }),
   /** once the Reel is made: its shots (`id`: the phone's draft, which the studio now holds) */

@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SongAnalysis } from "../../lib/engine";
-import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Image, PanResponder, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import type { ImagePickerAsset } from "expo-image-picker";
@@ -133,15 +133,31 @@ export function FlowChoose({ kind, song, recent, busy, onPick, onPickReel, onRec
 const bars = (seed: string) => Array.from({ length: 56 }, (_, i) => { let h = 7; for (const c of seed + i) h = (h * 31 + c.charCodeAt(0)) % 997; return 0.25 + (h % 75) / 100; });
 export const LENGTHS = [0, 15, 30, 60];
 
-/** Adjust Music: the song in a row, its bars (the part the Reel uses in gold, play to hear it) and the Reel's length. */
-export function FlowAdjust({ song, music, length, onLength }: { song: Song; music?: SongAnalysis | null; length: number; onLength: (n: number) => void }) {
+/** Adjust Music (the website's waves): the song in a row, its bars, the part the Reel uses as a box (Shubix places it
+ * on the best part; drag it anywhere, a tap plays it from there), a line where the song is, and the Reel's length. */
+export function FlowAdjust({ song, music, length, start, onLength, onStart }: { song: Song; music?: SongAnalysis | null; length: number; start: number; onLength: (n: number) => void; onStart: (t: number) => void }) {
   const words = useStudioText(), look = useColors(), player = useAudioPlayer(song.uri), status = useAudioPlayerStatus(player);
-  const duration = song.duration || status.duration || 0, used = length && duration ? Math.min(length, duration) / duration : 1;
-  const heard = duration ? status.currentTime / duration : 0;
+  const duration = music?.duration || song.duration || status.duration || 0, len = length && duration ? Math.min(length, duration) : duration;
+  const [drag, setDrag] = useState<number | null>(null), from = drag ?? start, box = useRef({ width: 1, grab: 0, moved: false, x0: 0 });
+  const left = duration ? from / duration : 0, used = duration ? len / duration : 1, heard = duration ? status.currentTime / duration : 0;
   const [custom, setCustom] = useState(!LENGTHS.includes(length)), [typed, setTyped] = useState(LENGTHS.includes(length) ? 45 : length);
   useEffect(() => () => { try { player.pause(); } catch { /* already gone */ } }, [player]);
-  const toggle = () => { if (status.playing) player.pause(); else { if (length && status.currentTime >= Math.min(length, duration)) void player.seekTo(0); player.play(); } };
-  useEffect(() => { if (length && status.playing && status.currentTime >= length) player.pause(); }, [length, status.currentTime, status.playing, player]);
+  const playFrom = (t: number) => { void player.seekTo(t); player.play(); };
+  // a tap: pause, or play the part (on from where it was when that is inside it)
+  const toggle = () => { if (status.playing) return player.pause(); playFrom(status.currentTime >= from && status.currentTime < from + len - 0.2 ? status.currentTime : from); };
+  useEffect(() => { if (status.playing && status.currentTime >= from + len) player.pause(); }, [from, len, status.currentTime, status.playing, player]);
+  const tAt = (x: number) => (x / Math.max(1, box.current.width)) * duration;
+  const pan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 6,
+    onPanResponderGrant: (e) => { const t = tAt(e.nativeEvent.locationX); box.current = { ...box.current, moved: false, x0: e.nativeEvent.locationX, grab: t >= start && t <= start + len ? t - start : len / 2 }; },
+    onPanResponderMove: (_, g) => {
+      if (!length || (!box.current.moved && Math.abs(g.dx) < 6)) return;
+      if (!box.current.moved) { box.current.moved = true; player.pause(); }
+      setDrag(Math.max(0, Math.min(duration - len, tAt(box.current.x0 + g.dx) - box.current.grab)));
+    },
+    onPanResponderRelease: () => { if (!box.current.moved) return toggle(); setDrag((t) => { if (t !== null) { onStart(t); playFrom(t); } return null; }); },
+  }), [start, len, length, duration, status.playing, status.currentTime]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <FlowCard>
       <View className="flex-row items-center gap-3">
@@ -150,16 +166,16 @@ export function FlowAdjust({ song, music, length, onLength }: { song: Song; musi
       </View>
       <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface-2 p-3">
         <IconButton icon={status.playing ? "pause" : "play"} look="main" label={words(status.playing ? "Pause" : "Play")} size={40} onPress={toggle} className="overflow-hidden"/>
-        <View className="h-[86px] flex-1 flex-row items-center gap-[2px]">
+        <View {...pan.panHandlers} onLayout={(e) => { box.current.width = e.nativeEvent.layout.width; }} accessibilityLabel={words("Drag on the waveform to choose the part yourself.")} className="h-[86px] flex-1 flex-row items-center gap-[2px]">
           {bars(song.name).map((h, i, all) => {
-            const at = i / all.length;
-            return <View key={i} className="flex-1 rounded-full" style={{ height: `${h * 100}%`, backgroundColor: at < used ? look.accent : look.border, opacity: at < heard || at >= used ? 1 : 0.75 }} />;
+            const at = i / all.length, inside = at >= left && at < left + used;
+            return <View key={i} pointerEvents="none" className="flex-1 rounded-full" style={{ height: `${h * 100}%`, backgroundColor: inside ? look.accent : look.border, opacity: inside && at >= heard ? 0.75 : 1 }} />;
           })}
-          {used < 1 && <View pointerEvents="none" className="absolute bottom-0 left-0 top-0 rounded-lg border-2 border-accent bg-accent/10" style={{ width: `${used * 100}%` }} />}
-          {heard > 0 && <View pointerEvents="none" className="absolute bottom-0 top-0 w-0.5 bg-foreground" style={{ left: `${Math.min(heard, 1) * 100}%` }} />}
+          {used < 1 && <View pointerEvents="none" className="absolute bottom-0 top-0 rounded-lg border-2 border-accent bg-accent/10" style={{ left: `${left * 100}%`, width: `${used * 100}%` }} />}
+          <View pointerEvents="none" className="absolute bottom-0 top-0 w-0.5 bg-foreground" style={{ left: `${Math.min(1, status.playing || (heard >= left && heard <= left + used) ? heard : left) * 100}%` }} />
         </View>
       </View>
-      {/* the website's numbers under the waves: what the engine heard */}
+      {length > 0 && <Text className="text-[12px] text-muted">{words("Drag on the waveform to choose the part yourself.")}</Text>}
       <View className="flex-row flex-wrap gap-x-5 gap-y-2">
         {([["Length", clock(music?.duration ?? duration)], ["BPM", music ? String(music.bpm) : "—"], ["Drops", music ? String(music.drops) : "—"], ["Breaks", music ? String(music.breaks) : "—"]] as const).map(([k, v]) => (
           <Text key={k} className="text-[14px] text-muted">{words(k)} <Text className="font-mono font-semibold text-foreground">{v}</Text></Text>
@@ -180,7 +196,7 @@ export function FlowAdjust({ song, music, length, onLength }: { song: Song; musi
         </View>
         {custom && <View className="w-[140px]"><Input keyboardType="number-pad" maxLength={3} value={String(typed || "")} accessibilityLabel={words("Reel length")} right={<Text className="text-[13px] text-muted">s</Text>}
           onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5) onLength(Math.min(180, n)); }} onBlur={() => { const n = Math.max(5, Math.min(180, typed || 45)); setTyped(n); onLength(n); }} /></View>}
-        {duration > 0 && <Text className="text-[12.5px] text-muted">{clock(0)} – {clock(length ? Math.min(length, duration) : duration)}</Text>}
+        {duration > 0 && <Text className="text-[12.5px] text-muted">{clock(from)} – {clock(from + len)}</Text>}
       </View>
     </FlowCard>
   );
