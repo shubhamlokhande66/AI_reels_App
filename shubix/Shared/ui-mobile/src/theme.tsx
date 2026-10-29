@@ -14,8 +14,8 @@ export const themeGradients = { dark: gradients, light: { ...gradients, ...light
 
 /** A colour's class name (raised is the website's surface-2; accentHover → accent-hover). */
 export const colorClassName = (key: string) => (key === "raised" ? "surface-2" : key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase()));
-/** "#d8bd7b" → "216 189 123" (so classes keep their opacity: bg-accent/15); other colours as they are. */
-const channels = (v: string) => (/^#[0-9a-f]{6}$/i.test(v) ? [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16)).join(" ") : v);
+/** "#d8bd7b" → "216, 189, 123" (so classes keep their opacity: bg-accent/15, as rgba(…, 0.15)); other colours as they are. */
+const channels = (v: string) => (/^#[0-9a-f]{6}$/i.test(v) ? [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16)).join(", ") : v);
 const variables = (Object.keys(themes) as Theme[]).reduce((all, theme) => ({ ...all, [theme]: vars(Object.fromEntries(Object.entries(themes[theme]).map(([k, v]) => [`--c-${colorClassName(k)}`, channels(v)]))) }), {} as Record<Theme, ReturnType<typeof vars>>);
 
 type Ctx = { theme: Theme; pref: ThemePref; setPref: (pref: ThemePref) => void };
