@@ -143,9 +143,11 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
   const [custom, setCustom] = useState(!LENGTHS.includes(length)), [typed, setTyped] = useState(LENGTHS.includes(length) ? 45 : length);
   useEffect(() => () => { try { player.pause(); } catch { /* already gone */ } }, [player]);
   const playFrom = (t: number) => { void player.seekTo(t); player.play(); };
+  // the typed length, kept between 5 s and 3 min (as the website's), applied when the box is left
+  const applyTyped = () => { const n = Math.max(5, Math.min(180, typed || 45)); setTyped(n); onLength(n); };
   // a tap: pause, or play the part (on from where it was when that is inside it)
   const toggle = () => { if (status.playing) return player.pause(); playFrom(status.currentTime >= from && status.currentTime < from + len - 0.2 ? status.currentTime : from); };
-  useEffect(() => { if (status.playing && status.currentTime >= from + len) player.pause(); }, [from, len, status.currentTime, status.playing, player]);
+  useEffect(() => { if (length && len > 0 && status.playing && status.currentTime >= from + len) player.pause(); }, [length, from, len, status.currentTime, status.playing, player]);
   const tAt = (x: number) => (x / Math.max(1, box.current.width)) * duration;
   const pan = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -156,7 +158,7 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
       if (!box.current.moved) { box.current.moved = true; player.pause(); }
       setDrag(Math.max(0, Math.min(duration - len, tAt(box.current.x0 + g.dx) - box.current.grab)));
     },
-    onPanResponderRelease: () => { if (!box.current.moved) return toggle(); setDrag((t) => { if (t !== null) { onStart(t); playFrom(t); } return null; }); },
+    onPanResponderRelease: () => { if (!box.current.moved) return toggle(); setDrag((t) => { if (t !== null) onStart(t); return null; }); },
   }), [start, len, length, duration, status.playing, status.currentTime]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <FlowCard>
@@ -171,7 +173,7 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
             const at = i / all.length, inside = at >= left && at < left + used;
             return <View key={i} pointerEvents="none" className="flex-1 rounded-full" style={{ height: `${h * 100}%`, backgroundColor: inside ? look.accent : look.border, opacity: inside && at >= heard ? 0.75 : 1 }} />;
           })}
-          {used < 1 && <View pointerEvents="none" className="absolute bottom-0 top-0 rounded-lg border-2 border-accent bg-accent/10" style={{ left: `${left * 100}%`, width: `${used * 100}%` }} />}
+          {used < 1 && <View pointerEvents="none" className="absolute bottom-0 top-0 rounded-lg border-2 border-accent bg-accent/10" style={{ left: `${left * 100}%`, width: `${used * 100}%`, minWidth: 8 }} />}
           <View pointerEvents="none" className="absolute bottom-0 top-0 w-0.5 bg-foreground" style={{ left: `${Math.min(1, status.playing || (heard >= left && heard <= left + used) ? heard : left) * 100}%` }} />
         </View>
       </View>
@@ -194,8 +196,8 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
             );
           })}
         </View>
-        {custom && <View className="w-[140px]"><Input keyboardType="number-pad" maxLength={3} value={String(typed || "")} accessibilityLabel={words("Reel length")} right={<Text className="text-[13px] text-muted">s</Text>}
-          onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5) onLength(Math.min(180, n)); }} onBlur={() => { const n = Math.max(5, Math.min(180, typed || 45)); setTyped(n); onLength(n); }} /></View>}
+        {custom && <View className="w-[140px]"><Input keyboardType="number-pad" maxLength={3} autoFocus selectTextOnFocus returnKeyType="done" value={typed ? String(typed) : ""} accessibilityLabel={words("Reel length")} right={<Text className="text-[13px] text-muted">s</Text>}
+          onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5 && n <= 180) onLength(n); }} onEndEditing={applyTyped} onBlur={applyTyped} /></View>}
         {duration > 0 && <Text className="text-[12.5px] text-muted">{clock(from)} – {clock(from + len)}</Text>}
       </View>
     </FlowCard>
