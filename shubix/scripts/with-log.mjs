@@ -30,7 +30,7 @@ function pipe(stream, out, isErr) {
   });
 }
 all.write(`${stamp()} ---- start: ${cmd.join(" ")}\n`);
-const line = cmd.map((a) => (/s/.test(a) ? `"${a}"` : a)).join(" ");
+const line = cmd.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
 const child = spawn(line, { shell: true, env: { ...process.env, FORCE_COLOR: "1" } });
 pipe(child.stdout, process.stdout, false);
 pipe(child.stderr, process.stderr, true);
