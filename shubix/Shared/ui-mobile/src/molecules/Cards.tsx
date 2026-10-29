@@ -84,7 +84,7 @@ export function ReelCover({ thumb, duration, children }: { thumb?: string | null
     <View className="aspect-[3/4] w-full overflow-hidden rounded-2xl bg-surface-2">
       {thumb && <Image source={{ uri: thumb }} className="absolute inset-0 h-full w-full" resizeMode="cover" />}
       <Paint paint={{ angle: 0, stops: ["rgba(0,0,0,.45)", ["transparent", 50], "transparent"] }} />
-      <Text className="absolute bottom-2 left-2 overflow-hidden rounded-md bg-[rgba(10,9,8,.72)] px-1.5 py-0.5 text-[10px] font-bold text-white">{duration}</Text>
+      <View className="absolute bottom-2 left-2 rounded-md bg-[rgba(10,9,8,.72)] px-1.5 py-0.5"><Text className="text-[10px] font-bold text-white">{duration}</Text></View>
       {children}
     </View>
   );

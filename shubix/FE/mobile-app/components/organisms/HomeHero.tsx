@@ -49,7 +49,7 @@ function StudioPicture() {
     <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" className="w-full max-w-[420px] flex-row items-center gap-3 self-center rounded-[24px] border border-white/10 bg-black/20 p-3">
       <View className="aspect-[9/16] overflow-hidden rounded-[18px] border border-white/15" style={{ flex: 0.72, minWidth: 96 }}>
         <ReelSunset />
-        <Text className="absolute left-2.5 top-2.5 overflow-hidden rounded-full border border-white/25 bg-black/25 px-2 py-1 text-[8px] font-bold tracking-[0.96px] text-white/90">{text("home.mockPreview")}</Text>
+        <View className="absolute left-2.5 top-2.5 rounded-full border border-white/25 bg-black/25 px-2 py-1"><Text className="text-[8px] font-bold tracking-[0.96px] text-white/90">{text("home.mockPreview")}</Text></View>
         <View className="absolute inset-0 items-center justify-center">
           <View className="h-9 w-9 items-center justify-center rounded-full border border-white/55 bg-black/25"><Icon name="play" size={16} color="#fff" /></View>
         </View>

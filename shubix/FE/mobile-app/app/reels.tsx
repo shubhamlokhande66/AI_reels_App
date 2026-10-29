@@ -58,7 +58,7 @@ function Drafts({ drafts }: { drafts: MobileProject[] | null }) {
             <Pressable onPress={() => edit(draft)} className="min-w-0 flex-1">
               <Text numberOfLines={1} className="text-[13.5px] font-bold text-foreground">{draft.title}</Text>
               <View className="flex-row items-center gap-1.5">
-                {draft.kind === "talking" && <Badge className="h-[18px] px-1.5 text-[10px] leading-[18px]">{text("reels.talking")}</Badge>}
+                {draft.kind === "talking" && <Badge className="h-[18px] px-1.5" textClassName="text-[10px]">{text("reels.talking")}</Badge>}
                 <Text numberOfLines={1} className="text-[11.5px] text-muted">{text("reels.edited", { when: formatRelative(draft.updatedAt) })}</Text>
               </View>
             </Pressable>

@@ -6,9 +6,9 @@ import { Gold, Icon, colors } from "@shubix/ui-mobile";
 import type { IconName } from "@shubix/ui-core";
 import { TABS, isActive } from "@shubix/core/lib/nav";
 
-/** The website's phone bottom bar (components/molecules/BottomNav.tsx): four tabs around the raised gold Create
- * button, and More (the menu). The open tab is gold with a line under its name. */
-export function BottomNav({ pathname, moreOpen, onMore }: { pathname: string; moreOpen: boolean; onMore: () => void }) {
+/** The website's phone bottom bar (components/molecules/BottomNav.tsx): Home, Templates, the raised gold Create
+ * button, My Reels and Account. The open tab is gold with a line under its name. */
+export function BottomNav({ pathname }: { pathname: string }) {
   const text = useText(), insets = useSafeAreaInsets();
   const item = (label: string, on: boolean, icon: IconName, onPress: () => void) => (
     <Pressable key={label} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }} className="min-h-[52px] flex-1 items-center justify-end gap-1 pb-1">
@@ -28,7 +28,6 @@ export function BottomNav({ pathname, moreOpen, onMore }: { pathname: string; mo
           <Text className="text-[11px] font-semibold text-foreground">{text(tab.tk)}</Text>
         </Pressable>
       ) : item(text(tab.tk), isActive(pathname, tab.href), tab.icon as IconName, () => router.navigate(tab.href as never)))}
-      {item(text("nav.more"), moreOpen, "more", onMore)}
     </View>
   );
 }

@@ -26,6 +26,10 @@ export function ThemeProvider({ theme, pref, setPref, children }: Ctx & { childr
   return <ThemeContext.Provider value={{ theme, pref, setPref }}><View style={[{ flex: 1 }, variables[theme]]}>{children}</View></ThemeContext.Provider>;
 }
 export const useTheme = () => useContext(ThemeContext);
+/** The look again, for a window drawn over the page (a Modal is outside the root view, so it needs its own). */
+export function ThemeLayer({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <View className={`flex-1 ${className}`} style={variables[useTheme().theme]}>{children}</View>;
+}
 /** The look's colours, for props that cannot take a class (icons, gradients, placeholderTextColor). */
 export const useColors = (): ThemeColors => themes[useTheme().theme];
 export const useGradients = () => themeGradients[useTheme().theme];

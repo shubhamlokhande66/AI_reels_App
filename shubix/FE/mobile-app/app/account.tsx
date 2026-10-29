@@ -52,9 +52,9 @@ export default function AccountScreen() {
               <Heading className="capitalize">{name}</Heading>
               <View className="flex-row items-center gap-1.5">
                 <Text numberOfLines={1} className="shrink text-[13px] text-muted">{user.email}</Text>
-                <Badge tone={user.emailVerified === false ? "warning" : "success"} className="h-5 px-2 text-[11px] leading-5">{text(user.emailVerified === false ? "auth.unverifiedBadge" : "auth.verifiedBadge")}</Badge>
+                <Badge tone={user.emailVerified === false ? "warning" : "success"} className="h-5 px-2">{text(user.emailVerified === false ? "auth.unverifiedBadge" : "auth.verifiedBadge")}</Badge>
               </View>
-              <Badge tone={paid ? "brand" : "neutral"} className="mt-1.5 h-6 leading-6">{c ? text("nav.planSuffix", { plan: c.planName ?? "" }) : text("plan.free")}</Badge>
+              <Badge tone={paid ? "brand" : "neutral"} className="mt-1.5 h-6">{c ? text("nav.planSuffix", { plan: c.planName ?? "" }) : text("plan.free")}</Badge>
             </View>
           </View>
           <View className="gap-1.5">

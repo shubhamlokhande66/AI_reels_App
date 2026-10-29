@@ -38,8 +38,8 @@ export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose
   return (
     <View className="absolute inset-0 z-50">
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: shown }]}><Pressable className="flex-1 bg-black/55" onPress={onClose} accessibilityLabel={text("common.closeMenu")} /></Animated.View>
-      <Animated.View accessibilityViewIsModal style={{ width, transform: [{ translateX: shown.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }) }] }}
-        className="absolute inset-y-0 left-0 overflow-hidden border-r border-accent/20">
+      <Animated.View accessibilityViewIsModal style={{ position: "absolute", top: 0, bottom: 0, left: 0, width, transform: [{ translateX: shown.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }) }] }}
+        className="overflow-hidden border-r border-accent/20">
         <Sidebar />
         <View className="flex-row items-center gap-2 border-b border-accent/15 bg-bar/90 px-4 pb-3" style={{ paddingTop: Math.max(12, insets.top) }}>
           <Hairline strength={0.5} />

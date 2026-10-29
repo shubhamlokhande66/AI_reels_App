@@ -3,13 +3,13 @@ import { BackHandler, Platform, View } from "react-native";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi } from "@shubix/hooks";
-import { AUTH_PAGES, PUBLIC_PAGES, showTabs } from "@shubix/core/lib/nav";
+import { AUTH_PAGES, PUBLIC_PAGES } from "@shubix/core/lib/nav";
 import { TopBar } from "../organisms/TopBar";
 import { BottomNav } from "../organisms/BottomNav";
 import { MenuDrawer } from "../organisms/MenuDrawer";
 
 /** The website's phone frame (FE/web-app/components/templates/AppShell.tsx): the top bar, the page, the bottom bar
- * (not in the studio) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
+ * (on every page) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname(), { me } = useApi(), insets = useSafeAreaInsets();
   const [menu, setMenu] = useState(false);
@@ -26,7 +26,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
     <View className="flex-1 bg-background">
       <TopBar pathname={pathname} onMenu={() => setMenu(true)} />
       <View className="flex-1">{children}</View>
-      {showTabs(pathname) && <BottomNav pathname={pathname} moreOpen={menu} onMore={() => setMenu(true)} />}
+      <BottomNav pathname={pathname} />
       <MenuDrawer open={menu} onClose={() => setMenu(false)} pathname={pathname} />
     </View>
   );

@@ -50,7 +50,7 @@ export default function PricingScreen() {
     <Page>
       <View className="gap-12 pb-4">
         <View className="items-center gap-4 pt-4">
-          <Badge tone="brand" className="h-8 px-3.5 text-[12.5px] uppercase leading-8 tracking-[0.6px]">{text("pricing.badge")}</Badge>
+          <Badge tone="brand" className="h-8 self-center px-3.5" textClassName="text-[12.5px] uppercase tracking-[0.6px]">{text("pricing.badge")}</Badge>
           <GoldText before={text("pricing.title1")} text={text("pricing.title2")} className="text-center text-[28px] font-semibold leading-[30px] tracking-[-0.7px]" />
           <Text className="text-center text-[15.5px] leading-[25px] text-muted">{text("pricing.sub", { aiCost: p.costs.studio_ai ?? 10 })}</Text>
           <View accessibilityRole="radiogroup" className="mt-2 flex-row items-center gap-1 rounded-full border border-border bg-surface p-1.5">
@@ -58,7 +58,7 @@ export default function PricingScreen() {
               <Pressable key={String(y)} onPress={() => setYearly(y)} accessibilityRole="radio" accessibilityState={{ checked: yearly === y }} className="h-10 flex-row items-center gap-2 overflow-hidden rounded-full px-5">
                 {yearly === y && <Gold />}
                 <Text className={`text-[14px] font-bold ${yearly === y ? "text-on-accent" : "text-muted"}`}>{text(y ? "pricing.yearly" : "pricing.monthly")}</Text>
-                {y && freeMonths > 0 && <Text className={`overflow-hidden rounded-full px-2 py-0.5 text-[11px] font-extrabold ${yearly ? "bg-white/20 text-white" : "bg-success/15 text-success"}`}>{text("pricing.monthsFree", { n: freeMonths })}</Text>}
+                {y && freeMonths > 0 && <View className={`rounded-full px-2 py-0.5 ${yearly ? "bg-white/20" : "bg-success/15"}`}><Text className={`text-[11px] font-extrabold ${yearly ? "text-white" : "text-success"}`}>{text("pricing.monthsFree", { n: freeMonths })}</Text></View>}
               </Pressable>
             ))}
           </View>
@@ -116,7 +116,7 @@ export default function PricingScreen() {
                   <View className="h-7 w-7 items-center justify-center rounded-lg bg-accent/[0.12]"><Icon name={c.credits === 0 ? "sparkle" : "bolt"} size={15} stroke={2} color="accent" /></View>
                   <Text className="min-w-0 flex-1 text-[14px] font-semibold text-foreground">{c.action}</Text>
                 </View>
-                <Badge tone={c.credits === 0 ? "success" : "brand"} className="h-7 px-3 text-[12px] leading-7">{c.credits === 0 ? text("pricing.costFree") : c.credits === 1 ? text("pricing.costCredit") : text("pricing.costCredits", { n: c.credits })}</Badge>
+                <Badge tone={c.credits === 0 ? "success" : "brand"} className="h-7 px-3" textClassName="text-[12px]">{c.credits === 0 ? text("pricing.costFree") : c.credits === 1 ? text("pricing.costCredit") : text("pricing.costCredits", { n: c.credits })}</Badge>
               </View>
             ))}
           </Card>
@@ -154,7 +154,7 @@ function MyCredits({ c }: { c: Extract<Credits, { enabled: true }> }) {
           <Text className="text-[13px] font-semibold text-muted">{text("pricing.yourCredits")}</Text>
           <View className="flex-row items-center gap-2"><Icon name="bolt" size={26} stroke={2.2} color="accent" /><Text className="text-[28px] font-semibold leading-[34px] text-foreground">{c.balance.toLocaleString("en-IN")}</Text></View>
         </View>
-        <Badge tone="brand" className="h-8 px-3 text-[12.5px] leading-8">{text("pricing.planBadge", { plan: c.planName })}</Badge>
+        <Badge tone="brand" className="h-8 px-3" textClassName="text-[12.5px]">{text("pricing.planBadge", { plan: c.planName })}</Badge>
       </View>
       <Text className="text-[12.5px] text-muted">
         {c.plan !== "free" && c.planEnds ? `${text("pricing.activeUntil", { date: day(c.planEnds) })} · ` : ""}

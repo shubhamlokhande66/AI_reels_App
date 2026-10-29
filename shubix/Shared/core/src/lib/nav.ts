@@ -51,13 +51,14 @@ export const GROUPS: NavGroup[] = [
   },
 ];
 
-// Create opens Fast Studio when the server's Create Reel is off (Administration -> Features); at most four tabs and More
-// (the design's order: Home, Templates, Create, My Reels, More)
+// the phone's bottom bar: Home, Templates, Create, My Reels and Account (your whole account at a tap, as most apps do;
+// the menu opens from the top bar)
 export const TABS: NavTab[] = [
   { href: "/", label: "Home", tk: "nav.home", icon: "home" },
   { href: "/templates", label: "Templates", tk: "nav.templates", icon: "grid" },
   { href: "/create/music", label: "Create", tk: "nav.create", icon: "plus", primary: true, full: true },
   { href: "/reels", label: "My Reels", tk: "nav.reels", icon: "reels" },
+  { href: "/account", label: "Account", tk: "nav.account", icon: "user" },
 ];
 
 /** Pages shown on their own (no bars), and pages open before signing in. */

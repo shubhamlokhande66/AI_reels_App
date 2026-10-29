@@ -413,7 +413,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* phones: the bottom tab bar */}
-      {tabs && <BottomNav tabs={tabsFor(features).map((x) => ({ ...x, label: text(x.tk), active: isActive(pathname, x.href) }))} moreOpen={drawer} onMore={() => setDrawer(true)} />}
+      {tabs && <BottomNav tabs={tabsFor(features).map((x) => ({ ...x, label: text(x.tk), active: isActive(pathname, x.href) }))} />}
 
       {needCredits && (
         <div className="fixed inset-0 z-[90] grid place-items-center bg-[rgba(5,4,4,.82)] p-5 backdrop-blur-sm" onClick={() => setNeedCredits(null)}>
