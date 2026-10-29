@@ -2,7 +2,7 @@
 /* Clip tools of the current shot (as in VN / CapCut's clip toolbar): one row of tools, the open tool's controls under it.
  * Everything is a field of the shot's settings (the engine's e.cs), so preview, export, Undo and saved Reels all keep it,
  * and the AI can set the same fields. One-tap tools (Rotate, Mirror, Flip, Fit) act at once; the others open controls. */
-import { CHIP, TILE } from "./ui";
+import { Chip, Tile } from "./ui";
 
 export type ClipCs = {
   i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
@@ -59,16 +59,16 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
   const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
     : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : false;
   const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${CLIP_TOOLS.map(([k, n, ic]) =>
-    `<button type="button" class="ct ${TILE} min-w-[62px]"${on(k) ? " data-on" : ""} data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
+    `<button type="button" class="ct ${Tile} min-w-[62px]"${on(k) ? " data-on" : ""} data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
   const need = (t: string) => `<p class="cnote">${t}</p>`;
   if (open === "vol") body = slider("vol", "Clip sound", c.vol, 0, 2, 0.05, "%") + slider("pitch", "Pitch (semitones)", c.pitch ?? 0, -12, 12, 1, "st") + slider("mus", "Music under this shot", c.mus ?? 1, 0, 1.5, 0.05, "%") + need("The clip's own sound under the music (0% = the song alone). The music steps back while the clip is loud.");
-  else if (open === "extract") body = `<button type="button" class="${CHIP}" data-act="extract">Use this clip's sound as the song</button>${need("Its beats then lead the cuts, as with any song. Change it back in Music.")}`;
+  else if (open === "extract") body = `<button type="button" class="${Chip}" data-act="extract">Use this clip's sound as the song</button>${need("Its beats then lead the cuts, as with any song. Change it back in Music.")}`;
   else if (open === "crop") body = slider("zoom", "Zoom", c.zoom, 1, 3, 0.05, "x") + slider("cx", "Across", c.cx ?? 0.5, 0, 1, 0.01, "%") + slider("cy", "Down", c.cy ?? 0.5, 0, 1, 0.01, "%")
-    + `<button type="button" class="${CHIP}" data-act="crop-auto">${c.cx == null ? "Following the face (automatic)" : "Back to automatic (follows the face)"}</button>`;
-  else if (open === "canvas") body = !c.fit ? need("Canvas shows around a fitted picture. Turn on Fit first.") + `<button type="button" class="${CHIP}" data-act="fit-on">Fit the whole picture</button>`
-    : `<div class="chips"><button type="button" class="${CHIP}" data-bg="blur" aria-pressed="${c.bg === "blur"}">Blur</button><button type="button" class="${CHIP}" data-bg="color" aria-pressed="${c.bg !== "blur"}">Colour</button></div>${c.bg !== "blur" ? swatches("bgc", c.bgc) : ""}`;
-  else if (open === "border") body = !c.fit ? need("A border goes around a fitted picture. Turn on Fit first.") + `<button type="button" class="${CHIP}" data-act="fit-on">Fit the whole picture</button>`
+    + `<button type="button" class="${Chip}" data-act="crop-auto">${c.cx == null ? "Following the face (automatic)" : "Back to automatic (follows the face)"}</button>`;
+  else if (open === "canvas") body = !c.fit ? need("Canvas shows around a fitted picture. Turn on Fit first.") + `<button type="button" class="${Chip}" data-act="fit-on">Fit the whole picture</button>`
+    : `<div class="chips"><button type="button" class="${Chip}" data-bg="blur" aria-pressed="${c.bg === "blur"}">Blur</button><button type="button" class="${Chip}" data-bg="color" aria-pressed="${c.bg !== "blur"}">Colour</button></div>${c.bg !== "blur" ? swatches("bgc", c.bgc) : ""}`;
+  else if (open === "border") body = !c.fit ? need("A border goes around a fitted picture. Turn on Fit first.") + `<button type="button" class="${Chip}" data-act="fit-on">Fit the whole picture</button>`
     : slider("bd", "Width", c.bd, 0, 1, 0.05, "%") + swatches("bdc", c.bdc);
   else if (open === "adjust") body = slider("bri", "Brightness", c.bri, -1, 1, 0.05) + slider("con", "Contrast", c.con, -1, 1, 0.05) + slider("sat", "Saturation", c.sat, -1, 1, 0.05) + slider("warm", "Warmth", c.warm, -1, 1, 0.05)
     + slider("hi", "Highlights", c.hi ?? 0, -1, 1, 0.05) + slider("sh", "Shadows", c.sh ?? 0, -1, 1, 0.05) + slider("hue", "Hue", c.hue ?? 0, -1, 1, 0.02) + slider("sharp", "Sharpen", c.sharp ?? 0, 0, 1, 0.05, "%") + slider("vig", "Vignette", c.vig ?? 0, 0, 1, 0.05, "%");
@@ -76,13 +76,13 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
   else if (open === "stab") body = slider("stab", "Stabilize", c.stab ?? 0, 0, 1, 0.05, "%") + need("Takes out the camera's shake, zoomed in a little so no edge shows.");
   else if (open === "beauty") body = slider("beauty", "Smooth skin", c.beauty ?? 0, 0, 1, 0.05, "%") + need("Softens skin and keeps the eyes, hair and edges sharp.");
   else if (open === "fade") body = slider("fin", "Fade in", c.fin, 0, 1.5, 0.1, "s") + slider("fout", "Fade out", c.fout, 0, 1.5, 0.1, "s");
-  else if (open === "mosaic") body = !c.mz ? `<button type="button" class="${CHIP}" data-act="mz-on">Add mosaic</button>${need("Hides a face, a plate or a logo with blocks.")}`
-    : slider("mz.x", "Left", c.mz.x, 0, 0.95, 0.01, "%") + slider("mz.y", "Top", c.mz.y, 0, 0.95, 0.01, "%") + slider("mz.w", "Width", c.mz.w, 0.05, 1, 0.01, "%") + slider("mz.h", "Height", c.mz.h, 0.05, 1, 0.01, "%") + slider("mz.s", "Block size", c.mz.s, 0.01, 0.1, 0.005, "%") + `<button type="button" class="${CHIP}" data-act="mz-off">Remove mosaic</button>`;
-  else if (open === "lens") body = !c.mg ? `<button type="button" class="${CHIP}" data-act="mg-on">Add magnifier</button>${need("A round lens that zooms into one spot.")}`
-    : slider("mg.x", "Across", c.mg.x, 0, 1, 0.01, "%") + slider("mg.y", "Down", c.mg.y, 0, 1, 0.01, "%") + slider("mg.r", "Size", c.mg.r, 0.05, 0.45, 0.01, "%") + slider("mg.z", "Zoom", c.mg.z, 1.2, 4, 0.1, "x") + `<button type="button" class="${CHIP}" data-act="mg-off">Remove magnifier</button>`;
-  else if (open === "slip") body = `<div class="chips"><button type="button" class="${CHIP}" data-slip="-1">◀ 1 s earlier</button><button type="button" class="${CHIP}" data-slip="-0.25">◀ ¼ s</button><button type="button" class="${CHIP}" data-slip="0.25">¼ s ▶</button><button type="button" class="${CHIP}" data-slip="1">1 s later ▶</button></div>${need("Shows an earlier or later moment of the same clip. The shot keeps its place on the beat.")}`;
-  else if (open === "trim") body = `<div class="chips"><button type="button" class="${CHIP}" data-trim="-1">Shorter by a beat</button><button type="button" class="${CHIP}" data-trim="1">Longer by a beat</button></div>${need("The cut moves one beat; the next shot starts there.")}`;
-  const reset = `<button type="button" class="${CHIP} text-muted" data-act="reset">Reset this shot</button>`;
+  else if (open === "mosaic") body = !c.mz ? `<button type="button" class="${Chip}" data-act="mz-on">Add mosaic</button>${need("Hides a face, a plate or a logo with blocks.")}`
+    : slider("mz.x", "Left", c.mz.x, 0, 0.95, 0.01, "%") + slider("mz.y", "Top", c.mz.y, 0, 0.95, 0.01, "%") + slider("mz.w", "Width", c.mz.w, 0.05, 1, 0.01, "%") + slider("mz.h", "Height", c.mz.h, 0.05, 1, 0.01, "%") + slider("mz.s", "Block size", c.mz.s, 0.01, 0.1, 0.005, "%") + `<button type="button" class="${Chip}" data-act="mz-off">Remove mosaic</button>`;
+  else if (open === "lens") body = !c.mg ? `<button type="button" class="${Chip}" data-act="mg-on">Add magnifier</button>${need("A round lens that zooms into one spot.")}`
+    : slider("mg.x", "Across", c.mg.x, 0, 1, 0.01, "%") + slider("mg.y", "Down", c.mg.y, 0, 1, 0.01, "%") + slider("mg.r", "Size", c.mg.r, 0.05, 0.45, 0.01, "%") + slider("mg.z", "Zoom", c.mg.z, 1.2, 4, 0.1, "x") + `<button type="button" class="${Chip}" data-act="mg-off">Remove magnifier</button>`;
+  else if (open === "slip") body = `<div class="chips"><button type="button" class="${Chip}" data-slip="-1">◀ 1 s earlier</button><button type="button" class="${Chip}" data-slip="-0.25">◀ ¼ s</button><button type="button" class="${Chip}" data-slip="0.25">¼ s ▶</button><button type="button" class="${Chip}" data-slip="1">1 s later ▶</button></div>${need("Shows an earlier or later moment of the same clip. The shot keeps its place on the beat.")}`;
+  else if (open === "trim") body = `<div class="chips"><button type="button" class="${Chip}" data-trim="-1">Shorter by a beat</button><button type="button" class="${Chip}" data-trim="1">Longer by a beat</button></div>${need("The cut moves one beat; the next shot starts there.")}`;
+  const reset = `<button type="button" class="${Chip} text-muted" data-act="reset">Reset this shot</button>`;
   return row + (body ? `<div class="ctbody">${body}</div>` : "") + reset;
 }
 

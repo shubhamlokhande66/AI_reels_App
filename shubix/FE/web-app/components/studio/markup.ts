@@ -5,7 +5,7 @@
  * motion, background, overlay, voice, style), one panel open at a time. A plan's tools carry its tag (views.ts PLAN_TOOLS).
  * ?view=all opens every panel at once (checks and support). */
 import { PLAN_TOOLS } from "./views";
-import { B, CHIP, SEG, SEG_SM, SEG_WIDE, TILE } from "./ui";
+import { Button, Chip, Segmented, Tile } from "./ui";
 
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
@@ -46,7 +46,7 @@ const IC = {
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
 const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
-const UNDO = `${B.icon} size-11 in-[.fpost]:size-9`;
+const undoRedoButton = `${Button.icon} size-11 in-[.fpost]:size-9`;
 const AI_STEPS: [string, string, string][] = [
   ["scenes", "Detecting scenes and best moments", "clips"],
   ["beats", "Matching with music beats", "beats"],
@@ -130,12 +130,12 @@ export const DOCK_CATEGORIES_DEF: [string, string, boolean][] = [
 ];
 
 export const shotToolGridHtml = SHOT_TOOLS_DEF.map(([name, act]) =>
-  `<button type="button" class="${TILE} min-h-[58px]"${name === "Delete" ? " data-danger" : ""} data-st="${act}" data-stname="${name}">${Glyph(name, 18)}<span>${name}</span></button>`
+  `<button type="button" class="${Tile} min-h-[58px]"${name === "Delete" ? " data-danger" : ""} data-st="${act}" data-stname="${name}">${Glyph(name, 18)}<span>${name}</span></button>`
 ).join("");
 
 // a plan's tool (views.ts PLAN_TOOLS) carries its plan's tag (views.ts writes the plan's name); on a lower plan it opens /pricing
 const dock = DOCK_CATEGORIES_DEF.map(([k, n]) =>
-  `<button type="button" class="tool group ${TILE} min-h-[60px] min-w-[62px] whitespace-nowrap" data-tool="${k}" aria-pressed="false">${Glyph(n, 18)}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag proTag hidden group-data-[locked=true]:inline-flex"><b>PRO</b></em>` : ""}</button>`
+  `<button type="button" class="tool group ${Tile} min-h-[60px] min-w-[62px] whitespace-nowrap" data-tool="${k}" aria-pressed="false">${Glyph(n, 18)}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag proTag hidden group-data-[locked=true]:inline-flex"><b>PRO</b></em>` : ""}</button>`
 ).join("");
 // what each tool's popup is for (the line under its name)
 const PANEL_NOTE: Record<string, string> = {
@@ -161,7 +161,7 @@ const panelHead = (k: string) => {
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
 <header id="topbar" class="hidden in-[.made]:flex in-[.fopen]:hidden! in-[.opening]:hidden! top-0 z-30 w-full max-w-[1240px] min-h-[66px] mx-auto mb-4 items-center justify-between gap-3.5 rounded-[18px] border border-edge shadow-(--shadow) bg-[linear-gradient(145deg,color-mix(in_srgb,var(--surface)_97%,var(--accent)),var(--surface))] lg:pb-2.5 lg:in-[.editing]:px-4 in-[.fpost]:sticky in-[.fpost]:z-40 in-[.fpost]:-mx-4 in-[.fpost]:mb-1 in-[.fpost]:px-3 in-[.fpost]:pb-2 in-[.fpost]:pt-[max(8px,env(safe-area-inset-top))] in-[.fpost]:gap-1.5 in-[.fpost]:in-[.editing]:gap-1 in-[.fpost]:border-b-border in-[.fpost]:bg-none in-[.fpost]:bg-background max-[680px]:relative! max-[680px]:min-h-[58px] max-[680px]:px-2.5! max-[680px]:gap-2! max-[680px]:rounded-[15px]">
-  <button type="button" id="tbback" aria-label="Back" class="grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-surface hover:border-accent hover:text-accent max-[680px]:hidden">${IC.back}</button>
+  <button type="button" id="tbback" aria-label="Back" class="${Button.iconBordered} size-10 max-[680px]:hidden">${IC.back}</button>
   <div class="flex flex-1 items-center gap-[11px] leading-[1.15] max-[680px]:basis-auto">
     <span class="grid size-10 shrink-0 place-items-center rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] text-accent max-[680px]:size-[34px] max-[680px]:rounded-[11px]">${Glyph("Shots", 20)}</span>
     <span class="flex flex-col items-start gap-[3px] max-[680px]:max-w-full">
@@ -177,23 +177,23 @@ export const STUDIO_HTML = `
   </div>
   <div class="flex shrink-0 items-center gap-[7px]">
     <span role="group" aria-label="Undo and redo" class="flex gap-1 in-[.fpost]:gap-0 in-[.fpost]:in-[.editing]:hidden max-[680px]:hidden">
-      <button type="button" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)" class="${UNDO}">↶</button>
-      <button type="button" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)" class="${UNDO}">↷</button>
+      <button type="button" id="undo" disabled aria-label="Undo" title="Undo (Ctrl+Z)" class="${undoRedoButton}">↶</button>
+      <button type="button" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)" class="${undoRedoButton}">↷</button>
     </span>
     <button type="button" id="tbasfree" aria-pressed="false" title="Preview as Free user" class="hidden in-[.admin.made]:inline-flex max-lg:hidden! items-center gap-1.5 rounded-[10px] border border-border bg-surface px-[15px] py-2.5 text-[12.5px] font-semibold hover:border-muted aria-pressed:border-transparent aria-pressed:bg-gold aria-pressed:text-on-accent">Preview as Free</button>
     <button type="button" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix" class="relative flex h-9 items-center justify-center justify-items-center gap-1.5 rounded-[11px] border border-edge bg-[color-mix(in_srgb,var(--surface-2)_70%,var(--surface))] px-[13px] text-accent lg:h-[38px] lg:rounded-xl lg:px-3.5 in-[.fpost]:in-[.editing]:size-[38px] in-[.fpost]:in-[.editing]:rounded-xl max-[680px]:hidden! [&.news]:before:absolute [&.news]:before:right-1 [&.news]:before:top-1 [&.news]:before:size-[9px] [&.news]:before:rounded-full [&.news]:before:bg-danger [&.news]:before:content-['']">${IC.spark}<span class="max-lg:hidden">Ask Shubix</span></button>
-    <button type="button" id="topexport" disabled class="inline-flex min-h-11 items-center justify-center gap-[7px] rounded-xl border border-transparent bg-gold px-[13px] text-on-accent shadow-[0_12px_26px_-17px_var(--brand-glow),inset_0_1px_0_rgba(255,255,255,.12)] transition-transform hover:enabled:-translate-y-px disabled:cursor-default disabled:opacity-45 max-[680px]:h-[38px] max-[680px]:min-h-[38px] in-[.fpost]:shrink-0 in-[.fpost]:gap-1.5 in-[.fpost]:px-3.5 in-[.fpost]:text-[14px] in-[.fpost]:*:size-4 in-[.fpost]:in-[.editing]:px-3 max-[680px]:px-2.5! max-[680px]:text-[11px]!">Export ${IC.arrow}</button>
+    <button type="button" id="topexport" disabled class="${Button.primary} in-[.fpost]:h-[38px] max-[680px]:px-2.5 max-[680px]:text-[11px]">Export ${IC.arrow}</button>
   </div>
 </header>
 <div class="wrap">
   <div class="fhead" id="fhead">
-    <button type="button" class="${B.iconBox} size-11 max-lg:size-10" id="fback" aria-label="Back">${IC.back}</button>
+    <button type="button" class="${Button.iconBordered} size-11 max-lg:size-10" id="fback" aria-label="Back">${IC.back}</button>
     <b class="fptitle" id="fptitle"></b>
     <div class="ft"><h1 id="ftitle">Music Reel</h1><p id="fsub">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p></div>
     <ol class="fsteps" id="fsteps" aria-label="Steps">
       <li data-f="1"><i>1</i><span>Music</span></li><li data-f="2"><i>2</i><span>Clips</span></li><li data-f="3"><i>3</i><span>Shubix Edit</span></li><li data-f="4"><i>4</i><span>Preview &amp; Export</span></li>
     </ol>
-    <button type="button" class="fskip" id="fskip">Skip</button>
+    <button type="button" class="${Button.ghost} hidden max-lg:in-[.fopen[data-fstep=intro]]:inline-flex" id="fskip">Skip</button>
   </div>
   <form class="askbar" id="askbar" aria-labelledby="askbarh">
     <button type="button" class="askbarhd" id="asktoggle" aria-expanded="false" aria-controls="askbody">
@@ -204,7 +204,7 @@ export const STUDIO_HTML = `
     <div class="askbody" id="askbody">
     <div class="chatfield askfield">
       <input id="askin" maxlength="300" autocomplete="off" placeholder="e.g. Fast cuts, zoom on the drop">
-      <button type="submit" class="chatsend" aria-label="Ask Shubix"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      <button type="submit" class="${Button.iconPrimary} size-9" aria-label="Ask Shubix"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
     <div class="askchips" id="askchips"><span>Try:</span>
       <button type="button" data-say="Fast cuts on every beat, high energy">Fast & energetic</button>
@@ -219,8 +219,8 @@ export const STUDIO_HTML = `
     <h2 id="fintroh">Create a Music Reel</h2>
     <p id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
     <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}Shubix edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
-    <button type="button" class="${B.mainBig} fgo" data-fnext="1"><span id="fgot">Let's Start</span> ${IC.arrow}</button>
-    <button type="button" class="${B.ghost} fsample" id="fsample" hidden>No clips with you? Try it with our sample clips</button>
+    <button type="button" class="${Button.primaryLarge} fgo" data-fnext="1"><span id="fgot">Let's Start</span> ${IC.arrow}</button>
+    <button type="button" class="${Button.ghost} fsample" id="fsample" hidden>No clips with you? Try it with our sample clips</button>
   </section>
   <!-- the kind and the template, pressed by the address (/create/music|talking|photo, /create/story, ?tpl=): never
        shown (each kind has its own page now); the engine, steps.ts and auto.ts read and press these buttons -->
@@ -254,32 +254,32 @@ export const STUDIO_HTML = `
   <section class="fref" id="fref" aria-label="Reel to copy">
     <span class="fsongic">${IC.copy}</span>
     <span class="fsongt"><b>Reel to copy</b><small id="frefst">Pick a Reel you like: its song, cuts, transitions and look go on your clips</small>
-      <button type="button" class="freflink" id="frefother">Different song? Choose it here</button></span>
-    <span class="frefbtns"><button type="button" class="${B.main}" id="frefpick">Pick the Reel</button><button type="button" class="${B.ghost}" id="frefsong" hidden>Use its song</button></span>
+      <button type="button" class="justify-self-start text-[13px] font-semibold text-accent underline" id="frefother">Different song? Choose it here</button></span>
+    <span class="frefbtns"><button type="button" class="${Button.primary}" id="frefpick">Pick the Reel</button><button type="button" class="${Button.ghost}" id="frefsong" hidden>Use its song</button></span>
   </section>
   <section class="step" id="s1">
     <button type="button" class="sh" aria-expanded="true"><span class="num">1</span><span class="fh"><h2>Choose Music</h2><small class="fsh">Pick a song or sound for your Reel</small></span><span class="st" id="s1st">Choose a song to start</span></button>
     <div class="sbody">
     <div class="fchoose">
     <div class="row fpickrow">
-      <button class="${B.main}" id="mpick">${IC.music}<span>Choose song</span></button>
+      <button class="${Button.primary}" id="mpick">${IC.music}<span>Choose song</span></button>
       <input id="mfile" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.mov,.mp4" hidden>
       <span class="fname" id="mname">MP3, M4A, WAV or any video's sound (iPhone: from Files or Photos)</span>
-      <button class="${B.ghost}" id="skipmusic" type="button" hidden>Continue without music</button>
+      <button class="${Button.ghost}" id="skipmusic" type="button" hidden>Continue without music</button>
     </div>
     <div class="recent" id="recent" hidden><span class="label">Recent songs</span><div class="rlist" id="rlist"></div></div>
-    <button type="button" class="${B.mainBig} fnext fchoosenext" data-fnext="1" id="fchnext" disabled><span id="fchnt">Next</span> ${IC.arrow}</button>
+    <button type="button" class="${Button.primaryLarge} fnext fchoosenext" data-fnext="1" id="fchnext" disabled><span id="fchnt">Next</span> ${IC.arrow}</button>
     </div>
     <div class="fadjust">
     <div class="fsong" id="fsong"><span class="fsongic">${IC.music}</span><span class="fsongt"><b id="fsongn"></b><small id="fsongd"></small></span></div>
     <div class="fwavebox"><canvas class="wave" id="mwave"></canvas></div>
     <div class="row lenrow" id="lenrow" hidden>
       <span class="label">Reel length</span>
-      <div class="${SEG}" id="slen" role="group" aria-label="How much of the song">
+      <div class="${Segmented.normal}" id="slen" role="group" aria-label="How much of the song">
         <button data-l="0" aria-pressed="true">Full</button><button data-l="15" aria-pressed="false">15 s</button><button data-l="30" aria-pressed="false">30 s</button><button data-l="60" aria-pressed="false">1 min</button><button data-l="c" aria-pressed="false">Custom</button>
       </div>
       <label class="lenc" hidden id="slencw"><input id="slenc" type="number" inputmode="numeric" min="5" max="180" step="1" value="45"> s</label>
-      <button class="${B.plain}" id="sauto" hidden title="Pick the strongest part of the song again">${IC.style}Best part</button>
+      <button class="${Button.secondary}" id="sauto" hidden title="Pick the strongest part of the song again">${IC.style}Best part</button>
       <span class="sinfo" id="sinfo"></span>
     </div>
     <p class="hint" id="lenhint" hidden>Drag on the waveform to choose the part yourself.</p>
@@ -297,7 +297,7 @@ export const STUDIO_HTML = `
       <span><i style="background:var(--cut)"></i>Cut: plain cut</span>
       <span><i style="background:var(--break)"></i>Break: slow motion</span>
     </div>
-    <button type="button" class="${B.mainBig} fnext" data-fnext="1" id="fadjnext" disabled><span id="fadjnt">Next</span> ${IC.arrow}</button>
+    <button type="button" class="${Button.primaryLarge} fnext" data-fnext="1" id="fadjnext" disabled><span id="fadjnt">Next</span> ${IC.arrow}</button>
     </div>
     </div>
   </section>
@@ -309,23 +309,23 @@ export const STUDIO_HTML = `
     <div class="drop" id="dropzone" role="button" tabindex="0">${IC.upload}<b class="vonly fdesk">Drag &amp; drop videos here</b><b class="ponly fdesk">Drag &amp; drop photos here</b><b class="vonly fmob">Tap to Add Videos</b><b class="ponly fmob">Tap to Add Photos</b><span class="vonly fdesk">or tap to choose · you can add more at any time</span><span class="ponly fdesk">or tap to choose · each photo becomes a short moving shot</span><span class="fmob">or choose from gallery</span><small>Supports MP4, MOV, 3GP, JPG, PNG</small></div>
     <input id="vfile" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden>
     <div class="row">
-      <button class="${B.main}" id="addv"><span class="vonly">+ Add videos</span><span class="ponly">+ Add photos</span></button>
-      <button class="${B.plain}" id="clearv" hidden>Remove all</button>
+      <button class="${Button.primary}" id="addv"><span class="vonly">+ Add videos</span><span class="ponly">+ Add photos</span></button>
+      <button class="${Button.secondary}" id="clearv" hidden>Remove all</button>
       <span class="fname" id="qinfo"></span>
     </div>
     <!-- how the clips go into the Reel: the best moments of all of them, or one after another as they were added (engine.ts) -->
     <div class="row seqrow" id="seqrow"><span class="label">Clip order</span>
-      <div class="${SEG}" id="seq" role="group" aria-label="Clip order"><button type="button" data-q="mix" aria-pressed="true">Mix all clips</button><button type="button" data-q="order" aria-pressed="false">In my order</button></div>
+      <div class="${Segmented.normal}" id="seq" role="group" aria-label="Clip order"><button type="button" data-q="mix" aria-pressed="true">Mix all clips</button><button type="button" data-q="order" aria-pressed="false">In my order</button></div>
       <span class="fname" id="seqhelp">Shubix picks the best moments from all your clips</span></div>
     <span class="flabel fcliplabel">Selected Clips</span>
-    <div class="fclipgrid"><div class="clips" id="clips"></div><button type="button" class="fadd" id="fadd" aria-label="Add more clips">${IC.plus}</button></div>
+    <div class="fclipgrid"><div class="clips" id="clips"></div><button type="button" class="hidden max-lg:in-[.fopen_#s2:has(.clip)]:grid aspect-square place-items-center rounded-[14px] border-[1.5px] border-dashed border-border bg-surface-2 [&>svg]:size-7 in-[.noir_#mslot]:hidden!" id="fadd" aria-label="Add more clips">${IC.plus}</button></div>
     <div class="row talkrow" id="talkrow" hidden>
       <span class="label">Pauses</span>
-      <div class="${SEG}" id="tpace" role="group" aria-label="How much of the pauses to cut">
+      <div class="${Segmented.normal}" id="tpace" role="group" aria-label="How much of the pauses to cut">
         <button data-p="tight" aria-pressed="false">Tight</button><button data-p="natural" aria-pressed="true">Natural</button><button data-p="relaxed" aria-pressed="false">Relaxed</button><button data-p="off" aria-pressed="false">Keep all</button>
       </div>
       <span class="label">Music under voice</span>
-      <div class="${SEG}" id="tmusic" role="group" aria-label="Music volume under the voice">
+      <div class="${Segmented.normal}" id="tmusic" role="group" aria-label="Music volume under the voice">
         <button data-v="0" aria-pressed="false">Off</button><button data-v="0.05" aria-pressed="false">Soft</button><button data-v="0.09" aria-pressed="true">Medium</button><button data-v="0.16" aria-pressed="false">Loud</button>
       </div>
       <label class="tog"><input type="checkbox" id="dn1" checked> Clean up voice noise</label>
@@ -333,7 +333,7 @@ export const STUDIO_HTML = `
     </div>
     <div class="row fmtrow">
       <span class="label">Format</span>
-      <div class="${SEG_SM}" id="aspect">
+      <div class="${Segmented.small}" id="aspect">
         <button data-a="9:16" aria-pressed="true">9:16 Reel</button>
         <button data-a="4:5" aria-pressed="false">4:5</button>
         <button data-a="1:1" aria-pressed="false">1:1</button>
@@ -341,7 +341,7 @@ export const STUDIO_HTML = `
       </div>
     </div>
     <span class="fslot" id="fsndslot"></span>
-    <button type="button" class="${B.mainBig} fnext" data-fnext="1" id="fclipsnext" disabled><span id="fclipsnt">Next</span> ${IC.arrow}</button>
+    <button type="button" class="${Button.primaryLarge} fnext" data-fnext="1" id="fclipsnext" disabled><span id="fclipsnt">Next</span> ${IC.arrow}</button>
     </div>
   </section>
 
@@ -357,7 +357,7 @@ export const STUDIO_HTML = `
   <aside class="fprev" id="fprev" aria-label="Reel preview">
     <div class="fprevh"><b>Reel Preview</b><span class="fslot" id="faspslot"></span></div>
     <div class="fprevbox" id="fprevbox"><span class="fplay">${IC.play}</span><small id="fprevnote">Your Reel appears here</small></div>
-    <button type="button" class="${B.mainBig} fgen" id="fgen" disabled>${IC.spark}<span id="fgent">Generate Reel</span>${IC.arrow}</button>
+    <button type="button" class="${Button.primaryLarge} fgen" id="fgen" disabled>${IC.spark}<span id="fgent">Generate Reel</span>${IC.arrow}</button>
     <ul class="fperks">
       <li><span class="fperkic">${IC.spark}</span><span><b>Shubix edits it for you</b><small>Finds the best moments and cuts them on the beat</small></span></li>
       <li><span class="fperkic">${IC.lock}</span><span><b>Private by design</b><small>Made on this device. Your videos are never uploaded.</small></span></li>
@@ -381,13 +381,13 @@ export const STUDIO_HTML = `
         <section class="previewPanel stage">
           <div class="previewHeader">
             <span><i></i> PREVIEW</span>
-            <button type="button" class="prevAspectBtn" id="prevaspbtn"><span id="prevaspv">9:16</span> <span>⌄</span></button>
+            <button type="button" class="${Button.small}" id="prevaspbtn"><span id="prevaspv">9:16</span> <span>⌄</span></button>
           </div>
           <div class="previewStage pv">
             <div class="videoFrame pvbox">
               <canvas id="out" width="1080" height="1920"></canvas>
               <div class="refwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Reading the Reel to copy</b><small id="refwaitp">its cuts, flickers and transitions…</small></div>
-              <div class="aiask" id="aiask" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b id="aiaskt">Your Reel is waiting for Shubix AI</b><small id="aiaskp"></small><button type="button" class="${B.main}" id="aiaskgo">Make it with Shubix AI</button></div>
+              <div class="aiask" id="aiask" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b id="aiaskt">Your Reel is waiting for Shubix AI</b><small id="aiaskp"></small><button type="button" class="${Button.primary}" id="aiaskgo">Make it with Shubix AI</button></div>
               <div class="aiwait" aria-live="polite"><span class="aiorb" aria-hidden="true"></span><b>Shubix is making your Reel</b><small>Watching your clips and listening to the song…</small></div>
               <button type="button" class="previewPlay playov" id="playov" aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button>
               <div class="frameCounter" id="framecounter">01 / 08</div>
@@ -395,32 +395,32 @@ export const STUDIO_HTML = `
             <div class="summary" id="summary" hidden>
               <h2 class="sumh">Your Reel is ready</h2>
               <p class="sumi" id="suminfo"></p>
-              <button type="button" class="${B.plain}" data-proxy="remix">${IC.mix}</button>
+              <button type="button" class="${Button.secondary}" data-proxy="remix">${IC.mix}</button>
             </div>
           </div>
           <div class="transport">
             <span class="timeCurrent tc" id="tcur">0:00.0</span>
             <span class="timeDivider">/</span>
             <span class="timeTotal tc" id="ttot">0:00.0</span>
-            <button class="${B.icon} size-11 transportSkip" id="pshot" type="button" aria-label="Previous shot">|◂</button>
-            <button class="${B.main} transportPlay" id="play" disabled aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button>
-            <button class="${B.icon} size-11 transportSkip" id="nshot" type="button" aria-label="Next shot">▸|</button>
+            <button class="${Button.icon} size-11 transportSkip" id="pshot" type="button" aria-label="Previous shot">|◂</button>
+            <button class="${Button.primary} transportPlay" id="play" disabled aria-label="Play preview"><span class="ic-play">${IC.play}</span><span class="ic-pause"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z" fill="currentColor"/></svg></span></button>
+            <button class="${Button.icon} size-11 transportSkip" id="nshot" type="button" aria-label="Next shot">▸|</button>
             <span class="transportSpacer"></span>
             <span class="soundState" id="soundstate">${Glyph("Music", 14)} SOUND ON</span>
-            <button class="${B.icon} size-11" id="cover" disabled aria-label="Cover image" title="Cover image" hidden>${IC.image}</button>
-            <span class="tr-undo" role="group" aria-label="Undo and redo" hidden><button type="button" class="${B.icon} size-11" id="tundo" data-proxy="undo" disabled aria-label="Undo">${IC.undo}</button><button type="button" class="${B.icon} size-11" id="tredo" data-proxy="redo" disabled aria-label="Redo">${IC.redo}</button></span>
-            <button class="${B.icon} size-11" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version" hidden>${IC.mix}<span>Change Reel</span></button>
-            <button class="${B.icon} size-11 ml-1.5" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
+            <button class="${Button.icon} size-11" id="cover" disabled aria-label="Cover image" title="Cover image" hidden>${IC.image}</button>
+            <span class="tr-undo" role="group" aria-label="Undo and redo" hidden><button type="button" class="${Button.icon} size-11" id="tundo" data-proxy="undo" disabled aria-label="Undo">${IC.undo}</button><button type="button" class="${Button.icon} size-11" id="tredo" data-proxy="redo" disabled aria-label="Redo">${IC.redo}</button></span>
+            <button class="${Button.icon} size-11" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version" hidden>${IC.mix}<span>Change Reel</span></button>
+            <button class="${Button.icon} size-11 ml-1.5" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
           </div>
           <div class="previewProgress bar"><i id="prog" style="width:0%"></i></div>
-          <div class="feditbar" hidden><button type="button" class="${B.mainBig}" id="fedit">${IC.pen}<span>Edit</span></button><small>Change shots, effects, text, music and more on the timeline</small></div>
+          <div class="feditbar" hidden><button type="button" class="${Button.primaryLarge}" id="fedit">${IC.pen}<span>Edit</span></button><small>Change shots, effects, text, music and more on the timeline</small></div>
           <label class="tog safe" hidden><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
           <div class="msg" id="xmsg" hidden></div>
-          <div class="row" id="saverow" hidden><button class="${B.main}" id="savevid">Save to Photos / Share</button><a class="${B.plain}" id="dlvid">Download</a></div>
+          <div class="row" id="saverow" hidden><button class="${Button.primary}" id="savevid">Save to Photos / Share</button><a class="${Button.secondary}" id="dlvid">Download</a></div>
           <div class="postcap" id="postcap" hidden>
             <label class="fname" for="postcapt">Caption for your post</label>
             <textarea id="postcapt" rows="4" spellcheck="true"></textarea>
-            <div class="row"><button class="${B.mini}" id="postcopy" type="button">Copy caption</button><span class="fname" id="postcapst"></span></div>
+            <div class="row"><button class="${Button.small}" id="postcopy" type="button">Copy caption</button><span class="fname" id="postcapst"></span></div>
           </div>
         </section>
 
@@ -449,8 +449,8 @@ export const STUDIO_HTML = `
             <button type="button" id="tlzo" aria-label="Zoom out">−</button>
             <span class="zoomValue" id="tlz">100%</span>
             <button type="button" id="tlzi" aria-label="Zoom in">+</button>
-            <button type="button" class="fitButton" id="tlfit">Fit</button>
-            <button class="${B.mini} feditdone" id="feditdone" type="button" hidden>${IC.check} Done</button>
+            <button type="button" class="${Button.small}" id="tlfit">Fit</button>
+            <button class="${Button.small} feditdone" id="feditdone" type="button" hidden>${IC.check} Done</button>
           </div>
         </header>
         <div class="timelineScroll">
@@ -469,25 +469,25 @@ export const STUDIO_HTML = `
         <nav class="toolDock dock" id="dock" aria-label="Editor tools">${dock}</nav>
 
         <div class="panels" id="panels">
-          <button type="button" class="${B.iconBox} absolute top-6 right-5 z-2 size-[34px] max-lg:top-7 max-lg:right-4" id="pclose" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <button type="button" class="${Button.iconBordered} absolute top-6 right-5 z-2 size-[34px] max-lg:top-7 max-lg:right-4" id="pclose" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           <!-- the left panel's tabs on a computer (the design): each opens its tool, Effects / Transitions the shot sheet -->
           <nav class="ptabs" id="ptabs" aria-label="Library">
             <button type="button" data-pt="media" aria-pressed="false">${IC.image}<span>Media</span></button><button type="button" data-pt="music" aria-pressed="false">${IC.music}<span>Music</span></button><button type="button" data-pt="text" aria-pressed="false">${IC.text}<span>Text</span></button><button type="button" data-pt="stickers" aria-pressed="false">${I('<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>')}<span>Stickers</span></button><button type="button" data-pt="effects" aria-pressed="false">${IC.spark}<span>Effects</span></button><button type="button" data-pt="transitions" aria-pressed="false">${I('<path d="M4 6l7 6-7 6zM20 6l-7 6 7 6z"/>')}<span>Transitions</span></button><button type="button" data-pt="filters" aria-pressed="false">${I('<path d="M4 6h16M7 12h10M10 18h4"/>')}<span>Filters</span></button>
           </nav>
           <section class="panel" data-panel="media">${panelHead("media")}<div class="mslot" id="mslot"></div></section>
           <section class="panel" data-panel="style">${panelHead("style")}
-            <div class="${SEG}" id="mode">
+            <div class="${Segmented.normal}" id="mode">
               <button data-m="auto" aria-pressed="true">Auto</button>
               <button data-m="smooth" aria-pressed="false">Smooth</button>
               <button data-m="fast" aria-pressed="false">Fast</button>
               <button data-m="copy" aria-pressed="false" title="Upload a Reel you like: its pace, transitions, effects and colours are copied onto your clips">Copy a Reel</button>
             </div>
             <input id="reffile" type="file" accept="video/*,.mov,.mp4,.m4v" hidden>
-            <div class="refbox" id="refbox" hidden><span class="fname" id="refinfo"></span> <button class="${B.plain}" id="refchange" type="button">Change Reel</button><span class="fname refmatch" id="refmatch" hidden></span>
-              <div class="row" id="stsaverow" hidden><select id="stcat" aria-label="Kind of Reel"><option value="wedding">Wedding</option><option value="travel">Travel</option><option value="festival">Festival</option><option value="dance">Dance</option><option value="talking">Talking</option><option value="product">Product</option><option value="food">Food</option><option value="fitness">Fitness</option><option value="vlog">Vlog</option><option value="birthday">Birthday</option><option value="car">Car &amp; bike</option><option value="shop">Shop &amp; opening</option><option value="event">Event &amp; party</option><option value="other">Other</option></select><label class="tog"><input type="checkbox" id="stshare"> Share (helps everyone's styles)</label><button class="${B.mini}" id="stsave" type="button">Save to my styles</button><span class="fname" id="ststat"></span></div></div>
-            <div class="row learnrow" id="learnrow" hidden><span class="label">Learned style</span><select id="lcat" aria-label="Kind of Reel"></select><div class="${SEG}" id="lscope"><button data-s="mine" aria-pressed="false">Mine</button><button data-s="all" aria-pressed="true">With shared</button></div><button class="${B.mini}" id="luse" type="button">Use</button><label class="tog"><input type="checkbox" id="lauto"> Use for my next Reels</label><span class="fname" id="linfo"></span>
+            <div class="refbox" id="refbox" hidden><span class="fname" id="refinfo"></span> <button class="${Button.secondary}" id="refchange" type="button">Change Reel</button><span class="fname refmatch" id="refmatch" hidden></span>
+              <div class="row" id="stsaverow" hidden><select id="stcat" aria-label="Kind of Reel"><option value="wedding">Wedding</option><option value="travel">Travel</option><option value="festival">Festival</option><option value="dance">Dance</option><option value="talking">Talking</option><option value="product">Product</option><option value="food">Food</option><option value="fitness">Fitness</option><option value="vlog">Vlog</option><option value="birthday">Birthday</option><option value="car">Car &amp; bike</option><option value="shop">Shop &amp; opening</option><option value="event">Event &amp; party</option><option value="other">Other</option></select><label class="tog"><input type="checkbox" id="stshare"> Share (helps everyone's styles)</label><button class="${Button.small}" id="stsave" type="button">Save to my styles</button><span class="fname" id="ststat"></span></div></div>
+            <div class="row learnrow" id="learnrow" hidden><span class="label">Learned style</span><select id="lcat" aria-label="Kind of Reel"></select><div class="${Segmented.normal}" id="lscope"><button data-s="mine" aria-pressed="false">Mine</button><button data-s="all" aria-pressed="true">With shared</button></div><button class="${Button.small}" id="luse" type="button">Use</button><label class="tog"><input type="checkbox" id="lauto"> Use for my next Reels</label><span class="fname" id="linfo"></span>
               <details class="stdetails" id="teach"><summary>Teach Shubix from many Reels</summary><span class="fname">Pick Reels made by real editors: each is read on this phone (the video never leaves it), and what they have in common becomes the learned style of that kind.</span>
-                <div class="row"><select id="tcat" aria-label="Kind of Reel"></select><label class="tog"><input type="checkbox" id="tshare"> Share (helps everyone's styles)</label><button class="${B.mini}" id="tpick" type="button">Choose Reels</button><input id="tfiles" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden><span class="fname" id="tstat"></span></div></details>
+                <div class="row"><select id="tcat" aria-label="Kind of Reel"></select><label class="tog"><input type="checkbox" id="tshare"> Share (helps everyone's styles)</label><button class="${Button.small}" id="tpick" type="button">Choose Reels</button><input id="tfiles" type="file" accept="video/*,.mov,.mp4,.m4v" multiple hidden><span class="fname" id="tstat"></span></div></details>
               <details class="stdetails" id="stmine"><summary>My saved styles</summary><ul id="stlist"></ul></details></div>
             <span class="fname" id="modehelp">Auto: the music decides. Calm parts get longer shots, drops and hits get effects.</span>
             <span id="aiwrap" hidden></span><input type="checkbox" id="aipick" hidden aria-hidden="true">
@@ -495,11 +495,11 @@ export const STUDIO_HTML = `
           </section>
 
           <section class="panel" data-panel="music">${panelHead("music")}
-            <div class="row"><button type="button" class="${B.plain}" data-open-step="s1">${IC.music}Change the song or its part</button><button type="button" class="${B.plain}" data-open-step="s2">${IC.plus}Add or change clips</button></div>
+            <div class="row"><button type="button" class="${Button.secondary}" data-open-step="s1">${IC.music}Change the song or its part</button><button type="button" class="${Button.secondary}" data-open-step="s2">${IC.plus}Add or change clips</button></div>
             <div class="clipsnd" id="clipsnd" hidden>
             <b>Your clips have their own sound</b>
             <small>Wind, traffic, people talking… Choose what the Reel keeps under the song.</small>
-            <div class="${SEG_WIDE}" id="csnd" role="group" aria-label="The clips' own sound">
+            <div class="${Segmented.wide}" id="csnd" role="group" aria-label="The clips' own sound">
             <button data-c="mute" aria-pressed="true">Mute it</button><button data-c="voices" aria-pressed="false">Keep voices only</button><button data-c="all" aria-pressed="false">Keep all</button>
             </div>
             </div>
@@ -507,10 +507,10 @@ export const STUDIO_HTML = `
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
             <div class="beatmarks"><span class="label">Your beat markers</span>
               <p class="hint">Hear a beat Shubix missed? Pause on it and add a marker: a cut can land there.</p>
-              <div class="row"><button class="${B.mini}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${B.mini}" id="clrbeat" type="button">Remove my markers</button></div></div>
+              <div class="row"><button class="${Button.small}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${Button.small}" id="clrbeat" type="button">Remove my markers</button></div></div>
             <label class="tog"><input type="checkbox" id="sfxon" checked> Sound effects on transitions (whoosh, boom, click, pop)</label>
             <label class="cslide"><span>Effects volume</span><input type="range" id="sfxv" min="0" max="1.5" step="0.05" value="0.6"><output>60%</output></label>
-            <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="${B.mini}" data-sfx="whoosh">Whoosh</button><button type="button" class="${B.mini}" data-sfx="pop">Pop</button><button type="button" class="${B.mini}" data-sfx="boom">Boom</button><button type="button" class="${B.mini}" data-sfx="click">Click</button><button type="button" class="${B.mini}" data-sfx="riser">Riser</button><button type="button" class="${B.mini}" data-sfx="ding">Ding</button></div>
+            <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="${Button.small}" data-sfx="whoosh">Whoosh</button><button type="button" class="${Button.small}" data-sfx="pop">Pop</button><button type="button" class="${Button.small}" data-sfx="boom">Boom</button><button type="button" class="${Button.small}" data-sfx="click">Click</button><button type="button" class="${Button.small}" data-sfx="riser">Riser</button><button type="button" class="${Button.small}" data-sfx="ding">Ding</button></div>
             <div class="chips" id="sfxlist"></div>
             <label class="cslide"><span>Fade in</span><input type="range" id="mfin" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
             <label class="cslide"><span>Fade out</span><input type="range" id="mfout" min="0" max="4" step="0.1" value="0"><output>0.0 s</output></label>
@@ -523,10 +523,10 @@ export const STUDIO_HTML = `
             <label class="label" for="hook">Hook text (3-5 words, first 2 seconds)</label>
             <input id="hook" type="text" maxlength="40" placeholder="e.g. WAIT FOR THE DROP">
             <span class="label">Text style</span>
-            <div class="${SEG}" id="tstyle"><button data-t="pop" aria-pressed="true">Pop</button><button data-t="karaoke" aria-pressed="false">Karaoke</button><button data-t="box" aria-pressed="false">Box</button><button data-t="clean" aria-pressed="false">Clean</button></div>
+            <div class="${Segmented.normal}" id="tstyle"><button data-t="pop" aria-pressed="true">Pop</button><button data-t="karaoke" aria-pressed="false">Karaoke</button><button data-t="box" aria-pressed="false">Box</button><button data-t="clean" aria-pressed="false">Clean</button></div>
             <span class="label">Text &amp; stickers</span>
             <div class="row ovadd">
-              <button class="${B.plain}" id="ovtext" type="button">+ Text</button><button class="${B.plain}" id="ovsticker" type="button">+ Sticker</button>
+              <button class="${Button.secondary}" id="ovtext" type="button">+ Text</button><button class="${Button.secondary}" id="ovsticker" type="button">+ Sticker</button>
               <select id="ovpreset" aria-label="Ready-made text"><option value="">+ Ready-made…</option><option value="price">Price tag ₹</option><option value="follow">Follow for more</option><option value="save">Save this</option><option value="step1">Step 1</option><option value="before">BEFORE</option><option value="after">AFTER</option><option value="ganpati">गणपती बाप्पा मोरया</option><option value="diwali">शुभ दीपावली</option><option value="hdiwali">Happy Diwali</option></select>
             </div>
             <div class="emojis" id="emojis" hidden></div>
@@ -542,24 +542,24 @@ export const STUDIO_HTML = `
 
           <section class="panel" data-panel="look">${panelHead("look")}
             <label class="tog aitog"><input type="checkbox" id="aitouch" checked> Shubix touch-ups: fit wide clips, fix dark shots, keep voices, one reversed drop, fade out at the end</label>
-            <div class="${SEG}" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button><button data-l="copy" aria-pressed="false" hidden>Copied</button></div>
+            <div class="${Segmented.normal}" id="look"><button data-l="natural" aria-pressed="false">Natural</button><button data-l="vivid" aria-pressed="true">Vivid</button><button data-l="cine" aria-pressed="false">Cinematic</button><button data-l="mono" aria-pressed="false">B&amp;W</button><button data-l="copy" aria-pressed="false" hidden>Copied</button></div>
           </section>
 
           <section class="panel" data-panel="bg">${panelHead("bg")}
-            <div class="${SEG}" id="bgmode" role="group" aria-label="Background behind the person"><button data-b="none" aria-pressed="true">Original</button><button data-b="blur" aria-pressed="false">Blur</button><button data-b="color" aria-pressed="false">Colour</button><button data-b="photo" aria-pressed="false">Photo</button></div>
-            <div class="row" id="bgrow" hidden><span class="ovc" id="bgcolors" hidden></span><button class="${B.mini}" id="bgpick" type="button" hidden>Choose photo</button><input id="bgfile" type="file" accept="image/*" hidden></div>
+            <div class="${Segmented.normal}" id="bgmode" role="group" aria-label="Background behind the person"><button data-b="none" aria-pressed="true">Original</button><button data-b="blur" aria-pressed="false">Blur</button><button data-b="color" aria-pressed="false">Colour</button><button data-b="photo" aria-pressed="false">Photo</button></div>
+            <div class="row" id="bgrow" hidden><span class="ovc" id="bgcolors" hidden></span><button class="${Button.small}" id="bgpick" type="button" hidden>Choose photo</button><input id="bgfile" type="file" accept="image/*" hidden></div>
             <span class="fname" id="bgstat"></span>
           </section>
 
           <section class="panel" data-panel="layers">${panelHead("layers")}
-            <div class="row"><button type="button" class="${B.plain}" id="lyadd">${IC.plus}Add a video or photo on top</button><input id="lyfile" type="file" accept="video/*,image/*,.mov,.mp4,.jpg,.jpeg,.png,.webp" multiple hidden></div>
+            <div class="row"><button type="button" class="${Button.secondary}" id="lyadd">${IC.plus}Add a video or photo on top</button><input id="lyfile" type="file" accept="video/*,image/*,.mov,.mp4,.jpg,.jpeg,.png,.webp" multiple hidden></div>
             <p class="hint">It starts at the playhead. Picture in picture, split screen, a masked shape, a logo…</p>
             <div class="lylist" id="lylist"></div>
             <div class="lyedit" id="lyedit" hidden>
               <span class="label">Layout</span>
-              <div class="chips"><button type="button" class="${CHIP}" data-lay="tl"><i class="lyic lay-tl" aria-hidden="true"></i><span>Top left</span></button><button type="button" class="${CHIP}" data-lay="tr"><i class="lyic lay-tr" aria-hidden="true"></i><span>Top right</span></button><button type="button" class="${CHIP}" data-lay="bl"><i class="lyic lay-bl" aria-hidden="true"></i><span>Bottom left</span></button><button type="button" class="${CHIP}" data-lay="br"><i class="lyic lay-br" aria-hidden="true"></i><span>Bottom right</span></button><button type="button" class="${CHIP}" data-lay="top"><i class="lyic lay-top" aria-hidden="true"></i><span>Top</span></button><button type="button" class="${CHIP}" data-lay="bottom"><i class="lyic lay-bottom" aria-hidden="true"></i><span>Bottom</span></button><button type="button" class="${CHIP}" data-lay="left"><i class="lyic lay-left" aria-hidden="true"></i><span>Left</span></button><button type="button" class="${CHIP}" data-lay="right"><i class="lyic lay-right" aria-hidden="true"></i><span>Right</span></button><button type="button" class="${CHIP}" data-lay="full"><i class="lyic lay-full" aria-hidden="true"></i><span>Full</span></button></div>
+              <div class="chips"><button type="button" class="${Chip}" data-lay="tl"><i class="lyic lay-tl" aria-hidden="true"></i><span>Top left</span></button><button type="button" class="${Chip}" data-lay="tr"><i class="lyic lay-tr" aria-hidden="true"></i><span>Top right</span></button><button type="button" class="${Chip}" data-lay="bl"><i class="lyic lay-bl" aria-hidden="true"></i><span>Bottom left</span></button><button type="button" class="${Chip}" data-lay="br"><i class="lyic lay-br" aria-hidden="true"></i><span>Bottom right</span></button><button type="button" class="${Chip}" data-lay="top"><i class="lyic lay-top" aria-hidden="true"></i><span>Top</span></button><button type="button" class="${Chip}" data-lay="bottom"><i class="lyic lay-bottom" aria-hidden="true"></i><span>Bottom</span></button><button type="button" class="${Chip}" data-lay="left"><i class="lyic lay-left" aria-hidden="true"></i><span>Left</span></button><button type="button" class="${Chip}" data-lay="right"><i class="lyic lay-right" aria-hidden="true"></i><span>Right</span></button><button type="button" class="${Chip}" data-lay="full"><i class="lyic lay-full" aria-hidden="true"></i><span>Full</span></button></div>
               <span class="label">When · <span id="lytime"></span></span>
-              <div class="chips"><button type="button" class="${CHIP}" data-lyt="start">Start at the playhead</button><button type="button" class="${CHIP}" data-lyt="end">End at the playhead</button><button type="button" class="${CHIP}" data-lyt="all">Whole Reel</button></div>
+              <div class="chips"><button type="button" class="${Chip}" data-lyt="start">Start at the playhead</button><button type="button" class="${Chip}" data-lyt="end">End at the playhead</button><button type="button" class="${Chip}" data-lyt="all">Whole Reel</button></div>
               <span class="label">Place</span>
               <label class="cslide"><span>Across</span><input type="range" data-ly="x" min="0" max="1" step="0.01"><output></output></label>
               <label class="cslide"><span>Down</span><input type="range" data-ly="y" min="0" max="1" step="0.01"><output></output></label>
@@ -567,9 +567,9 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Rotate</span><input type="range" data-ly="r" min="-180" max="180" step="1"><output></output></label>
               <label class="cslide"><span>Opacity</span><input type="range" data-ly="op" min="0" max="1" step="0.05"><output></output></label>
               <label class="cslide"><span>Corners</span><input type="range" data-ly="rad" min="0" max="1" step="0.05"><output></output></label>
-              <div class="chips"><button type="button" class="${CHIP}" data-lyf="fh">Mirror</button><button type="button" class="${CHIP}" data-lyf="fv">Flip</button></div>
+              <div class="chips"><button type="button" class="${Chip}" data-lyf="fh">Mirror</button><button type="button" class="${Chip}" data-lyf="fv">Flip</button></div>
               <span class="label">Mask</span>
-              <div class="chips" id="lymask"><button type="button" class="${CHIP}" data-m="none"><i class="lyic mk-none" aria-hidden="true"></i><span>None</span></button><button type="button" class="${CHIP}" data-m="circle"><i class="lyic mk-circle" aria-hidden="true"></i><span>Circle</span></button><button type="button" class="${CHIP}" data-m="rect"><i class="lyic mk-rect" aria-hidden="true"></i><span>Rectangle</span></button><button type="button" class="${CHIP}" data-m="line"><i class="lyic mk-line" aria-hidden="true"></i><span>Line</span></button><button type="button" class="${CHIP}" data-m="mirror"><i class="lyic mk-mirror" aria-hidden="true"></i><span>Mirror</span></button></div>
+              <div class="chips" id="lymask"><button type="button" class="${Chip}" data-m="none"><i class="lyic mk-none" aria-hidden="true"></i><span>None</span></button><button type="button" class="${Chip}" data-m="circle"><i class="lyic mk-circle" aria-hidden="true"></i><span>Circle</span></button><button type="button" class="${Chip}" data-m="rect"><i class="lyic mk-rect" aria-hidden="true"></i><span>Rectangle</span></button><button type="button" class="${Chip}" data-m="line"><i class="lyic mk-line" aria-hidden="true"></i><span>Line</span></button><button type="button" class="${Chip}" data-m="mirror"><i class="lyic mk-mirror" aria-hidden="true"></i><span>Mirror</span></button></div>
               <div id="lymaskopts">
                 <label class="cslide"><span>Width</span><input type="range" data-ly="mk.w" min="0.05" max="1.5" step="0.01"><output></output></label>
                 <label class="cslide"><span>Height</span><input type="range" data-ly="mk.h" min="0.05" max="1.5" step="0.01"><output></output></label>
@@ -587,23 +587,23 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Fade out</span><input type="range" data-ly="fout" min="0" max="2" step="0.1"><output></output></label>
               <label class="cslide" id="lyvolrow"><span>Its sound</span><input type="range" data-ly="vol" min="0" max="2" step="0.05"><output></output></label>
               <label class="cslide"><span>Blend</span><select data-ly="blend" aria-label="Blend mode"><option value="source-over">Normal</option><option value="screen">Screen (light leaks, dust)</option><option value="multiply">Multiply</option><option value="overlay">Overlay</option><option value="soft-light">Soft light</option><option value="lighten">Lighten</option><option value="darken">Darken</option><option value="color-dodge">Colour dodge</option><option value="difference">Difference</option></select></label>
-              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="${B.mini}" data-lykey="#00FF00"><i class="keydot" style="background:#00FF00" aria-hidden="true"></i>Green</button><button type="button" class="${B.mini}" data-lykey="#0047FF"><i class="keydot" style="background:#0047FF" aria-hidden="true"></i>Blue</button><button type="button" class="${B.mini}" data-lykey="#000000"><i class="keydot" style="background:#000000" aria-hidden="true"></i>Black</button><button type="button" class="${B.mini}" data-lykey="#FFFFFF"><i class="keydot" style="background:#FFFFFF" aria-hidden="true"></i>White</button></div>
+              <div class="row"><label class="tog"><input type="checkbox" data-ly="key.on"> Green screen (chroma key)</label><button type="button" class="${Button.small}" data-lykey="#00FF00"><i class="keydot" style="background:#00FF00" aria-hidden="true"></i>Green</button><button type="button" class="${Button.small}" data-lykey="#0047FF"><i class="keydot" style="background:#0047FF" aria-hidden="true"></i>Blue</button><button type="button" class="${Button.small}" data-lykey="#000000"><i class="keydot" style="background:#000000" aria-hidden="true"></i>Black</button><button type="button" class="${Button.small}" data-lykey="#FFFFFF"><i class="keydot" style="background:#FFFFFF" aria-hidden="true"></i>White</button></div>
               <label class="cslide"><span>Key strength</span><input type="range" data-ly="key.tol" min="0" max="1" step="0.05"><output></output></label>
-              <button type="button" class="${B.ghost}" data-lydel="1">Remove this layer</button>
+              <button type="button" class="${Button.ghost}" data-lydel="1">Remove this layer</button>
             </div>
           </section>
 
           <section class="panel" data-panel="voice">${panelHead("voice")}
-            <div class="row vorow" id="vorow"><button class="${B.plain}" id="vorec" type="button">${IC.voice}Record voiceover</button><button class="${B.mini}" id="vodel" type="button" hidden>Remove voiceover</button><label class="tog"><input type="checkbox" id="dn2" checked> Clean up noise</label><span class="fname" id="vostat"></span></div>
+            <div class="row vorow" id="vorow"><button class="${Button.secondary}" id="vorec" type="button">${IC.voice}Record voiceover</button><button class="${Button.small}" id="vodel" type="button" hidden>Remove voiceover</button><label class="tog"><input type="checkbox" id="dn2" checked> Clean up noise</label><span class="fname" id="vostat"></span></div>
             <div class="ttsbox musiconly" id="ttsbox">
               <label class="label" for="ttstext">Text to speech</label>
               <textarea id="ttstext" rows="2" maxlength="1200" placeholder="Type what the voice should say… (English, हिन्दी, मराठी, తెలుగు, മലയാളം)"></textarea>
-              <div class="row"><select id="ttsvoice" aria-label="Voice"></select><button type="button" class="${B.plain}" id="ttsadd">${IC.voice}Add at the playhead</button></div>
+              <div class="row"><select id="ttsvoice" aria-label="Voice"></select><button type="button" class="${Button.secondary}" id="ttsadd">${IC.voice}Add at the playhead</button></div>
               <p class="hint">Made on this phone. Each voice is downloaded once (about 60 MB).</p>
               <div class="ttslist" id="ttslist"></div>
             </div>
             <span class="label musiconly">Voice changer</span>
-            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${CHIP}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${CHIP}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${CHIP}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${CHIP}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${CHIP}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${CHIP}" data-f="echo" aria-pressed="false">Echo</button></div>
+            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${Chip}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${Chip}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${Chip}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${Chip}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${Chip}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${Chip}" data-f="echo" aria-pressed="false">Echo</button></div>
             <p class="hint talkonly">Talking videos: pauses, music under the voice and noise cleanup are in step 2.</p>
           </section>
 
@@ -611,7 +611,7 @@ export const STUDIO_HTML = `
             <details class="kfbox" id="kfbox"><summary>Keyframes: move, zoom, turn, fade a shot or a text</summary>
               <div class="kfhead"><span class="fname" id="kftarget"></span><select id="kfpreset" aria-label="Ready-made move"><option value="">Ready-made move…</option></select></div>
               <canvas id="kftl" class="kftl" aria-label="Keyframes of the shot or text; tap to move the playhead"></canvas>
-              <div class="row kfbtns"><button class="${B.mini}" id="kfprev" type="button" aria-label="Previous keyframe">◀ ◆</button><button class="${B.mini}" id="kfadd" type="button">◇ Add keyframe</button><button class="${B.mini}" id="kfnext" type="button" aria-label="Next keyframe">◆ ▶</button><select id="kfease" aria-label="Ease into this keyframe"></select><button class="${B.mini}" id="kfdel" type="button">Delete ◆</button><button class="${B.mini}" id="kfclear" type="button">Clear all</button></div>
+              <div class="row kfbtns"><button class="${Button.small}" id="kfprev" type="button" aria-label="Previous keyframe">◀ ◆</button><button class="${Button.small}" id="kfadd" type="button">◇ Add keyframe</button><button class="${Button.small}" id="kfnext" type="button" aria-label="Next keyframe">◆ ▶</button><select id="kfease" aria-label="Ease into this keyframe"></select><button class="${Button.small}" id="kfdel" type="button">Delete ◆</button><button class="${Button.small}" id="kfclear" type="button">Clear all</button></div>
               <div class="kfsliders" id="kfsliders"></div>
               <span class="label kfml">Ready-made moves</span>
               <div class="kfmoves" id="kfmoves"></div>
@@ -619,7 +619,7 @@ export const STUDIO_HTML = `
             </details>
           </section>
 
-          <button type="button" class="${B.mainBig} fapply" id="fapply">${IC.check} Done</button>
+          <button type="button" class="${Button.primaryLarge} fapply" id="fapply">${IC.check} Done</button>
           <section class="panel wide" data-panel="shots">
             <div class="shotcard" id="shotcard"></div>
             <details class="allshots" id="allshots"><summary>All shots</summary>
@@ -627,37 +627,37 @@ export const STUDIO_HTML = `
               <div class="edl"><table><thead><tr><th>Time</th><th>Type</th><th>Clip</th><th>Transition</th><th>Effect</th><th>Speed</th></tr></thead><tbody id="edl"></tbody></table></div>
             </details>
           </section>
-          <footer class="sheetFooter pfoot"><span><i aria-hidden="true"></i>Changes show in the preview right away</span><button type="button" class="${B.main}" id="pdone">Done ${IC.check}</button></footer>
+          <footer class="sheetFooter pfoot"><span><i aria-hidden="true"></i>Changes show in the preview right away</span><button type="button" class="${Button.primary}" id="pdone">Done ${IC.check}</button></footer>
         </div>
       </div>
     </div>
   </section>
 </div>
 <div class="savebar" id="savebar">
-  <button class="${B.mainBig}" id="export" disabled>${IC.save}<span>Export</span></button>
+  <button class="${Button.primaryLarge}" id="export" disabled>${IC.save}<span>Export</span></button>
 </div>
 <!-- a saved Reel opening (/create/edit?p=): engine.ts openProject; flow.ts shows it from the first paint -->
-<div class="openload" id="openload" role="status" aria-live="polite"><span class="openspin" aria-hidden="true"></span><b id="openh">Opening your Reel…</b><small id="openstep">Getting the song and the clips</small><a class="${B.plain}" href="/reels" id="openback">Back to My Reels</a></div>
+<div class="openload" id="openload" role="status" aria-live="polite"><span class="openspin" aria-hidden="true"></span><b id="openh">Opening your Reel…</b><small id="openstep">Getting the song and the clips</small><a class="${Button.secondary}" href="/reels" id="openback">Back to My Reels</a></div>
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
 <!-- credits: asked before Shubix AI uses them (an AI Reel, a chat change); Free: the plans -->
 <div class="cconf" id="cconf" hidden><div class="cconfb" role="dialog" aria-modal="true" aria-labelledby="cconft">
-  <button type="button" class="${B.close} absolute top-2.5 right-2.5" id="cconfx" aria-label="Close" title="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
+  <button type="button" class="${Button.close} absolute top-2.5 right-2.5" id="cconfx" aria-label="Close" title="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
   <span class="cconfi" aria-hidden="true">${IC.spark}</span>
   <b id="cconft"></b><p id="cconfp"></p><ul class="cconfl" id="cconfl" hidden></ul><p class="cconfbal" id="cconfbal"></p>
-  <div class="cconfa"><button type="button" class="${B.plain}" id="cconfno"></button><button type="button" class="${B.main}" id="cconfok"></button></div>
+  <div class="cconfa"><button type="button" class="${Button.secondary}" id="cconfno"></button><button type="button" class="${Button.primary}" id="cconfok"></button></div>
 </div></div>
 <div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
 <section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">
-  <div class="ctpoph sheetHeader"><span class="sheetHeading"><span class="sheetIcon" id="ctpopic"></span><span><small id="ctpopsub">SHOT 01</small><b id="ctpoph"></b></span></span><span class="ctpopbtns"><button type="button" class="${B.iconBox} size-[34px] max-lg:hidden" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></span></div>
+  <div class="ctpoph sheetHeader"><span class="sheetHeading"><span class="sheetIcon" id="ctpopic"></span><span><small id="ctpopsub">SHOT 01</small><b id="ctpoph"></b></span></span><span class="ctpopbtns"><button type="button" class="${Button.iconBordered} size-[34px] max-lg:hidden" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></span></div>
   <p class="sheetDescription">Adjust this shot. Your changes show in the preview right away.</p>
   <div class="ctpopb" id="ctpopb"></div>
-  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ctpopfoot">Preview selection</span></span><button type="button" class="${B.main}" id="ctpopok" title="Apply">Done ${IC.check}</button></footer>
+  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ctpopfoot">Preview selection</span></span><button type="button" class="${Button.primary}" id="ctpopok" title="Apply">Done ${IC.check}</button></footer>
 </section>
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
-  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="${B.close} absolute top-3 right-3" id="ssx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
+  <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="${Button.close} absolute top-3 right-3" id="ssx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
   <div class="ss-body shotcard" id="ssbody"></div>
-  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ssfoot">Preview selection</span></span><button type="button" class="ss-ok applyOption" id="ssok" title="Apply">Done ${IC.check}</button></footer>
+  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ssfoot">Preview selection</span></span><button type="button" class="${Button.iconPrimary} size-[34px] max-lg:hidden" id="ssok" title="Apply">Done ${IC.check}</button></footer>
   <span class="ss-rs" aria-hidden="true" title="Drag to resize"></span>
 </section>
 <section class="fexp" id="fexp" hidden aria-live="polite" aria-labelledby="fexph">
@@ -667,30 +667,30 @@ export const STUDIO_HTML = `
   <ul class="faiList fanList" id="fexplist"><li data-at="0.02">${IC.scan}<span>Preparing clips</span></li><li data-at="0.3">${IC.spark}<span>Applying effects</span></li><li data-at="0.85">${IC.image}<span>Rendering video</span></li><li data-at="1">${IC.music}<span>Finalizing audio</span></li></ul>
 </section>
 <section class="fdone" id="fdone" hidden aria-labelledby="fdoneh">
-  <div class="fdhead"><button type="button" class="${B.iconBox} size-11 max-lg:size-10" data-fd="close" aria-label="Back to your Reel">${IC.back}</button></div>
+  <div class="fdhead"><button type="button" class="${Button.iconBordered} size-11 max-lg:size-10" data-fd="close" aria-label="Back to your Reel">${IC.back}</button></div>
   <span class="fconf" aria-hidden="true">🎉</span>
   <h2 id="fdoneh">Reel Exported!</h2>
   <div class="fdvid"><video id="fdvideo" playsinline controls preload="metadata"></video></div>
   <p class="fdsaved"><b>Saved to your phone</b><small id="fdsize"></small></p>
-  <button type="button" class="${B.mainBig}" data-fd="share">${IC.upload}Share</button>
-  <button type="button" class="${B.big}" data-fd="save">${IC.save}Save to Photos</button>
-  <button type="button" class="${B.big}" data-fd="download">${IC.save}Download</button>
+  <button type="button" class="${Button.primaryLarge}" data-fd="share">${IC.upload}Share</button>
+  <button type="button" class="${Button.large}" data-fd="save">${IC.save}Save to Photos</button>
+  <button type="button" class="${Button.large}" data-fd="download">${IC.save}Download</button>
   <div class="fdcap" id="fdcap"><b>Caption for your Post</b></div>
 </section>
 <div class="xsheet" id="xsheet" hidden>
   <div class="xsh" role="dialog" aria-modal="true" aria-labelledby="xsht">
     <img class="xprev" id="xprev" alt="">
-    <div class="xsh-h"><h2 id="xsht">Export Your Reel</h2><button type="button" class="${B.iconBox} size-[34px]" id="xshclose" aria-label="Close">✕</button></div>
+    <div class="xsh-h"><h2 id="xsht">Export Your Reel</h2><button type="button" class="${Button.iconBordered} size-[34px]" id="xshclose" aria-label="Close">✕</button></div>
     <p class="xsh-l">Quality</p>
-    <div class="${SEG_WIDE}" id="xres" role="group" aria-label="Quality"><button type="button" data-r="720">720p</button><button type="button" data-r="1080" aria-pressed="true">1080p</button><button type="button" data-r="4k">4K</button></div>
+    <div class="${Segmented.wide}" id="xres" role="group" aria-label="Quality"><button type="button" data-r="720">720p</button><button type="button" data-r="1080" aria-pressed="true">1080p</button><button type="button" data-r="4k">4K</button></div>
     <p class="xsh-l">Frame rate</p>
-    <div class="${SEG_WIDE}" id="xfps" role="group" aria-label="Frame rate"><button type="button" data-f="30" aria-pressed="true">30 fps</button><button type="button" data-f="60">60 fps</button></div>
+    <div class="${Segmented.wide}" id="xfps" role="group" aria-label="Frame rate"><button type="button" data-f="30" aria-pressed="true">30 fps</button><button type="button" data-f="60">60 fps</button></div>
     <p class="xsh-size" id="xsize"></p>
     <label class="xtog"><span class="xti">${I('<path d="M4 7h16M4 12h10M4 17h7"/><path d="M15 15l5 5M20 15l-5 5"/>')}</span><span class="xtt">Remove Watermark <a class="xpro" id="xwmpro" href="/pricing" title="Paid plans can remove the watermark">Pro</a></span><input type="checkbox" id="xwm" role="switch"><i aria-hidden="true"></i></label>
     <label class="xtog" id="xmyrow" hidden><span class="xti">${I('<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor"/>')}</span><span class="xtt">Save to My Reels</span><input type="checkbox" id="xmy" role="switch" checked><i aria-hidden="true"></i></label>
     <label class="xtog" title="For adding the same song as Instagram's own sound (trending audio)"><span class="xti">${IC.music}</span><span class="xtt">Without the song <small>Add it in Instagram as its own sound</small></span><input type="checkbox" id="nosong" role="switch"><i aria-hidden="true"></i></label>
-    <button type="button" class="${B.mainBig}" id="xgo">${IC.save}<span>Export to phone</span></button>
-    <button type="button" class="${B.big}" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>
+    <button type="button" class="${Button.primaryLarge}" id="xgo">${IC.save}<span>Export to phone</span></button>
+    <button type="button" class="${Button.large}" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>
     <p class="xsh-note" id="xcloudnote" hidden></p>
   </div>
 </div>
@@ -701,7 +701,7 @@ export const STUDIO_HTML = `
   <div class="chath">
     <span class="chatorb" aria-hidden="true">${IC.spark}</span>
     <span class="chatttl"><b id="chath">Ask Shubix</b><small>Your AI editor · changes this Reel</small></span>
-    <button type="button" class="${B.close} shrink-0" id="chatclose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <button type="button" class="${Button.close} shrink-0" id="chatclose" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div class="chatlog" id="chatlog" aria-live="polite"></div>
   <span class="chatideas">Quick ideas</span>
@@ -716,7 +716,7 @@ export const STUDIO_HTML = `
   <form class="chatform" id="chatform">
     <div class="chatfield">
       <textarea id="chatin" rows="1" maxlength="300" placeholder="Describe a change… e.g. zoom on the drop"></textarea>
-      <button type="submit" class="chatsend" id="chatsend" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      <button type="submit" class="${Button.iconPrimary} size-9" id="chatsend" aria-label="Send"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
     </div>
     <small class="chathint">Enter to send · Shift + Enter for a new line</small>
   </form>

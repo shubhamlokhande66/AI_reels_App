@@ -42,7 +42,7 @@ import { CLIP_TOOLS, clipToolsEvents, clipToolsHtml, type ClipApi } from "./clip
 import { DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, type PlanId } from "@shubix/core/lib/plan-locks";
 import { tx } from "./i18n";
 import { Glyph, GLYPH_PATHS } from "./markup";
-import { B, CHIP } from "./ui";
+import { Button, Chip } from "./ui";
 
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -304,15 +304,15 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     // as in the design: "Shot 1 · Transition" with its choices as chips (Effect and Speed one tap away)
     const head = `<div class="shh"><span class="shtabs"><b>Shot ${i + 1} ·</b>${names.map((n, k) => `<button type="button" class="shtab" data-tab="${k}" aria-pressed="${k === shotTab}">${n}</button>`).join("")}</span><span>${(e.end - e.start).toFixed(2)} s · ${esc(TYPE[e.type] || e.type)}</span></div>`;
     const s0 = sels[shotTab];
-    const chips = !s0 ? "" : shotTab < 2 ? `<div class="shtilebox">${tilesHtml(shotTab, sels, thumbOf(e.src))}</div>` : `<div class="chips">${[...s0.options].map((o) => `<button type="button" class="${CHIP}" data-c="${shotTab}" data-v="${esc(o.value)}" aria-pressed="${o.value === s0.value}">${esc(o.text)}</button>`).join("")}</div>`;
+    const chips = !s0 ? "" : shotTab < 2 ? `<div class="shtilebox">${tilesHtml(shotTab, sels, thumbOf(e.src))}</div>` : `<div class="chips">${[...s0.options].map((o) => `<button type="button" class="${Chip}" data-c="${shotTab}" data-v="${esc(o.value)}" aria-pressed="${o.value === s0.value}">${esc(o.text)}</button>`).join("")}</div>`;
     const selects = sels.map((s, k) => !s ? "" : `<label class="isel"><span>${names[k]}</span><select data-c="${k}">${[...s.options].map((o) => `<option value="${esc(o.value)}"${o.value === s.value ? " selected" : ""}>${esc(o.text)}</option>`).join("")}</select></label>`).join("");
-    const other = `<button type="button" class="${B.ghost}" data-other="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg><span>Use a different moment</span></button>`;
+    const other = `<button type="button" class="${Button.ghost}" data-other="1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg><span>Use a different moment</span></button>`;
     // split, duplicate, delete, replace (the music's timing stays; see the engine's shotOp)
     const tools = st.kind === "talk" ? "" : `<div class="shtools" role="group" aria-label="Shot tools">`
-      + `<button type="button" class="${B.ghost}" data-op="split" title="Split this shot where the playhead is">Split</button>`
-      + `<button type="button" class="${B.ghost}" data-op="dup" title="Play this moment twice">Duplicate</button>`
-      + `<button type="button" class="${B.ghost}" data-op="freeze" title="Freeze the picture at the playhead, then play on">Freeze</button>`
-      + `<button type="button" class="${B.ghost}" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
+      + `<button type="button" class="${Button.ghost}" data-op="split" title="Split this shot where the playhead is">Split</button>`
+      + `<button type="button" class="${Button.ghost}" data-op="dup" title="Play this moment twice">Duplicate</button>`
+      + `<button type="button" class="${Button.ghost}" data-op="freeze" title="Freeze the picture at the playhead, then play on">Freeze</button>`
+      + `<button type="button" class="${Button.ghost}" data-op="delete" title="Delete this shot; the shot before takes its time"${st.edit.length < 2 ? " disabled" : ""}>Delete</button>`
       + `</div><div class="cliptools"></div>`;
     $("shotcard").innerHTML = head + chips + other + tools;
     $("inspector").innerHTML = `<div class="ihead">Shot ${i + 1} · Inspector</div>` + selects + other + tools;
@@ -342,14 +342,14 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const spdTxt = (v: number) => (v < 1 ? v.toFixed(2).replace(/0$/, "") : v.toFixed(1).replace(/\.0$/, "")) + "×";
   // Transition / Effect choices as square picture tiles (the shot sheet and the Shots tool), on the shot's own picture
   const tilesHtml = (k: number, sels: (HTMLSelectElement | null)[], th: string | null | undefined) => { const sl = sels[k]; if (!sl) return "";
-      return `<div class="sstiles">${[...sl.options].map((o) => `<button type="button" class="${CHIP} sstile" data-c="${k}" data-v="${esc(o.value)}" aria-pressed="${o.value === sl.value}"><span class="sstimg${o.value === "hard" || o.value === "none" ? " none" : ""}"${th ? ` style="background-image:url(${th})"` : ""}></span><span class="sstt">${esc(o.text)}</span></button>`).join("")}</div>`; };
+      return `<div class="sstiles">${[...sl.options].map((o) => `<button type="button" class="${Chip} sstile" data-c="${k}" data-v="${esc(o.value)}" aria-pressed="${o.value === sl.value}"><span class="sstimg${o.value === "hard" || o.value === "none" ? " none" : ""}"${th ? ` style="background-image:url(${th})"` : ""}></span><span class="sstt">${esc(o.text)}</span></button>`).join("")}</div>`; };
   const sheetHtml = (i: number, sels: (HTMLSelectElement | null)[]) => {
     const st = S()!, e = st.edit[i], th = thumbOf(e.src), names = ["Transition", "Effect", "Speed"];
     const tiles = (k: number) => tilesHtml(k, sels, th);
     // Speed: the ready ones as chips, and any speed on a slider (as the pro editors: 0.2× … 4×, 1× near the middle)
     const cv = st.shotCs()?.curve, flat = cv && ["a", "b", "c", "d", "e"].every((k) => cv[k as "a"] === cv.a) ? cv.a : null;
     const num = flat ?? (+((e.sp?.label || "").match(/([\d.]+)×/)?.[1] || "") || 1);
-    const speed = !sels[2] ? "" : `<div class="sslab">Speed</div><div class="chips sschips">${[...sels[2]!.options].map((o) => `<button type="button" class="${CHIP}" data-c="2" data-v="${esc(o.value)}" aria-pressed="${o.value === sels[2]!.value}">${esc(o.text)}</button>`).join("")}</div>`
+    const speed = !sels[2] ? "" : `<div class="sslab">Speed</div><div class="chips sschips">${[...sels[2]!.options].map((o) => `<button type="button" class="${Chip}" data-c="2" data-v="${esc(o.value)}" aria-pressed="${o.value === sels[2]!.value}">${esc(o.text)}</button>`).join("")}</div>`
       + `<div class="ssspd"><div class="ssspdh"><span>Custom speed</span><output id="ssspdv">${spdTxt(num)}</output></div><input type="range" id="ssspd" min="0" max="100" step="0.5" value="${spdPos(num).toFixed(1)}" aria-label="Speed">`
       + `<div class="ssspdt" aria-hidden="true">${[0.2, 0.5, 1, 2, 4].map((v) => `<span style="left:${spdPos(v).toFixed(1)}%">${v}×</span>`).join("")}</div></div>`;
     const act = (op: string, n: string, extra = "") => `<button type="button" class="ssact" data-op="${op}"${extra}>${sign(op)}<span>${n}</span></button>`;

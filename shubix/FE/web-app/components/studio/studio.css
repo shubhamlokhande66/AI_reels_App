@@ -555,7 +555,6 @@
 .brs .fsteps li.on{color:var(--accent)}
 .brs .fsteps li.on i{background:var(--gold-gradient);color:var(--on-accent);border-color:transparent;box-shadow:0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)}
 .brs .fsteps li.ok i{background:color-mix(in srgb,var(--accent) 25%,var(--surface));color:var(--ink);border-color:var(--accent)}
-.brs .fskip{border:0;background:transparent;color:var(--muted);font:600 14px var(--body);cursor:pointer;display:none}
 
 /* 1 Choose Music: the song from the phone, the recent songs as cards, the waveform and the length */
 .brs.fopen .fpickrow{gap:12px}
@@ -683,7 +682,6 @@
   .brs.fopen .fsteps li{min-width:56px}
   .brs.fopen .fsteps li span{display:none}
   .brs.fopen .fsteps li:last-child{display:none}
-  .brs.fopen[data-fstep="intro"] .fskip{display:block}
   .brs.fopen:not([data-fstep="intro"]) .fintro,
   .brs.fopen:not([data-fstep="choose"]):not([data-fstep="adjust"]) #s1,
   .brs.fopen:not([data-fstep="clips"]) #s2,
@@ -736,7 +734,6 @@
 
 /* ================= Phones: the 10 screens of the design (UI/New folder/AfterClipMusicReelsMobile.png) =================
    Computers are untouched: every piece below is hidden there, and every rule is inside the phones' breakpoint. */
-.brs :is(.fptitle,.fmob,.fcliplabel,.fadd,.fapply,.fsong){display:none}
 .brs .fclipgrid{display:contents}
 .brs .fexp[hidden],.brs .fdone[hidden]{display:none !important}
 @media (max-width:1023px){
@@ -746,7 +743,6 @@
   .brs.fopen[data-fstep="intro"] .fhead,.brs.fopen[data-fstep="analyse"] .fhead,.brs.fpost:not([data-tool]) .fhead,.brs.fpost[data-tool=""] .fhead{grid-template-areas:"back steps skip"}
   .brs .fhead .fptitle{grid-area:title;display:block;font:600 17px var(--display);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brs .fhead .fptitle:empty{display:none}
-  .brs .fhead .fskip{grid-area:skip}
   .brs .fhead .ft{display:none}
   .brs .fhead .fsteps{grid-area:steps;display:flex;align-items:center;justify-content:center;width:190px;justify-self:center;gap:0}
   .brs .fhead .fsteps li{display:flex !important;align-items:center;flex:1 1 0;min-width:0;gap:0}
@@ -818,8 +814,6 @@
   .brs.fopen #s2:has(.clip) .fcliplabel{display:block;font:600 15px var(--body)}
   .brs.fopen .fclipgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
   .brs.fopen .fclipgrid .clips{display:contents}
-  .brs.fopen #s2:has(.clip) .fadd{display:grid;place-items:center;aspect-ratio:1/1;border-radius:14px;border:1.5px dashed var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
-  .brs.fopen .fadd svg{width:28px;height:28px}
 
   /* 5 AI Analysing: the ring, what is happening, the four lines */
   .brs.fopen .fan{padding-top:20px;gap:20px}
@@ -1216,7 +1210,6 @@
     background:var(--gold-gradient);color:var(--on-accent);font:600 11px var(--body)}
   .brs.noir #mslot .clip .del{left:5px;right:auto;top:5px;width:22px;height:22px;font-size:13px;opacity:0;transition:opacity .15s}
   .brs.noir #mslot .clip:hover .del,.brs.noir #mslot .clip .del:focus-visible{opacity:1}
-  .brs.noir #mslot .fadd{display:none}
   /* the top bar: 9:16 ▾ */
 }
 
@@ -1469,8 +1462,6 @@
 .brs .fref .frefbtns{display:flex;flex-wrap:wrap;gap:8px}
 /* Copy a Reel: its song comes with the Reel copied, so the Music card shows only after "Different song?" (.pickown) */
 .brs.fopen[data-fkind="copy"]:not(.pickown) #s1{display:none !important}
-.brs .fref .freflink{justify-self:start;padding:2px 0;border:0;background:none;color:var(--accent);font:600 13px var(--body);text-decoration:underline;cursor:pointer}
-.brs .fref .freflink[hidden]{display:none}
 /* phones: the box with the screens it belongs to (Music and the clips), not on the first screen or while analysing */
 @media (max-width:1023px){
   .brs.fopen[data-fkind="copy"]:not([data-fstep="choose"]):not([data-fstep="adjust"]):not([data-fstep="clips"]) .fref{display:none !important}
@@ -1559,9 +1550,6 @@
 .brs .chatfield:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
 .brs .chatform textarea{flex:1;resize:none;border:0;outline:0;background:transparent;font:14px/1.45 var(--body);color:var(--ink);padding:7px 0;min-height:22px;max-height:120px}
 .brs .chatform textarea::placeholder{color:var(--muted)}
-.brs .chatsend{flex:none;width:36px;height:36px;border-radius:11px;border:0;display:grid;place-items:center;color:var(--on-accent);background:var(--gold-gradient);cursor:pointer;transition:transform .15s,opacity .15s}
-.brs .chatsend:hover{transform:translateY(-1px)}
-.brs .chatsend:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .brs .chathint{font-size:11px;color:var(--muted);padding-left:4px}
 @media (max-width:599px){
   .brs .chatbox{right:0;left:0;bottom:0;width:100%;height:auto;max-height:86dvh;border-radius:22px 22px 0 0;border-bottom:0;box-shadow:0 -20px 60px -10px rgba(20,8,50,.4),0 0 0 100vmax rgba(10,6,25,.42);animation:chatup .25s ease-out}
@@ -2006,12 +1994,9 @@
 }
 
 /* a clip pop-up's ✕ (cancel: back as it was) and ✓ (apply); the ✕ in the clip-tool pop-up and ✓ in the picker are for computers */
-.brs .ss-ok{display:none}
 .brs .ctpopbtns{display:flex;align-items:center;gap:8px}
 @media (min-width:1024px){
   .brs .ss-head{display:flex !important;align-items:center;justify-content:flex-end;gap:8px;padding:10px 12px 0}
-  .brs .ss-ok{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:0;background:var(--gold-gradient);color:var(--on-accent);cursor:pointer;order:2}
-  .brs .ss-ok svg{width:16px;height:16px}
 }
 /* computers: no zoom buttons (− 1× +) or "whole Reel" square on the timeline (Ctrl + wheel still zooms) */
 @media (min-width:1024px){ .brs.made.v-one:not(.fopen) .tlzs{display:none !important} }
@@ -2254,20 +2239,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   background: var(--accent);
   box-shadow: 0 0 12px var(--brand-glow);
   border-radius: 50%;
-}
-
-.brs .prevAspectBtn {
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 9px;
-  font: 600 11px var(--font-body), sans-serif;
-  border: 1px solid var(--ed-line);
-  background: color-mix(in srgb, var(--surface-2) 70%, var(--surface));
-  color: var(--foreground);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .brs .previewStage {
@@ -2593,12 +2564,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   text-align: center;
 }
 
-.brs .timelineActions .fitButton {
-  width: auto;
-  padding: 0 8px;
-  font: 600 9px var(--font-body), sans-serif;
-}
-
 .brs .timelineScroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -2854,7 +2819,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 .brs .sheetFooter > span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
 .brs .sheetFooter > span i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
-.brs #shotsheet .ss-ok,
 .brs #ctpop .ctpopok {
   position: static !important;
   width: auto !important;
@@ -2874,8 +2838,8 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   cursor: pointer !important;
   transition: transform .18s ease, filter .18s ease;
 }
-.brs #shotsheet .ss-ok svg, .brs #ctpop .ctpopok svg { width: 15px; height: 15px; }
-.brs #shotsheet .ss-ok:hover, .brs #ctpop .ctpopok:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.brs #ctpop .ctpopok svg { width: 15px; height: 15px; }
+.brs #ctpop .ctpopok:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
 /* a dock tool's panel: its tabs under the sheet's top edge, ✕ in the corner */
 .brs .panels:not([hidden]):has(.panel.on) .panel.on {

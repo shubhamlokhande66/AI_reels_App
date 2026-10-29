@@ -6,7 +6,7 @@ import { iconButtonClass } from "@shubix/ui-web";
 /** A round button with only an icon (back, menu, delete…): `label` is what screen readers say and the hover title.
  * `plain`: no border or fill. With `href` it is a link. */
 type Props = { icon: string; label: string; size?: number; iconSize?: number; plain?: boolean; className?: string; title?: string };
-const cls = (size: number, plain: boolean, className?: string) => cn(iconButtonClass(plain), className);
+const cls = (size: number, plain: boolean, className?: string) => cn(iconButtonClass(plain ? "plain" : "box"), className);
 
 export function IconButton({ icon, label, size = 44, iconSize, plain = false, className, title, href, ...rest }: Props & ({ href: string } | ({ href?: undefined } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className" | "title">))) {
   const inner = <Icon name={icon} size={iconSize ?? Math.round(size * 0.45)} />;

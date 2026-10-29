@@ -21,6 +21,8 @@ const SIZE: Record<ButtonSize, string> = {
 export const buttonClass = ({ variant = "primary", size = "md", full = false }: { variant?: ButtonVariant; size?: ButtonSize; full?: boolean } = {}) =>
   [BASE, VARIANT[variant], SIZE[size], full && "w-full"].filter(Boolean).join(" ");
 
-/** A round button with only an icon (back, undo…); plain: no border or fill. Its size is set where it is used. */
-export const iconButtonClass = (plain = false) =>
-  `grid shrink-0 place-items-center rounded-full p-0 text-foreground transition-colors hover:text-accent disabled:opacity-50 ${plain ? "border-0 bg-transparent" : "border border-border bg-surface"}`;
+/** A round button with only an icon (back, undo, send…); its size is set where it is used. box: bordered surface;
+ * plain: no border or fill (muted: grey); main: the brand gradient (send, apply). */
+const ICON_LOOK = { box: "border border-border bg-surface text-foreground hover:text-accent", plain: "border-0 bg-transparent text-foreground hover:text-accent", muted: "border-0 bg-transparent text-muted hover:text-foreground", main: "border-0 bg-gold text-on-accent hover:brightness-110" };
+export const iconButtonClass = (look: keyof typeof ICON_LOOK = "box") =>
+  `grid shrink-0 place-items-center rounded-full p-0 transition-[color,filter] disabled:opacity-50 ${ICON_LOOK[look]}`;
