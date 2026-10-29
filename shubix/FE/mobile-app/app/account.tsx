@@ -24,10 +24,10 @@ const Note = ({ ok, children }: { ok: boolean; children: ReactNode }) =>
 export default function AccountScreen() {
   const text = useText(), { me } = useApi(), credits = useCredits().data, [panel, setPanel] = useState<PanelId | null>(null);
   const signOut = useSignOut(() => router.replace("/login"));
-  if (!me) return <Page><ActivityIndicator color="accent" /></Page>;
+  if (!me) return <Page><ActivityIndicator color={colors.accent} /></Page>;
   if (!me.authEnabled) return <Page><View className="gap-3"><Card><Text className="text-[12.5px] text-muted">{text("account.noAccounts")}</Text></Card><ThemeChoice /></View></Page>;
   const user = me.user;
-  if (!user) return <Page><ActivityIndicator color="accent" /></Page>;
+  if (!user) return <Page><ActivityIndicator color={colors.accent} /></Page>;
   const c = credits?.enabled ? credits : null, name = user.email.split("@")[0], paid = !!c && c.plan !== "free";
   const row = (id: PanelId, icon: IconName, title: string, line: string, danger = false) => (
     <Pressable key={id} onPress={() => setPanel(id)} className="flex-row items-center gap-3 border-t border-border px-4 py-3.5 first:border-t-0 active:bg-accent/5">
@@ -156,7 +156,7 @@ function Sessions() {
 /** Payments & receipts: every order, the paid ones with their receipt number (the receipt was emailed). */
 function Payments() {
   const text = useText(), q = useQuery({ queryKey: ["my-payments"], queryFn: mobileApi.payments, retry: false });
-  if (q.isLoading) return <ActivityIndicator color="accent" />;
+  if (q.isLoading) return <ActivityIndicator color={colors.accent} />;
   if (q.error) return <ErrorBanner message={errorMessage(q.error)} />;
   const list = q.data ?? [];
   if (!list.length) return <Text className="text-[13px] text-muted">{text("account.noPayments")}</Text>;

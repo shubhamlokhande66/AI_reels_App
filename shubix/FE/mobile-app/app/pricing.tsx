@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, NativeModules, Pressable, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import RazorpayCheckout from "react-native-razorpay";
 import { useApi, useText } from "@shubix/hooks";
 import { Badge, Button, Card, ErrorBanner, Gold, GoldText, Icon, Page, useColors } from "@shubix/ui-mobile";
 import type { Credits } from "@shubix/types";
+import type RazorpayCheckout from "react-native-razorpay";
+// Razorpay is not inside Expo Go: there the page shows, and paying says it needs the app
+const razorpay: typeof RazorpayCheckout | null = NativeModules.RNRazorpayCheckout ? require("react-native-razorpay").default : null;
 import { rupees } from "@shubix/utils";
 import { errorMessage } from "@shubix/api-client";
 import { Checkout, OfferBand, PlanAction, PlanCard, PlanCompare, SectionHeading } from "../components/organisms/Pricing";
@@ -29,8 +31,9 @@ export default function PricingScreen() {
   async function pay(item: string, label: string, coupon?: string) {
     setNotice(null); setBuying(item);
     try {
+      if (!razorpay) throw new Error(text("checkout.needsApp"));
       const order = await mobileApi.createOrder(item, coupon);
-      const result = await RazorpayCheckout.open({ key: order.keyId, amount: String(order.amount), currency: order.currency, name: text("checkout.name"), description: order.label || label, order_id: order.orderId,
+      const result = await razorpay.open({ key: order.keyId, amount: String(order.amount), currency: order.currency, name: text("checkout.name"), description: order.label || label, order_id: order.orderId,
         image: mobileApi.absoluteAsset(text("checkout.logo")), prefill: { email: order.email }, theme: { color: text("checkout.color") } });
       const updated = await mobileApi.verifyPayment({ razorpayOrderId: result.razorpay_order_id, razorpayPaymentId: result.razorpay_payment_id, razorpaySignature: result.razorpay_signature });
       queryClient.setQueryData(["native-credits"], updated);

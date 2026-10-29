@@ -16,7 +16,7 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
       <View className="mt-6"><Segmented full value={f.mode} onChange={f.setMode} options={[{ value: "signin", label: text("auth.signIn") }, { value: "signup", label: text("auth.createLink") }]} /></View>
       <View className="mt-5 gap-4">
         <Field label={text("auth.email")} error={f.errors.email}>
-          <Input icon={<Mail size={17} color="muted" />} value={f.email} onChangeText={f.setEmail} onBlur={() => f.touch("email")} invalid={!!f.errors.email}
+          <Input icon={<Mail size={17} color={colors.muted} />} value={f.email} onChangeText={f.setEmail} onBlur={() => f.touch("email")} invalid={!!f.errors.email}
             autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder={text("auth.emailPlaceholder")} />
         </Field>
         <Field label={text("auth.password")} error={f.errors.password} ok={f.ok.password} hint={f.signin ? undefined : text("auth.lengthHint")}>

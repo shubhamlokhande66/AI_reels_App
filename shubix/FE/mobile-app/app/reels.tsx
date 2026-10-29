@@ -45,7 +45,7 @@ function Drafts({ drafts }: { drafts: MobileProject[] | null }) {
       try { await removeProject(draft.id); await queryClient.invalidateQueries({ queryKey: ["drafts"] }); } catch { Alert.alert(text("reels.deleteFailed")); }
     } },
   ]);
-  if (drafts === null) return <ActivityIndicator color="accent" />;
+  if (drafts === null) return <ActivityIndicator color={colors.accent} />;
   if (!drafts.length) return <EmptyState icon="projects" title={text("reels.noDrafts")} hint={text("reels.noDraftsText")} action={<MakeReel />} />;
   return (
     <View className="flex-row flex-wrap gap-3">
@@ -77,7 +77,7 @@ function Saved({ query }: { query: ReturnType<typeof useQuery<Awaited<ReturnType
   if (query.isError) return (
     <Card className="gap-3 border-danger/35"><Text className="text-[13px] text-danger">{query.error instanceof Error ? query.error.message : text("reels.failed")}</Text><Button size="sm" variant="secondary" title={text("common.retry")} onPress={() => void query.refetch()} /></Card>
   );
-  if (!query.data) return <ActivityIndicator color="accent" />;
+  if (!query.data) return <ActivityIndicator color={colors.accent} />;
   const { reels, usage } = query.data, share = Math.min(100, (usage.used / Math.max(1, usage.limit)) * 100);
   return (
     <View className="gap-4">
@@ -137,7 +137,7 @@ function SavedCard({ reel, onWatch, onChange }: { reel: CloudReel; onWatch: (uri
         <IconButton icon="share" look="plain" size={32} iconSize={15} disabled={busy} label={`${text("reels.share")}: ${reel.name}`} onPress={() => void shareLink()} className="flex-1 rounded-lg" />
         <IconButton icon="trash" look="danger" size={32} iconSize={15} disabled={busy} label={`${text("reels.delete")} ${reel.name}`} onPress={remove} className="flex-1 rounded-lg" />
       </View>
-      {busy && <ActivityIndicator size="small" color="accent" />}
+      {busy && <ActivityIndicator size="small" color={colors.accent} />}
       {note && <Text className="text-[11.5px] font-semibold text-accent">{note}</Text>}
     </View>
   );

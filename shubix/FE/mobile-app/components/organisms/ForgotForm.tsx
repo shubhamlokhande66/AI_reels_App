@@ -13,7 +13,7 @@ export function ForgotForm() {
       <AuthHeader onClose={() => router.back()} title={text(first ? "auth.forgotTitle" : "auth.resetTitle")} subtitle={first ? text("auth.forgotCodeText") : text("auth.resetCodeSent", { email: f.email })} />
       <View className="mt-6 gap-4">
         {first ? (
-          <Field label={text("auth.email")}><Input icon={<Mail size={17} color="muted" />} value={f.email} onChangeText={f.setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder={text("auth.emailPlaceholder")} /></Field>
+          <Field label={text("auth.email")}><Input icon={<Mail size={17} color={colors.muted} />} value={f.email} onChangeText={f.setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder={text("auth.emailPlaceholder")} /></Field>
         ) : (
           <>
             <Field label={text("auth.codeLabel")}><Input value={f.code} onChangeText={(v) => f.setCode(v.replace(/\D/g, ""))} keyboardType="number-pad" maxLength={6} autoComplete="one-time-code" /></Field>

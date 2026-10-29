@@ -451,7 +451,8 @@ export const TEXT_GROUPS: TextGroup[] = [
   // ---------------------------------------------------------------- plans & payments
   page(PLANS, "checkout", "Payment window (Razorpay)",
     S("Payment window", C("Look", T("checkout.name", "Business name at the top", "Shubix"),
-      T("checkout.logo", "Logo (a square picture: a link, or /icon-512.png from this site)", "/icon-512.png"), T("checkout.color", "Colour (#rrggbb)", "#d8bd7b")))),
+      T("checkout.logo", "Logo (a square picture: a link, or /icon-512.png from this site)", "/icon-512.png"), T("checkout.color", "Colour (#rrggbb)", "#d8bd7b")),
+      C("Phone app", T("checkout.needsApp", "Paying in Expo Go (it has no Razorpay)", "Payments work in the Shubix app from the Play Store. Here (Expo Go) you can look around, but not pay.")))),
 ];
 
 export const TEXT_DEFAULTS: Record<string, string> = Object.fromEntries(TEXT_GROUPS.flatMap((g) => g.items.map((t) => [t.key, t.value])));
