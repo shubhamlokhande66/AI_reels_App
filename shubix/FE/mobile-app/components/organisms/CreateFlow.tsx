@@ -8,10 +8,17 @@ import { Button, Gold, Icon, IconButton, Segmented, useColors } from "@shubix/ui
 import type { IconName } from "@shubix/ui-core";
 import { clock } from "@shubix/utils";
 import { forgetSong, type Song } from "../../lib/songs";
+import { useThumb } from "../../lib/thumbs";
 
 /** The website's phone Create flow (FE/web-app/components/studio/flow.ts and markup.ts), one screen at a time: the
  * intro, Choose Music, Adjust Music, Add Your Clips and Analysing. The words are the studio's (Admin → CMS → Create
  * flow); app/create/[kind].tsx keeps the state and moves between the screens. */
+/** A clip's picture: a photo, or a frame of the video (a dark tile with the video sign while it is made). */
+export function Thumb({ uri, kind }: { uri: string; kind: "video" | "image" }) {
+  const t = useThumb(uri, kind);
+  return t ? <Image source={{ uri: t }} className="h-full w-full" resizeMode="cover" /> : <View className="flex-1 items-center justify-center bg-black/80"><Icon name="video" size={22} color="#fff" /></View>;
+}
+
 export type FlowKind = "music" | "talking" | "photo" | "copy";
 export type FlowStep = "intro" | "choose" | "adjust" | "clips" | "analyse";
 
@@ -144,8 +151,10 @@ export function FlowAdjust({ song, length, onLength }: { song: Song; length: num
         <View className="h-[86px] flex-1 flex-row items-center gap-[2px]">
           {bars(song.name).map((h, i, all) => {
             const at = i / all.length;
-            return <View key={i} className="flex-1 rounded-full" style={{ height: `${h * 100}%`, backgroundColor: at < used ? look.accent : look.border, opacity: at < heard ? 1 : at < used ? 0.7 : 1 }} />;
+            return <View key={i} className="flex-1 rounded-full" style={{ height: `${h * 100}%`, backgroundColor: at < used ? look.accent : look.border, opacity: at < heard || at >= used ? 1 : 0.75 }} />;
           })}
+          {used < 1 && <View pointerEvents="none" className="absolute bottom-0 left-0 top-0 rounded-lg border-2 border-accent bg-accent/10" style={{ width: `${used * 100}%` }} />}
+          {heard > 0 && <View pointerEvents="none" className="absolute bottom-0 top-0 w-0.5 bg-foreground" style={{ left: `${Math.min(heard, 1) * 100}%` }} />}
         </View>
       </View>
       <View className="gap-2.5">
@@ -198,7 +207,7 @@ export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, setting
           <View className="flex-row flex-wrap gap-2">
             {media.map((m, i) => (
               <View key={`${m.uri}-${i}`} className="overflow-hidden rounded-[14px] bg-surface-2" style={{ width: tile, height: tile }}>
-                {m.type === "image" ? <Image source={{ uri: m.uri }} className="h-full w-full" resizeMode="cover" /> : <View className="flex-1 items-center justify-center bg-black/80"><Icon name="video" size={24} color="#fff" /></View>}
+                <Thumb uri={m.uri} kind={m.type === "image" ? "image" : "video"} />
                 <View className="absolute bottom-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5"><Text className="text-[11px] font-semibold text-white">{m.type === "image" ? "5s" : clock((m.duration ?? 0) / 1000)}</Text></View>
                 <Pressable onPress={() => onRemove(i)} accessibilityLabel={words("Remove")} hitSlop={6} className="absolute right-1.5 top-1.5 h-6 w-6 items-center justify-center rounded-full bg-black/70"><Icon name="close" size={13} color="#fff" /></Pressable>
               </View>
@@ -225,13 +234,13 @@ const Row = ({ label, note, children }: { label: string; note?: string; children
   <View className="gap-2"><Label>{label}</Label>{children}{note ? <Text className="text-[12.5px] text-muted">{note}</Text> : null}</View>
 );
 
-/** Analysing: the ring with how far it is, what it is doing now, the four steps (working, done) and that nothing is
- * uploaded. `pct` 0…1; `done` how many steps are finished. */
-export function FlowAnalyse({ pct, done, status }: { pct: number; done: number; status: string }) {
+/** Analysing (and Exporting): the ring with how far it is, what it is doing now, the steps (working, done) and that
+ * nothing is uploaded. `pct` 0…1; `done` how many steps are finished. */
+export function FlowAnalyse({ pct, done, status, title = "Analysing Clips", steps = AI_STEPS, sub }: { pct: number; done: number; status: string; title?: string; steps?: [IconName, string][]; sub?: string }) {
   const words = useStudioText(), look = useColors(), r = 52, len = 2 * Math.PI * r;
   return (
     <View className="items-center gap-4 py-2">
-      <Text className="text-[22px] font-semibold text-foreground">{words("Analysing Clips")}</Text>
+      <Text className="text-[22px] font-semibold text-foreground">{words(title)}</Text>
       <View className="h-[150px] w-[150px] items-center justify-center">
         <Svg width={150} height={150} viewBox="0 0 120 120" style={{ position: "absolute", transform: [{ rotate: "-90deg" }] }}>
           <Circle cx={60} cy={60} r={r} stroke={look.border} strokeWidth={8} fill="none" />
@@ -239,9 +248,9 @@ export function FlowAnalyse({ pct, done, status }: { pct: number; done: number; 
         </Svg>
         <Text className="text-[34px] font-semibold text-foreground">{Math.round(pct * 100)}%</Text>
       </View>
-      <Text className="text-center text-[16px] font-semibold text-foreground">{status}</Text>
+      <View className="items-center gap-0.5"><Text className="text-center text-[16px] font-semibold text-foreground">{status}</Text>{sub ? <Text className="text-center text-[13px] text-muted">{sub}</Text> : null}</View>
       <View className="w-full gap-2">
-        {AI_STEPS.map(([icon, t], i) => {
+        {steps.map(([icon, t], i) => {
           const s = i < done ? "ok" : i === done ? "now" : "";
           return (
             <View key={t} className="flex-row items-center gap-2.5 py-1">

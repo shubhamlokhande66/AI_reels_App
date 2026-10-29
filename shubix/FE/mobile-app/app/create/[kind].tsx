@@ -5,7 +5,8 @@ import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStudioText } from "@shubix/hooks";
-import { Button, toast } from "@shubix/ui-mobile";
+import { askAction, Button, toast } from "@shubix/ui-mobile";
+import { usePlanAi } from "../../lib/data";
 import { errorMessage } from "@shubix/api-client";
 import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
@@ -19,6 +20,7 @@ export default function CreateScreen() {
   const params = useLocalSearchParams<{ kind: string; templateId?: string }>();
   const kind: FlowKind = (["music", "talking", "photo", "copy"] as const).find((k) => k === params.kind) ?? "music";
   const words = useStudioText(), insets = useSafeAreaInsets(), queryClient = useQueryClient(), order = ORDER[kind];
+  const planAi = usePlanAi();
   const [step, setStep] = useState<FlowStep>("intro");
   const [song, setSong] = useState<Song | null>(null), [recent, setRecent] = useState<Song[]>([]), [reading, setReading] = useState(false);
   const [length, setLength] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
@@ -59,8 +61,18 @@ export default function CreateScreen() {
       at(0.92, 3);
       await queryClient.invalidateQueries({ queryKey: ["drafts"] });
       setProgress({ pct: 1, done: 4, status: words("Your Reel is ready!") });
-      setTimeout(() => router.replace({ pathname: "/editor", params: { id } }), 450);
+      setTimeout(() => { setStep("clips"); router.push({ pathname: "/editor", params: { id } }); }, 450); // back from the editor: the clips again
     } catch (e) { toast(errorMessage(e), "danger"); setStep("clips"); }
+  }
+
+  // Free (no Shubix AI in the plan): before the Reel is made, what Shubix AI would do and the way to it (the website's upsell)
+  async function upsell() {
+    if (planAi !== false) return make();
+    const v = await askAction({ title: words("Make it perfect with Shubix AI"), body: `${words("Your Reel is ready. With the Editor or Pro plan, Shubix AI edits it like a pro")}:`,
+      list: ["The best moments of every clip, picked for you", "Trendy transitions and effects, right on the beat", "Ask Shubix: change anything in your own words", "Captions and pro colour, automatically"].map((x) => words(x)),
+      ok: words("Upgrade to Shubix AI"), cancel: words("Create basic Reel") });
+    if (v === 0) router.push({ pathname: "/pricing", params: { feature: "ai" } });
+    else if (v === 1) void make();
   }
 
   // the bottom button: its words say what it waits for while it is off (the website's flow.ts)
@@ -69,7 +81,7 @@ export default function CreateScreen() {
     intro: { title: words(kind === "copy" ? "Pick the Reel to copy" : "Let's Start"), on: true, press: () => go(order[1]) },
     choose: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : "Next"), on: !!song && !reading, press: () => go("adjust") },
     adjust: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : "Next"), on: !!song && !reading, press: () => go("clips") },
-    clips: { title: words(!media.length ? (photos ? "Add your photos to continue" : "Add your clips to continue") : needSong && !song ? "Choose a song first" : "Next"), on: !!media.length && (!needSong || !!song), press: () => void make() },
+    clips: { title: words(!media.length ? (photos ? "Add your photos to continue" : "Add your clips to continue") : needSong && !song ? "Choose a song first" : "Next"), on: !!media.length && (!needSong || !!song), press: () => void upsell() },
     analyse: null,
   }[step];
   const title = { intro: "", choose: kind === "copy" ? words("Music") : words("Choose Music"), adjust: words("Adjust Music"), clips: words(photos ? "Add Your Photos" : "Add Your Clips"), analyse: "" }[step];

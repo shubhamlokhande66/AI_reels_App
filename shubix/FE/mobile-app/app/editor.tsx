@@ -11,6 +11,8 @@ import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../li
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
 import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
+import { ExportScreen } from "../components/organisms/ExportScreen";
+import { videoEngine } from "../lib/video";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
@@ -22,13 +24,14 @@ const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
 const LATER = new Set(["fx", "extract", "border", "adjust", "curve", "stab", "beauty", "fade", "mosaic", "lens", "captions", "voice", "layers"]);
+// …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
 
 /** The editor (the website's studio editor on a phone): the Reel saved on this phone, played shot by shot with its
  * song; the timeline and the tools change it, every change is kept (undo), and it saves itself as it goes. */
 export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
-  const [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
+  const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
   const undo = useRef<ReelProject[]>([]), song = useAudioPlayer(p?.audioUri ?? null);
   useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); router.back(); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   // saves itself a moment after each change
@@ -50,6 +53,8 @@ export default function EditorScreen() {
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
+  // a place on the timeline: the shot there and the time in it
+  const seek = (t: number) => { let i = 0, start = 0; while (i < clips.length - 1 && start + clipDuration(clips[i]) <= t) start += clipDuration(clips[i++]); setSelected(i); setLocal(t - start); };
   const ended = useCallback(() => { setLocal(0); setSelected((i) => { if (i + 1 < (p?.clips.length ?? 0)) return i + 1; setPlaying(false); return 0; }); }, [p?.clips.length]);
 
   async function addClips(replace = false) {
@@ -135,9 +140,9 @@ export default function EditorScreen() {
   const aspect = ASPECT[p.settings?.aspect ?? "9:16"];
   return (
     <View className="flex-1 bg-background">
-      <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => toast(words("Export comes with the phone's video engine, in the Play Store app. Your Reel is saved on this phone."), "info")} />
+      <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview clip={clip} n={selected} of={clips.length} playing={playing} aspect={aspect} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <Preview clip={clip} n={selected} of={clips.length} playing={playing} at={local} aspect={aspect} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
         <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
           const style = styleFromWords(t);
@@ -145,16 +150,16 @@ export default function EditorScreen() {
           setClips(clips.map((c) => ({ ...c, speed: style === "fast" ? 1.25 : 0.8 })));
           return words("Done ✓ I used {style} (on your phone).", { style: words(style === "fast" ? "the Fast style" : "the Smooth style") });
         }} /></View>
-        <Timeline clips={clips} selected={selected} overlays={p.overlays} song={p.audioName} now={now} onSelect={go} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
+        <Timeline clips={clips} selected={selected} overlays={p.overlays} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
         <View className="mt-3 flex-row items-center justify-between px-4">
           <Text className="text-[13px] font-semibold text-foreground">{words("Shot")} {String(selected + 1).padStart(2, "0")} · {clip ? clipDuration(clip).toFixed(1) : "0.0"} s</Text>
           <IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const last = undo.current.pop(); if (last) setP(last); }} />
         </View>
-        <ToolRow items={SHOT_TOOLS} on={tool?.key} onPress={(k) => use(k, SHOT_TOOLS.find((t) => t.key === k)!.name)} />
       </ScrollView>
       <View className="border-t border-border bg-bar pb-2 pt-2">
-        <ToolRow items={DOCK.map((t) => ({ ...t, tag: locked?.(t.key) ? locked(t.key).toUpperCase() : undefined }))} on={tool?.key} onPress={(k) => use(k, DOCK.find((t) => t.key === k)!.name)} />
+        <ToolRow items={[...DOCK.map((t) => ({ ...t, tag: locked?.(t.key) ? locked(t.key).toUpperCase() : undefined })), ...SHOT_TOOLS]} on={tool?.key} onPress={(k) => { const t = [...DOCK, ...SHOT_TOOLS].find((x) => x.key === k)!; use(k, t.name); }} />
       </View>
+      <ExportScreen reel={exporting} onClose={() => setExporting(null)} />
       <ToolSheet tool={tool} onClose={() => setTool(null)}>{sheet()}</ToolSheet>
     </View>
   );

@@ -1,15 +1,16 @@
 import { router } from "expo-router";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useText } from "@shubix/hooks";
+import { useApi, useText } from "@shubix/hooks";
 import { Hairline, IconButton } from "@shubix/ui-mobile";
 import { pageMeta } from "@shubix/core/lib/nav";
 import { Logo } from "../atoms/Logo";
+import { NotificationBell } from "../molecules/NotificationBell";
 
 /** The website's phone top bar (AppShell): menu or back · the logo on Home, else "Shubix · Studio" and the page's
  * title · the page's own buttons. */
 export function TopBar({ pathname, onMenu }: { pathname: string; onMenu: () => void }) {
-  const text = useText(), insets = useSafeAreaInsets();
+  const text = useText(), insets = useSafeAreaInsets(), { me } = useApi();
   const meta = pageMeta(pathname), home = pathname === "/", back = meta.back;
   return (
     <View className="flex-row items-center gap-2 border-b border-accent/15 bg-bar/90 px-3.5 pb-2.5" style={{ paddingTop: Math.max(10, insets.top) }}>
@@ -25,6 +26,7 @@ export function TopBar({ pathname, onMenu }: { pathname: string; onMenu: () => v
           <Text numberOfLines={1} className="text-[14px] font-semibold tracking-[-0.21px] text-foreground">{meta.tk ? text(meta.tk) : meta.title}</Text>
         </>}
       </View>
+      {!!me?.user && <NotificationBell />}
     </View>
   );
 }

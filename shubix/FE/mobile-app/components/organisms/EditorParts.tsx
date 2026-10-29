@@ -1,12 +1,13 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
 import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useEventListener } from "expo";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useStudioText } from "@shubix/hooks";
 import { Button, Glyph, Icon, IconButton, ThemeLayer } from "@shubix/ui-mobile";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
 import { clipDuration, type ProjectClip } from "@shubix/validations";
+import { useThumb } from "../../lib/thumbs";
 
 /** The website's phone editor (FE/web-app/components/studio/markup.ts and views.ts), drawn natively: the studio's top
  * bar, the preview with its transport, the timeline's tracks (video, text, voice, music), the selected clip's tools
@@ -27,34 +28,42 @@ export function StudioBar({ title, saved, onBack, onExport }: { title: string; s
         <View className="flex-row items-center gap-1.5"><Text className="text-[8px] font-bold tracking-[1px] text-muted">REEL STUDIO</Text><View className={`h-1.5 w-1.5 rounded-full ${saved ? "bg-[#72bd91]" : "bg-border"}`} /><Text numberOfLines={1} className="text-[8px] font-bold tracking-[1px] text-muted">{words(saved ? "SAVED REEL" : "SAVING…")}</Text></View>
         <Text numberOfLines={1} className="text-[13px] text-foreground">{title}</Text>
       </View>
-      <Button size="sm" title={words("Export")} iconAfter="arrow" onPress={onExport} />
+      <Button title={words("Export")} iconAfter="arrow" className="h-[38px] px-4" onPress={onExport} />
     </View>
   );
 }
 
 /** The preview: the shot under the playhead (a video plays; a photo stays), the big play button over it while still,
- * which shot it is (01 / 08). `onEnded`: the shot played to its end. */
-export function Preview({ clip, n, of, playing, aspect, onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; aspect: number; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
+ * which shot it is (01 / 08). `at`: the time in the shot (followed while still: the timeline is scrubbed); `onTime`
+ * reports it while playing, `onEnded` when the shot is over. */
+export function Preview({ clip, n, of, playing, at, aspect, onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
-  const player = useVideoPlayer(video?.uri ?? null, (p) => { p.timeUpdateEventInterval = 0.1; p.muted = false; });
-  useEffect(() => { if (video) { player.currentTime = video.start; player.playbackRate = video.speed; player.muted = video.muted; player.volume = video.volume; } }, [video, player]);
-  useEffect(() => { if (playing && video) player.play(); else player.pause(); }, [playing, video, player]);
-  useEventListener(player, "timeUpdate", ({ currentTime }) => { if (!video) return; onTime(Math.max(0, currentTime - video.start) / video.speed); if (currentTime >= video.end - 0.05) onEnded(); });
-  // a photo: its seconds pass while playing
-  const photoAt = useRef(0);
+  const player = useVideoPlayer(null);
+  // a new shot: its video, from where the playhead is
   useEffect(() => {
-    if (!playing || !clip || clip.kind !== "image") return;
-    const len = clipDuration(clip), t0 = Date.now() - photoAt.current * 1000;
-    const tick = setInterval(() => { photoAt.current = (Date.now() - t0) / 1000; onTime(photoAt.current); if (photoAt.current >= len) { photoAt.current = 0; onEnded(); } }, 100);
+    if (!video) { player.pause(); return; }
+    player.replace(video.uri);
+    player.currentTime = video.start + at * video.speed; player.playbackRate = video.speed; player.muted = video.muted; player.volume = video.volume;
+  }, [video?.id, video?.uri]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (video) { player.playbackRate = video.speed; player.muted = video.muted; player.volume = video.volume; } }, [video?.speed, video?.muted, video?.volume]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!playing && video) player.currentTime = video.start + at * video.speed; }, [at, playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  // playing: the video plays and its time is followed; a photo's seconds pass
+  useEffect(() => {
+    if (!playing || !clip) { player.pause(); return; }
+    if (video) player.play();
+    const t0 = Date.now() - at * 1000, len = clipDuration(clip);
+    const tick = setInterval(() => {
+      const t = video ? (player.currentTime - video.start) / video.speed : (Date.now() - t0) / 1000;
+      onTime(Math.max(0, Math.min(t, len)));
+      if (t >= len - 0.05) onEnded();
+    }, 80);
     return () => clearInterval(tick);
-  }, [playing, clip, onTime, onEnded]);
+  }, [playing, clip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const flip = clip ? [{ rotate: `${clip.rotation}deg` }, { scaleX: clip.mirror ? -1 : 1 }, { scaleY: clip.flip ? -1 : 1 }] : [];
   return (
     <View className="gap-2 px-4">
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-1.5"><View className="h-1.5 w-1.5 rounded-full bg-danger" /><Text className="text-[10px] font-bold tracking-[1.2px] text-muted">{words("PREVIEW")}</Text></View>
-      </View>
-      <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ height: 380, aspectRatio: aspect }}>
+      <View className="flex-row items-center gap-1.5"><View className="h-1.5 w-1.5 rounded-full bg-danger" /><Text className="text-[10px] font-bold tracking-[1.2px] text-muted">{words("PREVIEW")}</Text></View>
+      <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ height: 360, aspectRatio: aspect }}>
         {clip?.kind === "image" && <Image source={{ uri: clip.uri }} resizeMode={clip.fit} className="h-full w-full" style={{ transform: flip }} />}
         {video && <VideoView player={player} contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
         {!playing && <View className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}
@@ -85,51 +94,70 @@ export function Transport({ now, total, playing, sound, onPrev, onToggle, onNext
   );
 }
 
-const PX = 34; // a second on the timeline
-const Head = ({ glyph, name, onAdd }: { glyph: string; name: string; onAdd?: () => void }) => {
+const HEAD = 104; // the tracks' heads
+const Head = ({ glyph, name, h, onAdd }: { glyph: string; name: string; h: number; onAdd?: () => void }) => {
   const words = useStudioText();
   return (
-    <View className="h-full w-[104px] flex-row items-center gap-1.5 border-r border-border pr-1.5">
+    <View className="flex-row items-center gap-1.5 pr-1.5" style={{ height: h }}>
       <Glyph name={glyph} size={15} color="muted" /><Text numberOfLines={1} className="flex-1 text-[11px] font-semibold text-foreground">{words(name)}</Text>
       {onAdd && <Pressable onPress={onAdd} accessibilityLabel={words("Add")} hitSlop={6} className="h-6 w-6 items-center justify-center rounded-full bg-surface-2"><Icon name="plus" size={13} /></Pressable>}
     </View>
   );
 };
-const Lane = ({ children, h = 44 }: { children: ReactNode; h?: number }) => <View className="flex-row items-center gap-2" style={{ height: h }}>{children}</View>;
+const LANES: [string, string, number][] = [["Media", "Video", 52], ["Text", "Text", 36], ["Voice", "Voice", 36], ["Music", "Music", 36]];
+const ClipPicture = ({ clip }: { clip: ProjectClip }) => { const t = useThumb(clip.uri, clip.kind); return t ? <Image source={{ uri: t }} className="h-full w-full" resizeMode="cover" /> : null; };
+const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onPress: () => void }) => (
+  <Pressable onPress={onPress} accessibilityLabel={label} className="h-8 min-w-8 items-center justify-center rounded-lg border border-border px-1.5"><Text className="text-[13px] font-bold text-foreground">{text}</Text></Pressable>
+);
 
-/** The timeline: its head (clips and layers, the time), then the tracks with their heads: the clips (the selected one
- * in gold), the texts, the voice and the song; the playhead at the time. */
-export function Timeline({ clips, selected, overlays, song, now, onSelect, onAddClip, onText, onVoice, onMusic }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; song?: string; now: number; onSelect: (i: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void }) {
-  const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), layers = 2 + (overlays.length ? 1 : 0) + (song ? 1 : 0);
+/** The timeline (the website's phone timeline, as VN): its head (the time, clips and layers, zoom − / + and Fit), the
+ * tracks' heads, and the tracks sliding under the playhead in the middle: playing moves them, a swipe scrubs (`onSeek`),
+ * two fingers or − / + zoom. A tap on a clip selects it. */
+export function Timeline({ clips, selected, overlays, song, now, playing, onSelect, onSeek, onAddClip, onText, onVoice, onMusic }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void }) {
+  const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), layers = 1 + (overlays.length ? 1 : 0) + (song ? 1 : 0);
+  const [px, setPx] = useState(34), [view, setView] = useState(240), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
+  const zoom = (to: number) => setPx(Math.max(8, Math.min(160, to)));
+  // the Reel follows the playhead while it plays, and when the time changes from elsewhere
+  useEffect(() => { if (!dragging.current) scroller.current?.scrollTo({ x: now * px, animated: false }); }, [now, px]);
+  const pinch = Gesture.Pinch().runOnJS(true).onStart(() => { pinchFrom.current = px; }).onUpdate((e) => zoom(pinchFrom.current * e.scale));
   return (
     <View className="mx-4 mt-3 overflow-hidden rounded-[18px] border border-border bg-surface">
-      <View className="flex-row items-center gap-2.5 border-b border-border px-3.5 py-3">
+      <View className="flex-row items-center gap-1.5 border-b border-border px-3 py-2.5">
         <View className="h-8 w-8 items-center justify-center rounded-[10px] bg-accent/10"><Glyph name="Shots" size={16} color="accent" /></View>
-        <View className="flex-1"><Text className="text-[14px] font-semibold text-foreground">{words("Timeline")}</Text><Text className="text-[11px] text-muted">{clips.length} {words(clips.length === 1 ? "clip" : "clips")} · {layers} {words("layers")}</Text></View>
-        <Text className="text-[11px] font-semibold text-muted">{mmss(now)} / {mmss(total)}</Text>
+        <View className="min-w-0 flex-1"><Text className="text-[14px] font-semibold text-foreground">{words("Timeline")}</Text><Text numberOfLines={1} className="text-[11px] text-muted">{mmss(now)} / {mmss(total)} · {clips.length} {words(clips.length === 1 ? "clip" : "clips")}</Text></View>
+        <ZoomButton label={words("Zoom out")} text="−" onPress={() => zoom(px / 1.5)} />
+        <Text className="w-10 text-center text-[11px] font-semibold text-muted">{Math.round((px / 34) * 100)}%</Text>
+        <ZoomButton label={words("Zoom in")} text="+" onPress={() => zoom(px * 1.5)} />
+        <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total); }} />
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-3 py-3">
-        <View className="gap-1.5">
-          <Lane h={52}><Head glyph="Media" name="Video" onAdd={onAddClip} />
-            <View className="flex-row gap-[3px]">{clips.map((c, i) => (
-              <Pressable key={c.id} onPress={() => onSelect(i)} accessibilityLabel={`${words("Shot")} ${i + 1}`} className={`h-[52px] justify-end overflow-hidden rounded-lg p-1.5 ${i === selected ? "border-2 border-accent" : ""}`} style={{ width: Math.max(44, clipDuration(c) * PX), backgroundColor: CLIP_COL[i % CLIP_COL.length] }}>
-                {c.kind === "image" && <Image source={{ uri: c.uri }} className="absolute inset-0 h-full w-full opacity-60" />}
-                <Text numberOfLines={1} className="text-[9px] font-semibold text-white">{clipDuration(c).toFixed(1)}s{c.speed !== 1 ? ` · ${c.speed}×` : ""}</Text>
-              </Pressable>
-            ))}</View>
-          </Lane>
-          <Lane><Head glyph="Text" name="Text" onAdd={onText} />
-            <Pressable onPress={onText} className="h-8 min-w-[90px] flex-row items-center gap-1 rounded-md border border-[#665276] bg-[#5a4766]/40 px-2">{overlays.length ? overlays.map((o) => <Text key={o.id} numberOfLines={1} className="text-[10px] text-foreground">{o.text}</Text>) : <Text className="text-[10px] text-muted">+ {words("Add text")}</Text>}</Pressable>
-          </Lane>
-          <Lane><Head glyph="Voice" name="Voice" onAdd={onVoice} /><Pressable onPress={onVoice} className="h-8 min-w-[90px] justify-center rounded-md border border-dashed border-border px-2"><Text className="text-[10px] text-muted">+ {words("Voiceover")}</Text></Pressable></Lane>
-          <Lane><Head glyph="Music" name="Music" onAdd={onMusic} />
-            <Pressable onPress={onMusic} className="h-8 flex-row items-center gap-[2px] overflow-hidden rounded-md border border-[#476452] bg-[#476452]/40 px-2" style={{ width: Math.max(160, total * PX) }}>
-              {song ? <><Glyph name="Music" size={12} color="#9fc2a6" /><Text numberOfLines={1} className="text-[10px] text-foreground">{song}</Text></> : <Text className="text-[10px] text-muted">+ {words("Add music")}</Text>}
-            </Pressable>
-          </Lane>
-          <View pointerEvents="none" className="absolute bottom-0 top-0 w-0.5 bg-accent" style={{ left: 104 + 8 + Math.min(now, total) * PX }} />
-        </View>
-      </ScrollView>
+      <View className="flex-row py-2.5 pl-3">
+        <View style={{ width: HEAD }} className="gap-1.5 border-r border-border">{LANES.map(([g, n, h], i) => <Head key={n} glyph={g} name={n} h={h} onAdd={[onAddClip, onText, onVoice, onMusic][i]} />)}</View>
+        <GestureDetector gesture={pinch}>
+          <View className="flex-1" onLayout={(e) => setView(e.nativeEvent.layout.width)}>
+            <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={16} contentContainerStyle={{ paddingHorizontal: view / 2 }}
+              onScrollBeginDrag={() => { dragging.current = true; }} onMomentumScrollEnd={() => { dragging.current = false; }}
+              onScrollEndDrag={(e) => { if (!e.nativeEvent.velocity?.x) dragging.current = false; }}
+              onScroll={(e) => { if (dragging.current && !playing) onSeek(Math.max(0, Math.min(total, e.nativeEvent.contentOffset.x / px))); }}>
+              <View className="gap-1.5">
+                <View className="h-[52px] flex-row">{clips.map((c, i) => (
+                  <Pressable key={c.id} onPress={() => onSelect(i)} accessibilityLabel={`${words("Shot")} ${i + 1}`} className={`mr-[2px] h-[52px] justify-end overflow-hidden rounded-lg ${i === selected ? "border-2 border-accent" : ""}`} style={{ width: Math.max(16, clipDuration(c) * px - 2), backgroundColor: CLIP_COL[i % CLIP_COL.length] }}>
+                    <View className="absolute inset-0 opacity-70"><ClipPicture clip={c} /></View>
+                    <Text numberOfLines={1} className="px-1.5 pb-1 text-[9px] font-semibold text-white">{clipDuration(c).toFixed(1)}s{c.speed !== 1 ? ` · ${c.speed}×` : ""}</Text>
+                  </Pressable>
+                ))}</View>
+                <View className="h-9" style={{ width: total * px }}>{overlays.length ? overlays.map((o) => (
+                  <Pressable key={o.id} onPress={onText} className="absolute h-8 justify-center overflow-hidden rounded-md border border-[#665276] bg-[#5a4766]/50 px-1.5" style={{ left: o.start * px, width: Math.max(24, (o.end - o.start) * px) }}><Text numberOfLines={1} className="text-[10px] text-foreground">{o.text}</Text></Pressable>
+                )) : <Pressable onPress={onText} className="h-8 w-[110px] justify-center rounded-md border border-dashed border-border px-2"><Text className="text-[10px] text-muted">+ {words("Add text")}</Text></Pressable>}</View>
+                <View className="h-9"><Pressable onPress={onVoice} className="h-8 w-[110px] justify-center rounded-md border border-dashed border-border px-2"><Text className="text-[10px] text-muted">+ {words("Voiceover")}</Text></Pressable></View>
+                <View className="h-9"><Pressable onPress={onMusic} className="h-8 flex-row items-center gap-1 overflow-hidden rounded-md border border-[#476452] bg-[#476452]/40 px-2" style={{ width: Math.max(110, total * px) }}>
+                  {song ? <><Glyph name="Music" size={12} color="#9fc2a6" /><Text numberOfLines={1} className="text-[10px] text-foreground">{song}</Text></> : <Text className="text-[10px] text-muted">+ {words("Add music")}</Text>}
+                </Pressable></View>
+              </View>
+            </ScrollView>
+            <View pointerEvents="none" className="absolute bottom-0 top-0 w-0.5 bg-accent" style={{ left: view / 2 - 1 }}><View className="-ml-[4px] h-2.5 w-2.5 rounded-full bg-accent" /></View>
+          </View>
+        </GestureDetector>
+      </View>
     </View>
   );
 }

@@ -10,9 +10,10 @@ import { ThemeLayer } from "../theme";
  * - toast("Saved"): a short line above the bottom bar for a few seconds (tone: info, success, danger)
  * - confirmAction({ title, body, ok, danger }): "Are you sure?" from the bottom; true when confirmed
  * - chooseAction({ title, actions }): a list of choices from the bottom (a card's ⋯); the index picked, or -1
+ * - askAction({ title, body, list, ok, cancel }): the same question with its two answers apart: 0 ok, 1 cancel, -1 closed
  * The one <FeedbackHost/> in the app's frame shows them. */
 export type ToastTone = "info" | "success" | "danger";
-export interface ConfirmAsk { title: string; body?: string; ok?: string; cancel?: string; danger?: boolean }
+export interface ConfirmAsk { title: string; body?: string; list?: string[]; ok?: string; cancel?: string; danger?: boolean }
 export interface ChoiceAsk { title: string; body?: string; cancel?: string; actions: { label: string; icon?: IconName; danger?: boolean }[] }
 type Ask = (ConfirmAsk & { actions?: ChoiceAsk["actions"] }) & { resolve: (picked: number) => void };
 type Toast = { id: number; message: string; tone: ToastTone };
@@ -34,6 +35,7 @@ function open(a: Omit<Ask, "resolve">) {
 }
 export const confirmAction = (a: ConfirmAsk) => open(a).then((picked) => picked === 0);
 export const chooseAction = (a: ChoiceAsk) => open(a);
+export const askAction = (a: ConfirmAsk) => open(a);
 const answer = (picked: number) => { const a = ask; ask = null; emit(); a?.resolve(picked); };
 
 const DOT: Record<ToastTone, string> = { info: "bg-accent", success: "bg-success", danger: "bg-danger" };
@@ -71,6 +73,7 @@ export function FeedbackHost({ ok, cancel, bottom = 88 }: { ok: string; cancel: 
                 {a.danger && <View className="h-11 w-11 items-center justify-center rounded-full bg-danger/15"><Icon name="trash" color="danger" /></View>}
                 <Text className="text-[17px] font-bold leading-[23px] text-foreground">{a.title}</Text>
                 {a.body ? <Text className="text-[12.5px] leading-[19px] text-muted">{a.body}</Text> : null}
+                {a.list?.map((x) => <View key={x} className="flex-row items-center gap-2.5"><View className="h-5 w-5 items-center justify-center rounded-full bg-accent/15"><Icon name="check" size={12} color="accent" /></View><Text className="flex-1 text-[13px] text-foreground">{x}</Text></View>)}
                 {a.actions ? (
                   <>
                     <View className="-mx-2">{a.actions.map((x, i) => (
@@ -83,7 +86,7 @@ export function FeedbackHost({ ok, cancel, bottom = 88 }: { ok: string; cancel: 
                   </>
                 ) : (
                   <View className="mt-1 flex-row gap-2">
-                    <Button className="flex-1" variant="secondary" title={a.cancel ?? cancel} onPress={() => answer(-1)} />
+                    <Button className="flex-1" variant="secondary" title={a.cancel ?? cancel} onPress={() => answer(1)} />
                     <Button className="flex-1" variant={a.danger ? "destroy" : "primary"} title={a.ok ?? ok} onPress={() => answer(0)} />
                   </View>
                 )}

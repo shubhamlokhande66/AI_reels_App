@@ -14,6 +14,9 @@ const json = <T = unknown>(path: string, init?: RequestInit) => api.request<T>(p
 export type AdPlace = "home" | "homeEnd" | "reels" | "rewards" | "account";
 export type AdsConfig = { enabled: boolean; places: Record<AdPlace, boolean>; admob: { android: string; ios: string } };
 
+/** One of the administrator's messages (Admin → Messages: the bell) */
+export interface Notice { id: string; title: string; body: string; link: string; button: string; at: string; unread: boolean }
+
 export const mobileApi = {
   me: () => api.auth.me(),
   signIn: (email: string, password: string) => api.auth.login(email, password),
@@ -24,6 +27,8 @@ export const mobileApi = {
   reels: () => json<{ reels: CloudReel[]; usage: CloudUsage }>("/api/studio/reels"),
   shareReel: (id: string, on: boolean) => json<CloudReel>(`/api/studio/reels/${encodeURIComponent(id)}/share`, { method: "POST", body: JSON.stringify({ on }) }),
   deleteReel: (id: string) => json(`/api/studio/reels/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  notifications: () => json<{ items: Notice[]; unread: number }>("/api/notifications"),
+  readNotifications: () => json<{ ok: boolean }>("/api/notifications", { method: "POST" }),
   templates: () => json<{ templates: StudioTemplate[] }>("/api/templates"),
   features: () => json<Features>("/api/features"),
   /** the Help chat (Admin → Support turns it on): whether it is on, and an answer to the conversation so far */

@@ -9,6 +9,7 @@ import { TopBar } from "../organisms/TopBar";
 import { BottomNav } from "../organisms/BottomNav";
 import { MenuDrawer } from "../organisms/MenuDrawer";
 import { HelpChat } from "../organisms/HelpChat";
+import { useNotes } from "../../lib/notify";
 
 /** The website's phone frame (FE/web-app/components/templates/AppShell.tsx): the top bar, the page, the bottom bar
  * (not in the studio: /create and /editor keep the screen, as on the website) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
@@ -17,6 +18,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   const feedback = (bottom: number) => <FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} bottom={bottom} />;
   const [menu, setMenu] = useState(false);
   const authPage = AUTH_PAGES.includes(pathname), signedOut = !!me?.authEnabled && !me.user;
+  useNotes(!!me?.user);
   useEffect(() => setMenu(false), [pathname]); // a new page: the menu closes
   useEffect(() => { if (signedOut && !authPage && !PUBLIC_PAGES.includes(pathname)) router.replace("/login"); }, [signedOut, authPage, pathname]);
   useEffect(() => {

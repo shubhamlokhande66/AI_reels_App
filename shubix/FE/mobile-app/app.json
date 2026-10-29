@@ -21,14 +21,26 @@
           "photosPermission": "Save finished Reels to your library."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#d8bd7b"
+        }
+      ]
     ],
     "android": {
       "package": "com.shubix.reels",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#10100f"
-      }
+      },
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "experiments": {
       "typedRoutes": true

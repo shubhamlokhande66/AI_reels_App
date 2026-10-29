@@ -10,6 +10,7 @@ import type { CloudReel } from "@shubix/types";
 import { clock, formatRelative, megabytes, videoQuality } from "@shubix/utils";
 import { AdBanner } from "../components/molecules/AdBanner";
 import { mobileApi } from "../lib/api";
+import { useDraftThumbs } from "../lib/thumbs";
 import { useDraftActions, useDrafts } from "../lib/data";
 import { open } from "../lib/navigate";
 import type { MobileProject } from "../lib/projects";
@@ -37,7 +38,7 @@ const MakeReel = () => { const text = useText(); return <Button icon="plus" titl
 const useColumn = () => (useWindowDimensions().width - 32 - 12) / 2;
 
 function Drafts({ drafts }: { drafts: MobileProject[] | null }) {
-  const text = useText(), column = useColumn(), { edit, menu } = useDraftActions();
+  const text = useText(), column = useColumn(), { edit, menu } = useDraftActions(), thumbs = useDraftThumbs(drafts);
   if (drafts === null) return <ActivityIndicator color={colors.accent} />;
   if (!drafts.length) return <EmptyState icon="projects" title={text("reels.noDrafts")} hint={text("reels.noDraftsText")} action={<MakeReel />} />;
   return (
@@ -45,7 +46,7 @@ function Drafts({ drafts }: { drafts: MobileProject[] | null }) {
       {drafts.map((draft) => (
         <View key={draft.id} className="min-w-0 gap-2" style={{ width: column }}>
           <Pressable onPress={() => edit(draft)} accessibilityLabel={text("reels.open", { name: draft.title })}>
-            <ReelCover thumb={draft.clips.find((c) => c.kind === "image")?.uri} duration={clock(draft.clips.reduce((sum, c) => sum + (c.end - c.start) / c.speed, 0))} />
+            <ReelCover thumb={thumbs[draft.id]} duration={clock(draft.clips.reduce((sum, c) => sum + (c.end - c.start) / c.speed, 0))} />
           </Pressable>
           <View className="flex-row items-start gap-1">
             <Pressable onPress={() => edit(draft)} className="min-w-0 flex-1">

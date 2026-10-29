@@ -12,6 +12,7 @@ import { HomeHero } from "../components/organisms/HomeHero";
 import { AdBanner } from "../components/molecules/AdBanner";
 import { useCredits, useDraftActions, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
 import { mobileApi } from "../lib/api";
+import { useDraftThumbs } from "../lib/thumbs";
 import type { MobileProject } from "../lib/projects";
 
 /** Home (the website's app/page.tsx): the hero, Create Your Reel, Popular Templates, Continue Editing, Saved in My
@@ -102,7 +103,7 @@ function TemplatesSection({ width }: { width: number }) {
 
 /** The drafts on this phone, newest first: a row of cards, or the empty card with the first step. */
 function ContinueSection({ width }: { width: number }) {
-  const text = useText(), drafts = useDrafts(), { edit, menu } = useDraftActions(), step = Math.min(200, width * 0.44);
+  const text = useText(), drafts = useDrafts(), { edit, menu } = useDraftActions(), thumbs = useDraftThumbs(drafts), step = Math.min(200, width * 0.44);
   return (
     <View className="gap-3">
       <SectionHeader title={text("home.continueTitle")} more={text("home.seeAll")} onPress={drafts?.length ? () => open("/reels") : undefined} />
@@ -114,7 +115,7 @@ function ContinueSection({ width }: { width: number }) {
         <Scroller label={text("home.continueTitle")} step={step}>
           {drafts.slice(0, 10).map((draft) => (
             <View key={draft.id} style={{ width: step }}>
-              <DraftCard name={draft.title} thumb={draft.clips.find((c) => c.kind === "image")?.uri} duration={clock(draft.clips.reduce((sum, c) => sum + (c.end - c.start) / c.speed, 0))}
+              <DraftCard name={draft.title} thumb={thumbs[draft.id]} duration={clock(draft.clips.reduce((sum, c) => sum + (c.end - c.start) / c.speed, 0))}
                 edited={text("common.edited", { when: formatRelative(draft.updatedAt) })} onPress={() => edit(draft)} moreLabel={text("common.more")}
                 onMore={() => void menu(draft)} />
             </View>
