@@ -177,7 +177,7 @@ export function initFlow(root: HTMLElement): () => void {
       steps(4);
     }
     crumbs(on);
-    if (!on) { if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
+    if (!on) { setFlag($("fintro"), "hidden", true); if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
     const k = readKind();
     if (k !== kind || !$("ftitle").dataset.k) {
       kind = k;
@@ -199,6 +199,7 @@ export function initFlow(root: HTMLElement): () => void {
       if (slug && location.pathname !== `/create/${slug}`) history.replaceState(history.state, "", `/create/${slug}${location.search}${location.hash}`);
     }
     setData(root, "fstep", step);
+    setFlag($("fintro"), "hidden", step !== "intro");
     setData(root, "fkind", kind);
     // the step in the address (/create/music?step=clips): each screen of the flow has its own; a made Reel moves to /create/edit?p=…
     if (location.pathname !== "/create/edit") {
@@ -208,7 +209,7 @@ export function initFlow(root: HTMLElement): () => void {
         history.replaceState(history.state, "", u.pathname + u.search + u.hash);
       }
     }
-    setClass(root, "flive", true); setClass($("fhead"), "invisible", false); // the kind's own words are in: the flow can be seen
+    setClass(root, "flive", true); for (const id of ["fhead", "fintro"]) setClass($(id), "invisible", false); // the kind's own words are in: the flow can be seen
     // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
     const adj = phone() && step === "adjust", copy = kind === "copy";
     // Copy a Reel: the song is the copied Reel's ("Different song?" in the Reel to copy box opens the picker: .pickown)

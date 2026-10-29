@@ -46,6 +46,8 @@ const IC = {
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
 const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
+// the flow's main button: on phones fixed at the bottom of the screen
+const phoneBottomButton = `${Button.primaryLarge} max-lg:fixed max-lg:inset-x-4 max-lg:bottom-[calc(14px+env(safe-area-inset-bottom))] max-lg:z-30 max-lg:min-h-[52px] max-lg:w-auto max-lg:rounded-[14px] max-lg:text-[16px] max-lg:shadow-[0_14px_30px_-12px_var(--brand-glow)]`;
 // a step of the flow's head (data-s: on = this one, ok = done); on phones a dot, the steps joined by a line
 const stepItem = "group relative grid min-w-[84px] justify-items-center gap-1.5 text-xs font-semibold text-muted data-[s=on]:text-accent before:absolute before:top-[13px] before:right-[calc(50%+18px)] before:h-0.5 before:w-[calc(100%-36px)] before:bg-border first:before:hidden data-[s=on]:before:bg-accent data-[s=ok]:before:bg-accent max-lg:flex max-lg:min-w-0 max-lg:flex-1 max-lg:items-center max-lg:gap-0 max-lg:first:flex-none max-lg:before:static max-lg:before:mx-1.5 max-lg:before:w-auto max-lg:before:flex-1 max-lg:before:rounded-sm";
 const stepDot = "grid size-7 flex-none place-items-center rounded-full border border-border bg-surface-2 text-xs font-semibold not-italic text-muted group-data-[s=on]:border-transparent group-data-[s=on]:bg-gold group-data-[s=on]:text-on-accent group-data-[s=on]:shadow-[0_0_0_5px_color-mix(in_srgb,var(--accent)_22%,transparent)] group-data-[s=ok]:border-accent group-data-[s=ok]:bg-[color-mix(in_srgb,var(--accent)_25%,var(--surface))] group-data-[s=ok]:text-foreground max-lg:size-2.5 max-lg:border-0 max-lg:bg-muted/55 max-lg:text-[0] max-lg:group-data-[s=ok]:bg-accent max-lg:group-data-[s=on]:size-[30px] max-lg:group-data-[s=on]:bg-gold max-lg:group-data-[s=on]:text-[13px]";
@@ -217,13 +219,13 @@ export const STUDIO_HTML = `
     </div>
     </div>
   </form>
-  <section class="fintro" id="fintro" aria-labelledby="fintroh">
-    <span class="fbadge" id="fintroic">${IC.music}</span>
-    <h2 id="fintroh">Create a Music Reel</h2>
-    <p id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
-    <ul class="fchecks" id="fintrol"><li>${IC.check}Pick a song</li><li>${IC.check}Add your videos or photos</li><li>${IC.check}Shubix edits on the beat</li><li>${IC.check}Preview, make changes and export</li></ul>
-    <button type="button" class="${Button.primaryLarge} fgo" data-fnext="1"><span id="fgot">Let's Start</span> ${IC.arrow}</button>
-    <button type="button" class="${Button.ghost} fsample" id="fsample" hidden>No clips with you? Try it with our sample clips</button>
+  <section class="invisible grid content-start justify-items-center gap-3 px-1 pt-2 pb-1 text-center lg:hidden" id="fintro" aria-labelledby="fintroh" hidden>
+    <span class="grid size-[76px] place-items-center rounded-[22px] bg-gold shadow-[0_0_0_10px_color-mix(in_srgb,var(--accent)_12%,transparent),0_18px_40px_-16px_var(--brand-glow)] [&>svg]:size-12! [&>svg]:bg-transparent! [&>svg]:p-0! [&>svg]:text-white" id="fintroic">${IC.music}</span>
+    <h2 class="mt-1.5 font-display text-[27px] font-semibold tracking-[-.02em]" id="fintroh">Create a Music Reel</h2>
+    <p class="max-w-[30ch] text-[14.5px] text-muted" id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
+    <ul class="mt-3.5 mb-1.5 grid gap-3 justify-self-stretch px-1.5 text-left" id="fintrol"><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Pick a song</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Add your videos or photos</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Shubix edits on the beat</li><li class="flex items-center gap-3 text-[15px] font-semibold [&>svg]:size-6 [&>svg]:flex-none [&>svg]:rounded-full [&>svg]:bg-accent [&>svg]:p-1 [&>svg]:stroke-3 [&>svg]:text-white">${IC.check}Preview, make changes and export</li></ul>
+    <button type="button" class="${phoneBottomButton}" data-fnext="1"><span id="fgot">Let's Start</span> ${IC.arrow}</button>
+    <button type="button" class="${Button.ghost} mt-2 w-full" id="fsample" hidden>No clips with you? Try it with our sample clips</button>
   </section>
   <!-- the kind and the template, pressed by the address (/create/music|talking|photo, /create/story, ?tpl=): never
        shown (each kind has its own page now); the engine, steps.ts and auto.ts read and press these buttons -->
@@ -271,7 +273,7 @@ export const STUDIO_HTML = `
       <button class="${Button.ghost}" id="skipmusic" type="button" hidden>Continue without music</button>
     </div>
     <div class="recent" id="recent" hidden><span class="label">Recent songs</span><div class="rlist" id="rlist"></div></div>
-    <button type="button" class="${Button.primaryLarge} fnext fchoosenext" data-fnext="1" id="fchnext" disabled><span id="fchnt">Next</span> ${IC.arrow}</button>
+    <button type="button" class="${phoneBottomButton} fnext hidden max-lg:in-[.fopen]:inline-flex" data-fnext="1" id="fchnext" disabled><span id="fchnt">Next</span> ${IC.arrow}</button>
     </div>
     <div class="fadjust">
     <div class="fsong" id="fsong"><span class="fsongic">${IC.music}</span><span class="fsongt"><b id="fsongn"></b><small id="fsongd"></small></span></div>
@@ -300,7 +302,7 @@ export const STUDIO_HTML = `
       <span><i style="background:var(--cut)"></i>Cut: plain cut</span>
       <span><i style="background:var(--break)"></i>Break: slow motion</span>
     </div>
-    <button type="button" class="${Button.primaryLarge} fnext" data-fnext="1" id="fadjnext" disabled><span id="fadjnt">Next</span> ${IC.arrow}</button>
+    <button type="button" class="${phoneBottomButton} fnext hidden max-lg:in-[.fopen]:inline-flex" data-fnext="1" id="fadjnext" disabled><span id="fadjnt">Next</span> ${IC.arrow}</button>
     </div>
     </div>
   </section>
@@ -344,7 +346,7 @@ export const STUDIO_HTML = `
       </div>
     </div>
     <span class="fslot" id="fsndslot"></span>
-    <button type="button" class="${Button.primaryLarge} fnext" data-fnext="1" id="fclipsnext" disabled><span id="fclipsnt">Next</span> ${IC.arrow}</button>
+    <button type="button" class="${phoneBottomButton} fnext hidden max-lg:in-[.fopen]:inline-flex" data-fnext="1" id="fclipsnext" disabled><span id="fclipsnt">Next</span> ${IC.arrow}</button>
     </div>
   </section>
 

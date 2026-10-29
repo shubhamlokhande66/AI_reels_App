@@ -628,15 +628,6 @@
 .brs .fsmall{font-size:11.5px}
 
 /* the phones' intro and Analysing screens */
-.brs .fintro{display:grid;justify-items:center;gap:14px;text-align:center;padding:12px 4px 4px}
-.brs .fbadge{width:96px;height:96px;border-radius:28px;display:grid;place-items:center;background:var(--gold-gradient);box-shadow:0 0 0 10px color-mix(in srgb,var(--accent) 12%,transparent),0 18px 40px -16px var(--brand-glow)}
-.brs .fbadge svg{width:48px !important;height:48px !important;padding:0 !important;background:none !important;color:#fff}
-.brs .fintro h2{margin:6px 0 0;font:600 22px var(--display);letter-spacing:-.02em}
-.brs .fintro p{margin:0;color:var(--muted);font-size:14.5px;max-width:30ch}
-.brs .fchecks{list-style:none;margin:10px 0 6px;padding:0;display:grid;gap:14px;justify-self:stretch;text-align:left}
-.brs .fchecks li{display:flex;align-items:center;gap:12px;font:600 15px var(--body)}
-.brs .fchecks svg{flex:none;width:24px;height:24px;padding:4px;border-radius:50%;background:var(--accent);color:#fff;stroke-width:3}
-.brs .fnext,.brs .fgo{width:100%;justify-content:center;gap:8px}
 .brs .fan{display:grid;justify-items:center;gap:16px;text-align:center;padding:8px 0}
 .brs .fan h2{margin:0;font:600 22px var(--display)}
 .brs .fan .aoring b{font:600 34px var(--body)}
@@ -649,7 +640,7 @@
 
 /* ---- computers: the steps in a column, the preview beside them ---- */
 @media (min-width:1024px){
-  .brs.fopen .fintro,.brs.fopen .fan,.brs.fopen .fnext{display:none !important}
+  .brs.fopen .fan{display:none !important}
   .brs.fopen .fgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:18px;align-items:start}
   .brs.fopen .fmain{display:grid;gap:16px;min-width:0}
   .brs.fopen .fprev{position:sticky;top:84px;padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--surface)}
@@ -665,10 +656,7 @@
 @media (max-width:1023px){
   .brs.fopen :is(.fai,.fprev){display:none !important}
   .brs.fopen :is(.fgrid,.fmain){display:contents}
-  .brs.fopen:not([data-fstep="intro"]) .fintro,
-  .brs.fopen:not([data-fstep="choose"]):not([data-fstep="adjust"]) #s1,
-  .brs.fopen:not([data-fstep="clips"]) #s2,
-  .brs.fopen:not([data-fstep="analyse"]) .fan{display:none !important}
+  .brs.fopen:not([data-fstep="choose"]):not([data-fstep="adjust"]) #s1,.brs.fopen:not([data-fstep="clips"]) #s2,.brs.fopen:not([data-fstep="analyse"]) .fan{display:none !important}
   .brs.fopen[data-fstep="choose"] .fadjust,.brs.fopen[data-fstep="adjust"] .fchoose{display:none}
   .brs.fopen .step{padding:14px;border-radius:18px}
   .brs.fopen .rlist{grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:1fr}
@@ -677,7 +665,6 @@
   .brs.fopen .rsong.cur::after{top:50%;bottom:auto;transform:translateY(-50%);right:40px}
   .brs.fopen .rdel{top:50%;transform:translateY(-50%)}
   .brs.fopen .clips{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .brs.fopen .fnext{position:sticky;bottom:calc(12px + env(safe-area-inset-bottom));z-index:5}
 }
 /* a Talking Reel keeps the voices: shown as the chosen option (the engine's talk edit is the voice, pauses cut) */
 .brs.fopen.talkmode #clipsnd{display:grid !important}
@@ -726,17 +713,11 @@
   .brs.fopen .wrap{gap:18px;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   .brs.fopen #s1,.brs.fopen #s2{background:none !important;border:0;box-shadow:none;padding:4px 0 0 !important;border-radius:0}
   .brs.fopen #s1 > .sh,.brs.fopen #s2 > .sh{display:none !important}
-  .brs.fopen :is(.fgo,.fnext){position:fixed;left:16px;right:16px;bottom:calc(14px + env(safe-area-inset-bottom));width:auto;z-index:30;min-height:52px;border-radius:14px;font-size:16px;box-shadow:0 14px 30px -12px var(--brand-glow)}
-  .brs.fopen .fnext:disabled{opacity:.55}
   .brs.fopen .label{font:600 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
 
   /* 1 Music Reel Start */
   /* its own height (no screen-tall minimum: with the title and Ask Shubix above it, that made the page scroll to
      nothing); compact enough to fit a phone screen whole */
-  .brs.fopen .fintro{align-content:start;padding-top:8px;gap:12px}
-  .brs.fopen .fbadge{width:76px;height:76px;border-radius:22px}
-  .brs.fopen .fintro h2{font-size:27px;margin-top:6px}
-  .brs.fopen .fchecks{margin-top:14px;gap:12px;padding:0 6px}
 
   /* 2 Choose Music: the phone's songs as a list (picture, name, length, + / chosen) */
   .brs.fopen .fpickrow{display:grid;gap:10px}
@@ -1031,7 +1012,6 @@
 .brs .ask .askrow{flex-wrap:wrap}
 .brs #xres button, .brs #xfps button{position:relative}
 .brs #xres .crowned::after, .brs #xfps .crowned::after{content:"👑";position:absolute;top:6px;right:8px;font-size:13px}
-.brs .fsample{margin-top:8px;width:100%}
 
 /* the progress bar is a seek bar: tap or drag (views.ts); a taller reach than its 4 px line, and a handle */
 .brs.made .stage .bar{position:relative;overflow:visible;cursor:pointer;touch-action:none}
