@@ -1,8 +1,8 @@
 import { cn } from "@/lib/cn";
+import { chipClass as shared } from "@shubix/ui-web";
 
 /** A chip's look, for a link that is drawn as a chip. */
-export const chipClass = (on = false, className?: string) =>
-  cn("inline-flex h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border bg-surface px-3.5 text-[12.5px] font-semibold text-foreground transition-colors", on ? "border-accent bg-[var(--chip-on)]" : "border-border hover:border-accent/50", className);
+export const chipClass = (on = false, className?: string) => cn(shared(on), className);
 
 /** A pill to pick one of a few (a tab, a filter, a style): `on` when chosen. */
 export function Chip({ on = false, className, children, ...rest }: { on?: boolean; className?: string; children: React.ReactNode } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className">) {

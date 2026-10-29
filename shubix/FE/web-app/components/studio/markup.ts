@@ -5,7 +5,7 @@
  * motion, background, overlay, voice, style), one panel open at a time. A plan's tools carry its tag (views.ts PLAN_TOOLS).
  * ?view=all opens every panel at once (checks and support). */
 import { PLAN_TOOLS } from "./views";
-import { B } from "./ui";
+import { B, CHIP } from "./ui";
 
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
@@ -557,9 +557,9 @@ export const STUDIO_HTML = `
             <div class="lylist" id="lylist"></div>
             <div class="lyedit" id="lyedit" hidden>
               <span class="label">Layout</span>
-              <div class="chips"><button type="button" class="chip" data-lay="tl"><i class="lyic lay-tl" aria-hidden="true"></i><span>Top left</span></button><button type="button" class="chip" data-lay="tr"><i class="lyic lay-tr" aria-hidden="true"></i><span>Top right</span></button><button type="button" class="chip" data-lay="bl"><i class="lyic lay-bl" aria-hidden="true"></i><span>Bottom left</span></button><button type="button" class="chip" data-lay="br"><i class="lyic lay-br" aria-hidden="true"></i><span>Bottom right</span></button><button type="button" class="chip" data-lay="top"><i class="lyic lay-top" aria-hidden="true"></i><span>Top</span></button><button type="button" class="chip" data-lay="bottom"><i class="lyic lay-bottom" aria-hidden="true"></i><span>Bottom</span></button><button type="button" class="chip" data-lay="left"><i class="lyic lay-left" aria-hidden="true"></i><span>Left</span></button><button type="button" class="chip" data-lay="right"><i class="lyic lay-right" aria-hidden="true"></i><span>Right</span></button><button type="button" class="chip" data-lay="full"><i class="lyic lay-full" aria-hidden="true"></i><span>Full</span></button></div>
+              <div class="chips"><button type="button" class="${CHIP}" data-lay="tl"><i class="lyic lay-tl" aria-hidden="true"></i><span>Top left</span></button><button type="button" class="${CHIP}" data-lay="tr"><i class="lyic lay-tr" aria-hidden="true"></i><span>Top right</span></button><button type="button" class="${CHIP}" data-lay="bl"><i class="lyic lay-bl" aria-hidden="true"></i><span>Bottom left</span></button><button type="button" class="${CHIP}" data-lay="br"><i class="lyic lay-br" aria-hidden="true"></i><span>Bottom right</span></button><button type="button" class="${CHIP}" data-lay="top"><i class="lyic lay-top" aria-hidden="true"></i><span>Top</span></button><button type="button" class="${CHIP}" data-lay="bottom"><i class="lyic lay-bottom" aria-hidden="true"></i><span>Bottom</span></button><button type="button" class="${CHIP}" data-lay="left"><i class="lyic lay-left" aria-hidden="true"></i><span>Left</span></button><button type="button" class="${CHIP}" data-lay="right"><i class="lyic lay-right" aria-hidden="true"></i><span>Right</span></button><button type="button" class="${CHIP}" data-lay="full"><i class="lyic lay-full" aria-hidden="true"></i><span>Full</span></button></div>
               <span class="label">When · <span id="lytime"></span></span>
-              <div class="chips"><button type="button" class="chip" data-lyt="start">Start at the playhead</button><button type="button" class="chip" data-lyt="end">End at the playhead</button><button type="button" class="chip" data-lyt="all">Whole Reel</button></div>
+              <div class="chips"><button type="button" class="${CHIP}" data-lyt="start">Start at the playhead</button><button type="button" class="${CHIP}" data-lyt="end">End at the playhead</button><button type="button" class="${CHIP}" data-lyt="all">Whole Reel</button></div>
               <span class="label">Place</span>
               <label class="cslide"><span>Across</span><input type="range" data-ly="x" min="0" max="1" step="0.01"><output></output></label>
               <label class="cslide"><span>Down</span><input type="range" data-ly="y" min="0" max="1" step="0.01"><output></output></label>
@@ -567,9 +567,9 @@ export const STUDIO_HTML = `
               <label class="cslide"><span>Rotate</span><input type="range" data-ly="r" min="-180" max="180" step="1"><output></output></label>
               <label class="cslide"><span>Opacity</span><input type="range" data-ly="op" min="0" max="1" step="0.05"><output></output></label>
               <label class="cslide"><span>Corners</span><input type="range" data-ly="rad" min="0" max="1" step="0.05"><output></output></label>
-              <div class="chips"><button type="button" class="chip" data-lyf="fh">Mirror</button><button type="button" class="chip" data-lyf="fv">Flip</button></div>
+              <div class="chips"><button type="button" class="${CHIP}" data-lyf="fh">Mirror</button><button type="button" class="${CHIP}" data-lyf="fv">Flip</button></div>
               <span class="label">Mask</span>
-              <div class="chips" id="lymask"><button type="button" class="chip" data-m="none"><i class="lyic mk-none" aria-hidden="true"></i><span>None</span></button><button type="button" class="chip" data-m="circle"><i class="lyic mk-circle" aria-hidden="true"></i><span>Circle</span></button><button type="button" class="chip" data-m="rect"><i class="lyic mk-rect" aria-hidden="true"></i><span>Rectangle</span></button><button type="button" class="chip" data-m="line"><i class="lyic mk-line" aria-hidden="true"></i><span>Line</span></button><button type="button" class="chip" data-m="mirror"><i class="lyic mk-mirror" aria-hidden="true"></i><span>Mirror</span></button></div>
+              <div class="chips" id="lymask"><button type="button" class="${CHIP}" data-m="none"><i class="lyic mk-none" aria-hidden="true"></i><span>None</span></button><button type="button" class="${CHIP}" data-m="circle"><i class="lyic mk-circle" aria-hidden="true"></i><span>Circle</span></button><button type="button" class="${CHIP}" data-m="rect"><i class="lyic mk-rect" aria-hidden="true"></i><span>Rectangle</span></button><button type="button" class="${CHIP}" data-m="line"><i class="lyic mk-line" aria-hidden="true"></i><span>Line</span></button><button type="button" class="${CHIP}" data-m="mirror"><i class="lyic mk-mirror" aria-hidden="true"></i><span>Mirror</span></button></div>
               <div id="lymaskopts">
                 <label class="cslide"><span>Width</span><input type="range" data-ly="mk.w" min="0.05" max="1.5" step="0.01"><output></output></label>
                 <label class="cslide"><span>Height</span><input type="range" data-ly="mk.h" min="0.05" max="1.5" step="0.01"><output></output></label>
@@ -603,7 +603,7 @@ export const STUDIO_HTML = `
               <div class="ttslist" id="ttslist"></div>
             </div>
             <span class="label musiconly">Voice changer</span>
-            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="chip" data-f="none" aria-pressed="true">Original</button><button type="button" class="chip" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="chip" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="chip" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="chip" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="chip" data-f="echo" aria-pressed="false">Echo</button></div>
+            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${CHIP}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${CHIP}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${CHIP}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${CHIP}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${CHIP}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${CHIP}" data-f="echo" aria-pressed="false">Echo</button></div>
             <p class="hint talkonly">Talking videos: pauses, music under the voice and noise cleanup are in step 2.</p>
           </section>
 

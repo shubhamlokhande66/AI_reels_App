@@ -1,4 +1,4 @@
-import { buttonClass, iconButtonClass } from "@shubix/ui-web";
+import { buttonClass, chipClass, iconButtonClass } from "@shubix/ui-web";
 
 /** The studio's buttons: the website's one button (Shared/ui-web/src/button.ts) for the studio's HTML strings. */
 export const B = {
@@ -14,3 +14,6 @@ export const B = {
   iconBox: iconButtonClass(),
   close: `${iconButtonClass(true)} size-8 text-muted hover:bg-surface-2`,
 };
+
+/** The studio's chips: the website's chip (chosen: aria-pressed="true"); `chip` stays as the name the code looks for. */
+export const CHIP = `chip ${chipClass()}`;

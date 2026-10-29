@@ -15,7 +15,7 @@ import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/pl
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
-import { B } from "./ui";
+import { B, CHIP } from "./ui";
 
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
@@ -3969,7 +3969,7 @@ function renderOvList(){
     if(ov.emoji) row.querySelectorAll('[data-ovt="font"],[data-ovt="style"]').forEach(b => { b.hidden = true; });
     row.querySelectorAll('.ovchips').forEach(box2 => { const sel = row.querySelector('.' + box2.dataset.for);
       const paint = () => [...box2.children].forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === sel.value)));
-      [...sel.options].forEach(o => { const c = document.createElement('button'); c.type = 'button'; c.className = 'chip'; c.dataset.v = o.value; c.textContent = o.text;
+      [...sel.options].forEach(o => { const c = document.createElement('button'); c.type = 'button'; c.className = `${CHIP}`; c.dataset.v = o.value; c.textContent = o.text;
         c.addEventListener('click', () => { sel.value = o.value; sel.dispatchEvent(new Event('change')); paint(); }); box2.appendChild(c); });
       paint(); });
     const pick = row.querySelector('.ovcol'); pick.value = /^#[0-9a-f]{6}$/i.test(ov.color || '') ? ov.color : '#ffffff'; if(ov.emoji) pick.parentElement.hidden = true;
@@ -6201,7 +6201,7 @@ function sfxEvents(){
 }
 function sfxAdd(k){ if(!SFX_NAMES[k] || !buf) return; sfxList.push({ id: ++sfxSeq, at: +(playing ? curTime() : pos).toFixed(2), kind: k }); sfxUI(); clipMixKey = ''; ensureMix(); notify(SFX_NAMES[k] + ' added at ' + (playing ? curTime() : pos).toFixed(1) + ' s'); }
 function sfxUI(){ const box = $('sfxlist'); if(!box) return; box.innerHTML = '';
-  for(const x of sfxList){ const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = SFX_NAMES[x.kind] + ' · ' + x.at.toFixed(1) + ' s ×'; b.title = 'Remove';
+  for(const x of sfxList){ const b = document.createElement('button'); b.type = 'button'; b.className = `${CHIP}`; b.textContent = SFX_NAMES[x.kind] + ' · ' + x.at.toFixed(1) + ' s ×'; b.title = 'Remove';
     b.addEventListener('click', () => { sfxList = sfxList.filter(y => y !== x); sfxUI(); clipMixKey = ''; ensureMix(); }); box.appendChild(b); } }
 $('sfxadd').addEventListener('click', e => { const b = e.target.closest('[data-sfx]'); if(b) sfxAdd(b.dataset.sfx); }, SIG);
 $('sfxon').addEventListener('change', e => { au = { ...au, sfx: e.target.checked }; clipMixKey = ''; ensureMix(); }, SIG);
