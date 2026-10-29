@@ -7,5 +7,6 @@ export * from "./Cards";
 export * from "./SearchBox";
 export * from "./SidePanel";
 export * from "./Feedback";
+export * from "./Tasks";
 export * from "./OtpInput";
 export * from "./Chat";

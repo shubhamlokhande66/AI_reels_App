@@ -111,6 +111,7 @@ into `Shared/core/src/engine/studio/` (one module per job), in a hidden page in 
 | Step | What | Status |
 |---|---|---|
 | 1 | Song analysis (`song.ts`: beats, hits, drops, breaks, cuts), shared by the website and the phone | ✅ |
+| 1b | The beat check (Beat This! on the device, `lib/beatThis/device.ts`, shared by the website's worker and the phone) and the task cards (`ui-mobile` Tasks = the website's tasks.ts) | ✅ |
 | 2 | Song parts and the length (`useSection`, `bestPart`, `songParts`) | ⬜ |
 | 3 | The plan: shots on the beats by style (`buildPlan`, `adaptPlan`, `beatEdit`, `noFlashCuts`, `endWell`) | ⬜ |
 | 4 | Clip reading (motion, sharpness, scenes, faces) and the moments (`scoreWindow`, `makeEditNow` pick, `seqPick`) | ⬜ |

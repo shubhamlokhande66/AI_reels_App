@@ -5,7 +5,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStudioText } from "@shubix/hooks";
-import { askAction, Button, toast } from "@shubix/ui-mobile";
+import { askAction, Button, tasks, toast } from "@shubix/ui-mobile";
 import { usePlanAi } from "../../lib/data";
 import { engine, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@shubix/api-client";
@@ -43,7 +43,22 @@ export default function CreateScreen() {
   // the song as the website's engine hears it (its beats, drops and breaks: the Reel is cut on them); without it the clips play in turn
   async function hear(s: Song) {
     setMusic(null);
-    try { setMusic(await engine.song(s.uri)); } catch (e) { console.warn("song analysis", e); }
+    tasks.start("song", "music", words("Adding your song"), `${words("Reading the sound of")} ${s.name}`);
+    try { setMusic(await engine.song(s.uri, (step) => tasks.update("song", null, words(step)))); tasks.done("song", words(media.length ? "Song ready" : "Song ready · now add your clips")); }
+    catch (e) { console.warn("song analysis", e); tasks.fail("song", words("This file has no sound we can read. Try an MP3, M4A or WAV.")); return; }
+    void checkBeats();
+  }
+  // the second opinion on the beats, as on the website: Beat This! on this phone, the first edit never waits for it
+  async function checkBeats() {
+    let stage = "";
+    tasks.start("beats", "ai", words("Checking the beats"), words("Shubix listens to your song on this phone"));
+    try {
+      const better = await engine.checkBeats((s) => {
+        if (s.stage !== stage) { stage = s.stage; tasks.start("beats", "ai", words(stage === "download" ? "Getting the Shubix beat tracker" : "Checking the beats"), words(stage === "download" ? "Only the first time · kept on this phone" : "Shubix listens to your song on this phone")); }
+        tasks.update("beats", s.p, s.stage === "download" && s.p >= 1 ? words("Downloaded · starting Shubix") : undefined);
+      });
+      setMusic(better); tasks.done("beats", words("Beats checked"));
+    } catch (e) { console.info("on-device beat tracker not used:", e); tasks.clear("beats"); }
   }
   async function addMedia() {
     const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: photos ? ["images"] : ["videos"], allowsMultipleSelection: true, selectionLimit: Math.max(1, 30 - media.length), quality: 0.9 });
@@ -56,7 +71,9 @@ export default function CreateScreen() {
     try {
       at(0.02, 0); setProgress((p) => ({ ...p, status: words("Reading your clips…") }));
       const speed = { fast: 1.25, smooth: 0.8, "": 1 }[styleFromWords(wish)]; // what was asked of Shubix AI, as the phone can do it
-      const clips = (await keepPickedAssets(id, media, (n) => setProgress((p) => ({ ...p, pct: 0.02 + (0.58 * n) / media.length })))).map((c) => ({ ...c, speed }));
+      tasks.start("clips", "clips", words("Reading your clips"), `${words("Clip")} 1 / ${media.length}`);
+      const clips = (await keepPickedAssets(id, media, (n) => { setProgress((p) => ({ ...p, pct: 0.02 + (0.58 * n) / media.length })); tasks.update("clips", n / media.length, `${words("Clip")} ${Math.min(media.length, n + 1)} / ${media.length}`); })).map((c) => ({ ...c, speed }));
+      tasks.done("clips", `${clips.length} ${words(clips.length === 1 ? "clip" : "clips")} ${words("ready · making your Reel")}`);
       at(0.62, 1);
       const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
       at(0.8, 2);
@@ -67,7 +84,7 @@ export default function CreateScreen() {
       await queryClient.invalidateQueries({ queryKey: ["drafts"] });
       setProgress({ pct: 1, done: 4, status: words("Your Reel is ready!") });
       setTimeout(() => { setStep("clips"); router.push({ pathname: "/editor", params: { id } }); }, 450); // back from the editor: the clips again
-    } catch (e) { toast(errorMessage(e), "danger"); setStep("clips"); }
+    } catch (e) { tasks.clear("clips"); toast(errorMessage(e), "danger"); setStep("clips"); }
   }
 
   // Free (no Shubix AI in the plan): before the Reel is made, what Shubix AI would do and the way to it (the website's upsell)

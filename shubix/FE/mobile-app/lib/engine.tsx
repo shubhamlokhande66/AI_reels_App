@@ -3,6 +3,8 @@ import { Platform, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { File } from "expo-file-system";
 import { ENGINE_PAGE } from "./engine.page";
+import { API_URL } from "./session";
+import { tokenStore } from "./device";
 
 /** The website's edit engine on this phone: its modules (Shared/core/src/engine/studio) run in a hidden page in the
  * phone's browser engine, as fast as the website and with the same results; the screens stay native. <EngineHost/> (in
@@ -10,39 +12,43 @@ import { ENGINE_PAGE } from "./engine.page";
  * TODO (later): the same engine in Kotlin, without the hidden page. */
 export type SongAnalysis = { duration: number; sampleRate: number; bpm: number; beats: number[]; cuts: number[]; cutType: ("drop" | "hit" | "cut" | "break")[]; drops: number; breaks: number; source: string };
 
-type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void };
+type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void; onStep?: (step: never) => void };
 const waiting = new Map<number, Waiting>();
 type Page = { injectJavaScript: (js: string) => void; reload: () => void };
 let page: Page | null = null, next = 1, ready: () => void;
 const isReady = new Promise<void>((r) => { ready = r; });
 const PART = 256 * 1024; // a big file crosses in pieces
 
-async function call<T>(op: string, args: Record<string, unknown> = {}, audio?: string): Promise<T> {
+async function call<T, S = string>(op: string, args: Record<string, unknown> = {}, audio?: string, onStep?: (step: S) => void): Promise<T> {
   if (Platform.OS === "web") throw new Error("The phone's engine runs on a phone.");
   await isReady;
   const id = next++;
   if (audio) for (let i = 0; i < audio.length; i += PART) page?.injectJavaScript(`window.engine.part(${id}, ${JSON.stringify(audio.slice(i, i + PART))}); true;`);
   return new Promise<T>((resolve, reject) => {
-    waiting.set(id, { resolve: resolve as (v: unknown) => void, reject });
+    waiting.set(id, { resolve: resolve as (v: unknown) => void, reject, onStep: onStep as Waiting["onStep"] });
     page?.injectJavaScript(`window.engine.call(${id}, ${JSON.stringify(op)}, ${JSON.stringify(audio ? { ...args, audio: "@parts" } : args)}); true;`);
   });
 }
 
 export const engine = {
-  /** the song as the website hears it: its beats, cuts and their kinds (drops, hits, breaks), its tempo */
-  song: async (uri: string) => call<SongAnalysis>("song", {}, await new File(uri).base64()),
+  /** the song as the website hears it: its beats, cuts and their kinds (drops, hits, breaks), its tempo (`onStep`: what it is doing, in words) */
+  song: async (uri: string, onStep?: (text: string) => void) => call<SongAnalysis>("song", {}, await new File(uri).base64(), onStep),
+  /** the second opinion on the song's beats (Beat This!, its model downloaded once): the analysis again with the better beats */
+  checkBeats: async (onStep?: (s: { stage: "download" | "run"; p: number }) => void) => call<SongAnalysis, { stage: "download" | "run"; p: number }>("checkBeats", { token: await tokenStore.get() }, undefined, onStep),
 };
 
 function onMessage(e: WebViewMessageEvent) {
-  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string };
+  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string; step?: never };
   if (m.id === 0) return ready();
   const w = waiting.get(m.id);
   if (!w) return;
+  if (m.step) return w.onStep?.(m.step);
   waiting.delete(m.id);
   if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error));
 }
 
-/** The hidden page (0 × 0, never seen): mounted once in the app's frame. */
+/** The hidden page (0 × 0, never seen): mounted once in the app's frame. Its address is the API's, so it downloads the
+ * engine's models from there as the website does. */
 export function EngineHost() {
   const ref = useRef<Page | null>(null);
   // the page was stopped by the phone (out of memory): what it was doing fails, and it starts again
@@ -50,7 +56,7 @@ export function EngineHost() {
   if (Platform.OS === "web") return null;
   return (
     <View pointerEvents="none" style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}>
-      <WebView ref={(w: Page | null) => { ref.current = w; page = w; }} source={{ html: ENGINE_PAGE }} originWhitelist={["*"]} onMessage={onMessage} javaScriptEnabled
+      <WebView ref={(w: Page | null) => { ref.current = w; page = w; }} source={{ html: ENGINE_PAGE, baseUrl: `${API_URL}/` }} originWhitelist={["*"]} onMessage={onMessage} javaScriptEnabled
         mediaPlaybackRequiresUserAction={false} onContentProcessDidTerminate={restart} onRenderProcessGone={restart} />
     </View>
   );

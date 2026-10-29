@@ -3,7 +3,7 @@ import { BackHandler, Platform, View } from "react-native";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useText } from "@shubix/hooks";
-import { FeedbackHost } from "@shubix/ui-mobile";
+import { FeedbackHost, TaskHost } from "@shubix/ui-mobile";
 import { AUTH_PAGES, PUBLIC_PAGES, showTabs } from "@shubix/core/lib/nav";
 import { TopBar } from "../organisms/TopBar";
 import { BottomNav } from "../organisms/BottomNav";
@@ -15,7 +15,7 @@ import { useNotes } from "../../lib/notify";
  * (not in the studio: /create and /editor keep the screen, as on the website) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname(), { me } = useApi(), insets = useSafeAreaInsets(), text = useText();
-  const feedback = (bottom: number) => <FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} bottom={bottom} />;
+  const feedback = (bottom: number) => <><TaskHost bottom={bottom + 8} /><FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} bottom={bottom} /></>;
   const [menu, setMenu] = useState(false);
   const authPage = AUTH_PAGES.includes(pathname), signedOut = !!me?.authEnabled && !me.user;
   useNotes(!!me?.user);
