@@ -5,7 +5,6 @@ export * from "./Chip";
 export * from "./Card";
 export * from "./Input";
 export * from "./Text";
-export * from "./Brand";
 export * from "./LinkText";
 export * from "./Paint";
 export * from "./LockBadge";

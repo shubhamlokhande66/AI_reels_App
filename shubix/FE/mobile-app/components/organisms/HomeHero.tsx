@@ -119,8 +119,9 @@ function ReelSunset() {
   );
 }
 
-/** The soundtrack's gold bars, each rising and falling (the website's wave: 30% → 100%), a step after its neighbour. */
-function SoundBars() {
+/** The soundtrack's gold bars, each rising and falling (the website's wave: 30% → 100%), a step after its neighbour.
+ * `height`: the row's (40 here; the sign-in band's are smaller). */
+export function SoundBars({ height: row = 40 }: { height?: number }) {
   const beats = useRef(heroArt.bars.map(() => new Animated.Value(0))).current;
   useEffect(() => {
     const loops = beats.map((beat, i) => Animated.loop(Animated.sequence([
@@ -132,9 +133,9 @@ function SoundBars() {
     return () => loops.forEach((loop) => loop.stop());
   }, [beats]);
   return (
-    <View className="h-10 flex-row items-center justify-between gap-[2px] overflow-hidden">
+    <View className="flex-row items-center justify-between gap-[2px] overflow-hidden" style={{ height: row }}>
       {heroArt.bars.map((height, i) => (
-        <Animated.View key={i} className="overflow-hidden rounded-full" style={{ height, flex: 1, minWidth: 2, maxWidth: 4,
+        <Animated.View key={i} className="overflow-hidden rounded-full" style={{ height: (height * row) / 40, flex: 1, minWidth: 2, maxWidth: 4,
           opacity: beats[i].interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }), transform: [{ scaleY: beats[i].interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }}>
           <Fill colors={heroArt.bar.stops as [string, string]} style={{ flex: 1 }} />
         </Animated.View>
