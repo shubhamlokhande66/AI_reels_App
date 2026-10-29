@@ -17,7 +17,6 @@
 .brs .sh h2{font-family:var(--display);font-weight:600;font-size:21px;margin:0}
 .brs .sh .st{margin-left:auto;font-size:13.5px;color:var(--muted)}
 .brs .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-.brs .seg button:focus-visible{outline:2px solid var(--drop);outline-offset:2px}
 .brs input[type=file]{display:none}
 .brs .fname{font-family:var(--mono);font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .brs canvas.wave{display:block;width:100%;height:84px;border-radius:10px;background:var(--chip)}
@@ -38,10 +37,6 @@
 .brs .drop:focus-visible{outline:2px solid var(--drop);outline-offset:2px}
 .brs .drop{border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center;color:var(--muted);cursor:pointer}
 .brs .drop:hover,.brs .drop.over{border-color:var(--drop);color:var(--ink)}
-.brs .seg{display:inline-flex;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
-.brs .seg button{font:600 13px var(--body);border:0;background:transparent;color:var(--ink);padding:9px 13px;cursor:pointer}
-.brs .seg button+button{border-left:1px solid var(--line)}
-.brs .seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
 .brs .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
 .brs .create{display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:18px;align-items:start}
 @media (max-width:760px){.brs .create{grid-template-columns:1fr}}
@@ -69,7 +64,6 @@
 
 /* app look: gold primary buttons, hidden really hidden */
 .brs [hidden]{display:none !important}
-.brs .seg button[aria-pressed=true]{background:var(--accent);color:var(--on-accent)}
 .brs .step{background:linear-gradient(180deg,var(--sheen),transparent),var(--surface)}
 
 /* "Copy a Reel": what was read from the reference, and a button to change it */
@@ -104,8 +98,6 @@
 .brs #out.ovdrag{touch-action:none}
 .brs.talkmode #vorow{display:none}
 .brs .tplrow{margin:0 0 14px;align-items:center;gap:10px}
-.brs .seg.tpl{max-width:100%}
-.brs .seg.tpl button{padding:8px 11px}
 .brs .recent{display:grid;gap:6px}
 .brs .rlist{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
 .brs .rsong{display:flex;align-items:center;flex:0 0 auto;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
@@ -192,10 +184,6 @@
 .brs.made #s3{background:transparent;border:0;padding:0}
 
 /* buttons and segmented choices */
-.brs .seg{gap:3px;padding:3px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)}
-.brs .seg button{border-radius:10px;padding:9px 14px;color:var(--muted)}
-.brs .seg button+button{border-left:0}
-.brs .seg button[aria-pressed=true]{background:var(--chipbg);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 55%,transparent)}
 
 /* ---- the Reel ---- */
 .brs .create{grid-template-columns:1fr;gap:14px}
@@ -381,9 +369,6 @@
 .brs .xsh-h{display:flex;align-items:center;justify-content:space-between}
 .brs .xsh-h h2{margin:0;font-family:var(--display);font-size:24px}
 .brs .xsh-l{margin:6px 0 0;font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.brs .xsh .seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
-.brs .xsh .seg button{min-height:44px}
-.brs .xsh .seg button:disabled{opacity:.4;cursor:not-allowed}
 .brs .xsh-size{margin:4px 0;font-size:13.5px;color:var(--muted)}
 .brs .xsh-note{margin:-2px 0 0;font-size:12.5px;color:var(--muted);text-align:center}
 @media (min-width:600px){ .brs .xsheet{place-items:center} .brs .xsh{border-radius:22px} }
@@ -535,9 +520,6 @@
 .brs .clipsnd{display:grid;gap:6px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--background)}
 .brs .clipsnd b{font:600 14px var(--body)}
 .brs .clipsnd small{color:var(--muted);font-size:12.5px}
-.brs .clipsnd .seg{display:flex;width:100%}
-.brs .clipsnd .seg button{flex:1 1 auto;white-space:nowrap}
-.brs .clipsnd .seg button[aria-pressed=true]{background:var(--chipbg,var(--chip-on));color:var(--ink)}
 /* the post's caption, under the save / share buttons */
 .brs .postcap{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .brs .postcap textarea{width:100%;min-height:92px;resize:vertical;font:inherit;font-size:14px;line-height:1.4;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -631,10 +613,6 @@
 .brs.fopen .clip .dd{font:600 11px var(--body);color:#fff}
 .brs.fopen .clip .del{width:24px;height:24px;font-size:14px;background:rgba(0,0,0,.7)}
 .brs.fopen #clipsnd{background:var(--surface-2)}
-.brs.fopen #clipsnd .seg{gap:8px;border:0;background:transparent;overflow:visible}
-.brs.fopen #clipsnd .seg button{border:1px solid var(--line);border-radius:999px;padding:8px 14px}
-.brs.fopen #clipsnd .seg button+button{border-left:1px solid var(--line)}
-.brs.fopen #clipsnd .seg button[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,transparent)}
 .brs .fslot{display:contents}
 
 /* 3 AI Edit: what the AI does, and whether the Reel is ready */
@@ -655,8 +633,6 @@
 .brs .fprev{display:grid;gap:14px;align-content:start}
 .brs .fprevh{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .brs .fprevh b{font:600 15px var(--body)}
-.brs .fprevh .seg{flex-wrap:nowrap}
-.brs .fprevh .seg button{padding:7px 9px;font-size:12px}
 .brs .fprevbox{position:relative;aspect-ratio:9/16;border-radius:18px;overflow:hidden;display:grid;place-items:center;align-content:center;gap:10px;background:radial-gradient(60% 50% at 50% 35%,color-mix(in srgb,var(--accent) 38%,transparent),transparent 70%),linear-gradient(170deg,#373124,#10100f);color:#fff}
 .brs .fplay{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.75)}
 .brs .fplay svg{width:26px;height:26px}
@@ -730,7 +706,6 @@
 }
 /* a Talking Reel keeps the voices: shown as the chosen option (the engine's talk edit is the voice, pauses cut) */
 .brs.fopen.talkmode #clipsnd{display:grid !important}
-.brs.fopen.talkmode #clipsnd .seg button:not([data-c="voices"]){display:none}
 .brs.fopen.talkmode #clipsnd small{display:none}
 /* phones: the flow's own head (back, the step dots, Skip) is the top bar, as designed */
 @media (max-width:1023px){
@@ -757,16 +732,11 @@
 .brs .xsh{gap:12px;border:1px solid var(--line)}
 .brs .xsh-h h2{font:600 22px var(--display)}
 .brs .xsh-l{letter-spacing:.02em;text-transform:none;font:600 14px var(--body);color:var(--ink)}
-.brs .xsh .seg{display:grid;gap:10px;border:0;background:transparent;overflow:visible}
-.brs .xsh .seg button{display:grid;place-items:center;gap:2px;min-height:76px;border:1px solid var(--line) !important;border-radius:14px;background:var(--surface-2);font:600 15px var(--body);color:var(--ink)}
-.brs .xsh .seg button::after{font:500 11.5px var(--body);color:var(--muted)}
 .brs .xsh #xres [data-r="720"]::after{content:"Fast export"}
 .brs .xsh #xres [data-r="1080"]::after{content:"Best quality"}
 .brs .xsh #xres [data-r="4k"]::after{content:"Pro (slow)"}
 .brs .xsh #xfps [data-f="30"]::after{content:"Smaller size"}
 .brs .xsh #xfps [data-f="60"]::after{content:"Smoother"}
-.brs .xsh .seg button[aria-pressed=true]{border:2px solid var(--accent) !important;background:color-mix(in srgb,var(--accent) 16%,var(--surface-2));color:var(--ink)}
-.brs .xsh .seg button[aria-pressed=true]::after{color:var(--ink)}
 /* until the flow has written the kind (Talking / Photo words), its place stays empty: never anything else first */
 .brs.fopen:not(.flive) :is(.fhead,.fintro,.fgrid,.fan){visibility:hidden}
 
@@ -917,7 +887,6 @@
   .brs .xsh-l{margin-top:10px;font:600 15px var(--body)}
   .brs .xsh #xres{grid-template-columns:repeat(3,minmax(0,1fr))}
   .brs .xsh #xfps{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .brs .xsh .seg button{min-height:86px}
   .brs .xsh #xgo{margin-top:18px;min-height:56px;border-radius:16px}
 
   /* ---- 9 Exporting and 10 Reel Exported: full screens over the Reel ---- */
@@ -1390,7 +1359,6 @@
   .brs .xsh:has(.xprev[src]) > :not(.xprev){grid-column:2}
   .brs .xsh .xprev[src]{display:block;grid-column:1;grid-row:1/span 12;width:200px;aspect-ratio:9/16;object-fit:cover;border-radius:16px;box-shadow:0 18px 40px -18px rgba(0,0,0,.7)}
 }
-.brs .xsh .seg button[aria-pressed=true]{border:2px solid var(--accent) !important}
 /* ---- the lock popup (the design's frame 9) ---- */
 .brs .askbg:has(.lockpop){place-items:center;background:rgba(4,3,16,.72)}
 .brs .ask.lockpop{position:relative;display:grid;justify-items:center;gap:10px;text-align:center;padding:28px 24px 24px;width:min(100%,420px)}
@@ -2083,9 +2051,6 @@
     background:#000;box-shadow:0 24px 50px -24px rgba(0,0,0,.75),0 0 0 6px color-mix(in srgb,var(--accent) 10%,transparent)}
   .brs .xsheet .xsh-h h2{font:600 19px var(--display);letter-spacing:-.01em}
   .brs .xsheet .xsh-l{margin:8px 0 0;font:600 11px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-  .brs .xsheet .xsh .seg{gap:8px}
-  .brs .xsheet .xsh .seg button{min-height:54px;border-radius:12px;font:600 14px var(--body);gap:1px;padding:6px 8px}
-  .brs .xsheet .xsh .seg button::after{font-size:11px}
   .brs .xsheet .xsh-size{justify-self:start;margin:2px 0 0;padding:4px 10px;border-radius:999px;background:var(--surface-2);font:600 12px var(--body);color:var(--muted)}
   .brs .xsheet .xsh-size:empty{display:none}
   .brs .xsheet .xtog{min-height:46px;padding:4px 12px;margin:0;font:600 13.5px var(--body);border:1px solid var(--line);border-radius:0;background:var(--surface)}

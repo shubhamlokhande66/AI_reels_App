@@ -1,4 +1,4 @@
-import { buttonClass, chipClass, iconButtonClass } from "@shubix/ui-web";
+import { buttonClass, chipClass, iconButtonClass, segClass } from "@shubix/ui-web";
 
 /** The studio's buttons: the website's one button (Shared/ui-web/src/button.ts) for the studio's HTML strings. */
 export const B = {
@@ -17,3 +17,8 @@ export const B = {
 
 /** The studio's chips: the website's chip (chosen: aria-pressed="true"); `chip` stays as the name the code looks for. */
 export const CHIP = `chip ${chipClass()}`;
+
+/** The studio's segmented controls (the website's); `wide`: the whole width, buttons sharing it. */
+export const SEG = segClass();
+export const SEG_SM = segClass(true);
+export const SEG_WIDE = `${segClass()} grid w-full grid-cols-[repeat(auto-fit,minmax(0,1fr))] *:min-h-11 *:whitespace-nowrap`;
