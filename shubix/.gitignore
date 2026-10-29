@@ -16,3 +16,7 @@ FE/web-app/public/vendor/piper/
 **/storage/
 BE/api/test/server/manual/*.json
 BE/api/test/server/manual/out/
+# personal footage (never in the repository)
+samples/
+# dev server logs (scripts/with-log.mjs)
+logs/

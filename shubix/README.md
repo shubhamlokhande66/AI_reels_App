@@ -47,6 +47,10 @@ npx pnpm@10.20.0 typecheck
 npx pnpm@10.20.0 test         # the suites one after another (the UI tests are timing-sensitive)
 ```
 
+The dev servers also write `logs/api.log`, `logs/web.log`, `logs/mobile.log` (every line, timestamped) and
+`logs/<name>.err.log` (errors only); the run before is kept as `<name>.prev.log`. `logs/` is not committed.
+Local data: `BE/api/storage` (uploads, saved Reels) and `shubix/.env` (settings) stay on your computer, never in git.
+
 The API reads its data files (AI models, workers, the voice script) from `BE/api/src/server`, so it runs with
 `BE/api` as the working directory (every script does). `STORAGE_PATH` is relative to it: point it at the current
 app's `storage/` to keep using the same local files.
