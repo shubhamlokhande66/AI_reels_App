@@ -82,6 +82,16 @@
   --animate-slide: slide 1.3s ease-in-out infinite;
   --animate-pop: pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
   --animate-sheet: sheet 0.22s ease-out both; /* a panel sliding in from the right (the CMS's section form) */
+  --animate-shade-in: shade-in 0.2s ease both; /* a dialog's dimmed backdrop */
+  --animate-sheet-up: sheet-up 0.24s cubic-bezier(0.2, 0.8, 0.25, 1) both; /* the editor's option sheet */
+  @keyframes shade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes sheet-up {
+    from { opacity: 0; transform: translateY(10px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
   @keyframes eq {
     0%, 100% { transform: scaleY(0.3); }
     50% { transform: scaleY(1); }
