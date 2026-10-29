@@ -8,7 +8,7 @@ import { Icon } from "./Icon";
 /** The website's one button (Shared/ui-web/src/button.ts), the same sizes and looks. primary: the gold gradient for
  * the main action; secondary: a quiet surface; ghost: no fill; danger: red words; destroy: red, for what cannot be undone. */
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "destroy";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonSize = "sm" | "md" | "lg" | "xl";
 const VARIANT: Record<ButtonVariant, { box: string; text: string; color: ColorName }> = {
   primary: { box: "border border-transparent", text: "text-on-accent", color: "onAccent" as ColorName },
   secondary: { box: "border border-border bg-surface", text: "text-foreground", color: "foreground" as ColorName },
@@ -20,6 +20,7 @@ const SIZE: Record<ButtonSize, { box: string; text: string; icon: number }> = {
   sm: { box: "h-9 rounded-[10px] px-3", text: "text-[12px]", icon: 15 },
   md: { box: "h-10 rounded-xl px-3.5", text: "text-[13px]", icon: 16 },
   lg: { box: "h-12 rounded-xl px-5", text: "text-[14px]", icon: 18 },
+  xl: { box: "h-[52px] rounded-[14px] px-5", text: "text-[16px]", icon: 20 }, // the phones' bottom button (the studio's phoneBottomButton)
 };
 
 export function Button({ title, onPress, variant = "primary", size = "md", full = false, icon, iconAfter, loading = false, disabled = false, className = "" }: { title: string; onPress: () => void; variant?: ButtonVariant; size?: ButtonSize; full?: boolean; icon?: IconName | ReactNode; iconAfter?: IconName; loading?: boolean; disabled?: boolean; className?: string }) {

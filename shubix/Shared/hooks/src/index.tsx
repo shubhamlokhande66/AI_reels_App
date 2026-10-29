@@ -3,6 +3,7 @@ import { errorMessage, type ApiClient } from "@shubix/api-client";
 import type { MeResponse } from "@shubix/types";
 import { emailOk, passwordOk } from "@shubix/validations";
 import { fill, TEXT_DEFAULTS } from "@shubix/core/lib/texts";
+import { STUDIO_KEYS } from "@shubix/core/lib/texts-all";
 
 /** The logic both apps share (FE/web-app and FE/mobile-app). Only React, no DOM or React Native: the sign-in rules,
  * messages and flow exist once; each app only draws them with its own atoms/molecules. */
@@ -25,6 +26,13 @@ export function useApi(): Ctx {
 export function useText() {
   const { texts } = useApi();
   return useCallback((key: string, vars?: Record<string, string | number>) => fill(texts[key] ?? TEXT_DEFAULTS[key] ?? key, vars), [texts]);
+}
+
+/** The studio's words (Shared/core/src/lib/texts-studio.ts), by the words themselves as the website's studio does
+ * (components/studio/i18n.ts tx): studioText("Next") is the admin's wording for "Next" (Admin → CMS → Create flow). */
+export function useStudioText() {
+  const { texts } = useApi();
+  return useCallback((words: string, vars?: Record<string, string | number>) => fill(texts[STUDIO_KEYS.get(words) ?? ""] || words, vars), [texts]);
 }
 
 /** Sign in / create an account: fields, messages as people type, submit. `onDone(signedUp)` decides where to go. */

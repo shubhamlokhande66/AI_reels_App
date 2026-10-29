@@ -12,14 +12,16 @@ export async function saveProject(project: MobileProject) { const parsed = proje
 export async function removeProject(id: string) { const items = await read(); await AsyncStorage.setItem(KEY, JSON.stringify(items.filter((x) => x.id !== id))); }
 
 /** Copy picker URIs into app-private storage so Android's temporary photo-picker grant survives reloads. */
-export async function keepPickedAssets(id: string, assets: ImagePickerAsset[]): Promise<ProjectClip[]> {
+export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], onEach?: (done: number) => void): Promise<ProjectClip[]> {
   const dir = `${FileSystem.documentDirectory}projects/${id}/`;
   await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  let done = 0; // `onEach`: how many are copied so far
   return Promise.all(assets.map(async (asset, index) => {
     const original = asset.fileName || `moment-${index + 1}.${asset.type === "image" ? "jpg" : "mp4"}`;
     const safe = original.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-90);
     const uri = `${dir}${index + 1}-${safe}`;
     await FileSystem.copyAsync({ from: asset.uri, to: uri });
+    onEach?.(++done);
     const sourceDuration = asset.type === "image" ? 5 : Math.max(0.5, (asset.duration || 5000) / 1000);
     return clipSchema.parse({ id: `${id}-clip-${index + 1}`, uri, name: original, kind: asset.type === "image" ? "image" : "video", duration: sourceDuration, sourceDuration, start: 0, end: sourceDuration, speed: 1, reverse: false, muted: false, volume: 1, filter: "Original", transition: "Cut", rotation: 0, mirror: false, flip: false, fit: "cover" });
   }));

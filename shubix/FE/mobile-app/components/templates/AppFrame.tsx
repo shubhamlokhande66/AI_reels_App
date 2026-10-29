@@ -4,13 +4,13 @@ import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useText } from "@shubix/hooks";
 import { FeedbackHost } from "@shubix/ui-mobile";
-import { AUTH_PAGES, PUBLIC_PAGES } from "@shubix/core/lib/nav";
+import { AUTH_PAGES, PUBLIC_PAGES, showTabs } from "@shubix/core/lib/nav";
 import { TopBar } from "../organisms/TopBar";
 import { BottomNav } from "../organisms/BottomNav";
 import { MenuDrawer } from "../organisms/MenuDrawer";
 
 /** The website's phone frame (FE/web-app/components/templates/AppShell.tsx): the top bar, the page, the bottom bar
- * (on every page) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
+ * (not in the studio: /create and /editor keep the screen, as on the website) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname(), { me } = useApi(), insets = useSafeAreaInsets(), text = useText();
   const feedback = (bottom: number) => <FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} bottom={bottom} />;
@@ -28,9 +28,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
     <View className="flex-1 bg-background">
       <TopBar pathname={pathname} onMenu={() => setMenu(true)} />
       <View className="flex-1">{children}</View>
-      <BottomNav pathname={pathname} />
+      {showTabs(pathname) && <BottomNav pathname={pathname} />}
       <MenuDrawer open={menu} onClose={() => setMenu(false)} pathname={pathname} />
-      {feedback(88)}
+      {feedback(showTabs(pathname) ? 88 : 84)}
     </View>
   );
 }

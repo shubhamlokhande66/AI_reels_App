@@ -1,34 +1,87 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { BackHandler, Platform, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { AudioLines, Clapperboard, ImagePlus, Music2, Plus, Sparkles, Video } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
-import { Button, Card, Eyebrow, Heading, Page, colors, confirmAction, toast } from "@shubix/ui-mobile";
-import { keepPickedAssets, saveProject } from "../../lib/projects";
-import type { ReelProject } from "@shubix/validations";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useQueryClient } from "@tanstack/react-query";
+import { useStudioText } from "@shubix/hooks";
+import { Button, toast } from "@shubix/ui-mobile";
+import { errorMessage } from "@shubix/api-client";
+import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
+import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
+import { AI_STEPS, FlowAdjust, FlowAnalyse, FlowChoose, FlowClips, FlowHead, FlowIntro, KINDS, ORDER, type ClipSettings, type FlowKind, type FlowStep } from "../../components/organisms/CreateFlow";
 
-const modes: { key: ReelProject["kind"]; name: string; sub: string; icon: typeof Music2 }[] = [{ key: "music", name: "Music Reel", sub: "Let your soundtrack set the pace", icon: Music2 }, { key: "talking", name: "Talking Reel", sub: "Shape a story from your words", icon: AudioLines }, { key: "photo", name: "Photo Reel", sub: "Give your memories movement", icon: ImagePlus }, { key: "copy", name: "Copy a Reel", sub: "Start with a reference video", icon: Clapperboard }, { key: "story", name: "Story Maker", sub: "Turn a written idea into a visual story", icon: Sparkles }];
+/** Create (the website's /create/music, /talking, /photo, /copy on a phone): the flow's screens one at a time, with
+ * Next at the bottom, off (and saying what it waits for) until the screen is done. At the end the clips and the song
+ * are kept on the phone as a draft and the editor opens. Story Maker: the Music Reel flow for now. */
 export default function CreateScreen() {
   const params = useLocalSearchParams<{ kind: string; templateId?: string }>();
-  const selectedKind = ["music", "talking", "photo", "copy", "story"].includes(params.kind || "") ? params.kind as ReelProject["kind"] : "music";
-  const [kind, setKind] = useState<ReelProject["kind"]>(selectedKind);
-  const [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
-  const [busy, setBusy] = useState(false);
+  const kind: FlowKind = (["music", "talking", "photo", "copy"] as const).find((k) => k === params.kind) ?? "music";
+  const words = useStudioText(), insets = useSafeAreaInsets(), queryClient = useQueryClient(), order = ORDER[kind];
+  const [step, setStep] = useState<FlowStep>("intro");
+  const [song, setSong] = useState<Song | null>(null), [recent, setRecent] = useState<Song[]>([]), [reading, setReading] = useState(false);
+  const [length, setLength] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const [settings, setSettings] = useState<ClipSettings>({ order: "mix", aspect: "9:16", pace: "natural", under: "0.09" });
+  const [progress, setProgress] = useState({ pct: 0, done: 0, status: "" });
+  useEffect(() => { void recentSongs().then(setRecent); }, []);
+
+  const go = (to: FlowStep | undefined) => to && setStep(to);
+  const back = () => { const i = order.indexOf(step); if (i <= 0) router.back(); else if (step !== "analyse") go(order[i - 1]); };
+  useEffect(() => { if (Platform.OS === "web") return; const h = BackHandler.addEventListener("hardwareBackPress", () => { back(); return true; }); return () => h.remove(); }); // Android back: the screen before
+
+  async function choose(pick: () => Promise<Song | null>) {
+    setReading(true);
+    try { const s = await pick(); if (s) { setSong(s); setRecent(await recentSongs()); } } catch (e) { toast(errorMessage(e), "danger"); } finally { setReading(false); }
+  }
+  async function pickRecent(s: Song) {
+    if (s.duration) return setSong(s);
+    setReading(true); setSong({ ...s, duration: await songLength(s.uri) }); setReading(false);
+  }
   async function addMedia() {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos", "images"], allowsMultipleSelection: true, selectionLimit: 12, quality: 0.8, videoMaxDuration: 180 });
-    if (!result.canceled) setMedia((old) => [...old, ...result.assets].slice(0, 12));
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: photos ? ["images"] : ["videos"], allowsMultipleSelection: true, selectionLimit: Math.max(1, 30 - media.length), quality: 0.9 });
+    if (!r.canceled) setMedia((old) => [...old, ...r.assets].slice(0, 30));
   }
-  async function makeReel() {
-    if (!media.length) { toast("Choose at least one video or photo to start your Reel.", "info"); return; }
-    setBusy(true);
+  // Analysing: the clips and the song kept on the phone, the draft saved, then the editor
+  async function make() {
+    setStep("analyse");
+    const id = `draft-${Date.now()}`, at = (pct: number, done: number) => setProgress({ pct, done, status: words(AI_STEPS[Math.min(done, 3)][1]) });
     try {
-      const id = `draft-${Date.now()}`;
-      const clips = await keepPickedAssets(id, media);
-      const project = { id, title: "Untitled Reel", kind, clips, ...(params.templateId ? { templateId: params.templateId } : {}), overlays: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), status: "draft" as const };
-      await saveProject(project);
-      router.push({ pathname: "/editor", params: { id, projectId: id, kind, media: JSON.stringify(clips) } });
-    } catch (e) { toast(e instanceof Error ? e.message : "Please try choosing the clips again.", "danger"); }
-    finally { setBusy(false); }
+      at(0.02, 0); setProgress((p) => ({ ...p, status: words("Reading your clips…") }));
+      const clips = await keepPickedAssets(id, media, (n) => setProgress((p) => ({ ...p, pct: 0.02 + (0.58 * n) / media.length })));
+      at(0.62, 1);
+      const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
+      at(0.8, 2);
+      const now = new Date().toISOString();
+      await saveProject({ id, title: words(KINDS[kind].title), kind, clips, audioUri, audioName: song?.name, overlays: [], createdAt: now, updatedAt: now, status: "draft",
+        ...(params.templateId ? { templateId: params.templateId } : {}), settings: { length, ...settings, pace: settings.pace } });
+      at(0.92, 3);
+      await queryClient.invalidateQueries({ queryKey: ["drafts"] });
+      setProgress({ pct: 1, done: 4, status: words("Your Reel is ready!") });
+      setTimeout(() => router.replace({ pathname: "/editor", params: { id } }), 450);
+    } catch (e) { toast(errorMessage(e), "danger"); setStep("clips"); }
   }
-  return <Page><View className="mt-2 flex-row items-center justify-between"><Pressable onPress={() => router.back()}><Text className="text-sm font-semibold text-muted">Cancel</Text></Pressable><View className="rounded-full border border-[#655536] bg-[#242117] px-3 py-1.5"><Text className="text-[10px] font-bold uppercase tracking-[1px] text-accent">New Reel</Text></View></View><View className="mt-6"><Eyebrow>YOUR NEXT STORY</Eyebrow><Heading size="page" className="mt-2">Start with a feeling.</Heading><Text className="mt-2 text-sm leading-6 text-muted">Choose a format and bring in the moments you want to keep.</Text></View><View className="mt-5 gap-2">{modes.map(({ key, name, sub, icon: Icon }) => <Pressable onPress={() => setKind(key)} key={key} className={`flex-row items-center gap-3 rounded-2xl border p-3.5 ${kind === key ? "border-[#8d7548] bg-[#242117]" : "border-border bg-surface"}`}><View className="h-10 w-10 items-center justify-center rounded-xl bg-surface-2"><Icon size={19} color={kind === key ? "accent" : "muted"}/></View><View className="flex-1"><Text className="text-sm font-semibold text-foreground">{name}</Text><Text className="mt-1 text-xs text-muted">{sub}</Text></View><View className={`h-4 w-4 items-center justify-center rounded-full border ${kind === key ? "border-accent bg-accent" : "border-[#69665d]"}`}>{kind === key && <View className="h-1.5 w-1.5 rounded-full bg-background"/>}</View></Pressable>)}</View><View className="mb-3 mt-6 flex-row items-center justify-between"><Text className="text-[16px] font-semibold text-foreground">Your moments</Text><Text className="text-xs text-muted">{media.length}/12 added</Text></View><Pressable onPress={addMedia} className="min-h-[142px] items-center justify-center rounded-[22px] border border-dashed border-[#62563b] bg-[#1c1a15]"><View className="mb-2 h-11 w-11 items-center justify-center rounded-2xl bg-[#2c281e]"><Plus size={22} color={colors.accent}/></View><Text className="text-sm font-semibold text-foreground">Add videos or photos</Text><Text className="mt-1 text-xs text-muted">Choose from your device · up to 12 clips</Text></Pressable>{media.length > 0 && <View className="mt-3 gap-2">{media.map((item, index) => <Card key={`${item.uri}-${index}`}><View className="flex-row items-center gap-3"><View className="h-9 w-9 items-center justify-center rounded-xl bg-surface-2">{item.type === "video" ? <Video size={17} color={colors.accent}/> : <ImagePlus size={17} color={colors.accent}/>}</View><Text numberOfLines={1} className="flex-1 text-sm text-foreground">{item.fileName || `Moment ${index + 1}`}</Text><Pressable onPress={() => setMedia((old) => old.filter((_, i) => i !== index))}><Text className="text-xs text-muted">Remove</Text></Pressable></View></Card>)}</View>}<View className="mb-4 mt-5"><Button title={busy ? "Opening studio…" : "Continue to studio"} disabled={!media.length} loading={busy} onPress={makeReel} icon={<Sparkles size={16} color={colors.background}/>}/></View></Page>;
+
+  // the bottom button: its words say what it waits for while it is off (the website's flow.ts)
+  const needSong = kind !== "talking";
+  const button = {
+    intro: { title: words(kind === "copy" ? "Pick the Reel to copy" : "Let's Start"), on: true, press: () => go(order[1]) },
+    choose: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : "Next"), on: !!song && !reading, press: () => go("adjust") },
+    adjust: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : "Next"), on: !!song && !reading, press: () => go("clips") },
+    clips: { title: words(!media.length ? (photos ? "Add your photos to continue" : "Add your clips to continue") : needSong && !song ? "Choose a song first" : "Next"), on: !!media.length && (!needSong || !!song), press: () => void make() },
+    analyse: null,
+  }[step];
+  const title = { intro: "", choose: kind === "copy" ? words("Music") : words("Choose Music"), adjust: words("Adjust Music"), clips: words(photos ? "Add Your Photos" : "Add Your Clips"), analyse: "" }[step];
+  return (
+    <View className="flex-1 bg-background">
+      <FlowHead title={title} at={{ intro: 1, choose: 1, adjust: 1, clips: 2, analyse: 3 }[step]} onBack={back} onSkip={step === "intro" ? () => go(order[1]) : undefined} />
+      <ScrollView className="flex-1" contentContainerClassName="px-4 pb-6 pt-2" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {step === "intro" && <FlowIntro kind={kind} />}
+        {step === "choose" && <FlowChoose kind={kind} song={song} recent={recent} busy={reading} onPick={() => void choose(() => pickSong())} onPickReel={() => void choose(() => pickSong("video"))} onRecent={(s) => void pickRecent(s)} onForget={(uri) => { setRecent((r) => r.filter((s) => s.uri !== uri)); if (song?.uri === uri) setSong(null); }} />}
+        {step === "adjust" && song && <FlowAdjust song={song} length={length} onLength={setLength} />}
+        {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
+        {step === "analyse" && <FlowAnalyse {...progress} />}
+      </ScrollView>
+      {button && <View className="px-4 pt-2" style={{ paddingBottom: 14 + insets.bottom }}><Button full size="xl" title={button.title} iconAfter={button.on ? "arrow" : undefined} disabled={!button.on} onPress={button.press} /></View>}
+    </View>
+  );
 }

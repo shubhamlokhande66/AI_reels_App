@@ -3,6 +3,7 @@
 export const icons = {
   menu: "<path d=\"M4 7h16M4 12h16M4 17h16\"></path>",
   back: "<path d=\"M15 6l-6 6 6 6\"></path>",
+  arrow: "<path d=\"M5 12h14M13 6l6 6-6 6\"></path>",
   close: "<path d=\"M6 6l12 12M18 6L6 18\"></path>",
   chevron: "<path d=\"M9 6l6 6-6 6\"></path>",
   down: "<path d=\"M6 9l6 6 6-6\"></path>",
