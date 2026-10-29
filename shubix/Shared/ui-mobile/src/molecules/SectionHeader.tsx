@@ -11,7 +11,7 @@ export function SectionHeader({ title, more, onPress, className = "" }: { title:
       {onPress && more && (
         <Pressable onPress={onPress} accessibilityRole="link" className="flex-row items-center gap-0.5 active:opacity-70">
           <Text className="text-[13px] font-semibold text-muted">{more}</Text>
-          <Icon name="chevron" size={16} stroke={2.2} color={colors.muted} />
+          <Icon name="chevron" size={16} stroke={2.2} color="muted" />
         </Pressable>
       )}
     </View>

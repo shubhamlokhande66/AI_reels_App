@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useText } from "@shubix/hooks";
-import { Badge, Button, Chip, EmptyState, Icon, LockBadge, Page, Paint, SearchBox, SectionHeader, TemplateCard, colors, mix } from "@shubix/ui-mobile";
+import { Badge, Button, Chip, EmptyState, Icon, LockBadge, Page, Paint, SearchBox, SectionHeader, TemplateCard, mix, useColors } from "@shubix/ui-mobile";
 import { groupsOf, lookName, templateMeta, templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
 import { PlanGate } from "../components/templates/PlanGate";
 import { usePlanNeed, useTemplates } from "../lib/data";
@@ -16,7 +16,7 @@ export default function TemplatesScreen() {
 }
 
 function Templates() {
-  const text = useText(), templates = useTemplates(), need = usePlanNeed(), width = useWindowDimensions().width;
+  const text = useText(), templates = useTemplates(), need = usePlanNeed(), width = useWindowDimensions().width, look = useColors();
   const [q, setQ] = useState(useLocalSearchParams<{ q?: string }>().q ?? ""), [group, setGroup] = useState("all");
   const s = q.trim().toLowerCase();
   const found = (x: StudioTemplate) => !s || [x.name, x.text, lookName(x), x.group, x.kind].join(" ").toLowerCase().includes(s);
@@ -45,7 +45,7 @@ function Templates() {
     <Page>
       <View className="gap-6 pb-4">
         <View className="overflow-hidden rounded-[24px] border border-accent/20 px-4 py-5">
-          <Paint paint={{ angle: 125, stops: [mix(colors.accent, colors.surface, 0.1), [colors.surface, 55], mix(colors.accent, colors.surface, 0.04)] }} />
+          <Paint paint={{ angle: 125, stops: [mix(look.accent, look.surface, 0.1), [look.surface, 55], mix(look.accent, look.surface, 0.04)] }} />
           <View className="absolute -right-8 -top-16 h-48 w-48 rounded-full bg-accent/10" />
           <View className="gap-4">
             <View className="gap-2">
@@ -53,7 +53,7 @@ function Templates() {
               <Text className="text-[13.5px] leading-[19.6px] text-muted">{text("templates.sub")}</Text>
             </View>
             <View className="flex-row items-center gap-2 self-start rounded-full border border-accent/20 bg-surface/65 px-3 py-2">
-              <Icon name="reels" size={14} color={colors.accent} />
+              <Icon name="reels" size={14} color="accent" />
               <Text className="text-[10px] font-semibold text-muted">{text("templates.count", { n: templates.length })}</Text>
             </View>
           </View>
@@ -61,7 +61,7 @@ function Templates() {
         <View className="gap-3 rounded-[20px] border border-accent/10 bg-surface/55 p-3">
           <SearchBox value={q} onChange={setQ} label={text("templates.search")} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2" accessibilityLabel={text("nav.templates")}>
-            {chips.map((c) => <Chip key={c.id} tall on={group === c.id} onPress={() => setGroup(c.id)} label={c.label} count={c.n} icon={c.id === "new" ? <Icon name="sparkle" size={13} color={colors.accent} /> : undefined} />)}
+            {chips.map((c) => <Chip key={c.id} tall on={group === c.id} onPress={() => setGroup(c.id)} label={c.label} count={c.n} icon={c.id === "new" ? <Icon name="sparkle" size={13} color="accent" /> : undefined} />)}
           </ScrollView>
         </View>
         {!shown.length ? (

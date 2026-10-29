@@ -4,7 +4,7 @@
     "slug": "shubix-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "scheme": "shubix",
     "icon": "./assets/icon.png",
     "plugins": [

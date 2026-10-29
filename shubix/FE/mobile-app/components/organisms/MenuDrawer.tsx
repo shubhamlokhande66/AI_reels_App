@@ -7,6 +7,7 @@ import { Avatar, Hairline, Icon, IconButton, Sidebar, colors } from "@shubix/ui-
 import type { IconName } from "@shubix/ui-core";
 import { GROUPS, isActive, type NavItem } from "@shubix/core/lib/nav";
 import { Logo } from "../atoms/Logo";
+import { ThemeToggle } from "../molecules/ThemeToggle";
 
 /** The website's phone menu (AppShell's Drawer): the logo, the person's email, every page by group, sign out. It
  * slides in from the left over a dark veil; 88% of the screen, at most 360px. */
@@ -28,7 +29,7 @@ export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose
       <Pressable key={item.href} onPress={() => go(item)} accessibilityRole="link" accessibilityState={{ selected: active }}
         className={`min-h-[44px] flex-row items-center gap-2.5 rounded-[13px] border px-2 ${active ? "border-accent/25 bg-accent/10" : "border-transparent active:bg-accent/5"}`}>
         <View className={`h-8 w-8 items-center justify-center rounded-[10px] ${active ? "bg-accent/[0.12]" : ""}`}>
-          <Icon name={item.icon as IconName} size={17} color={active ? colors.accent : colors.muted} />
+          <Icon name={item.icon as IconName} size={17} color={active ? "accent" : "muted"} />
         </View>
         <Text numberOfLines={1} className={`min-w-0 flex-1 text-[12.5px] ${active ? "font-bold text-foreground" : "text-muted"}`}>{item.tk ? text(item.tk) : item.label}</Text>
       </Pressable>
@@ -62,9 +63,10 @@ export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose
             ))}
           </View>
           <View className="flex-1" />
+          <View className="border-t border-accent/10 pt-3"><ThemeToggle /></View>
           {email && (
             <Pressable onPress={() => void signOut()} accessibilityRole="button" className="min-h-[44px] flex-row items-center gap-3 rounded-[12px] border border-transparent px-2.5 active:bg-danger/5">
-              <Icon name="signout" size={18} color={colors.muted} />
+              <Icon name="signout" size={18} color="muted" />
               <Text className="text-[12px] text-muted">{text("nav.signOut")}</Text>
             </Pressable>
           )}

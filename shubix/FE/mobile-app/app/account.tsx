@@ -7,6 +7,7 @@ import { Avatar, Badge, Button, Card, ErrorBanner, Field, Heading, Icon, Input, 
 import type { IconName } from "@shubix/ui-core";
 import { passwordOk } from "@shubix/validations";
 import { errorMessage } from "@shubix/api-client";
+import { ThemeChoice } from "../components/molecules/ThemeToggle";
 import { AdBanner } from "../components/molecules/AdBanner";
 import { mobileApi } from "../lib/api";
 import { useCredits } from "../lib/data";
@@ -23,19 +24,19 @@ const Note = ({ ok, children }: { ok: boolean; children: ReactNode }) =>
 export default function AccountScreen() {
   const text = useText(), { me } = useApi(), credits = useCredits().data, [panel, setPanel] = useState<PanelId | null>(null);
   const signOut = useSignOut(() => router.replace("/login"));
-  if (!me) return <Page><ActivityIndicator color={colors.accent} /></Page>;
-  if (!me.authEnabled) return <Page><Card><Text className="text-[12.5px] text-muted">{text("account.noAccounts")}</Text></Card></Page>;
+  if (!me) return <Page><ActivityIndicator color="accent" /></Page>;
+  if (!me.authEnabled) return <Page><View className="gap-3"><Card><Text className="text-[12.5px] text-muted">{text("account.noAccounts")}</Text></Card><ThemeChoice /></View></Page>;
   const user = me.user;
-  if (!user) return <Page><ActivityIndicator color={colors.accent} /></Page>;
+  if (!user) return <Page><ActivityIndicator color="accent" /></Page>;
   const c = credits?.enabled ? credits : null, name = user.email.split("@")[0], paid = !!c && c.plan !== "free";
   const row = (id: PanelId, icon: IconName, title: string, line: string, danger = false) => (
     <Pressable key={id} onPress={() => setPanel(id)} className="flex-row items-center gap-3 border-t border-border px-4 py-3.5 first:border-t-0 active:bg-accent/5">
-      <View className={`h-10 w-10 items-center justify-center rounded-xl ${danger ? "bg-danger/[0.12]" : "bg-accent/[0.12]"}`}><Icon name={icon} size={18} color={danger ? colors.danger : colors.accent} /></View>
+      <View className={`h-10 w-10 items-center justify-center rounded-xl ${danger ? "bg-danger/[0.12]" : "bg-accent/[0.12]"}`}><Icon name={icon} size={18} color={danger ? "danger" : "accent"} /></View>
       <View className="min-w-0 flex-1">
         <Text className={`text-[14px] font-bold ${danger ? "text-danger" : "text-foreground"}`}>{title}</Text>
         <Text numberOfLines={1} className="text-[12.5px] text-muted">{line}</Text>
       </View>
-      <Icon name="chevron" size={18} color={colors.muted} />
+      <Icon name="chevron" size={18} color="muted" />
     </Pressable>
   );
   const label = (s: string) => <Text className="px-1 text-[11px] font-bold uppercase tracking-[2.2px] text-muted">{s}</Text>;
@@ -85,6 +86,7 @@ export default function AccountScreen() {
             {row("payments", "coins", text("account.paymentsTitle"), text("account.rowPayments"))}
           </Card>
         </View>
+        <ThemeChoice />
         <View className="gap-2">
           {label(text("account.danger"))}
           <Card className="overflow-hidden border-danger/30 p-0">{row("delete", "trash", text("account.deleteTitle"), text("account.rowDelete"), true)}</Card>
@@ -137,7 +139,7 @@ function Sessions() {
   return (
     <View className="gap-3">
       <Card className="flex-row items-center gap-3">
-        <View className="h-10 w-10 items-center justify-center rounded-xl bg-success/15"><Icon name="check" size={18} color={colors.success} /></View>
+        <View className="h-10 w-10 items-center justify-center rounded-xl bg-success/15"><Icon name="check" size={18} color="success" /></View>
         <View className="min-w-0 flex-1"><Text className="text-[14px] font-bold text-foreground">{text("account.thisDevice")}</Text><Text className="text-[12.5px] text-muted">{text("account.sessionsTitle")}</Text></View>
         <Badge tone="success">{text("account.signedIn")}</Badge>
       </Card>
@@ -154,7 +156,7 @@ function Sessions() {
 /** Payments & receipts: every order, the paid ones with their receipt number (the receipt was emailed). */
 function Payments() {
   const text = useText(), q = useQuery({ queryKey: ["my-payments"], queryFn: mobileApi.payments, retry: false });
-  if (q.isLoading) return <ActivityIndicator color={colors.accent} />;
+  if (q.isLoading) return <ActivityIndicator color="accent" />;
   if (q.error) return <ErrorBanner message={errorMessage(q.error)} />;
   const list = q.data ?? [];
   if (!list.length) return <Text className="text-[13px] text-muted">{text("account.noPayments")}</Text>;
@@ -189,7 +191,7 @@ function DeleteAccount({ email }: { email: string }) {
   }
   return (
     <View className="gap-3">
-      <View className="flex-row gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2.5"><Icon name="warn" size={17} color={colors.danger} /><Text className="min-w-0 flex-1 text-[13px] text-danger">{text("account.deleteText")}</Text></View>
+      <View className="flex-row gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2.5"><Icon name="warn" size={17} color="danger" /><Text className="min-w-0 flex-1 text-[13px] text-danger">{text("account.deleteText")}</Text></View>
       <Card className="gap-3">
         <Field label={text("account.typeEmail", { email })} error={confirm && !match ? text("account.errEmail") : ""} ok={match ? "✓" : ""}>
           <Input value={confirm} onChangeText={setConfirm} autoCapitalize="none" autoComplete="off" keyboardType="email-address" />

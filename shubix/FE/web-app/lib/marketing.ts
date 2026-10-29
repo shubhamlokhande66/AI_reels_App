@@ -49,11 +49,8 @@ export type MyMarketing = {
   affiliate: { on: boolean; applyOpen: boolean; percent: number; months: number; minPayout: number;
     me: { status: "pending" | "active" | "paused"; percent: number; months: number; validUntil: string | null; due: number; paid: number; sales: number; recent: { at: string; paid: number; commission: number; status: string }[] } | null };
 };
-export type Quote = {
-  item: string; label: string; base: number; final: number; couponError: string;
-  offer: { id: string; title: string; percent: number; off: number } | null; coupon: { code: string; off: number; label: string } | null;
-};
-export type Offer = { id: string; title: string; banner: string; percent: number; appliesTo: "all" | "plans" | "topups"; audience: "all" | "new"; ends: string | null };
+import type { Offer } from "@shubix/types";
+export type { Offer, Quote } from "@shubix/types";
 export type MarketingSettings = {
   referral: { on: boolean; inviterCredits: number; inviteeCredits: number; inviteeOn: RewardStep; inviterOn: RewardStep; monthlyCap: number };
   share: { on: boolean; min: number; max: number; dailyMax: number; source: "extra" | "all" };

@@ -12,7 +12,7 @@ export function BottomNav({ pathname, moreOpen, onMore }: { pathname: string; mo
   const text = useText(), insets = useSafeAreaInsets();
   const item = (label: string, on: boolean, icon: IconName, onPress: () => void) => (
     <Pressable key={label} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: on }} className="min-h-[52px] flex-1 items-center justify-end gap-1 pb-1">
-      <Icon name={icon} size={23} stroke={on ? 2.2 : 1.8} color={on ? colors.accent : colors.muted} />
+      <Icon name={icon} size={23} stroke={on ? 2.2 : 1.8} color={on ? "accent" : "muted"} />
       <Text className={`text-[11px] font-semibold ${on ? "text-accent" : "text-muted"}`}>{label}</Text>
       {on && <View className="absolute -bottom-0.5 h-[3px] w-7 rounded-full bg-accent" />}
     </Pressable>
@@ -23,7 +23,7 @@ export function BottomNav({ pathname, moreOpen, onMore }: { pathname: string; mo
         <Pressable key={tab.href} onPress={() => router.push(tab.href as never)} accessibilityRole="button" accessibilityLabel={text(tab.tk)} className="min-h-[52px] flex-1 items-center justify-end gap-1 pb-1">
           <View className="-mt-8 h-[60px] w-[60px] items-center justify-center overflow-hidden rounded-full border-4 border-background">
             <Gold />
-            <Icon name="plus" size={26} stroke={2.4} color={colors.onAccent} />
+            <Icon name="plus" size={26} stroke={2.4} color="onAccent" />
           </View>
           <Text className="text-[11px] font-semibold text-foreground">{text(tab.tk)}</Text>
         </Pressable>

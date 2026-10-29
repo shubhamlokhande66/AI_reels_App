@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, Text } from "react-native";
 import type { IconName } from "@shubix/ui-core";
-import { colors } from "../colors";
+import { useColors, type ColorName } from "../theme";
 import { Gold } from "./Gold";
 import { Icon } from "./Icon";
 
@@ -9,11 +9,11 @@ import { Icon } from "./Icon";
  * the main action; secondary: a quiet surface; ghost: no fill; danger: red. */
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
-const VARIANT: Record<ButtonVariant, { box: string; text: string; color: string }> = {
-  primary: { box: "border border-transparent", text: "text-on-accent", color: colors.onAccent },
-  secondary: { box: "border border-border bg-surface", text: "text-foreground", color: colors.foreground },
-  ghost: { box: "border border-transparent", text: "text-foreground", color: colors.foreground },
-  danger: { box: "border border-danger/35 bg-surface", text: "text-danger", color: colors.danger },
+const VARIANT: Record<ButtonVariant, { box: string; text: string; color: ColorName }> = {
+  primary: { box: "border border-transparent", text: "text-on-accent", color: "onAccent" as ColorName },
+  secondary: { box: "border border-border bg-surface", text: "text-foreground", color: "foreground" as ColorName },
+  ghost: { box: "border border-transparent", text: "text-foreground", color: "foreground" as ColorName },
+  danger: { box: "border border-danger/35 bg-surface", text: "text-danger", color: "danger" as ColorName },
 };
 const SIZE: Record<ButtonSize, { box: string; text: string; icon: number }> = {
   sm: { box: "h-9 rounded-[10px] px-3", text: "text-[12px]", icon: 15 },
@@ -22,12 +22,12 @@ const SIZE: Record<ButtonSize, { box: string; text: string; icon: number }> = {
 };
 
 export function Button({ title, onPress, variant = "primary", size = "md", full = false, icon, iconAfter, loading = false, disabled = false, className = "" }: { title: string; onPress: () => void; variant?: ButtonVariant; size?: ButtonSize; full?: boolean; icon?: IconName | ReactNode; iconAfter?: IconName; loading?: boolean; disabled?: boolean; className?: string }) {
-  const v = VARIANT[variant], s = SIZE[size];
+  const v = VARIANT[variant], s = SIZE[size], look = useColors();
   return (
     <Pressable onPress={onPress} disabled={disabled || loading} accessibilityRole="button" accessibilityState={{ busy: loading, disabled }}
       className={`flex-row items-center justify-center gap-2 overflow-hidden active:opacity-80 ${v.box} ${s.box} ${full ? "w-full" : "self-start"} ${disabled ? "opacity-50" : ""} ${className}`}>
       {variant === "primary" && <Gold />}
-      {loading ? <ActivityIndicator size="small" color={v.color} /> : typeof icon === "string" ? <Icon name={icon as IconName} size={s.icon} color={v.color} /> : icon}
+      {loading ? <ActivityIndicator size="small" color={look[v.color]} /> : typeof icon === "string" ? <Icon name={icon as IconName} size={s.icon} color={v.color} /> : icon}
       <Text numberOfLines={1} className={`font-bold ${v.text} ${s.text}`}>{title}</Text>
       {iconAfter && <Icon name={iconAfter} size={s.icon} color={v.color} />}
     </Pressable>
@@ -37,11 +37,11 @@ export function Button({ title, onPress, variant = "primary", size = "md", full 
 /** A round button with only an icon (back, undo, send…): `label` is what screen readers say. box: bordered surface;
  * plain: no border or fill; muted: grey; danger: red; main: the gold gradient. */
 const ICON_LOOK = {
-  box: { box: "border border-border bg-surface", color: colors.foreground },
-  plain: { box: "", color: colors.foreground },
-  muted: { box: "", color: colors.muted },
-  danger: { box: "", color: colors.danger },
-  main: { box: "", color: colors.onAccent },
+  box: { box: "border border-border bg-surface", color: "foreground" as ColorName },
+  plain: { box: "", color: "foreground" as ColorName },
+  muted: { box: "", color: "muted" as ColorName },
+  danger: { box: "", color: "danger" as ColorName },
+  main: { box: "", color: "onAccent" as ColorName },
 };
 export function IconButton({ icon, label, onPress, size = 44, iconSize, look = "box", disabled = false, className = "" }: { icon: IconName; label: string; onPress: () => void; size?: number; iconSize?: number; look?: keyof typeof ICON_LOOK; disabled?: boolean; className?: string }) {
   const l = ICON_LOOK[look];

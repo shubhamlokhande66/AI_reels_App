@@ -140,7 +140,7 @@ function TipsSection({ width }: { width: number }) {
     <View className="gap-3">
       <SectionHeader title={text("home.tipsTitle")} />
       <View className="flex-row flex-wrap gap-2.5">
-        {tips.map((tip, i) => <TipCard key={tip.id} n={i + 1} icon={(tip.icon || "bulb") as IconName} color={tip.color || colors.accent} title={tip.title} text={tip.text} width={(width - 32 - 10) / 2} />)}
+        {tips.map((tip, i) => <TipCard key={tip.id} n={i + 1} icon={(tip.icon || "bulb") as IconName} color={tip.color || "accent"} title={tip.title} text={tip.text} width={(width - 32 - 10) / 2} />)}
       </View>
     </View>
   );

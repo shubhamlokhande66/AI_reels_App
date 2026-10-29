@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Image, Pressable, Text, View } from "react-native";
 import { posterShade, templateArt, templateArtFallback, tones, type IconName, type Tone } from "@shubix/ui-core";
-import { accentWash, colors } from "../colors";
+import { accentWash } from "../colors";
+import { useColors } from "../theme";
 import { Icon } from "../atoms/Icon";
 import { Paint } from "../atoms/Paint";
 import { Gold } from "../atoms/Gold";
@@ -94,7 +95,7 @@ export function DraftCard({ name, thumb, duration, edited, onPress, onMore, more
           <Text numberOfLines={1} className="text-[13.5px] font-bold text-foreground">{name}</Text>
           <Text className="text-[11.5px] text-muted">{edited}</Text>
         </Pressable>
-        {onMore && <Pressable onPress={onMore} accessibilityLabel={moreLabel} className="h-8 w-8 items-center justify-center rounded-full active:bg-surface-2"><Icon name="more" size={18} color={colors.muted} /></Pressable>}
+        {onMore && <Pressable onPress={onMore} accessibilityLabel={moreLabel} className="h-8 w-8 items-center justify-center rounded-full active:bg-surface-2"><Icon name="more" size={18} color="muted" /></Pressable>}
       </View>
     </View>
   );
@@ -115,7 +116,7 @@ export function TipCard({ n, icon, color, title, text, width }: { n: number; ico
 export function EmptyState({ title, hint, action, icon = "sparkle" }: { title: string; hint?: string; action?: ReactNode; icon?: IconName }) {
   return (
     <Card className="items-center gap-2 px-4 py-[22px]">
-      <View className="h-[54px] w-[54px] items-center justify-center rounded-full border-[1.5px] border-border"><Icon name={icon} size={24} color={colors.accent} /></View>
+      <View className="h-[54px] w-[54px] items-center justify-center rounded-full border-[1.5px] border-border"><Icon name={icon} size={24} color="accent" /></View>
       <Heading className="text-center">{title}</Heading>
       {hint && <Text className="max-w-[384px] text-center text-[12.5px] text-muted">{hint}</Text>}
       {action && <View className="mt-1">{action}</View>}
@@ -127,10 +128,10 @@ export function EmptyState({ title, hint, action, icon = "sparkle" }: { title: s
 export function ProBanner({ title, text, button }: { title: string; text: string; button: ReactNode }) {
   return (
     <View accessibilityLabel={title} className="flex-row items-center gap-3 overflow-hidden rounded-2xl border border-accent/45 p-4">
-      <Paint paint={accentWash(105)} />
-      <View className="absolute -right-5 -top-6 opacity-15"><Icon name="crown" size={96} color={colors.accent} /></View>
+      <Paint paint={accentWash(105, useColors())} />
+      <View className="absolute -right-5 -top-6 opacity-15"><Icon name="crown" size={96} color="accent" /></View>
       <View className="min-w-0 flex-1 flex-row items-center gap-3">
-        <View className="h-12 w-12 items-center justify-center"><Icon name="crown" size={34} color={colors.accent} /></View>
+        <View className="h-12 w-12 items-center justify-center"><Icon name="crown" size={34} color="accent" /></View>
         <View className="min-w-0 flex-1">
           <Text className="text-[15px] font-extrabold text-foreground">{title}</Text>
           <Text className="text-[12px] leading-[16px] text-muted">{text}</Text>
@@ -145,13 +146,13 @@ export function ProBanner({ title, text, button }: { title: string; text: string
 export function TipsBanner({ title, text, onPress }: { title: string; text: string; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="link" className="flex-row items-center gap-3 overflow-hidden rounded-2xl border border-accent/40 px-4 py-3 active:border-accent">
-      <Paint paint={accentWash(100)} />
-      <Icon name="bulb" size={30} stroke={2} color={colors.accent} />
+      <Paint paint={accentWash(100, useColors())} />
+      <Icon name="bulb" size={30} stroke={2} color="accent" />
       <View className="min-w-0 flex-1">
         <Text className="text-[15px] font-extrabold text-foreground">{title}</Text>
         <Text className="text-[12px] text-muted">{text}</Text>
       </View>
-      <View className="h-8 w-8 items-center justify-center rounded-full bg-white/10"><Icon name="chevron" size={18} stroke={2.2} color={colors.foreground} /></View>
+      <View className="h-8 w-8 items-center justify-center rounded-full bg-white/10"><Icon name="chevron" size={18} stroke={2.2} color="foreground" /></View>
     </Pressable>
   );
 }

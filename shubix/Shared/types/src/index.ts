@@ -14,3 +14,54 @@ export type CloudReel = {
   thumb: string | null; createdAt: string; shared: boolean; shareUrl: string | null;
 };
 export type CloudUsage = { used: number; limit: number; plan: string; cloud: boolean; keepDays?: number };
+
+/** Plans and credits (pricing page). */
+export interface Pricing {
+  currency: string;
+  yearlyMonthsCharged: number;
+  plans: {
+    id: string;
+    name: string;
+    monthly: number;
+    yearly: number;
+    credits: number;
+    creditsNote: string;
+    tagline: string;
+    highlight: boolean;
+    /** Shubix AI in this plan (Free: the phone edits); ads shown; not offered on the pricing page */
+    ai?: boolean;
+    ads?: boolean;
+    hidden?: boolean;
+    /** Ask Shubix changes per Reel that use no credits */
+    freeChats?: number;
+    features: string[];
+  }[];
+  topUps: { id: string; credits: number; price: number }[];
+  costLabels?: Record<string, string>;
+  creditCosts: { id: string; action: string; credits: number }[];
+  costs: Record<string, number>;
+  paymentsOpen: boolean;
+  billingEnabled: boolean;
+}
+
+/** The signed-in user's credits (billing on). */
+export type Credits =
+  | { enabled: false; billing?: boolean } // billing: on, but nobody signed in
+  | {
+      enabled: true;
+      balance: number;
+      monthly: number;
+      extra: number;
+      plan: string;
+      planName: string;
+      period: "monthly" | "yearly" | null;
+      planEnds: string | null;
+      renews: string | null;
+      history: { delta: number; reason: string; at: string; balance: number | null }[];
+    };
+/** A price worked out by the server before paying (the offer, a coupon), and a sale running. */
+export type Quote = {
+  item: string; label: string; base: number; final: number; couponError: string;
+  offer: { id: string; title: string; percent: number; off: number } | null; coupon: { code: string; off: number; label: string } | null;
+};
+export type Offer = { id: string; title: string; banner: string; percent: number; appliesTo: "all" | "plans" | "topups"; audience: "all" | "new"; ends: string | null };

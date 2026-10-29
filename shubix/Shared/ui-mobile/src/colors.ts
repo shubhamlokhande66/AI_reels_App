@@ -1,5 +1,5 @@
 import { palette } from "@shubix/ui-core";
-/** Colours for props that cannot take a class (icons, placeholderTextColor): the website's names (Shared/ui-core). */
+/** The Dark look's colours, for code that has no look yet; components use useColors() (theme.tsx). */
 export const colors = palette;
 
 /** CSS color-mix(in srgb, `a` p%, `b`) for two #rrggbb colours (the website's accent-tinted surfaces). */
@@ -10,4 +10,4 @@ export function mix(a: string, b: string, p: number): string {
 }
 
 /** The website's gold-tinted banner ground: color-mix(accent 18%, surface) → color-mix(accent 5%, surface). */
-export const accentWash = (angle: number) => ({ angle, stops: [mix(palette.accent, palette.surface, 0.18), mix(palette.accent, palette.surface, 0.05)] });
+export const accentWash = (angle: number, look: { accent: string; surface: string }) => ({ angle, stops: [mix(look.accent, look.surface, 0.18), mix(look.accent, look.surface, 0.05)] });

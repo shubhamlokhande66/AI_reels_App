@@ -3,21 +3,21 @@ import { Animated, Easing, Text, View } from "react-native";
 import Svg, { Defs, Ellipse, LinearGradient, Polygon, Stop, Text as SvgText } from "react-native-svg";
 import { LinearGradient as Fill } from "expo-linear-gradient";
 import { useText } from "@shubix/hooks";
-import { Button, Gold, Icon, Paint, colors, cssLine, mix, places, stopsOf } from "@shubix/ui-mobile";
+import { Button, Gold, Icon, Paint, cssLine, mix, places, stopsOf, useColors } from "@shubix/ui-mobile";
 import { gradients, heroArt } from "@shubix/ui-core";
 
 /** Home's hero (the website's components/organisms/home/HomeHero.tsx): the tag, the three-line title, the line, the
  * Create button and the three steps, then the studio picture: a 9:16 Reel at sunset, the soundtrack's bars moving to
  * the beat, the clips and the progress line. The picture's colours and shapes: Shared/ui-core heroArt. */
 export function HomeHero({ onCreate }: { onCreate: () => void }) {
-  const text = useText();
-  const ground = { angle: 135, stops: [mix(colors.surface, colors.background, 0.92), colors.background], glows: heroArt.glows };
+  const text = useText(), look = useColors();
+  const ground = { angle: 135, stops: [mix(look.surface, look.background, 0.92), look.background], glows: heroArt.glows };
   return (
     <View accessibilityLabel="Make a Reel" className="-mx-4 -mt-4 gap-6 overflow-hidden border-b border-border px-4 pb-6 pt-6">
       <Paint paint={ground} />
       <View className="items-start gap-4">
         <View className="flex-row items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1.5">
-          <Icon name="music" size={14} color={colors.accent} />
+          <Icon name="music" size={14} color="accent" />
           <Text className="text-[10px] font-bold uppercase tracking-[1.8px] text-accent">{text("home.heroTag")}</Text>
         </View>
         <View accessibilityRole="header" className="self-stretch">
@@ -81,7 +81,7 @@ function StudioPicture() {
         <View className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
           <View className="mb-2.5 flex-row items-center justify-between gap-2">
             <View className="min-w-0 flex-row items-center gap-2">
-              <View className="h-7 w-7 items-center justify-center rounded-lg bg-accent/15"><Icon name="music" size={15} color={colors.accent} /></View>
+              <View className="h-7 w-7 items-center justify-center rounded-lg bg-accent/15"><Icon name="music" size={15} color="accent" /></View>
               <Text numberOfLines={1} className="text-[10px] font-bold uppercase tracking-[1.2px] text-white/75">{text("home.mockSound")}</Text>
             </View>
             <Text className="font-mono text-[9px] text-white/45">00:24</Text>
