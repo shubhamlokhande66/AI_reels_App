@@ -5,6 +5,7 @@
  * make a talking Reel, otherwise the loudest clip's own sound becomes the song. */
 
 import { TTS_VOICES } from "@/lib/tts/voices";
+import { TW } from "./tw";
 
 type Work = { song: boolean; songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; speech: boolean; exporting: boolean; exportP: number };
 type Studio = { work: Work; autoExport: () => Promise<Blob | null>; saveLast: () => void; autoSound: () => Promise<"talk" | "extract" | "none">;
@@ -37,7 +38,7 @@ export function initAuto(root: HTMLElement): () => void {
   const S = () => (root as unknown as { __studio?: Studio }).__studio;
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector<T>("#" + id)!;
   const ov = document.createElement("div");
-  ov.className = "autoov"; ov.id = "autoov"; ov.hidden = true;
+  ov.className = "autoov block pt-1 px-0 pb-6 [&>div]:w-[min(560px,100%)] [&>div]:my-0 [&>div]:mx-auto [&>div]:grid [&>div]:gap-3.5 [&_h1]:m-0 [&_h1]:[font:600_clamp(24px,5vw,28px)/1.15_var(--display)] [&_h1]:tracking-[-.02em] [&_h1]:text-foreground [&_h2]:m-0 [&_h2]:[font:600_18px/1.25_var(--display)] [&_h2]:text-foreground"; ov.id = "autoov"; ov.hidden = true;
   const svg = (d: string) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const ICON = {
     clips: svg('<rect x="2.5" y="6" width="13" height="12" rx="2"/><path d="M15.5 10l6-3v10l-6-3z"/>'),
@@ -53,67 +54,67 @@ export function initAuto(root: HTMLElement): () => void {
     voice: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
   };
   ov.innerHTML = `
-    <div class="aopick" id="aopick">
-      <button type="button" class="aoback" data-ao="close">${ICON.back}<span>Back</span></button>
-      <div class="aohead">
+    <div class="aopick [.autoov>&]:[&.aowide]:w-[min(980px,100%)]" id="aopick">
+      <button type="button" class="aoback justify-self-start inline-flex items-center gap-1 border-0 bg-transparent text-muted [font:600_14px_var(--body)] py-1.5 px-0 cursor-pointer [&[hidden]]:hidden [&_svg]:w-4.5 [&_svg]:h-4.5" data-ao="close">${ICON.back}<span>Back</span></button>
+      <div class="aohead grid gap-1.5 max-[768px]:in-[.aopick.aowide]:[&_h1]:hidden">
         <h1 id="aotitle">Story → Reel</h1>
-        <p class="sub" id="aosub">Pick your clips. Shubix does the rest: the best moments, cuts on the beat, transitions, colour and sound.</p>
+        <p class="sub ${TW.sub}" id="aosub">Pick your clips. Shubix does the rest: the best moments, cuts on the beat, transitions, colour and sound.</p>
       </div>
-      <div class="aostory" id="aostory" hidden>
-        <div class="aocol">
-          <div class="step aowrite">
-            <div class="aorow"><label class="aolabel" for="aotext">Your story</label><span class="aocount" id="aocount">0 scenes</span></div>
+      <div class="aostory [&_textarea]:w-full [&_textarea]:rounded-[14px] [&_textarea]:border [&_textarea]:border-border [&_textarea]:bg-background [&_textarea]:text-foreground [&_textarea]:[font:15px_var(--body)] [&_textarea]:p-3 [&_textarea]:resize-y [&_select]:h-11 [&_select]:rounded-[12px] [&_select]:border [&_select]:border-border [&_select]:bg-background [&_select]:text-foreground [&_select]:[font:14px_var(--body)] [&_select]:py-0 [&_select]:px-2.5 grid gap-3.5 [&:not([hidden])]:grid [&_select:focus]:[outline:2px_solid_color-mix(in_srgb,var(--accent)_45%,transparent)] [&_select:focus]:outline-offset-[1px] [&_select:focus]:border-accent min-[900px]:[.aopick.aowide>&]:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] min-[900px]:[.aopick.aowide>&]:gap-x-5.5" id="aostory" hidden>
+        <div class="aocol ${TW.aocol}">
+          <div class="step ${TW.step} aowrite [&_textarea]:min-h-47.5 [&_textarea]:leading-[1.55] [&_textarea:focus]:[outline:2px_solid_color-mix(in_srgb,var(--accent)_45%,transparent)] [&_textarea:focus]:outline-offset-[1px] [&_textarea:focus]:border-accent min-[900px]:in-[.aopick.aowide]:[&_textarea]:min-h-75">
+            <div class="aorow flex items-center justify-between gap-2"><label class="aolabel ${TW.aolabel}" for="aotext">Your story</label><span class="aocount [font:600_12px_var(--body)] text-muted bg-surface-2 rounded-full py-[3px] px-[9px] tabular-nums" id="aocount">0 scenes</span></div>
             <textarea id="aotext" rows="9" maxlength="3000" placeholder="Write your story… Each sentence becomes a scene: a picture, the narration and the captions."></textarea>
-            <div class="aoex"><span>Try one:</span>${EXAMPLES.map(([n], i) => `<button type="button" class="aochip" data-ex="${i}">${n}</button>`).join("")}</div>
+            <div class="aoex flex flex-wrap items-center gap-1.5 text-[12.5px] text-muted"><span>Try one:</span>${EXAMPLES.map(([n], i) => `<button type="button" class="aochip ${TW.aochip}" data-ex="${i}">${n}</button>`).join("")}</div>
           </div>
         </div>
-        <div class="aocol">
-          <div class="step">
-            <span class="aolabel">${ICON.pic}<span>Pictures</span></span>
-            <div class="aostyles" id="aostyles" role="radiogroup" aria-label="Picture style"></div>
-            <p class="aohint" id="aostylehint">Shubix finds a picture for every scene.</p>
+        <div class="aocol ${TW.aocol}">
+          <div class="step ${TW.step}">
+            <span class="aolabel ${TW.aolabel}">${ICON.pic}<span>Pictures</span></span>
+            <div class="aostyles flex flex-wrap gap-1.5" id="aostyles" role="radiogroup" aria-label="Picture style"></div>
+            <p class="aohint m-0 text-[12.5px] text-muted" id="aostylehint">Shubix finds a picture for every scene.</p>
           </div>
-          <div class="step">
-            <label class="aolabel" for="aovoice">${ICON.voice}<span>Narrator</span></label>
+          <div class="step ${TW.step}">
+            <label class="aolabel ${TW.aolabel}" for="aovoice">${ICON.voice}<span>Narrator</span></label>
             <select id="aovoice"></select>
           </div>
         </div>
       </div>
-      <button type="button" class="aobig" data-ao="clips"><span class="aoic aoic1">${ICON.clips}</span><span class="aotx"><b id="aoclipsh">Your clips</b><span id="aoclips">Videos or photos from your phone</span></span><span class="aochev">${ICON.chev}</span></button>
-      <button type="button" class="aobig" data-ao="song"><span class="aoic aoic2">${ICON.song}</span><span class="aotx"><b>A song <em>optional</em></b><span id="aosong">Without one, your clips' own sound is used</span></span><span class="aochev">${ICON.chev}</span></button>
-      <p class="aonote">${ICON.spark}<span id="aonotetx">Made on your phone. Your videos are never uploaded.</span></p>
-      <button type="button" class="btn save big aogo" id="aogo" disabled>Make my Reel</button>
+      <button type="button" class="aobig ${TW.aobig}" data-ao="clips"><span class="aoic ${TW.aoic} aoic1 [background:var(--gold-gradient)]">${ICON.clips}</span><span class="aotx ${TW.aotx}"><b id="aoclipsh">Your clips</b><span id="aoclips">Videos or photos from your phone</span></span><span class="aochev ${TW.aochev}">${ICON.chev}</span></button>
+      <button type="button" class="aobig ${TW.aobig}" data-ao="song"><span class="aoic ${TW.aoic} aoic2 [background:linear-gradient(135deg,#7187a1,#33445a)]">${ICON.song}</span><span class="aotx ${TW.aotx}"><b>A song <em>optional</em></b><span id="aosong">Without one, your clips' own sound is used</span></span><span class="aochev ${TW.aochev}">${ICON.chev}</span></button>
+      <p class="aonote flex items-center gap-2 m-0 text-muted text-[13px] [&_svg]:text-accent [&_svg]:flex-none [&_svg]:w-4.5 [&_svg]:h-4.5">${ICON.spark}<span id="aonotetx">Made on your phone. Your videos are never uploaded.</span></p>
+      <button type="button" class="btn ${TW.btn} save big aogo w-full justify-center min-h-13 text-[16px] [background:var(--gold-gradient)] text-on-accent disabled:opacity-45 disabled:cursor-not-allowed" id="aogo" disabled>Make my Reel</button>
       <input type="file" id="aovfile" accept="video/*,image/*,.mov,.mp4,.m4v,.jpg,.jpeg,.png,.webp,.heic" multiple hidden><input type="file" id="aomfile" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav" hidden>
     </div>
-    <div class="aorun" id="aorun" hidden>
-      <div class="aoposter" aria-hidden="true">
-        <div class="aoposterimg" id="aoposter"></div>
-        <div class="aoglow"></div>
-        <div class="aoring"><svg viewBox="0 0 120 120"><defs><linearGradient id="aograd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e879f9"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" id="aoarc"/></svg><b id="aopct">0%</b></div>
+    <div class="aorun [.autoov>&]:w-[min(920px,100%)] [.autoov>&]:gap-5.5 [.autoov>&]:justify-items-center [.autoov>&]:pt-2 [.autoov>&]:px-0 [.autoov>&]:pb-5 [&_h2]:min-h-[1.25em] min-[900px]:[.autoov>&]:grid-cols-[auto_minmax(0,440px)] min-[900px]:[.autoov>&]:justify-center min-[900px]:[.autoov>&]:items-center min-[900px]:[.autoov>&]:gap-x-11 min-[900px]:[.autoov>&]:pt-6" id="aorun" hidden>
+      <div class="aoposter relative w-[min(300px,62vw)] aspect-[9/16] rounded-[24px] overflow-hidden grid place-items-center isolate [background:linear-gradient(160deg,color-mix(in_srgb,var(--accent)_28%,#29251b),#111110_70%)] shadow-[0_30px_60px_-30px_rgba(0,0,0,.65),inset_0_0_0_1px_rgba(255,255,255,.08)] max-[900px]:w-[min(220px,56vw)]" aria-hidden="true">
+        <div class="aoposterimg absolute inset-0 [background:center/cover_no-repeat] opacity-0 [transform:scale(1.02)] -z-[2] [&.on]:opacity-100 [&.on]:animate-kenburns [&.on]:[transition:opacity_.6s] motion-reduce:[&.on]:animate-none!" id="aoposter"></div>
+        <div class="aoglow absolute inset-0 -z-[1] [background:radial-gradient(60%_40%_at_50%_50%,rgba(17,17,16,.25),rgba(17,17,16,.7)),linear-gradient(transparent_55%,rgba(0,0,0,.55))] [.aoposterimg:not(.on)+&]:[background:radial-gradient(50%_35%_at_50%_45%,color-mix(in_srgb,var(--accent)_45%,transparent),transparent_70%)] [.aoposterimg:not(.on)+&]:animate-dim motion-reduce:animate-none!"></div>
+        <div class="aoring ${TW.aoring}"><svg viewBox="0 0 120 120"><defs><linearGradient id="aograd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e879f9"/><stop offset="1" stop-color="#7c3aed"/></linearGradient></defs><circle cx="60" cy="60" r="52" class="bg ${TW.bg}"/><circle cx="60" cy="60" r="52" class="fg ${TW.fg}" id="aoarc"/></svg><b id="aopct">0%</b></div>
       </div>
-      <div class="aoinfo">
-        <span class="aoeyebrow">${ICON.spark}<span id="aoeyebrow">Making your Reel</span></span>
+      <div class="aoinfo grid gap-3 w-full max-w-[440px] content-start">
+        <span class="aoeyebrow inline-flex items-center gap-1.5 [font:600_11px_var(--body)] tracking-[.12em] uppercase text-accent [&_svg]:w-[15px] [&_svg]:h-[15px]">${ICON.spark}<span id="aoeyebrow">Making your Reel</span></span>
         <h2 id="aostage" aria-live="polite">Starting…</h2>
-        <div class="aobar" role="progressbar" aria-label="Progress"><i id="aobar"></i></div>
-        <div class="aopics" id="aopics" hidden></div>
-        <ol class="aolist" id="aolist">${STAGES.map(([k, t]) => `<li data-s="${k}">${t}</li>`).join("")}</ol>
-        <p class="aokeep" id="aokeep">Keep this screen open. Nothing is uploaded.</p>
+        <div class="aobar h-1.5 rounded-full bg-surface-2 overflow-hidden [&_i]:block [&_i]:h-full [&_i]:w-0 [&_i]:rounded-[inherit] [&_i]:[background:var(--gold-gradient)] [&_i]:[transition:width_.4s]" role="progressbar" aria-label="Progress"><i id="aobar"></i></div>
+        <div class="aopics grid grid-cols-[repeat(auto-fill,minmax(52px,1fr))] gap-1.5 w-full" id="aopics" hidden></div>
+        <ol class="aolist list-none mt-1 mx-0 mb-0 p-0 grid gap-0 text-left w-full [&_li]:relative [&_li]:flex [&_li]:items-center [&_li]:gap-3 [&_li]:py-2 [&_li]:px-0 [&_li]:text-muted [&_li]:text-[13.5px] [&_li:not(:last-child)]:after:absolute [&_li:not(:last-child)]:after:left-2 [&_li:not(:last-child)]:after:top-7.5 [&_li:not(:last-child)]:after:-bottom-1.5 [&_li:not(:last-child)]:after:w-0.5 [&_li:not(:last-child)]:after:rounded-[2px] [&_li:not(:last-child)]:after:bg-border [&_li.ok:not(:last-child)]:after:bg-accent [&_li]:before:flex-none [&_li]:before:w-4.5 [&_li]:before:h-4.5 [&_li]:before:rounded-[50%] [&_li]:before:border-[2px] [&_li]:before:border-border [&_li]:before:bg-surface [&_li.now]:text-foreground [&_li.now]:font-semibold [&_li.now]:before:border-accent [&_li.now]:before:[border-right-color:transparent] [&_li.now]:before:animate-spin-fast [&_li.ok]:text-foreground [&_li.ok]:before:border-0 [&_li.ok]:before:[background:var(--accent)_url('data:image/svg+xml,%3Csvg_xmlns='http://www.w3.org/2000/svg'_viewBox='0_0_24_24'_fill='none'_stroke='white'_stroke-width='3'_stroke-linecap='round'_stroke-linejoin='round'%3E%3Cpath_d='M5_12l5_5_9-10'/%3E%3C/svg%3E')_center/12px_no-repeat] motion-reduce:[&_li.now]:before:animate-none" id="aolist">${STAGES.map(([k, t]) => `<li data-s="${k}">${t}</li>`).join("")}</ol>
+        <p class="aokeep m-0 text-[12.5px] text-muted" id="aokeep">Keep this screen open. Nothing is uploaded.</p>
       </div>
     </div>
-    <div class="aodone" id="aodone" hidden>
-      <div class="aodonebox">
-        <div class="aovidwrap"><video id="aovid" playsinline controls loop></video></div>
-        <div class="aoside">
-          <span class="aoready">${ICON.check}<span>Ready</span></span>
+    <div class="aodone [.autoov>&]:w-[min(1000px,100%)] [&_video]:block [&_video]:h-[min(72vh,680px)] [&_video]:max-w-full [&_video]:aspect-[9/16] [&_video]:rounded-[16px] [&_video]:bg-[#000] [&_video]:shadow-[0_24px_50px_-24px_rgba(0,0,0,.55)] [&_h1]:text-[clamp(22px,4vw,26px)] max-[900px]:[&_video]:w-full max-[900px]:[&_video]:h-auto max-[900px]:[&_video]:max-h-[70vh]" id="aodone" hidden>
+      <div class="aodonebox grid gap-4.5 justify-items-center min-[900px]:grid-cols-[auto_minmax(240px,320px)] min-[900px]:items-center min-[900px]:justify-center min-[900px]:gap-x-9">
+        <div class="aovidwrap grid place-items-center w-full p-3.5 rounded-[24px] [background:radial-gradient(120%_90%_at_50%_0%,color-mix(in_srgb,var(--accent)_16%,transparent),transparent_70%),var(--surface)] border border-border shadow-(--shadow) max-[900px]:p-0 max-[900px]:border-0 max-[900px]:bg-none max-[900px]:shadow-none"><video id="aovid" playsinline controls loop></video></div>
+        <div class="aoside grid gap-2 w-full content-start">
+          <span class="aoready justify-self-start inline-flex items-center gap-[5px] [font:600_11px_var(--body)] tracking-[.08em] uppercase text-[color:var(--success,#16a34a)] bg-[color:color-mix(in_srgb,var(--success,#16a34a)_13%,transparent)] rounded-full pt-1 pr-2.5 pb-1 pl-2 [&_svg]:w-[13px] [&_svg]:h-[13px] [&_svg]:[stroke-width:2.6]">${ICON.check}<span>Ready</span></span>
           <h1>Your Reel is ready</h1>
-          <p class="sub">Watch it, then save it to your phone or change anything in the editor.</p>
-          <p class="aometa" id="aometa"></p>
-          <div class="aoacts">
-            <button type="button" class="aobtn pri" data-ao="save">${ICON.save}<span>Save / Share</span></button>
-            <button type="button" class="aobtn" data-ao="edit">${ICON.edit}<span>Edit in the studio</span></button>
-            <button type="button" class="aobtn ghost" data-ao="again">${ICON.again}<span>Make another</span></button>
+          <p class="sub ${TW.sub}">Watch it, then save it to your phone or change anything in the editor.</p>
+          <p class="aometa m-0 [font:600_12.5px_var(--body)] text-muted tabular-nums empty:hidden" id="aometa"></p>
+          <div class="aoacts flex flex-wrap gap-2 mt-1.5 max-[900px]:grid max-[900px]:grid-cols-[1fr_1fr] min-[900px]:flex-col min-[900px]:items-stretch">
+            <button type="button" class="aobtn ${TW.aobtn} pri" data-ao="save">${ICON.save}<span>Save / Share</span></button>
+            <button type="button" class="aobtn ${TW.aobtn}" data-ao="edit">${ICON.edit}<span>Edit in the studio</span></button>
+            <button type="button" class="aobtn ${TW.aobtn} ghost" data-ao="again">${ICON.again}<span>Make another</span></button>
           </div>
-          <details class="aocredits" id="aocredits" hidden><summary>Picture credits</summary><ol id="aocredlist"></ol></details>
+          <details class="aocredits mt-2 text-[12px] text-muted [&_summary]:cursor-pointer [&_summary]:font-semibold [&_ol]:mt-1.5 [&_ol]:mx-0 [&_ol]:mb-0 [&_ol]:pl-0 [&_ol]:list-none [&_ol]:grid [&_ol]:gap-[3px] [&_ol]:max-h-35 [&_ol]:overflow-auto" id="aocredits" hidden><summary>Picture credits</summary><ol id="aocredlist"></ol></details>
         </div>
       </div>
     </div>`;
@@ -130,7 +131,7 @@ export function initAuto(root: HTMLElement): () => void {
     root.querySelectorAll<HTMLButtonElement>("#aostyles button").forEach((b) => { b.disabled = !!clips.length; });
   };
   const drawStyles = () => {
-    $("aostyles").innerHTML = styles.map((s) => `<button type="button" role="radio" class="aochip" aria-checked="${s.id === style}" data-st="${s.id}">${s.name}${s.free ? "" : " <em>AI</em>"}</button>`).join("");
+    $("aostyles").innerHTML = styles.map((s) => `<button type="button" role="radio" class="aochip ${TW.aochip}" aria-checked="${s.id === style}" data-st="${s.id}">${s.name}${s.free ? "" : " <em>AI</em>"}</button>`).join("");
     ready();
   };
   const loadStyles = async () => {
@@ -241,7 +242,7 @@ export function initAuto(root: HTMLElement): () => void {
     credits = [];
     const { photoClip } = await import("./steps"), n = plan.scenes.length, reelId = "story" + Date.now().toString(36), seen: string[] = [], out: File[] = [];
     const strip = $("aopics"); strip.hidden = false;
-    strip.innerHTML = plan.scenes.map((_: unknown, i: number) => `<span class="aopic" data-i="${i}"><b>${i + 1}</b></span>`).join("");
+    strip.innerHTML = plan.scenes.map((_: unknown, i: number) => `<span class="aopic aspect-[9/16] rounded-[10px] [background:var(--surface-2)_center/cover_no-repeat] border border-border grid [place-items:end_start] p-1 [transition:opacity_.3s] [&_b]:[font:600_10px_var(--body)] [&_b]:text-[#fff] [&_b]:bg-[color:rgba(0,0,0,.55)] [&_b]:rounded-[6px] [&_b]:py-[1px] [&_b]:px-[5px] [&:not(.ok):not(.same)]:animate-pulse-soft [&.same]:opacity-50 motion-reduce:animate-none!" data-i="${i}"><b>${i + 1}</b></span>`).join("");
     for (let i = 0; i < n; i++) {
       say(0.04 + 0.24 * i / n, `Finding a picture for scene ${i + 1} of ${n}`);
       let pic: { image: string; ref: string; credit: string } | null = null;

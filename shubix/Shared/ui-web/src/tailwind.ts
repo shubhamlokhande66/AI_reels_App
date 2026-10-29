@@ -35,6 +35,16 @@ export default {
         breathe: { "0%, 100%": { transform: "scale(.96)", opacity: ".88" }, "50%": { transform: "scale(1.04)", opacity: "1" } },
         drop: { from: { opacity: "0", transform: "translateY(-4px)" } }, // a menu opening under its button
         spin: { to: { transform: "rotate(360deg)" } },
+        // the studio's
+        "pulse-soft": { "50%": { opacity: ".5" } },
+        kenburns: { to: { transform: "scale(1.12)" } },
+        dim: { "50%": { opacity: ".55" } },
+        "ai-pulse": { "0%, 100%": { opacity: ".35", transform: "scale(.9)" }, "50%": { opacity: ".9", transform: "scale(1.08)" } },
+        "chat-in": { from: { opacity: "0", transform: "translateY(12px) scale(.98)" } },
+        "chat-dots": { "0%, 100%": { opacity: ".2" }, "50%": { opacity: "1" } },
+        "chat-up": { from: { transform: "translateY(40px)", opacity: "0" } },
+        "ask-glow": { "50%": { boxShadow: "0 0 0 6px color-mix(in srgb,var(--accent) 16%,transparent), 0 8px 18px -8px color-mix(in srgb,var(--accent) 80%,transparent)" } },
+        "ai-ring": { "50%": { boxShadow: "0 0 0 5px color-mix(in srgb,var(--accent) 22%,transparent)" } },
       },
       animation: {
         eq: "eq 0.9s ease-in-out infinite",
@@ -54,6 +64,12 @@ export default {
         drift: "drift 10s ease-in-out infinite alternate",
         drop: "drop .15s ease-out",
         breathe: "breathe 5s ease-in-out infinite",
+        // the studio's
+        "spin-fast": "spin .8s linear infinite", "spin-slow": "spin 1.4s linear infinite", "spin-slower": "spin 1.6s linear infinite",
+        "pulse-soft": "pulse-soft 1.2s ease-in-out infinite", kenburns: "kenburns 7s ease-out forwards", dim: "dim 3s ease-in-out infinite",
+        "ai-pulse": "ai-pulse 1.6s ease-in-out infinite", "ai-ring": "ai-ring 1.2s ease-in-out infinite", "ask-glow": "ask-glow 2.8s ease-in-out infinite",
+        "chat-in": "chat-in .22s ease-out", "chat-dots": "chat-dots 1.2s steps(3) infinite", "chat-up": "chat-up .25s ease-out",
+        "ask-open": "drop .22s ease-out", "panel-in": "enter .32s ease-out both", "panel-in-fast": "enter .22s ease-out both",
       },
     },
   },
@@ -83,6 +99,10 @@ export default {
       // date and time fields: as wide as their box; on touch screens the app's look, the value on the left
       [DATE]: { minWidth: "0", maxWidth: "100%", width: "100%" },
       "@media (pointer: coarse)": { [DATE]: { WebkitAppearance: "none", appearance: "none", display: "block", textAlign: "left", fontSize: "13.5px", lineHeight: "44px" }, [`${DATE}::-webkit-date-and-time-value`]: { textAlign: "left", margin: "0" } },
+      // the studio: an open dialog or sheet locks the page's scroll; on phones and tablets, no Legal links under the flow
+      ":is(html, html body):has(.brs :is(.cconf, .xsheet):not([hidden]))": { overflow: "hidden" },
+      "html:has(.brs :is(.cconf, .xsheet):not([hidden])) body": { overscrollBehavior: "none" },
+      "@media (max-width: 1023px)": { 'body:has(.brs:is(.fopen, .fpost)) nav[aria-label="Legal"]': { display: "none" } },
       "@media (max-width: 767px)": {
         // 16px text in fields: iPhones otherwise zoom in when one is tapped (important: it must win over smaller text sizes)
         'input:not([type="checkbox"], [type="radio"], [type="range"]), select, textarea': { fontSize: "16px !important" },
