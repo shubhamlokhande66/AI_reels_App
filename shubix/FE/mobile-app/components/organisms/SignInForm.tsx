@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { Mail } from "lucide-react-native";
 import { View } from "react-native";
 import { useAuthForm } from "@shubix/hooks";
-import { AuthHeader, Button, C, ErrorBanner, Field, Input, LinkText, ModeSwitch, Page, PasswordInput } from "@shubix/ui-mobile";
+import { AuthHeader, Button, colors, ErrorBanner, Field, Input, LinkText, ModeSwitch, Page, PasswordInput } from "@shubix/ui-mobile";
 
 /** Sign in / create an account (logic: @shubix/hooks useAuthForm, the same as the website). */
 export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signup" }) {
@@ -16,7 +16,7 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
       <View className="mt-6"><ModeSwitch value={f.mode} onChange={f.setMode} options={[{ value: "signin", label: t("auth.signIn") }, { value: "signup", label: t("auth.createLink") }]} /></View>
       <View className="mt-5 gap-4">
         <Field label={t("auth.email")} error={f.errors.email}>
-          <Input icon={<Mail size={17} color={C.muted} />} value={f.email} onChangeText={f.setEmail} onBlur={() => f.touch("email")} invalid={!!f.errors.email}
+          <Input icon={<Mail size={17} color={colors.muted} />} value={f.email} onChangeText={f.setEmail} onBlur={() => f.touch("email")} invalid={!!f.errors.email}
             autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder={t("auth.emailPlaceholder")} />
         </Field>
         <Field label={t("auth.password")} error={f.errors.password} ok={f.ok.password} hint={f.signin ? undefined : t("auth.lengthHint")}>
