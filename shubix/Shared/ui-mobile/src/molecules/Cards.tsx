@@ -64,6 +64,18 @@ export function TemplateCard({ name, meta, text, ...poster }: Parameters<typeof 
   );
 }
 
+/** A Reel's cover in My Reels: its picture (3:4), a fade at the bottom and its length (the website's Cover). */
+export function ReelCover({ thumb, duration, children }: { thumb?: string | null; duration: string; children?: ReactNode }) {
+  return (
+    <View className="aspect-[3/4] w-full overflow-hidden rounded-2xl bg-surface-2">
+      {thumb && <Image source={{ uri: thumb }} className="absolute inset-0 h-full w-full" resizeMode="cover" />}
+      <Paint paint={{ angle: 0, stops: ["rgba(0,0,0,.45)", ["transparent", 50], "transparent"] }} />
+      <Text className="absolute bottom-2 left-2 overflow-hidden rounded-md bg-[rgba(10,9,8,.72)] px-1.5 py-0.5 text-[10px] font-bold text-white">{duration}</Text>
+      {children}
+    </View>
+  );
+}
+
 /** A Reel being edited: its picture with a play button and its length, its name and when it was last edited. */
 export function DraftCard({ name, thumb, duration, edited, onPress, onMore, moreLabel }: { name: string; thumb?: string | null; duration: string; edited: string; onPress: () => void; onMore?: () => void; moreLabel?: string }) {
   return (

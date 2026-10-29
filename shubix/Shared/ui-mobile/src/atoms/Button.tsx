@@ -35,11 +35,12 @@ export function Button({ title, onPress, variant = "primary", size = "md", full 
 }
 
 /** A round button with only an icon (back, undo, send…): `label` is what screen readers say. box: bordered surface;
- * plain: no border or fill; muted: grey; main: the gold gradient. */
+ * plain: no border or fill; muted: grey; danger: red; main: the gold gradient. */
 const ICON_LOOK = {
   box: { box: "border border-border bg-surface", color: colors.foreground },
   plain: { box: "", color: colors.foreground },
   muted: { box: "", color: colors.muted },
+  danger: { box: "", color: colors.danger },
   main: { box: "", color: colors.onAccent },
 };
 export function IconButton({ icon, label, onPress, size = 44, iconSize, look = "box", disabled = false, className = "" }: { icon: IconName; label: string; onPress: () => void; size?: number; iconSize?: number; look?: keyof typeof ICON_LOOK; disabled?: boolean; className?: string }) {

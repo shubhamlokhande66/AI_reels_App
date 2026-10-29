@@ -15,7 +15,7 @@ export function Chip({ label, on = false, onPress, icon, count, tall = false }: 
 
 /** The website's segmented control (Shared/ui-web/src/seg.ts): one of a few side by side. small: compact; full: the
  * whole width, shared. */
-export function Segmented<T extends string>({ value, options, onChange, small = false, full = false }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; small?: boolean; full?: boolean }) {
+export function Segmented<T extends string>({ value, options, onChange, small = false, full = false }: { value: T; options: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; small?: boolean; full?: boolean }) {
   return (
     <View className={`flex-row gap-[3px] rounded-[14px] border border-border bg-surface-2 p-[3px] ${full ? "w-full" : "self-start"}`}>
       {options.map((o) => {
@@ -23,7 +23,7 @@ export function Segmented<T extends string>({ value, options, onChange, small = 
         return (
           <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="button" accessibilityState={{ selected: on }}
             className={`items-center justify-center rounded-[10px] border ${on ? "border-accent/55 bg-chip-on" : "border-transparent"} ${small ? "px-2.5 py-1.5" : "px-3.5 py-[9px]"} ${full ? "flex-1" : ""}`}>
-            <Text numberOfLines={1} className={`font-semibold ${on ? "text-foreground" : "text-muted"} ${small ? "text-[12px]" : "text-[13px]"}`}>{o.label}</Text>
+            <Text numberOfLines={1} className={`font-semibold ${on ? "text-foreground" : "text-muted"} ${small ? "text-[12px]" : "text-[13px]"}`}>{o.label}{o.count !== undefined && <Text className="text-[11px] text-muted">  {o.count}</Text>}</Text>
           </Pressable>
         );
       })}

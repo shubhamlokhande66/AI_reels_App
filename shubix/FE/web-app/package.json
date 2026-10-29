@@ -18,6 +18,7 @@
     "@mediabunny/aac-encoder": "1.60.0",
     "@shiguredo/rnnoise-wasm": "2025.1.5",
     "@shubix/core": "workspace:*",
+    "@shubix/types": "workspace:*",
     "@shubix/utils": "workspace:*",
     "@shubix/validations": "workspace:*",
     "@tanstack/react-query": "^5.103.1",

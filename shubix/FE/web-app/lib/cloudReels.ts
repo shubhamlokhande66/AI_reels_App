@@ -4,11 +4,8 @@
  */
 
 
-export type CloudReel = {
-  id: string; name: string; size: number; type: string; dur: number; width: number; height: number; fps: number;
-  thumb: string | null; createdAt: string; shared: boolean; shareUrl: string | null;
-};
-export type CloudUsage = { used: number; limit: number; plan: string; cloud: boolean; keepDays?: number };
+import type { CloudReel, CloudUsage } from "@shubix/types";
+export type { CloudReel, CloudUsage };
 export type SaveMeta = { name: string; dur: number; width: number; height: number; fps: number; thumb?: string };
 
 /** An error to show as is: written for people. */

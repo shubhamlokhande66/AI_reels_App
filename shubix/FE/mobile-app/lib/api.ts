@@ -3,6 +3,7 @@ import { fetchWithToken } from "./device";
 import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
 import type { Features } from "@shubix/core/lib/features-list";
 import type { Content } from "@shubix/core/lib/collections";
+import type { CloudReel, CloudUsage } from "@shubix/types";
 import type { PlanLocks } from "@shubix/core/lib/plan-locks";
 
 /** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
@@ -20,7 +21,8 @@ export const mobileApi = {
   forgotPassword: (email: string) => api.auth.forgot(email),
   resetPassword: (email: string, code: string, password: string) => api.auth.reset(email, code, password),
   signOut: () => api.auth.logout(),
-  reels: () => json<{ reels: { id: string; name: string; dur: number; thumb: string | null; createdAt: string }[]; usage?: unknown }>("/api/studio/reels"),
+  reels: () => json<{ reels: CloudReel[]; usage: CloudUsage }>("/api/studio/reels"),
+  shareReel: (id: string, on: boolean) => json<CloudReel>(`/api/studio/reels/${encodeURIComponent(id)}/share`, { method: "POST", body: JSON.stringify({ on }) }),
   deleteReel: (id: string) => json(`/api/studio/reels/${encodeURIComponent(id)}`, { method: "DELETE" }),
   templates: () => json<{ templates: StudioTemplate[] }>("/api/templates"),
   features: () => json<Features>("/api/features"),

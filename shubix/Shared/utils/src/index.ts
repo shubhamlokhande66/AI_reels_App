@@ -16,3 +16,7 @@ export function formatRelative(iso: string, now: Date = new Date()): string {
   if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} d ago`;
   return new Date(iso).toLocaleDateString();
 }
+/** A file size as "4.2 MB" (whole MB from 10 MB). */
+export const megabytes = (b: number) => (b < 1e7 ? (b / 1e6).toFixed(1) : String(Math.round(b / 1e6))) + " MB";
+/** A video's quality: "720p", "1080p" or "4K", and its frame rate above 30 ("1080p · 60 fps"). */
+export const videoQuality = (r: { width: number; height: number; fps: number }) => (Math.min(r.width, r.height) >= 2000 ? "4K" : Math.min(r.width, r.height) >= 1000 ? "1080p" : "720p") + (r.fps > 30 ? ` · ${r.fps} fps` : "");

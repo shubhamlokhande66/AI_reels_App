@@ -252,6 +252,9 @@ importers:
       '@shubix/core':
         specifier: workspace:*
         version: link:../../Shared/core
+      '@shubix/types':
+        specifier: workspace:*
+        version: link:../../Shared/types
       '@shubix/utils':
         specifier: workspace:*
         version: link:../../Shared/utils
@@ -362,9 +365,6 @@ importers:
       '@shubix/types':
         specifier: workspace:*
         version: link:../types
-      '@shubix/utils':
-        specifier: workspace:*
-        version: link:../utils
       '@shubix/validations':
         specifier: workspace:*
         version: link:../validations

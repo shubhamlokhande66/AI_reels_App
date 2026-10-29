@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { clock, deleteDraft, useDrafts, type Draft } from "@/lib/drafts";
 import { formatRelative } from "@/lib/format";
+import { megabytes, videoQuality } from "@shubix/utils";
 import { useText } from "@/hooks/useApi";
 import { confirmAction } from "@/components/molecules/ConfirmDialog";
 import { MoreMenu } from "@/components/molecules/MoreMenu";
@@ -19,8 +20,6 @@ import { cloudReelUrl, deleteCloudReel, listCloudReels, shareCloudReel, type Clo
  * download, share a link, delete). Only the Saved ones are on the server. Every text: Admin → CMS → My Reels.
  */
 
-const mb = (b: number) => (b < 1e7 ? (b / 1e6).toFixed(1) : String(Math.round(b / 1e6))) + " MB";
-const quality = (r: CloudReel) => (Math.min(r.width, r.height) >= 2000 ? "4K" : Math.min(r.width, r.height) >= 1000 ? "1080p" : "720p") + (r.fps > 30 ? ` · ${r.fps} fps` : "");
 const GRID = "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 md:gap-4";
 
 function MakeReel() {
@@ -122,7 +121,7 @@ function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: Clou
       </a>
       <div className="min-w-0">
         <b className="block truncate text-[13.5px]">{r.name}</b>
-        <span className="block truncate text-[11.5px] text-muted">{quality(r)} · {mb(r.size)}</span>
+        <span className="block truncate text-[11.5px] text-muted">{videoQuality(r)} · {megabytes(r.size)}</span>
       </div>
       <div className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1">
         <a href={cloudReelUrl(r.id, true)} aria-label={`${text("reels.download")} ${r.name}`} title={text("reels.download")}
