@@ -12,7 +12,7 @@ import { useAdmin, useTexts, useT } from "@/hooks/useApi";
 import { STUDIO_KEYS } from "@shubix/core/lib/texts-all";
 import { startTextSwap } from "@/components/studio/textSwap";
 import { ErrorBanner } from "@/components/molecules";
-import { TW } from "./tw";
+import "./studio.css";
 
 /**
  * Fast Studio: song + clips -> a finished, beat-synced Reel made entirely on this device (analysis, edit, GPU preview and a
@@ -113,7 +113,7 @@ export function FastStudio({ kind }: { kind?: "music" | "talking" | "photo" | "c
   return (
     <>
       {failed && <ErrorBanner title={t("studio.failed")} message={failed} onRetry={() => location.reload()} />}
-      <div ref={root} className={`brs ${TW.root}${kind ? " fopen" : ""}`} data-fstep={kind ? "intro" : undefined} data-fkind={kind} dangerouslySetInnerHTML={{ __html: STUDIO_HTML }} />
+      <div ref={root} className={kind ? "brs fopen" : "brs"} data-fstep={kind ? "intro" : undefined} data-fkind={kind} dangerouslySetInnerHTML={{ __html: STUDIO_HTML }} />
     </>
   );
 }
