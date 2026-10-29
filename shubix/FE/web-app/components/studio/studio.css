@@ -143,10 +143,6 @@
 .brs .ctrow{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .brs .ctrow::-webkit-scrollbar{display:none}
 @media (min-width:760px){ .brs .ctrow{flex-wrap:wrap;overflow:visible} }
-.brs .ct{flex:0 0 auto;display:grid;justify-items:center;gap:4px;min-width:62px;padding:8px 6px;border-radius:12px;border:1px solid transparent;background:transparent;color:var(--muted);font:500 11.5px var(--body);cursor:pointer}
-.brs .ct:hover{color:var(--ink)}
-.brs .ct.on{color:var(--accent)}
-.brs .ct[aria-pressed=true]{background:var(--chipbg);border-color:var(--line);color:var(--ink)}
 .brs .ctbody{display:grid;gap:10px;padding:12px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
 .brs .cslide{display:grid;grid-template-columns:92px 1fr 52px;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
 .brs .cslide input{width:100%;accent-color:var(--accent)}
@@ -210,8 +206,6 @@
 .brs:not(.made) .tools{display:none}
 .brs .dock{display:none;gap:2px;overflow-x:auto;scrollbar-width:none}
 .brs .dock::-webkit-scrollbar{display:none}
-.brs .tool{flex:0 0 62px;height:58px;border:0;border-radius:14px;background:transparent;color:var(--muted);display:none;flex-direction:column;align-items:center;justify-content:center;gap:5px;font:500 11px var(--body);cursor:pointer}
-.brs .tool[aria-pressed=true]{color:var(--accent);font-weight:600}
 .brs .panels{display:grid;gap:14px;min-width:0}
 .brs .panel{display:none;gap:12px;padding:16px;border-radius:18px;border:1px solid var(--line);background:var(--surface);min-width:0;align-content:start}
 .brs .panel.on{display:grid}
@@ -981,16 +975,9 @@
    Computers: the tools down the left, the preview in the middle, the open tool on the right, the tracks underneath.
    Phones: the preview, the shots, the tools in one row that scrolls sideways; a tool opens over the Reel. */
 .brs.v-one .dock{display:flex}
-.brs.v-one .tool{display:flex;position:relative;transition:background-color .15s,color .15s}
-.brs.v-one .tool > svg{width:22px;height:22px}
-.brs.v-one .tool:hover{color:var(--ink)}
-.brs.v-one .tool[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 13%,transparent)}
-.brs.v-one .tool:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 .brs .protag{position:absolute;top:3px;right:3px;display:inline-flex;align-items:center;gap:2px;padding:1px 5px 1px 4px;border-radius:6px;background:var(--gold-gradient);color:var(--on-accent,#fff);font:600 8.5px/1.5 var(--body);font-style:normal;letter-spacing:.04em;pointer-events:none}
 .brs .protag svg{width:9px;height:9px;flex:none}
-.brs .protag b{font:inherit}
-.brs .tool:not([data-locked="true"]) .protag{display:none}   /* its plan (or the administrator): the tool is simply there */
-.brs.v-one .tool[data-locked="true"] > svg{opacity:.7}
+.brs .protag b{font:inherit}   /* its plan (or the administrator): the tool is simply there */
 .brs.v-one:not(.fopen) #out{max-height:min(52vh,520px)}
 .brs.v-one label.safe{display:none}
 
@@ -998,14 +985,10 @@
   .brs.made.v-one .lanes{display:block}
   /* every tool in sight: five a row */
   .brs.v-one .dock{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;overflow:visible}
-  .brs.v-one .tool{height:70px;min-width:0;gap:6px;padding:8px 0;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:600 11px var(--body);letter-spacing:-.01em}
-  .brs.v-one .tool > span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .brs.v-one .tool[aria-pressed=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--surface))}
   /* the finished Reel on phones (fpost): the tools sit under New mix; with a tool open they become its tabs, one row */
   .brs.fpost .tools{gap:12px}
   .brs.fpost[data-tool]:not([data-tool=""]) .dock{order:-1;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-right:24px;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}
   .brs.fpost[data-tool]:not([data-tool=""]) .dock::-webkit-scrollbar{display:none}
-  .brs.fpost[data-tool]:not([data-tool=""]) .tool{flex:0 0 68px}
 }
 
 @media (min-width:1024px){
@@ -1129,7 +1112,6 @@
 .brs .ss-body .shtab[aria-pressed=true]{background:var(--gold-gradient);color:var(--on-accent,#fff)}
 .brs .ss-body .ctrow{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;scrollbar-width:none}
 .brs .ss-body .ctrow::-webkit-scrollbar{display:none}
-.brs .ss-body .ct{flex:0 0 64px;min-width:64px}
 @media (min-width:1024px){
   .brs .ss-grip{display:none}
   /* the arrow under it, pointing at the clip */
@@ -1155,8 +1137,6 @@
     gap:2px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:6px 6px calc(6px + env(safe-area-inset-bottom));margin:0;
     background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -8px 24px -16px rgba(0,0,0,.5);-webkit-mask-image:none;mask-image:none}
   .brs.fpost .dock::-webkit-scrollbar{display:none}
-  .brs.fpost .dock .tool,.brs.fpost[data-tool]:not([data-tool=""]) .tool{flex:0 0 64px;min-width:64px;height:58px;padding:6px 0;border:0;border-radius:12px;background:transparent;color:var(--muted);font:600 11px var(--body)}
-  .brs.fpost .dock .tool[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
   /* a tool open: its panel is a sheet over the editor, above the tool bar; the Reel and its play bar stay in view */
   .brs.fpost[data-tool]:not([data-tool=""]) .panels{position:fixed;left:0;right:0;bottom:calc(70px + env(safe-area-inset-bottom));z-index:44;
     max-height:50svh;overflow-y:auto;overscroll-behavior:contain;margin:0;padding:12px 16px 0;background:var(--surface);
@@ -1270,7 +1250,6 @@
 .brs .ss-body .ssact[data-op="delete"]{color:var(--danger,#f87171)}
 .brs .ss-body .ssact:disabled{opacity:.4;cursor:default}
 .brs .ss-body .ssrep{height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);padding:0 8px;max-width:160px}
-.brs .ss-body .cliptools .ct{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
 @media (max-width:1023px){ .brs .shotsheet{width:auto} .brs :is(.ss-body,.shtilebox) .sstiles{grid-template-columns:repeat(auto-fill,minmax(60px,1fr))} }
 
 /* ---- Adjust (the design's frame 4): a sign, the name, the slider, the value; Reset ---- */
@@ -1929,10 +1908,6 @@
   .brs.made.v-one:not(.fopen) .transport{justify-content:flex-start}
   /* the tools at the bottom: icon over name, like the phone's tool bar */
   .brs.made.v-one:not(.fopen) .dock{gap:4px;padding:8px 12px;background:var(--surface)}
-  .brs.made.v-one:not(.fopen) .dock .tool{flex:0 0 76px;height:58px;gap:4px;border:0;background:transparent;color:var(--muted);font:500 12px var(--body)}
-  .brs.made.v-one:not(.fopen) .dock .tool svg{width:22px;height:22px}
-  .brs.made.v-one:not(.fopen) .dock .tool:hover{color:var(--ink);background:var(--surface-2)}
-  .brs.made.v-one:not(.fopen) .dock .tool[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);box-shadow:none}
 }
 
 /* computers: the selected clip's toolbar (as on the phone) floats at the bottom in place of the tools; a tool's controls above it */
@@ -2002,7 +1977,6 @@
   .brs.made.v-one:not(.fopen) .clipbar:not([hidden]){display:flex;align-items:center;gap:0;bottom:12px;padding:6px 8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;
     grid-template-columns:none}
   .brs.made.v-one:not(.fopen) .clipbar .dock{position:static;transform:none;width:auto;flex:none;display:flex;gap:2px;padding:0;margin:0;border:0;border-radius:0;box-shadow:none;background:none;overflow:visible;z-index:auto}
-  .brs.made.v-one:not(.fopen) .clipbar .dock .tool{flex:0 0 70px;height:58px}
   .brs.made.v-one:not(.fopen) .cbin{display:flex;align-items:center;flex:none;margin-left:6px;padding-left:10px;border-left:1px solid var(--line)}
   .brs.made.v-one:not(.fopen) .cbin .cbhead{flex:none;border-right:0;padding:0 8px 0 0}
   .brs.made.v-one:not(.fopen) .cbin .cbrow{flex:none;overflow:visible;-webkit-mask-image:none;mask-image:none;padding:0}
@@ -2029,7 +2003,6 @@
    Music / Text (= the tools) and the tools' Look (= Filters) are not repeated */
 @media (min-width:1024px){
   .brs.made.v-one:not(.fopen) .clipbar .ptabs button:is([data-pt="effects"],[data-pt="transitions"],[data-pt="music"],[data-pt="text"]){display:none}
-  .brs.made.v-one:not(.fopen) .clipbar .dock .tool[data-tool="look"]{display:none}
 }
 
 /* a clip pop-up's ✕ (cancel: back as it was) and ✓ (apply); the ✕ in the clip-tool pop-up and ✓ in the picker are for computers */
@@ -2180,9 +2153,9 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 .brs #out{border-radius:inherit;transition:box-shadow .25s ease}
 .brs .bar{overflow:hidden;border-radius:99px;background:color-mix(in srgb,var(--accent) 14%,var(--surface-2))}
 .brs .bar i{background:var(--gold-gradient);box-shadow:0 0 14px color-mix(in srgb,var(--accent) 50%,transparent)}
-.brs .tool,.brs .ptabs button,.brs .ct{transition:color .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .2s ease,transform .18s ease}
-.brs .tool:hover,.brs .ptabs button:hover,.brs .ct:hover{background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 22%,var(--line))}
-.brs .tool[aria-pressed=true],.brs .ptabs button[aria-pressed=true]{background:color-mix(in srgb,var(--accent) 13%,var(--surface));border-color:color-mix(in srgb,var(--accent) 32%,var(--line));color:var(--accent-hover)}
+.brs .ptabs button{transition:color .18s ease,background-color .18s ease,border-color .18s ease,box-shadow .2s ease,transform .18s ease}
+.brs .ptabs button:hover{background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 22%,var(--line))}
+.brs .ptabs button[aria-pressed=true]{background:color-mix(in srgb,var(--accent) 13%,var(--surface));border-color:color-mix(in srgb,var(--accent) 32%,var(--line));color:var(--accent-hover)}
 .brs .panel.on{animation:studio-panel-in .22s ease-out both}
 .brs .feditbar #fedit{min-height:50px;border-radius:14px;font-size:14.5px;box-shadow:0 14px 28px -18px var(--brand-glow),0 1px 0 rgba(255,255,255,.12) inset}
 .brs.openfail .openload{width:min(calc(100% - 32px),560px);min-height:unset;margin:clamp(28px,7vh,72px) auto;padding:clamp(26px,5vw,44px);border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:26px;
@@ -2505,68 +2478,9 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   margin-top: 14px;
 }
 
-.brs .shotTool {
-  min-width: 0;
-  min-height: 58px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 3px;
-  color: var(--muted);
-  border: 1px solid transparent;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
-  font: 500 9px/1.1 var(--font-body), sans-serif;
-  text-align: center;
-  cursor: pointer;
-  transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
-}
-
-.brs .shotTool svg {
-  color: color-mix(in srgb, var(--accent) 76%, var(--muted));
-}
-
-.brs .shotTool:hover {
-  color: var(--foreground);
-  border-color: var(--ed-line);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
-  transform: translateY(-1px);
-}
-
-.brs .shotToolActive {
-  color: var(--accent-hover) !important;
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border)) !important;
-  background: color-mix(in srgb, var(--accent) 13%, var(--surface)) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035);
-}
-
-.brs .shotToolActive svg {
-  color: var(--accent-hover) !important;
-}
-
-.brs .shotTool:disabled {
-  opacity: .38;
-  cursor: default;
-  transform: none;
-}
-
-.brs .shotTool.on svg {
-  color: var(--accent-hover);
-}
-
 /* the inspector's Clip Controls replace the old floating clip bar */
 .brs.made.v-one .clipbar {
   display: none !important;
-}
-
-.brs .deleteTool {
-  color: color-mix(in srgb, var(--danger) 82%, var(--muted)) !important;
-}
-
-.brs .deleteTool svg {
-  color: inherit !important;
 }
 
 .brs .activeToolNote {
@@ -2732,47 +2646,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   width: 100%;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--accent) 32%, var(--muted)) transparent;
-}
-
-.brs .categoryTool {
-  position: relative;
-  min-width: 62px;
-  min-height: 60px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  color: var(--muted);
-  border: 1px solid transparent;
-  border-radius: 11px;
-  background: transparent;
-  font: 550 9px var(--font-body), sans-serif;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color .18s ease, background .18s ease, border-color .18s ease, transform .18s ease;
-}
-
-.brs .categoryTool > svg {
-  color: color-mix(in srgb, var(--accent) 76%, var(--muted));
-}
-
-.brs .categoryTool:hover {
-  color: var(--foreground);
-  border-color: var(--ed-line);
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  transform: translateY(-1px);
-}
-
-.brs .categoryActive {
-  color: var(--accent-hover) !important;
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--border)) !important;
-  background: color-mix(in srgb, var(--accent) 11%, var(--surface)) !important;
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
-
-.brs .categoryActive > svg {
-  color: var(--accent-hover) !important;
 }
 
 .brs .proTag {
@@ -3027,23 +2900,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 .brs .panels:not([hidden]):has(.panel.on) .panel.on > * { flex-shrink: 0; }
 .brs .pfoot { display: none; }
 .brs .panels:not([hidden]):has(.panel.on) .pfoot { display: flex; }
-.brs .pfoot .applyOption {
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  color: var(--on-accent);
-  border: 0;
-  border-radius: 11px;
-  background: var(--gold-gradient);
-  box-shadow: 0 9px 18px -13px var(--brand-glow);
-  font: 650 11px var(--font-body), sans-serif;
-  cursor: pointer;
-  transition: transform .18s ease, filter .18s ease;
-}
-.brs .pfoot .applyOption svg { width: 15px; height: 15px; }
-.brs .pfoot .applyOption:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .brs .panels .panel.on > .sheetDescription { margin: -4px 0 4px !important; }
 /* the header stays in view when the list scrolls to the chosen one (Filters) */
 .brs .panels .panel.on > .ph.sheetHeader {
@@ -3086,7 +2942,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.made.v-one .toolDock { order: 3; grid-template-columns: repeat(12, 66px) !important; }
   .brs.made.v-one .inspector { order: 4; padding: 13px; }
   .brs.made.v-one .shotToolGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
-  .brs.made.v-one .shotTool { min-height: 54px; font-size: 8px; }
   .brs.made.v-one .timelineCanvas { min-width: 0; }
 }
 
@@ -3102,7 +2957,6 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.made.v-one .inspector { order: 4; padding: 13px; border-radius: 16px; }
   .brs.made.v-one .inspectorHead h2 { font-size: 18px; }
   .brs.made.v-one .shotToolGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-  .brs.made.v-one .shotTool { min-height: 58px; font-size: 9px; }
 }
 
 /* the preview card's notes (e.g. "shots repeat · Add clips"): the button stays whole, the words wrap */

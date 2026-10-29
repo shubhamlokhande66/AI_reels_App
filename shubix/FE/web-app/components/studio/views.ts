@@ -98,7 +98,6 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) => {
       const active = b.dataset.tool === tool;
       b.setAttribute("aria-pressed", String(active));
-      b.classList.toggle("categoryActive", active);
     });
     paintLocks();
     const on = new Set(view === "all" ? [...root.querySelectorAll<HTMLElement>(".panel")].map((p) => p.dataset.panel!) : tool ? [tool] : []);
@@ -906,8 +905,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-st]"), st = S();
     if (!btn || btn.disabled || !st || !made() || !st.edit.length) return;
     const k = btn.dataset.st!, cur = sel >= 0 ? sel : Math.max(0, st.segAt(st.now));
-    stGrid.querySelectorAll(".shotToolActive").forEach((b) => b.classList.remove("shotToolActive"));
-    btn.classList.add("shotToolActive");
+    stGrid.querySelectorAll("[aria-pressed]").forEach((b) => b.removeAttribute("aria-pressed"));
+    btn.setAttribute("aria-pressed", "true");
     setText($("inspect-tool-text"), `${btn.dataset.stname || k} selected for Shot ${String(cur + 1).padStart(2, "0")}`);
     void clipTool(k, true);
   }, sig);

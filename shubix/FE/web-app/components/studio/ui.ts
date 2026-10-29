@@ -1,4 +1,4 @@
-import { buttonClass, chipClass, iconButtonClass, segClass } from "@shubix/ui-web";
+import { buttonClass, chipClass, iconButtonClass, segClass, tileClass } from "@shubix/ui-web";
 
 /** The studio's buttons: the website's one button (Shared/ui-web/src/button.ts) for the studio's HTML strings. */
 export const B = {
@@ -22,3 +22,6 @@ export const CHIP = `chip ${chipClass()}`;
 export const SEG = segClass();
 export const SEG_SM = segClass(true);
 export const SEG_WIDE = `${segClass()} grid w-full grid-cols-[repeat(auto-fit,minmax(0,1fr))] *:min-h-11 *:whitespace-nowrap`;
+
+/** The studio's tool tiles (the website's): an icon over its name. */
+export const TILE = tileClass;

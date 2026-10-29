@@ -5,7 +5,7 @@
  * motion, background, overlay, voice, style), one panel open at a time. A plan's tools carry its tag (views.ts PLAN_TOOLS).
  * ?view=all opens every panel at once (checks and support). */
 import { PLAN_TOOLS } from "./views";
-import { B, CHIP, SEG, SEG_SM, SEG_WIDE } from "./ui";
+import { B, CHIP, SEG, SEG_SM, SEG_WIDE, TILE } from "./ui";
 
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
@@ -130,12 +130,12 @@ export const DOCK_CATEGORIES_DEF: [string, string, boolean][] = [
 ];
 
 export const shotToolGridHtml = SHOT_TOOLS_DEF.map(([name, act]) =>
-  `<button type="button" class="shotTool${name === "Delete" ? " deleteTool" : ""}" data-st="${act}" data-stname="${name}">${Glyph(name, 18)}<span>${name}</span></button>`
+  `<button type="button" class="${TILE} min-h-[58px]"${name === "Delete" ? " data-danger" : ""} data-st="${act}" data-stname="${name}">${Glyph(name, 18)}<span>${name}</span></button>`
 ).join("");
 
 // a plan's tool (views.ts PLAN_TOOLS) carries its plan's tag (views.ts writes the plan's name); on a lower plan it opens /pricing
 const dock = DOCK_CATEGORIES_DEF.map(([k, n]) =>
-  `<button type="button" class="categoryTool tool" data-tool="${k}" aria-pressed="false">${Glyph(n, 18)}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag proTag"><b>PRO</b></em>` : ""}</button>`
+  `<button type="button" class="tool group ${TILE} min-h-[60px] min-w-[62px] whitespace-nowrap" data-tool="${k}" aria-pressed="false">${Glyph(n, 18)}<span>${n}</span>${PLAN_TOOLS.has(k) ? `<em class="protag proTag hidden group-data-[locked=true]:inline-flex"><b>PRO</b></em>` : ""}</button>`
 ).join("");
 // what each tool's popup is for (the line under its name)
 const PANEL_NOTE: Record<string, string> = {
@@ -627,7 +627,7 @@ export const STUDIO_HTML = `
               <div class="edl"><table><thead><tr><th>Time</th><th>Type</th><th>Clip</th><th>Transition</th><th>Effect</th><th>Speed</th></tr></thead><tbody id="edl"></tbody></table></div>
             </details>
           </section>
-          <footer class="sheetFooter pfoot"><span><i aria-hidden="true"></i>Changes show in the preview right away</span><button type="button" class="applyOption" id="pdone">Done ${IC.check}</button></footer>
+          <footer class="sheetFooter pfoot"><span><i aria-hidden="true"></i>Changes show in the preview right away</span><button type="button" class="${B.main}" id="pdone">Done ${IC.check}</button></footer>
         </div>
       </div>
     </div>
@@ -652,7 +652,7 @@ export const STUDIO_HTML = `
   <div class="ctpoph sheetHeader"><span class="sheetHeading"><span class="sheetIcon" id="ctpopic"></span><span><small id="ctpopsub">SHOT 01</small><b id="ctpoph"></b></span></span><span class="ctpopbtns"><button type="button" class="${B.iconBox} size-[34px] max-lg:hidden" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></span></div>
   <p class="sheetDescription">Adjust this shot. Your changes show in the preview right away.</p>
   <div class="ctpopb" id="ctpopb"></div>
-  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ctpopfoot">Preview selection</span></span><button type="button" class="ctpopok applyOption" id="ctpopok" title="Apply">Done ${IC.check}</button></footer>
+  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ctpopfoot">Preview selection</span></span><button type="button" class="${B.main}" id="ctpopok" title="Apply">Done ${IC.check}</button></footer>
 </section>
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
   <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="${B.close} absolute top-3 right-3" id="ssx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
