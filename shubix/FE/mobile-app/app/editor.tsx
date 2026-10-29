@@ -10,6 +10,7 @@ import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelPr
 import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
+import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
@@ -138,6 +139,12 @@ export default function EditorScreen() {
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
         <Preview clip={clip} n={selected} of={clips.length} playing={playing} aspect={aspect} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
+        <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
+          const style = styleFromWords(t);
+          if (!style) return words("This Reel is edited on your phone, so I can only switch its style (say \"faster\" or \"calmer\").");
+          setClips(clips.map((c) => ({ ...c, speed: style === "fast" ? 1.25 : 0.8 })));
+          return words("Done ✓ I used {style} (on your phone).", { style: words(style === "fast" ? "the Fast style" : "the Smooth style") });
+        }} /></View>
         <Timeline clips={clips} selected={selected} overlays={p.overlays} song={p.audioName} now={now} onSelect={go} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
         <View className="mt-3 flex-row items-center justify-between px-4">
           <Text className="text-[13px] font-semibold text-foreground">{words("Shot")} {String(selected + 1).padStart(2, "0")} · {clip ? clipDuration(clip).toFixed(1) : "0.0"} s</Text>

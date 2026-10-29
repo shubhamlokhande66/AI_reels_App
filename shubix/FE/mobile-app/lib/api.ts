@@ -26,6 +26,9 @@ export const mobileApi = {
   deleteReel: (id: string) => json(`/api/studio/reels/${encodeURIComponent(id)}`, { method: "DELETE" }),
   templates: () => json<{ templates: StudioTemplate[] }>("/api/templates"),
   features: () => json<Features>("/api/features"),
+  /** the Help chat (Admin → Support turns it on): whether it is on, and an answer to the conversation so far */
+  helpOn: () => json<{ on: boolean }>("/api/help"),
+  help: (messages: { role: "user" | "assistant"; content: string }[], page = "") => json<{ answer: string; needsHuman: boolean; suggestions: string[] }>("/api/help", { method: "POST", body: JSON.stringify({ messages, page }) }),
   /** the business details (Admin → Settings → Business details) */
   site: () => json<{ businessName: string; supportEmail: string; supportPhone: string; businessAddress: string; playStoreUrl: string; appStoreUrl: string }>("/api/site"),
   pricing: () => json<Pricing>("/api/plans"),

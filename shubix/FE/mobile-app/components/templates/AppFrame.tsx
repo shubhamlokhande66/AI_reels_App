@@ -8,6 +8,7 @@ import { AUTH_PAGES, PUBLIC_PAGES, showTabs } from "@shubix/core/lib/nav";
 import { TopBar } from "../organisms/TopBar";
 import { BottomNav } from "../organisms/BottomNav";
 import { MenuDrawer } from "../organisms/MenuDrawer";
+import { HelpChat } from "../organisms/HelpChat";
 
 /** The website's phone frame (FE/web-app/components/templates/AppShell.tsx): the top bar, the page, the bottom bar
  * (not in the studio: /create and /editor keep the screen, as on the website) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
@@ -30,6 +31,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       <View className="flex-1">{children}</View>
       {showTabs(pathname) && <BottomNav pathname={pathname} />}
       <MenuDrawer open={menu} onClose={() => setMenu(false)} pathname={pathname} />
+      <HelpChat pathname={pathname} bottom={showTabs(pathname) ? 84 : 16} />
       {feedback(showTabs(pathname) ? 88 : 84)}
     </View>
   );

@@ -8,3 +8,4 @@ export * from "./SearchBox";
 export * from "./SidePanel";
 export * from "./Feedback";
 export * from "./OtpInput";
+export * from "./Chat";

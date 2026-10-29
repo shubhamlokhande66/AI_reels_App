@@ -9,6 +9,7 @@ import { Button, toast } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
+import { AskShubix, styleFromWords } from "../../components/organisms/AskShubix";
 import { AI_STEPS, FlowAdjust, FlowAnalyse, FlowChoose, FlowClips, FlowHead, FlowIntro, KINDS, ORDER, type ClipSettings, type FlowKind, type FlowStep } from "../../components/organisms/CreateFlow";
 
 /** Create (the website's /create/music, /talking, /photo, /copy on a phone): the flow's screens one at a time, with
@@ -22,7 +23,7 @@ export default function CreateScreen() {
   const [song, setSong] = useState<Song | null>(null), [recent, setRecent] = useState<Song[]>([]), [reading, setReading] = useState(false);
   const [length, setLength] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [settings, setSettings] = useState<ClipSettings>({ order: "mix", aspect: "9:16", pace: "natural", under: "0.09" });
-  const [progress, setProgress] = useState({ pct: 0, done: 0, status: "" });
+  const [progress, setProgress] = useState({ pct: 0, done: 0, status: "" }), [wish, setWish] = useState("");
   useEffect(() => { void recentSongs().then(setRecent); }, []);
 
   const go = (to: FlowStep | undefined) => to && setStep(to);
@@ -47,13 +48,14 @@ export default function CreateScreen() {
     const id = `draft-${Date.now()}`, at = (pct: number, done: number) => setProgress({ pct, done, status: words(AI_STEPS[Math.min(done, 3)][1]) });
     try {
       at(0.02, 0); setProgress((p) => ({ ...p, status: words("Reading your clips…") }));
-      const clips = await keepPickedAssets(id, media, (n) => setProgress((p) => ({ ...p, pct: 0.02 + (0.58 * n) / media.length })));
+      const speed = { fast: 1.25, smooth: 0.8, "": 1 }[styleFromWords(wish)]; // what was asked of Shubix AI, as the phone can do it
+      const clips = (await keepPickedAssets(id, media, (n) => setProgress((p) => ({ ...p, pct: 0.02 + (0.58 * n) / media.length })))).map((c) => ({ ...c, speed }));
       at(0.62, 1);
       const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
       at(0.8, 2);
       const now = new Date().toISOString();
       await saveProject({ id, title: words(KINDS[kind].title), kind, clips, audioUri, audioName: song?.name, overlays: [], createdAt: now, updatedAt: now, status: "draft",
-        ...(params.templateId ? { templateId: params.templateId } : {}), settings: { length, ...settings, pace: settings.pace } });
+        ...(params.templateId ? { templateId: params.templateId } : {}), settings: { length, ...settings, ...(wish ? { wish } : {}) } });
       at(0.92, 3);
       await queryClient.invalidateQueries({ queryKey: ["drafts"] });
       setProgress({ pct: 1, done: 4, status: words("Your Reel is ready!") });
@@ -75,6 +77,7 @@ export default function CreateScreen() {
     <View className="flex-1 bg-background">
       <FlowHead title={title} at={{ intro: 1, choose: 1, adjust: 1, clips: 2, analyse: 3 }[step]} onBack={back} onSkip={step === "intro" ? () => go(order[1]) : undefined} />
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-6 pt-2" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        {step !== "intro" && step !== "analyse" && <View className="mb-4"><AskShubix onAsk={(t) => { setWish((w) => `${w} · ${t}`.replace(/^ · /, "").slice(-800)); return words("Got it! I'll edit your Reel this way as soon as it is made."); }} /></View>}
         {step === "intro" && <FlowIntro kind={kind} />}
         {step === "choose" && <FlowChoose kind={kind} song={song} recent={recent} busy={reading} onPick={() => void choose(() => pickSong())} onPickReel={() => void choose(() => pickSong("video"))} onRecent={(s) => void pickRecent(s)} onForget={(uri) => { setRecent((r) => r.filter((s) => s.uri !== uri)); if (song?.uri === uri) setSong(null); }} />}
         {step === "adjust" && song && <FlowAdjust song={song} length={length} onLength={setLength} />}
