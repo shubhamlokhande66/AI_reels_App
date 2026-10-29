@@ -5,7 +5,7 @@
   "scripts": {
     "dev:api": "node scripts/with-log.mjs api npx -y pnpm@10.20.0 --filter @shubix/api dev",
     "dev:web": "node scripts/with-log.mjs web npx -y pnpm@10.20.0 --filter @shubix/web-app dev",
-    "dev:mobile": "node scripts/with-log.mjs mobile npx -y pnpm@10.20.0 --filter @shubix/mobile-app start",
+    "dev:mobile": "npx -y pnpm@10.20.0 --filter @shubix/mobile-app start",
     "build": "npx -y pnpm@10.20.0 -r build",
     "typecheck": "npx -y pnpm@10.20.0 -r typecheck",
     "test": "npx -y pnpm@10.20.0 -r --workspace-concurrency=1 test",
