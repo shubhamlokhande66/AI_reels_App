@@ -3,11 +3,12 @@
   "private": true,
   "packageManager": "pnpm@10.20.0",
   "scripts": {
-    "dev:api": "node scripts/with-log.mjs api pnpm --filter @shubix/api dev",
-    "dev:web": "node scripts/with-log.mjs web pnpm --filter @shubix/web-app dev",
-    "dev:mobile": "node scripts/with-log.mjs mobile pnpm --filter @shubix/mobile-app start",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r --workspace-concurrency=1 test"
+    "dev:api": "node scripts/with-log.mjs api npx -y pnpm@10.20.0 --filter @shubix/api dev",
+    "dev:web": "node scripts/with-log.mjs web npx -y pnpm@10.20.0 --filter @shubix/web-app dev",
+    "dev:mobile": "node scripts/with-log.mjs mobile npx -y pnpm@10.20.0 --filter @shubix/mobile-app start",
+    "build": "npx -y pnpm@10.20.0 -r build",
+    "typecheck": "npx -y pnpm@10.20.0 -r typecheck",
+    "test": "npx -y pnpm@10.20.0 -r --workspace-concurrency=1 test",
+    "setup": "npx -y pnpm@10.20.0 install"
   }
 }
