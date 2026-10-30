@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
 import type { ProjectClip } from "@shubix/validations";
+import { evaluateTransformKeyframes } from "@shubix/video-engine";
 
 /** The studio's transitions and effects in the editor's preview (FE/web-app components/studio/engine.ts: TR_NAME,
  * TR_DUR, keyframesFor), drawn natively: the shot comes in with its transition (a flash, a dip, a push, a zoom…) and
@@ -60,29 +61,12 @@ export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, a
   useEffect(() => {
     const frames = clip?.keyframes;
     if (!frames?.length) { v.kx.setValue(0); v.ky.setValue(0); v.ks.setValue(1); v.kr.setValue(0); v.ko.setValue(1); return; }
-    const list = [...frames].sort((a, b) => a.t - b.t);
-    const t = Math.max(0, at);
-    let a = list[0], b = list[list.length - 1];
-    if (t <= a.t) b = a;
-    else if (t >= b.t) a = b;
-    else { for (let i = 1; i < list.length; i++) if (t <= list[i].t) { a = list[i - 1]; b = list[i]; break; } }
-    const span = Math.max(0.000001, b.t - a.t);
-    let p = a === b ? 0 : Math.max(0, Math.min(1, (t - a.t) / span));
-    const easing = b.ez || "inOut";
-    if (easing === "hold") p = 0;
-    else if (easing === "inQuad") p *= p;
-    else if (easing === "outCubic") p = 1 - Math.pow(1 - p, 3);
-    else if (easing === "outExpo") p = p >= 1 ? 1 : 1 - Math.pow(2, -10 * p);
-    else if (easing === "outBack") { const c1 = 1.70158, c3 = c1 + 1; p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
-    else if (easing === "ease-in") p *= p;
-    else if (easing === "ease-out") p = 1 - (1 - p) * (1 - p);
-    else if (easing === "inOut") p = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-    const mix = (key: "x" | "y" | "s" | "r" | "o", fallback: number) => (a[key] ?? fallback) + ((b[key] ?? fallback) - (a[key] ?? fallback)) * p;
-    v.kx.setValue(mix("x", 0) * width);
-    v.ky.setValue(mix("y", 0) * 360);
-    v.ks.setValue(mix("s", 1));
-    v.kr.setValue(mix("r", 0) / 90);
-    v.ko.setValue(mix("o", 1));
+    const current = evaluateTransformKeyframes(frames, Math.max(0, at));
+    v.kx.setValue(current.x * width);
+    v.ky.setValue(current.y * 360);
+    v.ks.setValue(current.s);
+    v.kr.setValue(current.r / 90);
+    v.ko.setValue(current.o);
   }, [clip?.id, clip?.keyframes, at, width]); // eslint-disable-line react-hooks/exhaustive-deps
   // the veil's colour: white for a flash (and a photo snap), warm for a film burn, else black
   const draw = clip && TR[clip.transition.toLowerCase()]?.[1];
