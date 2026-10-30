@@ -1522,7 +1522,7 @@ const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.
 const EASE = {
   lin: x=>x, outCubic: x=>1-Math.pow(1-x,3), outExpo: x=> x>=1 ? 1 : 1-Math.pow(2,-10*x),
   outBack: x=>{ const c1=1.70158, c3=c1+1; return 1 + c3*Math.pow(x-1,3) + c1*Math.pow(x-1,2); },
-  inOut: x=> -(Math.cos(Math.PI*x)-1)/2, inQuad: x=>x*x,
+  inOut: x=> -(Math.cos(Math.PI*x)-1)/2, inQuad: x=>x*x,\n  bezier: x=>cubicBezierProgress(x, [0.25, 0.1, 0.25, 1]),
 };
 function kf(track, l){
   if(!track) return undefined;
