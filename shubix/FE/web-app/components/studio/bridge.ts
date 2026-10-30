@@ -19,7 +19,7 @@
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => unknown; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: Array<Record<string, unknown>>; saveNow: () => unknown };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => unknown; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: Array<Record<string, unknown>>; saveNow: () => unknown; ttsVoices: Array<{ key: string; label: string }>; addTts: (text: string, voice: string) => Promise<unknown>; clearTts: () => boolean; setCaptions: (enabled: boolean, language?: string, translation?: string) => Promise<unknown>; setCaptionStyle: (style: string) => string };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -175,6 +175,23 @@ export function initBridge(root: HTMLElement): () => void {
       if (!st?.layerDelete) throw new Error("Layer editor is not ready");
       const ok = st.layerDelete(); await Promise.resolve(st.saveNow?.());
       return { ok };
+    },
+    async ttsVoices() { return studio()?.ttsVoices || []; },
+    async ttsAdd(a) {
+      const st = studio();
+      if (!st?.addTts) throw new Error("Text-to-speech is not ready");
+      return await st.addTts(String(a.text || ""), String(a.voice || ""));
+    },
+    async ttsClear() { const st = studio(); if (!st?.clearTts) throw new Error("Voice track is not ready"); return { ok: st.clearTts() }; },
+    async captions(a) {
+      const st = studio();
+      if (!st?.setCaptions) throw new Error("Captions are not ready");
+      return await st.setCaptions(!!a.enabled, a.language === undefined ? undefined : String(a.language), a.translation === undefined ? undefined : String(a.translation));
+    },
+    async captionStyle(a) {
+      const st = studio();
+      if (!st?.setCaptionStyle) throw new Error("Caption styles are not ready");
+      return { style: st.setCaptionStyle(String(a.style || "pop")) };
     },
     async shotExtract() {
       const st = studio();
