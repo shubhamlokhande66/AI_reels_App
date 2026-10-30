@@ -70,6 +70,10 @@ export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, a
     let p = a === b ? 0 : Math.max(0, Math.min(1, (t - a.t) / span));
     const easing = b.ez || "inOut";
     if (easing === "hold") p = 0;
+    else if (easing === "inQuad") p *= p;
+    else if (easing === "outCubic") p = 1 - Math.pow(1 - p, 3);
+    else if (easing === "outExpo") p = p >= 1 ? 1 : 1 - Math.pow(2, -10 * p);
+    else if (easing === "outBack") { const c1 = 1.70158, c3 = c1 + 1; p = 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); }
     else if (easing === "ease-in") p *= p;
     else if (easing === "ease-out") p = 1 - (1 - p) * (1 - p);
     else if (easing === "inOut") p = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
