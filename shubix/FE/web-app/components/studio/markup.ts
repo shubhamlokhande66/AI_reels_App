@@ -102,7 +102,7 @@ const panelHead = (k: string) => {
 
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
-<header id="topbar" class="hidden in-[.made]:flex in-[.fopen]:hidden! in-[.opening]:hidden! top-0 z-30 w-full max-w-[1240px] min-h-[66px] mx-auto mb-4 items-center justify-between gap-3.5 rounded-[18px] border border-edge shadow-(--shadow) bg-[linear-gradient(145deg,color-mix(in_srgb,var(--surface)_97%,var(--accent)),var(--surface))] lg:pb-2.5 lg:in-[.editing]:px-4 in-[.fpost]:sticky in-[.fpost]:z-40 in-[.fpost]:-mx-4 in-[.fpost]:mb-1 in-[.fpost]:px-3 in-[.fpost]:pb-2 in-[.fpost]:pt-[max(8px,env(safe-area-inset-top))] in-[.fpost]:gap-1.5 in-[.fpost]:in-[.editing]:gap-1 in-[.fpost]:border-b-border in-[.fpost]:bg-none in-[.fpost]:bg-background max-[680px]:relative! max-[680px]:min-h-[58px] max-[680px]:px-2.5! max-[680px]:gap-2! max-[680px]:rounded-[15px]">
+<header id="topbar" class="hidden in-[.made]:flex in-[.fopen]:hidden! in-[.opening]:hidden! top-0 z-30 max-lg:sticky max-lg:top-[65px] max-lg:z-20 w-full max-w-[1240px] min-h-[66px] mx-auto mb-4 items-center justify-between gap-3.5 rounded-[18px] border border-edge shadow-(--shadow) bg-[linear-gradient(145deg,color-mix(in_srgb,var(--surface)_97%,var(--accent)),var(--surface))] lg:pb-2.5 lg:in-[.editing]:px-4 in-[.fpost]:sticky in-[.fpost]:z-40 in-[.fpost]:-mx-4 in-[.fpost]:mb-1 in-[.fpost]:px-3 in-[.fpost]:pb-2 in-[.fpost]:pt-[max(8px,env(safe-area-inset-top))] in-[.fpost]:gap-1.5 in-[.fpost]:in-[.editing]:gap-1 in-[.fpost]:border-b-border in-[.fpost]:bg-none in-[.fpost]:bg-background max-[680px]:relative! max-[680px]:min-h-[58px] max-[680px]:px-2.5! max-[680px]:gap-2! max-[680px]:rounded-[15px]">
   <button type="button" id="tbback" aria-label="Back" class="${Button.iconBordered} size-10 shrink-0 max-[680px]:size-9">${IC.back}</button>
   <div class="flex min-w-0 flex-1 items-center gap-[11px] leading-[1.15] max-[680px]:basis-auto">
     <span class="grid size-10 shrink-0 place-items-center rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] text-accent max-[680px]:size-[34px] max-[680px]:rounded-[11px]">${Glyph("Shots", 20)}</span>
@@ -621,7 +621,7 @@ export const STUDIO_HTML = `
   <button type="button" class="${Button.large}" data-fd="download">${IC.save}Download</button>
   <div class="fdcap" id="fdcap"><b>Caption for your Post</b></div>
 </section>
-<div class="xsheet" id="xsheet" hidden>
+<div class="xsheet max-lg:overflow-y-auto max-lg:overscroll-contain" id="xsheet" hidden>
   <div class="xsh" role="dialog" aria-modal="true" aria-labelledby="xsht">
     <div class="xprev relative overflow-hidden bg-black max-lg:[&[src]]:mx-auto! max-lg:[&[src]]:block! max-lg:[&[src]]:h-[266px] max-lg:[&[src]]:w-[150px] max-lg:[&[src]]:rounded-2xl" id="xprev"><canvas id="xprevc" class="block size-full object-contain"></canvas><button type="button" id="xprevplay" class="absolute inset-0 m-auto grid size-14 place-items-center rounded-full border-2 border-white/80 bg-black/45 text-white [&>svg]:size-6" aria-label="Play the Reel">${IC.play}</button></div>
     <div class="xsh-h max-lg:-order-1"><h2 id="xsht">Export Your Reel</h2><button type="button" class="${Button.iconBordered} size-[34px]" id="xshclose" aria-label="Close">✕</button></div>
@@ -633,7 +633,7 @@ export const STUDIO_HTML = `
     <label class="xtog"><span class="xti">${I('<path d="M4 7h16M4 12h10M4 17h7"/><path d="M15 15l5 5M20 15l-5 5"/>')}</span><span class="xtt">Remove Watermark <a class="xpro" id="xwmpro" href="/pricing" title="Paid plans can remove the watermark">Pro</a></span><input type="checkbox" id="xwm" role="switch"><i aria-hidden="true"></i></label>
     <label class="xtog" id="xmyrow" hidden><span class="xti">${I('<rect x="3" y="4" width="18" height="16" rx="4"/><path d="M10 9.2v5.6l4.6-2.8z" fill="currentColor"/>')}</span><span class="xtt">Save to My Reels</span><input type="checkbox" id="xmy" role="switch" checked><i aria-hidden="true"></i></label>
     <label class="xtog" title="For adding the same song as Instagram's own sound (trending audio)"><span class="xti">${IC.music}</span><span class="xtt">Without the song <small>Add it in Instagram as its own sound</small></span><input type="checkbox" id="nosong" role="switch"><i aria-hidden="true"></i></label>
-    <button type="button" class="${Button.primaryLarge}" id="xgo">${IC.save}<span>Export to phone</span></button>
+    <button type="button" class="${Button.primaryLarge} max-lg:sticky max-lg:bottom-3 max-lg:z-10 max-lg:shadow-[0_10px_30px_-8px_rgba(0,0,0,.55)]" id="xgo">${IC.save}<span>Export to phone</span></button>
     <button type="button" class="${Button.large}" id="xgocloud" hidden><span>Export &amp; save to My Reels</span></button>
     <p class="xsh-note" id="xcloudnote" hidden></p>
   </div>
