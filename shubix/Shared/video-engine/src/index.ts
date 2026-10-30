@@ -97,7 +97,7 @@ export type DirectorInput = {
 export type DirectedShot = {
   sourceId: string; sourceIndex: number; trimStart: number; trimEnd: number; timelineStart: number;
   duration: number; transition: string; effects: string[]; speed: number;
-  keyframes: TransformTrack[]; reason: string;
+  keyframes: TransformTrack[]; role: "hook" | "hero" | "detail" | "bridge" | "ending"; reason: string;
 };
 export type DirectorPlan = {
   version: 1; duration: number; aspect: string; mood: string; soundtrack: { beatSync: boolean; cutPoints: number[] };
@@ -123,8 +123,10 @@ export function createDirectorPlan(input: DirectorInput): DirectorPlan {
   const beats=[...(input.beats??[])].filter(Number.isFinite).sort((a,b)=>a-b);
   const drops=[...(input.drops??[])].filter(Number.isFinite);
   const ranked=input.shots.filter(s=>s.duration>0).map(s=>({...s,
-    score:clamp(s.quality*0.42+(s.subjectScore??0.5)*0.28+(s.faceScore??0.5)*0.12+
-      (s.isHighlight?0.18:0)+(s.sceneChange?0.04:0)-(s.speech?0.12:0),0,1)
+    score:clamp(s.quality*0.34+(s.subjectScore??0.5)*0.24+(s.faceScore??0.5)*0.1+
+      s.motion*0.12+(s.isHighlight?0.16:0)+(s.sceneChange?0.04:0)+
+      ((mood==="product" && s.isProduct)||(mood==="food" && s.isFood)?0.12:0)-
+      (s.speech && mood!=="story"?0.1:0),0,1)
   })).sort((a,b)=>b.score-a.score);
   const target=clamp(input.targetDuration??Math.min(30,input.shots.reduce((n,s)=>n+s.duration,0)),5,180);
   const pace=mood==="energetic"?1.25:mood==="story"||mood==="product"?0.82:1;
@@ -144,20 +146,24 @@ export function createDirectorPlan(input: DirectorInput): DirectorPlan {
     const cut=beats.length && Math.abs(beat-raw)<0.22?beat:raw;
     const d=Math.max(0.45,Math.min(s.duration,cut-cursor));
     const drop=drops.some(t=>Math.abs(t-cursor)<0.5);
+    const quiet=(input.quietRanges??[]).some(([a,b])=>cursor>=a && cursor<=b);
     const highlight=!!s.isHighlight||s.score>0.82;
-    const transition= i===0?"hard":(drop&&intensity!=="subtle"?"flash":
+    const transition= i===0?"hard":quiet?(mood==="minimal"?"hard":"dissolve"):
+      (drop&&intensity!=="subtle"?"flash":
       mood==="minimal"||mood==="story"?"dissolve":
       highlight&&intensity==="bold"?"whip": "hard");
     const effects:string[]=[];
     // Use renderer identifiers that Fast Studio and the native preview already understand.
     if(mood==="cinematic"||mood==="travel")effects.push("drift");
-    if(mood==="product"||mood==="food")effects.push("punch-soft");
-    if(drop&&intensity!=="subtle")effects.push("zoomburst");
+    if(mood==="product"||mood==="food"||s.isProduct||s.isFood)effects.push("punch-soft");
+    if(drop&&intensity!=="subtle"&&!quiet)effects.push("zoomburst");
+    if(s.speech){ for(let j=effects.length-1;j>=0;j--)if(["zoomburst","shake","hook"].includes(effects[j]))effects.splice(j,1); }
     if(mobile){for(let j=effects.length-1;j>=0;j--)if(!EFFECT_LIBRARY.find(e=>e.id===effects[j])?.mobileSafe)effects.splice(j,1);}
-    const zoom=highlight?1.09:1.045, pan=(i%2===0?1:-1)*(highlight?0.03:0.015);
+    const role: DirectedShot["role"] = i===0?"hook":i===chosen.length-1?"ending":highlight?"hero":(s.isFood||s.isProduct)?"detail":s.motion>0.7?"bridge":"detail";
+    const zoom=s.speech?1.025:highlight?1.09:1.045, pan=(i%2===0?1:-1)*(highlight?0.03:0.015);
     planShots.push({sourceId:s.id,sourceIndex:s.sourceIndex,trimStart:0,trimEnd:d,timelineStart:cursor,duration:d,
-      transition,effects,speed:drop&&intensity!=="subtle"?1.15:1,keyframes:motionTrack(d,zoom,pan),
-      reason:highlight?"High visual quality / highlight":s.speech?"Preserve spoken moment":"Best available subject and motion"});
+      transition,effects,speed:drop&&intensity!=="subtle"&&!quiet?1.15:1,keyframes:motionTrack(d,zoom,pan),role,
+      reason:s.speech?"Protected spoken moment":role==="hook"?"Opening hook selected from strongest footage":role==="hero"?"High visual quality / highlight":quiet?"Calmer moment: restrained transition":role==="detail"?"Product / food detail": "Best available subject and motion"});
     cursor+=d;
   }
   const notes:string[]=[];
