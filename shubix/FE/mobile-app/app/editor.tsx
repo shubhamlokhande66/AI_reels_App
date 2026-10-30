@@ -259,7 +259,7 @@ export default function EditorScreen() {
           <Button full variant="secondary" icon="plus" title={words("Add or change clips")} onPress={() => void addClips()} />
           <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
             <Label>Music track volume</Label>
-            <Choices items={["0%", "25%", "50%", "75%", "100%", "125%", "150%", "200%"]} on={`${Math.round((p.settings?.musicVolume ?? 1) * 100)}%`} onPick={(v) => change({ settings: { ...p.settings, musicVolume: Number(v.replace("%", "")) / 100 } })} />
+            <Choices items={["0%", "25%", "50%", "75%", "100%"]} on={`${Math.round((p.settings?.musicVolume ?? 1) * 100)}%`} onPick={(v) => change({ settings: { ...p.settings, musicVolume: Number(v.replace("%", "")) / 100 } })} />
             <Text className="text-[11px] text-muted">{words("Music volume is applied to both playback and MP4 export.")}</Text>
           </View>
           <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
