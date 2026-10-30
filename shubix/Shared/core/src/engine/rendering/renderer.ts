@@ -164,11 +164,13 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (track.volume < 0 || track.volume > 4) errors.push("Audio track volume must be between 0 and 4.");
   }
 
+  const timelineEndMs = spec.items.reduce((end, item) => Math.max(end, item.timelineStartMs + item.durationMs), 0);
   for (const overlay of spec.overlays ?? []) {
     if (!overlay.id || !overlay.text.trim()) errors.push("Text overlays require an ID and non-empty text.");
     if (!Number.isFinite(overlay.startMs) || !Number.isFinite(overlay.endMs) || overlay.startMs < 0 || overlay.endMs <= overlay.startMs) {
       errors.push(`Text overlay ${overlay.id} has invalid timing.`);
     }
+    if (overlay.endMs > timelineEndMs + 1) errors.push(`Text overlay ${overlay.id} extends beyond the Reel duration.`);
     if (!Number.isFinite(overlay.size) || overlay.size < 8 || overlay.size > 240) errors.push(`Text overlay ${overlay.id} has an invalid font size.`);
     if (!overlay.color) errors.push(`Text overlay ${overlay.id} requires a color.`);
   }
