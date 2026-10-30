@@ -69,9 +69,9 @@ export default function EditorScreen() {
     }).catch(() => {});
   }, [tool?.key, p?.id]);
   useEffect(() => {
-    if (tool?.key !== "layers" || !p?.studio || !engine.holds(p.id)) return;
+    if (!p?.studio || !engine.holds(p.id)) { setStudioLayers([]); return; }
     void engine.tool("layerList").then((r) => setStudioLayers(Array.isArray(r) ? r as typeof studioLayers : [])).catch(() => setStudioLayers([]));
-  }, [tool?.key, p?.id]);
+  }, [tool?.key, p?.id, p?.studio]);
   // saves itself a moment after each change
   useEffect(() => {
     if (!p) return;
