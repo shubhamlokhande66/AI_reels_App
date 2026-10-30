@@ -65,6 +65,22 @@ describe("shared video director", () => {
     expect(plan.shots[0].keyframes.length).toBeGreaterThan(0);
   });
 
+  it("keeps quiet sections restrained and protects speech in story edits", () => {
+    const plan = createDirectorPlan({
+      targetDuration: 6, mood: "story", beats: [0, 2, 4, 6], drops: [2],
+      quietRanges: [[0, 3]],
+      shots: [
+        { id: "voice", sourceIndex: 0, duration: 3, quality: 0.8, motion: 0.2, speech: true },
+        { id: "hero", sourceIndex: 1, duration: 3, quality: 0.95, motion: 0.9, isHighlight: true },
+      ],
+    });
+    expect(plan.shots[0].role).toBe("hook");
+    expect(plan.shots[0].effects).not.toContain("zoomburst");
+    expect(plan.shots[0].reason).toContain("spoken");
+    expect(plan.shots[1].role).toBe("ending");
+    expect(plan.shots[1].transition).not.toBe("flash");
+  });
+
   it("limits effect choices to mobile-safe effects for mobile plans", () => {
     const plan = createDirectorPlan({
       targetDuration: 8, mood: "cinematic", mobile: true,
