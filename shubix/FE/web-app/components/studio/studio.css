@@ -3141,3 +3141,203 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.made.v-one:not(.fopen) .previewPanel,
   .brs.made.v-one:not(.fopen) .inspector { min-height: 500px !important; }
 }
+
+/* Shubix mobile editor pass — give the phone a real editing surface instead of a
+   desktop layout squeezed into a narrow viewport. */
+@media (max-width: 1023px) {
+  .brs.made.v-one:not(.fopen) .create {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 0 calc(92px + env(safe-area-inset-bottom)) !important;
+    padding: 0 !important;
+  }
+  .brs.made.v-one:not(.fopen) .workbench { display: contents !important; }
+  .brs.made.v-one:not(.fopen) .tools { display: contents !important; }
+  .brs.made.v-one:not(.fopen) .previewPanel {
+    order: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    height: auto !important;
+    gap: 8px !important;
+    padding: 10px 12px 8px !important;
+    border-radius: 16px !important;
+    border: 1px solid #30353a !important;
+    background: #15181b !important;
+    box-shadow: 0 12px 28px -22px rgba(0,0,0,.9) !important;
+  }
+  .brs.made.v-one:not(.fopen) .previewHeader {
+    min-height: 24px;
+    font-size: 9px;
+  }
+  .brs.made.v-one:not(.fopen) .previewStage {
+    flex: none !important;
+    width: 100%;
+    height: clamp(250px, 43svh, 430px) !important;
+    min-height: 0 !important;
+    padding: 8px !important;
+    border-radius: 12px;
+    background: #0d0f11 !important;
+    container-type: size;
+  }
+  .brs.made.v-one:not(.fopen) .previewStage .videoFrame {
+    width: min(100cqw, 100cqh * var(--ar, .5625)) !important;
+    height: auto !important;
+    max-height: 100% !important;
+    border-radius: 9px !important;
+  }
+  .brs.made.v-one:not(.fopen) .previewPanel .transport {
+    min-height: 36px !important;
+    gap: 7px !important;
+    padding: 0 2px !important;
+  }
+  .brs.made.v-one:not(.fopen) .previewPanel .transport .tc { font-size: 10px !important; }
+  .brs.made.v-one:not(.fopen) .previewPanel .transport #play {
+    width: 32px !important; height: 32px !important; min-height: 32px !important;
+  }
+  .brs.made.v-one:not(.fopen) .previewPanel .previewProgress { height: 3px !important; }
+  .brs.made.v-one:not(.fopen) .timelineCard {
+    order: 2 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    border-radius: 15px !important;
+    border: 1px solid #30353a !important;
+    background: #15181b !important;
+    box-shadow: 0 12px 28px -22px rgba(0,0,0,.9) !important;
+  }
+  .brs.made.v-one:not(.fopen) .timelineHeader {
+    min-height: 44px !important;
+    padding: 7px 10px !important;
+    border-bottom: 1px solid #2c3237 !important;
+  }
+  .brs.made.v-one:not(.fopen) .timelineIcon { width: 28px; height: 28px; }
+  .brs.made.v-one:not(.fopen) .timelineTitle b { font-size: 12px; }
+  .brs.made.v-one:not(.fopen) .timelineTitle small { font-size: 9px; }
+  .brs.made.v-one:not(.fopen) .timelineActions { gap: 3px; }
+  .brs.made.v-one:not(.fopen) .timelineActions button { width: 26px; height: 26px; }
+  .brs.made.v-one:not(.fopen) .timelineCanvas {
+    min-width: 0 !important;
+    padding: 6px 5px !important;
+  }
+  .brs.made.v-one:not(.fopen) .timelineScroll {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .brs.made.v-one:not(.fopen) .lanesbox { min-width: 0; margin: 0 !important; padding: 0 !important; }
+  .brs.made.v-one:not(.fopen) .lanes {
+    display: block !important;
+    width: 100% !important;
+    min-height: 118px;
+    touch-action: pan-y;
+  }
+  .brs.made.v-one:not(.fopen) .timelineFooter {
+    min-height: 28px;
+    padding: 5px 9px;
+    font-size: 8px;
+    border-top: 1px solid #2c3237;
+  }
+  .brs.made.v-one:not(.fopen) .timelineFooter > span:last-child { display: none; }
+  .brs.made.v-one:not(.fopen) .toolDock {
+    order: 3 !important;
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 60 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-height: 66px;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 6px 10px calc(6px + env(safe-area-inset-bottom)) !important;
+    border: 0 !important;
+    border-top: 1px solid #343a40 !important;
+    border-radius: 0 !important;
+    background: rgba(17,20,23,.97) !important;
+    box-shadow: 0 -10px 30px -20px rgba(0,0,0,.9) !important;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    scrollbar-width: none;
+  }
+  .brs.made.v-one:not(.fopen) .toolDock::-webkit-scrollbar { display: none; }
+  .brs.made.v-one:not(.fopen) .toolDock .tool {
+    flex: 0 0 64px !important;
+    min-width: 64px !important;
+    min-height: 52px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    padding: 4px 2px !important;
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    color: #aeb4b9 !important;
+    font-size: 9px !important;
+    line-height: 1.1 !important;
+    white-space: nowrap !important;
+    box-shadow: none !important;
+  }
+  .brs.made.v-one:not(.fopen) .toolDock .tool svg {
+    width: 19px !important; height: 19px !important; color: #cbb274 !important;
+  }
+  .brs.made.v-one:not(.fopen) .toolDock .tool[aria-pressed="true"] {
+    color: #f4ead5 !important;
+    border-color: rgba(216,189,123,.4) !important;
+    background: rgba(216,189,123,.13) !important;
+  }
+  .brs.made.v-one:not(.fopen) .toolDock .protag { display: none !important; }
+  .brs.made.v-one:not(.fopen) .inspector {
+    order: 4 !important;
+    display: flex !important;
+    min-height: 0 !important;
+    padding: 10px !important;
+    border-radius: 14px !important;
+    background: #15181b !important;
+    border: 1px solid #30353a !important;
+  }
+  .brs.made.v-one:not(.fopen) .inspectorHead h2 { font-size: 15px !important; }
+  .brs.made.v-one:not(.fopen) .shotToolGrid {
+    grid-template-columns: repeat(4,minmax(0,1fr)) !important;
+    gap: 5px !important;
+    margin-top: 9px !important;
+  }
+  .brs.made.v-one:not(.fopen) .shotToolGrid > button {
+    min-height: 54px !important;
+    padding: 5px 2px !important;
+    border: 1px solid #343a40 !important;
+    border-radius: 9px !important;
+    background: #202428 !important;
+    color: #d5d8da !important;
+    font-size: 9px !important;
+  }
+  .brs.made.v-one:not(.fopen) .activeToolNote { padding-top: 7px; font-size: 9px; }
+  .brs.made.v-one:not(.fopen) .panels:not([hidden]):has(.panel.on) {
+    z-index: 70 !important;
+    max-height: min(72svh, 620px) !important;
+    padding-bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+  }
+  .brs.made.v-one:not(.fopen) .wrap { padding-bottom: 0 !important; }
+}
+@media (max-width: 680px) {
+  .brs.made.v-one:not(.fopen) .wrap { padding-left: 10px !important; padding-right: 10px !important; gap: 9px !important; }
+  .brs.made.v-one:not(.fopen) .previewPanel { padding: 8px !important; }
+  .brs.made.v-one:not(.fopen) .previewStage { height: clamp(230px, 39svh, 360px) !important; }
+  .brs.made.v-one:not(.fopen) .videoFrame { max-width: 100% !important; }
+  .brs.made.v-one:not(.fopen) .timelineHeader { gap: 5px; }
+  .brs.made.v-one:not(.fopen) .timelineActions #tlfit { display: none !important; }
+  .brs.made.v-one:not(.fopen) .timelineFooter { display: none !important; }
+  .brs.made.v-one:not(.fopen) .toolDock { min-height: 64px; }
+  .brs.made.v-one:not(.fopen) .inspector { padding: 9px !important; }
+}
