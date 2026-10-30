@@ -270,7 +270,7 @@ export default function EditorScreen() {
         try { await engine.tool("seek", { time: now }); await engine.tool("shotExtract"); toast(words("Audio extracted"), "success"); }
         catch (e) { toast(errorMessage(e), "danger"); }
       })()} />;
-      case "vol": return <Choices items={VOLUMES} on={clip?.muted ? "0%" : `${Math.round((clip?.volume ?? 1) * 100)}%`} onPick={(v) => patch({ volume: parseInt(v) / 100, muted: v === "0%" })} />;
+      case "vol": return <Choices items={VOLUMES} on={clip?.muted ? "0%" : `${Math.round((clip?.volume ?? 1) * 100)}%`} onPick={(v) => { const volume = parseInt(v) / 100; patch({ volume, muted: v === "0%" }); void studioPatch({ vol: v === "0%" ? 0 : volume }); }} />;
       case "trim": return clip && (
         <View className="gap-2">
           <Text className="text-center text-[13px] text-muted">{clip.start.toFixed(1)}s – {clip.end.toFixed(1)}s · {(clip.end - clip.start).toFixed(1)}s</Text>
