@@ -19,7 +19,7 @@
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown> };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => unknown };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -85,6 +85,8 @@ export function initBridge(root: HTMLElement): () => void {
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
     async seek(a) { const st = studio(); if (!st?.seek) throw new Error("Studio seeking is not ready"); await st.seek(Math.max(0, Number(a.time) || 0)); return { time: st.now }; },
+    async kfSeek(a) { const st = studio(); if (!st?.kfSeek) throw new Error("Keyframe timeline is not ready"); await st.kfSeek(Math.max(0, Number(a.time) || 0)); return st.kfTarget?.() ?? null; },
+    async kfSet(a) { const st = studio(); if (!st?.kfSet || !st.kfTarget?.()) throw new Error("Select a video shot before adding keyframes"); st.kfSet(a.values as Record<string, number>); return { ok: true, target: st.kfTarget() }; },
     async shotCs() { return studio()?.shotCs() ?? null; },
     async shotSet(a) {
       const st = studio();
