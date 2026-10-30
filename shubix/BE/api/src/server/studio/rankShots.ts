@@ -124,7 +124,7 @@ async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Prom
 const SHOT_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 type ShotCacheDoc = { key: string; result: RankedClip; expiresAt: Date };
 
-const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<unknown[]> };
+const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<void> };
 async function ensureShotCacheIndexes(col: Collection<ShotCacheDoc>) {
   cacheGlobals.__studioShotCacheIndexes ??= (async () => {
     // db() is tenant-scoped when accounts are enabled. A global {key} unique index
@@ -181,7 +181,7 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
   let charged = false, chargeRef: string | undefined;
   if (uniqueMisses.size) {
     const charge = await chargeOnce(COST_ACTION, input.reelId || crypto.randomUUID().slice(0, 12), "Shubix AI Reel");
-    charged = charge.taken; chargeRef = charge.ref;
+    charged = charge.taken > 0; chargeRef = charge.ref;
   }
 
   const misses = [...uniqueMisses.entries()];
