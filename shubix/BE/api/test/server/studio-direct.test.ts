@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "../../src/server/ai";
-import { CHUNK, chunks, cleanMove, direct, DirectIn, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
+import { CHUNK, chunks, cleanMove, direct, DirectIn, directPatch, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
 const cand = (id: string, extra = {}) => ({ id, clip: "c1", at: 1.5, score: 1.2, note: "dancer spins", roles: ["action"], motion: "high", people: true, camera: "pans left", ...extra });
@@ -65,6 +65,29 @@ describe("the plan is bounded", () => {
     expect(out.slots.map((s) => s.i)).toEqual([0, 1, 2]);
     expect(out.slots[0]).toMatchObject({ shot: "0a", transition: "hard", effect: "none", speed: "normal" });
     expect(out.slots.every((s) => s.shot && s.transition && s.effect && s.speed)).toBe(true);
+  });
+  it("uses role-aware fallback shots and avoids adjacent source-clip repetition", () => {
+    const d = req(3);
+    d.slots[0].candidates[0].roles = ["calm"];
+    d.slots[0].candidates[1].roles = ["hook"];
+    d.slots[1].candidates[0].clip = "c1";
+    d.slots[1].candidates[1].clip = "c2";
+    d.slots[2].candidates[0].clip = "c1";
+    d.slots[2].candidates[1].clip = "c2";
+    const out = parsePlan(d, { story: "", slots: [] });
+    expect(out.slots[0].shot).toBe("0b");
+    expect(out.slots[1].shot).toBe("1a");
+    expect(out.slots[2].shot).toBe("2b");
+  });
+  it("keeps Ask Shubix patches limited to the cuts the creator asked to change", async () => {
+    const d = DirectIn.parse({ ...req(3), patch: { ask: "change the second cut", current: [
+      { i: 0, clip: "c1", at: 0, transition: "hard", effect: "hook", speed: "normal" },
+      { i: 1, clip: "c1", at: 2, transition: "hard", effect: "none", speed: "normal" },
+      { i: 2, clip: "c1", at: 4, transition: "hard", effect: "none", speed: "normal" },
+    ] } });
+    const { p } = fake({ slots: [{ i: 1, shot: "1b", transition: "flash", effect: "none", speed: "normal" }], story: "second cut changed" });
+    const out = await directPatch(d, p);
+    expect(out.slots.map((s) => s.i)).toEqual([1]);
   });
   it("asks the model once and returns the cleaned plan", async () => {
     const { p, calls } = fake({ slots: [{ i: 0, shot: "0a" }, { i: 1, shot: "1b", transition: "flash", effect: "zoomburst" }], story: "s" });
