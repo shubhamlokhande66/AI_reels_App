@@ -14,12 +14,19 @@ const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1
 
 export async function exportReel(p: ReelProject, onProgress: (done: number) => void) {
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
-  const unsupported = p.clips.find((clip) => (clip.transition && clip.transition !== "Cut") || !!clip.effect);
+  const unsupported = p.clips.find((clip) =>
+    (clip.transition && clip.transition !== "Cut") ||
+    !!clip.effect ||
+    (!clip.muted && (clip.volume ?? 1) !== 1)
+  );
   if (unsupported?.transition && unsupported.transition !== "Cut") {
     throw new Error(`The ${unsupported.transition} transition is not supported by the current Android export engine yet. Choose Cut before exporting.`);
   }
   if (unsupported?.effect) {
     throw new Error(`The ${unsupported.effect} effect is not supported by the current Android export engine yet.`);
+  }
+  if (unsupported && !unsupported.muted && (unsupported.volume ?? 1) !== 1) {
+    throw new Error("Per-clip source audio volume is not supported by the current Android export engine yet. Set the clip volume to 100% or mute its original audio.");
   }
   const [width, height] = SIZE[p.settings?.aspect ?? "9:16"];
   const output = `${Paths.document.uri.replace(/^file:\/\//, "")}exports/${p.id}-${Date.now()}.mp4`;
