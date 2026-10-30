@@ -173,13 +173,13 @@ export function evaluateKeyframes(frames: Keyframe<number>[], time: number): num
   let i=0;while(i<sorted.length-1&&sorted[i+1].time<time)i++;
   const a=sorted[i],b=sorted[i+1],span=Math.max(0.000001,b.time-a.time);
   let t=clamp((time-a.time)/span,0,1);
-  if(a.easing==="hold")return a.value;
-  if(a.easing==="ease-in" || a.easing==="inQuad")t=t*t;
-  else if(a.easing==="ease-out")t=1-(1-t)*(1-t);
-  else if(a.easing==="ease-in-out" || a.easing==="inOut")t=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
-  else if(a.easing==="outCubic")t=1-Math.pow(1-t,3);
-  else if(a.easing==="outExpo")t=t>=1?1:1-Math.pow(2,-10*t);
-  else if(a.easing==="outBack"){const c1=1.70158,c3=c1+1;t=1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);}
+  if(b.easing==="hold")return a.value;
+  if(b.easing==="ease-in" || b.easing==="inQuad")t=t*t;
+  else if(b.easing==="ease-out")t=1-(1-t)*(1-t);
+  else if(b.easing==="ease-in-out" || b.easing==="inOut")t=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+  else if(b.easing==="outCubic")t=1-Math.pow(1-t,3);
+  else if(b.easing==="outExpo")t=t>=1?1:1-Math.pow(2,-10*t);
+  else if(b.easing==="outBack"){const c1=1.70158,c3=c1+1;t=1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);}
   return a.value+(b.value-a.value)*t;
 }
 
