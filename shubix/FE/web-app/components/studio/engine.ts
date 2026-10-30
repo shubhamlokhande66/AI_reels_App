@@ -3301,10 +3301,29 @@ function chromaKey(q, w, h, K){
 // keep only the mask's shape (or cut it out, inverted); soft edges with a blur
 function layerMask(q, L, w, h){
   const k = L.mk, f = Math.max(0, k.f)*Math.min(w, h)*0.5;
+  if(L.mask === 'luma'){
+    const image = q.getImageData(0, 0, w, h), pixels = image.data;
+    const threshold = Math.max(0, Math.min(1, k.h ?? 0.5)), softness = Math.max(0.015, Math.min(0.5, k.f ?? 0.12));
+    const lo = Math.max(0, threshold - softness), hi = Math.min(1, threshold + softness);
+    for(let i=0;i<pixels.length;i+=4){
+      const lum = (0.2126*pixels[i] + 0.7152*pixels[i+1] + 0.0722*pixels[i+2])/255;
+      const x = Math.max(0, Math.min(1, (lum - lo)/Math.max(0.0001, hi - lo)));
+      let mask = x*x*(3 - 2*x);
+      if(k.inv) mask = 1 - mask;
+      pixels[i+3] = Math.round(pixels[i+3]*mask);
+    }
+    q.putImageData(image, 0, 0); return;
+  }
   q.globalCompositeOperation = k.inv && L.mask !== 'none' ? 'destination-out' : 'destination-in';
   q.filter = f > 0.5 ? 'blur(' + f.toFixed(1) + 'px)' : 'none'; q.fillStyle = '#000'; q.beginPath();
   const cx = w/2, cy = h/2;
   if(L.mask === 'circle') q.ellipse(cx, cy, Math.max(1, k.w*w/2 - f), Math.max(1, k.h*h/2 - f), k.a*Math.PI/180, 0, 2*Math.PI);
+  else if(L.mask === 'radial'){
+    const gradient = q.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, Math.min(k.w*w, k.h*h)/2));
+    if(k.inv){ gradient.addColorStop(0, 'rgba(0,0,0,0)'); gradient.addColorStop(1, '#000'); }
+    else { gradient.addColorStop(0, '#000'); gradient.addColorStop(1, 'rgba(0,0,0,0)'); }
+    q.fillStyle = gradient; q.ellipse(cx, cy, Math.max(1,k.w*w/2), Math.max(1,k.h*h/2), k.a*Math.PI/180, 0, 2*Math.PI);
+  }
   else if(L.mask === 'rect'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const rw = k.w*w - 2*f, rh = k.h*h - 2*f; if(q.roundRect) q.roundRect(-rw/2, -rh/2, rw, rh, L.rad*Math.min(rw, rh)/2); else q.rect(-rw/2, -rh/2, rw, rh); }
   else if(L.mask === 'line'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const R = Math.hypot(w, h); q.rect(-R, -R, 2*R, R + (k.h - 0.5)*h); }
   else if(L.mask === 'mirror'){ q.translate(cx, cy); q.rotate(k.a*Math.PI/180); const R = Math.hypot(w, h), bh = k.h*h; q.rect(-R, -bh/2, 2*R, bh); }
