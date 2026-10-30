@@ -115,9 +115,15 @@ class ShubixVideoModule : Module() {
       mapOf("port" to s.port, "key" to s.key)
     }
     OnDestroy {
-      main.post { cancelActiveExport() }
-      files?.close()
+      // Keep the local media server alive until Media3 has finished cancelling an
+      // export that may still be reading from it. Close it on the same serialized
+      // main-thread queue immediately after cancellation and prevent new lookups.
+      val server = files
       files = null
+      main.post {
+        cancelActiveExport()
+        server?.close()
+      }
     }
   }
 
