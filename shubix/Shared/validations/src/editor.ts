@@ -12,7 +12,7 @@ export const clipSchema = z.object({
   // the studio's effect during the shot (its name: punch, shake, glow…) when the website's engine made the Reel
   effect: z.string().optional(),
   // Shot-level transform keyframes shared by the native preview and Studio renderer.
-  keyframes: z.array(z.object({ t: z.number().min(0), x: z.number(), y: z.number(), s: z.number().positive(), r: z.number(), o: z.number().min(0).max(1), ez: z.string().optional() })).optional(),
+  keyframes: z.array(z.object({ t: z.number().min(0), x: z.number(), y: z.number(), s: z.number().positive(), r: z.number(), o: z.number().min(0).max(1), ez: z.string().optional(), bezier: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional() })).optional(),
 }).refine((clip) => clip.end <= clip.sourceDuration && clip.end > clip.start, { message: "The selected clip range must be inside the original media." });
 export const projectSchema = z.object({
   id: z.string(), title: z.string().max(120), kind: z.enum(["music", "talking", "photo", "copy", "story"]), clips: z.array(clipSchema).min(1),
