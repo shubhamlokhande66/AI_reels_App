@@ -127,7 +127,7 @@ type ShotCacheDoc = { key: string; result: RankedClip; expiresAt: Date };
 const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<unknown[]> };
 async function ensureShotCacheIndexes(col: Collection<ShotCacheDoc>) {
   cacheGlobals.__studioShotCacheIndexes ??= Promise.all([
-    col.createIndex({ key: 1 }, { unique: true }),
+    col.createIndex({ ownerId: 1, key: 1 }, { unique: true }),
     col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]);
   await cacheGlobals.__studioShotCacheIndexes;
