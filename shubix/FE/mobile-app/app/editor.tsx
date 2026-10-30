@@ -91,6 +91,7 @@ export default function EditorScreen() {
   const studioKeyframeAction = async (op: "kfEase" | "kfRemove" | "kfClear" | "kfStep", args: Record<string, unknown> = {}) => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframe controls need a Reel made by Shubix Studio."), "info");
     try {
+      await engine.tool("kfSeek", { time: now });
       const result = await engine.tool(op, args);
       if (Array.isArray(result.keyframes)) patch({ keyframes: result.keyframes as ProjectClip["keyframes"] });
       else if (op === "kfClear") patch({ keyframes: undefined });
