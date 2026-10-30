@@ -149,6 +149,11 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (!Number.isFinite(item.sourceStartMs) || item.sourceStartMs < 0) errors.push(`Timeline item ${item.id} has an invalid source start.`);
     if (!Number.isFinite(item.durationMs) || item.durationMs <= 0) errors.push(`Timeline item ${item.id} must have a positive duration.`);
     if (!Number.isFinite(item.playbackRate) || item.playbackRate <= 0 || item.playbackRate > 16) errors.push(`Timeline item ${item.id} has an unsupported playback rate.`);
+    if (item.volume !== undefined && (!Number.isFinite(item.volume) || item.volume < 0 || item.volume > 4)) errors.push(`Timeline item ${item.id} has an invalid volume.`);
+    const source = spec.sources.find((candidate) => candidate.id === item.sourceId);
+    if (source && item.sourceStartMs + item.durationMs * item.playbackRate > source.durationMs + 1) {
+      errors.push(`Timeline item ${item.id} exceeds source duration.`);
+    }
   }
 
   for (const track of spec.audio ?? []) {
