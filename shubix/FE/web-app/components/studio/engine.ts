@@ -2109,6 +2109,9 @@ function finishTransitions(){
   const want = {}; plan.forEach(s=>{ if(s.trByDir && left[s.tr]!==undefined) want[s.tr] = (want[s.tr]||0) + 1; });
   const mine = s => s.trByDir || s.trByRef;   // the director's or the copied Reel's own: never rationed
   let undone = 0;
+  // A global ceiling also covers transition types without a dedicated per-type counter.
+  let directorSpecialUsed = 0;
+  const directorSpecialMax = Math.max(1, Math.round(buf.duration / 7));
   plan.forEach((s,i)=>{
     if(i===0 || s.tr==='hard') return;
     const len = s.end - s.start, prev = plan[i-1];
@@ -2128,6 +2131,10 @@ function finishTransitions(){
         if(left[s.tr] > 0 && want[s.tr] > 0){ want[s.tr]--; left[s.tr]--; }
         else ok = false;
       } else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
+    }
+    if(ok && s.trByDir && s.tr !== 'hard'){
+      if(directorSpecialUsed >= directorSpecialMax) ok = false;
+      else directorSpecialUsed++;
     }
     if(!ok){ if(s.trByDir) undone++; s.tr = 'hard'; }
   });
