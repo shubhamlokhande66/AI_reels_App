@@ -49,7 +49,7 @@ export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
-  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
+  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; maskWidth: number; maskHeight: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const undo = useRef<ReelProject[]>([]), song = useAudioPlayer(p?.audioUri ?? null);
   useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); router.back(); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -257,6 +257,22 @@ export default function EditorScreen() {
           <Choices items={["No mask", "Circle mask", "Rectangle mask", "Linear mask", "Mirror mask"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"} onPick={(v) => {
             const mask = ({ "No mask": "none", "Circle mask": "circle", "Rectangle mask": "rect", "Linear mask": "line", "Mirror mask": "mirror" } as Record<string, string>)[v];
             void studioLayerAction("layerSet", { key: "mask", value: mask });
+          }} />
+          <Label>Mask refinement</Label>
+          <Choices items={["Mask smaller", "Mask larger", "More feather", "Less feather", "Rotate mask", "Invert mask", "Normal mask"]} onPick={(v) => {
+            const layer = studioLayers.find((x) => x.index === studioLayerIndex);
+            if (v === "Mask smaller") void studioLayerAction("layerSet", { key: "mk.w", value: Math.max(0.1, (layer?.maskWidth ?? 0.8) - 0.1) });
+            else if (v === "Mask larger") void studioLayerAction("layerSet", { key: "mk.w", value: Math.min(1, (layer?.maskWidth ?? 0.8) + 0.1) });
+            else if (v === "More feather") void studioLayerAction("layerSet", { key: "mk.f", value: Math.min(0.5, (layer?.maskFeather ?? 0.12) + 0.05) });
+            else if (v === "Less feather") void studioLayerAction("layerSet", { key: "mk.f", value: Math.max(0, (layer?.maskFeather ?? 0.12) - 0.05) });
+            else if (v === "Rotate mask") void studioLayerAction("layerSet", { key: "mk.a", value: (layer?.maskAngle ?? 0) + 15 });
+            else if (v === "Invert mask") void studioLayerAction("layerSet", { key: "mk.inv", value: !layer?.maskInverted });
+            else void studioLayerAction("layerSet", { key: "mk.inv", value: false });
+          }} />
+          <Label>Chroma key</Label>
+          <Choices items={["Off", "Green screen", "Blue screen"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.chromaKey ? (studioLayers.find((x) => x.index === studioLayerIndex)?.chromaColor === "#0000FF" ? "Blue screen" : "Green screen") : "Off"} onPick={(v) => {
+            if (v === "Off") void studioLayerAction("layerSet", { key: "key", value: { on: false, c: "#00FF00", tol: 0.35 } });
+            else void studioLayerAction("layerSet", { key: "key", value: { on: true, c: v === "Blue screen" ? "#0000FF" : "#00FF00", tol: 0.35 } });
           }} />
           <Choices items={["Normal", "Multiply", "Screen", "Overlay", "Soft light", "Hard light", "Color dodge", "Difference", "Exclusion"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.blend === "source-over" ? "Normal" : studioLayers.find((x) => x.index === studioLayerIndex)?.blend ?? "Normal"} onPick={(v) => {
             const blend = ({ Normal: "source-over", Multiply: "multiply", Screen: "screen", Overlay: "overlay", "Soft light": "soft-light", "Hard light": "hard-light", "Color dodge": "color-dodge", Difference: "difference", Exclusion: "exclusion" } as Record<string, string>)[v];
