@@ -170,7 +170,6 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
   if (!clips.length) {
     if (charged && chargeRef) await refund(chargeRef);
     const failedKey = failedByKey.keys().next().value;
-    const index = failedKey ? keys.indexOf(failedKey) : 0;
     throw (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason ?? new AIResponseError("No usable cached or newly ranked frames.");
   }
   return { clips, failed, charged, cacheHits: input.clips.length - uniqueMisses.size, model: provider.visionModel || provider.model, provider: provider.name };
