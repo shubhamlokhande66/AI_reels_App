@@ -28,7 +28,7 @@
   "vars": {
     "NODE_ENV": "production",
     // "api": this container runs the API alone; the website is on Vercel and sends /api/* here (docs/deploy-vercel-cloudflare.md)
-    "APP_ROLE": "api",
+    "CONTAINER_ROLE": "api",
     // the website's address (Vercel): CORS for the browser, and the API's links in emails go to the website
     "WEB_ORIGINS": "https://YOUR-PROJECT.vercel.app",
     "SLEEP_AFTER": "30s", // stops 30 s after the last request (an upload or download in progress counts)

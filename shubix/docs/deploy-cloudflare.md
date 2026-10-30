@@ -31,7 +31,7 @@ npx wrangler secret put R2_ACCESS_KEY_ID
 npx wrangler secret put R2_SECRET_ACCESS_KEY
 npx wrangler secret put OPENAI_API_KEY        # and/or GEMINI_API_KEY, SMTP_PASSWORD, RAZORPAY_KEY_SECRET ...
 ```
-Any other setting from `.env.example` can be added the same way (a secret) or under `vars` (not secret).
+Any other setting from `BE/api/.env.example` can be added the same way (a secret) or under `vars` (not secret).
 
 ## 3. Deploy
 Building the container image needs Docker. Either:

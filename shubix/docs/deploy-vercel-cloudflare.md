@@ -16,7 +16,7 @@ settings in `infra/cloudflare/wrangler.jsonc` → `vars`:
 
 | Setting | Value |
 |---|---|
-| `APP_ROLE` | `api`: the container runs the API alone (the Worker sends requests to its port 4000) |
+| `CONTAINER_ROLE` | `api`: the container runs the API alone (the Worker sends requests to its port 4000) |
 | `WEB_ORIGINS` | the website's address, e.g. `https://your-project.vercel.app` (and your own domain, comma-separated) |
 | `PUBLIC_BASE_URL` | the website's address: links in emails open the website |
 
@@ -34,6 +34,9 @@ from a computer with Docker: `cd infra/cloudflare && npm install && npm run depl
 | Name | Value |
 |---|---|
 | `API_URL` | the API's address from step 1, e.g. `https://reel-maker.<subdomain>.workers.dev` (no `/` at the end) |
+| `PUBLIC_BASE_URL` | the website's own address (page previews when a link is shared) |
+
+Only these (`FE/web-app/.env.example`). The API's settings and secrets (`BE/api/.env.example`) go to Cloudflare only.
 
 4. **Deploy**. Then put the Vercel address into `WEB_ORIGINS` and `PUBLIC_BASE_URL` (step 1) and deploy the API again.
 

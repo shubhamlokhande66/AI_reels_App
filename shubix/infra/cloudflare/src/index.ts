@@ -1,14 +1,14 @@
 import { Container, getContainer } from "@cloudflare/containers";
 
 /** Reel Maker on Cloudflare: this Worker passes every request to ONE app container (the Next.js server, FFmpeg included;
- * with APP_ROLE "api" the API alone, the website being on Vercel: docs/deploy-vercel-cloudflare.md).
+ * with CONTAINER_ROLE "api" the API alone, the website being on Vercel: docs/deploy-vercel-cloudflare.md).
  * The container sleeps after SLEEP_AFTER without requests. Reels saved to My Reels are kept in R2: docker/start.sh mounts
  * the bucket in the container. */
 
 interface Env {
   APP: DurableObjectNamespace<ReelApp>;
   SLEEP_AFTER?: string;
-  APP_ROLE?: string;
+  CONTAINER_ROLE?: string;
   [key: string]: unknown;
 }
 
@@ -18,7 +18,7 @@ export class ReelApp extends Container<Env> {
   constructor(ctx: ConstructorParameters<typeof Container<Env>>[0], env: Env) {
     super(ctx, env);
     if (typeof env.SLEEP_AFTER === "string" && env.SLEEP_AFTER) this.sleepAfter = env.SLEEP_AFTER;
-    if (env.APP_ROLE === "api") this.defaultPort = 4000; // the API alone (the website on Vercel)
+    if (env.CONTAINER_ROLE === "api") this.defaultPort = 4000; // the API alone (the website on Vercel)
     // every setting (vars and secrets) goes to the app as an environment variable; bindings are not strings
     this.envVars = Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === "string"));
   }
