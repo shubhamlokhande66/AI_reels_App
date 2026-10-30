@@ -24,7 +24,7 @@ const TRANSITION_IDS = ["hard", "fadein", "dissolve", "whip", "zoom", "flash", "
 const EFFECTS = ["None", "Zoom punch", "Soft zoom", "Ken Burns", "Zoom burst", "Slow drift", "Shake", "Beat bounce", "Tilt punch", "Photo snap", "Hook zoom", "Punch-in (jump cut)", "Ken Burns beat", "Box pulse", "Grid pulse", "Strip pulse", "Circle pulse", "Heart pulse", "Star pulse", "Frame in frame", "Mirror", "Kaleidoscope", "Triple split", "VHS retro", "Strobe", "RGB pulse", "Blur pulse"];
 const EFFECT_IDS = ["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"];
 const SPEEDS = ["0.5×", "1×", "1.6×"];
-const VOLUMES = ["0%", "25%", "50%", "75%", "100%", "150%"];
+const VOLUMES = ["0%", "25%", "50%", "75%", "100%"];
 const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"];
 // the website's tool panels (components/studio/markup.ts): their choices, as its buttons' values and names
 const MODES = [["auto", "Auto"], ["smooth", "Smooth"], ["fast", "Fast"]];
