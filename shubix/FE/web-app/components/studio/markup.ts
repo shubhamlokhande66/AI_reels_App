@@ -61,8 +61,8 @@ const stepTitle = "font-display text-[16px] font-semibold tracking-[-.005em]";
 // the flow's main button: on phones fixed at the bottom of the screen
 const phoneBottomButton = `${Button.primaryLarge} max-lg:fixed max-lg:inset-x-4 max-lg:bottom-[calc(14px+env(safe-area-inset-bottom))] max-lg:z-30 max-lg:min-h-[52px] max-lg:w-auto max-lg:rounded-[14px] max-lg:text-[16px] max-lg:shadow-[0_14px_30px_-12px_var(--brand-glow)]`;
 // a step of the flow's head (data-s: on = this one, ok = done); on phones a dot, the steps joined by a line
-const stepItem = "group relative grid min-w-[84px] justify-items-center gap-1.5 text-xs font-semibold text-muted data-[s=on]:text-accent before:absolute before:top-[13px] before:right-[calc(50%+18px)] before:h-0.5 before:w-[calc(100%-36px)] before:bg-border first:before:hidden data-[s=on]:before:bg-accent data-[s=ok]:before:bg-accent max-lg:flex max-lg:min-w-0 max-lg:flex-1 max-lg:items-center max-lg:gap-0 max-lg:first:flex-none max-lg:before:static max-lg:before:mx-1.5 max-lg:before:w-auto max-lg:before:flex-1 max-lg:before:rounded-sm";
-const stepDot = "grid size-7 flex-none place-items-center rounded-full border border-border bg-surface-2 text-xs font-semibold not-italic text-muted group-data-[s=on]:border-transparent group-data-[s=on]:bg-gold group-data-[s=on]:text-on-accent group-data-[s=on]:shadow-[0_0_0_5px_color-mix(in_srgb,var(--accent)_22%,transparent)] group-data-[s=ok]:border-accent group-data-[s=ok]:bg-[color-mix(in_srgb,var(--accent)_25%,var(--surface))] group-data-[s=ok]:text-foreground max-lg:size-2.5 max-lg:border-0 max-lg:bg-muted/55 max-lg:text-[0] max-lg:group-data-[s=ok]:bg-accent max-lg:group-data-[s=on]:size-[30px] max-lg:group-data-[s=on]:bg-gold max-lg:group-data-[s=on]:text-[13px]";
+const stepItem = "group relative grid min-w-[84px] justify-items-center gap-1.5 text-xs font-semibold text-muted data-[s=on]:text-accent before:absolute before:top-[13px] before:right-[calc(50%+18px)] before:h-0.5 before:w-[calc(100%-36px)] before:bg-border first:before:hidden data-[s=on]:before:bg-accent data-[s=ok]:before:bg-accent max-lg:flex max-lg:min-w-0 max-lg:flex-1 max-lg:items-center max-lg:gap-0 max-lg:first:flex-none max-lg:before:static max-lg:before:mx-1.5 max-lg:before:w-auto max-lg:before:flex-1 max-lg:before:rounded-sm max-lg:last:hidden";
+const stepDot = "grid size-7 flex-none place-items-center rounded-full border border-border bg-surface-2 text-xs font-semibold not-italic text-muted group-data-[s=on]:border-transparent group-data-[s=on]:bg-gold group-data-[s=on]:text-on-accent group-data-[s=on]:shadow-[0_0_0_5px_color-mix(in_srgb,var(--accent)_22%,transparent)] group-data-[s=ok]:border-accent group-data-[s=ok]:bg-[color-mix(in_srgb,var(--accent)_25%,var(--surface))] group-data-[s=ok]:text-foreground max-lg:size-2.5 max-lg:border-0 max-lg:bg-muted/55 max-lg:text-[0px] max-lg:group-data-[s=ok]:bg-accent max-lg:group-data-[s=on]:size-[30px] max-lg:group-data-[s=on]:bg-gold max-lg:group-data-[s=on]:text-[13px]";
 const undoRedoButton = `${Button.icon} size-11 in-[.fpost]:size-9`;
 const AI_STEPS: [string, string, string][] = [
   ["scenes", "Detecting scenes and best moments", "clips"],
@@ -577,7 +577,7 @@ export const STUDIO_HTML = `
     </div>
   </section>
 </div>
-<div class="savebar" id="savebar">
+<div class="savebar in-[.fopen]:hidden!" id="savebar">
   <button class="${Button.primaryLarge}" id="export" disabled>${IC.save}<span>Export</span></button>
 </div>
 <!-- a saved Reel opening (/create/edit?p=): engine.ts openProject; flow.ts shows it from the first paint -->

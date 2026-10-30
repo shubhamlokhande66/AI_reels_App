@@ -3047,10 +3047,20 @@ function fitBufs(){ [bufA,bufB].forEach(b=>{ if(b.width!==out.width||b.height!==
 // song pulses on every other beat). Before, every beat gave a 4.5% zoom and a bright flash, 2-3 times a second on nearly
 // every shot: the Reel looked like it was vibrating.
 const PULSE_GAP = 0.4;
+// the song's strong hits (its top third by strength): the beat bounce follows these, not every small beat underneath
+// (a song with a busy background otherwise pulses the picture all the time, which reads as the video vibrating)
+let strongFor = null, strongList = [];
+function strongHit(t){
+  if(strongFor !== hitsRaw){ strongFor = hitsRaw; const v = (hitsStr || []).slice().sort((a,b)=>a-b), cut = v[Math.floor(v.length*0.67)] ?? 0;
+    strongList = (hitsRaw || []).filter((h, i) => (hitsStr[i] || 0) >= cut).sort((a,b)=>a-b); }
+  if(!strongList.length) return true;
+  let lo = 0, hi = strongList.length - 1; while(lo < hi){ const m = (lo + hi) >> 1; if(strongList[m] < t) lo = m + 1; else hi = m; }
+  return Math.abs(strongList[lo] - t) < 0.08 || (lo > 0 && Math.abs(strongList[lo-1] - t) < 0.08);
+}
 function beatPulse(e, local){
   let s = 1, ex = 0, last = -Infinity;
-  for(const bt of e.beatsIn){ if(bt > local) break; if(bt - last < PULSE_GAP) continue; last = bt;
-    s *= 1 + 0.025*Math.exp(-(local-bt)/0.12); ex += 0.06*Math.exp(-(local-bt)/0.08); }
+  for(const bt of e.beatsIn){ if(bt > local) break; if(bt - last < PULSE_GAP || !strongHit(e.start + bt)) continue; last = bt;
+    s *= 1 + 0.018*Math.exp(-(local-bt)/0.12); ex += 0.05*Math.exp(-(local-bt)/0.08); }
   return { s, ex };
 }
 // draw one shot with its keyframed properties into context g
