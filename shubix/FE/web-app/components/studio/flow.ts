@@ -438,6 +438,8 @@ export function initFlow(root: HTMLElement): () => void {
   }, sig);
 
   // the browser's Back / Forward between the flow's screens: Next.js keeps the page, the flow shows the screen kept
+  // the phone reloaded the page and the studio put the song and clips back: their screen
+  root.addEventListener("studio-restored", () => go(order().includes("clips") ? "clips" : order()[0]), sig);
   window.addEventListener("popstate", (e) => {
     const f = (e.state as { fflow?: Mark } | null)?.fflow;
     if (!f) return;

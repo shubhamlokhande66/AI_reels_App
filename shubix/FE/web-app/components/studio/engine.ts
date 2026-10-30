@@ -47,9 +47,27 @@ if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3 && location.pathname !== '
     if(ac.signal.aborted) return;
     const q = new URLSearchParams(location.search);
     if(lifeBefore.proj && !q.get('p')){ location.replace('/editor?p=' + encodeURIComponent(lifeBefore.proj)); return; }
+    if(WIP && lifeBefore.wip && lifeBefore.path === location.pathname + location.search){ void wipRestore(lifeBefore.wip); return; }
     setTimeout(() => { try{ notify('Your phone ran short of memory and reloaded. Add your clips again: what was read is kept, so it is quick now.', 'err'); }catch(e){} }, 800);
   });
 }
+/* ---- Create's work so far (the song, the clips in their order, In my order), kept on this phone while the Reel is set up
+ * ('w:' in the file store, the note in `life`): a phone that reloads the page (short of memory while its picker was
+ * open) puts them back on the clips screen instead of starting over. Cleared at the next normal start. */
+const WIP = location.pathname.startsWith('/create');
+const wipGet = fp => idb('files', 'readonly', s => s.get('w:' + fp)).catch(() => null);
+function wipKeep(f){ if(WIP && f && typeof indexedDB !== 'undefined') idb('files', 'readwrite', s => s.put(f, 'w:' + fileFp(f))).catch(() => {}); }
+function wipNote(p){ if(WIP) life({ wip: { ...(lifeNote.wip || {}), clips: [...$('clips').children].map(c => c.__src && fileFp(c.__src.file)).filter(Boolean), seq: seqOn, ...p } }); }
+async function wipRestore(w){
+  const sf = w.song ? await wipGet(w.song) : null, cf = (await Promise.all((w.clips || []).map(wipGet))).filter(Boolean);
+  if(!sf && !cf.length) return;
+  if(w.seq) setSeq(true, false);
+  if(sf) loadMusic(sf);
+  if(cf.length) addVideos(cf, true);
+  root.dispatchEvent(new CustomEvent('studio-restored'));
+  setTimeout(() => { try{ notify('Your phone reloaded the page: your song and clips are back.'); }catch(e){} }, 800);
+}
+if(WIP && !(lifeBefore && Date.now() - lifeBefore.at < 10*60e3)) queueMicrotask(() => idb('files', 'readwrite', s => s.getAllKeys()).then(keys => (keys || []).filter(k => String(k).startsWith('w:')).length && idb('files', 'readwrite', s => { keys.filter(k => String(k).startsWith('w:')).forEach(k => s.delete(k)); })).catch(() => {}));
 let exporting = false;
 // the Shubix watermark on exported Reels (bottom right). Removing it ("Remove Watermark" in the export sheet) is for paid
 // plans (and the administrator): wmPaid comes from the server when the sheet opens; until then the watermark stays
@@ -315,7 +333,7 @@ async function decodeAnyAudio(file){
 function songBusy(on){ const b = $('mpick'); b.classList.toggle('busy', on); b.setAttribute('aria-busy', String(on)); b.disabled = on;
   b.querySelector('span').textContent = on ? 'Reading the song…' : 'Choose song'; $('rlist').classList.toggle('busy', on); }
 async function loadMusic(file, cached = null){
-  remakeOk();
+  remakeOk(); wipKeep(file); wipNote({ song: fileFp(file) });
   const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
   stopAll(); songBusy(true);
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
@@ -955,7 +973,7 @@ function drawSpark(src){
 }
 // uploads go into a queue: you can add more videos any time, even while others are still being read
 let addQueue = Promise.resolve(), pending = 0, batchN = 0, batchDone = 0;
-function addVideos(files){
+function addVideos(files, restored = false){
   const list = [...files].filter(f=>f.type.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv)$/i.test(f.name));
   if(!list.length){ $('s2st').textContent = 'That is not a video. Choose MP4, MOV or WEBM.'; return; }
   if(playing){ pos = curTime(); stopAll(); }   // free the computer so reading is fast
@@ -965,13 +983,15 @@ function addVideos(files){
   tasks.start('clips', 'clips', 'Reading your clips', 'Finding the best moments in ' + batchN + ' clip' + (batchN > 1 ? 's' : ''));
   jobs.forEach(job=>{ addQueue = addQueue.then(()=>readVideo(job)).catch(()=>{}).then(()=>{ pending--; batchDone++; updateQ(); }); });
   addQueue = addQueue.then(()=>{ if(!pending) finishAdding(); });
-  if(jobs.length > 1 && location.pathname !== '/engine') askOrder(jobs.map(j => j.card));   // (the phone app sends its clips in the order tapped)
+  list.forEach(wipKeep);
+  if(jobs.length > 1 && !restored && location.pathname !== '/engine') askOrder(jobs.map(j => j.card));   // (the phone app sends its clips in the order tapped)
 }
 /* ---- the clips' order: browsers give the chosen files in their own order (phones often newest first, a computer often
  * the last clicked first), so each card shows its number, ↑ plays it earlier and Reverse order turns the list round.
  * "In my order" plays them in this order (sources); the Reel is made again. */
 function renumber(){
   const cards = [...$('clips').children];
+  wipNote();
   if(ordering) return;   // the numbers are the taps meanwhile
   cards.forEach((c, i) => { const n = c.querySelector('.cnum'), u = c.querySelector('.cup'); if(n){ n.textContent = String(i + 1); n.classList.remove('bg-black/40', 'ring-2', 'ring-white'); n.classList.add('bg-accent'); } if(u) u.hidden = i === 0; });
   $('crev').hidden = cards.length < 2;
@@ -2553,6 +2573,7 @@ function setSeq(on, remake = true){
   seqOn = on; root.classList.toggle('seqon', on);
   [...$('seq').children].forEach(x => x.setAttribute('aria-pressed', String((x.dataset.q === 'order') === on)));
   $('seqhelp').textContent = on ? 'Your clips play one after another, in the order you added them' : 'Shubix picks the best moments from all your clips';
+  wipNote();
   if(remake && buf && sources.length && kind !== 'talk' && !restoring) makeEdit();
 }
 $('seq').addEventListener('click', e => { const b = e.target.closest('button'); if(b && !recording) remakeOk(); if(b && !recording) setSeq(b.dataset.q === 'order'); }, SIG);
