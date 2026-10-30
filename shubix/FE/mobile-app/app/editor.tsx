@@ -18,7 +18,10 @@ import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolS
 
 type Overlay = ReelProject["overlays"][number];
 const FILTERS = ["Original", "Golden", "Film", "Noir", "Soft", "Vivid", "Cinematic"];
-const TRANSITIONS = ["Cut", "Fade", "Dissolve", "Push", "Wipe", "Zoom", "Flash", "Blur"];
+const TRANSITIONS = ["Cut", "Fade in", "Dissolve", "Whip pan", "Zoom", "Flash", "Glitch", "Dip to black", "Iris", "Soft wipe", "Spin", "Push left", "Push right", "Push up", "Push down", "Light fade", "Film burn", "Ripple"];
+const TRANSITION_IDS = ["hard", "fadein", "dissolve", "whip", "zoom", "flash", "glitch", "dip", "iris", "wipe", "spin", "slideleft", "slideright", "slideup", "slidedown", "luma", "burn", "ripple"];
+const EFFECTS = ["None", "Punch-in", "Soft zoom", "Ken Burns", "Zoom burst", "Slow drift", "Shake", "Beat bounce", "Tilt punch", "Photo snap", "Hook zoom", "Frame in frame", "Kaleidoscope", "VHS retro"];
+const EFFECT_IDS = ["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "frame", "kaleido", "vhs"];
 const SPEEDS = ["0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×", "3×"];
 const VOLUMES = ["0%", "25%", "50%", "75%", "100%", "150%"];
 const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"];
@@ -37,7 +40,7 @@ const BGS = [["none", "Original"], ["blur", "Blur"]];
 const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER", "गणपती बाप्पा मोरया", "शुभ दीपावली", "Happy Diwali"];
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
-const LATER = new Set(["fx", "extract", "border", "adjust", "curve", "stab", "beauty", "fade", "mosaic", "lens", "captions", "voice", "layers"]);
+const LATER = new Set(["captions", "voice", "layers"]);
 // …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
 
 /** The editor (the website's studio editor on a phone): the Reel saved on this phone, played shot by shot with its
@@ -67,6 +70,16 @@ export default function EditorScreen() {
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
+  const studioPatch = async (value: Record<string, unknown>) => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("This advanced tool needs a Reel made by Shubix Studio."), "info");
+    try { await engine.tool("seek", { time: now }); await engine.tool("shotSet", { patch: value }); toast(words("Applied to this shot"), "success"); }
+    catch (e) { toast(errorMessage(e), "danger"); }
+  };
+  const studioStyle = async (kind: "transition" | "effect", value: string) => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+    try { await engine.tool("seek", { time: now }); await engine.tool("shotStyle", { kind, value }); }
+    catch (e) { toast(errorMessage(e), "danger"); }
+  };
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
   // a place on the timeline: the shot there and the time in it
   const seek = (t: number) => { let i = 0, start = 0; while (i < clips.length - 1 && start + clipDuration(clips[i]) <= t) start += clipDuration(clips[i++]); setSelected(i); setLocal(t - start); };
