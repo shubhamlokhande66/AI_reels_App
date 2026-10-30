@@ -193,7 +193,7 @@ export function initAuto(root: HTMLElement): () => void {
         feed("vfile", clips);
       }
       // the engine works through it; the ring follows its state (each part weighs what it usually takes)
-      const t0 = Date.now(); let extracted = !!songFile || mode === "story", quiet = 0, aiSince = 0;
+      const t0 = Date.now(); let extracted = !!songFile || mode === "story", quiet = 0;
       for (;;) {
         await wait(400); const w = st.work;
         if (!extracted && w.pending === 0 && w.clips > 0) { extracted = true; setProg(0.25, "Listening to your clips", 0); if ((await st.autoSound()) === "none") throw new Error("These clips have no sound. Add a song and try again."); continue; }
@@ -202,8 +202,6 @@ export function initAuto(root: HTMLElement): () => void {
         // the second beat check (on-device AI) is not waited for: it improves the Reel afterwards. The AI's own
         // choices are part of the exported first draft: do not export while the Director is still mutating the edit.
         const rest = w.pending > 0 || !w.songReady || w.speech || !w.shots, aiBusy = w.ai || w.dir;
-        if (!rest && aiBusy && !aiSince) aiSince = Date.now();
-        if (rest || !aiBusy) aiSince = 0;
         const busy = rest || aiBusy;
         const stage = !w.songReady ? 0 : w.pending > 0 ? 1 : w.ai || w.dir || !w.shots ? 2 : w.speech || w.beats ? 3 : 3;
         setProg(0.05 + 0.15 * songP + 0.3 * pClips + (w.shots ? 0.1 : 0) + (stage >= 3 ? 0.05 : 0), (mode === "story" ? STORY_STAGES[stage + 1] : STAGES[stage])[1], stage);
