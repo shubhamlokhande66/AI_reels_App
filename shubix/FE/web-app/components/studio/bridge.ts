@@ -107,9 +107,15 @@ export function initBridge(root: HTMLElement): () => void {
       return { ok: true, index: target.i, keyframes: (target.obj?.uk || []).map((k) => ({ ...k })) };
     },
     async kfStep(a) {
-      const id = Number(a.direction) < 0 ? "kfprev" : "kfnext", b = $(id);
-      if (!b || b.hasAttribute("disabled")) return { ok: false, time: studio()?.now ?? 0 };
-      b.click(); return { ok: true, time: studio()?.now ?? 0 };
+      const st = studio(), target = st?.kfTarget?.() as { what?: string; a?: number; obj?: { uk?: Array<{ t: number }> } } | null;
+      if (!st?.kfSeek || !target || target.what !== "shot") return { ok: false, time: st?.now ?? 0 };
+      const local = (st.now ?? 0) - (target.a ?? 0), frames = target.obj?.uk || [];
+      const next = Number(a.direction) < 0
+        ? [...frames].filter((frame) => frame.t < local - 0.02).pop()
+        : frames.find((frame) => frame.t > local + 0.02);
+      if (!next) return { ok: false, time: st.now ?? 0 };
+      await st.kfSeek((target.a ?? 0) + next.t);
+      return { ok: true, time: st.now ?? 0 };
     },
     async kfSet(a) {
       const st = studio(), before = st?.kfTarget?.();
