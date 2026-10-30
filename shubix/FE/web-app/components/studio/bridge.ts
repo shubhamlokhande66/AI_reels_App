@@ -19,7 +19,7 @@
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown> };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -84,6 +84,7 @@ export function initBridge(root: HTMLElement): () => void {
     },
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
+    async seek(a) { const st = studio(); if (!st?.seek) throw new Error("Studio seeking is not ready"); await st.seek(Math.max(0, Number(a.time) || 0)); return { time: st.now }; },
     async shotCs() { return studio()?.shotCs() ?? null; },
     async shotSet(a) {
       const st = studio();
@@ -129,7 +130,18 @@ export function initBridge(root: HTMLElement): () => void {
       return { ok: true, state: st.state() };
     },
     async part(a) { await studio()?.setPart(Number(a.start)); return { start: studio()?.section.start ?? 0 }; },
-    async edit(a) { await until(made); return { ok: !!studio()!.setEdit(a.shots as unknown[]) }; },
+    async edit(a) {
+      await until(made);
+      const st = studio()!;
+      const incoming = a.shots as Record<string, unknown>[];
+      // Keep Studio-only clip treatment (colour, masks, stabilisation, custom speed curves and user keyframes)
+      // when the native editor synchronises its portable shot trims/transitions/effects before export.
+      const merged = incoming.map((shot, i) => {
+        const current = st.edit[i] as Record<string, unknown> | undefined;
+        return current ? { ...shot, cs: current.cs, uk: current.uk, acc: current.acc, ak: current.ak } : shot;
+      });
+      return { ok: !!st.setEdit(merged) };
+    },
     async set(a) {
       const box = String(a.box), gen = studio()!.editGen;
       if (a.attr) { if (!press(box, String(a.attr), String(a.value))) throw new Error("The studio has no " + a.value); }
