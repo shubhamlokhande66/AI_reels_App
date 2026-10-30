@@ -8,8 +8,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
-  // the API's own address, once the shubix.in zone is active on Cloudflare (the record is made on deploy):
-  // "routes": [{ "pattern": "api.shubix.in", "custom_domain": true }],
+  // the API's own address (the shubix.in zone is on Cloudflare: its record is made on deploy)
+  "routes": [{ "pattern": "api.shubix.in", "custom_domain": true }],
   "workers_dev": true,
   "containers": [
     {
@@ -40,7 +40,7 @@
     "STORAGE_PATH": "/data/storage",
     "R2_BUCKET": "smgroup",
     "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",
-    "PUBLIC_BASE_URL": "https://shubix-eight.vercel.app",
+    "PUBLIC_BASE_URL": "https://shubix.in",
     "AUTH_ENABLED": "true",
     // plans and credits: Free / Editor / Pro, page locks and Shubix AI credits (off: every page open, no credits counted)
     "BILLING_ENABLED": "true",
