@@ -52,6 +52,9 @@ export const EFFECT_LIBRARY: readonly EffectDefinition[] = [
   { id:"stabilize",category:"motion",label:"Stabilization",intensity:0.4,gpuCost:"high",mobileSafe:false,params:{strength:0.4,crop:0.08} },
   { id:"skin-soften",category:"beauty",label:"Skin Softening",intensity:0.12,gpuCost:"high",mobileSafe:false,params:{amount:0.12,preserveDetail:0.9} },
   { id:"background-blur",category:"beauty",label:"Portrait Background Blur",intensity:0.3,gpuCost:"high",mobileSafe:false,params:{radius:0.3,edgeFeather:0.2} },
+  { id:"drift",category:"cinematic",label:"Ken Burns Drift",intensity:0.18,gpuCost:"low",mobileSafe:true,params:{zoom:1.07,pan:0.03} },
+  { id:"punch-soft",category:"motion",label:"Soft Zoom",intensity:0.12,gpuCost:"low",mobileSafe:true,params:{zoom:1.07,duration:0.3} },
+  { id:"zoomburst",category:"motion",label:"Zoom Burst",intensity:0.3,gpuCost:"medium",mobileSafe:true,params:{zoom:1.32,rgb:16} },
 ] as const;
 
 export const TRANSITION_LIBRARY: readonly TransitionDefinition[] = [
