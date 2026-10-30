@@ -440,7 +440,7 @@ export default function EditorScreen() {
     <View className="flex-1 bg-background">
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview clip={clip} n={selected} of={clips.length} playing={playing} at={local} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <Preview clip={clip} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
         <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
           const style = styleFromWords(t);
