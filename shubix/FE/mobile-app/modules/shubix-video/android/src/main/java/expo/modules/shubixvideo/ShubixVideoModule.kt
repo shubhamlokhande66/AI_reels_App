@@ -68,6 +68,10 @@ class ShubixVideoModule : Module() {
   }
 
   private fun start(spec: JSONObject, promise: Promise) {
+    if (running != null) {
+      promise.reject("E_EXPORT_BUSY", "A Reel is already being exported. Wait for it to finish or cancel it.", null)
+      return
+    }
     val context = appContext.reactContext ?: throw IllegalStateException("No app")
     val w = spec.getInt("width"); val h = spec.getInt("height")
     val clips = spec.getJSONArray("clips"); val texts = spec.optJSONArray("texts")
