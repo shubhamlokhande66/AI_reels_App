@@ -28,11 +28,13 @@ The native editor now connects to the hidden Fast Studio page through the existi
 - Renderer-backed transition and effect changes
 - Colour adjustment presets
 - Speed curve presets, stabilization, beauty, fades, mosaic, magnifier and borders
+- Overlay photo/video layers with position, scale, rotation, opacity, layer timing, shape masks, feather/inversion, chroma key and blend modes
+- Text-to-speech voice tracks at the playhead and automatic captions with language, translation and animation-style controls
 - Keyframe insertion, easing selection, previous/next navigation, delete and clear controls at the current playhead
 - Keyframe persistence in the shared Reel project schema and native preview interpolation
 - Preservation of Studio-only clip settings and keyframes when native changes are synced back before export
 
-Some advanced Studio-only adjustments are previewed by the Studio renderer rather than reproduced by Expo's native video surface. Export for a Studio-originated Reel must continue through the Studio engine; do not silently fall back to the basic native exporter if Studio sync is unavailable.
+Some advanced Studio-only adjustments are previewed by the Studio renderer rather than reproduced identically by Expo's native video surface. The native layer inspector controls the existing Studio layer compositor; it does not implement a separate native GPU compositor. Export for a Studio-originated Reel must continue through the Studio engine; do not silently fall back to the basic native exporter if Studio sync is unavailable.
 
 ## Use
 
