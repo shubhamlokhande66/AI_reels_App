@@ -3,7 +3,7 @@ import { Platform, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { askAction, tasks, type TaskKind } from "@shubix/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
-import type { ProjectClip } from "@shubix/validations";
+import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
 import { tokenStore } from "./device";
 
 /** The website's own Fast Studio makes the phone's Reels: its page /engine (FE/web-app app/engine, worked through
@@ -55,19 +55,50 @@ export const engine = {
   /** whether the studio holds this draft as it made it (then the website's export makes it, with its transitions and effects) */
   holds: (id: string) => engineOn && held === id,
   /** the website's export of the Reel the studio holds: the MP4 on the phone */
+  /** the Reel as the phone's editor changed it, back in the studio (its order, trims, speeds, transitions, effects), so
+   * the website's export still makes it; false when the studio cannot make it so (a new clip, a turned or mirrored clip,
+   * a filter: then the phone's export makes it) */
+  edit: async (p: ReelProject) => {
+    if (!engine.holds(p.id)) return false;
+    const list = [];
+    let t = 0;
+    for (const c of p.clips) {
+      const from = made.get(c.id);
+      if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
+      const len = clipDuration(c), sp = (SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed);
+      if (!sp) return false; // a speed the studio has not (it has slow, normal, fast)
+      list.push({ ...from.shot, start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect });
+      t += len;
+    }
+    return (await call<{ ok: boolean }>("edit", { shots: list })).ok;
+  },
+  /** a choice in one of the editor's tools, made in the studio as on the website (its button `attr`=`value` in `box`,
+   * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
+   * does not hold this Reel as it is (then the phone does what it can) */
+  set: async (p: ReelProject, box: string, value: string | boolean, attr?: string) => {
+    if (!(await engine.edit(p))) return null;
+    return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
+  },
   exportReel: (name: string) => call<{ path: string; size: number }>("exportReel", { name }).then((r) => ({ uri: `file://${r.path}`, size: r.size })),
 };
 
 // the studio's speeds as the phone plays them (ramps, freezes and curves play at 1× here; the studio's export keeps them)
 const SPEED: Record<string, number> = { normal: 1, slow: 0.5, fast: 1.6 };
+// each clip the studio made: its shot (engine.edit sends it back changed) and the clip as made (what the studio cannot change)
+const made = new Map<string, { shot: EngineShot; clip: ProjectClip }>();
+let sources: ProjectClip[] = [];
+const KEEP = ["uri", "reverse", "rotation", "mirror", "flip", "filter", "fit", "muted", "volume"] as const;
 /** The Reel's shots as the phone editor's clips: each shot its part of its clip (from `in`, as long as the shot at its
- * speed), the transition into it and its effect. `sources`: the clips the studio kept, in its order (its `src`). */
-export function shotsOf(shots: EngineShot[], sources: ProjectClip[]): ProjectClip[] {
+ * speed), the transition into it and its effect. `list`: the clips the studio kept, in its order (its `src`). */
+export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[] {
+  made.clear(); sources = list;
   return shots.map((e, i) => {
-    const c = sources[e.src] ?? sources[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
+    const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
     const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
     const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    return { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined };
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined };
+    made.set(clip.id, { shot: e, clip });
+    return clip;
   });
 }
 

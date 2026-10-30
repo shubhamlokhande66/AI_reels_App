@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BackHandler, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { BackHandler, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useStudioText } from "@shubix/hooks";
-import { Button, IconButton, confirmAction, toast, useColors } from "@shubix/ui-mobile";
+import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
 import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
@@ -13,6 +13,7 @@ import { useLocked } from "../lib/data";
 import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { ExportScreen } from "../components/organisms/ExportScreen";
 import { videoEngine } from "../lib/video";
+import { engine } from "../lib/engine";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
@@ -21,6 +22,19 @@ const TRANSITIONS = ["Cut", "Fade", "Dissolve", "Push", "Wipe", "Zoom", "Flash",
 const SPEEDS = ["0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×", "3×"];
 const VOLUMES = ["0%", "25%", "50%", "75%", "100%", "150%"];
 const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"];
+// the website's tool panels (components/studio/markup.ts): their choices, as its buttons' values and names
+const MODES = [["auto", "Auto"], ["smooth", "Smooth"], ["fast", "Fast"]];
+const MODE_HELP: Record<string, string> = {
+  auto: "Auto: the music decides. Calm parts get longer shots, drops and hits get effects.",
+  smooth: "Smooth: fewer, longer shots on the strong beats, soft camera moves, no flashy effects.",
+  fast: "Fast: a cut on every beat, a transition on every cut, punches and speed changes on the hits.",
+};
+// …a look's filter when the phone makes the Reel
+const LOOKS = [["natural", "Natural", "Original"], ["vivid", "Vivid", "Vivid"], ["cine", "Cinematic", "Cinematic"], ["mono", "B&W", "Noir"]];
+const TSTYLES = [["pop", "Pop"], ["karaoke", "Karaoke"], ["box", "Box"], ["clean", "Clean"]];
+const CSNDS = [["mute", "Mute it"], ["voices", "Keep voices only"], ["all", "Keep all"]];
+const BGS = [["none", "Original"], ["blur", "Blur"]];
+const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER", "गणपती बाप्पा मोरया", "शुभ दीपावली", "Happy Diwali"];
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
 const LATER = new Set(["fx", "extract", "border", "adjust", "curve", "stab", "beauty", "fade", "mosaic", "lens", "captions", "voice", "layers"]);
@@ -50,7 +64,7 @@ export default function EditorScreen() {
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
   useEffect(() => { if (!p?.audioUri) return; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; return { ...old, ...next, studio: false }; }); // changed here: the phone's export makes it (the studio holds the Reel as it made it)
+  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
@@ -77,6 +91,22 @@ export default function EditorScreen() {
   const addText = (text: string) => { if (!text.trim()) return; change({ overlays: [...(p?.overlays ?? []), { id: `t-${Date.now()}`, text: text.trim(), start: now, end: Math.min(total, now + 3) || 3, color: "#FFFFFF", size: 36 } as Overlay] }); setDraft(""); };
 
   /** a tool from the row, or a clip tool: what it changes straight away, else its sheet */
+  /** a choice in a tool as the website makes it: in the studio when it holds this Reel (`box`/`attr`: its button, or
+   * its input `box`), else on the phone (`here`: what the phone does with it) */
+  async function choose(key: keyof NonNullable<ReelProject["settings"]>, value: string | boolean, box: string, attr?: string, here?: () => Partial<ReelProject>) {
+    if (!p) return;
+    const settings = { ...p.settings, [key]: value };
+    try {
+      const next = p.studio ? await engine.set(p, box, value, attr) : null;
+      if (next) return change({ clips: next, settings });
+    } catch (e) { return toast(errorMessage(e), "danger"); }
+    change({ ...here?.(), settings, studio: false });
+  }
+  const Seg = ({ k, items, box, attr, here }: { k: "mode" | "look" | "tstyle" | "csnd" | "bg"; items: string[][]; box: string; attr: string; here?: (v: string) => Partial<ReelProject> }) =>
+    <Segmented small value={String(p?.settings?.[k] ?? items[0][0])} onChange={(v) => void choose(k, v, box, attr, here && (() => here(v)))} options={items.map(([value, label]) => ({ value, label: words(label) }))} />;
+  const Label = ({ children }: { children: string }) => <Text className="text-[11px] font-bold uppercase tracking-[1px] text-muted">{words(children)}</Text>;
+  const touch = p?.settings?.touch ?? true;
+
   function use(key: string, name: string) {
     const lock = locked?.(key);
     if (lock) { router.push("/pricing"); return; }
@@ -104,25 +134,48 @@ export default function EditorScreen() {
     switch (tool.key) {
       case "media": return <View className="gap-2"><Button full icon="plus" title={words("Add clips")} onPress={() => void addClips()} /><Button full variant="secondary" icon="refresh" title={words("Replace this shot")} onPress={() => void addClips(true)} /><Button full variant="danger" icon="trash" title={words("Delete this shot")} onPress={() => void removeShot()} /></View>;
       case "stickers": return <Choices items={STICKERS} onPick={addText} />;
-      case "look": return <Choices items={FILTERS} on={clip?.filter} onPick={(filter) => patch({ filter })} />;
-      case "style": return <Choices items={["Editorial", "Cinematic", "Warm", "Clean"]} onPick={(v) => patch({ filter: v === "Warm" ? "Golden" : v === "Clean" ? "Original" : v === "Editorial" ? "Film" : v })} />;
+      case "look": return (
+        <View className="gap-3">
+          <Pressable onPress={() => void choose("touch", !touch, "aitouch")} accessibilityRole="checkbox" accessibilityState={{ checked: touch }} className="flex-row gap-2.5">
+            <View className={`mt-0.5 h-5 w-5 items-center justify-center rounded-md border ${touch ? "border-accent bg-accent" : "border-border"}`}>{touch && <Text className="text-[12px] font-bold text-background">✓</Text>}</View>
+            <Text className="flex-1 text-[12.5px] leading-[18px] text-foreground">{words("Shubix touch-ups: fit wide clips, fix dark shots, keep voices, one reversed drop, fade out at the end")}</Text>
+          </Pressable>
+          <Seg k="look" items={LOOKS} box="look" attr="data-l" here={(v) => ({ clips: clips.map((c) => ({ ...c, filter: LOOKS.find((l) => l[0] === v)![2] })) })} />
+          <Label>Filter on this shot</Label>
+          <Choices items={FILTERS} on={clip?.filter} onPick={(filter) => patch({ filter })} />
+        </View>
+      );
+      case "style": return <View className="gap-3"><Seg k="mode" items={MODES} box="mode" attr="data-m" here={(v) => ({ clips: clips.map((c) => ({ ...c, speed: v === "fast" ? 1.25 : v === "smooth" ? 0.8 : 1 })) })} /><Text className="text-[12.5px] leading-[18px] text-muted">{words(MODE_HELP[p.settings?.mode ?? "auto"])}</Text></View>;
       case "shots": return <><Choices items={clips.map((_, i) => `${words("Shot")} ${i + 1}`)} on={`${words("Shot")} ${selected + 1}`} onPick={(v) => go(Number(v.split(" ").pop()) - 1)} /><Button full variant="secondary" icon="plus" title={words("Add shot")} onPress={() => void addClips()} /></>;
       case "music": return (
         <View className="gap-2">
           <Text className="text-[13px] text-foreground">{p.audioName ?? words("No song yet")}</Text>
-          <Button full icon="music" title={words(p.audioUri ? "Change song" : "Choose song")} onPress={() => void chooseSong()} />
+          <Button full icon="music" title={words(p.audioUri ? "Change the song or its part" : "Choose song")} onPress={() => void chooseSong()} />
+          <Button full variant="secondary" icon="plus" title={words("Add or change clips")} onPress={() => void addClips()} />
+          <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
+            <Text className="text-[13px] font-semibold text-foreground">{words("Your clips have their own sound")}</Text>
+            <Text className="text-[12px] leading-[17px] text-muted">{words("Wind, traffic, people talking… Choose what the Reel keeps under the song.")}</Text>
+            <Seg k="csnd" items={CSNDS} box="csnd" attr="data-c" here={(v) => ({ clips: clips.map((c) => ({ ...c, muted: v === "mute" })) })} />
+          </View>
           {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => change({ audioUri: undefined, audioName: undefined })} />}
           {clip && <Button full variant="secondary" title={words(clip.muted ? "Turn the clip's sound on" : "Mute the clip's sound")} onPress={() => patch({ muted: !clip.muted })} />}
         </View>
       );
       case "text": return (
         <View className="gap-2">
+          <Label>Hook text (3-5 words, first 2 seconds)</Label>
+          <TextInput defaultValue={p.settings?.hook ?? ""} onEndEditing={(e) => void choose("hook", e.nativeEvent.text.trim(), "hook")} placeholder={words("e.g. WAIT FOR THE DROP")} placeholderTextColor={look.muted} maxLength={40} className="h-12 rounded-xl border border-border bg-surface-2 px-4 text-[14px] text-foreground" />
+          <Label>Text style</Label>
+          <Seg k="tstyle" items={TSTYLES} box="tstyle" attr="data-t" />
+          <Label>Text & stickers</Label>
           <TextInput value={draft} onChangeText={setDraft} placeholder={words("Type your text")} placeholderTextColor={look.muted} maxLength={80} className="h-12 rounded-xl border border-border bg-surface-2 px-4 text-[14px] text-foreground" />
-          <Button full icon="plus" disabled={!draft.trim()} title={words("Add text")} onPress={() => addText(draft)} />
+          <View className="flex-row gap-2"><Button className="flex-1" icon="plus" disabled={!draft.trim()} title={words("Text")} onPress={() => addText(draft)} /><Button className="flex-1" variant="secondary" icon="plus" title={words("Sticker")} onPress={() => setTool({ key: "stickers", name: "Stickers" })} /></View>
+          <Choices items={READY_MADE} onPick={addText} />
           {p.overlays.map((o) => <View key={o.id} className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-2"><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id) })} /></View>)}
         </View>
       );
-      case "bg": case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
+      case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
+      case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
       case "motion": case "sp": return <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v) })} />;
       case "tr": return <Choices items={TRANSITIONS} on={clip?.transition} onPick={(transition) => patch({ transition })} />;
       case "vol": return <Choices items={VOLUMES} on={clip?.muted ? "0%" : `${Math.round((clip?.volume ?? 1) * 100)}%`} onPick={(v) => patch({ volume: parseInt(v) / 100, muted: v === "0%" })} />;

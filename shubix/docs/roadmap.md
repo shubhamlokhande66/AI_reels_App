@@ -103,18 +103,19 @@ kept as the bar for every phase.
 
 ## Phone app: the website's edit engine on the phone
 
-Decided 2026-10-29: the phone runs **the website's own engine code**, split out of `FE/web-app/components/studio/engine.ts`
-into `Shared/core/src/engine/studio/` (one module per job), in a hidden page in the phone's browser engine
-(`FE/mobile-app/lib/engine.tsx`: V8, as fast as the website, the same results). The screens stay native; export is native
-(Media3, `modules/shubix-video`). After changing the shared modules: `pnpm engine` in `FE/mobile-app`.
+Decided 2026-10-29, changed 2026-10-30: the phone runs **the website's own Fast Studio**, its page `/engine`
+(`FE/web-app/app/engine`) hidden in the phone's browser engine (`FE/mobile-app/lib/engine.tsx`, worked through
+`components/studio/bridge.ts`): the same analysis, plan, clip reading, style and MP4 as the website, exactly. The screens
+stay native. The phone's files reach the page through the app's file server (`modules/shubix-video` FileServer.kt).
 
 | Step | What | Status |
 |---|---|---|
 | 1 | Song analysis (`song.ts`: beats, hits, drops, breaks, cuts), shared by the website and the phone | ✅ |
-| 1b | The beat check (Beat This! on the device, `lib/beatThis/device.ts`, shared by the website's worker and the phone) and the task cards (`ui-mobile` Tasks = the website's tasks.ts) | ✅ |
-| 2 | Song parts and the length (`useSection`, `bestPart`, `songParts`) | ⬜ |
-| 3 | The plan: shots on the beats by style (`buildPlan`, `adaptPlan`, `beatEdit`, `noFlashCuts`, `endWell`) | ⬜ |
-| 4 | Clip reading (motion, sharpness, scenes, faces) and the moments (`scoreWindow`, `makeEditNow` pick, `seqPick`) | ⬜ |
-| 5 | Style: transitions, effects, speed, keyframes, camera (`styleEdit`, `finishTransitions`, `tasteFx`, `keyframesFor`, `camPath`) | ⬜ |
-| 6 | Native export draws the transitions and effects; the editor's preview shows them | ⬜ |
+| 1b | The beat check (Beat This! on the device, `lib/beatThis/device.ts`) and the task cards (`ui-mobile` Tasks = the website's tasks.ts) | ✅ |
+| 2 | Song parts and the length: the studio places the part (`choose` → start), the phone's waves move it (`part`) | ✅ |
+| 3 | The plan: shots on the beats by style (the studio's `makeEdit`; the editor's Style tool presses its buttons: `set`) | ✅ |
+| 4 | Clip reading and the moments (the studio's own, `clips`; the clips it keeps come back in its order) | ✅ |
+| 5 | Style: transitions, effects, speed (the studio's shots become the editor's clips: `shotsOf`); Filters, touch-ups, hook, text style, the clips' sound, background are its buttons (`set`) | ✅ |
+| 6 | Export: the studio's own (`exportReel`), also after the editor's changes (order, trims, speeds, transitions, effects go back: `edit`); the phone's Media3 export when the studio cannot make it (a new clip, a turned or mirrored clip, a filter on one shot, the phone's own texts, another song) | ✅ (to test on a phone) |
+| 7 | The editor's preview shows the studio's transitions and effects (it plays the shots one by one now) | ⬜ |
 | TODO (later) | The same engine in Kotlin instead of the hidden page (faster; checked against the shared modules' results) | ⬜ |

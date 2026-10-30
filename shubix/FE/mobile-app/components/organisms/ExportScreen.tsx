@@ -28,8 +28,8 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     if (!reel) return;
     let live = true;
     setPct(0); setDone(null); setSaved(false);
-    // made by the website's engine and not changed since: its own export (the transitions and effects); else the phone's
-    (reel.studio && engine.holds(reel.id) ? engine.exportReel(`${reel.id}.mp4`) : exportReel(reel, (p) => live && setPct(p)))
+    // made by the website's engine (the editor's changes sent back to it): its own export (the transitions and effects); else the phone's
+    (reel.studio ? engine.edit(reel).catch(() => false) : Promise.resolve(false)).then((studio) => studio ? engine.exportReel(`${reel.id}.mp4`) : exportReel(reel, (p) => live && setPct(p)))
       .then(async (r) => {
         if (!live) return;
         setPct(1); setDone(r); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");

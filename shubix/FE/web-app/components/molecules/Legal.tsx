@@ -18,6 +18,7 @@ export const LEGAL_LINKS = [
   ["/terms", "legal.terms"],
   ["/privacy", "legal.privacy"],
   ["/refunds", "legal.refunds"],
+  ["/delete-account", "legal.delete"],
   ["/contact", "legal.contact"],
 ] as const;
 
@@ -76,7 +77,7 @@ export function LegalFooter({ className = "", compact = false }: { className?: s
   );
 }
 
-const PAGES = { terms: ["/terms", "legal.termsTitle", "legal.termsBody"], privacy: ["/privacy", "legal.privacyTitle", "legal.privacyBody"], refunds: ["/refunds", "legal.refundsTitle", "legal.refundsBody"] } as const;
+const PAGES = { terms: ["/terms", "legal.termsTitle", "legal.termsBody"], privacy: ["/privacy", "legal.privacyTitle", "legal.privacyBody"], refunds: ["/refunds", "legal.refundsTitle", "legal.refundsBody"], deletion: ["/delete-account", "legal.deleteTitle", "legal.deleteBody"] } as const;
 export type LegalPageId = keyof typeof PAGES;
 
 /** A readable legal page (design: "Legal"): the three legal pages as chips, the title and date, a list of the sections

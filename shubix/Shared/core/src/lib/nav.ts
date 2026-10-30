@@ -63,7 +63,7 @@ export const TABS: NavTab[] = [
 
 /** Pages shown on their own (no bars), and pages open before signing in. */
 export const AUTH_PAGES = ["/login", "/forgot", "/reset", "/verify"];
-export const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/contact", "/editor"];
+export const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/delete-account", "/contact", "/editor"];
 
 export function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -90,6 +90,7 @@ const PAGES: Record<string, PageMeta> = {
   "/terms": LEGAL,
   "/privacy": LEGAL,
   "/refunds": LEGAL,
+  "/delete-account": LEGAL,
   "/contact": { title: "Contact us", tk: "nav.contact" },
   "/settings": { title: "AI settings", admin: true },
   "/voices": { title: "Voice profiles", tk: "nav.voices" },

@@ -58,7 +58,7 @@ The first upload can skip `--bump` (version 1.0.0, code 1). The bundle is
    - Target audience: 13+ / 18+ as the terms say
    - **Data safety**: account (email), purchases, user content (videos, audio, photos are processed on the phone; say what
      reaches the server: sign-in, AI requests, saved Reels if any), microphone audio for the voiceover
-   - **Account deletion**: in the app (Account → delete) and the web link `https://your-live-site/account`
+   - **Account deletion**: in the app (Account → delete) and the web link `https://your-live-site/delete-account` (docs/play-store/README.md has all the App content answers)
 5. **Store listing**: short and full description, the 512×512 icon (`public/icon-512.png`), a 1024×500 feature graphic,
    at least 2 phone screenshots (portrait Reels editor, Create flow, My Reels).
 6. Promote internal → closed → production when the testers are happy.

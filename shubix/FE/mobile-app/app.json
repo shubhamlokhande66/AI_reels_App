@@ -12,7 +12,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Choose clips and photos to create your Reel."
+          "photosPermission": "Choose clips and photos to create your Reel.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       [
@@ -39,7 +41,12 @@
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW",
-        "android.permission.READ_MEDIA_AUDIO"
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.CAMERA"
       ]
     },
     "experiments": {

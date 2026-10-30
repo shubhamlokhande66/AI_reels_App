@@ -117,6 +117,27 @@ If you were charged twice, or a payment did not add your plan or credits, write 
 ## Delivery
 {name} is a digital service. Plans and credits are added to your account immediately after a successful payment; nothing is shipped.`;
 
+const LEGAL_DELETE = `This page explains how to delete your {name} account and its data, from the app or without it.
+
+## In the app or on the website
+- Open **My account** (the phone app or the website), then **Delete account**.
+- Type your email and your password to confirm, then **Delete everything**.
+
+## Without the app
+Write to {reach} from your account's email with the subject “Delete my account”. We delete it within 7 days and reply when it is done.
+
+## What is deleted
+- Your account, profile, sign-in sessions and devices
+- Your projects, uploaded clips, songs and photos, saved Reels, brands, templates and voice profiles
+- Your credits and plan (unused credits are not refunded)
+
+## What is kept
+- Payment records (and affiliate payouts), as tax law requires, without the link to you, for up to 8 years
+- Drafts on your phone stay on your phone until you delete them or remove the app
+
+## Contact
+{business}. {contact}.`;
+
 export const TEXT_GROUPS: TextGroup[] = [
   // ---------------------------------------------------------------- pages
   page(PAGES, "home", "Home",
@@ -379,8 +400,9 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Terms of Service", C("Page", T("legal.termsTitle", "Title", "Terms of Service"), T("legal.termsBody", "The page", LEGAL_TERMS, true))),
     S("Privacy Policy", C("Page", T("legal.privacyTitle", "Title", "Privacy Policy"), T("legal.privacyBody", "The page", LEGAL_PRIVACY, true))),
     S("Refund & Cancellation", C("Page", T("legal.refundsTitle", "Title", "Refund & Cancellation Policy"), T("legal.refundsBody", "The page", LEGAL_REFUNDS, true))),
+    S("Delete your account", C("Page", T("legal.deleteTitle", "Title", "Delete your account"), T("legal.deleteBody", "The page", LEGAL_DELETE, true))),
     S("Around the pages",
-      C("Tabs & footer links", T("legal.terms", "Terms", "Terms"), T("legal.privacy", "Privacy", "Privacy"), T("legal.refunds", "Refunds", "Refunds & cancellation"), T("legal.contact", "Contact", "Contact"), T("legal.pricing", "Pricing", "Pricing")),
+      C("Tabs & footer links", T("legal.terms", "Terms", "Terms"), T("legal.privacy", "Privacy", "Privacy"), T("legal.refunds", "Refunds", "Refunds & cancellation"), T("legal.delete", "Delete account", "Delete account"), T("legal.contact", "Contact", "Contact"), T("legal.pricing", "Pricing", "Pricing")),
       C("Details", T("nav.legal", "Phone top bar title", "Legal"), T("legal.updated", "Last updated ({date})", "Last updated {date}"), T("legal.sections", "Sections list (screen readers)", "Sections"),
         T("legal.writeUs", "{contact} with no email set", "write to us from the Contact page"))),
   ),

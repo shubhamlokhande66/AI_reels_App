@@ -13,11 +13,13 @@
  *   part { start }                                       the part dragged on the waves: from there -> { start }
  *   ready {}                                              waits until the Reel is made -> the work and the Reel's shots
  *   state {} / exportReel { name }                        the Reel as the studio saves it / the MP4, sent back -> its path on the phone
+ *   edit { shots }                                        the Reel's shots as the phone's editor changed them (its state's edit) -> { ok }
+ *   set { box, attr?, value }                              a choice in a tool: its button attr=value in #box, or the input #box set to value -> as ready
  *   answer { pick: "ok" | "no" | "close" }               the phone's answer to the studio's question (Shubix AI's credits)
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; state: () => unknown; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -83,6 +85,19 @@ export function initBridge(root: HTMLElement): () => void {
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
     async part(a) { await studio()?.setPart(Number(a.start)); return { start: studio()?.section.start ?? 0 }; },
+    async edit(a) { await until(made); return { ok: !!studio()!.setEdit(a.shots as unknown[]) }; },
+    async set(a) {
+      const box = String(a.box), gen = studio()!.editGen;
+      if (a.attr) { if (!press(box, String(a.attr), String(a.value))) throw new Error("The studio has no " + a.value); }
+      else {
+        const i = $<HTMLInputElement>(box);
+        if (!i) throw new Error("The studio has no " + box);
+        if (i.type === "checkbox") i.checked = !!a.value; else i.value = String(a.value);
+        i.dispatchEvent(new Event("input", { bubbles: true })); i.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      await until(() => studio()!.editGen !== gen, 1500).catch(() => {}); // a new style makes a new Reel (a filter does not)
+      return OPS.ready(a);
+    },
     async answer(a) { const b = $({ ok: "cconfok", no: "cconfno" }[String(a.pick)] ?? "cconfx"); b?.click(); return { ok: !!b }; },
     async exportReel(a) {
       await until(made);
