@@ -80,6 +80,11 @@ export default function EditorScreen() {
     try { await engine.tool("seek", { time: now }); await engine.tool("shotStyle", { kind, value }); }
     catch (e) { toast(errorMessage(e), "danger"); }
   };
+  const studioKeyframe = async (values: Record<string, number>) => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframes need a Reel made by Shubix Studio."), "info");
+    try { await engine.tool("kfSeek", { time: now }); await engine.tool("kfSet", { values }); toast(words("Keyframe added at the playhead"), "success"); }
+    catch (e) { toast(errorMessage(e), "danger"); }
+  };
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
   // a place on the timeline: the shot there and the time in it
   const seek = (t: number) => { let i = 0, start = 0; while (i < clips.length - 1 && start + clipDuration(clips[i]) <= t) start += clipDuration(clips[i++]); setSelected(i); setLocal(t - start); };
@@ -189,7 +194,17 @@ export default function EditorScreen() {
       );
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
       case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
-      case "motion": case "sp": return <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v) })} />;
+      case "sp": return <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v) })} />;
+      case "motion": return <View className="gap-2">
+        <Text className="text-[11px] text-muted">{words("Move the playhead, then add a keyframe. Add another at a later time to animate the move.")}</Text>
+        <Choices items={["Zoom in", "Zoom out", "Slide left", "Slide right", "Move up", "Move down", "Rotate", "Fade", "Reset frame"]} onPick={(v) => {
+          const values: Record<string, Record<string, number>> = {
+            "Zoom in": { s: 1.2 }, "Zoom out": { s: 0.85 }, "Slide left": { x: -0.08 }, "Slide right": { x: 0.08 },
+            "Move up": { y: -0.08 }, "Move down": { y: 0.08 }, Rotate: { r: 8 }, Fade: { o: 0.45 },
+            "Reset frame": { x: 0, y: 0, s: 1, r: 0, o: 1 },
+          }; void studioKeyframe(values[v]);
+        }} />
+      </View>;
       case "tr": return <Choices items={TRANSITIONS} on={TRANSITIONS[TRANSITION_IDS.indexOf(clip?.transition ?? "hard")] ?? "Cut"} onPick={(label) => {
         const transition = TRANSITION_IDS[TRANSITIONS.indexOf(label)] ?? "hard";
         patch({ transition }); void studioStyle("transition", transition);
