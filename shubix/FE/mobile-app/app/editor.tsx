@@ -6,6 +6,7 @@ import { useStudioText } from "@shubix/hooks";
 import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
+import { evaluateAudioGain } from "@shubix/video-engine";
 import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
@@ -89,10 +90,10 @@ export default function EditorScreen() {
   useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume]);
   useEffect(() => {
     if (!p?.audioUri) return;
-    const fadeIn = p.settings?.musicFadeIn ?? 0, fadeOut = p.settings?.musicFadeOut ?? 0;
-    const inGain = fadeIn > 0 ? Math.min(1, Math.max(0, now / fadeIn)) : 1;
-    const outGain = fadeOut > 0 ? Math.min(1, Math.max(0, (total - now) / fadeOut)) : 1;
-    song.volume = (p.settings?.musicVolume ?? 1) * Math.min(inGain, outGain);
+    song.volume = evaluateAudioGain(now, {
+      volume: p.settings?.musicVolume ?? 1, duration: total,
+      fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0,
+    });
   }, [p?.audioUri, p?.settings?.musicVolume, p?.settings?.musicFadeIn, p?.settings?.musicFadeOut, now, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
