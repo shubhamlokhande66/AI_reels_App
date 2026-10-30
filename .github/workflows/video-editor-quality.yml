@@ -1,0 +1,30 @@
+name: Video editor quality checks
+
+on:
+  pull_request:
+    branches: [monorepo]
+  push:
+    branches: [feature/advanced-video-editor]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: shubix/pnpm-lock.yaml
+      - name: Install workspace
+        working-directory: shubix
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck all workspaces
+        working-directory: shubix
+        run: pnpm -r typecheck
+      - name: Test web studio
+        working-directory: shubix
+        run: pnpm --filter @shubix/web-app test
