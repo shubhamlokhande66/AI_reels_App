@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -89,7 +90,7 @@ class ShubixVideoModule : Module() {
       val audio = mutableListOf<AudioProcessor>()
       if (!image && speed != 1f) { video += SpeedChangeEffect(speed); audio += SonicAudioProcessor().apply { setSpeed(speed); setPitch(speed) } }
       val clipVolume = c.optDouble("volume", 1.0).toFloat().coerceIn(0f, 2f)
-      if (!image && clipVolume != 1f) audio += GainProcessor { _, _ -> clipVolume }
+      if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
       val turn = c.optDouble("rotation", 0.0).toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
       if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
@@ -104,8 +105,8 @@ class ShubixVideoModule : Module() {
     if (song != null) {
       val music = MediaItem.Builder().setUri(Uri.parse(song.getString("uri")))
         .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((song.optDouble("start", 0.0) * 1000).toLong()).setEndPositionMs(((song.optDouble("start", 0.0) + at) * 1000).toLong()).build()).build()
-      val musicVolume = song.optDouble("volume", 1.0).toFloat().coerceIn(0f, 2f)
-      val musicAudio = if (musicVolume == 1f) emptyList() else listOf(GainProcessor { _, _ -> musicVolume })
+      val musicVolume = song.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f)
+      val musicAudio: List<AudioProcessor> = if (musicVolume == 1f) emptyList() else listOf(gainProcessor(musicVolume))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
@@ -124,6 +125,16 @@ class ShubixVideoModule : Module() {
         if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) sendEvent("onProgress", mapOf("progress" to holder.progress / 100.0))
         main.postDelayed(this, 250)
       }
+    })
+  }
+
+  /** Constant PCM gain shared by the clip and music sequences. Media3 expects a 0..1 gain factor. */
+  private fun gainProcessor(level: Float): GainProcessor {
+    val gain = level.coerceIn(0f, 1f)
+    return GainProcessor(object : GainProcessor.GainProvider {
+      override fun getGainFactorAtSamplePosition(samplePosition: Long, sampleRate: Int): Float = gain
+      override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long =
+        if (gain == 1f) C.TIME_END_OF_SOURCE else C.TIME_UNSET
     })
   }
 
