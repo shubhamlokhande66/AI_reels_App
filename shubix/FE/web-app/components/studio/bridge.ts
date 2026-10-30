@@ -86,7 +86,14 @@ export function initBridge(root: HTMLElement): () => void {
     async state() { return studio()?.state(); },
     async seek(a) { const st = studio(); if (!st?.seek) throw new Error("Studio seeking is not ready"); await st.seek(Math.max(0, Number(a.time) || 0)); return { time: st.now }; },
     async kfSeek(a) { const st = studio(); if (!st?.kfSeek) throw new Error("Keyframe timeline is not ready"); await st.kfSeek(Math.max(0, Number(a.time) || 0)); return st.kfTarget?.() ?? null; },
-    async kfSet(a) { const st = studio(); if (!st?.kfSet || !st.kfTarget?.()) throw new Error("Select a video shot before adding keyframes"); st.kfSet(a.values as Record<string, number>); return { ok: true, target: st.kfTarget() }; },
+    async kfSet(a) {
+      const st = studio(), before = st?.kfTarget?.();
+      if (!st?.kfSet || !before || before.what !== "shot") throw new Error("Select a video shot before adding keyframes");
+      st.kfSet(a.values as Record<string, number>);
+      const after = st.kfTarget?.();
+      const obj = after && after.what === "shot" ? after.obj as { uk?: Array<Record<string, unknown>> } : null;
+      return { ok: true, index: after?.i, keyframes: (obj?.uk || []).map((k) => ({ ...k })) };
+    },
     async shotCs() { return studio()?.shotCs() ?? null; },
     async shotSet(a) {
       const st = studio();
