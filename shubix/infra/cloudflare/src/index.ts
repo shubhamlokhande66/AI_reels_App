@@ -22,10 +22,16 @@ export class ReelApp extends Container<Env> {
     // every setting (vars and secrets) goes to the app as an environment variable; bindings are not strings
     this.envVars = Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === "string"));
   }
-  // a cold start (the machine, the R2 mount, the server) takes 20-30 s, more than the library waits by itself (20 s)
+  // A cold start (the machine, the R2 mount, the server) takes 20-30 s, more than the library waits by itself (20 s), and
+  // its saved state can still say "healthy" from the container before: this object waits for the port itself, once
+  // per start (`ready`: the server answered since this object woke or the container last stopped).
+  private ready = false;
+  override onStop() { this.ready = false; }
   override async fetch(request: Request): Promise<Response> {
-    if ((await this.getState()).status !== "healthy")
+    if (!this.ready || !this.ctx.container?.running) {
       await this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 90_000, instanceGetTimeoutMS: 30_000, abort: request.signal });
+      this.ready = true;
+    }
     return super.fetch(request);
   }
   override onError(error: unknown) {
