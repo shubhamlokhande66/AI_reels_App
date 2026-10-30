@@ -52,7 +52,7 @@ export default function EditorScreen() {
   const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; maskWidth: number; maskHeight: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
-  const undo = useRef<ReelProject[]>([]), song = useAudioPlayer(p?.audioUri ?? null);
+  const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<ProjectClip["keyframes"]>([]), song = useAudioPlayer(p?.audioUri ?? null);
   useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); router.back(); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tool?.key !== "voice" || !p?.studio || !engine.holds(p.id)) return;
@@ -88,7 +88,7 @@ export default function EditorScreen() {
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
   useEffect(() => { if (!p?.audioUri) return; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
+  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
   const studioPatch = async (value: Record<string, unknown>) => {
@@ -100,6 +100,18 @@ export default function EditorScreen() {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
     try { await engine.tool("seek", { time: now }); await engine.tool("shotStyle", { kind, value }); }
     catch (e) { toast(errorMessage(e), "danger"); }
+  };
+  const copyKeyframes = () => {
+    keyframeClipboard.current = clip?.keyframes?.map((frame) => ({ ...frame })) ?? [];
+    toast(words(keyframeClipboard.current.length ? "Keyframes copied" : "This shot has no keyframes to copy"), keyframeClipboard.current.length ? "success" : "info");
+  };
+  const pasteKeyframes = () => {
+    const frames = keyframeClipboard.current;
+    if (!frames?.length) return toast(words("Copy keyframes from another shot first"), "info");
+    if (!clip) return;
+    const maxTime = clipDuration(clip);
+    patch({ keyframes: frames.map((frame) => ({ ...frame, t: Math.min(maxTime, frame.t), ...(frame.bezier ? { bezier: [...frame.bezier] as [number, number, number, number] } : {}) })) });
+    toast(words("Keyframes pasted to this shot"), "success");
   };
   const studioKeyframe = async (values: Record<string, number>) => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframes need a Reel made by Shubix Studio."), "info");
@@ -375,6 +387,7 @@ export default function EditorScreen() {
           const easing: Record<string, string> = { Smooth: "inOut", Linear: "lin", "Ease in": "inQuad", "Ease out": "outCubic", Overshoot: "outBack", "Fast stop": "outExpo", Bezier: "bezier", Hold: "hold" };
           void studioKeyframeAction("kfEase", { easing: easing[v] });
         }} />
+        <View className="flex-row flex-wrap gap-2"><Button size="sm" variant="secondary" title={words("Copy keyframes")} onPress={copyKeyframes} /><Button size="sm" variant="secondary" title={words("Paste keyframes")} disabled={!keyframeClipboard.current.length} onPress={pasteKeyframes} /></View>
         <Label>Keyframe timeline</Label>
         <View className="flex-row flex-wrap gap-2">
           <Button size="sm" variant="secondary" title={words("Previous")} onPress={() => void studioKeyframeAction("kfStep", { direction: -1 })} />
@@ -454,7 +467,7 @@ export default function EditorScreen() {
         <Timeline clips={clips} selected={selected} overlays={p.overlays} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
         <View className="mt-3 flex-row items-center justify-between px-4">
           <Text className="text-[13px] font-semibold text-foreground">{words("Shot")} {String(selected + 1).padStart(2, "0")} · {clip ? clipDuration(clip).toFixed(1) : "0.0"} s</Text>
-          <IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const last = undo.current.pop(); if (last) setP(last); }} />
+          <View className="flex-row items-center gap-1"><IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const last = undo.current.pop(); if (last) { redo.current = [...redo.current.slice(-29), p]; setP(last); } }} /><IconButton icon="redo" size={36} label={words("Redo")} disabled={!redo.current.length} onPress={() => { const next = redo.current.pop(); if (next) { undo.current = [...undo.current.slice(-29), p]; setP(next); } }} /></View>
         </View>
       </ScrollView>
       <View className="border-t border-border bg-bar pb-2 pt-2">
