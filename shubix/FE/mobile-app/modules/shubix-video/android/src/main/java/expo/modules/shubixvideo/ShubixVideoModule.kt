@@ -48,6 +48,7 @@ class ShubixVideoModule : Module() {
   private class ActiveExport(val promise: Promise) {
     var transformer: Transformer? = null
     var settled: Boolean = false
+    var cancelRequested: Boolean = false
     var progressTask: Runnable? = null
     var output: File? = null
   }
@@ -77,12 +78,11 @@ class ShubixVideoModule : Module() {
 
   private fun cancelActiveExport() {
     val session = activeExport ?: return
-    // Mark/settle before calling Media3: its listener may report cancellation asynchronously.
+    // Mark cancellation before asking Media3 to stop. Its onError callback may arrive
+    // synchronously or asynchronously; either way the JS Promise is rejected only once.
+    session.cancelRequested = true
+    try { session.transformer?.cancel() } catch (_: Exception) { /* Still settle the JS request below. */ }
     finishExport(session, ExportCancelledException())
-    try { session.transformer?.cancel() } catch (_: Exception) { /* Promise is already settled. */ }
-    session.output?.let { output ->
-      if (output.exists()) output.delete()
-    }
   }
 
   override fun definition() = ModuleDefinition {
@@ -163,6 +163,10 @@ class ShubixVideoModule : Module() {
             finishExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
           }
           override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+            if (session.cancelRequested) {
+              session.output?.let { if (it.exists()) it.delete() }
+              return
+            }
             if (activeExport !== session || session.settled) return
             finishExport(session, exception)
           }
