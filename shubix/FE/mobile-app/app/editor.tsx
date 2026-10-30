@@ -14,6 +14,7 @@ import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
 import { videoEngine } from "../lib/video";
 import { engine } from "../lib/engine";
+import { BLEND_MODES } from "@shubix/video-engine";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
@@ -40,7 +41,7 @@ const BGS = [["none", "Original"], ["blur", "Blur"]];
 const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER", "गणपती बाप्पा मोरया", "शुभ दीपावली", "Happy Diwali"];
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
-const LATER = new Set(["captions", "voice", "layers"]);
+const LATER = new Set(["captions", "voice"]);
 // …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
 
 /** The editor (the website's studio editor on a phone): the Reel saved on this phone, played shot by shot with its
@@ -49,8 +50,13 @@ export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
+  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const undo = useRef<ReelProject[]>([]), song = useAudioPlayer(p?.audioUri ?? null);
   useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); router.back(); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tool?.key !== "layers" || !p?.studio || !engine.holds(p.id)) return;
+    void engine.tool("layerList").then((r) => setStudioLayers(Array.isArray(r) ? r as typeof studioLayers : [])).catch(() => setStudioLayers([]));
+  }, [tool?.key, p?.id]);
   // saves itself a moment after each change
   useEffect(() => {
     if (!p) return;
@@ -88,6 +94,30 @@ export default function EditorScreen() {
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
   // a place on the timeline: the shot there and the time in it
   const seek = (t: number) => { let i = 0, start = 0; while (i < clips.length - 1 && start + clipDuration(clips[i]) <= t) start += clipDuration(clips[i++]); setSelected(i); setLocal(t - start); };
+  const refreshStudioLayers = async () => {
+    const result = await engine.tool("layerList");
+    setStudioLayers(Array.isArray(result) ? result as typeof studioLayers : []);
+  };
+  const addStudioLayer = async () => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Overlay layers need a Reel made by Shubix Studio."), "info");
+    const assets = await pickInOrder({ kind: "both", limit: 8 });
+    if (!assets?.length) return;
+    try {
+      const files = await keepPickedAssets(`${p.id}-layer-${Date.now()}`, assets);
+      for (const file of files) await engine.addLayer(file.uri, file.name);
+      await refreshStudioLayers();
+      toast(words("Overlay layer added"), "success");
+    } catch (e) { toast(errorMessage(e), "danger"); }
+  };
+  const studioLayerAction = async (op: string, args: Record<string, unknown> = {}) => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Layer editing needs a Reel made by Shubix Studio."), "info");
+    try {
+      if (op !== "layerList" && op !== "layerAdd") await engine.tool("layerSelect", { index: studioLayerIndex });
+      const result = await engine.tool(op, args);
+      if (op === "layerList") setStudioLayers(Array.isArray(result) ? result as typeof studioLayers : []);
+      else await refreshStudioLayers();
+    } catch (e) { toast(errorMessage(e), "danger"); }
+  };
   const studioKeyframeAction = async (op: "kfEase" | "kfRemove" | "kfClear" | "kfStep", args: Record<string, unknown> = {}) => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframe controls need a Reel made by Shubix Studio."), "info");
     try {
@@ -204,6 +234,45 @@ export default function EditorScreen() {
         </View>
       );
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
+      case "layers": return <View className="gap-2">
+        <Button full icon="image-plus" title={words("Add photo / video layer")} onPress={() => void addStudioLayer()} />
+        {studioLayers.length > 0 && <>
+          <Label>Overlay layers</Label>
+          <Choices items={studioLayers.map((layer) => `Layer ${layer.index + 1}`)} on={`Layer ${studioLayerIndex + 1}`} onPick={(v) => {
+            const index = Math.max(0, Number(v.replace("Layer ", "")) - 1); setStudioLayerIndex(index);
+            void engine.tool("layerSelect", { index }).catch((e) => toast(errorMessage(e), "danger"));
+          }} />
+          <Label>Position and transform</Label>
+          <Choices items={["Move left", "Move right", "Move up", "Move down", "Scale up", "Scale down", "Rotate left", "Rotate right", "Opacity 50%", "Opacity 100%"]} onPick={(v) => {
+            const layer = studioLayers.find((x) => x.index === studioLayerIndex);
+            const values: Record<string, [string, number]> = {
+              "Move left": ["x", Math.max(0, (layer?.x ?? 0.5) - 0.05)], "Move right": ["x", Math.min(1, (layer?.x ?? 0.5) + 0.05)],
+              "Move up": ["y", Math.max(0, (layer?.y ?? 0.5) - 0.05)], "Move down": ["y", Math.min(1, (layer?.y ?? 0.5) + 0.05)],
+              "Scale up": ["s", Math.min(1.5, (layer?.scale ?? 0.5) + 0.05)], "Scale down": ["s", Math.max(0.05, (layer?.scale ?? 0.5) - 0.05)],
+              "Rotate left": ["r", (layer?.rotation ?? 0) - 5], "Rotate right": ["r", (layer?.rotation ?? 0) + 5],
+              "Opacity 50%": ["op", 0.5], "Opacity 100%": ["op", 1],
+            };
+            const [key, value] = values[v]; void studioLayerAction("layerSet", { key, value });
+          }} />
+          <Label>Mask and blend</Label>
+          <Choices items={["No mask", "Circle mask", "Rectangle mask", "Linear mask", "Mirror mask"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"} onPick={(v) => {
+            const mask = ({ "No mask": "none", "Circle mask": "circle", "Rectangle mask": "rect", "Linear mask": "line", "Mirror mask": "mirror" } as Record<string, string>)[v];
+            void studioLayerAction("layerSet", { key: "mask", value: mask });
+          }} />
+          <Choices items={["Normal", "Multiply", "Screen", "Overlay", "Soft light", "Hard light", "Color dodge", "Difference", "Exclusion"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.blend === "source-over" ? "Normal" : studioLayers.find((x) => x.index === studioLayerIndex)?.blend} onPick={(v) => {
+            const blend = ({ Normal: "source-over", Multiply: "multiply", Screen: "screen", Overlay: "overlay", "Soft light": "soft-light", "Hard light": "hard-light", "Color dodge": "color-dodge", Difference: "difference", Exclusion: "exclusion" } as Record<string, string>)[v];
+            void studioLayerAction("layerSet", { key: "blend", value: blend });
+          }} />
+          <Label>Layer timing</Label>
+          <Choices items={["Start at playhead", "End at playhead", "Show entire Reel"]} onPick={(v) => {
+            const layer = studioLayers.find((x) => x.index === studioLayerIndex);
+            if (v === "Start at playhead") void studioLayerAction("layerSet", { key: "t0", value: now });
+            else if (v === "End at playhead") void studioLayerAction("layerSet", { key: "t1", value: Math.max(now, (layer?.t0 ?? 0) + 0.3) });
+            else { void studioLayerAction("layerSet", { key: "t0", value: 0 }); void studioLayerAction("layerSet", { key: "t1", value: total }); }
+          }} />
+          <Button full color="danger" variant="secondary" title={words("Delete selected layer")} onPress={() => void studioLayerAction("layerDelete")} />
+        </>}
+      </View>;
       case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
       case "sp": return <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v) })} />;
       case "motion": return <View className="gap-2">
