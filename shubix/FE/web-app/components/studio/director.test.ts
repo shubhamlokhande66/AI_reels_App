@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDirectorPlan, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -40,6 +40,16 @@ describe("shared video director", () => {
     expect(value.x).toBeCloseTo(0.1);
     expect(value.s).toBeCloseTo(1.2);
     expect(value.o).toBeCloseTo(0.5);
+  });
+
+  it("evaluates music volume and fade envelopes consistently at the playhead", () => {
+    const envelope = { volume: 0.8, duration: 10, fadeIn: 2, fadeOut: 4 };
+    expect(evaluateAudioGain(0, envelope)).toBe(0);
+    expect(evaluateAudioGain(1, envelope)).toBeCloseTo(0.4);
+    expect(evaluateAudioGain(5, envelope)).toBeCloseTo(0.8);
+    expect(evaluateAudioGain(8, envelope)).toBeCloseTo(0.4);
+    expect(evaluateAudioGain(10, envelope)).toBe(0);
+    expect(evaluateAudioGain(5, { volume: 2, duration: 10 })).toBe(1);
   });
 
   it("prioritises high-quality moments and aligns the edit to supplied beats", () => {
