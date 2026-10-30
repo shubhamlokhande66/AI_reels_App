@@ -19,7 +19,7 @@
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => unknown };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => unknown; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: Array<Record<string, unknown>>; saveNow: () => unknown };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -146,6 +146,35 @@ export function initBridge(root: HTMLElement): () => void {
       const st = studio();
       if (!st?.shotTrim) throw new Error("Beat trim is not ready");
       return { ok: st.shotTrim(Number(a.direction) || 1), state: st.state() };
+    },
+    async layerList() {
+      const st = studio();
+      return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over" }));
+    },
+    async layerAdd(a) {
+      const st = studio();
+      if (!st?.layerAdd) throw new Error("Layer editor is not ready");
+      const file = await fileOf(String(a.path), String(a.name || "overlay"));
+      await st.layerAdd([file]); await Promise.resolve(st.saveNow?.());
+      return { ok: true, count: st.layers?.length ?? 0 };
+    },
+    async layerSelect(a) {
+      const st = studio();
+      if (!st?.layerSelect) throw new Error("Layer editor is not ready");
+      const ok = await st.layerSelect(Number(a.index));
+      return { ok: !!ok, selected: Number(a.index) };
+    },
+    async layerSet(a) {
+      const st = studio();
+      if (!st?.layerSet) throw new Error("Layer editor is not ready");
+      st.layerSet(String(a.key), a.value); await Promise.resolve(st.saveNow?.());
+      return { ok: true };
+    },
+    async layerDelete() {
+      const st = studio();
+      if (!st?.layerDelete) throw new Error("Layer editor is not ready");
+      const ok = st.layerDelete(); await Promise.resolve(st.saveNow?.());
+      return { ok };
     },
     async shotExtract() {
       const st = studio();
