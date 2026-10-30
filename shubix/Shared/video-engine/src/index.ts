@@ -75,6 +75,10 @@ export const TRANSITION_LIBRARY: readonly TransitionDefinition[] = [
   {id:"burn",category:"cinematic",label:"Film Burn",duration:0.55,mobileSafe:false,beatFriendly:false},
   {id:"luma",category:"cinematic",label:"Luma Wipe",duration:0.4,mobileSafe:false,beatFriendly:true},
   {id:"iris",category:"cinematic",label:"Mask Reveal",duration:0.45,mobileSafe:false,beatFriendly:false},
+  {id:"bars",category:"stylized",label:"Bars Wipe",duration:0.26,mobileSafe:true,beatFriendly:true},
+  {id:"diamond",category:"stylized",label:"Diamond Wipe",duration:0.36,mobileSafe:true,beatFriendly:true},
+  {id:"heart",category:"stylized",label:"Heart Wipe",duration:0.42,mobileSafe:true,beatFriendly:true},
+  {id:"star",category:"stylized",label:"Star Wipe",duration:0.4,mobileSafe:true,beatFriendly:true},
 ] as const;
 
 export type ShotAnalysis = {
