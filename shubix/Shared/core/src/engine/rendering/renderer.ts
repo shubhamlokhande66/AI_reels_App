@@ -48,6 +48,7 @@ export interface RenderTrackItem {
   fit: "cover" | "contain" | "stretch";
   rotation?: number;
   mirror?: boolean;
+  flip?: boolean;
   muted?: boolean;
   volume?: number;
   transitionIn?: { type: string; durationMs: number };
