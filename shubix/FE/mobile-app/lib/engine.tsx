@@ -84,6 +84,7 @@ export const engine = {
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
    * does not hold this Reel as it is (then the phone does what it can) */
   tool: (op: string, args: Record<string, unknown> = {}) => call<Record<string, unknown>>(op, args),
+  addLayer: (uri: string, name: string) => call<Record<string, unknown>>("layerAdd", { path: pathOf(uri), name }),
   set: async (p: ReelProject, box: string, value: string | boolean, attr?: string) => {
     if (!(await engine.edit(p))) return null;
     return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
