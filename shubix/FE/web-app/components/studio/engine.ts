@@ -10,6 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
+import { createDirectorPlan } from '@shubix/video-engine';
 import { chatSize } from '@shubix/core/lib/chatSize';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
@@ -2631,6 +2632,28 @@ function makeEditNow(){
   const seq = seqOn && sources.length > 1 ? seqSlots(plan.length) : null;
   const order = plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return (a===0?-1:pr[plan[a].type]) - (b===0?-1:pr[plan[b].type]) || a-b; });
   const res = new Array(plan.length); dupCount = 0;
+  // Shared Director pass: rank the source clips once, then use its explainable quality ranking
+  // as a gentle prior in the existing per-shot visual scorer. The music edit still owns timing;
+  // the existing AI's explicit shot choices remain authoritative.
+  const sharedDirector = createDirectorPlan({
+    shots: sources.map((src, sourceIndex) => {
+      const samples = src.samples || [];
+      const avg = (key, fallback = 0) => samples.length ? samples.reduce((n, x) => n + (Number(x[key]) || 0), 0) / samples.length : fallback;
+      const sharp = avg('sh') / Math.max(1e-6, src.shMed || 1);
+      const faceScore = Math.max(0, Math.min(1, (src.faces || []).filter(x => x.n).length / Math.max(1, (src.faces || []).length)));
+      const quality = Math.max(0, Math.min(1, 0.55 + (sharp - 1) * 0.18 + (avg('b') - 0.45) * 0.2 - clipFlaw(src) * 0.08));
+      return { id: String(sourceIndex), sourceIndex, duration: src.dur, quality, motion: Math.max(0, Math.min(1, avg('m'))),
+        faceScore, subjectScore: Math.max(faceScore, Math.max(0, Math.min(1, avg('b')))),
+        isHighlight: !!(src.ai && src.ai.some(x => x && (x.score > 0.82 || x.highlight))),
+        speech: !!src.speech };
+    }),
+    beats, drops: plan.filter(x => x.type === 'drop').map(x => x.start),
+    targetDuration: Math.min(180, buf.duration), aspect, mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
+    mobile: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+    intensity: mode === 'fast' ? 'bold' : mode === 'smooth' ? 'subtle' : 'balanced',
+  });
+  const sharedRank = new Map(sharedDirector.shots.map((shot, rank) => [shot.sourceIndex, rank]));
+  const sharedRankMax = Math.max(1, sharedDirector.shots.length - 1);
   // the director's chosen moments are held for their own cuts
   const held = plan.map((s,i)=>{ const d = dirShot(i); return d ? {i, si:d.src, a:d.in, b:d.in + s.sp.pos(s.end-s.start)} : null; }).filter(Boolean);
   const pick = (i, allowNeighbour, allowOverlap, anyScene) => {
@@ -2648,6 +2671,8 @@ function makeEditNow(){
         if(!anyScene && crossesScene(src, a, a+need)) return;   // a shot never runs across a cut inside the clip
         const w = scoreWindow(i, src, a, need, gmax);
         let sc = w.sc - 5*ov/need + rng()*0.15;
+        const directorRank = sharedRank.get(si);
+        if(directorRank != null) sc += 0.18 * (1 - directorRank / sharedRankMax); // soft preference, never overrides explicit AI picks
         const isDir = dir && dir.src===si && Math.abs(a-dir.in) < 0.26;
         if(isDir) sc += 4;   // the director's choice wins whenever the rules allow it
         if(sc>bs){ const st=w.st; bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : st.cx, cy: st.face>0.3 ? st.fy : 0.45, face: st.face, fs: st.fs, mot: w.m, ov, aiNote: w.ai ? w.ai.note : '', byDir: isDir}; }
