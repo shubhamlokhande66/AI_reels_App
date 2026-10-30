@@ -147,7 +147,7 @@ export default function EditorScreen() {
       if (op !== "layerList" && op !== "layerAdd") await engine.tool("layerSelect", { index: studioLayerIndex });
       const result = await engine.tool(op, args);
       if (op === "layerList") setStudioLayers(Array.isArray(result) ? result as typeof studioLayers : []);
-      else await refreshStudioLayers();
+      else { await refreshStudioLayers(); if (op === "layerDelete") setStudioLayerIndex((i) => Math.max(0, i - 1)); }
     } catch (e) { toast(errorMessage(e), "danger"); }
   };
   const studioKeyframeAction = async (op: "kfEase" | "kfRemove" | "kfClear" | "kfStep", args: Record<string, unknown> = {}) => {
@@ -314,12 +314,12 @@ export default function EditorScreen() {
             const [key, value] = values[v]; void studioLayerAction("layerSet", { key, value });
           }} />
           <Label>Mask and blend</Label>
-          <Choices items={["No mask", "Circle mask", "Rectangle mask", "Linear mask", "Mirror mask"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"} onPick={(v) => {
+          <Choices items={["No mask", "Circle mask", "Rectangle mask", "Linear mask", "Mirror mask"]} on={({ none: "No mask", circle: "Circle mask", rect: "Rectangle mask", line: "Linear mask", mirror: "Mirror mask" } as Record<string, string>)[studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"] ?? "No mask"} onPick={(v) => {
             const mask = ({ "No mask": "none", "Circle mask": "circle", "Rectangle mask": "rect", "Linear mask": "line", "Mirror mask": "mirror" } as Record<string, string>)[v];
             void studioLayerAction("layerSet", { key: "mask", value: mask });
           }} />
           <Label>Mask refinement</Label>
-          <Choices items={["Mask smaller", "Mask larger", "More feather", "Less feather", "Rotate mask", "Invert mask", "Normal mask"]} onPick={(v) => {
+          <Choices items={["Mask smaller", "Mask larger", "More feather", "Less feather", "Rotate mask", "Invert mask", "Reset mask"]} onPick={(v) => {
             const layer = studioLayers.find((x) => x.index === studioLayerIndex);
             if (v === "Mask smaller") void studioLayerAction("layerSet", { key: "mk.w", value: Math.max(0.1, (layer?.maskWidth ?? 0.8) - 0.1) });
             else if (v === "Mask larger") void studioLayerAction("layerSet", { key: "mk.w", value: Math.min(1, (layer?.maskWidth ?? 0.8) + 0.1) });
@@ -327,16 +327,24 @@ export default function EditorScreen() {
             else if (v === "Less feather") void studioLayerAction("layerSet", { key: "mk.f", value: Math.max(0, (layer?.maskFeather ?? 0.12) - 0.05) });
             else if (v === "Rotate mask") void studioLayerAction("layerSet", { key: "mk.a", value: (layer?.maskAngle ?? 0) + 15 });
             else if (v === "Invert mask") void studioLayerAction("layerSet", { key: "mk.inv", value: !layer?.maskInverted });
-            else void studioLayerAction("layerSet", { key: "mk.inv", value: false });
+            else void (async () => { await studioLayerAction("layerSet", { key: "mk.w", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.h", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.f", value: 0.12 }); await studioLayerAction("layerSet", { key: "mk.a", value: 0 }); await studioLayerAction("layerSet", { key: "mk.inv", value: false }); })();
           }} />
           <Label>Chroma key</Label>
           <Choices items={["Off", "Green screen", "Blue screen"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.chromaKey ? (studioLayers.find((x) => x.index === studioLayerIndex)?.chromaColor === "#0000FF" ? "Blue screen" : "Green screen") : "Off"} onPick={(v) => {
             if (v === "Off") void studioLayerAction("layerSet", { key: "key", value: { on: false, c: "#00FF00", tol: 0.35 } });
             else void studioLayerAction("layerSet", { key: "key", value: { on: true, c: v === "Blue screen" ? "#0000FF" : "#00FF00", tol: 0.35 } });
           }} />
-          <Choices items={["Normal", "Multiply", "Screen", "Overlay", "Soft light", "Hard light", "Color dodge", "Difference", "Exclusion"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.blend === "source-over" ? "Normal" : studioLayers.find((x) => x.index === studioLayerIndex)?.blend ?? "Normal"} onPick={(v) => {
+          <Choices items={["Normal", "Multiply", "Screen", "Overlay", "Soft light", "Hard light", "Color dodge", "Difference", "Exclusion"]} on={({ "source-over": "Normal", multiply: "Multiply", screen: "Screen", overlay: "Overlay", "soft-light": "Soft light", "hard-light": "Hard light", "color-dodge": "Color dodge", difference: "Difference", exclusion: "Exclusion" } as Record<string, string>)[studioLayers.find((x) => x.index === studioLayerIndex)?.blend ?? "source-over"] ?? "Normal"} onPick={(v) => {
             const blend = ({ Normal: "source-over", Multiply: "multiply", Screen: "screen", Overlay: "overlay", "Soft light": "soft-light", "Hard light": "hard-light", "Color dodge": "color-dodge", Difference: "difference", Exclusion: "exclusion" } as Record<string, string>)[v];
             void studioLayerAction("layerSet", { key: "blend", value: blend });
+          }} />
+          <Label>Layer fade and audio</Label>
+          <Choices items={["Fade in 0.5s", "Fade out 0.5s", "No fade", "Mute layer audio", "Layer audio 50%", "Layer audio 100%"]} onPick={(v) => {
+            if (v === "Fade in 0.5s") void studioLayerAction("layerSet", { key: "fin", value: 0.5 });
+            else if (v === "Fade out 0.5s") void studioLayerAction("layerSet", { key: "fout", value: 0.5 });
+            else if (v === "No fade") void (async () => { await studioLayerAction("layerSet", { key: "fin", value: 0 }); await studioLayerAction("layerSet", { key: "fout", value: 0 }); })();
+            else if (v === "Mute layer audio") void studioLayerAction("layerSet", { key: "vol", value: 0 });
+            else void studioLayerAction("layerSet", { key: "vol", value: v === "Layer audio 50%" ? 0.5 : 1 });
           }} />
           <Label>Layer timing</Label>
           <Choices items={["Start at playhead", "End at playhead", "Show entire Reel"]} onPick={(v) => {
