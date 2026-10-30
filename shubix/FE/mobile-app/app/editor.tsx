@@ -295,6 +295,7 @@ export default function EditorScreen() {
       </View>;
       case "layers": return <View className="gap-2">
         <Button full icon="image" title={words("Add photo / video layer")} onPress={() => void addStudioLayer()} />
+        <Text className="text-[11px] leading-[16px] text-muted">{words("Layers are composited by the Studio renderer for export. The Android preview currently shows the base shot and text overlays; complex layer blends and masks are visible in the final Studio render.")}</Text>
         {studioLayers.length > 0 && <>
           <Label>Overlay layers</Label>
           <Choices items={studioLayers.map((layer) => `Layer ${layer.index + 1}`)} on={`Layer ${studioLayerIndex + 1}`} onPick={(v) => {
