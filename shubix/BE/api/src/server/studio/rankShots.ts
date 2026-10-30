@@ -123,6 +123,15 @@ async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Prom
 const SHOT_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 type ShotCacheDoc = { key: string; result: RankedClip; expiresAt: Date };
 
+const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<unknown[]> };
+async function ensureShotCacheIndexes(col: Awaited<ReturnType<typeof db>>["collection"] extends (...a: never[]) => infer R ? R : never) {
+  cacheGlobals.__studioShotCacheIndexes ??= Promise.all([
+    col.createIndex({ key: 1 }, { unique: true }),
+    col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+  ]);
+  await cacheGlobals.__studioShotCacheIndexes;
+}
+
 /** Content-addressed cache: stores only compact scores/labels, never uploaded image bytes. */
 export function shotCacheKey(provider: ManagedProvider, clip: RankIn["clips"][number]): string {
   const h = crypto.createHash("sha256");
@@ -138,6 +147,7 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
     if (Buffer.byteLength(f.image, "base64") > LIMITS.imageBytes) throw new AIResponseError("A frame is too large (keep each under 120 KB).");
 
   const col = (await db()).collection<ShotCacheDoc>("studio_shot_cache");
+  await ensureShotCacheIndexes(col);
   const keys = input.clips.map((clip) => shotCacheKey(provider, clip));
   const cachedDocs = await col.find({ key: { $in: keys }, expiresAt: { $gt: new Date() } }).toArray();
   const cached = new Map(cachedDocs.map((d) => [d.key, d.result]));
