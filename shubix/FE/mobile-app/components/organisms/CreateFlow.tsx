@@ -211,7 +211,7 @@ export type ClipSettings = { order: ClipOrder; aspect: Aspect; pace: TalkPace; u
 
 /** Add Your Clips: Videos / Photos, the tap-to-add area, the clips as squares (their length, remove), the clip order,
  * a Talking Reel's pauses and music, and the format. */
-export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarlier, settings, onSettings }: { kind: FlowKind; photos: boolean; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; onEarlier: (i: number) => void; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
+export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarlier, onReverse, settings, onSettings }: { kind: FlowKind; photos: boolean; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; onEarlier: (i: number) => void; onReverse: () => void; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
   const words = useStudioText(), { width } = useWindowDimensions(), tile = (Math.min(width, 520) - 32 - 36 - 16) / 3;
   return (
     <FlowCard>
@@ -235,7 +235,13 @@ export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarli
       ) : (
         <View className="gap-2.5">
           <Label>{words("Selected Clips")}</Label>
-          {media.length > 1 && <Text className="-mt-1 text-[12px] text-muted">{words("The numbers are the order (In my order). Tap a clip to move it earlier.")}</Text>}
+          {media.length > 1 && (
+            <View className="-mt-1 flex-row items-center gap-2">
+              <Text className="flex-1 text-[12px] text-muted">{words("The numbers are the order (In my order). Tap a clip to move it earlier.")}</Text>
+              {/* some phones give the clips newest first, whatever order they were tapped in: one tap turns it round */}
+              <Pressable onPress={onReverse} accessibilityRole="button" className="flex-row items-center gap-1 rounded-full border border-border bg-surface-2 px-3 py-1.5 active:opacity-80"><Icon name="refresh" size={13} /><Text className="text-[12px] font-semibold text-foreground">{words("Reverse order")}</Text></Pressable>
+            </View>
+          )}
           <View className="flex-row flex-wrap gap-2">
             {media.map((m, i) => (
               <Pressable key={`${m.uri}-${i}`} onPress={() => onEarlier(i)} disabled={i === 0} accessibilityLabel={words("Clip {n}: move earlier", { n: String(i + 1) })} className="overflow-hidden rounded-[14px] bg-surface-2" style={{ width: tile, height: tile }}>
