@@ -64,12 +64,22 @@ export interface RenderAudioTrack {
   fadeOutMs?: number;
 }
 
+export interface RenderTextOverlay {
+  id: string;
+  text: string;
+  startMs: number;
+  endMs: number;
+  color: string;
+  size: number;
+}
+
 export interface RenderJobSpec {
   version: 1;
   dimensions: RenderDimensions;
   sources: readonly RenderSource[];
   items: readonly RenderTrackItem[];
   audio?: readonly RenderAudioTrack[];
+  overlays?: readonly RenderTextOverlay[];
   output: {
     container: "mp4";
     videoCodec: "h264";
@@ -146,6 +156,15 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (![track.startMs, track.durationMs, track.sourceStartMs, track.volume].every(Number.isFinite)) errors.push("Audio track timing and volume must be finite numbers.");
     if (track.startMs < 0 || track.durationMs < 0 || track.sourceStartMs < 0) errors.push("Audio track timing cannot be negative.");
     if (track.volume < 0 || track.volume > 4) errors.push("Audio track volume must be between 0 and 4.");
+  }
+
+  for (const overlay of spec.overlays ?? []) {
+    if (!overlay.id || !overlay.text.trim()) errors.push("Text overlays require an ID and non-empty text.");
+    if (!Number.isFinite(overlay.startMs) || !Number.isFinite(overlay.endMs) || overlay.startMs < 0 || overlay.endMs <= overlay.startMs) {
+      errors.push(`Text overlay ${overlay.id} has invalid timing.`);
+    }
+    if (!Number.isFinite(overlay.size) || overlay.size < 8 || overlay.size > 240) errors.push(`Text overlay ${overlay.id} has an invalid font size.`);
+    if (!overlay.color) errors.push(`Text overlay ${overlay.id} requires a color.`);
   }
 
   return errors;
