@@ -154,8 +154,15 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         onProgress({ phase: "completed", progress: 1, outputUri: result.uri, sizeBytes: result.size });
         return { uri: result.uri, sizeBytes: result.size, durationMs: result.duration * 1000 };
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Android render failed.";
-        onProgress({ phase: "failed", progress: 0, code: error instanceof UnsupportedAndroidRenderFeature ? error.code : "ANDROID_RENDER_FAILED", message });
+        const nativeCode = error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code ?? "")
+          : "";
+        if (nativeCode === "E_EXPORT_CANCELLED") {
+          onProgress({ phase: "cancelled", progress: 0 });
+        } else {
+          const message = error instanceof Error ? error.message : "Android render failed.";
+          onProgress({ phase: "failed", progress: 0, code: error instanceof UnsupportedAndroidRenderFeature ? error.code : nativeCode || "ANDROID_RENDER_FAILED", message });
+        }
         throw error;
       } finally {
         subscription?.remove();
