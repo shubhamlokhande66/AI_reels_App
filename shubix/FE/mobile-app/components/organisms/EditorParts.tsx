@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Animated, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -8,6 +8,7 @@ import { Button, Glyph, Icon, IconButton, ThemeLayer } from "@shubix/ui-mobile";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
 import { clipDuration, type ProjectClip } from "@shubix/validations";
 import { useThumb } from "../../lib/thumbs";
+import { useShotMotion } from "./shotMotion";
 
 /** The website's phone editor (FE/web-app/components/studio/markup.ts and views.ts), drawn natively: the studio's top
  * bar, the preview with its transport, the timeline's tracks (video, text, voice, music), the selected clip's tools
@@ -36,7 +37,7 @@ export function StudioBar({ title, saved, onBack, onExport }: { title: string; s
 /** The preview: the shot under the playhead (a video plays; a photo stays), the big play button over it while still,
  * which shot it is (01 / 08). `at`: the time in the shot (followed while still: the timeline is scrubbed); `onTime`
  * reports it while playing, `onEnded` when the shot is over. */
-export function Preview({ clip, n, of, playing, at, aspect, onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
+export function Preview({ clip, n, of, playing, at, aspect, beat, onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
   const player = useVideoPlayer(null, (p) => { p.audioMixingMode = "mixWithOthers"; });
   // a new shot: its video, from where the playhead is
@@ -59,13 +60,17 @@ export function Preview({ clip, n, of, playing, at, aspect, onToggle, onTime, on
     }, 80);
     return () => clearInterval(tick);
   }, [playing, clip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const motion = useShotMotion(clip, playing, at, 360 * aspect, beat); // the shot's transition in and its effect
   const flip = clip ? [{ rotate: `${clip.rotation}deg` }, { scaleX: clip.mirror ? -1 : 1 }, { scaleY: clip.flip ? -1 : 1 }] : [];
   return (
     <View className="gap-2 px-4">
       <View className="flex-row items-center gap-1.5"><View className="h-1.5 w-1.5 rounded-full bg-danger" /><Text className="text-[10px] font-bold tracking-[1.2px] text-muted">{words("PREVIEW")}</Text></View>
       <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ height: 360, aspectRatio: aspect }}>
-        {clip?.kind === "image" && <Image source={{ uri: clip.uri }} resizeMode={clip.fit} className="h-full w-full" style={{ transform: flip }} />}
-        {video && <VideoView player={player} surfaceType="textureView" contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
+        <Animated.View style={[{ flex: 1 }, motion.content]}>
+          {clip?.kind === "image" && <Image source={{ uri: clip.uri }} resizeMode={clip.fit} className="h-full w-full" style={{ transform: flip }} />}
+          {video && <VideoView player={player} surfaceType="textureView" contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
+        </Animated.View>
+        <Animated.View pointerEvents="none" className="absolute inset-0" style={motion.veil} />
         {!playing && <View className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}
         <View className="absolute bottom-2.5 right-2.5 rounded-full bg-black/55 px-2 py-0.5"><Text className="text-[10px] font-semibold text-white">{String(n + 1).padStart(2, "0")} / {String(of).padStart(2, "0")}</Text></View>
       </Pressable>
