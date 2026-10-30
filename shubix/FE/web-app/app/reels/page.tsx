@@ -63,7 +63,7 @@ function Drafts({ drafts, onGone }: { drafts: Draft[] | null; onGone: (id: strin
       {note && <p role="status" className="m-0 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-[13px] font-semibold text-accent">{note}</p>}
       <div className={GRID}>
         {drafts.map((d) => {
-          const href = `/create/edit?p=${encodeURIComponent(d.id)}`;
+          const href = `/editor?p=${encodeURIComponent(d.id)}`;
           return (
             <article key={d.id} className="group flex min-w-0 flex-col gap-2">
               <a href={href} title={text("reels.open", { name: d.name })}><Cover thumb={d.thumb} dur={d.dur} /></a>

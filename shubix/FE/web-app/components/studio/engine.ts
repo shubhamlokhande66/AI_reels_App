@@ -46,8 +46,8 @@ if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3 && location.pathname !== '
   queueMicrotask(() => {
     if(ac.signal.aborted) return;
     const q = new URLSearchParams(location.search);
+    if(WIP && lifeBefore.wip && lifeBefore.path === location.pathname + location.search){ if(lifeBefore.proj) proj = { id: lifeBefore.proj, created: Date.now() }; void wipRestore(lifeBefore.wip); return; }   // still in the Create steps: back there
     if(lifeBefore.proj && !q.get('p')){ location.replace('/editor?p=' + encodeURIComponent(lifeBefore.proj)); return; }
-    if(WIP && lifeBefore.wip && lifeBefore.path === location.pathname + location.search){ void wipRestore(lifeBefore.wip); return; }
     setTimeout(() => { try{ notify('Your phone ran short of memory and reloaded. Add your clips again: what was read is kept, so it is quick now.', 'err'); }catch(e){} }, 800);
   });
 }
@@ -493,6 +493,7 @@ function partsOfSong(){
 }
 async function useSection(token = musicToken){
   if(!song || !song.r) return;
+  footCheckSoon();   // the Reel's length may change (another song, length, part): enough clips?
   if(kind === 'talk'){ drawMusic(); if(sources.length && !recording && !(talk && talk.songKey === song.key)) buildTalk(); return; }
   const run = ++secBusy, W = song.buf, D = W.duration, sr = W.sampleRate;
   let r;
@@ -1007,6 +1008,7 @@ function endOrder(apply){
   const o = ordering; if(!o) return; ordering = null; $('corder').hidden = true;
   o.cards.forEach(c => c.classList.remove('cursor-pointer'));
   if(apply){ const box = $('clips'), rest = o.cards.filter(c => !o.taps.includes(c)); [...o.taps, ...rest].forEach(c => c.isConnected && box.appendChild(c)); }
+  footCheckSoon();
   if(pending) renumber(); else reorderClips();   // still reading: the clips are read in turn and keep this order (finishAdding makes the Reel)
 }
 $('clips').addEventListener('click', ev => {
@@ -1161,7 +1163,7 @@ function finishAdding(){
   updateQ(); $('clearv').hidden = !$('clips').children.length; clipSoundCheck();
   if(sources.length) tasks.done('clips', sources.length + ' clip' + (sources.length > 1 ? 's' : '') + ' ready' + (buf || kind === 'talk' ? ' · making your Reel' : ' · now choose a song'));
   else tasks.fail('clips', 'These videos do not play here. Try MP4 or MOV.');
-  if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk' && !aiHeld) aiRun(); }
+  if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk' && !aiHeld) aiRun(); footCheckSoon(); }
   if(tplWaiting){ tplNeed = false; tplApplySoon(); }
 }
 /* =============== TALKING VIDEOS (talking head, vlog, tutorial) ===============
@@ -2495,6 +2497,31 @@ function suitFx(e){
 // how good footage [a, a+need] of src is for cut i (the rules, plus the AI's opinion of the moment when it is on)
 // a clip that is bad all through (shaky handheld, out of focus) looks fine next to itself: judged against the other
 // clips. Shaky = the camera's own movement jumps around from frame to frame; soft = far fewer fine edges than the rest.
+/* ---- Enough clips for the Reel? (Create) Once the clips are read, and again when the Reel's length or part changes:
+ * the good footage (sharp, lit moments: the clip's own reading) against the Reel's length. Enough: said once, OK. Not
+ * enough: said plainly, with the way out (a shorter Reel on the music page, or more clips), so the Reel is never filled
+ * by repeating moments or slowing clips down. ---- */
+const fmtS = s => s >= 60 ? Math.floor(s/60) + ':' + String(Math.round(s % 60)).padStart(2, '0') + ' min' : Math.round(s) + ' s';
+function goodSecs(src){
+  const S = src.samples || [], med = src.shMed || 1, usable = Math.max(0, (src.dur || 0) - TAIL);
+  if(!S.length) return usable;
+  return usable * S.filter(x => (x.sh || 0) / med >= 0.45 && (x.b ?? 1) >= 0.08).length / S.length;
+}
+let footTimer = 0, footSaid = '';
+function footCheckSoon(){ if(!location.pathname.startsWith('/create') || kind === 'talk') return; clearTimeout(footTimer); footTimer = setTimeout(footCheck, 900); }
+async function footCheck(){
+  if(ordering || pending || !buf || !sources.length || !$('cconf').hidden) { if(ordering || pending) footCheckSoon(); return; }
+  const need = buf.duration, have = Math.floor(sources.reduce((t, s) => t + goodSecs(s), 0)), n = sources.length;   // whole seconds, said the same way everywhere
+  const key = (have >= need * 0.95 ? 'ok:' : 'low:') + Math.round(need) + ':' + n;
+  if(key === footSaid) return; footSaid = key;
+  if(have >= need * 0.95){
+    await askCredits({ title: 'Your clips are good to go', text: n + ' clip' + (n > 1 ? 's' : '') + ' with ' + fmtS(have) + ' of good footage for a ' + fmtS(need) + ' Reel: every moment can be a different one.', ok: 'OK' });
+    return;
+  }
+  const v = await askCredits({ title: 'Not enough clips for ' + fmtS(need), text: 'Your clips have ' + fmtS(have) + ' of good footage, the Reel is ' + fmtS(need) + '. Shorten the music to about ' + fmtS(Math.max(5, have)) + ', or add more clips, so no moment is repeated or slowed down.', ok: 'Shorten the music', no: 'Add more clips' });
+  if(v === true) root.dispatchEvent(new CustomEvent('studio-goto', { detail: 'music' }));
+  else if(v === false) $('vfile').click();
+}
 function clipFlaw(src){
   const key = sources.length; if(src._flaw && src._flaw.key === key) return src._flaw.v;
   const med = a => { const x = a.filter(v => isFinite(v)).sort((p,q)=>p-q); return x.length ? x[x.length>>1] : 0; };
@@ -6220,6 +6247,10 @@ $('postcopy').addEventListener('click', () => copyCaption($('postcapt').value.tr
  * "Your Reels" opens one again exactly as it was (the page reloads into it). */
 const PDB = 'brs-projects';
 let proj = null, lastSig = '', restoring = false, capKeyNow = '';
+// a new Reel in Create has its own id from the start: it is a draft in My Reels from its first song or clip, kept as it
+// changes (the address stays the Create steps' until Generate opens the editor)
+const projNewId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+if(location.pathname.startsWith('/create') && location.pathname !== '/create/edit' && !new URLSearchParams(location.search).get('p')) proj = { id: projNewId(), created: Date.now() };
 // a saved Reel, opened: its edit is kept as it was saved (no new plan, no rebuild when the clips' check or the beats
 // finish) until the creator asks for a change that needs one (Change Reel, a style, the chat, clips, the song or its part)
 let keepSaved = false;
@@ -6249,12 +6280,10 @@ async function putFile(f){ const k = 'f:' + fileFp(f); if(await idb('files', 're
 function thumbOf(){ if(!edit.length) return ''; const c = document.createElement('canvas'), H = 240, W = Math.round(H*out.width/out.height); c.width = W; c.height = H; c.getContext('2d').drawImage(out, 0, 0, W, H); try{ return c.toDataURL('image/jpeg', 0.7); }catch(e){ return ''; } }
 let saving = false;
 async function saveProject(st, sig){
-  // Keep a newly generated Reel live in the Create flow until Generate opens /editor.
-  if(root.classList.contains('made') && location.pathname !== '/editor') return;
   if(saving) return; saving = true;
   try{
     life({ saving: 1 });   // the stage stays what the studio is doing (a save every few seconds would hide it)
-    if(!proj){ proj = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), created: Date.now() }; try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){} }
+    if(!proj){ proj = { id: projNewId(), created: Date.now() }; try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){} }
     if(song && song.file) await putFile(song.file);
     for(const s of sources) if(s.file) await putFile(s.file);
     if(bgFile) await putFile(bgFile);
@@ -6263,9 +6292,9 @@ async function saveProject(st, sig){
     const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
     life({ saving: 0, proj: proj.id });
-    // a made Reel has its own address (/create/edit?p=…): a reload, a shared link or Back to it opens this Reel, not a new one
+    // a made Reel has its own address (/editor?p=…): a reload, a shared link or Back to it opens this Reel, not a new one
     // (only once the editor is open: still in the Create steps the address stays /create/music?step=…; flow.ts sets it on Generate)
-    if(edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', (location.pathname === '/editor' ? '/editor' : '/create/edit') + '?p=' + proj.id);
+    if(edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', '/editor?p=' + proj.id);
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }catch(err){ console.warn('project not saved:', err); $('psaved').textContent = 'Not saved'; notify('Could not save this Reel on your phone. It may be low on space.', 'err'); }
   finally{ saving = false; if(lifeNote.saving) life({ saving: 0 }); }

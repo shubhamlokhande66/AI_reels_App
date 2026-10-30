@@ -207,12 +207,13 @@ export function initFlow(root: HTMLElement): () => void {
     setFlag($("s2"), "hidden", phone() && step !== "clips");
     setData(root, "fkind", kind);
     // the step in the address (/create/music?step=clips): each screen of the flow has its own; a made Reel moves to /create/edit?p=…
-    if (location.pathname !== "/create/edit") {
-      const u = new URL(location.href), want = step === "intro" ? "" : step;
-      if ((u.searchParams.get("step") ?? "") !== want) {
-        if (want) u.searchParams.set("step", want); else u.searchParams.delete("step");
-        history.replaceState(history.state, "", u.pathname + u.search + u.hash);
-      }
+    // (back in the steps from a made Reel, whose address is the editor's: the steps' own address again, /create/music?step=…)
+    if (!revealed) {
+      const u = new URL(location.href), want = step === "intro" ? "" : step, slug = { music: "music", talk: "talking", photo: "photo", copy: "copy" }[k];
+      let moved = false;
+      if (slug && /^\/(editor|create\/edit)$/.test(u.pathname)) { u.pathname = `/create/${slug}`; u.searchParams.delete("p"); u.searchParams.delete("session"); moved = true; }
+      if ((u.searchParams.get("step") ?? "") !== want) { if (want) u.searchParams.set("step", want); else u.searchParams.delete("step"); moved = true; }
+      if (moved) history.replaceState(history.state, "", u.pathname + u.search + u.hash);
     }
     setClass(root, "flive", true); for (const id of ["fhead", "fintro"]) setClass($(id), "invisible", false); // the kind's own words are in: the flow can be seen
     // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
@@ -440,6 +441,8 @@ export function initFlow(root: HTMLElement): () => void {
   }, sig);
 
   // the browser's Back / Forward between the flow's screens: Next.js keeps the page, the flow shows the screen kept
+  // not enough clips for the Reel's length: the music page, to shorten it
+  root.addEventListener("studio-goto", () => { if (phone()) go("adjust"); else $("s1").scrollIntoView({ behavior: "smooth", block: "start" }); }, sig);
   // the phone reloaded the page and the studio put the song and clips back: their screen
   root.addEventListener("studio-restored", () => go(order().includes("clips") ? "clips" : order()[0]), sig);
   window.addEventListener("popstate", (e) => {

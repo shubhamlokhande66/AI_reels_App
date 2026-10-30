@@ -391,7 +391,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   const ZMAX = 40, RUL = 18, EDGE = 12; // the most zoom, the time ruler's height, how near an edge counts (css px)
   let zoom = 1, t0 = 0; // the view: the song from t0, a 1/zoom part of it
   let trim: Trim | null = null; // a shot's end (or, on a phone, its start) being dragged
-  const labW = () => (lanes.clientWidth > 700 ? 132 : 104); // the tracks' heads: icon, name, a round + (as the design, phones too)
+  const labW = () => (lanes.clientWidth > 700 ? 132 : 58); // the tracks' heads: icon, name, a round + (a phone: the icon and the +, the timeline gets the room)
   // the song's loudness, measured once per song part: the louder of its samples every 5 ms (the waveform under the beats)
   const PEAK_DT = 0.005;
   let peaksOf: AudioBuffer | null = null, peaks = new Float32Array(0);
@@ -527,9 +527,12 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
         g.beginPath(); g.arc(cx, my, r, 0, 7); g.fillStyle = css("--surface", "#fff"); g.fill(); g.lineWidth = dpr; g.strokeStyle = line; g.stroke();
         g.fillStyle = muted; g.fillRect(cx - 4 * dpr, my - 0.6 * dpr, 8 * dpr, 1.2 * dpr); g.fillRect(cx - 0.6 * dpr, my - 4 * dpr, 1.2 * dpr, 8 * dpr);
       } else {
-        // a phone's narrow heads: the name only
-        g.font = `600 ${10.5 * dpr}px system-ui, sans-serif`; g.fillStyle = ink; g.fillText(s, 4 * dpr, s === "Music" ? my - 8 * dpr : my, lab - 6 * dpr);
-        if (s === "Music") { const off = muted0(); g.font = `600 ${12 * dpr}px system-ui, sans-serif`; g.fillStyle = off ? "#ff6a7a" : acc; g.fillText(off ? "🔇 Off" : "🔊 On", 4 * dpr, my + 9 * dpr); }
+        // a phone's narrow heads: the track's icon and its round + (Music: its speaker, red when the song is off)
+        glyph(SIGN_OF[s] ?? "Shots", 4 * dpr, my, 14, acc);
+        const cx = lab - 14 * dpr;
+        if (s === "Music") { const off = muted0(); glyph("Volume", cx - 7 * dpr, my, 13, off ? "#d9534f" : muted); if (off) { g.fillStyle = "#d9534f"; g.fillRect(cx - 7 * dpr, my - 0.5 * dpr, 14 * dpr, 1.5 * dpr); } }
+        else if (s !== "Effects") { g.beginPath(); g.arc(cx, my, 8 * dpr, 0, 7); g.fillStyle = css("--surface", "#fff"); g.fill(); g.lineWidth = dpr; g.strokeStyle = line; g.stroke();
+          g.fillStyle = muted; g.fillRect(cx - 4 * dpr, my - 0.6 * dpr, 8 * dpr, 1.2 * dpr); g.fillRect(cx - 0.6 * dpr, my - 4 * dpr, 1.2 * dpr, 8 * dpr); }
       }
       g.font = `${11 * dpr}px system-ui, sans-serif`;
     };

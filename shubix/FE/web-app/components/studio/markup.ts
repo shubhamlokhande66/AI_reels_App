@@ -103,7 +103,7 @@ const panelHead = (k: string) => {
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
 <header id="topbar" class="hidden in-[.made]:flex in-[.fopen]:hidden! in-[.opening]:hidden! top-0 z-30 w-full max-w-[1240px] min-h-[66px] mx-auto mb-4 items-center justify-between gap-3.5 rounded-[18px] border border-edge shadow-(--shadow) bg-[linear-gradient(145deg,color-mix(in_srgb,var(--surface)_97%,var(--accent)),var(--surface))] lg:pb-2.5 lg:in-[.editing]:px-4 in-[.fpost]:sticky in-[.fpost]:z-40 in-[.fpost]:-mx-4 in-[.fpost]:mb-1 in-[.fpost]:px-3 in-[.fpost]:pb-2 in-[.fpost]:pt-[max(8px,env(safe-area-inset-top))] in-[.fpost]:gap-1.5 in-[.fpost]:in-[.editing]:gap-1 in-[.fpost]:border-b-border in-[.fpost]:bg-none in-[.fpost]:bg-background max-[680px]:relative! max-[680px]:min-h-[58px] max-[680px]:px-2.5! max-[680px]:gap-2! max-[680px]:rounded-[15px]">
-  <button type="button" id="tbback" aria-label="Back" class="${Button.iconBordered} size-10 max-[680px]:hidden">${IC.back}</button>
+  <button type="button" id="tbback" aria-label="Back" class="${Button.iconBordered} size-10 shrink-0 max-[680px]:size-9">${IC.back}</button>
   <div class="flex min-w-0 flex-1 items-center gap-[11px] leading-[1.15] max-[680px]:basis-auto">
     <span class="grid size-10 shrink-0 place-items-center rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] text-accent max-[680px]:size-[34px] max-[680px]:rounded-[11px]">${Glyph("Shots", 20)}</span>
     <span class="flex min-w-0 flex-col items-start gap-[3px] max-[680px]:max-w-full">
@@ -123,7 +123,7 @@ export const STUDIO_HTML = `
       <button type="button" id="redo" disabled aria-label="Redo" title="Redo (Ctrl+Shift+Z)" class="${undoRedoButton}">↷</button>
     </span>
     <button type="button" id="tbasfree" aria-pressed="false" title="Preview as Free user" class="hidden in-[.admin.made]:inline-flex max-lg:hidden! items-center gap-1.5 rounded-[10px] border border-border bg-surface px-[15px] py-2.5 text-[12.5px] font-semibold hover:border-muted aria-pressed:border-transparent aria-pressed:bg-gold aria-pressed:text-on-accent">Preview as Free</button>
-    <button type="button" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix" class="relative flex h-9 items-center justify-center justify-items-center gap-1.5 rounded-[11px] border border-edge bg-[color-mix(in_srgb,var(--surface-2)_70%,var(--surface))] px-[13px] text-accent lg:h-[38px] lg:rounded-xl lg:px-3.5 in-[.fpost]:in-[.editing]:size-[38px] in-[.fpost]:in-[.editing]:rounded-xl max-[680px]:hidden! [&.news]:before:absolute [&.news]:before:right-1 [&.news]:before:top-1 [&.news]:before:size-[9px] [&.news]:before:rounded-full [&.news]:before:bg-danger [&.news]:before:content-['']">${IC.spark}<span class="max-lg:hidden">Ask Shubix</span></button>
+    <button type="button" id="tbchat" aria-label="Ask Shubix" title="Ask Shubix" class="relative flex h-9 items-center justify-center justify-items-center gap-1.5 rounded-[11px] border border-edge bg-[color-mix(in_srgb,var(--surface-2)_70%,var(--surface))] px-[13px] text-accent lg:h-[38px] lg:rounded-xl lg:px-3.5 in-[.fpost]:in-[.editing]:size-[38px] in-[.fpost]:in-[.editing]:rounded-xl max-[680px]:size-9 max-[680px]:shrink-0 max-[680px]:px-0 max-[680px]:[&>span]:hidden [&.news]:before:absolute [&.news]:before:right-1 [&.news]:before:top-1 [&.news]:before:size-[9px] [&.news]:before:rounded-full [&.news]:before:bg-danger [&.news]:before:content-['']">${IC.spark}<span class="max-lg:hidden">Ask Shubix</span></button>
     <button type="button" id="topexport" disabled class="${Button.primary} in-[.fpost]:h-[38px] max-[680px]:px-2.5 max-[680px]:text-[11px]">Export ${IC.arrow}</button>
   </div>
 </header>
@@ -360,15 +360,15 @@ export const STUDIO_HTML = `
           <div class="feditbar" hidden><button type="button" class="${Button.primaryLarge}" id="fedit">${IC.pen}<span>Edit</span></button><small>Change shots, effects, text, music and more on the timeline</small></div>
           <label class="tog safe" hidden><input type="checkbox" id="safe" checked> Instagram safe zones (preview only)</label>
           <div class="msg" id="xmsg" hidden></div>
-          <div class="row" id="saverow" hidden><button class="${Button.primary}" id="savevid">Save to Photos / Share</button><a class="${Button.secondary}" id="dlvid">Download</a></div>
-          <div class="postcap" id="postcap" hidden>
+          <div class="row hidden!" id="saverow" hidden><button class="${Button.primary}" id="savevid">Save to Photos / Share</button><a class="${Button.secondary}" id="dlvid">Download</a></div>
+          <div class="postcap [:not(#fdcap)>&]:hidden!" id="postcap" hidden>
             <label class="fname" for="postcapt">Caption for your post</label>
             <textarea id="postcapt" rows="4" spellcheck="true"></textarea>
             <div class="row"><button class="${Button.small}" id="postcopy" type="button">Copy caption</button><span class="fname" id="postcapst"></span></div>
           </div>
         </section>
 
-        <aside class="inspector" id="inspector-card">
+        <aside class="max-[680px]:mx-[-28px] max-[680px]:w-[calc(100%+56px)]! max-[680px]:max-w-none! max-[680px]:rounded-none! max-[680px]:border-x-0! inspector" id="inspector-card">
           <div class="inspectorHead">
             <div><span class="eyebrow">CLIP CONTROLS</span><h2 id="inspect-shot-title">Shot 01</h2></div>
             <span class="durationPill" id="inspect-shot-dur">0.0 s</span>
@@ -382,7 +382,7 @@ export const STUDIO_HTML = `
         </aside>
       </div>
 
-      <section class="timelineCard" id="timelinecard">
+      <section class="max-[680px]:mx-[-28px] max-[680px]:w-[calc(100%+56px)]! max-[680px]:max-w-none! max-[680px]:rounded-none! max-[680px]:border-x-0! timelineCard" id="timelinecard">
         <header class="timelineHeader">
           <div class="timelineTitle">
             <span class="timelineIcon">${Glyph("Shots", 18)}</span>
@@ -410,7 +410,7 @@ export const STUDIO_HTML = `
       </section>
 
       <div class="tools">
-        <nav class="toolDock dock" id="dock" aria-label="Editor tools">${dock}</nav>
+        <nav class="max-[680px]:mx-[-28px] max-[680px]:w-[calc(100%+56px)]! max-[680px]:max-w-none! max-[680px]:rounded-none! max-[680px]:border-x-0! toolDock dock" id="dock" aria-label="Editor tools">${dock}</nav>
 
         <div class="panels" id="panels">
           <button type="button" class="${Button.iconBordered} absolute top-6 right-5 z-2 size-[34px] max-lg:top-7 max-lg:right-4" id="pclose" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>

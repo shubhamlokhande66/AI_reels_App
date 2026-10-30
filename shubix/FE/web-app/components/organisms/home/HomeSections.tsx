@@ -89,7 +89,7 @@ export function ContinueSection({ drafts, onChange }: { drafts: Draft[] | null; 
       ) : drafts.length ? (
         <Scroller label="Your drafts" grid="md:grid md:grid-cols-4 md:overflow-visible lg:grid-cols-5">
           {drafts.slice(0, 10).map((d, i) => {
-            const href = `/create/edit?p=${encodeURIComponent(d.id)}`;
+            const href = `/editor?p=${encodeURIComponent(d.id)}`;
             return (
               <div key={d.id} className={`w-[44vw] max-w-[200px] shrink-0 snap-start md:w-auto md:max-w-none ${i >= 5 ? "md:hidden" : i === 4 ? "md:hidden lg:block" : ""}`}>
                 <DraftCard
