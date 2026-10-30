@@ -4,8 +4,8 @@ import type { NextConfig } from "next";
 const API_URL = (process.env.API_URL || "http://localhost:4000").replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
-  // Self-contained server output, used by docker/Dockerfile
-  output: "standalone",
+  // Self-contained server output, used by docker/Dockerfile (Vercel builds its own: VERCEL is set there)
+  output: process.env.VERCEL ? undefined : "standalone",
   // a pnpm monorepo: trace the shared packages (Shared/*) into the standalone server too
   outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
   // Phone mode: let a phone on the same Wi-Fi load the dev server through this computer's private address.

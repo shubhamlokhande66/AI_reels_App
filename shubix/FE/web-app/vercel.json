@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "regions": ["bom1"],
+  "installCommand": "pnpm install --frozen-lockfile --filter @shubix/web-app...",
+  "buildCommand": "node scripts/copy-ort.mjs && next build"
+}

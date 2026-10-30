@@ -18,6 +18,8 @@ if [ -n "${R2_BUCKET:-}" ] && [ -n "${R2_ACCOUNT_ID:-}" ]; then
   export STORAGE_MOUNTED=true
   echo "R2 bucket $R2_BUCKET mounted at $STORAGE_PATH"
 fi
+# APP_ROLE=api: the API alone, on API_PORT (the website runs elsewhere, e.g. Vercel, and sends /api here)
+if [ "${APP_ROLE:-all}" = "api" ]; then cd /app/api && exec node --conditions=shubix-dist dist/main.js; fi
 # the API reads its data files from src/server (cwd = the api folder)
 (cd /app/api && exec node --conditions=shubix-dist dist/main.js) &
 api_pid=$!

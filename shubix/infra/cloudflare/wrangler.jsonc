@@ -27,11 +27,15 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReelApp"] }],
   "vars": {
     "NODE_ENV": "production",
+    // "api": this container runs the API alone; the website is on Vercel and sends /api/* here (docs/deploy-vercel-cloudflare.md)
+    "APP_ROLE": "api",
+    // the website's address (Vercel): CORS for the browser, and the API's links in emails go to the website
+    "WEB_ORIGINS": "https://YOUR-PROJECT.vercel.app",
     "SLEEP_AFTER": "30s", // stops 30 s after the last request (an upload or download in progress counts)
     "STORAGE_PATH": "/data/storage",
     "R2_BUCKET": "smgroup",
     "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",
-    "PUBLIC_BASE_URL": "https://reel-maker.shubhlokhande850.workers.dev",
+    "PUBLIC_BASE_URL": "https://YOUR-PROJECT.vercel.app",
     "AUTH_ENABLED": "true",
     // plans and credits: Free / Editor / Pro, page locks and Shubix AI credits (off: every page open, no credits counted)
     "BILLING_ENABLED": "true",
