@@ -266,7 +266,7 @@ export function initFlow(root: HTMLElement): () => void {
     setClass($("fprevbox"), "ready", made());
     paintAi();
     // the phones' analysing screen: the Reel opens once it is made
-    if (step === "analyse" && made()) { revealed = true; mark(false); setTimeout(apply, 350); }   // Back from the Reel: the clips
+    if (step === "analyse" && made() && !shubixBusy()) { revealed = true; mark(false); setTimeout(apply, 350); }   // Back from the Reel: the clips
   };
 
   const go = (s: Step, push = true) => {
@@ -281,6 +281,7 @@ export function initFlow(root: HTMLElement): () => void {
     const o = order(), i = o.indexOf(step);
     if ((step === "choose" || step === "adjust") && !songOk()) return;   // (its Next is off: a click that slipped through)
     if (step === "clips" && !songOk()) { if (kind === "copy") root.classList.add("pickown"); return go("choose"); } // no song yet (Copy a Reel: its Reel had none)
+    if (step === "clips") { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); return; }   // as Generate: Shubix AI's question first
     if (i >= 0 && i < o.length - 1) go(o[i + 1]);
   };
   const closeTool = () => root.querySelector<HTMLButtonElement>(`.tool[data-tool="${root.dataset.tool}"]`)?.click();
@@ -324,6 +325,9 @@ export function initFlow(root: HTMLElement): () => void {
       void (async () => {
         const r = st?.upsell ? await st.upsell() : "skip";
         if (r === "upgrade" || r === "close") return;
+        if (phone()) return go("analyse");   // its analysing screen opens the Reel once Shubix is done
+        await new Promise((ok) => setTimeout(ok, 400)); apply();
+        for (let t = 0; (shubixBusy() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
         if (made()) {
           revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
           history.replaceState(history.state, "", "/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
@@ -332,7 +336,6 @@ export function initFlow(root: HTMLElement): () => void {
             void st?.saveNow?.(); // persist only after the live editor is open
           });
         }
-        else if (phone()) go("analyse");
       })();
       return;
     }

@@ -1141,7 +1141,7 @@ function finishAdding(){
   updateQ(); $('clearv').hidden = !$('clips').children.length; clipSoundCheck();
   if(sources.length) tasks.done('clips', sources.length + ' clip' + (sources.length > 1 ? 's' : '') + ' ready' + (buf || kind === 'talk' ? ' · making your Reel' : ' · now choose a song'));
   else tasks.fail('clips', 'These videos do not play here. Try MP4 or MOV.');
-  if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk') aiRun(); }
+  if(sources.length){ $('s2').classList.add('done'); if(buf || kind === 'talk') makeEdit(); if(kind !== 'talk' && !aiHeld) aiRun(); }
   if(tplWaiting){ tplNeed = false; tplApplySoon(); }
 }
 /* =============== TALKING VIDEOS (talking head, vlog, tutorial) ===============
@@ -1629,8 +1629,10 @@ const aiReelOk = () => aiOn && !!reelId && aiReel === reelId;
 // 'upgrade' (to Plans), 'basic' (the phone's own edit), 'close' (✕: nothing) or 'skip' (a plan with Shubix AI, or already asked)
 let upsold = '';
 async function upsell(){
+  aiHeld = false;
   if(!aiLocked){
-    if(!aiOn || aiReelOk()) return 'skip';
+    if(!aiOn) return 'skip';
+    if(aiReelOk()){ aiRun(); return 'skip'; }   // already agreed for this Reel: the AI starts (it was held)
     const go = await aiGate(true);
     if(go){ aiRun(); return 'skip'; }   // Use: the AI starts on this Reel
     return 'close';                      // ✕: back, nothing generated
@@ -1700,6 +1702,10 @@ function aiRestore(src){
   if(!c){ try{ const j = localStorage.getItem('brs-ai:'+fp); if(j) c = JSON.parse(j); }catch(e){} }
   if(c && Array.isArray(c.frames)) src.ai = c;
 }
+// Create (/create/*): Shubix AI waits for Generate Reel (computers) or Next on the clips (phones), so the clips can be
+// put in order first and nothing is asked while they are chosen; upsell() lets it go. (The phone app's /engine page and
+// an opened Reel: as before.)
+let aiHeld = location.pathname.startsWith('/create');
 async function aiRun(){
   if(!aiOn || aiBusy || !sources.length) return;
   if(!aiReelOk()){ aiBusy = true; const go = await aiGate(); aiBusy = false; if(!go) return; }
@@ -2388,7 +2394,7 @@ async function directorRun(key){
     if(refProfile && refProfile.learned && refProfile.byTpl){ const sh = refProfile.shown || 'auto'; refProfile = null; learnedKind = ''; if(mode === 'copy') setMode(sh); }
     const pressed = [...$('mode').children].find(x => x.getAttribute('aria-pressed') === 'true');
     modeWords(pressed ? pressed.dataset.m : mode);
-    if(sources.length) aiRun();
+    if(sources.length && !aiHeld) aiRun();
   }catch(e){}
 })();
 /* ---- virtual camera: the crop follows the subject smoothly ----
