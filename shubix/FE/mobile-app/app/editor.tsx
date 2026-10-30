@@ -86,7 +86,14 @@ export default function EditorScreen() {
   const before = clips.slice(0, selected).reduce((t, c) => t + clipDuration(c), 0), now = before + local;
   // the song plays with the Reel, from where the Reel is
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
-  useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume]);
+  useEffect(() => {
+    if (!p?.audioUri) return;
+    const fadeIn = p.settings?.musicFadeIn ?? 0, fadeOut = p.settings?.musicFadeOut ?? 0;
+    const inGain = fadeIn > 0 ? Math.min(1, Math.max(0, now / fadeIn)) : 1;
+    const outGain = fadeOut > 0 ? Math.min(1, Math.max(0, (total - now) / fadeOut)) : 1;
+    song.volume = (p.settings?.musicVolume ?? 1) * Math.min(inGain, outGain);
+  }, [p?.audioUri, p?.settings?.musicVolume, p?.settings?.musicFadeIn, p?.settings?.musicFadeOut, now, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
@@ -261,6 +268,10 @@ export default function EditorScreen() {
             <Label>Music track volume</Label>
             <Choices items={["0%", "25%", "50%", "75%", "100%"]} on={`${Math.round((p.settings?.musicVolume ?? 1) * 100)}%`} onPick={(v) => change({ settings: { ...p.settings, musicVolume: Number(v.replace("%", "")) / 100 } })} />
             <Text className="text-[11px] text-muted">{words("Music volume is applied to both playback and MP4 export.")}</Text>
+            <Label>Music fade in</Label>
+            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeIn ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeIn) + "s"} onPick={(v) => change({ settings: { ...p.settings, musicFadeIn: v === "Off" ? 0 : Number(v.replace("s", "")) } })} />
+            <Label>Music fade out</Label>
+            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeOut ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeOut) + "s"} onPick={(v) => change({ settings: { ...p.settings, musicFadeOut: v === "Off" ? 0 : Number(v.replace("s", "")) } })} />
           </View>
           <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
             <Text className="text-[13px] font-semibold text-foreground">{words("Your clips have their own sound")}</Text>
