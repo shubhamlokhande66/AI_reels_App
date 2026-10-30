@@ -10,6 +10,31 @@ Keep one monorepo and one platform-neutral editing core. Keep the user interface
 - iOS should later use an AVFoundation adapter behind the same renderer contract.
 - Backend owns authenticated AI/provider calls, account/credit enforcement, durable jobs and server-only processing. It must not become a mandatory hop for local editing.
 
+## Autonomous Reel Director
+
+The intended default experience is an automatic first draft, not a blank manual timeline. The creator supplies media, a music track (where relevant), a format and an optional creative wish. Shubix then:
+
+1. Analyzes the song into tempo, beat grid, sections, energy, drops, breaks, voice and transient events.
+2. Analyzes footage into scene boundaries, usable windows, motion, subject/faces, composition, sharpness, exposure and best moments.
+3. Builds candidate moments for each timeline slot and, when enabled, ranks a small set of selected preview frames with a vision model.
+4. Chooses the story arc and pace, then the AI Director assigns shots, transitions, effects, speed, camera moves and beat keyframes.
+5. Normalizes and validates every decision against offered candidates, user style/plan locks, timing and renderer capability.
+6. Completes any omitted or invalid AI decisions with deterministic safe choices so a partial model response cannot leave holes in the Reel.
+7. Produces a preview and exports through the device renderer for supported features; unsupported features must be surfaced clearly, never silently removed.
+
+### Automatic-plan reliability rules
+
+- The AI may only select candidate moments supplied for that cut.
+- Every standard full-Reel plan must return exactly one normalized decision per requested slot, in timeline order.
+- Missing/invalid shot choices use role-aware candidate scoring (hook/action/calm) and avoid adjacent reuse of the same source clip when an alternative exists.
+- Missing/invalid transition, effect and speed choices fall back to hard cut, no effect and normal speed.
+- Ask Shubix edit patches are intentionally partial: only the cuts the creator asked to change are returned; untouched cuts remain unchanged.
+- The fallback is a reliability layer, not a replacement for the creative AI. It must be measurable through tests and telemetry.
+
+### Product quality target
+
+“More advanced than CapCut/VN” is a product ambition, not a verified benchmark. Measure it through first-draft acceptance rate, creator edit/revert rate, beat alignment, subject-safe framing, export success, render time, memory use, crash rate and repeat usage. Do not claim superiority until Shubix is benchmarked against comparable inputs and devices.
+
 ## Dependency direction
 
 `web-app -> @shubix/core`
