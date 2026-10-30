@@ -50,8 +50,24 @@ export default function EditorScreen() {
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
   const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; maskWidth: number; maskHeight: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
+  const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
+  const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
   const undo = useRef<ReelProject[]>([]), song = useAudioPlayer(p?.audioUri ?? null);
   useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); router.back(); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tool?.key !== "voice" || !p?.studio || !engine.holds(p.id)) return;
+    void engine.tool("ttsVoices").then((r) => {
+      const voices = Array.isArray(r) ? r as typeof ttsVoices : [];
+      setTtsVoices(voices); setTtsVoice((old) => voices.some((v) => v.key === old) ? old : voices[0]?.key ?? "");
+    }).catch(() => setTtsVoices([]));
+  }, [tool?.key, p?.id]);
+  useEffect(() => {
+    if (tool?.key !== "captions" || !p?.studio || !engine.holds(p.id)) return;
+    void engine.tool("state").then((r) => {
+      const settings = (r as { settings?: Record<string, unknown> }).settings ?? {};
+      setCaptionSettings({ enabled: !!settings.capsOn, language: String(settings.caplang ?? ""), translation: String(settings.captr ?? ""), style: String(settings.textStyle ?? "pop") });
+    }).catch(() => {});
+  }, [tool?.key, p?.id]);
   useEffect(() => {
     if (tool?.key !== "layers" || !p?.studio || !engine.holds(p.id)) return;
     void engine.tool("layerList").then((r) => setStudioLayers(Array.isArray(r) ? r as typeof studioLayers : [])).catch(() => setStudioLayers([]));
@@ -93,6 +109,23 @@ export default function EditorScreen() {
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
   // a place on the timeline: the shot there and the time in it
   const seek = (t: number) => { let i = 0, start = 0; while (i < clips.length - 1 && start + clipDuration(clips[i]) <= t) start += clipDuration(clips[i++]); setSelected(i); setLocal(t - start); };
+  const addStudioTts = async () => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Voice tools need a Reel made by Shubix Studio."), "info");
+    if (!voiceDraft.trim() || !ttsVoice) return toast(words("Enter the words and choose a voice first."), "info");
+    try {
+      await engine.tool("seek", { time: now });
+      await engine.tool("ttsAdd", { text: voiceDraft.trim(), voice: ttsVoice });
+      setVoiceDraft(""); toast(words("Voice track added at the playhead"), "success");
+    } catch (e) { toast(errorMessage(e), "danger"); }
+  };
+  const setStudioCaptions = async (enabled: boolean, language = captionSettings.language, translation = captionSettings.translation) => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Caption tools need a Reel made by Shubix Studio."), "info");
+    try {
+      const result = await engine.tool("captions", { enabled, language, translation });
+      setCaptionSettings((old) => ({ ...old, enabled, language, translation, ...(result && typeof result === "object" && "language" in result ? { language: String(result.language ?? language), translation: String(result.translation ?? translation) } : {}) }));
+      toast(words(enabled ? "Captions updated" : "Captions turned off"), "success");
+    } catch (e) { toast(errorMessage(e), "danger"); }
+  };
   const refreshStudioLayers = async () => {
     const result = await engine.tool("layerList");
     setStudioLayers(Array.isArray(result) ? result as typeof studioLayers : []);
@@ -233,6 +266,33 @@ export default function EditorScreen() {
         </View>
       );
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
+      case "captions": return <View className="gap-2">
+        <Label>Automatic captions</Label>
+        <Choices items={["Off", "On"]} on={captionSettings.enabled ? "On" : "Off"} onPick={(v) => void setStudioCaptions(v === "On")} />
+        <Label>Spoken language</Label>
+        <Choices items={["Detect automatically", "Hindi", "Marathi", "English", "Gujarati", "Punjabi", "Bengali", "Tamil", "Telugu"]} on={captionSettings.language ? ({ hi: "Hindi", mr: "Marathi", en: "English", gu: "Gujarati", pa: "Punjabi", bn: "Bengali", ta: "Tamil", te: "Telugu" } as Record<string, string>)[captionSettings.language] : "Detect automatically"} onPick={(v) => {
+          const language = ({ "Detect automatically": "", Hindi: "hi", Marathi: "mr", English: "en", Gujarati: "gu", Punjabi: "pa", Bengali: "bn", Tamil: "ta", Telugu: "te" } as Record<string, string>)[v];
+          void setStudioCaptions(captionSettings.enabled, language, captionSettings.translation);
+        }} />
+        <Label>Translation</Label>
+        <Choices items={["Off", "Hindi", "Marathi", "English", "Hinglish"]} on={captionSettings.translation ? ({ hi: "Hindi", mr: "Marathi", en: "English", hinglish: "Hinglish" } as Record<string, string>)[captionSettings.translation] : "Off"} onPick={(v) => {
+          const translation = ({ Off: "", Hindi: "hi", Marathi: "mr", English: "en", Hinglish: "hinglish" } as Record<string, string>)[v];
+          void setStudioCaptions(captionSettings.enabled, captionSettings.language, translation);
+        }} />
+        <Label>Caption animation</Label>
+        <Choices items={["Pop", "Karaoke", "Box", "Clean"]} on={({ pop: "Pop", karaoke: "Karaoke", box: "Box", clean: "Clean" } as Record<string, string>)[captionSettings.style] ?? "Pop"} onPick={(v) => {
+          const style = ({ Pop: "pop", Karaoke: "karaoke", Box: "box", Clean: "clean" } as Record<string, string>)[v];
+          setCaptionSettings((old) => ({ ...old, style })); void engine.tool("captionStyle", { style }).catch((e) => toast(errorMessage(e), "danger"));
+        }} />
+      </View>;
+      case "voice": return <View className="gap-2">
+        <Label>Text to speech voiceover</Label>
+        <TextInput value={voiceDraft} onChangeText={setVoiceDraft} multiline placeholder={words("Write the voiceover script…")} placeholderTextColor={look.muted} className="min-h-[96px] rounded-xl border border-border bg-surface px-3 py-2 text-foreground" />
+        <Choices items={ttsVoices.map((v) => v.label)} on={ttsVoices.find((v) => v.key === ttsVoice)?.label} onPick={(label) => setTtsVoice(ttsVoices.find((v) => v.label === label)?.key ?? "")} />
+        <Button full icon="audio-lines" title={words("Add voice at playhead")} disabled={!voiceDraft.trim() || !ttsVoice} onPress={() => void addStudioTts()} />
+        <Button full variant="danger" title={words("Remove generated speech")} onPress={() => void engine.tool("ttsClear").then(() => toast(words("Generated speech removed"), "success")).catch((e) => toast(errorMessage(e), "danger"))} />
+        <Text className="text-[11px] text-muted">{words("Generated voice is mixed into the Studio export and saved with this Reel.")}</Text>
+      </View>;
       case "layers": return <View className="gap-2">
         <Button full icon="image" title={words("Add photo / video layer")} onPress={() => void addStudioLayer()} />
         {studioLayers.length > 0 && <>
