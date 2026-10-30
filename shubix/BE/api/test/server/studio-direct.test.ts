@@ -127,6 +127,10 @@ describe("the music map and keyframes", () => {
 });
 
 describe("long Reels", () => {
+  it("keeps prompt overhead low by planning up to 30 cuts per model call", () => {
+    expect(CHUNK).toBe(30);
+    expect(Math.ceil(LIMITS.slots / CHUNK)).toBe(5); // 150 cuts: 5 calls instead of 8 at 20 cuts per call
+  });
   it("are planned in parts at the same time, each part told where it sits", async () => {
     const d = req(LIMITS.slots);
     const parts = Math.ceil(LIMITS.slots / CHUNK);
