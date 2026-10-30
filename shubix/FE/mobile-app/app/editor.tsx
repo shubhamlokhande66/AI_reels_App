@@ -18,10 +18,10 @@ import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolS
 
 type Overlay = ReelProject["overlays"][number];
 const FILTERS = ["Original", "Golden", "Film", "Noir", "Soft", "Vivid", "Cinematic"];
-const TRANSITIONS = ["Cut", "Fade in", "Dissolve", "Whip pan", "Zoom", "Flash", "Glitch", "Dip to black", "Iris", "Soft wipe", "Spin", "Push left", "Push right", "Push up", "Push down", "Light fade", "Film burn", "Ripple"];
-const TRANSITION_IDS = ["hard", "fadein", "dissolve", "whip", "zoom", "flash", "glitch", "dip", "iris", "wipe", "spin", "slideleft", "slideright", "slideup", "slidedown", "luma", "burn", "ripple"];
-const EFFECTS = ["None", "Punch-in", "Soft zoom", "Ken Burns", "Zoom burst", "Slow drift", "Shake", "Beat bounce", "Tilt punch", "Photo snap", "Hook zoom", "Frame in frame", "Kaleidoscope", "VHS retro"];
-const EFFECT_IDS = ["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "frame", "kaleido", "vhs"];
+const TRANSITIONS = ["Cut", "Fade in", "Dissolve", "Whip pan", "Zoom", "Flash", "Glitch", "Dip to black", "Iris", "Soft wipe", "Spin", "Push left", "Push right", "Push up", "Push down", "Swipe up", "Zoom out", "Blur through", "Card flip", "Luma fade", "Pixelate", "Clock wipe", "Doors", "Ripple", "Film burn", "Drop in"];
+const TRANSITION_IDS = ["hard", "fadein", "dissolve", "whip", "zoom", "flash", "glitch", "dip", "iris", "wipe", "spin", "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin"];
+const EFFECTS = ["None", "Punch-in", "Soft zoom", "Ken Burns", "Zoom burst", "Slow drift", "Shake", "Beat bounce", "Tilt punch", "Photo snap", "Hook zoom", "Jump cut", "Ken Burns beat", "Box pulse", "Grid pulse", "Strip pulse", "Circle pulse", "Heart pulse", "Star pulse", "Frame in frame", "Mirror", "Kaleidoscope", "Triple split", "VHS retro", "Strobe", "RGB pulse", "Blur pulse"];
+const EFFECT_IDS = ["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"];
 const SPEEDS = ["0.5×", "1×", "1.6×"];
 const VOLUMES = ["0%", "25%", "50%", "75%", "100%", "150%"];
 const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"];
