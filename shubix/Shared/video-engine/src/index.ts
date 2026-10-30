@@ -136,13 +136,14 @@ export function createDirectorPlan(input: DirectorInput): DirectorPlan {
     const d=Math.max(0.45,Math.min(s.duration,cut-cursor));
     const drop=drops.some(t=>Math.abs(t-cursor)<0.5);
     const highlight=!!s.isHighlight||s.score>0.82;
-    const transition= i===0?"cut":(drop&&intensity!=="subtle"?"flash-white":
-      mood==="minimal"||mood==="story"?"cross-dissolve":
-      highlight&&intensity==="bold"?"whip-pan": "cut");
+    const transition= i===0?"hard":(drop&&intensity!=="subtle"?"flash":
+      mood==="minimal"||mood==="story"?"dissolve":
+      highlight&&intensity==="bold"?"whip": "hard");
     const effects:string[]=[];
-    if(mood==="cinematic"||mood==="travel")effects.push("vignette","grain");
-    if(mood==="product"||mood==="food")effects.push("contrast","sharpen");
-    if(drop&&intensity!=="subtle")effects.push("speed-ramp");
+    // Use renderer identifiers that Fast Studio and the native preview already understand.
+    if(mood==="cinematic"||mood==="travel")effects.push("drift");
+    if(mood==="product"||mood==="food")effects.push("punch-soft");
+    if(drop&&intensity!=="subtle")effects.push("zoomburst");
     if(mobile){for(let j=effects.length-1;j>=0;j--)if(!EFFECT_LIBRARY.find(e=>e.id===effects[j])?.mobileSafe)effects.splice(j,1);}
     const zoom=highlight?1.09:1.045, pan=(i%2===0?1:-1)*(highlight?3:1.5);
     planShots.push({sourceId:s.id,sourceIndex:s.sourceIndex,trimStart:0,trimEnd:d,timelineStart:cursor,duration:d,
