@@ -88,6 +88,16 @@ export default function EditorScreen() {
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
   // a place on the timeline: the shot there and the time in it
   const seek = (t: number) => { let i = 0, start = 0; while (i < clips.length - 1 && start + clipDuration(clips[i]) <= t) start += clipDuration(clips[i++]); setSelected(i); setLocal(t - start); };
+  const studioKeyframeAction = async (op: "kfEase" | "kfRemove" | "kfClear" | "kfStep", args: Record<string, unknown> = {}) => {
+    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframe controls need a Reel made by Shubix Studio."), "info");
+    try {
+      const result = await engine.tool(op, args);
+      if (Array.isArray(result.keyframes)) patch({ keyframes: result.keyframes as ProjectClip["keyframes"] });
+      else if (op === "kfClear") patch({ keyframes: undefined });
+      if (op === "kfStep" && typeof result.time === "number") seek(result.time);
+      if (op !== "kfStep") toast(words("Keyframe updated"), "success");
+    } catch (e) { toast(errorMessage(e), "danger"); }
+  };
   const ended = useCallback(() => { setLocal(0); setSelected((i) => { if (i + 1 < (p?.clips.length ?? 0)) return i + 1; setPlaying(false); return 0; }); }, [p?.clips.length]);
 
   async function addClips(replace = false) {
@@ -204,6 +214,18 @@ export default function EditorScreen() {
             "Reset frame": { x: 0, y: 0, s: 1, r: 0, o: 1 },
           }; void studioKeyframe(values[v]);
         }} />
+        <Label>Keyframe easing</Label>
+        <Choices items={["Smooth", "Linear", "Ease in", "Ease out", "Overshoot", "Fast stop", "Hold"]} onPick={(v) => {
+          const easing: Record<string, string> = { Smooth: "inOut", Linear: "lin", "Ease in": "inQuad", "Ease out": "outCubic", Overshoot: "outBack", "Fast stop": "outExpo", Hold: "hold" };
+          void studioKeyframeAction("kfEase", { easing: easing[v] });
+        }} />
+        <Label>Keyframe timeline</Label>
+        <View className="flex-row flex-wrap gap-2">
+          <Button size="sm" variant="secondary" title={words("Previous")} onPress={() => void studioKeyframeAction("kfStep", { direction: -1 })} />
+          <Button size="sm" variant="secondary" title={words("Next")} onPress={() => void studioKeyframeAction("kfStep", { direction: 1 })} />
+          <Button size="sm" variant="secondary" title={words("Delete keyframe")} onPress={() => void studioKeyframeAction("kfRemove")} />
+          <Button size="sm" variant="danger" title={words("Clear all")} onPress={() => void studioKeyframeAction("kfClear")} />
+        </View>
       </View>;
       case "tr": return <Choices items={TRANSITIONS} on={TRANSITIONS[TRANSITION_IDS.indexOf(clip?.transition ?? "hard")] ?? "Cut"} onPick={(label) => {
         const transition = TRANSITION_IDS[TRANSITIONS.indexOf(label)] ?? "hard";
