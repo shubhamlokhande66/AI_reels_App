@@ -243,5 +243,50 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (!overlay.color) errors.push(`Text overlay ${overlay.id} requires a color.`);
   }
 
+  const validateKeyframes = (owner: string, track: KeyframeTrack | undefined, maxTimeMs: number) => {
+    if (!track) return;
+    for (const [property, frames] of Object.entries(track)) {
+      if (!Array.isArray(frames)) { errors.push(`${owner} has an invalid ${property} keyframe track.`); continue; }
+      let previous = -Infinity;
+      for (const frame of frames) {
+        if (!Number.isFinite(frame.timeMs) || frame.timeMs < 0 || frame.timeMs > maxTimeMs) errors.push(`${owner} has a keyframe outside its duration.`);
+        if (frame.timeMs <= previous) errors.push(`${owner} keyframes for ${property} must have strictly increasing times.`);
+        if (!Number.isFinite(frame.value)) errors.push(`${owner} has a non-finite keyframe value.`);
+        if (frame.bezier && (frame.bezier.length !== 4 || frame.bezier.some((v) => !Number.isFinite(v) || v < 0 || v > 1))) errors.push(`${owner} has invalid cubic-bezier controls.`);
+        previous = frame.timeMs;
+      }
+    }
+  };
+  for (const item of spec.items) {
+    validateKeyframes(`Timeline item ${item.id}`, item.keyframes, item.durationMs);
+    if (item.mask) {
+      const mask = item.mask;
+      if (![mask.x, mask.y, mask.width, mask.height].every(Number.isFinite) || mask.width < 0 || mask.height < 0) errors.push(`Timeline item ${item.id} has invalid mask geometry.`);
+      if (mask.feather !== undefined && (!Number.isFinite(mask.feather) || mask.feather < 0 || mask.feather > 1)) errors.push(`Timeline item ${item.id} has invalid mask feathering.`);
+      if (mask.points?.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y))) errors.push(`Timeline item ${item.id} has invalid polygon mask points.`);
+      validateKeyframes(`Mask on ${item.id}`, mask.keyframes, item.durationMs);
+    }
+    for (const effect of item.effects ?? []) {
+      if (effect.intensity !== undefined && (!Number.isFinite(effect.intensity) || effect.intensity < 0 || effect.intensity > 1)) errors.push(`Effect ${effect.type} on ${item.id} has invalid intensity.`);
+      if (effect.startMs !== undefined && (!Number.isFinite(effect.startMs) || effect.startMs < 0 || effect.startMs > item.durationMs)) errors.push(`Effect ${effect.type} on ${item.id} has invalid start time.`);
+      if (effect.endMs !== undefined && (!Number.isFinite(effect.endMs) || effect.endMs < (effect.startMs ?? 0) || effect.endMs > item.durationMs)) errors.push(`Effect ${effect.type} on ${item.id} has invalid end time.`);
+      validateKeyframes(`Effect ${effect.type} on ${item.id}`, effect.keyframes, item.durationMs);
+    }
+  }
+  for (const track of spec.audio ?? []) validateKeyframes("Audio track", track.keyframes, track.durationMs);
+  for (const overlay of spec.overlays ?? []) {
+    validateKeyframes(`Text overlay ${overlay.id}`, overlay.transform, overlay.endMs - overlay.startMs);
+    for (const effect of overlay.effects ?? []) validateKeyframes(`Text effect ${effect.type}`, effect.keyframes, overlay.endMs - overlay.startMs);
+  }
+  const layerIds = new Set<string>();
+  for (const layer of spec.layers ?? []) {
+    if (!layer.id || layerIds.has(layer.id)) errors.push(`Layer IDs must be non-empty and unique: ${layer.id}`);
+    layerIds.add(layer.id);
+    if (!Number.isFinite(layer.startMs) || layer.startMs < 0 || !Number.isFinite(layer.durationMs) || layer.durationMs <= 0) errors.push(`Layer ${layer.id} has invalid timing.`);
+    if (layer.opacity !== undefined && (!Number.isFinite(layer.opacity) || layer.opacity < 0 || layer.opacity > 1)) errors.push(`Layer ${layer.id} has invalid opacity.`);
+    validateKeyframes(`Layer ${layer.id}`, layer.transform, layer.durationMs);
+    if (layer.mask) validateKeyframes(`Layer mask ${layer.id}`, layer.mask.keyframes, layer.durationMs);
+  }
+
   return errors;
 }
