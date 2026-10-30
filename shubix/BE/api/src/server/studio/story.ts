@@ -79,7 +79,7 @@ async function readBounded(r: Response, maxBytes: number) {
     for (;;) {
       const { done, value } = await reader.read(); if (done) break;
       size += value.byteLength;
-      if (size > maxBytes) { await reader.cancel(); throw new Error("Response is too large"); }
+      if (size > maxBytes) { try { await reader.cancel(); } catch { /* preserve the size-limit error */ } throw new Error("Response is too large"); }
       chunks.push(Buffer.from(value));
     }
   } finally { reader.releaseLock(); }
@@ -158,7 +158,7 @@ async function paid(p: string): Promise<Picture> {
 /** The picture for one scene, as a 1080×1920 JPEG (the interesting part kept); AI pictures use credits. */
 export async function scenePicture(o: { scene: Scene; style: string; characters: { name: string; look: string }[]; skip: string[]; reelId: string; i: number; ai?: boolean }) {
   const style = styleOf(o.style), skip = new Set(o.skip), errors: string[] = [];
-  let pic: Picture | null = null;
+  let pic: Picture | null = null, generationChargeRef: string | undefined;
   if (style.commons) {
     try { pic = await commons(o.scene, style.commons, skip); } catch (e) { errors.push(`Commons: ${(e as Error).message}`); }
   }
@@ -169,7 +169,7 @@ export async function scenePicture(o: { scene: Scene; style: string; characters:
       try {
         const sceneKey = crypto.createHash("sha256").update(p).digest("hex").slice(0, 24);
         const charge = await chargeOnce(cost, `story:${o.reelId}:${o.i}:${sceneKey}`, `Story Maker picture (scene ${o.i + 1})`);
-        try { pic = await make(p); break; }
+        try { pic = await make(p); if (charge.taken && charge.ref) generationChargeRef = charge.ref; break; }
         catch (error) { if (charge.taken && charge.ref) await refund(charge.ref); throw error; }
       } catch (e) { if (e instanceof AppError) throw e; errors.push((e as Error).message); }
     }
@@ -180,9 +180,14 @@ export async function scenePicture(o: { scene: Scene; style: string; characters:
   }
   if (!pic) throw new AppError(freeAi() || paidAi() ? `No picture for scene ${o.i + 1} right now. Try again, or add your own photos. ${errors.join(" · ").slice(0, 200)}`
     : `No free picture fits scene ${o.i + 1}. Add your own photos, choose “Classical painting”, or ask the admin to connect AI pictures.`, { code: "STORY_NO_PICTURE", status: 422 });
-  if (!pic.data.length || pic.data.length > MAX_IMAGE_BYTES) throw new AppError("The selected picture is too large.", { code: "STORY_IMAGE_TOO_LARGE", status: 422 });
-  const meta = await sharp(pic.data, { limitInputPixels: 40_000_000, failOn: "error" }).metadata();
-  if (!["jpeg", "png", "webp", "avif"].includes(meta.format || "") || !meta.width || !meta.height || meta.width * meta.height > 40_000_000) throw new AppError("The selected picture format is not supported.", { code: "STORY_IMAGE_INVALID", status: 422 });
-  const jpg = await sharp(pic.data, { limitInputPixels: 40_000_000, failOn: "error" }).rotate().resize(1080, 1920, { fit: "cover", position: sharp.strategy.attention }).jpeg({ quality: 84 }).toBuffer();
-  return { image: `data:image/jpeg;base64,${jpg.toString("base64")}`, source: pic.source, credit: pic.credit, ref: pic.ref };
+  try {
+    if (!pic.data.length || pic.data.length > MAX_IMAGE_BYTES) throw new AppError("The selected picture is too large.", { code: "STORY_IMAGE_TOO_LARGE", status: 422 });
+    const meta = await sharp(pic.data, { limitInputPixels: 40_000_000, failOn: "error" }).metadata();
+    if (!["jpeg", "png", "webp", "avif"].includes(meta.format || "") || !meta.width || !meta.height || meta.width * meta.height > 40_000_000) throw new AppError("The selected picture format is not supported.", { code: "STORY_IMAGE_INVALID", status: 422 });
+    const jpg = await sharp(pic.data, { limitInputPixels: 40_000_000, failOn: "error" }).rotate().resize(1080, 1920, { fit: "cover", position: sharp.strategy.attention }).jpeg({ quality: 84 }).toBuffer();
+    return { image: `data:image/jpeg;base64,${jpg.toString("base64")}`, source: pic.source, credit: pic.credit, ref: pic.ref };
+  } catch (error) {
+    if (generationChargeRef) await refund(generationChargeRef);
+    throw error;
+  }
 }
