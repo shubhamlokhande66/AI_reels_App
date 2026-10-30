@@ -27,7 +27,7 @@ const timing = (v: Animated.Value, to: number, s: number, easing = Easing.out(Ea
 /** The preview's motion for a shot: `content` goes on the picture, `veil` on a layer over it (its colour: `veilColor`).
  * Starts when the shot starts playing (`at`: where in the shot; a shot played from its middle shows no transition). */
 export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, at: number, width: number, beat = 0.5) {
-  const v = useRef({ x: new Animated.Value(0), y: new Animated.Value(0), s: new Animated.Value(1), r: new Animated.Value(0), sx: new Animated.Value(1), o: new Animated.Value(0) }).current;
+  const v = useRef({ x: new Animated.Value(0), y: new Animated.Value(0), s: new Animated.Value(1), r: new Animated.Value(0), sx: new Animated.Value(1), o: new Animated.Value(0), kx: new Animated.Value(0), ky: new Animated.Value(0), ks: new Animated.Value(1), kr: new Animated.Value(0), ko: new Animated.Value(1) }).current;
   useEffect(() => {
     const reset = () => { v.x.setValue(0); v.y.setValue(0); v.s.setValue(1); v.r.setValue(0); v.sx.setValue(1); v.o.setValue(0); };
     reset();
@@ -56,11 +56,35 @@ export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, a
     run.start();
     return () => { run.stop(); reset(); };
   }, [clip?.id, clip?.transition, clip?.effect, playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Shared Studio keyframes are also evaluated in the native preview, not only during MP4 export.
+  useEffect(() => {
+    const frames = clip?.keyframes;
+    if (!frames?.length) { v.kx.setValue(0); v.ky.setValue(0); v.ks.setValue(1); v.kr.setValue(0); v.ko.setValue(1); return; }
+    const list = [...frames].sort((a, b) => a.t - b.t);
+    const t = Math.max(0, at);
+    let a = list[0], b = list[list.length - 1];
+    if (t <= a.t) b = a;
+    else if (t >= b.t) a = b;
+    else { for (let i = 1; i < list.length; i++) if (t <= list[i].t) { a = list[i - 1]; b = list[i]; break; } }
+    const span = Math.max(0.000001, b.t - a.t);
+    let p = a === b ? 0 : Math.max(0, Math.min(1, (t - a.t) / span));
+    const easing = b.ez || "inOut";
+    if (easing === "hold") p = 0;
+    else if (easing === "ease-in") p *= p;
+    else if (easing === "ease-out") p = 1 - (1 - p) * (1 - p);
+    else if (easing === "inOut") p = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    const mix = (key: "x" | "y" | "s" | "r" | "o", fallback: number) => (a[key] ?? fallback) + ((b[key] ?? fallback) - (a[key] ?? fallback)) * p;
+    v.kx.setValue(mix("x", 0) * width);
+    v.ky.setValue(mix("y", 0) * 360);
+    v.ks.setValue(mix("s", 1));
+    v.kr.setValue(mix("r", 0) / 90);
+    v.ko.setValue(mix("o", 1));
+  }, [clip?.id, clip?.keyframes, at, width]); // eslint-disable-line react-hooks/exhaustive-deps
   // the veil's colour: white for a flash (and a photo snap), warm for a film burn, else black
   const draw = clip && TR[clip.transition.toLowerCase()]?.[1];
   const color = draw === "burn" ? "#ff9a3c" : draw === "flash" || (!draw && clip?.effect === "snap") ? "#fff" : "#000";
   return {
-    content: { transform: [{ translateX: v.x }, { translateY: v.y }, { scale: v.s }, { scaleX: v.sx }, { rotate: v.r.interpolate({ inputRange: [-1, 1], outputRange: ["-90deg", "90deg"] }) }] },
+    content: { opacity: v.ko, transform: [{ translateX: v.x }, { translateY: v.y }, { scale: v.s }, { scaleX: v.sx }, { rotate: v.r.interpolate({ inputRange: [-1, 1], outputRange: ["-90deg", "90deg"] }) }, { translateX: v.kx }, { translateY: v.ky }, { scale: v.ks }, { rotate: v.kr.interpolate({ inputRange: [-1, 1], outputRange: ["-90deg", "90deg"] }) }] },
     veil: { opacity: v.o, backgroundColor: color },
   };
 }
