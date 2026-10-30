@@ -78,7 +78,7 @@ export const engine = {
       list.push({ ...from.shot, ...(Object.keys(cs).length ? { cs } : {}), start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect, uk: c.keyframes ?? from.shot.uk });
       t += len;
     }
-    return (await call<{ ok: boolean }>("edit", { shots: list })).ok;
+    return (await call<{ ok: boolean }>("edit", { shots: list, overlays: p.overlays })).ok;
   },
   /** a choice in one of the editor's tools, made in the studio as on the website (its button `attr`=`value` in `box`,
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
