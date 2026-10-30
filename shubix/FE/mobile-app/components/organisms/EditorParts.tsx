@@ -124,8 +124,8 @@ const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onP
 /** The timeline (the website's phone timeline, as VN): its head (the time, clips and layers, zoom − / + and Fit), the
  * tracks' heads, and the tracks sliding under the playhead in the middle: playing moves them, a swipe scrubs (`onSeek`),
  * two fingers or − / + zoom. A tap on a clip selects it. */
-export function Timeline({ clips, selected, overlays, song, now, playing, onSelect, onSeek, onAddClip, onText, onVoice, onMusic }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void }) {
-  const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), layers = 1 + (overlays.length ? 1 : 0) + (song ? 1 : 0);
+export function Timeline({ clips, selected, overlays, studioLayers = [], song, now, playing, onSelect, onSeek, onAddClip, onText, onVoice, onMusic, onLayer }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; studioLayers?: { index: number; t0: number; t1: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void; onLayer?: (index: number) => void }) {
+  const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), laneDefs = [...LANES, ...(studioLayers.length ? [["Layers", "Layers", 36] as [string, string, number]] : [])];
   const [px, setPx] = useState(34), [view, setView] = useState(240), [snapEnabled, setSnapEnabled] = useState(true), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
   const clamp = (to: number) => Math.max(8, Math.min(160, to)), frame = useRef(0), want = useRef(34);
   // zooming follows the fingers once a frame, and − / + / Fit glide there over a few frames
@@ -156,10 +156,11 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
         <ZoomButton label={words("Zoom out")} text="−" onPress={() => zoom(px / 1.5, true)} />
         <Text className="w-10 text-center text-[11px] font-semibold text-muted">{Math.round((px / 34) * 100)}%</Text>
         <ZoomButton label={words("Zoom in")} text="+" onPress={() => zoom(px * 1.5, true)} />
-        <ZoomButton label={words("Toggle snapping")} text={snapEnabled ? "Snap ✓" : "Snap"} onPress={() => setSnapEnabled((value) => !value)} />\n        <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total, true); }} />
+        <ZoomButton label={words("Toggle snapping")} text={snapEnabled ? "Snap ✓" : "Snap"} onPress={() => setSnapEnabled((value) => !value)} />
+        <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total, true); }} />
       </View>
       <View className="flex-row py-2.5 pl-3">
-        <View style={{ width: HEAD }} className="gap-1.5 border-r border-border">{LANES.map(([g, n, h], i) => <Head key={n} glyph={g} name={n} h={h} onAdd={[onAddClip, onText, onVoice, onMusic][i]} />)}</View>
+        <View style={{ width: HEAD }} className="gap-1.5 border-r border-border">{laneDefs.map(([g, n, h], i) => <Head key={n} glyph={g} name={n} h={h} onAdd={[onAddClip, onText, onVoice, onMusic, () => onLayer?.(studioLayers[0]?.index ?? 0)][i]} />)}</View>
         <GestureDetector gesture={pinch}>
           <View className="flex-1" onLayout={(e) => setView(e.nativeEvent.layout.width)}>
             <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={16} contentContainerStyle={{ paddingHorizontal: view / 2 }}
@@ -177,6 +178,11 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
                   <Pressable key={o.id} onPress={onText} className="absolute h-8 justify-center overflow-hidden rounded-md border border-[#665276] bg-[#5a4766]/50 px-1.5" style={{ left: o.start * px, width: Math.max(24, (o.end - o.start) * px) }}><Text numberOfLines={1} className="text-[10px] text-foreground">{o.text}</Text></Pressable>
                 )) : <Pressable onPress={onText} className="h-8 w-[110px] justify-center rounded-md border border-dashed border-border px-2"><Text className="text-[10px] text-muted">+ {words("Add text")}</Text></Pressable>}</View>
                 <View className="h-9"><Pressable onPress={onVoice} className="h-8 w-[110px] justify-center rounded-md border border-dashed border-border px-2"><Text className="text-[10px] text-muted">+ {words("Voiceover")}</Text></Pressable></View>
+                {studioLayers.length > 0 && <View className="h-9" style={{ width: total * px }}>{studioLayers.map((layer) => (
+                  <Pressable key={layer.index} onPress={() => onLayer?.(layer.index)} className="absolute h-8 justify-center overflow-hidden rounded-md border border-[#8a6b36] bg-[#8a6b36]/40 px-1.5" style={{ left: Math.max(0, layer.t0) * px, width: Math.max(24, (Math.max(layer.t0 + 0.25, layer.t1) - layer.t0) * px) }}>
+                    <Text numberOfLines={1} className="text-[10px] text-foreground">{words("Overlay")} {layer.index + 1}</Text>
+                  </Pressable>
+                ))}</View>}
                 <View className="h-9"><Pressable onPress={onMusic} className="h-8 flex-row items-center gap-1 overflow-hidden rounded-md border border-[#476452] bg-[#476452]/40 px-2" style={{ width: Math.max(110, total * px) }}>
                   {song ? <><Glyph name="Music" size={12} color="#9fc2a6" /><Text numberOfLines={1} className="text-[10px] text-foreground">{song}</Text></> : <Text className="text-[10px] text-muted">+ {words("Add music")}</Text>}
                 </Pressable></View>
