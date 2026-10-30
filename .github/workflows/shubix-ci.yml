@@ -1,0 +1,48 @@
+name: Shubix CI
+
+on:
+  pull_request:
+    branches: [monorepo]
+    paths:
+      - "shubix/**"
+      - ".github/workflows/shubix-ci.yml"
+  push:
+    branches: [feat/shubix-brain-device-optimized]
+    paths:
+      - "shubix/**"
+      - ".github/workflows/shubix-ci.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: shubix-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-and-api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shubix
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: shubix/pnpm-lock.yaml
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build shared core
+        run: pnpm --filter @shubix/core build
+      - name: Typecheck workspace packages
+        run: pnpm -r typecheck
+      - name: Run API tests
+        run: pnpm --filter @shubix/api test
+      - name: Run web tests
+        run: pnpm --filter @shubix/web-app test
+      - name: Build web app
+        run: pnpm --filter @shubix/web-app build
