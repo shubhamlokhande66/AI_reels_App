@@ -2642,10 +2642,10 @@ function makeEditNow(){
       const sharp = avg('sh') / Math.max(1e-6, src.shMed || 1);
       const faceScore = Math.max(0, Math.min(1, (src.faces || []).filter(x => x.n).length / Math.max(1, (src.faces || []).length)));
       const quality = Math.max(0, Math.min(1, 0.55 + (sharp - 1) * 0.18 + (avg('b') - 0.45) * 0.2 - clipFlaw(src) * 0.08));
+      const aiSummary = aiAt(src, 0, src.dur);
       return { id: String(sourceIndex), sourceIndex, duration: src.dur, quality, motion: Math.max(0, Math.min(1, avg('m'))),
         faceScore, subjectScore: Math.max(faceScore, Math.max(0, Math.min(1, avg('b')))),
-        isHighlight: !!(src.ai && src.ai.some(x => x && (x.score > 0.82 || x.highlight))),
-        speech: !!src.speech };
+        isHighlight: !!(aiSummary && aiSummary.score > 0.82), speech: false };
     }),
     beats, drops: plan.filter(x => x.type === 'drop').map(x => x.start),
     targetDuration: Math.min(180, buf.duration), aspect, mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
