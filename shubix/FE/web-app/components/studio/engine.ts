@@ -4329,8 +4329,11 @@ function layerOf(e, local, o={}){
     expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1) * fade, alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
     off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1,
     tf: csMat(c), bg: !c.fit ? [0,0,0,-1] : c.bg === 'blur' ? [0,0,0,1] : [...hexRgb(c.bgc), 0], bgr: [W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb],
-    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm], ad2: [c.hi || 0, c.sh || 0, c.hue || 0, c.sharp || 0], be: c.beauty || 0 };
+    bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm], ad2: [c.hi || 0, c.sh || 0, c.hue || 0, (c.sharp || 0) + upSharp(e, dh)], be: c.beauty || 0 };
 }
+// a clip smaller than it is shown (a 480p or 720p video in a 1080p or 4K Reel): sharpened in step with how much it is
+// enlarged, so the chosen quality looks like that quality (a clip at its own size or larger: untouched)
+function upSharp(e, dh){ const src = sources[e.src], h = src && (src.h || src.w); if(!h || !(dh > 0)) return 0; const up = dh / h; return up > 1.15 ? Math.min(0.55, (up - 1) * 0.3) : 0; }
 /* ---- Reverse: a shot played backwards ----
  * The preview plays it from its frames, decoded once at a small size (rc); the export decodes it forwards in windows of
  * a dozen frames (a ring of canvases, so a long or 4K shot never fills the memory) and hands them out backwards. ---- */
