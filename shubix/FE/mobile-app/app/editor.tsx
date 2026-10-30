@@ -286,7 +286,7 @@ export default function EditorScreen() {
             <Label>Music fade in</Label>
             <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeIn ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeIn) + "s"} onPick={(v) => void setMusicMix({ musicFadeIn: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
             <Label>Music fade out</Label>
-            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeOut ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeOut) + "s"} onPick={(v) => void setMusicMix({ musicFadeOut: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
+            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeOut ?? (p.studio ? 0.8 : 0)) === "0" ? "Off" : String(p.settings?.musicFadeOut ?? (p.studio ? 0.8 : 0)) + "s"} onPick={(v) => void setMusicMix({ musicFadeOut: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
           </View>
           <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
             <Text className="text-[13px] font-semibold text-foreground">{words("Your clips have their own sound")}</Text>
