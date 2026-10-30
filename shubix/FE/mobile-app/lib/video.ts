@@ -59,3 +59,16 @@ export async function exportReelWithSharedRenderer(
   });
   return { uri: result.uri, size: result.sizeBytes, duration: result.durationMs / 1000 };
 }
+
+
+/** Whether the current Media3 adapter can reproduce this project without dropping edits. */
+export function canUseSharedAndroidRenderer(project: ReelProject): boolean {
+  if (!ShubixVideo || project.clips.length === 0) return false;
+  if (project.clips.some((clip) =>
+    clip.reverse ||
+    (clip.transition && clip.transition !== "Cut") ||
+    !!clip.effect ||
+    (!clip.muted && clip.volume !== 1)
+  )) return false;
+  return true;
+}
