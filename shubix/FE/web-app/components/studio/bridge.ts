@@ -178,7 +178,9 @@ export function initBridge(root: HTMLElement): () => void {
       // when the native editor synchronises its portable shot trims/transitions/effects before export.
       const merged = incoming.map((shot, i) => {
         const current = st.edit[i] as Record<string, unknown> | undefined;
-        return current ? { ...shot, cs: { ...((current.cs as Record<string, unknown>) || {}), ...((shot.cs as Record<string, unknown>) || {}) }, uk: shot.uk ?? current.uk, acc: current.acc, ak: current.ak } : shot;
+        if (!current) return shot;
+        const cs = { ...((current.cs as Record<string, unknown>) || {}), ...((shot.cs as Record<string, unknown>) || {}) };
+        return { ...shot, ...(Object.keys(cs).length ? { cs } : {}), uk: shot.uk ?? current.uk, acc: current.acc, ak: current.ak };
       });
       return { ok: !!st.setEdit(merged) };
     },
