@@ -152,6 +152,15 @@ export function initBridge(root: HTMLElement): () => void {
       if (!st?.shotTrim) throw new Error("Beat trim is not ready");
       return { ok: st.shotTrim(Number(a.direction) || 1), state: st.state() };
     },
+    async audioMix(a) {
+      const st = studio();
+      if (!st?.setAudioMix) throw new Error("Studio audio mixer is not ready");
+      return await st.setAudioMix({
+        ...(a.mvol !== undefined ? { mvol: Math.max(0, Math.min(1, Number(a.mvol))) } : {}),
+        ...(a.mfin !== undefined ? { mfin: Math.max(0, Math.min(10, Number(a.mfin))) } : {}),
+        ...(a.mfout !== undefined ? { mfout: Math.max(0, Math.min(10, Number(a.mfout))) } : {}),
+      });
+    },
     async layerList() {
       const st = studio();
       return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35 }));
