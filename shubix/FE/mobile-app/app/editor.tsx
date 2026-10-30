@@ -371,8 +371,8 @@ export default function EditorScreen() {
           }; void studioKeyframe(values[v]);
         }} />
         <Label>Keyframe easing</Label>
-        <Choices items={["Smooth", "Linear", "Ease in", "Ease out", "Overshoot", "Fast stop", "Hold"]} onPick={(v) => {
-          const easing: Record<string, string> = { Smooth: "inOut", Linear: "lin", "Ease in": "inQuad", "Ease out": "outCubic", Overshoot: "outBack", "Fast stop": "outExpo", Hold: "hold" };
+        <Choices items={["Smooth", "Linear", "Ease in", "Ease out", "Overshoot", "Fast stop", "Bezier", "Hold"]} onPick={(v) => {
+          const easing: Record<string, string> = { Smooth: "inOut", Linear: "lin", "Ease in": "inQuad", "Ease out": "outCubic", Overshoot: "outBack", "Fast stop": "outExpo", Bezier: "bezier", Hold: "hold" };
           void studioKeyframeAction("kfEase", { easing: easing[v] });
         }} />
         <Label>Keyframe timeline</Label>
