@@ -364,9 +364,9 @@ export default function EditorScreen() {
             const [key, value] = values[v]; void studioLayerAction("layerSet", { key, value });
           }} />
           <Label>Mask and blend</Label>
-          <Choices items={["No mask", "Circle mask", "Rectangle mask", "Linear mask", "Mirror mask"]} on={({ none: "No mask", circle: "Circle mask", rect: "Rectangle mask", line: "Linear mask", mirror: "Mirror mask" } as Record<string, string>)[studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"] ?? "No mask"} onPick={(v) => {
-            const mask = ({ "No mask": "none", "Circle mask": "circle", "Rectangle mask": "rect", "Linear mask": "line", "Mirror mask": "mirror" } as Record<string, string>)[v];
-            void studioLayerAction("layerSet", { key: "mask", value: mask });
+          <Choices items={["No mask", "Circle mask", "Radial mask", "Rectangle mask", "Linear mask", "Mirror mask", "Luma mask"]} on={({ none: "No mask", circle: "Circle mask", radial: "Radial mask", rect: "Rectangle mask", line: "Linear mask", mirror: "Mirror mask", luma: "Luma mask" } as Record<string, string>)[studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"] ?? "No mask"} onPick={(v) => {
+            const mask = ({ "No mask": "none", "Circle mask": "circle", "Radial mask": "radial", "Rectangle mask": "rect", "Linear mask": "line", "Mirror mask": "mirror", "Luma mask": "luma" } as Record<string, string>)[v];
+            void (async () => { await studioLayerAction("layerSet", { key: "mask", value: mask }); if (mask === "luma") { await studioLayerAction("layerSet", { key: "mk.h", value: 0.5 }); await studioLayerAction("layerSet", { key: "mk.f", value: 0.12 }); } })();
           }} />
           <Label>Mask refinement</Label>
           <Choices items={["Mask smaller", "Mask larger", "More feather", "Less feather", "Rotate mask", "Invert mask", "Reset mask"]} onPick={(v) => {
@@ -379,6 +379,16 @@ export default function EditorScreen() {
             else if (v === "Invert mask") void studioLayerAction("layerSet", { key: "mk.inv", value: !layer?.maskInverted });
             else void (async () => { await studioLayerAction("layerSet", { key: "mk.w", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.h", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.f", value: 0.12 }); await studioLayerAction("layerSet", { key: "mk.a", value: 0 }); await studioLayerAction("layerSet", { key: "mk.inv", value: false }); })();
           }} />
+          {studioLayers.find((x) => x.index === studioLayerIndex)?.mask === "luma" && <>
+            <Label>Luma threshold</Label>
+            <Choices items={["Reveal brighter areas", "Reveal darker areas", "Increase threshold", "Decrease threshold"]} onPick={(v) => {
+              const layer = studioLayers.find((x) => x.index === studioLayerIndex);
+              if (v === "Reveal brighter areas") void studioLayerAction("layerSet", { key: "mk.inv", value: false });
+              else if (v === "Reveal darker areas") void studioLayerAction("layerSet", { key: "mk.inv", value: true });
+              else if (v === "Increase threshold") void studioLayerAction("layerSet", { key: "mk.h", value: Math.min(0.95, (layer?.maskHeight ?? 0.5) + 0.05) });
+              else void studioLayerAction("layerSet", { key: "mk.h", value: Math.max(0.05, (layer?.maskHeight ?? 0.5) - 0.05) });
+            }} />
+          </>}
           <Label>Chroma key</Label>
           <Choices items={["Off", "Green screen", "Blue screen"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.chromaKey ? (studioLayers.find((x) => x.index === studioLayerIndex)?.chromaColor === "#0000FF" ? "Blue screen" : "Green screen") : "Off"} onPick={(v) => {
             if (v === "Off") void studioLayerAction("layerSet", { key: "key", value: { on: false, c: "#00FF00", tol: 0.35 } });
