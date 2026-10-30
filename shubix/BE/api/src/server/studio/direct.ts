@@ -33,7 +33,7 @@ export const HIT_KINDS = ["kick", "dhol", "snare", "hat"] as const;
 export const MODES = ["auto", "smooth", "fast", "copy"] as const;
 export const PACES = [1, 2, 4, 8] as const;
 /** cuts per AI call: longer Reels are planned in parts, at the same time */
-export const CHUNK = 20;
+export const CHUNK = 30;
 export const LIMITS = { slots: 150, candidates: 3, clips: 30, sections: 24, accents: 4, keys: 16, moveKeys: 16, recent: 40 } as const;
 /** "New mix": other plans for the same cuts, asked in one call (the input is sent once; each alternative is a compact
  * plan without the reasons), so a few mixes cost far less than one call each */
