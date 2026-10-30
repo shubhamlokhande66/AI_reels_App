@@ -68,7 +68,7 @@ describe("one request = one Reel", () => {
     expect(calls.map((c) => c.images)).toEqual([4, 2]);
     expect(res.clips.map((c) => [c.id, c.frames[0].score])).toEqual([["best", 0.95], ["dull", 0.2]]);
     expect(res.failed).toEqual([]);
-    expect(res.charged).toBe(0); // credits are off in tests
+    expect(res.charged).toBe(false); // credits are off in tests
   });
   it("returns what worked when one clip fails, and the error when all fail", async () => {
     const { p } = fake((user) => { if (user.includes("broken")) throw new Error("model down"); return { frames: [{ frame: "f1", score: 0.7 }] }; });
