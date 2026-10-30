@@ -24,6 +24,8 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
   const words = useStudioText(), insets = useSafeAreaInsets();
   const [pct, setPct] = useState(0), [done, setDone] = useState<{ uri: string; size: number } | null>(null), [saved, setSaved] = useState(false), [saveNotice, setSaveNotice] = useState(""), [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
   const player = useVideoPlayer(done?.uri ?? null, (p) => { p.loop = true; });
+  const aspect = reel?.settings?.aspect ?? "9:16";
+  const previewAspect = aspect === "4:5" ? 4 / 5 : aspect === "1:1" ? 1 : aspect === "16:9" ? 16 / 9 : 9 / 16;
   useEffect(() => {
     if (!reel) return;
     let live = true;
@@ -82,7 +84,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
               <IconButton icon="back" label={words("Back to your Reel")} size={40} onPress={onClose} />
               <Text className="text-center text-[40px]">🎉</Text>
               <Text className="text-center text-[24px] font-semibold text-foreground">{words("Reel Exported!")}</Text>
-              <View className="h-[380px] self-center overflow-hidden rounded-[18px] bg-black" style={{ aspectRatio: 9 / 16 }}><VideoView player={player} surfaceType="textureView" nativeControls contentFit="contain" style={{ flex: 1 }} /></View>
+              <View className="h-[380px] self-center overflow-hidden rounded-[18px] bg-black" style={{ aspectRatio: previewAspect }}><VideoView player={player} surfaceType="textureView" nativeControls contentFit="contain" style={{ flex: 1 }} /></View>
               <View className="items-center gap-1"><Text className="text-[15px] font-semibold text-foreground">{words(saved ? "Saved to your phone" : "Your Reel is ready")}</Text><Text className="text-[12.5px] text-muted">{megabytes(done.size)}</Text>{!!saveNotice && <Text accessibilityRole="alert" className="text-center text-[12px] text-muted">{saveNotice}</Text>}</View>
               <Button full size="xl" icon="upload" title={words("Share")} onPress={() => void Sharing.shareAsync(done.uri, { mimeType: "video/mp4" }).catch((e) => toast(errorMessage(e), "danger"))} />
               {!saved && <Button full size="lg" variant="secondary" icon="download" title={words("Save to Photos")} onPress={() => void save()} />}
