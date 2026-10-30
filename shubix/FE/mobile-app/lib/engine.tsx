@@ -63,11 +63,19 @@ export const engine = {
     const list = [];
     let t = 0;
     for (const c of p.clips) {
-      const from = made.get(c.id);
+      const from = made.get(c.id) ?? [...made.values()].find((candidate) => candidate.clip.uri === c.uri && candidate.clip.kind === c.kind);
       if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
       const len = clipDuration(c), sp = (SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed);
       if (!sp) return false; // a speed the studio has not (it has slow, normal, fast)
-      list.push({ ...from.shot, start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect, uk: c.keyframes ?? from.shot.uk });
+      const base = from.shot as EngineShot & { cs?: Record<string, unknown> };
+      const cs = { ...(base.cs ?? {}) };
+      if (c.reverse !== from.clip.reverse) cs.rev = c.reverse;
+      if (c.rotation !== from.clip.rotation) cs.rot = c.rotation;
+      if (c.mirror !== from.clip.mirror) cs.fh = c.mirror;
+      if (c.flip !== from.clip.flip) cs.fv = c.flip;
+      if (c.fit !== from.clip.fit) cs.fit = c.fit === "contain";
+      if (c.muted !== from.clip.muted || c.volume !== from.clip.volume) cs.vol = c.muted ? 0 : c.volume;
+      list.push({ ...from.shot, ...(Object.keys(cs).length ? { cs } : {}), start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect, uk: c.keyframes ?? from.shot.uk });
       t += len;
     }
     return (await call<{ ok: boolean }>("edit", { shots: list })).ok;
@@ -88,7 +96,7 @@ const SPEED: Record<string, number> = { normal: 1, slow: 0.5, fast: 1.6 };
 // each clip the studio made: its shot (engine.edit sends it back changed) and the clip as made (what the studio cannot change)
 const made = new Map<string, { shot: EngineShot; clip: ProjectClip }>();
 let sources: ProjectClip[] = [];
-const KEEP = ["uri", "reverse", "rotation", "mirror", "flip", "filter", "fit", "muted", "volume"] as const;
+const KEEP = ["uri", "filter"] as const;
 /** The Reel's shots as the phone editor's clips: each shot its part of its clip (from `in`, as long as the shot at its
  * speed), the transition into it and its effect. `list`: the clips the studio kept, in its order (its `src`). */
 export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[] {
