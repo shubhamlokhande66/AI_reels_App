@@ -258,17 +258,44 @@ export function cleanClip(raw: Record<string, unknown> | null | undefined): Clip
   return Object.keys(o).length ? o : undefined;
 }
 
+/** Deterministic completion when a model omits a cut or chooses a moment it was not offered.
+ * Prefer role-appropriate, high-quality moments and avoid using the same source clip twice in a row. */
+function fallbackShot(slot: DirectIn["slots"][number], previousClip: string | null): string {
+  const role = slot.i === 0 ? "hook" : slot.type === "drop" || slot.type === "hit" ? "action" : slot.type === "break" ? "calm" : undefined;
+  const ranked = [...slot.candidates].sort((a, b) => {
+    const score = (c: typeof a) => c.score
+      + (role && c.roles.includes(role) ? 2 : 0)
+      + (c.clip !== previousClip ? 0.35 : -0.75)
+      + (c.motion === (slot.type === "drop" || slot.type === "hit" ? "high" : "still") ? 0.12 : 0);
+    return score(b) - score(a) || a.at - b.at || a.id.localeCompare(b.id);
+  });
+  return ranked[0]?.id ?? slot.candidates[0].id;
+}
+
 export function parsePlan(d: DirectIn, a: AnswerIn): { slots: DirectedSlot[]; story: string } {
   const offered = new Map(d.slots.map((s) => [s.i, s]));
-  const seen = new Set<number>(), slots: DirectedSlot[] = [];
-  for (const s of a.slots) {
-    const i = Math.trunc(Number(s.i)), slot = offered.get(i);
-    if (!slot || seen.has(i)) continue;
-    seen.add(i);
+  const answers = new Map<number, SlotIn>();
+  for (const answer of a.slots) {
+    const i = Math.trunc(Number(answer.i));
+    if (offered.has(i) && !answers.has(i)) answers.set(i, answer);
+  }
+  const slots: DirectedSlot[] = [];
+  let previousClip: string | null = null;
+  for (const slot of d.slots) {
+    const answer = answers.get(slot.i);
     const ids = new Set(slot.candidates.map((c) => c.id));
-    const shot = String(s.shot).trim().toLowerCase(), one = (v: unknown, allowed: readonly string[]) => { const k = String(v ?? "").trim().toLowerCase(); return allowed.includes(k) ? k : null; };
+    const requestedShot = String(answer?.shot ?? "").trim().toLowerCase();
+    const selected = ids.has(requestedShot) ? slot.candidates.find((c) => c.id === requestedShot)! : null;
+    const shot = selected?.id ?? fallbackShot(slot, previousClip);
+    const chosen = slot.candidates.find((c) => c.id === shot)!;
+    previousClip = chosen.clip;
+
+    const one = (v: unknown, allowed: readonly string[]) => {
+      const k = String(v ?? "").trim().toLowerCase();
+      return allowed.includes(k) ? k : null;
+    };
     const hits = slot.music?.hits ?? [], keys: Accent[] = [];
-    for (const k of s.keys ?? []) {
+    for (const k of answer?.keys ?? []) {
       const kind = one(k.do, ACCENTS) as Accent["do"] | null; let at = Number(k.at);
       if (!kind || !Number.isFinite(at) || at < 0.03 || at > slot.len - 0.05) continue;
       const near = hits.reduce<number | null>((b, h) => (Math.abs(h.at - at) <= 0.12 && (b === null || Math.abs(h.at - at) < Math.abs(b - at)) ? h.at : b), null);
@@ -277,13 +304,22 @@ export function parsePlan(d: DirectIn, a: AnswerIn): { slots: DirectedSlot[]; st
       keys.push({ at: Math.round(at * 100) / 100, do: kind });
       if (keys.length === LIMITS.keys) break;
     }
+
+    // A safe complete edit is better than a missing cut or a null renderer instruction.
+    const allowedTransitions = d.allowed ? TRANSITIONS.filter((x) => x === "hard" || d.allowed!.tr.includes(x)) : TRANSITIONS;
+    const allowedEffects = d.allowed ? EFFECTS.filter((x) => x === "none" || d.allowed!.fx.includes(x)) : EFFECTS;
+    const transition = one(answer?.transition, allowedTransitions) ?? "hard";
+    const effect = one(answer?.effect, allowedEffects) ?? "none";
+    const speed = one(answer?.speed, SPEEDS) ?? "normal";
+    const move = cleanMove(answer?.move ?? []);
+    const clip = cleanClip(answer?.clip);
     slots.push({
-      i, shot: ids.has(shot) ? shot : null,
-      transition: one(s.transition, TRANSITIONS), effect: one(s.effect, EFFECTS), speed: one(s.speed, SPEEDS),
-      keys: keys.sort((x, y) => x.at - y.at), move: cleanMove(s.move ?? []), ...(cleanClip(s.clip) ? { clip: cleanClip(s.clip) } : {}), why: clean(s.why, 60),
+      i: slot.i, shot, transition, effect, speed,
+      keys: keys.sort((x, y) => x.at - y.at), move,
+      ...(clip ? { clip } : {}),
+      why: clean(answer?.why ?? "automatic safe completion", 60),
     });
   }
-  if (!slots.length) throw new AIResponseError("The AI director returned no usable plan.");
   return { slots: slots.sort((x, y) => x.i - y.i), story: clean(a.story, 160) };
 }
 
