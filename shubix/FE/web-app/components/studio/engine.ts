@@ -3063,10 +3063,10 @@ function drawShot(g, e, local, o={}){
   let scale = (kf(K.scale,local) ?? 1) * (o.scale||1) * (o.noFx ? 1 : emphAt(e.start + local));
   let x = (kf(K.x,local) ?? 0)*W + (o.dx||0), y = (o.dy||0), rot = (kf(K.rot,local) ?? 0) + (o.rot||0);
   const sh = kf(K.shake,local) || 0;
-  if(sh){ x += Math.sin(local*97)*0.02*W*sh; y += Math.cos(local*71)*0.016*H*sh; rot += Math.sin(local*53)*1.4*sh; }
+  if(sh){ x += Math.sin(local*38)*0.007*W*sh; y += Math.cos(local*29)*0.005*H*sh; rot += Math.sin(local*23)*0.45*sh; }   // a light shake (stronger read as the video vibrating)
   if(K.bounce && e.beatsIn) scale *= beatPulse(e, local).s;
   const ac = o.noFx ? null : accentAt(e, local);
-  if(ac){ scale *= ac.s; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
+  if(ac){ scale *= ac.s; if(ac.sh){ x += Math.sin(local*38)*0.01*W*ac.sh; y += Math.cos(local*29)*0.008*H*ac.sh; rot += Math.sin(local*23)*0.7*ac.sh; } }
   const am = uAt(e.ak, local);   // the AI director's camera keyframes
   if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
@@ -4295,11 +4295,11 @@ function layerOf(e, local, o={}){
   let scale = (kf(K.scale,local) ?? 1)*(o.scale||1)*(o.noFx ? 1 : emphAt(e.start + local));
   let x = (kf(K.x,local) ?? 0)*W + (o.dx||0), y = o.dy||0, rot = (kf(K.rot,local) ?? 0) + (o.rot||0);
   const sh = kf(K.shake,local) || 0;
-  if(sh){ x += Math.sin(local*97)*0.02*W*sh; y += Math.cos(local*71)*0.016*H*sh; rot += Math.sin(local*53)*1.4*sh; }
+  if(sh){ x += Math.sin(local*38)*0.007*W*sh; y += Math.cos(local*29)*0.005*H*sh; rot += Math.sin(local*23)*0.45*sh; }   // a light shake (stronger read as the video vibrating)
   let expo = o.noFx ? 0 : (kf(K.expo,local) || 0);
   if(K.bounce && e.beatsIn){ const bp = beatPulse(e, local); scale *= bp.s; if(!o.noFx) expo += bp.ex; }
   const ac = o.noFx ? null : accentAt(e, local);
-  if(ac){ scale *= ac.s; expo += ac.ex; if(ac.sh){ x += Math.sin(local*97)*0.03*W*ac.sh; y += Math.cos(local*71)*0.025*H*ac.sh; rot += Math.sin(local*53)*2.2*ac.sh; } }
+  if(ac){ scale *= ac.s; expo += ac.ex; if(ac.sh){ x += Math.sin(local*38)*0.01*W*ac.sh; y += Math.cos(local*29)*0.008*H*ac.sh; rot += Math.sin(local*23)*0.7*ac.sh; } }
   const am = uAt(e.ak, local);   // the AI director's camera keyframes
   if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local);
