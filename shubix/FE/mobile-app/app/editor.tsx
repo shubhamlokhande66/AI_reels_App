@@ -257,7 +257,7 @@ export default function EditorScreen() {
         const values: Record<string, Record<string, number>> = { "No fade": { fin: 0, fout: 0 }, "Fade in": { fin: 0.5, fout: 0 }, "Fade out": { fin: 0, fout: 0.6 }, "Fade both": { fin: 0.5, fout: 0.6 } };
         void studioPatch(values[v]);
       }} />;
-      case "mosaic": return <Choices items={["Add mosaic", "Remove mosaic", "Face blur area"]} onPick={(v) => void studioPatch({ mz: v === "Remove mosaic" ? null : { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 } })} />;
+      case "mosaic": return <Choices items={["Add mosaic region", "Remove mosaic", "Blur centre region"]} onPick={(v) => void studioPatch({ mz: v === "Remove mosaic" ? null : { x: v === "Blur centre region" ? 0.32 : 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 } })} />;
       case "lens": return <Choices items={["Add magnifier", "Remove magnifier", "Zoom 1.5×", "Zoom 2×", "Zoom 3×"]} onPick={(v) => {
         if (v === "Remove magnifier") return void studioPatch({ mg: null });
         void studioPatch({ mg: { x: 0.5, y: 0.45, r: 0.18, z: v === "Zoom 1.5×" ? 1.5 : v === "Zoom 2×" ? 2 : v === "Zoom 3×" ? 3 : 2 } });
