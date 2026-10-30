@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Modal, ScrollView, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
-import * as MediaLibrary from "expo-media-library";
+import * as MediaLibrary from "expo-media-library/legacy";
 import * as Sharing from "expo-sharing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useStudioText } from "@shubix/hooks";

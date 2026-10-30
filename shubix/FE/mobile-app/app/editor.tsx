@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useStudioText } from "@shubix/hooks";
 import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
@@ -12,6 +11,7 @@ import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
 import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { ExportScreen } from "../components/organisms/ExportScreen";
+import { pickInOrder } from "../components/organisms/Gallery";
 import { videoEngine } from "../lib/video";
 import { engine } from "../lib/engine";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
@@ -73,10 +73,10 @@ export default function EditorScreen() {
   const ended = useCallback(() => { setLocal(0); setSelected((i) => { if (i + 1 < (p?.clips.length ?? 0)) return i + 1; setPlaying(false); return 0; }); }, [p?.clips.length]);
 
   async function addClips(replace = false) {
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos", "images"], allowsMultipleSelection: !replace, orderedSelection: true, selectionLimit: 30, quality: 0.9 });
-    if (r.canceled || !r.assets.length || !p) return;
+    const assets = await pickInOrder({ kind: "both", limit: replace ? 1 : 30 }); // in the order tapped
+    if (!assets?.length || !p) return;
     try {
-      const got = await keepPickedAssets(`${p.id}-${Date.now()}`, r.assets);
+      const got = await keepPickedAssets(`${p.id}-${Date.now()}`, assets);
       setClips(replace && clip ? clips.map((c, i) => (i === selected ? { ...got[0], id: c.id } : c)) : [...clips, ...got]);
     } catch (e) { toast(errorMessage(e), "danger"); }
   }

@@ -11,6 +11,7 @@ import { api } from "../lib/session";
 import { useThemePref } from "../lib/theme";
 import { AppFrame } from "../components/templates/AppFrame";
 import { EngineHost } from "../lib/engine";
+import { GalleryHost } from "../components/organisms/Gallery";
 
 export default function RootLayout() {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 45_000, retry: 1 } } }));
@@ -20,6 +21,7 @@ export default function RootLayout() {
       <StatusBar style={look.theme === "dark" ? "light" : "dark"} />
       <AppFrame><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: themes[look.theme].background }, animation: "fade" }} /></AppFrame>
       <EngineHost />
+      <GalleryHost />
     </ThemeProvider></QueryClientProvider></ApiProvider></SafeAreaProvider></GestureHandlerRootView>
   );
 }

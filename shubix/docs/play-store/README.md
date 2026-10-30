@@ -12,23 +12,21 @@ Replace `https://SITE` with the live website.
 | Delete account (web link) | `https://SITE/delete-account`: public, no sign-in needed. Says how to delete in the app (My account → Delete account) and without it (email), and what is deleted and kept. Its text: Admin → CMS → Legal pages → Delete your account |
 | Delete account (in the app) | Yes: My account → Delete account |
 
-## Photo and video permissions (no declaration needed)
+## Photo and video permissions (declaration needed)
 
-The app asks for **no** photo, video or audio read permission, so Play's *Photo and video permissions* declaration
-does not apply:
+The app asks for **READ_MEDIA_VIDEO and READ_MEDIA_IMAGES** (and READ_MEDIA_VISUAL_USER_SELECTED: Android 14's "some
+photos"): its own gallery (`components/organisms/Gallery.tsx`) numbers clips in the order they are tapped, which "In my
+order" needs and which Android's photo picker cannot promise (many phones give picked items newest first).
 
-- clips and photos come from Android's **photo picker** (`expo-image-picker`), songs from the **file picker**
-  (`expo-document-picker`): the person picks, no permission is needed;
-- finished Reels are **saved** to the gallery write-only (`MediaLibrary.requestPermissionsAsync(true)`): no read
-  permission on Android 13+, `WRITE_EXTERNAL_STORAGE` only on Android 12 and older;
-- `app.json` → `android.blockedPermissions` removes READ_MEDIA_IMAGES / VIDEO / AUDIO / VISUAL_USER_SELECTED,
-  ACCESS_MEDIA_LOCATION, CAMERA, RECORD_AUDIO and SYSTEM_ALERT_WINDOW, even when a library asks for them.
+Play Console → App content → **Photo and video permissions**: core functionality. Suggested text:
 
-Check after each build: `aapt dump permissions app.apk` must show none of those.
+> Shubix is a video editor: people choose many clips from their gallery, in the order they should play, to make one
+> Reel. The app shows the gallery so each clip is numbered in the order tapped; the system photo picker does not keep
+> that order. Media is read only when the person opens Add clips.
 
-Expected in the app: INTERNET, POST_NOTIFICATIONS ("Reel exported"), and AdMob's
-`com.google.android.gms.permission.AD_ID`; the libraries may add small ones (WAKE_LOCK, VIBRATE). Any other one
-needs a reason here before upload.
+Still blocked (`app.json` → `android.blockedPermissions`): READ_MEDIA_AUDIO, ACCESS_MEDIA_LOCATION, CAMERA,
+RECORD_AUDIO, SYSTEM_ALERT_WINDOW. Songs come from the file picker; finished Reels are saved without extra permissions.
+Without the gallery permission the app falls back to the system picker (order may then need the tap-to-move fix).
 
 ## Ads
 

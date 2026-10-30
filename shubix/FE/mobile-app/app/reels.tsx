@@ -2,7 +2,7 @@ import { useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, Modal, Pressable, Share, Text, View, useWindowDimensions } from "react-native";
 import { useQuery } from "@tanstack/react-query";
-import * as MediaLibrary from "expo-media-library";
+import * as MediaLibrary from "expo-media-library/legacy";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useText } from "@shubix/hooks";
 import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors, confirmAction, toast } from "@shubix/ui-mobile";

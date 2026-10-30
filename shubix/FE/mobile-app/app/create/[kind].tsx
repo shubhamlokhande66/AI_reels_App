@@ -13,6 +13,7 @@ import { errorMessage } from "@shubix/api-client";
 import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
 import { AskShubix, styleFromWords } from "../../components/organisms/AskShubix";
+import { pickInOrder } from "../../components/organisms/Gallery";
 import { AI_STEPS, FlowAdjust, FlowAnalyse, FlowChoose, FlowClips, FlowHead, FlowIntro, KINDS, ORDER, type ClipSettings, type FlowKind, type FlowStep } from "../../components/organisms/CreateFlow";
 
 /** Create (the website's /create/music, /talking, /photo, /copy on a phone): the flow's screens one at a time, with
@@ -59,8 +60,8 @@ export default function CreateScreen() {
     if (engineOn && music) try { setStart((await engine.part(t)).start); } catch (e) { toast(errorMessage(e), "danger"); }
   }
   async function addMedia() {
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: photos ? ["images"] : ["videos"], allowsMultipleSelection: true, orderedSelection: true, selectionLimit: Math.max(1, 30 - media.length), quality: 0.9 }); // in the order tapped ("In my order")
-    if (!r.canceled) setMedia((old) => [...old, ...r.assets].slice(0, 30));
+    const got = await pickInOrder({ kind: photos ? "image" : "video", limit: Math.max(1, 30 - media.length) }); // in the order tapped ("In my order")
+    if (got) setMedia((old) => [...old, ...got].slice(0, 30));
   }
   // Analysing: the clips and the song kept on the phone, the Reel made by the website's engine (its shots on the beats,
   // their transitions and effects), the draft saved, then the editor. Without the engine (Expo Go) the clips play in turn.
