@@ -1146,8 +1146,8 @@ async function clipSoundCheck(){
   const was = !box.hidden;
   box.hidden = !any || kind === 'talk';
   // said once: what happens to it, and where to change it
-  if(!box.hidden && !was && !clipSoundTold){ clipSoundTold = true; notify((au.clip || 'all') === 'mute' ? "Your clips' own sound is muted under the song. Change it in Music." : "Your clips' own sound: change it in Music."); }
-  [...$('csnd').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === (au.clip || 'all'))));
+  if(!box.hidden && !was && !clipSoundTold){ clipSoundTold = true; notify((au.clip || 'mute') === 'mute' ? "Your clips' own sound is muted under the song. Change it in Music." : "Your clips' own sound: change it in Music."); }
+  [...$('csnd').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.c === (au.clip || 'mute'))));
 }
 $('csnd').addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return;
   au = { ...au, clip: b.dataset.c }; [...$('csnd').children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
@@ -5770,7 +5770,7 @@ function voStat(t){ $('vostat').textContent = t; }
 // people speak), all (every shot's sound, a little under the song)
 // sfx: the automatic sound effects (a whoosh into a swipe, a boom on a drop...) are off by default: a whoosh on every
 // swipe is what makes an edit sound home-made; they are one tap away (Music → Sound effects) and can be added by hand
-const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'all', sfx: false, sfxv: 0.6 };   // the clips' own sound kept under the song (Music: mute it or keep only voices)
+const AU0 = { mvol: 1, mfin: 0, mfout: 0, vfx: 'none', ai: true, clip: 'mute', sfx: false, sfxv: 0.6 };
 const musicOut = () => au.mfout || (au.ai ? 0.8 : 0);
 let au = { ...AU0 }, clipMixKey = '';
 const fxCache = new Map();

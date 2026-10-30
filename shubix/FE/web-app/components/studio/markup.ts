@@ -444,7 +444,7 @@ export const STUDIO_HTML = `
             <b>Your clips have their own sound</b>
             <small>Wind, traffic, people talking… Choose what the Reel keeps under the song.</small>
             <div class="${Segmented.wide}" id="csnd" role="group" aria-label="The clips' own sound">
-            <button data-c="mute" aria-pressed="false">Mute it</button><button data-c="voices" aria-pressed="false">Keep voices only</button><button data-c="all" aria-pressed="true">Keep all</button>
+            <button data-c="mute" aria-pressed="true">Mute it</button><button data-c="voices" aria-pressed="false">Keep voices only</button><button data-c="all" aria-pressed="false">Keep all</button>
             </div>
             </div>
             <div class="ausliders musiconly">
