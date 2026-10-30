@@ -120,7 +120,7 @@ export function createDirectorPlan(input: DirectorInput): DirectorPlan {
   const target=clamp(input.targetDuration??Math.min(30,input.shots.reduce((n,s)=>n+s.duration,0)),5,180);
   const pace=mood==="energetic"?1.25:mood==="story"||mood==="product"?0.82:1;
   const ideal=clamp(target/Math.max(1,Math.ceil(target/(3.2/pace))),0.8,5.5);
-  const chosen: typeof ranked=[];
+  const chosen: Array<(typeof ranked)[number] & { duration: number }> = [];
   let used=0;
   for(const s of ranked){
     if(used>=target)break;
