@@ -60,9 +60,12 @@ export function initBridge(root: HTMLElement): () => void {
   const OPS: Record<string, (a: Record<string, unknown>) => Promise<unknown>> = {
     async setup(a) { files = String(a.files); key = String(a.key); token = String(a.token || ""); await until(() => !!studio(), 60_000); return { ok: true }; },
     async song(a) {
-      put($("mfile"), [await fileOf(String(a.path), String(a.name))]); await until(() => !!studio()?.work.songReady);
-      const r = studio()!.songR!, n = (k: string) => r.cutType.filter((t) => t === k).length;
-      return { duration: studio()!.dur, bpm: Math.round(60 / r.period), beats: r.beats.length, drops: n("drop"), breaks: n("break") };
+      const st = studio(), previous = st?.songR;
+      const name = String(a.name);
+      put($("mfile"), [await fileOf(String(a.path), name)]);
+      await until(() => !!studio()?.work.songReady && !!studio()?.songR && studio()?.songR !== previous);
+      const current = studio()!, r = current.songR!, n = (k: string) => r.cutType.filter((t) => t === k).length;
+      return { duration: current.dur, bpm: Math.round(60 / r.period), beats: r.beats.length, drops: n("drop"), breaks: n("break") };
     },
     async clips(a) {
       const list = a.paths as { path: string; name: string }[], got: File[] = [];
