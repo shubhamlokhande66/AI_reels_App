@@ -12,11 +12,11 @@ import { AIResponseError } from "../ai/types";
  *   1. pace(): how fast to cut in each section of the song (a cut every 1, 2, 4 or 8 beats)
  *   2. direct(): for every cut, which offered moment, its transition, effect and speed, and keyframes placed on the
  *      hits inside the shot (a punch on the tabla hit, a shake on the bass)
- * The AI is free: every tool of the studio is open to it (transitions, effects, beat shapes, camera keyframes as wide as
- * the creator's own, keys on the hits, speed, each shot's own settings), with no style limits. The phone only checks
- * that each choice can be played (a known tool, inside the shot, footage that exists); the style is the AI's. Each
- * Reel is asked to feel new: the tools used in the creator's last Reels are listed so the AI makes other choices.
- * Without the AI, the phone's own rules make the edit. */
+ * The AI may propose from the studio's full creative toolbox (transitions, effects, beat shapes, camera keyframes,
+ * accents, speed and per-shot looks). The phone is the final authority: it validates the selected style, plan locks,
+ * shot duration, transition budgets, footage availability and renderability before applying any choice. Each Reel is
+ * asked to feel new: the tools used in the creator's last Reels are listed so the AI makes other choices. Without the
+ * AI, the phone's own rules make the edit. */
 
 export const TASK = "studio_director";
 export const TRANSITIONS = ["hard", "fadein", "flash", "whip", "zoom", "glitch", "dip", "dissolve", "iris", "wipe", "bars", "spin", "diamond", "heart", "star",
