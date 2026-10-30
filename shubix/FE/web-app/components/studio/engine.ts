@@ -3812,7 +3812,7 @@ const KF_NEAR = 0.04;
 const KF_SL = { x: { min: -1, max: 1, step: 0.005, show: v => Math.round(v*100) + '%' }, y: { min: -1, max: 1, step: 0.005, show: v => Math.round(v*100) + '%' },
   s: { min: 0.1, max: 4, step: 0.01, show: v => v.toFixed(2) + '×' }, r: { min: -360, max: 360, step: 1, show: v => Math.round(v) + '°' }, o: { min: 0, max: 1, step: 0.01, show: v => Math.round(v*100) + '%' } };
 const KF_NAME = { x: 'Move ↔', y: 'Move ↕', s: 'Zoom', r: 'Rotate', o: 'Opacity' };
-const KF_EASE = { inOut: 'Smooth', lin: 'Linear', outCubic: 'Ease out', inQuad: 'Ease in', outBack: 'Overshoot', outExpo: 'Fast stop', hold: 'Hold (jump)' };
+const KF_EASE = { inOut: 'Smooth', lin: 'Linear', outCubic: 'Ease out', inQuad: 'Ease in', outBack: 'Overshoot', outExpo: 'Fast stop', bezier: 'Bezier', hold: 'Hold (jump)' };
 const kq = (t, v = {}, ez) => ({ ...UK0, ...v, t, ...(ez ? { ez } : {}) });
 const KF_PRESETS = {
   zoomin: { name: 'Slow zoom in', make: d => [kq(0), kq(d, { s: 1.3 }, 'lin')] },
