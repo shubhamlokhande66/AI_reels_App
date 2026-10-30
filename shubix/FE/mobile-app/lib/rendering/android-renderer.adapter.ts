@@ -1,7 +1,8 @@
-import type {
-  RenderJobSpec,
-  RendererAdapter,
-  RendererCapabilities,
+import {
+  validateRenderJob,
+  type RenderJobSpec,
+  type RendererAdapter,
+  type RendererCapabilities,
 } from "@shubix/core/engine/rendering";
 
 export interface ShubixVideoNativeModule {
@@ -41,6 +42,10 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
   let active = false;
 
   const assertSupported = (job: RenderJobSpec) => {
+    const validationErrors = validateRenderJob(job);
+    if (validationErrors.length) {
+      throw new UnsupportedAndroidRenderFeature(validationErrors.join(" "));
+    }
     if (job.output.container !== "mp4" || job.output.videoCodec !== "h264" || job.output.audioCodec !== "aac") {
       throw new UnsupportedAndroidRenderFeature("Android Media3 currently exports MP4 with H.264 video and AAC audio only.");
     }
