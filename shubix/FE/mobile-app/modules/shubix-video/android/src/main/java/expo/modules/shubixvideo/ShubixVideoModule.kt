@@ -165,6 +165,11 @@ class ShubixVideoModule : Module() {
     "Cyberpunk" -> listOf(Contrast(0.18f), RgbAdjustment.Builder().setRedScale(1.15f).setGreenScale(0.9f).setBlueScale(1.2f).build())
     "Dreamy" -> listOf(Brightness(0.09f), Contrast(-0.14f))
     "Black & White" -> listOf(RgbFilter.createGrayscaleFilter(), Contrast(0.16f))
+    "Soft Focus" -> listOf(GaussianBlur(2.4f), Brightness(0.035f), Contrast(-0.04f))
+    "Color Pop" -> listOf(HslAdjustment.Builder().adjustSaturation(28f).build(), Contrast(0.12f))
+    "Muted" -> listOf(HslAdjustment.Builder().adjustSaturation(-24f).build(), Contrast(-0.04f))
+    "Sunset" -> listOf(HslAdjustment.Builder().adjustHue(12f).adjustSaturation(12f).adjustLightness(2f).build(), RgbAdjustment.Builder().setRedScale(1.08f).setBlueScale(0.92f).build())
+    "Arctic" -> listOf(HslAdjustment.Builder().adjustHue(-12f).adjustSaturation(8f).build(), RgbAdjustment.Builder().setRedScale(0.92f).setBlueScale(1.1f).build())
     else -> emptyList()
   }
 
