@@ -42,7 +42,6 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       uri: clip.uri,
       kind: clip.kind,
       durationMs: clip.sourceDuration * 1000,
-      rotation: clip.rotation as 0 | 90 | 180 | 270,
     });
 
     const durationMs = clipDuration(clip) * 1000;
