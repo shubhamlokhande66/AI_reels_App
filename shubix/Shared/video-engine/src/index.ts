@@ -258,3 +258,18 @@ export const MASK_LIBRARY: readonly MaskKind[] = ["rectangle","ellipse","linear"
 export const BLEND_MODES = ["normal","multiply","screen","overlay","soft-light","hard-light","color-dodge","color-burn","difference","exclusion","hue","saturation","color","luminosity"] as const;
 export const AUDIO_TOOLS = ["volume","fade-in","fade-out","ducking","voice-isolation","noise-reduction","compressor","limiter","equalizer","reverb","delay","stereo-width","beat-sync"] as const;
 export const TEXT_TOOLS = ["font","weight","tracking","leading","fill","gradient","stroke","shadow","background","highlight","reveal","typewriter","karaoke","tracking-follow","safe-area"] as const;
+
+
+export type AudioEnvelope = { volume?: number; duration: number; fadeIn?: number; fadeOut?: number };
+
+/** Evaluate a deterministic music gain envelope at a timeline position (seconds). */
+export function evaluateAudioGain(time: number, envelope: AudioEnvelope): number {
+  const duration = Math.max(0, Number.isFinite(envelope.duration) ? envelope.duration : 0);
+  const position = clamp(Number.isFinite(time) ? time : 0, 0, duration);
+  const volume = clamp(envelope.volume ?? 1, 0, 1);
+  const fadeIn = Math.max(0, envelope.fadeIn ?? 0);
+  const fadeOut = Math.max(0, envelope.fadeOut ?? 0);
+  const inGain = fadeIn > 0 ? clamp(position / fadeIn, 0, 1) : 1;
+  const outGain = fadeOut > 0 ? clamp((duration - position) / fadeOut, 0, 1) : 1;
+  return volume * Math.min(inGain, outGain);
+}
