@@ -3279,10 +3279,12 @@ function drawLayers(g, t){
     if(L.mask !== 'none' || L.rad > 0){ layerMask(q, L, dw, dh); }
     q.restore();
     const life = t - L.t0, left = L.t1 - t, a = L.op * Math.min(L.fin > 0 ? Math.min(1, life/L.fin) : 1, L.fout > 0 ? Math.min(1, left/L.fout) : 1);
-    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.globalCompositeOperation = L.blend || 'source-over'; g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
+    const face = L.follow === 'face' ? facePosOnScreen(t) : null;
+    const lx = face ? face.x + (L.followOffsetX || 0) : L.x, ly = face ? face.y + (L.followOffsetY || 0) : L.y;
+    g.save(); g.globalAlpha = Math.max(0, Math.min(1, a)); g.globalCompositeOperation = L.blend || 'source-over'; g.translate(lx*W, ly*H); if(L.r) g.rotate(L.r*Math.PI/180); g.scale(L.fh ? -1 : 1, L.fv ? -1 : 1);
     g.drawImage(lyBuf, -dw/2, -dh/2); g.restore();
     if(L === layers[lySel] && !exporting && !recording && !playing){   // the chosen layer: a thin frame (preview only)
-      g.save(); g.translate(L.x*W, L.y*H); if(L.r) g.rotate(L.r*Math.PI/180); g.strokeStyle = 'rgba(176,92,255,0.95)'; g.lineWidth = Math.max(2, W*0.004); g.setLineDash([W*0.012, W*0.008]); g.strokeRect(-dw/2, -dh/2, dw, dh); g.restore(); }
+      g.save(); g.translate(lx*W, ly*H); if(L.r) g.rotate(L.r*Math.PI/180); g.strokeStyle = 'rgba(176,92,255,0.95)'; g.lineWidth = Math.max(2, W*0.004); g.setLineDash([W*0.012, W*0.008]); g.strokeRect(-dw/2, -dh/2, dw, dh); g.restore(); }
   }
 }
 /* chroma key (green screen): pixels near the key colour become see-through, with a soft edge and the colour's spill
@@ -3469,16 +3471,16 @@ function buildCapLines(words){
   return lines.map((ws,k)=>({ words: ws, a: ws[0].start - 0.12, b: ws[ws.length-1].end + 0.3 })).map((l,k,arr)=>({ ...l, b: arr[k+1] ? Math.min(l.b, arr[k+1].a - 0.02) : l.b }));
 }
 // where a face is on the screen at t (fraction of the height), if the shot follows one
-function faceYOnScreen(t){
+function facePosOnScreen(t){
   if(!edit.length) return null;
-  const e = edit[segAt(t)], src = sources[e.src]; if(!src || !src.faces) return null;
-  const st = srcPos(e, Math.max(0, t - e.start)), near = src.faces.filter(f=>f.n && Math.abs(f.t - st) < 0.6);
+  const e = edit[segAt(t)], src = sources[e.src]; if(!src || !src.faces?.length) return null;
+  const local = Math.max(0, t - e.start), st = srcPos(e, local), near = src.faces.filter(f=>f.n && Math.abs(f.t - st) < 0.6);
   if(!near.length) return null;
   const f = near.reduce((q,x)=>Math.abs(x.t-st) < Math.abs(q.t-st) ? x : q, near[0]);
-  const W=out.width, H=out.height, r = Math.max(W/src.w, H/src.h), dh = src.h*r, [, ccy] = camAt(e, t - e.start);
-  let py = H/2 - ccy*dh; py = Math.min(0, Math.max(H-dh, py));
-  return (py + f.fy*dh)/H;
+  const W=out.width, H=out.height, r = Math.max(W/src.w, H/src.h), dw=src.w*r, dh=src.h*r, [ccx, ccy] = camAt(e, local);
+  return { x: Math.max(0, Math.min(1, 0.5 + (f.fx-ccx)*dw/W)), y: Math.max(0, Math.min(1, 0.5 + (f.fy-ccy)*dh/H)) };
 }
+function faceYOnScreen(t){ const face = facePosOnScreen(t); return face ? face.y : null; }
 function drawCaptions(t){
   if(!capsOn || !capLines) return;
   const line = capLines.find(l => t >= l.a && t < l.b); if(!line) return;
