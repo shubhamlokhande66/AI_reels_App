@@ -4,7 +4,7 @@
 // (every secret is passed to the app).
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "reel-maker",
+  "name": "shubix-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
