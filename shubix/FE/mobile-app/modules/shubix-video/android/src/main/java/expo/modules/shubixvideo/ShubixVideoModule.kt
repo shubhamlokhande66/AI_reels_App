@@ -56,7 +56,7 @@ class ShubixVideoModule : Module() {
   private var activeExport: ActiveExport? = null
   private var files: FileServer? = null
 
-  /** Settle the JS Promise once. A cancelled export keeps the native busy lock until Media3 calls back. */
+  /** Settle the JS Promise once. Media3 cancel() blocks until cancellation cleanup has completed. */
   private fun settleExport(session: ActiveExport, error: Throwable? = null, result: Map<String, Any>? = null) {
     if (session.settled) return
     session.settled = true
@@ -85,11 +85,14 @@ class ShubixVideoModule : Module() {
     val session = activeExport ?: return
     if (session.cancelRequested) return
     session.cancelRequested = true
-    // Keep activeExport locked until Media3 confirms termination in onError/onCompleted.
+    // Media3 1.8.0 cancel() blocks until its internal cancellation and resource cleanup finish.
+    // A cancelled export is not guaranteed to dispatch onError/onCompleted, so release here.
     try {
       session.transformer?.cancel()
-      settleExport(session, ExportCancelledException())
     } catch (_: Exception) {
+      // Cancellation still settles the JS request; cleanup below is best-effort.
+    } finally {
+      session.output?.let { if (it.exists()) it.delete() }
       settleExport(session, ExportCancelledException())
       releaseExport(session)
     }
