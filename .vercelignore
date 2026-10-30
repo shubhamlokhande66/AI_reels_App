@@ -1,0 +1,15 @@
+# Vercel builds only the website (shubix/FE/web-app; Root Directory in the project). The other workspace packages keep
+# their package.json (pnpm's lockfile lists them all); their code stays out of the upload.
+**/node_modules
+**/.next
+**/.env*
+!**/.env.example
+logs
+shubix/logs
+shubix/samples
+shubix/docs
+shubix/infra
+shubix/BE/api/*
+!shubix/BE/api/package.json
+shubix/FE/mobile-app/*
+!shubix/FE/mobile-app/package.json

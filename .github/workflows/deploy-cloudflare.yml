@@ -1,7 +1,8 @@
 name: Deploy to Cloudflare
 on:
   push:
-    branches: [main]
+    # main: the live app; monorepo: the new API Worker (shubix-api, infra/cloudflare/wrangler.jsonc) beside it
+    branches: [main, monorepo]
     paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 concurrency:

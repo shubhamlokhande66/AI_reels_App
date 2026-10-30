@@ -81,3 +81,5 @@ scripts/studio-keyframes/out/
 *.jks
 *.keystore
 android/keystore.properties
+.env*
+!.env.example
