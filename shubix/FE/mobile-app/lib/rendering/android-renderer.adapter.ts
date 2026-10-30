@@ -128,7 +128,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
             speed: source.kind === "image" ? 1 : item.playbackRate,
             rotation: item.rotation ?? source.rotation ?? 0,
             mirror: item.mirror ?? false,
-            flip: false,
+            flip: item.flip ?? false,
             fit: item.fit === "contain" ? "contain" : "cover",
             filter: typeof filter === "string" ? filter : "Original",
             muted: item.muted ?? false,
