@@ -28,9 +28,18 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     if (!reel) return;
     let live = true;
     setPct(0); setDone(null); setSaved(false);
-    // made by the website's engine (the editor's changes sent back to it): its own export (the transitions and effects); else the phone's
-    (reel.studio ? engine.edit(reel).catch(() => false) : Promise.resolve(false)).then((studio) => studio ? engine.exportReel(`${reel.id}.mp4`) : exportReel(reel, (p) => live && setPct(p)))
-      .then(async (r) => {
+    // A Studio-originated Reel must use the Studio renderer so its layers, masks, effects and keyframes survive export.
+    // Never silently downgrade it to the simpler native renderer when the hidden Studio session is unavailable.
+    const make = async () => {
+      if (reel.studio) {
+        if (!engine.holds(reel.id)) throw new Error("The original Studio editing session is not available. Reopen this Reel from Fast Studio before exporting so its advanced effects and layers are preserved.");
+        const synced = await engine.edit(reel);
+        if (!synced) throw new Error("Studio could not sync this edit. Your advanced effects have been kept; reopen the Reel in Fast Studio and try Export again.");
+        return engine.exportReel(`${reel.id}.mp4`);
+      }
+      return exportReel(reel, (p) => live && setPct(p));
+    };
+    make().then(async (r) => {
         if (!live) return;
         setPct(1); setDone(r); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
         const ok = (await MediaLibrary.requestPermissionsAsync(true)).granted;
