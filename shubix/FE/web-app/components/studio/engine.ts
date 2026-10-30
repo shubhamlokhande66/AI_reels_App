@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
-import { createDirectorPlan } from '@shubix/video-engine';
+import { createDirectorPlan, evaluateKeyframes } from '@shubix/video-engine';
 import { chatSize } from '@shubix/core/lib/chatSize';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
@@ -2705,9 +2705,26 @@ function makeEditNow(){
     tasteFx(e, i, taste);
     // When the optional cloud AI director is unavailable, apply the shared on-device director's
     // renderable treatment as a conservative fallback. Never overwrite an explicit AI choice.
-    if(!dirInfo && !e.fxByDir && e.efx === 'none' && shared){
-      const fx = shared.effects.find(id => !!FX_NAME[id]);
-      if(fx && (e.end - e.start) >= 0.65) e.efx = fx;
+    if(!dirInfo && shared){
+      if(!e.fxByDir && e.efx === 'none'){
+        const fx = shared.effects.find(id => !!FX_NAME[id]);
+        if(fx && (e.end - e.start) >= 0.65) e.efx = fx;
+      }
+      // The shared plan's transition IDs are renderer-native; keep explicit rules/AI choices intact.
+      if(i > 0 && !e.trByDir && e.tr === 'hard' && shared.transition !== 'hard' && shared.transition in TR_DUR) e.tr = shared.transition;
+      // Apply the shared camera keyframes to the same WebGL/2D draw path used by preview and MP4 export.
+      if(!e.ak || !e.ak.length){
+        const len = e.end - e.start, scaleTrack = shared.keyframes.find(track => track.property === 'scale');
+        const xTrack = shared.keyframes.find(track => track.property === 'x');
+        if(len >= 0.3 && scaleTrack && xTrack){
+          const sourceDuration = Math.max(0.001, shared.duration);
+          e.ak = [0, len].map(t => {
+            const sourceTime = t / len * sourceDuration;
+            return { t, s: evaluateKeyframes(scaleTrack.keyframes, sourceTime), x: evaluateKeyframes(xTrack.keyframes, sourceTime), y: 0, r: 0, o: 1, ez: 'inOut' };
+          });
+        }
+      }
+      if(e.type === 'drop' && shared.speed > 1.05 && (e.end - e.start) >= 0.4) e.sp = rampSpeed(e.end - e.start);
     }
     if(shared && !e.why) e.why = shared.reason;
     e.kf = keyframesFor(e);
