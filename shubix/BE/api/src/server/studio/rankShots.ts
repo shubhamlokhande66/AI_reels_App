@@ -129,7 +129,11 @@ async function ensureShotCacheIndexes(col: Collection<ShotCacheDoc>) {
   cacheGlobals.__studioShotCacheIndexes ??= Promise.all([
     col.createIndex({ ownerId: 1, key: 1 }, { unique: true }),
     col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-  ]);
+  ]).catch((error) => {
+    // A failed index build must not poison every later request in this process.
+    cacheGlobals.__studioShotCacheIndexes = undefined;
+    throw error;
+  });
   await cacheGlobals.__studioShotCacheIndexes;
 }
 
@@ -147,11 +151,20 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
   for (const c of input.clips) for (const f of c.frames)
     if (Buffer.byteLength(f.image, "base64") > LIMITS.imageBytes) throw new AIResponseError("A frame is too large (keep each under 120 KB).");
 
-  const col = (await db()).collection<ShotCacheDoc>("studio_shot_cache");
-  await ensureShotCacheIndexes(col);
+  // Cache is an optimisation only. Database/index outages must never prevent a user from making a Reel.
+  let col: Collection<ShotCacheDoc> | null = null;
   const keys = input.clips.map((clip) => shotCacheKey(provider, clip));
-  const cachedDocs = await col.find({ key: { $in: keys }, expiresAt: { $gt: new Date() } }).toArray();
-  const cached = new Map(cachedDocs.map((d) => [d.key, d.result]));
+  const cached = new Map<string, RankedClip>();
+  try {
+    col = (await db()).collection<ShotCacheDoc>("studio_shot_cache");
+    await ensureShotCacheIndexes(col);
+    const cachedDocs = await col.find({ key: { $in: keys }, expiresAt: { $gt: new Date() } }).toArray();
+    for (const doc of cachedDocs) cached.set(doc.key, doc.result);
+  } catch {
+    // Fail open: rank normally and skip persistence for this request.
+    col = null;
+    cached.clear();
+  }
   const uniqueMisses = new Map<string, RankIn["clips"][number]>();
   for (let i = 0; i < input.clips.length; i++) if (!cached.has(keys[i]) && !uniqueMisses.has(keys[i])) uniqueMisses.set(keys[i], input.clips[i]);
 
@@ -164,7 +177,13 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
   const misses = [...uniqueMisses.entries()];
   const results = await pool(misses, 4, async ([key, clip]) => {
     const result = await rankClip(provider, clip);
-    await col.updateOne({ key }, { $set: { key, result, expiresAt: new Date(Date.now() + SHOT_CACHE_TTL) } }, { upsert: true });
+    if (col) {
+      try {
+        await col.updateOne({ key }, { $set: { key, result, expiresAt: new Date(Date.now() + SHOT_CACHE_TTL) } }, { upsert: true });
+      } catch {
+        // Concurrent requests can race on the unique key; cache write failure is non-fatal.
+      }
+    }
     return [key, result] as const;
   });
   const fresh = new Map<string, RankedClip>();
