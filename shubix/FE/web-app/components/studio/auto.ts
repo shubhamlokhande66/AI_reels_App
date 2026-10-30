@@ -20,8 +20,7 @@ const EXAMPLES: [string, string][] = [
 ];
 type StoryStyle = { id: string; name: string; free: boolean };
 
-/** how long the finished phone edit waits for the AI's choices before the video is made anyway */
-const AI_WAIT = 20_000;
+/** AI Director work must settle before export; the outer 10-minute timeout remains the hard stop. */
 
 const STAGES: [string, string][] = [
   ["song", "Listening to your song"], ["clips", "Reading your clips"], ["ai", "Choosing the best moments"],
@@ -201,15 +200,15 @@ export function initAuto(root: HTMLElement): () => void {
         const pClips = w.clips + w.pending ? w.clips / (w.clips + w.pending) : 0;
         const songP = w.songReady ? (w.beats ? 0.8 : 1) : w.song ? 0.4 : 0.1;
         // the second beat check (on-device AI) is not waited for: it improves the Reel afterwards. The AI's own
-        // choices get AI_WAIT after the rest is ready; a slower answer is used for the edit afterwards, not this video.
+        // choices are part of the exported first draft: do not export while the Director is still mutating the edit.
         const rest = w.pending > 0 || !w.songReady || w.speech || !w.shots, aiBusy = w.ai || w.dir;
         if (!rest && aiBusy && !aiSince) aiSince = Date.now();
         if (rest || !aiBusy) aiSince = 0;
-        const busy = rest || (aiBusy && Date.now() - aiSince < AI_WAIT);
+        const busy = rest || aiBusy;
         const stage = !w.songReady ? 0 : w.pending > 0 ? 1 : w.ai || w.dir || !w.shots ? 2 : w.speech || w.beats ? 3 : 3;
         setProg(0.05 + 0.15 * songP + 0.3 * pClips + (w.shots ? 0.1 : 0) + (stage >= 3 ? 0.05 : 0), (mode === "story" ? STORY_STAGES[stage + 1] : STAGES[stage])[1], stage);
         quiet = busy ? 0 : quiet + 1;
-        if (quiet >= 3) break;   // settled for a moment (a late AI answer can still remake the edit)
+        if (quiet >= 3) break;   // all analysis and Director work settled before the export snapshot
         if (Date.now() - t0 > 10 * 60_000) throw new Error("This is taking too long. Try fewer or shorter clips.");
       }
       setProg(0.6, STAGES[4][1], 4);
