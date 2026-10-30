@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "../../src/server/ai";
 import { CHUNK, chunks, cleanMove, direct, DirectIn, directPatch, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
+import { shotCacheKey } from "../../src/server/studio/rankShots";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
 const cand = (id: string, extra = {}) => ({ id, clip: "c1", at: 1.5, score: 1.2, note: "dancer spins", roles: ["action"], motion: "high", people: true, camera: "pans left", ...extra });
@@ -18,6 +19,19 @@ function fake(answer: unknown) {
   return { p: p as unknown as ManagedProvider, calls };
 }
 
+describe("vision shot cache fingerprint", () => {
+  const provider = (model = "text", visionModel = "vision") => ({ name: "test-provider", model, visionModel }) as ManagedProvider;
+  const clip = (extra = {}) => ({ id: "clip-1", name: "dance", frames: [{ t: 1.25, image: "/9j/4AAQSkZJRgABAQAAAQABAAD/" }], ...extra });
+  it("is deterministic for identical inputs and changes when model or frame identity changes", () => {
+    const base = shotCacheKey(provider(), clip());
+    expect(shotCacheKey(provider(), clip())).toBe(base);
+    expect(shotCacheKey(provider("other"), clip())).not.toBe(base);
+    expect(shotCacheKey(provider("text", "other-vision"), clip())).not.toBe(base);
+    expect(shotCacheKey(provider(), clip({ name: "wedding" }))).not.toBe(base);
+    expect(shotCacheKey(provider(), clip({ frames: [{ t: 2, image: "/9j/4AAQSkZJRgABAQAAAQABAAD/" }] }))).not.toBe(base);
+    expect(shotCacheKey(provider(), clip({ frames: [{ t: 1.25, image: "/9j/4AAQSkZJRgABAQAAAQABBBB/" }] }))).not.toBe(base);
+  });
+});
 describe("request limits", () => {
   it("accepts a normal plan request", () => { expect(req(40).slots).toHaveLength(40); });
   it("rejects too many cuts or candidates, bad ids and unknown cut types", () => {
