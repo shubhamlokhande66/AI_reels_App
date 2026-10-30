@@ -34,6 +34,10 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: shubix/pnpm-lock.yaml
+      - name: Install FFmpeg for audio-analysis tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
       - name: Build shared core
