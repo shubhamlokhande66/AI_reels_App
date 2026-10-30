@@ -127,7 +127,7 @@ type ShotCacheDoc = { key: string; result: RankedClip; expiresAt: Date };
 const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<unknown[]> };
 async function ensureShotCacheIndexes(col: Collection<ShotCacheDoc>) {
   cacheGlobals.__studioShotCacheIndexes ??= Promise.all([
-    col.createIndex({ ownerId: 1, key: 1 }, { unique: true }),
+    col.createIndex({ key: 1 }, { unique: true }),
     col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
   ]).catch((error) => {
     // A failed index build must not poison every later request in this process.
@@ -202,5 +202,6 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
     const failedKey = failedByKey.keys().next().value;
     throw (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason ?? new AIResponseError("No usable cached or newly ranked frames.");
   }
-  return { clips, failed, charged, cacheHits: input.clips.length - uniqueMisses.size, model: provider.visionModel || provider.model, provider: provider.name };
+  const cacheHits = input.clips.reduce((count, _clip, i) => count + (cached.has(keys[i]) ? 1 : 0), 0);
+  return { clips, failed, charged, cacheHits, model: provider.visionModel || provider.model, provider: provider.name };
 }
