@@ -36,7 +36,7 @@
     "CONTAINER_ROLE": "api",
     // the website's address (Vercel): CORS for the browser, and the API's links in emails go to the website
     "WEB_ORIGINS": "https://shubix.in,https://www.shubix.in,https://shubix-eight.vercel.app",
-    "SLEEP_AFTER": "30s", // stops 30 s after the last request (an upload or download in progress counts)
+    "SLEEP_AFTER": "2m", // stops 2 min after the last request (a cold start takes 20-30 s: a short pause should not cost one)
     "STORAGE_PATH": "/data/storage",
     "R2_BUCKET": "smgroup",
     "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",

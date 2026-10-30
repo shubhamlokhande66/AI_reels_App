@@ -22,6 +22,12 @@ export class ReelApp extends Container<Env> {
     // every setting (vars and secrets) goes to the app as an environment variable; bindings are not strings
     this.envVars = Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === "string"));
   }
+  // a cold start (the machine, the R2 mount, the server) takes 20-30 s, more than the library waits by itself (20 s)
+  override async fetch(request: Request): Promise<Response> {
+    if ((await this.getState()).status !== "healthy")
+      await this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 90_000, instanceGetTimeoutMS: 30_000, abort: request.signal });
+    return super.fetch(request);
+  }
   override onError(error: unknown) {
     console.error("app container error", error);
     throw error;
@@ -39,9 +45,15 @@ const awake = async (env: Env) => {
   catch { return true; } // unsure: as before, to the app
 };
 
+// The API alone answers only these: anything else (bots looking for .env files and the like) is answered here, without
+// waking the container (it is billed while awake).
+const API_PATHS = /^\/(api\/|ads\.txt$|app-ads\.txt$)/;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === "POST" && new URL(request.url).pathname === PING && !(await awake(env)))
+    const path = new URL(request.url).pathname;
+    if (env.CONTAINER_ROLE === "api" && !API_PATHS.test(path)) return new Response("Not found", { status: 404 });
+    if (request.method === "POST" && path === PING && !(await awake(env)))
       return Response.json({ ok: true, asleep: true });
     return app(env).fetch(request);
   },
