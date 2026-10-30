@@ -17,7 +17,7 @@ import { tokenStore } from "./device";
 export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
 export type SongAnalysis = { duration: number; bpm: number; beats: number; drops: number; breaks: number };
 /** a shot of the Reel as the studio made it (its state(): the clip, where in it, the transition into it, its effect, its speed) */
-export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number };
+export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
 export type EngineReel = { work: { clips: number; shots: number }; state: { edit: EngineShot[]; mode?: string } & Record<string, unknown> };
 
 type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void };
@@ -67,7 +67,7 @@ export const engine = {
       if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
       const len = clipDuration(c), sp = (SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed);
       if (!sp) return false; // a speed the studio has not (it has slow, normal, fast)
-      const base = from.shot as EngineShot & { cs?: Record<string, unknown> };
+      const base = from.shot;
       const cs = { ...(base.cs ?? {}) };
       if (c.reverse !== from.clip.reverse) cs.rev = c.reverse;
       if (c.rotation !== from.clip.rotation) cs.rot = c.rotation;
@@ -105,7 +105,7 @@ export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[]
     const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
     const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
     const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: (e as EngineShot & { uk?: NonNullable<ProjectClip["keyframes"]> }).uk };
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk };
     made.set(clip.id, { shot: e, clip });
     return clip;
   });
