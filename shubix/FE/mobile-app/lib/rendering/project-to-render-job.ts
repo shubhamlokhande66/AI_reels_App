@@ -64,7 +64,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       rotation: clip.rotation,
       mirror: clip.mirror,
       flip: clip.flip,
-      muted: clip.muted || !!project.audioUri,
+      muted: clip.muted,
       volume: clip.volume,
       ...(clip.transition && clip.transition !== "Cut"
         ? { transitionIn: { type: clip.transition, durationMs: 250 } }
