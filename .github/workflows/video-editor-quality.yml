@@ -30,6 +30,17 @@ jobs:
       - name: Typecheck Android / React Native app
         working-directory: shubix
         run: pnpm --filter @shubix/mobile-app typecheck
+      - name: Set up Java for Android native compilation
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Generate Android project
+        working-directory: shubix/FE/mobile-app
+        run: pnpm exec expo prebuild --platform android --no-install
+      - name: Compile native Android video module
+        working-directory: shubix/FE/mobile-app/android
+        run: ./gradlew :app:compileDebugKotlin --no-daemon
       - name: Test web studio
         working-directory: shubix
         run: pnpm --filter @shubix/web-app test
