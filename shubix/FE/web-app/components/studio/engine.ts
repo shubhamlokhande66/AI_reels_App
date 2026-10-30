@@ -1984,20 +1984,26 @@ function applyDirectorStyle(){
     // the AI leaves out of a shot stays plain (its answer's own defaults: a hard cut, no effect, normal speed)
     s.tr = 'hard'; s.efx = 'none'; s.sp = SPEED.normal; s.trByDir = false; s.fxByDir = false; s.ak = []; s.acc = [];
     if(!d) return;
-    // The AI is free: any known tool in any style. Only what cannot be played is refused (the opener has nothing
-    // before it to transition from; a freeze needs a moment to hold; a speed on the beats needs beats).
+    // The AI proposes creative choices, but the phone enforces the selected style, plan locks,
+    // shot duration and per-Reel transition budget before anything reaches preview/export.
     if(d.tr){ asked++; const tr = d.tr;
-      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR && !isLocked('tr', tr);
+      // The server may suggest any known tool; the phone is the final style/quality gate.
+      const styleTransitions = TR_OK[mode] || TR_OK.auto;
+      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR && styleTransitions.includes(tr) && !isLocked('tr', tr);
       if(ok){ s.tr = tr; s.trByDir = true; used++; } else fixed++;
     }
-    // effect: "hook" is the opener's own; a slow move needs time; the photo snap needs a moment to freeze
+    // effect: only tools in this Reel's style; the hook is reserved for the opener.
     if(d.fx){ asked++; const fx = d.fx;
-      let ok = fx in FX_NAME && !isLocked('fx', fx);
+      const styleEffects = FX_OK[mode] || FX_OK.auto;
+      let ok = fx==='hook' ? i===0 : styleEffects.includes(fx);
+      ok = ok && fx in FX_NAME && !isLocked('fx', fx);
       if(fx==='snap' && len <= 0.7) ok = false;
       if(ok){ s.efx = fx; s.fxByDir = true; used++; } else fixed++;
     }
-    // speed: only what the shot can play (and what Smooth allows)
+    // speed: respect the selected pace as well as what the shot can play.
     if(d.sp){ asked++; let ok = true, sp = null; const bl = beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
+      if(mode==='smooth' && !['normal','slow','hold'].includes(d.sp)) ok = false;
+      if(mode==='fast' && !['normal','fast','slow','velocity','ramp','freeze','hold'].includes(d.sp)) ok = false;
       if(d.sp==='freeze' && s.efx!=='snap') ok = false;
       if(d.sp==='ramp' && len < 0.4) ok = false;
       if(d.sp==='velocity' && !bl.length) ok = false;
@@ -2116,8 +2122,12 @@ function finishTransitions(){
     if(ok && !s.trByDir && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
     if(ok && left[s.tr]!==undefined && s.trByRef) left[s.tr]--;
     else if(ok && left[s.tr]!==undefined){
-      if(s.trByDir){ want[s.tr]--; left[s.tr]--; }
-      else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
+      if(s.trByDir){
+        // Director choices are not exempt from the per-Reel ration: an oversized AI answer
+        // must not turn every cut into a flash/whip. Keep the highest-priority cuts first.
+        if(left[s.tr] > 0 && want[s.tr] > 0){ want[s.tr]--; left[s.tr]--; }
+        else ok = false;
+      } else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
     }
     if(!ok){ if(s.trByDir) undone++; s.tr = 'hard'; }
   });
