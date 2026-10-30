@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import type { Collection } from "mongodb";
 import { z } from "zod";
 import { getProvider, type ManagedProvider } from "../ai";
 import { effective, keyConfigured, providerFor } from "../ai/config";
@@ -124,7 +125,7 @@ const SHOT_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
 type ShotCacheDoc = { key: string; result: RankedClip; expiresAt: Date };
 
 const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<unknown[]> };
-async function ensureShotCacheIndexes(col: Awaited<ReturnType<typeof db>>["collection"] extends (...a: never[]) => infer R ? R : never) {
+async function ensureShotCacheIndexes(col: Collection<ShotCacheDoc>) {
   cacheGlobals.__studioShotCacheIndexes ??= Promise.all([
     col.createIndex({ key: 1 }, { unique: true }),
     col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
