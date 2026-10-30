@@ -25,6 +25,9 @@ jobs:
       - name: Typecheck all workspaces
         working-directory: shubix
         run: pnpm -r typecheck
+      - name: Typecheck Android / React Native app
+        working-directory: shubix
+        run: pnpm --filter @shubix/mobile-app typecheck
       - name: Test web studio
         working-directory: shubix
         run: pnpm --filter @shubix/web-app test
