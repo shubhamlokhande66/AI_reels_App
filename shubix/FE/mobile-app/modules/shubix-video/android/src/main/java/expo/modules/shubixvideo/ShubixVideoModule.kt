@@ -56,13 +56,12 @@ class ShubixVideoModule : Module() {
   private var activeExport: ActiveExport? = null
   private var files: FileServer? = null
 
-  /** Settle an export exactly once, including cancellation and module teardown. */
-  private fun finishExport(session: ActiveExport, error: Throwable? = null, result: Map<String, Any>? = null) {
+  /** Settle the JS Promise once. A cancelled export keeps the native busy lock until Media3 calls back. */
+  private fun settleExport(session: ActiveExport, error: Throwable? = null, result: Map<String, Any>? = null) {
     if (session.settled) return
     session.settled = true
     session.progressTask?.let(main::removeCallbacks)
     session.progressTask = null
-    if (activeExport === session) activeExport = null
     if (error != null) {
       session.promise.reject(
         if (error is ExportCancelledException) "E_EXPORT_CANCELLED" else "E_EXPORT",
@@ -74,15 +73,26 @@ class ShubixVideoModule : Module() {
     }
   }
 
+  private fun releaseExport(session: ActiveExport) {
+    session.progressTask?.let(main::removeCallbacks)
+    session.progressTask = null
+    if (activeExport === session) activeExport = null
+  }
+
   private class ExportCancelledException : Exception("Export was cancelled.")
 
   private fun cancelActiveExport() {
     val session = activeExport ?: return
-    // Mark cancellation before asking Media3 to stop. Its onError callback may arrive
-    // synchronously or asynchronously; either way the JS Promise is rejected only once.
+    if (session.cancelRequested) return
     session.cancelRequested = true
-    try { session.transformer?.cancel() } catch (_: Exception) { /* Still settle the JS request below. */ }
-    finishExport(session, ExportCancelledException())
+    // Keep activeExport locked until Media3 confirms termination in onError/onCompleted.
+    try {
+      session.transformer?.cancel()
+      settleExport(session, ExportCancelledException())
+    } catch (_: Exception) {
+      settleExport(session, ExportCancelledException())
+      releaseExport(session)
+    }
   }
 
   override fun definition() = ModuleDefinition {
@@ -159,27 +169,38 @@ class ShubixVideoModule : Module() {
         .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
         .addListener(object : Transformer.Listener {
           override fun onCompleted(composition: Composition, result: ExportResult) {
-            if (activeExport !== session || session.settled) return
-            finishExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
-          }
-          override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+            if (activeExport !== session) return
             if (session.cancelRequested) {
               session.output?.let { if (it.exists()) it.delete() }
+              if (!session.settled) settleExport(session, ExportCancelledException())
+              releaseExport(session)
               return
             }
-            if (activeExport !== session || session.settled) return
-            finishExport(session, exception)
+            settleExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
+            releaseExport(session)
+          }
+          override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+            if (activeExport !== session) return
+            if (session.cancelRequested) {
+              session.output?.let { if (it.exists()) it.delete() }
+              if (!session.settled) settleExport(session, ExportCancelledException())
+            } else {
+              settleExport(session, exception)
+            }
+            releaseExport(session)
           }
         }).build()
     } catch (error: Exception) {
-      finishExport(session, error)
+      settleExport(session, error)
+      releaseExport(session)
       return
     }
     session.transformer = transformer
     try {
       transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
     } catch (error: Exception) {
-      finishExport(session, error)
+      settleExport(session, error)
+      releaseExport(session)
       return
     }
     val holder = ProgressHolder()
