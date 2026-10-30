@@ -11,6 +11,7 @@
 !.env.example
 # your data stays out of the image (on Cloudflare it lives in R2)
 **/storage
+!BE/api/src/server/storage
 songs
 # not part of the app image
 FE/mobile-app
