@@ -148,7 +148,7 @@ export function createDirectorPlan(input: DirectorInput): DirectorPlan {
     if(mood==="product"||mood==="food")effects.push("punch-soft");
     if(drop&&intensity!=="subtle")effects.push("zoomburst");
     if(mobile){for(let j=effects.length-1;j>=0;j--)if(!EFFECT_LIBRARY.find(e=>e.id===effects[j])?.mobileSafe)effects.splice(j,1);}
-    const zoom=highlight?1.09:1.045, pan=(i%2===0?1:-1)*(highlight?3:1.5);
+    const zoom=highlight?1.09:1.045, pan=(i%2===0?1:-1)*(highlight?0.03:0.015);
     planShots.push({sourceId:s.id,sourceIndex:s.sourceIndex,trimStart:0,trimEnd:d,timelineStart:cursor,duration:d,
       transition,effects,speed:drop&&intensity!=="subtle"?1.15:1,keyframes:motionTrack(d,zoom,pan),
       reason:highlight?"High visual quality / highlight":s.speech?"Preserve spoken moment":"Best available subject and motion"});
