@@ -19,7 +19,7 @@
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -84,6 +84,50 @@ export function initBridge(root: HTMLElement): () => void {
     },
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
+    async shotCs() { return studio()?.shotCs() ?? null; },
+    async shotSet(a) {
+      const st = studio();
+      if (!st?.shotSet) throw new Error("The advanced clip tools are not ready");
+      st.shotSet((a.patch ?? null) as unknown);
+      return { ok: true, state: st.state() };
+    },
+    async shotOp(a) {
+      const st = studio();
+      if (!st?.shotOp) throw new Error("The clip operation is not ready");
+      return { ok: !!st.shotOp(String(a.op), a.arg), state: st.state() };
+    },
+    async shotSlip(a) {
+      const st = studio();
+      if (!st?.shotSlip) throw new Error("Slip editing is not ready");
+      return { ok: st.shotSlip(Number(a.delta) || 0), state: st.state() };
+    },
+    async shotTrim(a) {
+      const st = studio();
+      if (!st?.shotTrim) throw new Error("Beat trim is not ready");
+      return { ok: st.shotTrim(Number(a.direction) || 1), state: st.state() };
+    },
+    async shotExtract() {
+      const st = studio();
+      if (!st?.shotExtract) throw new Error("Audio extraction is not ready");
+      return await st.shotExtract();
+    },
+    async shotReverse() {
+      const st = studio();
+      if (!st?.shotReverse) throw new Error("Reverse is not ready");
+      return { ok: await st.shotReverse(), state: st.state() };
+    },
+    async shotStyle(a) {
+      const st = studio();
+      if (!st || !st.edit?.length) throw new Error("There is no selected shot");
+      const index = st.segAt(st.now);
+      const row = root.querySelectorAll<HTMLTableRowElement>("#edl tr")[index];
+      const cell = row?.children[String(a.kind) === "transition" ? 3 : String(a.kind) === "effect" ? 4 : 5];
+      const select = cell?.querySelector("select");
+      if (!select) throw new Error("This shot style control is not ready");
+      select.value = String(a.value);
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: true, state: st.state() };
+    },
     async part(a) { await studio()?.setPart(Number(a.start)); return { start: studio()?.section.start ?? 0 }; },
     async edit(a) { await until(made); return { ok: !!studio()!.setEdit(a.shots as unknown[]) }; },
     async set(a) {
