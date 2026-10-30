@@ -23,7 +23,8 @@ const STEPS: [IconName, string, number][] = [["search", "Preparing clips", 0.02]
 export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onClose: () => void }) {
   const words = useStudioText(), insets = useSafeAreaInsets();
   const [pct, setPct] = useState(0), [done, setDone] = useState<{ uri: string; size: number } | null>(null), [saved, setSaved] = useState(false), [saveNotice, setSaveNotice] = useState(""), [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
-  const player = useVideoPlayer(done?.uri ?? null, (p) => { p.loop = true; });
+  const player = useVideoPlayer(null, (p) => { p.loop = true; });
+  useEffect(() => { if (done?.uri) player.replace(done.uri); else player.pause(); }, [done?.uri, player]);
   const aspect = reel?.settings?.aspect ?? "9:16";
   const previewAspect = aspect === "4:5" ? 4 / 5 : aspect === "1:1" ? 1 : aspect === "16:9" ? 16 / 9 : 9 / 16;
   useEffect(() => {
