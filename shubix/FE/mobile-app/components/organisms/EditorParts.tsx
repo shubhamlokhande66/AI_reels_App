@@ -6,7 +6,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useStudioText } from "@shubix/hooks";
 import { Button, Glyph, Icon, IconButton, ThemeLayer } from "@shubix/ui-mobile";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
-import { clipDuration, type ProjectClip } from "@shubix/validations";
+import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
 import { useThumb } from "../../lib/thumbs";
 import { useShotMotion } from "./shotMotion";
 
@@ -37,7 +37,7 @@ export function StudioBar({ title, saved, onBack, onExport }: { title: string; s
 /** The preview: the shot under the playhead (a video plays; a photo stays), the big play button over it while still,
  * which shot it is (01 / 08). `at`: the time in the shot (followed while still: the timeline is scrubbed); `onTime`
  * reports it while playing, `onEnded` when the shot is over. */
-export function Preview({ clip, n, of, playing, at, aspect, beat, onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
+export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overlays = [], onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; now?: number; overlays?: ReelProject["overlays"]; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
   const player = useVideoPlayer(null, (p) => { p.audioMixingMode = "mixWithOthers"; });
   // a new shot: its video, from where the playhead is
@@ -71,6 +71,11 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, onToggle, onTi
           {video && <VideoView player={player} surfaceType="textureView" contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
         </Animated.View>
         <Animated.View pointerEvents="none" className="absolute inset-0" style={motion.veil} />
+        <View pointerEvents="none" className="absolute inset-0 justify-center px-3">
+          {overlays.filter((item) => now >= item.start && now < item.end).map((item) => (
+            <Text key={item.id} numberOfLines={4} style={{ color: item.color, fontSize: Math.max(12, Math.min(38, item.size * 0.62)), fontWeight: "900", textAlign: "center", textShadowColor: "rgba(0,0,0,0.8)", textShadowRadius: 5, textShadowOffset: { width: 1, height: 2 } }}>{item.text}</Text>
+          ))}
+        </View>
         {!playing && <View className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}
         <View className="absolute bottom-2.5 right-2.5 rounded-full bg-black/55 px-2 py-0.5"><Text className="text-[10px] font-semibold text-white">{String(n + 1).padStart(2, "0")} / {String(of).padStart(2, "0")}</Text></View>
       </Pressable>
