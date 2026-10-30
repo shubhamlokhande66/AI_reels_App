@@ -14,6 +14,7 @@ FE/web-app/public/vendor/ort/
 FE/web-app/public/vendor/piper/
 # local app data and manual test output
 **/storage/
+!BE/api/src/server/storage/
 BE/api/test/server/manual/*.json
 BE/api/test/server/manual/out/
 # personal footage (never in the repository)
