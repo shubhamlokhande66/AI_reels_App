@@ -76,7 +76,7 @@ export function canUseSharedAndroidRenderer(project: ReelProject): boolean {
     (clip.transition && clip.transition !== "Cut") ||
     !!clip.effect ||
     (!clip.muted && (clip.volume ?? 1) !== 1) ||
-    (clip.filter !== undefined && !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic"].includes(clip.filter)) ||
+    !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic"].includes(clip.filter) ||
     (clip.kind === "image" && clip.speed !== 1)
   )) return false;
   return true;
