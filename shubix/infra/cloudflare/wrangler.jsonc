@@ -8,6 +8,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // the API's own address, once the shubix.in zone is active on Cloudflare (the record is made on deploy):
+  // "routes": [{ "pattern": "api.shubix.in", "custom_domain": true }],
+  "workers_dev": true,
   "containers": [
     {
       "class_name": "ReelApp",
@@ -30,7 +33,7 @@
     // "api": this container runs the API alone; the website is on Vercel and sends /api/* here (docs/deploy-vercel-cloudflare.md)
     "CONTAINER_ROLE": "api",
     // the website's address (Vercel): CORS for the browser, and the API's links in emails go to the website
-    "WEB_ORIGINS": "https://shubix-eight.vercel.app",
+    "WEB_ORIGINS": "https://shubix.in,https://www.shubix.in,https://shubix-eight.vercel.app",
     "SLEEP_AFTER": "30s", // stops 30 s after the last request (an upload or download in progress counts)
     "STORAGE_PATH": "/data/storage",
     "R2_BUCKET": "smgroup",
