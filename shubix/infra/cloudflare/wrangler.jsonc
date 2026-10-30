@@ -14,10 +14,12 @@
   "containers": [
     {
       "class_name": "ReelApp",
-      "image": "../docker/Dockerfile",
+      // the API alone (the website is on Vercel): the smaller image, quicker to wake (../docker/Dockerfile has both)
+      "image": "../docker/api.Dockerfile",
       "image_build_context": "../..",
-      // basic = 1/4 vCPU, 1 GiB, 4 GB disk (the app needs ~250-350 MB; Reels are made on the phone). Memory and disk are
-      // billed for every second the container is awake, so it must sleep: see SLEEP_AFTER and lib/usePresence.ts.
+      // basic = 1/4 vCPU, 1 GiB, 4 GB disk: the smallest size the API fits in (FFmpeg, the AI runtime, the R2 mount; its
+      // memory capped at 512 MB in the image; "lite", 256 MB, is too small). Billed only while awake: it sleeps
+      // SLEEP_AFTER after the last request, the Worker answers the tabs' pings while it sleeps, one instance at most.
       "instance_type": "basic",
       "max_instances": 1
     }
