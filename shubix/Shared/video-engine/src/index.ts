@@ -8,6 +8,8 @@ export type Easing = "linear" | "lin" | "ease-in" | "ease-out" | "ease-in-out" |
 export type KeyframeValue = number | string | boolean;
 export type Keyframe<T extends KeyframeValue = KeyframeValue> = {
   id: string; time: number; value: T; easing: Easing; inTangent?: number; outTangent?: number;
+  /** Cubic-bezier control points [x1, y1, x2, y2], used when easing is `bezier`. */
+  bezier?: [number, number, number, number];
 };
 export type AnimatedProperty = "x" | "y" | "scale" | "scaleX" | "scaleY" | "rotation" |
   "opacity" | "blur" | "brightness" | "contrast" | "saturation" | "temperature" |
@@ -169,7 +171,7 @@ export function createDirectorPlan(input: DirectorInput): DirectorPlan {
 }
 
 /** Evaluate a numeric keyframe track at timeline time. */
-export type TransformKeyframe = { t: number; x: number; y: number; s: number; r: number; o: number; ez?: string };
+export type TransformKeyframe = { t: number; x: number; y: number; s: number; r: number; o: number; ez?: string; bezier?: [number, number, number, number] };
 
 /** Evaluate the compact transform keyframes stored by Fast Studio and shared Reel projects. */
 export function evaluateTransformKeyframes(frames: TransformKeyframe[], time: number) {
@@ -178,14 +180,64 @@ export function evaluateTransformKeyframes(frames: TransformKeyframe[], time: nu
     return evaluateKeyframes(frames.map((frame, index) => ({
       id: String(index), time: frame.t, value: frame[property],
       easing: (frame.ez || "inOut") as Easing,
+      bezier: frame.bezier,
     })), time);
   };
   return { x: read("x", 0), y: read("y", 0), s: read("s", 1), r: read("r", 0), o: read("o", 1) };
 }
 
+function cubicBezierAt(t: number, p1: number, p2: number): number {
+  const u = 1 - t;
+  return 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t;
+}
+
+/** Solve CSS-style cubic-bezier timing curves without browser APIs (shared by Web and Android). */
+export function cubicBezierProgress(x: number, curve: [number, number, number, number]): number {
+  const [rawX1, y1, rawX2, y2] = curve;
+  const x1 = clamp(rawX1, 0, 1), x2 = clamp(rawX2, 0, 1), target = clamp(x, 0, 1);
+  let lo = 0, hi = 1, t = target;
+  // Bisection is stable for flat tangents and is inexpensive for editor frame evaluation.
+  for (let i = 0; i < 18; i++) {
+    const at = cubicBezierAt(t, x1, x2);
+    if (Math.abs(at - target) < 1e-5) break;
+    if (at < target) lo = t; else hi = t;
+    t = (lo + hi) / 2;
+  }
+  return cubicBezierAt(t, y1, y2);
+}
+
+/** Stable, sorted keyframes with duplicate timestamps collapsed (last keyframe wins). */
+export function normaliseKeyframes<T extends KeyframeValue>(frames: Keyframe<T>[], minGap = 0.001): Keyframe<T>[] {
+  const sorted = frames.filter((frame) => Number.isFinite(frame.time) && (typeof frame.value !== "number" || Number.isFinite(frame.value)))
+    .map((frame) => ({ ...frame })).sort((a, b) => a.time - b.time);
+  const result: Keyframe<T>[] = [];
+  for (const frame of sorted) {
+    const last = result[result.length - 1];
+    if (last && Math.abs(frame.time - last.time) < minGap) result[result.length - 1] = frame;
+    else result.push(frame);
+  }
+  return result;
+}
+
+/** Insert or replace a keyframe at the same timestamp while keeping the track ordered. */
+export function upsertKeyframe<T extends KeyframeValue>(frames: Keyframe<T>[], frame: Keyframe<T>, tolerance = 0.001): Keyframe<T>[] {
+  const next = normaliseKeyframes(frames.filter((item) => Math.abs(item.time - frame.time) >= tolerance));
+  next.push({ ...frame });
+  return normaliseKeyframes(next, tolerance);
+}
+
+/** Shift a copied keyframe group while preserving relative timing and non-negative positions. */
+export function shiftKeyframes<T extends KeyframeValue>(frames: Keyframe<T>[], offset: number): Keyframe<T>[] {
+  if (!Number.isFinite(offset)) return normaliseKeyframes(frames);
+  const minTime = frames.length ? Math.min(...frames.map((frame) => frame.time)) : 0;
+  const shift = Math.max(-minTime, offset);
+  return normaliseKeyframes(frames.map((frame) => ({ ...frame, time: frame.time + shift })));
+}
+
 export function evaluateKeyframes(frames: Keyframe<number>[], time: number): number {
   if(!frames.length)return 0;
-  const sorted=[...frames].sort((a,b)=>a.time-b.time);
+  const sorted=normaliseKeyframes(frames);
+  if(!sorted.length)return 0;
   if(time<=sorted[0].time)return sorted[0].value;
   if(time>=sorted[sorted.length-1].time)return sorted[sorted.length-1].value;
   let i=0;while(i<sorted.length-1&&sorted[i+1].time<time)i++;
@@ -198,6 +250,7 @@ export function evaluateKeyframes(frames: Keyframe<number>[], time: number): num
   else if(b.easing==="outCubic")t=1-Math.pow(1-t,3);
   else if(b.easing==="outExpo")t=t>=1?1:1-Math.pow(2,-10*t);
   else if(b.easing==="outBack"){const c1=1.70158,c3=c1+1;t=1+c3*Math.pow(t-1,3)+c1*Math.pow(t-1,2);}
+  else if(b.easing==="bezier")t=cubicBezierProgress(t,b.bezier??[0.25,0.1,0.25,1]);
   return a.value+(b.value-a.value)*t;
 }
 
