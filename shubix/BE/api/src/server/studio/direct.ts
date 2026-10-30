@@ -277,7 +277,7 @@ export function parsePlan(d: DirectIn, a: AnswerIn, complete = true): { slots: D
   const answers = new Map<number, SlotIn>();
   for (const answer of a.slots) {
     const i = Math.trunc(Number(answer.i));
-    if (offered.has(i) && !answers.has(i)) answers.set(i, answer);
+    if (offered.has(i) && !answers.has(i)) answers.set(i, { ...answer, keys: answer.keys ?? [], move: answer.move ?? [] });
   }
   const slots: DirectedSlot[] = [];
   let previousClip: string | null = null;
@@ -286,8 +286,8 @@ export function parsePlan(d: DirectIn, a: AnswerIn, complete = true): { slots: D
     const ids = new Set(slot.candidates.map((c) => c.id));
     const requestedShot = String(answer?.shot ?? "").trim().toLowerCase();
     const selected = ids.has(requestedShot) ? slot.candidates.find((c) => c.id === requestedShot)! : null;
-    const shot = selected?.id ?? fallbackShot(slot, previousClip);
-    const chosen = slot.candidates.find((c) => c.id === shot)!;
+    const shot: string = selected?.id ?? fallbackShot(slot, previousClip);
+    const chosen: DirectIn["slots"][number]["candidates"][number] = slot.candidates.find((candidate) => candidate.id === shot)!;
     previousClip = chosen.clip;
 
     const one = (v: unknown, allowed: readonly string[]) => {
