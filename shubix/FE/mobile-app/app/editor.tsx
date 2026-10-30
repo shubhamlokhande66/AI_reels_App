@@ -289,7 +289,7 @@ export default function EditorScreen() {
         <Label>Text to speech voiceover</Label>
         <TextInput value={voiceDraft} onChangeText={setVoiceDraft} multiline placeholder={words("Write the voiceover script…")} placeholderTextColor={look.muted} className="min-h-[96px] rounded-xl border border-border bg-surface px-3 py-2 text-foreground" />
         <Choices items={ttsVoices.map((v) => v.label)} on={ttsVoices.find((v) => v.key === ttsVoice)?.label} onPick={(label) => setTtsVoice(ttsVoices.find((v) => v.label === label)?.key ?? "")} />
-        <Button full icon="audio-lines" title={words("Add voice at playhead")} disabled={!voiceDraft.trim() || !ttsVoice} onPress={() => void addStudioTts()} />
+        <Button full icon="music" title={words("Add voice at playhead")} disabled={!voiceDraft.trim() || !ttsVoice} onPress={() => void addStudioTts()} />
         <Button full variant="danger" title={words("Remove generated speech")} onPress={() => void engine.tool("ttsClear").then(() => toast(words("Generated speech removed"), "success")).catch((e) => toast(errorMessage(e), "danger"))} />
         <Text className="text-[11px] text-muted">{words("Generated voice is mixed into the Studio export and saved with this Reel.")}</Text>
       </View>;
