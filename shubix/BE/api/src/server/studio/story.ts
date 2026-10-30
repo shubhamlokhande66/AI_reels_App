@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import sharp from "sharp";
 import { z } from "zod";
 import { getProvider } from "../ai";
@@ -63,10 +64,38 @@ export async function planStory(sentences: string[], style: string, ai = true) {
 interface Picture { data: Buffer; source: "commons" | "free_ai" | "paid_ai"; credit: string; ref: string }
 const plain = (s: string) => (s ?? "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, " ").trim();
 const agent = () => `ShubixStory/1.0 (${cfg.publicBaseUrl || "http://localhost"}${cfg.contactEmail ? `; ${cfg.contactEmail}` : ""})`;
-async function bytes(url: string, init: RequestInit = {}, ms = 45_000) {
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_PROVIDER_JSON_BYTES = 20 * 1024 * 1024;
+async function readBounded(r: Response, maxBytes: number) {
+  const declared = Number(r.headers.get("content-length") || 0);
+  if (declared > maxBytes) throw new Error("Response is too large");
+  if (!r.body) {
+    const b = Buffer.from(await r.arrayBuffer());
+    if (b.length > maxBytes) throw new Error("Response is too large");
+    return b;
+  }
+  const reader = r.body.getReader(), chunks: Buffer[] = []; let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read(); if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) { await reader.cancel(); throw new Error("Response is too large"); }
+      chunks.push(Buffer.from(value));
+    }
+  } finally { reader.releaseLock(); }
+  return Buffer.concat(chunks, size);
+}
+async function bytes(url: string, init: RequestInit = {}, ms = 45_000, maxBytes = 3 * 1024 * 1024, contentType?: string) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(ms) });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return Buffer.from(await r.arrayBuffer());
+  if (contentType && !String(r.headers.get("content-type") || "").toLowerCase().startsWith(contentType)) throw new Error("Unexpected response content type");
+  return readBounded(r, maxBytes);
+}
+async function providerJson<T>(r: Response): Promise<T> {
+  if (!r.ok) throw new Error(`AI image provider: ${r.status}`);
+  const type = String(r.headers.get("content-type") || "").toLowerCase();
+  if (!type.includes("application/json")) throw new Error("AI image provider returned a non-JSON response");
+  return JSON.parse((await readBounded(r, MAX_PROVIDER_JSON_BYTES)).toString("utf8")) as T;
 }
 const FREE_LICENCE = /public domain|^pd|cc0|^cc[ -]by(-sa)?\b/i;
 /** A free-licence painting or photo on Wikimedia Commons; the one mentioning most of the scene's words wins. */
@@ -93,7 +122,7 @@ async function commons(scene: Scene, kind: "painting" | "photo", skip: Set<strin
     if (best && best.score >= 5) break; // the main subject and more of the scene
   }
   if (!best) return null;
-  return { data: await bytes(best.url, { headers: { "User-Agent": agent() } }), source: "commons", credit: best.credit, ref: best.title };
+  return { data: await bytes(best.url, { headers: { "User-Agent": agent() } }, 45_000, MAX_IMAGE_BYTES, "image/"), source: "commons", credit: best.credit, ref: best.title };
 }
 function promptFor(scene: Scene, style: ArtStyle, characters: { name: string; look: string }[]) {
   const looks = characters.filter((c) => c.look && scene.visual.toLowerCase().includes(c.name.toLowerCase())).map((c) => `${c.name}: ${c.look}`);
@@ -103,21 +132,27 @@ async function flux(p: string): Promise<Picture> {
   const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfg.cloudflareAccountId}/ai/run/@cf/black-forest-labs/flux-1-schnell`, { method: "POST",
     headers: { Authorization: `Bearer ${cfg.cloudflareApiToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ prompt: p, steps: 6 }), signal: AbortSignal.timeout(90_000) });
   if (!r.ok) throw new Error(`free AI pictures: ${r.status}`);
-  return { data: Buffer.from(((await r.json()) as { result: { image: string } }).result.image, "base64"), source: "free_ai", credit: "Shubix picture", ref: "" };
+  const result = await providerJson<{ result?: { image?: string } }>(r);
+  if (!result.result?.image || result.result.image.length > Math.ceil(MAX_IMAGE_BYTES * 4 / 3)) throw new Error("AI image is missing or too large");
+  return { data: Buffer.from(result.result.image, "base64"), source: "free_ai", credit: "Shubix picture", ref: "" };
 }
 async function paid(p: string): Promise<Picture> {
   if (paidAi() === "gemini") {
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${cfg.geminiImageModel}:generateContent`, { method: "POST", headers: { "x-goog-api-key": cfg.geminiApiKey, "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: p }] }], generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: "9:16" } } }), signal: AbortSignal.timeout(150_000) });
     if (!r.ok) throw new Error(`paid AI pictures: ${r.status}`);
-    const part = ((await r.json()) as { candidates?: { content?: { parts?: { inlineData?: { data: string } }[] } }[] }).candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
-    if (!part) throw new Error("paid AI pictures: no picture");
-    return { data: Buffer.from(part.inlineData!.data, "base64"), source: "paid_ai", credit: "Shubix HD picture", ref: "" };
+    const result = await providerJson<{ candidates?: { content?: { parts?: { inlineData?: { data: string } }[] } }[] }>(r);
+    const part = result.candidates?.[0]?.content?.parts?.find((x) => x.inlineData);
+    if (!part?.inlineData?.data || part.inlineData.data.length > Math.ceil(MAX_IMAGE_BYTES * 4 / 3)) throw new Error("paid AI pictures: missing or oversized picture");
+    return { data: Buffer.from(part.inlineData.data, "base64"), source: "paid_ai", credit: "Shubix HD picture", ref: "" };
   }
   const r = await fetch("https://api.openai.com/v1/images/generations", { method: "POST", headers: { Authorization: `Bearer ${cfg.openaiApiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: cfg.openaiImageModel, prompt: p, size: "1024x1536", quality: "medium", n: 1 }), signal: AbortSignal.timeout(150_000) });
   if (!r.ok) throw new Error(`paid AI pictures: ${r.status}`);
-  return { data: Buffer.from(((await r.json()) as { data: { b64_json: string }[] }).data[0].b64_json, "base64"), source: "paid_ai", credit: "Shubix HD picture", ref: "" };
+  const result = await providerJson<{ data?: { b64_json?: string }[] }>(r);
+  const encoded = result.data?.[0]?.b64_json;
+  if (!encoded || encoded.length > Math.ceil(MAX_IMAGE_BYTES * 4 / 3)) throw new Error("paid AI pictures: missing or oversized picture");
+  return { data: Buffer.from(encoded, "base64"), source: "paid_ai", credit: "Shubix HD picture", ref: "" };
 }
 
 /** The picture for one scene, as a 1080×1920 JPEG (the interesting part kept); AI pictures use credits. */
@@ -131,7 +166,8 @@ export async function scenePicture(o: { scene: Scene; style: string; characters:
     const p = promptFor(o.scene, style, o.characters);
     for (const [ok, make, cost] of [[freeAi, flux, "ai_picture"], [() => !!paidAi(), paid, "paid_picture"]] as const) {
       if (!ok()) continue;
-      try { pic = await make(p); await chargeOnce(cost, `story:${o.reelId}:${o.i}`, `Story Maker picture (scene ${o.i + 1})`); break; }
+      try { pic = await make(p); const sceneKey = crypto.createHash("sha256").update(p).digest("hex").slice(0, 24);
+      await chargeOnce(cost, `story:${o.reelId}:${o.i}:${sceneKey}`, `Story Maker picture (scene ${o.i + 1})`); break; }
       catch (e) { if (e instanceof AppError) throw e; errors.push((e as Error).message); }
     }
   }
@@ -141,6 +177,9 @@ export async function scenePicture(o: { scene: Scene; style: string; characters:
   }
   if (!pic) throw new AppError(freeAi() || paidAi() ? `No picture for scene ${o.i + 1} right now. Try again, or add your own photos. ${errors.join(" · ").slice(0, 200)}`
     : `No free picture fits scene ${o.i + 1}. Add your own photos, choose “Classical painting”, or ask the admin to connect AI pictures.`, { code: "STORY_NO_PICTURE", status: 422 });
-  const jpg = await sharp(pic.data).rotate().resize(1080, 1920, { fit: "cover", position: sharp.strategy.attention }).jpeg({ quality: 84 }).toBuffer();
+  if (!pic.data.length || pic.data.length > MAX_IMAGE_BYTES) throw new AppError("The selected picture is too large.", { code: "STORY_IMAGE_TOO_LARGE", status: 422 });
+  const meta = await sharp(pic.data, { limitInputPixels: 40_000_000, failOn: "error" }).metadata();
+  if (!["jpeg", "png", "webp", "avif"].includes(meta.format || "") || !meta.width || !meta.height || meta.width * meta.height > 40_000_000) throw new AppError("The selected picture format is not supported.", { code: "STORY_IMAGE_INVALID", status: 422 });
+  const jpg = await sharp(pic.data, { limitInputPixels: 40_000_000, failOn: "error" }).rotate().resize(1080, 1920, { fit: "cover", position: sharp.strategy.attention }).jpeg({ quality: 84 }).toBuffer();
   return { image: `data:image/jpeg;base64,${jpg.toString("base64")}`, source: pic.source, credit: pic.credit, ref: pic.ref };
 }
