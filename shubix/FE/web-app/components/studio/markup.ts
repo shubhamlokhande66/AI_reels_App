@@ -258,7 +258,9 @@ export const STUDIO_HTML = `
     <!-- how the clips go into the Reel: the best moments of all of them, or one after another as they were added (engine.ts) -->
     <div class="row seqrow" id="seqrow"><span class="label">Clip order</span>
       <div class="${Segmented.normal}" id="seq" role="group" aria-label="Clip order"><button type="button" data-q="mix" aria-pressed="true">Mix all clips</button><button type="button" data-q="order" aria-pressed="false">In my order</button></div>
-      <span class="fname" id="seqhelp">Shubix picks the best moments from all your clips</span></div>
+      <span class="fname" id="seqhelp">Shubix picks the best moments from all your clips</span>
+      <button type="button" class="${Button.small}" id="crev" hidden title="The clips' numbers are their order: turn it round">⇅ Reverse order</button></div>
+    <div class="row items-center gap-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2" id="corder" hidden><span class="flex-1 text-[13px] font-semibold">Tap your clips in the order they should play: 1, 2, 3…</span><button type="button" class="${Button.small}" id="corderskip">Keep as is</button></div>
     <span class="flabel fcliplabel">Selected Clips</span>
     <div class="fclipgrid"><div class="clips" id="clips"></div><button type="button" class="hidden max-lg:in-[.fopen_#s2:has(.clip)]:grid aspect-square place-items-center rounded-[14px] border-[1.5px] border-dashed border-border bg-surface-2 [&>svg]:size-7 in-[.noir_#mslot]:hidden!" id="fadd" aria-label="Add more clips">${IC.plus}</button></div>
     <div class="row talkrow" id="talkrow" hidden>
