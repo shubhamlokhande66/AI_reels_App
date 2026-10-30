@@ -3809,6 +3809,7 @@ $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.va
  * into it. Ready-made moves fill the keyframes in one tap. Saved with the Reel. */
 let talkKfs = null, kfTimer = 0, kfLast = 0;
 const KF_NEAR = 0.04;
+let kfClipboard = [];
 const KF_SL = { x: { min: -1, max: 1, step: 0.005, show: v => Math.round(v*100) + '%' }, y: { min: -1, max: 1, step: 0.005, show: v => Math.round(v*100) + '%' },
   s: { min: 0.1, max: 4, step: 0.01, show: v => v.toFixed(2) + '×' }, r: { min: -360, max: 360, step: 1, show: v => Math.round(v) + '°' }, o: { min: 0, max: 1, step: 0.01, show: v => Math.round(v*100) + '%' } };
 const KF_NAME = { x: 'Move ↔', y: 'Move ↕', s: 'Zoom', r: 'Rotate', o: 'Opacity' };
@@ -3865,6 +3866,7 @@ function kfSync(){
   for(const n of UK_PROPS){ const inp = $('kf_' + n); if(document.activeElement !== inp) inp.value = u[n]; $('kfv_' + n).textContent = KF_SL[n].show(u[n]); }
   $('kfadd').textContent = k ? '◆ On a keyframe' : '◇ Add keyframe'; $('kfadd').classList.toggle('on', !!k);
   $('kfdel').disabled = !k; $('kfease').disabled = !k || L.indexOf(k) === 0; $('kfease').value = k ? (k.ez || 'inOut') : 'inOut';
+  $('kfcopy').disabled = !L.length; $('kfpaste').disabled = !kfClipboard.length;
   $('kfprev').disabled = !L.some(q => q.t < l - KF_NEAR); $('kfnext').disabled = !L.some(q => q.t > l + KF_NEAR); $('kfclear').disabled = !L.length;
   $('kfinfo').textContent = !L.length ? 'No keyframes: move a slider (or drag the picture) to add one here.'
     : L.length === 1 ? '1 keyframe: a fixed setting. Move the playhead and change something to animate.' : L.length + ' keyframes';
@@ -3889,6 +3891,8 @@ $('kfbox').addEventListener('toggle', () => { out.classList.toggle('ovdrag', ove
 $('kfadd').addEventListener('click', () => { const T = kfTarget(); if(T && !kfAtHead(T)) kfSet({}); }, SIG);
 $('kfdel').addEventListener('click', () => { const T = kfTarget(), k = T && kfAtHead(T); if(!k) return; T.obj.uk.splice(T.obj.uk.indexOf(k), 1); if(!T.obj.uk.length) delete T.obj.uk; redraw(); kfSync(); kfListSoon(); }, SIG);
 $('kfclear').addEventListener('click', () => { const T = kfTarget(); if(T){ delete T.obj.uk; redraw(); kfSync(); kfListSoon(); } }, SIG);
+$('kfcopy').addEventListener('click', () => { const T = kfTarget(); kfClipboard = T && T.obj.uk ? T.obj.uk.map(q => ({ ...q })) : []; kfSync(); });
+$('kfpaste').addEventListener('click', () => { const T = kfTarget(); if(!T || !kfClipboard.length) return; const max = Math.max(0, T.b - T.a - 0.01); T.obj.uk = kfClipboard.map(q => ({ ...q, t: Math.min(max, Math.max(0, q.t)) })).sort((a,b) => a.t - b.t); redraw(); kfSync(); kfListSoon(); });
 $('kfease').addEventListener('change', ev => { const T = kfTarget(), k = T && kfAtHead(T); if(k){ k.ez = ev.target.value; redraw(); kfSync(); } }, SIG);
 $('kfprev').addEventListener('click', () => { const T = kfTarget(); if(!T) return; const l = kfLocal(T), q = (T.obj.uk || []).filter(x => x.t < l - KF_NEAR).pop(); if(q) kfSeek(T.a + q.t); }, SIG);
 $('kfnext').addEventListener('click', () => { const T = kfTarget(); if(!T) return; const l = kfLocal(T), q = (T.obj.uk || []).find(x => x.t > l + KF_NEAR); if(q) kfSeek(T.a + q.t); }, SIG);
