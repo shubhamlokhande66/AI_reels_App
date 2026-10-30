@@ -2694,7 +2694,22 @@ function makeEditNow(){
   edit = plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
   flickBuild();   // a copied flicker montage: its stills (once per set of clips)
   const taste = { n: edit.length, moves: 0, prevZoom: false, lastZoom: -99, shape: false, drops: edit.filter(x => x.type === 'drop').map(x => x.start) };
-  edit.forEach((e,i)=>{ const d = dirSlotOf(i); e.dirWhy = d ? d.why : ''; e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8); if(mode!=='smooth' && !e.fxByDir) suitFx(e); tasteFx(e, i, taste); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start); });
+  edit.forEach((e,i)=>{
+    const d = dirSlotOf(i), shared = sharedDirector.shots.find(x => x.sourceIndex === e.src);
+    e.dirWhy = d ? d.why : '';
+    e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8);
+    if(mode!=='smooth' && !e.fxByDir) suitFx(e);
+    tasteFx(e, i, taste);
+    // When the optional cloud AI director is unavailable, apply the shared on-device director's
+    // renderable treatment as a conservative fallback. Never overwrite an explicit AI choice.
+    if(!dirInfo && !e.fxByDir && e.efx === 'none' && shared){
+      const fx = shared.effects.find(id => !!FX_NAME[id]);
+      if(fx && (e.end - e.start) >= 0.65) e.efx = fx;
+    }
+    if(shared && !e.why) e.why = shared.reason;
+    e.kf = keyframesFor(e);
+    e.beatsIn = beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start);
+  });
   ukRestore(keptUk);
   setCanvas(); edit.forEach(e=>camAt(e, 0)); renderEDL();
   autoTools(); speechScan();
