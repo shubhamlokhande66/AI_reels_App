@@ -1726,6 +1726,8 @@ function aiRestore(src){
 // put in order first and nothing is asked while they are chosen; upsell() lets it go. (The phone app's /engine page and
 // an opened Reel: as before.)
 let aiHeld = location.pathname.startsWith('/create');
+// …and the API (asleep after a quiet while: 20-30 s to wake) is woken now, so Generate does not wait for it
+if(aiHeld) fetch('/api/health').catch(() => {});
 async function aiRun(){
   if(!aiOn || aiBusy || !sources.length) return;
   if(!aiReelOk()){ aiBusy = true; const go = await aiGate(); aiBusy = false; if(!go) return; }
