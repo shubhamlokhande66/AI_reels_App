@@ -190,7 +190,48 @@ export default function EditorScreen() {
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
       case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
       case "motion": case "sp": return <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v) })} />;
-      case "tr": return <Choices items={TRANSITIONS} on={clip?.transition} onPick={(transition) => patch({ transition })} />;
+      case "tr": return <Choices items={TRANSITIONS} on={TRANSITIONS[TRANSITION_IDS.indexOf(clip?.transition ?? "hard")] ?? "Cut"} onPick={(label) => {
+        const transition = TRANSITION_IDS[TRANSITIONS.indexOf(label)] ?? "hard";
+        patch({ transition }); void studioStyle("transition", transition);
+      }} />;
+      case "fx": return <Choices items={EFFECTS} on={EFFECTS[EFFECT_IDS.indexOf(clip?.effect ?? "none")] ?? "None"} onPick={(label) => {
+        const effect = EFFECT_IDS[EFFECTS.indexOf(label)] ?? "none";
+        patch({ effect }); void studioStyle("effect", effect);
+      }} />;
+      case "adjust": return <Choices items={["Reset colour", "Brighten", "More contrast", "Warm cinematic", "Vivid colour", "Matte film"]} onPick={(v) => {
+        const values: Record<string, Record<string, number>> = {
+          "Reset colour": { bri: 0, con: 0, sat: 0, warm: 0, hi: 0, sh: 0, hue: 0, sharp: 0, vig: 0 },
+          Brighten: { bri: 0.18, sh: 0.2 }, "More contrast": { con: 0.22, hi: -0.08 },
+          "Warm cinematic": { warm: 0.28, con: 0.12, vig: 0.18 }, "Vivid colour": { sat: 0.28, sharp: 0.12 },
+          "Matte film": { con: -0.12, sat: -0.16, sh: 0.18, vig: 0.22 },
+        }; void studioPatch(values[v]);
+      }} />;
+      case "curve": return <Choices items={["Montage", "Hero moment", "Bullet", "Smooth", "Reset curve"]} onPick={(v) => {
+        const curves: Record<string, { a: number; b: number; c: number; d: number; e: number }> = {
+          Montage: { a: 1.8, b: 2.4, c: 1, d: 2.4, e: 1.8 }, "Hero moment": { a: 1.8, b: 1.2, c: 0.45, d: 0.7, e: 1.8 },
+          Bullet: { a: 0.45, b: 0.8, c: 2.8, d: 2.2, e: 1.4 }, Smooth: { a: 0.85, b: 0.95, c: 1, d: 1.05, e: 1.15 },
+          "Reset curve": { a: 1, b: 1, c: 1, d: 1, e: 1 },
+        }; void studioPatch({ curve: curves[v] });
+      }} />;
+      case "stab": return <Choices items={["Off", "Light", "Balanced", "Strong"]} onPick={(v) => void studioPatch({ stab: ({ Off: 0, Light: 0.25, Balanced: 0.55, Strong: 0.85 } as Record<string, number>)[v] })} />;
+      case "beauty": return <Choices items={["Off", "Natural", "Soft", "Smooth"]} onPick={(v) => void studioPatch({ beauty: ({ Off: 0, Natural: 0.2, Soft: 0.45, Smooth: 0.7 } as Record<string, number>)[v] })} />;
+      case "fade": return <Choices items={["No fade", "Fade in", "Fade out", "Fade both"]} onPick={(v) => {
+        const values: Record<string, Record<string, number>> = { "No fade": { fin: 0, fout: 0 }, "Fade in": { fin: 0.5, fout: 0 }, "Fade out": { fin: 0, fout: 0.6 }, "Fade both": { fin: 0.5, fout: 0.6 } };
+        void studioPatch(values[v]);
+      }} />;
+      case "mosaic": return <Choices items={["Add mosaic", "Remove mosaic", "Face blur area"]} onPick={(v) => void studioPatch({ mz: v === "Remove mosaic" ? null : { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 } })} />;
+      case "lens": return <Choices items={["Add magnifier", "Remove magnifier", "Zoom 1.5×", "Zoom 2×", "Zoom 3×"]} onPick={(v) => {
+        if (v === "Remove magnifier") return void studioPatch({ mg: null });
+        void studioPatch({ mg: { x: 0.5, y: 0.45, r: 0.18, z: v === "Zoom 1.5×" ? 1.5 : v === "Zoom 2×" ? 2 : v === "Zoom 3×" ? 3 : 2 } });
+      }} />;
+      case "border": return <Choices items={["No border", "Fine white", "Gold frame", "Soft frame"]} onPick={(v) => {
+        if (v === "No border") return void studioPatch({ fit: false, bd: 0 });
+        void studioPatch({ fit: true, bd: v === "Fine white" ? 0.035 : 0.08, bdc: v === "Gold frame" ? "#d4b07a" : v === "Soft frame" ? "#f3ede3" : "#ffffff" });
+      }} />;
+      case "extract": return <Button full icon="music" title={words("Extract clip audio")} onPress={() => void (async () => {
+        try { await engine.tool("seek", { time: now }); await engine.tool("shotExtract"); toast(words("Audio extracted"), "success"); }
+        catch (e) { toast(errorMessage(e), "danger"); }
+      })()} />;
       case "vol": return <Choices items={VOLUMES} on={clip?.muted ? "0%" : `${Math.round((clip?.volume ?? 1) * 100)}%`} onPick={(v) => patch({ volume: parseInt(v) / 100, muted: v === "0%" })} />;
       case "trim": return clip && (
         <View className="gap-2">
