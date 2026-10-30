@@ -82,7 +82,7 @@ export default function EditorScreen() {
   };
   const studioKeyframe = async (values: Record<string, number>) => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframes need a Reel made by Shubix Studio."), "info");
-    try { await engine.tool("kfSeek", { time: now }); await engine.tool("kfSet", { values }); toast(words("Keyframe added at the playhead"), "success"); }
+    try { await engine.tool("kfSeek", { time: now }); const result = await engine.tool("kfSet", { values }); if (Array.isArray(result.keyframes)) patch({ keyframes: result.keyframes as ProjectClip["keyframes"] }); toast(words("Keyframe added at the playhead"), "success"); }
     catch (e) { toast(errorMessage(e), "danger"); }
   };
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
