@@ -25,14 +25,23 @@ export class ReelApp extends Container<Env> {
   // A cold start (the machine, the R2 mount, the server) takes 20-30 s, more than the library waits by itself (20 s), and
   // its saved state can still say "healthy" from the container before: this object waits for the port itself, once
   // per start (`ready`: the server answered since this object woke or the container last stopped).
+  // If the container stopped without this object hearing it (a new version rolled out), the answer is "not running":
+  // the container is let go, started again and the request asked once more (a request with a body: the next one is).
   private ready = false;
   override onStop() { this.ready = false; }
+  private wake(signal?: AbortSignal) {
+    return this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 90_000, instanceGetTimeoutMS: 30_000, abort: signal });
+  }
   override async fetch(request: Request): Promise<Response> {
-    if (!this.ready || !this.ctx.container?.running) {
-      await this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 90_000, instanceGetTimeoutMS: 30_000, abort: request.signal });
-      this.ready = true;
-    }
-    return super.fetch(request);
+    const again = request.method === "GET" || request.method === "HEAD" ? request.clone() : null;
+    if (!this.ready || !this.ctx.container?.running) { await this.wake(request.signal); this.ready = true; }
+    const res = await super.fetch(request);
+    if (res.status < 500 || !/^(Error proxying request to container|Failed to start container)/.test(await res.clone().text())) return res;
+    this.ready = false;
+    try { await this.destroy(); } catch { /* already gone */ }
+    if (!again) return res;
+    await this.wake(again.signal); this.ready = true;
+    return super.fetch(again);
   }
   override onError(error: unknown) {
     console.error("app container error", error);
