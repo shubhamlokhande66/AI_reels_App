@@ -69,6 +69,8 @@ export function initFlow(root: HTMLElement): () => void {
   const songOk = () => done("s1") || has("talkmode") || $("s1st").textContent?.startsWith("No song");
   const clipsOk = () => done("s2");
   // Shubix's line under the clips ends in "…" while it works (scoring the clips, the pace, planning the shots, the mixes)
+  // Shubix AI still working on the Reel (the studio's own state; its status line can end in "…" when it is only cut short)
+  const aiWorking = () => { const w = (root as unknown as { __studio?: { work?: { ai?: boolean; dir?: boolean } } }).__studio?.work; return !!w && (!!w.ai || !!w.dir); };
   const shubixBusy = () => { const a = $("aistat"); return !a.hidden && /…$/.test(a.textContent ?? ""); };
   const order = () => ORDER[has("talkmode") ? "talk" : "music"];
 
@@ -266,7 +268,7 @@ export function initFlow(root: HTMLElement): () => void {
     setClass($("fprevbox"), "ready", made());
     paintAi();
     // the phones' analysing screen: the Reel opens once it is made
-    if (step === "analyse" && made() && !shubixBusy()) { revealed = true; mark(false); setTimeout(apply, 350); }   // Back from the Reel: the clips
+    if (step === "analyse" && made() && !aiWorking()) { revealed = true; mark(false); setTimeout(apply, 350); }   // Back from the Reel: the clips
   };
 
   const go = (s: Step, push = true) => {
@@ -327,7 +329,7 @@ export function initFlow(root: HTMLElement): () => void {
         if (r === "upgrade" || r === "close") return;
         if (phone()) return go("analyse");   // its analysing screen opens the Reel once Shubix is done
         await new Promise((ok) => setTimeout(ok, 400)); apply();
-        for (let t = 0; (shubixBusy() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
+        for (let t = 0; (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
         if (made()) {
           revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
           history.replaceState(history.state, "", "/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
