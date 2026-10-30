@@ -988,7 +988,7 @@
 .brs .ask .gl{margin:6px 0 10px;padding-left:18px;font-size:14px;line-height:1.5}
 .brs .ask .askrow{flex-wrap:wrap}
 .brs #xres button, .brs #xfps button{position:relative}
-.brs #xres .crowned::after, .brs #xfps .crowned::after{content:"👑";position:absolute;top:6px;right:8px;font-size:13px}
+.brs #xres .crowned::before, .brs #xfps .crowned::before{content:"👑";position:absolute;top:6px;right:8px;font-size:13px}
 
 /* the progress bar is a seek bar: tap or drag (views.ts); a taller reach than its 4 px line, and a handle */
 .brs.made .stage .bar{position:relative;overflow:visible;cursor:pointer;touch-action:none}

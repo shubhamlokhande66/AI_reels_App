@@ -4975,11 +4975,21 @@ function sheetPaint(){
     note.textContent = full ? 'My Reels is full (' + cloudInfo.used + ' of ' + cloudInfo.limit + '). Delete a Reel there to make room.' : 'Also kept in your account, to watch, download or share anywhere · ' + cloudInfo.used + ' of ' + cloudInfo.limit + ' used';
   }
 }
+// the export sheet's picture: the preview's own picture, copied while the sheet is open (it plays the Reel as the
+// editor does, with its song); closing the sheet stops it
+function xprevLoop(){
+  if($('xsheet').hidden) return;
+  const c = $('xprevc'); if(c.width !== out.width || c.height !== out.height){ c.width = out.width; c.height = out.height; }
+  try{ c.getContext('2d').drawImage(out, 0, 0); }catch(e){}
+  $('xprevplay').hidden = playing || starting;
+  requestAnimationFrame(xprevLoop);
+}
+$('xprev').addEventListener('click', () => { if(!exporting) $('play').click(); }, SIG);
 function sheetOpen(open){
   $('xsheet').hidden = !open;
-  if(!open) return;
-  // the Reel's picture beside the settings (the design's frame 8): its first shot
-  try{ const th = edit.length && sources[edit[0].src] && sources[edit[0].src].card.querySelector('.th'); if(th && th.width) $('xprev').src = th.toDataURL('image/jpeg', 0.8); }catch(e){}
+  if(!open){ if(playing && !recording){ pos = curTime(); stopAll(); } return; }
+  // the Reel beside the settings (the design's frame 8)
+  if(edit.length){ $('xprev').setAttribute('src', 'live'); requestAnimationFrame(xprevLoop); }
   sheetPaint();
   $('xgo').focus();
   if(can4k === null) loadMediabunny().then(mb => { const [W0,H0] = SIZES[aspect]; return mb.getFirstEncodableVideoCodec(['avc','vp9','av1'], {width: W0*2, height: H0*2}); })
