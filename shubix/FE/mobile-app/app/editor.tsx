@@ -98,6 +98,20 @@ export default function EditorScreen() {
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
+  const setMusicMix = async (patch: { musicVolume?: number; musicFadeIn?: number; musicFadeOut?: number }) => {
+    if (!p) return;
+    const next = { ...p.settings, ...patch };
+    change({ settings: next });
+    if (p.studio && engine.holds(p.id)) {
+      try {
+        await engine.tool("audioMix", {
+          ...(patch.musicVolume !== undefined ? { mvol: patch.musicVolume } : {}),
+          ...(patch.musicFadeIn !== undefined ? { mfin: patch.musicFadeIn } : {}),
+          ...(patch.musicFadeOut !== undefined ? { mfout: patch.musicFadeOut } : {}),
+        });
+      } catch (e) { toast(errorMessage(e), "danger"); }
+    }
+  };
   const studioPatch = async (value: Record<string, unknown>) => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("This advanced tool needs a Reel made by Shubix Studio."), "info");
     try { await engine.tool("seek", { time: now }); await engine.tool("shotSet", { patch: value }); toast(words("Applied to this shot"), "success"); }
@@ -266,12 +280,12 @@ export default function EditorScreen() {
           <Button full variant="secondary" icon="plus" title={words("Add or change clips")} onPress={() => void addClips()} />
           <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
             <Label>Music track volume</Label>
-            <Choices items={["0%", "25%", "50%", "75%", "100%"]} on={`${Math.round((p.settings?.musicVolume ?? 1) * 100)}%`} onPick={(v) => change({ settings: { ...p.settings, musicVolume: Number(v.replace("%", "")) / 100 } })} />
+            <Choices items={["0%", "25%", "50%", "75%", "100%"]} on={`${Math.round((p.settings?.musicVolume ?? 1) * 100)}%`} onPick={(v) => void setMusicMix({ musicVolume: Number(v.replace("%", "")) / 100 })} />
             <Text className="text-[11px] text-muted">{words("Music volume is applied to both playback and MP4 export.")}</Text>
             <Label>Music fade in</Label>
-            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeIn ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeIn) + "s"} onPick={(v) => change({ settings: { ...p.settings, musicFadeIn: v === "Off" ? 0 : Number(v.replace("s", "")) } })} />
+            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeIn ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeIn) + "s"} onPick={(v) => void setMusicMix({ musicFadeIn: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
             <Label>Music fade out</Label>
-            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeOut ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeOut) + "s"} onPick={(v) => change({ settings: { ...p.settings, musicFadeOut: v === "Off" ? 0 : Number(v.replace("s", "")) } })} />
+            <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeOut ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeOut) + "s"} onPick={(v) => void setMusicMix({ musicFadeOut: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
           </View>
           <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
             <Text className="text-[13px] font-semibold text-foreground">{words("Your clips have their own sound")}</Text>
