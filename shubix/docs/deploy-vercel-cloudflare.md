@@ -22,7 +22,7 @@ settings in `infra/cloudflare/wrangler.jsonc` → `vars`:
 
 Deploy: push to `main` (the GitHub workflow `.github/workflows/deploy-cloudflare.yml`) or run it from the Actions tab;
 from a computer with Docker: `cd infra/cloudflare && npm install && npm run deploy`. Note the address it prints
-(`https://shubix-api.<subdomain>.workers.dev`); check `https://…workers.dev/api/health`.
+(`https://reel-maker.<subdomain>.workers.dev`); check `https://…workers.dev/api/health`.
 
 ## 2. The website on Vercel
 
@@ -33,7 +33,7 @@ from a computer with Docker: `cd infra/cloudflare && npm install && npm run depl
 
 | Name | Value |
 |---|---|
-| `API_URL` | the API's address from step 1, e.g. `https://shubix-api.<subdomain>.workers.dev` (no `/` at the end) |
+| `API_URL` | the API's address from step 1, e.g. `https://reel-maker.<subdomain>.workers.dev` (no `/` at the end) |
 
 4. **Deploy**. Then put the Vercel address into `WEB_ORIGINS` and `PUBLIC_BASE_URL` (step 1) and deploy the API again.
 
