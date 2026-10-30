@@ -128,7 +128,8 @@ export default function EditorScreen() {
   };
   const refreshStudioLayers = async () => {
     const result = await engine.tool("layerList");
-    setStudioLayers(Array.isArray(result) ? result as typeof studioLayers : []);
+    const list = Array.isArray(result) ? result as typeof studioLayers : [];
+    setStudioLayers(list); return list;
   };
   const addStudioLayer = async () => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Overlay layers need a Reel made by Shubix Studio."), "info");
@@ -137,7 +138,8 @@ export default function EditorScreen() {
     try {
       const files = await keepPickedAssets(`${p.id}-layer-${Date.now()}`, assets);
       for (const file of files) await engine.addLayer(file.uri, file.name);
-      await refreshStudioLayers();
+      const list = await refreshStudioLayers(), index = Math.max(0, list.length - 1);
+      setStudioLayerIndex(index); await engine.tool("layerSelect", { index });
       toast(words("Overlay layer added"), "success");
     } catch (e) { toast(errorMessage(e), "danger"); }
   };
