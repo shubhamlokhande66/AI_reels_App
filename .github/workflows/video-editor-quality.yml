@@ -3,8 +3,10 @@ name: Video editor quality checks
 on:
   pull_request:
     branches: [monorepo]
-  push:
-    branches: [feature/advanced-video-editor]
+
+concurrency:
+  group: shubix-video-editor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   quality:
