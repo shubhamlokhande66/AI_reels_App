@@ -86,7 +86,7 @@ export default function EditorScreen() {
   const before = clips.slice(0, selected).reduce((t, c) => t + clipDuration(c), 0), now = before + local;
   // the song plays with the Reel, from where the Reel is
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
-  useEffect(() => { if (!p?.audioUri) return; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
@@ -257,13 +257,22 @@ export default function EditorScreen() {
           <Text className="text-[13px] text-foreground">{p.audioName ?? words("No song yet")}</Text>
           <Button full icon="music" title={words(p.audioUri ? "Change the song or its part" : "Choose song")} onPress={() => void chooseSong()} />
           <Button full variant="secondary" icon="plus" title={words("Add or change clips")} onPress={() => void addClips()} />
+          <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+            <Label>Music track volume</Label>
+            <Choices items={["0%", "25%", "50%", "75%", "100%", "125%", "150%", "200%"]} on={`${Math.round((p.settings?.musicVolume ?? 1) * 100)}%`} onPick={(v) => change({ settings: { ...p.settings, musicVolume: Number(v.replace("%", "")) / 100 } })} />
+            <Text className="text-[11px] text-muted">{words("Music volume is applied to both playback and MP4 export.")}</Text>
+          </View>
           <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
             <Text className="text-[13px] font-semibold text-foreground">{words("Your clips have their own sound")}</Text>
             <Text className="text-[12px] leading-[17px] text-muted">{words("Wind, traffic, people talking… Choose what the Reel keeps under the song.")}</Text>
             <Seg k="csnd" items={CSNDS} box="csnd" attr="data-c" here={(v) => ({ clips: clips.map((c) => ({ ...c, muted: v === "mute" })) })} />
           </View>
           {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => change({ audioUri: undefined, audioName: undefined })} />}
-          {clip && <Button full variant="secondary" title={words(clip.muted ? "Turn the clip's sound on" : "Mute the clip's sound")} onPress={() => patch({ muted: !clip.muted })} />}
+          {clip && <>
+            <Label>Selected shot audio volume</Label>
+            <Choices items={["0%", "25%", "50%", "75%", "100%", "125%", "150%", "200%"]} on={`${Math.round((clip.volume ?? 1) * 100)}%`} onPick={(v) => patch({ volume: Number(v.replace("%", "")) / 100, muted: v === "0%" })} />
+            <Button full variant="secondary" title={words(clip.muted ? "Turn the clip's sound on" : "Mute the clip's sound")} onPress={() => patch({ muted: !clip.muted })} />
+          </>}
         </View>
       );
       case "text": return (
