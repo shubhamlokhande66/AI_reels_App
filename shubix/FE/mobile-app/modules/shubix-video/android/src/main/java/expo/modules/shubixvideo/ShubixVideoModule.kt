@@ -45,8 +45,45 @@ import java.io.File
 @UnstableApi
 class ShubixVideoModule : Module() {
   private val main = Handler(Looper.getMainLooper())
-  private var running: Transformer? = null
+  private class ActiveExport(val promise: Promise) {
+    var transformer: Transformer? = null
+    var settled: Boolean = false
+    var progressTask: Runnable? = null
+    var output: File? = null
+  }
+
+  private var activeExport: ActiveExport? = null
   private var files: FileServer? = null
+
+  /** Settle an export exactly once, including cancellation and module teardown. */
+  private fun finishExport(session: ActiveExport, error: Throwable? = null, result: Map<String, Any>? = null) {
+    if (session.settled) return
+    session.settled = true
+    session.progressTask?.let(main::removeCallbacks)
+    session.progressTask = null
+    if (activeExport === session) activeExport = null
+    if (error != null) {
+      session.promise.reject(
+        if (error is ExportCancelledException) "E_EXPORT_CANCELLED" else "E_EXPORT",
+        error.message ?: "The Reel could not be made.",
+        error
+      )
+    } else {
+      session.promise.resolve(result)
+    }
+  }
+
+  private class ExportCancelledException : Exception("Export was cancelled.")
+
+  private fun cancelActiveExport() {
+    val session = activeExport ?: return
+    // Mark/settle before calling Media3: its listener may report cancellation asynchronously.
+    finishExport(session, ExportCancelledException())
+    try { session.transformer?.cancel() } catch (_: Exception) { /* Promise is already settled. */ }
+    session.output?.let { output ->
+      if (output.exists()) output.delete()
+    }
+  }
 
   override fun definition() = ModuleDefinition {
     Name("ShubixVideo")
@@ -57,18 +94,22 @@ class ShubixVideoModule : Module() {
         try { start(JSONObject(specJson), promise) } catch (e: Exception) { promise.reject("E_EXPORT", e.message ?: "The Reel could not be made.", e) }
       }
     }
-    AsyncFunction("cancel") { main.post { running?.cancel(); running = null } }
+    AsyncFunction("cancel") { main.post { cancelActiveExport() } }
     // the engine page's way to the app's files (FileServer): started once, its port and key
     Function("fileServer") {
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
       val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out")).also { files = it }
       mapOf("port" to s.port, "key" to s.key)
     }
-    OnDestroy { files?.close(); files = null }
+    OnDestroy {
+      main.post { cancelActiveExport() }
+      files?.close()
+      files = null
+    }
   }
 
   private fun start(spec: JSONObject, promise: Promise) {
-    if (running != null) {
+    if (activeExport != null) {
       promise.reject("E_EXPORT_BUSY", "A Reel is already being exported. Wait for it to finish or cancel it.", null)
       return
     }
@@ -111,22 +152,39 @@ class ShubixVideoModule : Module() {
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).build())).build()
     }
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
+    val session = ActiveExport(promise).also { it.output = out }
+    activeExport = session
     val transformer = Transformer.Builder(context)
       .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
       .addListener(object : Transformer.Listener {
-        override fun onCompleted(composition: Composition, result: ExportResult) { running = null; promise.resolve(mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at)) }
-        override fun onError(composition: Composition, result: ExportResult, exception: ExportException) { running = null; promise.reject("E_EXPORT", exception.message ?: "The Reel could not be made.", exception) }
+        override fun onCompleted(composition: Composition, result: ExportResult) {
+          if (activeExport !== session || session.settled) return
+          finishExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
+        }
+        override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+          if (activeExport !== session || session.settled) return
+          finishExport(session, exception)
+        }
       }).build()
-    running = transformer
-    transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
+    session.transformer = transformer
+    try {
+      transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
+    } catch (error: Exception) {
+      finishExport(session, error)
+      throw error
+    }
     val holder = ProgressHolder()
-    main.post(object : Runnable {
+    val progressTask = object : Runnable {
       override fun run() {
-        if (running !== transformer) return
-        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) sendEvent("onProgress", mapOf("progress" to holder.progress / 100.0))
+        if (activeExport !== session || session.settled) return
+        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) {
+          sendEvent("onProgress", mapOf("progress" to holder.progress / 100.0))
+        }
         main.postDelayed(this, 250)
       }
-    })
+    }
+    session.progressTask = progressTask
+    main.post(progressTask)
   }
 
   /** The website's filters, as colour changes (Original: none). */
