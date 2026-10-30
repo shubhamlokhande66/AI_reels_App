@@ -165,6 +165,20 @@ export function createDirectorPlan(input: DirectorInput): DirectorPlan {
 }
 
 /** Evaluate a numeric keyframe track at timeline time. */
+export type TransformKeyframe = { t: number; x: number; y: number; s: number; r: number; o: number; ez?: string };
+
+/** Evaluate the compact transform keyframes stored by Fast Studio and shared Reel projects. */
+export function evaluateTransformKeyframes(frames: TransformKeyframe[], time: number) {
+  const read = (property: "x" | "y" | "s" | "r" | "o", fallback: number) => {
+    if (!frames.length) return fallback;
+    return evaluateKeyframes(frames.map((frame, index) => ({
+      id: String(index), time: frame.t, value: frame[property],
+      easing: (frame.ez || "inOut") as Easing,
+    })), time);
+  };
+  return { x: read("x", 0), y: read("y", 0), s: read("s", 1), r: read("r", 0), o: read("o", 1) };
+}
+
 export function evaluateKeyframes(frames: Keyframe<number>[], time: number): number {
   if(!frames.length)return 0;
   const sorted=[...frames].sort((a,b)=>a.time-b.time);
