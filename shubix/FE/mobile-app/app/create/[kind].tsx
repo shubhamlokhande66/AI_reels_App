@@ -59,7 +59,7 @@ export default function CreateScreen() {
     if (engineOn && music) try { setStart((await engine.part(t)).start); } catch (e) { toast(errorMessage(e), "danger"); }
   }
   async function addMedia() {
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: photos ? ["images"] : ["videos"], allowsMultipleSelection: true, selectionLimit: Math.max(1, 30 - media.length), quality: 0.9 });
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: photos ? ["images"] : ["videos"], allowsMultipleSelection: true, orderedSelection: true, selectionLimit: Math.max(1, 30 - media.length), quality: 0.9 }); // in the order tapped ("In my order")
     if (!r.canceled) setMedia((old) => [...old, ...r.assets].slice(0, 30));
   }
   // Analysing: the clips and the song kept on the phone, the Reel made by the website's engine (its shots on the beats,
@@ -122,7 +122,7 @@ export default function CreateScreen() {
         {step === "intro" && <FlowIntro kind={kind} />}
         {step === "choose" && <FlowChoose kind={kind} song={song} recent={recent} busy={reading} onPick={() => void choose(() => pickSong())} onPickReel={() => void choose(() => pickSong("video"))} onRecent={(s) => void pickRecent(s)} onForget={(uri) => { setRecent((r) => r.filter((s) => s.uri !== uri)); if (song?.uri === uri) setSong(null); }} />}
         {step === "adjust" && song && <FlowAdjust song={song} music={music} length={length} start={start} onLength={(n) => void lengthTo(n)} onStart={(t) => void partFrom(t)} />}
-        {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
+        {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} onEarlier={(i) => setMedia((m) => i > 0 ? [...m.slice(0, i - 1), m[i], m[i - 1], ...m.slice(i + 1)] : m)} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
         {step === "analyse" && <FlowAnalyse {...progress} />}
       </ScrollView>
       {button && <View className="px-4 pt-2" style={{ paddingBottom: 14 + insets.bottom }}><Button full size="xl" title={button.title} iconAfter={button.on ? "arrow" : undefined} disabled={!button.on} onPress={button.press} /></View>}

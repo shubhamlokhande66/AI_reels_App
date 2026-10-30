@@ -211,7 +211,7 @@ export type ClipSettings = { order: ClipOrder; aspect: Aspect; pace: TalkPace; u
 
 /** Add Your Clips: Videos / Photos, the tap-to-add area, the clips as squares (their length, remove), the clip order,
  * a Talking Reel's pauses and music, and the format. */
-export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, settings, onSettings }: { kind: FlowKind; photos: boolean; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
+export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarlier, settings, onSettings }: { kind: FlowKind; photos: boolean; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; onEarlier: (i: number) => void; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
   const words = useStudioText(), { width } = useWindowDimensions(), tile = (Math.min(width, 520) - 32 - 36 - 16) / 3;
   return (
     <FlowCard>
@@ -235,13 +235,15 @@ export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, setting
       ) : (
         <View className="gap-2.5">
           <Label>{words("Selected Clips")}</Label>
+          {media.length > 1 && <Text className="-mt-1 text-[12px] text-muted">{words("The numbers are the order (In my order). Tap a clip to move it earlier.")}</Text>}
           <View className="flex-row flex-wrap gap-2">
             {media.map((m, i) => (
-              <View key={`${m.uri}-${i}`} className="overflow-hidden rounded-[14px] bg-surface-2" style={{ width: tile, height: tile }}>
+              <Pressable key={`${m.uri}-${i}`} onPress={() => onEarlier(i)} disabled={i === 0} accessibilityLabel={words("Clip {n}: move earlier", { n: String(i + 1) })} className="overflow-hidden rounded-[14px] bg-surface-2" style={{ width: tile, height: tile }}>
                 <Thumb uri={m.uri} kind={m.type === "image" ? "image" : "video"} />
+                <View className="absolute left-1.5 top-1.5 h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5"><Text className="text-[11px] font-bold text-background">{i + 1}</Text></View>
                 <View className="absolute bottom-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5"><Text className="text-[11px] font-semibold text-white">{m.type === "image" ? "5s" : clock((m.duration ?? 0) / 1000)}</Text></View>
                 <Pressable onPress={() => onRemove(i)} accessibilityLabel={words("Remove")} hitSlop={6} className="absolute right-1.5 top-1.5 h-6 w-6 items-center justify-center rounded-full bg-black/70"><Icon name="close" size={13} color="#fff" /></Pressable>
-              </View>
+              </Pressable>
             ))}
             <Pressable onPress={onAdd} accessibilityLabel={words("Add more clips")} className="items-center justify-center rounded-[14px] border-[1.5px] border-dashed border-border bg-surface-2 active:opacity-80" style={{ width: tile, height: tile }}><Icon name="plus" size={28} /></Pressable>
           </View>

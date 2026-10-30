@@ -73,7 +73,7 @@ export default function EditorScreen() {
   const ended = useCallback(() => { setLocal(0); setSelected((i) => { if (i + 1 < (p?.clips.length ?? 0)) return i + 1; setPlaying(false); return 0; }); }, [p?.clips.length]);
 
   async function addClips(replace = false) {
-    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos", "images"], allowsMultipleSelection: !replace, selectionLimit: 30, quality: 0.9 });
+    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos", "images"], allowsMultipleSelection: !replace, orderedSelection: true, selectionLimit: 30, quality: 0.9 });
     if (r.canceled || !r.assets.length || !p) return;
     try {
       const got = await keepPickedAssets(`${p.id}-${Date.now()}`, r.assets);
