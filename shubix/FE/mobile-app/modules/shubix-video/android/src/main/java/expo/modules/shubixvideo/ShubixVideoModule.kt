@@ -96,7 +96,10 @@ class ShubixVideoModule : Module() {
       if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
       video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
       video += filter(c.optString("filter"))
-      if (texts != null && texts.length() > 0) video += OverlayEffect(ImmutableList.of(TimedTexts(texts, at, w, h)))
+      if (texts != null && texts.length() > 0) {
+        val overlays = (0 until texts.length()).map { index -> TimedText(texts.getJSONObject(index), at, w, h) }
+        video += OverlayEffect(ImmutableList.copyOf(overlays))
+      }
       val muted = c.optBoolean("muted")
       items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
       at += len
@@ -137,31 +140,35 @@ class ShubixVideoModule : Module() {
     else -> emptyList()
   }
 
-  /** The Reel's texts over one clip: each drawn while the Reel's time is within its start and end (`offset`: where the
-   * clip starts in the Reel), white and bold with a shadow, in the lower middle as on the website. */
-  private class TimedTexts(private val texts: org.json.JSONArray, private val offset: Double, private val w: Int, private val h: Int) : BitmapOverlay() {
+  /** One independent text layer. OverlayEffect composites every active layer, including overlapping captions. */
+  private class TimedText(private val text: JSONObject, private val offset: Double, private val w: Int, private val h: Int) : BitmapOverlay() {
     private val blank = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-    private val drawn = HashMap<Int, Bitmap>()
+    private val start = text.optDouble("start")
+    private val end = text.optDouble("end")
+    private val bitmap by lazy { draw() }
+
     override fun getBitmap(presentationTimeUs: Long): Bitmap {
       val t = offset + presentationTimeUs / 1_000_000.0
-      for (i in 0 until texts.length()) {
-        val x = texts.getJSONObject(i)
-        if (t >= x.optDouble("start") && t <= x.optDouble("end")) return drawn.getOrPut(i) { draw(x) }
-      }
-      return blank
+      return if (t >= start && t <= end) bitmap else blank
     }
-    override fun getOverlaySettings(presentationTimeUs: Long) = StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
-    private fun draw(x: JSONObject): Bitmap {
+
+    override fun getOverlaySettings(presentationTimeUs: Long) =
+      StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
+
+    private fun draw(): Bitmap {
       val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = try { Color.parseColor(x.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
-        textSize = x.optDouble("size", 36.0).toFloat() * w / 540f; typeface = Typeface.DEFAULT_BOLD
+        color = try { Color.parseColor(text.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
+        textSize = text.optDouble("size", 36.0).toFloat() * w / 540f
+        typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
       }
-      val words = x.optString("text")
+      val words = text.optString("text")
       val pad = (paint.textSize / 3).toInt()
       val width = (paint.measureText(words).toInt() + pad * 2).coerceIn(2, w)
       val height = (paint.fontSpacing.toInt() + pad * 2).coerceAtLeast(2)
-      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint) }
+      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+        Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint)
+      }
     }
   }
 }
