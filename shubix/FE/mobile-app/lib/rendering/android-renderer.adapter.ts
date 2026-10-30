@@ -67,6 +67,9 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       if (item.fit === "stretch") {
         throw new UnsupportedAndroidRenderFeature("Stretch fit is not supported by the current Android renderer.");
       }
+      if (item.muted === false && item.volume !== undefined && item.volume !== 1) {
+        throw new UnsupportedAndroidRenderFeature("Per-clip source audio volume is not supported by the current Android renderer.");
+      }
       for (const effect of item.effects ?? []) {
         if (effect.type !== "filter" || typeof effect.params.name !== "string" || !SUPPORTED_FILTERS.has(effect.params.name)) {
           throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} is not supported by the current Android renderer.`);
@@ -88,7 +91,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         platform: "android",
         // These describe features implemented by the current adapter, not guarantees
         // about a particular device's codec hardware.
-        capabilities: new Set(["image-sequence", "audio-mix"]),
+        capabilities: new Set(["image-sequence", "audio-mix", "text-overlay"]),
         maxWidth: 3840,
         maxHeight: 2160,
         maxWorkingSetBytes: options.maxWorkingSetBytes,
@@ -131,6 +134,13 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           height: job.dimensions.height,
           clips,
           ...(audio ? { audio: { uri: audio.source, start: audio.sourceStartMs / 1000 } } : {}),
+          texts: (job.overlays ?? []).map((overlay) => ({
+            text: overlay.text,
+            start: overlay.startMs / 1000,
+            end: overlay.endMs / 1000,
+            color: overlay.color,
+            size: overlay.size,
+          })),
           output,
         };
         onProgress({ phase: "preparing", progress: 0 });
