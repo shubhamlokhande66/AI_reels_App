@@ -6,7 +6,7 @@ describe("shared video director", () => {
     const frames = [
       { id: "a", time: 0, value: 0, easing: "linear" as const },
       { id: "b", time: 2, value: 10, easing: "hold" as const },
-      { id: "c", time: 4, value: 20, easing: "linear" as const },
+      { id: "c", time: 4, value: 20, easing: "hold" as const },
     ];
     expect(evaluateKeyframes(frames, 1)).toBe(5);
     expect(evaluateKeyframes(frames, 3)).toBe(10);
