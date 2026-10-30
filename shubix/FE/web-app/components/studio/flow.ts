@@ -290,7 +290,7 @@ export function initFlow(root: HTMLElement): () => void {
   const closeTool = () => root.querySelector<HTMLButtonElement>(`.tool[data-tool="${root.dataset.tool}"]`)?.click();
   const back = () => {
     if (has("fpost") && root.dataset.tool && !toolMarked) return closeTool(); // Edit Options → back to the Reel
-    if (has("fpost") && has("editing") && !root.dataset.tool) { $("feditdone").click(); return; } // editing → back to the Reel's review
+    if (has("fpost") && has("editing") && !root.dataset.tool) $("feditdone").click(); // the timeline: one Back leaves it and goes on to the clips (not first to the Reel's review)
     if (depth > 0) { history.back(); return; } // the screen before, as the browser's own Back does
     if (has("fpost")) return go("clips"); // the Reel → back to the clips
     const o = order(), i = o.indexOf(step);
