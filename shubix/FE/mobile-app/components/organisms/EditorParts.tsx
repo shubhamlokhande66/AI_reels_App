@@ -126,7 +126,7 @@ const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onP
  * two fingers or − / + zoom. A tap on a clip selects it. */
 export function Timeline({ clips, selected, overlays, song, now, playing, onSelect, onSeek, onAddClip, onText, onVoice, onMusic }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void }) {
   const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), layers = 1 + (overlays.length ? 1 : 0) + (song ? 1 : 0);
-  const [px, setPx] = useState(34), [view, setView] = useState(240), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
+  const [px, setPx] = useState(34), [view, setView] = useState(240), [snapEnabled, setSnapEnabled] = useState(true), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
   const clamp = (to: number) => Math.max(8, Math.min(160, to)), frame = useRef(0), want = useRef(34);
   // zooming follows the fingers once a frame, and − / + / Fit glide there over a few frames
   const zoom = (to: number, glide = false) => {
@@ -137,7 +137,7 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   // the Reel follows the playhead while it plays, and when the time changes from elsewhere
   useEffect(() => { if (!dragging.current) scroller.current?.scrollTo({ x: now * px, animated: false }); }, [now, px]);
-  const pinch = Gesture.Pinch().runOnJS(true).onStart(() => { pinchFrom.current = px; }).onUpdate((e) => zoom(pinchFrom.current * e.scale));
+  const snapTime = (time: number) => {\n    if (!snapEnabled) return time;\n    let cursor = 0, nearest = time, distance = Math.max(0.06, 10 / px);\n    for (const item of clips) {\n      const end = cursor + clipDuration(item);\n      for (const edge of [cursor, end]) { const delta = Math.abs(edge - time); if (delta < distance) { distance = delta; nearest = edge; } }\n      cursor = end;\n    }\n    return nearest;\n  };\n  const pinch = Gesture.Pinch().runOnJS(true).onStart(() => { pinchFrom.current = px; }).onUpdate((e) => zoom(pinchFrom.current * e.scale));
   return (
     <View className="mx-4 mt-3 overflow-hidden rounded-[18px] border border-border bg-surface">
       <View className="flex-row items-center gap-1.5 border-b border-border px-3 py-2.5">
@@ -146,7 +146,7 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
         <ZoomButton label={words("Zoom out")} text="−" onPress={() => zoom(px / 1.5, true)} />
         <Text className="w-10 text-center text-[11px] font-semibold text-muted">{Math.round((px / 34) * 100)}%</Text>
         <ZoomButton label={words("Zoom in")} text="+" onPress={() => zoom(px * 1.5, true)} />
-        <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total, true); }} />
+        <ZoomButton label={words("Toggle snapping")} text={snapEnabled ? "Snap ✓" : "Snap"} onPress={() => setSnapEnabled((value) => !value)} />\n        <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total, true); }} />
       </View>
       <View className="flex-row py-2.5 pl-3">
         <View style={{ width: HEAD }} className="gap-1.5 border-r border-border">{LANES.map(([g, n, h], i) => <Head key={n} glyph={g} name={n} h={h} onAdd={[onAddClip, onText, onVoice, onMusic][i]} />)}</View>
@@ -155,7 +155,7 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
             <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={16} contentContainerStyle={{ paddingHorizontal: view / 2 }}
               onScrollBeginDrag={() => { dragging.current = true; }} onMomentumScrollEnd={() => { dragging.current = false; }}
               onScrollEndDrag={(e) => { if (!e.nativeEvent.velocity?.x) dragging.current = false; }}
-              onScroll={(e) => { if (dragging.current && !playing) onSeek(Math.max(0, Math.min(total, e.nativeEvent.contentOffset.x / px))); }}>
+              onScroll={(e) => { if (dragging.current && !playing) onSeek(snapTime(Math.max(0, Math.min(total, e.nativeEvent.contentOffset.x / px)))); }}>
               <View className="gap-1.5">
                 <View className="h-[52px] flex-row">{clips.map((c, i) => (
                   <Pressable key={c.id} onPress={() => onSelect(i)} accessibilityLabel={`${words("Shot")} ${i + 1}`} className={`mr-[2px] h-[52px] justify-end overflow-hidden rounded-lg ${i === selected ? "border-2 border-accent" : ""}`} style={{ width: Math.max(16, clipDuration(c) * px - 2), backgroundColor: CLIP_COL[i % CLIP_COL.length] }}>
