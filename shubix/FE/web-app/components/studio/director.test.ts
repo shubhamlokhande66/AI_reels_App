@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDirectorPlan, evaluateKeyframes, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, evaluateKeyframes, evaluateTransformKeyframes, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -11,6 +11,16 @@ describe("shared video director", () => {
     expect(evaluateKeyframes(frames, 1)).toBe(5);
     expect(evaluateKeyframes(frames, 3)).toBe(10);
     expect(evaluateKeyframes(frames, 8)).toBe(20);
+  });
+
+  it("evaluates Studio transform keyframes with the shared easing model", () => {
+    const value = evaluateTransformKeyframes([
+      { t: 0, x: 0, y: 0, s: 1, r: 0, o: 1, ez: "inOut" },
+      { t: 2, x: 0.1, y: -0.1, s: 1.2, r: 12, o: 0.5, ez: "outCubic" },
+    ], 2);
+    expect(value.x).toBeCloseTo(0.1);
+    expect(value.s).toBeCloseTo(1.2);
+    expect(value.o).toBeCloseTo(0.5);
   });
 
   it("prioritises high-quality moments and aligns the edit to supplied beats", () => {
