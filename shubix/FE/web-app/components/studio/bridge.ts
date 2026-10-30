@@ -91,10 +91,21 @@ export function initBridge(root: HTMLElement): () => void {
       if (!st?.kfTarget?.() || !select) throw new Error("Select a keyframe first");
       select.value = String(a.easing || "inOut");
       select.dispatchEvent(new Event("change", { bubbles: true }));
-      return { ok: true };
+      const target = st.kfTarget() as { i?: number; obj?: { uk?: Array<Record<string, unknown>> } };
+      return { ok: true, index: target.i, keyframes: (target.obj?.uk || []).map((k) => ({ ...k })) };
     },
-    async kfRemove() { const b = $("kfdel"); if (!b || b.hasAttribute("disabled")) throw new Error("There is no keyframe at the playhead"); b.click(); return { ok: true }; },
-    async kfClear() { const b = $("kfclear"); if (!b) throw new Error("Keyframe controls are not ready"); b.click(); return { ok: true }; },
+    async kfRemove() {
+      const st = studio(), b = $("kfdel");
+      if (!st || !b || b.hasAttribute("disabled")) throw new Error("There is no keyframe at the playhead");
+      b.click(); const target = st.kfTarget() as { i?: number; obj?: { uk?: Array<Record<string, unknown>> } };
+      return { ok: true, index: target.i, keyframes: (target.obj?.uk || []).map((k) => ({ ...k })) };
+    },
+    async kfClear() {
+      const st = studio(), b = $("kfclear");
+      if (!st || !b) throw new Error("Keyframe controls are not ready");
+      b.click(); const target = st.kfTarget() as { i?: number; obj?: { uk?: Array<Record<string, unknown>> } };
+      return { ok: true, index: target.i, keyframes: (target.obj?.uk || []).map((k) => ({ ...k })) };
+    },
     async kfStep(a) {
       const id = Number(a.direction) < 0 ? "kfprev" : "kfnext", b = $(id);
       if (!b || b.hasAttribute("disabled")) return { ok: false, time: studio()?.now ?? 0 };
