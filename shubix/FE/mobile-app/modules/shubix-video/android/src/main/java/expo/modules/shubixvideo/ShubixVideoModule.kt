@@ -91,7 +91,7 @@ class ShubixVideoModule : Module() {
       val video = mutableListOf<Effect>()
       val audio = mutableListOf<AudioProcessor>()
       if (!image && speed != 1f) { video += SpeedChangeEffect(speed); audio += SonicAudioProcessor().apply { setSpeed(speed); setPitch(speed) } }
-      val clipVolume = c.optDouble("volume", 1.0).toFloat().coerceIn(0f, 2f)
+      val clipVolume = c.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f)
       if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
       val turn = c.optDouble("rotation", 0.0).toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
