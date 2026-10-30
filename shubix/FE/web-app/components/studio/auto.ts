@@ -148,7 +148,7 @@ export function initAuto(root: HTMLElement): () => void {
     const side = root.querySelectorAll<HTMLElement>("#aostory .aocol")[1], pick = $("aopick");
     for (const el of [...pick.querySelectorAll<HTMLElement>(":scope > .aobig, :scope > .aonote, :scope > .aogo"), ...side.querySelectorAll<HTMLElement>(":scope > .aobig, :scope > .aonote, :scope > .aogo")])
       (m === "story" ? side : pick).insertBefore(el, m === "story" ? null : $("aovfile"));
-    $("aonotetx").textContent = m === "story" ? "Only your story's words are sent, to find the pictures. The video is made on your phone." : "Made on your phone. Your videos are never uploaded.";
+    $("aonotetx").textContent = m === "story" ? "Only your story's words are sent to find pictures. Narration and video are made on your phone." : "Original videos stay on your phone. Selected preview frames may be sent securely for AI analysis.";
     $("aoclipsh").innerHTML = m === "story" ? "Your own clips or photos <em>optional</em>" : "Your clips";
     if (m === "story") { $("aoclips").textContent = "Instead of the pictures Shubix finds"; $("aosong").textContent = "Plays softly under the narration"; if (!styles.length) void loadStyles(); }
     if (m === "story" && !$<HTMLSelectElement>("aovoice").options.length) $("aovoice").innerHTML = TTS_VOICES.map((v) => `<option value="${v.key}">${v.label}</option>`).join("");
@@ -176,7 +176,7 @@ export function initAuto(root: HTMLElement): () => void {
     const st = S(); if (!st || running || (!clips.length && mode !== "story")) return; running = true;
     off = mode === "story" ? 1 : 0; base = 0; $("aopics").hidden = true; $("aopics").innerHTML = ""; $("aoposter").classList.remove("on"); $("aoposter").style.backgroundImage = "";
     $("aoeyebrow").textContent = mode === "story" ? "Making your story" : "Making your Reel";
-    $("aokeep").textContent = mode === "story" ? "Keep this screen open: the video is made on your phone." : "Keep this screen open. Nothing is uploaded.";
+    $("aokeep").textContent = mode === "story" ? "Keep this screen open: narration and video are made on your phone." : "Keep this screen open: original videos stay on your phone; selected preview frames may be sent for AI analysis.";
     show("run");
     let per = 0; // a story told with Shubix's pictures: the sentences each picture covers
     try {
