@@ -26,6 +26,13 @@ const tasks = createTasks(root);   // what is happening now, always in view (com
 const ac = new AbortController(), SIG = { signal: ac.signal };
 // iPhone / iPad (iPadOS says it is a Mac): Safari there gives a page much less memory, and reloads it when it runs out
 const IOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+// Browser hints are advisory (Safari/iOS often hides deviceMemory). Prefer a smaller decoder working set
+// on iOS and low-memory Android devices; this trades a little parallel decode for fewer export OOMs.
+const DEVICE_MEMORY_GB = typeof navigator !== 'undefined' ? Number(navigator.deviceMemory) || 0 : 0;
+const CPU_CORES = typeof navigator !== 'undefined' ? Number(navigator.hardwareConcurrency) || 0 : 0;
+const LOW_MEMORY_DEVICE = IOS || (DEVICE_MEMORY_GB > 0 && DEVICE_MEMORY_GB <= 4) || (CPU_CORES > 0 && CPU_CORES <= 4);
+const EXPORT_DECODER_LIMIT = LOW_MEMORY_DEVICE ? 2 : 4;
+const EXPORT_FRAME_POOL = LOW_MEMORY_DEVICE ? 2 : 4;
 /* ---- a page the phone reloaded (out of memory) ----
  * iPhone Safari reloads a page that uses too much memory, without a word: the person lands on the first screen, as if the
  * app went back. So the studio keeps a note in this tab (sessionStorage) while it works, removed when the page is left
@@ -4831,7 +4838,7 @@ async function fastExport(){
     // first frame: phone video has a keyframe only every 1-2 s, so that seek is the slow part of a cut.
     // At most a few decoders live at once: each holds a ring of full-size canvases, and iPhone Safari caps the memory all
     // canvases of a page may use (a Reel from ten clips would pass it); the ones not used for longest are let go.
-    const sinks = new Map(), LIVE = 4;
+    const sinks = new Map(), LIVE = EXPORT_DECODER_LIMIT;
     const sinkFor = async (si, slot) => {
       const key = si + ':' + slot;
       if(sinks.has(key)){ const v = sinks.get(key); sinks.delete(key); sinks.set(key, v); }   // most recently used last
@@ -4841,7 +4848,7 @@ async function fastExport(){
         const track = await input.getPrimaryVideoTrack();
         const r = Math.min(1, Math.max(W/s0.w, H/s0.h)*1.3);
         let sfps = 30; try{ const stt = await track.computePacketStats(90); if(stt && stt.averagePacketRate > 1) sfps = stt.averagePacketRate; }catch(err){}
-        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: 4 }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
+        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: EXPORT_FRAME_POOL }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
       }
       return sinks.get(key);
     };
@@ -4851,7 +4858,7 @@ async function fastExport(){
       const input = new mb.Input({ source: new mb.BlobSource(M.file), formats: mb.ALL_FORMATS }); inputs.push(input);
       const track = await input.getPrimaryVideoTrack(); if(!track) continue;
       const r = Math.min(1, (L.s*W)/M.w*1.4), first = await track.getFirstTimestamp();
-      const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(M.w*r/2)*2), height: Math.max(16, Math.round(M.h*r/2)*2), fit: 'fill', poolSize: 3 });
+      const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(M.w*r/2)*2), height: Math.max(16, Math.round(M.h*r/2)*2), fit: 'fill', poolSize: LOW_MEMORY_DEVICE ? 2 : 3 });
       const k0 = Math.ceil(L.t0*fps - 1e-6), k1 = Math.min(Math.round(dur*fps), Math.ceil(L.t1*fps - 1e-6)), ts = [];
       for(let k=k0;k<k1;k++){ const v = first + Math.min(M.dur - 0.05, Math.max(0, lyTime(L, k/fps))); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
       lyIts.push({ L, k0, k1, it: sink.canvasesAtTimestamps(ts)[Symbol.asyncIterator]() }); }
