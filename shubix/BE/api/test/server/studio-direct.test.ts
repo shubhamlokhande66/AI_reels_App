@@ -40,7 +40,7 @@ describe("request limits", () => {
 });
 
 describe("the plan is bounded", () => {
-  it("keeps offered shots and known choices, nulls the rest, drops unknown or repeated cuts", () => {
+  it("keeps valid AI choices and safely completes invalid or omitted cuts", () => {
     const d = req(3);
     const out = parsePlan(d, {
       story: "Rooftop build-up to a spinning drop",
@@ -54,12 +54,17 @@ describe("the plan is bounded", () => {
     });
     expect(out.slots.map((s) => s.i)).toEqual([0, 1, 2]);
     expect(out.slots[0]).toMatchObject({ shot: "0b", transition: "hard", effect: "hook", speed: "normal" });
-    expect(out.slots[1]).toMatchObject({ shot: null, transition: null, effect: "zoomburst", speed: null });
+    expect(out.slots[1]).toMatchObject({ shot: "1a", transition: "hard", effect: "zoomburst", speed: "normal" });
     expect(out.slots[2].why.length).toBeLessThanOrEqual(60);
     expect(out.story).toBe("Rooftop build-up to a spinning drop");
   });
-  it("refuses a plan with no usable cut", () => {
-    expect(() => parsePlan(req(2), { story: "", slots: [{ i: 9, shot: "9a", transition: "hard", effect: "none", speed: "normal", why: "" }] })).toThrow();
+  it("completes a completely missing or unusable AI answer with deterministic safe choices", () => {
+    const d = req(3);
+    const out = parsePlan(d, { story: "", slots: [{ i: 9, shot: "9a", transition: "teleport", effect: "explode", speed: "warp", why: "" }] });
+    expect(out.slots).toHaveLength(3);
+    expect(out.slots.map((s) => s.i)).toEqual([0, 1, 2]);
+    expect(out.slots[0]).toMatchObject({ shot: "0a", transition: "hard", effect: "none", speed: "normal" });
+    expect(out.slots.every((s) => s.shot && s.transition && s.effect && s.speed)).toBe(true);
   });
   it("asks the model once and returns the cleaned plan", async () => {
     const { p, calls } = fake({ slots: [{ i: 0, shot: "0a" }, { i: 1, shot: "1b", transition: "flash", effect: "zoomburst" }], story: "s" });
@@ -110,7 +115,7 @@ describe("long Reels", () => {
       return schema.parse({ slots: [{ i: first, shot: `${first}a` }], story: calls.length === 1 ? "arc" : "" }); } };
     const res = await direct(d, p as unknown as ManagedProvider);
     expect(calls).toHaveLength(parts);   // all asked at the same time
-    expect(res.slots.map((s) => s.i)).toEqual(Array.from({ length: parts }, (_, k) => k * CHUNK));
+    expect(res.slots.map((s) => s.i)).toEqual(Array.from({ length: LIMITS.slots }, (_, i) => i));
   });
 });
 
@@ -191,10 +196,11 @@ describe("New mix", () => {
     const res = await directVariants({ ...req(2), variants: 3 }, p);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toContain("make 3 DIFFERENT plans");
-    expect(res.plans).toHaveLength(2); // the plan with no usable cut is left out
+    expect(res.plans).toHaveLength(3); // incomplete and unusable plans are safely completed
     expect(res.plans[0].slots.map((s) => s.shot)).toEqual(["0b", "1a"]);
-    expect(res.plans[1].slots[0].shot).toBeNull(); // not offered for that cut
-    expect(res.plans[1].slots[1]).toMatchObject({ shot: "1b", transition: null, effect: "shake" });
+    expect(res.plans[1].slots[0].shot).toBe("0a"); // invalid shot falls back to the best offered moment
+    expect(res.plans[1].slots[1]).toMatchObject({ shot: "1b", transition: "hard", effect: "shake", speed: "normal" });
+    expect(res.plans[2].slots).toHaveLength(2); // even an answer with no offered cut gets a safe complete edit
   });
   it("asks for at most four, and long Reels in parts joined in order", async () => {
     expect(() => DirectIn.parse({ ...req(2), variants: MAX_VARIANTS + 1 })).toThrow();
