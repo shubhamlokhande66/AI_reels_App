@@ -67,7 +67,7 @@ export const engine = {
       if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
       const len = clipDuration(c), sp = (SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed);
       if (!sp) return false; // a speed the studio has not (it has slow, normal, fast)
-      list.push({ ...from.shot, start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect });
+      list.push({ ...from.shot, start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect, uk: c.keyframes ?? from.shot.uk });
       t += len;
     }
     return (await call<{ ok: boolean }>("edit", { shots: list })).ok;
