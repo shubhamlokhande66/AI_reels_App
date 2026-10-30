@@ -126,10 +126,20 @@ type ShotCacheDoc = { key: string; result: RankedClip; expiresAt: Date };
 
 const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<unknown[]> };
 async function ensureShotCacheIndexes(col: Collection<ShotCacheDoc>) {
-  cacheGlobals.__studioShotCacheIndexes ??= Promise.all([
-    col.createIndex({ key: 1 }, { unique: true }),
-    col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
-  ]).catch((error) => {
+  cacheGlobals.__studioShotCacheIndexes ??= (async () => {
+    // db() is tenant-scoped when accounts are enabled. A global {key} unique index
+    // would make identical media from two users collide even though reads are isolated.
+    // Remove the previous global index before installing the tenant-aware compound one.
+    try { await col.dropIndex("key_1"); }
+    catch (error) {
+      const code = (error as { code?: number }).code;
+      if (code !== 27 && code !== 26) throw error; // index/collection does not exist
+    }
+    await Promise.all([
+      col.createIndex({ ownerId: 1, key: 1 }, { unique: true }),
+      col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    ]);
+  })().catch((error) => {
     // A failed index build must not poison every later request in this process.
     cacheGlobals.__studioShotCacheIndexes = undefined;
     throw error;
