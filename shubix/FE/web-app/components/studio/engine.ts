@@ -2645,7 +2645,10 @@ function makeEditNow(){
       const aiSummary = aiAt(src, 0, src.dur);
       return { id: String(sourceIndex), sourceIndex, duration: src.dur, quality, motion: Math.max(0, Math.min(1, avg('m'))),
         faceScore, subjectScore: Math.max(faceScore, Math.max(0, Math.min(1, avg('b')))),
-        isHighlight: !!(aiSummary && aiSummary.score > 0.82), speech: false };
+        isHighlight: !!(aiSummary && aiSummary.score > 0.82),
+        isProduct: !!(aiSummary && aiSummary.roles && aiSummary.roles.product > 0.55),
+        isFood: !!(aiSummary && aiSummary.roles && aiSummary.roles.food > 0.55),
+        speech: !!(src.voice && src.voice.has) };
     }),
     beats, drops: plan.filter(x => x.type === 'drop').map(x => x.start),
     targetDuration: Math.min(180, buf.duration), aspect, mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
