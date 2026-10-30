@@ -153,6 +153,18 @@ class ShubixVideoModule : Module() {
     "Soft" -> listOf(Brightness(0.05f), Contrast(-0.12f))
     "Vivid" -> listOf(Contrast(0.18f), RgbAdjustment.Builder().setRedScale(1.06f).setGreenScale(1.06f).setBlueScale(1.06f).build())
     "Cinematic" -> listOf(Contrast(0.22f), RgbAdjustment.Builder().setRedScale(1.04f).setGreenScale(0.98f).setBlueScale(1.08f).build())
+    "Warm" -> listOf(Brightness(0.025f), RgbAdjustment.Builder().setRedScale(1.12f).setGreenScale(1.04f).setBlueScale(0.88f).build())
+    "Cool" -> listOf(RgbAdjustment.Builder().setRedScale(0.9f).setGreenScale(1.02f).setBlueScale(1.14f).build())
+    "Teal & Orange" -> listOf(Contrast(0.2f), RgbAdjustment.Builder().setRedScale(1.12f).setGreenScale(1.02f).setBlueScale(0.92f).build())
+    "Sepia" -> listOf(RgbAdjustment.Builder().setRedScale(1.14f).setGreenScale(1.0f).setBlueScale(0.76f).build(), Contrast(-0.06f))
+    "Matte" -> listOf(Brightness(0.06f), Contrast(-0.18f))
+    "High Contrast" -> listOf(Contrast(0.38f))
+    "Faded" -> listOf(Brightness(0.08f), Contrast(-0.22f), RgbAdjustment.Builder().setRedScale(1.03f).setGreenScale(1.03f).setBlueScale(1.03f).build())
+    "Vintage" -> listOf(Contrast(-0.12f), RgbAdjustment.Builder().setRedScale(1.08f).setGreenScale(0.98f).setBlueScale(0.82f).build())
+    "Pastel" -> listOf(Brightness(0.035f), Contrast(-0.1f), RgbAdjustment.Builder().setRedScale(1.04f).setGreenScale(1.04f).setBlueScale(1.04f).build())
+    "Cyberpunk" -> listOf(Contrast(0.18f), RgbAdjustment.Builder().setRedScale(1.15f).setGreenScale(0.9f).setBlueScale(1.2f).build())
+    "Dreamy" -> listOf(Brightness(0.09f), Contrast(-0.14f))
+    "Black & White" -> listOf(RgbFilter.createGrayscaleFilter(), Contrast(0.16f))
     else -> emptyList()
   }
 
