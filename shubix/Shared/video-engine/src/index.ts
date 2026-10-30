@@ -58,23 +58,23 @@ export const EFFECT_LIBRARY: readonly EffectDefinition[] = [
 ] as const;
 
 export const TRANSITION_LIBRARY: readonly TransitionDefinition[] = [
-  {id:"cut",category:"basic",label:"Hard Cut",duration:0,mobileSafe:true,beatFriendly:true},
-  {id:"cross-dissolve",category:"basic",label:"Cross Dissolve",duration:0.35,mobileSafe:true,beatFriendly:false},
-  {id:"fade-black",category:"basic",label:"Fade Through Black",duration:0.45,mobileSafe:true,beatFriendly:false},
-  {id:"fade-white",category:"basic",label:"Flash White",duration:0.22,mobileSafe:true,beatFriendly:true},
-  {id:"push-left",category:"movement",label:"Push Left",duration:0.32,mobileSafe:true,beatFriendly:true},
-  {id:"push-right",category:"movement",label:"Push Right",duration:0.32,mobileSafe:true,beatFriendly:true},
-  {id:"slide-up",category:"movement",label:"Slide Up",duration:0.32,mobileSafe:true,beatFriendly:true},
-  {id:"zoom-in",category:"movement",label:"Zoom In",duration:0.3,mobileSafe:true,beatFriendly:true},
-  {id:"zoom-out",category:"movement",label:"Zoom Out",duration:0.3,mobileSafe:true,beatFriendly:true},
-  {id:"whip-pan",category:"movement",label:"Whip Pan",duration:0.24,mobileSafe:false,beatFriendly:true},
+  {id:"hard",category:"basic",label:"Hard Cut",duration:0,mobileSafe:true,beatFriendly:true},
+  {id:"dissolve",category:"basic",label:"Cross Dissolve",duration:0.35,mobileSafe:true,beatFriendly:false},
+  {id:"dip",category:"basic",label:"Fade Through Black",duration:0.45,mobileSafe:true,beatFriendly:false},
+  {id:"flash",category:"basic",label:"Flash White",duration:0.22,mobileSafe:true,beatFriendly:true},
+  {id:"slideleft",category:"movement",label:"Push Left",duration:0.32,mobileSafe:true,beatFriendly:true},
+  {id:"slideright",category:"movement",label:"Push Right",duration:0.32,mobileSafe:true,beatFriendly:true},
+  {id:"slideup",category:"movement",label:"Slide Up",duration:0.32,mobileSafe:true,beatFriendly:true},
+  {id:"zoom",category:"movement",label:"Zoom In",duration:0.3,mobileSafe:true,beatFriendly:true},
+  {id:"zoomout",category:"movement",label:"Zoom Out",duration:0.3,mobileSafe:true,beatFriendly:true},
+  {id:"whip",category:"movement",label:"Whip Pan",duration:0.24,mobileSafe:false,beatFriendly:true},
   {id:"spin",category:"stylized",label:"Spin",duration:0.42,mobileSafe:true,beatFriendly:true},
   {id:"glitch",category:"stylized",label:"Digital Glitch",duration:0.18,mobileSafe:false,beatFriendly:true},
-  {id:"rgb-wipe",category:"stylized",label:"RGB Wipe",duration:0.25,mobileSafe:false,beatFriendly:true},
+  {id:"glitch-rgb",category:"stylized",label:"RGB Wipe",duration:0.25,mobileSafe:false,beatFriendly:true},
   {id:"light-leak",category:"cinematic",label:"Light Leak",duration:0.5,mobileSafe:true,beatFriendly:false},
-  {id:"film-burn",category:"cinematic",label:"Film Burn",duration:0.55,mobileSafe:false,beatFriendly:false},
-  {id:"luma-wipe",category:"cinematic",label:"Luma Wipe",duration:0.4,mobileSafe:false,beatFriendly:true},
-  {id:"mask-reveal",category:"cinematic",label:"Mask Reveal",duration:0.45,mobileSafe:false,beatFriendly:false},
+  {id:"burn",category:"cinematic",label:"Film Burn",duration:0.55,mobileSafe:false,beatFriendly:false},
+  {id:"luma",category:"cinematic",label:"Luma Wipe",duration:0.4,mobileSafe:false,beatFriendly:true},
+  {id:"iris",category:"cinematic",label:"Mask Reveal",duration:0.45,mobileSafe:false,beatFriendly:false},
 ] as const;
 
 export type ShotAnalysis = {
