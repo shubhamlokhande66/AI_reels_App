@@ -50,7 +50,7 @@ export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
-  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; maskWidth: number; maskHeight: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
+  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
   const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]), song = useAudioPlayer(p?.audioUri ?? null);
@@ -398,6 +398,17 @@ export default function EditorScreen() {
             const blend = ({ Normal: "source-over", Multiply: "multiply", Screen: "screen", Overlay: "overlay", "Soft light": "soft-light", "Hard light": "hard-light", "Color dodge": "color-dodge", "Color burn": "color-burn", Difference: "difference", Exclusion: "exclusion", Hue: "hue", Saturation: "saturation", Color: "color", Luminosity: "luminosity" } as Record<string, string>)[v];
             void studioLayerAction("layerSet", { key: "blend", value: blend });
           }} />
+          <Label>Face tracking</Label>
+          <Choices items={["Off", "Follow face", "Nudge left", "Nudge right", "Nudge up", "Nudge down"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.follow === "face" ? "Follow face" : "Off"} onPick={(v) => {
+            const layer = studioLayers.find((x) => x.index === studioLayerIndex);
+            if (v === "Off") void studioLayerAction("layerSet", { key: "follow", value: "none" });
+            else if (v === "Follow face") void (async () => { await studioLayerAction("layerSet", { key: "follow", value: "face" }); await studioLayerAction("layerSet", { key: "followOffsetX", value: 0 }); await studioLayerAction("layerSet", { key: "followOffsetY", value: -0.12 }); })();
+            else if (v === "Nudge left") void studioLayerAction("layerSet", { key: "followOffsetX", value: (layer?.followOffsetX ?? 0) - 0.03 });
+            else if (v === "Nudge right") void studioLayerAction("layerSet", { key: "followOffsetX", value: (layer?.followOffsetX ?? 0) + 0.03 });
+            else if (v === "Nudge up") void studioLayerAction("layerSet", { key: "followOffsetY", value: (layer?.followOffsetY ?? -0.12) - 0.03 });
+            else void studioLayerAction("layerSet", { key: "followOffsetY", value: (layer?.followOffsetY ?? -0.12) + 0.03 });
+          }} />
+          <Text className="text-[11px] text-muted">{words("Follows the detected face in the base shot. Tracking uses available face-analysis frames.")}</Text>
           <Label>Layer fade and audio</Label>
           <Choices items={["Fade in 0.5s", "Fade out 0.5s", "No fade", "Mute layer audio", "Layer audio 50%", "Layer audio 100%"]} onPick={(v) => {
             if (v === "Fade in 0.5s") void studioLayerAction("layerSet", { key: "fin", value: 0.5 });
