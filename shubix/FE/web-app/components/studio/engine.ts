@@ -993,7 +993,7 @@ function renumber(){
   const cards = [...$('clips').children];
   wipNote();
   if(ordering) return;   // the numbers are the taps meanwhile
-  cards.forEach((c, i) => { const n = c.querySelector('.cnum'), u = c.querySelector('.cup'); if(n){ n.textContent = String(i + 1); n.classList.remove('bg-black/40', 'ring-2', 'ring-white'); n.classList.add('bg-accent'); } if(u) u.hidden = i === 0; });
+  cards.forEach((c, i) => { const n = c.querySelector('.cnum'), u = c.querySelector('.cup'); if(n){ n.textContent = String(i + 1); n.classList.remove('bg-neutral-900', 'ring-2', 'ring-white'); n.classList.add('bg-accent'); } if(u) u.hidden = i === 0; });
   $('crev').hidden = cards.length < 2;
 }
 // The clips just added, each with an empty circle: a tap numbers it (1, 2, 3…, a second tap takes the number back);
@@ -1001,7 +1001,7 @@ function renumber(){
 let ordering = null;
 function askOrder(cards){
   ordering = { cards, taps: [] }; $('corder').hidden = false; $('crev').hidden = true;
-  cards.forEach(c => { c.classList.add('cursor-pointer'); const n = c.querySelector('.cnum'); n.textContent = ''; n.classList.remove('bg-accent'); n.classList.add('bg-black/40', 'ring-2', 'ring-white'); c.querySelector('.cup').hidden = true; });
+  cards.forEach(c => { c.classList.add('cursor-pointer'); const n = c.querySelector('.cnum'); n.textContent = ''; n.classList.remove('bg-accent'); n.classList.add('bg-neutral-900', 'ring-2', 'ring-white'); c.querySelector('.cup').hidden = true; });
 }
 function endOrder(apply){
   const o = ordering; if(!o) return; ordering = null; $('corder').hidden = true;
@@ -1013,7 +1013,7 @@ $('clips').addEventListener('click', ev => {
   const o = ordering, card = ev.target.closest('.clip'); if(!o || !card || !o.cards.includes(card) || ev.target.closest('.del')) return;
   ev.preventDefault(); ev.stopPropagation();
   const k = o.taps.indexOf(card); if(k >= 0) o.taps.splice(k, 1); else o.taps.push(card);
-  o.cards.forEach(c => { const n = c.querySelector('.cnum'), i = o.taps.indexOf(c); n.textContent = i >= 0 ? String(i + 1) : ''; n.classList.toggle('bg-accent', i >= 0); n.classList.toggle('bg-black/40', i < 0); });
+  o.cards.forEach(c => { const n = c.querySelector('.cnum'), i = o.taps.indexOf(c); n.textContent = i >= 0 ? String(i + 1) : ''; n.classList.toggle('bg-accent', i >= 0); n.classList.toggle('bg-neutral-900', i < 0); });
   const live = o.cards.filter(c => c.isConnected); if(live.every(c => o.taps.includes(c))) endOrder(true);
 }, true);
 $('corderskip').addEventListener('click', () => endOrder(false));
@@ -1028,7 +1028,7 @@ function updateQ(){ $('qinfo').textContent = pending ? pending + ' clips left to
 function makeCard(f){
   const url = URL.createObjectURL(f);
   const card = document.createElement('div'); card.className='clip';
-  card.innerHTML = `<canvas class="th"></canvas><span class="cnum absolute left-1.5 top-1.5 z-1 grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-black"></span><button type="button" class="cup absolute left-9 top-1.5 z-1 grid size-6 place-items-center rounded-full bg-black/65 text-[13px] leading-none text-white" title="Play this clip earlier" aria-label="Play this clip earlier">↑</button><button class="del" title="Remove this clip" aria-label="Remove this clip">×</button><div class="meta"><div class="nm"></div><div class="dd">waiting…</div><canvas></canvas></div>`;
+  card.innerHTML = `<canvas class="th"></canvas><span class="cnum absolute left-1.5 top-1.5 z-3 grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-black"></span><button type="button" class="cup absolute left-9 top-1.5 z-3 grid size-6 place-items-center rounded-full bg-black/65 text-[13px] leading-none text-white" title="Play this clip earlier" aria-label="Play this clip earlier">↑</button><button class="del" title="Remove this clip" aria-label="Remove this clip">×</button><div class="meta"><div class="nm"></div><div class="dd">waiting…</div><canvas></canvas></div>`;
   card.querySelector('.nm').textContent = f.name; $('clips').appendChild(card); renumber();
   const src = {name:f.name, file:f, url, card, spark: card.querySelector('.meta canvas'), removed:false};
   card.__src = src; card.querySelector('.del').addEventListener('click', ()=>removeVideo(src));

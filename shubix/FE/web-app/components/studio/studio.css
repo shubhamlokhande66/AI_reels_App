@@ -318,7 +318,7 @@
 
 /* ================= The four steps, one after the other ================= */
 /* the next step appears once the one before it is done */
-.brs:not(.made):not(.c3) #s3,.brs:not(.fopen):not(.made):not(.c1) #s1,.brs:not(.fopen):not(.made):not(.c2) #s2,.brs.made :is(#s1,#s2).folded{display:none}
+.brs:not(.made):not(.c3) #s3,.brs:not(.fopen):not(.made):not(.c1) #s1,.brs:not(.fopen):not(.made):not(.c2) #s2,.brs.made:not(.fopen) :is(#s1,#s2).folded{display:none}
 .brs:not(.made) .step.locked{opacity:1}
 /* photos instead of videos in step 3 */
 .brs .ponly{display:none}
