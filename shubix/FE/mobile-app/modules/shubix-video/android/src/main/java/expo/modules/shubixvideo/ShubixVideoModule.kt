@@ -12,6 +12,7 @@ import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
+import androidx.media3.common.audio.GainProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
@@ -87,13 +88,15 @@ class ShubixVideoModule : Module() {
       val video = mutableListOf<Effect>()
       val audio = mutableListOf<AudioProcessor>()
       if (!image && speed != 1f) { video += SpeedChangeEffect(speed); audio += SonicAudioProcessor().apply { setSpeed(speed); setPitch(speed) } }
+      val clipVolume = c.optDouble("volume", 1.0).toFloat().coerceIn(0f, 2f)
+      if (!image && clipVolume != 1f) audio += GainProcessor { _, _ -> clipVolume }
       val turn = c.optDouble("rotation", 0.0).toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
       if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
       video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
       video += filter(c.optString("filter"))
       if (texts != null && texts.length() > 0) video += OverlayEffect(ImmutableList.of(TimedTexts(texts, at, w, h)))
-      val muted = c.optBoolean("muted") || song != null
+      val muted = c.optBoolean("muted")
       items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
       at += len
     }
@@ -101,7 +104,9 @@ class ShubixVideoModule : Module() {
     if (song != null) {
       val music = MediaItem.Builder().setUri(Uri.parse(song.getString("uri")))
         .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((song.optDouble("start", 0.0) * 1000).toLong()).setEndPositionMs(((song.optDouble("start", 0.0) + at) * 1000).toLong()).build()).build()
-      sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).build())).build()
+      val musicVolume = song.optDouble("volume", 1.0).toFloat().coerceIn(0f, 2f)
+      val musicAudio = if (musicVolume == 1f) emptyList() else listOf(GainProcessor { _, _ -> musicVolume })
+      sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
     val transformer = Transformer.Builder(context)
