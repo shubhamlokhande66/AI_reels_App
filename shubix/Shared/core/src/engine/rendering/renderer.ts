@@ -52,7 +52,7 @@ export interface RenderTrackItem {
   muted?: boolean;
   volume?: number;
   transitionIn?: { type: string; durationMs: number };
-  effects?: Array<{ type: string; params: Readonly<Record<string, number | string | boolean>> }>;
+  effects?: readonly RenderEffect[];\n  keyframes?: KeyframeTrack;\n  mask?: RenderMask;
 }
 
 export interface RenderAudioTrack {
@@ -74,13 +74,81 @@ export interface RenderTextOverlay {
   size: number;
 }
 
+
+/** Shared, serializable animation primitives used by web and native renderers. */
+export type KeyframeEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out" | "step";
+export type AnimatedProperty = "x" | "y" | "scale" | "scaleX" | "scaleY" | "rotation" | "opacity" | "anchorX" | "anchorY" | "volume" | "playbackRate" | "blur" | "brightness" | "contrast" | "saturation" | "hue" | "temperature" | "tint";
+export interface NumericKeyframe {
+  timeMs: number;
+  value: number;
+  easing?: KeyframeEasing;
+  bezier?: readonly [number, number, number, number];
+}
+export type KeyframeTrack = Partial<Record<AnimatedProperty, readonly NumericKeyframe[]>>;
+export type TransitionType = "cut" | "fade" | "dissolve" | "crossfade" | "dip-black" | "dip-white" | "push-left" | "push-right" | "push-up" | "push-down" | "slide-left" | "slide-right" | "slide-up" | "slide-down" | "wipe-left" | "wipe-right" | "wipe-up" | "wipe-down" | "zoom-in" | "zoom-out" | "spin" | "blur" | "flash" | "glitch" | "cube" | "flip-3d" | "whip-pan";
+export type EffectType = "blur" | "motion-blur" | "glow" | "vignette" | "grain" | "sharpen" | "chromatic-aberration" | "rgb-split" | "glitch" | "shake" | "wave" | "pixelate" | "mosaic" | "fisheye" | "lens-distortion" | "light-leak" | "film-burn" | "bloom" | "edge-detection" | "duotone" | "lut" | "color-adjust" | "hsl" | "curves" | "posterize" | "threshold";
+export type MaskType = "rectangle" | "ellipse" | "linear" | "radial" | "polygon" | "luma" | "image";
+export interface RenderMask {
+  type: MaskType;
+  x: number; y: number; width: number; height: number;
+  feather?: number; invert?: boolean; rotation?: number;
+  points?: readonly { x: number; y: number }[];
+  sourceId?: string;
+  keyframes?: KeyframeTrack;
+}
+export interface RenderEffect {
+  id?: string; type: EffectType | string; enabled?: boolean; intensity?: number;
+  startMs?: number; endMs?: number;
+  params: Readonly<Record<string, number | string | boolean>>;
+  keyframes?: KeyframeTrack;
+}
+export interface RenderLayer {
+  id: string; kind: "video" | "image" | "text" | "shape" | "sticker";
+  sourceId?: string; startMs: number; durationMs: number; zIndex: number;
+  opacity?: number;
+  blendMode?: "normal" | "multiply" | "screen" | "overlay" | "soft-light" | "add" | "darken" | "lighten";
+  transform?: KeyframeTrack; effects?: readonly RenderEffect[]; mask?: RenderMask;
+}
+export interface RenderTextStyle {
+  fontFamily?: string; fontWeight?: number | "normal" | "bold"; fontStyle?: "normal" | "italic";
+  align?: "left" | "center" | "right"; verticalAlign?: "top" | "middle" | "bottom";
+  letterSpacing?: number; lineHeight?: number; strokeColor?: string; strokeWidth?: number;
+  shadowColor?: string; shadowBlur?: number; shadowX?: number; shadowY?: number;
+  backgroundColor?: string; backgroundRadius?: number;
+  gradient?: readonly { offset: number; color: string }[];
+  animation?: "none" | "fade" | "typewriter" | "word-reveal" | "pop" | "bounce" | "slide-up" | "slide-down" | "slide-left" | "slide-right" | "zoom-in" | "zoom-out" | "blur-in" | "glitch";
+  position?: { x: number; y: number; unit: "normalized" | "pixels" };
+}
+
+/** Deterministic keyframe sampling; all renderer adapters use the same easing semantics. */
+export function sampleKeyframes(frames: readonly NumericKeyframe[] | undefined, timeMs: number, fallback = 0): number {
+  if (!frames?.length) return fallback;
+  const sorted = [...frames].sort((a, b) => a.timeMs - b.timeMs);
+  if (timeMs <= sorted[0].timeMs) return sorted[0].value;
+  const last = sorted[sorted.length - 1];
+  if (timeMs >= last.timeMs) return last.value;
+  let left = sorted[0], right = last;
+  for (let i = 1; i < sorted.length; i++) {
+    if (timeMs <= sorted[i].timeMs) { left = sorted[i - 1]; right = sorted[i]; break; }
+  }
+  const span = right.timeMs - left.timeMs;
+  if (span <= 0) return right.value;
+  let t = Math.max(0, Math.min(1, (timeMs - left.timeMs) / span));
+  const easing = left.easing ?? "linear";
+  if (easing === "step") t = 0;
+  else if (easing === "ease-in") t *= t;
+  else if (easing === "ease-out") t = 1 - (1 - t) * (1 - t);
+  else if (easing === "ease-in-out") t = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+  return left.value + (right.value - left.value) * t;
+}
+
 export interface RenderJobSpec {
   version: 1;
   dimensions: RenderDimensions;
   sources: readonly RenderSource[];
   items: readonly RenderTrackItem[];
   audio?: readonly RenderAudioTrack[];
-  overlays?: readonly RenderTextOverlay[];
+  overlays?: readonly RenderTextOverlay[];\n  layers?: readonly RenderLayer[];
   output: {
     container: "mp4";
     videoCodec: "h264";
