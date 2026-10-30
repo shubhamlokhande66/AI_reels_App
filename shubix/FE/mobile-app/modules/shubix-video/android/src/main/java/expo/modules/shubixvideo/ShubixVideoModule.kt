@@ -106,7 +106,9 @@ class ShubixVideoModule : Module() {
       val music = MediaItem.Builder().setUri(Uri.parse(song.getString("uri")))
         .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((song.optDouble("start", 0.0) * 1000).toLong()).setEndPositionMs(((song.optDouble("start", 0.0) + at) * 1000).toLong()).build()).build()
       val musicVolume = song.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f)
-      val musicAudio: List<AudioProcessor> = if (musicVolume == 1f) emptyList() else listOf(gainProcessor(musicVolume))
+      val fadeIn = song.optDouble("fadeIn", 0.0).coerceIn(0.0, 10.0)
+      val fadeOut = song.optDouble("fadeOut", 0.0).coerceIn(0.0, 10.0)
+      val musicAudio: List<AudioProcessor> = if (musicVolume == 1f && fadeIn == 0.0 && fadeOut == 0.0) emptyList() else listOf(gainProcessor(musicVolume, at, fadeIn, fadeOut))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
@@ -129,12 +131,17 @@ class ShubixVideoModule : Module() {
   }
 
   /** Constant PCM gain shared by the clip and music sequences. Media3 expects a 0..1 gain factor. */
-  private fun gainProcessor(level: Float): GainProcessor {
+  private fun gainProcessor(level: Float, durationSeconds: Double? = null, fadeInSeconds: Double = 0.0, fadeOutSeconds: Double = 0.0): GainProcessor {
     val gain = level.coerceIn(0f, 1f)
     return GainProcessor(object : GainProcessor.GainProvider {
-      override fun getGainFactorAtSamplePosition(samplePosition: Long, sampleRate: Int): Float = gain
+      override fun getGainFactorAtSamplePosition(samplePosition: Long, sampleRate: Int): Float {
+        val seconds = samplePosition.toDouble() / sampleRate.coerceAtLeast(1)
+        val fadeIn = if (fadeInSeconds > 0.0) (seconds / fadeInSeconds).coerceIn(0.0, 1.0) else 1.0
+        val fadeOut = if (fadeOutSeconds > 0.0 && durationSeconds != null) ((durationSeconds - seconds) / fadeOutSeconds).coerceIn(0.0, 1.0) else 1.0
+        return (gain * minOf(fadeIn, fadeOut)).toFloat()
+      }
       override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long =
-        if (gain == 1f) C.TIME_END_OF_SOURCE else C.TIME_UNSET
+        if (gain == 1f && fadeInSeconds == 0.0 && fadeOutSeconds == 0.0) C.TIME_END_OF_SOURCE else C.TIME_UNSET
     })
   }
 
