@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDirectorPlan, evaluateKeyframes, evaluateTransformKeyframes, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -11,6 +11,25 @@ describe("shared video director", () => {
     expect(evaluateKeyframes(frames, 1)).toBe(5);
     expect(evaluateKeyframes(frames, 3)).toBe(10);
     expect(evaluateKeyframes(frames, 8)).toBe(20);
+  });
+
+  it("supports cubic-bezier easing and safe keyframe editing utilities", () => {
+    const linear = cubicBezierProgress(0.5, [0, 0, 1, 1]);
+    expect(linear).toBeCloseTo(0.5, 2);
+    const ease = evaluateKeyframes([
+      { id: "a", time: 0, value: 0, easing: "linear" },
+      { id: "b", time: 1, value: 10, easing: "bezier", bezier: [0.25, 0.1, 0.25, 1] },
+    ], 0.5);
+    expect(ease).toBeGreaterThan(5);
+    const frames = normaliseKeyframes([
+      { id: "a", time: 1, value: 1, easing: "linear" },
+      { id: "b", time: 0, value: 0, easing: "linear" },
+      { id: "c", time: 1, value: 2, easing: "linear" },
+    ]);
+    expect(frames.map((frame) => frame.time)).toEqual([0, 1]);
+    expect(frames[1].value).toBe(2);
+    expect(upsertKeyframe(frames, { id: "d", time: 1, value: 3, easing: "linear" })[1].value).toBe(3);
+    expect(shiftKeyframes(frames, -2).map((frame) => frame.time)).toEqual([0, 1]);
   });
 
   it("evaluates Studio transform keyframes with the shared easing model", () => {
