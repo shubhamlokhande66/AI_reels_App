@@ -40,6 +40,8 @@ const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "C
 export function createAndroidRendererAdapter(options: AndroidRendererOptions): RendererAdapter {
   const { nativeModule } = options;
   let active = false;
+  let cancelRequested = false;
+  let nativeStarted = false;
 
   const assertSupported = (job: RenderJobSpec) => {
     const validationErrors = validateRenderJob(job);
@@ -107,6 +109,8 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       if (active) throw new Error("An Android render is already running.");
       assertSupported(job);
       active = true;
+      cancelRequested = false;
+      nativeStarted = false;
       let subscription: { remove(): void } | undefined;
       try {
         subscription = nativeModule.addListener("onProgress", ({ progress }) => {
@@ -114,6 +118,12 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           onProgress({ phase: "encoding", progress: normalized });
         });
         const output = await options.createOutputPath();
+        if (cancelRequested) {
+          onProgress({ phase: "cancelled", progress: 0 });
+          const cancelled = new Error("Export was cancelled.");
+          Object.assign(cancelled, { code: "E_EXPORT_CANCELLED" });
+          throw cancelled;
+        }
         const sourceById = new Map(job.sources.map((source) => [source.id, source]));
         const clips = job.items.map((item) => {
           const source = sourceById.get(item.sourceId)!;
@@ -150,6 +160,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           output,
         };
         onProgress({ phase: "preparing", progress: 0 });
+        nativeStarted = true;
         const result = await nativeModule.exportReel(JSON.stringify(nativeSpec));
         onProgress({ phase: "completed", progress: 1, outputUri: result.uri, sizeBytes: result.size });
         return { uri: result.uri, sizeBytes: result.size, durationMs: result.duration * 1000 };
@@ -167,10 +178,14 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       } finally {
         subscription?.remove();
         active = false;
+        nativeStarted = false;
+        cancelRequested = false;
       }
     },
     async cancel() {
-      if (active) await nativeModule.cancel();
+      if (!active) return;
+      cancelRequested = true;
+      if (nativeStarted) await nativeModule.cancel();
     },
   };
 }
