@@ -107,11 +107,12 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       if (active) throw new Error("An Android render is already running.");
       assertSupported(job);
       active = true;
-      const subscription = nativeModule.addListener("onProgress", ({ progress }) => {
-        const normalized = Math.max(0, Math.min(1, progress));
-        onProgress({ phase: "encoding", progress: normalized });
-      });
+      let subscription: { remove(): void } | undefined;
       try {
+        subscription = nativeModule.addListener("onProgress", ({ progress }) => {
+          const normalized = Math.max(0, Math.min(1, progress));
+          onProgress({ phase: "encoding", progress: normalized });
+        });
         const output = await options.createOutputPath();
         const sourceById = new Map(job.sources.map((source) => [source.id, source]));
         const clips = job.items.map((item) => {
@@ -157,7 +158,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         onProgress({ phase: "failed", progress: 0, code: error instanceof UnsupportedAndroidRenderFeature ? error.code : "ANDROID_RENDER_FAILED", message });
         throw error;
       } finally {
-        subscription.remove();
+        subscription?.remove();
         active = false;
       }
     },
