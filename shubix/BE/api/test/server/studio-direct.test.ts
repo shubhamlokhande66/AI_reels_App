@@ -221,8 +221,8 @@ describe("the AI's camera keyframes", () => {
   it("come back from the plan, with the new shape transitions", () => {
     const out = parsePlan(req(2), { story: "", slots: [{ i: 1, shot: "1a", transition: "Heart", effect: "none", speed: "normal", why: "",
       move: [{ at: 0, s: 1.3, x: 0, y: 0, r: 0, ez: "lin" }, { at: 0.25, s: 1, x: 0, y: 0, r: 0, ez: "outExpo" }] }] });
-    expect(out.slots[0].transition).toBe("heart");
-    expect(out.slots[0].move).toHaveLength(2);
+    expect(out.slots[1].transition).toBe("heart");
+    expect(out.slots[1].move).toHaveLength(2);
   });
 });
 
