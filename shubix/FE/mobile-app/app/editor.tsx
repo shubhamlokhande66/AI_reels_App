@@ -37,7 +37,7 @@ const BGS = [["none", "Original"], ["blur", "Blur"]];
 const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER", "गणपती बाप्पा मोरया", "शुभ दीपावली", "Happy Diwali"];
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
-const LATER = new Set(["fx", "extract", "border", "adjust", "curve", "stab", "beauty", "fade", "mosaic", "lens", "captions", "voice", "layers"]);
+const LATER = new Set(["fx", "extract", "border", "adjust", "curve", "stab", "beauty", "fade", "mosaic", "lens", "captions", "voice", "layers", "tr"]);
 // …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
 
 /** The editor (the website's studio editor on a phone): the Reel saved on this phone, played shot by shot with its
