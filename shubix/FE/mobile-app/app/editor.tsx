@@ -173,7 +173,7 @@ export default function EditorScreen() {
   }
   async function chooseSong() {
     if (!p) return;
-    try { const s = await pickSong(); if (s) change({ audioUri: await keepPickedFile(p.id, s.uri, `${s.name}.m4a`), audioName: s.name }); } catch (e) { toast(errorMessage(e), "danger"); }
+    try { const s = await pickSong(); if (s) { const uri = await keepPickedFile(p.id, s.uri, `${s.name}.m4a`); if (p.studio && engine.holds(p.id)) await engine.song(uri, s.name); change({ audioUri: uri, audioName: s.name }); } } catch (e) { toast(errorMessage(e), "danger"); }
   }
   async function removeShot() {
     if (clips.length === 1) return toast(words("A Reel needs at least one shot."), "info");
