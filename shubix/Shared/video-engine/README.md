@@ -14,7 +14,7 @@ Fast Studio now runs this shared planner as a local fallback. It adds a soft pre
 
 ## Shared editing primitives
 
-- Typed keyframe tracks and easing, with numeric interpolation
+- Typed keyframe tracks and easing, with numeric and compact Studio transform interpolation shared by web and Android
 - Mask definitions: rectangle, ellipse, linear/radial, freehand, person, luma and text
 - Blend mode catalogue
 - Effect catalogue for colour, cinematic looks, light, distortion, motion and portrait treatment
@@ -28,7 +28,7 @@ The native editor now connects to the hidden Fast Studio page through the existi
 - Renderer-backed transition and effect changes
 - Colour adjustment presets
 - Speed curve presets, stabilization, beauty, fades, mosaic, magnifier and borders
-- Keyframe insertion at the current playhead
+- Keyframe insertion, easing selection, previous/next navigation, delete and clear controls at the current playhead
 - Keyframe persistence in the shared Reel project schema and native preview interpolation
 - Preservation of Studio-only clip settings and keyframes when native changes are synced back before export
 
