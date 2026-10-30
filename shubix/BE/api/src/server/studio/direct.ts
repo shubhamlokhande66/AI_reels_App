@@ -207,7 +207,7 @@ Return JSON: {"slots": [only the cuts you change, each complete: {"i": 0, "shot"
 }
 export async function directPatch(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
   const ans = await provider.structured(SYSTEM, patchPrompt(d, taste), Answer, { task: TASK, temperature: 0.5, maxOutputTokens: 1200 });
-  const plan = parsePlan(d, ans);
+  const plan = parsePlan(d, ans, false);
   return { slots: plan.slots, story: plan.story, patch: true, model: provider.model, provider: provider.name };
 }
 
@@ -272,7 +272,7 @@ function fallbackShot(slot: DirectIn["slots"][number], previousClip: string | nu
   return ranked[0]?.id ?? slot.candidates[0].id;
 }
 
-export function parsePlan(d: DirectIn, a: AnswerIn): { slots: DirectedSlot[]; story: string } {
+export function parsePlan(d: DirectIn, a: AnswerIn, complete = true): { slots: DirectedSlot[]; story: string } {
   const offered = new Map(d.slots.map((s) => [s.i, s]));
   const answers = new Map<number, SlotIn>();
   for (const answer of a.slots) {
@@ -281,7 +281,7 @@ export function parsePlan(d: DirectIn, a: AnswerIn): { slots: DirectedSlot[]; st
   }
   const slots: DirectedSlot[] = [];
   let previousClip: string | null = null;
-  for (const slot of d.slots) {
+  for (const slot of (complete ? d.slots : d.slots.filter((s) => answers.has(s.i)))) {
     const answer = answers.get(slot.i);
     const ids = new Set(slot.candidates.map((c) => c.id));
     const requestedShot = String(answer?.shot ?? "").trim().toLowerCase();
