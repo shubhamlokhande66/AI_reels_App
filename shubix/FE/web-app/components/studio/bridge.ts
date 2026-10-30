@@ -86,6 +86,20 @@ export function initBridge(root: HTMLElement): () => void {
     async state() { return studio()?.state(); },
     async seek(a) { const st = studio(); if (!st?.seek) throw new Error("Studio seeking is not ready"); await st.seek(Math.max(0, Number(a.time) || 0)); return { time: st.now }; },
     async kfSeek(a) { const st = studio(); if (!st?.kfSeek) throw new Error("Keyframe timeline is not ready"); await st.kfSeek(Math.max(0, Number(a.time) || 0)); return st.kfTarget?.() ?? null; },
+    async kfEase(a) {
+      const st = studio(), select = $<HTMLSelectElement>("kfease");
+      if (!st?.kfTarget?.() || !select) throw new Error("Select a keyframe first");
+      select.value = String(a.easing || "inOut");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: true };
+    },
+    async kfRemove() { const b = $("kfdel"); if (!b || b.hasAttribute("disabled")) throw new Error("There is no keyframe at the playhead"); b.click(); return { ok: true }; },
+    async kfClear() { const b = $("kfclear"); if (!b) throw new Error("Keyframe controls are not ready"); b.click(); return { ok: true }; },
+    async kfStep(a) {
+      const id = Number(a.direction) < 0 ? "kfprev" : "kfnext", b = $(id);
+      if (!b || b.hasAttribute("disabled")) return { ok: false, time: studio()?.now ?? 0 };
+      b.click(); return { ok: true, time: studio()?.now ?? 0 };
+    },
     async kfSet(a) {
       const st = studio(), before = st?.kfTarget?.();
       if (!st?.kfSet || !before || before.what !== "shot") throw new Error("Select a video shot before adding keyframes");
