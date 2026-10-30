@@ -162,12 +162,42 @@ class ShubixVideoModule : Module() {
         typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
       }
-      val words = text.optString("text")
-      val pad = (paint.textSize / 3).toInt()
-      val width = (paint.measureText(words).toInt() + pad * 2).coerceIn(2, w)
-      val height = (paint.fontSpacing.toInt() + pad * 2).coerceAtLeast(2)
-      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
-        Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint)
+      val content = text.optString("text").replace("\\r", "")
+      val pad = (paint.textSize / 3).toInt().coerceAtLeast(4)
+      val maxTextWidth = (w * 0.9f - pad * 2).coerceAtLeast(1f)
+      val lines = mutableListOf<String>()
+      content.split("\\n").forEach { paragraph ->
+        var line = ""
+        paragraph.split(Regex("\\s+")).filter { it.isNotEmpty() }.forEach { word ->
+          val candidate = if (line.isEmpty()) word else "$line $word"
+          if (paint.measureText(candidate) <= maxTextWidth) {
+            line = candidate
+          } else {
+            if (line.isNotEmpty()) lines += line
+            // Keep long URLs/words visible instead of drawing beyond the bitmap edge.
+            var part = ""
+            word.forEach { char ->
+              val next = part + char
+              if (part.isNotEmpty() && paint.measureText(next) > maxTextWidth) {
+                lines += part
+                part = char.toString()
+              } else part = next
+            }
+            line = part
+          }
+        }
+        if (line.isNotEmpty() || paragraph.isEmpty()) lines += line
+      }
+      val safeLines = lines.ifEmpty { listOf("") }
+      val textWidth = safeLines.maxOf { paint.measureText(it) }.toInt().coerceAtMost(maxTextWidth.toInt())
+      val width = (textWidth + pad * 2).coerceIn(2, w)
+      val lineHeight = paint.fontSpacing
+      val height = (lineHeight * safeLines.size + pad * 2).toInt().coerceAtLeast(2)
+      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+        val canvas = Canvas(bitmap)
+        safeLines.forEachIndexed { index, line ->
+          canvas.drawText(line, pad.toFloat(), pad - paint.ascent() + index * lineHeight, paint)
+        }
       }
     }
   }
