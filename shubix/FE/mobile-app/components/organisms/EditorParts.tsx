@@ -137,7 +137,17 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   // the Reel follows the playhead while it plays, and when the time changes from elsewhere
   useEffect(() => { if (!dragging.current) scroller.current?.scrollTo({ x: now * px, animated: false }); }, [now, px]);
-  const snapTime = (time: number) => {\n    if (!snapEnabled) return time;\n    let cursor = 0, nearest = time, distance = Math.max(0.06, 10 / px);\n    for (const item of clips) {\n      const end = cursor + clipDuration(item);\n      for (const edge of [cursor, end]) { const delta = Math.abs(edge - time); if (delta < distance) { distance = delta; nearest = edge; } }\n      cursor = end;\n    }\n    return nearest;\n  };\n  const pinch = Gesture.Pinch().runOnJS(true).onStart(() => { pinchFrom.current = px; }).onUpdate((e) => zoom(pinchFrom.current * e.scale));
+  const snapTime = (time: number) => {
+    if (!snapEnabled) return time;
+    let cursor = 0, nearest = time, distance = Math.max(0.06, 10 / px);
+    for (const item of clips) {
+      const end = cursor + clipDuration(item);
+      for (const edge of [cursor, end]) { const delta = Math.abs(edge - time); if (delta < distance) { distance = delta; nearest = edge; } }
+      cursor = end;
+    }
+    return nearest;
+  };
+  const pinch = Gesture.Pinch().runOnJS(true).onStart(() => { pinchFrom.current = px; }).onUpdate((e) => zoom(pinchFrom.current * e.scale));
   return (
     <View className="mx-4 mt-3 overflow-hidden rounded-[18px] border border-border bg-surface">
       <View className="flex-row items-center gap-1.5 border-b border-border px-3 py-2.5">
