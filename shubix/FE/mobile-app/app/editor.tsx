@@ -14,7 +14,6 @@ import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
 import { videoEngine } from "../lib/video";
 import { engine } from "../lib/engine";
-import { BLEND_MODES } from "@shubix/video-engine";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
@@ -235,7 +234,7 @@ export default function EditorScreen() {
       );
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
       case "layers": return <View className="gap-2">
-        <Button full icon="image-plus" title={words("Add photo / video layer")} onPress={() => void addStudioLayer()} />
+        <Button full icon="image" title={words("Add photo / video layer")} onPress={() => void addStudioLayer()} />
         {studioLayers.length > 0 && <>
           <Label>Overlay layers</Label>
           <Choices items={studioLayers.map((layer) => `Layer ${layer.index + 1}`)} on={`Layer ${studioLayerIndex + 1}`} onPick={(v) => {
@@ -259,7 +258,7 @@ export default function EditorScreen() {
             const mask = ({ "No mask": "none", "Circle mask": "circle", "Rectangle mask": "rect", "Linear mask": "line", "Mirror mask": "mirror" } as Record<string, string>)[v];
             void studioLayerAction("layerSet", { key: "mask", value: mask });
           }} />
-          <Choices items={["Normal", "Multiply", "Screen", "Overlay", "Soft light", "Hard light", "Color dodge", "Difference", "Exclusion"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.blend === "source-over" ? "Normal" : studioLayers.find((x) => x.index === studioLayerIndex)?.blend} onPick={(v) => {
+          <Choices items={["Normal", "Multiply", "Screen", "Overlay", "Soft light", "Hard light", "Color dodge", "Difference", "Exclusion"]} on={studioLayers.find((x) => x.index === studioLayerIndex)?.blend === "source-over" ? "Normal" : studioLayers.find((x) => x.index === studioLayerIndex)?.blend ?? "Normal"} onPick={(v) => {
             const blend = ({ Normal: "source-over", Multiply: "multiply", Screen: "screen", Overlay: "overlay", "Soft light": "soft-light", "Hard light": "hard-light", "Color dodge": "color-dodge", Difference: "difference", Exclusion: "exclusion" } as Record<string, string>)[v];
             void studioLayerAction("layerSet", { key: "blend", value: blend });
           }} />
@@ -268,9 +267,9 @@ export default function EditorScreen() {
             const layer = studioLayers.find((x) => x.index === studioLayerIndex);
             if (v === "Start at playhead") void studioLayerAction("layerSet", { key: "t0", value: now });
             else if (v === "End at playhead") void studioLayerAction("layerSet", { key: "t1", value: Math.max(now, (layer?.t0 ?? 0) + 0.3) });
-            else { void studioLayerAction("layerSet", { key: "t0", value: 0 }); void studioLayerAction("layerSet", { key: "t1", value: total }); }
+            else void (async () => { await studioLayerAction("layerSet", { key: "t0", value: 0 }); await studioLayerAction("layerSet", { key: "t1", value: total }); })();
           }} />
-          <Button full color="danger" variant="secondary" title={words("Delete selected layer")} onPress={() => void studioLayerAction("layerDelete")} />
+          <Button full variant="danger" title={words("Delete selected layer")} onPress={() => void studioLayerAction("layerDelete")} />
         </>}
       </View>;
       case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
