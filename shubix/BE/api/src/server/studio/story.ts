@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getProvider } from "../ai";
 import { settings as cfg } from "../core/config";
 import { AppError, ValidationFailed } from "../core/errors";
-import { charge } from "../credits";
+import { chargeOnce } from "../credits";
 
 /** Story Maker from words alone: each sentence becomes a scene with a picture, found or made here, cheapest first:
  * a free-licence painting or photo on Wikimedia Commons, then free AI (Cloudflare FLUX, when connected), then paid AI
@@ -131,7 +131,7 @@ export async function scenePicture(o: { scene: Scene; style: string; characters:
     const p = promptFor(o.scene, style, o.characters);
     for (const [ok, make, cost] of [[freeAi, flux, "ai_picture"], [() => !!paidAi(), paid, "paid_picture"]] as const) {
       if (!ok()) continue;
-      try { pic = await make(p); await charge(cost, `story:${o.reelId}:${o.i}:${Date.now()}`, `Story Maker picture (scene ${o.i + 1})`); break; }
+      try { pic = await make(p); await chargeOnce(cost, `story:${o.reelId}:${o.i}`, `Story Maker picture (scene ${o.i + 1})`); break; }
       catch (e) { if (e instanceof AppError) throw e; errors.push((e as Error).message); }
     }
   }
