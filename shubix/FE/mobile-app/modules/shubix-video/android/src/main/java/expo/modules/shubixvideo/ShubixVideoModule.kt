@@ -154,24 +154,29 @@ class ShubixVideoModule : Module() {
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
     val session = ActiveExport(promise).also { it.output = out }
     activeExport = session
-    val transformer = Transformer.Builder(context)
-      .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
-      .addListener(object : Transformer.Listener {
-        override fun onCompleted(composition: Composition, result: ExportResult) {
-          if (activeExport !== session || session.settled) return
-          finishExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
-        }
-        override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
-          if (activeExport !== session || session.settled) return
-          finishExport(session, exception)
-        }
-      }).build()
+    val transformer = try {
+      Transformer.Builder(context)
+        .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
+        .addListener(object : Transformer.Listener {
+          override fun onCompleted(composition: Composition, result: ExportResult) {
+            if (activeExport !== session || session.settled) return
+            finishExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
+          }
+          override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+            if (activeExport !== session || session.settled) return
+            finishExport(session, exception)
+          }
+        }).build()
+    } catch (error: Exception) {
+      finishExport(session, error)
+      return
+    }
     session.transformer = transformer
     try {
       transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
     } catch (error: Exception) {
       finishExport(session, error)
-      throw error
+      return
     }
     val holder = ProgressHolder()
     val progressTask = object : Runnable {
