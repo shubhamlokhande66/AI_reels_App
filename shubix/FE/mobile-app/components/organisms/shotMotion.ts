@@ -52,6 +52,11 @@ export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, a
     } else if (DRIFT.has(fx)) steps.push(timing(v.s, fx === "pan-soft" ? 1.06 : 1.12, len, Easing.linear));
     else if (fx === "shake") steps.push(Animated.loop(Animated.sequence([-6, 6, -4, 4, 0].map((x) => timing(v.x, x, 0.05, Easing.linear))), { iterations: Math.ceil(len / 0.5) }));
     else if (PULSE.has(fx)) steps.push(Animated.loop(Animated.sequence([timing(v.s, 1.06, 0.08), timing(v.s, 1, Math.max(0.1, beat - 0.08))]), { iterations: Math.ceil(len / beat) }));
+    else if (fx === "mirror") v.sx.setValue(-1);
+    else if (fx === "frame") v.s.setValue(0.9);
+    else if (fx === "triple") v.s.setValue(1.05);
+    else if (fx === "kaleido") { v.r.setValue(0.04); steps.push(timing(v.r, -0.04, len, Easing.inOut(Easing.sin))); }
+    else if (fx === "vhs") steps.push(Animated.loop(Animated.sequence([-2, 2, -1, 1, 0].map((x) => timing(v.x, x, 0.045, Easing.linear))), { iterations: Math.ceil(len / 0.25) }));
     else if (fx === "snap" && at < 0.08) { v.o.setValue(1); steps.push(timing(v.o, 0, 0.14)); }
     const run = Animated.parallel(steps);
     run.start();
