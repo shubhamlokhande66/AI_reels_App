@@ -623,10 +623,16 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
   const platform = request.platform ?? "android";
   const mobile = platform === "android";
   const music = request.music;
-  const available = request.shots.filter((shot) => shot.duration > 0 && shot.isUsable !== false &&
-    Number.isFinite(shot.duration) && shot.sourceIndex >= 0);
   const warnings: string[] = [];
   const decisions: string[] = [];
+  const available = request.shots.filter((shot) =>
+    typeof shot.id === "string" && shot.id.trim().length > 0 &&
+    Number.isInteger(shot.sourceIndex) && shot.sourceIndex >= 0 &&
+    Number.isFinite(shot.duration) && shot.duration > 0 && shot.isUsable !== false
+  );
+  if (available.length !== request.shots.length) {
+    warnings.push("Some source moments were skipped because their identifiers, source indexes or durations were invalid, or they were marked unusable.");
+  }
   if (!music) warnings.push("Music analysis is missing; visual pacing is used and beat synchronization is disabled.");
   if (!available.length) {
     return { version: 1, status: "needs-more-footage", mood, aspect: request.aspect ?? "9:16", duration: 0,
@@ -634,14 +640,41 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
       captions: { suggested: false, source: "none" }, decisions, warnings: [...warnings, "No usable video moments were supplied."] };
   }
 
-  const duration = clamp(request.targetDuration ?? Math.min(30, music?.duration ?? available.reduce((sum, shot) => sum + shot.duration, 0)), 3, 180);
-  const maxShots = Math.max(1, Math.min(80, request.limits?.maxShots ?? 40));
-  const maxEffects = Math.max(0, Math.min(4, request.limits?.maxEffectsPerShot ?? 2));
+  const inferredDuration = Number.isFinite(music?.duration) && (music?.duration ?? 0) > 0
+    ? music!.duration : available.reduce((sum, shot) => sum + shot.duration, 0);
+  const requestedDuration = Number.isFinite(request.targetDuration) ? request.targetDuration! : Math.min(30, inferredDuration);
+  const duration = clamp(requestedDuration, 3, 180);
+  const maxShots = Math.round(clamp(Number.isFinite(request.limits?.maxShots) ? request.limits!.maxShots! : 40, 1, 80));
+  const maxEffects = Math.round(clamp(Number.isFinite(request.limits?.maxEffectsPerShot) ? request.limits!.maxEffectsPerShot! : 2, 0, 4));
   const beats = [...new Set([...(music?.downbeats ?? []), ...(music?.beats ?? [])]
     .filter((time) => Number.isFinite(time) && time >= 0 && time <= duration))].sort((a, b) => a - b);
-  const drops = (music?.drops ?? []).filter((time) => Number.isFinite(time) && time >= 0 && time <= duration).sort((a,b)=>a-b);
-  const quiet = music?.quietRanges ?? [];
-  const scored = available.map((shot) => ({ shot, score: autonomousScore(shot, mood) }));
+  const drops = [...new Set((music?.drops ?? []).filter((time) => Number.isFinite(time) && time >= 0 && time <= duration))]
+    .sort((a,b)=>a-b);
+  const quiet = (music?.quietRanges ?? []).filter(([start,end]) =>
+    Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start
+  ).map(([start,end]) => [clamp(start,0,duration),clamp(end,0,duration)] as [number,number])
+    .filter(([start,end]) => end > start);
+  const normaliseIntent = (value?: string) => (value ?? "").toLowerCase().split(/[^\\p{L}\\p{N}]+/u).filter((part) => part.length > 2);
+  const mustInclude = (request.intent?.mustInclude ?? []).flatMap(normaliseIntent);
+  const avoid = (request.intent?.avoid ?? []).flatMap(normaliseIntent);
+  const subjectTerms = normaliseIntent(request.intent?.subject);
+  const storyTerms = normaliseIntent(request.intent?.story);
+  const matchesTerms = (shot: AutonomousSourceShot, terms: string[]) => {
+    const haystack = [shot.id, ...(shot.tags ?? [])].join(" ").toLowerCase();
+    return terms.filter((term) => haystack.includes(term));
+  };
+  const hasRequiredShot = mustInclude.length === 0 || available.some((shot) => matchesTerms(shot,mustInclude).length > 0);
+  if (mustInclude.length && !hasRequiredShot) warnings.push("The requested must-include subject was not found in the analysed footage.");
+  const eligible = available.filter((shot) => !matchesTerms(shot,avoid).length);
+  if (eligible.length < available.length) warnings.push("Shots matching the avoid instruction were excluded from the edit.");
+  const candidates = eligible.length ? eligible : available;
+  const scored = candidates.map((shot) => {
+    const requiredMatches = matchesTerms(shot,mustInclude).length;
+    const subjectMatches = matchesTerms(shot,subjectTerms).length;
+    const storyMatches = matchesTerms(shot,storyTerms).length;
+    const intentBonus = (requiredMatches ? 0.22 : 0) + Math.min(0.12,subjectMatches*0.06) + Math.min(0.08,storyMatches*0.04);
+    return { shot, score: clamp(autonomousScore(shot,mood) + intentBonus,0,1) };
+  });
   const best = [...scored].sort((a,b)=>b.score-a.score);
   const hook = best.find(({shot}) => shot.isOpening) ?? best[0];
   const chosen = [hook];
@@ -680,8 +713,10 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
   let cursor = 0;
   for (let index = 0; index < chosen.length && cursor < duration; index++) {
     const { shot, score } = chosen[index];
-    const sourceStart = Math.max(0, shot.sourceStart ?? 0);
-    const sourceEnd = Math.max(sourceStart, shot.sourceEnd ?? (sourceStart + shot.duration));
+    const rawStart = Number.isFinite(shot.sourceStart) ? shot.sourceStart! : 0;
+    const sourceStart = Math.max(0, rawStart);
+    const rawEnd = Number.isFinite(shot.sourceEnd) ? shot.sourceEnd! : sourceStart + shot.duration;
+    const sourceEnd = Math.max(sourceStart, rawEnd);
     const sourceAvailable = Math.max(0, Math.min(shot.duration, sourceEnd - sourceStart));
     if (sourceAvailable < 0.35) continue;
     const remaining = duration - cursor;
@@ -738,6 +773,10 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
   }
 
   if (plan.length < 2) warnings.push("Only one usable shot was selected; add more footage for a richer edit.");
+  if (mustInclude.length && hasRequiredShot && !plan.some((item) => {
+    const source = available.find((shot) => shot.id === item.sourceId);
+    return !!source && matchesTerms(source,mustInclude).length > 0;
+  })) warnings.push("The required subject was present in the source analysis but did not make the final edit; review the plan before export.");
   if (cursor + 0.05 < duration) warnings.push("The supplied footage could not fill the requested duration without repeating clips.");
   if (!beats.length) decisions.push("No beat grid was supplied; cut timing follows visual rhythm.");
   else decisions.push("Cuts were aligned to nearby beat or downbeat positions where timing allowed.");
