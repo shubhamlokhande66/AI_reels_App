@@ -42,8 +42,13 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     make().then(async (r) => {
         if (!live) return;
         setPct(1); setDone(r); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
-        const ok = (await MediaLibrary.requestPermissionsAsync(true)).granted;
-        if (ok) { await MediaLibrary.createAssetAsync(r.uri); setSaved(true); }
+        // Saving to Photos is optional: a permission or library error must not turn a successful export into a failure.
+        try {
+          const permission = await MediaLibrary.requestPermissionsAsync(true);
+          if (permission.granted) { await MediaLibrary.createAssetAsync(r.uri); if (live) setSaved(true); }
+        } catch (saveError) {
+          if (live) toast(words("Your Reel is ready. Save it to Photos using the button below."), "info");
+        }
       })
       .catch((e) => { if (live) { toast(errorMessage(e), "danger"); onClose(); } });
     return () => { live = false; };
@@ -61,7 +66,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
           {!done ? (
             <>
               <FlowAnalyse title="Exporting" pct={pct} done={STEPS.filter(([, , at]) => pct >= at).length} status={words("Making your Reel…")} sub={words("This may take a few moments. Please keep this screen open.")} steps={STEPS.map(([i, t]) => [i, t])} />
-              <Button full variant="secondary" title={words("Cancel")} onPress={() => { void cancelExport(); onClose(); }} />
+              {!reel?.studio && <Button full variant="secondary" title={words("Cancel")} onPress={() => { void cancelExport(); onClose(); }} />}
             </>
           ) : (
             <>
