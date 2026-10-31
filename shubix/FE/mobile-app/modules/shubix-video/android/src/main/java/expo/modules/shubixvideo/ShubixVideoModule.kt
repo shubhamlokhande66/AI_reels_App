@@ -45,8 +45,58 @@ import java.io.File
 @UnstableApi
 class ShubixVideoModule : Module() {
   private val main = Handler(Looper.getMainLooper())
-  private var running: Transformer? = null
+  private class ActiveExport(val promise: Promise) {
+    var transformer: Transformer? = null
+    var settled: Boolean = false
+    var cancelRequested: Boolean = false
+    var progressTask: Runnable? = null
+    var output: File? = null
+  }
+
+  private var activeExport: ActiveExport? = null
   private var files: FileServer? = null
+
+  /** Settle the JS Promise once. Media3 cancel() blocks until cancellation cleanup has completed. */
+  private fun settleExport(session: ActiveExport, error: Throwable? = null, result: Map<String, Any>? = null) {
+    if (session.settled) return
+    session.settled = true
+    session.progressTask?.let(main::removeCallbacks)
+    session.progressTask = null
+    if (error != null) {
+      session.promise.reject(
+        if (error is ExportCancelledException) "E_EXPORT_CANCELLED" else "E_EXPORT",
+        error.message ?: "The Reel could not be made.",
+        error
+      )
+    } else {
+      session.promise.resolve(result)
+    }
+  }
+
+  private fun releaseExport(session: ActiveExport) {
+    session.progressTask?.let(main::removeCallbacks)
+    session.progressTask = null
+    if (activeExport === session) activeExport = null
+  }
+
+  private class ExportCancelledException : Exception("Export was cancelled.")
+
+  private fun cancelActiveExport() {
+    val session = activeExport ?: return
+    if (session.cancelRequested) return
+    session.cancelRequested = true
+    // Media3 1.8.0 cancel() blocks until its internal cancellation and resource cleanup finish.
+    // A cancelled export is not guaranteed to dispatch onError/onCompleted, so release here.
+    try {
+      session.transformer?.cancel()
+    } catch (_: Exception) {
+      // Cancellation still settles the JS request; cleanup below is best-effort.
+    } finally {
+      session.output?.let { if (it.exists()) it.delete() }
+      settleExport(session, ExportCancelledException())
+      releaseExport(session)
+    }
+  }
 
   override fun definition() = ModuleDefinition {
     Name("ShubixVideo")
@@ -57,17 +107,31 @@ class ShubixVideoModule : Module() {
         try { start(JSONObject(specJson), promise) } catch (e: Exception) { promise.reject("E_EXPORT", e.message ?: "The Reel could not be made.", e) }
       }
     }
-    AsyncFunction("cancel") { main.post { running?.cancel(); running = null } }
+    AsyncFunction("cancel") { main.post { cancelActiveExport() } }
     // the engine page's way to the app's files (FileServer): started once, its port and key
     Function("fileServer") {
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
       val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out")).also { files = it }
       mapOf("port" to s.port, "key" to s.key)
     }
-    OnDestroy { files?.close(); files = null }
+    OnDestroy {
+      // Keep the local media server alive until Media3 has finished cancelling an
+      // export that may still be reading from it. Close it on the same serialized
+      // main-thread queue immediately after cancellation and prevent new lookups.
+      val server = files
+      files = null
+      main.post {
+        cancelActiveExport()
+        server?.close()
+      }
+    }
   }
 
   private fun start(spec: JSONObject, promise: Promise) {
+    if (activeExport != null) {
+      promise.reject("E_EXPORT_BUSY", "A Reel is already being exported. Wait for it to finish or cancel it.", null)
+      return
+    }
     val context = appContext.reactContext ?: throw IllegalStateException("No app")
     val w = spec.getInt("width"); val h = spec.getInt("height")
     val clips = spec.getJSONArray("clips"); val texts = spec.optJSONArray("texts")
@@ -92,8 +156,11 @@ class ShubixVideoModule : Module() {
       if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
       video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
       video += filter(c.optString("filter"))
-      if (texts != null && texts.length() > 0) video += OverlayEffect(ImmutableList.of(TimedTexts(texts, at, w, h)))
-      val muted = c.optBoolean("muted") || song != null
+      if (texts != null && texts.length() > 0) {
+        val overlays = (0 until texts.length()).map { index -> TimedText(texts.getJSONObject(index), at, w, h) }
+        video += OverlayEffect(ImmutableList.copyOf(overlays))
+      }
+      val muted = c.optBoolean("muted")
       items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
       at += len
     }
@@ -104,22 +171,59 @@ class ShubixVideoModule : Module() {
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).build())).build()
     }
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
-    val transformer = Transformer.Builder(context)
-      .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
-      .addListener(object : Transformer.Listener {
-        override fun onCompleted(composition: Composition, result: ExportResult) { running = null; promise.resolve(mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at)) }
-        override fun onError(composition: Composition, result: ExportResult, exception: ExportException) { running = null; promise.reject("E_EXPORT", exception.message ?: "The Reel could not be made.", exception) }
-      }).build()
-    running = transformer
-    transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
+    val session = ActiveExport(promise).also { it.output = out }
+    activeExport = session
+    val transformer = try {
+      Transformer.Builder(context)
+        .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
+        .addListener(object : Transformer.Listener {
+          override fun onCompleted(composition: Composition, result: ExportResult) {
+            if (activeExport !== session) return
+            if (session.cancelRequested) {
+              session.output?.let { if (it.exists()) it.delete() }
+              if (!session.settled) settleExport(session, ExportCancelledException())
+              releaseExport(session)
+              return
+            }
+            settleExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
+            releaseExport(session)
+          }
+          override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+            if (activeExport !== session) return
+            if (session.cancelRequested) {
+              session.output?.let { if (it.exists()) it.delete() }
+              if (!session.settled) settleExport(session, ExportCancelledException())
+            } else {
+              settleExport(session, exception)
+            }
+            releaseExport(session)
+          }
+        }).build()
+    } catch (error: Exception) {
+      settleExport(session, error)
+      releaseExport(session)
+      return
+    }
+    session.transformer = transformer
+    try {
+      transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
+    } catch (error: Exception) {
+      settleExport(session, error)
+      releaseExport(session)
+      return
+    }
     val holder = ProgressHolder()
-    main.post(object : Runnable {
+    val progressTask = object : Runnable {
       override fun run() {
-        if (running !== transformer) return
-        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) sendEvent("onProgress", mapOf("progress" to holder.progress / 100.0))
+        if (activeExport !== session || session.settled) return
+        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) {
+          sendEvent("onProgress", mapOf("progress" to holder.progress / 100.0))
+        }
         main.postDelayed(this, 250)
       }
-    })
+    }
+    session.progressTask = progressTask
+    main.post(progressTask)
   }
 
   /** The website's filters, as colour changes (Original: none). */
@@ -133,31 +237,65 @@ class ShubixVideoModule : Module() {
     else -> emptyList()
   }
 
-  /** The Reel's texts over one clip: each drawn while the Reel's time is within its start and end (`offset`: where the
-   * clip starts in the Reel), white and bold with a shadow, in the lower middle as on the website. */
-  private class TimedTexts(private val texts: org.json.JSONArray, private val offset: Double, private val w: Int, private val h: Int) : BitmapOverlay() {
+  /** One independent text layer. OverlayEffect composites every active layer, including overlapping captions. */
+  private class TimedText(private val text: JSONObject, private val offset: Double, private val w: Int, private val h: Int) : BitmapOverlay() {
     private val blank = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-    private val drawn = HashMap<Int, Bitmap>()
+    private val start = text.optDouble("start")
+    private val end = text.optDouble("end")
+    private val bitmap by lazy { draw() }
+
     override fun getBitmap(presentationTimeUs: Long): Bitmap {
       val t = offset + presentationTimeUs / 1_000_000.0
-      for (i in 0 until texts.length()) {
-        val x = texts.getJSONObject(i)
-        if (t >= x.optDouble("start") && t <= x.optDouble("end")) return drawn.getOrPut(i) { draw(x) }
-      }
-      return blank
+      return if (t >= start && t <= end) bitmap else blank
     }
-    override fun getOverlaySettings(presentationTimeUs: Long) = StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
-    private fun draw(x: JSONObject): Bitmap {
+
+    override fun getOverlaySettings(presentationTimeUs: Long) =
+      StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
+
+    private fun draw(): Bitmap {
       val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = try { Color.parseColor(x.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
-        textSize = x.optDouble("size", 36.0).toFloat() * w / 540f; typeface = Typeface.DEFAULT_BOLD
+        color = try { Color.parseColor(text.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
+        textSize = text.optDouble("size", 36.0).toFloat() * w / 540f
+        typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
       }
-      val words = x.optString("text")
-      val pad = (paint.textSize / 3).toInt()
-      val width = (paint.measureText(words).toInt() + pad * 2).coerceIn(2, w)
-      val height = (paint.fontSpacing.toInt() + pad * 2).coerceAtLeast(2)
-      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint) }
+      val content = text.optString("text").replace("\r", "")
+      val pad = (paint.textSize / 3).toInt().coerceAtLeast(4)
+      val maxTextWidth = (w * 0.9f - pad * 2).coerceAtLeast(1f)
+      val lines = mutableListOf<String>()
+      content.split("\n").forEach { paragraph ->
+        var line = ""
+        paragraph.split(Regex("\\s+")).filter { it.isNotEmpty() }.forEach { word ->
+          val candidate = if (line.isEmpty()) word else "$line $word"
+          if (paint.measureText(candidate) <= maxTextWidth) {
+            line = candidate
+          } else {
+            if (line.isNotEmpty()) lines += line
+            // Keep long URLs/words visible instead of drawing beyond the bitmap edge.
+            var part = ""
+            word.forEach { char ->
+              val next = part + char
+              if (part.isNotEmpty() && paint.measureText(next) > maxTextWidth) {
+                lines += part
+                part = char.toString()
+              } else part = next
+            }
+            line = part
+          }
+        }
+        if (line.isNotEmpty() || paragraph.isEmpty()) lines += line
+      }
+      val safeLines = lines.ifEmpty { listOf("") }
+      val textWidth = safeLines.maxOf { paint.measureText(it) }.toInt().coerceAtMost(maxTextWidth.toInt())
+      val width = (textWidth + pad * 2).coerceIn(2, w)
+      val lineHeight = paint.fontSpacing
+      val height = (lineHeight * safeLines.size + pad * 2).toInt().coerceAtLeast(2)
+      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+        val canvas = Canvas(bitmap)
+        safeLines.forEachIndexed { index, line ->
+          canvas.drawText(line, pad.toFloat(), pad - paint.ascent() + index * lineHeight, paint)
+        }
+      }
     }
   }
 }

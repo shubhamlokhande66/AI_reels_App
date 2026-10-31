@@ -136,7 +136,9 @@ export async function analyzeWithSignal(file: string, onStage: StageFn = () => {
   const transients = detectTransients(y, SR);
   onStage("detecting_beats", 0.6);
   const events = detectEvents(measurements(y, SR, env, beat.onsets), beat.beats);
-  const [drops, dropTimes] = events.length ? [dropsFrom(events), dropsFrom(events)] : findDrops(energy, beat.beats); // events are measured times
+  const [drops, dropTimes] = events.length
+    ? [dropsFrom(events), events.filter((e) => ["possible_drop", "entry"].includes(e.type) && e.confidence >= 0.5).map((e) => e.detectedAt ?? e.time).sort((a, b) => a - b)]
+    : findDrops(energy, beat.beats); // snapped cut points and independently measured event times
   const sections = findSections(y, SR, beat.beats, duration);
   onStage("detecting_beats", 1);
   const [accents, strengths] = mergedHits(transients); // impacts: the attacks found in any band

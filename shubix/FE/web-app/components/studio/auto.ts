@@ -20,8 +20,7 @@ const EXAMPLES: [string, string][] = [
 ];
 type StoryStyle = { id: string; name: string; free: boolean };
 
-/** how long the finished phone edit waits for the AI's choices before the video is made anyway */
-const AI_WAIT = 20_000;
+/** AI Director work must settle before export; the outer 10-minute timeout remains the hard stop. */
 
 const STAGES: [string, string][] = [
   ["song", "Listening to your song"], ["clips", "Reading your clips"], ["ai", "Choosing the best moments"],
@@ -82,7 +81,7 @@ export function initAuto(root: HTMLElement): () => void {
       </div>
       <button type="button" class="aobig" data-ao="clips"><span class="aoic aoic1">${ICON.clips}</span><span class="aotx"><b id="aoclipsh">Your clips</b><span id="aoclips">Videos or photos from your phone</span></span><span class="aochev">${ICON.chev}</span></button>
       <button type="button" class="aobig" data-ao="song"><span class="aoic aoic2">${ICON.song}</span><span class="aotx"><b>A song <em>optional</em></b><span id="aosong">Without one, your clips' own sound is used</span></span><span class="aochev">${ICON.chev}</span></button>
-      <p class="aonote">${ICON.spark}<span id="aonotetx">Made on your phone. Your videos are never uploaded.</span></p>
+      <p class="aonote">${ICON.spark}<span id="aonotetx">Your original videos stay on your phone. Selected preview frames may be sent securely for AI analysis.</span></p>
       <button type="button" class="${Button.primaryLarge} aogo" id="aogo" disabled>Make my Reel</button>
       <input type="file" id="aovfile" accept="video/*,image/*,.mov,.mp4,.m4v,.jpg,.jpeg,.png,.webp,.heic" multiple hidden><input type="file" id="aomfile" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav" hidden>
     </div>
@@ -148,7 +147,7 @@ export function initAuto(root: HTMLElement): () => void {
     const side = root.querySelectorAll<HTMLElement>("#aostory .aocol")[1], pick = $("aopick");
     for (const el of [...pick.querySelectorAll<HTMLElement>(":scope > .aobig, :scope > .aonote, :scope > .aogo"), ...side.querySelectorAll<HTMLElement>(":scope > .aobig, :scope > .aonote, :scope > .aogo")])
       (m === "story" ? side : pick).insertBefore(el, m === "story" ? null : $("aovfile"));
-    $("aonotetx").textContent = m === "story" ? "Only your story's words are sent, to find the pictures. The video is made on your phone." : "Made on your phone. Your videos are never uploaded.";
+    $("aonotetx").textContent = m === "story" ? "Only your story's words are sent to find pictures. Narration and video are made on your phone." : "Original videos stay on your phone. Selected preview frames may be sent securely for AI analysis.";
     $("aoclipsh").innerHTML = m === "story" ? "Your own clips or photos <em>optional</em>" : "Your clips";
     if (m === "story") { $("aoclips").textContent = "Instead of the pictures Shubix finds"; $("aosong").textContent = "Plays softly under the narration"; if (!styles.length) void loadStyles(); }
     if (m === "story" && !$<HTMLSelectElement>("aovoice").options.length) $("aovoice").innerHTML = TTS_VOICES.map((v) => `<option value="${v.key}">${v.label}</option>`).join("");
@@ -176,7 +175,7 @@ export function initAuto(root: HTMLElement): () => void {
     const st = S(); if (!st || running || (!clips.length && mode !== "story")) return; running = true;
     off = mode === "story" ? 1 : 0; base = 0; $("aopics").hidden = true; $("aopics").innerHTML = ""; $("aoposter").classList.remove("on"); $("aoposter").style.backgroundImage = "";
     $("aoeyebrow").textContent = mode === "story" ? "Making your story" : "Making your Reel";
-    $("aokeep").textContent = mode === "story" ? "Keep this screen open: the video is made on your phone." : "Keep this screen open. Nothing is uploaded.";
+    $("aokeep").textContent = mode === "story" ? "Keep this screen open: narration and video are made on your phone." : "Keep this screen open: original videos stay on your phone; selected preview frames may be sent for AI analysis.";
     show("run");
     let per = 0; // a story told with Shubix's pictures: the sentences each picture covers
     try {
@@ -194,22 +193,20 @@ export function initAuto(root: HTMLElement): () => void {
         feed("vfile", clips);
       }
       // the engine works through it; the ring follows its state (each part weighs what it usually takes)
-      const t0 = Date.now(); let extracted = !!songFile || mode === "story", quiet = 0, aiSince = 0;
+      const t0 = Date.now(); let extracted = !!songFile || mode === "story", quiet = 0;
       for (;;) {
         await wait(400); const w = st.work;
         if (!extracted && w.pending === 0 && w.clips > 0) { extracted = true; setProg(0.25, "Listening to your clips", 0); if ((await st.autoSound()) === "none") throw new Error("These clips have no sound. Add a song and try again."); continue; }
         const pClips = w.clips + w.pending ? w.clips / (w.clips + w.pending) : 0;
         const songP = w.songReady ? (w.beats ? 0.8 : 1) : w.song ? 0.4 : 0.1;
         // the second beat check (on-device AI) is not waited for: it improves the Reel afterwards. The AI's own
-        // choices get AI_WAIT after the rest is ready; a slower answer is used for the edit afterwards, not this video.
+        // choices are part of the exported first draft: do not export while the Director is still mutating the edit.
         const rest = w.pending > 0 || !w.songReady || w.speech || !w.shots, aiBusy = w.ai || w.dir;
-        if (!rest && aiBusy && !aiSince) aiSince = Date.now();
-        if (rest || !aiBusy) aiSince = 0;
-        const busy = rest || (aiBusy && Date.now() - aiSince < AI_WAIT);
+        const busy = rest || aiBusy;
         const stage = !w.songReady ? 0 : w.pending > 0 ? 1 : w.ai || w.dir || !w.shots ? 2 : w.speech || w.beats ? 3 : 3;
         setProg(0.05 + 0.15 * songP + 0.3 * pClips + (w.shots ? 0.1 : 0) + (stage >= 3 ? 0.05 : 0), (mode === "story" ? STORY_STAGES[stage + 1] : STAGES[stage])[1], stage);
         quiet = busy ? 0 : quiet + 1;
-        if (quiet >= 3) break;   // settled for a moment (a late AI answer can still remake the edit)
+        if (quiet >= 3) break;   // all analysis and Director work settled before the export snapshot
         if (Date.now() - t0 > 10 * 60_000) throw new Error("This is taking too long. Try fewer or shorter clips.");
       }
       setProg(0.6, STAGES[4][1], 4);

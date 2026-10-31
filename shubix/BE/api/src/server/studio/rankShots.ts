@@ -1,10 +1,12 @@
 import crypto from "node:crypto";
+import type { Collection } from "mongodb";
 import { z } from "zod";
 import { getProvider, type ManagedProvider } from "../ai";
 import { effective, keyConfigured, providerFor } from "../ai/config";
 import { clean, Text } from "../ai/text";
 import { AIResponseError } from "../ai/types";
 import { chargeOnce, costOf, enabled as creditsOn, refund } from "../credits";
+import { db } from "../core/db";
 
 /** Fast Studio's optional AI step: the phone sends a few small frames of each clip, a vision model says how strong each
  * moment is as a Reel shot, what it is good for (opening, action, calm, detail, ending), what is wrong with it and where
@@ -119,17 +121,97 @@ async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Prom
   return out;
 }
 
-/** One request = one Reel: charged once, clips scored in parallel; if every clip fails the credits go back. */
+const SHOT_CACHE_TTL = 30 * 24 * 60 * 60 * 1000;
+type ShotCacheDoc = { key: string; result: RankedClip; expiresAt: Date };
+
+const cacheGlobals = globalThis as unknown as { __studioShotCacheIndexes?: Promise<void> };
+async function ensureShotCacheIndexes(col: Collection<ShotCacheDoc>) {
+  cacheGlobals.__studioShotCacheIndexes ??= (async () => {
+    // db() is tenant-scoped when accounts are enabled. A global {key} unique index
+    // would make identical media from two users collide even though reads are isolated.
+    // Remove the previous global index before installing the tenant-aware compound one.
+    try { await col.dropIndex("key_1"); }
+    catch (error) {
+      const code = (error as { code?: number }).code;
+      if (code !== 27 && code !== 26) throw error; // index/collection does not exist
+    }
+    await Promise.all([
+      col.createIndex({ ownerId: 1, key: 1 }, { unique: true }),
+      col.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+    ]);
+  })().catch((error) => {
+    // A failed index build must not poison every later request in this process.
+    cacheGlobals.__studioShotCacheIndexes = undefined;
+    throw error;
+  });
+  await cacheGlobals.__studioShotCacheIndexes;
+}
+
+/** Content-addressed cache: stores only compact scores/labels, never uploaded image bytes. */
+export function shotCacheKey(provider: ManagedProvider, clip: RankIn["clips"][number]): string {
+  const h = crypto.createHash("sha256");
+  h.update(provider.name); h.update("\\0"); h.update(provider.model); h.update("\\0"); h.update(provider.visionModel || "");
+  h.update("\\0"); h.update(clean(clip.name, 60));
+  for (const frame of clip.frames) { h.update("\\0"); h.update(String(frame.t)); h.update("\\0"); h.update(frame.image); }
+  return h.digest("hex");
+}
+
+/** One request = one Reel. Reuse prior frame rankings for identical media/provider; only cache misses call vision. */
 export async function rankShots(input: RankIn, provider: ManagedProvider = getProvider(TASK)) {
   for (const c of input.clips) for (const f of c.frames)
     if (Buffer.byteLength(f.image, "base64") > LIMITS.imageBytes) throw new AIResponseError("A frame is too large (keep each under 120 KB).");
-  const { taken: charged, ref } = await chargeOnce(COST_ACTION, input.reelId || crypto.randomUUID().slice(0, 12), "Shubix AI Reel");
-  const results = await pool(input.clips, 4, (c) => rankClip(provider, c));
-  const clips = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-  const failed = results.flatMap((r, i) => (r.status === "rejected" ? [{ id: input.clips[i].id, error: clean((r.reason as Error)?.message ?? r.reason, 200) }] : []));
-  if (!clips.length) {
-    if (charged) await refund(ref);
-    throw (results[0] as PromiseRejectedResult).reason;
+
+  // Cache is an optimisation only. Database/index outages must never prevent a user from making a Reel.
+  let col: Collection<ShotCacheDoc> | null = null;
+  const keys = input.clips.map((clip) => shotCacheKey(provider, clip));
+  const cached = new Map<string, RankedClip>();
+  try {
+    col = (await db()).collection<ShotCacheDoc>("studio_shot_cache");
+    await ensureShotCacheIndexes(col);
+    const cachedDocs = await col.find({ key: { $in: keys }, expiresAt: { $gt: new Date() } }).toArray();
+    for (const doc of cachedDocs) cached.set(doc.key, doc.result);
+  } catch {
+    // Fail open: rank normally and skip persistence for this request.
+    col = null;
+    cached.clear();
   }
-  return { clips, failed, charged, model: provider.visionModel || provider.model, provider: provider.name };
+  const uniqueMisses = new Map<string, RankIn["clips"][number]>();
+  for (let i = 0; i < input.clips.length; i++) if (!cached.has(keys[i]) && !uniqueMisses.has(keys[i])) uniqueMisses.set(keys[i], input.clips[i]);
+
+  let charged = false, chargeRef: string | undefined;
+  if (uniqueMisses.size) {
+    const charge = await chargeOnce(COST_ACTION, input.reelId || crypto.randomUUID().slice(0, 12), "Shubix AI Reel");
+    charged = charge.taken > 0; chargeRef = charge.ref;
+  }
+
+  const misses = [...uniqueMisses.entries()];
+  const results = await pool(misses, 4, async ([key, clip]) => {
+    const result = await rankClip(provider, clip);
+    if (col) {
+      try {
+        await col.updateOne({ key }, { $set: { key, result, expiresAt: new Date(Date.now() + SHOT_CACHE_TTL) } }, { upsert: true });
+      } catch {
+        // Concurrent requests can race on the unique key; cache write failure is non-fatal.
+      }
+    }
+    return [key, result] as const;
+  });
+  const fresh = new Map<string, RankedClip>();
+  results.forEach((r) => { if (r.status === "fulfilled") fresh.set(r.value[0], r.value[1]); });
+  const failedByKey = new Map<string, string>();
+  results.forEach((r, i) => { if (r.status === "rejected") failedByKey.set(misses[i][0], clean((r.reason as Error)?.message ?? r.reason, 200)); });
+
+  const clips: RankedClip[] = [], failed: { id: string; error: string }[] = [];
+  for (let i = 0; i < input.clips.length; i++) {
+    const result = cached.get(keys[i]) ?? fresh.get(keys[i]);
+    if (result) clips.push({ ...result, id: input.clips[i].id });
+    else failed.push({ id: input.clips[i].id, error: failedByKey.get(keys[i]) ?? "The frame ranking failed." });
+  }
+  if (!clips.length) {
+    if (charged && chargeRef) await refund(chargeRef);
+    const failedKey = failedByKey.keys().next().value;
+    throw (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason ?? new AIResponseError("No usable cached or newly ranked frames.");
+  }
+  const cacheHits = input.clips.reduce((count, _clip, i) => count + (cached.has(keys[i]) ? 1 : 0), 0);
+  return { clips, failed, charged, cacheHits, model: provider.visionModel || provider.model, provider: provider.name };
 }

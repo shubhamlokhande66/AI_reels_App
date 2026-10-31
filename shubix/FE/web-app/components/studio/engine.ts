@@ -26,6 +26,13 @@ const tasks = createTasks(root);   // what is happening now, always in view (com
 const ac = new AbortController(), SIG = { signal: ac.signal };
 // iPhone / iPad (iPadOS says it is a Mac): Safari there gives a page much less memory, and reloads it when it runs out
 const IOS = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+// Browser hints are advisory (Safari/iOS often hides deviceMemory). Prefer a smaller decoder working set
+// on iOS and low-memory Android devices; this trades a little parallel decode for fewer export OOMs.
+const DEVICE_MEMORY_GB = typeof navigator !== 'undefined' ? Number(navigator.deviceMemory) || 0 : 0;
+const CPU_CORES = typeof navigator !== 'undefined' ? Number(navigator.hardwareConcurrency) || 0 : 0;
+const LOW_MEMORY_DEVICE = IOS || (DEVICE_MEMORY_GB > 0 && DEVICE_MEMORY_GB <= 4) || (CPU_CORES > 0 && CPU_CORES <= 4);
+const EXPORT_DECODER_LIMIT = LOW_MEMORY_DEVICE ? 2 : 4;
+const EXPORT_FRAME_POOL = LOW_MEMORY_DEVICE ? 2 : 4;
 /* ---- a page the phone reloaded (out of memory) ----
  * iPhone Safari reloads a page that uses too much memory, without a word: the person lands on the first screen, as if the
  * app went back. So the studio keeps a note in this tab (sessionStorage) while it works, removed when the page is left
@@ -1984,20 +1991,26 @@ function applyDirectorStyle(){
     // the AI leaves out of a shot stays plain (its answer's own defaults: a hard cut, no effect, normal speed)
     s.tr = 'hard'; s.efx = 'none'; s.sp = SPEED.normal; s.trByDir = false; s.fxByDir = false; s.ak = []; s.acc = [];
     if(!d) return;
-    // The AI is free: any known tool in any style. Only what cannot be played is refused (the opener has nothing
-    // before it to transition from; a freeze needs a moment to hold; a speed on the beats needs beats).
+    // The AI proposes creative choices, but the phone enforces the selected style, plan locks,
+    // shot duration and per-Reel transition budget before anything reaches preview/export.
     if(d.tr){ asked++; const tr = d.tr;
-      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR && !isLocked('tr', tr);
+      // The server may suggest any known tool; the phone is the final style/quality gate.
+      const styleTransitions = TR_OK[mode] || TR_OK.auto;
+      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR && styleTransitions.includes(tr) && !isLocked('tr', tr);
       if(ok){ s.tr = tr; s.trByDir = true; used++; } else fixed++;
     }
-    // effect: "hook" is the opener's own; a slow move needs time; the photo snap needs a moment to freeze
+    // effect: only tools in this Reel's style; the hook is reserved for the opener.
     if(d.fx){ asked++; const fx = d.fx;
-      let ok = fx in FX_NAME && !isLocked('fx', fx);
+      const styleEffects = FX_OK[mode] || FX_OK.auto;
+      let ok = fx==='hook' ? i===0 : styleEffects.includes(fx);
+      ok = ok && fx in FX_NAME && !isLocked('fx', fx);
       if(fx==='snap' && len <= 0.7) ok = false;
       if(ok){ s.efx = fx; s.fxByDir = true; used++; } else fixed++;
     }
-    // speed: only what the shot can play (and what Smooth allows)
+    // speed: respect the selected pace as well as what the shot can play.
     if(d.sp){ asked++; let ok = true, sp = null; const bl = beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
+      if(mode==='smooth' && !['normal','slow','hold'].includes(d.sp)) ok = false;
+      if(mode==='fast' && !['normal','fast','slow','velocity','ramp','freeze','hold'].includes(d.sp)) ok = false;
       if(d.sp==='freeze' && s.efx!=='snap') ok = false;
       if(d.sp==='ramp' && len < 0.4) ok = false;
       if(d.sp==='velocity' && !bl.length) ok = false;
@@ -2103,6 +2116,9 @@ function finishTransitions(){
   const want = {}; plan.forEach(s=>{ if(s.trByDir && left[s.tr]!==undefined) want[s.tr] = (want[s.tr]||0) + 1; });
   const mine = s => s.trByDir || s.trByRef;   // the director's or the copied Reel's own: never rationed
   let undone = 0;
+  // A global ceiling also covers transition types without a dedicated per-type counter.
+  let directorSpecialUsed = 0;
+  const directorSpecialMax = Math.max(1, Math.round(buf.duration / 7));
   plan.forEach((s,i)=>{
     if(i===0 || s.tr==='hard') return;
     const len = s.end - s.start, prev = plan[i-1];
@@ -2116,8 +2132,16 @@ function finishTransitions(){
     if(ok && !s.trByDir && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
     if(ok && left[s.tr]!==undefined && s.trByRef) left[s.tr]--;
     else if(ok && left[s.tr]!==undefined){
-      if(s.trByDir){ want[s.tr]--; left[s.tr]--; }
-      else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
+      if(s.trByDir){
+        // Director choices are not exempt from the per-Reel ration: an oversized AI answer
+        // must not turn every cut into a flash/whip. Keep the highest-priority cuts first.
+        if(left[s.tr] > 0 && want[s.tr] > 0){ want[s.tr]--; left[s.tr]--; }
+        else ok = false;
+      } else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
+    }
+    if(ok && s.trByDir && s.tr !== 'hard'){
+      if(directorSpecialUsed >= directorSpecialMax) ok = false;
+      else directorSpecialUsed++;
     }
     if(!ok){ if(s.trByDir) undone++; s.tr = 'hard'; }
   });
@@ -4814,7 +4838,7 @@ async function fastExport(){
     // first frame: phone video has a keyframe only every 1-2 s, so that seek is the slow part of a cut.
     // At most a few decoders live at once: each holds a ring of full-size canvases, and iPhone Safari caps the memory all
     // canvases of a page may use (a Reel from ten clips would pass it); the ones not used for longest are let go.
-    const sinks = new Map(), LIVE = 4;
+    const sinks = new Map(), LIVE = EXPORT_DECODER_LIMIT;
     const sinkFor = async (si, slot) => {
       const key = si + ':' + slot;
       if(sinks.has(key)){ const v = sinks.get(key); sinks.delete(key); sinks.set(key, v); }   // most recently used last
@@ -4824,7 +4848,7 @@ async function fastExport(){
         const track = await input.getPrimaryVideoTrack();
         const r = Math.min(1, Math.max(W/s0.w, H/s0.h)*1.3);
         let sfps = 30; try{ const stt = await track.computePacketStats(90); if(stt && stt.averagePacketRate > 1) sfps = stt.averagePacketRate; }catch(err){}
-        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: 4 }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
+        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: EXPORT_FRAME_POOL }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
       }
       return sinks.get(key);
     };
@@ -4834,7 +4858,7 @@ async function fastExport(){
       const input = new mb.Input({ source: new mb.BlobSource(M.file), formats: mb.ALL_FORMATS }); inputs.push(input);
       const track = await input.getPrimaryVideoTrack(); if(!track) continue;
       const r = Math.min(1, (L.s*W)/M.w*1.4), first = await track.getFirstTimestamp();
-      const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(M.w*r/2)*2), height: Math.max(16, Math.round(M.h*r/2)*2), fit: 'fill', poolSize: 3 });
+      const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(M.w*r/2)*2), height: Math.max(16, Math.round(M.h*r/2)*2), fit: 'fill', poolSize: LOW_MEMORY_DEVICE ? 2 : 3 });
       const k0 = Math.ceil(L.t0*fps - 1e-6), k1 = Math.min(Math.round(dur*fps), Math.ceil(L.t1*fps - 1e-6)), ts = [];
       for(let k=k0;k<k1;k++){ const v = first + Math.min(M.dur - 0.05, Math.max(0, lyTime(L, k/fps))); ts.push(ts.length ? Math.max(v, ts[ts.length-1]) : v); }
       lyIts.push({ L, k0, k1, it: sink.canvasesAtTimestamps(ts)[Symbol.asyncIterator]() }); }

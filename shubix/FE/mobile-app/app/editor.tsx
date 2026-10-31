@@ -37,7 +37,7 @@ const BGS = [["none", "Original"], ["blur", "Blur"]];
 const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER", "गणपती बाप्पा मोरया", "शुभ दीपावली", "Happy Diwali"];
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
-const LATER = new Set(["fx", "extract", "border", "adjust", "curve", "stab", "beauty", "fade", "mosaic", "lens", "captions", "voice", "layers"]);
+const LATER = new Set(["fx", "extract", "border", "adjust", "curve", "stab", "beauty", "fade", "mosaic", "lens", "captions", "voice", "layers", "tr"]);
 // …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
 
 /** The editor (the website's studio editor on a phone): the Reel saved on this phone, played shot by shot with its
@@ -88,7 +88,14 @@ export default function EditorScreen() {
     if (clips.length === 1) return toast(words("A Reel needs at least one shot."), "info");
     if (await confirmAction({ title: words("Delete this shot?"), ok: words("Delete"), danger: true })) setClips(clips.filter((_, i) => i !== selected));
   }
-  const addText = (text: string) => { if (!text.trim()) return; change({ overlays: [...(p?.overlays ?? []), { id: `t-${Date.now()}`, text: text.trim(), start: now, end: Math.min(total, now + 3) || 3, color: "#FFFFFF", size: 36 } as Overlay] }); setDraft(""); };
+  const addText = (text: string) => {
+    if (!text.trim() || !p) return;
+    if (now >= total - 0.05) return toast(words("Move the playhead before the end of the Reel to add text."), "info");
+    const start = Math.max(0, now), end = Math.min(total, start + 3);
+    if (end - start < 0.1) return toast(words("There is not enough time left in this Reel for a text overlay."), "info");
+    change({ overlays: [...p.overlays, { id: `t-${Date.now()}`, text: text.trim(), start, end, color: "#FFFFFF", size: 36 } as Overlay] });
+    setDraft("");
+  };
 
   /** a tool from the row, or a clip tool: what it changes straight away, else its sheet */
   /** a choice in a tool as the website makes it: in the studio when it holds this Reel (`box`/`attr`: its button, or

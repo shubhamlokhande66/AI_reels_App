@@ -14,7 +14,9 @@ const BASS_HZ = 150, DROP_Z = 1.5, AGREE_Z = 1.5, MIN_SPREAD = 0.06, LOUD_AFTER 
 const BUILD_MIN = 3, BUILD_MAX = 16, DROP_CONFIDENCE = 0.5;
 
 export interface MusicEvent {
+  /** Beat-snapped time used by the editor; detectedAt preserves the raw detector position. */
   time: number;
+  detectedAt?: number;
   type: string;
   strength: number;
   confidence: number;
@@ -111,7 +113,7 @@ export function detectEvents(curves: Record<string, Float64Array>, beats: number
     const score = sign > 0 ? rising[i] : falling[i];
     const sure = clip((score - DROP_Z) / (DROP_Z / 2), 0, 1);
     return {
-      time: snap(i * HOP_S), type: kind, strength: round(sign > 0 ? after[i] : before[i], 2), confidence: round(0.5 * sure + 0.3 * loudAgree + 0.2 * otherAgree, 2), end: null,
+      time: snap(i * HOP_S), detectedAt: round(i * HOP_S, 3), type: kind, strength: round(sign > 0 ? after[i] : before[i], 2), confidence: round(0.5 * sure + 0.3 * loudAgree + 0.2 * otherAgree, 2), end: null,
       measurements: { ...Object.fromEntries(KEYS.map((k) => [`${k}_change`, round(z[k][i], 2)])), combined: round(score, 2), energy_before: round(before[i], 2), energy_after: round(after[i], 2) },
     };
   };
@@ -147,7 +149,7 @@ export function detectEvents(curves: Record<string, Float64Array>, beats: number
     while (k > 0 && i - k < BUILD_MAX / HOP_S && rise[k - 1] <= rise[k] + 0.01) k -= 1;
     const span = (i - k) * HOP_S;
     if (span >= BUILD_MIN && rise[i - 1] - rise[k] >= 0.15) {
-      events.push({ time: snap(k * HOP_S), end: d.time, type: "build_up", strength: round(rise[i - 1] - rise[k], 2), confidence: round(Math.min(d.confidence, 0.4 + (rise[i - 1] - rise[k])), 2),
+      events.push({ time: snap(k * HOP_S), detectedAt: round(k * HOP_S, 3), end: d.time, type: "build_up", strength: round(rise[i - 1] - rise[k], 2), confidence: round(Math.min(d.confidence, 0.4 + (rise[i - 1] - rise[k])), 2),
         measurements: { seconds: round(span, 2), rise: round(rise[i - 1] - rise[k], 2) } });
     }
   }
