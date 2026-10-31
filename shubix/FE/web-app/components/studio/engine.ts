@@ -3280,7 +3280,7 @@ function lensPass2D(g, e){
  * video its own sound (vol). Drawn over the shot, under texts and captions, the same way in the preview and the export
  * (where each video layer has its own decoder). Saved with the Reel; Undo keeps them. Layouts place a layer in one tap. */
 let lmedia = [], layers = [], lySeq = 0, lySel = -1;
-const LY0 = { x:0.5, y:0.5, s:0.5, r:0, op:1, fh:false, fv:false, crop:{l:0,t:0,r:0,b:0}, mask:'none', mk:{w:0.8,h:0.8,a:0,f:0.12,inv:false,points:[[0.5,0.02],[0.92,0.25],[0.92,0.75],[0.5,0.98],[0.08,0.75],[0.08,0.25]]}, fin:0, fout:0, vol:0, rad:0 };
+const LY0 = { x:0.5, y:0.5, s:0.5, r:0, op:1, fh:false, fv:false, crop:{l:0,t:0,r:0,b:0}, mask:'none', mk:{w:0.8,h:0.8,a:0,f:0.12,th:0.5,inv:false,points:[[0.5,0.02],[0.92,0.25],[0.92,0.75],[0.5,0.98],[0.08,0.75],[0.08,0.25]]}, fin:0, fout:0, vol:0, rad:0 };
 let lyBuf = null, lyG = null;
 async function addLayerMedia(file){
   const url = URL.createObjectURL(file), photo = /^image\//.test(file.type) || /\.(jpe?g|png|webp|heic|gif)$/i.test(file.name);
@@ -3347,7 +3347,7 @@ function layerMask(q, L, w, h){
   const k = L.mk, f = Math.max(0, k.f)*Math.min(w, h)*0.5;
   if(L.mask === 'luma'){
     const image = q.getImageData(0, 0, w, h), pixels = image.data;
-    const threshold = Math.max(0, Math.min(1, k.h ?? 0.5)), softness = Math.max(0.015, Math.min(0.5, k.f ?? 0.12));
+    const threshold = Math.max(0, Math.min(1, k.th ?? 0.5)), softness = Math.max(0.015, Math.min(0.5, k.f ?? 0.12));
     const lo = Math.max(0, threshold - softness), hi = Math.min(1, threshold + softness);
     for(let i=0;i<pixels.length;i+=4){
       const lum = (0.2126*pixels[i] + 0.7152*pixels[i+1] + 0.0722*pixels[i+2])/255;
@@ -3416,10 +3416,10 @@ function lyUI(){
   for(const el of ed.querySelectorAll('[data-ly]')){ const k = el.dataset.ly, v = k.includes('.') ? L[k.split('.')[0]][k.split('.')[1]] : L[k];
     if(el.type === 'checkbox') el.checked = !!v; else el.value = v; const o = el.parentElement.querySelector('output'); if(o) o.textContent = lyFmt(k, +v); }
   [...$('lymask').children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === L.mask)));
-  $('lymaskopts').hidden = L.mask === 'none'; $('lyvolrow').hidden = !M || M.kind !== 'video';
+  $('lymaskopts').hidden = L.mask === 'none'; $('lylumarow').hidden = L.mask !== 'luma'; $('lyvolrow').hidden = !M || M.kind !== 'video';
   $('lytime').textContent = fmt(L.t0) + ' – ' + fmt(L.t1);
 }
-const lyFmt = (k, v) => /^(x|y|s|op|crop|mk\.(w|h|f)|vol)/.test(k) ? Math.round(v*100) + '%' : /^(r|mk\.a)$/.test(k) ? Math.round(v) + '°' : /^(fin|fout|rad)$/.test(k) ? (k === 'rad' ? Math.round(v*100) + '%' : v.toFixed(1) + ' s') : String(v);
+const lyFmt = (k, v) => /^(x|y|s|op|crop|mk\.(w|h|f|th)|vol)/.test(k) ? Math.round(v*100) + '%' : /^(r|mk\.a)$/.test(k) ? Math.round(v) + '°' : /^(fin|fout|rad)$/.test(k) ? (k === 'rad' ? Math.round(v*100) + '%' : v.toFixed(1) + ' s') : String(v);
 function lySelect(i){
   if(!Number.isInteger(i) || !layers[i]) return false;
   lySel = i; lyUI(); pos = Math.max(pos, layers[i].t0);
