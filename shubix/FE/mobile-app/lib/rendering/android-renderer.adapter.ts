@@ -82,7 +82,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         const transition = item.transitionIn.type.toLowerCase();
         if (!SUPPORTED_ANDROID_TRANSITIONS.has(transition)) throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not supported by Android export yet.`);
         if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs / 2) {
-          throw new UnsupportedAndroidRenderFeature(`Fade transition on ${item.id} must be positive and no longer than half of its clip.`);
+          throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} on ${item.id} must be positive and no longer than half of its clip.`);
         }
       }
       if (item.fit === "stretch") {
