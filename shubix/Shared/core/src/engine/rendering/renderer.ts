@@ -335,8 +335,20 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (layer.startMs + layer.durationMs > timelineEndMs + 1) errors.push(`Layer ${layer.id} extends beyond the Reel duration.`);
     if (layer.sourceId && !sourceIds.has(layer.sourceId)) errors.push(`Layer ${layer.id} references missing source ${layer.sourceId}.`);
     validateKeyframes(`Layer ${layer.id}`, layer.transform, layer.durationMs);
-    if (layer.mask) validateKeyframes(`Layer mask ${layer.id}`, layer.mask.keyframes, layer.durationMs);
-    for (const effect of layer.effects ?? []) validateKeyframes(`Layer effect ${effect.type}`, effect.keyframes, layer.durationMs);
+    if (layer.mask) {
+      const mask = layer.mask;
+      if (![mask.x, mask.y, mask.width, mask.height].every(Number.isFinite) || mask.width <= 0 || mask.height <= 0) errors.push(`Layer ${layer.id} has invalid mask geometry.`);
+      if (mask.feather !== undefined && (!Number.isFinite(mask.feather) || mask.feather < 0 || mask.feather > 1)) errors.push(`Layer ${layer.id} has invalid mask feathering.`);
+      if (mask.type === "polygon" && (!mask.points || mask.points.length < 3)) errors.push(`Layer ${layer.id} polygon mask requires at least three points.`);
+      if (mask.points?.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y))) errors.push(`Layer ${layer.id} has invalid polygon mask points.`);
+      validateKeyframes(`Layer mask ${layer.id}`, mask.keyframes, layer.durationMs);
+    }
+    for (const effect of layer.effects ?? []) {
+      if (!effect.type.trim()) errors.push(`Layer ${layer.id} has an effect without a type.`);
+      if (!effect.params || typeof effect.params !== "object" || Array.isArray(effect.params)) errors.push(`Layer effect ${effect.type} on ${layer.id} has invalid parameters.`);
+      if (effect.intensity !== undefined && (!Number.isFinite(effect.intensity) || effect.intensity < 0 || effect.intensity > 1)) errors.push(`Layer effect ${effect.type} on ${layer.id} has invalid intensity.`);
+      validateKeyframes(`Layer effect ${effect.type}`, effect.keyframes, layer.durationMs);
+    }
   }
 
   return errors;
