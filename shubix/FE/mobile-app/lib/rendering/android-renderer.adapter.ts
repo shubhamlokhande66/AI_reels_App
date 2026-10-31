@@ -189,6 +189,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           };
         });
         const audio = job.audio?.[0];
+        const effectiveAudioDurationMs = audio ? Math.min(audio.durationMs, reelDurationMs) : 0;
         const nativeSpec = {
           width: job.dimensions.width,
           height: job.dimensions.height,
@@ -198,8 +199,8 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
             start: audio.sourceStartMs / 1000,
             duration: Math.min(audio.durationMs, reelDurationMs) / 1000,
             volume: audio.volume,
-            fadeIn: (audio.fadeInMs ?? 0) / 1000,
-            fadeOut: (audio.fadeOutMs ?? 0) / 1000,
+            fadeIn: Math.min(audio.fadeInMs ?? 0, effectiveAudioDurationMs) / 1000,
+            fadeOut: Math.min(audio.fadeOutMs ?? 0, effectiveAudioDurationMs) / 1000,
             ducking: audio.ducking ?? false,
             duckLevel: audio.duckLevel ?? 0.35,
           } } : {}),
