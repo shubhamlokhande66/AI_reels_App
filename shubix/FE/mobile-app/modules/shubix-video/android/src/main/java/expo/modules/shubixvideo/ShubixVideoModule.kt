@@ -661,7 +661,7 @@ class ShubixVideoModule : Module() {
         textSize = x.optDouble("size", 36.0).toFloat() * w / 540f; typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
       }
-      val words = x.optString("text").replace("\\r", "")
+      val words = x.optString("text").replace("\r", "")
       val pad = (paint.textSize / 3).toInt().coerceAtLeast(2)
       val maxLineWidth = (w - pad * 2).coerceAtLeast(1).toFloat()
       val lines = mutableListOf<String>()
