@@ -141,9 +141,9 @@ The shared Android adapter still deliberately rejects speed-ramp and shot-keyfra
 
 ## Android Media3 Phase 2 implementation boundary
 
-The shared Android RenderJob adapter now maps Fade in to timestamp-scoped alpha effects and slide, push, zoom, spin and whip-pan presets to animated transform keyframes and supports the Media3 GPU effects blur, animated blur pulse, brightness, contrast, saturation and hue. It also maps the native filter preset set and audio mix settings. These are implemented on the native export path; verify on physical devices before marking release parity complete.
+The primary Android native export path maps Fade in, slide, zoom, spin, whip-pan, blur and flash presets to timestamp-scoped Media3 effects, and supports blur pulse, brightness, contrast, saturation and hue. It maps the native filter presets and audio mix settings. These are implemented on the native export path; verify on physical devices before marking release parity complete.
 
-Dissolve/crossfade, directional wipes/slides, 3D transitions, arbitrary masks, additional compositor layers, animated layer transforms and advanced GPU looks are still not claimed as Android-export-ready. The adapter explicitly rejects unsupported transitions, masks, layers, animated effects and text treatments instead of dropping them. Shared keyframe curves are sampled with cubic-Bezier timing; project keyframes continue to use the existing native export path until the versioned adapter maps them losslessly.
+Dissolve/crossfade, directional wipes, 3D transitions, arbitrary masks, additional compositor layers, animated layer transforms and advanced GPU looks are still not claimed as Android-export-ready. The adapter explicitly rejects unsupported transitions, masks, layers, animated effects and text treatments instead of dropping them. Shared keyframe curves are sampled with cubic-Bezier timing; project keyframes continue to use the existing native export path until the versioned adapter maps them losslessly.
 
 The Android shared-render adapter also maps the mobile motion presets punch, soft punch, zoom burst, snap, hook zoom, jump, bounce, tilt, pan/drift, shake and heartbeat to sampled transform keyframes. These native presets are a device-side implementation; visual parity with Studio still requires the release checklist on real hardware.
 
