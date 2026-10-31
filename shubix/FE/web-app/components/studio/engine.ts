@@ -5202,7 +5202,7 @@ async function fastExport(){
         if(lyIts.length) await layerFrames(k);
         if(bgNeeded() && personMask){ holdText = true; try{ drawFrame(k/fps); } finally { holdText = false; } await maskNow(); bgPass(k/fps); drawText(k/fps); }
         else drawFrame(k/fps);
-        if(k % Math.max(1, Math.round(fps*0.5)) === 0){
+        if(k === Math.floor((sh.f0+sh.fEnd)/2) || k % Math.max(1, Math.round(fps*0.5)) === 0){
           const shotStart = sh.f0/fps, shotDuration = (sh.fEnd-sh.f0)/fps, local = k/fps-shotStart, inset = Math.min(0.18, shotDuration*0.2);
           if(local >= inset && local <= shotDuration-inset) qualityFrames.push(sampleQualityFrame(k/fps));
         }
