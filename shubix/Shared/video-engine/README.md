@@ -156,3 +156,5 @@ The primary Android export path now maps editor Fade, Zoom, Blur and Flash prese
 ### Web Studio layer compositor
 
 The browser Studio renderer composites overlapping video/photo layers with crop, transform, opacity, blend modes, chroma key, fade-in/out and layer masks. Layer masks include ellipse, rectangle, polygon, linear, radial and luma modes with feather and inversion; the luma threshold has its own control. Studio-originated Android drafts must continue exporting through their held Studio session so these layer operations survive. The native Android editor preview is not claimed to display the full Studio compositor.
+
+Android native export now composites all simultaneously active text overlays into a single timed bitmap layer instead of returning only the first matching overlay. Studio-originated projects still use the browser renderer for the full text/caption animation system.
