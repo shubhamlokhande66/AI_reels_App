@@ -1075,7 +1075,7 @@ function scanPut(src){ keptPut('a:', src.file, { v: SCAN_V, dur: src.dur, w: src
 // results whose file is gone (its Reels deleted from Fast Studio or from My Reels): removed now and then
 async function keptSweep(){
   try{ const keys = await idb('files', 'readonly', s => s.getAllKeys()) || [], have = new Set(keys.filter(k => String(k).startsWith('f:')).map(k => String(k).slice(2)));
-    const old = keys.filter(k => /^[av]:/.test(String(k)) && !have.has(String(k).slice(2)));
+    const old = keys.filter(k => /^[avp]:/.test(String(k)) && !have.has(String(k).slice(2)));
     if(old.length) await idb('files', 'readwrite', s => { old.forEach(k => s.delete(k)); });
   }catch(e){}
 }
@@ -1122,6 +1122,19 @@ function updateClipHoverInfo(src){
   src.card.setAttribute('aria-label',lines.join('. '));
 }
 async function compressHighResolutionPreview(src, dd){
+  // Reuse the exact preview proxy for this original file when a saved draft is reopened.
+  // The original File remains the export source; only the editor's lightweight preview URL changes.
+  const cached = await keptGet('p:', src.file);
+  if(cached && cached.v === 1 && cached.blob instanceof Blob && cached.blob.size < src.file.size){
+    src.url = URL.createObjectURL(cached.blob);
+    src.previewProxy = true; src.proxySize = cached.blob.size;
+    src.proxyW = cached.width || 0; src.proxyH = cached.height || 0;
+    src.proxyMime = cached.blob.type || cached.mime || '';
+    src.proxyStatus = 'Reused saved preview'; src.proxyReason = 'Restored from this device draft cache.';
+    updateClipHoverInfo(src);
+    previewBatchShow(src,'Using the saved editing copy…',1);
+    return;
+  }
   const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
   const plan=previewProxyPlan({size:src.file.size,width:src.w,height:src.h,duration:src.dur}, isMov);
   if(!plan){
@@ -1143,6 +1156,8 @@ async function compressHighResolutionPreview(src, dd){
     if(src.removed) return;
     if(result && result.blob && result.blob.size<src.file.size){
       const oldUrl=src.url; src.url=URL.createObjectURL(result.blob); src.previewProxy=true; src.proxySize=result.blob.size; src.proxyW=result.plan.width; src.proxyH=result.plan.height; src.proxyMime=result.blob.type; src.proxyStatus='Success'; src.proxyReason='Downscaled preview generated successfully.';
+      // Persist the compressed preview separately; export always keeps using the original File.
+      keptPut('p:', src.file, { v: 1, blob: result.blob, width: result.plan.width, height: result.plan.height, mime: result.blob.type || '' });
       try{URL.revokeObjectURL(oldUrl);}catch(e){}
       updateClipHoverInfo(src);
       previewBatchCompressed++;
@@ -6677,7 +6692,7 @@ async function openProject(id){
     const clips = []; for(const c of st.clips || []){ const f = await getF(c.fp, c.name); if(f) clips.push(f); }
     const sf = st.song ? await getF(st.song.fp, st.song.name) : null;
     if(sf){ let cs = null; try{ cs = await idb('songs', 'readonly', s => s.get(st.song.fp)); }catch(e){} await loadMusic(sf, cs && cs.r ? { r: cs.r, aiDone: cs.aiDone } : null); }
-    if(clips.length){ addVideos(clips); await addQueue; }
+    if(clips.length){ addVideos(clips, true); await addQueue; }
     if(st.kind !== 'talk' && st.edit && st.edit.length && clips.length === (st.clips || []).length && restoreEdit(st.edit)){ keepSaved = true;
       // the editor opens on it, as after making a Reel (the step, Play / Change Reel / Export)
       $('s3').classList.remove('locked'); $('s3').classList.add('done'); $('s3st').textContent = edit.length + ' shots · ' + fmt(buf ? buf.duration : 0);
