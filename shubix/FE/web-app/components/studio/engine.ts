@@ -1081,7 +1081,8 @@ function previewBatchClose(){
   previewBatchCompressed=0; previewBatchDetected=0;
 }
 async function compressHighResolutionPreview(src, dd){
-  const plan=previewProxyPlan({size:src.file.size,width:src.w,height:src.h,duration:src.dur});
+  const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
+  const plan=previewProxyPlan({size:src.file.size,width:src.w,height:src.h,duration:src.dur}, isMov);
   if(!plan) return;
   previewBatchDetected++;
   previewBatchShow(src,'High-resolution video detected. Creating a lightweight editing copy…',0);
