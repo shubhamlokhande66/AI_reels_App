@@ -50,7 +50,7 @@ export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
-  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
+  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
   const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]), song = useAudioPlayer(p?.audioUri ?? null);
@@ -383,9 +383,9 @@ export default function EditorScreen() {
             const [key, value] = values[v]; void studioLayerAction("layerSet", { key, value });
           }} />
           <Label>Mask and blend</Label>
-          <Choices items={["No mask", "Circle mask", "Radial mask", "Rectangle mask", "Linear mask", "Mirror mask", "Luma mask"]} on={({ none: "No mask", circle: "Circle mask", radial: "Radial mask", rect: "Rectangle mask", line: "Linear mask", mirror: "Mirror mask", luma: "Luma mask" } as Record<string, string>)[studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"] ?? "No mask"} onPick={(v) => {
-            const mask = ({ "No mask": "none", "Circle mask": "circle", "Radial mask": "radial", "Rectangle mask": "rect", "Linear mask": "line", "Mirror mask": "mirror", "Luma mask": "luma" } as Record<string, string>)[v];
-            void (async () => { await studioLayerAction("layerSet", { key: "mask", value: mask }); if (mask === "luma") { await studioLayerAction("layerSet", { key: "mk.h", value: 0.5 }); await studioLayerAction("layerSet", { key: "mk.f", value: 0.12 }); } })();
+          <Choices items={["No mask", "Circle mask", "Radial mask", "Rectangle mask", "Polygon mask", "Linear mask", "Mirror mask", "Luma mask"]} on={({ none: "No mask", circle: "Circle mask", radial: "Radial mask", rect: "Rectangle mask", polygon: "Polygon mask", line: "Linear mask", mirror: "Mirror mask", luma: "Luma mask" } as Record<string, string>)[studioLayers.find((x) => x.index === studioLayerIndex)?.mask ?? "none"] ?? "No mask"} onPick={(v) => {
+            const mask = ({ "No mask": "none", "Circle mask": "circle", "Radial mask": "radial", "Rectangle mask": "rect", "Polygon mask": "polygon", "Linear mask": "line", "Mirror mask": "mirror", "Luma mask": "luma" } as Record<string, string>)[v];
+            void (async () => { await studioLayerAction("layerSet", { key: "mask", value: mask }); if (mask === "luma") { await studioLayerAction("layerSet", { key: "mk.th", value: 0.5 }); await studioLayerAction("layerSet", { key: "mk.f", value: 0.12 }); } })();
           }} />
           <Label>Mask refinement</Label>
           <Choices items={["Mask smaller", "Mask larger", "More feather", "Less feather", "Rotate mask", "Invert mask", "Reset mask"]} onPick={(v) => {
@@ -396,7 +396,7 @@ export default function EditorScreen() {
             else if (v === "Less feather") void studioLayerAction("layerSet", { key: "mk.f", value: Math.max(0, (layer?.maskFeather ?? 0.12) - 0.05) });
             else if (v === "Rotate mask") void studioLayerAction("layerSet", { key: "mk.a", value: (layer?.maskAngle ?? 0) + 15 });
             else if (v === "Invert mask") void studioLayerAction("layerSet", { key: "mk.inv", value: !layer?.maskInverted });
-            else void (async () => { await studioLayerAction("layerSet", { key: "mk.w", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.h", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.f", value: 0.12 }); await studioLayerAction("layerSet", { key: "mk.a", value: 0 }); await studioLayerAction("layerSet", { key: "mk.inv", value: false }); })();
+            else void (async () => { await studioLayerAction("layerSet", { key: "mk.w", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.h", value: 0.8 }); await studioLayerAction("layerSet", { key: "mk.th", value: 0.5 }); await studioLayerAction("layerSet", { key: "mk.f", value: 0.12 }); await studioLayerAction("layerSet", { key: "mk.a", value: 0 }); await studioLayerAction("layerSet", { key: "mk.inv", value: false }); })();
           }} />
           {studioLayers.find((x) => x.index === studioLayerIndex)?.mask === "luma" && <>
             <Label>Luma threshold</Label>
@@ -404,8 +404,8 @@ export default function EditorScreen() {
               const layer = studioLayers.find((x) => x.index === studioLayerIndex);
               if (v === "Reveal brighter areas") void studioLayerAction("layerSet", { key: "mk.inv", value: false });
               else if (v === "Reveal darker areas") void studioLayerAction("layerSet", { key: "mk.inv", value: true });
-              else if (v === "Increase threshold") void studioLayerAction("layerSet", { key: "mk.h", value: Math.min(0.95, (layer?.maskHeight ?? 0.5) + 0.05) });
-              else void studioLayerAction("layerSet", { key: "mk.h", value: Math.max(0.05, (layer?.maskHeight ?? 0.5) - 0.05) });
+              else if (v === "Increase threshold") void studioLayerAction("layerSet", { key: "mk.th", value: Math.min(0.95, (layer?.maskThreshold ?? 0.5) + 0.05) });
+              else void studioLayerAction("layerSet", { key: "mk.th", value: Math.max(0.05, (layer?.maskThreshold ?? 0.5) - 0.05) });
             }} />
           </>}
           <Label>Chroma key</Label>
