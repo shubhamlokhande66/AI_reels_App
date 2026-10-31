@@ -57,19 +57,20 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overl
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
   const speedSegments = video ? buildSpeedRampSegments(video.speedRamp ?? [], video.end - video.start, { fallbackSpeed: video.speed, maxSegmentDuration: 0.2 }) : [];
   const player = useVideoPlayer(null, (p) => { p.audioMixingMode = "mixWithOthers"; });
-  const [videoReady, setVideoReady] = useState(false);
+  const [readyVideoId, setReadyVideoId] = useState<string | null>(null);
+  const videoReady = !!video && readyVideoId === video.id;
   const endedRef = useRef(false);
   // Do not seek/play until the native decoder has its first frame. Calling replace(),
   // currentTime and play in one render used to make the first preview start stutter or miss.
   useEffect(() => {
-    if (!video) { setVideoReady(false); player.pause(); return; }
-    setVideoReady(false); player.pause();
+    if (!video) { setReadyVideoId(null); player.pause(); return; }
+    setReadyVideoId(null); player.pause();
     const subscription = player.addListener("statusChange", ({ status }) => {
       if (status !== "readyToPlay") return;
       player.currentTime = video.start + rampSourceAt(speedSegments, at);
       player.playbackRate = rampRateAt(speedSegments, rampSourceAt(speedSegments, at), video.speed);
       player.muted = video.muted; player.volume = video.volume;
-      setVideoReady(true);
+      setReadyVideoId(video.id);
     });
     player.replace(video.uri);
     return () => { subscription.remove(); player.pause(); };
