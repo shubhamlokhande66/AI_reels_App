@@ -211,6 +211,21 @@ describe("autonomous render quality gate", () => {
     expect(result.repairs).toContain("reduce-duplicate-shots");
     expect(result.warnings).toContain("Audio quality was not measured.");
   });
+
+  it("fails closed when render probes contain NaN or impossible measurements", () => {
+    const result = assessAutonomousRenderQuality({
+      expectedDuration: 10, actualDuration: 10, width: Number.NaN, height: 1920, fps: 30,
+      frames: [{ time: 0, hasFrame: true, blackRatio: 0, blurScore: Number.NaN, duplicateDistance: 0.2 }],
+      audio: { peakDbfs: Number.NaN, clippedRatio: 0, silenceRatio: 0 },
+    });
+    expect(result.status).toBe("fail");
+    expect(result.errors).toContain("The export has invalid dimensions or frame rate.");
+    expect(result.errors).toContain("Frame quality probes contain invalid measurements.");
+    expect(result.errors).toContain("Audio quality probes contain invalid measurements.");
+    expect(result.repairs).toContain("reframe-output");
+    expect(result.repairs).toContain("retry-decode");
+    expect(result.repairs).toContain("normalise-audio");
+  });
 });
 
 
