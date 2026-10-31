@@ -17,6 +17,10 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Add/replace/reorder/delete/duplicate/split clips; verify undo and autosave.
 - [ ] Check trim boundaries, 0.25x–4x speed, mute/volume, fit/fill, rotate, mirror and flip.
 - [ ] Add multiple overlapping text overlays; check Devanagari, emoji, long text, timing, colour, size and safe area.
+- [ ] Verify ripple delete/insert across clip boundaries, including source-time preservation and clips split at the playhead.
+- [ ] Verify slip edits change source in/out points without moving the clip on the timeline.
+- [ ] Verify motion-path Bezier handles, endpoint clamping and easing at frame-level timestamps.
+- [ ] Verify dialogue ducking attack/hold/release with overlapping speech intervals and music fades.
 - [ ] Verify every tool label, help text, disabled state, plan lock, toast and confirmation is translated through the studio text helper.
 - [ ] Confirm unavailable tools are clearly identified and never appear to have applied when they have not.
 
