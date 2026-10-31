@@ -35,7 +35,7 @@ export type ClipAction = "Transition" | "Effect" | "Speed" | "Split" | "Duplicat
 export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed"> & Partial<Pick<ProjectClip, "speedRamp">>) {
   const sourceDuration = Math.max(0, clip.end - clip.start);
   const points = clip.speedRamp?.filter((point) => Number.isFinite(point.time) && Number.isFinite(point.speed))
-    .map((point) => ({ time: Math.min(sourceDuration, Math.max(0, point.time)), speed: Math.min(4, Math.max(0.25, point.speed)) }))
+    .map((point) => ({ time: Math.min(sourceDuration, Math.max(0, point.time)), speed: Math.min(4, Math.max(0.25, point.speed)), easing: point.easing ?? "linear" }))
     .sort((a, b) => a.time - b.time) ?? [];
   if (points.length < 2 || sourceDuration <= 0) return sourceDuration / clip.speed;
   const unique: typeof points = [];
@@ -53,7 +53,27 @@ export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed"> 
     const slices = Math.max(1, Math.ceil(span / 0.2));
     for (let slice = 0; slice < slices; slice++) {
       const midpoint = (slice + 0.5) / slices;
-      const speed = left.speed + (right.speed - left.speed) * midpoint;
+      let eased = midpoint;
+      switch (right.easing) {
+        case "hold": eased = 0; break;
+        case "in": case "inQuad": eased = midpoint * midpoint; break;
+        case "out": eased = 1 - (1 - midpoint) * (1 - midpoint); break;
+        case "inOut": eased = midpoint < 0.5 ? 2 * midpoint * midpoint : 1 - Math.pow(-2 * midpoint + 2, 2) / 2; break;
+        case "outCubic": eased = 1 - Math.pow(1 - midpoint, 3); break;
+        case "outExpo": eased = midpoint >= 1 ? 1 : 1 - Math.pow(2, -10 * midpoint); break;
+        case "outBack": { const c1 = 1.70158, c3 = c1 + 1; eased = 1 + c3 * Math.pow(midpoint - 1, 3) + c1 * Math.pow(midpoint - 1, 2); break; }
+        case "bezier": {
+          let lo = 0, hi = 1, t = midpoint;
+          for (let step = 0; step < 18; step++) {
+            const u = 1 - t, x = 3 * u * u * t * 0.25 + 3 * u * t * t * 0.25 + t * t * t;
+            if (Math.abs(x - midpoint) < 1e-5) break;
+            if (x < midpoint) lo = t; else hi = t;
+            t = (lo + hi) / 2;
+          }
+          const u = 1 - t; eased = 3 * u * u * t * 0.1 + 3 * u * t * t + t * t * t; break;
+        }
+      }
+      const speed = left.speed + (right.speed - left.speed) * eased;
       outputDuration += (span / slices) / Math.max(0.25, speed);
     }
   }
