@@ -27,6 +27,16 @@ describe("AI Director visual intent", () => {
       .toEqual({ transitionAll: true, transitionType: "dissolve" });
   });
 
+  it("recognises all-clips transition requests in Chinese", () => {
+    expect(parseDirectorVisualIntent("所有片段都加转场"))
+      .toEqual({ transitionAll: true });
+  });
+
+  it("recognises all-clips transition requests in Russian", () => {
+    expect(parseDirectorVisualIntent("все клипы добавь переход"))
+      .toEqual({ transitionAll: true });
+  });
+
   it("recognises a named transition in an English all-clips request", () => {
     expect(parseDirectorVisualIntent("apply whip pan transition to every clip"))
       .toEqual({ transitionAll: true, transitionType: "whip" });
