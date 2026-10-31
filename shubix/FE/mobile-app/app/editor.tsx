@@ -45,17 +45,17 @@ const LATER = new Set<string>();
 type BulkVisualCommand = { transition?: string; effect?: boolean };
 function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
   const value = String(prompt || "").trim();
-  const all = /\\b(?:all|every|each)\\s+(?:the\\s+)?(?:clips?|videos?)\\b|\\b(?:clips?|videos?)\\s+(?:all|every)\\b|\\b(?:sagle|sagale|saglya?|sarva|pratyek|sabhi|saare|har)\\s+(?:clips?|videos?)\\b|\\b(?:sagle|sagale|saglya?)\\s+videos?\\s+(?:vr|var|la)\\b|सभी\\s*(?:क्लिप|वीडियो)|सारे\\s*(?:क्लिप|वीडियो)|हर\\s*(?:क्लिप|वीडियो)|सगळ्या?\\s*(?:क्लिप|व्हिडिओ)|सर्व\\s*(?:क्लिप|व्हिडिओ)|प्रत्येक\\s*(?:क्लिप|व्हिडिओ)/iu.test(value);
+  const all = /\b(?:all|every|each)\s+(?:the\s+)?(?:clips?|videos?)\b|\b(?:clips?|videos?)\s+(?:all|every)\b|\b(?:sagle|sagale|saglya?|sarva|pratyek|sabhi|saare|har)\s+(?:clips?|videos?)\b|\b(?:sagle|sagale|saglya?)\s+videos?\s+(?:vr|var|la)\b|सभी\s*(?:क्लिप|वीडियो)|सारे\s*(?:क्लिप|वीडियो)|हर\s*(?:क्लिप|वीडियो)|सगळ्या?\s*(?:क्लिप|व्हिडिओ)|सर्व\s*(?:क्लिप|व्हिडिओ)|प्रत्येक\s*(?:क्लिप|व्हिडिओ)/iu.test(value);
   if (!all) return null;
-  const asksTransition = /\\btransitions?\\b|ट्रांजिशन|ट्रांज़िशन|ट्रान्जिशन|ट्रान्झिशन|संक्रमण|转场|переход/iu.test(value);
-  const asksEffect = /\\b(?:effects?|effecr|fx)\\b|इफेक्ट्स?|प्रभाव|效果|эффекты/iu.test(value);
+  const asksTransition = /\btransitions?\b|ट्रांजिशन|ट्रांज़िशन|ट्रान्जिशन|ट्रान्झिशन|संक्रमण|转场|переход/iu.test(value);
+  const asksEffect = /\b(?:effects?|effecr|fx)\b|इफेक्ट्स?|प्रभाव|效果|эффекты/iu.test(value);
   if (!asksTransition && !asksEffect) return null;
   const namedTransition: Array<[string, RegExp]> = [
-    ["dissolve", /\\bdissolve\\b/i], ["whip", /\\bwhip(?:\\s*pan)?\\b/i], ["zoom", /\\bzoom(?:\\s*through)?\\b/i],
-    ["flash", /\\bflash\\b/i], ["glitch", /\\bglitch\\b/i], ["dip", /\\bdip(?:\\s*to\\s*black)?\\b/i],
-    ["iris", /\\biris\\b/i], ["wipe", /\\bwipe\\b/i], ["spin", /\\bspin\\b/i],
-    ["slideleft", /\\b(?:slide|push)\\s*left\\b/i], ["slideright", /\\b(?:slide|push)\\s*right\\b/i],
-    ["bars", /\\bbars?\\b/i], ["diamond", /\\bdiamond\\b/i], ["heart", /\\bheart\\b/i], ["star", /\\bstar\\b/i],
+    ["dissolve", /\bdissolve\b/i], ["whip", /\bwhip(?:\s*pan)?\b/i], ["zoom", /\bzoom(?:\s*through)?\b/i],
+    ["flash", /\bflash\b/i], ["glitch", /\bglitch\b/i], ["dip", /\bdip(?:\s*to\s*black)?\b/i],
+    ["iris", /\biris\b/i], ["wipe", /\bwipe\b/i], ["spin", /\bspin\b/i],
+    ["slideleft", /\b(?:slide|push)\s*left\b/i], ["slideright", /\b(?:slide|push)\s*right\b/i],
+    ["bars", /\bbars?\b/i], ["diamond", /\bdiamond\b/i], ["heart", /\bheart\b/i], ["star", /\bstar\b/i],
   ];
   const transition = asksTransition ? namedTransition.find(([, pattern]) => pattern.test(value))?.[0] ?? "dissolve" : undefined;
   return { ...(transition ? { transition } : {}), ...(asksEffect ? { effect: true } : {}) };
