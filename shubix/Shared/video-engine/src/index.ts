@@ -780,3 +780,113 @@ export function validateAutonomousReelPlan(plan: AutonomousReelPlan): string[] {
   if (Math.abs(cursor - plan.duration) > 0.05) errors.push("The plan duration does not match its timeline.");
   return errors;
 }
+
+
+export type RenderFrameCheck = {
+  time: number;
+  blackRatio?: number;
+  blurScore?: number;
+  duplicateDistance?: number;
+  hasFrame: boolean;
+};
+export type RenderAudioCheck = {
+  peakDbfs?: number;
+  clippedRatio?: number;
+  silenceRatio?: number;
+  integratedLufs?: number;
+};
+export type AutonomousRenderReport = {
+  expectedDuration: number;
+  actualDuration: number;
+  width: number;
+  height: number;
+  fps: number;
+  frames: RenderFrameCheck[];
+  audio?: RenderAudioCheck;
+};
+export type AutonomousQualityResult = {
+  status: "pass" | "warn" | "fail";
+  score: number;
+  errors: string[];
+  warnings: string[];
+  repairs: Array<"retry-decode" | "remove-black-segment" | "replace-blurry-shot" | "reduce-duplicate-shots" | "normalise-audio" | "reduce-clipping" | "fix-duration" | "reframe-output">;
+};
+
+/**
+ * Final render gate. It consumes inexpensive renderer-side probes and never claims
+ * perceptual quality from metadata alone; frame sampling and audio measurements are required.
+ */
+export function assessAutonomousRenderQuality(report: AutonomousRenderReport): AutonomousQualityResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const repairs = new Set<AutonomousQualityResult["repairs"][number]>();
+  let score = 100;
+  if (!Number.isFinite(report.actualDuration) || report.actualDuration <= 0) {
+    errors.push("The exported video has no valid duration.");
+    repairs.add("retry-decode");
+    score -= 60;
+  }
+  if (report.expectedDuration > 0 && Math.abs(report.actualDuration - report.expectedDuration) > Math.max(0.5, report.expectedDuration * 0.03)) {
+    errors.push("The exported duration does not match the edit decision.");
+    repairs.add("fix-duration");
+    score -= 25;
+  }
+  if (report.width <= 0 || report.height <= 0 || report.fps <= 0) {
+    errors.push("The export has invalid dimensions or frame rate.");
+    repairs.add("reframe-output");
+    score -= 50;
+  }
+  if (report.frames.length === 0) {
+    errors.push("No decoded frame samples were available for quality inspection.");
+    repairs.add("retry-decode");
+    score -= 35;
+  } else {
+    const missing = report.frames.filter((frame) => !frame.hasFrame).length;
+    const black = report.frames.filter((frame) => (frame.blackRatio ?? 0) >= 0.985).length;
+    const blurry = report.frames.filter((frame) => typeof frame.blurScore === "number" && frame.blurScore < 0.08).length;
+    const duplicate = report.frames.filter((frame) => typeof frame.duplicateDistance === "number" && frame.duplicateDistance < 0.015).length;
+    const total = report.frames.length;
+    if (missing / total > 0.01) {
+      errors.push("Decoded frames are missing in the exported video.");
+      repairs.add("retry-decode");
+      score -= 35;
+    }
+    if (black / total > 0.03) {
+      errors.push("Unexpected black frames were detected.");
+      repairs.add("remove-black-segment");
+      score -= 25;
+    }
+    if (blurry / total > 0.2) {
+      warnings.push("A large share of sampled frames appears soft or out of focus.");
+      repairs.add("replace-blurry-shot");
+      score -= 10;
+    }
+    if (duplicate / total > 0.25) {
+      warnings.push("The export contains repeated-looking frames or frozen sections.");
+      repairs.add("reduce-duplicate-shots");
+      score -= 10;
+    }
+  }
+  if (report.audio) {
+    if ((report.audio.clippedRatio ?? 0) > 0.005 || (report.audio.peakDbfs ?? -1) > -0.1) {
+      errors.push("Audio clipping was detected.");
+      repairs.add("reduce-clipping");
+      repairs.add("normalise-audio");
+      score -= 20;
+    }
+    if ((report.audio.silenceRatio ?? 0) > 0.35) {
+      warnings.push("The soundtrack contains unusually long silence.");
+      score -= 8;
+    }
+    if (typeof report.audio.integratedLufs === "number" && report.audio.integratedLufs > -8) {
+      warnings.push("The soundtrack is very loud; consider a lower loudness target.");
+      repairs.add("normalise-audio");
+      score -= 5;
+    }
+  } else {
+    warnings.push("Audio quality was not measured.");
+  }
+  score = clamp(score, 0, 100);
+  return { status: errors.length ? "fail" : warnings.length ? "warn" : "pass",
+    score, errors, warnings, repairs: [...repairs] };
+}
