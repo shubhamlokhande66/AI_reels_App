@@ -146,3 +146,8 @@ The shared Android RenderJob adapter now maps Fade in to timestamp-scoped alpha 
 Dissolve/crossfade, directional wipes/slides, 3D transitions, arbitrary masks, additional compositor layers, animated layer transforms and advanced GPU looks are still not claimed as Android-export-ready. The adapter explicitly rejects unsupported transitions, masks, layers, animated effects and text treatments instead of dropping them. Shared keyframe curves are sampled with cubic-Bezier timing; project keyframes continue to use the existing native export path until the versioned adapter maps them losslessly.
 
 The Android shared-render adapter also maps the mobile motion presets punch, soft punch, zoom burst, snap, hook zoom, jump, bounce, tilt, pan/drift, shake and heartbeat to sampled transform keyframes. These native presets are a device-side implementation; visual parity with Studio still requires the release checklist on real hardware.
+
+
+### Android transition support boundary
+
+The primary Android export path now maps editor Fade, Zoom, Blur and Flash presets plus supported Studio fade-in, slide, spin and whip-pan presets into native Media3 effects. Blur and Flash use timestamp-scoped GPU effects. Slide/zoom/spin/whip are incoming transform animations, not two-clip overlap transitions. True Dissolve/Crossfade, Push and Wipe are not claimed as supported because Media3 Transformer 1.8.0 does not provide native video-track crossfading; those edits must be rejected or rendered by the browser Studio path until a dedicated compositor is available.
