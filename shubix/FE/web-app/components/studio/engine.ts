@@ -5149,7 +5149,7 @@ async function fastExport(){
     const yieldNow = () => (globalThis.scheduler && scheduler.yield) ? scheduler.yield() : new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
     let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0, glLostFrames:0, missing:0, recovered:0, unresolved:0 }; let tq = performance.now();
     // Sample the actual composited output (not source footage) for the autonomous quality gate.
-    const qualityFrames = []; let previousQualityPixels = null;
+    const qualityFrames = []; let previousQualityPixels = null, lastQualityShot = -1;
     const qualityCanvas = document.createElement('canvas'); qualityCanvas.width = qualityCanvas.height = 32;
     const qualityCtx = qualityCanvas.getContext('2d', { willReadFrequently: true });
     const sampleQualityFrame = (time) => {
@@ -5202,9 +5202,11 @@ async function fastExport(){
         if(lyIts.length) await layerFrames(k);
         if(bgNeeded() && personMask){ holdText = true; try{ drawFrame(k/fps); } finally { holdText = false; } await maskNow(); bgPass(k/fps); drawText(k/fps); }
         else drawFrame(k/fps);
-        if(k === Math.floor((sh.f0+sh.fEnd)/2) || k % Math.max(1, Math.round(fps*0.5)) === 0){
+        {
           const shotStart = sh.f0/fps, shotDuration = (sh.fEnd-sh.f0)/fps, local = k/fps-shotStart, inset = Math.min(0.18, shotDuration*0.2);
-          if(local >= inset && local <= shotDuration-inset) qualityFrames.push(sampleQualityFrame(k/fps));
+          const firstUsefulFrame = lastQualityShot !== i && local >= inset;
+          const periodicFrame = k % Math.max(1, Math.round(fps*0.5)) === 0 && local >= inset && local <= shotDuration-inset;
+          if(firstUsefulFrame || periodicFrame){ qualityFrames.push(sampleQualityFrame(k/fps)); lastQualityShot = i; }
         }
         const tb = performance.now(); prof.draw += tb - ta;
         await vs.add(k/fps, 1/fps);
