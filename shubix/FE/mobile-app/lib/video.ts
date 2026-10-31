@@ -80,7 +80,7 @@ export function canUseSharedAndroidRenderer(project: ReelProject): boolean {
   if (!ShubixVideo || project.clips.length === 0) return false;
   if (project.clips.some((clip) =>
     clip.reverse ||
-    (clip.transition && !["Cut", "hard", "fadein"].includes(clip.transition)) ||
+    (clip.transition && !["Cut", "hard", "fadein", "whip", "zoom", "zoomout", "spin", "slideleft", "slideright", "slideup", "slidedown"].includes(clip.transition)) ||
     (clip.effect && !["none", "blurpulse"].includes(clip.effect)) ||
     (clip.volume ?? 1) > 1 ||
     !!clip.speedRamp?.length ||
