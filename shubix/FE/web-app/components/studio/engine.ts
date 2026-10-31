@@ -5148,6 +5148,25 @@ async function fastExport(){
     // yield to the page without timers (a hidden tab throttles setTimeout to once a second or less)
     const yieldNow = () => (globalThis.scheduler && scheduler.yield) ? scheduler.yield() : new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
     let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0, glLostFrames:0, missing:0, recovered:0, unresolved:0 }; let tq = performance.now();
+    // Sample the actual composited output (not source footage) for the autonomous quality gate.
+    const qualityFrames = []; let previousQualityPixels = null;
+    const qualityCanvas = document.createElement('canvas'); qualityCanvas.width = qualityCanvas.height = 32;
+    const qualityCtx = qualityCanvas.getContext('2d', { willReadFrequently: true });
+    const sampleQualityFrame = (time) => {
+      if(!qualityCtx) return { time, hasFrame: true };
+      try {
+        qualityCtx.drawImage(out, 0, 0, 32, 32);
+        const pixels = qualityCtx.getImageData(0, 0, 32, 32).data;
+        let black = 0, distance = 0, count = 0;
+        for(let i=0;i<pixels.length;i+=4){
+          const luma = 0.2126*pixels[i] + 0.7152*pixels[i+1] + 0.0722*pixels[i+2];
+          if(luma < 8) black++;
+          if(previousQualityPixels){ distance += (Math.abs(pixels[i]-previousQualityPixels[i]) + Math.abs(pixels[i+1]-previousQualityPixels[i+1]) + Math.abs(pixels[i+2]-previousQualityPixels[i+2]))/3; count++; }
+        }
+        previousQualityPixels = new Uint8ClampedArray(pixels);
+        return { time, hasFrame: true, blackRatio: black/1024, ...(count ? { duplicateDistance: distance/(count*255) } : {}) };
+      } catch(err) { return { time, hasFrame: true }; }
+    };
     const tStart = performance.now();
     pre = open(0);
     for(let i=0; i<edit.length; i++){
@@ -5183,6 +5202,10 @@ async function fastExport(){
         if(lyIts.length) await layerFrames(k);
         if(bgNeeded() && personMask){ holdText = true; try{ drawFrame(k/fps); } finally { holdText = false; } await maskNow(); bgPass(k/fps); drawText(k/fps); }
         else drawFrame(k/fps);
+        if(k % Math.max(1, Math.round(fps*0.5)) === 0){
+          const shotStart = sh.f0/fps, shotDuration = (sh.fEnd-sh.f0)/fps, local = k/fps-shotStart, inset = Math.min(0.18, shotDuration*0.2);
+          if(local >= inset && local <= shotDuration-inset) qualityFrames.push(sampleQualityFrame(k/fps));
+        }
         const tb = performance.now(); prof.draw += tb - ta;
         await vs.add(k/fps, 1/fps);
         tq = performance.now(); prof.encode += tq - tb; prof.frames++;
@@ -5204,6 +5227,24 @@ async function fastExport(){
     { const p2 = await pre; pre = null; if(p2 && p2.it.return) try{ await p2.it.return(); }catch(err){} }
     while(as && nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
     if(prof.frames !== total) throw new Error('Export frame count mismatch: expected ' + total + ', encoded ' + prof.frames + '. Retrying with real-time export.');
+    const audioQuality = audio ? (() => {
+      let peak = 0, clipped = 0, silent = 0, count = 0;
+      for(let ch=0;ch<audio.numberOfChannels;ch++){
+        const data = audio.getChannelData(ch);
+        for(let i=0;i<data.length;i+=8){ const v=Math.abs(data[i]||0); peak=Math.max(peak,v); if(v>=0.999) clipped++; if(v<0.001) silent++; count++; }
+      }
+      return { peakDbfs: 20*Math.log10(Math.max(peak,1e-10)), clippedRatio: clipped/Math.max(1,count), silenceRatio: silent/Math.max(1,count) };
+    })() : undefined;
+    const quality = assessAutonomousRenderQuality({
+      expectedDuration: dur, actualDuration: prof.frames/fps, width: W, height: H, fps,
+      frames: qualityFrames, ...(audioQuality ? { audio: audioQuality } : {}),
+    });
+    root.__lastQualityReport = quality;
+    if(quality.status === 'fail'){
+      const error = new Error('Quality check stopped this export: ' + quality.errors.join(' '));
+      error.code = 'QUALITY_GATE_FAILED'; error.quality = quality; throw error;
+    }
+    if(quality.warnings.length) console.warn('Shubix export quality warnings:', quality.warnings);
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
     const name = 'reel-' + aspect.replace(':','x') + '-' + XQ[xq.res].label + (fps > 30 ? '-' + fps + 'fps' : '') + '.' + (mp4 ? 'mp4' : 'webm');
@@ -5240,7 +5281,7 @@ async function runExport(toCloud){
   try{
     let ok = false;
     try{ ok = await fastExport(); }
-    catch(err){ console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
+    catch(err){ if(err && err.code === 'QUALITY_GATE_FAILED'){ tasks.fail('export', err.message); showMsg(err.message, true); throw err; } console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
     if(!ok){
       try{
         ok = await recordExport();
