@@ -284,25 +284,26 @@ class ShubixVideoModule : Module() {
     if (song != null) {
       val audioUri = song.optString("uri").trim()
       val audioStart = song.optDouble("start", 0.0)
+      val audioDuration = song.optDouble("duration", at)
       val volumeValue = song.optDouble("volume", 1.0)
       val fadeInValue = song.optDouble("fadeIn", 0.0)
       val fadeOutValue = song.optDouble("fadeOut", 0.0)
       val duckLevelValue = song.optDouble("duckLevel", 0.35)
-      require(audioUri.isNotEmpty() && audioStart.isFinite() && audioStart >= 0.0 && audioStart + at <= Long.MAX_VALUE / 1000.0) {
+      require(audioUri.isNotEmpty() && audioStart.isFinite() && audioStart >= 0.0 && audioDuration.isFinite() && audioDuration > 0.0 && audioStart + audioDuration <= Long.MAX_VALUE / 1000.0) {
         "The background music source or start time is invalid."
       }
       require(volumeValue.isFinite() && fadeInValue.isFinite() && fadeOutValue.isFinite() && duckLevelValue.isFinite()) {
         "The background music settings contain an invalid number."
       }
       val music = MediaItem.Builder().setUri(Uri.parse(audioUri))
-        .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((audioStart * 1000).toLong()).setEndPositionMs(((audioStart + at) * 1000).toLong()).build()).build()
+        .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((audioStart * 1000).toLong()).setEndPositionMs(((audioStart + audioDuration) * 1000).toLong()).build()).build()
       val musicVolume = volumeValue.toFloat().coerceIn(0f, 1f)
       val fadeIn = fadeInValue.coerceIn(0.0, 10.0)
       val fadeOut = fadeOutValue.coerceIn(0.0, 10.0)
       val ducking = song.optBoolean("ducking", false)
       val duckLevel = duckLevelValue.toFloat().coerceIn(0.1f, 1f)
       val musicAudio: List<AudioProcessor> = if (musicVolume == 1f && fadeIn == 0.0 && fadeOut == 0.0 && (!ducking || clipAudioRanges.isEmpty())) emptyList()
-        else listOf(gainProcessor(musicVolume, at, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
+        else listOf(gainProcessor(musicVolume, audioDuration, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
     val out = outputFile.apply {
