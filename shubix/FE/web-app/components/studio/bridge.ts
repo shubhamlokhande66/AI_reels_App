@@ -89,6 +89,18 @@ export function initBridge(root: HTMLElement): () => void {
     },
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
+    async undo() {
+      const st = studio(), button = $("undo");
+      if (!st || !button || button.hasAttribute("disabled")) return { ok: false, state: st?.state() ?? null };
+      button.click();
+      return { ok: true, state: st.state() };
+    },
+    async redo() {
+      const st = studio(), button = $("redo");
+      if (!st || !button || button.hasAttribute("disabled")) return { ok: false, state: st?.state() ?? null };
+      button.click();
+      return { ok: true, state: st.state() };
+    },
     async seek(a) { const st = studio(); if (!st?.seek) throw new Error("Studio seeking is not ready"); await st.seek(Math.max(0, Number(a.time) || 0)); return { time: st.now }; },
     async kfSeek(a) { const st = studio(); if (!st?.kfSeek) throw new Error("Keyframe timeline is not ready"); await st.kfSeek(Math.max(0, Number(a.time) || 0)); return st.kfTarget?.() ?? null; },
     async kfEase(a) {
