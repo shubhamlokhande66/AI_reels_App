@@ -1004,7 +1004,7 @@ export function inferAutonomousMood(
     { mood: "fashion", score: ratio((shot) => hasTag(shot,"fashion") || hasTag(shot,"outfit") || hasTag(shot,"beauty")) + (hasAny("fashion","outfit","makeup","beauty") ? 0.25 : 0), reason: "Fashion or beauty styling detected" },
     { mood: "talking", score: ratio((shot) => !!shot.speech) + (hasAny("talking","interview","tutorial","speech") ? 0.25 : 0), reason: "Speech-led footage detected" },
     { mood: "wedding", score: ratio((shot) => !!shot.isReaction || hasTag(shot,"wedding")) + (hasAny("wedding","bride","groom","ceremony") ? 0.3 : 0), reason: "Wedding and reaction moments detected" },
-    { mood: "devotional", score: hasAny("devotional","temple","prayer","spiritual","bhajan") ? 0.75 : 0, reason: "Devotional or spiritual subject detected" },
+    { mood: "devotional", score: hasAny("devotional","temple","prayer","spiritual","bhajan") ? 1.1 : 0, reason: "Devotional or spiritual subject detected" },
     { mood: "energetic", score: ratio((shot) => !!shot.isAction || shot.motion > 0.72) + (music?.mood === "energetic" ? 0.3 : 0), reason: "High-motion footage or energetic soundtrack detected" },
     { mood: "story", score: ratio((shot) => !!shot.speech || !!shot.isReaction || !!shot.isEstablishing), reason: "Speech, reactions and scene progression suggest a story" },
   ];
@@ -1059,7 +1059,7 @@ export function normaliseSpeedRamp(
     else unique.push(point);
   }
   if (!unique.length) return [{ time: 0, speed: fallback }, { time: end, speed: fallback }];
-  if (unique[0].time > 0) unique.unshift({ time: 0, speed: unique[0].speed });
+  if (unique[0].time > 0) unique.unshift({ time: 0, speed: fallback });
   else unique[0] = { ...unique[0], time: 0 };
   if (unique[unique.length - 1].time < end) unique.push({ time: end, speed: unique[unique.length - 1].speed });
   else unique[unique.length - 1] = { ...unique[unique.length - 1], time: end };

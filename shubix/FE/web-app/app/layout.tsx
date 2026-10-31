@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary", title: "Shubix · Reels video studio", description: "Turn your clips, photos and a song into a beat-synced Reel.", images: ["/icon-512.png"] },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning className={`${body.variable} ${geistMono.variable} h-full antialiased`}>
       <head>

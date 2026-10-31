@@ -42,6 +42,8 @@ export class UnsupportedAndroidRenderFeature extends Error {
  * crossfades, unsupported transitions, masks, extra compositor layers, animated text,
  * unsupported effects and other fields the Kotlin module cannot reproduce losslessly.
  */
+const reelEndMs = (job: RenderJobSpec) => job.items.reduce((end, item) => Math.max(end, item.timelineStartMs + item.durationMs), 0);
+
 export function createAndroidRendererAdapter(options: AndroidRendererOptions): RendererAdapter {
   const { nativeModule } = options;
   let active = false;
@@ -60,7 +62,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       throw new UnsupportedAndroidRenderFeature("Android Media3 adapter currently supports one music track.");
     }
     const audio = job.audio?.[0];
-    const reelDurationMs = job.items.reduce((end, item) => Math.max(end, item.timelineStartMs + item.durationMs), 0);
+    const reelDurationMs = reelEndMs(job);
     if (audio && audio.startMs !== 0) {
       throw new UnsupportedAndroidRenderFeature("Android Media3 currently requires the music track to start at the beginning of the Reel.");
     }
@@ -189,7 +191,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           };
         });
         const audio = job.audio?.[0];
-        const effectiveAudioDurationMs = audio ? Math.min(audio.durationMs, reelDurationMs) : 0;
+        const effectiveAudioDurationMs = audio ? Math.min(audio.durationMs, reelEndMs(job)) : 0;
         const nativeSpec = {
           width: job.dimensions.width,
           height: job.dimensions.height,
@@ -197,7 +199,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           ...(audio ? { audio: {
             uri: audio.source,
             start: audio.sourceStartMs / 1000,
-            duration: Math.min(audio.durationMs, reelDurationMs) / 1000,
+            duration: effectiveAudioDurationMs / 1000,
             volume: audio.volume,
             fadeIn: Math.min(audio.fadeInMs ?? 0, effectiveAudioDurationMs) / 1000,
             fadeOut: Math.min(audio.fadeOutMs ?? 0, effectiveAudioDurationMs) / 1000,

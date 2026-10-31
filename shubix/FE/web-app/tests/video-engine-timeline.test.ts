@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSpeedRampSegments, evaluateMotionPath, evaluateSpeedRamp, recordEdit, rippleDelete, rippleInsert, slipClip, stepEditHistory, type TimelineRange } from "../../../Shared/video-engine/src/index";
+import { clipDuration } from "../../../Shared/validations/src/editor";
 
 type Clip = TimelineRange & { label: string };
 
@@ -153,6 +154,14 @@ describe("shared motion and speed-ramp evaluation", () => {
     ], 5, 5)).toBe(4);
   });
 
+  it("keeps the clip's own speed before the first keyframe, as the native renderer does", () => {
+    const ramp = [{ time: 5, speed: 2 }];
+    expect(evaluateSpeedRamp(ramp, 0, 10, 1)).toBe(1);
+    expect(evaluateSpeedRamp(ramp, 7, 10, 1)).toBe(2);
+    expect(clipDuration({ start: 0, end: 10, speed: 1, speedRamp: ramp })).toBeCloseTo(5.97, 1);
+    expect(buildSpeedRampSegments(ramp, 10, { fallbackSpeed: 1, maxSegmentDuration: 0.2 }).at(-1)!.outputEnd).toBeCloseTo(5.97, 1);
+  });
+
   it("builds ordered speed-ramp segments with continuous output timestamps", () => {
     const segments = buildSpeedRampSegments([
       { time: 0, speed: 1 },
@@ -176,7 +185,7 @@ describe("shared edit history", () => {
   it("undoes the latest snapshot and keeps the current state for redo", () => {
     const undo = recordEdit(["initial"], "edited", 30);
     const step = stepEditHistory(undo.undo, undo.redo, "latest", "undo", 30);
-    expect(step).toEqual({ undo: [], redo: ["latest"], current: "edited" });
+    expect(step).toEqual({ undo: ["initial"], redo: ["latest"], current: "edited" });
   });
 
   it("redoes an undone snapshot and restores the undo stack", () => {

@@ -13,10 +13,10 @@ describe("browser editor preview proxies", () => {
   });
   it("downscales 4K portrait and landscape footage for preview", () => {
     expect(previewProxyPlan({ size: 300 * MB, width: 2160, height: 3840, duration: 60 })).toMatchObject({
-      width: 540, height: 960, bitrate: PREVIEW_BITRATE, reason: "resolution",
+      width: 540, height: 960, bitrate: PREVIEW_BITRATE, reason: "resolution-and-bitrate",
     });
     expect(previewProxyPlan({ size: 300 * MB, width: 3840, height: 2160, duration: 60 })).toMatchObject({
-      width: 960, height: 540, bitrate: PREVIEW_BITRATE, reason: "resolution",
+      width: 960, height: 540, bitrate: PREVIEW_BITRATE, reason: "resolution-and-bitrate",
     });
     expect(PREVIEW_MAX_SIDE).toBe(960);
   });

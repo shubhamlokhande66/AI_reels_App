@@ -66,9 +66,10 @@ function speedAtRamp(points: NonNullable<ProjectClip["speedRamp"]>, time: number
     if (unique.length && Math.abs(unique[unique.length - 1].time - point.time) < 0.001) unique[unique.length - 1] = point;
     else unique.push(point);
   }
-  if (unique.length === 1) return unique[0].speed;
-  if (unique[0].time > 0) unique.unshift({ time: 0, speed: unique[0].speed, easing: "linear" });
+  // As the native renderer: the clip's own speed holds until the first keyframe's ramp begins.
+  if (unique[0].time > 0) unique.unshift({ time: 0, speed: Math.min(4, Math.max(0.25, fallback)), easing: "linear" });
   if (unique[unique.length - 1].time < duration) unique.push({ time: duration, speed: unique[unique.length - 1].speed, easing: "linear" });
+  if (unique.length === 1) return unique[0].speed;
   const t = Math.min(duration, Math.max(0, time));
   let index = 0;
   while (index < unique.length - 2 && unique[index + 1].time < t) index++;
@@ -82,7 +83,6 @@ export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed"> 
   if (sourceDuration <= 0) return 0;
   const points = clip.speedRamp ?? [];
   if (!points.length) return sourceDuration / clip.speed;
-  if (points.length === 1) return sourceDuration / Math.min(4, Math.max(0.25, points[0].speed));
   // Match the native renderer's <=200ms constant-rate slices and integrate 1 / playback-rate.
   let outputDuration = 0;
   const slices = Math.max(1, Math.ceil(sourceDuration / 0.2));
