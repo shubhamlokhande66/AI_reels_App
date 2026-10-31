@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -199,5 +199,55 @@ describe("autonomous content understanding", () => {
     ];
     expect(inferAutonomousMood(speechShots).mood).toBe("talking");
     expect(createAutonomousReelPlan({ shots: speechShots, targetDuration: 6 }).mood).toBe("talking");
+  });
+});
+
+
+describe("speed ramp curves", () => {
+  it("normalises invalid points, clamps playback rates and adds timeline boundaries", () => {
+    const points = normaliseSpeedRamp([
+      { time: 3, speed: 8 },
+      { time: 1, speed: 0.01 },
+      { time: 1, speed: 1.5 },
+      { time: Number.NaN, speed: 2 },
+    ], 4);
+    expect(points[0]).toEqual({ time: 0, speed: 1.5 });
+    expect(points[1]).toEqual({ time: 1, speed: 1.5 });
+    expect(points[2]).toEqual({ time: 3, speed: 4 });
+    expect(points[3]).toEqual({ time: 4, speed: 4 });
+  });
+
+  it("evaluates smooth playback-rate changes with the shared easing model", () => {
+    const points = [
+      { time: 0, speed: 0.5, easing: "linear" as const },
+      { time: 4, speed: 2, easing: "linear" as const },
+    ];
+    expect(evaluateSpeedRamp(points, 0, 4)).toBeCloseTo(0.5);
+    expect(evaluateSpeedRamp(points, 2, 4)).toBeCloseTo(1.25);
+    expect(evaluateSpeedRamp(points, 4, 4)).toBeCloseTo(2);
+  });
+
+  it("builds ordered constant-rate render slices with speed-adjusted output timestamps", () => {
+    const segments = buildSpeedRampSegments([
+      { time: 0, speed: 1, easing: "linear" },
+      { time: 2, speed: 2, easing: "linear" },
+    ], 2, { maxSegmentDuration: 0.5 });
+    expect(segments).toHaveLength(4);
+    expect(segments[0].sourceStart).toBe(0);
+    expect(segments[3].sourceEnd).toBe(2);
+    expect(segments[0].outputStart).toBe(0);
+    for (let index = 1; index < segments.length; index++) {
+      expect(segments[index].sourceStart).toBeCloseTo(segments[index - 1].sourceEnd);
+      expect(segments[index].outputStart).toBeCloseTo(segments[index - 1].outputEnd);
+    }
+    expect(segments.every((segment) => segment.speed >= 0.25 && segment.speed <= 4)).toBe(true);
+    expect(segments[3].outputEnd).toBeLessThan(2);
+  });
+
+  it("uses a safe constant-rate fallback when no curve points are supplied", () => {
+    const segments = buildSpeedRampSegments([], 3, { fallbackSpeed: 1.5, maxSegmentDuration: 1 });
+    expect(segments.length).toBe(3);
+    expect(segments.every((segment) => segment.speed === 1.5)).toBe(true);
+    expect(segments[segments.length - 1].outputEnd).toBeCloseTo(2);
   });
 });
