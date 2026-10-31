@@ -146,6 +146,37 @@ describe("autonomous AI reel director", () => {
 });
 
 
+  it("honours must-include and avoid instructions when ranking source moments", () => {
+    const plan = createAutonomousReelPlan({
+      shots: [
+        { ...shots[0], id: "logo-opening", tags: ["product", "logo"], isOpening: true },
+        { ...shots[1], id: "product-detail", tags: ["product", "close-up"], isDetail: true },
+        { ...shots[2], id: "product-ending", tags: ["product", "packaging"], isEnding: true },
+      ],
+      music, targetDuration: 6, mood: "product",
+      intent: { mustInclude: ["product"], avoid: ["logo"], subject: "close up" },
+    });
+    expect(plan.shots.some((shot) => shot.sourceId === "logo-opening")).toBe(false);
+    expect(plan.shots.some((shot) => shot.sourceId === "product-detail")).toBe(true);
+    expect(plan.warnings.some((warning) => warning.includes("avoid instruction"))).toBe(true);
+    expect(validateAutonomousReelPlan(plan)).toEqual([]);
+  });
+
+  it("skips malformed source moments and falls back from invalid duration metadata", () => {
+    const plan = createAutonomousReelPlan({
+      shots: [
+        { ...shots[0], sourceStart: Number.NaN, sourceEnd: Number.NaN },
+        { ...shots[1], id: "", sourceIndex: -1 },
+        { ...shots[2], duration: Number.NaN },
+      ],
+      music: { ...music, duration: Number.NaN },
+      targetDuration: Number.NaN,
+    });
+    expect(plan.shots.every((shot) => Number.isFinite(shot.timelineStart) && Number.isFinite(shot.duration))).toBe(true);
+    expect(plan.warnings.some((warning) => warning.includes("invalid"))).toBe(true);
+    expect(validateAutonomousReelPlan(plan)).toEqual([]);
+  });
+
 describe("autonomous render quality gate", () => {
   it("passes a valid render with clean video and audio measurements", () => {
     const result = assessAutonomousRenderQuality({
