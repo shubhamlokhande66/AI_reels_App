@@ -486,3 +486,297 @@ export function getEditorTools(
     return true;
   });
 }
+
+
+/* -------------------------------------------------------------------------- *
+ * Autonomous Reel Director
+ * -------------------------------------------------------------------------- */
+
+export type AutonomousMood = "cinematic" | "energetic" | "story" | "product" | "travel" | "food" | "minimal" | "wedding" | "devotional" | "fashion" | "talking";
+export type AutonomousSourceShot = ShotAnalysis & {
+  /** Source-media time range represented by this analysed moment. */
+  sourceStart?: number;
+  sourceEnd?: number;
+  /** Stable scene/subject identifiers supplied by local vision analysis. */
+  sceneId?: string;
+  subjectIds?: string[];
+  tags?: string[];
+  /** Optional local model scores in [0,1]. */
+  aestheticScore?: number;
+  stabilityScore?: number;
+  exposureScore?: number;
+  /** A human speaking, narration, or meaningful speech segment. */
+  speech?: boolean;
+  speechStart?: number;
+  speechEnd?: number;
+  /** Explicit semantic signals from the video-understanding pass. */
+  isOpening?: boolean;
+  isEnding?: boolean;
+  isReaction?: boolean;
+  isEstablishing?: boolean;
+  isDetail?: boolean;
+  isAction?: boolean;
+  isUsable?: boolean;
+};
+export type AutonomousMusicAnalysis = {
+  duration: number;
+  bpm?: number;
+  beats?: number[];
+  downbeats?: number[];
+  drops?: number[];
+  quietRanges?: Array<[number, number]>;
+  energy?: Array<{ time: number; value: number }>;
+  mood?: string;
+};
+export type AutonomousReelRequest = {
+  shots: AutonomousSourceShot[];
+  music?: AutonomousMusicAnalysis;
+  targetDuration?: number;
+  aspect?: "9:16" | "4:5" | "1:1" | "16:9";
+  mood?: AutonomousMood;
+  intensity?: "subtle" | "balanced" | "bold";
+  platform?: EditorPlatform;
+  /** Optional creator instruction, already interpreted into structured intent by the caller. */
+  intent?: { subject?: string; story?: string; mustInclude?: string[]; avoid?: string[]; language?: string };
+  /** Hard limits from the active renderer/device. */
+  limits?: { maxShots?: number; maxEffectsPerShot?: number; maxGpuCost?: "low" | "medium" | "high" };
+};
+export type AutonomousReelShot = {
+  sourceId: string;
+  sourceIndex: number;
+  sourceStart: number;
+  sourceEnd: number;
+  timelineStart: number;
+  timelineEnd: number;
+  duration: number;
+  role: "hook" | "establishing" | "hero" | "action" | "detail" | "reaction" | "bridge" | "ending";
+  transition: string;
+  effects: string[];
+  speed: number;
+  keyframes: TransformTrack[];
+  score: number;
+  reason: string;
+};
+export type AutonomousReelPlan = {
+  version: 1;
+  status: "ready" | "needs-more-footage" | "audio-missing";
+  mood: AutonomousMood;
+  aspect: NonNullable<AutonomousReelRequest["aspect"]>;
+  duration: number;
+  soundtrack: { bpm?: number; beatSync: boolean; cutPoints: number[]; drops: number[] };
+  shots: AutonomousReelShot[];
+  globalLook: string[];
+  captions: { suggested: boolean; source: "speech-analysis" | "none"; language?: string };
+  decisions: string[];
+  warnings: string[];
+};
+
+const finite01 = (n: number | undefined, fallback = 0.5) =>
+  typeof n === "number" && Number.isFinite(n) ? clamp(n, 0, 1) : fallback;
+const hasTag = (shot: AutonomousSourceShot, tag: string) =>
+  (shot.tags ?? []).some((value) => value.toLowerCase() === tag.toLowerCase());
+
+function autonomousScore(shot: AutonomousSourceShot, mood: AutonomousMood): number {
+  const quality = finite01(shot.quality);
+  const subject = finite01(shot.subjectScore);
+  const face = finite01(shot.faceScore);
+  const motion = finite01(shot.motion);
+  const aesthetic = finite01(shot.aestheticScore);
+  const stable = finite01(shot.stabilityScore);
+  const exposure = finite01(shot.exposureScore);
+  let score = quality * 0.22 + subject * 0.18 + aesthetic * 0.14 +
+    stable * 0.10 + exposure * 0.08 + motion * 0.10 + face * 0.08;
+  if (shot.isHighlight) score += 0.10;
+  if (shot.isUsable === false) score -= 1;
+  if (shot.speech && mood !== "talking" && mood !== "story" && mood !== "wedding" && mood !== "devotional") score -= 0.12;
+  if (shot.isProduct && mood === "product") score += 0.18;
+  if (shot.isFood && mood === "food") score += 0.18;
+  if (shot.isLandscape && mood === "travel") score += 0.12;
+  if (shot.isAction && mood === "energetic") score += 0.12;
+  if (shot.isReaction && ["story", "wedding", "devotional"].includes(mood)) score += 0.12;
+  if (shot.isEstablishing && ["travel", "story", "wedding"].includes(mood)) score += 0.12;
+  if (shot.isDetail && ["product", "food", "fashion", "wedding"].includes(mood)) score += 0.10;
+  if (shot.isOpening) score += 0.06;
+  if (shot.isEnding) score += 0.04;
+  return clamp(score, 0, 1);
+}
+
+function pickAutonomousRole(shot: AutonomousSourceShot, index: number, total: number): AutonomousReelShot["role"] {
+  if (index === 0) return "hook";
+  if (index === total - 1) return "ending";
+  if (shot.isEstablishing) return "establishing";
+  if (shot.isReaction) return "reaction";
+  if (shot.isAction) return "action";
+  if (shot.isDetail || shot.isProduct || shot.isFood) return "detail";
+  if (shot.isHighlight) return "hero";
+  return index % 3 === 0 ? "bridge" : "hero";
+}
+
+/**
+ * Builds a fully structured autonomous edit decision from local media analysis.
+ * This function does not decode media or render pixels: the platform pipeline supplies
+ * analysis and applies the returned edit through a renderer with explicit capabilities.
+ */
+export function createAutonomousReelPlan(request: AutonomousReelRequest): AutonomousReelPlan {
+  const mood = request.mood ?? "cinematic";
+  const intensity = request.intensity ?? "balanced";
+  const platform = request.platform ?? "android";
+  const mobile = platform === "android";
+  const music = request.music;
+  const available = request.shots.filter((shot) => shot.duration > 0 && shot.isUsable !== false &&
+    Number.isFinite(shot.duration) && shot.sourceIndex >= 0);
+  const warnings: string[] = [];
+  const decisions: string[] = [];
+  if (!music) warnings.push("Music analysis is missing; visual pacing is used and beat synchronization is disabled.");
+  if (!available.length) {
+    return { version: 1, status: "needs-more-footage", mood, aspect: request.aspect ?? "9:16", duration: 0,
+      soundtrack: { beatSync: false, cutPoints: [], drops: [] }, shots: [], globalLook: [],
+      captions: { suggested: false, source: "none" }, decisions, warnings: [...warnings, "No usable video moments were supplied."] };
+  }
+
+  const duration = clamp(request.targetDuration ?? Math.min(30, music?.duration ?? available.reduce((sum, shot) => sum + shot.duration, 0)), 3, 180);
+  const maxShots = Math.max(1, Math.min(80, request.limits?.maxShots ?? 40));
+  const maxEffects = Math.max(0, Math.min(4, request.limits?.maxEffectsPerShot ?? 2));
+  const beats = [...new Set([...(music?.downbeats ?? []), ...(music?.beats ?? [])]
+    .filter((time) => Number.isFinite(time) && time >= 0 && time <= duration))].sort((a, b) => a - b);
+  const drops = (music?.drops ?? []).filter((time) => Number.isFinite(time) && time >= 0 && time <= duration).sort((a,b)=>a-b);
+  const quiet = music?.quietRanges ?? [];
+  const scored = available.map((shot) => ({ shot, score: autonomousScore(shot, mood) }));
+  const best = [...scored].sort((a,b)=>b.score-a.score);
+  const hook = best.find(({shot}) => shot.isOpening) ?? best[0];
+  const chosen = [hook];
+  const used = new Set([hook.shot.id]);
+  const ideal = clamp(duration / Math.max(2, Math.ceil(duration / (mood === "energetic" ? 1.7 : mood === "talking" ? 4.5 : 2.8))), 0.65, 5.5);
+
+  // Greedy diversity pass: prefer a different scene/subject and avoid adjacent duplicate-looking footage.
+  while (chosen.length < maxShots && chosen.reduce((sum,item)=>sum+Math.min(ideal,item.shot.duration),0) < duration) {
+    const last = chosen[chosen.length - 1];
+    const next = best.filter(({shot}) => !used.has(shot.id)).map((candidate) => {
+      let diversity = 0;
+      if (last.shot.sceneId && candidate.shot.sceneId && last.shot.sceneId !== candidate.shot.sceneId) diversity += 0.08;
+      if (last.shot.subjectIds?.length && candidate.shot.subjectIds?.length &&
+          !last.shot.subjectIds.some((id) => candidate.shot.subjectIds?.includes(id))) diversity += 0.04;
+      if (candidate.shot.isDetail && chosen.some((item) => item.shot.isEstablishing)) diversity += 0.03;
+      if (candidate.shot.isEnding) diversity += 0.03;
+      return { ...candidate, adjusted: candidate.score + diversity };
+    }).sort((a,b)=>b.adjusted-a.adjusted)[0];
+    if (!next) break;
+    chosen.push(next); used.add(next.shot.id);
+  }
+
+  // A final ending shot should feel intentional, not just be the last item in a score sort.
+  if (chosen.length > 2) {
+    const endingIndex = chosen.findIndex((item, index) => index > 0 && item.shot.isEnding);
+    if (endingIndex > 1) chosen.push(chosen.splice(endingIndex, 1)[0]);
+    else {
+      const ending = best.find(({shot}) => !used.has(shot.id) && shot.isEnding);
+      if (ending) chosen[chosen.length - 1] = ending;
+    }
+  }
+
+  const pace = mood === "energetic" ? 1.35 : mood === "minimal" ? 0.72 :
+    mood === "talking" ? 0.85 : mood === "story" || mood === "wedding" || mood === "devotional" ? 0.9 : 1;
+  const plan: AutonomousReelShot[] = [];
+  let cursor = 0;
+  for (let index = 0; index < chosen.length && cursor < duration; index++) {
+    const { shot, score } = chosen[index];
+    const sourceStart = Math.max(0, shot.sourceStart ?? 0);
+    const sourceEnd = Math.max(sourceStart, Math.min(shot.sourceEnd ?? shot.duration, shot.duration));
+    const sourceAvailable = Math.max(0, sourceEnd - sourceStart);
+    if (sourceAvailable < 0.35) continue;
+    const remaining = duration - cursor;
+    let shotDuration = Math.min(sourceAvailable, ideal / pace, remaining);
+    if (shot.speech && mood === "talking") {
+      const speechDuration = Math.max(0, (shot.speechEnd ?? sourceEnd) - (shot.speechStart ?? sourceStart));
+      if (speechDuration > 0) shotDuration = Math.min(remaining, Math.max(shotDuration, Math.min(speechDuration, 8)));
+    }
+    if (beats.length && cursor > 0) {
+      const nearestBeat = beats.reduce((bestBeat, beat) => Math.abs(beat - (cursor + shotDuration)) < Math.abs(bestBeat - (cursor + shotDuration)) ? beat : bestBeat, cursor + shotDuration);
+      if (Math.abs(nearestBeat - (cursor + shotDuration)) <= 0.18 && nearestBeat > cursor + 0.35) shotDuration = nearestBeat - cursor;
+    }
+    shotDuration = Math.min(shotDuration, remaining);
+    if (shotDuration < 0.35) break;
+
+    const inQuiet = quiet.some(([start,end]) => cursor >= start && cursor <= end);
+    const onDrop = drops.some((drop) => Math.abs(drop - cursor) <= 0.35);
+    const role = pickAutonomousRole(shot, index, chosen.length);
+    const transition = index === 0 ? "hard" : inQuiet ? "dissolve" :
+      onDrop && intensity !== "subtle" ? "flash" :
+      mood === "minimal" || mood === "story" || mood === "wedding" || mood === "devotional" ? "dissolve" :
+      mood === "energetic" && intensity === "bold" ? "whip" : "hard";
+    const effects: string[] = [];
+    if (mood === "cinematic" || mood === "travel" || mood === "wedding") effects.push("drift");
+    if (mood === "product" || mood === "food" || mood === "fashion" || shot.isProduct || shot.isFood) effects.push("punch-soft");
+    if (onDrop && !inQuiet && intensity !== "subtle") effects.push("zoomburst");
+    if (shot.speech) {
+      for (let i = effects.length - 1; i >= 0; i--) if (["zoomburst","shake","hook"].includes(effects[i])) effects.splice(i,1);
+    }
+    const gpuRank = { low: 0, medium: 1, high: 2 } as const;
+    const maxGpu = gpuRank[request.limits?.maxGpuCost ?? (mobile ? "medium" : "high")];
+    const filteredEffects = effects.filter((id) => {
+      const definition = EFFECT_LIBRARY.find((effect) => effect.id === id);
+      return !!definition && gpuRank[definition.gpuCost] <= maxGpu && (!mobile || definition.mobileSafe);
+    }).slice(0, maxEffects);
+    const zoom = shot.speech ? 1.02 : shot.isHighlight ? 1.09 : 1.045;
+    const rolePan = index % 2 === 0 ? 0.018 : -0.018;
+    const keyframes = motionTrack(shotDuration, zoom, rolePan);
+    plan.push({
+      sourceId: shot.id, sourceIndex: shot.sourceIndex, sourceStart,
+      sourceEnd: Math.min(sourceEnd, sourceStart + shotDuration),
+      timelineStart: cursor, timelineEnd: cursor + shotDuration, duration: shotDuration,
+      role, transition, effects: filteredEffects, speed: onDrop && !inQuiet && intensity === "bold" ? 1.12 : 1,
+      keyframes, score,
+      reason: shot.speech ? "Speech moment protected for intelligibility" :
+        role === "hook" ? "Strongest opening moment selected as the hook" :
+        role === "ending" ? "Ending moment selected to give the Reel a deliberate finish" :
+        role === "detail" ? "Detail shot selected to add visual variety" :
+        role === "reaction" ? "Reaction selected to carry the story" :
+        role === "establishing" ? "Establishing shot gives the viewer context" :
+        score >= 0.8 ? "High-quality highlight selected" : "Selected for subject quality and sequence variety",
+    });
+    cursor += shotDuration;
+  }
+
+  if (plan.length < 2) warnings.push("Only one usable shot was selected; add more footage for a richer edit.");
+  if (cursor + 0.05 < duration) warnings.push("The supplied footage could not fill the requested duration without repeating clips.");
+  if (!beats.length) decisions.push("No beat grid was supplied; cut timing follows visual rhythm.");
+  else decisions.push("Cuts were aligned to nearby beat or downbeat positions where timing allowed.");
+  if (drops.length) decisions.push("Music drops were used as emphasis points for selected transitions and motion.");
+  decisions.push("Source moments were not repeated in the same Reel.");
+  decisions.push("The opening hook and ending were selected separately from the main sequence.");
+  if (mobile) decisions.push("Mobile-safe GPU budget was applied to protect preview and export performance.");
+  const hasSpeech = plan.some(({sourceId}) => available.find((shot)=>shot.id===sourceId)?.speech);
+  const globalLook = mood === "cinematic" || mood === "travel" ? ["contrast","vignette"] :
+    mood === "product" || mood === "fashion" ? ["contrast","sharpen"] :
+    mood === "food" ? ["contrast","saturation"] : [];
+  return {
+    version: 1, status: !music ? "audio-missing" : plan.length < 2 ? "needs-more-footage" : "ready",
+    mood, aspect: request.aspect ?? "9:16", duration: cursor,
+    soundtrack: { ...(music?.bpm ? { bpm: music.bpm } : {}), beatSync: beats.length > 0,
+      cutPoints: plan.slice(1).map((shot)=>shot.timelineStart), drops },
+    shots: plan, globalLook, captions: { suggested: hasSpeech, source: hasSpeech ? "speech-analysis" : "none",
+      ...(request.intent?.language ? { language: request.intent.language } : {}) },
+    decisions, warnings,
+  };
+}
+
+/** Structural guardrail for the autonomous planner before a renderer accepts a plan. */
+export function validateAutonomousReelPlan(plan: AutonomousReelPlan): string[] {
+  const errors: string[] = [];
+  if (!Number.isFinite(plan.duration) || plan.duration < 0) errors.push("Invalid plan duration.");
+  let cursor = 0;
+  const seen = new Set<string>();
+  for (const shot of plan.shots) {
+    if (seen.has(shot.sourceId)) errors.push("A source shot is repeated.");
+    seen.add(shot.sourceId);
+    if (shot.duration <= 0 || !Number.isFinite(shot.duration)) errors.push("A shot has an invalid duration.");
+    if (Math.abs(shot.timelineStart - cursor) > 0.03) errors.push("The timeline contains a gap or overlap.");
+    if (Math.abs((shot.timelineEnd - shot.timelineStart) - shot.duration) > 0.03) errors.push("A shot's timeline duration is inconsistent.");
+    if (shot.sourceStart < 0 || shot.sourceEnd <= shot.sourceStart) errors.push("A source trim range is invalid.");
+    if (!TRANSITION_LIBRARY.some((transition) => transition.id === shot.transition)) errors.push("A transition is not in the shared registry.");
+    for (const effect of shot.effects) if (!EFFECT_LIBRARY.some((definition) => definition.id === effect)) errors.push("An effect is not in the shared registry.");
+    cursor = shot.timelineEnd;
+  }
+  if (Math.abs(cursor - plan.duration) > 0.05) errors.push("The plan duration does not match its timeline.");
+  return errors;
+}
