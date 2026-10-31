@@ -317,15 +317,19 @@ export function ToolSheet({ tool, onClose, children }: { tool: { key: string; na
 }
 
 /** A sheet's choices as chips (the one in use in gold). */
-export function Choices({ items, on, onPick }: { items: string[]; on?: string; onPick: (v: string) => void }) {
+export function Choices({ items, on, onPick, disabledItems = [] }: { items: string[]; on?: string; onPick: (v: string) => void; disabledItems?: readonly string[] }) {
   const words = useStudioText();
+  const disabled = new Set(disabledItems);
   return (
     <View className="flex-row flex-wrap gap-2">
-      {items.map((x) => (
-        <Pressable key={x} onPress={() => onPick(x)} accessibilityRole="button" accessibilityState={{ selected: on === x }} className={`min-h-10 justify-center rounded-xl border px-3.5 ${on === x ? "border-accent bg-accent/10" : "border-border bg-surface-2"}`}>
-          <Text className={`text-[12.5px] font-semibold ${on === x ? "text-accent" : "text-foreground"}`}>{words(x)}</Text>
-        </Pressable>
-      ))}
+      {items.map((x) => {
+        const unavailable = disabled.has(x);
+        return (
+          <Pressable key={x} disabled={unavailable} onPress={() => onPick(x)} accessibilityRole="button" accessibilityState={{ selected: on === x, disabled: unavailable }} className={`min-h-10 justify-center rounded-xl border px-3.5 ${unavailable ? "border-border/50 bg-surface opacity-40" : on === x ? "border-accent bg-accent/10" : "border-border bg-surface-2"}`}>
+            <Text className={`text-[12.5px] font-semibold ${unavailable ? "text-muted" : on === x ? "text-accent" : "text-foreground"}`}>{words(x)}{unavailable ? " · Soon" : ""}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
