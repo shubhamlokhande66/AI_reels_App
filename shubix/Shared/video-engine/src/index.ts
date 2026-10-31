@@ -1123,22 +1123,32 @@ export type TimelineEditResult<T extends TimelineRange> = { clips: T[]; removedD
 
 /** Remove a timeline interval, split crossing clips and close the gap. */
 export function rippleDelete<T extends TimelineRange>(clips: T[], rangeStart: number, rangeEnd: number): TimelineEditResult<T> {
-  const start = Math.max(0, Math.min(rangeStart, rangeEnd));
-  const end = Math.max(start, Math.max(rangeStart, rangeEnd));
+  const a = Number.isFinite(rangeStart) ? rangeStart : 0;
+  const b = Number.isFinite(rangeEnd) ? rangeEnd : a;
+  const start = Math.max(0, Math.min(a, b));
+  const end = Math.max(start, Math.max(a, b));
   const removedDuration = end - start;
   if (removedDuration <= 0) return { clips: clips.map((clip) => ({ ...clip })), removedDuration: 0 };
   const result: T[] = [];
   for (const clip of clips) {
-    const clipStart = Math.max(0, clip.start), clipEnd = clipStart + Math.max(0, clip.duration);
-    if (clipEnd <= start) { result.push({ ...clip }); continue; }
-    if (clipStart >= end) { result.push({ ...clip, start: clip.start - removedDuration }); continue; }
+    const clipStart = Number.isFinite(clip.start) ? Math.max(0, clip.start) : 0;
+    const clipDuration = Number.isFinite(clip.duration) ? Math.max(0, clip.duration) : 0;
+    const clipEnd = clipStart + clipDuration;
+    if (clipDuration <= 0) continue;
+    if (clipEnd <= start) { result.push({ ...clip, start: clipStart, duration: clipDuration }); continue; }
+    if (clipStart >= end) { result.push({ ...clip, start: clipStart - removedDuration, duration: clipDuration }); continue; }
     const left = Math.max(0, start - clipStart), right = Math.max(0, clipEnd - end);
-    const sourceStart = clip.sourceStart ?? 0, sourceEnd = clip.sourceEnd ?? sourceStart + clip.duration;
-    const rate = clip.duration > 0 ? (sourceEnd - sourceStart) / clip.duration : 1;
-    if (left > 0.0001) result.push({ ...clip, duration: left, sourceEnd: sourceStart + left * rate });
+    const sourceStart = Number.isFinite(clip.sourceStart) ? Math.max(0, clip.sourceStart!) : 0;
+    const rawSourceEnd = Number.isFinite(clip.sourceEnd) ? Math.max(sourceStart, clip.sourceEnd!) : sourceStart + clipDuration;
+    const rate = clipDuration > 0 ? (rawSourceEnd - sourceStart) / clipDuration : 1;
+    if (left > 0.0001) result.push({
+      ...clip, start: clipStart, duration: left,
+      sourceStart, sourceEnd: sourceStart + left * rate,
+    });
     if (right > 0.0001) result.push({
       ...clip, id: left > 0.0001 ? `${clip.id}:ripple-right` : clip.id,
-      start, duration: right, sourceStart: sourceStart + (end - clipStart) * rate, sourceEnd,
+      start, duration: right, sourceStart: sourceStart + (end - clipStart) * rate,
+      sourceEnd: sourceStart + clipDuration * rate,
     });
   }
   return { clips: result.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id)), removedDuration };
@@ -1146,20 +1156,28 @@ export function rippleDelete<T extends TimelineRange>(clips: T[], rangeStart: nu
 
 /** Insert a gap, moving later clips and splitting a clip that crosses the insertion point. */
 export function rippleInsert<T extends TimelineRange>(clips: T[], at: number, duration: number): T[] {
-  const position = Math.max(0, at), gap = Math.max(0, duration);
+  const position = Number.isFinite(at) ? Math.max(0, at) : 0;
+  const gap = Number.isFinite(duration) ? Math.max(0, duration) : 0;
   if (gap <= 0) return clips.map((clip) => ({ ...clip }));
   const result: T[] = [];
   for (const clip of clips) {
-    const clipStart = Math.max(0, clip.start), clipEnd = clipStart + Math.max(0, clip.duration);
-    if (clipEnd <= position) { result.push({ ...clip }); continue; }
-    if (clipStart >= position) { result.push({ ...clip, start: clip.start + gap }); continue; }
+    const clipStart = Number.isFinite(clip.start) ? Math.max(0, clip.start) : 0;
+    const clipDuration = Number.isFinite(clip.duration) ? Math.max(0, clip.duration) : 0;
+    const clipEnd = clipStart + clipDuration;
+    if (clipDuration <= 0) continue;
+    if (clipEnd <= position) { result.push({ ...clip, start: clipStart, duration: clipDuration }); continue; }
+    if (clipStart >= position) { result.push({ ...clip, start: clipStart + gap, duration: clipDuration }); continue; }
     const left = position - clipStart, right = clipEnd - position;
-    const sourceStart = clip.sourceStart ?? 0, sourceEnd = clip.sourceEnd ?? sourceStart + clip.duration;
-    const rate = clip.duration > 0 ? (sourceEnd - sourceStart) / clip.duration : 1;
-    result.push({ ...clip, duration: left, sourceEnd: sourceStart + left * rate });
+    const sourceStart = Number.isFinite(clip.sourceStart) ? Math.max(0, clip.sourceStart!) : 0;
+    const rawSourceEnd = Number.isFinite(clip.sourceEnd) ? Math.max(sourceStart, clip.sourceEnd!) : sourceStart + clipDuration;
+    const rate = clipDuration > 0 ? (rawSourceEnd - sourceStart) / clipDuration : 1;
+    result.push({
+      ...clip, start: clipStart, duration: left,
+      sourceStart, sourceEnd: sourceStart + left * rate,
+    });
     result.push({
       ...clip, id: `${clip.id}:insert-right`, start: position + gap, duration: right,
-      sourceStart: sourceStart + left * rate, sourceEnd,
+      sourceStart: sourceStart + left * rate, sourceEnd: sourceStart + clipDuration * rate,
     });
   }
   return result.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
