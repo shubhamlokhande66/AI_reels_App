@@ -549,6 +549,10 @@ class ShubixVideoModule : Module() {
       "heartbeat" -> { point(0.0); point(minOf(0.16, duration), s = 1.08); point(minOf(0.32, duration)); point(minOf(0.48, duration), s = 1.08); point(minOf(0.8, duration)) }
       else -> return null
     }
+    val unique = mutableListOf<DoubleArray>()
+    points.forEach { p ->
+      if (unique.isNotEmpty() && kotlin.math.abs(unique.last()[0] - p[0]) < 0.001) unique[unique.lastIndex] = p else unique += p
+    }
     val frames = org.json.JSONArray()
     points.forEach { p -> frames.put(JSONObject().put("t", p[0]).put("x", p[1]).put("y", p[2]).put("s", p[3]).put("r", p[4]).put("o", 1.0)) }
     return frames
