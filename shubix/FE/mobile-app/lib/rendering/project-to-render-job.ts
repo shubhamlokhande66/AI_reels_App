@@ -5,7 +5,10 @@ import {
 } from "@shubix/validations";
 import type { RenderJobSpec, RenderTrackItem } from "@shubix/core/engine/rendering";
 import { UnsupportedAndroidRenderFeature } from "./android-renderer.adapter";
-import { normalizeAndroidTransition } from "./native-capabilities";
+import {
+  isAndroidTransitionSupported,
+  normalizeAndroidTransition,
+} from "./native-capabilities";
 
 const SIZE: Record<string, [number, number]> = {
   "9:16": [1080, 1920],
@@ -50,7 +53,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
     }
     const durationMs = clipDuration(clip) * 1000;
     const mappedTransition = normalizeAndroidTransition(clip.transition ?? "");
-    if (clip.transition && clip.transition !== "Cut" && clip.transition !== "hard" && !mappedTransition) {
+    if (clip.transition && !isAndroidTransitionSupported(clip.transition)) {
       throw new UnsupportedAndroidRenderFeature(`Transition ${clip.transition} has no Android export mapping. Choose a supported transition or use the native editor export path.`);
     }
     const effects: Array<NonNullable<RenderTrackItem["effects"]>[number]> = [];
@@ -75,8 +78,8 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       flip: clip.flip,
       muted: clip.muted,
       volume: clip.volume,
-      ...(clip.transition && clip.transition !== "Cut" && clip.transition !== "hard"
-        ? { transitionIn: { type: mappedTransition!, durationMs: Math.min(350, durationMs / 2) } }
+      ...(mappedTransition
+        ? { transitionIn: { type: mappedTransition, durationMs: Math.min(350, durationMs / 2) } }
         : {}),
       effects,
     });
