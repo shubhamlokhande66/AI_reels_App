@@ -654,7 +654,7 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
     Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start
   ).map(([start,end]) => [clamp(start,0,duration),clamp(end,0,duration)] as [number,number])
     .filter(([start,end]) => end > start);
-  const normaliseIntent = (value?: string) => (value ?? "").toLowerCase().split(/[^\\p{L}\\p{N}]+/u).filter((part) => part.length > 2);
+  const normaliseIntent = (value?: string) => (value ?? "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((part) => part.length > 2);
   const mustInclude = (request.intent?.mustInclude ?? []).flatMap(normaliseIntent);
   const avoid = (request.intent?.avoid ?? []).flatMap(normaliseIntent);
   const subjectTerms = normaliseIntent(request.intent?.subject);
