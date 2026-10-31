@@ -101,6 +101,13 @@ export function initBridge(root: HTMLElement): () => void {
       button.click();
       return { ok: true, state: st.state() };
     },
+    async remix() {
+      const st = studio();
+      if (!st?.remix) throw new Error("Mix Video is not ready");
+      const ok = st.remix();
+      if (!ok) throw new Error("Add at least two usable clips before making a new mix");
+      return { ok: true, state: st.state() };
+    },
     async seek(a) { const st = studio(); if (!st?.seek) throw new Error("Studio seeking is not ready"); await st.seek(Math.max(0, Number(a.time) || 0)); return { time: st.now }; },
     async kfSeek(a) { const st = studio(); if (!st?.kfSeek) throw new Error("Keyframe timeline is not ready"); await st.kfSeek(Math.max(0, Number(a.time) || 0)); return st.kfTarget?.() ?? null; },
     async kfEase(a) {
