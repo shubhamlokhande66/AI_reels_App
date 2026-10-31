@@ -65,6 +65,8 @@ export interface RenderAudioTrack {
   volume: number;
   fadeInMs?: number;
   fadeOutMs?: number;
+  ducking?: boolean;
+  duckLevel?: number;
 }
 
 export interface RenderTextOverlay {
@@ -233,6 +235,9 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (![track.startMs, track.durationMs, track.sourceStartMs, track.volume].every(Number.isFinite)) errors.push("Audio track timing and volume must be finite numbers.");
     if (track.startMs < 0 || track.durationMs < 0 || track.sourceStartMs < 0) errors.push("Audio track timing cannot be negative.");
     if (track.volume < 0 || track.volume > 4) errors.push("Audio track volume must be between 0 and 4.");
+    if (track.fadeInMs !== undefined && (!Number.isFinite(track.fadeInMs) || track.fadeInMs < 0 || track.fadeInMs > 10000)) errors.push("Audio fade-in must be between 0 and 10000ms.");
+    if (track.fadeOutMs !== undefined && (!Number.isFinite(track.fadeOutMs) || track.fadeOutMs < 0 || track.fadeOutMs > 10000)) errors.push("Audio fade-out must be between 0 and 10000ms.");
+    if (track.duckLevel !== undefined && (!Number.isFinite(track.duckLevel) || track.duckLevel < 0 || track.duckLevel > 1)) errors.push("Audio duck level must be between 0 and 1.");
   }
 
   const timelineEndMs = spec.items.reduce((end, item) => Math.max(end, item.timelineStartMs + item.durationMs), 0);
