@@ -87,21 +87,35 @@ class ShubixVideoModule : Module() {
         if (image) setImageDurationMs(endMs - startMs)
         else setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build())
       }.build()
-      val len = (endMs - startMs) / 1000.0 / (if (image) 1f else speed)
-      val video = mutableListOf<Effect>()
-      val audio = mutableListOf<AudioProcessor>()
-      if (!image && speed != 1f) { video += SpeedChangeEffect(speed); audio += SonicAudioProcessor().apply { setSpeed(speed); setPitch(speed) } }
+      val sourceDuration = (endMs - startMs).coerceAtLeast(1L) / 1000.0
+      val ramp = if (!image) speedRampSlices(c.optJSONArray("speedRamp"), sourceDuration, speed.toDouble()) else emptyList()
+      val slices = if (ramp.isEmpty()) listOf(RampSlice(0.0, sourceDuration, speed.toDouble())) else ramp
       val clipVolume = c.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f)
-      if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
       val turn = c.optDouble("rotation", 0.0).toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
-      if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
-      video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
-      video += filter(c.optString("filter"))
-      if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at, w, h)))
       val muted = c.optBoolean("muted")
-      items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
-      at += len
+      var clipOutputDuration = 0.0
+      for (slice in slices) {
+        val sliceStartMs = startMs + (slice.start * 1000).toLong()
+        val sliceEndMs = startMs + (slice.end * 1000).toLong()
+        val segmentItem = MediaItem.Builder().setUri(Uri.parse(c.getString("uri"))).apply {
+          if (image) setImageDurationMs((slice.end - slice.start).times(1000).toLong())
+          else setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(sliceStartMs).setEndPositionMs(sliceEndMs).build())
+        }.build()
+        val segmentSpeed = if (image) 1f else slice.speed.toFloat().coerceIn(0.25f, 4f)
+        val segmentDuration = (slice.end - slice.start) / segmentSpeed
+        val video = mutableListOf<Effect>()
+        val audio = mutableListOf<AudioProcessor>()
+        if (!image && segmentSpeed != 1f) { video += SpeedChangeEffect(segmentSpeed); audio += SonicAudioProcessor().apply { setSpeed(segmentSpeed); setPitch(segmentSpeed) } }
+        if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
+        if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
+        video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
+        video += filter(c.optString("filter"))
+        if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at + clipOutputDuration, w, h)))
+        items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
+        clipOutputDuration += segmentDuration
+      }
+      at += clipOutputDuration
     }
     val sequences = mutableListOf(EditedMediaItemSequence.Builder(items).experimentalSetForceAudioTrack(true).build())
     if (song != null) {
@@ -130,6 +144,42 @@ class ShubixVideoModule : Module() {
         main.postDelayed(this, 250)
       }
     })
+  }
+
+  private data class RampSlice(val start: Double, val end: Double, val speed: Double)
+
+  /** Build bounded constant-rate Media3 slices from source-time speed keyframes. */
+  private fun speedRampSlices(points: org.json.JSONArray?, duration: Double, fallback: Double): List<RampSlice> {
+    if (points == null || points.length() == 0 || duration <= 0.0) return emptyList()
+    val sorted = (0 until points.length()).mapNotNull { index ->
+      val point = points.optJSONObject(index) ?: return@mapNotNull null
+      val time = point.optDouble("time", Double.NaN)
+      val rate = point.optDouble("speed", Double.NaN)
+      if (!time.isFinite() || !rate.isFinite()) null
+      else Pair(time.coerceIn(0.0, duration), rate.coerceIn(0.25, 4.0))
+    }.sortedBy { it.first }
+    if (sorted.isEmpty()) return emptyList()
+    val unique = mutableListOf<Pair<Double, Double>>()
+    sorted.forEach { point ->
+      if (unique.isNotEmpty() && kotlin.math.abs(unique.last().first - point.first) < 0.001) unique[unique.lastIndex] = point
+      else unique += point
+    }
+    if (unique.first().first > 0.0) unique.add(0, Pair(0.0, unique.first().second))
+    if (unique.last().first < duration) unique += Pair(duration, unique.last().second)
+    val result = mutableListOf<RampSlice>()
+    for (index in 0 until unique.lastIndex) {
+      val left = unique[index]; val right = unique[index + 1]
+      val count = kotlin.math.ceil((right.first - left.first) / 0.2).toInt().coerceIn(1, 240)
+      for (part in 0 until count) {
+        val start = left.first + (right.first - left.first) * part / count
+        val end = left.first + (right.first - left.first) * (part + 1) / count
+        val midpoint = (start + end) / 2.0
+        val progress = ((midpoint - left.first) / (right.first - left.first).coerceAtLeast(0.000001)).coerceIn(0.0, 1.0)
+        val rate = left.second + (right.second - left.second) * progress
+        result += RampSlice(start, end, rate.coerceIn(0.25, 4.0))
+      }
+    }
+    return result.take(1200)
   }
 
   /** Constant PCM gain shared by the clip and music sequences. Media3 expects a 0..1 gain factor. */
