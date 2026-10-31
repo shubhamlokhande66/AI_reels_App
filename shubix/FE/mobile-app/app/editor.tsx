@@ -93,7 +93,14 @@ export default function EditorScreen() {
     song.volume = evaluateAudioGain(now, {
       volume: p.settings?.musicVolume ?? 1, duration: total,
       fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0,
-    }) * (p.settings?.musicDucking && clip && !clip.muted && clip.volume > 0 ? (p.settings?.musicDuckLevel ?? 0.35) : 1);
+    }) * (() => {
+      if (!p.settings?.musicDucking || !clip || clip.muted || clip.volume <= 0) return 1;
+      const level = p.settings.musicDuckLevel ?? 0.35, localTime = Math.max(0, now - before), length = clipDuration(clip);
+      const attack = 0.12, release = 0.28;
+      const fadeDown = localTime < attack ? 1 - (1 - level) * localTime / attack : level;
+      const fadeUp = localTime > length - release ? level + (1 - level) * (localTime - (length - release)) / release : level;
+      return Math.min(1, fadeDown, fadeUp);
+    })();
   }, [p?.audioUri, p?.settings?.musicVolume, p?.settings?.musicFadeIn, p?.settings?.musicFadeOut, p?.settings?.musicDucking, p?.settings?.musicDuckLevel, clip?.id, clip?.muted, clip?.volume, now, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
