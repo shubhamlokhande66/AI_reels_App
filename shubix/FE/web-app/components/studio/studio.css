@@ -2562,9 +2562,9 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   pointer-events: auto;
 }
 
-.brs:has(.panels:not([hidden]) .panel.on) .workbench {
-  /* The tool sheet lives inside the workbench. Lift that entire stacking context above
-     the dimmer; a child z-index cannot escape a lower parent stacking context. */
+.brs:has(.panels:not([hidden]) .panel.on) .tools {
+  /* The tool sheet is inside .tools, a sibling of the workbench. Lift its stacking
+     context above the dimmer; a child z-index cannot escape a lower parent context. */
   position: relative !important;
   z-index: 9991 !important;
 }
