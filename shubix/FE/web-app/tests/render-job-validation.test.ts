@@ -188,6 +188,27 @@ describe("Android renderer output contract", () => {
     expect(nativeAudio.duration).toBe(5);
   });
 
+  it("caps music fades to the effective music duration", async () => {
+    const { adapter, lastSpec } = adapterFor(
+      async () => "/data/user/0/app/files/reel.mp4",
+      { uri: "file:///data/user/0/app/files/reel.mp4", size: 1024, duration: 5 },
+    );
+    const job = validJob();
+    job.audio = [{
+      source: "file:///music.mp3",
+      startMs: 0,
+      durationMs: 2500,
+      sourceStartMs: 0,
+      volume: 1,
+      fadeInMs: 9000,
+      fadeOutMs: 7000,
+    }];
+    await adapter.render(job, () => {});
+    const nativeAudio = lastSpec()?.audio as Record<string, unknown>;
+    expect(nativeAudio.fadeIn).toBe(2.5);
+    expect(nativeAudio.fadeOut).toBe(2.5);
+  });
+
   it("rejects native export results without a non-empty output URI", async () => {
     const { adapter } = adapterFor(
       async () => "/data/user/0/app/files/reel.mp4",
