@@ -85,7 +85,7 @@ export function canUseSharedAndroidRenderer(project: ReelProject): boolean {
     (clip.volume ?? 1) > 1 ||
     !!clip.speedRamp?.length ||
     !!clip.keyframes?.length ||
-    !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic"].includes(clip.filter) ||
+    !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"].includes(clip.filter) ||
     (clip.kind === "image" && clip.speed !== 1)
   )) return false;
   return true;
