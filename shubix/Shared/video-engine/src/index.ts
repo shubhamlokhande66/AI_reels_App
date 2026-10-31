@@ -681,8 +681,8 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
   for (let index = 0; index < chosen.length && cursor < duration; index++) {
     const { shot, score } = chosen[index];
     const sourceStart = Math.max(0, shot.sourceStart ?? 0);
-    const sourceEnd = Math.max(sourceStart, Math.min(shot.sourceEnd ?? shot.duration, shot.duration));
-    const sourceAvailable = Math.max(0, sourceEnd - sourceStart);
+    const sourceEnd = Math.max(sourceStart, shot.sourceEnd ?? (sourceStart + shot.duration));
+    const sourceAvailable = Math.max(0, Math.min(shot.duration, sourceEnd - sourceStart));
     if (sourceAvailable < 0.35) continue;
     const remaining = duration - cursor;
     let shotDuration = Math.min(sourceAvailable, ideal / pace, remaining);
