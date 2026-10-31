@@ -45,13 +45,17 @@ export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed"> 
   }
   if (unique[0].time > 0) unique.unshift({ time: 0, speed: unique[0].speed });
   if (unique[unique.length - 1].time < sourceDuration) unique.push({ time: sourceDuration, speed: unique[unique.length - 1].speed });
-  // Midpoint integration of 1 / playback-rate, matching the native constant-rate segment approximation.
+  // Match the native renderer's <=200ms constant-rate slices and integrate 1 / playback-rate.
   let outputDuration = 0;
   for (let index = 0; index < unique.length - 1; index++) {
     const left = unique[index], right = unique[index + 1];
     const span = right.time - left.time;
-    const averageSpeed = (left.speed + right.speed) / 2;
-    outputDuration += span / Math.max(0.25, averageSpeed);
+    const slices = Math.max(1, Math.ceil(span / 0.2));
+    for (let slice = 0; slice < slices; slice++) {
+      const midpoint = (slice + 0.5) / slices;
+      const speed = left.speed + (right.speed - left.speed) * midpoint;
+      outputDuration += (span / slices) / Math.max(0.25, speed);
+    }
   }
   return outputDuration;
 }
