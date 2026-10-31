@@ -189,6 +189,8 @@ class ShubixVideoModule : Module() {
         else setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build())
       }.build()
       val sourceDuration = (endMs - startMs).coerceAtLeast(1L) / 1000.0
+      validateKeyframes(c.optJSONArray("keyframes"), sourceDuration, "Clip ${i + 1}")
+      validateCustomEffects(c.optJSONArray("effects"), "Clip ${i + 1}")
       val ramp = if (!image) speedRampSlices(c.optJSONArray("speedRamp"), sourceDuration, speed.toDouble()) else emptyList()
       val slices = if (ramp.isEmpty()) listOf(RampSlice(0.0, sourceDuration, speed.toDouble())) else ramp
       val clipTotalOutputDuration = slices.sumOf { (it.end - it.start) / it.speed }
@@ -417,6 +419,63 @@ class ShubixVideoModule : Module() {
         postScale(scale.toFloat(), scale.toFloat())
         postRotate(rotation.toFloat())
         postTranslate(centerX + (x * frameWidth).toFloat(), centerY - (y * frameHeight).toFloat())
+      }
+    }
+  }
+
+  /** Reject malformed animation data before it reaches GPU matrix/effect creation. */
+  private fun validateKeyframes(frames: org.json.JSONArray?, durationSeconds: Double, label: String) {
+    if (frames == null) return
+    require(frames.length() <= 500) { "$label has too many keyframes (maximum 500)." }
+    var previousTime = -1.0
+    for (index in 0 until frames.length()) {
+      val frame = frames.optJSONObject(index)
+        ?: throw IllegalArgumentException("$label keyframe ${index + 1} is invalid.")
+      val time = frame.optDouble("t", Double.NaN)
+      require(time.isFinite() && time >= 0.0 && time <= durationSeconds + 0.001 && time > previousTime) {
+        "$label keyframes must have finite, increasing times within the clip."
+      }
+      previousTime = time
+      for (property in listOf("x", "y", "s", "r", "o")) {
+        if (frame.has(property)) {
+          val value = frame.optDouble(property, Double.NaN)
+          require(value.isFinite()) { "$label keyframe ${index + 1} has an invalid $property value." }
+          when (property) {
+            "x", "y" -> require(value in -4.0..4.0) { "$label keyframe position is outside the supported range." }
+            "s" -> require(value in 0.01..20.0) { "$label keyframe scale is outside the supported range." }
+            "r" -> require(kotlin.math.abs(value) <= 3600.0) { "$label keyframe rotation is outside the supported range." }
+            "o" -> require(value in 0.0..1.0) { "$label keyframe opacity must be between 0 and 1." }
+          }
+        }
+      }
+      val bezier = frame.optJSONArray("bezier")
+      if (bezier != null) {
+        require(bezier.length() == 4) { "$label has an invalid Bezier curve." }
+        for (point in 0 until 4) {
+          val value = bezier.optDouble(point, Double.NaN)
+          require(value.isFinite() && value in -2.0..2.0) { "$label has an invalid Bezier control point." }
+        }
+      }
+    }
+  }
+
+  /** Keep native effect creation bounded and reject typos instead of silently dropping effects. */
+  private fun validateCustomEffects(effects: org.json.JSONArray?, label: String) {
+    if (effects == null) return
+    require(effects.length() <= 40) { "$label has too many effects (maximum 40)." }
+    val supported = setOf(
+      "blur", "blurpulse", "brightness", "contrast", "saturation", "hue",
+      "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake",
+      "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat"
+    )
+    for (index in 0 until effects.length()) {
+      val effect = effects.optJSONObject(index)
+        ?: throw IllegalArgumentException("$label effect ${index + 1} is invalid.")
+      val type = effect.optString("type")
+      require(type in supported) { "$label effect '$type' is not supported by the Android export engine." }
+      val intensity = effect.optDouble("intensity", 0.5)
+      require(intensity.isFinite() && intensity in 0.0..1.0) {
+        "$label effect ${index + 1} has an invalid intensity."
       }
     }
   }
