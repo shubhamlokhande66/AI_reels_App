@@ -71,7 +71,7 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overl
     player.playbackRate = rampRateAt(speedSegments, sourceOffset, video.speed);
     player.muted = video.muted; player.volume = video.volume;
   }, [video?.speed, video?.speedRamp, video?.muted, video?.volume]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!playing && video) player.currentTime = video.start + rampSourceAt(speedSegments, at); }, [at, playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!playing && video) player.currentTime = video.start + rampSourceAt(speedSegments, at); }, [at, playing, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
   // playing: update the native player's rate as it crosses ramp segments and report timeline time
   useEffect(() => {
     if (!playing || !clip) { player.pause(); return; }
@@ -85,7 +85,7 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overl
       if (t >= len - 0.05) onEnded();
     }, 80);
     return () => clearInterval(tick);
-  }, [playing, clip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playing, clip?.id, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
   const motion = useShotMotion(clip, playing, at, 360 * aspect, beat); // the shot's transition in and its effect
   const flip = clip ? [{ rotate: `${clip.rotation}deg` }, { scaleX: clip.mirror ? -1 : 1 }, { scaleY: clip.flip ? -1 : 1 }] : [];
   return (
