@@ -363,6 +363,30 @@ describe("advanced shared timeline and motion primitives", () => {
 });
 
 
+describe("shared render transition and effect validation", () => {
+  const base = {
+    version: 1 as const,
+    dimensions: { width: 1080, height: 1920, fps: 30 },
+    sources: [{ id: "clip", uri: "file:///clip.mp4", kind: "video" as const, durationMs: 5000 }],
+    items: [{
+      id: "item", sourceId: "clip", timelineStartMs: 0, sourceStartMs: 0,
+      durationMs: 5000, playbackRate: 1, fit: "cover" as const,
+      transitionIn: { type: "fade", durationMs: 250 },
+      effects: [{ type: "blurpulse", intensity: 0.5, params: {} }],
+    }],
+    output: { container: "mp4" as const, videoCodec: "h264" as const, audioCodec: "aac" as const, quality: "high" as const },
+  };
+
+  it("accepts a bounded fade transition and a typed GPU effect", () => {
+    expect(validateRenderJob(base)).toEqual([]);
+  });
+
+  it("rejects a transition longer than its clip", () => {
+    const invalid = { ...base, items: [{ ...base.items[0], transitionIn: { type: "fade", durationMs: 6000 } }] };
+    expect(validateRenderJob(invalid)).toContain("Timeline item item has an invalid transition duration.");
+  });
+});
+
 describe("shared renderer keyframe sampling", () => {
   it("uses cubic Bezier timing controls rather than linear interpolation", () => {
     const linear = sampleKeyframes([
