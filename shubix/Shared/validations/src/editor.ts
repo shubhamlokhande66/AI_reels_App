@@ -13,6 +13,8 @@ export const clipSchema = z.object({
   effect: z.string().optional(),
   // Shot-level transform keyframes shared by the native preview and Studio renderer.
   keyframes: z.array(z.object({ t: z.number().min(0), x: z.number(), y: z.number(), s: z.number().positive(), r: z.number(), o: z.number().min(0).max(1), ez: z.string().optional(), bezier: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional() })).optional(),
+  // Optional source-time variable speed curve (1 = normal speed); renderers can subdivide it into constant-rate segments.
+  speedRamp: z.array(z.object({ time: z.number().min(0), speed: z.number().min(0.25).max(4), easing: z.enum(["linear", "hold", "in", "out", "inOut", "inQuad", "outCubic", "outBack", "outExpo", "bezier"]).optional() })).optional(),
 }).refine((clip) => clip.end <= clip.sourceDuration && clip.end > clip.start, { message: "The selected clip range must be inside the original media." });
 export const projectSchema = z.object({
   id: z.string(), title: z.string().max(120), kind: z.enum(["music", "talking", "photo", "copy", "story"]), clips: z.array(clipSchema).min(1),
