@@ -26,12 +26,12 @@ const FILTERS = new Set([
 const compact = (value: string) => value.trim().toLowerCase().replace(/[\\s_-]/g, "");
 
 export function normalizeAndroidTransition(id: string): string | undefined {
-  if (id === "Cut" || id.toLowerCase() === "hard") return undefined;
+  if (id.trim().toLowerCase() === "cut" || id.trim().toLowerCase() === "hard") return undefined;
   return TRANSITIONS[compact(id)];
 }
 
 export function isAndroidTransitionSupported(id: string): boolean {
-  return id === "Cut" || id.toLowerCase() === "hard" || !!normalizeAndroidTransition(id);
+  return id.trim().toLowerCase() === "cut" || id.trim().toLowerCase() === "hard" || !!normalizeAndroidTransition(id);
 }
 
 export function isAndroidEffectSupported(id: string): boolean {
@@ -42,6 +42,3 @@ export function isAndroidFilterSupported(id: string): boolean {
   return FILTERS.has(id);
 }
 
-export function isAndroidRenderEffectSupported(id: string): boolean {
-  return id === "filter" || isAndroidEffectSupported(id);
-}
