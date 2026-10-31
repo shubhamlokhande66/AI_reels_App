@@ -1218,8 +1218,8 @@ export function evaluateMotionPath(points: MotionPathPoint[], time: number): Mot
   const a = sorted[index], b = sorted[index + 1], span = Math.max(0.000001, b.time - a.time);
   let t = clamp((time - a.time) / span, 0, 1);
   if (a.easing && a.easing !== "linear") t = evaluateKeyframes([
-    { id: "motion-a", time: 0, value: 0, easing: a.easing },
-    { id: "motion-b", time: 1, value: 1, easing: "linear" },
+    { id: "motion-a", time: 0, value: 0, easing: "linear" },
+    { id: "motion-b", time: 1, value: 1, easing: a.easing },
   ], t);
   const ah = a.outHandle ?? [0, 0], bh = b.inHandle ?? [0, 0], u = 1 - t;
   const p1 = { x: a.x + ah[0], y: a.y + ah[1] }, p2 = { x: b.x + bh[0], y: b.y + bh[1] };
