@@ -522,6 +522,38 @@ class ShubixVideoModule : Module() {
     return result
   }
 
+  /** Native motion presets sampled as per-frame transform keyframes. */
+  private fun motionEffectFrames(type: String, durationSeconds: Double): org.json.JSONArray? {
+    val duration = durationSeconds.coerceAtLeast(0.1)
+    val points = mutableListOf<DoubleArray>()
+    fun point(t: Double, x: Double = 0.0, y: Double = 0.0, s: Double = 1.0, r: Double = 0.0) { points += doubleArrayOf(t, x, y, s, r) }
+    when (type) {
+      "punch" -> { point(0.0); point(minOf(0.16, duration), s = 1.18); point(minOf(0.42, duration)) }
+      "punch-soft" -> { point(0.0); point(minOf(0.2, duration), s = 1.08); point(minOf(0.55, duration)) }
+      "zoomburst" -> { point(0.0); point(minOf(0.12, duration), s = 1.28); point(minOf(0.48, duration)) }
+      "snap" -> { point(0.0, s = 1.22); point(minOf(0.2, duration)) }
+      "hook" -> { point(0.0, s = 1.32); point(minOf(0.48, duration)) }
+      "jump" -> { point(0.0, s = 1.16); point(minOf(0.12, duration), s = 1.16); point(minOf(0.2, duration)) }
+      "bounce" -> { point(0.0, s = 0.94); point(minOf(0.22, duration), s = 1.08); point(minOf(0.5, duration)) }
+      "tilt" -> { point(0.0, r = -6.0); point(minOf(0.35, duration)) }
+      "pan-soft", "drift" -> { point(0.0, x = 0.05); point(duration, x = -0.05) }
+      "pan" -> { point(0.0, x = -0.05); point(duration, x = 0.05) }
+      "shake" -> {
+        val active = minOf(0.6, duration)
+        for (step in 0..8) {
+          val direction = if (step % 2 == 0) 1.0 else -1.0
+          point(active * step / 8.0, x = direction * 0.025, y = -direction * 0.018)
+        }
+        point(duration)
+      }
+      "heartbeat" -> { point(0.0); point(minOf(0.16, duration), s = 1.08); point(minOf(0.32, duration)); point(minOf(0.48, duration), s = 1.08); point(minOf(0.8, duration)) }
+      else -> return null
+    }
+    val frames = org.json.JSONArray()
+    points.forEach { p -> frames.put(JSONObject().put("t", p[0]).put("x", p[1]).put("y", p[2]).put("s", p[3]).put("r", p[4]).put("o", 1.0)) }
+    return frames
+  }
+
   private fun filter(name: String): List<Effect> = when (name) {
     "Noir" -> listOf(RgbFilter.createGrayscaleFilter(), Contrast(0.25f))
     "Golden" -> listOf(RgbAdjustment.Builder().setRedScale(1.12f).setGreenScale(1.04f).setBlueScale(0.86f).build())
