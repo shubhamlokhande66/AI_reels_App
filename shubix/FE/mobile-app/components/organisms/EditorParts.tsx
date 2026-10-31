@@ -154,7 +154,10 @@ function TimelineClip({ clip, index, selected, width, px, onSelect, onTrim, onMo
   onSelect: () => void; onTrim: (edge: "start" | "end", deltaSeconds: number) => void; onMove: (deltaSeconds: number) => void;
 }) {
   const words = useStudioText();
-  const moveGesture = Gesture.Pan().activateAfterLongPress(250).runOnJS(true).onEnd((event) => {\n    if (Math.abs(event.translationX) >= 8) onMove(event.translationX / Math.max(1, px));\n  });\n  const trimGesture = (edge: "start" | "end") => Gesture.Pan()
+  const moveGesture = Gesture.Pan().activateAfterLongPress(250).runOnJS(true).onEnd((event) => {
+    if (Math.abs(event.translationX) >= 8) onMove(event.translationX / Math.max(1, px));
+  });
+  const trimGesture = (edge: "start" | "end") => Gesture.Pan()
     .runOnJS(true)
     .onEnd((event) => {
       if (Math.abs(event.translationX) >= 3) onTrim(edge, event.translationX / Math.max(1, px));
