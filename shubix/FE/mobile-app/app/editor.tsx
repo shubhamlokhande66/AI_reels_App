@@ -51,6 +51,7 @@ function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
   const asksEffect = /\b(?:effects?|effecr|fx)\b|इफेक्ट(?:्स)?|प्रभाव|效果|эффекты/iu.test(value);
   if (!asksTransition && !asksEffect) return null;
   const namedTransition: Array<[string, RegExp]> = [
+    ["hard", /\bhard\s*cut\b/i], ["fadein", /\bfade\s*in\b|\bfadein\b/i],
     ["dissolve", /\bdissolve\b/i], ["whip", /\bwhip(?:\s*pan)?\b/i], ["zoom", /\bzoom(?:\s*through)?\b/i],
     ["flash", /\bflash\b/i], ["glitch", /\bglitch\b/i], ["dip", /\bdip(?:\s*to\s*black)?\b/i],
     ["iris", /\biris\b/i], ["wipe", /\bwipe\b/i], ["spin", /\bspin\b/i],
