@@ -73,6 +73,26 @@ export default function EditorScreen() {
     if (!p?.studio || !engine.holds(p.id)) { setStudioLayers([]); return; }
     void engine.tool("layerList").then((r) => setStudioLayers(Array.isArray(r) ? r as typeof studioLayers : [])).catch(() => setStudioLayers([]));
   }, [tool?.key, p?.id, p?.studio]);
+  // Keep the hidden Studio renderer in step with native edits and history navigation.
+  // Serialize sync calls so a slow earlier edit cannot overwrite a newer timeline state.
+  const studioSync = useRef<Promise<unknown>>(Promise.resolve());
+  useEffect(() => {
+    if (!p?.studio || !engine.holds(p.id)) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      studioSync.current = studioSync.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (!active) return;
+          await engine.edit(p);
+        })
+        .catch((error) => {
+          if (active) console.warn("Studio edit sync deferred until export:", error);
+        });
+    }, 220);
+    return () => { active = false; clearTimeout(timer); };
+  }, [p]);
+
   // saves itself a moment after each change
   useEffect(() => {
     if (!p) return;
