@@ -29,7 +29,7 @@ export class UnsupportedAndroidRenderFeature extends Error {
 }
 
 const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"]);
-const SUPPORTED_RENDER_EFFECTS = new Set(["blur", "blurpulse", "brightness", "contrast", "saturation", "hue"]);
+const SUPPORTED_RENDER_EFFECTS = new Set(["blur", "blurpulse", "brightness", "contrast", "saturation", "hue", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat"]);
 const SUPPORTED_ANDROID_TRANSITIONS = new Set(["fade", "slide-left", "slide-right", "slide-up", "slide-down", "push-left", "push-right", "push-up", "push-down", "zoom-in", "zoom-out", "spin", "whip-pan"]);
 
 /**
