@@ -6,7 +6,7 @@ import { useStudioText } from "@shubix/hooks";
 import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
-import { evaluateAudioGain } from "@shubix/video-engine";
+import { evaluateAudioGain, slipClip } from "@shubix/video-engine";
 import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
@@ -258,7 +258,14 @@ export default function EditorScreen() {
       case "split": { const r = splitClip(clip, `${clip.id}-${Date.now()}`); if (!r) return toast(words("Keep at least a small moment on each side of the split."), "info"); setClips(clips.flatMap((c, i) => (i === selected ? r : [c]))); return; }
       case "dup": setClips([...clips.slice(0, selected + 1), { ...clip, id: `${clip.id}-${Date.now()}` }, ...clips.slice(selected + 1)]); return go(selected + 1);
       case "freeze": return patch({ speed: 0.25 });
-      case "other": case "slip": { const room = clip.sourceDuration - s; return room > 0.1 ? patch({ start: (clip.start + 1) % room, end: ((clip.start + 1) % room) + s }) : toast(words("This clip has no other moment."), "info"); }
+      case "other": case "slip": {
+        const slipped = slipClip({
+          id: clip.id, start: 0, duration: s, sourceStart: clip.start, sourceEnd: clip.end,
+        }, 1, clip.sourceDuration);
+        const nextStart = slipped.sourceStart ?? clip.start;
+        if (Math.abs(nextStart - clip.start) < 0.001) return toast(words("This clip has no other moment."), "info");
+        return patch({ start: nextStart, end: slipped.sourceEnd ?? nextStart + s });
+      }
       case "rev": return patch({ reverse: !clip.reverse });
       case "rot": return patch({ rotation: (clip.rotation + 90) % 360 });
       case "fh": return patch({ mirror: !clip.mirror });
