@@ -1991,7 +1991,7 @@ function applyChatVisualIntent(intent){
 function chatGenerate(btn){
   remakeOk();
   const pd = chatPending; btn.disabled = true;
-  if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\\'ll plan it anew.'); return; }
+  if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\'ll plan it anew.'); return; }
   chatPending = null; chatReported = pd.key; director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
   let applied = '';
   try {
@@ -2006,7 +2006,7 @@ function chatGenerate(btn){
   if(!playing && !recording && buf && edit.length) startPlayback(0);
   btn.textContent = 'Generated ✓';
   const bal = aiBal();
-  chatAnswer('Your new Reel is ready ✓' + (applied ? ' Applied: ' + applied + '.' : '') + (!pd.cost && aiFreeChats() ? ' Free change · ' + (Math.max(0, aiFreeChats() - chatUsed) ? Math.max(0, aiFreeChats() - chatUsed) + ' free left for this Reel.' : 'next changes use credits.') : '') + (pd.cost ? ' ' + creditWord(pd.cost) + ' used' + (bal != null ? ' · ' + creditWord(bal) + ' left' : '') + '.' : '') + ' Not quite right? Tell me what to change and I\\'ll check it again.');
+  chatAnswer('Your new Reel is ready ✓' + (applied ? ' Applied: ' + applied + '.' : '') + (!pd.cost && aiFreeChats() ? ' Free change · ' + (Math.max(0, aiFreeChats() - chatUsed) ? Math.max(0, aiFreeChats() - chatUsed) + ' free left for this Reel.' : 'next changes use credits.') : '') + (pd.cost ? ' ' + creditWord(pd.cost) + ' used' + (bal != null ? ' · ' + creditWord(bal) + ' left' : '') + '.' : '') + ' Not quite right? Tell me what to change and I\'ll check it again.');
 }
 // a plan the AI made by itself (no chat): its report goes into the chat too, and the button shows there is one
 function chatReportAuto(){
