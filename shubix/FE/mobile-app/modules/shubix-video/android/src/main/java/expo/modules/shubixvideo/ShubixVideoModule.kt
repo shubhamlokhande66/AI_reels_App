@@ -147,17 +147,31 @@ class ShubixVideoModule : Module() {
     }
     val context = appContext.reactContext ?: throw IllegalStateException("No app")
     val w = spec.getInt("width"); val h = spec.getInt("height")
-    val clips = spec.getJSONArray("clips"); val texts = spec.optJSONArray("texts")
+    require(w in 2..3840 && h in 2..3840) { "Export dimensions must be between 2 and 3840 pixels." }
+    val clips = spec.getJSONArray("clips")
+    require(clips.length() > 0) { "Add at least one clip before exporting." }
+    val texts = spec.optJSONArray("texts")
     val song = spec.optJSONObject("audio")
     val items = mutableListOf<EditedMediaItem>()
     val clipAudioRanges = mutableListOf<Pair<Double, Double>>()
     var at = 0.0 // where this clip starts in the Reel (seconds)
     for (i in 0 until clips.length()) {
       val c = clips.getJSONObject(i)
-      val image = c.optString("kind") == "image"
-      val speed = c.optDouble("speed", 1.0).toFloat()
-      val startMs = (c.optDouble("start", 0.0) * 1000).toLong(); val endMs = (c.optDouble("end", 5.0) * 1000).toLong()
-      val item = MediaItem.Builder().setUri(Uri.parse(c.getString("uri"))).apply {
+      val kind = c.optString("kind")
+      require(kind == "image" || kind == "video") { "Clip ${i + 1} has an unsupported media type." }
+      val image = kind == "image"
+      val uri = c.optString("uri").trim()
+      require(uri.isNotEmpty()) { "Clip ${i + 1} is missing its media source." }
+      val startSeconds = c.optDouble("start", 0.0)
+      val endSeconds = c.optDouble("end", 5.0)
+      require(startSeconds.isFinite() && endSeconds.isFinite() && startSeconds >= 0.0 && endSeconds > startSeconds) {
+        "Clip ${i + 1} has an invalid trim range."
+      }
+      val speedValue = c.optDouble("speed", 1.0)
+      require(speedValue.isFinite() && speedValue > 0.0) { "Clip ${i + 1} has an invalid playback speed." }
+      val speed = speedValue.toFloat()
+      val startMs = (startSeconds * 1000).toLong(); val endMs = (endSeconds * 1000).toLong()
+      val item = MediaItem.Builder().setUri(Uri.parse(uri)).apply {
         if (image) setImageDurationMs(endMs - startMs)
         else setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build())
       }.build()
