@@ -33,9 +33,6 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
     if (clip.reverse) {
       throw new UnsupportedAndroidRenderFeature("Reverse playback is not supported by the current Android renderer.");
     }
-    if (clip.volume !== 1 && !clip.muted && !project.audioUri) {
-      throw new UnsupportedAndroidRenderFeature("Per-clip audio volume is not supported by the current Android renderer.");
-    }
 
     sources.set(clip.id, {
       id: clip.id,
@@ -44,6 +41,12 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       durationMs: clip.sourceDuration * 1000,
     });
 
+    if (clip.speedRamp?.length) {
+      throw new UnsupportedAndroidRenderFeature("Variable speed ramps are not yet supported by the shared Android RenderJob adapter. Use the native editor export path.");
+    }
+    if (clip.keyframes?.length) {
+      throw new UnsupportedAndroidRenderFeature("Shot keyframes are not yet supported by the shared Android RenderJob adapter. Use the native editor export path.");
+    }
     const durationMs = clipDuration(clip) * 1000;
     const effects: NonNullable<RenderTrackItem["effects"]> = [];
     if (clip.filter && clip.filter !== "Original") {
