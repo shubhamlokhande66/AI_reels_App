@@ -52,8 +52,9 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
     if (clip.filter && clip.filter !== "Original") {
       effects.push({ type: "filter", params: { name: clip.filter } });
     }
-    if (clip.effect) {
-      effects.push({ type: clip.effect, params: {} });
+    if (clip.effect && clip.effect !== "none") {
+      const effectType = clip.effect === "blurpulse" ? "blur" : clip.effect;
+      effects.push({ type: effectType, intensity: 0.5, params: {} });
     }
 
     items.push({
@@ -69,8 +70,8 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       flip: clip.flip,
       muted: clip.muted,
       volume: clip.volume,
-      ...(clip.transition && clip.transition !== "Cut"
-        ? { transitionIn: { type: clip.transition, durationMs: 250 } }
+      ...(clip.transition && clip.transition !== "Cut" && clip.transition !== "hard"
+        ? { transitionIn: { type: clip.transition === "fadein" ? "fade" : clip.transition, durationMs: 250 } }
         : {}),
       effects,
     });
