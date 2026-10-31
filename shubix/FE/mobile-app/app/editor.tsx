@@ -93,13 +93,13 @@ export default function EditorScreen() {
     song.volume = evaluateAudioGain(now, {
       volume: p.settings?.musicVolume ?? 1, duration: total,
       fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0,
-    });
-  }, [p?.audioUri, p?.settings?.musicVolume, p?.settings?.musicFadeIn, p?.settings?.musicFadeOut, now, total]); // eslint-disable-line react-hooks/exhaustive-deps
+    }) * (p.settings?.musicDucking && clip && !clip.muted && clip.volume > 0 ? (p.settings?.musicDuckLevel ?? 0.35) : 1);
+  }, [p?.audioUri, p?.settings?.musicVolume, p?.settings?.musicFadeIn, p?.settings?.musicFadeOut, p?.settings?.musicDucking, p?.settings?.musicDuckLevel, clip?.id, clip?.muted, clip?.volume, now, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
-  const setMusicMix = async (patch: { musicVolume?: number; musicFadeIn?: number; musicFadeOut?: number }) => {
+  const setMusicMix = async (patch: { musicVolume?: number; musicFadeIn?: number; musicFadeOut?: number; musicDucking?: boolean; musicDuckLevel?: number }) => {
     if (!p) return;
     const next = { ...p.settings, ...patch };
     change({ settings: next });
@@ -287,6 +287,9 @@ export default function EditorScreen() {
             <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeIn ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeIn) + "s"} onPick={(v) => void setMusicMix({ musicFadeIn: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
             <Label>Music fade out</Label>
             <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeOut ?? (p.studio ? 0.8 : 0)) === "0" ? "Off" : String(p.settings?.musicFadeOut ?? (p.studio ? 0.8 : 0)) + "s"} onPick={(v) => void setMusicMix({ musicFadeOut: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
+            <Label>Auto duck music under clip audio</Label>
+            <Choices items={["Off", "Light", "Strong"]} on={!p.settings?.musicDucking ? "Off" : (p.settings?.musicDuckLevel ?? 0.35) >= 0.5 ? "Light" : "Strong"} onPick={(v) => void setMusicMix({ musicDucking: v !== "Off", musicDuckLevel: v === "Light" ? 0.6 : 0.28 })} />
+            <Text className="text-[11px] text-muted">{words("Lowers the song while original clip audio is audible, then smoothly restores it.")}</Text>
           </View>
           <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
             <Text className="text-[13px] font-semibold text-foreground">{words("Your clips have their own sound")}</Text>
