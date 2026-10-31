@@ -149,15 +149,15 @@ const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onP
 
 
 /** A clip block with independent left/right trim gestures. */
-function TimelineClip({ clip, index, selected, width, onSelect, onTrim }: {
-  clip: ProjectClip; index: number; selected: boolean; width: number;
+function TimelineClip({ clip, index, selected, width, px, onSelect, onTrim }: {
+  clip: ProjectClip; index: number; selected: boolean; width: number; px: number;
   onSelect: () => void; onTrim: (edge: "start" | "end", deltaSeconds: number) => void;
 }) {
   const words = useStudioText();
   const trimGesture = (edge: "start" | "end") => Gesture.Pan()
     .runOnJS(true)
     .onEnd((event) => {
-      if (Math.abs(event.translationX) >= 3) onTrim(edge, event.translationX / Math.max(1, width / Math.max(0.2, clipDuration(clip))));
+      if (Math.abs(event.translationX) >= 3) onTrim(edge, event.translationX / Math.max(1, px));
     });
   return (
     <View className={`mr-[2px] h-[52px] overflow-hidden rounded-lg ${selected ? "border-2 border-accent" : ""}`} style={{ width: Math.max(24, width), backgroundColor: CLIP_COL[index % CLIP_COL.length] }}>
@@ -224,7 +224,7 @@ export function Timeline({ clips, selected, overlays, studioLayers = [], song, n
               <View className="gap-1.5">
                 <View className="h-[52px] flex-row">{clips.map((c, i) => (
                   <TimelineClip key={c.id} clip={c} index={i} selected={i === selected}
-                    width={Math.max(24, clipDuration(c) * px - 2)} onSelect={() => onSelect(i)}
+                    width={Math.max(24, clipDuration(c) * px - 2)} px={px} onSelect={() => onSelect(i)}
                     onTrim={(edge, delta) => onTrim(i, edge, delta)} />
                 ))}</View>
                 <View className="h-9" style={{ width: total * px }}>{overlays.length ? overlays.map((o) => (
