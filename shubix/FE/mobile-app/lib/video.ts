@@ -19,10 +19,10 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
     (clip.effect && clip.effect !== "none") ||
     (clip.volume ?? 1) > 1
   );
-  if (unsupported?.transition && unsupported.transition !== "Cut") {
+  if (unsupported?.transition && !["Cut", "hard"].includes(unsupported.transition)) {
     throw new Error(`The ${unsupported.transition} transition is not supported by the current Android export engine yet. Choose Cut before exporting.`);
   }
-  if (unsupported?.effect) {
+  if (unsupported?.effect && unsupported.effect !== "none") {
     throw new Error(`The ${unsupported.effect} effect is not supported by the current Android export engine yet.`);
   }
   if (unsupported && (unsupported.volume ?? 1) > 1) {
