@@ -3,11 +3,6 @@ name: Video editor quality checks
 on:
   pull_request:
     branches: [monorepo]
-  push:
-    branches: [chatGpt]
-    paths:
-      - "shubix/**"
-      - ".github/workflows/video-editor-quality.yml"
 
 concurrency:
   group: shubix-video-editor-${{ github.event.pull_request.number || github.ref }}

@@ -6,11 +6,6 @@ on:
     paths:
       - "shubix/**"
       - ".github/workflows/shubix-ci.yml"
-  push:
-    branches: [feat/shubix-brain-device-optimized, chatGpt]
-    paths:
-      - "shubix/**"
-      - ".github/workflows/shubix-ci.yml"
   workflow_dispatch:
 
 concurrency:
