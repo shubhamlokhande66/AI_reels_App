@@ -287,9 +287,11 @@ export default function EditorScreen() {
             <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeIn ?? 0) === "0" ? "Off" : String(p.settings?.musicFadeIn) + "s"} onPick={(v) => void setMusicMix({ musicFadeIn: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
             <Label>Music fade out</Label>
             <Choices items={["Off", "0.5s", "1s", "2s", "3s"]} on={String(p.settings?.musicFadeOut ?? (p.studio ? 0.8 : 0)) === "0" ? "Off" : String(p.settings?.musicFadeOut ?? (p.studio ? 0.8 : 0)) + "s"} onPick={(v) => void setMusicMix({ musicFadeOut: v === "Off" ? 0 : Number(v.replace("s", "")) })} />
-            <Label>Auto duck music under clip audio</Label>
-            <Choices items={["Off", "Light", "Strong"]} on={!p.settings?.musicDucking ? "Off" : (p.settings?.musicDuckLevel ?? 0.35) >= 0.5 ? "Light" : "Strong"} onPick={(v) => void setMusicMix({ musicDucking: v !== "Off", musicDuckLevel: v === "Light" ? 0.6 : 0.28 })} />
-            <Text className="text-[11px] text-muted">{words("Lowers the song while original clip audio is audible, then smoothly restores it.")}</Text>
+            {!p.studio && <>
+              <Label>Auto duck music under clip audio</Label>
+              <Choices items={["Off", "Light", "Strong"]} on={!p.settings?.musicDucking ? "Off" : (p.settings?.musicDuckLevel ?? 0.35) >= 0.5 ? "Light" : "Strong"} onPick={(v) => void setMusicMix({ musicDucking: v !== "Off", musicDuckLevel: v === "Light" ? 0.6 : 0.28 })} />
+              <Text className="text-[11px] text-muted">{words("Lowers the song while original clip audio is audible, then smoothly restores it.")}</Text>
+            </>}
           </View>
           <View className="mt-1 gap-1.5 rounded-xl border border-border bg-surface-2 p-3">
             <Text className="text-[13px] font-semibold text-foreground">{words("Your clips have their own sound")}</Text>
