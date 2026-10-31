@@ -91,6 +91,19 @@ export const engine = {
     }
     return (await call<{ ok: boolean }>("edit", { shots: list, overlays: p.overlays })).ok;
   },
+  /** Studio history (including advanced tools) mapped back into the phone's clip model. */
+  undo: async () => {
+    if (!held) return { ok: false as const };
+    const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("undo");
+    if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+  },
+  redo: async () => {
+    if (!held) return { ok: false as const };
+    const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("redo");
+    if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+  },
   /** a choice in one of the editor's tools, made in the studio as on the website (its button `attr`=`value` in `box`,
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
    * does not hold this Reel as it is (then the phone does what it can) */
