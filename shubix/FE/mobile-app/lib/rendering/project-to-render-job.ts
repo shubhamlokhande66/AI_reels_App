@@ -55,7 +55,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       spin: "spin", slideleft: "slide-left", slideright: "slide-right",
       slideup: "slide-up", slidedown: "slide-down", swipeup: "slide-up",
     };
-    const transitionKey = (clip.transition ?? "").toLowerCase().replace(/[\\s_-]/g, "");
+    const transitionKey = (clip.transition ?? "").toLowerCase().replace(/[\s_-]/g, "");
     const mappedTransition = transitionAliases[transitionKey];
     if (clip.transition && clip.transition !== "Cut" && clip.transition !== "hard" && !mappedTransition) {
       throw new UnsupportedAndroidRenderFeature(`Transition ${clip.transition} has no Android export mapping. Choose a supported transition or use the native editor export path.`);
