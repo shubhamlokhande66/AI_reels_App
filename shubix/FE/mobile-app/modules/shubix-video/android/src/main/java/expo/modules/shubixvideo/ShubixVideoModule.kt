@@ -147,7 +147,9 @@ class ShubixVideoModule : Module() {
     }
     val context = appContext.reactContext ?: throw IllegalStateException("No app")
     val w = spec.getInt("width"); val h = spec.getInt("height")
-    require(w in 2..3840 && h in 2..3840) { "Export dimensions must be between 2 and 3840 pixels." }
+    require(w in 2..3840 && h in 2..3840 && w.toLong() * h.toLong() <= 8_294_400L) {
+      "Export dimensions must be within the supported 4K pixel budget."
+    }
     val outputPath = spec.optString("output").trim()
     require(outputPath.isNotEmpty()) { "An output file path is required for export." }
     val outputFile = File(outputPath)
@@ -159,6 +161,7 @@ class ShubixVideoModule : Module() {
     require(!outputFile.isDirectory) { "The export destination must be a file, not a directory." }
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
+    require(clips.length() <= 500) { "A Reel can contain at most 500 clips." }
     val texts = spec.optJSONArray("texts")
     val song = spec.optJSONObject("audio")
     val items = mutableListOf<EditedMediaItem>()
@@ -252,6 +255,7 @@ class ShubixVideoModule : Module() {
         video += filter(c.optString("filter"))
         video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration, w, h)
         if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at + clipOutputDuration)))
+        require(items.size < 10_000) { "This Reel contains too many speed-ramp segments for a safe native export." }
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
         clipOutputDuration += segmentDuration
       }
@@ -282,7 +286,7 @@ class ShubixVideoModule : Module() {
       val fadeInValue = song.optDouble("fadeIn", 0.0)
       val fadeOutValue = song.optDouble("fadeOut", 0.0)
       val duckLevelValue = song.optDouble("duckLevel", 0.35)
-      require(audioUri.isNotEmpty() && audioStart.isFinite() && audioStart >= 0.0 && audioStart <= Long.MAX_VALUE / 1000.0) {
+      require(audioUri.isNotEmpty() && audioStart.isFinite() && audioStart >= 0.0 && audioStart + at <= Long.MAX_VALUE / 1000.0) {
         "The background music source or start time is invalid."
       }
       require(volumeValue.isFinite() && fadeInValue.isFinite() && fadeOutValue.isFinite() && duckLevelValue.isFinite()) {
