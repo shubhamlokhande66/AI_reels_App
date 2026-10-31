@@ -64,6 +64,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       throw new UnsupportedAndroidRenderFeature("Android Media3 music gain is currently limited to 100% to avoid clipping.");
     }
 
+    if ((job.audio ?? []).some((track) => track.keyframes)) throw new UnsupportedAndroidRenderFeature("Animated audio gain is not supported by the Android Media3 adapter yet.");
     if (job.layers?.length) throw new UnsupportedAndroidRenderFeature("Additional compositor layers are not supported by the Android Media3 adapter yet.");
     if (job.items.some((item) => item.mask)) throw new UnsupportedAndroidRenderFeature("Clip masks are not supported by the Android Media3 adapter yet.");
     if (job.items.some((item) => item.keyframes)) throw new UnsupportedAndroidRenderFeature("Shared RenderJob keyframes are not mapped by the Android adapter yet.");
