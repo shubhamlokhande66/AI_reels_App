@@ -860,17 +860,28 @@ export function assessAutonomousRenderQuality(report: AutonomousRenderReport): A
   const warnings: string[] = [];
   const repairs = new Set<AutonomousQualityResult["repairs"][number]>();
   let score = 100;
-  if (!Number.isFinite(report.actualDuration) || report.actualDuration <= 0) {
+  const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+  const invalidOptionalMetric = (value: unknown, min: number, max = Number.POSITIVE_INFINITY) =>
+    value !== undefined && (!finite(value) || value < min || value > max);
+
+  if (!finite(report.expectedDuration) || report.expectedDuration < 0) {
+    errors.push("The expected edit duration is invalid.");
+    repairs.add("fix-duration");
+    score -= 20;
+  }
+  if (!finite(report.actualDuration) || report.actualDuration <= 0) {
     errors.push("The exported video has no valid duration.");
     repairs.add("retry-decode");
     score -= 60;
   }
-  if (report.expectedDuration > 0 && Math.abs(report.actualDuration - report.expectedDuration) > Math.max(0.5, report.expectedDuration * 0.03)) {
+  if (finite(report.expectedDuration) && report.expectedDuration > 0 &&
+      finite(report.actualDuration) &&
+      Math.abs(report.actualDuration - report.expectedDuration) > Math.max(0.5, report.expectedDuration * 0.03)) {
     errors.push("The exported duration does not match the edit decision.");
     repairs.add("fix-duration");
     score -= 25;
   }
-  if (report.width <= 0 || report.height <= 0 || report.fps <= 0) {
+  if (![report.width, report.height, report.fps].every((value) => finite(value) && value > 0)) {
     errors.push("The export has invalid dimensions or frame rate.");
     repairs.add("reframe-output");
     score -= 50;
@@ -880,10 +891,21 @@ export function assessAutonomousRenderQuality(report: AutonomousRenderReport): A
     repairs.add("retry-decode");
     score -= 35;
   } else {
+    const invalidFrames = report.frames.filter((frame) =>
+      !finite(frame.time) || frame.time < 0 || typeof frame.hasFrame !== "boolean" ||
+      invalidOptionalMetric(frame.blackRatio, 0, 1) ||
+      invalidOptionalMetric(frame.blurScore, 0) ||
+      invalidOptionalMetric(frame.duplicateDistance, 0)
+    ).length;
+    if (invalidFrames > 0) {
+      errors.push("Frame quality probes contain invalid measurements.");
+      repairs.add("retry-decode");
+      score -= 20;
+    }
     const missing = report.frames.filter((frame) => !frame.hasFrame).length;
-    const black = report.frames.filter((frame) => (frame.blackRatio ?? 0) >= 0.985).length;
-    const blurry = report.frames.filter((frame) => typeof frame.blurScore === "number" && frame.blurScore < 0.08).length;
-    const duplicate = report.frames.filter((frame) => typeof frame.duplicateDistance === "number" && frame.duplicateDistance < 0.015).length;
+    const black = report.frames.filter((frame) => finite(frame.blackRatio) && frame.blackRatio >= 0.985).length;
+    const blurry = report.frames.filter((frame) => finite(frame.blurScore) && frame.blurScore < 0.08).length;
+    const duplicate = report.frames.filter((frame) => finite(frame.duplicateDistance) && frame.duplicateDistance < 0.015).length;
     const total = report.frames.length;
     if (missing / total > 0.01) {
       errors.push("Decoded frames are missing in the exported video.");
@@ -907,6 +929,15 @@ export function assessAutonomousRenderQuality(report: AutonomousRenderReport): A
     }
   }
   if (report.audio) {
+    const invalidAudio = invalidOptionalMetric(report.audio.peakDbfs, -200, 20) ||
+      invalidOptionalMetric(report.audio.clippedRatio, 0, 1) ||
+      invalidOptionalMetric(report.audio.silenceRatio, 0, 1) ||
+      invalidOptionalMetric(report.audio.integratedLufs, -100, 20);
+    if (invalidAudio) {
+      errors.push("Audio quality probes contain invalid measurements.");
+      repairs.add("normalise-audio");
+      score -= 20;
+    }
     if ((report.audio.clippedRatio ?? 0) > 0.005 || (report.audio.peakDbfs ?? -1) > -0.1) {
       errors.push("Audio clipping was detected.");
       repairs.add("reduce-clipping");
@@ -917,7 +948,7 @@ export function assessAutonomousRenderQuality(report: AutonomousRenderReport): A
       warnings.push("The soundtrack contains unusually long silence.");
       score -= 8;
     }
-    if (typeof report.audio.integratedLufs === "number" && report.audio.integratedLufs > -8) {
+    if (finite(report.audio.integratedLufs) && report.audio.integratedLufs > -8) {
       warnings.push("The soundtrack is very loud; consider a lower loudness target.");
       repairs.add("normalise-audio");
       score -= 5;
