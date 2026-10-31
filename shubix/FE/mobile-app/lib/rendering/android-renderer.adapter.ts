@@ -152,7 +152,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           onProgress({ phase: "encoding", progress: normalized });
         });
         const output = await options.createOutputPath();
-        if (typeof output !== "string" || !output.trim() || !output.startsWith("/") || output.includes("\\0")) {
+        if (typeof output !== "string" || !output.trim() || !output.startsWith("/") || output.includes("\0")) {
           throw new UnsupportedAndroidRenderFeature("Android export requires a non-empty absolute filesystem output path.");
         }
         if (cancelRequested) {
