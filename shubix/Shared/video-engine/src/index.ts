@@ -923,3 +923,126 @@ export function inferAutonomousMood(
   if (!winner || winner.score < 0.28) return { mood: "cinematic", confidence: 0.45, reasons: ["No dominant content category; cinematic style selected as a versatile default"] };
   return { mood: winner.mood, confidence: clamp(winner.score, 0, 1), reasons: [winner.reason] };
 }
+
+
+/** A source-time speed point. Values are playback-rate multipliers (1 = normal speed). */
+export type SpeedRampPoint = {
+  time: number;
+  speed: number;
+  easing?: Easing;
+};
+
+/** A constant-rate slice used by renderers that approximate a continuous speed curve. */
+export type SpeedRampSegment = {
+  sourceStart: number;
+  sourceEnd: number;
+  speed: number;
+  outputStart: number;
+  outputEnd: number;
+};
+
+/**
+ * Sanitise a speed curve and guarantee boundary points at 0 and duration.
+ * Duplicate timestamps use the last supplied point; rates are clamped to safe playback bounds.
+ */
+export function normaliseSpeedRamp(
+  points: SpeedRampPoint[],
+  duration: number,
+  options: { fallbackSpeed?: number; minSpeed?: number; maxSpeed?: number } = {},
+): SpeedRampPoint[] {
+  const end = Number.isFinite(duration) ? Math.max(0, duration) : 0;
+  if (end <= 0) return [];
+  const minSpeed = Number.isFinite(options.minSpeed) ? Math.max(0.1, options.minSpeed!) : 0.25;
+  const maxSpeed = Number.isFinite(options.maxSpeed) ? Math.max(minSpeed, options.maxSpeed!) : 4;
+  const fallback = clamp(Number.isFinite(options.fallbackSpeed) ? options.fallbackSpeed! : 1, minSpeed, maxSpeed);
+  const sorted = points
+    .filter((point) => Number.isFinite(point.time) && Number.isFinite(point.speed))
+    .map((point) => ({
+      time: clamp(point.time, 0, end),
+      speed: clamp(point.speed, minSpeed, maxSpeed),
+      ...(point.easing ? { easing: point.easing } : {}),
+    }))
+    .sort((a, b) => a.time - b.time);
+  const unique: SpeedRampPoint[] = [];
+  for (const point of sorted) {
+    const previous = unique[unique.length - 1];
+    if (previous && Math.abs(previous.time - point.time) < 0.001) unique[unique.length - 1] = point;
+    else unique.push(point);
+  }
+  if (!unique.length) return [{ time: 0, speed: fallback }, { time: end, speed: fallback }];
+  if (unique[0].time > 0) unique.unshift({ time: 0, speed: unique[0].speed });
+  else unique[0] = { ...unique[0], time: 0 };
+  if (unique[unique.length - 1].time < end) unique.push({ time: end, speed: unique[unique.length - 1].speed });
+  else unique[unique.length - 1] = { ...unique[unique.length - 1], time: end };
+  return unique;
+}
+
+/** Evaluate the playback rate at a source timestamp using the same easing rules as transform keyframes. */
+export function evaluateSpeedRamp(
+  points: SpeedRampPoint[],
+  time: number,
+  duration: number,
+  fallbackSpeed = 1,
+): number {
+  const normalised = normaliseSpeedRamp(points, duration, { fallbackSpeed });
+  if (!normalised.length) return clamp(Number.isFinite(fallbackSpeed) ? fallbackSpeed : 1, 0.25, 4);
+  return evaluateKeyframes(normalised.map((point, index) => ({
+    id: `speed-${index}`,
+    time: point.time,
+    value: point.speed,
+    easing: point.easing ?? "linear",
+  })), clamp(Number.isFinite(time) ? time : 0, 0, Math.max(0, duration)));
+}
+
+/**
+ * Convert a continuous speed curve into short constant-rate slices for renderers such as Media3.
+ * Output timestamps account for playback speed, so concatenating the slices preserves source order
+ * and produces the correct shortened/lengthened timeline duration.
+ */
+export function buildSpeedRampSegments(
+  points: SpeedRampPoint[],
+  duration: number,
+  options: { fallbackSpeed?: number; maxSegmentDuration?: number; maxSegments?: number } = {},
+): SpeedRampSegment[] {
+  const normalised = normaliseSpeedRamp(points, duration, { fallbackSpeed: options.fallbackSpeed });
+  if (!normalised.length) return [];
+  const maxSegmentDuration = clamp(
+    Number.isFinite(options.maxSegmentDuration) ? options.maxSegmentDuration! : 0.25,
+    0.04,
+    2,
+  );
+  const maxSegments = Math.round(clamp(
+    Number.isFinite(options.maxSegments) ? options.maxSegments! : 240,
+    1,
+    1200,
+  ));
+  const boundaries = new Set<number>(normalised.map((point) => point.time));
+  for (let i = 0; i < normalised.length - 1; i++) {
+    const start = normalised[i].time;
+    const end = normalised[i + 1].time;
+    const count = Math.max(1, Math.ceil((end - start) / maxSegmentDuration));
+    for (let step = 1; step < count; step++) boundaries.add(start + (end - start) * step / count);
+  }
+  const ordered = [...boundaries].sort((a, b) => a - b);
+  const capped = ordered.length - 1 > maxSegments
+    ? Array.from({ length: maxSegments + 1 }, (_, index) => duration * index / maxSegments)
+    : ordered;
+  const segments: SpeedRampSegment[] = [];
+  let outputTime = 0;
+  for (let i = 0; i < capped.length - 1; i++) {
+    const sourceStart = capped[i];
+    const sourceEnd = capped[i + 1];
+    if (sourceEnd - sourceStart < 0.0001) continue;
+    const speed = evaluateSpeedRamp(normalised, (sourceStart + sourceEnd) / 2, duration, options.fallbackSpeed);
+    const outputDuration = (sourceEnd - sourceStart) / speed;
+    segments.push({
+      sourceStart,
+      sourceEnd,
+      speed,
+      outputStart: outputTime,
+      outputEnd: outputTime + outputDuration,
+    });
+    outputTime += outputDuration;
+  }
+  return segments;
+}
