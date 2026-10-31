@@ -2044,8 +2044,10 @@ function applyChatVisualIntent(intent, slots = []){
   setOverlaysFromNative(next);
   const textApplied = !intent.openingText || overlays.some(ov => ov.text === intent.openingText && ov.aiIntent === 'openingText');
   const framesApplied = !intent.squareFrameAll || overlays.filter(ov => ov.kind === 'squareFrame').length >= frameCount;
+  const transitionsApplied = !intent.transitionAll || (transitionCount === edit.length
+    && edit.every(shot => shot.tr && Object.prototype.hasOwnProperty.call(TR_DUR, shot.tr)));
   const effectsApplied = !intent.effectsAll || (effectCount === edit.length && edit.every(shot => shot.efx && shot.efx !== 'none' && Object.prototype.hasOwnProperty.call(FX_NAME, shot.efx)));
-  if(!textApplied || !framesApplied || !effectsApplied || (intent.squareFrameAll && frameCount !== edit.length)){
+  if(!textApplied || !framesApplied || !transitionsApplied || !effectsApplied || (intent.squareFrameAll && frameCount !== edit.length)){
     throw new Error('The requested visual edit could not be verified in the Reel.');
   }
   redrawFrame();
