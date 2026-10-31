@@ -1036,13 +1036,26 @@ function reorderClips(){
 }
 $('crev').addEventListener('click', () => { if(pending || recording) return; const box = $('clips'); [...box.children].reverse().forEach(c => box.appendChild(c)); reorderClips(); });
 function updateQ(){ $('qinfo').textContent = pending ? pending + ' clips left to read…' : ''; $('s2st').textContent = pending ? 'Reading clips…' : (sources.length + ' clips ready'); }
+function setClipStatus(src, status, detail){
+  if(!src || !src.card) return;
+  src.status=status;
+  const el=src.card.querySelector('.clip-status');
+  if(!el) return;
+  const ready=status==='ready', failed=status==='failed';
+  el.classList.toggle('is-ready',ready);
+  el.classList.toggle('is-failed',failed);
+  el.classList.toggle('is-reading',!ready&&!failed);
+  el.querySelector('.clip-status-mark').textContent=ready?'✓':failed?'!':'…';
+  el.title=detail || (ready?'Video analysed and ready':failed?'Could not read this video':'Analysing video');
+  el.setAttribute('aria-label',el.title);
+}
 function makeCard(f){
   const url = URL.createObjectURL(f);
   const card = document.createElement('div'); card.className='clip';
-  card.innerHTML = `<canvas class="th"></canvas><span class="cnum absolute left-1.5 top-1.5 z-3 grid h-6 min-w-6 place-items-center rounded-full bg-accent px-1.5 text-[11px] font-bold text-black"></span><button type="button" class="cup absolute left-9 top-1.5 z-3 grid size-6 place-items-center rounded-full bg-black/65 text-[13px] leading-none text-white" title="Play this clip earlier" aria-label="Play this clip earlier">↑</button><button class="del" title="Remove this clip" aria-label="Remove this clip">×</button><div class="meta"><div class="nm"></div><div class="dd">waiting…</div><canvas></canvas></div>`;
+  card.innerHTML = `<canvas class="th"></canvas><span class="cnum absolute left-2 top-2 z-3 grid h-7 min-w-7 place-items-center rounded-full bg-accent px-2 text-[11px] font-bold text-black"></span><button type="button" class="cup absolute left-11 top-2 z-3 grid size-7 place-items-center rounded-full bg-black/65 text-[13px] leading-none text-white" title="Play this clip earlier" aria-label="Play this clip earlier">↑</button><span class="clip-status is-reading" role="status" aria-label="Video is being analysed" title="Analysing video"><span class="clip-status-mark">…</span></span><button class="del" title="Remove video" aria-label="Remove video">×</button><div class="meta"><div class="nm"></div><div class="dd">Waiting to analyse…</div><canvas></canvas></div>`;
   card.querySelector('.nm').textContent = f.name; $('clips').appendChild(card); renumber();
   const src = {name:f.name, file:f, url, card, spark: card.querySelector('.meta canvas'), removed:false};
-  card.__src = src; card.querySelector('.del').addEventListener('click', ()=>removeVideo(src));
+  card.__src = src; setClipStatus(src,'reading'); card.querySelector('.del').addEventListener('click', ()=>removeVideo(src));
   card.querySelector('.cup').addEventListener('click', ()=>{ const prev = card.previousElementSibling; if(prev && !pending && !recording){ prev.before(card); reorderClips(); } });
   return src;
 }
@@ -1154,7 +1167,7 @@ async function readVideo(src){
   // still reading after 2 minutes: reported too (a phone where it hangs instead of failing)
   const slow = setTimeout(() => { try{ window.__shubixReport && window.__shubixReport('clip', 'Clip still reading after 2 min at "' + stage + '" · ' + ((src.file && src.file.type) || 'no type') + ' · ' + dd.textContent, JSON.stringify({ size: src.file && src.file.size, dur: src.dur, w: src.w, h: src.h, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){} }, 120000);
   try{
-    dd.textContent = 'reading…'; dd.dataset.st = 'read'; dd.dataset.p = '0';
+    dd.textContent = 'Reading video…'; dd.dataset.st = 'read'; dd.dataset.p = '0'; setClipStatus(src,'reading');
     v = makeVideo(src.url); await waitEv(v,'loadedmetadata', 15000);
     src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight;
     if(!isFinite(src.dur) || src.dur<=0 || !src.w) throw new Error('bad');
@@ -1203,12 +1216,13 @@ async function readVideo(src){
     if(src.removed) return;
     const nf = src.faces.filter(f=>f.n>0).length, shs = src.samples.map(s=>s.sh).sort((a,b)=>a-b);
     src.shMed = shs[Math.floor(shs.length/2)] || 1;
-    dd.textContent = src.dur.toFixed(1) + ' s · ' + src.w + '×' + src.h + (nf ? ' · faces ' + Math.round(nf/Math.max(1,src.faces.length)*100) + '%' : '');
-    dd.dataset.st = 'ok'; dd.dataset.len = fmt(src.dur).replace(/\.\d+$/, '');
+    dd.textContent = fmt(src.dur).replace(/\.\d+$/, '') + ' · ' + (src.w >= src.h ? 'Landscape' : 'Portrait') + ' · Ready';
+    dd.dataset.st = 'ok'; dd.dataset.len = fmt(src.dur).replace(/\.\d+$/, ''); setClipStatus(src,'ready','Video analysed · '+src.w+' × '+src.h+' · '+fmt(src.dur));
     src.els = [lazyPlayer(src.url), lazyPlayer(src.url), lazyPlayer(src.url)];
     sources.push(src); drawSpark(src);
   }catch(e){
     if(src.removed) return;
+    setClipStatus(src,'failed',e && e.message ? 'Could not read video: '+e.message : 'Could not read video');
     console.warn('clip not readable:', src.name, e && e.message || e);
     // Reopening a saved edit should not fail just because optional motion/face analysis could not run again.
     // The saved edit already contains its shot choices; keep the decoded source and use neutral scan data.
