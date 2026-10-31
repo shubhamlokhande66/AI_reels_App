@@ -125,6 +125,21 @@ export interface RenderTextStyle {
 }
 
 /** Deterministic keyframe sampling; all renderer adapters use the same easing semantics. */
+/** Solve a cubic Bezier timing curve (x controls time, y controls progress). */
+export function cubicBezierProgress(progress: number, curve: readonly [number, number, number, number]): number {
+  const x = Math.max(0, Math.min(1, progress));
+  const [x1, y1, x2, y2] = curve;
+  const cubic = (t: number, a: number, b: number) => 3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t;
+  let low = 0, high = 1, t = x;
+  for (let i = 0; i < 16; i++) {
+    const estimate = cubic(t, x1, x2);
+    if (Math.abs(estimate - x) < 0.00001) break;
+    if (estimate < x) low = t; else high = t;
+    t = (low + high) / 2;
+  }
+  return cubic(t, y1, y2);
+}
+
 export function sampleKeyframes(frames: readonly NumericKeyframe[] | undefined, timeMs: number, fallback = 0): number {
   if (!frames?.length) return fallback;
   const sorted = [...frames].sort((a, b) => a.timeMs - b.timeMs);
@@ -139,6 +154,7 @@ export function sampleKeyframes(frames: readonly NumericKeyframe[] | undefined, 
   if (span <= 0) return right.value;
   let t = Math.max(0, Math.min(1, (timeMs - left.timeMs) / span));
   const easing = left.easing ?? "linear";
+  if (left.bezier) t = cubicBezierProgress(t, left.bezier);
   if (easing === "step") t = 0;
   else if (easing === "ease-in") t *= t;
   else if (easing === "ease-out") t = 1 - (1 - t) * (1 - t);
