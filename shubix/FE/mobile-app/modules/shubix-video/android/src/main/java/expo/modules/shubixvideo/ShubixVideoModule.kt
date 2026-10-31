@@ -663,20 +663,4 @@ class ShubixVideoModule : Module() {
       return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint) }
     }
   }
-      return blank
-    }
-    override fun getOverlaySettings(presentationTimeUs: Long) = StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
-    private fun draw(x: JSONObject): Bitmap {
-      val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = try { Color.parseColor(x.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
-        textSize = x.optDouble("size", 36.0).toFloat() * w / 540f; typeface = Typeface.DEFAULT_BOLD
-        setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
-      }
-      val words = x.optString("text")
-      val pad = (paint.textSize / 3).toInt()
-      val width = (paint.measureText(words).toInt() + pad * 2).coerceIn(2, w)
-      val height = (paint.fontSpacing.toInt() + pad * 2).coerceAtLeast(2)
-      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint) }
-    }
-  }
 }
