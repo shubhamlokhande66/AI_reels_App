@@ -2549,8 +2549,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 
 /* Option popups (the shot sheet, a clip tool, a dock tool's panel): the new design's centred sheet over a shade */
 .brs:has(#shotsheet:not([hidden]))::before,
-.brs:has(#ctpop:not([hidden]))::before,
-.brs:has(.panels:not([hidden]) .panel.on)::before {
+.brs:has(#ctpop:not([hidden]))::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -2562,11 +2561,30 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   pointer-events: auto;
 }
 
-.brs:has(.panels:not([hidden]) .panel.on) .tools {
-  /* The tool sheet is inside .tools, a sibling of the workbench. Lift its stacking
-     context above the dimmer; a child z-index cannot escape a lower parent context. */
+.brs:has(.panels:not([hidden]) .panel.on) .create {
+  /* The panel is nested below a responsive workbench; on desktop .tools uses
+     display:contents, so lift the shared create context and draw its own dimmer. */
   position: relative !important;
+  isolation: isolate;
   z-index: 9991 !important;
+}
+.brs:has(.panels:not([hidden]) .panel.on) .create::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: rgba(8, 8, 7, .62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: shadeIn .2s ease both;
+  pointer-events: auto;
+}
+.brs:has(.panels:not([hidden]) .panel.on) .create > .workbench {
+  position: relative;
+  z-index: 0;
+}
+.brs:has(.panels:not([hidden]) .panel.on) .panels:not([hidden]):has(.panel.on) {
+  z-index: 3 !important;
 }
 
 .brs.sheeton #shotsheet:not([hidden]),
