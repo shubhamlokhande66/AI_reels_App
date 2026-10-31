@@ -55,8 +55,11 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       throw new UnsupportedAndroidRenderFeature("Android Media3 adapter currently supports one music track.");
     }
     const audio = job.audio?.[0];
-    if (audio && (audio.startMs !== 0 || audio.volume !== 1 || audio.fadeInMs || audio.fadeOutMs)) {
-      throw new UnsupportedAndroidRenderFeature("Android Media3 adapter currently supports one music track starting at zero without fades or custom volume.");
+    if (audio && audio.startMs !== 0) {
+      throw new UnsupportedAndroidRenderFeature("Android Media3 currently requires the music track to start at the beginning of the Reel.");
+    }
+    if (audio && audio.volume > 1) {
+      throw new UnsupportedAndroidRenderFeature("Android Media3 music gain is currently limited to 100% to avoid clipping.");
     }
 
     const sourceById = new Map(job.sources.map((source) => [source.id, source]));
@@ -74,8 +77,8 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       if (item.fit === "stretch") {
         throw new UnsupportedAndroidRenderFeature("Stretch fit is not supported by the current Android renderer.");
       }
-      if (item.muted === false && item.volume !== undefined && item.volume !== 1) {
-        throw new UnsupportedAndroidRenderFeature("Per-clip source audio volume is not supported by the current Android renderer.");
+      if (item.volume !== undefined && item.volume > 1) {
+        throw new UnsupportedAndroidRenderFeature(`Clip ${item.id} audio gain above 100% is not supported by the current Android renderer.`);
       }
       for (const effect of item.effects ?? []) {
         if (effect.type !== "filter" || typeof effect.params.name !== "string" || !SUPPORTED_FILTERS.has(effect.params.name)) {
@@ -142,6 +145,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
             fit: item.fit === "contain" ? "contain" : "cover",
             filter: typeof filter === "string" ? filter : "Original",
             muted: item.muted ?? false,
+            volume: item.volume ?? 1,
           };
         });
         const audio = job.audio?.[0];
@@ -149,7 +153,15 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           width: job.dimensions.width,
           height: job.dimensions.height,
           clips,
-          ...(audio ? { audio: { uri: audio.source, start: audio.sourceStartMs / 1000 } } : {}),
+          ...(audio ? { audio: {
+            uri: audio.source,
+            start: audio.sourceStartMs / 1000,
+            volume: audio.volume,
+            fadeIn: (audio.fadeInMs ?? 0) / 1000,
+            fadeOut: (audio.fadeOutMs ?? 0) / 1000,
+            ducking: audio.ducking ?? false,
+            duckLevel: audio.duckLevel ?? 0.35,
+          } } : {}),
           texts: (job.overlays ?? []).map((overlay) => ({
             text: overlay.text,
             start: overlay.startMs / 1000,
