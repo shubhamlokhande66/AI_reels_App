@@ -75,7 +75,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       muted: clip.muted,
       volume: clip.volume,
       ...(clip.transition && clip.transition !== "Cut" && clip.transition !== "hard"
-        ? { transitionIn: { type: transitionTypes[clip.transition] ?? clip.transition, durationMs: 350 } }
+        ? { transitionIn: { type: transitionTypes[clip.transition] ?? clip.transition, durationMs: Math.min(350, durationMs / 2) } }
         : {}),
       effects,
     });
