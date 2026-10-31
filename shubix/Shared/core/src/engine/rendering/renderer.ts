@@ -71,6 +71,7 @@ export interface RenderAudioTrack {
   fadeOutMs?: number;
   ducking?: boolean;
   duckLevel?: number;
+  keyframes?: KeyframeTrack;
 }
 
 export interface RenderTextOverlay {
@@ -80,6 +81,8 @@ export interface RenderTextOverlay {
   endMs: number;
   color: string;
   size: number;
+  transform?: KeyframeTrack;
+  effects?: readonly RenderEffect[];
 }
 
 
@@ -284,7 +287,7 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
         if (!Number.isFinite(frame.timeMs) || frame.timeMs < 0 || frame.timeMs > maxTimeMs) errors.push(`${owner} has a keyframe outside its duration.`);
         if (frame.timeMs <= previous) errors.push(`${owner} keyframes for ${property} must have strictly increasing times.`);
         if (!Number.isFinite(frame.value)) errors.push(`${owner} has a non-finite keyframe value.`);
-        if (frame.bezier && (frame.bezier.length !== 4 || frame.bezier.some((v) => !Number.isFinite(v) || v < 0 || v > 1))) errors.push(`${owner} has invalid cubic-bezier controls.`);
+        if (frame.bezier && (frame.bezier.length !== 4 || frame.bezier.some((v: number) => !Number.isFinite(v) || v < 0 || v > 1))) errors.push(`${owner} has invalid cubic-bezier controls.`);
         previous = frame.timeMs;
       }
     }
