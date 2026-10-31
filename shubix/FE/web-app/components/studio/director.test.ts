@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clipDuration, clipSchema, makeClip, splitClip } from "@shubix/validations";
-import { cubicBezierProgress, sampleKeyframes, validateRenderJob } from "@shubix/core/engine/rendering";
+import { cubicBezierProgress as sharedCubicBezierProgress, sampleKeyframes, validateRenderJob } from "@shubix/core/engine/rendering";
 import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, rippleDelete, rippleInsert, slipClip, evaluateMotionPath, buildDuckingEnvelope, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
@@ -399,8 +399,8 @@ describe("shared renderer keyframe sampling", () => {
     ], 500);
     expect(linear).toBeCloseTo(50, 1);
     expect(eased).toBeGreaterThan(50);
-    expect(cubicBezierProgress(0, [0.25, 0.1, 0.25, 1])).toBeCloseTo(0, 4);
-    expect(cubicBezierProgress(1, [0.25, 0.1, 0.25, 1])).toBeCloseTo(1, 4);
+    expect(sharedCubicBezierProgress(0, [0.25, 0.1, 0.25, 1])).toBeCloseTo(0, 4);
+    expect(sharedCubicBezierProgress(1, [0.25, 0.1, 0.25, 1])).toBeCloseTo(1, 4);
   });
 });
 
