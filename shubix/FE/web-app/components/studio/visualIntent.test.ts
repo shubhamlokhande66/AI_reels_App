@@ -57,6 +57,20 @@ describe("AI Director visual intent", () => {
       .toEqual({ transitionAll: true, transitionType: "whip" });
   });
 
+  it("recognises Roman Marathi plural variants and localises all-clip effects", () => {
+    expect(parseDirectorVisualIntent("sagle clips la chan effect lav"))
+      .toEqual({ effectsAll: true });
+    expect(parseDirectorVisualIntent("sagale videos var transition lav"))
+      .toEqual({ transitionAll: true });
+  });
+
+  it("recognises Hindi all-video effects and does not widen a single-clip request", () => {
+    expect(parseDirectorVisualIntent("sabhi videos par achhe effects laga do"))
+      .toEqual({ effectsAll: true });
+    expect(parseDirectorVisualIntent("is clip par achha effect lagao"))
+      .toEqual({});
+  });
+
   it("does not infer all-clips transitions from a single-clip request", () => {
     expect(parseDirectorVisualIntent("add a dissolve transition to clip 2"))
       .toEqual({});
