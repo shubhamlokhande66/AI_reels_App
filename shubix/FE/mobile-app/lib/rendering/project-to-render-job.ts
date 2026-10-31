@@ -81,7 +81,11 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
         startMs: 0,
         durationMs,
         sourceStartMs: (project.settings?.start ?? 0) * 1000,
-        volume: 1,
+        volume: project.settings?.musicVolume ?? 1,
+        fadeInMs: (project.settings?.musicFadeIn ?? 0) * 1000,
+        fadeOutMs: (project.settings?.musicFadeOut ?? 0) * 1000,
+        ducking: project.settings?.musicDucking ?? false,
+        duckLevel: project.settings?.musicDuckLevel ?? 0.35,
       }]
     : undefined;
 
