@@ -802,7 +802,7 @@ class ShubixVideoModule : Module() {
         val item = texts.optJSONObject(index) ?: return@filter false
         val start = item.optDouble("start", Double.NaN)
         val end = item.optDouble("end", Double.NaN)
-        start.isFinite() && end.isFinite() && timeSeconds >= start && timeSeconds <= end
+        start.isFinite() && end.isFinite() && timeSeconds >= start && timeSeconds < end
       }
       if (active.isEmpty()) return blank
       return frames.getOrPut(active) {
