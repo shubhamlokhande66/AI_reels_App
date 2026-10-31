@@ -52,7 +52,9 @@ export interface RenderTrackItem {
   muted?: boolean;
   volume?: number;
   transitionIn?: { type: string; durationMs: number };
-  effects?: readonly RenderEffect[];\n  keyframes?: KeyframeTrack;\n  mask?: RenderMask;
+  effects?: readonly RenderEffect[];
+  keyframes?: KeyframeTrack;
+  mask?: RenderMask;
 }
 
 export interface RenderAudioTrack {
@@ -148,7 +150,8 @@ export interface RenderJobSpec {
   sources: readonly RenderSource[];
   items: readonly RenderTrackItem[];
   audio?: readonly RenderAudioTrack[];
-  overlays?: readonly RenderTextOverlay[];\n  layers?: readonly RenderLayer[];
+  overlays?: readonly RenderTextOverlay[];
+  layers?: readonly RenderLayer[];
   output: {
     container: "mp4";
     videoCodec: "h264";
