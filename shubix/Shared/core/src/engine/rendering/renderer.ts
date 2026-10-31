@@ -18,6 +18,10 @@ export type RenderCapability =
   | "speed-ramp"
   | "reverse"
   | "mask"
+  | "transitions"
+  | "effects"
+  | "keyframes"
+  | "layers"
   | "audio-mix"
   | "hdr";
 
@@ -243,6 +247,10 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     const source = spec.sources.find((candidate) => candidate.id === item.sourceId);
     if (source && item.sourceStartMs + item.durationMs * item.playbackRate > source.durationMs + 1) {
       errors.push(`Timeline item ${item.id} exceeds source duration.`);
+    if (item.transitionIn) {
+      if (!item.transitionIn.type.trim()) errors.push(`Timeline item ${item.id} has an empty transition type.`);
+      if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs) errors.push(`Timeline item ${item.id} has an invalid transition duration.`);
+    }
     }
   }
 
@@ -291,6 +299,8 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
       validateKeyframes(`Mask on ${item.id}`, mask.keyframes, item.durationMs);
     }
     for (const effect of item.effects ?? []) {
+      if (!effect.type.trim()) errors.push(`Timeline item ${item.id} has an effect without a type.`);
+      if (!effect.params || typeof effect.params !== "object" || Array.isArray(effect.params)) errors.push(`Effect ${effect.type} on ${item.id} has invalid parameters.`);
       if (effect.intensity !== undefined && (!Number.isFinite(effect.intensity) || effect.intensity < 0 || effect.intensity > 1)) errors.push(`Effect ${effect.type} on ${item.id} has invalid intensity.`);
       if (effect.startMs !== undefined && (!Number.isFinite(effect.startMs) || effect.startMs < 0 || effect.startMs > item.durationMs)) errors.push(`Effect ${effect.type} on ${item.id} has invalid start time.`);
       if (effect.endMs !== undefined && (!Number.isFinite(effect.endMs) || effect.endMs < (effect.startMs ?? 0) || effect.endMs > item.durationMs)) errors.push(`Effect ${effect.type} on ${item.id} has invalid end time.`);
@@ -308,6 +318,8 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     layerIds.add(layer.id);
     if (!Number.isFinite(layer.startMs) || layer.startMs < 0 || !Number.isFinite(layer.durationMs) || layer.durationMs <= 0) errors.push(`Layer ${layer.id} has invalid timing.`);
     if (layer.opacity !== undefined && (!Number.isFinite(layer.opacity) || layer.opacity < 0 || layer.opacity > 1)) errors.push(`Layer ${layer.id} has invalid opacity.`);
+    if (layer.startMs + layer.durationMs > timelineEndMs + 1) errors.push(`Layer ${layer.id} extends beyond the Reel duration.`);
+    if (layer.sourceId && !sourceIds.has(layer.sourceId)) errors.push(`Layer ${layer.id} references missing source ${layer.sourceId}.`);
     validateKeyframes(`Layer ${layer.id}`, layer.transform, layer.durationMs);
     if (layer.mask) validateKeyframes(`Layer mask ${layer.id}`, layer.mask.keyframes, layer.durationMs);
   }
