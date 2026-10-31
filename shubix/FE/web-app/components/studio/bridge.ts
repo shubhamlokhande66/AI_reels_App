@@ -19,7 +19,9 @@
  * The studio's questions (askCredits: "Shubix AI will edit this Reel", Use 10 credits) go to the phone as
  * { event: "ask", title, text, list, balance, ok, no }; the phone shows them as its own and answers. */
 
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string };
+type KeyframeTarget = { what?: string; a?: number; i?: number; obj?: { uk?: Array<Record<string, unknown> & { t: number }> } } | null;
+type StudioLayer = { id?: number; t0?: number; t1?: number; x?: number; y?: number; s?: number; op?: number; r?: number; mask?: string; blend?: string; follow?: string; followOffsetX?: number; followOffsetY?: number; mk?: { w?: number; h?: number; f?: number; a?: number; inv?: boolean }; key?: { on?: boolean; c?: string; tol?: number } };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => KeyframeTarget; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: StudioLayer[]; setAudioMix: (patch: { mvol?: number; mfin?: number; mfout?: number }) => Promise<unknown>; saveNow: () => unknown; ttsVoices: Array<{ key: string; label: string }>; addTts: (text: string, voice: string) => Promise<unknown>; clearTts: () => boolean; setCaptions: (enabled: boolean, language?: string, translation?: string) => Promise<unknown>; setCaptionStyle: (style: string) => string; setOverlays: (list: Array<Record<string, unknown>>) => number };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -60,9 +62,12 @@ export function initBridge(root: HTMLElement): () => void {
   const OPS: Record<string, (a: Record<string, unknown>) => Promise<unknown>> = {
     async setup(a) { files = String(a.files); key = String(a.key); token = String(a.token || ""); await until(() => !!studio(), 60_000); return { ok: true }; },
     async song(a) {
-      put($("mfile"), [await fileOf(String(a.path), String(a.name))]); await until(() => !!studio()?.work.songReady);
-      const r = studio()!.songR!, n = (k: string) => r.cutType.filter((t) => t === k).length;
-      return { duration: studio()!.dur, bpm: Math.round(60 / r.period), beats: r.beats.length, drops: n("drop"), breaks: n("break") };
+      const st = studio(), previous = st?.songR;
+      const name = String(a.name);
+      put($("mfile"), [await fileOf(String(a.path), name)]);
+      await until(() => !!studio()?.work.songReady && !!studio()?.songR && studio()?.songR !== previous);
+      const current = studio()!, r = current.songR!, n = (k: string) => r.cutType.filter((t) => t === k).length;
+      return { duration: current.dur, bpm: Math.round(60 / r.period), beats: r.beats.length, drops: n("drop"), breaks: n("break") };
     },
     async clips(a) {
       const list = a.paths as { path: string; name: string }[], got: File[] = [];
@@ -84,8 +89,163 @@ export function initBridge(root: HTMLElement): () => void {
     },
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
+    async seek(a) { const st = studio(); if (!st?.seek) throw new Error("Studio seeking is not ready"); await st.seek(Math.max(0, Number(a.time) || 0)); return { time: st.now }; },
+    async kfSeek(a) { const st = studio(); if (!st?.kfSeek) throw new Error("Keyframe timeline is not ready"); await st.kfSeek(Math.max(0, Number(a.time) || 0)); return st.kfTarget?.() ?? null; },
+    async kfEase(a) {
+      const st = studio(), select = $<HTMLSelectElement>("kfease");
+      if (!st?.kfTarget?.() || !select) throw new Error("Select a keyframe first");
+      select.value = String(a.easing || "inOut");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      const target = st.kfTarget() as { i?: number; obj?: { uk?: Array<Record<string, unknown>> } };
+      return { ok: true, index: target.i, keyframes: (target.obj?.uk || []).map((k) => ({ ...k })) };
+    },
+    async kfRemove() {
+      const st = studio(), b = $("kfdel");
+      if (!st || !b || b.hasAttribute("disabled")) throw new Error("There is no keyframe at the playhead");
+      b.click(); const target = st.kfTarget() as { i?: number; obj?: { uk?: Array<Record<string, unknown>> } };
+      return { ok: true, index: target.i, keyframes: (target.obj?.uk || []).map((k) => ({ ...k })) };
+    },
+    async kfClear() {
+      const st = studio(), b = $("kfclear");
+      if (!st || !b) throw new Error("Keyframe controls are not ready");
+      b.click(); const target = st.kfTarget() as { i?: number; obj?: { uk?: Array<Record<string, unknown>> } };
+      return { ok: true, index: target.i, keyframes: (target.obj?.uk || []).map((k) => ({ ...k })) };
+    },
+    async kfStep(a) {
+      const st = studio(), target = st?.kfTarget?.();
+      if (!st?.kfSeek || !target || target.what !== "shot") return { ok: false, time: st?.now ?? 0 };
+      const local = (st.now ?? 0) - (target.a ?? 0), frames = target.obj?.uk || [];
+      const next = Number(a.direction) < 0
+        ? [...frames].filter((frame) => frame.t < local - 0.02).pop()
+        : frames.find((frame) => frame.t > local + 0.02);
+      if (!next) return { ok: false, time: st.now ?? 0 };
+      await st.kfSeek((target.a ?? 0) + next.t);
+      return { ok: true, time: st.now ?? 0 };
+    },
+    async kfSet(a) {
+      const st = studio(), before = st?.kfTarget?.();
+      if (!st?.kfSet || !before || before.what !== "shot") throw new Error("Select a video shot before adding keyframes");
+      st.kfSet(a.values as Record<string, number>);
+      const after = st.kfTarget?.();
+      const obj = after && after.what === "shot" ? after.obj as { uk?: Array<Record<string, unknown>> } : null;
+      return { ok: true, index: after?.i, keyframes: (obj?.uk || []).map((k) => ({ ...k })) };
+    },
+    async shotCs() { return studio()?.shotCs() ?? null; },
+    async shotSet(a) {
+      const st = studio();
+      if (!st?.shotSet) throw new Error("The advanced clip tools are not ready");
+      st.shotSet((a.patch ?? null) as unknown);
+      return { ok: true, state: st.state() };
+    },
+    async shotOp(a) {
+      const st = studio();
+      if (!st?.shotOp) throw new Error("The clip operation is not ready");
+      return { ok: !!st.shotOp(String(a.op), a.arg), state: st.state() };
+    },
+    async shotSlip(a) {
+      const st = studio();
+      if (!st?.shotSlip) throw new Error("Slip editing is not ready");
+      return { ok: st.shotSlip(Number(a.delta) || 0), state: st.state() };
+    },
+    async shotTrim(a) {
+      const st = studio();
+      if (!st?.shotTrim) throw new Error("Beat trim is not ready");
+      return { ok: st.shotTrim(Number(a.direction) || 1), state: st.state() };
+    },
+    async audioMix(a) {
+      const st = studio();
+      if (!st?.setAudioMix) throw new Error("Studio audio mixer is not ready");
+      return await st.setAudioMix({
+        ...(a.mvol !== undefined ? { mvol: Math.max(0, Math.min(1, Number(a.mvol))) } : {}),
+        ...(a.mfin !== undefined ? { mfin: Math.max(0, Math.min(10, Number(a.mfin))) } : {}),
+        ...(a.mfout !== undefined ? { mfout: Math.max(0, Math.min(10, Number(a.mfout))) } : {}),
+      });
+    },
+    async layerList() {
+      const st = studio();
+      return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", follow: layer.follow || "none", followOffsetX: layer.followOffsetX || 0, followOffsetY: layer.followOffsetY || 0, maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35 }));
+    },
+    async layerAdd(a) {
+      const st = studio();
+      if (!st?.layerAdd) throw new Error("Layer editor is not ready");
+      const file = await fileOf(String(a.path), String(a.name || "overlay"));
+      await st.layerAdd([file]); await Promise.resolve(st.saveNow?.());
+      return { ok: true, count: st.layers?.length ?? 0 };
+    },
+    async layerSelect(a) {
+      const st = studio();
+      if (!st?.layerSelect) throw new Error("Layer editor is not ready");
+      const ok = await st.layerSelect(Number(a.index));
+      return { ok: !!ok, selected: Number(a.index) };
+    },
+    async layerSet(a) {
+      const st = studio();
+      if (!st?.layerSet) throw new Error("Layer editor is not ready");
+      st.layerSet(String(a.key), a.value); await Promise.resolve(st.saveNow?.());
+      return { ok: true };
+    },
+    async layerDelete() {
+      const st = studio();
+      if (!st?.layerDelete) throw new Error("Layer editor is not ready");
+      const ok = st.layerDelete(); await Promise.resolve(st.saveNow?.());
+      return { ok };
+    },
+    async ttsVoices() { return studio()?.ttsVoices || []; },
+    async ttsAdd(a) {
+      const st = studio();
+      if (!st?.addTts) throw new Error("Text-to-speech is not ready");
+      return await st.addTts(String(a.text || ""), String(a.voice || ""));
+    },
+    async ttsClear() { const st = studio(); if (!st?.clearTts) throw new Error("Voice track is not ready"); return { ok: st.clearTts() }; },
+    async captions(a) {
+      const st = studio();
+      if (!st?.setCaptions) throw new Error("Captions are not ready");
+      return await st.setCaptions(!!a.enabled, a.language === undefined ? undefined : String(a.language), a.translation === undefined ? undefined : String(a.translation));
+    },
+    async captionStyle(a) {
+      const st = studio();
+      if (!st?.setCaptionStyle) throw new Error("Caption styles are not ready");
+      return { style: st.setCaptionStyle(String(a.style || "pop")) };
+    },
+    async shotExtract() {
+      const st = studio();
+      if (!st?.shotExtract) throw new Error("Audio extraction is not ready");
+      return await st.shotExtract();
+    },
+    async shotReverse() {
+      const st = studio();
+      if (!st?.shotReverse) throw new Error("Reverse is not ready");
+      return { ok: await st.shotReverse(), state: st.state() };
+    },
+    async shotStyle(a) {
+      const st = studio();
+      if (!st || !st.edit?.length) throw new Error("There is no selected shot");
+      const index = st.segAt(st.now);
+      const row = root.querySelectorAll<HTMLTableRowElement>("#edl tr")[index];
+      const cell = row?.children[String(a.kind) === "transition" ? 3 : String(a.kind) === "effect" ? 4 : 5];
+      const select = cell?.querySelector("select");
+      if (!select) throw new Error("This shot style control is not ready");
+      select.value = String(a.value);
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      return { ok: true, state: st.state() };
+    },
     async part(a) { await studio()?.setPart(Number(a.start)); return { start: studio()?.section.start ?? 0 }; },
-    async edit(a) { await until(made); return { ok: !!studio()!.setEdit(a.shots as unknown[]) }; },
+    async edit(a) {
+      await until(made);
+      const st = studio()!;
+      const incoming = a.shots as Record<string, unknown>[];
+      // Keep Studio-only clip treatment (colour, masks, stabilisation, custom speed curves and user keyframes)
+      // when the native editor synchronises its portable shot trims/transitions/effects before export.
+      const merged = incoming.map((shot, i) => {
+        const current = st.edit[i] as Record<string, unknown> | undefined;
+        if (!current) return shot;
+        const cs = { ...((current.cs as Record<string, unknown>) || {}), ...((shot.cs as Record<string, unknown>) || {}) };
+        return { ...shot, ...(Object.keys(cs).length ? { cs } : {}), uk: shot.uk ?? current.uk, acc: current.acc, ak: current.ak };
+      });
+      const ok = !!st.setEdit(merged);
+      if (Array.isArray(a.overlays) && st.setOverlays) st.setOverlays(a.overlays as Array<Record<string, unknown>>);
+      return { ok };
+    },
     async set(a) {
       const box = String(a.box), gen = studio()!.editGen;
       if (a.attr) { if (!press(box, String(a.attr), String(a.value))) throw new Error("The studio has no " + a.value); }

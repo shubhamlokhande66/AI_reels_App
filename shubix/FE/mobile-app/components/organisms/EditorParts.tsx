@@ -6,7 +6,8 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useStudioText } from "@shubix/hooks";
 import { Button, Glyph, Icon, IconButton, ThemeLayer } from "@shubix/ui-mobile";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
-import { clipDuration, type ProjectClip } from "@shubix/validations";
+import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
+import { buildSpeedRampSegments, type SpeedRampSegment } from "@shubix/video-engine";
 import { useThumb } from "../../lib/thumbs";
 import { useShotMotion } from "./shotMotion";
 
@@ -34,32 +35,57 @@ export function StudioBar({ title, saved, onBack, onExport }: { title: string; s
   );
 }
 
+/** Map timeline time to source time using the same constant-rate slices used by native export. */
+function rampSourceAt(segments: SpeedRampSegment[], timelineTime: number) {
+  const t = Math.max(0, timelineTime);
+  const segment = segments.find((item) => t <= item.outputEnd + 0.0001) ?? segments[segments.length - 1];
+  return segment ? Math.min(segment.sourceEnd, segment.sourceStart + Math.max(0, t - segment.outputStart) * segment.speed) : t;
+}
+function rampTimelineAt(segments: SpeedRampSegment[], sourceTime: number) {
+  const t = Math.max(0, sourceTime);
+  const segment = segments.find((item) => t <= item.sourceEnd + 0.0001) ?? segments[segments.length - 1];
+  return segment ? Math.min(segment.outputEnd, segment.outputStart + Math.max(0, t - segment.sourceStart) / segment.speed) : t;
+}
+function rampRateAt(segments: SpeedRampSegment[], sourceTime: number, fallback: number) {
+  return segments.find((item) => sourceTime <= item.sourceEnd + 0.0001)?.speed ?? fallback;
+}
+
 /** The preview: the shot under the playhead (a video plays; a photo stays), the big play button over it while still,
  * which shot it is (01 / 08). `at`: the time in the shot (followed while still: the timeline is scrubbed); `onTime`
  * reports it while playing, `onEnded` when the shot is over. */
-export function Preview({ clip, n, of, playing, at, aspect, beat, onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
+export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overlays = [], onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; now?: number; overlays?: ReelProject["overlays"]; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
+  const speedSegments = video ? buildSpeedRampSegments(video.speedRamp ?? [], video.end - video.start, { fallbackSpeed: video.speed, maxSegmentDuration: 0.2 }) : [];
   const player = useVideoPlayer(null, (p) => { p.audioMixingMode = "mixWithOthers"; });
-  // a new shot: its video, from where the playhead is
+  // a new shot: seek in source-time using the curve, not timeline-time multiplied by one fixed rate
   useEffect(() => {
     if (!video) { player.pause(); return; }
     player.replace(video.uri);
-    player.currentTime = video.start + at * video.speed; player.playbackRate = video.speed; player.muted = video.muted; player.volume = video.volume;
+    player.currentTime = video.start + rampSourceAt(speedSegments, at);
+    player.playbackRate = rampRateAt(speedSegments, rampSourceAt(speedSegments, at), video.speed);
+    player.muted = video.muted; player.volume = video.volume;
   }, [video?.id, video?.uri]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (video) { player.playbackRate = video.speed; player.muted = video.muted; player.volume = video.volume; } }, [video?.speed, video?.muted, video?.volume]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!playing && video) player.currentTime = video.start + at * video.speed; }, [at, playing]); // eslint-disable-line react-hooks/exhaustive-deps
-  // playing: the video plays and its time is followed; a photo's seconds pass
+  useEffect(() => {
+    if (!video) return;
+    const sourceOffset = rampSourceAt(speedSegments, at);
+    player.playbackRate = rampRateAt(speedSegments, sourceOffset, video.speed);
+    player.muted = video.muted; player.volume = video.volume;
+  }, [video?.speed, video?.speedRamp, video?.muted, video?.volume]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!playing && video) player.currentTime = video.start + rampSourceAt(speedSegments, at); }, [at, playing, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  // playing: update the native player's rate as it crosses ramp segments and report timeline time
   useEffect(() => {
     if (!playing || !clip) { player.pause(); return; }
     if (video) player.play();
     const t0 = Date.now() - at * 1000, len = clipDuration(clip);
     const tick = setInterval(() => {
-      const t = video ? (player.currentTime - video.start) / video.speed : (Date.now() - t0) / 1000;
+      const sourceOffset = video ? Math.max(0, player.currentTime - video.start) : 0;
+      const t = video ? rampTimelineAt(speedSegments, sourceOffset) : (Date.now() - t0) / 1000;
+      if (video) player.playbackRate = rampRateAt(speedSegments, sourceOffset, video.speed);
       onTime(Math.max(0, Math.min(t, len)));
       if (t >= len - 0.05) onEnded();
     }, 80);
     return () => clearInterval(tick);
-  }, [playing, clip?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playing, clip?.id, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
   const motion = useShotMotion(clip, playing, at, 360 * aspect, beat); // the shot's transition in and its effect
   const flip = clip ? [{ rotate: `${clip.rotation}deg` }, { scaleX: clip.mirror ? -1 : 1 }, { scaleY: clip.flip ? -1 : 1 }] : [];
   return (
@@ -71,6 +97,11 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, onToggle, onTi
           {video && <VideoView player={player} surfaceType="textureView" contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
         </Animated.View>
         <Animated.View pointerEvents="none" className="absolute inset-0" style={motion.veil} />
+        <View pointerEvents="none" className="absolute inset-0 justify-center px-3">
+          {overlays.filter((item) => now >= item.start && now < item.end).map((item) => (
+            <Text key={item.id} numberOfLines={4} style={{ color: item.color, fontSize: Math.max(12, Math.min(38, item.size * 0.62)), fontWeight: "900", textAlign: "center", textShadowColor: "rgba(0,0,0,0.8)", textShadowRadius: 5, textShadowOffset: { width: 1, height: 2 } }}>{item.text}</Text>
+          ))}
+        </View>
         {!playing && <View className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}
         <View className="absolute bottom-2.5 right-2.5 rounded-full bg-black/55 px-2 py-0.5"><Text className="text-[10px] font-semibold text-white">{String(n + 1).padStart(2, "0")} / {String(of).padStart(2, "0")}</Text></View>
       </Pressable>
@@ -119,9 +150,9 @@ const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onP
 /** The timeline (the website's phone timeline, as VN): its head (the time, clips and layers, zoom − / + and Fit), the
  * tracks' heads, and the tracks sliding under the playhead in the middle: playing moves them, a swipe scrubs (`onSeek`),
  * two fingers or − / + zoom. A tap on a clip selects it. */
-export function Timeline({ clips, selected, overlays, song, now, playing, onSelect, onSeek, onAddClip, onText, onVoice, onMusic }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void }) {
-  const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), layers = 1 + (overlays.length ? 1 : 0) + (song ? 1 : 0);
-  const [px, setPx] = useState(34), [view, setView] = useState(240), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
+export function Timeline({ clips, selected, overlays, studioLayers = [], song, now, playing, onSelect, onSeek, onAddClip, onText, onVoice, onMusic, onLayer }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; studioLayers?: { index: number; t0: number; t1: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void; onLayer?: (index: number) => void }) {
+  const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), laneDefs = [...LANES, ...(studioLayers.length ? [["Layers", "Layers", 36] as [string, string, number]] : [])];
+  const [px, setPx] = useState(34), [view, setView] = useState(240), [snapEnabled, setSnapEnabled] = useState(true), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
   const clamp = (to: number) => Math.max(8, Math.min(160, to)), frame = useRef(0), want = useRef(34);
   // zooming follows the fingers once a frame, and − / + / Fit glide there over a few frames
   const zoom = (to: number, glide = false) => {
@@ -132,6 +163,16 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   // the Reel follows the playhead while it plays, and when the time changes from elsewhere
   useEffect(() => { if (!dragging.current) scroller.current?.scrollTo({ x: now * px, animated: false }); }, [now, px]);
+  const snapTime = (time: number) => {
+    if (!snapEnabled) return time;
+    let cursor = 0, nearest = time, distance = Math.max(0.06, 10 / px);
+    for (const item of clips) {
+      const end = cursor + clipDuration(item);
+      for (const edge of [cursor, end]) { const delta = Math.abs(edge - time); if (delta < distance) { distance = delta; nearest = edge; } }
+      cursor = end;
+    }
+    return nearest;
+  };
   const pinch = Gesture.Pinch().runOnJS(true).onStart(() => { pinchFrom.current = px; }).onUpdate((e) => zoom(pinchFrom.current * e.scale));
   return (
     <View className="mx-4 mt-3 overflow-hidden rounded-[18px] border border-border bg-surface">
@@ -141,16 +182,17 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
         <ZoomButton label={words("Zoom out")} text="−" onPress={() => zoom(px / 1.5, true)} />
         <Text className="w-10 text-center text-[11px] font-semibold text-muted">{Math.round((px / 34) * 100)}%</Text>
         <ZoomButton label={words("Zoom in")} text="+" onPress={() => zoom(px * 1.5, true)} />
+        <ZoomButton label={words("Toggle snapping")} text={snapEnabled ? "Snap ✓" : "Snap"} onPress={() => setSnapEnabled((value) => !value)} />
         <ZoomButton label={words("Fit")} text={words("Fit")} onPress={() => { if (total) zoom((view - 24) / total, true); }} />
       </View>
       <View className="flex-row py-2.5 pl-3">
-        <View style={{ width: HEAD }} className="gap-1.5 border-r border-border">{LANES.map(([g, n, h], i) => <Head key={n} glyph={g} name={n} h={h} onAdd={[onAddClip, onText, onVoice, onMusic][i]} />)}</View>
+        <View style={{ width: HEAD }} className="gap-1.5 border-r border-border">{laneDefs.map(([g, n, h], i) => <Head key={n} glyph={g} name={n} h={h} onAdd={[onAddClip, onText, onVoice, onMusic, () => onLayer?.(studioLayers[0]?.index ?? 0)][i]} />)}</View>
         <GestureDetector gesture={pinch}>
           <View className="flex-1" onLayout={(e) => setView(e.nativeEvent.layout.width)}>
             <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} scrollEventThrottle={16} contentContainerStyle={{ paddingHorizontal: view / 2 }}
               onScrollBeginDrag={() => { dragging.current = true; }} onMomentumScrollEnd={() => { dragging.current = false; }}
               onScrollEndDrag={(e) => { if (!e.nativeEvent.velocity?.x) dragging.current = false; }}
-              onScroll={(e) => { if (dragging.current && !playing) onSeek(Math.max(0, Math.min(total, e.nativeEvent.contentOffset.x / px))); }}>
+              onScroll={(e) => { if (dragging.current && !playing) onSeek(snapTime(Math.max(0, Math.min(total, e.nativeEvent.contentOffset.x / px)))); }}>
               <View className="gap-1.5">
                 <View className="h-[52px] flex-row">{clips.map((c, i) => (
                   <Pressable key={c.id} onPress={() => onSelect(i)} accessibilityLabel={`${words("Shot")} ${i + 1}`} className={`mr-[2px] h-[52px] justify-end overflow-hidden rounded-lg ${i === selected ? "border-2 border-accent" : ""}`} style={{ width: Math.max(16, clipDuration(c) * px - 2), backgroundColor: CLIP_COL[i % CLIP_COL.length] }}>
@@ -162,6 +204,11 @@ export function Timeline({ clips, selected, overlays, song, now, playing, onSele
                   <Pressable key={o.id} onPress={onText} className="absolute h-8 justify-center overflow-hidden rounded-md border border-[#665276] bg-[#5a4766]/50 px-1.5" style={{ left: o.start * px, width: Math.max(24, (o.end - o.start) * px) }}><Text numberOfLines={1} className="text-[10px] text-foreground">{o.text}</Text></Pressable>
                 )) : <Pressable onPress={onText} className="h-8 w-[110px] justify-center rounded-md border border-dashed border-border px-2"><Text className="text-[10px] text-muted">+ {words("Add text")}</Text></Pressable>}</View>
                 <View className="h-9"><Pressable onPress={onVoice} className="h-8 w-[110px] justify-center rounded-md border border-dashed border-border px-2"><Text className="text-[10px] text-muted">+ {words("Voiceover")}</Text></Pressable></View>
+                {studioLayers.length > 0 && <View className="h-9" style={{ width: total * px }}>{studioLayers.map((layer) => (
+                  <Pressable key={layer.index} onPress={() => onLayer?.(layer.index)} className="absolute h-8 justify-center overflow-hidden rounded-md border border-[#8a6b36] bg-[#8a6b36]/40 px-1.5" style={{ left: Math.max(0, layer.t0) * px, width: Math.max(24, (Math.max(layer.t0 + 0.25, layer.t1) - layer.t0) * px) }}>
+                    <Text numberOfLines={1} className="text-[10px] text-foreground">{words("Overlay")} {layer.index + 1}</Text>
+                  </Pressable>
+                ))}</View>}
                 <View className="h-9"><Pressable onPress={onMusic} className="h-8 flex-row items-center gap-1 overflow-hidden rounded-md border border-[#476452] bg-[#476452]/40 px-2" style={{ width: Math.max(110, total * px) }}>
                   {song ? <><Glyph name="Music" size={12} color="#9fc2a6" /><Text numberOfLines={1} className="text-[10px] text-foreground">{song}</Text></> : <Text className="text-[10px] text-muted">+ {words("Add music")}</Text>}
                 </Pressable></View>

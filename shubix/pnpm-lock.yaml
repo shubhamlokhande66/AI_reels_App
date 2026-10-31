@@ -110,6 +110,9 @@ importers:
       '@shubix/hooks':
         specifier: workspace:*
         version: link:../../Shared/hooks
+      '@shubix/video-engine':
+        specifier: workspace:*
+        version: link:../../Shared/video-engine
       '@shubix/types':
         specifier: workspace:*
         version: link:../../Shared/types
@@ -270,6 +273,9 @@ importers:
       '@shubix/core':
         specifier: workspace:*
         version: link:../../Shared/core
+      '@shubix/video-engine':
+        specifier: workspace:*
+        version: link:../../Shared/video-engine
       '@shubix/types':
         specifier: workspace:*
         version: link:../../Shared/types
@@ -463,6 +469,12 @@ importers:
         version: 5.9.3
 
   Shared/utils:
+    devDependencies:
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  Shared/video-engine:
     devDependencies:
       typescript:
         specifier: ^5.9.2

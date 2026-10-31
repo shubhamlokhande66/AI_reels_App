@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import type { ReactNode } from "react";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AppShell } from "@/components/templates/AppShell";

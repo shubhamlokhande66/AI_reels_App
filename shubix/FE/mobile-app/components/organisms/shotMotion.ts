@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
 import type { ProjectClip } from "@shubix/validations";
+import { evaluateTransformKeyframes } from "@shubix/video-engine";
 
 /** The studio's transitions and effects in the editor's preview (FE/web-app components/studio/engine.ts: TR_NAME,
  * TR_DUR, keyframesFor), drawn natively: the shot comes in with its transition (a flash, a dip, a push, a zoom…) and
@@ -27,7 +28,7 @@ const timing = (v: Animated.Value, to: number, s: number, easing = Easing.out(Ea
 /** The preview's motion for a shot: `content` goes on the picture, `veil` on a layer over it (its colour: `veilColor`).
  * Starts when the shot starts playing (`at`: where in the shot; a shot played from its middle shows no transition). */
 export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, at: number, width: number, beat = 0.5) {
-  const v = useRef({ x: new Animated.Value(0), y: new Animated.Value(0), s: new Animated.Value(1), r: new Animated.Value(0), sx: new Animated.Value(1), o: new Animated.Value(0) }).current;
+  const v = useRef({ x: new Animated.Value(0), y: new Animated.Value(0), s: new Animated.Value(1), r: new Animated.Value(0), sx: new Animated.Value(1), o: new Animated.Value(0), kx: new Animated.Value(0), ky: new Animated.Value(0), ks: new Animated.Value(1), kr: new Animated.Value(0), ko: new Animated.Value(1) }).current;
   useEffect(() => {
     const reset = () => { v.x.setValue(0); v.y.setValue(0); v.s.setValue(1); v.r.setValue(0); v.sx.setValue(1); v.o.setValue(0); };
     reset();
@@ -51,16 +52,32 @@ export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, a
     } else if (DRIFT.has(fx)) steps.push(timing(v.s, fx === "pan-soft" ? 1.06 : 1.12, len, Easing.linear));
     else if (fx === "shake") steps.push(Animated.loop(Animated.sequence([-6, 6, -4, 4, 0].map((x) => timing(v.x, x, 0.05, Easing.linear))), { iterations: Math.ceil(len / 0.5) }));
     else if (PULSE.has(fx)) steps.push(Animated.loop(Animated.sequence([timing(v.s, 1.06, 0.08), timing(v.s, 1, Math.max(0.1, beat - 0.08))]), { iterations: Math.ceil(len / beat) }));
+    else if (fx === "mirror") v.sx.setValue(-1);
+    else if (fx === "frame") v.s.setValue(0.9);
+    else if (fx === "triple") v.s.setValue(1.05);
+    else if (fx === "kaleido") { v.r.setValue(0.04); steps.push(timing(v.r, -0.04, len, Easing.inOut(Easing.sin))); }
+    else if (fx === "vhs") steps.push(Animated.loop(Animated.sequence([-2, 2, -1, 1, 0].map((x) => timing(v.x, x, 0.045, Easing.linear))), { iterations: Math.ceil(len / 0.25) }));
     else if (fx === "snap" && at < 0.08) { v.o.setValue(1); steps.push(timing(v.o, 0, 0.14)); }
     const run = Animated.parallel(steps);
     run.start();
     return () => { run.stop(); reset(); };
   }, [clip?.id, clip?.transition, clip?.effect, playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Shared Studio keyframes are also evaluated in the native preview, not only during MP4 export.
+  useEffect(() => {
+    const frames = clip?.keyframes;
+    if (!frames?.length) { v.kx.setValue(0); v.ky.setValue(0); v.ks.setValue(1); v.kr.setValue(0); v.ko.setValue(1); return; }
+    const current = evaluateTransformKeyframes(frames, Math.max(0, at));
+    v.kx.setValue(current.x * width);
+    v.ky.setValue(current.y * 360);
+    v.ks.setValue(current.s);
+    v.kr.setValue(current.r / 90);
+    v.ko.setValue(current.o);
+  }, [clip?.id, clip?.keyframes, at, width]); // eslint-disable-line react-hooks/exhaustive-deps
   // the veil's colour: white for a flash (and a photo snap), warm for a film burn, else black
   const draw = clip && TR[clip.transition.toLowerCase()]?.[1];
   const color = draw === "burn" ? "#ff9a3c" : draw === "flash" || (!draw && clip?.effect === "snap") ? "#fff" : "#000";
   return {
-    content: { transform: [{ translateX: v.x }, { translateY: v.y }, { scale: v.s }, { scaleX: v.sx }, { rotate: v.r.interpolate({ inputRange: [-1, 1], outputRange: ["-90deg", "90deg"] }) }] },
+    content: { opacity: v.ko, transform: [{ translateX: v.x }, { translateY: v.y }, { scale: v.s }, { scaleX: v.sx }, { rotate: v.r.interpolate({ inputRange: [-1, 1], outputRange: ["-90deg", "90deg"] }) }, { translateX: v.kx }, { translateY: v.ky }, { scale: v.ks }, { rotate: v.kr.interpolate({ inputRange: [-1, 1], outputRange: ["-90deg", "90deg"] }) }] },
     veil: { opacity: v.o, backgroundColor: color },
   };
 }
