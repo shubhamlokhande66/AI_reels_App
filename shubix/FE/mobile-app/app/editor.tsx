@@ -61,7 +61,7 @@ function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
     ["bars", /\bbars?\b/i], ["diamond", /\bdiamond\b/i], ["heart", /\bheart\b/i], ["star", /\bstar\b/i],
   ];
   const matchedTransition = asksTransition ? namedTransition.find(([, pattern]) => pattern.test(value))?.[0] : undefined;
-  const transition = asksTransition ? (matchedTransition ?? "dissolve") : undefined;
+  const transition = asksTransition ? (matchedTransition ?? "fadein") : undefined;
   const unsupportedTransition = transition && !isNativeTransitionSupported(transition) ? transition : undefined;
   return { ...(unsupportedTransition ? { unsupportedTransition } : transition ? { transition } : {}), ...(asksEffect ? { effect: true } : {}) };
 }
@@ -698,14 +698,14 @@ export default function EditorScreen() {
         <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
           const bulk = parseBulkVisualCommand(t);
           if (bulk?.unsupportedTransition) {
-            return words("{transition} is not available in the current Android export engine yet. I did not change your clips. Choose Fade, Dissolve, Whip pan, Zoom, Flash, Spin, Slide, Blur or Swipe up instead.", { transition: words(bulk.unsupportedTransition) });
+            return words("{transition} is not available in the current Android export engine yet. I did not change your clips. Choose Fade in, Whip pan, Zoom, Flash, Spin, Slide, Blur or Swipe up instead.", { transition: words(bulk.unsupportedTransition) });
           }
           if (bulk && clips.length) {
             const effectChoices = ["punch-soft", "pan-soft", "drift", "bounce", "tilt"];
             let previous = "";
             setClips(clips.map((c, i) => {
               const patch: Partial<ProjectClip> = {};
-              if (bulk.transition) patch.transition = i === 0 ? (bulk.transition === "dissolve" ? "fadein" : bulk.transition) : bulk.transition;
+              if (bulk.transition) patch.transition = bulk.transition;
               if (bulk.effect) {
                 const choice = effectChoices.find((item) => item !== previous) ?? effectChoices[0];
                 patch.effect = choice; previous = choice;
