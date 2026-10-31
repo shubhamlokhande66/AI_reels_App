@@ -250,10 +250,10 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     const source = spec.sources.find((candidate) => candidate.id === item.sourceId);
     if (source && item.sourceStartMs + item.durationMs * item.playbackRate > source.durationMs + 1) {
       errors.push(`Timeline item ${item.id} exceeds source duration.`);
+    }
     if (item.transitionIn) {
       if (!item.transitionIn.type.trim()) errors.push(`Timeline item ${item.id} has an empty transition type.`);
       if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs) errors.push(`Timeline item ${item.id} has an invalid transition duration.`);
-    }
     }
   }
 
@@ -325,6 +325,7 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (layer.sourceId && !sourceIds.has(layer.sourceId)) errors.push(`Layer ${layer.id} references missing source ${layer.sourceId}.`);
     validateKeyframes(`Layer ${layer.id}`, layer.transform, layer.durationMs);
     if (layer.mask) validateKeyframes(`Layer mask ${layer.id}`, layer.mask.keyframes, layer.durationMs);
+    for (const effect of layer.effects ?? []) validateKeyframes(`Layer effect ${effect.type}`, effect.keyframes, layer.durationMs);
   }
 
   return errors;
