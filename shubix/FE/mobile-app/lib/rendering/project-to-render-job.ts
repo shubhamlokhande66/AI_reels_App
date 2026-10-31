@@ -49,7 +49,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
     }
     const durationMs = clipDuration(clip) * 1000;
     const transitionAliases: Record<string, string> = {
-      fade: "fade", fadein: "fade", dissolve: "fade", crossfade: "fade",
+      fade: "fade", fadein: "fade",
       zoom: "zoom-in", zoomin: "zoom-in", zoomout: "zoom-out",
       blur: "blur", flash: "flash", whip: "whip-pan", whippan: "whip-pan",
       spin: "spin", slideleft: "slide-left", slideright: "slide-right",
