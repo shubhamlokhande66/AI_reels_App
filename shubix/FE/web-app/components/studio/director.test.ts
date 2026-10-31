@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -178,5 +178,26 @@ describe("autonomous render quality gate", () => {
     expect(result.repairs).toContain("replace-blurry-shot");
     expect(result.repairs).toContain("reduce-duplicate-shots");
     expect(result.warnings).toContain("Audio quality was not measured.");
+  });
+});
+
+
+describe("autonomous content understanding", () => {
+  it("infers product style from product footage without requiring a user prompt", () => {
+    const inference = inferAutonomousMood([
+      { id: "p1", sourceIndex: 0, duration: 3, quality: 0.9, motion: 0.4, isProduct: true },
+      { id: "p2", sourceIndex: 1, duration: 3, quality: 0.8, motion: 0.3, isProduct: true, tags: ["showcase"] },
+    ], { duration: 6, mood: "calm" });
+    expect(inference.mood).toBe("product");
+    expect(inference.confidence).toBeGreaterThan(0.5);
+  });
+
+  it("infers a speech-led edit and lets the autonomous planner use inferred mood by default", () => {
+    const speechShots = [
+      { id: "s1", sourceIndex: 0, duration: 4, quality: 0.8, motion: 0.2, speech: true, tags: ["tutorial"] },
+      { id: "s2", sourceIndex: 1, duration: 4, quality: 0.8, motion: 0.2, speech: true },
+    ];
+    expect(inferAutonomousMood(speechShots).mood).toBe("talking");
+    expect(createAutonomousReelPlan({ shots: speechShots, targetDuration: 6 }).mood).toBe("talking");
   });
 });
