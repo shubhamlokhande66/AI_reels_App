@@ -17,7 +17,7 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   const unsupported = p.clips.find((clip) =>
     (clip.transition && clip.transition !== "Cut") ||
     !!clip.effect ||
-    (!clip.muted && (clip.volume ?? 1) !== 1)
+    (clip.volume ?? 1) > 1
   );
   if (unsupported?.transition && unsupported.transition !== "Cut") {
     throw new Error(`The ${unsupported.transition} transition is not supported by the current Android export engine yet. Choose Cut before exporting.`);
@@ -25,8 +25,8 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   if (unsupported?.effect) {
     throw new Error(`The ${unsupported.effect} effect is not supported by the current Android export engine yet.`);
   }
-  if (unsupported && !unsupported.muted && (unsupported.volume ?? 1) !== 1) {
-    throw new Error("Per-clip source audio volume is not supported by the current Android export engine yet. Set the clip volume to 100% or mute its original audio.");
+  if (unsupported && (unsupported.volume ?? 1) > 1) {
+    throw new Error("Android export currently supports source-audio gain up to 100%. Lower this clip volume before exporting.");
   }
   const [width, height] = SIZE[p.settings?.aspect ?? "9:16"];
   const output = `${Paths.document.uri.replace(/^file:\/\//, "")}exports/${p.id}-${Date.now()}.mp4`;
