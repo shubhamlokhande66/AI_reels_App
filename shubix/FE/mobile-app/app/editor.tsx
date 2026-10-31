@@ -644,7 +644,33 @@ export default function EditorScreen() {
         <Timeline clips={clips} selected={selected} overlays={p.overlays} studioLayers={studioLayers} onLayer={(index) => { setStudioLayerIndex(index); setTool({ key: "layers", name: "Layers" }); }} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onTrim={trimTimelineClip} onMove={moveTimelineClip} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
         <View className="mt-3 flex-row items-center justify-between px-4">
           <Text className="text-[13px] font-semibold text-foreground">{words("Shot")} {String(selected + 1).padStart(2, "0")} · {clip ? clipDuration(clip).toFixed(1) : "0.0"} s</Text>
-          <View className="flex-row items-center gap-1"><IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const step = stepEditHistory(undo.current, redo.current, p, "undo", 30); if (step) { undo.current = step.undo; redo.current = step.redo; setP(step.current); } }} /><IconButton icon="redo" size={36} label={words("Redo")} disabled={!redo.current.length} onPress={() => { const step = stepEditHistory(undo.current, redo.current, p, "redo", 30); if (step) { undo.current = step.undo; redo.current = step.redo; setP(step.current); } }} /></View>
+          <View className="flex-row items-center gap-1"><IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length && !(p.studio && engine.holds(p.id))} onPress={() => { void (async () => {
+            if (p.studio && engine.holds(p.id)) {
+              try {
+                const studioStep = await engine.undo();
+                if (studioStep.ok) {
+                  setP((old) => old ? { ...old, clips: studioStep.clips, ...(studioStep.overlays ? { overlays: studioStep.overlays } : {}) } : old);
+                  setSelected((i) => Math.min(i, Math.max(0, studioStep.clips.length - 1)));
+                  return;
+                }
+              } catch (error) { console.warn("Studio undo unavailable; using phone history:", error); }
+            }
+            const step = stepEditHistory(undo.current, redo.current, p, "undo", 30);
+            if (step) { undo.current = step.undo; redo.current = step.redo; setP(step.current); }
+          })(); }} /><IconButton icon="redo" size={36} label={words("Redo")} disabled={!redo.current.length && !(p.studio && engine.holds(p.id))} onPress={() => { void (async () => {
+            if (p.studio && engine.holds(p.id)) {
+              try {
+                const studioStep = await engine.redo();
+                if (studioStep.ok) {
+                  setP((old) => old ? { ...old, clips: studioStep.clips, ...(studioStep.overlays ? { overlays: studioStep.overlays } : {}) } : old);
+                  setSelected((i) => Math.min(i, Math.max(0, studioStep.clips.length - 1)));
+                  return;
+                }
+              } catch (error) { console.warn("Studio redo unavailable; using phone history:", error); }
+            }
+            const step = stepEditHistory(undo.current, redo.current, p, "redo", 30);
+            if (step) { undo.current = step.undo; redo.current = step.redo; setP(step.current); }
+          })(); }} /></View>
         </View>
       </ScrollView>
       <View className="border-t border-border bg-bar pb-2 pt-2">
