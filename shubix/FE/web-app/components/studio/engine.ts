@@ -1978,7 +1978,7 @@ function applyChatVisualIntent(intent, slots = []){
   }
   let transitionCount = 0;
   if(intent.transitionAll){
-    const valid = key => Object.prototype.hasOwnProperty.call(TR_DUR, key);
+    const valid = key => Object.prototype.hasOwnProperty.call(TR_DUR, key) && !isLocked('tr', key);
     const counts = new Map();
     slots.forEach((slot, i) => {
       const key = slot && slot.tr;
