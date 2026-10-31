@@ -60,6 +60,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       throw new UnsupportedAndroidRenderFeature("Android Media3 adapter currently supports one music track.");
     }
     const audio = job.audio?.[0];
+    const reelDurationMs = job.items.reduce((end, item) => Math.max(end, item.timelineStartMs + item.durationMs), 0);
     if (audio && audio.startMs !== 0) {
       throw new UnsupportedAndroidRenderFeature("Android Media3 currently requires the music track to start at the beginning of the Reel.");
     }
@@ -195,6 +196,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           ...(audio ? { audio: {
             uri: audio.source,
             start: audio.sourceStartMs / 1000,
+            duration: Math.min(audio.durationMs, reelDurationMs) / 1000,
             volume: audio.volume,
             fadeIn: (audio.fadeInMs ?? 0) / 1000,
             fadeOut: (audio.fadeOutMs ?? 0) / 1000,
