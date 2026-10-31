@@ -3,6 +3,7 @@ export type DirectorVisualIntent = {
   squareFrameAll?: boolean;
   transitionAll?: boolean;
   transitionType?: string;
+  effectsAll?: boolean;
 };
 
 const TRANSITION_ALIASES: Array<[string, RegExp]> = [
@@ -39,7 +40,7 @@ const TRANSITION_ALIASES: Array<[string, RegExp]> = [
 ];
 
 function asksForAllClips(value: string): boolean {
-  return /\b(?:all|every|each)\s+(?:the\s+)?clips?\b|\bclips?\s+(?:all|every)\b|\bsaglya\s+clips?\b|\bsarva\s+clips?\b|\bpratyek\s+clips?\b|\bsabhi\s+clips?\b|\bsaare?\s+clips?\b|\bhar\s+clip\b|\bpoore?\s+clips?\b|\btodos?\s+(?:los\s+)?clips?\b|\btous\s+les\s+clips?\b|\balle\s+clips?\b/i.test(value)
+  return /\b(?:all|every|each)\s+(?:the\s+)?(?:clips?|videos?)\b|\b(?:clips?|videos?)\s+(?:all|every)\b|\bsaglya?\s+(?:clips?|videos?)\b|\bsarva\s+(?:clips?|videos?)\b|\bpratyek\s+(?:clips?|videos?)\b|\bsabhi\s+(?:clips?|videos?)\b|\bsaare?\s+(?:clips?|videos?)\b|\bhar\s+(?:clip|video)\b|\bpoore?\s+(?:clips?|videos?)\b|\bsaglya?\s+videos?\s+(?:vr|var|la)\b|\bsarva\s+videos?\s+(?:vr|var|la)\b|\btodos?\s+(?:los\s+)?clips?\b|\btous\s+les\s+clips?\b|\balle\s+clips?\b/i.test(value)
     || /सभी\s*क्लिप|सारे\s*क्लिप|हर\s*क्लिप|पूरे\s*क्लिप|सगळ्या?\s*क्लिप|सर्व\s*क्लिप|प्रत्येक\s*क्लिप|ಎಲ್ಲಾ\s*ಕ್ಲಿಪ್|అన్ని\s*క్లిప్|সব\s*ক্লিপ|બધા\s*ક્લિપ|ਸਾਰੇ\s*ਕਲਿੱਪ|كل\s*(?:المقاطع|اللقطات)|所有片段|每个片段|全部片段|すべてのクリップ|全クリップ|各クリップ|모든\s*클립|각\s*클립|все\s*клипы|каждый\s*клип|todos?\s+os\s+clipes|cada\s+clipe|tutte\s+le\s+clip|ogni\s+clip|alle\s+clips|elke\s+clip|tüm\s+klipler|her\s+klip|semua\s+klip|setiap\s+klip|tất cả\s*(?:các\s*)?clip|mọi\s*clip|ทุกคลิป|همه\s*کلیپ(?:‌ها)?|تمام\s*کلپس|ہر\s*کلپ/u.test(value);
 }
 
@@ -68,5 +69,7 @@ export function parseDirectorVisualIntent(prompt: string): DirectorVisualIntent 
     intent.transitionAll = true;
     if (namedTransition) intent.transitionType = namedTransition;
   }
+  const asksEffects = /\b(?:effects?|effecr|fx)\b|इफेक्ट्स?|प्रभाव|असर|ಎಫೆಕ್ಟ್|ఎఫెక్ట్స్?|ইফেক্টস?|અસર|ਪ੍ਰਭਾਵ|تأثيرات?|效果|エフェクト|효과|эффекты|efeitos|efectos|effets|effekte|effetti|efektler|efek|hiệu ứng|เอฟเฟกต์/u.test(value);
+  if (allClips && asksEffects) intent.effectsAll = true;
   return intent;
 }
