@@ -2,8 +2,8 @@
  * Creates a disposable, low-resolution copy used only by the browser editor preview.
  * The original File is never replaced: Fast Studio's export pipeline reads src.file.
  */
-export const PREVIEW_MAX_SIDE = 1280;
-export const PREVIEW_BITRATE = 5_000_000;
+export const PREVIEW_MAX_SIDE = 960;
+export const PREVIEW_BITRATE = 3_000_000;
 const MIN_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_PROXY_FILE_BYTES = 450 * 1024 * 1024;
 const MAX_PROXY_DURATION = 300;
