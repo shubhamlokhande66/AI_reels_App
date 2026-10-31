@@ -98,7 +98,7 @@ class ShubixVideoModule : Module() {
       if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
       video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
       video += filter(c.optString("filter"))
-      if (texts != null && texts.length() > 0) video += OverlayEffect(ImmutableList.of(TimedTexts(texts, at, w, h)))
+      if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at, w, h)))
       val muted = c.optBoolean("muted")
       items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
       at += len
