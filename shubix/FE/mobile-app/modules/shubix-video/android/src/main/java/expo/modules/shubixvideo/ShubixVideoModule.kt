@@ -146,7 +146,34 @@ class ShubixVideoModule : Module() {
     })
   }
 
+  private data class RampPoint(val time: Double, val speed: Double, val easing: String)
   private data class RampSlice(val start: Double, val end: Double, val speed: Double)
+
+  private fun rampEase(value: Double, easing: String): Double {
+    val t = value.coerceIn(0.0, 1.0)
+    return when (easing) {
+      "hold" -> 0.0
+      "in", "inQuad" -> t * t
+      "out" -> 1.0 - (1.0 - t) * (1.0 - t)
+      "outCubic" -> 1.0 - Math.pow(1.0 - t, 3.0)
+      "inOut" -> if (t < 0.5) 2.0 * t * t else 1.0 - Math.pow(-2.0 * t + 2.0, 2.0) / 2.0
+      "outExpo" -> if (t >= 1.0) 1.0 else 1.0 - Math.pow(2.0, -10.0 * t)
+      "outBack" -> { val c1 = 1.70158; val c3 = c1 + 1.0; 1.0 + c3 * Math.pow(t - 1.0, 3.0) + c1 * Math.pow(t - 1.0, 2.0) }
+      "bezier" -> {
+        var low = 0.0; var high = 1.0; var x = t
+        repeat(18) {
+          val u = 1.0 - x
+          val at = 3.0 * u * u * x * 0.25 + 3.0 * u * x * x * 0.25 + x * x * x
+          if (kotlin.math.abs(at - t) < 1e-5) return@repeat
+          if (at < t) low = x else high = x
+          x = (low + high) / 2.0
+        }
+        val u = 1.0 - x
+        3.0 * u * u * x * 0.1 + 3.0 * u * x * x * 1.0 + x * x * x
+      }
+      else -> t
+    }
+  }
 
   /** Build bounded constant-rate Media3 slices from source-time speed keyframes. */
   private fun speedRampSlices(points: org.json.JSONArray?, duration: Double, fallback: Double): List<RampSlice> {
@@ -156,26 +183,27 @@ class ShubixVideoModule : Module() {
       val time = point.optDouble("time", Double.NaN)
       val rate = point.optDouble("speed", Double.NaN)
       if (!time.isFinite() || !rate.isFinite()) null
-      else Pair(time.coerceIn(0.0, duration), rate.coerceIn(0.25, 4.0))
-    }.sortedBy { it.first }
+      else RampPoint(time.coerceIn(0.0, duration), rate.coerceIn(0.25, 4.0), point.optString("easing", "linear"))
+    }.sortedBy { it.time }
     if (sorted.isEmpty()) return emptyList()
-    val unique = mutableListOf<Pair<Double, Double>>()
+    val unique = mutableListOf<RampPoint>()
     sorted.forEach { point ->
-      if (unique.isNotEmpty() && kotlin.math.abs(unique.last().first - point.first) < 0.001) unique[unique.lastIndex] = point
+      if (unique.isNotEmpty() && kotlin.math.abs(unique.last().time - point.time) < 0.001) unique[unique.lastIndex] = point
       else unique += point
     }
-    if (unique.first().first > 0.0) unique.add(0, Pair(0.0, unique.first().second))
-    if (unique.last().first < duration) unique += Pair(duration, unique.last().second)
+    if (unique.first().time > 0.0) unique.add(0, RampPoint(0.0, unique.first().speed, "linear"))
+    if (unique.last().time < duration) unique += RampPoint(duration, unique.last().speed, "linear")
     val result = mutableListOf<RampSlice>()
     for (index in 0 until unique.lastIndex) {
       val left = unique[index]; val right = unique[index + 1]
-      val count = kotlin.math.ceil((right.first - left.first) / 0.2).toInt().coerceIn(1, 240)
+      val count = kotlin.math.ceil((right.time - left.time) / 0.2).toInt().coerceIn(1, 240)
       for (part in 0 until count) {
-        val start = left.first + (right.first - left.first) * part / count
-        val end = left.first + (right.first - left.first) * (part + 1) / count
+        val start = left.time + (right.time - left.time) * part / count
+        val end = left.time + (right.time - left.time) * (part + 1) / count
         val midpoint = (start + end) / 2.0
-        val progress = ((midpoint - left.first) / (right.first - left.first).coerceAtLeast(0.000001)).coerceIn(0.0, 1.0)
-        val rate = left.second + (right.second - left.second) * progress
+        val raw = ((midpoint - left.time) / (right.time - left.time).coerceAtLeast(0.000001)).coerceIn(0.0, 1.0)
+        val progress = rampEase(raw, right.easing)
+        val rate = left.speed + (right.speed - left.speed) * progress
         result += RampSlice(start, end, rate.coerceIn(0.25, 4.0))
       }
     }
