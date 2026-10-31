@@ -28,7 +28,7 @@ export class UnsupportedAndroidRenderFeature extends Error {
   }
 }
 
-const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic"]);
+const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"]);
 const SUPPORTED_RENDER_EFFECTS = new Set(["blur", "brightness", "contrast", "saturation", "hue"]);
 
 /**
