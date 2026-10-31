@@ -123,3 +123,17 @@ black/missing frames, blur/repetition, duration, dimensions/FPS and audio clippi
 It returns pass/warn/fail plus specific repair hints. The renderer must collect those probes
 and run this gate before marking a generated Reel complete; a recommendation is not itself
 an automatic repair or a substitute for a second render.
+
+## Advanced shared editing utilities added on `chatGpt`
+
+The platform-neutral package now also provides deterministic timeline helpers:
+- `rippleDelete`: remove a selected timeline interval, split crossing clips and close the gap while preserving source-time mapping.
+- `rippleInsert`: insert a gap and split/move affected clips without losing their source ranges.
+- `slipClip`: change a clip's source window while preserving its timeline placement.
+- `evaluateMotionPath`: sample cubic-Bezier motion paths with endpoint clamping.
+- `buildDuckingEnvelope`: create a bounded attack/hold/release gain envelope for audio-mix consumers.
+
+The shared RenderJob contract now carries music gain, fade-in, fade-out and optional ducking metadata. The Android adapter maps these fields to the existing Media3 gain processor and preserves per-clip source gain up to 100%. It rejects unsupported timeline placement or gain values instead of silently changing them.
+
+The shared Android adapter still deliberately rejects speed-ramp and shot-keyframe projects until those project fields are represented losslessly in the versioned RenderJob contract. The app routes those projects through the existing native export path, which already consumes the editor's speed-ramp and compact transform-keyframe data. This is a compatibility boundary, not a claim of full cross-renderer parity.
+
