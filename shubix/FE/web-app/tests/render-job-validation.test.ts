@@ -110,10 +110,12 @@ describe("Android renderer output contract", () => {
     exportResult: { uri: string; size: number; duration: number },
   ) => {
     let exportCalls = 0;
+    let lastSpec: Record<string, unknown> | undefined;
     const adapter = createAndroidRendererAdapter({
       nativeModule: {
-        async exportReel() {
+        async exportReel(spec: string) {
           exportCalls += 1;
+          lastSpec = JSON.parse(spec) as Record<string, unknown>;
           return exportResult;
         },
         async cancel() {},
@@ -124,7 +126,7 @@ describe("Android renderer output contract", () => {
       createOutputPath,
       maxWorkingSetBytes: 64 * 1024 * 1024,
     });
-    return { adapter, exportCalls: () => exportCalls };
+    return { adapter, exportCalls: () => exportCalls, lastSpec: () => lastSpec };
   };
 
   it("rejects relative output paths before invoking native export", async () => {
@@ -147,6 +149,25 @@ describe("Android renderer output contract", () => {
       "Android export requires a non-empty absolute filesystem output path.",
     );
     expect(exportCalls()).toBe(0);
+  });
+
+  it("preserves the requested music duration and trims it to the Reel length", async () => {
+    const { adapter, lastSpec } = adapterFor(
+      async () => "/data/user/0/app/files/reel.mp4",
+      { uri: "file:///data/user/0/app/files/reel.mp4", size: 1024, duration: 5 },
+    );
+    const job = validJob();
+    job.audio = [{
+      source: "file:///music.mp3",
+      startMs: 0,
+      durationMs: 2500,
+      sourceStartMs: 1200,
+      volume: 0.8,
+    }];
+    await adapter.render(job, () => {});
+    const nativeAudio = lastSpec()?.audio as Record<string, unknown>;
+    expect(nativeAudio.duration).toBe(2.5);
+    expect(nativeAudio.start).toBe(1.2);
   });
 
   it("rejects native export results without a non-empty output URI", async () => {
