@@ -13,7 +13,7 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   const output = `${Paths.document.uri.replace(/^file:\/\//, "")}exports/${p.id}-${Date.now()}.mp4`;
   const spec = {
     width, height, output,
-    clips: p.clips.map(({ uri, kind, start, end, speed, muted, volume, rotation, mirror, flip, fit, filter }) => ({ uri, kind, start, end, speed, muted, volume, rotation, mirror, flip, fit, filter })),
+    clips: p.clips.map(({ uri, kind, start, end, speed, speedRamp, muted, volume, rotation, mirror, flip, fit, filter }) => ({ uri, kind, start, end, speed, speedRamp, muted, volume, rotation, mirror, flip, fit, filter })),
     audio: p.audioUri ? { uri: p.audioUri, start: p.settings?.start ?? 0, volume: Math.min(1, Math.max(0, p.settings?.musicVolume ?? 1)), fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0 } : undefined,
     texts: p.overlays.map(({ text, start, end, color, size }) => ({ text, start, end, color, size })),
   };
