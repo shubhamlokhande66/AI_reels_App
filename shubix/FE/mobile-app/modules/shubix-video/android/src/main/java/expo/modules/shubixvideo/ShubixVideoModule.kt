@@ -853,8 +853,9 @@ class ShubixVideoModule : Module() {
       if (current.isNotEmpty() && lines.size < maxLines) lines += current
       if (lines.isEmpty()) lines += ""
       if (truncated && lines.isNotEmpty()) {
-        val last = lines.last()
-        lines[lines.lastIndex] = last.takeWhile { paint.measureText(last.substring(0, last.indexOf(it).coerceAtLeast(0) + 1) + "…") <= maxLineWidth } + "…"
+        var shortened = lines.last()
+        while (shortened.isNotEmpty() && paint.measureText("$shortened…") > maxLineWidth) shortened = shortened.dropLast(1)
+        lines[lines.lastIndex] = "$shortened…"
       }
       val width = (lines.maxOf { paint.measureText(it) }.toInt() + pad * 2).coerceIn(2, w)
       val height = (lineHeight * lines.size + pad * 2).toInt().coerceIn(2, frameHeight)
