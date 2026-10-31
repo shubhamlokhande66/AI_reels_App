@@ -140,7 +140,7 @@ describe("Android renderer output contract", () => {
 
   it("rejects output paths containing a NUL byte before invoking native export", async () => {
     const { adapter, exportCalls } = adapterFor(
-      async () => "/data/user/0/app/files/reel\\u0000.mp4",
+      async () => "/data/user/0/app/files/reel\u0000.mp4",
       { uri: "file:///data/user/0/app/files/reel.mp4", size: 1024, duration: 5 },
     );
     await expect(adapter.render(validJob(), () => {})).rejects.toThrow(
