@@ -279,3 +279,210 @@ export function evaluateAudioGain(time: number, envelope: AudioEnvelope): number
   const outGain = fadeOut > 0 ? clamp((duration - position) / fadeOut, 0, 1) : 1;
   return volume * Math.min(inGain, outGain);
 }
+
+
+/**
+ * Product-facing editor tool catalogue.
+ *
+ * This is deliberately separate from EFFECT_LIBRARY: a tool may be discoverable in
+ * the product catalogue before every renderer supports it. UI must call
+ * resolveEditorToolAvailability() and never present an unavailable tool as export-ready.
+ */
+export type EditorPlatform = "web" | "android";
+export type EditorToolStatus = "ready" | "studio-only" | "preview-only" | "planned";
+export type EditorToolCategory =
+  | "clip" | "timeline" | "transform" | "keyframe" | "speed" | "color" | "effect"
+  | "transition" | "mask" | "layer" | "text" | "caption" | "audio" | "ai" | "export";
+export type EditorToolDefinition = {
+  id: string;
+  label: string;
+  category: EditorToolCategory;
+  tier: "basic" | "advanced" | "pro" | "trending";
+  status: EditorToolStatus;
+  platforms: readonly EditorPlatform[];
+  /** Human-readable renderer boundary; never infer support from platform alone. */
+  renderer: "shared" | "studio" | "media3" | "webgl" | "webcodecs" | "analysis";
+  description: string;
+  tags?: readonly string[];
+};
+
+const tool = (
+  id: string, label: string, category: EditorToolCategory, tier: EditorToolDefinition["tier"],
+  status: EditorToolStatus, platforms: readonly EditorPlatform[],
+  renderer: EditorToolDefinition["renderer"], description: string, tags: readonly string[] = [],
+): EditorToolDefinition => ({ id, label, category, tier, status, platforms, renderer, description, tags });
+
+/**
+ * Complete discoverability catalogue for the editor. "planned" and "preview-only"
+ * entries are intentionally gated until a renderer can preview AND export them.
+ */
+export const EDITOR_TOOL_CATALOG: readonly EditorToolDefinition[] = [
+  // Clip basics
+  tool("trim", "Trim", "clip", "basic", "ready", ["web","android"], "shared", "Set source in and out points"),
+  tool("split", "Split", "clip", "basic", "ready", ["web","android"], "shared", "Split a clip at the playhead"),
+  tool("crop", "Crop", "clip", "basic", "ready", ["web","android"], "shared", "Crop the visible source frame"),
+  tool("rotate", "Rotate", "transform", "basic", "ready", ["web","android"], "shared", "Rotate by quarter turns or custom angle"),
+  tool("flip", "Flip", "transform", "basic", "ready", ["web","android"], "shared", "Mirror horizontally or vertically"),
+  tool("duplicate", "Duplicate", "clip", "basic", "ready", ["web","android"], "shared", "Duplicate a clip or overlay"),
+  tool("freeze-frame", "Freeze Frame", "clip", "advanced", "planned", ["web","android"], "shared", "Hold a selected source frame"),
+  tool("reverse", "Reverse", "clip", "advanced", "planned", ["web","android"], "shared", "Reverse clip playback"),
+  tool("extract-audio", "Extract Audio", "clip", "advanced", "studio-only", ["web","android"], "studio", "Create an audio track from source video"),
+  tool("replace-clip", "Replace Clip", "clip", "basic", "ready", ["web","android"], "shared", "Replace media while preserving edit timing"),
+
+  // Timeline and layers
+  tool("multi-track", "Multi-track Timeline", "timeline", "pro", "studio-only", ["web","android"], "studio", "Arrange video, audio, text and overlay tracks"),
+  tool("magnetic-snap", "Magnetic Snap", "timeline", "advanced", "ready", ["web","android"], "shared", "Snap edits to clips, markers and beats"),
+  tool("timeline-zoom", "Timeline Zoom", "timeline", "basic", "ready", ["web","android"], "shared", "Zoom and navigate frame-level timeline positions"),
+  tool("ripple-edit", "Ripple Edit", "timeline", "advanced", "planned", ["web","android"], "shared", "Close gaps while preserving downstream timing"),
+  tool("slip-edit", "Slip Edit", "timeline", "pro", "planned", ["web","android"], "shared", "Change source range without moving timeline placement"),
+  tool("track-lock", "Track Lock", "layer", "advanced", "planned", ["web","android"], "shared", "Lock a track against accidental edits"),
+  tool("group-layers", "Group Layers", "layer", "pro", "planned", ["web","android"], "shared", "Group and transform multiple overlays"),
+  tool("blend-modes", "Blend Modes", "layer", "pro", "studio-only", ["web","android"], "studio", "Screen, multiply, overlay, soft-light and related compositing"),
+  tool("opacity", "Layer Opacity", "layer", "advanced", "studio-only", ["web","android"], "studio", "Animate overlay transparency"),
+
+  // Motion and keyframes
+  tool("keyframes-transform", "Transform Keyframes", "keyframe", "advanced", "ready", ["web","android"], "shared", "Animate position, scale, rotation and opacity"),
+  tool("keyframes-bezier", "Bezier Easing", "keyframe", "pro", "ready", ["web","android"], "shared", "Edit cubic-Bezier motion curves"),
+  tool("keyframes-copy-paste", "Copy / Paste Keyframes", "keyframe", "advanced", "ready", ["web","android"], "shared", "Copy keyframe groups between shots"),
+  tool("motion-path", "Motion Paths", "keyframe", "pro", "planned", ["web","android"], "shared", "Animate along editable paths"),
+  tool("auto-reframe", "Auto Reframe", "transform", "advanced", "studio-only", ["web","android"], "studio", "Reframe a subject for vertical, square and landscape outputs"),
+  tool("face-follow", "Face Follow", "transform", "pro", "studio-only", ["web","android"], "studio", "Follow detected face-analysis frames"),
+  tool("object-tracking", "Object Tracking", "transform", "pro", "planned", ["web","android"], "analysis", "Track a selected object across frames"),
+  tool("person-segmentation", "Person Segmentation", "mask", "pro", "planned", ["web","android"], "analysis", "Create a subject mask for background replacement"),
+
+  // Speed
+  tool("speed-presets", "Speed Presets", "speed", "basic", "ready", ["web","android"], "shared", "Slow motion and fast playback presets"),
+  tool("speed-ramp", "Speed Ramp", "speed", "pro", "studio-only", ["web","android"], "studio", "Animate playback speed with a curve"),
+  tool("smooth-slow-motion", "Smooth Slow Motion", "speed", "pro", "planned", ["web","android"], "media3", "Frame interpolation for smoother slow motion"),
+  tool("time-remap", "Time Remapping", "speed", "pro", "planned", ["web","android"], "shared", "Advanced variable-speed time mapping"),
+
+  // Colour and image
+  tool("color-presets", "Color Looks", "color", "basic", "ready", ["web","android"], "shared", "Warm, cool, cinematic, vintage, cyberpunk and more"),
+  tool("hsl", "HSL Adjustments", "color", "advanced", "ready", ["web","android"], "shared", "Adjust hue, saturation and lightness"),
+  tool("curves", "RGB Curves", "color", "pro", "studio-only", ["web","android"], "studio", "Control shadows, midtones and highlights"),
+  tool("lut", "3D LUT", "color", "pro", "studio-only", ["web","android"], "studio", "Apply creative lookup-table color profiles"),
+  tool("selective-color", "Selective Color", "color", "pro", "planned", ["web","android"], "webgl", "Grade selected color ranges independently"),
+  tool("vignette", "Vignette", "color", "advanced", "studio-only", ["web","android"], "studio", "Shape edge falloff and focus"),
+  tool("film-grain", "Film Grain", "color", "advanced", "planned", ["web","android"], "webgl", "Add adjustable analog film texture"),
+  tool("halation", "Halation", "color", "trending", "planned", ["web","android"], "webgl", "Add film-like highlight bloom"),
+  tool("bloom-glow", "Bloom / Glow", "color", "advanced", "planned", ["web","android"], "webgl", "Glow bright highlights with threshold and radius controls"),
+
+  // Effects: common and currently popular looks
+  tool("gaussian-blur", "Gaussian Blur", "effect", "basic", "ready", ["web","android"], "shared", "Blur with adjustable radius"),
+  tool("sharpen", "Sharpen", "effect", "advanced", "ready", ["web","android"], "shared", "Recover perceived detail after scaling"),
+  tool("motion-blur", "Motion Blur", "effect", "pro", "planned", ["web","android"], "webgl", "Directional shutter blur tied to motion"),
+  tool("chromatic-aberration", "Chromatic Aberration", "effect", "trending", "planned", ["web","android"], "webgl", "Separate color channels at image edges"),
+  tool("rgb-split", "RGB Split", "effect", "trending", "studio-only", ["web","android"], "studio", "Offset RGB channels for music-driven accents"),
+  tool("glitch", "Digital Glitch", "effect", "trending", "studio-only", ["web","android"], "studio", "Digital breakup and signal distortion"),
+  tool("vhs", "VHS Retro", "effect", "trending", "studio-only", ["web","android"], "studio", "Retro tape noise, scanlines and chroma shift"),
+  tool("film-burn", "Film Burn", "effect", "trending", "studio-only", ["web","android"], "studio", "Light-leak and film-burn overlays"),
+  tool("light-leak", "Light Leak", "effect", "advanced", "studio-only", ["web","android"], "studio", "Cinematic light leaks"),
+  tool("strobe", "Strobe", "effect", "trending", "studio-only", ["web","android"], "studio", "Beat-triggered flash accents"),
+  tool("kaleidoscope", "Kaleidoscope", "effect", "trending", "studio-only", ["web","android"], "studio", "Radial mirrored repetition"),
+  tool("mirror", "Mirror", "effect", "advanced", "studio-only", ["web","android"], "studio", "Mirror and split-screen symmetry"),
+  tool("mosaic", "Mosaic / Pixelate", "effect", "advanced", "ready", ["web","android"], "shared", "Pixelate regions or full frames"),
+  tool("beauty", "Beauty Retouch", "effect", "advanced", "studio-only", ["web","android"], "studio", "Subtle skin smoothing with detail preservation"),
+  tool("stabilization", "Stabilization", "effect", "pro", "studio-only", ["web","android"], "studio", "Reduce camera shake with crop compensation"),
+  tool("background-removal", "Background Removal", "effect", "pro", "planned", ["web","android"], "analysis", "Separate foreground subject from background"),
+  tool("portrait-blur", "Portrait Background Blur", "effect", "pro", "planned", ["web","android"], "analysis", "Depth-aware subject separation and blur"),
+
+  // Transitions
+  tool("cut", "Hard Cut", "transition", "basic", "ready", ["web","android"], "shared", "Instant cut at the edit point"),
+  tool("dissolve", "Cross Dissolve", "transition", "basic", "ready", ["web","android"], "shared", "Blend adjacent shots"),
+  tool("fade", "Fade In / Out", "transition", "basic", "ready", ["web","android"], "shared", "Fade picture or audio"),
+  tool("push-slide", "Push / Slide", "transition", "advanced", "ready", ["web","android"], "shared", "Directional movement between shots"),
+  tool("zoom-transition", "Zoom Transition", "transition", "trending", "ready", ["web","android"], "shared", "Beat-friendly zoom between shots"),
+  tool("whip-pan", "Whip Pan", "transition", "trending", "studio-only", ["web","android"], "studio", "Fast directional motion blur transition"),
+  tool("glitch-transition", "Glitch Transition", "transition", "trending", "studio-only", ["web","android"], "studio", "Digital glitch transition"),
+  tool("luma-wipe", "Luma Wipe", "transition", "pro", "studio-only", ["web","android"], "studio", "Reveal using luminance"),
+  tool("mask-reveal", "Mask Reveal", "transition", "pro", "planned", ["web","android"], "webgl", "Reveal through a custom animated mask"),
+  tool("3d-flip", "3D Flip", "transition", "trending", "planned", ["web","android"], "webgl", "Perspective flip between clips"),
+  tool("liquid-morph", "Liquid Morph", "transition", "trending", "planned", ["web","android"], "webgl", "Flowing morph between matched subjects"),
+
+  // Masks and compositing
+  tool("shape-masks", "Shape Masks", "mask", "advanced", "studio-only", ["web","android"], "studio", "Rectangle, ellipse, linear and radial masks"),
+  tool("freehand-mask", "Freehand Mask", "mask", "pro", "planned", ["web","android"], "webgl", "Draw custom mask paths"),
+  tool("mask-feather", "Mask Feather / Invert", "mask", "advanced", "studio-only", ["web","android"], "studio", "Soften or invert mask edges"),
+  tool("chroma-key", "Chroma Key", "mask", "pro", "studio-only", ["web","android"], "studio", "Remove a selected key color"),
+  tool("luma-key", "Luma Key", "mask", "pro", "studio-only", ["web","android"], "studio", "Composite by luminance"),
+  tool("rotoscoping", "AI Rotoscoping", "mask", "pro", "planned", ["web","android"], "analysis", "Track a person or object mask over time"),
+
+  // Text and captions
+  tool("text-overlay", "Text Overlays", "text", "basic", "ready", ["web","android"], "shared", "Add, position and time text layers"),
+  tool("text-animation", "Text Animation", "text", "advanced", "studio-only", ["web","android"], "studio", "Fade, pop, typewriter and reveal animation"),
+  tool("kinetic-typography", "Kinetic Typography", "text", "trending", "studio-only", ["web","android"], "studio", "Animate words and phrases to speech or music"),
+  tool("word-captions", "Word-by-word Captions", "caption", "advanced", "studio-only", ["web","android"], "studio", "Synchronize captions to spoken words"),
+  tool("karaoke-captions", "Karaoke Captions", "caption", "trending", "studio-only", ["web","android"], "studio", "Highlight each spoken word as it is heard"),
+  tool("caption-translation", "Caption Translation", "caption", "advanced", "studio-only", ["web","android"], "studio", "Translate captions while preserving timing"),
+  tool("auto-captions", "Auto Captions", "caption", "advanced", "studio-only", ["web","android"], "studio", "Generate and style speech captions"),
+
+  // Audio
+  tool("audio-mix", "Audio Mixer", "audio", "advanced", "ready", ["web","android"], "shared", "Independent clip and music gain"),
+  tool("audio-fades", "Audio Fade In / Out", "audio", "basic", "ready", ["web","android"], "shared", "Apply deterministic gain envelopes"),
+  tool("audio-ducking", "Auto Ducking", "audio", "pro", "planned", ["web","android"], "shared", "Lower music under dialogue"),
+  tool("voice-isolation", "Voice Isolation", "audio", "pro", "planned", ["web","android"], "analysis", "Separate speech from background audio"),
+  tool("noise-reduction", "Noise Reduction", "audio", "advanced", "planned", ["web","android"], "shared", "Reduce steady background noise"),
+  tool("voiceover", "Voiceover / TTS", "audio", "advanced", "studio-only", ["web","android"], "studio", "Record or synthesize narration"),
+  tool("equalizer", "Equalizer", "audio", "pro", "planned", ["web","android"], "shared", "Shape frequency bands"),
+  tool("audio-effects", "Reverb / Delay", "audio", "advanced", "planned", ["web","android"], "shared", "Add spatial and echo effects"),
+
+  // AI and export
+  tool("ai-director", "AI Director", "ai", "pro", "ready", ["web","android"], "analysis", "Plan shot roles, pacing, effects and beat-aware cuts"),
+  tool("beat-sync", "Beat Sync", "ai", "advanced", "ready", ["web","android"], "analysis", "Align edits to detected beats and drops"),
+  tool("smart-crop", "AI Smart Crop", "ai", "advanced", "studio-only", ["web","android"], "analysis", "Keep faces and subjects inside the output frame"),
+  tool("auto-hook", "AI Opening Hook", "ai", "trending", "studio-only", ["web","android"], "analysis", "Choose an opening moment and hook treatment"),
+  tool("auto-broll", "AI B-roll Suggestions", "ai", "pro", "planned", ["web","android"], "analysis", "Suggest supporting footage for story gaps"),
+  tool("export-quality", "Export Quality / FPS", "export", "basic", "ready", ["web","android"], "shared", "Choose output size, frame rate and quality"),
+] as const;
+
+export type EditorRendererCapabilities = {
+  platform: EditorPlatform;
+  studioSession?: boolean;
+  media3?: boolean;
+  webgl?: boolean;
+  webcodecs?: boolean;
+  analysis?: boolean;
+};
+
+/** Resolve availability at runtime so the UI never offers a tool the active renderer drops. */
+export function resolveEditorToolAvailability(
+  definition: EditorToolDefinition,
+  capabilities: EditorRendererCapabilities,
+): { available: boolean; status: EditorToolStatus; reason?: string } {
+  if (!definition.platforms.includes(capabilities.platform)) {
+    return { available: false, status: definition.status, reason: "Not available on this platform." };
+  }
+  if (definition.status === "planned") {
+    return { available: false, status: "planned", reason: "This tool is not implemented in the active renderer yet." };
+  }
+  if (definition.status === "studio-only" && !capabilities.studioSession) {
+    return { available: false, status: "studio-only", reason: "Open a Reel created by Shubix Studio to use this tool." };
+  }
+  if (definition.renderer === "media3" && !capabilities.media3) {
+    return { available: false, status: definition.status, reason: "The native Media3 renderer is unavailable in this build." };
+  }
+  if (definition.renderer === "webgl" && !capabilities.webgl) {
+    return { available: false, status: definition.status, reason: "The WebGL renderer is unavailable." };
+  }
+  if (definition.renderer === "webcodecs" && !capabilities.webcodecs) {
+    return { available: false, status: definition.status, reason: "WebCodecs export is unavailable in this browser." };
+  }
+  if (definition.renderer === "analysis" && !capabilities.analysis) {
+    return { available: false, status: definition.status, reason: "The required analysis capability is unavailable." };
+  }
+  return { available: definition.status === "ready" || definition.status === "studio-only", status: definition.status };
+}
+
+/** Browse tools by category/tier without duplicating platform-specific support logic. */
+export function getEditorTools(
+  filter: { category?: EditorToolCategory; tier?: EditorToolDefinition["tier"]; includeUnavailable?: boolean } = {},
+  capabilities?: EditorRendererCapabilities,
+): EditorToolDefinition[] {
+  return EDITOR_TOOL_CATALOG.filter((item) => {
+    if (filter.category && item.category !== filter.category) return false;
+    if (filter.tier && item.tier !== filter.tier) return false;
+    if (!filter.includeUnavailable && capabilities && !resolveEditorToolAvailability(item, capabilities).available) return false;
+    if (!filter.includeUnavailable && !capabilities && item.status === "planned") return false;
+    return true;
+  });
+}
