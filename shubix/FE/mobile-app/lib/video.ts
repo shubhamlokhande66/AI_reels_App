@@ -15,10 +15,12 @@ const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1
 export async function exportReel(p: ReelProject, onProgress: (done: number) => void) {
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
   const unsupported = p.clips.find((clip) =>
+    clip.reverse ||
     (clip.transition && clip.transition !== "Cut" && clip.transition !== "hard") ||
     (clip.effect && clip.effect !== "none") ||
     (clip.volume ?? 1) > 1
   );
+  if (unsupported?.reverse) throw new Error("Reverse playback is not supported by the current Android native export engine yet.");
   if (unsupported?.transition && !["Cut", "hard"].includes(unsupported.transition)) {
     throw new Error(`The ${unsupported.transition} transition is not supported by the current Android export engine yet. Choose Cut before exporting.`);
   }
