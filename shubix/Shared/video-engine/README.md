@@ -137,3 +137,10 @@ The shared RenderJob contract now carries music gain, fade-in, fade-out and opti
 
 The shared Android adapter still deliberately rejects speed-ramp and shot-keyframe projects until those project fields are represented losslessly in the versioned RenderJob contract. The app routes those projects through the existing native export path, which already consumes the editor's speed-ramp and compact transform-keyframe data. This is a compatibility boundary, not a claim of full cross-renderer parity.
 
+
+
+## Android Media3 Phase 2 implementation boundary
+
+The shared Android RenderJob adapter now maps the Fade in transition to timestamp-scoped alpha effects and supports the Media3 GPU effects blur, animated blur pulse, brightness, contrast, saturation and hue. It also maps the native filter preset set and audio mix settings. These are implemented on the native export path; verify on physical devices before marking release parity complete.
+
+Dissolve/crossfade, directional wipes/slides, 3D transitions, arbitrary masks, additional compositor layers, animated layer transforms and advanced GPU looks are still not claimed as Android-export-ready. The adapter explicitly rejects unsupported transitions, masks, layers, animated effects and text treatments instead of dropping them. Shared keyframe curves are sampled with cubic-Bezier timing; project keyframes continue to use the existing native export path until the versioned adapter maps them losslessly.
