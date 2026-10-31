@@ -30,14 +30,14 @@ export class UnsupportedAndroidRenderFeature extends Error {
 
 const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"]);
 const SUPPORTED_RENDER_EFFECTS = new Set(["blur", "blurpulse", "brightness", "contrast", "saturation", "hue", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat"]);
-const SUPPORTED_ANDROID_TRANSITIONS = new Set(["fade", "slide-left", "slide-right", "slide-up", "slide-down", "zoom-in", "zoom-out", "spin", "whip-pan", "blur", "flash]);
+const SUPPORTED_ANDROID_TRANSITIONS = new Set(["fade", "slide-left", "slide-right", "slide-up", "slide-down", "zoom-in", "zoom-out", "spin", "whip-pan", "blur", "flash"]);
 
 /**
  * Adapter for the currently shipped Media3 module.
  *
- * Important: this adapter intentionally rejects timeline features the Kotlin module
- * does not currently implement (transitions, multiple audio tracks, arbitrary effects,
- * gaps, fades, etc.). It must never silently discard part of an edit.
+ * The adapter maps the native transition/effect/audio subset explicitly and rejects
+ * crossfades, unsupported transitions, masks, extra compositor layers, animated text,
+ * unsupported effects and other fields the Kotlin module cannot reproduce losslessly.
  */
 export function createAndroidRendererAdapter(options: AndroidRendererOptions): RendererAdapter {
   const { nativeModule } = options;
