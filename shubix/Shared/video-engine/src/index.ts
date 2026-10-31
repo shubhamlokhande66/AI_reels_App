@@ -5,6 +5,25 @@
  * the native editor consume the same plan; renderers remain platform-specific.
  */
 export type Easing = "linear" | "lin" | "ease-in" | "ease-out" | "ease-in-out" | "in" | "out" | "inOut" | "inQuad" | "outCubic" | "outExpo" | "outBack" | "hold" | "bezier" | "in" | "out";
+
+/** Immutable bounded history shared by the web and native editors. */
+export type EditHistoryStep<T> = { undo: T[]; redo: T[]; current: T };
+export function recordEdit<T>(undo: T[], current: T, limit = 60) {
+  const cap = Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 60));
+  return { undo: [...undo, current].slice(-cap), redo: [] as T[] };
+}
+export function stepEditHistory<T>(
+  undo: T[], redo: T[], current: T, direction: "undo" | "redo", limit = 60,
+): EditHistoryStep<T> | null {
+  const from = direction === "undo" ? undo : redo;
+  if (!from.length) return null;
+  const cap = Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 60));
+  const next = from[from.length - 1];
+  return direction === "undo"
+    ? { undo: undo.slice(0, -1), redo: [...redo, current].slice(-cap), current: next }
+    : { undo: [...undo, current].slice(-cap), redo: redo.slice(0, -1), current: next };
+}
+
 export type KeyframeValue = number | string | boolean;
 export type Keyframe<T extends KeyframeValue = KeyframeValue> = {
   id: string; time: number; value: T; easing: Easing; inTangent?: number; outTangent?: number;
