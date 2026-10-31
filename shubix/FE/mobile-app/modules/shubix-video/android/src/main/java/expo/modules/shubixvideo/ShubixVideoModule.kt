@@ -54,6 +54,8 @@ import java.io.File
 class ShubixVideoModule : Module() {
   private val main = Handler(Looper.getMainLooper())
   private var running: Transformer? = null
+  private var activePromise: Promise? = null
+  private var activeOutput: File? = null
   private var files: FileServer? = null
 
   override fun definition() = ModuleDefinition {
@@ -62,17 +64,41 @@ class ShubixVideoModule : Module() {
 
     AsyncFunction("exportReel") { specJson: String, promise: Promise ->
       main.post {
-        try { start(JSONObject(specJson), promise) } catch (e: Exception) { promise.reject("E_EXPORT", e.message ?: "The Reel could not be made.", e) }
+        if (activePromise != null) {
+          promise.reject("E_EXPORT_BUSY", "An export is already in progress.", IllegalStateException("Export already running."))
+        } else {
+          activePromise = promise
+          try { start(JSONObject(specJson), promise) } catch (e: Exception) {
+            if (activePromise === promise) activePromise = null
+            activeOutput?.delete(); activeOutput = null
+            promise.reject("E_EXPORT", e.message ?: "The Reel could not be made.", e)
+          }
+        }
       }
     }
-    AsyncFunction("cancel") { main.post { running?.cancel(); running = null } }
+    AsyncFunction("cancel") {
+      main.post {
+        val pending = activePromise
+        running?.cancel(); running = null
+        activeOutput?.delete(); activeOutput = null
+        activePromise = null
+        pending?.reject("E_CANCELLED", "Export cancelled.", IllegalStateException("Export cancelled."))
+      }
+    }
     // the engine page's way to the app's files (FileServer): started once, its port and key
     Function("fileServer") {
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
       val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out")).also { files = it }
       mapOf("port" to s.port, "key" to s.key)
     }
-    OnDestroy { files?.close(); files = null }
+    OnDestroy {
+      val pending = activePromise
+      running?.cancel(); running = null
+      activeOutput?.delete(); activeOutput = null
+      activePromise = null
+      pending?.reject("E_CANCELLED", "Export cancelled because the video engine is closing.", IllegalStateException("Video engine destroyed."))
+      files?.close(); files = null
+    }
   }
 
   private fun start(spec: JSONObject, promise: Promise) {
@@ -143,11 +169,21 @@ class ShubixVideoModule : Module() {
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
+    activeOutput = out
     val transformer = Transformer.Builder(context)
       .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
       .addListener(object : Transformer.Listener {
-        override fun onCompleted(composition: Composition, result: ExportResult) { running = null; promise.resolve(mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at)) }
-        override fun onError(composition: Composition, result: ExportResult, exception: ExportException) { running = null; promise.reject("E_EXPORT", exception.message ?: "The Reel could not be made.", exception) }
+        override fun onCompleted(composition: Composition, result: ExportResult) {
+          if (activePromise !== promise) { out.delete(); return }
+          running = null; activePromise = null; activeOutput = null
+          promise.resolve(mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
+        }
+        override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+          if (activePromise !== promise) { out.delete(); return }
+          running = null; activePromise = null; activeOutput = null
+          out.delete()
+          promise.reject("E_EXPORT", exception.message ?: "The Reel could not be made.", exception)
+        }
       }).build()
     running = transformer
     transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
