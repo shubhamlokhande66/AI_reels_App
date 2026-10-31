@@ -138,7 +138,7 @@ describe("Android renderer output contract", () => {
     expect(exportCalls()).toBe(0);
   });
 
-  it("rejects native export results without a valid file URI", async () => {
+  it("rejects native export results without a non-empty output URI", async () => {
     const { adapter } = adapterFor(
       async () => "/data/user/0/app/files/reel.mp4",
       { uri: " ", size: 1024, duration: 5 },
