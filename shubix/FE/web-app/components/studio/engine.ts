@@ -2657,7 +2657,7 @@ function makeEditNow(){
   const autonomousDirector = createAutonomousReelPlan({
     shots: directorShots, music: { duration: buf.duration, beats, downbeats: beats.filter((_, i) => i % 2 === 0),
       drops: plan.filter(x => x.type === 'drop').map(x => x.start),
-      quietRanges: plan.filter(x => x.type === 'break').map(x => [x.start, x.end]) },
+      quietRanges: plan.filter(x => x.type === 'break').map(x => [x.start, x.end] as [number, number]) },
     targetDuration: Math.min(180, buf.duration), aspect,
     mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
     platform: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'android' : 'web',
