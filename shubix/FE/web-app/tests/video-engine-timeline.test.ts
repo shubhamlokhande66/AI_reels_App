@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSpeedRampSegments, evaluateMotionPath, evaluateSpeedRamp, rippleDelete, rippleInsert, slipClip, type TimelineRange } from "../../../Shared/video-engine/src/index";
+import { buildSpeedRampSegments, evaluateMotionPath, evaluateSpeedRamp, recordEdit, rippleDelete, rippleInsert, slipClip, stepEditHistory, type TimelineRange } from "../../../Shared/video-engine/src/index";
 
 type Clip = TimelineRange & { label: string };
 
@@ -168,5 +168,29 @@ describe("shared motion and speed-ramp evaluation", () => {
       expect(segments[index].outputStart).toBeCloseTo(segments[index - 1].outputEnd, 6);
     }
     expect(segments.every((segment) => segment.speed >= 0.25 && segment.speed <= 4)).toBe(true);
+  });
+});
+
+
+describe("shared edit history", () => {
+  it("undoes the latest snapshot and keeps the current state for redo", () => {
+    const undo = recordEdit(["initial"], "edited", 30);
+    const step = stepEditHistory(undo.undo, undo.redo, "latest", "undo", 30);
+    expect(step).toEqual({ undo: [], redo: ["latest"], current: "edited" });
+  });
+
+  it("redoes an undone snapshot and restores the undo stack", () => {
+    const step = stepEditHistory(["before"], ["after"], "undone", "redo", 30);
+    expect(step).toEqual({ undo: ["before", "undone"], redo: [], current: "after" });
+  });
+
+  it("bounds history and clears redo when a new edit is recorded", () => {
+    const recorded = recordEdit([1, 2, 3], 4, 3);
+    expect(recorded).toEqual({ undo: [2, 3, 4], redo: [] });
+  });
+
+  it("returns no step when the requested history direction is empty", () => {
+    expect(stepEditHistory([], [], "current", "undo")).toBeNull();
+    expect(stepEditHistory([], [], "current", "redo")).toBeNull();
   });
 });
