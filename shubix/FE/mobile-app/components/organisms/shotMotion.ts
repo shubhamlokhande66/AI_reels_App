@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
-import type { ProjectClip } from "@shubix/validations";
+import { clipDuration, type ProjectClip } from "@shubix/validations";
 import { evaluateTransformKeyframes } from "@shubix/video-engine";
 
 /** The studio's transitions and effects in the editor's preview (FE/web-app components/studio/engine.ts: TR_NAME,
@@ -43,7 +43,7 @@ export function useShotMotion(clip: ProjectClip | undefined, playing: boolean, a
       }[draw];
       (Object.keys(from) as (keyof typeof v)[]).forEach((k) => { v[k].setValue(from[k]!); steps.push(timing(v[k], k === "s" || k === "sx" ? 1 : 0, len, draw === "drop" ? Easing.bounce : undefined)); });
     }
-    const fx = clip.effect ?? "", len = Math.max(0.2, (clip.end - clip.start) / clip.speed - at);
+    const fx = clip.effect ?? "", len = Math.max(0.2, clipDuration(clip) - at);
     if (PUNCH[fx] && at < 0.08) {
       const [s, t] = PUNCH[fx];
       if (!tr) v.s.setValue(s);
