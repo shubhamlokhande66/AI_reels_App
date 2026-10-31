@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateRenderJob, type RenderJobSpec } from "../../../Shared/core/src/engine/rendering/renderer";
+import { createAndroidRendererAdapter } from "../../mobile-app/lib/rendering/android-renderer.adapter";
 
 const validJob = (): RenderJobSpec => ({
   version: 1,
@@ -99,5 +100,61 @@ describe("shared RenderJob validation", () => {
       }],
     }];
     expect(validateRenderJob(job)).toContain("Effect blur on item-1 has a keyframe outside its duration.");
+  });
+});
+
+
+describe("Android renderer output contract", () => {
+  const adapterFor = (
+    createOutputPath: () => Promise<string>,
+    exportResult: { uri: string; size: number; duration: number },
+  ) => {
+    let exportCalls = 0;
+    const adapter = createAndroidRendererAdapter({
+      nativeModule: {
+        async exportReel() {
+          exportCalls += 1;
+          return exportResult;
+        },
+        async cancel() {},
+        addListener() {
+          return { remove() {} };
+        },
+      },
+      createOutputPath,
+      maxWorkingSetBytes: 64 * 1024 * 1024,
+    });
+    return { adapter, exportCalls: () => exportCalls };
+  };
+
+  it("rejects relative output paths before invoking native export", async () => {
+    const { adapter, exportCalls } = adapterFor(
+      async () => "exports/reel.mp4",
+      { uri: "file:///exports/reel.mp4", size: 1024, duration: 5 },
+    );
+    await expect(adapter.render(validJob(), () => {})).rejects.toThrow(
+      "Android export requires a non-empty absolute filesystem output path.",
+    );
+    expect(exportCalls()).toBe(0);
+  });
+
+  it("rejects native export results without a valid file URI", async () => {
+    const { adapter } = adapterFor(
+      async () => "/data/user/0/app/files/reel.mp4",
+      { uri: " ", size: 1024, duration: 5 },
+    );
+    await expect(adapter.render(validJob(), () => {})).rejects.toThrow(
+      "Android renderer returned an invalid output",
+    );
+  });
+
+  it("rejects zero-byte or non-finite native export metadata", async () => {
+    const { adapter } = adapterFor(
+      async () => "/data/user/0/app/files/reel.mp4",
+      { uri: "file:///data/user/0/app/files/reel.mp4", size: 0, duration: Number.NaN },
+    );
+    await expect(adapter.render(validJob(), () => {})).rejects.toThrow(
+      "Android renderer returned an invalid output",
+    );
   });
 });
