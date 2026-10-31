@@ -4985,15 +4985,31 @@ async function fastExport(){
     for(let i=0; i<edit.length; i++){
       const e = edit[i], sh = shots[i], cur = await pre; pre = null;
       if(!cur){ pre = open(i+1); continue; }
-      let k = sh.f0, r = await cur.firstP;
+      let k = sh.f0, r = await cur.firstP, consecutiveMissing = 0;
       pre = open(i+1);   // the next shot starts seeking now, while this one is drawn
-      while(!r.done){
-        const wc = r.value;
+      // Encode the complete timeline range, not merely however many frames the decoder happens to yield.
+      // A short/variable-frame-rate source can end its timestamp iterator early; skipping those output timestamps
+      // makes the muxer hold the last picture, which looks exactly like a still photo at the next transition.
+      while(k < sh.fEnd){
+        const wc = r.done ? null : r.value;
         const ta = performance.now(); prof.decode += ta - tq;
-        if(wc) e.fc = wc.canvas; else prof.missing++;
-        if(!wc && !e.fc){   // no frame for this time (variable frame rate, an edit list gap): take the nearest real one, never the previous shot
-          const g = (await cur.sink.getCanvas(cur.ts[k-sh.f0] + 0.05)) || (await cur.sink.getCanvas(cur.first + 0.02));
-          if(g) e.fc = g.canvas;
+        if(wc){ e.fc = wc.canvas; consecutiveMissing = 0; }
+        else {
+          prof.missing++;
+          const requested = cur.ts[k-sh.f0];
+          // Ask the same source decoder for the nearest real frame around this output timestamp. Never substitute
+          // a frame from the previous shot: each clip owns its own fallback image.
+          let nearest = null;
+          for(const offset of [0, 0.05, -0.05, 0.1, -0.1]){
+            nearest = await cur.sink.getCanvas(requested + offset);
+            if(nearest) break;
+          }
+          if(!nearest) nearest = await cur.sink.getCanvas(cur.first + 0.02);
+          if(nearest){ e.fc = nearest.canvas; consecutiveMissing = 0; prof.recovered = (prof.recovered || 0) + 1; }
+          else {
+            consecutiveMissing++; prof.unresolved = (prof.unresolved || 0) + 1;
+            if(!e.fc || consecutiveMissing >= 2) throw new Error('The video decoder could not supply consecutive frames for this clip; retrying with real-time export.');
+          }
         }
         if(GL && GL.lost) prof.glLostFrames++;
         if(lyIts.length) await layerFrames(k);
@@ -5011,7 +5027,7 @@ async function fastExport(){
           tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file'); exportP = done;
           await yieldNow();
         }
-        r = await cur.it.next();
+        if(k < sh.fEnd && !r.done) r = await cur.it.next();
       }
       if(e.fc){ const c = document.createElement('canvas'); c.width = e.fc.width; c.height = e.fc.height; c.getContext('2d').drawImage(e.fc,0,0); e.fcLast = c; }
       e.fc = null; f = sh.fEnd;
