@@ -514,9 +514,6 @@ class ShubixVideoModule : Module() {
     }
     return result
   }
-    }
-    return result
-  }
 
   /** Native motion presets sampled as per-frame transform keyframes. */
   private fun motionEffectFrames(type: String, durationSeconds: Double): org.json.JSONArray? {
