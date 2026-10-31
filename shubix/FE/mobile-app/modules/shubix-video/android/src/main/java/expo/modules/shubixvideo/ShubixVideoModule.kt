@@ -150,6 +150,13 @@ class ShubixVideoModule : Module() {
     require(w in 2..3840 && h in 2..3840) { "Export dimensions must be between 2 and 3840 pixels." }
     val outputPath = spec.optString("output").trim()
     require(outputPath.isNotEmpty()) { "An output file path is required for export." }
+    val outputFile = File(outputPath)
+    require(outputFile.isAbsolute) { "The export output path must be absolute." }
+    val outputDirectory = outputFile.parentFile
+    require(outputDirectory != null && (outputDirectory.isDirectory || outputDirectory.mkdirs()) && outputDirectory.canWrite()) {
+      "The export destination is not a writable directory."
+    }
+    require(!outputFile.isDirectory) { "The export destination must be a file, not a directory." }
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
     val texts = spec.optJSONArray("texts")
@@ -259,7 +266,9 @@ class ShubixVideoModule : Module() {
         else listOf(gainProcessor(musicVolume, at, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
-    val out = File(outputPath).apply { parentFile?.mkdirs(); delete() }
+    val out = outputFile.apply {
+      if (exists()) require(delete()) { "The previous export file could not be replaced." }
+    }
     val session = ActiveExport(promise).also { it.output = out }
     activeExport = session
     val transformer = try {
