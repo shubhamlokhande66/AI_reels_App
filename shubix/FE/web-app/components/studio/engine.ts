@@ -1066,7 +1066,7 @@ function makeCard(f){
  * changes so old results are read again. They go with their clip's file (lib/drafts.ts deleteDraft; keptSweep for leftovers). */
 const SCAN_V = 1;
 async function keptGet(pre, f){ if(typeof indexedDB === 'undefined' || !f) return null; try{ return await idb('files', 'readonly', s => s.get(pre + fileFp(f))) || null; }catch(e){ return null; } }
-function keptPut(pre, f, val){ if(typeof indexedDB === 'undefined' || !f) return; idb('files', 'readwrite', s => s.put(val, pre + fileFp(f))).catch(e => console.info('clip reading not kept:', e && e.message)); }
+function keptPut(pre, f, val){ if(typeof indexedDB === 'undefined' || !f) return Promise.resolve(); return idb('files', 'readwrite', s => s.put(val, pre + fileFp(f))).catch(e => { console.info('clip reading not kept:', e && e.message); }); }
 async function scanGet(src){
   const k = await keptGet('a:', src.file);
   return k && k.v === SCAN_V && Math.abs((k.dur || 0) - src.dur) < 0.05 && k.w === src.w && Array.isArray(k.samples) && k.samples.length ? k : null;
@@ -1132,7 +1132,6 @@ async function compressHighResolutionPreview(src, dd){
     src.proxyMime = cached.blob.type || cached.mime || '';
     src.proxyStatus = 'Reused saved preview'; src.proxyReason = 'Restored from this device draft cache.';
     updateClipHoverInfo(src);
-    previewBatchShow(src,'Using the saved editing copy…',1);
     return;
   }
   const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
@@ -1157,7 +1156,7 @@ async function compressHighResolutionPreview(src, dd){
     if(result && result.blob && result.blob.size<src.file.size){
       const oldUrl=src.url; src.url=URL.createObjectURL(result.blob); src.previewProxy=true; src.proxySize=result.blob.size; src.proxyW=result.plan.width; src.proxyH=result.plan.height; src.proxyMime=result.blob.type; src.proxyStatus='Success'; src.proxyReason='Downscaled preview generated successfully.';
       // Persist the compressed preview separately; export always keeps using the original File.
-      keptPut('p:', src.file, { v: 1, blob: result.blob, width: result.plan.width, height: result.plan.height, mime: result.blob.type || '' });
+      await keptPut('p:', src.file, { v: 1, blob: result.blob, width: result.plan.width, height: result.plan.height, mime: result.blob.type || '' });
       try{URL.revokeObjectURL(oldUrl);}catch(e){}
       updateClipHoverInfo(src);
       previewBatchCompressed++;
