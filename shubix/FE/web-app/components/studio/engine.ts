@@ -1080,10 +1080,43 @@ function previewBatchClose(){
   if(previewBatchUi){previewBatchUi.overlay.remove();previewBatchUi=null;}
   previewBatchCompressed=0; previewBatchDetected=0;
 }
+function clipBytes(bytes){
+  if(!Number.isFinite(bytes)) return '—';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(0)+' KB';
+  return (bytes/1024/1024).toFixed(2)+' MB';
+}
+function updateClipHoverInfo(src){
+  if(!src || !src.card || !src.file) return;
+  const lines=[
+    src.name,
+    'Original: '+clipBytes(src.file.size)+' · '+(src.w&&src.h ? src.w+' × '+src.h : 'resolution pending'),
+    'Duration: '+(Number.isFinite(src.dur)&&src.dur>0 ? fmt(src.dur) : '—'),
+    'Preview: '+(src.proxyStatus || 'Checking…'),
+  ];
+  if(src.previewProxy && src.proxySize){
+    const saved=Math.max(0,src.file.size-src.proxySize);
+    const pct=src.file.size ? saved/src.file.size*100 : 0;
+    lines.push('Preview copy: '+clipBytes(src.proxySize)+' · '+(src.proxyW&&src.proxyH ? src.proxyW+' × '+src.proxyH : '—'));
+    lines.push('Saved: '+clipBytes(saved)+' ('+pct.toFixed(1)+'%)');
+    lines.push('Format: '+(src.proxyMime || 'browser preview'));
+  }else if(src.proxyReason){
+    lines.push('Details: '+src.proxyReason);
+  }
+  lines.push('Export: original file · unchanged');
+  src.card.title=lines.join('\n');
+  src.card.setAttribute('aria-label',lines.join('. '));
+}
 async function compressHighResolutionPreview(src, dd){
   const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
   const plan=previewProxyPlan({size:src.file.size,width:src.w,height:src.h,duration:src.dur}, isMov);
-  if(!plan) return;
+  if(!plan){
+    const longSide=Math.max(src.w||0,src.h||0), avg=src.dur>0 ? src.file.size*8/src.dur : 0;
+    src.proxyStatus='Not compressed';
+    src.proxyReason=longSide>960 || avg>2500000 || isMov ? 'Skipped: below minimum size, proxy estimate not smaller, or metadata outside supported limits.' : 'Not needed: resolution and bitrate are already within preview limits.';
+    updateClipHoverInfo(src); return;
+  }
+  src.proxyStatus='Compressing…'; src.proxyReason='Target preview: '+plan.width+' × '+plan.height+' · '+(plan.bitrate/1e6).toFixed(2)+' Mbps';
+  updateClipHoverInfo(src);
   previewBatchDetected++;
   previewBatchShow(src,'High-resolution video detected. Creating a lightweight editing copy…',0);
   try{
@@ -1094,15 +1127,18 @@ async function compressHighResolutionPreview(src, dd){
     });
     if(src.removed) return;
     if(result && result.blob && result.blob.size<src.file.size){
-      const oldUrl=src.url; src.url=URL.createObjectURL(result.blob); src.previewProxy=true; src.proxySize=result.blob.size;
+      const oldUrl=src.url; src.url=URL.createObjectURL(result.blob); src.previewProxy=true; src.proxySize=result.blob.size; src.proxyW=result.plan.width; src.proxyH=result.plan.height; src.proxyMime=result.blob.type; src.proxyStatus='Success'; src.proxyReason='Downscaled preview generated successfully.';
       try{URL.revokeObjectURL(oldUrl);}catch(e){}
+      updateClipHoverInfo(src);
       previewBatchCompressed++;
       dd.textContent='editing copy ready · analysing…';
       previewBatchShow(src,'Editing copy ready ('+previewBatchCompressed+'/'+previewBatchDetected+'). Analysing all selected videos…',1);
     }else{
+      src.proxyStatus='Failed — original kept'; src.proxyReason='Browser could not create a preview smaller than 90% of the original.'; updateClipHoverInfo(src);
       previewBatchShow(src,'Could not make a smaller copy for '+src.name+'. Keeping the original and continuing analysis…',1);
     }
   }catch(error){
+    src.proxyStatus='Failed — original kept'; src.proxyReason=error instanceof Error ? error.message : String(error); updateClipHoverInfo(src);
     console.info('Preview compression skipped:',error);
     previewBatchShow(src,'Compression unavailable for '+src.name+'. Keeping the original and continuing analysis…',1);
   }
@@ -1120,6 +1156,7 @@ async function readVideo(src){
     v = makeVideo(src.url); await waitEv(v,'loadedmetadata', 15000);
     src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight;
     if(!isFinite(src.dur) || src.dur<=0 || !src.w) throw new Error('bad');
+    src.proxyStatus='Checking preview…'; updateClipHoverInfo(src);
     stage = 'preview compression'; await compressHighResolutionPreview(src, dd);
     if(src.removed) return;
     if(src.previewProxy){ v.removeAttribute('src'); v.load(); v=makeVideo(src.url); await waitEv(v,'loadedmetadata',15000); }
