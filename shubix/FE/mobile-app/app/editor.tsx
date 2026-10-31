@@ -313,13 +313,24 @@ export default function EditorScreen() {
   }
   async function mixVideo() {
     if (!p || clips.length < 2 || mixing) return;
-    if (!engine.holds(p.id)) return toast(words("Mix Video needs a Reel created by Shubix Studio."), "info");
     setMixing(true); setPlaying(false);
     try {
-      const result = await engine.remix();
-      if (!result.ok) throw new Error("Studio could not create another mix. Please try again.");
-      change({ clips: result.clips });
-      if (result.overlays) setP((old) => old ? { ...old, overlays: result.overlays!, studio: old.studio } : old);
+      if (engine.holds(p.id)) {
+        const result = await engine.remix();
+        if (!result.ok) throw new Error("Studio could not create another mix. Please try again.");
+        change({ clips: result.clips });
+        if (result.overlays) setP((old) => old ? { ...old, overlays: result.overlays!, studio: old.studio } : old);
+      } else {
+        // A saved draft may be reopened after the hidden Studio session has ended.
+        // Still offer an on-device alternate cut instead of hiding or disabling Mix Video.
+        const reordered = clips.length > 2 ? [...clips.slice(1), clips[0]] : [...clips].reverse();
+        const effectChoices = ["punch-soft", "pan-soft", "drift", "bounce", "tilt"];
+        setClips(reordered.map((item, index) => ({
+          ...item,
+          transition: index === 0 ? "fadein" : index % 2 ? "dissolve" : "slideleft",
+          effect: effectChoices[index % effectChoices.length],
+        })));
+      }
       setSelected(0); setLocal(0);
       toast(words("A new video mix is ready. No AI credits used."), "success");
     } catch (error) {
@@ -673,7 +684,7 @@ export default function EditorScreen() {
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
         <Preview clip={clip} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <View className="mx-4 mt-2">
-          <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2 || !p.studio || !engine.holds(p.id)} onPress={() => void mixVideo()} />
+          <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
         <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
