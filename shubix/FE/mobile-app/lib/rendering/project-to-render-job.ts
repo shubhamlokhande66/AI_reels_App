@@ -49,7 +49,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
     }
     const durationMs = clipDuration(clip) * 1000;
     const transitionTypes: Record<string, string> = {
-      Fade: "fade", Zoom: "zoom-in", fadein: "fade", whip: "whip-pan", zoom: "zoom-in", zoomout: "zoom-out", spin: "spin",
+      Fade: "fade", Zoom: "zoom-in", Blur: "blur", Flash: "flash", fadein: "fade", whip: "whip-pan", zoom: "zoom-in", zoomout: "zoom-out", spin: "spin",
       slideleft: "slide-left", slideright: "slide-right", slideup: "slide-up", slidedown: "slide-down",
     };
     const effects: Array<NonNullable<RenderTrackItem["effects"]>[number]> = [];
