@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
-import { createDirectorPlan, evaluateKeyframes } from '@shubix/video-engine';
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, evaluateKeyframes } from '@shubix/video-engine';
 import { chatSize } from '@shubix/core/lib/chatSize';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
@@ -2636,26 +2636,42 @@ function makeEditNow(){
   // Shared Director pass: rank the source clips once, then use its explainable quality ranking
   // as a gentle prior in the existing per-shot visual scorer. The music edit still owns timing;
   // the existing AI's explicit shot choices remain authoritative.
-  const sharedDirector = createDirectorPlan({
-    shots: sources.map((src, sourceIndex) => {
-      const samples = src.samples || [];
-      const avg = (key, fallback = 0) => samples.length ? samples.reduce((n, x) => n + (Number(x[key]) || 0), 0) / samples.length : fallback;
-      const sharp = avg('sh') / Math.max(1e-6, src.shMed || 1);
-      const faceScore = Math.max(0, Math.min(1, (src.faces || []).filter(x => x.n).length / Math.max(1, (src.faces || []).length)));
-      const quality = Math.max(0, Math.min(1, 0.55 + (sharp - 1) * 0.18 + (avg('b') - 0.45) * 0.2 - clipFlaw(src) * 0.08));
-      const aiSummary = aiAt(src, 0, src.dur);
-      return { id: String(sourceIndex), sourceIndex, duration: src.dur, quality, motion: Math.max(0, Math.min(1, avg('m'))),
-        faceScore, subjectScore: Math.max(faceScore, Math.max(0, Math.min(1, avg('b')))),
-        isHighlight: !!(aiSummary && aiSummary.score > 0.82),
-        isProduct: !!(aiSummary && aiSummary.roles && aiSummary.roles.product > 0.55),
-        isFood: !!(aiSummary && aiSummary.roles && aiSummary.roles.food > 0.55),
-        speech: !!(src.voice && src.voice.has) };
-    }),
-    beats, drops: plan.filter(x => x.type === 'drop').map(x => x.start),
-    targetDuration: Math.min(180, buf.duration), aspect, mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
-    mobile: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+  const directorShots = sources.map((src, sourceIndex) => {
+    const samples = src.samples || [];
+    const avg = (key, fallback = 0) => samples.length ? samples.reduce((n, x) => n + (Number(x[key]) || 0), 0) / samples.length : fallback;
+    const sharp = avg('sh') / Math.max(1e-6, src.shMed || 1);
+    const faceScore = Math.max(0, Math.min(1, (src.faces || []).filter(x => x.n).length / Math.max(1, (src.faces || []).length)));
+    const quality = Math.max(0, Math.min(1, 0.55 + (sharp - 1) * 0.18 + (avg('b') - 0.45) * 0.2 - clipFlaw(src) * 0.08));
+    const aiSummary = aiAt(src, 0, src.dur);
+    const motion = Math.max(0, Math.min(1, avg('m')));
+    return { id: String(sourceIndex), sourceIndex, duration: src.dur, sourceStart: 0, sourceEnd: src.dur,
+      quality, motion, aestheticScore: aiSummary ? Math.max(0, Math.min(1, aiSummary.score || 0)) : quality,
+      faceScore, subjectScore: Math.max(faceScore, Math.max(0, Math.min(1, avg('b')))),
+      isHighlight: !!(aiSummary && aiSummary.score > 0.82),
+      isProduct: !!(aiSummary && aiSummary.roles && aiSummary.roles.product > 0.55),
+      isFood: !!(aiSummary && aiSummary.roles && aiSummary.roles.food > 0.55),
+      isAction: motion > 0.68, isDetail: !!(aiSummary && aiSummary.roles && (aiSummary.roles.product > 0.55 || aiSummary.roles.food > 0.55)),
+      isUsable: src.dur > 0.35 && quality > 0.08,
+      speech: !!(src.voice && src.voice.has) };
+  });
+  const autonomousDirector = createAutonomousReelPlan({
+    shots: directorShots, music: { duration: buf.duration, beats, downbeats: beats.filter((_, i) => i % 2 === 0),
+      drops: plan.filter(x => x.type === 'drop').map(x => x.start),
+      quietRanges: plan.filter(x => x.type === 'break').map(x => [x.start, x.end]) },
+    targetDuration: Math.min(180, buf.duration), aspect,
+    mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
+    platform: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'android' : 'web',
     intensity: mode === 'fast' ? 'bold' : mode === 'smooth' ? 'subtle' : 'balanced',
   });
+  const autonomousErrors = validateAutonomousReelPlan(autonomousDirector);
+  // Keep the established scorer as a safety fallback until the autonomous plan passes validation.
+  const sharedDirector = autonomousErrors.length ? createDirectorPlan({
+    shots: directorShots, beats, drops: plan.filter(x => x.type === 'drop').map(x => x.start),
+    targetDuration: Math.min(180, buf.duration), aspect,
+    mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
+    mobile: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
+    intensity: mode === 'fast' ? 'bold' : mode === 'smooth' ? 'subtle' : 'balanced',
+  }) : autonomousDirector;
   const sharedRank = new Map(sharedDirector.shots.map((shot, rank) => [shot.sourceIndex, rank]));
   const sharedRankMax = Math.max(1, sharedDirector.shots.length - 1);
   // the director's chosen moments are held for their own cuts
