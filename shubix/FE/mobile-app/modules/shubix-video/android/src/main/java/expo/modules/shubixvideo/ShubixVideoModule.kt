@@ -188,6 +188,14 @@ class ShubixVideoModule : Module() {
         if (keyframes != null && keyframes.length() > 0) {
           video += keyframeTransform(keyframes, clipOutputDuration)
           video += keyframeOpacityEffects(keyframes, clipOutputDuration, segmentDuration)
+        val transitionIn = c.optJSONObject("transitionIn")
+        if (transitionIn?.optString("type") == "fade") {
+          val fadeDuration = transitionIn.optDouble("duration", 0.25).coerceIn(0.001, segmentDuration.coerceAtLeast(0.001))
+          val fadeFrames = org.json.JSONArray()
+            .put(JSONObject().put("t", 0.0).put("o", 0.0))
+            .put(JSONObject().put("t", transitionIn.optDouble("duration", fadeDuration)).put("o", 1.0))
+          video += keyframeOpacityEffects(fadeFrames, clipOutputDuration, segmentDuration)
+        }
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
