@@ -80,3 +80,35 @@ Before showing a tool, pass the active platform and renderer/session capabilitie
 visually degraded Reel. In particular, person segmentation, arbitrary freehand masks,
 object tracking, advanced optical-flow slow motion, and several GPU-heavy looks remain
 gated until both preview and export are implemented and tested.
+
+
+## Autonomous AI Reel Creator
+
+`createAutonomousReelPlan` is the shared autonomous editorial planner used by Fast Studio.
+It consumes pre-analysed source moments and music analysis, then returns a validated edit
+decision: hook, establishing/hero/action/detail/reaction/ending roles, source trims,
+timeline placement, beat-aware transitions, renderer-registered effects, motion keyframes,
+caption suggestions, decisions and warnings.
+
+The planner is deterministic and does not decode video, call a cloud model or render media.
+The platform pipeline is responsible for local media analysis (scene/subject/face/motion/
+quality/speech), audio analysis (BPM/beats/downbeats/drops/quiet sections), and applying
+the plan to the active renderer. This separation keeps the same editorial decisions
+available on Web and Android while preserving device-specific rendering budgets.
+
+Before export, call `validateAutonomousReelPlan`. A plan that fails validation must not
+be exported; the current Fast Studio integration falls back to the existing safe scorer.
+The planner avoids repeating source moments, protects speech, prefers scene/subject
+diversity, selects an intentional opening and ending, and limits effects to the active
+platform's GPU budget.
+
+Autonomous workflow target:
+1. User selects an audio track and source videos (optional instruction or mood).
+2. Local analysis extracts scene moments, subject/face/motion/quality/speech signals.
+3. Music analysis extracts tempo, beat/downbeat grid, drops and quiet ranges.
+4. AI Director creates and validates the complete edit decision.
+5. Renderer applies trims, sequencing, transitions, effects, keyframes, text/captions and mix.
+6. Quality gate checks missing media, black frames, audio clipping, duration and export parity.
+7. Preview and export the final MP4; user can optionally refine it in the manual editor.
+
+No unsupported renderer capability should be silently simulated or presented as export-ready.
