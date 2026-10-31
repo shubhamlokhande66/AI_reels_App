@@ -149,22 +149,24 @@ const ZoomButton = ({ label, text, onPress }: { label: string; text: string; onP
 
 
 /** A clip block with independent left/right trim gestures. */
-function TimelineClip({ clip, index, selected, width, px, onSelect, onTrim }: {
+function TimelineClip({ clip, index, selected, width, px, onSelect, onTrim, onMove }: {
   clip: ProjectClip; index: number; selected: boolean; width: number; px: number;
-  onSelect: () => void; onTrim: (edge: "start" | "end", deltaSeconds: number) => void;
+  onSelect: () => void; onTrim: (edge: "start" | "end", deltaSeconds: number) => void; onMove: (deltaSeconds: number) => void;
 }) {
   const words = useStudioText();
-  const trimGesture = (edge: "start" | "end") => Gesture.Pan()
+  const moveGesture = Gesture.Pan().activateAfterLongPress(250).runOnJS(true).onEnd((event) => {\n    if (Math.abs(event.translationX) >= 8) onMove(event.translationX / Math.max(1, px));\n  });\n  const trimGesture = (edge: "start" | "end") => Gesture.Pan()
     .runOnJS(true)
     .onEnd((event) => {
       if (Math.abs(event.translationX) >= 3) onTrim(edge, event.translationX / Math.max(1, px));
     });
   return (
     <View className={`mr-[2px] h-[52px] overflow-hidden rounded-lg ${selected ? "border-2 border-accent" : ""}`} style={{ width: Math.max(24, width), backgroundColor: CLIP_COL[index % CLIP_COL.length] }}>
-      <Pressable onPress={onSelect} accessibilityLabel={`${words("Shot")} ${index + 1}`} className="absolute inset-0 justify-end">
-        <View className="absolute inset-0 opacity-70"><ClipPicture uri={clip.uri} kind={clip.kind} /></View>
-        <Text numberOfLines={1} className="px-1.5 pb-1 text-[9px] font-semibold text-white">{clipDuration(clip).toFixed(1)}s{clip.speed !== 1 ? ` · ${clip.speed}×` : ""}</Text>
-      </Pressable>
+      <GestureDetector gesture={moveGesture}>
+        <Pressable onPress={onSelect} accessibilityLabel={`${words("Shot")} ${index + 1}`} className="absolute inset-0 justify-end">
+          <View className="absolute inset-0 opacity-70"><ClipPicture uri={clip.uri} kind={clip.kind} /></View>
+          <Text numberOfLines={1} className="px-1.5 pb-1 text-[9px] font-semibold text-white">{clipDuration(clip).toFixed(1)}s{clip.speed !== 1 ? ` · ${clip.speed}×` : ""}</Text>
+        </Pressable>
+      </GestureDetector>
       <GestureDetector gesture={trimGesture("start")}>
         <View accessibilityLabel={words("Trim start")} className="absolute bottom-0 left-0 top-0 w-3 border-r-2 border-white/90 bg-black/35" />
       </GestureDetector>
@@ -178,7 +180,7 @@ function TimelineClip({ clip, index, selected, width, px, onSelect, onTrim }: {
 /** The timeline (the website's phone timeline, as VN): its head (the time, clips and layers, zoom − / + and Fit), the
  * tracks' heads, and the tracks sliding under the playhead in the middle: playing moves them, a swipe scrubs (`onSeek`),
  * two fingers or − / + zoom. A tap on a clip selects it. */
-export function Timeline({ clips, selected, overlays, studioLayers = [], song, now, playing, onSelect, onSeek, onTrim, onAddClip, onText, onVoice, onMusic, onLayer }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; studioLayers?: { index: number; t0: number; t1: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onTrim: (i: number, edge: "start" | "end", deltaSeconds: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void; onLayer?: (index: number) => void }) {
+export function Timeline({ clips, selected, overlays, studioLayers = [], song, now, playing, onSelect, onSeek, onTrim, onMove, onAddClip, onText, onVoice, onMusic, onLayer }: { clips: ProjectClip[]; selected: number; overlays: { id: string; text: string; start: number; end: number }[]; studioLayers?: { index: number; t0: number; t1: number }[]; song?: string; now: number; playing: boolean; onSelect: (i: number) => void; onSeek: (t: number) => void; onTrim: (i: number, edge: "start" | "end", deltaSeconds: number) => void; onMove: (i: number, deltaSeconds: number) => void; onAddClip: () => void; onText: () => void; onVoice: () => void; onMusic: () => void; onLayer?: (index: number) => void }) {
   const words = useStudioText(), total = clips.reduce((t, c) => t + clipDuration(c), 0), laneDefs = [...LANES, ...(studioLayers.length ? [["Layers", "Layers", 36] as [string, string, number]] : [])];
   const [px, setPx] = useState(34), [view, setView] = useState(240), [snapEnabled, setSnapEnabled] = useState(true), scroller = useRef<ComponentRef<typeof ScrollView>>(null), dragging = useRef(false), pinchFrom = useRef(34);
   const clamp = (to: number) => Math.max(8, Math.min(160, to)), frame = useRef(0), want = useRef(34);
@@ -225,7 +227,7 @@ export function Timeline({ clips, selected, overlays, studioLayers = [], song, n
                 <View className="h-[52px] flex-row">{clips.map((c, i) => (
                   <TimelineClip key={c.id} clip={c} index={i} selected={i === selected}
                     width={Math.max(24, clipDuration(c) * px - 2)} px={px} onSelect={() => onSelect(i)}
-                    onTrim={(edge, delta) => onTrim(i, edge, delta)} />
+                    onTrim={(edge, delta) => onTrim(i, edge, delta)} onMove={(delta) => onMove(i, delta)} />
                 ))}</View>
                 <View className="h-9" style={{ width: total * px }}>{overlays.length ? overlays.map((o) => (
                   <Pressable key={o.id} onPress={onText} className="absolute h-8 justify-center overflow-hidden rounded-md border border-[#665276] bg-[#5a4766]/50 px-1.5" style={{ left: o.start * px, width: Math.max(24, (o.end - o.start) * px) }}><Text numberOfLines={1} className="text-[10px] text-foreground">{o.text}</Text></Pressable>
