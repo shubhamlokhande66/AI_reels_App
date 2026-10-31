@@ -651,6 +651,15 @@ export default function EditorScreen() {
                 if (studioStep.ok) {
                   setP((old) => old ? { ...old, clips: studioStep.clips, ...(studioStep.overlays ? { overlays: studioStep.overlays } : {}) } : old);
                   setSelected((i) => Math.min(i, Math.max(0, studioStep.clips.length - 1)));
+                  // Layers live in the hidden Studio document, not ReelProject. Refresh their
+                  // native controls after history navigation so masks/transforms don't look stale.
+                  try {
+                    const layers = await engine.tool("layerList");
+                    if (Array.isArray(layers)) {
+                      setStudioLayers(layers as typeof studioLayers);
+                      setStudioLayerIndex((index) => Math.max(0, Math.min(index, layers.length - 1)));
+                    }
+                  } catch (error) { console.warn("Studio layers could not be refreshed after undo:", error); }
                   return;
                 }
               } catch (error) { console.warn("Studio undo unavailable; using phone history:", error); }
@@ -664,6 +673,14 @@ export default function EditorScreen() {
                 if (studioStep.ok) {
                   setP((old) => old ? { ...old, clips: studioStep.clips, ...(studioStep.overlays ? { overlays: studioStep.overlays } : {}) } : old);
                   setSelected((i) => Math.min(i, Math.max(0, studioStep.clips.length - 1)));
+                  // Restore the layer list from Studio's history along with the clip state.
+                  try {
+                    const layers = await engine.tool("layerList");
+                    if (Array.isArray(layers)) {
+                      setStudioLayers(layers as typeof studioLayers);
+                      setStudioLayerIndex((index) => Math.max(0, Math.min(index, layers.length - 1)));
+                    }
+                  } catch (error) { console.warn("Studio layers could not be refreshed after redo:", error); }
                   return;
                 }
               } catch (error) { console.warn("Studio redo unavailable; using phone history:", error); }
