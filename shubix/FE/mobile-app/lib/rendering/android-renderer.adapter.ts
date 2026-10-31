@@ -152,6 +152,9 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
           onProgress({ phase: "encoding", progress: normalized });
         });
         const output = await options.createOutputPath();
+        if (typeof output !== "string" || !output.trim() || !output.startsWith("/") || output.includes("\\0")) {
+          throw new UnsupportedAndroidRenderFeature("Android export requires a non-empty absolute filesystem output path.");
+        }
         if (cancelRequested) {
           onProgress({ phase: "cancelled", progress: 0 });
           const cancelled = new Error("Export was cancelled.");
@@ -210,6 +213,14 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         onProgress({ phase: "preparing", progress: 0 });
         nativeStarted = true;
         const result = await nativeModule.exportReel(JSON.stringify(nativeSpec));
+        if (
+          !result ||
+          typeof result.uri !== "string" || !result.uri.trim() ||
+          !Number.isFinite(result.size) || result.size <= 0 ||
+          !Number.isFinite(result.duration) || result.duration <= 0
+        ) {
+          throw new Error("Android renderer returned an invalid output (missing URI, file size, or duration).");
+        }
         onProgress({ phase: "completed", progress: 1, outputUri: result.uri, sizeBytes: result.size });
         return { uri: result.uri, sizeBytes: result.size, durationMs: result.duration * 1000 };
       } catch (error) {
