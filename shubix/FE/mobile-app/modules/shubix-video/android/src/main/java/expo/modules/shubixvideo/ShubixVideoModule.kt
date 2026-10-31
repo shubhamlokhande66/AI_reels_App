@@ -248,6 +248,7 @@ class ShubixVideoModule : Module() {
               return
             }
             if (!out.isFile || out.length() <= 0L) {
+              if (out.exists()) out.delete()
               settleExport(session, IllegalStateException("Video export completed without a valid output file."))
               releaseExport(session)
               return
@@ -269,6 +270,7 @@ class ShubixVideoModule : Module() {
           }
         }).build()
     } catch (error: Exception) {
+      session.output?.let { if (it.exists()) it.delete() }
       settleExport(session, error)
       releaseExport(session)
       return
