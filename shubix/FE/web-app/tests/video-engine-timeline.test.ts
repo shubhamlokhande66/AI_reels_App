@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rippleDelete, rippleInsert, slipClip, type TimelineRange } from "../../../Shared/video-engine/src/index";
+import { buildSpeedRampSegments, evaluateMotionPath, evaluateSpeedRamp, rippleDelete, rippleInsert, slipClip, type TimelineRange } from "../../../Shared/video-engine/src/index";
 
 type Clip = TimelineRange & { label: string };
 
@@ -127,5 +127,46 @@ describe("shared timeline ripple editing", () => {
     const empty = { ...clip, id: "empty", duration: 0 };
     expect(rippleDelete([clip, empty], 2, 4).clips.some((item) => item.id === "empty")).toBe(false);
     expect(rippleInsert([clip, empty], 2, 1).some((item) => item.id === "empty")).toBe(false);
+  });
+});
+
+
+describe("shared motion and speed-ramp evaluation", () => {
+  it("applies the outgoing motion-path point easing to its segment", () => {
+    const points = [
+      { time: 0, x: 0, y: 0, easing: "ease-in" as const, outHandle: [1 / 3, 1 / 3] as [number, number] },
+      { time: 1, x: 1, y: 1, inHandle: [-1 / 3, -1 / 3] as [number, number] },
+    ];
+
+    expect(evaluateMotionPath(points, 0.5).x).toBeCloseTo(0.25, 3);
+    expect(evaluateMotionPath(points, 0.5).y).toBeCloseTo(0.25, 3);
+  });
+
+  it("keeps speed ramp evaluation within safe playback limits", () => {
+    expect(evaluateSpeedRamp([
+      { time: 0, speed: 0.1 },
+      { time: 5, speed: 8 },
+    ], 0, 5)).toBe(0.25);
+    expect(evaluateSpeedRamp([
+      { time: 0, speed: 0.1 },
+      { time: 5, speed: 8 },
+    ], 5, 5)).toBe(4);
+  });
+
+  it("builds ordered speed-ramp segments with continuous output timestamps", () => {
+    const segments = buildSpeedRampSegments([
+      { time: 0, speed: 1 },
+      { time: 2, speed: 2 },
+      { time: 4, speed: 0.5 },
+    ], 4, { maxSegmentDuration: 0.5 });
+
+    expect(segments.length).toBeGreaterThan(2);
+    expect(segments[0].sourceStart).toBe(0);
+    expect(segments[segments.length - 1].sourceEnd).toBe(4);
+    for (let index = 1; index < segments.length; index++) {
+      expect(segments[index].sourceStart).toBeCloseTo(segments[index - 1].sourceEnd, 6);
+      expect(segments[index].outputStart).toBeCloseTo(segments[index - 1].outputEnd, 6);
+    }
+    expect(segments.every((segment) => segment.speed >= 0.25 && segment.speed <= 4)).toBe(true);
   });
 });
