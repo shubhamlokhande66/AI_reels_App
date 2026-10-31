@@ -1229,6 +1229,9 @@
 .brs .mk-none::after{content:"×";inset:0;background:none;display:grid;place-items:center;font:600 14px/1 var(--body);opacity:1}
 .brs .mk-circle::after{inset:3px 8px;border-radius:50%}
 .brs .mk-rect::after{inset:4px 6px}
+.brs .mk-polygon::after{inset:3px 7px;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);border-radius:0}
+.brs .mk-radial::after{inset:3px 8px;border-radius:50%;background:radial-gradient(circle,currentColor 0 15%,transparent 75%)}
+.brs .mk-luma::after{inset:4px 5px;background:linear-gradient(90deg,transparent,currentColor,transparent)}
 .brs .mk-line::after{left:2px;right:2px;top:45%;height:2px}
 .brs .mk-mirror::after{inset:2px 11px}
 .brs .keydot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-left:6px;box-shadow:0 0 0 1px var(--line);vertical-align:-1px}
