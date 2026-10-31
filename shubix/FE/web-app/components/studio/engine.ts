@@ -4877,6 +4877,7 @@ async function recordExport(){
     onEnd = null;
     stopAll();
     if(rec && rec.state !== 'inactive'){ try{ rec.stop(); }catch(e){} }
+    if(stopped) { try{ await stopped; }catch(e){} }
     throw err;
   } finally {
     if(tick) clearInterval(tick);
@@ -5105,8 +5106,10 @@ async function runExport(toCloud){
     try{ ok = await fastExport(); }
     catch(err){ console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
     if(!ok){
-      try{ ok = await recordExport(); }
-      catch(err){ console.error('real-time export failed', err); tasks.fail('export', 'Export failed. Please retry with the screen open.'); showMsg('Export failed: ' + (err && err.message ? err.message : 'Please retry in Chrome or Safari.'), true); }
+      try{
+        ok = await recordExport();
+        if(!ok){ tasks.fail('export', 'This browser cannot export video. Open Fast Studio in Chrome or Safari.'); showMsg('This browser cannot export video. Please open Fast Studio in Chrome or Safari.', true); }
+      } catch(err){ console.error('real-time export failed', err); tasks.fail('export', 'Export failed. Please retry with the screen open.'); showMsg('Export failed: ' + (err && err.message ? err.message : 'Please retry in Chrome or Safari.'), true); }
     }
     if(toCloud && lastVideo) await saveToMyReels(lastVideo);
   } finally {
