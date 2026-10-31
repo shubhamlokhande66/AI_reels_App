@@ -52,7 +52,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       fadein: "fade", whip: "whip-pan", zoom: "zoom-in", zoomout: "zoom-out", spin: "spin",
       slideleft: "slide-left", slideright: "slide-right", slideup: "slide-up", slidedown: "slide-down",
     };
-    const effects: NonNullable<RenderTrackItem["effects"]> = [];
+    const effects: Array<NonNullable<RenderTrackItem["effects"]>[number]> = [];
     if (clip.filter && clip.filter !== "Original") {
       effects.push({ type: "filter", params: { name: clip.filter } });
     }
