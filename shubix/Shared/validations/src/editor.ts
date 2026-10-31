@@ -104,12 +104,14 @@ export function splitClip(clip: ProjectClip, newId: string): [ProjectClip, Proje
   const mid = clip.start + (clip.end - clip.start) / 2;
   if (mid - clip.start < 0.2 || clip.end - mid < 0.2) return null;
   const splitAt = mid - clip.start, duration = clip.end - clip.start;
-  const sampled = clip.speedRamp?.length ? Array.from({ length: Math.min(1201, Math.ceil(duration / 0.2) + 1) }, (_, index, all) => {
-    const time = index === all.length - 1 ? duration : Math.min(duration, index * 0.2);
+  const sampleCount = Math.min(1201, Math.ceil(duration / 0.2) + 1);
+  const sampled = clip.speedRamp?.length ? Array.from({ length: sampleCount }, (_, index) => {
+    const time = index === sampleCount - 1 ? duration : Math.min(duration, index * 0.2);
     return { time, speed: speedAtRamp(clip.speedRamp!, time, duration, clip.speed), easing: "linear" as const };
   }) : undefined;
-  const leftRamp = sampled?.filter((point) => point.time < splitAt).concat(sampled?.some((point) => Math.abs(point.time - splitAt) < 0.001) ? [] : [{ time: splitAt, speed: speedAtRamp(clip.speedRamp!, splitAt, duration, clip.speed), easing: "linear" as const }]);
-  const rightRamp = sampled?.filter((point) => point.time > splitAt).map((point) => ({ ...point, time: point.time - splitAt }));
+  const leftRamp = sampled ? sampled.filter((point) => point.time < splitAt) : undefined;
+  if (sampled && leftRamp && !leftRamp.some((point) => Math.abs(point.time - splitAt) < 0.001)) leftRamp.push({ time: splitAt, speed: speedAtRamp(clip.speedRamp!, splitAt, duration, clip.speed), easing: "linear" });
+  const rightRamp = sampled ? sampled.filter((point) => point.time > splitAt).map((point) => ({ ...point, time: point.time - splitAt })) : undefined;
   if (sampled && rightRamp) rightRamp.unshift({ time: 0, speed: speedAtRamp(clip.speedRamp!, splitAt, duration, clip.speed), easing: "linear" });
   return [
     { ...clip, end: mid, ...(leftRamp?.length ? { speedRamp: leftRamp } : { speedRamp: undefined }) },
