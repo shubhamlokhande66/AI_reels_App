@@ -187,7 +187,7 @@ class ShubixVideoModule : Module() {
         if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
         val keyframes = c.optJSONArray("keyframes")
         if (keyframes != null && keyframes.length() > 0) {
-          video += keyframeTransform(keyframes, clipOutputDuration)
+          video += keyframeTransform(keyframes, clipOutputDuration, w, h)
           video += keyframeOpacityEffects(keyframes, clipOutputDuration, segmentDuration)
         }
         val transitionIn = c.optJSONObject("transitionIn")
@@ -205,13 +205,13 @@ class ShubixVideoModule : Module() {
             "flash" -> video += transitionFlashEffects(clipOutputDuration, segmentDuration, transitionDuration)
             else -> {
               val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
-              if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration)
+              if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration, w, h)
             }
           }
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
-        video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration)
+        video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration, w, h)
         if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at + clipOutputDuration, w, h)))
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
         clipOutputDuration += segmentDuration
@@ -318,17 +318,22 @@ class ShubixVideoModule : Module() {
   }
 
   /** Apply the clip's shared transform keyframes per rendered frame (translation, scale and rotation). */
-  private fun keyframeTransform(frames: org.json.JSONArray, timelineOffsetSeconds: Double): MatrixTransformation {
+  private fun keyframeTransform(frames: org.json.JSONArray, timelineOffsetSeconds: Double, frameWidth: Int, frameHeight: Int): MatrixTransformation {
     return MatrixTransformation { presentationTimeUs ->
       val time = timelineOffsetSeconds + presentationTimeUs / 1_000_000.0
       val x = keyframeValue(frames, time, "x", 0.0)
       val y = keyframeValue(frames, time, "y", 0.0)
       val scale = keyframeValue(frames, time, "s", 1.0).coerceIn(0.05, 8.0)
       val rotation = keyframeValue(frames, time, "r", 0.0)
+      val centerX = frameWidth / 2f
+      val centerY = frameHeight / 2f
       Matrix().apply {
+        // Project keyframe x/y values are normalized to the frame (-1…1), not pixels.
+        // Transform around the frame centre so zoom and rotation do not orbit the top-left corner.
+        postTranslate(-centerX, -centerY)
         postScale(scale.toFloat(), scale.toFloat())
         postRotate(rotation.toFloat())
-        postTranslate((x * 2.0).toFloat(), (-y * 2.0).toFloat())
+        postTranslate(centerX + (x * frameWidth).toFloat(), centerY - (y * frameHeight).toFloat())
       }
     }
   }
@@ -524,7 +529,7 @@ class ShubixVideoModule : Module() {
 
   /** The website's filters, as colour changes (Original: none). */
   /** Deterministic GPU effects supported by the shared Android RenderJob adapter. */
-  private fun customEffects(effects: org.json.JSONArray?, timelineOffsetSeconds: Double, durationSeconds: Double, clipDurationSeconds: Double): List<Effect> {
+  private fun customEffects(effects: org.json.JSONArray?, timelineOffsetSeconds: Double, durationSeconds: Double, clipDurationSeconds: Double, frameWidth: Int, frameHeight: Int): List<Effect> {
     if (effects == null) return emptyList()
     val result = mutableListOf<Effect>()
     for (i in 0 until effects.length()) {
@@ -545,7 +550,7 @@ class ShubixVideoModule : Module() {
         }
         "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat" -> {
           val frames = motionEffectFrames(effect.optString("type"), clipDurationSeconds)
-          if (frames != null) result += keyframeTransform(frames, timelineOffsetSeconds)
+          if (frames != null) result += keyframeTransform(frames, timelineOffsetSeconds, frameWidth, frameHeight)
         }
         "brightness" -> if (intensity > 0f) result += Brightness(intensity * 0.25f)
         "contrast" -> if (intensity > 0f) result += Contrast(intensity * 0.5f)
