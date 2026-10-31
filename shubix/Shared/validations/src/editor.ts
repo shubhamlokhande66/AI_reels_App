@@ -32,50 +32,66 @@ export type ReelProject = z.infer<typeof projectSchema>;
 export type TimelineTool = "Media" | "Stickers" | "Filters" | "Style" | "Shots" | "Music" | "Text" | "Captions" | "Background" | "Layers" | "Voice" | "Motion";
 export type ClipAction = "Transition" | "Effect" | "Speed" | "Split" | "Duplicate" | "Freeze" | "Volume" | "Extract audio" | "Crop" | "Reverse" | "Rotate" | "Mirror" | "Flip" | "Fit canvas" | "Border" | "Adjust" | "Speed curve" | "Stabilize" | "Beauty" | "Fade" | "Mosaic" | "Magnifier" | "Slip" | "Trim" | "Reset" | "Delete";
 
-export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed"> & Partial<Pick<ProjectClip, "speedRamp">>) {
-  const sourceDuration = Math.max(0, clip.end - clip.start);
-  const points = clip.speedRamp?.filter((point) => Number.isFinite(point.time) && Number.isFinite(point.speed))
-    .map((point) => ({ time: Math.min(sourceDuration, Math.max(0, point.time)), speed: Math.min(4, Math.max(0.25, point.speed)), easing: point.easing ?? "linear" }))
-    .sort((a, b) => a.time - b.time) ?? [];
-  if (points.length < 2 || sourceDuration <= 0) return sourceDuration / clip.speed;
-  const unique: typeof points = [];
-  for (const point of points) {
+function rampEase(progress: number, easing = "linear") {
+  const t = Math.min(1, Math.max(0, progress));
+  switch (easing) {
+    case "hold": return 0;
+    case "in": case "inQuad": return t * t;
+    case "out": return 1 - (1 - t) * (1 - t);
+    case "inOut": return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    case "outCubic": return 1 - Math.pow(1 - t, 3);
+    case "outExpo": return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+    case "outBack": { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }
+    case "bezier": {
+      let lo = 0, hi = 1, x = t;
+      for (let step = 0; step < 18; step++) {
+        const u = 1 - x, at = 3 * u * u * x * 0.25 + 3 * u * x * x * 0.25 + x * x * x;
+        if (Math.abs(at - t) < 1e-5) break;
+        if (at < t) lo = x; else hi = x;
+        x = (lo + hi) / 2;
+      }
+      const u = 1 - x; return 3 * u * u * x * 0.1 + 3 * u * x * x + x * x * x;
+    }
+    default: return t;
+  }
+}
+
+function speedAtRamp(points: NonNullable<ProjectClip["speedRamp"]>, time: number, duration: number, fallback: number) {
+  const sorted = points.filter((point) => Number.isFinite(point.time) && Number.isFinite(point.speed))
+    .map((point) => ({ time: Math.min(duration, Math.max(0, point.time)), speed: Math.min(4, Math.max(0.25, point.speed)), easing: point.easing ?? "linear" }))
+    .sort((a, b) => a.time - b.time);
+  if (!sorted.length) return Math.min(4, Math.max(0.25, fallback));
+  const unique: typeof sorted = [];
+  for (const point of sorted) {
     if (unique.length && Math.abs(unique[unique.length - 1].time - point.time) < 0.001) unique[unique.length - 1] = point;
     else unique.push(point);
   }
-  if (unique[0].time > 0) unique.unshift({ time: 0, speed: unique[0].speed });
-  if (unique[unique.length - 1].time < sourceDuration) unique.push({ time: sourceDuration, speed: unique[unique.length - 1].speed });
+  if (unique.length === 1) return unique[0].speed;
+  if (unique[0].time > 0) unique.unshift({ time: 0, speed: unique[0].speed, easing: "linear" });
+  if (unique[unique.length - 1].time < duration) unique.push({ time: duration, speed: unique[unique.length - 1].speed, easing: "linear" });
+  const t = Math.min(duration, Math.max(0, time));
+  let index = 0;
+  while (index < unique.length - 2 && unique[index + 1].time < t) index++;
+  const left = unique[index], right = unique[index + 1];
+  const progress = (t - left.time) / Math.max(0.000001, right.time - left.time);
+  return left.speed + (right.speed - left.speed) * rampEase(progress, right.easing);
+}
+
+export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed"> & Partial<Pick<ProjectClip, "speedRamp">>) {
+  const sourceDuration = Math.max(0, clip.end - clip.start);
+  if (sourceDuration <= 0) return 0;
+  const points = clip.speedRamp ?? [];
+  if (!points.length) return sourceDuration / clip.speed;
+  if (points.length === 1) return sourceDuration / Math.min(4, Math.max(0.25, points[0].speed));
   // Match the native renderer's <=200ms constant-rate slices and integrate 1 / playback-rate.
   let outputDuration = 0;
-  for (let index = 0; index < unique.length - 1; index++) {
-    const left = unique[index], right = unique[index + 1];
-    const span = right.time - left.time;
-    const slices = Math.max(1, Math.ceil(span / 0.2));
-    for (let slice = 0; slice < slices; slice++) {
-      const midpoint = (slice + 0.5) / slices;
-      let eased = midpoint;
-      switch (right.easing) {
-        case "hold": eased = 0; break;
-        case "in": case "inQuad": eased = midpoint * midpoint; break;
-        case "out": eased = 1 - (1 - midpoint) * (1 - midpoint); break;
-        case "inOut": eased = midpoint < 0.5 ? 2 * midpoint * midpoint : 1 - Math.pow(-2 * midpoint + 2, 2) / 2; break;
-        case "outCubic": eased = 1 - Math.pow(1 - midpoint, 3); break;
-        case "outExpo": eased = midpoint >= 1 ? 1 : 1 - Math.pow(2, -10 * midpoint); break;
-        case "outBack": { const c1 = 1.70158, c3 = c1 + 1; eased = 1 + c3 * Math.pow(midpoint - 1, 3) + c1 * Math.pow(midpoint - 1, 2); break; }
-        case "bezier": {
-          let lo = 0, hi = 1, t = midpoint;
-          for (let step = 0; step < 18; step++) {
-            const u = 1 - t, x = 3 * u * u * t * 0.25 + 3 * u * t * t * 0.25 + t * t * t;
-            if (Math.abs(x - midpoint) < 1e-5) break;
-            if (x < midpoint) lo = t; else hi = t;
-            t = (lo + hi) / 2;
-          }
-          const u = 1 - t; eased = 3 * u * u * t * 0.1 + 3 * u * t * t + t * t * t; break;
-        }
-      }
-      const speed = left.speed + (right.speed - left.speed) * eased;
-      outputDuration += (span / slices) / Math.max(0.25, speed);
-    }
+  const slices = Math.max(1, Math.ceil(sourceDuration / 0.2));
+  for (let slice = 0; slice < slices; slice++) {
+    const sourceStart = sourceDuration * slice / slices;
+    const sourceEnd = sourceDuration * (slice + 1) / slices;
+    const midpoint = (sourceStart + sourceEnd) / 2;
+    const speed = speedAtRamp(points, midpoint, sourceDuration, clip.speed);
+    outputDuration += (sourceEnd - sourceStart) / Math.max(0.25, speed);
   }
   return outputDuration;
 }
@@ -87,5 +103,16 @@ export function makeClip(source: { id?: string; uri: string; name?: string | nul
 export function splitClip(clip: ProjectClip, newId: string): [ProjectClip, ProjectClip] | null {
   const mid = clip.start + (clip.end - clip.start) / 2;
   if (mid - clip.start < 0.2 || clip.end - mid < 0.2) return null;
-  return [{ ...clip, end: mid }, { ...clip, id: newId, start: mid, transition: "Cut" }];
+  const splitAt = mid - clip.start, duration = clip.end - clip.start;
+  const sampled = clip.speedRamp?.length ? Array.from({ length: Math.min(1201, Math.ceil(duration / 0.2) + 1) }, (_, index, all) => {
+    const time = index === all.length - 1 ? duration : Math.min(duration, index * 0.2);
+    return { time, speed: speedAtRamp(clip.speedRamp!, time, duration, clip.speed), easing: "linear" as const };
+  }) : undefined;
+  const leftRamp = sampled?.filter((point) => point.time < splitAt).concat(sampled?.some((point) => Math.abs(point.time - splitAt) < 0.001) ? [] : [{ time: splitAt, speed: speedAtRamp(clip.speedRamp!, splitAt, duration, clip.speed), easing: "linear" as const }]);
+  const rightRamp = sampled?.filter((point) => point.time > splitAt).map((point) => ({ ...point, time: point.time - splitAt }));
+  if (sampled && rightRamp) rightRamp.unshift({ time: 0, speed: speedAtRamp(clip.speedRamp!, splitAt, duration, clip.speed), easing: "linear" });
+  return [
+    { ...clip, end: mid, ...(leftRamp?.length ? { speedRamp: leftRamp } : { speedRamp: undefined }) },
+    { ...clip, id: newId, start: mid, transition: "Cut", ...(rightRamp?.length ? { speedRamp: rightRamp } : { speedRamp: undefined }) },
+  ];
 }
