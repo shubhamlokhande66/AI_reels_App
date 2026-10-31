@@ -42,6 +42,25 @@ const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER",
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
 const LATER = new Set<string>();
+type BulkVisualCommand = { transition?: string; effect?: boolean };
+function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
+  const value = String(prompt || "").trim();
+  const all = /\\b(?:all|every|each)\\s+(?:the\\s+)?(?:clips?|videos?)\\b|\\b(?:clips?|videos?)\\s+(?:all|every)\\b|\\b(?:sagle|sagale|saglya?|sarva|pratyek|sabhi|saare|har)\\s+(?:clips?|videos?)\\b|\\b(?:sagle|sagale|saglya?)\\s+videos?\\s+(?:vr|var|la)\\b|सभी\\s*(?:क्लिप|वीडियो)|सारे\\s*(?:क्लिप|वीडियो)|हर\\s*(?:क्लिप|वीडियो)|सगळ्या?\\s*(?:क्लिप|व्हिडिओ)|सर्व\\s*(?:क्लिप|व्हिडिओ)|प्रत्येक\\s*(?:क्लिप|व्हिडिओ)/iu.test(value);
+  if (!all) return null;
+  const asksTransition = /\\btransitions?\\b|ट्रांजिशन|ट्रांज़िशन|ट्रान्जिशन|ट्रान्झिशन|संक्रमण|转场|переход/iu.test(value);
+  const asksEffect = /\\b(?:effects?|effecr|fx)\\b|इफेक्ट्स?|प्रभाव|效果|эффекты/iu.test(value);
+  if (!asksTransition && !asksEffect) return null;
+  const namedTransition: Array<[string, RegExp]> = [
+    ["dissolve", /\\bdissolve\\b/i], ["whip", /\\bwhip(?:\\s*pan)?\\b/i], ["zoom", /\\bzoom(?:\\s*through)?\\b/i],
+    ["flash", /\\bflash\\b/i], ["glitch", /\\bglitch\\b/i], ["dip", /\\bdip(?:\\s*to\\s*black)?\\b/i],
+    ["iris", /\\biris\\b/i], ["wipe", /\\bwipe\\b/i], ["spin", /\\bspin\\b/i],
+    ["slideleft", /\\b(?:slide|push)\\s*left\\b/i], ["slideright", /\\b(?:slide|push)\\s*right\\b/i],
+    ["bars", /\\bbars?\\b/i], ["diamond", /\\bdiamond\\b/i], ["heart", /\\bheart\\b/i], ["star", /\\bstar\\b/i],
+  ];
+  const transition = asksTransition ? namedTransition.find(([, pattern]) => pattern.test(value))?.[0] ?? "dissolve" : undefined;
+  return { ...(transition ? { transition } : {}), ...(asksEffect ? { effect: true } : {}) };
+}
+
 // …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
 
 /** The editor (the website's studio editor on a phone): the Reel saved on this phone, played shot by shot with its
@@ -658,8 +677,24 @@ export default function EditorScreen() {
         </View>
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
         <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
+          const bulk = parseBulkVisualCommand(t);
+          if (bulk && clips.length) {
+            const effectChoices = ["punch-soft", "pan-soft", "drift", "bounce", "tilt"];
+            let previous = "";
+            setClips(clips.map((c, i) => {
+              const patch: Partial<ProjectClip> = {};
+              if (bulk.transition) patch.transition = i === 0 ? (bulk.transition === "dissolve" ? "fadein" : bulk.transition) : bulk.transition;
+              if (bulk.effect) {
+                const choice = effectChoices.find((item) => item !== previous) ?? effectChoices[0];
+                patch.effect = choice; previous = choice;
+              }
+              return { ...c, ...patch };
+            }));
+            const applied = [bulk.transition ? "transitions" : "", bulk.effect ? "effects" : ""].filter(Boolean).join(" and ");
+            return words("Done ✓ Applied {applied} to all {count} clips on this device. No AI credits used.", { applied: words(applied), count: clips.length });
+          }
           const style = styleFromWords(t);
-          if (!style) return words("This Reel is edited on your phone, so I can only switch its style (say \"faster\" or \"calmer\").");
+          if (!style) return words("This Reel is edited on your phone, so I can switch its style or apply transitions and effects to every clip.");
           setClips(clips.map((c) => ({ ...c, speed: style === "fast" ? 1.25 : 0.8 })));
           return words("Done ✓ I used {style} (on your phone).", { style: words(style === "fast" ? "the Fast style" : "the Smooth style") });
         }} /></View>
