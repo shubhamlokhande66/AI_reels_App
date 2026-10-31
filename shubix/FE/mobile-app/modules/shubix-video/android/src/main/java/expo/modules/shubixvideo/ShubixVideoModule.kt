@@ -807,7 +807,10 @@ class ShubixVideoModule : Module() {
       }
       if (active.isEmpty()) return blank
       return frames.getOrPut(active) {
-        if (frames.size >= 4) frames.clear()
+        // A cached full-frame bitmap can be very large (over 30 MiB at 4K).
+        // Keep only the most recently used active-overlay combination instead of
+        // retaining four full-size frames while the timeline changes.
+        if (frames.size >= 1) frames.clear()
         val bitmaps = active.map { index -> drawn.getOrPut(index) { draw(texts.getJSONObject(index)) } }
         val frame = Bitmap.createBitmap(w.coerceAtLeast(2), frameHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(frame)
