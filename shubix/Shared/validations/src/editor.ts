@@ -32,7 +32,29 @@ export type ReelProject = z.infer<typeof projectSchema>;
 export type TimelineTool = "Media" | "Stickers" | "Filters" | "Style" | "Shots" | "Music" | "Text" | "Captions" | "Background" | "Layers" | "Voice" | "Motion";
 export type ClipAction = "Transition" | "Effect" | "Speed" | "Split" | "Duplicate" | "Freeze" | "Volume" | "Extract audio" | "Crop" | "Reverse" | "Rotate" | "Mirror" | "Flip" | "Fit canvas" | "Border" | "Adjust" | "Speed curve" | "Stabilize" | "Beauty" | "Fade" | "Mosaic" | "Magnifier" | "Slip" | "Trim" | "Reset" | "Delete";
 
-export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed">) { return Math.max(0, (clip.end - clip.start) / clip.speed); }
+export function clipDuration(clip: Pick<ProjectClip, "start" | "end" | "speed"> & Partial<Pick<ProjectClip, "speedRamp">>) {
+  const sourceDuration = Math.max(0, clip.end - clip.start);
+  const points = clip.speedRamp?.filter((point) => Number.isFinite(point.time) && Number.isFinite(point.speed))
+    .map((point) => ({ time: Math.min(sourceDuration, Math.max(0, point.time)), speed: Math.min(4, Math.max(0.25, point.speed)) }))
+    .sort((a, b) => a.time - b.time) ?? [];
+  if (points.length < 2 || sourceDuration <= 0) return sourceDuration / clip.speed;
+  const unique: typeof points = [];
+  for (const point of points) {
+    if (unique.length && Math.abs(unique[unique.length - 1].time - point.time) < 0.001) unique[unique.length - 1] = point;
+    else unique.push(point);
+  }
+  if (unique[0].time > 0) unique.unshift({ time: 0, speed: unique[0].speed });
+  if (unique[unique.length - 1].time < sourceDuration) unique.push({ time: sourceDuration, speed: unique[unique.length - 1].speed });
+  // Midpoint integration of 1 / playback-rate, matching the native constant-rate segment approximation.
+  let outputDuration = 0;
+  for (let index = 0; index < unique.length - 1; index++) {
+    const left = unique[index], right = unique[index + 1];
+    const span = right.time - left.time;
+    const averageSpeed = (left.speed + right.speed) / 2;
+    outputDuration += span / Math.max(0.25, averageSpeed);
+  }
+  return outputDuration;
+}
 export function projectDuration(clips: ProjectClip[]) { return clips.reduce((total, clip) => total + clipDuration(clip), 0); }
 export function makeClip(source: { id?: string; uri: string; name?: string | null; kind?: "video" | "image"; duration?: number | null }, id: string): ProjectClip {
   const sourceDuration = source.kind === "image" ? 5 : Math.max(0.5, source.duration || 5);
