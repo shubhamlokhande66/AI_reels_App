@@ -7,7 +7,7 @@ import * as cache from "../services/analysisCache";
 import { localPath, mediaPath } from "../storage/local";
 import { detectBeats } from "./beats";
 import { checkAudio, decode } from "./decode";
-import { detectEvents, dropsFrom, measurements } from "./drops";
+import { detectEvents, dropsFrom, measurements, type MusicEvent } from "./drops";
 import { agglomerative } from "./dsp/segment";
 import * as sp from "./dsp/spectral";
 import { argsortDesc, percentile, uniformFilter1d, vec } from "./dsp/util";
@@ -85,6 +85,20 @@ export function findDrops(energy: Float64Array, beats: number[], dt = ENERGY_HOP
   return [drops.map((t) => (beats.length ? round(nearest(beats, t), 3) : round(t, 2))), drops.map((t) => round(t, 2))];
 }
 
+/**
+ * Resolve editor cut points and detector timestamps separately. A breakdown/build-up event alone
+ * must not suppress the energy-jump fallback when no confident drop/entry was detected.
+ */
+export function resolveDropPoints(events: MusicEvent[], energy: Float64Array, beats: number[], dt = ENERGY_HOP): [number[], number[]] {
+  const detectedDrops = dropsFrom(events);
+  if (!detectedDrops.length) return findDrops(energy, beats, dt);
+  const measured = events
+    .filter((event) => ["possible_drop", "entry"].includes(event.type) && event.confidence >= 0.5)
+    .map((event) => event.detectedAt ?? event.time)
+    .sort((a, b) => a - b);
+  return [detectedDrops, measured];
+}
+
 /** Individual strong hits: onset peaks well above their surroundings, strength against a typical strong hit (97th pct). */
 export function findAccents(env: Float64Array, sr: number): [number[], number[]] {
   if (env.length < 20 || Math.max(...env) <= 0) return [[], []];
@@ -136,9 +150,7 @@ export async function analyzeWithSignal(file: string, onStage: StageFn = () => {
   const transients = detectTransients(y, SR);
   onStage("detecting_beats", 0.6);
   const events = detectEvents(measurements(y, SR, env, beat.onsets), beat.beats);
-  const [drops, dropTimes] = events.length
-    ? [dropsFrom(events), events.filter((e) => ["possible_drop", "entry"].includes(e.type) && e.confidence >= 0.5).map((e) => e.detectedAt ?? e.time).sort((a, b) => a - b)]
-    : findDrops(energy, beat.beats); // snapped cut points and independently measured event times
+  const [drops, dropTimes] = resolveDropPoints(events, energy, beat.beats); // snapped cut points and independently measured event times
   const sections = findSections(y, SR, beat.beats, duration);
   onStage("detecting_beats", 1);
   const [accents, strengths] = mergedHits(transients); // impacts: the attacks found in any band
