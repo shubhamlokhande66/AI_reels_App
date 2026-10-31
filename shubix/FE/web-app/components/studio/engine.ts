@@ -1952,7 +1952,7 @@ function chatProposal(pd){
   chatWaiting = false; $('chatsend').disabled = false;
 }
 function applyChatVisualIntent(intent, slots = []){
-  if(!intent || (!intent.openingText && !intent.squareFrameAll && !intent.transitionAll)) return '';
+  if(!intent || (!intent.openingText && !intent.squareFrameAll && !intent.transitionAll && !intent.effectsAll)) return '';
   if(!buf || !edit.length) throw new Error('The Reel is not ready for visual edits.');
   const D = reelLen();
   const next = overlays
@@ -1998,10 +1998,40 @@ function applyChatVisualIntent(intent, slots = []){
     renderEDL(true);
     redrawFrame();
   }
+  let effectCount = 0;
+  if(intent.effectsAll){
+    const allowed = FX_OK[mode] || FX_OK.auto;
+    const canUse = fx => !!fx && fx !== 'none' && Object.prototype.hasOwnProperty.call(FX_NAME, fx)
+      && (fx === 'hook' ? edit.indexOf(currentShot) === 0 : allowed.includes(fx))
+      && !isLocked('fx', fx);
+    let previousEffect = '';
+    edit.forEach((shot, i) => {
+      const proposed = slots[i] && (slots[i].fx || slots[i].effect);
+      const roleChoices = shot.type === 'drop' ? ['zoomburst', 'punch', 'shake', 'punch-soft']
+        : shot.type === 'hit' ? ['punch', 'tilt', 'bounce', 'shake', 'punch-soft']
+        : shot.type === 'break' ? ['drift', 'pan-soft', 'punch-soft']
+        : ['punch-soft', 'pan-soft', 'drift', 'bounce', 'tilt'];
+      const choices = mode === 'smooth' ? ['pan-soft', 'drift'] : roleChoices;
+      if(i === 0) choices.unshift('hook', ...choices);
+      let chosen = canUse(proposed) && (proposed !== previousEffect || i === 0) ? proposed : null;
+      if(!chosen) chosen = choices.find(fx => fx !== previousEffect && canUse(fx)) || choices.find(canUse);
+      if(chosen){
+        shot.efx = chosen;
+        shot.fxByDir = true;
+        shot.kf = keyframesFor(shot);
+        previousEffect = chosen;
+        effectCount++;
+      }
+    });
+    if(effectCount !== edit.length) throw new Error('A suitable unlocked effect was not available for every clip.');
+    renderEDL(true);
+    redrawFrame();
+  }
   setOverlaysFromNative(next);
   const textApplied = !intent.openingText || overlays.some(ov => ov.text === intent.openingText && ov.aiIntent === 'openingText');
   const framesApplied = !intent.squareFrameAll || overlays.filter(ov => ov.kind === 'squareFrame').length >= frameCount;
-  if(!textApplied || !framesApplied || (intent.squareFrameAll && frameCount !== edit.length)){
+  const effectsApplied = !intent.effectsAll || (effectCount === edit.length && edit.every(shot => shot.efx && shot.efx !== 'none' && Object.prototype.hasOwnProperty.call(FX_NAME, shot.efx)));
+  if(!textApplied || !framesApplied || !effectsApplied || (intent.squareFrameAll && frameCount !== edit.length)){
     throw new Error('The requested visual edit could not be verified in the Reel.');
   }
   redrawFrame();
@@ -2009,6 +2039,7 @@ function applyChatVisualIntent(intent, slots = []){
   if(intent.openingText) applied.push('opening text “' + intent.openingText + '”');
   if(intent.squareFrameAll) applied.push('square frame on all ' + frameCount + ' clips');
   if(intent.transitionAll) applied.push('transitions on all ' + transitionCount + ' clips');
+  if(intent.effectsAll) applied.push('effects on all ' + effectCount + ' clips');
   return applied.join(' and ');
 }
 function chatGenerate(btn){
@@ -2072,8 +2103,8 @@ async function chatPatch(text, n, id){
     const got = toSlots(res.slots, cands), changed = new Set();
     got.forEach((x, i) => { if(x && base[i] !== undefined){ base[i] = { ...x, cand: x.cand || base[i].cand }; changed.add(i); } });
     const intent = parseDirectorVisualIntent(text);
-    if(intent.transitionAll) edit.forEach((_, i) => changed.add(i));
-    if(!changed.size && !intent.openingText && !intent.squareFrameAll && !intent.transitionAll){ chatAnswer('I could not tell which shot to change. Name it, e.g. "shot 3: slow-mo" or "the first clip: the dance".'); return; }
+    if(intent.transitionAll || intent.effectsAll) edit.forEach((_, i) => changed.add(i));
+    if(!changed.size && !intent.openingText && !intent.squareFrameAll && !intent.transitionAll && !intent.effectsAll){ chatAnswer('I could not tell which shot to change. Name it, e.g. "shot 3: slow-mo" or "the first clip: the dance".'); return; }
     chatPending = { key, slots: base, story: res.story || '', changed, cost: chatCost, intent };
     chatProposal(chatPending);
   }catch(e){ chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : String(e && e.message || 'Shubix could not change it right now.')); }
