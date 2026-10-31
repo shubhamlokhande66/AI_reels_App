@@ -384,6 +384,16 @@ describe("shared render transition and effect validation", () => {
   it("rejects a transition longer than its clip", () => {
     const invalid = { ...base, items: [{ ...base.items[0], transitionIn: { type: "fade", durationMs: 6000 } }] };
     expect(validateRenderJob(invalid)).toContain("Timeline item item has an invalid transition duration.");
+
+  it("rejects unregistered transition names", () => {
+    const invalid = { ...base, items: [{ ...base.items[0], transitionIn: { type: "made-up", durationMs: 250 } }] };
+    expect(validateRenderJob(invalid)).toContain("Timeline item item has an unknown transition type.");
+  });
+
+  it("requires at least three points for polygon masks", () => {
+    const invalid = { ...base, items: [{ ...base.items[0], transitionIn: undefined, mask: { type: "polygon" as const, x: 0, y: 0, width: 1, height: 1, points: [{ x: 0, y: 0 }] } }] };
+    expect(validateRenderJob(invalid)).toContain("Timeline item item polygon mask requires at least three points.");
+  });
   });
 });
 
