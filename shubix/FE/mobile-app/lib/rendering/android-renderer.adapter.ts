@@ -109,7 +109,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         platform: "android",
         // These describe features implemented by the current adapter, not guarantees
         // about a particular device's codec hardware.
-        capabilities: new Set(["image-sequence", "audio-mix", "text-overlay"]),
+        capabilities: new Set(["image-sequence", "audio-mix", "text-overlay", "transitions", "effects", "keyframes"]),
         maxWidth: 3840,
         maxHeight: 2160,
         maxWorkingSetBytes: options.maxWorkingSetBytes,
