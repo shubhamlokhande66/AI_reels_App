@@ -6,17 +6,17 @@ const MB = 1024 * 1024;
 describe("browser editor preview proxies", () => {
   it("downscales 4K portrait and landscape footage for preview", () => {
     expect(previewProxyPlan({ size: 300 * MB, width: 2160, height: 3840, duration: 60 })).toMatchObject({
-      width: 720, height: 1280, bitrate: PREVIEW_BITRATE, reason: "resolution",
+      width: 540, height: 960, bitrate: PREVIEW_BITRATE, reason: "resolution",
     });
     expect(previewProxyPlan({ size: 300 * MB, width: 3840, height: 2160, duration: 60 })).toMatchObject({
-      width: 1280, height: 720, bitrate: PREVIEW_BITRATE, reason: "resolution",
+      width: 960, height: 540, bitrate: PREVIEW_BITRATE, reason: "resolution",
     });
-    expect(PREVIEW_MAX_SIDE).toBe(1280);
+    expect(PREVIEW_MAX_SIDE).toBe(960);
   });
 
-  it("re-encodes high-bitrate 1080p footage without changing its dimensions", () => {
-    expect(previewProxyPlan({ size: 180 * MB, width: 1080, height: 1920, duration: 60 })).toMatchObject({
-      width: 1080, height: 1920, reason: "bitrate",
+  it("re-encodes high-bitrate footage without changing already-small dimensions", () => {
+    expect(previewProxyPlan({ size: 180 * MB, width: 960, height: 540, duration: 60 })).toMatchObject({
+      width: 960, height: 540, reason: "bitrate",
     });
   });
 
