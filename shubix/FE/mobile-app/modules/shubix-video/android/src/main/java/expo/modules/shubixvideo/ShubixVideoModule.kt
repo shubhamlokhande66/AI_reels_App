@@ -554,7 +554,7 @@ class ShubixVideoModule : Module() {
       if (unique.isNotEmpty() && kotlin.math.abs(unique.last()[0] - p[0]) < 0.001) unique[unique.lastIndex] = p else unique += p
     }
     val frames = org.json.JSONArray()
-    points.forEach { p -> frames.put(JSONObject().put("t", p[0]).put("x", p[1]).put("y", p[2]).put("s", p[3]).put("r", p[4]).put("o", 1.0)) }
+    unique.forEach { p -> frames.put(JSONObject().put("t", p[0]).put("x", p[1]).put("y", p[2]).put("s", p[3]).put("r", p[4]).put("o", 1.0)) }
     return frames
   }
 
