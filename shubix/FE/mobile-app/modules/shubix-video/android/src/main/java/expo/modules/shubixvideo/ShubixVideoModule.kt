@@ -696,7 +696,7 @@ class ShubixVideoModule : Module() {
           }
         }
         "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat" -> {
-          val frames = motionEffectFrames(effect.optString("type"), clipDurationSeconds)
+          val frames = motionEffectFrames(effect.optString("type"), clipDurationSeconds, intensity.toDouble())
           if (frames != null) result += keyframeTransform(frames, timelineOffsetSeconds, frameWidth, frameHeight)
         }
         "brightness" -> if (intensity > 0f) result += Brightness(intensity * 0.25f)
@@ -709,7 +709,7 @@ class ShubixVideoModule : Module() {
   }
 
   /** Native motion presets sampled as per-frame transform keyframes. */
-  private fun motionEffectFrames(type: String, durationSeconds: Double): org.json.JSONArray? {
+  private fun motionEffectFrames(type: String, durationSeconds: Double, intensity: Double): org.json.JSONArray? {
     val duration = durationSeconds.coerceAtLeast(0.1)
     val points = mutableListOf<DoubleArray>()
     fun point(t: Double, x: Double = 0.0, y: Double = 0.0, s: Double = 1.0, r: Double = 0.0) { points += doubleArrayOf(t, x, y, s, r) }
@@ -739,8 +739,22 @@ class ShubixVideoModule : Module() {
     points.forEach { p ->
       if (unique.isNotEmpty() && kotlin.math.abs(unique.last()[0] - p[0]) < 0.001) unique[unique.lastIndex] = p else unique += p
     }
+    // Scale each preset from its neutral transform so the editor's intensity
+    // value changes the rendered result instead of being silently ignored.
+    val strength = intensity.coerceIn(0.0, 1.0)
     val frames = org.json.JSONArray()
-    unique.forEach { p -> frames.put(JSONObject().put("t", p[0]).put("x", p[1]).put("y", p[2]).put("s", p[3]).put("r", p[4]).put("o", 1.0)) }
+    unique.forEach { p ->
+      val scale = 1.0 + (p[3] - 1.0) * strength
+      frames.put(
+        JSONObject()
+          .put("t", p[0])
+          .put("x", p[1] * strength)
+          .put("y", p[2] * strength)
+          .put("s", scale)
+          .put("r", p[4] * strength)
+          .put("o", 1.0)
+      )
+    }
     return frames
   }
 
