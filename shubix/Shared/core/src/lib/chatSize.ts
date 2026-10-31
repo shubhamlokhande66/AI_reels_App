@@ -4,7 +4,9 @@
 const WHOLE = ["whole", "entire", "every ", "all shots", "all clips", "everything", "overall", "faster", "slower", "calmer", "calm ", "cinematic", "energetic",
   "new version", "different version", "another version", "remake", "redo", "style", "mood", "vibe", "pace", "more transitions", "more zooms", "fewer effects", "cleaner",
   "पूर्ण", "सगळ", "सर्व", "संपूर्ण", "sagal", "saglya", "purn", "jalad", "halu"];
-const ALL_CLIPS = /\\b(?:all|every|each)\\s+(?:the\\s+)?clips?\\b|\\bclips?\\s+(?:all|every)\\b|\\bsaglya\\s+clips?\\b|\\bsarva\\s+clips?\\b|\\bpratyek\\s+clips?\\b|\\bsabhi\\s+clips?\\b|\\bhar\\s+clip\\b|\\bsaare?\\s+clips?\\b|\\btodos?\\s+(?:los\\s+)?clips?\\b|\\btous\\s+les\\s+clips?\\b|\\balle\\s+clips?\\b/i;\nconst ALL_CLIPS_SCRIPT = /सभी\\s*क्लिप|सारे\\s*क्लिप|हर\\s*क्लिप|पूरे\\s*क्लिप|सगळ्या?\\s*क्लिप|सर्व\\s*क्लिप|प्रत्येक\\s*क्लिप|ಎಲ್ಲಾ\\s*ಕ್ಲಿಪ್|అన్ని\\s*క్లిప్|সব\\s*ক্লিপ|બધા\\s*ક્લિપ|ਸਾਰੇ\\s*ਕਲਿੱਪ|كل\\s*(?:المقاطع|اللقطات)/u;\nconst PART = ["first", "last", "second", "third", "fourth", "fifth", "start", "beginning", "opening", "ending", " end", "intro", "outro", "the drop", "shot ", "clip ",
+const ALL_CLIPS = /\b(?:all|every|each)\s+(?:the\s+)?clips?\b|\bclips?\s+(?:all|every)\b|\bsaglya\s+clips?\b|\bsarva\s+clips?\b|\bpratyek\s+clips?\b|\bsabhi\s+clips?\b|\bhar\s+clip\b|\bsaare?\s+clips?\b|\btodos?\s+(?:los\s+)?clips?\b|\btous\s+les\s+clips?\b|\balle\s+clips?\b/i;
+const ALL_CLIPS_SCRIPT = /सभी\s*क्लिप|सारे\s*क्लिप|हर\s*क्लिप|पूरे\s*क्लिप|सगळ्या?\s*क्लिप|सर्व\s*क्लिप|प्रत्येक\s*क्लिप|ಎಲ್ಲಾ\s*ಕ್ಲಿಪ್|అన్ని\s*క్లిప్|সব\s*ক্লিপ|બધા\s*ક્લિપ|ਸਾਰੇ\s*ਕਲਿੱਪ|كل\s*(?:المقاطع|اللقطات)/u;
+const PART = ["first", "last", "second", "third", "fourth", "fifth", "start", "beginning", "opening", "ending", " end", "intro", "outro", "the drop", "shot ", "clip ",
   "पहिल", "शेवट", "दुसर", "तिसर", "सुरुवात", "pahil", "shevat", "dusr", "suruvat"];
 export type ChatSize = "small" | "big";
 export function chatSize(text: string): ChatSize {
