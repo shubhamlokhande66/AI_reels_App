@@ -189,6 +189,24 @@ export default function EditorScreen() {
     setClips(updated);
     if (index === selected) setLocal((time) => Math.min(time, Math.max(0, clipDuration(next) - 0.02)));
   };
+  // Long-press a clip and drag it along the timeline to reorder the shot sequence.
+  const moveTimelineClip = (index: number, deltaTimeline: number) => {
+    const moving = clips[index];
+    if (!moving || !Number.isFinite(deltaTimeline) || Math.abs(deltaTimeline) < 0.05) return;
+    const oldStart = clips.slice(0, index).reduce((sum, item) => sum + clipDuration(item), 0);
+    const dropCenter = oldStart + clipDuration(moving) / 2 + deltaTimeline;
+    const remaining = clips.filter((_, i) => i !== index);
+    let cursor = 0, insertAt = 0;
+    for (const item of remaining) {
+      if (dropCenter > cursor + clipDuration(item) / 2) insertAt++;
+      cursor += clipDuration(item);
+    }
+    if (insertAt === index) return;
+    const reordered = [...remaining.slice(0, insertAt), moving, ...remaining.slice(insertAt)];
+    setClips(reordered);
+    setSelected(insertAt);
+    setLocal(0);
+  };
   const addStudioTts = async () => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Voice tools need a Reel made by Shubix Studio."), "info");
     if (!voiceDraft.trim() || !ttsVoice) return toast(words("Enter the words and choose a voice first."), "info");
@@ -603,7 +621,7 @@ export default function EditorScreen() {
           setClips(clips.map((c) => ({ ...c, speed: style === "fast" ? 1.25 : 0.8 })));
           return words("Done ✓ I used {style} (on your phone).", { style: words(style === "fast" ? "the Fast style" : "the Smooth style") });
         }} /></View>
-        <Timeline clips={clips} selected={selected} overlays={p.overlays} studioLayers={studioLayers} onLayer={(index) => { setStudioLayerIndex(index); setTool({ key: "layers", name: "Layers" }); }} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onTrim={trimTimelineClip} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
+        <Timeline clips={clips} selected={selected} overlays={p.overlays} studioLayers={studioLayers} onLayer={(index) => { setStudioLayerIndex(index); setTool({ key: "layers", name: "Layers" }); }} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onTrim={trimTimelineClip} onMove={moveTimelineClip} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
         <View className="mt-3 flex-row items-center justify-between px-4">
           <Text className="text-[13px] font-semibold text-foreground">{words("Shot")} {String(selected + 1).padStart(2, "0")} · {clip ? clipDuration(clip).toFixed(1) : "0.0"} s</Text>
           <View className="flex-row items-center gap-1"><IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const last = undo.current.pop(); if (last) { redo.current = [...redo.current.slice(-29), p]; setP(last); } }} /><IconButton icon="redo" size={36} label={words("Redo")} disabled={!redo.current.length} onPress={() => { const next = redo.current.pop(); if (next) { undo.current = [...undo.current.slice(-29), p]; setP(next); } }} /></View>
