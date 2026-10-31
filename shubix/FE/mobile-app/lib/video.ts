@@ -82,7 +82,9 @@ export function canUseSharedAndroidRenderer(project: ReelProject): boolean {
     clip.reverse ||
     (clip.transition && clip.transition !== "Cut") ||
     !!clip.effect ||
-    (!clip.muted && (clip.volume ?? 1) !== 1) ||
+    (clip.volume ?? 1) > 1 ||
+    !!clip.speedRamp?.length ||
+    !!clip.keyframes?.length ||
     !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic"].includes(clip.filter) ||
     (clip.kind === "image" && clip.speed !== 1)
   )) return false;
