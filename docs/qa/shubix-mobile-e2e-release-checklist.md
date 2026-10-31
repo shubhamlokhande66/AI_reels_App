@@ -67,3 +67,7 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Verify every Android-supported color preset, including Warm, Cool, Teal & Orange, Sepia, Matte, High Contrast, Faded, Vintage, Pastel, Cyberpunk, Dreamy, Black & White, Soft Focus, Color Pop, Muted, Sunset and Arctic.
 
 - [ ] Android shared-render motion effects: Zoom punch, soft zoom, zoom burst, slow drift, pan, shake, bounce, tilt, photo snap, hook zoom, punch-in and heartbeat must animate; compare timing and scale against preview and check for frame jitter.
+
+- [ ] Android native Blur and Flash transitions: verify the blur clears smoothly and flash decays without clipping or a white-frame stutter, including when a clip has speed-ramp slices.
+- [ ] Android native Fade/Zoom/Slide/Spin/Whip-pan transitions: verify they run once at the start of each clip, not once per speed-ramp segment.
+- [ ] Verify Dissolve/Crossfade, Push and Wipe are rejected with an explicit unsupported-feature message until a true multi-clip transition compositor is implemented.
