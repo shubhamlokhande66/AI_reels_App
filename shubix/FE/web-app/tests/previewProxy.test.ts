@@ -20,9 +20,15 @@ describe("browser editor preview proxies", () => {
     });
   });
 
-  it("does not proxy ordinary footage or small clips", () => {
-    expect(previewProxyPlan({ size: 40 * MB, width: 1080, height: 1920, duration: 60 })).toBeNull();
+  it("proxies long, high-resolution phone footage even when its average bitrate is modest", () => {
+    expect(previewProxyPlan({ size: 20 * MB, width: 1080, height: 1920, duration: 120 }, true)).toMatchObject({
+      width: 540, height: 960, reason: "resolution-and-bitrate",
+    });
+  });
+
+  it("does not proxy small clips or footage already within preview limits", () => {
     expect(previewProxyPlan({ size: 12 * MB, width: 3840, height: 2160, duration: 30 })).toBeNull();
+    expect(previewProxyPlan({ size: 15 * MB, width: 960, height: 540, duration: 60 })).toBeNull();
   });
 
   it("fails safely for invalid metadata and proxy jobs that exceed memory limits", () => {
