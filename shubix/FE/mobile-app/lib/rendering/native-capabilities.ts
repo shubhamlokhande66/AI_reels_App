@@ -23,7 +23,7 @@ const FILTERS = new Set([
   "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic",
 ]);
 
-const compact = (value: string) => value.trim().toLowerCase().replace(/[\\s_-]/g, "");
+const compact = (value: string) => value.trim().toLowerCase().replace(/[\s_-]/g, "");
 
 export function normalizeAndroidTransition(id: string): string | undefined {
   if (id.trim().toLowerCase() === "cut" || id.trim().toLowerCase() === "hard") return undefined;
