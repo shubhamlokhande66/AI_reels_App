@@ -1066,44 +1066,47 @@ async function keptSweep(){
     if(old.length) await idb('files', 'readwrite', s => { old.forEach(k => s.delete(k)); });
   }catch(e){}
 }
+let previewBatchUi = null, previewBatchCompressed = 0, previewBatchDetected = 0;
+function previewBatchShow(src, message, progress){
+  if(!previewBatchUi){
+    const overlay=document.createElement('div'); overlay.className='askbg'; overlay.setAttribute('role','dialog'); overlay.setAttribute('aria-modal','true');
+    overlay.innerHTML='<div class="ask" style="max-width:420px;width:calc(100% - 32px)"><p style="font-weight:700;margin-bottom:8px">Preparing your videos for smooth editing</p><p data-proxy-detail style="font-size:13px;opacity:.8;margin:0 0 14px"></p><div style="height:8px;border-radius:99px;background:rgba(128,128,128,.25);overflow:hidden"><div data-proxy-bar style="height:100%;width:0%;background:var(--accent,#d4af37);transition:width .15s"></div></div><p data-proxy-percent style="font-size:12px;text-align:right;margin:7px 0 0"></p></div>';
+    root.appendChild(overlay); previewBatchUi={overlay,detail:overlay.querySelector('[data-proxy-detail]'),bar:overlay.querySelector('[data-proxy-bar]'),percent:overlay.querySelector('[data-proxy-percent]')};
+  }
+  previewBatchUi.detail.textContent=message;
+  if(progress!==undefined){const n=Math.max(0,Math.min(100,Math.round(progress*100)));previewBatchUi.bar.style.width=n+'%';previewBatchUi.percent.textContent=n+'%';}
+}
+function previewBatchClose(){
+  if(previewBatchUi){previewBatchUi.overlay.remove();previewBatchUi=null;}
+  previewBatchCompressed=0; previewBatchDetected=0;
+}
 async function compressHighResolutionPreview(src, dd){
-  const plan = previewProxyPlan({ size: src.file.size, width: src.w, height: src.h, duration: src.dur });
+  const plan=previewProxyPlan({size:src.file.size,width:src.w,height:src.h,duration:src.dur});
   if(!plan) return;
-  const overlay = document.createElement('div');
-  overlay.className = 'askbg';
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.innerHTML = '<div class="ask" style="max-width:420px;width:calc(100% - 32px)"><p style="font-weight:700;margin-bottom:8px">Preparing your video for smooth editing</p><p data-proxy-detail style="font-size:13px;opacity:.8;margin:0 0 14px">High-resolution video detected. Creating a lightweight editing copy…</p><div style="height:8px;border-radius:99px;background:rgba(128,128,128,.25);overflow:hidden"><div data-proxy-bar style="height:100%;width:0%;background:var(--accent,#d4af37);transition:width .15s"></div></div><p data-proxy-percent style="font-size:12px;text-align:right;margin:7px 0 0">0%</p></div>';
-  root.appendChild(overlay);
-  const detail=overlay.querySelector('[data-proxy-detail]'), bar=overlay.querySelector('[data-proxy-bar]'), percent=overlay.querySelector('[data-proxy-percent]');
-  const update=(p)=>{ const n=Math.max(0,Math.min(100,Math.round(p*100))); bar.style.width=n+'%'; percent.textContent=n+'%'; dd.textContent='compressing for editing… '+n+'%'; };
+  previewBatchDetected++;
+  previewBatchShow(src,'High-resolution video detected. Creating a lightweight editing copy…',0);
   try{
-    life({ stage:'compressing preview', size:Math.round(src.file.size/1e6)+' MB', res:src.w+'x'+src.h });
-    const result=await createPreviewProxy(src.file, update);
+    life({stage:'compressing preview',size:Math.round(src.file.size/1e6)+' MB',res:src.w+'x'+src.h});
+    const result=await createPreviewProxy(src.file,p=>{
+      previewBatchShow(src,'Compressing '+src.name+' for smooth editing…',p);
+      const n=Math.max(0,Math.min(100,Math.round(p*100))); dd.textContent='compressing for editing… '+n+'%';
+    });
     if(src.removed) return;
-    if(result && result.blob && result.blob.size < src.file.size){
-      const oldUrl=src.url;
-      src.url=URL.createObjectURL(result.blob);
-      src.previewProxy=true;
-      src.proxySize=result.blob.size;
-      try{ URL.revokeObjectURL(oldUrl); }catch(e){}
-      detail.textContent='Editing copy ready. Original video is safely kept for full-quality export.';
-      bar.style.width='100%'; percent.textContent='100%';
-      dd.textContent='editing copy ready · starting analysis…';
+    if(result && result.blob && result.blob.size<src.file.size){
+      const oldUrl=src.url; src.url=URL.createObjectURL(result.blob); src.previewProxy=true; src.proxySize=result.blob.size;
+      try{URL.revokeObjectURL(oldUrl);}catch(e){}
+      previewBatchCompressed++;
+      dd.textContent='editing copy ready · analysing…';
+      previewBatchShow(src,'Editing copy ready ('+previewBatchCompressed+'/'+previewBatchDetected+'). Analysing all selected videos…',1);
     }else{
-      detail.textContent='This browser could not create a smaller copy. Continuing with your original video.';
-      percent.textContent='Using original';
+      previewBatchShow(src,'Could not make a smaller copy for '+src.name+'. Keeping the original and continuing analysis…',1);
     }
-    await new Promise(resolve=>setTimeout(resolve,650));
   }catch(error){
     console.info('Preview compression skipped:',error);
-    detail.textContent='Compression unavailable. Continuing with your original video.';
-    percent.textContent='Original quality';
-    await new Promise(resolve=>setTimeout(resolve,650));
-  }finally{
-    overlay.remove();
+    previewBatchShow(src,'Compression unavailable for '+src.name+'. Keeping the original and continuing analysis…',1);
   }
 }
+
 async function readVideo(src){
   if(src.removed) return;
   const card = src.card, dd = card.querySelector('.dd');
@@ -1130,7 +1133,7 @@ async function readVideo(src){
     if(src.removed) return;
     // action + scene changes and faces are read at the same time (two decoders): about 40% faster per clip
     const tq = performance.now(); let pm = 0, pf = 0;
-    const show = () => { const f = pm*0.6 + pf*0.4; dd.textContent = 'reading ' + Math.round(f*100) + '%'; dd.dataset.p = String(Math.round(f*100));
+    const show = () => { const f = pm*0.6 + pf*0.4; dd.textContent = 'reading ' + Math.round(f*100) + '%'; dd.dataset.p = String(Math.round(f*100)); if(previewBatchUi) previewBatchShow(src, 'Analysing selected videos… '+Math.round((batchDone+f)/Math.max(1,batchN)*100)+'%', (batchDone+f)/Math.max(1,batchN));
       tasks.update('clips', (batchDone + f) / Math.max(1, batchN), 'Clip ' + Math.min(batchN, batchDone + 1) + ' of ' + batchN + ' · ' + src.name); };
     src.readMs = {};
     const kept = await scanGet(src);   // read before (a saved Reel opened again, or the same clip added again): used as it is
@@ -1208,6 +1211,7 @@ $('csnd').addEventListener('click', e => { const b = e.target.closest('button');
   notify(au.clip === 'mute' ? "The clips' own sound is muted." : au.clip === 'voices' ? 'Only the voices in your clips are kept.' : "All of your clips' sound is kept, under the song.");
 }, SIG);
 function finishAdding(){
+  previewBatchClose();
   remakeOk();
   { const order = [...$('clips').children].map(c => c.__src).filter(s => sources.includes(s)); if(order.length === sources.length) sources.splice(0, sources.length, ...order); }   // read in turn: the cards' order (askOrder)
   updateQ(); $('clearv').hidden = !$('clips').children.length; clipSoundCheck();
