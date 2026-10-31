@@ -111,12 +111,12 @@ export function canUseSharedAndroidRenderer(project: ReelProject): boolean {
   if (!ShubixVideo || project.clips.length === 0) return false;
   if (project.clips.some((clip) =>
     clip.reverse ||
-    (clip.transition && !["Cut", "hard", "fadein", "whip", "zoom", "zoomout", "spin", "slideleft", "slideright", "slideup", "slidedown"].includes(clip.transition)) ||
-    (clip.effect && !["none", "blurpulse", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat"].includes(clip.effect)) ||
+    (!!clip.transition && !["Cut", "hard"].includes(clip.transition) && !NATIVE_TRANSITIONS[clip.transition]) ||
+    (!!clip.effect && clip.effect !== "none" && !NATIVE_EFFECTS.has(clip.effect)) ||
     (clip.volume ?? 1) > 1 ||
     !!clip.speedRamp?.length ||
     !!clip.keyframes?.length ||
-    !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"].includes(clip.filter) ||
+    !NATIVE_FILTERS.has(clip.filter) ||
     (clip.kind === "image" && clip.speed !== 1)
   )) return false;
   return true;
