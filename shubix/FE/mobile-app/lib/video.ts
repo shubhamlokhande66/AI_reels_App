@@ -12,7 +12,7 @@ import {
 export const videoEngine = { ready: !!ShubixVideo };
 const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1080, 1350], "1:1": [1080, 1080], "16:9": [1920, 1080] };
 const NATIVE_TRANSITIONS: Record<string, string> = {
-  fadein: "fade", Fade: "fade", fade: "fade", dissolve: "fade", Dissolve: "fade", Blur: "blur", Flash: "flash",
+  fadein: "fade", Fade: "fade", fade: "fade", Blur: "blur", Flash: "flash",
   whip: "whip-pan", zoom: "zoom-in", Zoom: "zoom-in", zoomout: "zoom-out", flash: "flash", blur: "blur",
   spin: "spin", slideleft: "slide-left", slideright: "slide-right",
   slideup: "slide-up", slidedown: "slide-down", swipeup: "slide-up",
