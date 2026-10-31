@@ -1980,7 +1980,7 @@ function applyChatVisualIntent(intent, slots = []){
   let plannedTransitions = null, plannedEffects = null;
   if(intent.transitionAll){
     const valid = key => Object.prototype.hasOwnProperty.call(TR_DUR, key) && !isLocked('tr', key);
-    const available = Object.keys(TR_DUR).filter(valid);
+    const available = Object.keys(TR_DUR).filter(key => key !== 'hard' && valid(key));
     if(!available.length) throw new Error('No unlocked transition is available for every clip.');
     const counts = new Map();
     slots.forEach((slot, i) => {
