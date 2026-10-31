@@ -57,6 +57,11 @@ describe("AI Director visual intent", () => {
       .toEqual({ transitionAll: true, transitionType: "whip" });
   });
 
+  it("recognises combined all-clip transition and effect instructions", () => {
+    expect(parseDirectorVisualIntent("apply whip pan transitions and cinematic effects to all clips"))
+      .toEqual({ transitionAll: true, transitionType: "whip", effectsAll: true });
+  });
+
   it("recognises Roman Marathi plural variants and localises all-clip effects", () => {
     expect(parseDirectorVisualIntent("sagle clips la chan effect lav"))
       .toEqual({ effectsAll: true });
