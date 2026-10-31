@@ -151,3 +151,8 @@ The Android shared-render adapter also maps the mobile motion presets punch, sof
 ### Android transition support boundary
 
 The primary Android export path now maps editor Fade, Zoom, Blur and Flash presets plus supported Studio fade-in, slide, spin and whip-pan presets into native Media3 effects. Blur and Flash use timestamp-scoped GPU effects. Slide/zoom/spin/whip are incoming transform animations, not two-clip overlap transitions. True Dissolve/Crossfade, Push and Wipe are not claimed as supported because Media3 Transformer 1.8.0 does not provide native video-track crossfading; those edits must be rejected or rendered by the browser Studio path until a dedicated compositor is available.
+
+
+### Web Studio layer compositor
+
+The browser Studio renderer composites overlapping video/photo layers with crop, transform, opacity, blend modes, chroma key, fade-in/out and layer masks. Layer masks include ellipse, rectangle, polygon, linear, radial and luma modes with feather and inversion; the luma threshold has its own control. Studio-originated Android drafts must continue exporting through their held Studio session so these layer operations survive. The native Android editor preview is not claimed to display the full Studio compositor.
