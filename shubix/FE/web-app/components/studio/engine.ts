@@ -19,6 +19,7 @@ import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
 import { createPreviewProxy, previewProxyPlan } from '../../lib/previewProxy';
+import { parseDirectorVisualIntent } from './visualIntent';
 
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
@@ -1908,7 +1909,7 @@ function chatAnswer(text){ chatClearWait(); chatSay('ai', text); chatMsgs.push({
 let chatPending = null, chatReported = '';
 // the AI's plan arrived: asked for in the chat, it is shown as a report and waits for Generate; otherwise it is used
 function dirArrived(key, d){
-  if(chatWaiting){ chatPending = { key, slots: d.slots, story: d.story || '', cost: chatCost }; chatProposal(chatPending); return false; }
+  if(chatWaiting){ const ask = chatMsgs.filter(m => m.who === 'me').slice(-1)[0]?.text || ''; chatPending = { key, slots: d.slots, story: d.story || '', cost: chatCost, intent: parseDirectorVisualIntent(ask) }; chatProposal(chatPending); return false; }
   director = { key, slots: d.slots, story: d.story || '' }; dirCache.set(key, director); return true;
 }
 // the plan, shot by shot, in words: which clip and what is in it, the transition into it, its effect, speed and keyframes
@@ -1950,15 +1951,57 @@ function chatProposal(pd){
   chatMsgs.push({ who: 'ai', text: 'Plan ready: ' + (pd.story || plan.length + ' shots') });
   chatWaiting = false; $('chatsend').disabled = false;
 }
+function applyChatVisualIntent(intent){
+  if(!intent || (!intent.openingText && !intent.squareFrameAll)) return '';
+  if(!buf || !edit.length) throw new Error('The Reel is not ready for visual edits.');
+  const D = reelLen();
+  const next = overlays
+    .filter(ov => !(intent.squareFrameAll && ov.kind === 'squareFrame') && !(intent.openingText && ov.aiIntent === 'openingText'))
+    .map(ov => ({ ...ov, start: ov.t0, end: ov.t1, size: ov.size * 36 }));
+  if(intent.openingText){
+    next.push({ id: ++ovSeq, aiIntent: 'openingText', start: 0, end: Math.min(D, 2.8), text: intent.openingText,
+      style: 'bold', color: '#FFFFFF', anim: 'pop', x: 0.5, y: 0.3, size: 48 });
+  }
+  let frameCount = 0;
+  if(intent.squareFrameAll){
+    edit.forEach(shot => {
+      const start = Math.max(0, Number(shot.start) || 0), end = Math.min(D, Number(shot.end) || D);
+      if(end <= start) return;
+      next.push({ id: ++ovSeq, kind: 'squareFrame', start, end, frameColor: '#FFFFFF', frameWidth: 0.008 });
+      frameCount++;
+    });
+  }
+  setOverlaysFromNative(next);
+  const textApplied = !intent.openingText || overlays.some(ov => ov.text === intent.openingText && ov.aiIntent === 'openingText');
+  const framesApplied = !intent.squareFrameAll || overlays.filter(ov => ov.kind === 'squareFrame').length >= frameCount;
+  if(!textApplied || !framesApplied || (intent.squareFrameAll && frameCount !== edit.length)){
+    throw new Error('The requested visual edit could not be verified in the Reel.');
+  }
+  redrawFrame();
+  const applied = [];
+  if(intent.openingText) applied.push('opening text “' + intent.openingText + '”');
+  if(intent.squareFrameAll) applied.push('square frame on all ' + frameCount + ' clips');
+  return applied.join(' and ');
+}
 function chatGenerate(btn){
   remakeOk();
   const pd = chatPending; btn.disabled = true;
-  if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\'ll plan it anew.'); return; }
+  if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\\'ll plan it anew.'); return; }
   chatPending = null; chatReported = pd.key; director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
-  makeEdit(); if(!playing && !recording && buf && edit.length) startPlayback(0);
+  let applied = '';
+  try {
+    makeEdit();
+    applied = applyChatVisualIntent(pd.intent);
+    if(!edit.length || edit.length !== plan.length) throw new Error('The Reel timeline could not be verified after applying the plan.');
+  } catch(error) {
+    btn.textContent = 'Not applied';
+    chatAnswer('I could not verify that every requested change was applied. ' + String(error && error.message || error) + ' The Reel was not marked as generated; please try the instruction again.');
+    return;
+  }
+  if(!playing && !recording && buf && edit.length) startPlayback(0);
   btn.textContent = 'Generated ✓';
   const bal = aiBal();
-  chatAnswer('Your new Reel is ready ✓' + (!pd.cost && aiFreeChats() ? ' Free change · ' + (Math.max(0, aiFreeChats() - chatUsed) ? Math.max(0, aiFreeChats() - chatUsed) + ' free left for this Reel.' : 'next changes use credits.') : '') + (pd.cost ? ' ' + creditWord(pd.cost) + ' used' + (bal != null ? ' · ' + creditWord(bal) + ' left' : '') + '.' : '') + ' Not quite right? Tell me what to change and I\'ll check it again.');
+  chatAnswer('Your new Reel is ready ✓' + (applied ? ' Applied: ' + applied + '.' : '') + (!pd.cost && aiFreeChats() ? ' Free change · ' + (Math.max(0, aiFreeChats() - chatUsed) ? Math.max(0, aiFreeChats() - chatUsed) + ' free left for this Reel.' : 'next changes use credits.') : '') + (pd.cost ? ' ' + creditWord(pd.cost) + ' used' + (bal != null ? ' · ' + creditWord(bal) + ' left' : '') + '.' : '') + ' Not quite right? Tell me what to change and I\\'ll check it again.');
 }
 // a plan the AI made by itself (no chat): its report goes into the chat too, and the button shows there is one
 function chatReportAuto(){
@@ -2001,7 +2044,7 @@ async function chatPatch(text, n, id){
     const got = toSlots(res.slots, cands), changed = new Set();
     got.forEach((x, i) => { if(x && base[i] !== undefined){ base[i] = { ...x, cand: x.cand || base[i].cand }; changed.add(i); } });
     if(!changed.size){ chatAnswer('I could not tell which shot to change. Name it, e.g. "shot 3: slow-mo" or "the first clip: the dance".'); return; }
-    chatPending = { key, slots: base, story: res.story || '', changed, cost: chatCost };
+    chatPending = { key, slots: base, story: res.story || '', changed, cost: chatCost, intent: parseDirectorVisualIntent(text) };
     chatProposal(chatPending);
   }catch(e){ chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : String(e && e.message || 'Shubix could not change it right now.')); }
   finally{ tm.done(); }
@@ -3780,13 +3823,15 @@ const OV_PRESETS = {
 const reelLen = () => (buf ? buf.duration : 0);
 function setOverlaysFromNative(list){
   const D = reelLen(), incoming = Array.isArray(list) ? list : [];
-  overlays = incoming.map((o, i) => {
+  overlays = incoming.map(o => {
     const id = Number.isFinite(Number(o.id)) ? Number(o.id) : ++ovSeq;
     ovSeq = Math.max(ovSeq, id);
-    const t0 = Math.max(0, Math.min(D, Number(o.start) || 0));
-    const t1 = Math.max(t0 + 0.05, Math.min(D, Number(o.end) || D));
-    return { id, text: String(o.text || '').slice(0, 300), emoji: false, style: 'pop', color: String(o.color || '#FFFFFF'),
-      anim: 'pop', t0, t1, x: 0.5, y: 0.4, size: Math.max(0.35, Math.min(2.5, (Number(o.size) || 36) / 36)), all: t0 === 0 && t1 >= D };
+    const t0 = Math.max(0, Math.min(D, Number(o.start ?? o.t0) || 0));
+    const t1 = Math.max(t0 + 0.05, Math.min(D, Number(o.end ?? o.t1) || D));
+    if(o.kind === 'squareFrame') return { ...o, id, kind: 'squareFrame', t0, t1, frameColor: String(o.frameColor || '#FFFFFF'), frameWidth: Math.max(0.003, Math.min(0.03, Number(o.frameWidth) || 0.008)), all: false };
+    return { ...o, id, text: String(o.text || '').slice(0, 300), emoji: !!o.emoji, style: String(o.style || 'pop'), color: String(o.color || '#FFFFFF'),
+      anim: String(o.anim || 'pop'), t0, t1, x: Number.isFinite(Number(o.x)) ? Number(o.x) : 0.5, y: Number.isFinite(Number(o.y)) ? Number(o.y) : 0.4,
+      size: Math.max(0.35, Math.min(2.5, (Number(o.size) || 36) / 36)), all: !!o.all || (t0 === 0 && t1 >= D) };
   });
   ovSel = -1; renderOvList(); redraw(); saveNow(); return overlays.length;
 }
@@ -3802,7 +3847,14 @@ function ovTiming(ov){ const L = reelLen(); return ov.all ? [0, L] : [Math.max(0
 // one item at time t; its box is kept (fractions of the frame) for picking it on the preview
 function drawOverlay(g, ov, t){
   const [a, b] = ovTiming(ov); if(!(t >= a && t < b)) return;
-  const W = out.width, H = out.height, base = Math.min(W, H*0.5625), since = t - a, left = b - t;
+  const W = out.width, H = out.height;
+  if(ov.kind === 'squareFrame'){
+    const side = Math.min(W, H), inset = side * 0.035;
+    g.save(); g.lineJoin = 'round'; g.lineWidth = Math.max(3, side * (ov.frameWidth || 0.008));
+    g.strokeStyle = ov.frameColor || '#FFFFFF'; g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = side * 0.012;
+    g.strokeRect((W - side) / 2 + inset, (H - side) / 2 + inset, side - inset * 2, side - inset * 2); g.restore(); return;
+  }
+  const base = Math.min(W, H*0.5625), since = t - a, left = b - t;
   const fs = Math.round(base*(ov.emoji ? 0.16 : 0.075)*ov.size);
   let alpha = Math.min(1, left/0.15), sc = 1, dy = 0, txt = ov.emoji ? ov.text : (isIndic(ov.text) ? ov.text : ov.text);
   // paused in the editor: a text shows as it will look once in (its entrance played), so a text just added, or one being
@@ -3887,6 +3939,7 @@ let ovTab = 'font';   // the text editor's open tab (Font, Style, Animation or L
 function renderOvList(){
   const box = $('ovlist'); box.innerHTML = '';
   overlays.forEach((ov, i) => {
+    if(ov.kind === 'squareFrame') return;
     const row = document.createElement('div'); row.className = 'ov' + (i === ovSel ? ' sel' : '');
     const [a, b] = ovTiming(ov);
     // the text / sticker editor (the design's frame 5): the words; Font · Style · Animation · Loop; the colour; follow the
