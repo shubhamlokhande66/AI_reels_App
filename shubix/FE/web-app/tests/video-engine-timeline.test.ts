@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { slipClip, type TimelineRange } from "../../../Shared/video-engine/src/index";
+import { rippleDelete, rippleInsert, slipClip, type TimelineRange } from "../../../Shared/video-engine/src/index";
 
 type Clip = TimelineRange & { label: string };
 
@@ -71,5 +71,61 @@ describe("shared timeline slip editing", () => {
 
     expect(slipped.sourceStart).toBe(2);
     expect(slipped.sourceEnd).toBe(12);
+  });
+});
+
+
+describe("shared timeline ripple editing", () => {
+  const clip: Clip = {
+    id: "main",
+    label: "variable-rate",
+    start: 0,
+    duration: 10,
+    sourceStart: 10,
+    sourceEnd: 30,
+  };
+
+  it("splits a clip on ripple delete and preserves source-time mapping", () => {
+    const result = rippleDelete([clip], 3, 7);
+
+    expect(result.removedDuration).toBe(4);
+    expect(result.clips).toHaveLength(2);
+    expect(result.clips[0]).toMatchObject({
+      id: "main", start: 0, duration: 3, sourceStart: 10, sourceEnd: 16,
+    });
+    expect(result.clips[1]).toMatchObject({
+      id: "main:ripple-right", start: 3, duration: 3, sourceStart: 24, sourceEnd: 30,
+    });
+  });
+
+  it("shifts clips after a ripple delete by the selected range length", () => {
+    const later = { ...clip, id: "later", start: 12, duration: 2, sourceStart: 4, sourceEnd: 6 };
+    const result = rippleDelete([clip, later], 2, 5);
+
+    expect(result.clips.find((item) => item.id === "later")?.start).toBe(9);
+  });
+
+  it("inserts a gap through a clip without changing its source playback rate", () => {
+    const result = rippleInsert([clip], 3, 2);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: "main", start: 0, duration: 3, sourceStart: 10, sourceEnd: 16,
+    });
+    expect(result[1]).toMatchObject({
+      id: "main:insert-right", start: 5, duration: 7, sourceStart: 16, sourceEnd: 30,
+    });
+    expect((result[1].sourceEnd! - result[1].sourceStart!) / result[1].duration).toBe(2);
+  });
+
+  it("treats non-finite edit boundaries as safe no-op boundaries", () => {
+    expect(rippleDelete([clip], Number.NaN, Number.POSITIVE_INFINITY).clips).toEqual([clip]);
+    expect(rippleInsert([clip], Number.NaN, Number.NaN)).toEqual([clip]);
+  });
+
+  it("does not retain zero-length clips after a ripple operation", () => {
+    const empty = { ...clip, id: "empty", duration: 0 };
+    expect(rippleDelete([clip, empty], 2, 4).clips.some((item) => item.id === "empty")).toBe(false);
+    expect(rippleInsert([clip, empty], 2, 1).some((item) => item.id === "empty")).toBe(false);
   });
 });
