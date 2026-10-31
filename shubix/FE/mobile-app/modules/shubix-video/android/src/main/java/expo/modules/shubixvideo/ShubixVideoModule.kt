@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Matrix
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Handler
@@ -22,6 +23,7 @@ import androidx.media3.effect.Contrast
 import androidx.media3.effect.GaussianBlur
 import androidx.media3.effect.HslAdjustment
 import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.RgbFilter
@@ -111,6 +113,8 @@ class ShubixVideoModule : Module() {
         if (!image && segmentSpeed != 1f) { video += SpeedChangeEffect(segmentSpeed); audio += SonicAudioProcessor().apply { setSpeed(segmentSpeed); setPitch(segmentSpeed) } }
         if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
         if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
+        val keyframes = c.optJSONArray("keyframes")
+        if (keyframes != null && keyframes.length() > 0) video += keyframeTransform(keyframes, clipOutputDuration)
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
         if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at + clipOutputDuration, w, h)))
@@ -179,6 +183,68 @@ class ShubixVideoModule : Module() {
       }
       else -> t
     }
+  }
+
+  /** Apply the clip's shared transform keyframes per rendered frame (translation, scale and rotation). */
+  private fun keyframeTransform(frames: org.json.JSONArray, timelineOffsetSeconds: Double): MatrixTransformation {
+    return MatrixTransformation { presentationTimeUs ->
+      val time = timelineOffsetSeconds + presentationTimeUs / 1_000_000.0
+      val x = keyframeValue(frames, time, "x", 0.0)
+      val y = keyframeValue(frames, time, "y", 0.0)
+      val scale = keyframeValue(frames, time, "s", 1.0).coerceIn(0.05, 8.0)
+      val rotation = keyframeValue(frames, time, "r", 0.0)
+      Matrix().apply {
+        postScale(scale.toFloat(), scale.toFloat())
+        postRotate(rotation.toFloat())
+        postTranslate((x * 2.0).toFloat(), (-y * 2.0).toFloat())
+      }
+    }
+  }
+
+  private fun keyframeValue(frames: org.json.JSONArray, time: Double, property: String, fallback: Double): Double {
+    val points = (0 until frames.length()).mapNotNull { index ->
+      val frame = frames.optJSONObject(index) ?: return@mapNotNull null
+      val t = frame.optDouble("t", Double.NaN)
+      val value = frame.optDouble(property, Double.NaN)
+      if (!t.isFinite() || !value.isFinite()) null else Triple(t, value, frame)
+    }.sortedBy { it.first }
+    if (points.isEmpty()) return fallback
+    if (time <= points.first().first) return points.first().second
+    if (time >= points.last().first) return points.last().second
+    val rightIndex = points.indexOfFirst { it.first >= time }.coerceAtLeast(1)
+    val left = points[rightIndex - 1]
+    val right = points[rightIndex]
+    val span = (right.first - left.first).coerceAtLeast(0.000001)
+    var progress = ((time - left.first) / span).coerceIn(0.0, 1.0)
+    val easing = right.third.optString("ez", "inOut")
+    progress = when (easing) {
+      "hold" -> 0.0
+      "ease-in", "in", "inQuad" -> progress * progress
+      "ease-out", "out" -> 1.0 - (1.0 - progress) * (1.0 - progress)
+      "ease-in-out", "inOut" -> if (progress < 0.5) 2.0 * progress * progress else 1.0 - Math.pow(-2.0 * progress + 2.0, 2.0) / 2.0
+      "outCubic" -> 1.0 - Math.pow(1.0 - progress, 3.0)
+      "outExpo" -> if (progress >= 1.0) 1.0 else 1.0 - Math.pow(2.0, -10.0 * progress)
+      "outBack" -> { val c1 = 1.70158; val c3 = c1 + 1.0; 1.0 + c3 * Math.pow(progress - 1.0, 3.0) + c1 * Math.pow(progress - 1.0, 2.0) }
+      "bezier" -> {
+        val curve = right.third.optJSONArray("bezier")
+        val x1 = curve?.optDouble(0, 0.25) ?: 0.25
+        val y1 = curve?.optDouble(1, 0.1) ?: 0.1
+        val x2 = curve?.optDouble(2, 0.25) ?: 0.25
+        val y2 = curve?.optDouble(3, 1.0) ?: 1.0
+        var lo = 0.0; var hi = 1.0; var t = progress
+        repeat(18) {
+          val u = 1.0 - t
+          val at = 3.0 * u * u * t * x1 + 3.0 * u * t * t * x2 + t * t * t
+          if (kotlin.math.abs(at - progress) < 0.00001) return@repeat
+          if (at < progress) lo = t else hi = t
+          t = (lo + hi) / 2.0
+        }
+        val u = 1.0 - t
+        3.0 * u * u * t * y1 + 3.0 * u * t * t * y2 + t * t * t
+      }
+      else -> progress
+    }
+    return left.second + (right.second - left.second) * progress
   }
 
   /** Build bounded constant-rate Media3 slices from source-time speed keyframes. */
