@@ -1067,7 +1067,7 @@ export function rippleDelete<T extends TimelineRange>(clips: T[], rangeStart: nu
     const rate = clip.duration > 0 ? (sourceEnd - sourceStart) / clip.duration : 1;
     if (left > 0.0001) result.push({ ...clip, duration: left, sourceEnd: sourceStart + left * rate });
     if (right > 0.0001) result.push({
-      ...clip, id: left > 0.0001 ? \`\${clip.id}:ripple-right\` : clip.id,
+      ...clip, id: left > 0.0001 ? `${clip.id}:ripple-right` : clip.id,
       start, duration: right, sourceStart: sourceStart + (end - clipStart) * rate, sourceEnd,
     });
   }
@@ -1088,7 +1088,7 @@ export function rippleInsert<T extends TimelineRange>(clips: T[], at: number, du
     const rate = clip.duration > 0 ? (sourceEnd - sourceStart) / clip.duration : 1;
     result.push({ ...clip, duration: left, sourceEnd: sourceStart + left * rate });
     result.push({
-      ...clip, id: \`\${clip.id}:insert-right\`, start: position + gap, duration: right,
+      ...clip, id: `${clip.id}:insert-right`, start: position + gap, duration: right,
       sourceStart: sourceStart + left * rate, sourceEnd,
     });
   }
