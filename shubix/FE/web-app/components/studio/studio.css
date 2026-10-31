@@ -3441,7 +3441,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     grid-template-columns: 64px minmax(0, 1fr) !important;
     grid-template-areas: "tools workbench" "timeline timeline" !important;
   }
-  .brs.made:not(.fopen) .tools {
+  .brs.made.v-one:not(.fopen) .tools {
     grid-area: tools !important;
     display: flex !important;
     flex-direction: column !important;
@@ -3453,8 +3453,8 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     max-height: min(62vh, 680px) !important;
     overflow: hidden !important;
   }
-  .brs.made:not(.fopen) .toolDock,
-  .brs.made:not(.fopen) nav.toolDock {
+  .brs.made.v-one:not(.fopen) .toolDock,
+  .brs.made.v-one:not(.fopen) nav.toolDock {
     display: grid !important;
     visibility: visible !important;
     position: relative !important;
@@ -3471,7 +3471,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 
 @media (min-width: 1024px) {
-  .brs.made:not(.fopen) .workbench {
+  .brs.made.v-one:not(.fopen) .workbench {
     grid-area: workbench !important;
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) minmax(220px, 250px) !important;
@@ -3484,7 +3484,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 /* Desktop editor side rails: both side panels stay aligned to the preview height.
    Their contents scroll independently, without visible scrollbar tracks. */
 @media (min-width: 1024px) {
-  .brs.made:not(.fopen) .create {
+  .brs.made.v-one:not(.fopen) .create {
     position: relative !important;
     isolation: isolate;
   }
@@ -3504,8 +3504,8 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
   }
-  .brs.made:not(.fopen) .toolDock::-webkit-scrollbar,
-  .brs.made:not(.fopen) nav.toolDock::-webkit-scrollbar {
+  .brs.made.v-one:not(.fopen) .toolDock::-webkit-scrollbar,
+  .brs.made.v-one:not(.fopen) nav.toolDock::-webkit-scrollbar {
     display: none !important;
     width: 0 !important;
     height: 0 !important;
@@ -3516,7 +3516,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     min-height: 420px !important;
     align-items: stretch !important;
   }
-  .brs.made:not(.fopen) .inspector {
+  .brs.made.v-one:not(.fopen) .inspector {
     height: 100% !important;
     min-height: 0 !important;
     max-height: 100% !important;
@@ -3524,11 +3524,11 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     flex-direction: column !important;
     overflow: hidden !important;
   }
-  .brs.made:not(.fopen) .inspectorHead,
-  .brs.made:not(.fopen) .activeToolNote {
+  .brs.made.v-one:not(.fopen) .inspectorHead,
+  .brs.made.v-one:not(.fopen) .activeToolNote {
     flex: 0 0 auto !important;
   }
-  .brs.made:not(.fopen) .shotToolGrid {
+  .brs.made.v-one:not(.fopen) .shotToolGrid {
     flex: 1 1 auto !important;
     min-height: 0 !important;
     max-height: 100% !important;
@@ -3538,7 +3538,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
   }
-  .brs.made:not(.fopen) .shotToolGrid::-webkit-scrollbar {
+  .brs.made.v-one:not(.fopen) .shotToolGrid::-webkit-scrollbar {
     display: none !important;
     width: 0 !important;
     height: 0 !important;
