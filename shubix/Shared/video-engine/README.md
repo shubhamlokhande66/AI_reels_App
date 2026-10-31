@@ -112,3 +112,14 @@ Autonomous workflow target:
 7. Preview and export the final MP4; user can optionally refine it in the manual editor.
 
 No unsupported renderer capability should be silently simulated or presented as export-ready.
+
+
+Automatic mood inference uses `inferAutonomousMood` when no user instruction is supplied.
+It can classify product, food, travel, fashion, talking, wedding, devotional, energetic
+and story-led footage from the structured signals provided by local analysis.
+
+The shared quality gate `assessAutonomousRenderQuality` evaluates decoded frame samples,
+black/missing frames, blur/repetition, duration, dimensions/FPS and audio clipping/silence.
+It returns pass/warn/fail plus specific repair hints. The renderer must collect those probes
+and run this gate before marking a generated Reel complete; a recommendation is not itself
+an automatic repair or a substitute for a second render.
