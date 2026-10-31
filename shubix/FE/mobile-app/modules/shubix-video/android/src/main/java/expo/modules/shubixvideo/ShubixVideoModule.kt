@@ -478,7 +478,7 @@ class ShubixVideoModule : Module() {
             val endUs = (durationSeconds * (step + 1) / steps * 1_000_000.0).toLong()
             if (endUs <= startUs) continue
             val time = timelineOffsetSeconds + (startUs + endUs) / 2_000_000.0
-            val pulse = (0.15 + 0.85 * (sin(time * 2.0 * Math.PI / 0.9) + 1.0) / 2.0).toFloat()
+            val pulse = (0.15 + 0.85 * (kotlin.math.sin(time * 2.0 * Math.PI / 0.9) + 1.0) / 2.0).toFloat()
             result += TimestampWrapper(GaussianBlur((intensity * 18f * pulse).coerceAtLeast(0.1f)), startUs, endUs)
           }
         }
