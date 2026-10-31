@@ -194,14 +194,19 @@ class ShubixVideoModule : Module() {
         if (transitionIn != null) {
           val transitionType = transitionIn.optString("type")
           val transitionDuration = transitionIn.optDouble("duration", 0.35).coerceAtLeast(0.001)
-          if (transitionType == "fade") {
-            val fadeFrames = org.json.JSONArray()
-              .put(JSONObject().put("t", 0.0).put("o", 0.0))
-              .put(JSONObject().put("t", transitionDuration).put("o", 1.0))
-            video += keyframeOpacityEffects(fadeFrames, clipOutputDuration, segmentDuration)
-          } else {
-            val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
-            if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration)
+          when (transitionType) {
+            "fade" -> {
+              val fadeFrames = org.json.JSONArray()
+                .put(JSONObject().put("t", 0.0).put("o", 0.0))
+                .put(JSONObject().put("t", transitionDuration).put("o", 1.0))
+              video += keyframeOpacityEffects(fadeFrames, clipOutputDuration, segmentDuration)
+            }
+            "blur" -> video += transitionBlurEffects(clipOutputDuration, segmentDuration, transitionDuration)
+            "flash" -> video += transitionFlashEffects(clipOutputDuration, segmentDuration, transitionDuration)
+            else -> {
+              val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
+              if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration)
+            }
           }
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
@@ -344,6 +349,37 @@ class ShubixVideoModule : Module() {
       else -> return null
     }
     return org.json.JSONArray().put(from).put(to)
+  }
+
+  /** A blur-to-clear entrance, scoped to the transition interval on each speed-ramp slice. */
+  private fun transitionBlurEffects(offsetSeconds: Double, durationSeconds: Double, transitionSeconds: Double): List<Effect> {
+    val activeSeconds = (transitionSeconds - offsetSeconds).coerceIn(0.0, durationSeconds)
+    if (activeSeconds <= 0.0) return emptyList()
+    val steps = kotlin.math.ceil(activeSeconds / 0.05).toInt().coerceIn(1, 80)
+    return (0 until steps).mapNotNull { index ->
+      val startUs = (activeSeconds * index / steps * 1_000_000.0).toLong()
+      val endUs = (activeSeconds * (index + 1) / steps * 1_000_000.0).toLong()
+      if (endUs <= startUs) return@mapNotNull null
+      val time = offsetSeconds + (startUs + endUs) / 2_000_000.0
+      val progress = (time / transitionSeconds).coerceIn(0.0, 1.0)
+      val radius = (20.0 * (1.0 - progress)).toFloat()
+      if (radius <= 0.1f) null else TimestampWrapper(GaussianBlur(radius), startUs, endUs)
+    }
+  }
+
+  /** A short white flash that settles to the source image. */
+  private fun transitionFlashEffects(offsetSeconds: Double, durationSeconds: Double, transitionSeconds: Double): List<Effect> {
+    val activeSeconds = (transitionSeconds - offsetSeconds).coerceIn(0.0, durationSeconds)
+    if (activeSeconds <= 0.0) return emptyList()
+    val steps = kotlin.math.ceil(activeSeconds / 0.04).toInt().coerceIn(1, 40)
+    return (0 until steps).mapNotNull { index ->
+      val startUs = (activeSeconds * index / steps * 1_000_000.0).toLong()
+      val endUs = (activeSeconds * (index + 1) / steps * 1_000_000.0).toLong()
+      if (endUs <= startUs) return@mapNotNull null
+      val time = offsetSeconds + (startUs + endUs) / 2_000_000.0
+      val progress = (time / transitionSeconds).coerceIn(0.0, 1.0)
+      TimestampWrapper(Brightness((0.28 * (1.0 - progress)).toFloat()), startUs, endUs)
+    }
   }
 
   /** Approximate animated opacity with short timestamp-scoped GPU alpha effects. */
