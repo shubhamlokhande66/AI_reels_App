@@ -520,7 +520,8 @@ class ShubixVideoModule : Module() {
           }
           envelope
         }
-        return (gain * minOf(fadeIn, fadeOut, duck)).toFloat()
+        // Fade envelopes and ducking are independent gain stages; combine them multiplicatively.
+        return (gain * fadeIn * fadeOut * duck).toFloat()
       }
       override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long =
         if (gain == 1f && fadeInSeconds == 0.0 && fadeOutSeconds == 0.0 && duckRanges.isEmpty()) C.TIME_END_OF_SOURCE else C.TIME_UNSET
