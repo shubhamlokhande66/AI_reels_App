@@ -60,10 +60,10 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - No typecheck, Gradle build, automated UI run, emulator run or physical-device benchmark has been verified in this environment.
 - Do not mark this checklist complete or claim lag-free performance until the checks above have actually run and their results are recorded.
 
-- [ ] Android shared-render export: Fade in, slide left/right/up/down, push left/right/up/down, zoom in/out, spin and whip-pan must animate from the incoming pose to the final pose over the configured duration; verify no black flash or frozen first frame.
+- [ ] Android native transitions: Fade in, slide left/right/up/down, zoom in/out, spin, whip-pan, blur and flash must animate from the incoming pose to the final pose over the configured duration; verify no black flash or frozen first frame.
 - [ ] Android shared-render export: Blur, brightness, contrast, saturation and hue effects must be visible in the exported MP4 and match the preview intensity.
 - [ ] Android shared-render export: Blur pulse must visibly animate across the shot; confirm GPU processing remains stable on a mid-tier device.
-- [ ] Android shared-render export: Try unsupported transitions (Dissolve, Glitch, Wipe, Spin) and masks/layers; confirm export returns an explicit unsupported-feature error rather than silently omitting the edit.
+- [ ] Android native export: Try unsupported transitions (Dissolve/Crossfade, Glitch, Wipe, Push) and masks/layers; confirm export returns an explicit unsupported-feature error rather than silently omitting the edit.
 - [ ] Verify every Android-supported color preset, including Warm, Cool, Teal & Orange, Sepia, Matte, High Contrast, Faded, Vintage, Pastel, Cyberpunk, Dreamy, Black & White, Soft Focus, Color Pop, Muted, Sunset and Arctic.
 
 - [ ] Android shared-render motion effects: Zoom punch, soft zoom, zoom burst, slow drift, pan, shake, bounce, tilt, photo snap, hook zoom, punch-in and heartbeat must animate; compare timing and scale against preview and check for frame jitter.
