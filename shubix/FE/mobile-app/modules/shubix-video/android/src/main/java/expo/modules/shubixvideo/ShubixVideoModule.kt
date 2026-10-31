@@ -223,6 +223,9 @@ class ShubixVideoModule : Module() {
         val transitionIn = c.optJSONObject("transitionIn")
         if (transitionIn != null) {
           val transitionType = transitionIn.optString("type")
+          require(transitionType in setOf("fade", "blur", "flash", "slide-left", "slide-right", "slide-up", "slide-down", "zoom-in", "zoom-out", "spin", "whip-pan")) {
+            "Transition $transitionType is not supported by the Android export engine."
+          }
           val requestedTransitionDuration = transitionIn.optDouble("duration", 0.35).let {
             if (it.isFinite()) it else 0.35
           }
@@ -251,6 +254,9 @@ class ShubixVideoModule : Module() {
         if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at + clipOutputDuration)))
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
         clipOutputDuration += segmentDuration
+      }
+      require(clipOutputDuration.isFinite() && clipOutputDuration > 0.0 && at + clipOutputDuration <= 24.0 * 60.0 * 60.0) {
+        "The Reel duration is invalid or exceeds the 24-hour native export limit."
       }
       if (!image && !muted && clipVolume > 0f && clipOutputDuration > 0.0) clipAudioRanges += Pair(clipTimelineStart, clipTimelineStart + clipOutputDuration)
       at += clipOutputDuration
