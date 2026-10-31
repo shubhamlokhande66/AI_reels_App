@@ -17,6 +17,10 @@ export interface PreviewProxyFacts {
   duration: number;
 }
 
+export function isQuickTimeSource(fileName: string, mimeType: string): boolean {
+  return /\.mov$/i.test(fileName.trim()) || /^video\/quicktime(?:;|$)/i.test(mimeType.trim());
+}
+
 export interface PreviewProxyPlan {
   width: number;
   height: number;
@@ -147,7 +151,7 @@ export async function createPreviewProxy(
           width: await track.getDisplayWidth(),
           height: await track.getDisplayHeight(),
           duration: await input.computeDuration(),
-        }, /\\.mov$/i.test(file.name) || /quicktime/i.test(file.type));
+        }, isQuickTimeSource(file.name, file.type));
         if (plan && await track.canDecode() &&
             await mb.canEncodeVideo("avc", { width: plan.width, height: plan.height, bitrate: plan.bitrate })) {
           const output = new mb.Output({
@@ -194,7 +198,7 @@ export async function createPreviewProxy(
         });
         plan = previewProxyPlan({
           size: file.size, width: probe.videoWidth, height: probe.videoHeight, duration: probe.duration,
-        }, /\\.mov$/i.test(file.name) || /quicktime/i.test(file.type));
+        }, isQuickTimeSource(file.name, file.type));
       } finally {
         probe.removeAttribute("src"); probe.load(); URL.revokeObjectURL(url);
       }

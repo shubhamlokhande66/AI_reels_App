@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { PREVIEW_BITRATE, PREVIEW_MAX_SIDE, previewProxyPlan } from "@/lib/previewProxy";
+import { isQuickTimeSource, PREVIEW_BITRATE, PREVIEW_MAX_SIDE, previewProxyPlan } from "@/lib/previewProxy";
 
 const MB = 1024 * 1024;
 
 describe("browser editor preview proxies", () => {
+  it("recognizes MOV files and QuickTime MIME types case-insensitively", () => {
+    expect(isQuickTimeSource("camera.MOV", "video/mp4")).toBe(true);
+    expect(isQuickTimeSource("camera.mov", "application/octet-stream")).toBe(true);
+    expect(isQuickTimeSource("camera.mp4", "video/quicktime")).toBe(true);
+    expect(isQuickTimeSource("camera.mp4", "video/quicktime; codecs=hevc")).toBe(true);
+    expect(isQuickTimeSource("camera.mp4", "video/mp4")).toBe(false);
+  });
   it("downscales 4K portrait and landscape footage for preview", () => {
     expect(previewProxyPlan({ size: 300 * MB, width: 2160, height: 3840, duration: 60 })).toMatchObject({
       width: 540, height: 960, bitrate: PREVIEW_BITRATE, reason: "resolution",
