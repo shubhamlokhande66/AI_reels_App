@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clipDuration, clipSchema, makeClip, splitClip } from "@shubix/validations";
+import { validateRenderJob } from "@shubix/core/engine/rendering";
 import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, rippleDelete, rippleInsert, slipClip, evaluateMotionPath, buildDuckingEnvelope, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
@@ -358,5 +359,35 @@ describe("advanced shared timeline and motion primitives", () => {
     expect(at(1.5)).toBeCloseTo(0.25);
     expect(at(2)).toBeCloseTo(0.25);
     expect(at(2.2)).toBeCloseTo(1);
+  });
+});
+
+
+describe("shared render audio contract", () => {
+  const job = {
+    version: 1 as const,
+    dimensions: { width: 1080, height: 1920, fps: 30 },
+    sources: [{ id: "clip", uri: "file:///clip.mp4", kind: "video" as const, durationMs: 5000 }],
+    items: [{ id: "item", sourceId: "clip", timelineStartMs: 0, sourceStartMs: 0, durationMs: 5000, playbackRate: 1, fit: "cover" as const }],
+    audio: [{
+      source: "file:///music.m4a", startMs: 0, durationMs: 5000, sourceStartMs: 1200,
+      volume: 0.7, fadeInMs: 1000, fadeOutMs: 800, ducking: true, duckLevel: 0.3,
+    }],
+    output: { container: "mp4" as const, videoCodec: "h264" as const, audioCodec: "aac" as const, quality: "high" as const },
+  };
+
+  it("accepts music gain, fades and speech-ducking settings", () => {
+    expect(validateRenderJob(job)).toEqual([]);
+  });
+
+  it("rejects invalid fade and ducking ranges before renderer dispatch", () => {
+    const invalid = {
+      ...job,
+      audio: [{ ...job.audio[0], fadeInMs: -1, duckLevel: 1.5 }],
+    };
+    expect(validateRenderJob(invalid)).toEqual(expect.arrayContaining([
+      "Audio fade-in must be between 0 and 10000ms.",
+      "Audio duck level must be between 0 and 1.",
+    ]));
   });
 });
