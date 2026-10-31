@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipDuration, clipSchema, makeClip } from "@shubix/validations";
+import { clipDuration, clipSchema, makeClip, splitClip } from "@shubix/validations";
 import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
@@ -275,5 +275,19 @@ describe("speed ramp project compatibility", () => {
   it("rejects out-of-range speed curve values", () => {
     const clip = makeClip({ uri: "file:///invalid.mp4", duration: 4 }, "invalid");
     expect(clipSchema.safeParse({ ...clip, speedRamp: [{ time: 0, speed: 8 }] }).success).toBe(false);
+  });
+
+  it("splits a ramped clip into two curves with matching speed at the cut", () => {
+    const clip = { ...makeClip({ uri: "file:///split.mp4", duration: 8 }, "split"), speedRamp: [
+      { time: 0, speed: 0.5 }, { time: 4, speed: 2, easing: "outCubic" as const }, { time: 8, speed: 1 },
+    ] };
+    const split = splitClip(clip, "split-right");
+    expect(split).not.toBeNull();
+    const [left, right] = split!;
+    expect(left.speedRamp?.[left.speedRamp.length - 1].time).toBeCloseTo(4);
+    expect(right.speedRamp?.[0].time).toBe(0);
+    expect(right.speedRamp?.[0].speed).toBeCloseTo(left.speedRamp?.[left.speedRamp.length - 1].speed ?? 0, 3);
+    expect(clipSchema.safeParse(left).success).toBe(true);
+    expect(clipSchema.safeParse(right).success).toBe(true);
   });
 });
