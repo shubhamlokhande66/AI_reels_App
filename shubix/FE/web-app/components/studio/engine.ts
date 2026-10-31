@@ -4836,58 +4836,51 @@ function askConfirm(text, okLabel){
 // Real-time recording: only when this browser has no WebCodecs encoder (older Firefox / Safari)
 async function recordExport(){
   const mime = pickMime();
-  if(!mime || !out.captureStream){ showMsg('This browser cannot save videos. Please open the studio in Chrome or Safari.', true); return false; }
-  let stream = null, rec = null, tick = null, keepBuf = buf, keepNorm = normGain, dest = null;
-  let stopped = null;
+  if(!mime || !out.captureStream){ showMsg('This browser cannot save videos. Please open the studio in Chrome or Safari.', true); return; }
+  const keepBuf = buf, keepNorm = normGain;
+  let stream = null, dest = null, rec = null, tick = null;
+  const chunks = [];
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
   try{
     setCanvas(true, XQ[xq.res].scale); await captureLoop();
     showMsg('Saving your Reel in real time on this browser (' + fmt(buf.duration) + '). Please keep this screen open.');
     tasks.start('export', 'export', 'Exporting your Reel', 'In real time on this browser · keep this screen open');
-    const t0 = performance.now(), D = Math.max(1, buf.duration*1000);
-    tick = setInterval(() => { if(recording) tasks.update('export', Math.min(0.99, (performance.now()-t0)/D)); }, 500);
+    { const t0 = performance.now(), D = Math.max(1, buf.duration*1000); tick = setInterval(() => { if(!recording){ clearInterval(tick); return; } tasks.update('export', Math.min(0.99, (performance.now()-t0)/D)); }, 500); }
     const c = getCtx(); await c.resume();
     dest = c.createMediaStreamDestination();
     stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
     rec = new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 256_000});
-    const chunks = [];
-    stopped = new Promise((resolve, reject) => {
-      rec.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+    rec.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+    const done = new Promise((resolve, reject)=>{
       rec.onstop = resolve;
-      rec.onerror = e=>reject(e.error || new Error('The browser recorder failed.'));
+      rec.onerror = e => reject(e.error || new Error('The browser recorder failed while saving the video.'));
     });
     rec.start(500);
-    const stopRecorder = () => { if(rec && rec.state !== 'inactive') { try{ rec.stop(); }catch(err){} } };
-    onEnd = () => { onEnd=null; setTimeout(stopRecorder, 150); };
+    onEnd = () => { onEnd=null; setTimeout(()=>{ try{ if(rec && rec.state !== 'inactive') rec.stop(); }catch(err){} }, 150); };
     if(noSong){ const sd = exportSound(); buf = sd ? sd.buf : c.createBuffer(2, Math.ceil(keepBuf.duration*c.sampleRate), c.sampleRate); normGain = sd ? sd.gain : 1; }
     pos = 0;
     await startPlayback(0, dest);
-    if(rec.state !== 'inactive') stopRecorder();
-    await stopped;
-    const blob = new Blob(chunks, {type: mime.split(';')[0]});
-    if(!blob.size) throw new Error('The browser produced an empty video file. Please retry in Chrome or Safari.');
+    await done;
+    if(!chunks.length) throw new Error('The browser produced an empty video. Please retry the export.');
     const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, {type: mime.split(';')[0]});
+    if(!blob.size) throw new Error('The exported video is empty. Please retry.');
     const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
     const sh = saveFile(blob, name);
     tasks.done('export', 'Your Reel is ready · ' + (blob.size/1e6).toFixed(1) + ' MB');
     notify('Your Reel is ready', 'ok');
     showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');
-    return true;
-  } catch(err){
-    onEnd = null;
-    stopAll();
-    if(rec && rec.state !== 'inactive'){ try{ rec.stop(); }catch(e){} }
-    if(stopped) { try{ await stopped; }catch(e){} }
-    throw err;
   } finally {
-    if(tick) clearInterval(tick);
     onEnd = null;
+    if(tick) clearInterval(tick);
+    try{ if(rec && rec.state !== 'inactive') rec.stop(); }catch(err){}
+    try{ stopAll(); }catch(err){}
+    if(stream) stream.getTracks().forEach(track=>{ try{ track.stop(); }catch(err){} });
+    if(dest) dest.stream.getTracks().forEach(track=>{ try{ track.stop(); }catch(err){} });
     buf = keepBuf; normGain = keepNorm;
-    if(stream) stream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
-    if(dest) dest.stream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
-    recording = false; latencyOn = true;
-    ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
-    setCanvas(false); if(edit.length) captureLoop();
+    recording = false; latencyOn = true; ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
+    setCanvas(false);
+    if(edit.length) captureLoop();
   }
 }
 
