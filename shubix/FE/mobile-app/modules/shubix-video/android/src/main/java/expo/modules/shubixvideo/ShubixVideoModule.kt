@@ -18,6 +18,7 @@ import androidx.media3.common.audio.GainProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
+import androidx.media3.effect.AlphaScale
 import androidx.media3.effect.Brightness
 import androidx.media3.effect.Contrast
 import androidx.media3.effect.GaussianBlur
@@ -30,6 +31,7 @@ import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.ScaleAndRotateTransformation
 import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.effect.StaticOverlaySettings
+import androidx.media3.effect.TimestampWrapper
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
@@ -114,7 +116,10 @@ class ShubixVideoModule : Module() {
         if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
         if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
         val keyframes = c.optJSONArray("keyframes")
-        if (keyframes != null && keyframes.length() > 0) video += keyframeTransform(keyframes, clipOutputDuration)
+        if (keyframes != null && keyframes.length() > 0) {
+          video += keyframeTransform(keyframes, clipOutputDuration)
+          video += keyframeOpacityEffects(keyframes, clipOutputDuration, segmentDuration)
+        }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
         if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at + clipOutputDuration, w, h)))
@@ -198,6 +203,19 @@ class ShubixVideoModule : Module() {
         postRotate(rotation.toFloat())
         postTranslate((x * 2.0).toFloat(), (-y * 2.0).toFloat())
       }
+    }
+  }
+
+  /** Approximate animated opacity with short timestamp-scoped GPU alpha effects. */
+  private fun keyframeOpacityEffects(frames: org.json.JSONArray, timelineOffsetSeconds: Double, durationSeconds: Double): List<Effect> {
+    val steps = kotlin.math.ceil(durationSeconds.coerceAtLeast(0.0) / 0.1).toInt().coerceIn(1, 600)
+    return (0 until steps).mapNotNull { index ->
+      val startUs = (durationSeconds * index / steps * 1_000_000.0).toLong()
+      val endUs = (durationSeconds * (index + 1) / steps * 1_000_000.0).toLong()
+      if (endUs <= startUs) return@mapNotNull null
+      val sampleTime = timelineOffsetSeconds + (startUs + endUs) / 2_000_000.0
+      val alpha = keyframeValue(frames, sampleTime, "o", 1.0).coerceIn(0.0, 1.0).toFloat()
+      TimestampWrapper(AlphaScale(alpha), startUs, endUs)
     }
   }
 
