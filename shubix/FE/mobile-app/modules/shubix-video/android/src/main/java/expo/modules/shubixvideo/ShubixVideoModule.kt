@@ -506,6 +506,10 @@ class ShubixVideoModule : Module() {
             result += TimestampWrapper(GaussianBlur((intensity * 18f * pulse).coerceAtLeast(0.1f)), startUs, endUs)
           }
         }
+        "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat" -> {
+          val frames = motionEffectFrames(effect.optString("type"), durationSeconds)
+          if (frames != null) result += keyframeTransform(frames, timelineOffsetSeconds)
+        }
         "brightness" -> if (intensity > 0f) result += Brightness(intensity * 0.25f)
         "contrast" -> if (intensity > 0f) result += Contrast(intensity * 0.5f)
         "saturation" -> if (intensity > 0f) result += HslAdjustment.Builder().adjustSaturation(intensity * 50f).build()
