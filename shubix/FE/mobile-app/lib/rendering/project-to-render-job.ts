@@ -48,6 +48,10 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       throw new UnsupportedAndroidRenderFeature("Shot keyframes are not yet supported by the shared Android RenderJob adapter. Use the native editor export path.");
     }
     const durationMs = clipDuration(clip) * 1000;
+    const transitionTypes: Record<string, string> = {
+      fadein: "fade", whip: "whip-pan", zoom: "zoom-in", zoomout: "zoom-out", spin: "spin",
+      slideleft: "slide-left", slideright: "slide-right", slideup: "slide-up", slidedown: "slide-down",
+    };
     const effects: NonNullable<RenderTrackItem["effects"]> = [];
     if (clip.filter && clip.filter !== "Original") {
       effects.push({ type: "filter", params: { name: clip.filter } });
@@ -71,7 +75,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       muted: clip.muted,
       volume: clip.volume,
       ...(clip.transition && clip.transition !== "Cut" && clip.transition !== "hard"
-        ? { transitionIn: { type: clip.transition === "fadein" ? "fade" : clip.transition, durationMs: 250 } }
+        ? { transitionIn: { type: transitionTypes[clip.transition] ?? clip.transition, durationMs: 350 } }
         : {}),
       effects,
     });
