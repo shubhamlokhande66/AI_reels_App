@@ -107,6 +107,9 @@ const RENDER_TRANSITIONS = new Set<TransitionType>([
 
 export type EffectType = "blur" | "motion-blur" | "glow" | "vignette" | "grain" | "sharpen" | "chromatic-aberration" | "rgb-split" | "glitch" | "shake" | "wave" | "pixelate" | "mosaic" | "fisheye" | "lens-distortion" | "light-leak" | "film-burn" | "bloom" | "edge-detection" | "duotone" | "lut" | "color-adjust" | "hsl" | "curves" | "posterize" | "threshold";
 export type MaskType = "rectangle" | "ellipse" | "linear" | "radial" | "polygon" | "luma" | "image";
+const RENDER_MASKS = new Set<MaskType>(["rectangle", "ellipse", "linear", "radial", "polygon", "luma", "image"]);
+const RENDER_BLEND_MODES = new Set(["normal", "multiply", "screen", "overlay", "soft-light", "add", "darken", "lighten"]);
+
 export interface RenderMask {
   type: MaskType;
   x: number; y: number; width: number; height: number;
@@ -303,6 +306,8 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
   for (const item of spec.items) {
     validateKeyframes(`Timeline item ${item.id}`, item.keyframes, item.durationMs);
     if (item.mask) {
+      if (!RENDER_MASKS.has(item.mask.type)) errors.push(`Timeline item ${item.id} has an unknown mask type.`);
+      if (item.mask.type === "image" && (!item.mask.sourceId || !sourceIds.has(item.mask.sourceId))) errors.push(`Timeline item ${item.id} image mask references a missing source.`);
       const mask = item.mask;
       if (![mask.x, mask.y, mask.width, mask.height].every(Number.isFinite) || mask.width <= 0 || mask.height <= 0) errors.push(`Timeline item ${item.id} has invalid mask geometry.`);
       if (mask.type === "polygon" && (!mask.points || mask.points.length < 3)) errors.push(`Timeline item ${item.id} polygon mask requires at least three points.`);
@@ -332,10 +337,13 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (!Number.isFinite(layer.zIndex)) errors.push(`Layer ${layer.id} has an invalid z-index.`);
     if (["video", "image", "sticker"].includes(layer.kind) && !layer.sourceId) errors.push(`Layer ${layer.id} requires a media source.`);
     if (layer.opacity !== undefined && (!Number.isFinite(layer.opacity) || layer.opacity < 0 || layer.opacity > 1)) errors.push(`Layer ${layer.id} has invalid opacity.`);
+    if (layer.blendMode && !RENDER_BLEND_MODES.has(layer.blendMode)) errors.push(`Layer ${layer.id} has an unsupported blend mode.`);
     if (layer.startMs + layer.durationMs > timelineEndMs + 1) errors.push(`Layer ${layer.id} extends beyond the Reel duration.`);
     if (layer.sourceId && !sourceIds.has(layer.sourceId)) errors.push(`Layer ${layer.id} references missing source ${layer.sourceId}.`);
     validateKeyframes(`Layer ${layer.id}`, layer.transform, layer.durationMs);
     if (layer.mask) {
+      if (!RENDER_MASKS.has(layer.mask.type)) errors.push(`Layer ${layer.id} has an unknown mask type.`);
+      if (layer.mask.type === "image" && (!layer.mask.sourceId || !sourceIds.has(layer.mask.sourceId))) errors.push(`Layer ${layer.id} image mask references a missing source.`);
       const mask = layer.mask;
       if (![mask.x, mask.y, mask.width, mask.height].every(Number.isFinite) || mask.width <= 0 || mask.height <= 0) errors.push(`Layer ${layer.id} has invalid mask geometry.`);
       if (mask.feather !== undefined && (!Number.isFinite(mask.feather) || mask.feather < 0 || mask.feather > 1)) errors.push(`Layer ${layer.id} has invalid mask feathering.`);
