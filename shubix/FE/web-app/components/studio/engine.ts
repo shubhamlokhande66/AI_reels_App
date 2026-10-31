@@ -3269,9 +3269,9 @@ async function prepare(i, t, quick){
   playersAround(i);
   const local = Math.max(0, t - e.start), target = srcPos(e, local);
   // A cold decoder often needs longer than 600 ms (especially the first 4K/HEVC preview). Wait for a real frame before starting audio, rather than letting the picture catch up with a visible hitch.
-  if(e.el.readyState < 2){ try{ await videoData(e.el, quick ? 1800 : 6000); }catch(err){} }
+  if(e.el.readyState < 2){ try{ await videoData(e.el, quick ? 700 : 6000); }catch(err){} }
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
-  if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 1200 : 4000); }catch(err){} }
+  if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 650 : 4000); }catch(err){} }
 }
 const srcPosF = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
 const srcPos = (e, l) => e.cs && e.cs.rev ? e.in + (e.sp.pos(e.end - e.start) - e.sp.pos(l))*e.scaleR : srcPosF(e, l);
@@ -4815,7 +4815,12 @@ async function startPlayback(from, destNode){
   }
   // the clips' sound mix: made before playing, except while clips are being read (decoding an iPhone video's sound then
   // would hold Play for many seconds); the next Play has it. Exporting always waits for it (destNode).
-  if(!pending || destNode) await ensureMix(); else ensureMix().catch(()=>{});
+  // Preview must not wait for decoding every source clip's audio before it can start.
+  // Play immediately with the current music/mix buffer; the completed mix is used by the next
+  // preview start. Export still waits for the complete mix so the rendered file is lossless.
+  const mixReady = ensureMix();
+  if(destNode) await mixReady;
+  else mixReady.catch(()=>{});
   if(gone()) return;
   edit.forEach(x=>{ x._cued = false; });
   curIdx = segAt(from); const quick = !destNode;
