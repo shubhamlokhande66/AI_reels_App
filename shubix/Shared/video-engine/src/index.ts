@@ -618,7 +618,7 @@ function pickAutonomousRole(shot: AutonomousSourceShot, index: number, total: nu
  * analysis and applies the returned edit through a renderer with explicit capabilities.
  */
 export function createAutonomousReelPlan(request: AutonomousReelRequest): AutonomousReelPlan {
-  const mood = request.mood ?? "cinematic";
+  const mood = request.mood ?? inferAutonomousMood(request.shots, request.music).mood;
   const intensity = request.intensity ?? "balanced";
   const platform = request.platform ?? "android";
   const mobile = platform === "android";
