@@ -1,5 +1,5 @@
 import { Paths } from "expo-file-system";
-import type { ReelProject } from "@shubix/validations";
+import { clipDuration, type ReelProject } from "@shubix/validations";
 import { ShubixVideo } from "../modules/shubix-video";
 import {
   createAndroidRendererAdapter,
@@ -61,7 +61,7 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
       rotation: clip.rotation, mirror: clip.mirror, flip: clip.flip, fit: clip.fit, filter: clip.filter,
       effects: clip.effect && clip.effect !== "none" ? [{ type: clip.effect, intensity: 0.5 }] : [],
       ...(clip.transition && !["Cut", "hard"].includes(clip.transition) && NATIVE_TRANSITIONS[clip.transition]
-        ? { transitionIn: { type: NATIVE_TRANSITIONS[clip.transition], duration: Math.min(0.35, Math.max(0.001, (clip.end - clip.start) / Math.max(0.25, clip.speed) / 2)) } }
+        ? { transitionIn: { type: NATIVE_TRANSITIONS[clip.transition], duration: Math.min(0.35, Math.max(0.001, clipDuration(clip) / 2)) } }
         : {}),
     })),
     audio: p.audioUri ? { uri: p.audioUri, start: p.settings?.start ?? 0, volume: Math.min(1, Math.max(0, p.settings?.musicVolume ?? 1)), fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0, ducking: p.settings?.musicDucking ?? false, duckLevel: p.settings?.musicDuckLevel ?? 0.35 } : undefined,
