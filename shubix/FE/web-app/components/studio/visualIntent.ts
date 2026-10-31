@@ -20,6 +20,6 @@ export function parseDirectorVisualIntent(prompt: string): DirectorVisualIntent 
 
   const squareFrame = /(?:square\s*(?:frame|border)|1\s*:\s*1\s*(?:frame|border)?)/i.test(value);
   const allClips = /\b(all|every|each)\s+(?:the\s+)?clips?\b|\bclips?\s+(?:all|every)\b|\bsaglya\s+clips?\b|\bsarva\s+clips?\b|सर्व\s*क्लिप/i.test(value);
-  if (squareFrame && (allClips || /\ball\s+clip\b/i.test(lower))) intent.squareFrameAll = true;
+  if (squareFrame && allClips) intent.squareFrameAll = true;
   return intent;
 }
