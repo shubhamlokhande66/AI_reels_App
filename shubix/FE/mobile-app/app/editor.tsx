@@ -428,7 +428,25 @@ export default function EditorScreen() {
         </>}
       </View>;
       case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
-      case "sp": return <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v) })} />;
+      case "sp": return <View className="gap-2">
+        <Label>Playback speed</Label>
+        <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v), speedRamp: undefined })} />
+        <Label>Speed ramp presets</Label>
+        <Choices items={["Normal", "Montage", "Hero slow motion", "Speed up", "Action punch"]} onPick={(v) => {
+          if (!clip) return;
+          const duration = Math.max(0.1, clip.end - clip.start);
+          const curves: Record<string, NonNullable<ProjectClip["speedRamp"]>> = {
+            Normal: [],
+            Montage: [{ time: 0, speed: 1 }, { time: duration * 0.25, speed: 2.2, easing: "outCubic" }, { time: duration * 0.7, speed: 2.2, easing: "inOut" }, { time: duration, speed: 1 }],
+            "Hero slow motion": [{ time: 0, speed: 1 }, { time: duration * 0.3, speed: 0.35, easing: "outCubic" }, { time: duration * 0.75, speed: 0.35, easing: "hold" }, { time: duration, speed: 1.4, easing: "inOut" }],
+            "Speed up": [{ time: 0, speed: 0.6, easing: "in" }, { time: duration * 0.5, speed: 1.4, easing: "inOut" }, { time: duration, speed: 2.5, easing: "out" }],
+            "Action punch": [{ time: 0, speed: 1 }, { time: duration * 0.35, speed: 0.45, easing: "outCubic" }, { time: duration * 0.55, speed: 0.45, easing: "hold" }, { time: duration, speed: 2.4, easing: "inOut" }],
+          };
+          patch({ speed: 1, speedRamp: curves[v].length ? curves[v] : undefined });
+          toast(words(v === "Normal" ? "Speed ramp cleared" : `${v} curve saved to this clip`), "success");
+        }} />
+        <Text className="text-[11px] text-muted">{words(clip?.speedRamp?.length ? `${clip.speedRamp.length} curve points saved. Variable-speed rendering is being connected to the native and web renderers.` : "Choose a speed curve preset. The curve is stored with this clip.")}</Text>
+      </View>;
       case "motion": return <View className="gap-2">
         <Text className="text-[11px] text-muted">{words("Move the playhead, then add a keyframe. Add another at a later time to animate the move.")}</Text>
         <Choices items={["Zoom in", "Zoom out", "Slide left", "Slide right", "Move up", "Move down", "Rotate", "Fade", "Reset frame"]} onPick={(v) => {
