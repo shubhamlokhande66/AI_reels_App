@@ -268,14 +268,14 @@ class ShubixVideoModule : Module() {
       at += clipOutputDuration
     }
     if (texts != null) {
-      require(texts.length() <= 100) { "A Reel can contain at most 100 text overlays." }
+      require(texts.length() <= 40) { "A Reel can contain at most 40 text overlays for reliable mobile rendering." }
       for (index in 0 until texts.length()) {
         val overlay = texts.optJSONObject(index) ?: throw IllegalArgumentException("Text overlay ${index + 1} is invalid.")
         val textValue = overlay.optString("text")
         val start = overlay.optDouble("start", Double.NaN)
         val end = overlay.optDouble("end", Double.NaN)
         val size = overlay.optDouble("size", 36.0)
-        require(textValue.isNotBlank() && textValue.length <= 500 && start.isFinite() && end.isFinite() && start >= 0.0 && end > start && size.isFinite()) {
+        require(textValue.isNotBlank() && textValue.length <= 300 && start.isFinite() && end.isFinite() && start >= 0.0 && end > start && size.isFinite() && size in 8.0..120.0) {
           "Text overlay ${index + 1} has invalid text, timing, or size."
         }
       }
@@ -792,7 +792,7 @@ class ShubixVideoModule : Module() {
       }
       if (active.isEmpty()) return blank
       return frames.getOrPut(active) {
-        if (frames.size >= 64) frames.clear()
+        if (frames.size >= 4) frames.clear()
         val bitmaps = active.map { index -> drawn.getOrPut(index) { draw(texts.getJSONObject(index)) } }
         val frame = Bitmap.createBitmap(w.coerceAtLeast(2), frameHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(frame)
@@ -814,27 +814,50 @@ class ShubixVideoModule : Module() {
     private fun draw(x: JSONObject): Bitmap {
       val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = try { Color.parseColor(x.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
-        textSize = x.optDouble("size", 36.0).let { if (it.isFinite()) it.coerceIn(8.0, 240.0) else 36.0 }.toFloat() * w / 540f
+        textSize = x.optDouble("size", 36.0).let { if (it.isFinite()) it.coerceIn(8.0, 120.0) else 36.0 }.toFloat() * w / 540f
         typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
       }
-      val words = x.optString("text").replace("\r", "")
+      val words = x.optString("text").replace("\r", "").take(300)
       val pad = (paint.textSize / 3).toInt().coerceAtLeast(2)
       val maxLineWidth = (w - pad * 2).coerceAtLeast(1).toFloat()
+      val lineHeight = paint.fontSpacing
+      val maxLines = ((frameHeight - pad * 2) / lineHeight.coerceAtLeast(1f)).toInt().coerceIn(1, 6)
       val lines = mutableListOf<String>()
       var current = ""
-      words.split(Regex("\\s+")).filter { it.isNotEmpty() }.forEach { word ->
-        val candidate = if (current.isEmpty()) word else "$current $word"
-        if (current.isNotEmpty() && paint.measureText(candidate) > maxLineWidth) {
-          lines += current
-          current = word
-        } else current = candidate
+      var truncated = false
+      fun pushWord(rawWord: String) {
+        var remaining = rawWord
+        while (remaining.isNotEmpty() && lines.size < maxLines) {
+          var cut = remaining.length
+          while (cut > 1 && paint.measureText(remaining.substring(0, cut)) > maxLineWidth) cut--
+          val chunk = remaining.substring(0, cut)
+          val candidate = if (current.isEmpty()) chunk else "$current $chunk"
+          if (current.isNotEmpty() && paint.measureText(candidate) > maxLineWidth) {
+            lines += current
+            current = ""
+            continue
+          }
+          current = candidate
+          remaining = remaining.substring(cut)
+          if (remaining.isNotEmpty()) {
+            lines += current
+            current = ""
+          }
+        }
+        if (remaining.isNotEmpty()) truncated = true
       }
-      if (current.isNotEmpty()) lines += current
+      words.split(Regex("\\s+")).filter { it.isNotEmpty() }.forEach { word ->
+        if (lines.size < maxLines) pushWord(word) else truncated = true
+      }
+      if (current.isNotEmpty() && lines.size < maxLines) lines += current
       if (lines.isEmpty()) lines += ""
+      if (truncated && lines.isNotEmpty()) {
+        val last = lines.last()
+        lines[lines.lastIndex] = last.takeWhile { paint.measureText(last.substring(0, last.indexOf(it).coerceAtLeast(0) + 1) + "…") <= maxLineWidth } + "…"
+      }
       val width = (lines.maxOf { paint.measureText(it) }.toInt() + pad * 2).coerceIn(2, w)
-      val lineHeight = paint.fontSpacing
-      val height = (lineHeight * lines.size + pad * 2).toInt().coerceAtLeast(2)
+      val height = (lineHeight * lines.size + pad * 2).toInt().coerceIn(2, frameHeight)
       return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
         val textCanvas = Canvas(bitmap)
         lines.forEachIndexed { index, line ->
