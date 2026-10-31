@@ -46,7 +46,7 @@ const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER",
 const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
 const LATER = new Set<string>();
-type BulkVisualCommand = { transition?: string; effect?: boolean };
+type BulkVisualCommand = { transition?: string; effect?: boolean; unsupportedTransition?: string };
 function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
   const value = String(prompt || "").trim();
   const all = /\b(?:all|every|each)\s+(?:the\s+)?(?:clips?|videos?)\b|\b(?:clips?|videos?)\s+(?:all|every)\b|\b(?:sagle|sagale|saglya?|sarva|pratyek|sabhi|saare|har)\s+(?:clips?|videos?)\b|\b(?:sagle|sagale|saglya?|sarva)\s+videos?\s+(?:vr|var|la)\b|\bhar\s+ek\s+(?:clip|video)\b|सभी\s*(?:क्लिप|वीडियो)|सारे\s*(?:क्लिप|वीडियो)|हर\s*(?:एक\s*)?(?:क्लिप|वीडियो)|सगळ्या?\s*(?:क्लिप|व्हिडिओ)|सर्व\s*(?:क्लिप|व्हिडिओ)|प्रत्येक\s*(?:क्लिप|व्हिडिओ)/iu.test(value);
@@ -62,8 +62,10 @@ function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
     ["slideleft", /\b(?:slide|push)\s*left\b/i], ["slideright", /\b(?:slide|push)\s*right\b/i],
     ["bars", /\bbars?\b/i], ["diamond", /\bdiamond\b/i], ["heart", /\bheart\b/i], ["star", /\bstar\b/i],
   ];
-  const transition = asksTransition ? namedTransition.find(([, pattern]) => pattern.test(value))?.[0] ?? "dissolve" : undefined;
-  return { ...(transition ? { transition } : {}), ...(asksEffect ? { effect: true } : {}) };
+  const matchedTransition = asksTransition ? namedTransition.find(([, pattern]) => pattern.test(value))?.[0] : undefined;
+  const transition = asksTransition ? (matchedTransition ?? "dissolve") : undefined;
+  const unsupportedTransition = transition && !SUPPORTED_TRANSITION_IDS.has(transition) ? transition : undefined;
+  return { ...(unsupportedTransition ? { unsupportedTransition } : transition ? { transition } : {}), ...(asksEffect ? { effect: true } : {}) };
 }
 
 // …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
@@ -697,6 +699,9 @@ export default function EditorScreen() {
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
         <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
           const bulk = parseBulkVisualCommand(t);
+          if (bulk?.unsupportedTransition) {
+            return words("{transition} is not available in the current Android export engine yet. I did not change your clips. Choose Fade, Dissolve, Whip pan, Zoom, Flash, Spin, Slide, Blur or Swipe up instead.", { transition: words(bulk.unsupportedTransition) });
+          }
           if (bulk && clips.length) {
             const effectChoices = ["punch-soft", "pan-soft", "drift", "bounce", "tilt"];
             let previous = "";
