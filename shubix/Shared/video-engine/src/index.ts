@@ -1151,13 +1151,14 @@ export function buildDuckingEnvelope(
     .filter((v) => v.end > v.start).sort((a, b) => a.start - b.start);
   const points = new Set<number>([0, total]);
   for (let t = 0; t <= total; t += step) points.add(Math.min(total, t));
-  for (const v of valid) { points.add(v.start); points.add(Math.min(total, v.start + attack)); points.add(Math.max(0, v.end - release)); points.add(v.end); }
+  for (const v of valid) { points.add(Math.max(0, v.start - attack)); points.add(v.start); points.add(v.end); points.add(Math.min(total, v.end + release)); }
   return [...points].sort((a, b) => a - b).map((time) => {
     let gain = 1;
     for (const v of valid) {
-      const down = clamp((time - v.start) / attack, 0, 1);
-      const up = clamp((v.end - time) / release, 0, 1);
-      gain = Math.min(gain, duck + (1 - duck) * Math.min(down, up));
+      const attackProgress = clamp((time - (v.start - attack)) / attack, 0, 1);
+      const releaseProgress = clamp(((v.end + release) - time) / release, 0, 1);
+      const duckProgress = Math.min(attackProgress, releaseProgress);
+      gain = Math.min(gain, duck + (1 - duck) * (1 - duckProgress));
     }
     return { time, gain };
   });
