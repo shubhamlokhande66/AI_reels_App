@@ -1951,8 +1951,8 @@ function chatProposal(pd){
   chatMsgs.push({ who: 'ai', text: 'Plan ready: ' + (pd.story || plan.length + ' shots') });
   chatWaiting = false; $('chatsend').disabled = false;
 }
-function applyChatVisualIntent(intent){
-  if(!intent || (!intent.openingText && !intent.squareFrameAll)) return '';
+function applyChatVisualIntent(intent, slots = []){
+  if(!intent || (!intent.openingText && !intent.squareFrameAll && !intent.transitionAll)) return '';
   if(!buf || !edit.length) throw new Error('The Reel is not ready for visual edits.');
   const D = reelLen();
   const next = overlays
@@ -1976,6 +1976,28 @@ function applyChatVisualIntent(intent){
       frameCount++;
     });
   }
+  let transitionCount = 0;
+  if(intent.transitionAll){
+    const valid = key => Object.prototype.hasOwnProperty.call(TR_DUR, key);
+    const counts = new Map();
+    slots.forEach((slot, i) => {
+      const key = slot && slot.tr;
+      if(i > 0 && key && key !== 'hard' && valid(key)) counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    const preferred = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'dissolve';
+    edit.forEach((shot, i) => {
+      const modelChoice = slots[i] && slots[i].tr;
+      let transition = intent.transitionType || (modelChoice && valid(modelChoice) && modelChoice !== 'hard' ? modelChoice : (i === 0 ? 'fadein' : preferred));
+      if(!valid(transition)) transition = i === 0 ? 'fadein' : preferred;
+      if(i === 0 && !intent.transitionType && transition === 'hard') transition = 'fadein';
+      shot.tr = transition;
+      shot.trd = undefined;
+      shot.trByDir = true;
+      transitionCount++;
+    });
+    renderEDL(true);
+    redrawFrame();
+  }
   setOverlaysFromNative(next);
   const textApplied = !intent.openingText || overlays.some(ov => ov.text === intent.openingText && ov.aiIntent === 'openingText');
   const framesApplied = !intent.squareFrameAll || overlays.filter(ov => ov.kind === 'squareFrame').length >= frameCount;
@@ -1986,6 +2008,7 @@ function applyChatVisualIntent(intent){
   const applied = [];
   if(intent.openingText) applied.push('opening text “' + intent.openingText + '”');
   if(intent.squareFrameAll) applied.push('square frame on all ' + frameCount + ' clips');
+  if(intent.transitionAll) applied.push('transitions on all ' + transitionCount + ' clips');
   return applied.join(' and ');
 }
 function chatGenerate(btn){
@@ -1996,7 +2019,7 @@ function chatGenerate(btn){
   let applied = '';
   try {
     makeEdit();
-    applied = applyChatVisualIntent(pd.intent);
+    applied = applyChatVisualIntent(pd.intent, pd.slots);
     if(!edit.length) throw new Error('The Reel timeline could not be verified after applying the plan.');
   } catch(error) {
     btn.textContent = 'Not applied';
@@ -2049,7 +2072,8 @@ async function chatPatch(text, n, id){
     const got = toSlots(res.slots, cands), changed = new Set();
     got.forEach((x, i) => { if(x && base[i] !== undefined){ base[i] = { ...x, cand: x.cand || base[i].cand }; changed.add(i); } });
     const intent = parseDirectorVisualIntent(text);
-    if(!changed.size && !intent.openingText && !intent.squareFrameAll){ chatAnswer('I could not tell which shot to change. Name it, e.g. "shot 3: slow-mo" or "the first clip: the dance".'); return; }
+    if(intent.transitionAll) edit.forEach((_, i) => changed.add(i));
+    if(!changed.size && !intent.openingText && !intent.squareFrameAll && !intent.transitionAll){ chatAnswer('I could not tell which shot to change. Name it, e.g. "shot 3: slow-mo" or "the first clip: the dance".'); return; }
     chatPending = { key, slots: base, story: res.story || '', changed, cost: chatCost, intent };
     chatProposal(chatPending);
   }catch(e){ chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : String(e && e.message || 'Shubix could not change it right now.')); }
