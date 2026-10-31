@@ -353,7 +353,7 @@ export const STUDIO_HTML = `
             <span class="soundState" id="soundstate">${Glyph("Music", 14)} SOUND ON</span>
             <button class="${Button.icon} size-11" id="cover" disabled aria-label="Cover image" title="Cover image" hidden>${IC.image}</button>
             <span class="tr-undo" role="group" aria-label="Undo and redo" hidden><button type="button" class="${Button.icon} size-11" id="tundo" data-proxy="undo" disabled aria-label="Undo">${IC.undo}</button><button type="button" class="${Button.icon} size-11" id="tredo" data-proxy="redo" disabled aria-label="Redo">${IC.redo}</button></span>
-            <button class="${Button.icon} size-11" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version" hidden>${IC.mix}<span>Change Reel</span></button>
+            <button class="${Button.icon} size-11" id="remix" disabled aria-label="Change Reel" title="Change Reel: Shubix makes a new version">${IC.mix}<span>Change Reel</span></button>
             <button class="${Button.icon} size-11 ml-1.5" id="pvfull" type="button" aria-label="Full screen" title="Full screen">${I('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>')}</button>
           </div>
           <div class="previewProgress bar"><i id="prog" style="width:0%"></i></div>
