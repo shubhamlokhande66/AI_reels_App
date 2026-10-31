@@ -1165,12 +1165,20 @@ export function rippleInsert<T extends TimelineRange>(clips: T[], at: number, du
   return result.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
 }
 
-/** Slip a clip's source window without changing its timeline position or duration. */
+/** Slip a clip's source window without changing its timeline position, duration or playback-rate mapping. */
 export function slipClip<T extends TimelineRange>(clip: T, sourceOffset: number, sourceDuration: number): T {
-  const duration = Math.max(0, clip.duration), available = Math.max(duration, sourceDuration);
-  const originalStart = clip.sourceStart ?? 0;
-  const nextStart = clamp(originalStart + (Number.isFinite(sourceOffset) ? sourceOffset : 0), 0, Math.max(0, available - duration));
-  return { ...clip, sourceStart: nextStart, sourceEnd: nextStart + duration };
+  const timelineDuration = Number.isFinite(clip.duration) ? Math.max(0, clip.duration) : 0;
+  const rawStart = Number.isFinite(clip.sourceStart) ? Math.max(0, clip.sourceStart!) : 0;
+  const rawEnd = Number.isFinite(clip.sourceEnd) ? Math.max(rawStart, clip.sourceEnd!) : rawStart + timelineDuration;
+  const requestedSpan = rawEnd > rawStart ? rawEnd - rawStart : timelineDuration;
+  const available = Number.isFinite(sourceDuration) && sourceDuration > 0
+    ? sourceDuration
+    : Math.max(rawStart + requestedSpan, timelineDuration);
+  const sourceSpan = Math.min(requestedSpan, available);
+  const maxStart = Math.max(0, available - sourceSpan);
+  const originalStart = clamp(rawStart, 0, maxStart);
+  const nextStart = clamp(originalStart + (Number.isFinite(sourceOffset) ? sourceOffset : 0), 0, maxStart);
+  return { ...clip, sourceStart: nextStart, sourceEnd: nextStart + sourceSpan };
 }
 
 export type MotionPathPoint = {
