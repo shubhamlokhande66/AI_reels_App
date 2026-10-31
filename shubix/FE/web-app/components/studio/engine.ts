@@ -2012,7 +2012,7 @@ function applyChatVisualIntent(intent, slots = []){
         : shot.type === 'break' ? ['drift', 'pan-soft', 'punch-soft']
         : ['punch-soft', 'pan-soft', 'drift', 'bounce', 'tilt'];
       const choices = mode === 'smooth' ? ['pan-soft', 'drift'] : roleChoices;
-      if(i === 0) choices.unshift('hook', ...choices);
+      if(i === 0) choices.unshift('hook');
       let chosen = canUse(proposed, i) && (proposed !== previousEffect || i === 0) ? proposed : null;
       if(!chosen) chosen = choices.find(fx => fx !== previousEffect && canUse(fx, i)) || choices.find(fx => canUse(fx, i));
       if(chosen){
