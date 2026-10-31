@@ -10,7 +10,7 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
-import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, evaluateKeyframes } from '@shubix/video-engine';
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, inferAutonomousMood, evaluateKeyframes } from '@shubix/video-engine';
 import { chatSize } from '@shubix/core/lib/chatSize';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
@@ -2654,12 +2654,14 @@ function makeEditNow(){
       isUsable: src.dur > 0.35 && quality > 0.08,
       speech: !!(src.voice && src.voice.has) };
   });
+  const directorMusic = { duration: buf.duration, beats, downbeats: beats.filter((_, i) => i % 2 === 0),
+    drops: plan.filter(x => x.type === 'drop').map(x => x.start),
+    quietRanges: plan.filter(x => x.type === 'break').map(x => [x.start, x.end] as [number, number]) };
+  const inferredMood = mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : inferAutonomousMood(directorShots, directorMusic).mood;
   const autonomousDirector = createAutonomousReelPlan({
-    shots: directorShots, music: { duration: buf.duration, beats, downbeats: beats.filter((_, i) => i % 2 === 0),
-      drops: plan.filter(x => x.type === 'drop').map(x => x.start),
-      quietRanges: plan.filter(x => x.type === 'break').map(x => [x.start, x.end] as [number, number]) },
+    shots: directorShots, music: directorMusic,
     targetDuration: Math.min(180, buf.duration), aspect,
-    mood: mode === 'fast' ? 'energetic' : mode === 'smooth' ? 'minimal' : 'cinematic',
+    mood: inferredMood,
     platform: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'android' : 'web',
     intensity: mode === 'fast' ? 'bold' : mode === 'smooth' ? 'subtle' : 'balanced',
   });
