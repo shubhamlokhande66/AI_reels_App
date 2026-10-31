@@ -6,7 +6,6 @@ export type DirectorVisualIntent = {
 /** Parse only explicit, renderable visual requests. Do not infer text content from the AI's explanation. */
 export function parseDirectorVisualIntent(prompt: string): DirectorVisualIntent {
   const value = String(prompt || "").trim();
-  const lower = value.toLowerCase();
   const intent: DirectorVisualIntent = {};
   const asksForText = /\b(text|title|caption|overlay|headline)\b|मजकूर|टेक्स्ट/i.test(value);
   if (asksForText) {
