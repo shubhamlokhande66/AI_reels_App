@@ -449,6 +449,10 @@ class ShubixVideoModule : Module() {
       val progress = rampEase(raw, right.easing)
       val rate = left.speed + (right.speed - left.speed) * progress
       result += RampSlice(start, end, rate.coerceIn(0.25, 4.0))
+    }
+    return result
+  }
+
 
   /** Constant PCM gain shared by the clip and music sequences. Media3 expects a 0..1 gain factor. */
   private fun gainProcessor(level: Float, durationSeconds: Double? = null, fadeInSeconds: Double = 0.0, fadeOutSeconds: Double = 0.0, duckRanges: List<Pair<Double, Double>> = emptyList(), duckLevel: Float = 0.35f): GainProcessor {
