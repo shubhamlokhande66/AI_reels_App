@@ -15,7 +15,7 @@ const NATIVE_TRANSITIONS: Record<string, string> = {
   fadein: "fade", Fade: "fade", fade: "fade", dissolve: "fade", Dissolve: "fade", Blur: "blur", Flash: "flash",
   whip: "whip-pan", zoom: "zoom-in", Zoom: "zoom-in", zoomout: "zoom-out", flash: "flash", blur: "blur",
   spin: "spin", slideleft: "slide-left", slideright: "slide-right",
-  slideup: "slide-up", slidedown: "slide-down",
+  slideup: "slide-up", slidedown: "slide-down", swipeup: "slide-up",
 };
 const NATIVE_EFFECTS = new Set([
   "blur", "blurpulse", "brightness", "contrast", "saturation", "hue",
