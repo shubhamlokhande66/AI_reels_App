@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clipDuration, clipSchema, makeClip, splitClip } from "@shubix/validations";
-import { validateRenderJob } from "@shubix/core/engine/rendering";
+import { cubicBezierProgress, sampleKeyframes, validateRenderJob } from "@shubix/core/engine/rendering";
 import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, rippleDelete, rippleInsert, slipClip, evaluateMotionPath, buildDuckingEnvelope, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
@@ -362,6 +362,23 @@ describe("advanced shared timeline and motion primitives", () => {
   });
 });
 
+
+describe("shared renderer keyframe sampling", () => {
+  it("uses cubic Bezier timing controls rather than linear interpolation", () => {
+    const linear = sampleKeyframes([
+      { timeMs: 0, value: 0, bezier: [0, 0, 1, 1] },
+      { timeMs: 1000, value: 100 },
+    ], 500);
+    const eased = sampleKeyframes([
+      { timeMs: 0, value: 0, bezier: [0.25, 0.1, 0.25, 1] },
+      { timeMs: 1000, value: 100 },
+    ], 500);
+    expect(linear).toBeCloseTo(50, 1);
+    expect(eased).toBeGreaterThan(50);
+    expect(cubicBezierProgress(0, [0.25, 0.1, 0.25, 1])).toBeCloseTo(0, 4);
+    expect(cubicBezierProgress(1, [0.25, 0.1, 0.25, 1])).toBeCloseTo(1, 4);
+  });
+});
 
 describe("shared render audio contract", () => {
   const job = {
