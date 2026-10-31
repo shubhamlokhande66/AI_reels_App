@@ -59,3 +59,24 @@ const plan = createDirectorPlan({
 - Compare native preview with the Studio MP4 for transitions, keyframes and each effect.
 - Validate mask tracking, object/person segmentation, high-cost GPU effects and layer compositing on real devices.
 - Keep unsupported controls hidden or clearly unavailable until both preview and exported MP4 implement them.
+
+
+## Complete editor tool catalogue
+
+The shared package also exports `EDITOR_TOOL_CATALOG`, `getEditorTools` and
+`resolveEditorToolAvailability`. The catalogue covers basic, advanced, pro and
+trending tools across clip editing, timelines, motion/keyframes, speed, color,
+effects, transitions, masks, layers, text, captions, audio, AI and export.
+
+Important support rule: catalogue presence is not proof that a renderer can render
+a feature. Each item carries an explicit status:
+- `ready`: available in the shared editor workflow.
+- `studio-only`: available only while the Reel's Shubix Studio session is active.
+- `preview-only`: preview support exists but export parity is not complete.
+- `planned`: listed for product planning, but must remain unavailable in the UI.
+
+Before showing a tool, pass the active platform and renderer/session capabilities to
+`resolveEditorToolAvailability`. Do not silently drop unsupported edits or export a
+visually degraded Reel. In particular, person segmentation, arbitrary freehand masks,
+object tracking, advanced optical-flow slow motion, and several GPU-heavy looks remain
+gated until both preview and export are implemented and tested.
