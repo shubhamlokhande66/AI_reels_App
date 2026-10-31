@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { askAction, tasks, type TaskKind } from "@shubix/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
 import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
+import { buildSpeedRampSegments } from "@shubix/video-engine";
 import { tokenStore } from "./device";
 
 /** The website's own Fast Studio makes the phone's Reels: its page /engine (FE/web-app app/engine, worked through
@@ -65,10 +66,20 @@ export const engine = {
     for (const c of p.clips) {
       const from = made.get(c.id) ?? [...made.values()].find((candidate) => candidate.clip.uri === c.uri && candidate.clip.kind === c.kind);
       if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
-      const len = clipDuration(c), sp = (SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed);
-      if (!sp) return false; // a speed the studio has not (it has slow, normal, fast)
+      const len = clipDuration(c);
+      const hasRamp = !!c.speedRamp?.length;
+      const sp = hasRamp ? "curve" : ((SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed));
+      if (!sp) return false; // a fixed speed the studio has not (it has slow, normal, fast)
       const base = from.shot;
       const cs = { ...(base.cs ?? {}) };
+      if (hasRamp) {
+        const segments = buildSpeedRampSegments(c.speedRamp!, c.end - c.start, { fallbackSpeed: c.speed, maxSegmentDuration: 0.2 });
+        const sample = (timelineTime: number) => {
+          const segment = segments.find((item) => timelineTime <= item.outputEnd + 0.0001) ?? segments[segments.length - 1];
+          return segment?.speed ?? c.speed;
+        };
+        cs.curve = { a: sample(0), b: sample(len * 0.25), c: sample(len * 0.5), d: sample(len * 0.75), e: sample(len) };
+      }
       if (c.reverse !== from.clip.reverse) cs.rev = c.reverse;
       if (c.rotation !== from.clip.rotation) cs.rot = c.rotation;
       if (c.mirror !== from.clip.mirror) cs.fh = c.mirror;
