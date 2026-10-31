@@ -3,11 +3,12 @@
  * The original File is never replaced: Fast Studio's export pipeline reads src.file.
  */
 export const PREVIEW_MAX_SIDE = 960;
-export const PREVIEW_BITRATE = 3_000_000;
+export const PREVIEW_BITRATE = 2_000_000;
 const MIN_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_PROXY_FILE_BYTES = 450 * 1024 * 1024;
 const MAX_PROXY_DURATION = 300;
-const REENCODE_BITRATE = 12_000_000;
+const MIN_PREVIEW_BITRATE = 700_000;
+const PREVIEW_AUDIO_BITRATE = 96_000;
 
 export interface PreviewProxyFacts {
   size: number;
@@ -24,7 +25,7 @@ export interface PreviewProxyPlan {
 }
 
 /** Return null for footage that is already light enough for real-time editing. */
-export function previewProxyPlan(facts: PreviewProxyFacts): PreviewProxyPlan | null {
+export function previewProxyPlan(facts: PreviewProxyFacts, forceTranscode = false): PreviewProxyPlan | null {
   const { size, width, height, duration } = facts;
   if (![size, width, height, duration].every(Number.isFinite) ||
       size < MIN_FILE_BYTES || size > MAX_PROXY_FILE_BYTES ||
@@ -33,18 +34,21 @@ export function previewProxyPlan(facts: PreviewProxyFacts): PreviewProxyPlan | n
   const longSide = Math.max(width, height);
   const bitrate = (size * 8) / duration;
   const highResolution = longSide > PREVIEW_MAX_SIDE;
-  const highBitrate = bitrate > REENCODE_BITRATE;
+  const highBitrate = bitrate > 2_500_000 || forceTranscode;
   if (!highResolution && !highBitrate) return null;
 
   const scale = Math.min(1, PREVIEW_MAX_SIDE / longSide);
   const even = (value: number) => Math.max(2, Math.round((value * scale) / 2) * 2);
-  const proxySize = (PREVIEW_BITRATE * duration) / 8;
+  // Adapt to the source bitrate so even long, high-resolution phone MOVs get a smaller proxy.
+  // Include a small audio allowance in the estimate; the original file is always retained for export.
+  const targetBitrate = Math.min(PREVIEW_BITRATE, Math.max(MIN_PREVIEW_BITRATE, Math.floor(bitrate * 0.65)));
+  const proxySize = ((targetBitrate + PREVIEW_AUDIO_BITRATE) * duration) / 8;
   if (proxySize > size * 0.9) return null;
 
   return {
     width: even(width),
     height: even(height),
-    bitrate: PREVIEW_BITRATE,
+    bitrate: targetBitrate,
     reason: highResolution && highBitrate ? "resolution-and-bitrate" : highResolution ? "resolution" : "bitrate",
   };
 }
