@@ -138,6 +138,17 @@ describe("Android renderer output contract", () => {
     expect(exportCalls()).toBe(0);
   });
 
+  it("rejects output paths containing a NUL byte before invoking native export", async () => {
+    const { adapter, exportCalls } = adapterFor(
+      async () => "/data/user/0/app/files/reel\\u0000.mp4",
+      { uri: "file:///data/user/0/app/files/reel.mp4", size: 1024, duration: 5 },
+    );
+    await expect(adapter.render(validJob(), () => {})).rejects.toThrow(
+      "Android export requires a non-empty absolute filesystem output path.",
+    );
+    expect(exportCalls()).toBe(0);
+  });
+
   it("rejects native export results without a non-empty output URI", async () => {
     const { adapter } = adapterFor(
       async () => "/data/user/0/app/files/reel.mp4",
