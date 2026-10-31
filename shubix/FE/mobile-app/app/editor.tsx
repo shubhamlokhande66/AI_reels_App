@@ -49,6 +49,7 @@ const LATER = new Set<string>();
 export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
+  const [mixing, setMixing] = useState(false);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
   const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
@@ -291,6 +292,24 @@ export default function EditorScreen() {
       setClips(replace && clip ? clips.map((c, i) => (i === selected ? { ...got[0], id: c.id } : c)) : [...clips, ...got]);
     } catch (e) { toast(errorMessage(e), "danger"); }
   }
+  async function mixVideo() {
+    if (!p || clips.length < 2 || mixing) return;
+    if (!engine.holds(p.id)) return toast(words("Mix Video needs a Reel created by Shubix Studio."), "info");
+    setMixing(true); setPlaying(false);
+    try {
+      const result = await engine.remix();
+      if (!result.ok) throw new Error("Studio could not create another mix. Please try again.");
+      change({ clips: result.clips });
+      if (result.overlays) setP((old) => old ? { ...old, overlays: result.overlays!, studio: old.studio } : old);
+      setSelected(0); setLocal(0);
+      toast(words("A new video mix is ready. No AI credits used."), "success");
+    } catch (error) {
+      toast(errorMessage(error), "danger");
+    } finally {
+      setMixing(false);
+    }
+  }
+
   async function chooseSong() {
     if (!p) return;
     try { const s = await pickSong(); if (s) { const uri = await keepPickedFile(p.id, s.uri, `${s.name}.m4a`); if (p.studio && engine.holds(p.id)) await engine.song(uri, s.name); change({ audioUri: uri, audioName: s.name }); } } catch (e) { toast(errorMessage(e), "danger"); }
@@ -634,6 +653,9 @@ export default function EditorScreen() {
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
         <Preview clip={clip} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <View className="mx-4 mt-2">
+          <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2 || !p.studio || !engine.holds(p.id)} onPress={() => void mixVideo()} />
+        </View>
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
         <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
           const style = styleFromWords(t);
