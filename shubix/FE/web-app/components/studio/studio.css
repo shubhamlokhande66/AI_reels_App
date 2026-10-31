@@ -3346,6 +3346,36 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 }
 
 
+
+/* Laptop tools rail: stay within the preview column's height; scroll the tool list inside it. */
+@media (min-width: 1024px) {
+  .brs.made.v-one:not(.fopen) .tools {
+    align-self: start !important;
+    height: min(62vh, 680px) !important;
+    min-height: 460px !important;
+    max-height: min(62vh, 680px) !important;
+    overflow: hidden !important;
+  }
+  .brs.made.v-one:not(.fopen) .toolDock {
+    position: relative !important;
+    top: auto !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-gutter: stable;
+    align-content: start !important;
+  }
+  .brs.made.v-one:not(.fopen) .toolDock::-webkit-scrollbar { width: 6px; }
+  .brs.made.v-one:not(.fopen) .toolDock::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted) 42%, transparent);
+    border-radius: 8px;
+  }
+}
+
 /* Laptop-safe editor sizing: prevent the workbench and timeline from forcing page overflow. */
 @media (min-width: 1024px) {
   .brs.made.v-one:not(.fopen) .create,
