@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -140,5 +140,43 @@ describe("autonomous AI reel director", () => {
     const plan = createAutonomousReelPlan({ shots, music, targetDuration: 8 });
     plan.shots[0].transition = "invented-transition";
     expect(validateAutonomousReelPlan(plan)).toContain("A transition is not in the shared registry.");
+  });
+});
+
+
+describe("autonomous render quality gate", () => {
+  it("passes a valid render with clean video and audio measurements", () => {
+    const result = assessAutonomousRenderQuality({
+      expectedDuration: 15, actualDuration: 15.02, width: 1080, height: 1920, fps: 30,
+      frames: Array.from({ length: 20 }, (_, index) => ({ time: index * 0.75, hasFrame: true, blackRatio: 0.01, blurScore: 0.4, duplicateDistance: 0.2 })),
+      audio: { peakDbfs: -1, clippedRatio: 0, silenceRatio: 0.02, integratedLufs: -14 },
+    });
+    expect(result.status).toBe("pass");
+    expect(result.score).toBe(100);
+    expect(result.repairs).toEqual([]);
+  });
+
+  it("fails black frames, duration mismatch and clipping with actionable repair hints", () => {
+    const result = assessAutonomousRenderQuality({
+      expectedDuration: 20, actualDuration: 12, width: 1080, height: 1920, fps: 30,
+      frames: Array.from({ length: 10 }, (_, index) => ({ time: index, hasFrame: true, blackRatio: index < 3 ? 1 : 0, blurScore: 0.5, duplicateDistance: 0.2 })),
+      audio: { peakDbfs: 0, clippedRatio: 0.02, silenceRatio: 0 },
+    });
+    expect(result.status).toBe("fail");
+    expect(result.errors.length).toBeGreaterThanOrEqual(3);
+    expect(result.repairs).toContain("fix-duration");
+    expect(result.repairs).toContain("remove-black-segment");
+    expect(result.repairs).toContain("reduce-clipping");
+  });
+
+  it("warns when audio is missing and many frames are blurry or duplicated", () => {
+    const result = assessAutonomousRenderQuality({
+      expectedDuration: 10, actualDuration: 10, width: 1080, height: 1920, fps: 30,
+      frames: Array.from({ length: 10 }, (_, index) => ({ time: index, hasFrame: true, blackRatio: 0, blurScore: 0.01, duplicateDistance: 0.001 })),
+    });
+    expect(result.status).toBe("warn");
+    expect(result.repairs).toContain("replace-blurry-shot");
+    expect(result.repairs).toContain("reduce-duplicate-shots");
+    expect(result.warnings).toContain("Audio quality was not measured.");
   });
 });
