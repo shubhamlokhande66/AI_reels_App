@@ -2584,7 +2584,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   z-index: 0;
 }
 .brs:has(.panels:not([hidden]) .panel.on) .panels:not([hidden]):has(.panel.on) {
-  z-index: 3 !important;
+  z-index: 10000 !important;
 }
 
 .brs.sheeton #shotsheet:not([hidden]),
