@@ -63,6 +63,17 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
     if (audio && audio.volume > 1) {
       throw new UnsupportedAndroidRenderFeature("Android Media3 music gain is currently limited to 100% to avoid clipping.");
     }
+    if (audio && (
+      !audio.source.trim() ||
+      !Number.isFinite(audio.sourceStartMs) || audio.sourceStartMs < 0 ||
+      !Number.isFinite(audio.durationMs) || audio.durationMs <= 0 ||
+      !Number.isFinite(audio.volume) || audio.volume < 0 ||
+      !Number.isFinite(audio.fadeInMs ?? 0) || (audio.fadeInMs ?? 0) < 0 ||
+      !Number.isFinite(audio.fadeOutMs ?? 0) || (audio.fadeOutMs ?? 0) < 0 ||
+      !Number.isFinite(audio.duckLevel ?? 0.35) || (audio.duckLevel ?? 0.35) < 0 || (audio.duckLevel ?? 0.35) > 1
+    )) {
+      throw new UnsupportedAndroidRenderFeature("Background music has an invalid source, trim, volume, fade, or ducking value.");
+    }
 
     if ((job.audio ?? []).some((track) => track.keyframes)) throw new UnsupportedAndroidRenderFeature("Animated audio gain is not supported by the Android Media3 adapter yet.");
     if (job.layers?.length) throw new UnsupportedAndroidRenderFeature("Additional compositor layers are not supported by the Android Media3 adapter yet.");
@@ -88,8 +99,11 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       if (item.fit === "stretch") {
         throw new UnsupportedAndroidRenderFeature("Stretch fit is not supported by the current Android renderer.");
       }
-      if (item.volume !== undefined && item.volume > 1) {
-        throw new UnsupportedAndroidRenderFeature(`Clip ${item.id} audio gain above 100% is not supported by the current Android renderer.`);
+      if (item.volume !== undefined && (!Number.isFinite(item.volume) || item.volume < 0 || item.volume > 1)) {
+        throw new UnsupportedAndroidRenderFeature(`Clip ${item.id} audio gain must be between 0% and 100% for the current Android renderer.`);
+      }
+      if (item.rotation !== undefined && !Number.isFinite(item.rotation)) {
+        throw new UnsupportedAndroidRenderFeature(`Clip ${item.id} has an invalid rotation value.`);
       }
       for (const effect of item.effects ?? []) {
         if (effect.enabled === false) continue;
