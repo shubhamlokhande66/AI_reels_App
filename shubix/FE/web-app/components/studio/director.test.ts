@@ -245,6 +245,23 @@ describe("speed ramp curves", () => {
     expect(segments[3].outputEnd).toBeLessThan(2);
   });
 
+  it("keeps the full source range when a dense speed ramp hits the segment cap", () => {
+    const points = Array.from({ length: 180 }, (_, index) => ({
+      time: index * 0.1,
+      speed: index % 2 ? 2 : 0.5,
+      easing: "linear" as const,
+    }));
+    const duration = 18;
+    const segments = buildSpeedRampSegments(points, duration, { maxSegmentDuration: 0.04, maxSegments: 1200 });
+    expect(segments.length).toBeLessThanOrEqual(1200);
+    expect(segments[0].sourceStart).toBe(0);
+    expect(segments[segments.length - 1].sourceEnd).toBeCloseTo(duration);
+    for (let index = 1; index < segments.length; index++) {
+      expect(segments[index].sourceStart).toBeCloseTo(segments[index - 1].sourceEnd);
+      expect(segments[index].outputStart).toBeCloseTo(segments[index - 1].outputEnd);
+    }
+  });
+
   it("uses a safe constant-rate fallback when no curve points are supplied", () => {
     const segments = buildSpeedRampSegments([], 3, { fallbackSpeed: 1.5, maxSegmentDuration: 1 });
     expect(segments.length).toBe(3);
