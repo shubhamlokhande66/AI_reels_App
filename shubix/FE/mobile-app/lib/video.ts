@@ -15,8 +15,8 @@ const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1
 export async function exportReel(p: ReelProject, onProgress: (done: number) => void) {
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
   const unsupported = p.clips.find((clip) =>
-    (clip.transition && !["Cut", "hard", "fadein"].includes(clip.transition)) ||
-    (clip.effect && !["none", "blurpulse"].includes(clip.effect)) ||
+    (clip.transition && clip.transition !== "Cut" && clip.transition !== "hard") ||
+    (clip.effect && clip.effect !== "none") ||
     (clip.volume ?? 1) > 1
   );
   if (unsupported?.transition && unsupported.transition !== "Cut") {
