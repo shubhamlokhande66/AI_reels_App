@@ -13,7 +13,7 @@ import { useLocked } from "../lib/data";
 import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
-import { videoEngine } from "../lib/video";
+import { isNativeEffectSupported, isNativeTransitionSupported, videoEngine } from "../lib/video";
 import { engine } from "../lib/engine";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
@@ -23,10 +23,8 @@ const TRANSITIONS = ["Cut", "Fade in", "Dissolve", "Whip pan", "Zoom", "Flash", 
 const TRANSITION_IDS = ["hard", "fadein", "dissolve", "whip", "zoom", "flash", "glitch", "dip", "iris", "wipe", "spin", "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin", "bars", "diamond", "heart", "star"];
 const EFFECTS = ["None", "Zoom punch", "Soft zoom", "Ken Burns", "Zoom burst", "Slow drift", "Shake", "Beat bounce", "Tilt punch", "Photo snap", "Hook zoom", "Punch-in (jump cut)", "Ken Burns beat", "Box pulse", "Grid pulse", "Strip pulse", "Circle pulse", "Heart pulse", "Star pulse", "Frame in frame", "Mirror", "Kaleidoscope", "Triple split", "VHS retro", "Strobe", "RGB pulse", "Blur pulse"];
 const EFFECT_IDS = ["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"];
-const SUPPORTED_TRANSITION_IDS = new Set(["hard", "fadein", "dissolve", "whip", "zoom", "flash", "spin", "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur"]);
-const SUPPORTED_EFFECT_IDS = new Set(["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat", "blurpulse"]);
-const UNAVAILABLE_TRANSITIONS = TRANSITIONS.filter((_, index) => !SUPPORTED_TRANSITION_IDS.has(TRANSITION_IDS[index]));
-const UNAVAILABLE_EFFECTS = EFFECTS.filter((_, index) => !SUPPORTED_EFFECT_IDS.has(EFFECT_IDS[index]));
+const UNAVAILABLE_TRANSITIONS = TRANSITIONS.filter((_, index) => !isNativeTransitionSupported(TRANSITION_IDS[index]));
+const UNAVAILABLE_EFFECTS = EFFECTS.filter((_, index) => !isNativeEffectSupported(EFFECT_IDS[index]));
 const SPEEDS = ["0.5×", "1×", "1.6×"];
 const VOLUMES = ["0%", "25%", "50%", "75%", "100%"];
 const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"];
@@ -64,7 +62,7 @@ function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
   ];
   const matchedTransition = asksTransition ? namedTransition.find(([, pattern]) => pattern.test(value))?.[0] : undefined;
   const transition = asksTransition ? (matchedTransition ?? "dissolve") : undefined;
-  const unsupportedTransition = transition && !SUPPORTED_TRANSITION_IDS.has(transition) ? transition : undefined;
+  const unsupportedTransition = transition && !isNativeTransitionSupported(transition) ? transition : undefined;
   return { ...(unsupportedTransition ? { unsupportedTransition } : transition ? { transition } : {}), ...(asksEffect ? { effect: true } : {}) };
 }
 
