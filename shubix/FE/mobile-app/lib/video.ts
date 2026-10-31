@@ -18,6 +18,7 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
     clip.reverse ||
     (clip.transition && clip.transition !== "Cut" && clip.transition !== "hard") ||
     (clip.effect && clip.effect !== "none") ||
+    !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"].includes(clip.filter) ||
     (clip.volume ?? 1) > 1
   );
   if (unsupported?.reverse) throw new Error("Reverse playback is not supported by the current Android native export engine yet.");
@@ -26,6 +27,9 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   }
   if (unsupported?.effect && unsupported.effect !== "none") {
     throw new Error(`The ${unsupported.effect} effect is not supported by the current Android export engine yet.`);
+  }
+  if (unsupported && !["Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"].includes(unsupported.filter)) {
+    throw new Error(`The ${unsupported.filter} filter is not supported by the current Android export engine yet.`);
   }
   if (unsupported && (unsupported.volume ?? 1) > 1) {
     throw new Error("Android export currently supports source-audio gain up to 100%. Lower this clip volume before exporting.");
