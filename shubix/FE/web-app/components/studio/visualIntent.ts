@@ -69,7 +69,7 @@ export function parseDirectorVisualIntent(prompt: string): DirectorVisualIntent 
     intent.transitionAll = true;
     if (namedTransition) intent.transitionType = namedTransition;
   }
-  const asksEffects = /\b(?:effects?|effecr|fx)\b|इफेक्ट्स?|प्रभाव|असर|ಎಫೆಕ್ಟ್|ఎఫెక్ట్స్?|ইফেক্টস?|અસર|ਪ੍ਰਭਾਵ|تأثيرات?|效果|エフェクト|효과|эффекты|efeitos|efectos|effets|effekte|effetti|efektler|efek|hiệu ứng|เอฟเฟกต์/u.test(value);
+  const asksEffects = /\b(?:effects?|effecr|fx)\b|इफेक्ट(?:्स)?|प्रभाव|असर|ಎಫೆಕ್ಟ್|ఎఫెక్ట్స్?|ইফেক্টস?|અસર|ਪ੍ਰਭਾਵ|تأثيرات?|效果|エフェクト|효과|эффекты|efeitos|efectos|effets|effekte|effetti|efektler|efek|hiệu ứng|เอฟเฟกต์/u.test(value);
   if (allClips && asksEffects) intent.effectsAll = true;
   return intent;
 }
