@@ -429,6 +429,7 @@ describe("shared render transition and effect validation", () => {
   it("rejects a transition longer than its clip", () => {
     const invalid = { ...base, items: [{ ...base.items[0], transitionIn: { type: "fade", durationMs: 6000 } }] };
     expect(validateRenderJob(invalid)).toContain("Timeline item item has an invalid transition duration.");
+  });
 
   it("rejects unregistered transition names", () => {
     const invalid = { ...base, items: [{ ...base.items[0], transitionIn: { type: "made-up", durationMs: 250 } }] };
@@ -443,7 +444,6 @@ describe("shared render transition and effect validation", () => {
   it("validates polygon masks on compositor layers", () => {
     const invalid = { ...base, items: [{ ...base.items[0], transitionIn: undefined }], layers: [{ id: "overlay", kind: "image" as const, sourceId: "clip", startMs: 0, durationMs: 1000, zIndex: 1, mask: { type: "polygon" as const, x: 0, y: 0, width: 1, height: 1, points: [{ x: 0, y: 0 }] } }] };
     expect(validateRenderJob(invalid)).toContain("Layer overlay polygon mask requires at least three points.");
-  });
   });
 });
 
