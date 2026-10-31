@@ -13,7 +13,7 @@ describe("AI Director visual intent", () => {
   });
 
   it("recognises a generic good-effects request for all videos in Roman Marathi", () => {
-    expect(parseDirectorVisualIntent("saglya video vr chan effect lav"))
+    expect(parseDirectorVisualIntent("saglya video vr chan effecr lav"))
       .toEqual({ effectsAll: true });
   });
 
