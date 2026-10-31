@@ -3176,10 +3176,13 @@ function segAt(t){ let lo=0,hi=edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)
  * preview loaded them and Safari reloaded the page (Admin -> Errors: "reloaded at saved / making the Reel", 4K clips).
  * So on an iPhone a player gets its video only when its shot is prepared, and the players of shots far from the playhead
  * (more than one before, two after) let theirs go: at most 4 loaded at once, whatever the number of clips. */
-function lazyPlayer(url){ const v = makeVideo(IOS ? '' : url); v._url = url; return v; }
+/* Keep the decoder working set small on every platform, not only iPhone.
+ * Desktop browsers also stutter when every clip eagerly opens three full-resolution decoders.
+ * A player gets its source only when its shot is prepared; distant shots release their decoder.
+ * The nearby window preserves transition look-ahead while avoiding N-clips × 3 active decoders. */
+function lazyPlayer(url){ const v = makeVideo(''); v._url = url; return v; }
 const playerLoaded = v => !!v.getAttribute('src');
 function playersAround(i){
-  if(!IOS) return;
   const c = playing || starting ? curIdx : i, keep = new Set();
   for(let k = Math.min(c, i) - 1; k <= Math.max(c, i) + 2; k++) if(edit[k]) keep.add(edit[k].el);
   for(const s of sources) for(const v of s.els || []) if(!keep.has(v) && playerLoaded(v)){ v.pause(); v.removeAttribute('src'); v.load(); }
