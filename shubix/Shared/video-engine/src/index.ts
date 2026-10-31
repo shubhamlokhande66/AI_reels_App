@@ -1046,3 +1046,120 @@ export function buildSpeedRampSegments(
   }
   return segments;
 }
+
+/* Advanced timeline, motion-path and dialogue-mix primitives. */
+export type TimelineRange = { id: string; start: number; duration: number; sourceStart?: number; sourceEnd?: number };
+export type TimelineEditResult<T extends TimelineRange> = { clips: T[]; removedDuration: number };
+
+/** Remove a timeline interval, split crossing clips and close the gap. */
+export function rippleDelete<T extends TimelineRange>(clips: T[], rangeStart: number, rangeEnd: number): TimelineEditResult<T> {
+  const start = Math.max(0, Math.min(rangeStart, rangeEnd));
+  const end = Math.max(start, Math.max(rangeStart, rangeEnd));
+  const removedDuration = end - start;
+  if (removedDuration <= 0) return { clips: clips.map((clip) => ({ ...clip })), removedDuration: 0 };
+  const result: T[] = [];
+  for (const clip of clips) {
+    const clipStart = Math.max(0, clip.start), clipEnd = clipStart + Math.max(0, clip.duration);
+    if (clipEnd <= start) { result.push({ ...clip }); continue; }
+    if (clipStart >= end) { result.push({ ...clip, start: clip.start - removedDuration }); continue; }
+    const left = Math.max(0, start - clipStart), right = Math.max(0, clipEnd - end);
+    const sourceStart = clip.sourceStart ?? 0, sourceEnd = clip.sourceEnd ?? sourceStart + clip.duration;
+    const rate = clip.duration > 0 ? (sourceEnd - sourceStart) / clip.duration : 1;
+    if (left > 0.0001) result.push({ ...clip, duration: left, sourceEnd: sourceStart + left * rate });
+    if (right > 0.0001) result.push({
+      ...clip, id: left > 0.0001 ? \`\${clip.id}:ripple-right\` : clip.id,
+      start, duration: right, sourceStart: sourceStart + (end - clipStart) * rate, sourceEnd,
+    });
+  }
+  return { clips: result.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id)), removedDuration };
+}
+
+/** Insert a gap, moving later clips and splitting a clip that crosses the insertion point. */
+export function rippleInsert<T extends TimelineRange>(clips: T[], at: number, duration: number): T[] {
+  const position = Math.max(0, at), gap = Math.max(0, duration);
+  if (gap <= 0) return clips.map((clip) => ({ ...clip }));
+  const result: T[] = [];
+  for (const clip of clips) {
+    const clipStart = Math.max(0, clip.start), clipEnd = clipStart + Math.max(0, clip.duration);
+    if (clipEnd <= position) { result.push({ ...clip }); continue; }
+    if (clipStart >= position) { result.push({ ...clip, start: clip.start + gap }); continue; }
+    const left = position - clipStart, right = clipEnd - position;
+    const sourceStart = clip.sourceStart ?? 0, sourceEnd = clip.sourceEnd ?? sourceStart + clip.duration;
+    const rate = clip.duration > 0 ? (sourceEnd - sourceStart) / clip.duration : 1;
+    result.push({ ...clip, duration: left, sourceEnd: sourceStart + left * rate });
+    result.push({
+      ...clip, id: \`\${clip.id}:insert-right\`, start: position + gap, duration: right,
+      sourceStart: sourceStart + left * rate, sourceEnd,
+    });
+  }
+  return result.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
+}
+
+/** Slip a clip's source window without changing its timeline position or duration. */
+export function slipClip<T extends TimelineRange>(clip: T, sourceOffset: number, sourceDuration: number): T {
+  const duration = Math.max(0, clip.duration), available = Math.max(duration, sourceDuration);
+  const originalStart = clip.sourceStart ?? 0;
+  const nextStart = clamp(originalStart + (Number.isFinite(sourceOffset) ? sourceOffset : 0), 0, Math.max(0, available - duration));
+  return { ...clip, sourceStart: nextStart, sourceEnd: nextStart + duration };
+}
+
+export type MotionPathPoint = {
+  time: number; x: number; y: number; easing?: Easing;
+  inHandle?: [number, number]; outHandle?: [number, number];
+};
+export type MotionPathValue = { x: number; y: number };
+
+/** Evaluate a time-based cubic-Bezier motion path. Handles are coordinate offsets from their anchors. */
+export function evaluateMotionPath(points: MotionPathPoint[], time: number): MotionPathValue {
+  const sorted = points.filter((p) => [p.time, p.x, p.y].every(Number.isFinite))
+    .map((p) => ({ ...p, time: Math.max(0, p.time) })).sort((a, b) => a.time - b.time);
+  if (!sorted.length) return { x: 0, y: 0 };
+  if (sorted.length === 1 || time <= sorted[0].time) return { x: sorted[0].x, y: sorted[0].y };
+  const last = sorted[sorted.length - 1];
+  if (time >= last.time) return { x: last.x, y: last.y };
+  let index = 0;
+  while (index < sorted.length - 2 && time > sorted[index + 1].time) index++;
+  const a = sorted[index], b = sorted[index + 1], span = Math.max(0.000001, b.time - a.time);
+  let t = clamp((time - a.time) / span, 0, 1);
+  if (a.easing && a.easing !== "linear") t = evaluateKeyframes([
+    { id: "motion-a", time: 0, value: 0, easing: a.easing },
+    { id: "motion-b", time: 1, value: 1, easing: "linear" },
+  ], t);
+  const ah = a.outHandle ?? [0, 0], bh = b.inHandle ?? [0, 0], u = 1 - t;
+  const p1 = { x: a.x + ah[0], y: a.y + ah[1] }, p2 = { x: b.x + bh[0], y: b.y + bh[1] };
+  return {
+    x: u*u*u*a.x + 3*u*u*t*p1.x + 3*u*t*t*p2.x + t*t*t*b.x,
+    y: u*u*u*a.y + 3*u*u*t*p1.y + 3*u*t*t*p2.y + t*t*t*b.y,
+  };
+}
+
+export type SpeechInterval = { start: number; end: number };
+
+/** Build a smooth gain envelope that ducks music under speech and restores it afterward. */
+export function buildDuckingEnvelope(
+  intervals: SpeechInterval[], duration: number,
+  options: { duckLevel?: number; attack?: number; release?: number; sampleStep?: number } = {},
+): Array<{ time: number; gain: number }> {
+  const total = Math.max(0, duration);
+  if (total <= 0) return [];
+  const duck = clamp(options.duckLevel ?? 0.32, 0, 1);
+  const attack = clamp(options.attack ?? 0.12, 0.01, 2);
+  const release = clamp(options.release ?? 0.28, 0.01, 3);
+  const step = clamp(options.sampleStep ?? 0.05, 0.01, 0.5);
+  const valid = intervals.filter((v) => Number.isFinite(v.start) && Number.isFinite(v.end) && v.end > v.start)
+    .map((v) => ({ start: clamp(v.start, 0, total), end: clamp(v.end, 0, total) }))
+    .filter((v) => v.end > v.start).sort((a, b) => a.start - b.start);
+  const points = new Set<number>([0, total]);
+  for (let t = 0; t <= total; t += step) points.add(Math.min(total, t));
+  for (const v of valid) { points.add(v.start); points.add(Math.min(total, v.start + attack)); points.add(Math.max(0, v.end - release)); points.add(v.end); }
+  return [...points].sort((a, b) => a - b).map((time) => {
+    let gain = 1;
+    for (const v of valid) {
+      const down = clamp((time - v.start) / attack, 0, 1);
+      const up = clamp((v.end - time) / release, 0, 1);
+      gain = Math.min(gain, duck + (1 - duck) * Math.min(down, up));
+    }
+    return { time, gain };
+  });
+}
+
