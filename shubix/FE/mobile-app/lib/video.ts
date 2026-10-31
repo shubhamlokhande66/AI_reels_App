@@ -22,6 +22,10 @@ const NATIVE_EFFECTS = new Set([
   "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake",
   "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat",
 ]);
+/** Shared capability checks used by editor UI and export validation. */
+export const isNativeTransitionSupported = (id: string) => id === "hard" || id === "Cut" || !!NATIVE_TRANSITIONS[id];
+export const isNativeEffectSupported = (id: string) => id === "none" || NATIVE_EFFECTS.has(id);
+
 const NATIVE_FILTERS = new Set([
   "Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic",
   "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast",
