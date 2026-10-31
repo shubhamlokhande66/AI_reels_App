@@ -56,8 +56,12 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
 
   const save = async () => {
     if (!done) return;
-    if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return toast(words("Allow Shubix to save to your Photos in the phone's settings."), "info");
-    await MediaLibrary.createAssetAsync(done.uri); setSaved(true); toast(words("Saved to your phone"), "success");
+    try {
+      if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return toast(words("Allow Shubix to save to your Photos in the phone's settings."), "info");
+      await MediaLibrary.createAssetAsync(done.uri); setSaved(true); toast(words("Saved to your phone"), "success");
+    } catch (e) {
+      toast(words("Couldn't save to Photos. Your exported video is still available to Share."), "danger");
+    }
   };
   return (
     <Modal visible={!!reel} animationType="slide" onRequestClose={() => { if (done) onClose(); }} statusBarTranslucent>
