@@ -4,6 +4,11 @@ import {
   type RendererAdapter,
   type RendererCapabilities,
 } from "@shubix/core/engine/rendering";
+import {
+  isAndroidEffectSupported,
+  isAndroidFilterSupported,
+  isAndroidTransitionSupported,
+} from "./native-capabilities";
 
 export interface ShubixVideoNativeModule {
   exportReel(spec: string): Promise<{ uri: string; size: number; duration: number }>;
@@ -28,9 +33,7 @@ export class UnsupportedAndroidRenderFeature extends Error {
   }
 }
 
-const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"]);
-const SUPPORTED_RENDER_EFFECTS = new Set(["blur", "blurpulse", "brightness", "contrast", "saturation", "hue", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat"]);
-const SUPPORTED_ANDROID_TRANSITIONS = new Set(["fade", "slide-left", "slide-right", "slide-up", "slide-down", "zoom-in", "zoom-out", "spin", "whip-pan", "blur", "flash"]);
+
 
 /**
  * Adapter for the currently shipped Media3 module.
@@ -91,7 +94,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       expectedTimelineStart = item.timelineStartMs + item.durationMs;
       if (item.transitionIn) {
         const transition = item.transitionIn.type.toLowerCase();
-        if (!SUPPORTED_ANDROID_TRANSITIONS.has(transition)) throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not supported by Android export yet.`);
+        if (!isAndroidTransitionSupported(transition)) throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not supported by Android export yet.`);
         if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs / 2) {
           throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} on ${item.id} must be positive and no longer than half of its clip.`);
         }
@@ -107,8 +110,8 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       }
       for (const effect of item.effects ?? []) {
         if (effect.enabled === false) continue;
-        if (effect.type === "filter" && typeof effect.params.name === "string" && SUPPORTED_FILTERS.has(effect.params.name)) continue;
-        if (!SUPPORTED_RENDER_EFFECTS.has(effect.type)) throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} is not supported by Android export yet.`);
+        if (effect.type === "filter" && typeof effect.params.name === "string" && isAndroidFilterSupported(effect.params.name)) continue;
+        if (!isAndroidEffectSupported(effect.type)) throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} is not supported by Android export yet.`);
         const intensity = effect.intensity ?? (typeof effect.params.amount === "number" ? effect.params.amount : 0.5);
         if (!Number.isFinite(intensity) || intensity < 0 || intensity > 1) throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} requires an intensity from 0 to 1.`);
         if (effect.startMs !== undefined || effect.endMs !== undefined || effect.keyframes) throw new UnsupportedAndroidRenderFeature(`Time-ranged or animated ${effect.type} effects are not supported by this Android export path yet.`);
