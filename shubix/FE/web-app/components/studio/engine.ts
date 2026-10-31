@@ -1960,7 +1960,12 @@ function applyChatVisualIntent(intent){
     .map(ov => ({ ...ov, start: ov.t0, end: ov.t1, size: ov.size * 36 }));
   if(intent.openingText){
     next.push({ id: ++ovSeq, aiIntent: 'openingText', start: 0, end: Math.min(D, 2.8), text: intent.openingText,
-      style: 'bold', color: '#FFFFFF', anim: 'pop', x: 0.5, y: 0.3, size: 48 });
+      style: 'bold', color: '#FFFFFF', anim: 'pop', x: 0.5, y: 0.3, size: 48,
+      uk: [
+        { t: 0, x: 0, y: 0, s: 0.55, r: 0, o: 0, ez: 'outBack' },
+        { t: 0.18, x: 0, y: 0, s: 1.12, r: 0, o: 1, ez: 'outBack' },
+        { t: 0.42, x: 0, y: 0, s: 1, r: 0, o: 1, ez: 'inOut' }
+      ] });
   }
   let frameCount = 0;
   if(intent.squareFrameAll){
