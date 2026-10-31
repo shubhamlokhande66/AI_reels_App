@@ -71,3 +71,7 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Android native Blur and Flash transitions: verify the blur clears smoothly and flash decays without clipping or a white-frame stutter, including when a clip has speed-ramp slices.
 - [ ] Android native Fade/Zoom/Slide/Spin/Whip-pan transitions: verify they run once at the start of each clip, not once per speed-ramp segment.
 - [ ] Verify Dissolve/Crossfade, Push and Wipe are rejected with an explicit unsupported-feature message until a true multi-clip transition compositor is implemented.
+
+- [ ] Studio layer masks: verify Ellipse, Rectangle, Polygon, Linear, Radial and Luma masks, including feather, invert and luma threshold. Check the polygon default six-point path and resizing/rotation.
+- [ ] Studio layer compositor: verify Normal, Screen, Multiply, Overlay, Soft light, Lighten, Darken, Colour dodge and Difference blends, chroma key, crop, opacity, fade-in/out and overlapping video/photo layers.
+- [ ] Verify all layer masks, blend modes and overlays appear in the final MP4 on Android when exported through the originating Studio session; the native editor preview is not a pixel-identical compositor.
