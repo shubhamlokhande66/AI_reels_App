@@ -457,7 +457,7 @@ export default function EditorScreen() {
           patch({ speed: 1, speedRamp: curves[v].length ? curves[v] : undefined });
           toast(words(v === "Normal" ? "Speed ramp cleared" : `${v} curve saved to this clip`), "success");
         }} />
-        <Text className="text-[11px] text-muted">{words(clip?.speedRamp?.length ? `${clip.speedRamp.length} curve points saved. Variable-speed rendering is being connected to the native and web renderers.` : "Choose a speed curve preset. The curve is stored with this clip.")}</Text>
+        <Text className="text-[11px] text-muted">{words(clip?.speedRamp?.length ? `${clip.speedRamp.length} curve points saved. The mobile preview and native export use this variable-speed curve.` : "Choose a speed curve preset. The curve is stored with this clip.")}</Text>
       </View>;
       case "motion": return <View className="gap-2">
         <Text className="text-[11px] text-muted">{words("Move the playhead, then add a keyframe. Add another at a later time to animate the move.")}</Text>
