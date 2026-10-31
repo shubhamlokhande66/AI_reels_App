@@ -77,6 +77,7 @@ class ShubixVideoModule : Module() {
     val clips = spec.getJSONArray("clips"); val texts = spec.optJSONArray("texts")
     val song = spec.optJSONObject("audio")
     val items = mutableListOf<EditedMediaItem>()
+    val clipAudioRanges = mutableListOf<Pair<Double, Double>>()
     var at = 0.0 // where this clip starts in the Reel (seconds)
     for (i in 0 until clips.length()) {
       val c = clips.getJSONObject(i)
@@ -94,6 +95,7 @@ class ShubixVideoModule : Module() {
       val turn = c.optDouble("rotation", 0.0).toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
       val muted = c.optBoolean("muted")
+      val clipTimelineStart = at
       var clipOutputDuration = 0.0
       for (slice in slices) {
         val sliceStartMs = startMs + (slice.start * 1000).toLong()
@@ -115,6 +117,7 @@ class ShubixVideoModule : Module() {
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
         clipOutputDuration += segmentDuration
       }
+      if (!image && !muted && clipVolume > 0f && clipOutputDuration > 0.0) clipAudioRanges += Pair(clipTimelineStart, clipTimelineStart + clipOutputDuration)
       at += clipOutputDuration
     }
     val sequences = mutableListOf(EditedMediaItemSequence.Builder(items).experimentalSetForceAudioTrack(true).build())
@@ -124,7 +127,10 @@ class ShubixVideoModule : Module() {
       val musicVolume = song.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f)
       val fadeIn = song.optDouble("fadeIn", 0.0).coerceIn(0.0, 10.0)
       val fadeOut = song.optDouble("fadeOut", 0.0).coerceIn(0.0, 10.0)
-      val musicAudio: List<AudioProcessor> = if (musicVolume == 1f && fadeIn == 0.0 && fadeOut == 0.0) emptyList() else listOf(gainProcessor(musicVolume, at, fadeIn, fadeOut))
+      val ducking = song.optBoolean("ducking", false)
+      val duckLevel = song.optDouble("duckLevel", 0.35).toFloat().coerceIn(0.1f, 1f)
+      val musicAudio: List<AudioProcessor> = if (musicVolume == 1f && fadeIn == 0.0 && fadeOut == 0.0 && (!ducking || clipAudioRanges.isEmpty())) emptyList()
+        else listOf(gainProcessor(musicVolume, at, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
     val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
@@ -211,17 +217,33 @@ class ShubixVideoModule : Module() {
   }
 
   /** Constant PCM gain shared by the clip and music sequences. Media3 expects a 0..1 gain factor. */
-  private fun gainProcessor(level: Float, durationSeconds: Double? = null, fadeInSeconds: Double = 0.0, fadeOutSeconds: Double = 0.0): GainProcessor {
+  private fun gainProcessor(level: Float, durationSeconds: Double? = null, fadeInSeconds: Double = 0.0, fadeOutSeconds: Double = 0.0, duckRanges: List<Pair<Double, Double>> = emptyList(), duckLevel: Float = 0.35f): GainProcessor {
     val gain = level.coerceIn(0f, 1f)
     return GainProcessor(object : GainProcessor.GainProvider {
       override fun getGainFactorAtSamplePosition(samplePosition: Long, sampleRate: Int): Float {
         val seconds = samplePosition.toDouble() / sampleRate.coerceAtLeast(1)
         val fadeIn = if (fadeInSeconds > 0.0) (seconds / fadeInSeconds).coerceIn(0.0, 1.0) else 1.0
         val fadeOut = if (fadeOutSeconds > 0.0 && durationSeconds != null) ((durationSeconds - seconds) / fadeOutSeconds).coerceIn(0.0, 1.0) else 1.0
-        return (gain * minOf(fadeIn, fadeOut)).toFloat()
+        val duck = if (duckRanges.isEmpty()) 1.0 else {
+          var envelope = 1.0
+          val attack = 0.12
+          val release = 0.28
+          for ((start, end) in duckRanges) {
+            val levelAtRange = duckLevel.toDouble().coerceIn(0.1, 1.0)
+            val candidate = when {
+              seconds >= start && seconds <= end -> levelAtRange
+              seconds < start && seconds >= start - attack -> 1.0 - (1.0 - levelAtRange) * ((seconds - (start - attack)) / attack).coerceIn(0.0, 1.0)
+              seconds > end && seconds <= end + release -> levelAtRange + (1.0 - levelAtRange) * ((seconds - end) / release).coerceIn(0.0, 1.0)
+              else -> 1.0
+            }
+            envelope = minOf(envelope, candidate)
+          }
+          envelope
+        }
+        return (gain * minOf(fadeIn, fadeOut, duck)).toFloat()
       }
       override fun isUnityUntil(samplePosition: Long, sampleRate: Int): Long =
-        if (gain == 1f && fadeInSeconds == 0.0 && fadeOutSeconds == 0.0) C.TIME_END_OF_SOURCE else C.TIME_UNSET
+        if (gain == 1f && fadeInSeconds == 0.0 && fadeOutSeconds == 0.0 && duckRanges.isEmpty()) C.TIME_END_OF_SOURCE else C.TIME_UNSET
     })
   }
 
