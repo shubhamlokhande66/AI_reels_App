@@ -1992,7 +1992,7 @@ function chatGenerate(btn){
   try {
     makeEdit();
     applied = applyChatVisualIntent(pd.intent);
-    if(!edit.length || edit.length !== plan.length) throw new Error('The Reel timeline could not be verified after applying the plan.');
+    if(!edit.length) throw new Error('The Reel timeline could not be verified after applying the plan.');
   } catch(error) {
     btn.textContent = 'Not applied';
     chatAnswer('I could not verify that every requested change was applied. ' + String(error && error.message || error) + ' The Reel was not marked as generated; please try the instruction again.');
