@@ -1797,6 +1797,12 @@ const fpOf = src => [src.name, src.file ? src.file.size : 0, src.file ? src.file
 function aiStat(t, err){ const el = $('aistat'); el.hidden = !t; el.textContent = t || '';
   if(!t) tasks.clear('ai'); else if(/…$/.test(t)) tasks.start('ai', 'ai', 'Shubix at work', t.replace(/…$/, '')); else if(err) tasks.fail('ai', t); else if(tasks.has('ai')) tasks.done('ai', t); el.style.color = err ? 'var(--drop)' : ''; }
 // The AI's view of footage [a,b]: frames nearby (same scene only), weighted by distance
+// what a clip is about: the vision AI's subjects seen in at least a third of its frames (one stray frame says little)
+function aiTags(src){
+  const F = aiOn && src.ai ? src.ai.frames : [], n = {};
+  F.forEach(f=>(f.tags||[]).forEach(t=>{ n[t] = (n[t]||0) + 1; }));
+  return Object.keys(n).filter(t=>n[t]*3 >= F.length);
+}
 function aiAt(src, a, b){
   if(!aiOn || !src.ai || !src.ai.frames.length) return null;
   const F = src.ai.frames, sg = Math.max(0.6, 0.45*src.dur/F.length);
@@ -2923,13 +2929,14 @@ function makeEditNow(){
     const quality = Math.max(0, Math.min(1, 0.55 + (sharp - 1) * 0.18 + (avg('b') - 0.45) * 0.2 - clipFlaw(src) * 0.08));
     const aiSummary = aiAt(src, 0, src.dur);
     const motion = Math.max(0, Math.min(1, avg('m')));
+    const roles = aiSummary ? aiSummary.roles : {}, tags = aiTags(src);
     return { id: String(sourceIndex), sourceIndex, duration: src.dur, sourceStart: 0, sourceEnd: src.dur,
       quality, motion, aestheticScore: aiSummary ? Math.max(0, Math.min(1, aiSummary.score || 0)) : quality,
       faceScore, subjectScore: Math.max(faceScore, Math.max(0, Math.min(1, avg('b')))),
       isHighlight: !!(aiSummary && aiSummary.score > 0.82),
-      isProduct: !!(aiSummary && aiSummary.roles && aiSummary.roles.product > 0.55),
-      isFood: !!(aiSummary && aiSummary.roles && aiSummary.roles.food > 0.55),
-      isAction: motion > 0.68, isDetail: !!(aiSummary && aiSummary.roles && (aiSummary.roles.product > 0.55 || aiSummary.roles.food > 0.55)),
+      tags, isProduct: tags.includes('product'), isFood: tags.includes('food'), isLandscape: tags.includes('travel'),
+      isOpening: roles.hook > 0.55, isEnding: roles.ending > 0.55, isDetail: roles.detail > 0.55,
+      isAction: motion > 0.68 || roles.action > 0.55,
       isUsable: src.dur > 0.35 && quality > 0.08,
       speech: !!(src.voice && src.voice.has) };
   });

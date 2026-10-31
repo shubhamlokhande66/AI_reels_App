@@ -66,7 +66,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     }
   };
   return (
-    <Modal visible={!!reel} animationType="slide" onRequestClose={() => { if (done) onClose(); }} statusBarTranslucent>
+    <Modal visible={!!reel} animationType="slide" onRequestClose={() => { if (done || failed) onClose(); }} statusBarTranslucent>
       <ThemeLayer className="bg-background">
         <ScrollView contentContainerClassName="gap-4 px-5" contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }}>
           {!done ? (
@@ -74,7 +74,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
               <FlowAnalyse title="Exporting" pct={pct} done={STEPS.filter(([, , at]) => pct >= at).length} status={words("Making your Reel…")} sub={words("This may take a few moments. Please keep this screen open.")} steps={STEPS.map(([i, t]) => [i, t])} />
               {!!saveNotice && <Text accessibilityRole="alert" className="text-center text-[12px] text-danger">{saveNotice}</Text>}
               {failed
-                ? <Button full title={words("Try export again")} onPress={() => setAttempt((n) => n + 1)} />
+                ? <><Button full title={words("Try export again")} onPress={() => setAttempt((n) => n + 1)} /><Button full variant="secondary" title={words("Back to your Reel")} onPress={onClose} /></>
                 : (!reel?.studio && <Button full variant="secondary" title={words("Cancel")} onPress={() => { void cancelExport(); onClose(); }} />)}
             </>
           ) : (
