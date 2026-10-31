@@ -4836,28 +4836,59 @@ function askConfirm(text, okLabel){
 // Real-time recording: only when this browser has no WebCodecs encoder (older Firefox / Safari)
 async function recordExport(){
   const mime = pickMime();
-  if(!mime || !out.captureStream){ showMsg('This browser cannot save videos. Please open the studio in Chrome or Safari.', true); return; }
+  if(!mime || !out.captureStream){ showMsg('This browser cannot save videos. Please open the studio in Chrome or Safari.', true); return false; }
+  let stream = null, rec = null, tick = null, keepBuf = buf, keepNorm = normGain, dest = null;
+  let stopped = null;
   recording = true; latencyOn = false; ['play','remix','export','cover'].forEach(id=>$(id).disabled=true);
-  setCanvas(true, XQ[xq.res].scale); await captureLoop();
-  showMsg('Saving your Reel in real time on this browser (' + fmt(buf.duration) + '). Please keep this screen open.');
-  tasks.start('export', 'export', 'Exporting your Reel', 'In real time on this browser · keep this screen open');
-  { const t0 = performance.now(), D = buf.duration*1000, tick = setInterval(() => { if(!recording){ clearInterval(tick); return; } tasks.update('export', Math.min(0.99, (performance.now()-t0)/D)); }, 500); }
-  const c = getCtx(); await c.resume();
-  const dest = c.createMediaStreamDestination();
-  const stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
-  const rec = new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 256_000});
-  const chunks = []; rec.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
-  const done = new Promise(r=>rec.onstop=r);
-  rec.start(500);
-  onEnd = () => { onEnd=null; setTimeout(()=>rec.stop(), 150); };
-  const keepBuf = buf, keepNorm = normGain; if(noSong){ const sd = exportSound(); buf = sd ? sd.buf : c.createBuffer(2, Math.ceil(keepBuf.duration*c.sampleRate), c.sampleRate); normGain = sd ? sd.gain : 1; }
-  pos = 0; try{ await startPlayback(0, dest); await done; } finally { buf = keepBuf; normGain = keepNorm; }
-  recording = false; latencyOn = true; ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
-  const ext = mime.includes('mp4') ? 'mp4' : 'webm';
-  const blob = new Blob(chunks, {type: mime.split(';')[0]});
-  const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
-  setCanvas(false); captureLoop();
-  const sh = saveFile(blob, name); tasks.done('export', 'Your Reel is ready · ' + (blob.size/1e6).toFixed(1) + ' MB'); notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');}
+  try{
+    setCanvas(true, XQ[xq.res].scale); await captureLoop();
+    showMsg('Saving your Reel in real time on this browser (' + fmt(buf.duration) + '). Please keep this screen open.');
+    tasks.start('export', 'export', 'Exporting your Reel', 'In real time on this browser · keep this screen open');
+    const t0 = performance.now(), D = Math.max(1, buf.duration*1000);
+    tick = setInterval(() => { if(recording) tasks.update('export', Math.min(0.99, (performance.now()-t0)/D)); }, 500);
+    const c = getCtx(); await c.resume();
+    dest = c.createMediaStreamDestination();
+    stream = new MediaStream([...out.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+    rec = new MediaRecorder(stream, {mimeType:mime, videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 256_000});
+    const chunks = [];
+    stopped = new Promise((resolve, reject) => {
+      rec.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+      rec.onstop = resolve;
+      rec.onerror = e=>reject(e.error || new Error('The browser recorder failed.'));
+    });
+    rec.start(500);
+    const stopRecorder = () => { if(rec && rec.state !== 'inactive') { try{ rec.stop(); }catch(err){} } };
+    onEnd = () => { onEnd=null; setTimeout(stopRecorder, 150); };
+    if(noSong){ const sd = exportSound(); buf = sd ? sd.buf : c.createBuffer(2, Math.ceil(keepBuf.duration*c.sampleRate), c.sampleRate); normGain = sd ? sd.gain : 1; }
+    pos = 0;
+    await startPlayback(0, dest);
+    if(rec.state !== 'inactive') stopRecorder();
+    await stopped;
+    const blob = new Blob(chunks, {type: mime.split(';')[0]});
+    if(!blob.size) throw new Error('The browser produced an empty video file. Please retry in Chrome or Safari.');
+    const ext = mime.includes('mp4') ? 'mp4' : 'webm';
+    const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
+    const sh = saveFile(blob, name);
+    tasks.done('export', 'Your Reel is ready · ' + (blob.size/1e6).toFixed(1) + ' MB');
+    notify('Your Reel is ready', 'ok');
+    showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');
+    return true;
+  } catch(err){
+    onEnd = null;
+    stopAll();
+    if(rec && rec.state !== 'inactive'){ try{ rec.stop(); }catch(e){} }
+    throw err;
+  } finally {
+    if(tick) clearInterval(tick);
+    onEnd = null;
+    buf = keepBuf; normGain = keepNorm;
+    if(stream) stream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
+    if(dest) dest.stream.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
+    recording = false; latencyOn = true;
+    ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
+    setCanvas(false); if(edit.length) captureLoop();
+  }
+}
 
 // Fast export: every frame is decoded (WebCodecs, through mediabunny), drawn and encoded off-screen, faster than real
 // time and frame-accurate (no dropped frames). The sound goes through the same gain + limiter as the preview.
@@ -5073,7 +5104,10 @@ async function runExport(toCloud){
     let ok = false;
     try{ ok = await fastExport(); }
     catch(err){ console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
-    if(!ok) await recordExport();
+    if(!ok){
+      try{ ok = await recordExport(); }
+      catch(err){ console.error('real-time export failed', err); tasks.fail('export', 'Export failed. Please retry with the screen open.'); showMsg('Export failed: ' + (err && err.message ? err.message : 'Please retry in Chrome or Safari.'), true); }
+    }
     if(toCloud && lastVideo) await saveToMyReels(lastVideo);
   } finally {
     exportBusy = false; if(wakeLock){ try{ await wakeLock.release(); }catch(err){} wakeLock = null; }
