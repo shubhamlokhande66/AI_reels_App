@@ -283,21 +283,35 @@ class ShubixVideoModule : Module() {
     }
     if (unique.first().time > 0.0) unique.add(0, RampPoint(0.0, unique.first().speed, "linear"))
     if (unique.last().time < duration) unique += RampPoint(duration, unique.last().speed, "linear")
-    val result = mutableListOf<RampSlice>()
+    // Keep the whole source range even when a project contains many ramp points. Taking the
+    // first 1,200 slices silently dropped the tail of long/complex clips.
+    val boundaries = sortedSetOf<Double>()
+    unique.forEach { boundaries += it.time }
     for (index in 0 until unique.lastIndex) {
-      val left = unique[index]; val right = unique[index + 1]
-      val count = kotlin.math.ceil((right.time - left.time) / 0.2).toInt().coerceIn(1, 240)
-      for (part in 0 until count) {
-        val start = left.time + (right.time - left.time) * part / count
-        val end = left.time + (right.time - left.time) * (part + 1) / count
-        val midpoint = (start + end) / 2.0
-        val raw = ((midpoint - left.time) / (right.time - left.time).coerceAtLeast(0.000001)).coerceIn(0.0, 1.0)
-        val progress = rampEase(raw, right.easing)
-        val rate = left.speed + (right.speed - left.speed) * progress
-        result += RampSlice(start, end, rate.coerceIn(0.25, 4.0))
-      }
+      val start = unique[index].time
+      val end = unique[index + 1].time
+      val count = kotlin.math.ceil((end - start) / 0.2).toInt().coerceAtLeast(1)
+      for (part in 1 until count) boundaries += start + (end - start) * part / count
     }
-    return result.take(1200)
+    val ordered = boundaries.toList()
+    val capped = if (ordered.size - 1 > 1200) {
+      (0..1200).map { index -> duration * index / 1200.0 }
+    } else ordered
+    val result = mutableListOf<RampSlice>()
+    for (index in 0 until capped.lastIndex) {
+      val start = capped[index]
+      val end = capped[index + 1]
+      if (end - start < 0.0001) continue
+      val midpoint = (start + end) / 2.0
+      val rightIndex = unique.indexOfFirst { it.time >= midpoint }.coerceAtLeast(1)
+      val left = unique[rightIndex - 1]
+      val right = unique[rightIndex]
+      val raw = ((midpoint - left.time) / (right.time - left.time).coerceAtLeast(0.000001)).coerceIn(0.0, 1.0)
+      val progress = rampEase(raw, right.easing)
+      val rate = left.speed + (right.speed - left.speed) * progress
+      result += RampSlice(start, end, rate.coerceIn(0.25, 4.0))
+    }
+    return result
   }
 
   /** Constant PCM gain shared by the clip and music sequences. Media3 expects a 0..1 gain factor. */
