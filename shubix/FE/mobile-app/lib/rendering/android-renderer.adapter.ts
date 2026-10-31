@@ -72,8 +72,12 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         throw new UnsupportedAndroidRenderFeature("Android Media3 adapter currently requires a continuous, gap-free timeline.");
       }
       expectedTimelineStart = item.timelineStartMs + item.durationMs;
-      if (item.transitionIn && item.transitionIn.durationMs > 0) {
-        throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not implemented by the current Android renderer.`);
+      if (item.transitionIn) {
+        const transition = item.transitionIn.type.toLowerCase();
+        if (transition !== "fade") throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not supported by Android export yet.`);
+        if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs / 2) {
+          throw new UnsupportedAndroidRenderFeature(`Fade transition on ${item.id} must be positive and no longer than half of its clip.`);
+        }
       }
       if (item.fit === "stretch") {
         throw new UnsupportedAndroidRenderFeature("Stretch fit is not supported by the current Android renderer.");
@@ -154,6 +158,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
               type: effect.type,
               intensity: effect.intensity ?? (typeof effect.params.amount === "number" ? effect.params.amount : 0.5),
             })),
+            ...(item.transitionIn ? { transitionIn: { type: item.transitionIn.type.toLowerCase(), duration: item.transitionIn.durationMs / 1000 } } : {}),
           };
         });
         const audio = job.audio?.[0];
