@@ -111,7 +111,7 @@ describe("autonomous AI reel director", () => {
   it("builds a complete non-repeating edit with a hook, story roles, beat points and an ending", () => {
     const plan = createAutonomousReelPlan({ shots, music, targetDuration: 9, mood: "wedding", platform: "android" });
     expect(plan.shots[0].sourceId).toBe("opening");
-    expect(plan.shots.at(-1)?.sourceId).toBe("ending");
+    expect(plan.shots[plan.shots.length - 1]?.sourceId).toBe("ending");
     expect(plan.shots.some((shot) => shot.role === "reaction")).toBe(true);
     expect(new Set(plan.shots.map((shot) => shot.sourceId)).size).toBe(plan.shots.length);
     expect(plan.soundtrack.beatSync).toBe(true);
