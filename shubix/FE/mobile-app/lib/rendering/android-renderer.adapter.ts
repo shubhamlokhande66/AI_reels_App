@@ -29,6 +29,7 @@ export class UnsupportedAndroidRenderFeature extends Error {
 }
 
 const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic"]);
+const SUPPORTED_RENDER_EFFECTS = new Set(["blur", "brightness", "contrast", "saturation", "hue"]);
 
 /**
  * Adapter for the currently shipped Media3 module.
@@ -81,9 +82,12 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
         throw new UnsupportedAndroidRenderFeature(`Clip ${item.id} audio gain above 100% is not supported by the current Android renderer.`);
       }
       for (const effect of item.effects ?? []) {
-        if (effect.type !== "filter" || typeof effect.params.name !== "string" || !SUPPORTED_FILTERS.has(effect.params.name)) {
-          throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} is not supported by the current Android renderer.`);
-        }
+        if (effect.enabled === false) continue;
+        if (effect.type === "filter" && typeof effect.params.name === "string" && SUPPORTED_FILTERS.has(effect.params.name)) continue;
+        if (!SUPPORTED_RENDER_EFFECTS.has(effect.type)) throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} is not supported by Android export yet.`);
+        const intensity = effect.intensity ?? (typeof effect.params.amount === "number" ? effect.params.amount : 0.5);
+        if (!Number.isFinite(intensity) || intensity < 0 || intensity > 1) throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} requires an intensity from 0 to 1.`);
+        if (effect.startMs !== undefined || effect.endMs !== undefined || effect.keyframes) throw new UnsupportedAndroidRenderFeature(`Time-ranged or animated ${effect.type} effects are not supported by this Android export path yet.`);
       }
       if (source.kind === "image" && item.playbackRate !== 1) {
         throw new UnsupportedAndroidRenderFeature("Image playback speed must be 1x.");
@@ -146,6 +150,10 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
             filter: typeof filter === "string" ? filter : "Original",
             muted: item.muted ?? false,
             volume: item.volume ?? 1,
+            effects: (item.effects ?? []).filter((effect) => effect.enabled !== false && effect.type !== "filter").map((effect) => ({
+              type: effect.type,
+              intensity: effect.intensity ?? (typeof effect.params.amount === "number" ? effect.params.amount : 0.5),
+            })),
           };
         });
         const audio = job.audio?.[0];
