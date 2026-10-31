@@ -53,7 +53,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       effects.push({ type: "filter", params: { name: clip.filter } });
     }
     if (clip.effect && clip.effect !== "none") {
-      const effectType = clip.effect === "blurpulse" ? "blur" : clip.effect;
+      const effectType = clip.effect;
       effects.push({ type: effectType, intensity: 0.5, params: {} });
     }
 
