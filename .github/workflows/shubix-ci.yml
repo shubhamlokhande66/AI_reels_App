@@ -7,7 +7,7 @@ on:
       - "shubix/**"
       - ".github/workflows/shubix-ci.yml"
   push:
-    branches: [feat/shubix-brain-device-optimized]
+    branches: [feat/shubix-brain-device-optimized, chatGpt]
     paths:
       - "shubix/**"
       - ".github/workflows/shubix-ci.yml"
