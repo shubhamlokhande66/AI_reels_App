@@ -197,6 +197,8 @@ class ShubixVideoModule : Module() {
       val turn = rotationValue.toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
       val muted = c.optBoolean("muted")
+      // Share caption bitmaps across speed-ramp slices instead of allocating a full frame per slice.
+      val textCache = if (texts != null && texts.length() > 0) TextOverlayCache(texts, w, h) else null
       val clipTimelineStart = at
       var clipOutputDuration = 0.0
       for (slice in slices) {
@@ -246,7 +248,7 @@ class ShubixVideoModule : Module() {
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
         video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration, w, h)
-        if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at + clipOutputDuration, w, h)))
+        if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at + clipOutputDuration)))
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
         clipOutputDuration += segmentDuration
       }
@@ -674,41 +676,51 @@ class ShubixVideoModule : Module() {
   /** The Reel's texts over one clip: each drawn while the Reel's time is within its start and end (`offset`: where the
    * clip starts in the Reel), white and bold with a shadow, in the lower middle as on the website. */
   /** Draw every active text overlay together; overlapping captions must not silently hide one another. */
-  private class TimedTexts(private val texts: org.json.JSONArray, private val offset: Double, private val w: Int, private val h: Int) : BitmapOverlay() {
+  /** Shared immutable caption frames prevent speed-ramp slices duplicating large overlay bitmaps. */
+  private class TextOverlayCache(private val texts: org.json.JSONArray, private val w: Int, private val h: Int) {
     private val blank = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-    private val frame = Bitmap.createBitmap(w.coerceAtLeast(2), (h * 0.55f).toInt().coerceAtLeast(2), Bitmap.Config.ARGB_8888)
-    private val canvas = Canvas(frame)
+    private val frameHeight = (h * 0.55f).toInt().coerceAtLeast(2)
     private val drawn = HashMap<Int, Bitmap>()
+    private val frames = HashMap<List<Int>, Bitmap>()
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-    override fun getBitmap(presentationTimeUs: Long): Bitmap {
-      val t = offset + presentationTimeUs / 1_000_000.0
-      val active = (0 until texts.length()).mapNotNull { i ->
-        val item = texts.optJSONObject(i) ?: return@mapNotNull null
-        if (t >= item.optDouble("start") && t <= item.optDouble("end")) drawn.getOrPut(i) { draw(item) } else null
+
+    @Synchronized
+    fun bitmapAt(timeSeconds: Double): Bitmap {
+      val active = (0 until texts.length()).filter { index ->
+        val item = texts.optJSONObject(index) ?: return@filter false
+        val start = item.optDouble("start", Double.NaN)
+        val end = item.optDouble("end", Double.NaN)
+        start.isFinite() && end.isFinite() && timeSeconds >= start && timeSeconds <= end
       }
       if (active.isEmpty()) return blank
-      frame.eraseColor(Color.TRANSPARENT)
-      val gap = (h * 0.012f).coerceAtLeast(4f)
-      val totalHeight = active.sumOf { it.height.toDouble() }.toFloat() + gap * (active.size - 1)
-      val scale = minOf(1f, (frame.height - 12f).coerceAtLeast(1f) / totalHeight.coerceAtLeast(1f))
-      var y = (frame.height - totalHeight * scale) / 2f
-      active.forEach { bitmap ->
-        val drawWidth = bitmap.width * scale
-        val drawHeight = bitmap.height * scale
-        val left = (w - drawWidth) / 2f
-        canvas.drawBitmap(bitmap, null, android.graphics.RectF(left, y, left + drawWidth, y + drawHeight), bitmapPaint)
-        y += drawHeight + gap * scale
+      return frames.getOrPut(active) {
+        if (frames.size >= 64) frames.clear()
+        val bitmaps = active.map { index -> drawn.getOrPut(index) { draw(texts.getJSONObject(index)) } }
+        val frame = Bitmap.createBitmap(w.coerceAtLeast(2), frameHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(frame)
+        val gap = (h * 0.012f).coerceAtLeast(4f)
+        val totalHeight = bitmaps.sumOf { it.height.toDouble() }.toFloat() + gap * (bitmaps.size - 1)
+        val scale = minOf(1f, (frame.height - 12f).coerceAtLeast(1f) / totalHeight.coerceAtLeast(1f))
+        var y = (frame.height - totalHeight * scale) / 2f
+        bitmaps.forEach { bitmap ->
+          val drawWidth = bitmap.width * scale
+          val drawHeight = bitmap.height * scale
+          val left = (w - drawWidth) / 2f
+          canvas.drawBitmap(bitmap, null, android.graphics.RectF(left, y, left + drawWidth, y + drawHeight), bitmapPaint)
+          y += drawHeight + gap * scale
+        }
+        frame
       }
-      return frame
     }
-    override fun getOverlaySettings(presentationTimeUs: Long) = StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
+
     private fun draw(x: JSONObject): Bitmap {
       val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = try { Color.parseColor(x.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
-        textSize = x.optDouble("size", 36.0).toFloat() * w / 540f; typeface = Typeface.DEFAULT_BOLD
+        textSize = x.optDouble("size", 36.0).let { if (it.isFinite()) it.coerceIn(8.0, 240.0) else 36.0 }.toFloat() * w / 540f
+        typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
       }
-      val words = x.optString("text").replace("\r", "")
+      val words = x.optString("text").replace("\\r", "")
       val pad = (paint.textSize / 3).toInt().coerceAtLeast(2)
       val maxLineWidth = (w - pad * 2).coerceAtLeast(1).toFloat()
       val lines = mutableListOf<String>()
@@ -733,5 +745,14 @@ class ShubixVideoModule : Module() {
         }
       }
     }
+  }
+
+  /** Each speed-ramp slice shares the caption cache but samples its own absolute Reel time. */
+  private class TimedTexts(private val cache: TextOverlayCache, private val offset: Double) : BitmapOverlay() {
+    override fun getBitmap(presentationTimeUs: Long): Bitmap =
+      cache.bitmapAt(offset + presentationTimeUs / 1_000_000.0)
+
+    override fun getOverlaySettings(presentationTimeUs: Long) =
+      StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
   }
 }
