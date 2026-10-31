@@ -247,6 +247,11 @@ class ShubixVideoModule : Module() {
               releaseExport(session)
               return
             }
+            if (!out.isFile || out.length() <= 0L) {
+              settleExport(session, IllegalStateException("Video export completed without a valid output file."))
+              releaseExport(session)
+              return
+            }
             settleExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
             releaseExport(session)
           }
@@ -256,6 +261,8 @@ class ShubixVideoModule : Module() {
               session.output?.let { if (it.exists()) it.delete() }
               if (!session.settled) settleExport(session, ExportCancelledException())
             } else {
+              // Media3 may leave a partial MP4 behind after a failed export. Never expose it as a usable Reel.
+              session.output?.let { if (it.exists()) it.delete() }
               settleExport(session, exception)
             }
             releaseExport(session)
@@ -270,6 +277,7 @@ class ShubixVideoModule : Module() {
     try {
       transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
     } catch (error: Exception) {
+      session.output?.let { if (it.exists()) it.delete() }
       settleExport(session, error)
       releaseExport(session)
       return
