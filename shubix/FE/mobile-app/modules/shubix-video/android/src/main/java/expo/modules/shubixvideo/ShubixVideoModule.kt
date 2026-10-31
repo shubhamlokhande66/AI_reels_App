@@ -199,7 +199,7 @@ class ShubixVideoModule : Module() {
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
-        video += customEffects(c.optJSONArray("effects"))
+        video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration)
         if (texts != null && texts.length() > 0) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(texts, at + clipOutputDuration, w, h)))
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
         clipOutputDuration += segmentDuration
@@ -462,7 +462,8 @@ class ShubixVideoModule : Module() {
 
   /** The website's filters, as colour changes (Original: none). */
   /** Deterministic GPU effects supported by the shared Android RenderJob adapter. */
-  private fun customEffects(effects: org.json.JSONArray?): List<Effect> {
+  /** Deterministic GPU effects supported by the shared Android RenderJob adapter. */
+  private fun customEffects(effects: org.json.JSONArray?, timelineOffsetSeconds: Double, durationSeconds: Double): List<Effect> {
     if (effects == null) return emptyList()
     val result = mutableListOf<Effect>()
     for (i in 0 until effects.length()) {
@@ -470,11 +471,25 @@ class ShubixVideoModule : Module() {
       val intensity = effect.optDouble("intensity", 0.5).coerceIn(0.0, 1.0).toFloat()
       when (effect.optString("type")) {
         "blur" -> if (intensity > 0f) result += GaussianBlur(intensity * 20f)
+        "blurpulse" -> {
+          val steps = kotlin.math.ceil(durationSeconds.coerceAtLeast(0.0) / 0.1).toInt().coerceIn(1, 600)
+          for (step in 0 until steps) {
+            val startUs = (durationSeconds * step / steps * 1_000_000.0).toLong()
+            val endUs = (durationSeconds * (step + 1) / steps * 1_000_000.0).toLong()
+            if (endUs <= startUs) continue
+            val time = timelineOffsetSeconds + (startUs + endUs) / 2_000_000.0
+            val pulse = (0.15 + 0.85 * (sin(time * 2.0 * Math.PI / 0.9) + 1.0) / 2.0).toFloat()
+            result += TimestampWrapper(GaussianBlur((intensity * 18f * pulse).coerceAtLeast(0.1f)), startUs, endUs)
+          }
+        }
         "brightness" -> if (intensity > 0f) result += Brightness(intensity * 0.25f)
         "contrast" -> if (intensity > 0f) result += Contrast(intensity * 0.5f)
         "saturation" -> if (intensity > 0f) result += HslAdjustment.Builder().adjustSaturation(intensity * 50f).build()
         "hue" -> if (intensity > 0f) result += HslAdjustment.Builder().adjustHue(intensity * 45f).build()
       }
+    }
+    return result
+  }
     }
     return result
   }
