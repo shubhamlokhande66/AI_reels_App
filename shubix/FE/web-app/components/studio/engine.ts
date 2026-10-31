@@ -2116,6 +2116,27 @@ async function chatSend(text){
   chatSay('me', text); chatMsgs.push({ who: 'me', text });
   $('chatin').value = ''; chatFit();
   const ready = buf && sources.length && edit.length && !recording;
+  // Explicit, deterministic visual edits are applied locally on every plan. They do not need
+  // a model round-trip, a credit check or a server upload; verify the full scope before replying.
+  const localVisualIntent = parseDirectorVisualIntent(text);
+  const hasLocalVisualIntent = !!(localVisualIntent.openingText || localVisualIntent.squareFrameAll
+    || localVisualIntent.transitionAll || localVisualIntent.effectsAll);
+  if(ready && hasLocalVisualIntent){
+    try{
+      const before = histSnap();
+      const localSlots = edit.map(shot => ({ tr: shot.tr || 'hard', fx: shot.efx || 'none', effect: shot.efx || 'none' }));
+      if(playing) stopAll();
+      const applied = applyChatVisualIntent(localVisualIntent, localSlots);
+      if(!applied) throw new Error('No supported visual change was detected.');
+      hist.u.push(before); if(hist.u.length > HIST_MAX) hist.u.shift();
+      hist.r = []; hist.cur = histSnap(); hist.cand = ''; histUI();
+      saveNow();
+      chatAnswer('Done ✓ Applied ' + applied + ' to the current Reel on this device. No Shubix AI credits used.');
+    }catch(error){
+      chatAnswer('I could not verify that every requested change was applied. ' + String(error && error.message || error));
+    }
+    return;
+  }
   // no Shubix AI in this plan (Free): the phone's own changes, and the way to get the AI
   if(!aiOn){
     const did = chatLocal(text);
