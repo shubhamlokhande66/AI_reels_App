@@ -3479,3 +3479,68 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   }
   .brs.made:not(.fopen) .timelineCard { grid-area: timeline !important; min-width: 0 !important; }
 }
+
+
+/* Desktop editor side rails: both side panels stay aligned to the preview height.
+   Their contents scroll independently, without visible scrollbar tracks. */
+@media (min-width: 1024px) {
+  .brs.made:not(.fopen) .create {
+    position: relative !important;
+    isolation: isolate;
+  }
+  .brs.made:not(.fopen) .tools {
+    position: relative !important;
+    z-index: 0 !important;
+  }
+  .brs.made:not(.fopen) .toolDock,
+  .brs.made:not(.fopen) nav.toolDock {
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    z-index: 0 !important;
+    transform: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .brs.made:not(.fopen) .toolDock::-webkit-scrollbar,
+  .brs.made:not(.fopen) nav.toolDock::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  .brs.made:not(.fopen) .workbench {
+    height: min(62vh, 680px) !important;
+    min-height: 420px !important;
+    align-items: stretch !important;
+  }
+  .brs.made:not(.fopen) .inspector {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .brs.made:not(.fopen) .inspectorHead,
+  .brs.made:not(.fopen) .activeToolNote {
+    flex: 0 0 auto !important;
+  }
+  .brs.made:not(.fopen) .shotToolGrid {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    align-content: start !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  .brs.made:not(.fopen) .shotToolGrid::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+}
