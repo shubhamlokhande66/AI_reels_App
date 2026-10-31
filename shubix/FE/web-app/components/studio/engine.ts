@@ -2001,8 +2001,8 @@ function applyChatVisualIntent(intent, slots = []){
   let effectCount = 0;
   if(intent.effectsAll){
     const allowed = FX_OK[mode] || FX_OK.auto;
-    const canUse = fx => !!fx && fx !== 'none' && Object.prototype.hasOwnProperty.call(FX_NAME, fx)
-      && (fx === 'hook' ? edit.indexOf(currentShot) === 0 : allowed.includes(fx))
+    const canUse = (fx, i) => !!fx && fx !== 'none' && Object.prototype.hasOwnProperty.call(FX_NAME, fx)
+      && (fx === 'hook' ? i === 0 : allowed.includes(fx))
       && !isLocked('fx', fx);
     let previousEffect = '';
     edit.forEach((shot, i) => {
@@ -2013,8 +2013,8 @@ function applyChatVisualIntent(intent, slots = []){
         : ['punch-soft', 'pan-soft', 'drift', 'bounce', 'tilt'];
       const choices = mode === 'smooth' ? ['pan-soft', 'drift'] : roleChoices;
       if(i === 0) choices.unshift('hook', ...choices);
-      let chosen = canUse(proposed) && (proposed !== previousEffect || i === 0) ? proposed : null;
-      if(!chosen) chosen = choices.find(fx => fx !== previousEffect && canUse(fx)) || choices.find(canUse);
+      let chosen = canUse(proposed, i) && (proposed !== previousEffect || i === 0) ? proposed : null;
+      if(!chosen) chosen = choices.find(fx => fx !== previousEffect && canUse(fx, i)) || choices.find(fx => canUse(fx, i));
       if(chosen){
         shot.efx = chosen;
         shot.fxByDir = true;
