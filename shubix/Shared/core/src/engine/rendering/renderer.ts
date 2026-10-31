@@ -97,6 +97,14 @@ export interface NumericKeyframe {
 }
 export type KeyframeTrack = Partial<Record<AnimatedProperty, readonly NumericKeyframe[]>>;
 export type TransitionType = "cut" | "fade" | "dissolve" | "crossfade" | "dip-black" | "dip-white" | "push-left" | "push-right" | "push-up" | "push-down" | "slide-left" | "slide-right" | "slide-up" | "slide-down" | "wipe-left" | "wipe-right" | "wipe-up" | "wipe-down" | "zoom-in" | "zoom-out" | "spin" | "blur" | "flash" | "glitch" | "cube" | "flip-3d" | "whip-pan";
+const RENDER_TRANSITIONS = new Set<TransitionType>([
+  "cut", "fade", "dissolve", "crossfade", "dip-black", "dip-white",
+  "push-left", "push-right", "push-up", "push-down",
+  "slide-left", "slide-right", "slide-up", "slide-down",
+  "wipe-left", "wipe-right", "wipe-up", "wipe-down",
+  "zoom-in", "zoom-out", "spin", "blur", "flash", "glitch", "cube", "flip-3d", "whip-pan",
+]);
+
 export type EffectType = "blur" | "motion-blur" | "glow" | "vignette" | "grain" | "sharpen" | "chromatic-aberration" | "rgb-split" | "glitch" | "shake" | "wave" | "pixelate" | "mosaic" | "fisheye" | "lens-distortion" | "light-leak" | "film-burn" | "bloom" | "edge-detection" | "duotone" | "lut" | "color-adjust" | "hsl" | "curves" | "posterize" | "threshold";
 export type MaskType = "rectangle" | "ellipse" | "linear" | "radial" | "polygon" | "luma" | "image";
 export interface RenderMask {
@@ -252,7 +260,7 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
       errors.push(`Timeline item ${item.id} exceeds source duration.`);
     }
     if (item.transitionIn) {
-      if (!item.transitionIn.type.trim()) errors.push(`Timeline item ${item.id} has an empty transition type.`);
+      if (!RENDER_TRANSITIONS.has(item.transitionIn.type as TransitionType)) errors.push(`Timeline item ${item.id} has an unknown transition type.`);
       if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs) errors.push(`Timeline item ${item.id} has an invalid transition duration.`);
     }
   }
@@ -296,7 +304,8 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     validateKeyframes(`Timeline item ${item.id}`, item.keyframes, item.durationMs);
     if (item.mask) {
       const mask = item.mask;
-      if (![mask.x, mask.y, mask.width, mask.height].every(Number.isFinite) || mask.width < 0 || mask.height < 0) errors.push(`Timeline item ${item.id} has invalid mask geometry.`);
+      if (![mask.x, mask.y, mask.width, mask.height].every(Number.isFinite) || mask.width <= 0 || mask.height <= 0) errors.push(`Timeline item ${item.id} has invalid mask geometry.`);
+      if (mask.type === "polygon" && (!mask.points || mask.points.length < 3)) errors.push(`Timeline item ${item.id} polygon mask requires at least three points.`);
       if (mask.feather !== undefined && (!Number.isFinite(mask.feather) || mask.feather < 0 || mask.feather > 1)) errors.push(`Timeline item ${item.id} has invalid mask feathering.`);
       if (mask.points?.some((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y))) errors.push(`Timeline item ${item.id} has invalid polygon mask points.`);
       validateKeyframes(`Mask on ${item.id}`, mask.keyframes, item.durationMs);
@@ -320,6 +329,8 @@ export function validateRenderJob(spec: RenderJobSpec): string[] {
     if (!layer.id || layerIds.has(layer.id)) errors.push(`Layer IDs must be non-empty and unique: ${layer.id}`);
     layerIds.add(layer.id);
     if (!Number.isFinite(layer.startMs) || layer.startMs < 0 || !Number.isFinite(layer.durationMs) || layer.durationMs <= 0) errors.push(`Layer ${layer.id} has invalid timing.`);
+    if (!Number.isFinite(layer.zIndex)) errors.push(`Layer ${layer.id} has an invalid z-index.`);
+    if (["video", "image", "sticker"].includes(layer.kind) && !layer.sourceId) errors.push(`Layer ${layer.id} requires a media source.`);
     if (layer.opacity !== undefined && (!Number.isFinite(layer.opacity) || layer.opacity < 0 || layer.opacity > 1)) errors.push(`Layer ${layer.id} has invalid opacity.`);
     if (layer.startMs + layer.durationMs > timelineEndMs + 1) errors.push(`Layer ${layer.id} extends beyond the Reel duration.`);
     if (layer.sourceId && !sourceIds.has(layer.sourceId)) errors.push(`Layer ${layer.id} references missing source ${layer.sourceId}.`);
