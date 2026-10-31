@@ -79,3 +79,5 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Android native export: overlapping active text overlays must composite together in the same frame; verify none of the active titles/captions disappear behind the first matching overlay.
 
 - [ ] Native transform keyframes: verify normalized X/Y movement uses the full output-frame width/height, zoom and rotation stay centered, and speed-ramp slices do not restart the animation.
+
+- [ ] Android native captions: verify long text wraps into multiple lines within the output frame, multiple simultaneous captions remain visible, and no text is clipped at the frame edges.
