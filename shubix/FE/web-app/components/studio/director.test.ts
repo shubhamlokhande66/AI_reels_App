@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { clipDuration, clipSchema, makeClip } from "@shubix/validations";
 import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
@@ -249,5 +250,30 @@ describe("speed ramp curves", () => {
     expect(segments.length).toBe(3);
     expect(segments.every((segment) => segment.speed === 1.5)).toBe(true);
     expect(segments[segments.length - 1].outputEnd).toBeCloseTo(2);
+  });
+});
+
+describe("speed ramp project compatibility", () => {
+  it("keeps saved clips without speed curves valid", () => {
+    const clip = makeClip({ uri: "file:///legacy.mp4", duration: 8 }, "legacy");
+    expect(clipSchema.safeParse(clip).success).toBe(true);
+    expect(clipDuration(clip)).toBe(8);
+  });
+
+  it("validates and integrates a per-clip speed ramp", () => {
+    const clip = makeClip({ uri: "file:///ramp.mp4", duration: 8 }, "ramp");
+    const ramped = { ...clip, speedRamp: [
+      { time: 0, speed: 1 },
+      { time: 4, speed: 2, easing: "linear" as const },
+      { time: 8, speed: 1 },
+    ] };
+    expect(clipSchema.safeParse(ramped).success).toBe(true);
+    expect(clipDuration(ramped)).toBeGreaterThan(5.4);
+    expect(clipDuration(ramped)).toBeLessThan(5.6);
+  });
+
+  it("rejects out-of-range speed curve values", () => {
+    const clip = makeClip({ uri: "file:///invalid.mp4", duration: 4 }, "invalid");
+    expect(clipSchema.safeParse({ ...clip, speedRamp: [{ time: 0, speed: 8 }] }).success).toBe(false);
   });
 });
