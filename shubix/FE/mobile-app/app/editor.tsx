@@ -313,6 +313,9 @@ export default function EditorScreen() {
   }
   async function mixVideo() {
     if (!p || clips.length < 2 || mixing) return;
+    if (p.studio && !engine.holds(p.id)) {
+      return toast(words("Reopen this Reel from Fast Studio to create another mix without losing its advanced effects."));
+    }
     setMixing(true); setPlaying(false);
     try {
       if (engine.holds(p.id)) {
