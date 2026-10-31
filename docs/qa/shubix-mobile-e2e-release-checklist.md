@@ -77,3 +77,5 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Verify all layer masks, blend modes and overlays appear in the final MP4 on Android when exported through the originating Studio session; the native editor preview is not a pixel-identical compositor.
 
 - [ ] Android native export: overlapping active text overlays must composite together in the same frame; verify none of the active titles/captions disappear behind the first matching overlay.
+
+- [ ] Native transform keyframes: verify normalized X/Y movement uses the full output-frame width/height, zoom and rotation stay centered, and speed-ramp slices do not restart the animation.
