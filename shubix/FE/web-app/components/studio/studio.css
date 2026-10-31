@@ -3469,3 +3469,13 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     overflow-y: auto !important;
   }
 }
+
+@media (min-width: 1024px) {
+  .brs.made:not(.fopen) .workbench {
+    grid-area: workbench !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 250px) !important;
+    min-width: 0 !important;
+  }
+  .brs.made:not(.fopen) .timelineCard { grid-area: timeline !important; min-width: 0 !important; }
+}
