@@ -14,6 +14,12 @@ describe("browser editor preview proxies", () => {
     expect(PREVIEW_MAX_SIDE).toBe(960);
   });
 
+  it("creates a smaller portrait preview for a 20 MB 4K phone video", () => {
+    expect(previewProxyPlan({ size: 20 * MB, width: 2160, height: 3840, duration: 60 })).toMatchObject({
+      width: 540, height: 960, reason: "resolution-and-bitrate",
+    });
+  });
+
   it("re-encodes high-bitrate footage without changing already-small dimensions", () => {
     expect(previewProxyPlan({ size: 180 * MB, width: 960, height: 540, duration: 60 })).toMatchObject({
       width: 960, height: 540, reason: "bitrate",
