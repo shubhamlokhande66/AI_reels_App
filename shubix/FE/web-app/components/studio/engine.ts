@@ -1090,7 +1090,9 @@ function updateClipHoverInfo(src){
   const lines=[
     src.name,
     'Original: '+clipBytes(src.file.size)+' · '+(src.w&&src.h ? src.w+' × '+src.h : 'resolution pending'),
+    'Format: '+(src.file.type || (src.name.split('.').pop() || 'unknown').toUpperCase()),
     'Duration: '+(Number.isFinite(src.dur)&&src.dur>0 ? fmt(src.dur) : '—'),
+    'Average bitrate: '+(src.dur>0 ? ((src.file.size*8/src.dur)/1e6).toFixed(2)+' Mbps (estimated)' : '—'),
     'Preview: '+(src.proxyStatus || 'Checking…'),
   ];
   if(src.previewProxy && src.proxySize){
