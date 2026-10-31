@@ -3432,3 +3432,40 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   border-color: var(--border) !important;
   color: var(--foreground) !important;
 }
+
+
+/* Desktop editor toolbar safety net: never inherit the mobile contents layout on laptops. */
+@media (min-width: 1024px) {
+  .brs.made:not(.fopen) .create {
+    display: grid !important;
+    grid-template-columns: 64px minmax(0, 1fr) !important;
+    grid-template-areas: "tools workbench" "timeline timeline" !important;
+  }
+  .brs.made:not(.fopen) .tools {
+    grid-area: tools !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-self: start !important;
+    width: 64px !important;
+    min-width: 64px !important;
+    height: min(62vh, 680px) !important;
+    min-height: 420px !important;
+    max-height: min(62vh, 680px) !important;
+    overflow: hidden !important;
+  }
+  .brs.made:not(.fopen) .toolDock,
+  .brs.made:not(.fopen) nav.toolDock {
+    display: grid !important;
+    visibility: visible !important;
+    position: relative !important;
+    inset: auto !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-auto-rows: 62px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+}
