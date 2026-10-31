@@ -532,12 +532,15 @@ class ShubixVideoModule : Module() {
   /** Build bounded constant-rate Media3 slices from source-time speed keyframes. */
   private fun speedRampSlices(points: org.json.JSONArray?, duration: Double, fallback: Double): List<RampSlice> {
     if (points == null || points.length() == 0 || duration <= 0.0) return emptyList()
-    val sorted = (0 until points.length()).mapNotNull { index ->
-      val point = points.optJSONObject(index) ?: return@mapNotNull null
+    require(points.length() <= 1000) { "A clip can contain at most 1,000 speed-ramp keyframes." }
+    val sorted = (0 until points.length()).map { index ->
+      val point = points.optJSONObject(index) ?: throw IllegalArgumentException("Speed-ramp keyframe ${index + 1} is invalid.")
       val time = point.optDouble("time", Double.NaN)
       val rate = point.optDouble("speed", Double.NaN)
-      if (!time.isFinite() || !rate.isFinite()) null
-      else RampPoint(time.coerceIn(0.0, duration), rate.coerceIn(0.25, 4.0), point.optString("easing", "linear"))
+      require(time.isFinite() && rate.isFinite() && time >= 0.0 && time <= duration && rate > 0.0) {
+        "Speed-ramp keyframe ${index + 1} has an invalid time or speed."
+      }
+      RampPoint(time, rate.coerceIn(0.25, 4.0), point.optString("easing", "linear"))
     }.sortedBy { it.time }
     if (sorted.isEmpty()) return emptyList()
     val unique = mutableListOf<RampPoint>()
@@ -547,20 +550,21 @@ class ShubixVideoModule : Module() {
     }
     if (unique.first().time > 0.0) unique.add(0, RampPoint(0.0, fallback.coerceIn(0.25, 4.0), "linear"))
     if (unique.last().time < duration) unique += RampPoint(duration, unique.last().speed, "linear")
-    // Keep the whole source range even when a project contains many ramp points. Taking the
-    // first 1,200 slices silently dropped the tail of long/complex clips.
+    // Preserve every authored keyframe boundary. Only the intermediate interpolation
+    // samples are budgeted, so long clips never lose their tail or a narrow speed change.
+    require(unique.size <= 1000) { "A clip has too many distinct speed-ramp keyframes." }
     val boundaries = sortedSetOf<Double>()
     unique.forEach { boundaries += it.time }
+    var remainingSubdivisions = (1200 - (unique.size - 1)).coerceAtLeast(0)
     for (index in 0 until unique.lastIndex) {
       val start = unique[index].time
       val end = unique[index + 1].time
-      val count = kotlin.math.ceil((end - start) / 0.2).toInt().coerceAtLeast(1)
+      val desired = kotlin.math.ceil((end - start) / 0.2).toInt().coerceAtLeast(1)
+      val count = minOf(desired, remainingSubdivisions + 1)
+      remainingSubdivisions = (remainingSubdivisions - (count - 1)).coerceAtLeast(0)
       for (part in 1 until count) boundaries += start + (end - start) * part / count
     }
-    val ordered = boundaries.toList()
-    val capped = if (ordered.size - 1 > 1200) {
-      (0..1200).map { index -> duration * index / 1200.0 }
-    } else ordered
+    val capped = boundaries.toList()
     val result = mutableListOf<RampSlice>()
     for (index in 0 until capped.lastIndex) {
       val start = capped[index]
