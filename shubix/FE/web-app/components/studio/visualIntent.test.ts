@@ -12,6 +12,21 @@ describe("AI Director visual intent", () => {
       .toEqual({ squareFrameAll: true, transitionAll: true });
   });
 
+  it("recognises a generic good-effects request for all videos in Roman Marathi", () => {
+    expect(parseDirectorVisualIntent("saglya video vr chan effect lav"))
+      .toEqual({ effectsAll: true });
+  });
+
+  it("recognises a generic effects request for all clips in Devanagari Marathi", () => {
+    expect(parseDirectorVisualIntent("सगळ्या व्हिडिओवर छान इफेक्ट लावा"))
+      .toEqual({ effectsAll: true });
+  });
+
+  it("recognises an all-videos effects request in English", () => {
+    expect(parseDirectorVisualIntent("apply nice effects to every video"))
+      .toEqual({ effectsAll: true });
+  });
+
   it("recognises a request to apply transitions to every clip in mixed Marathi-English", () => {
     expect(parseDirectorVisualIntent("all clip la transition apply kar"))
       .toEqual({ transitionAll: true });
