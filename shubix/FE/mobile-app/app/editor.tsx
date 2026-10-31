@@ -6,7 +6,7 @@ import { useStudioText } from "@shubix/hooks";
 import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
-import { evaluateAudioGain, evaluateSpeedRamp, slipClip } from "@shubix/video-engine";
+import { evaluateAudioGain, evaluateSpeedRamp, recordEdit, slipClip, stepEditHistory } from "@shubix/video-engine";
 import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
@@ -103,7 +103,7 @@ export default function EditorScreen() {
     })();
   }, [p?.audioUri, p?.settings?.musicVolume, p?.settings?.musicFadeIn, p?.settings?.musicFadeOut, p?.settings?.musicDucking, p?.settings?.musicDuckLevel, clip?.id, clip?.muted, clip?.volume, now, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; undo.current = [...undo.current.slice(-29), old]; redo.current = []; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
+  const change = (next: Partial<ReelProject>) => setP((old) => { if (!old) return old; const history = recordEdit(undo.current, old, 30); undo.current = history.undo; redo.current = history.redo; return { ...old, ...next, studio: next.studio ?? (old.studio && !("audioUri" in next) && !("overlays" in next)) }; }); // the song or the texts changed: the phone's export makes it (the clips' changes go back to the studio: engine.edit)
   const setClips = (next: ProjectClip[]) => { change({ clips: next }); setSelected((i) => Math.min(i, Math.max(0, next.length - 1))); };
   const patch = (x: Partial<ProjectClip>) => clip && setClips(clips.map((c, i) => (i === selected ? { ...c, ...x } : c)));
   const setMusicMix = async (patch: { musicVolume?: number; musicFadeIn?: number; musicFadeOut?: number; musicDucking?: boolean; musicDuckLevel?: number }) => {
@@ -624,7 +624,7 @@ export default function EditorScreen() {
         <Timeline clips={clips} selected={selected} overlays={p.overlays} studioLayers={studioLayers} onLayer={(index) => { setStudioLayerIndex(index); setTool({ key: "layers", name: "Layers" }); }} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onTrim={trimTimelineClip} onMove={moveTimelineClip} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
         <View className="mt-3 flex-row items-center justify-between px-4">
           <Text className="text-[13px] font-semibold text-foreground">{words("Shot")} {String(selected + 1).padStart(2, "0")} · {clip ? clipDuration(clip).toFixed(1) : "0.0"} s</Text>
-          <View className="flex-row items-center gap-1"><IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const last = undo.current.pop(); if (last) { redo.current = [...redo.current.slice(-29), p]; setP(last); } }} /><IconButton icon="redo" size={36} label={words("Redo")} disabled={!redo.current.length} onPress={() => { const next = redo.current.pop(); if (next) { undo.current = [...undo.current.slice(-29), p]; setP(next); } }} /></View>
+          <View className="flex-row items-center gap-1"><IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const step = stepEditHistory(undo.current, redo.current, p, "undo", 30); if (step) { undo.current = step.undo; redo.current = step.redo; setP(step.current); } }} /><IconButton icon="redo" size={36} label={words("Redo")} disabled={!redo.current.length} onPress={() => { const step = stepEditHistory(undo.current, redo.current, p, "redo", 30); if (step) { undo.current = step.undo; redo.current = step.redo; setP(step.current); } }} /></View>
         </View>
       </ScrollView>
       <View className="border-t border-border bg-bar pb-2 pt-2">
