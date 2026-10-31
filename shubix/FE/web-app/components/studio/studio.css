@@ -1517,7 +1517,7 @@
   .brs.fpost.editing .playov{display:none !important}
   .brs.fpost.editing .stage .bar,.brs.fpost.editing .tlbar,.brs.fpost.editing .tog.safe,.brs.fpost.editing #xmsg,.brs.fpost.editing .feditbar{display:none !important}
   .brs.fpost.editing .transport{display:flex !important;align-items:center;gap:6px;padding:4px 2px;margin:0;border:0;flex-wrap:nowrap}
-  .brs.fpost.editing .transport :is(#remix,#pshot,#nshot,#cover){display:none !important}
+  .brs.fpost.editing .transport :is(#pshot,#nshot,#cover){display:none !important}
   .brs.fpost.editing .transport .tc{font:600 12.5px var(--mono);color:var(--ink)}
   .brs.fpost.editing .transport #ttot{color:var(--muted);order:1}
   .brs.fpost.editing .transport #ttot::before{content:"/ ";color:var(--muted)}
