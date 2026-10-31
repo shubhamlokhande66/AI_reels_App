@@ -621,15 +621,48 @@ class ShubixVideoModule : Module() {
 
   /** The Reel's texts over one clip: each drawn while the Reel's time is within its start and end (`offset`: where the
    * clip starts in the Reel), white and bold with a shadow, in the lower middle as on the website. */
+  /** Draw every active text overlay together; overlapping captions must not silently hide one another. */
   private class TimedTexts(private val texts: org.json.JSONArray, private val offset: Double, private val w: Int, private val h: Int) : BitmapOverlay() {
     private val blank = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+    private val frame = Bitmap.createBitmap(w.coerceAtLeast(2), (h * 0.55f).toInt().coerceAtLeast(2), Bitmap.Config.ARGB_8888)
+    private val canvas = Canvas(frame)
     private val drawn = HashMap<Int, Bitmap>()
+    private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     override fun getBitmap(presentationTimeUs: Long): Bitmap {
       val t = offset + presentationTimeUs / 1_000_000.0
-      for (i in 0 until texts.length()) {
-        val x = texts.getJSONObject(i)
-        if (t >= x.optDouble("start") && t <= x.optDouble("end")) return drawn.getOrPut(i) { draw(x) }
+      val active = (0 until texts.length()).mapNotNull { i ->
+        val item = texts.optJSONObject(i) ?: return@mapNotNull null
+        if (t >= item.optDouble("start") && t <= item.optDouble("end")) drawn.getOrPut(i) { draw(item) } else null
       }
+      if (active.isEmpty()) return blank
+      frame.eraseColor(Color.TRANSPARENT)
+      val gap = (h * 0.012f).coerceAtLeast(4f)
+      val totalHeight = active.sumOf { it.height.toDouble() }.toFloat() + gap * (active.size - 1)
+      val scale = minOf(1f, (frame.height - 12f).coerceAtLeast(1f) / totalHeight.coerceAtLeast(1f))
+      var y = (frame.height - totalHeight * scale) / 2f
+      active.forEach { bitmap ->
+        val drawWidth = bitmap.width * scale
+        val drawHeight = bitmap.height * scale
+        val left = (w - drawWidth) / 2f
+        canvas.drawBitmap(bitmap, null, android.graphics.RectF(left, y, left + drawWidth, y + drawHeight), bitmapPaint)
+        y += drawHeight + gap * scale
+      }
+      return frame
+    }
+    override fun getOverlaySettings(presentationTimeUs: Long) = StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
+    private fun draw(x: JSONObject): Bitmap {
+      val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = try { Color.parseColor(x.optString("color", "#FFFFFF")) } catch (_: Exception) { Color.WHITE }
+        textSize = x.optDouble("size", 36.0).toFloat() * w / 540f; typeface = Typeface.DEFAULT_BOLD
+        setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
+      }
+      val words = x.optString("text")
+      val pad = (paint.textSize / 3).toInt()
+      val width = (paint.measureText(words).toInt() + pad * 2).coerceIn(2, w)
+      val height = (paint.fontSpacing.toInt() + pad * 2).coerceAtLeast(2)
+      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint) }
+    }
+  }
       return blank
     }
     override fun getOverlaySettings(presentationTimeUs: Long) = StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f, -0.45f).build()
