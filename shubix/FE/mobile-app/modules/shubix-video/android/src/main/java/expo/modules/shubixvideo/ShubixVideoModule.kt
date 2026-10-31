@@ -472,7 +472,7 @@ class ShubixVideoModule : Module() {
       if (unique.isNotEmpty() && kotlin.math.abs(unique.last().time - point.time) < 0.001) unique[unique.lastIndex] = point
       else unique += point
     }
-    if (unique.first().time > 0.0) unique.add(0, RampPoint(0.0, unique.first().speed, "linear"))
+    if (unique.first().time > 0.0) unique.add(0, RampPoint(0.0, fallback.coerceIn(0.25, 4.0), "linear"))
     if (unique.last().time < duration) unique += RampPoint(duration, unique.last().speed, "linear")
     // Keep the whole source range even when a project contains many ramp points. Taking the
     // first 1,200 slices silently dropped the tail of long/complex clips.
