@@ -394,6 +394,11 @@ describe("shared render transition and effect validation", () => {
     const invalid = { ...base, items: [{ ...base.items[0], transitionIn: undefined, mask: { type: "polygon" as const, x: 0, y: 0, width: 1, height: 1, points: [{ x: 0, y: 0 }] } }] };
     expect(validateRenderJob(invalid)).toContain("Timeline item item polygon mask requires at least three points.");
   });
+
+  it("validates polygon masks on compositor layers", () => {
+    const invalid = { ...base, items: [{ ...base.items[0], transitionIn: undefined }], layers: [{ id: "overlay", kind: "image" as const, sourceId: "clip", startMs: 0, durationMs: 1000, zIndex: 1, mask: { type: "polygon" as const, x: 0, y: 0, width: 1, height: 1, points: [{ x: 0, y: 0 }] } }] };
+    expect(validateRenderJob(invalid)).toContain("Layer overlay polygon mask requires at least three points.");
+  });
   });
 });
 
