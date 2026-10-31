@@ -155,7 +155,7 @@ export function sampleKeyframes(frames: readonly NumericKeyframe[] | undefined, 
   let t = Math.max(0, Math.min(1, (timeMs - left.timeMs) / span));
   const easing = left.easing ?? "linear";
   if (left.bezier) t = cubicBezierProgress(t, left.bezier);
-  if (easing === "step") t = 0;
+  else if (easing === "step") t = 0;
   else if (easing === "ease-in") t *= t;
   else if (easing === "ease-out") t = 1 - (1 - t) * (1 - t);
   else if (easing === "ease-in-out") t = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
