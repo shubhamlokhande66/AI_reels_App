@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clipDuration, clipSchema, makeClip, splitClip } from "@shubix/validations";
-import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, normaliseSpeedRamp, evaluateSpeedRamp, buildSpeedRampSegments, rippleDelete, rippleInsert, slipClip, evaluateMotionPath, buildDuckingEnvelope, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -306,5 +306,57 @@ describe("speed ramp project compatibility", () => {
     expect(right.speedRamp?.[0].speed).toBeCloseTo(left.speedRamp?.[left.speedRamp.length - 1].speed ?? 0, 3);
     expect(clipSchema.safeParse(left).success).toBe(true);
     expect(clipSchema.safeParse(right).success).toBe(true);
+  });
+});
+
+
+describe("advanced shared timeline and motion primitives", () => {
+  const clips = [
+    { id: "a", start: 0, duration: 10, sourceStart: 0, sourceEnd: 10 },
+    { id: "b", start: 10, duration: 4, sourceStart: 2, sourceEnd: 6 },
+  ];
+
+  it("ripple-deletes a range, splits crossing media and closes the gap", () => {
+    const result = rippleDelete(clips, 3, 5);
+    expect(result.removedDuration).toBe(2);
+    expect(result.clips).toHaveLength(3);
+    expect(result.clips[0]).toMatchObject({ id: "a", start: 0, duration: 3, sourceStart: 0, sourceEnd: 3 });
+    expect(result.clips[1]).toMatchObject({ id: "a:ripple-right", start: 3, duration: 5, sourceStart: 5, sourceEnd: 10 });
+    expect(result.clips[2]).toMatchObject({ id: "b", start: 8, duration: 4 });
+  });
+
+  it("ripple-inserts a gap and preserves source ranges on both sides", () => {
+    const result = rippleInsert(clips, 3, 2);
+    expect(result).toHaveLength(3);
+    expect(result[0]).toMatchObject({ id: "a", start: 0, duration: 3, sourceEnd: 3 });
+    expect(result[1]).toMatchObject({ id: "a:insert-right", start: 5, duration: 7, sourceStart: 3, sourceEnd: 10 });
+    expect(result[2]).toMatchObject({ id: "b", start: 12 });
+  });
+
+  it("slips source media without moving the timeline clip", () => {
+    const result = slipClip({ id: "x", start: 7, duration: 3, sourceStart: 5, sourceEnd: 8 }, 2, 20);
+    expect(result).toMatchObject({ start: 7, duration: 3, sourceStart: 7, sourceEnd: 10 });
+  });
+
+  it("evaluates cubic motion paths and clamps to endpoint positions", () => {
+    const path = [
+      { time: 0, x: 0, y: 0, outHandle: [0.2, 0] as [number, number] },
+      { time: 2, x: 1, y: 1, inHandle: [-0.2, 0] as [number, number] },
+    ];
+    expect(evaluateMotionPath(path, -1)).toEqual({ x: 0, y: 0 });
+    expect(evaluateMotionPath(path, 2)).toEqual({ x: 1, y: 1 });
+    const middle = evaluateMotionPath(path, 1);
+    expect(middle.x).toBeCloseTo(0.5, 1);
+    expect(middle.y).toBeCloseTo(0.5, 1);
+  });
+
+  it("creates a bounded speech ducking envelope with smooth attack and release", () => {
+    const envelope = buildDuckingEnvelope([{ start: 1, end: 2 }], 3, { duckLevel: 0.25, attack: 0.1, release: 0.2 });
+    const at = (time: number) => envelope.find((point) => Math.abs(point.time - time) < 0.0001)?.gain;
+    expect(at(0)).toBe(1);
+    expect(at(1.1)).toBeCloseTo(0.25);
+    expect(at(1.5)).toBeCloseTo(0.25);
+    expect(at(2)).toBeCloseTo(0.25);
+    expect(at(2.2)).toBeCloseTo(1);
   });
 });
