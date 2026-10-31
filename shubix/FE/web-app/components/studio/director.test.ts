@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDirectorPlan, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, evaluateKeyframes, evaluateTransformKeyframes, cubicBezierProgress, normaliseKeyframes, upsertKeyframe, shiftKeyframes, evaluateAudioGain, EFFECT_LIBRARY, TRANSITION_LIBRARY } from "@shubix/video-engine";
 
 describe("shared video director", () => {
   it("interpolates keyframes and honours hold segments", () => {
@@ -95,5 +95,50 @@ describe("shared video director", () => {
   it("ships broad professional effect and transition registries", () => {
     expect(EFFECT_LIBRARY.length).toBeGreaterThanOrEqual(20);
     expect(TRANSITION_LIBRARY.length).toBeGreaterThanOrEqual(15);
+  });
+});
+
+
+describe("autonomous AI reel director", () => {
+  const shots = [
+    { id: "opening", sourceIndex: 0, duration: 3, sourceStart: 0, sourceEnd: 3, quality: 0.98, motion: 0.8, aestheticScore: 0.95, stabilityScore: 0.9, exposureScore: 0.9, isOpening: true, isHighlight: true, sceneId: "street" },
+    { id: "detail", sourceIndex: 1, duration: 3, sourceStart: 1, sourceEnd: 4, quality: 0.82, motion: 0.35, aestheticScore: 0.9, isDetail: true, isProduct: true, sceneId: "table" },
+    { id: "reaction", sourceIndex: 2, duration: 3, sourceStart: 0, sourceEnd: 3, quality: 0.86, motion: 0.45, faceScore: 0.95, isReaction: true, speech: true, sceneId: "people" },
+    { id: "ending", sourceIndex: 3, duration: 3, sourceStart: 2, sourceEnd: 5, quality: 0.9, motion: 0.5, isEnding: true, isHighlight: true, sceneId: "street" },
+  ];
+  const music = { duration: 12, bpm: 120, beats: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 10.5, 11, 11.5], downbeats: [0, 2, 4, 6, 8, 10], drops: [4, 8], quietRanges: [[9, 10] as [number, number]] };
+
+  it("builds a complete non-repeating edit with a hook, story roles, beat points and an ending", () => {
+    const plan = createAutonomousReelPlan({ shots, music, targetDuration: 9, mood: "wedding", platform: "android" });
+    expect(plan.shots[0].sourceId).toBe("opening");
+    expect(plan.shots.at(-1)?.sourceId).toBe("ending");
+    expect(plan.shots.some((shot) => shot.role === "reaction")).toBe(true);
+    expect(new Set(plan.shots.map((shot) => shot.sourceId)).size).toBe(plan.shots.length);
+    expect(plan.soundtrack.beatSync).toBe(true);
+    expect(plan.captions.suggested).toBe(true);
+    expect(validateAutonomousReelPlan(plan)).toEqual([]);
+  });
+
+  it("uses safe mobile effects and explains missing audio analysis", () => {
+    const plan = createAutonomousReelPlan({ shots, targetDuration: 7, mood: "cinematic", platform: "android" });
+    expect(plan.status).toBe("audio-missing");
+    expect(plan.warnings.some((warning) => warning.includes("Music analysis is missing"))).toBe(true);
+    for (const id of plan.shots.flatMap((shot) => shot.effects)) {
+      expect(EFFECT_LIBRARY.find((effect) => effect.id === id)?.mobileSafe).toBe(true);
+    }
+    expect(validateAutonomousReelPlan(plan)).toEqual([]);
+  });
+
+  it("returns a safe empty plan when no usable footage exists", () => {
+    const plan = createAutonomousReelPlan({ shots: [], music, targetDuration: 10 });
+    expect(plan.status).toBe("needs-more-footage");
+    expect(plan.duration).toBe(0);
+    expect(validateAutonomousReelPlan(plan)).toEqual([]);
+  });
+
+  it("rejects corrupted timelines and unregistered renderer operations", () => {
+    const plan = createAutonomousReelPlan({ shots, music, targetDuration: 8 });
+    plan.shots[0].transition = "invented-transition";
+    expect(validateAutonomousReelPlan(plan)).toContain("A transition is not in the shared registry.");
   });
 });
