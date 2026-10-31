@@ -197,10 +197,10 @@ class ShubixVideoModule : Module() {
             val fadeFrames = org.json.JSONArray()
               .put(JSONObject().put("t", 0.0).put("o", 0.0))
               .put(JSONObject().put("t", transitionDuration).put("o", 1.0))
-            video += keyframeOpacityEffects(fadeFrames, clipOutputDuration, segmentDuration)
+            video += keyframeOpacityEffects(fadeFrames, 0.0, segmentDuration)
           } else {
             val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
-            if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration)
+            if (transformFrames != null) video += keyframeTransform(transformFrames, 0.0)
           }
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
@@ -508,7 +508,7 @@ class ShubixVideoModule : Module() {
         }
         "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat" -> {
           val frames = motionEffectFrames(effect.optString("type"), durationSeconds)
-          if (frames != null) result += keyframeTransform(frames, timelineOffsetSeconds)
+          if (frames != null) result += keyframeTransform(frames, 0.0)
         }
         "brightness" -> if (intensity > 0f) result += Brightness(intensity * 0.25f)
         "contrast" -> if (intensity > 0f) result += Contrast(intensity * 0.5f)
