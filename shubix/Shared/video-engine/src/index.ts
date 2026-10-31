@@ -4,7 +4,7 @@
  * Platform-neutral edit decisions and animation primitives. Both the browser studio and
  * the native editor consume the same plan; renderers remain platform-specific.
  */
-export type Easing = "linear" | "lin" | "ease-in" | "ease-out" | "ease-in-out" | "inOut" | "inQuad" | "outCubic" | "outExpo" | "outBack" | "hold" | "bezier";
+export type Easing = "linear" | "lin" | "ease-in" | "ease-out" | "ease-in-out" | "in" | "out" | "inOut" | "inQuad" | "outCubic" | "outExpo" | "outBack" | "hold" | "bezier";
 export type KeyframeValue = number | string | boolean;
 export type Keyframe<T extends KeyframeValue = KeyframeValue> = {
   id: string; time: number; value: T; easing: Easing; inTangent?: number; outTangent?: number;
@@ -250,8 +250,8 @@ export function evaluateKeyframes(frames: Keyframe<number>[], time: number): num
   const a=sorted[i],b=sorted[i+1],span=Math.max(0.000001,b.time-a.time);
   let t=clamp((time-a.time)/span,0,1);
   if(b.easing==="hold")return a.value;
-  if(b.easing==="ease-in" || b.easing==="inQuad")t=t*t;
-  else if(b.easing==="ease-out")t=1-(1-t)*(1-t);
+  if(b.easing==="ease-in" || b.easing==="in" || b.easing==="inQuad")t=t*t;
+  else if(b.easing==="ease-out" || b.easing==="out")t=1-(1-t)*(1-t);
   else if(b.easing==="ease-in-out" || b.easing==="inOut")t=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
   else if(b.easing==="outCubic")t=1-Math.pow(1-t,3);
   else if(b.easing==="outExpo")t=t>=1?1:1-Math.pow(2,-10*t);
