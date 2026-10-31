@@ -6,50 +6,39 @@ import {
   createRenderJobFromProject,
   type ShubixVideoNativeModule,
 } from "./rendering";
+import {
+  isAndroidEffectSupported,
+  isAndroidFilterSupported,
+  isAndroidTransitionSupported,
+  normalizeAndroidTransition,
+} from "./rendering/native-capabilities";
 
 /** The Reel as an MP4, made on this phone by its video engine (modules/shubix-video). `ready`: the engine is in this
  * app (a development or Play Store build; Expo Go has not). */
 export const videoEngine = { ready: !!ShubixVideo };
 const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1080, 1350], "1:1": [1080, 1080], "16:9": [1920, 1080] };
-const NATIVE_TRANSITIONS: Record<string, string> = {
-  fadein: "fade", Fade: "fade", fade: "fade", Blur: "blur", Flash: "flash",
-  whip: "whip-pan", zoom: "zoom-in", Zoom: "zoom-in", zoomout: "zoom-out", flash: "flash", blur: "blur",
-  spin: "spin", slideleft: "slide-left", slideright: "slide-right",
-  slideup: "slide-up", slidedown: "slide-down", swipeup: "slide-up",
-};
-const NATIVE_EFFECTS = new Set([
-  "blur", "blurpulse", "brightness", "contrast", "saturation", "hue",
-  "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake",
-  "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat",
-]);
 /** Shared capability checks used by editor UI and export validation. */
-export const isNativeTransitionSupported = (id: string) => id === "hard" || id === "Cut" || !!NATIVE_TRANSITIONS[id];
-export const isNativeEffectSupported = (id: string) => id === "none" || NATIVE_EFFECTS.has(id);
+export const isNativeTransitionSupported = isAndroidTransitionSupported;
+export const isNativeEffectSupported = isAndroidEffectSupported;
 
-const NATIVE_FILTERS = new Set([
-  "Original", "Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic",
-  "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast",
-  "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White",
-  "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic",
-]);
 
 export async function exportReel(p: ReelProject, onProgress: (done: number) => void) {
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
   const unsupported = p.clips.find((clip) =>
     clip.reverse ||
-    (!!clip.transition && !["Cut", "hard"].includes(clip.transition) && !NATIVE_TRANSITIONS[clip.transition]) ||
-    (!!clip.effect && clip.effect !== "none" && !NATIVE_EFFECTS.has(clip.effect)) ||
-    !NATIVE_FILTERS.has(clip.filter) ||
+    (!!clip.transition && !isAndroidTransitionSupported(clip.transition)) ||
+    (!!clip.effect && !isAndroidEffectSupported(clip.effect)) ||
+    !isAndroidFilterSupported(clip.filter) ||
     (clip.volume ?? 1) > 1
   );
   if (unsupported?.reverse) throw new Error("Reverse playback is not supported by the current Android native export engine yet.");
-  if (unsupported?.transition && !["Cut", "hard"].includes(unsupported.transition) && !NATIVE_TRANSITIONS[unsupported.transition]) {
+  if (unsupported?.transition && !isAndroidTransitionSupported(unsupported.transition)) {
     throw new Error(`The ${unsupported.transition} transition is not supported by the current Android export engine yet. Choose Cut before exporting.`);
   }
-  if (unsupported?.effect && unsupported.effect !== "none" && !NATIVE_EFFECTS.has(unsupported.effect)) {
+  if (unsupported?.effect && unsupported.effect !== "none" && !isAndroidEffectSupported(unsupported.effect)) {
     throw new Error(`The ${unsupported.effect} effect is not supported by the current Android export engine yet.`);
   }
-  if (unsupported && !NATIVE_FILTERS.has(unsupported.filter)) {
+  if (unsupported && !isAndroidFilterSupported(unsupported.filter)) {
     throw new Error(`The ${unsupported.filter} filter is not supported by the current Android export engine yet.`);
   }
   if (unsupported && (unsupported.volume ?? 1) > 1) {
@@ -66,8 +55,8 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
       speedRamp: clip.speedRamp, keyframes: clip.keyframes, muted: clip.muted, volume: clip.volume,
       rotation: clip.rotation, mirror: clip.mirror, flip: clip.flip, fit: clip.fit, filter: clip.filter,
       effects: clip.effect && clip.effect !== "none" ? [{ type: clip.effect, intensity: 0.5 }] : [],
-      ...(clip.transition && !["Cut", "hard"].includes(clip.transition) && NATIVE_TRANSITIONS[clip.transition]
-        ? { transitionIn: { type: NATIVE_TRANSITIONS[clip.transition], duration: Math.min(0.35, Math.max(0.001, clipDuration(clip) / 2)) } }
+      ...(clip.transition && normalizeAndroidTransition(clip.transition)
+        ? { transitionIn: { type: normalizeAndroidTransition(clip.transition)!, duration: Math.min(0.35, Math.max(0.001, clipDuration(clip) / 2)) } }
         : {}),
     })),
     audio: p.audioUri ? { uri: p.audioUri, start: p.settings?.start ?? 0, volume: Math.min(1, Math.max(0, p.settings?.musicVolume ?? 1)), fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0, ducking: p.settings?.musicDucking ?? false, duckLevel: p.settings?.musicDuckLevel ?? 0.35 } : undefined,
@@ -117,12 +106,12 @@ export function canUseSharedAndroidRenderer(project: ReelProject): boolean {
   if (!ShubixVideo || project.clips.length === 0) return false;
   if (project.clips.some((clip) =>
     clip.reverse ||
-    (!!clip.transition && !["Cut", "hard"].includes(clip.transition) && !NATIVE_TRANSITIONS[clip.transition]) ||
-    (!!clip.effect && clip.effect !== "none" && !NATIVE_EFFECTS.has(clip.effect)) ||
+    (!!clip.transition && !isAndroidTransitionSupported(clip.transition)) ||
+    (!!clip.effect && !isAndroidEffectSupported(clip.effect)) ||
     (clip.volume ?? 1) > 1 ||
     !!clip.speedRamp?.length ||
     !!clip.keyframes?.length ||
-    !NATIVE_FILTERS.has(clip.filter) ||
+    !isAndroidFilterSupported(clip.filter) ||
     (clip.kind === "image" && clip.speed !== 1)
   )) return false;
   return true;
