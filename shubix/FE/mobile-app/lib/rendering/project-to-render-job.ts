@@ -5,6 +5,7 @@ import {
 } from "@shubix/validations";
 import type { RenderJobSpec, RenderTrackItem } from "@shubix/core/engine/rendering";
 import { UnsupportedAndroidRenderFeature } from "./android-renderer.adapter";
+import { normalizeAndroidTransition } from "./native-capabilities";
 
 const SIZE: Record<string, [number, number]> = {
   "9:16": [1080, 1920],
@@ -48,15 +49,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       throw new UnsupportedAndroidRenderFeature("Shot keyframes are not yet supported by the shared Android RenderJob adapter. Use the native editor export path.");
     }
     const durationMs = clipDuration(clip) * 1000;
-    const transitionAliases: Record<string, string> = {
-      fade: "fade", fadein: "fade",
-      zoom: "zoom-in", zoomin: "zoom-in", zoomout: "zoom-out",
-      blur: "blur", flash: "flash", whip: "whip-pan", whippan: "whip-pan",
-      spin: "spin", slideleft: "slide-left", slideright: "slide-right",
-      slideup: "slide-up", slidedown: "slide-down", swipeup: "slide-up",
-    };
-    const transitionKey = (clip.transition ?? "").toLowerCase().replace(/[\s_-]/g, "");
-    const mappedTransition = transitionAliases[transitionKey];
+    const mappedTransition = normalizeAndroidTransition(clip.transition ?? "");
     if (clip.transition && clip.transition !== "Cut" && clip.transition !== "hard" && !mappedTransition) {
       throw new UnsupportedAndroidRenderFeature(`Transition ${clip.transition} has no Android export mapping. Choose a supported transition or use the native editor export path.`);
     }
