@@ -148,6 +148,8 @@ class ShubixVideoModule : Module() {
     val context = appContext.reactContext ?: throw IllegalStateException("No app")
     val w = spec.getInt("width"); val h = spec.getInt("height")
     require(w in 2..3840 && h in 2..3840) { "Export dimensions must be between 2 and 3840 pixels." }
+    val outputPath = spec.optString("output").trim()
+    require(outputPath.isNotEmpty()) { "An output file path is required for export." }
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
     val texts = spec.optJSONArray("texts")
@@ -164,12 +166,13 @@ class ShubixVideoModule : Module() {
       require(uri.isNotEmpty()) { "Clip ${i + 1} is missing its media source." }
       val startSeconds = c.optDouble("start", 0.0)
       val endSeconds = c.optDouble("end", 5.0)
-      require(startSeconds.isFinite() && endSeconds.isFinite() && startSeconds >= 0.0 && endSeconds > startSeconds) {
+      require(startSeconds.isFinite() && endSeconds.isFinite() && startSeconds >= 0.0 && endSeconds > startSeconds && endSeconds <= Long.MAX_VALUE / 1000.0) {
         "Clip ${i + 1} has an invalid trim range."
       }
       val speedValue = c.optDouble("speed", 1.0)
       require(speedValue.isFinite() && speedValue > 0.0) { "Clip ${i + 1} has an invalid playback speed." }
-      val speed = speedValue.toFloat()
+      // Keep duration calculations and the actual Media3 speed effect on the same bounded rate.
+      val speed = speedValue.coerceIn(0.25, 4.0).toFloat()
       val startMs = (startSeconds * 1000).toLong(); val endMs = (endSeconds * 1000).toLong()
       val item = MediaItem.Builder().setUri(Uri.parse(uri)).apply {
         if (image) setImageDurationMs(endMs - startMs)
@@ -179,8 +182,12 @@ class ShubixVideoModule : Module() {
       val ramp = if (!image) speedRampSlices(c.optJSONArray("speedRamp"), sourceDuration, speed.toDouble()) else emptyList()
       val slices = if (ramp.isEmpty()) listOf(RampSlice(0.0, sourceDuration, speed.toDouble())) else ramp
       val clipTotalOutputDuration = slices.sumOf { (it.end - it.start) / it.speed }
-      val clipVolume = c.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f)
-      val turn = c.optDouble("rotation", 0.0).toFloat()
+      val volumeValue = c.optDouble("volume", 1.0)
+      require(volumeValue.isFinite()) { "Clip ${i + 1} has an invalid audio volume." }
+      val clipVolume = volumeValue.toFloat().coerceIn(0f, 1f)
+      val rotationValue = c.optDouble("rotation", 0.0)
+      require(rotationValue.isFinite()) { "Clip ${i + 1} has an invalid rotation." }
+      val turn = rotationValue.toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
       val muted = c.optBoolean("muted")
       val clipTimelineStart = at
@@ -246,7 +253,7 @@ class ShubixVideoModule : Module() {
         else listOf(gainProcessor(musicVolume, at, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
-    val out = File(spec.getString("output")).apply { parentFile?.mkdirs(); delete() }
+    val out = File(outputPath).apply { parentFile?.mkdirs(); delete() }
     val session = ActiveExport(promise).also { it.output = out }
     activeExport = session
     val transformer = try {
