@@ -517,6 +517,7 @@ export const STUDIO_HTML = `
               <div id="lymaskopts">
                 <label class="cslide"><span>Width</span><input type="range" data-ly="mk.w" min="0.05" max="1.5" step="0.01"><output></output></label>
                 <label class="cslide"><span>Height</span><input type="range" data-ly="mk.h" min="0.05" max="1.5" step="0.01"><output></output></label>
+                <label class="cslide" id="lylumarow"><span>Luma threshold</span><input type="range" data-ly="mk.th" min="0" max="1" step="0.01"><output></output></label>
                 <label class="cslide"><span>Angle</span><input type="range" data-ly="mk.a" min="-90" max="90" step="1"><output></output></label>
                 <label class="cslide"><span>Feather</span><input type="range" data-ly="mk.f" min="0" max="0.6" step="0.01"><output></output></label>
                 <label class="tog"><input type="checkbox" data-ly="mk.inv"> Invert (cut the shape out)</label>
