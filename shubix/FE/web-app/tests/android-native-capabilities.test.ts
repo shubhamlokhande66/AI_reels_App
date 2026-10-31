@@ -12,6 +12,8 @@ describe("Android native export capabilities", () => {
     expect(normalizeAndroidTransition("fade-in")).toBe("fade");
     expect(normalizeAndroidTransition("WHIP_PAN")).toBe("whip-pan");
     expect(normalizeAndroidTransition("Slide Up")).toBe("slide-up");
+    expect(normalizeAndroidTransition("Slide   Up")).toBe("slide-up");
+    expect(normalizeAndroidTransition("slide_up")).toBe("slide-up");
     expect(normalizeAndroidTransition("swipe-up")).toBe("slide-up");
     expect(isAndroidTransitionSupported("Cut")).toBe(true);
     expect(isAndroidTransitionSupported("hard")).toBe(true);
