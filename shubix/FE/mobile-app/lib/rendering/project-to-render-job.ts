@@ -48,10 +48,18 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       throw new UnsupportedAndroidRenderFeature("Shot keyframes are not yet supported by the shared Android RenderJob adapter. Use the native editor export path.");
     }
     const durationMs = clipDuration(clip) * 1000;
-    const transitionTypes: Record<string, string> = {
-      Fade: "fade", Zoom: "zoom-in", Blur: "blur", Flash: "flash", fadein: "fade", dissolve: "fade", Dissolve: "fade", flash: "flash", blur: "blur", whip: "whip-pan", zoom: "zoom-in", zoomout: "zoom-out", spin: "spin",
-      slideleft: "slide-left", slideright: "slide-right", slideup: "slide-up", slidedown: "slide-down", swipeup: "slide-up",
+    const transitionAliases: Record<string, string> = {
+      fade: "fade", fadein: "fade", dissolve: "fade", crossfade: "fade",
+      zoom: "zoom-in", zoomin: "zoom-in", zoomout: "zoom-out",
+      blur: "blur", flash: "flash", whip: "whip-pan", whippan: "whip-pan",
+      spin: "spin", slideleft: "slide-left", slideright: "slide-right",
+      slideup: "slide-up", slidedown: "slide-down", swipeup: "slide-up",
     };
+    const transitionKey = (clip.transition ?? "").toLowerCase().replace(/[\\s_-]/g, "");
+    const mappedTransition = transitionAliases[transitionKey];
+    if (clip.transition && clip.transition !== "Cut" && clip.transition !== "hard" && !mappedTransition) {
+      throw new UnsupportedAndroidRenderFeature(`Transition ${clip.transition} has no Android export mapping. Choose a supported transition or use the native editor export path.`);
+    }
     const effects: Array<NonNullable<RenderTrackItem["effects"]>[number]> = [];
     if (clip.filter && clip.filter !== "Original") {
       effects.push({ type: "filter", params: { name: clip.filter } });
@@ -75,7 +83,7 @@ export function createRenderJobFromProject(project: ReelProject): RenderJobSpec 
       muted: clip.muted,
       volume: clip.volume,
       ...(clip.transition && clip.transition !== "Cut" && clip.transition !== "hard"
-        ? { transitionIn: { type: transitionTypes[clip.transition] ?? clip.transition, durationMs: Math.min(350, durationMs / 2) } }
+        ? { transitionIn: { type: mappedTransition!, durationMs: Math.min(350, durationMs / 2) } }
         : {}),
       effects,
     });
