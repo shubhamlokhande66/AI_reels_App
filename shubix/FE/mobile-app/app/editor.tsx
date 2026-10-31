@@ -6,7 +6,7 @@ import { useStudioText } from "@shubix/hooks";
 import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
-import { evaluateAudioGain, slipClip } from "@shubix/video-engine";
+import { evaluateAudioGain, evaluateSpeedRamp, slipClip } from "@shubix/video-engine";
 import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
@@ -150,6 +150,45 @@ export default function EditorScreen() {
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
   // a place on the timeline: the shot there and the time in it
   const seek = (t: number) => { let i = 0, start = 0; while (i < clips.length - 1 && start + clipDuration(clips[i]) <= t) start += clipDuration(clips[i++]); setSelected(i); setLocal(t - start); };
+  // Timeline edge drags edit the source window, while keeping keyframes and speed-ramp
+  // coordinates local to the newly trimmed clip.
+  const trimTimelineClip = (index: number, edge: "start" | "end", deltaTimeline: number) => {
+    const target = clips[index];
+    if (!target || !Number.isFinite(deltaTimeline) || Math.abs(deltaTimeline) < 0.01) return;
+    const sourceLength = target.end - target.start, outputLength = clipDuration(target);
+    const averageRate = sourceLength / Math.max(0.001, outputLength);
+    const sourceDelta = deltaTimeline * averageRate;
+    let next: ProjectClip;
+    if (edge === "start") {
+      const nextStart = Math.min(target.end - 0.2, Math.max(0, target.start + Math.max(0, sourceDelta)));
+      const removedSource = nextStart - target.start;
+      if (removedSource < 0.01) return;
+      const removedOutput = removedSource / averageRate;
+      const ramp = target.speedRamp?.length ? [
+        { time: 0, speed: evaluateSpeedRamp(target.speedRamp, removedSource, sourceLength, target.speed), easing: "linear" as const },
+        ...target.speedRamp.filter((point) => point.time > removedSource + 0.001 && point.time < sourceLength).map((point) => ({ ...point, time: point.time - removedSource })),
+      ] : undefined;
+      next = { ...target, start: nextStart,
+        ...(ramp?.length ? { speedRamp: ramp } : {}),
+        ...(target.keyframes ? { keyframes: target.keyframes.filter((frame) => frame.t >= removedOutput).map((frame) => ({ ...frame, t: frame.t - removedOutput })) } : {}),
+      };
+    } else {
+      const nextEnd = Math.max(target.start + 0.2, Math.min(target.sourceDuration, target.end + sourceDelta));
+      const addedOrRemoved = nextEnd - target.end;
+      if (Math.abs(addedOrRemoved) < 0.01) return;
+      const nextSourceLength = nextEnd - target.start;
+      const ramp = target.speedRamp?.length ? [
+        ...target.speedRamp.filter((point) => point.time < nextSourceLength - 0.001),
+        { time: nextSourceLength, speed: evaluateSpeedRamp(target.speedRamp, nextSourceLength, sourceLength, target.speed), easing: "linear" as const },
+      ] : undefined;
+      next = { ...target, end: nextEnd, ...(ramp?.length ? { speedRamp: ramp } : {}),
+        ...(target.keyframes ? { keyframes: target.keyframes.filter((frame) => frame.t <= clipDuration({ ...target, end: nextEnd }) + 0.001) } : {}),
+      };
+    }
+    const updated = clips.map((item, i) => i === index ? next : item);
+    setClips(updated);
+    if (index === selected) setLocal((time) => Math.min(time, Math.max(0, clipDuration(next) - 0.02)));
+  };
   const addStudioTts = async () => {
     if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Voice tools need a Reel made by Shubix Studio."), "info");
     if (!voiceDraft.trim() || !ttsVoice) return toast(words("Enter the words and choose a voice first."), "info");
@@ -564,7 +603,7 @@ export default function EditorScreen() {
           setClips(clips.map((c) => ({ ...c, speed: style === "fast" ? 1.25 : 0.8 })));
           return words("Done ✓ I used {style} (on your phone).", { style: words(style === "fast" ? "the Fast style" : "the Smooth style") });
         }} /></View>
-        <Timeline clips={clips} selected={selected} overlays={p.overlays} studioLayers={studioLayers} onLayer={(index) => { setStudioLayerIndex(index); setTool({ key: "layers", name: "Layers" }); }} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
+        <Timeline clips={clips} selected={selected} overlays={p.overlays} studioLayers={studioLayers} onLayer={(index) => { setStudioLayerIndex(index); setTool({ key: "layers", name: "Layers" }); }} song={p.audioName} now={now} playing={playing} onSelect={go} onSeek={seek} onTrim={trimTimelineClip} onAddClip={() => void addClips()} onText={() => setTool({ key: "text", name: "Text" })} onVoice={() => use("voice", "Voice")} onMusic={() => setTool({ key: "music", name: "Music" })} />
         <View className="mt-3 flex-row items-center justify-between px-4">
           <Text className="text-[13px] font-semibold text-foreground">{words("Shot")} {String(selected + 1).padStart(2, "0")} · {clip ? clipDuration(clip).toFixed(1) : "0.0"} s</Text>
           <View className="flex-row items-center gap-1"><IconButton icon="undo" size={36} label={words("Undo")} disabled={!undo.current.length} onPress={() => { const last = undo.current.pop(); if (last) { redo.current = [...redo.current.slice(-29), p]; setP(last); } }} /><IconButton icon="redo" size={36} label={words("Redo")} disabled={!redo.current.length} onPress={() => { const next = redo.current.pop(); if (next) { undo.current = [...undo.current.slice(-29), p]; setP(next); } }} /></View>
