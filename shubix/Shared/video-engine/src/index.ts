@@ -890,3 +890,36 @@ export function assessAutonomousRenderQuality(report: AutonomousRenderReport): A
   return { status: errors.length ? "fail" : warnings.length ? "warn" : "pass",
     score, errors, warnings, repairs: [...repairs] };
 }
+
+
+export type AutonomousMoodInference = {
+  mood: AutonomousMood;
+  confidence: number;
+  reasons: string[];
+};
+
+/** Infer the editorial style from analysed footage when the creator supplies no prompt. */
+export function inferAutonomousMood(
+  shots: AutonomousSourceShot[],
+  music?: AutonomousMusicAnalysis,
+): AutonomousMoodInference {
+  const usable = shots.filter((shot) => shot.isUsable !== false);
+  const count = Math.max(1, usable.length);
+  const ratio = (predicate: (shot: AutonomousSourceShot) => boolean) => usable.filter(predicate).length / count;
+  const tags = usable.flatMap((shot) => shot.tags ?? []).map((tag) => tag.toLowerCase());
+  const hasAny = (...values: string[]) => values.some((value) => tags.includes(value));
+  const signals: Array<{ mood: AutonomousMood; score: number; reason: string }> = [
+    { mood: "product", score: ratio((shot) => !!shot.isProduct) + (hasAny("product","unboxing","showcase") ? 0.35 : 0), reason: "Product or showcase footage detected" },
+    { mood: "food", score: ratio((shot) => !!shot.isFood) + (hasAny("food","cooking","recipe","dish") ? 0.35 : 0), reason: "Food or cooking footage detected" },
+    { mood: "travel", score: ratio((shot) => !!shot.isLandscape || !!shot.isEstablishing) + (hasAny("travel","landscape","nature","city") ? 0.25 : 0), reason: "Landscape and establishing scenes detected" },
+    { mood: "fashion", score: ratio((shot) => hasTag(shot,"fashion") || hasTag(shot,"outfit") || hasTag(shot,"beauty")) + (hasAny("fashion","outfit","makeup","beauty") ? 0.25 : 0), reason: "Fashion or beauty styling detected" },
+    { mood: "talking", score: ratio((shot) => !!shot.speech) + (hasAny("talking","interview","tutorial","speech") ? 0.25 : 0), reason: "Speech-led footage detected" },
+    { mood: "wedding", score: ratio((shot) => !!shot.isReaction || hasTag(shot,"wedding")) + (hasAny("wedding","bride","groom","ceremony") ? 0.3 : 0), reason: "Wedding and reaction moments detected" },
+    { mood: "devotional", score: hasAny("devotional","temple","prayer","spiritual","bhajan") ? 0.75 : 0, reason: "Devotional or spiritual subject detected" },
+    { mood: "energetic", score: ratio((shot) => !!shot.isAction || shot.motion > 0.72) + (music?.mood === "energetic" ? 0.3 : 0), reason: "High-motion footage or energetic soundtrack detected" },
+    { mood: "story", score: ratio((shot) => !!shot.speech || !!shot.isReaction || !!shot.isEstablishing), reason: "Speech, reactions and scene progression suggest a story" },
+  ];
+  const winner = signals.sort((a,b)=>b.score-a.score)[0];
+  if (!winner || winner.score < 0.28) return { mood: "cinematic", confidence: 0.45, reasons: ["No dominant content category; cinematic style selected as a versatile default"] };
+  return { mood: winner.mood, confidence: clamp(winner.score, 0, 1), reasons: [winner.reason] };
+}
