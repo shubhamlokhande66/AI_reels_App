@@ -188,6 +188,7 @@ class ShubixVideoModule : Module() {
         if (keyframes != null && keyframes.length() > 0) {
           video += keyframeTransform(keyframes, clipOutputDuration)
           video += keyframeOpacityEffects(keyframes, clipOutputDuration, segmentDuration)
+        }
         val transitionIn = c.optJSONObject("transitionIn")
         if (transitionIn != null) {
           val transitionType = transitionIn.optString("type")
@@ -201,7 +202,6 @@ class ShubixVideoModule : Module() {
             val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
             if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration)
           }
-        }
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
