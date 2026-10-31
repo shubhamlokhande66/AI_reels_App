@@ -30,6 +30,7 @@ export class UnsupportedAndroidRenderFeature extends Error {
 
 const SUPPORTED_FILTERS = new Set(["Noir", "Golden", "Film", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"]);
 const SUPPORTED_RENDER_EFFECTS = new Set(["blur", "blurpulse", "brightness", "contrast", "saturation", "hue"]);
+const SUPPORTED_ANDROID_TRANSITIONS = new Set(["fade", "slide-left", "slide-right", "slide-up", "slide-down", "push-left", "push-right", "push-up", "push-down", "zoom-in", "zoom-out", "spin", "whip-pan"]);
 
 /**
  * Adapter for the currently shipped Media3 module.
@@ -78,7 +79,7 @@ export function createAndroidRendererAdapter(options: AndroidRendererOptions): R
       expectedTimelineStart = item.timelineStartMs + item.durationMs;
       if (item.transitionIn) {
         const transition = item.transitionIn.type.toLowerCase();
-        if (transition !== "fade") throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not supported by Android export yet.`);
+        if (!SUPPORTED_ANDROID_TRANSITIONS.has(transition)) throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not supported by Android export yet.`);
         if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs / 2) {
           throw new UnsupportedAndroidRenderFeature(`Fade transition on ${item.id} must be positive and no longer than half of its clip.`);
         }
