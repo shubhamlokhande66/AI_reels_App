@@ -65,3 +65,5 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Android shared-render export: Blur pulse must visibly animate across the shot; confirm GPU processing remains stable on a mid-tier device.
 - [ ] Android shared-render export: Try unsupported transitions (Dissolve, Glitch, Wipe, Spin) and masks/layers; confirm export returns an explicit unsupported-feature error rather than silently omitting the edit.
 - [ ] Verify every Android-supported color preset, including Warm, Cool, Teal & Orange, Sepia, Matte, High Contrast, Faded, Vintage, Pastel, Cyberpunk, Dreamy, Black & White, Soft Focus, Color Pop, Muted, Sunset and Arctic.
+
+- [ ] Android shared-render motion effects: Zoom punch, soft zoom, zoom burst, slow drift, pan, shake, bounce, tilt, photo snap, hook zoom, punch-in and heartbeat must animate; compare timing and scale against preview and check for frame jitter.
