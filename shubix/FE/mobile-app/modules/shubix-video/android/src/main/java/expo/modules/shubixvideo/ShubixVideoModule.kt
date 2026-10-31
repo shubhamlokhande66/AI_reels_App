@@ -214,7 +214,13 @@ class ShubixVideoModule : Module() {
         val transitionIn = c.optJSONObject("transitionIn")
         if (transitionIn != null) {
           val transitionType = transitionIn.optString("type")
-          val transitionDuration = transitionIn.optDouble("duration", 0.35).coerceAtLeast(0.001)
+          val requestedTransitionDuration = transitionIn.optDouble("duration", 0.35).let {
+            if (it.isFinite()) it else 0.35
+          }
+          // Speed ramps can make the rendered clip shorter than its source trim. Bound the
+          // entrance to the actual output duration so it always completes within this clip.
+          val maxTransitionDuration = (clipTotalOutputDuration / 2.0).coerceAtLeast(0.001)
+          val transitionDuration = requestedTransitionDuration.coerceIn(0.001, maxTransitionDuration)
           when (transitionType) {
             "fade" -> {
               val fadeFrames = org.json.JSONArray()
