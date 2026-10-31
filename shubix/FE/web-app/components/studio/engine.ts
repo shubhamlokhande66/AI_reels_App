@@ -1976,7 +1976,8 @@ function applyChatVisualIntent(intent, slots = []){
       frameCount++;
     });
   }
-  let transitionCount = 0;
+  let transitionCount = 0, effectCount = 0;
+  let plannedTransitions = null, plannedEffects = null;
   if(intent.transitionAll){
     const valid = key => Object.prototype.hasOwnProperty.call(TR_DUR, key) && !isLocked('tr', key);
     const available = Object.keys(TR_DUR).filter(valid);
@@ -1988,8 +1989,7 @@ function applyChatVisualIntent(intent, slots = []){
     });
     const preferred = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
       || (valid('dissolve') ? 'dissolve' : available[0]);
-    // Plan every transition first. A locked or unsupported choice must never leave a half-edited timeline.
-    const planned = edit.map((shot, i) => {
+    plannedTransitions = edit.map((shot, i) => {
       const modelChoice = slots[i] && slots[i].tr;
       const requested = intent.transitionType;
       if(requested && !valid(requested)) throw new Error('That transition is locked or unavailable on your plan.');
@@ -1998,24 +1998,15 @@ function applyChatVisualIntent(intent, slots = []){
       if(!valid(transition)) transition = available[0];
       return transition;
     });
-    edit.forEach((shot, i) => {
-      shot.tr = planned[i];
-      shot.trd = undefined;
-      shot.trByDir = true;
-    });
-    transitionCount = planned.length;
-    renderEDL(true);
-    redrawFrame();
+    transitionCount = plannedTransitions.length;
   }
-  let effectCount = 0;
   if(intent.effectsAll){
     const allowed = FX_OK[mode] || FX_OK.auto;
     const canUse = (fx, i) => !!fx && fx !== 'none' && Object.prototype.hasOwnProperty.call(FX_NAME, fx)
       && (fx === 'hook' ? i === 0 : allowed.includes(fx))
       && !isLocked('fx', fx);
     let previousEffect = '';
-    // Choose and validate an effect for every shot before mutating any shot.
-    const planned = edit.map((shot, i) => {
+    plannedEffects = edit.map((shot, i) => {
       const proposed = slots[i] && (slots[i].fx || slots[i].effect);
       const roleChoices = shot.type === 'drop' ? ['zoomburst', 'punch', 'shake', 'punch-soft']
         : shot.type === 'hit' ? ['punch', 'tilt', 'bounce', 'shake', 'punch-soft']
@@ -2025,16 +2016,28 @@ function applyChatVisualIntent(intent, slots = []){
       if(i === 0) choices.unshift('hook');
       let chosen = canUse(proposed, i) && (proposed !== previousEffect || i === 0) ? proposed : null;
       if(!chosen) chosen = choices.find(fx => fx !== previousEffect && canUse(fx, i)) || choices.find(fx => canUse(fx, i));
-      if(!chosen) throw new Error('A suitable unlocked effect was not available for every clip. No partial effects were applied.');
+      if(!chosen) throw new Error('A suitable unlocked effect was not available for every clip. No partial visual edits were applied.');
       previousEffect = chosen;
       return chosen;
     });
+    effectCount = plannedEffects.length;
+  }
+  // Commit only after every requested change has a valid choice for every clip.
+  if(plannedTransitions){
     edit.forEach((shot, i) => {
-      shot.efx = planned[i];
+      shot.tr = plannedTransitions[i];
+      shot.trd = undefined;
+      shot.trByDir = true;
+    });
+  }
+  if(plannedEffects){
+    edit.forEach((shot, i) => {
+      shot.efx = plannedEffects[i];
       shot.fxByDir = true;
       shot.kf = keyframesFor(shot);
     });
-    effectCount = planned.length;
+  }
+  if(plannedTransitions || plannedEffects){
     renderEDL(true);
     redrawFrame();
   }
