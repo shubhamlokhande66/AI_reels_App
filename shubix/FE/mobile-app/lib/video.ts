@@ -52,7 +52,9 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
     throw new Error("Android export currently supports source-audio gain up to 100%. Lower this clip volume before exporting.");
   }
   const [width, height] = SIZE[p.settings?.aspect ?? "9:16"] ?? SIZE["9:16"];
-  const output = `${Paths.document.uri.replace(/^file:\/\//, "")}exports/${p.id}-${Date.now()}.mp4`;
+  const root = Paths.document.uri.replace(/^file:\/\//, "").replace(/\/$/, "");
+  const safeId = p.id.replace(/[^A-Za-z0-9._-]/g, "_") || "reel";
+  const output = `${root}/exports/${safeId}-${Date.now()}.mp4`;
   const spec = {
     width, height, output,
     clips: p.clips.map((clip) => ({
