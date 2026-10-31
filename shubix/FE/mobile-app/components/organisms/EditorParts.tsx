@@ -58,6 +58,7 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overl
   const speedSegments = video ? buildSpeedRampSegments(video.speedRamp ?? [], video.end - video.start, { fallbackSpeed: video.speed, maxSegmentDuration: 0.2 }) : [];
   const player = useVideoPlayer(null, (p) => { p.audioMixingMode = "mixWithOthers"; });
   const [videoReady, setVideoReady] = useState(false);
+  const endedRef = useRef(false);
   // Do not seek/play until the native decoder has its first frame. Calling replace(),
   // currentTime and play in one render used to make the first preview start stutter or miss.
   useEffect(() => {
@@ -82,7 +83,11 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overl
   useEffect(() => { if (!playing && video && videoReady) player.currentTime = video.start + rampSourceAt(speedSegments, at); }, [at, playing, videoReady, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
   // playing: update the native player's rate as it crosses ramp segments and report timeline time
   useEffect(() => {
+    endedRef.current = false;
+  }, [clip?.id, playing]);
+  useEffect(() => {
     if (!playing || !clip || (video && !videoReady)) { player.pause(); return; }
+    endedRef.current = false;
     if (video) player.play();
     const t0 = Date.now() - at * 1000, len = clipDuration(clip);
     const tick = setInterval(() => {
@@ -90,7 +95,11 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overl
       const t = video ? rampTimelineAt(speedSegments, sourceOffset) : (Date.now() - t0) / 1000;
       if (video) player.playbackRate = rampRateAt(speedSegments, sourceOffset, video.speed);
       onTime(Math.max(0, Math.min(t, len)));
-      if (t >= len - 0.05) onEnded();
+      if (t >= len - 0.05 && !endedRef.current) {
+        endedRef.current = true;
+        player.pause();
+        onEnded();
+      }
     }, 80);
     return () => clearInterval(tick);
   }, [playing, clip?.id, videoReady, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
