@@ -143,8 +143,6 @@ describe("autonomous AI reel director", () => {
     plan.shots[0].transition = "invented-transition";
     expect(validateAutonomousReelPlan(plan)).toContain("A transition is not in the shared registry.");
   });
-});
-
 
   it("honours must-include and avoid instructions when ranking source moments", () => {
     const plan = createAutonomousReelPlan({
@@ -176,6 +174,7 @@ describe("autonomous AI reel director", () => {
     expect(plan.warnings.some((warning) => warning.includes("invalid"))).toBe(true);
     expect(validateAutonomousReelPlan(plan)).toEqual([]);
   });
+});
 
 describe("autonomous render quality gate", () => {
   it("passes a valid render with clean video and audio measurements", () => {
