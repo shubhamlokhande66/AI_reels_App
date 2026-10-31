@@ -250,10 +250,10 @@ class ShubixVideoModule : Module() {
         val x2 = curve?.optDouble(2, 0.25) ?: 0.25
         val y2 = curve?.optDouble(3, 1.0) ?: 1.0
         var lo = 0.0; var hi = 1.0; var t = progress
-        repeat(18) {
+        for (step in 0 until 18) {
           val u = 1.0 - t
           val at = 3.0 * u * u * t * x1 + 3.0 * u * t * t * x2 + t * t * t
-          if (kotlin.math.abs(at - progress) < 0.00001) return@repeat
+          if (kotlin.math.abs(at - progress) < 0.00001) break
           if (at < progress) lo = t else hi = t
           t = (lo + hi) / 2.0
         }
