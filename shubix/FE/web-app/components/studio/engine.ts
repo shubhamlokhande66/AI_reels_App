@@ -4979,7 +4979,7 @@ async function fastExport(){
     };
     // yield to the page without timers (a hidden tab throttles setTimeout to once a second or less)
     const yieldNow = () => (globalThis.scheduler && scheduler.yield) ? scheduler.yield() : new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
-    let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0, glLostFrames:0, missing:0 }; let tq = performance.now();
+    let f = 0, nextAudio = 0; const prof = root.__prof = { decode:0, draw:0, encode:0, frames:0, glLostFrames:0, missing:0, recovered:0, unresolved:0 }; let tq = performance.now();
     const tStart = performance.now();
     pre = open(0);
     for(let i=0; i<edit.length; i++){
@@ -5035,6 +5035,7 @@ async function fastExport(){
     }
     { const p2 = await pre; pre = null; if(p2 && p2.it.return) try{ await p2.it.return(); }catch(err){} }
     while(as && nextAudio < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
+    if(prof.frames !== total) throw new Error('Export frame count mismatch: expected ' + total + ', encoded ' + prof.frames + '. Retrying with real-time export.');
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
     const name = 'reel-' + aspect.replace(':','x') + '-' + XQ[xq.res].label + (fps > 30 ? '-' + fps + 'fps' : '') + '.' + (mp4 ? 'mp4' : 'webm');
