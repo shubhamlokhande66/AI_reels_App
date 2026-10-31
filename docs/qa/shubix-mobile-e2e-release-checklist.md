@@ -75,3 +75,5 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Studio layer masks: verify Ellipse, Rectangle, Polygon, Linear, Radial and Luma masks, including feather, invert and luma threshold. Check the polygon default six-point path and resizing/rotation.
 - [ ] Studio layer compositor: verify Normal, Screen, Multiply, Overlay, Soft light, Lighten, Darken, Colour dodge and Difference blends, chroma key, crop, opacity, fade-in/out and overlapping video/photo layers.
 - [ ] Verify all layer masks, blend modes and overlays appear in the final MP4 on Android when exported through the originating Studio session; the native editor preview is not a pixel-identical compositor.
+
+- [ ] Android native export: overlapping active text overlays must composite together in the same frame; verify none of the active titles/captions disappear behind the first matching overlay.
