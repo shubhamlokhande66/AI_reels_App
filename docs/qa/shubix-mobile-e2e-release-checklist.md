@@ -29,6 +29,10 @@ This checklist is a release gate for the shared editing/rendering migration. Sou
 - [ ] Export projects with unsupported transitions/effects and verify compatibility handling is explicit.
 - [ ] Check all aspect ratios: 9:16, 4:5, 1:1 and 16:9.
 - [ ] Check source audio + music combinations, source trim, speed, rotation, mirror and flip.
+- [ ] Export with per-clip source volume at 0%, 25%, 50%, 75% and 100%; confirm mute and gain are audible and match preview.
+- [ ] Export music at multiple gain levels with fade-in and fade-out; inspect the first/last seconds for clicks or abrupt cuts.
+- [ ] Enable dialogue ducking with speech clips; confirm music lowers during source dialogue and recovers smoothly between clips.
+- [ ] Verify shared Android RenderJob rejects unsupported timeline starts and >100% native audio gain with an actionable message.
 - [ ] Check multiple simultaneous text overlays and Devanagari in the actual MP4, not only preview.
 - [ ] Cancel during preparation, decode and encode; verify the native job stops and a new export can start.
 - [ ] Simulate disk-full, missing source, revoked URI, codec failure and permission denial.
