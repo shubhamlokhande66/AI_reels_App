@@ -1,6 +1,4 @@
-/** One look for the whole app, chosen by the person: Light (Ivory), Dark (Noir), or the same as their phone / computer.
- * Every page follows it (the menu and the sidebar too); a few panels keep their own look on purpose (the editors'
- * timeline follows the selected theme too). Kept on this device (localStorage). */
+/** One look for the whole app, chosen by the person: Light (Ivory), Dark (Noir), or the same as their phone / computer.\n * Every page and editor surface follows it, including the timeline. Kept on this device (localStorage). */
 export type ThemePref = "light" | "dark" | "system";
 export const THEME_KEY = "shubix-theme";
 export const DEFAULT_PREF: ThemePref = "light";
