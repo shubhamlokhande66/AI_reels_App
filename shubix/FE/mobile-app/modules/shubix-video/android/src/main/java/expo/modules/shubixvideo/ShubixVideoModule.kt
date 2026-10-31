@@ -189,12 +189,18 @@ class ShubixVideoModule : Module() {
           video += keyframeTransform(keyframes, clipOutputDuration)
           video += keyframeOpacityEffects(keyframes, clipOutputDuration, segmentDuration)
         val transitionIn = c.optJSONObject("transitionIn")
-        if (transitionIn?.optString("type") == "fade") {
-          val fadeDuration = transitionIn.optDouble("duration", 0.25).coerceAtLeast(0.001)
-          val fadeFrames = org.json.JSONArray()
-            .put(JSONObject().put("t", 0.0).put("o", 0.0))
-            .put(JSONObject().put("t", fadeDuration).put("o", 1.0))
-          video += keyframeOpacityEffects(fadeFrames, clipOutputDuration, segmentDuration)
+        if (transitionIn != null) {
+          val transitionType = transitionIn.optString("type")
+          val transitionDuration = transitionIn.optDouble("duration", 0.35).coerceAtLeast(0.001)
+          if (transitionType == "fade") {
+            val fadeFrames = org.json.JSONArray()
+              .put(JSONObject().put("t", 0.0).put("o", 0.0))
+              .put(JSONObject().put("t", transitionDuration).put("o", 1.0))
+            video += keyframeOpacityEffects(fadeFrames, clipOutputDuration, segmentDuration)
+          } else {
+            val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
+            if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration)
+          }
         }
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
@@ -319,6 +325,24 @@ class ShubixVideoModule : Module() {
         postTranslate((x * 2.0).toFloat(), (-y * 2.0).toFloat())
       }
     }
+  }
+
+  /** Build a short motion-in transform for supported native transition presets. */
+  private fun transitionTransformFrames(type: String, durationSeconds: Double): org.json.JSONArray? {
+    val from = JSONObject().put("t", 0.0).put("x", 0.0).put("y", 0.0).put("s", 1.0).put("r", 0.0).put("o", 1.0)
+    val to = JSONObject().put("t", durationSeconds).put("x", 0.0).put("y", 0.0).put("s", 1.0).put("r", 0.0).put("o", 1.0)
+    when (type) {
+      "slide-left", "push-left" -> from.put("x", 1.0)
+      "slide-right", "push-right" -> from.put("x", -1.0)
+      "slide-up", "push-up" -> from.put("y", 1.0)
+      "slide-down", "push-down" -> from.put("y", -1.0)
+      "zoom-in" -> from.put("s", 1.35)
+      "zoom-out" -> from.put("s", 0.65)
+      "spin" -> from.put("r", 180.0)
+      "whip-pan" -> { from.put("x", 0.8); from.put("r", 24.0) }
+      else -> return null
+    }
+    return org.json.JSONArray().put(from).put(to)
   }
 
   /** Approximate animated opacity with short timestamp-scoped GPU alpha effects. */
