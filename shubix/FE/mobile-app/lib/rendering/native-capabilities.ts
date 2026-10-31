@@ -3,7 +3,7 @@
  * Keep these checks pure so UI, project conversion and export validation agree.
  */
 const TRANSITIONS: Record<string, string> = {
-  fade: "fade", fadein: "fade", fadeout: "fade",
+  fade: "fade", fadein: "fade",
   zoom: "zoom-in", zoomin: "zoom-in", zoomout: "zoom-out",
   blur: "blur", flash: "flash", whip: "whip-pan", whippan: "whip-pan",
   spin: "spin", slideleft: "slide-left", slideright: "slide-right",
@@ -35,7 +35,7 @@ export function isAndroidTransitionSupported(id: string): boolean {
 }
 
 export function isAndroidEffectSupported(id: string): boolean {
-  return id === "none" || EFFECTS.has(compact(id));
+  return id.trim().toLowerCase() === "none" || EFFECTS.has(id.trim().toLowerCase());
 }
 
 export function isAndroidFilterSupported(id: string): boolean {
