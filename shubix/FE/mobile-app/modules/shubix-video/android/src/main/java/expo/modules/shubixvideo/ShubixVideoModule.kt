@@ -255,15 +255,40 @@ class ShubixVideoModule : Module() {
       if (!image && !muted && clipVolume > 0f && clipOutputDuration > 0.0) clipAudioRanges += Pair(clipTimelineStart, clipTimelineStart + clipOutputDuration)
       at += clipOutputDuration
     }
+    if (texts != null) {
+      require(texts.length() <= 100) { "A Reel can contain at most 100 text overlays." }
+      for (index in 0 until texts.length()) {
+        val overlay = texts.optJSONObject(index) ?: throw IllegalArgumentException("Text overlay ${index + 1} is invalid.")
+        val textValue = overlay.optString("text")
+        val start = overlay.optDouble("start", Double.NaN)
+        val end = overlay.optDouble("end", Double.NaN)
+        val size = overlay.optDouble("size", 36.0)
+        require(textValue.isNotBlank() && textValue.length <= 500 && start.isFinite() && end.isFinite() && start >= 0.0 && end > start && size.isFinite()) {
+          "Text overlay ${index + 1} has invalid text, timing, or size."
+        }
+      }
+    }
     val sequences = mutableListOf(EditedMediaItemSequence.Builder(items).experimentalSetForceAudioTrack(true).build())
     if (song != null) {
-      val music = MediaItem.Builder().setUri(Uri.parse(song.getString("uri")))
-        .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((song.optDouble("start", 0.0) * 1000).toLong()).setEndPositionMs(((song.optDouble("start", 0.0) + at) * 1000).toLong()).build()).build()
-      val musicVolume = song.optDouble("volume", 1.0).toFloat().coerceIn(0f, 1f)
-      val fadeIn = song.optDouble("fadeIn", 0.0).coerceIn(0.0, 10.0)
-      val fadeOut = song.optDouble("fadeOut", 0.0).coerceIn(0.0, 10.0)
+      val audioUri = song.optString("uri").trim()
+      val audioStart = song.optDouble("start", 0.0)
+      val volumeValue = song.optDouble("volume", 1.0)
+      val fadeInValue = song.optDouble("fadeIn", 0.0)
+      val fadeOutValue = song.optDouble("fadeOut", 0.0)
+      val duckLevelValue = song.optDouble("duckLevel", 0.35)
+      require(audioUri.isNotEmpty() && audioStart.isFinite() && audioStart >= 0.0 && audioStart <= Long.MAX_VALUE / 1000.0) {
+        "The background music source or start time is invalid."
+      }
+      require(volumeValue.isFinite() && fadeInValue.isFinite() && fadeOutValue.isFinite() && duckLevelValue.isFinite()) {
+        "The background music settings contain an invalid number."
+      }
+      val music = MediaItem.Builder().setUri(Uri.parse(audioUri))
+        .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((audioStart * 1000).toLong()).setEndPositionMs(((audioStart + at) * 1000).toLong()).build()).build()
+      val musicVolume = volumeValue.toFloat().coerceIn(0f, 1f)
+      val fadeIn = fadeInValue.coerceIn(0.0, 10.0)
+      val fadeOut = fadeOutValue.coerceIn(0.0, 10.0)
       val ducking = song.optBoolean("ducking", false)
-      val duckLevel = song.optDouble("duckLevel", 0.35).toFloat().coerceIn(0.1f, 1f)
+      val duckLevel = duckLevelValue.toFloat().coerceIn(0.1f, 1f)
       val musicAudio: List<AudioProcessor> = if (musicVolume == 1f && fadeIn == 0.0 && fadeOut == 0.0 && (!ducking || clipAudioRanges.isEmpty())) emptyList()
         else listOf(gainProcessor(musicVolume, at, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
