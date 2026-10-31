@@ -661,11 +661,30 @@ class ShubixVideoModule : Module() {
         textSize = x.optDouble("size", 36.0).toFloat() * w / 540f; typeface = Typeface.DEFAULT_BOLD
         setShadowLayer(textSize / 8, 0f, textSize / 14, Color.argb(160, 0, 0, 0))
       }
-      val words = x.optString("text")
-      val pad = (paint.textSize / 3).toInt()
-      val width = (paint.measureText(words).toInt() + pad * 2).coerceIn(2, w)
-      val height = (paint.fontSpacing.toInt() + pad * 2).coerceAtLeast(2)
-      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { Canvas(it).drawText(words, pad.toFloat(), pad - paint.ascent(), paint) }
+      val words = x.optString("text").replace("\\r", "")
+      val pad = (paint.textSize / 3).toInt().coerceAtLeast(2)
+      val maxLineWidth = (w - pad * 2).coerceAtLeast(1).toFloat()
+      val lines = mutableListOf<String>()
+      var current = ""
+      words.split(Regex("\\s+")).filter { it.isNotEmpty() }.forEach { word ->
+        val candidate = if (current.isEmpty()) word else "$current $word"
+        if (current.isNotEmpty() && paint.measureText(candidate) > maxLineWidth) {
+          lines += current
+          current = word
+        } else current = candidate
+      }
+      if (current.isNotEmpty()) lines += current
+      if (lines.isEmpty()) lines += ""
+      val width = (lines.maxOf { paint.measureText(it) }.toInt() + pad * 2).coerceIn(2, w)
+      val lineHeight = paint.fontSpacing
+      val height = (lineHeight * lines.size + pad * 2).toInt().coerceAtLeast(2)
+      return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also { bitmap ->
+        val textCanvas = Canvas(bitmap)
+        lines.forEachIndexed { index, line ->
+          val baseline = pad - paint.ascent() + index * lineHeight
+          textCanvas.drawText(line, pad.toFloat(), baseline, paint)
+        }
+      }
     }
   }
 }
