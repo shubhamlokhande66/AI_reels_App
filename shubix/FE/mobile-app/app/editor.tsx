@@ -3,6 +3,7 @@ import { BackHandler, Platform, Pressable, ScrollView, Text, TextInput, View } f
 import { router, useLocalSearchParams } from "expo-router";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useStudioText } from "@shubix/hooks";
+import { asksForAllClips } from "@shubix/core/lib/chatSize";
 import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
@@ -47,8 +48,7 @@ const LATER = new Set<string>();
 type BulkVisualCommand = { transition?: string; effect?: boolean; unsupportedTransition?: string };
 function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
   const value = String(prompt || "").trim();
-  const all = /\b(?:all|every|each)\s+(?:the\s+)?(?:clips?|videos?)\b|\b(?:clips?|videos?)\s+(?:all|every)\b|\b(?:sagle|sagale|saglya?|sarva|pratyek|sabhi|saare|har)\s+(?:clips?|videos?)\b|\b(?:sagle|sagale|saglya?|sarva)\s+videos?\s+(?:vr|var|la)\b|\bhar\s+ek\s+(?:clip|video)\b|सभी\s*(?:क्लिप|वीडियो)|सारे\s*(?:क्लिप|वीडियो)|हर\s*(?:एक\s*)?(?:क्लिप|वीडियो)|सगळ्या?\s*(?:क्लिप|व्हिडिओ)|सर्व\s*(?:क्लिप|व्हिडिओ)|प्रत्येक\s*(?:क्लिप|व्हिडिओ)/iu.test(value);
-  if (!all) return null;
+  if (!asksForAllClips(value)) return null;
   const asksTransition = /\btransitions?\b|ट्रांजिशन|ट्रांज़िशन|ट्रान्जिशन|ट्रान्झिशन|संक्रमण|转场|переход/iu.test(value);
   const asksEffect = /\b(?:effects?|effecr|fx)\b|इफेक्ट(?:्स)?|प्रभाव|效果|эффекты/iu.test(value);
   if (!asksTransition && !asksEffect) return null;
