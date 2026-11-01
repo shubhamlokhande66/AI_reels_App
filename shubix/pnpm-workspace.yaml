@@ -1,0 +1,10 @@
+packages:
+  - "FE/*"
+  - "BE/*"
+  - "Shared/*"
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - prisma
+  - "@nestjs/core"
+  - sharp

@@ -1,0 +1,10 @@
+{
+  "_": "The model files Fast Studio downloads to the phone, served at /api/studio/model/<name>: by the app (src/routes/api/studio/model/[name]/route.ts) and, on Cloudflare, as free static assets copied by infra/cloudflare/cf-assets.mjs. dir is from BE/api (the server runs there).",
+  "files": [
+    { "name": "beat_this_final0.int8.onnx", "dir": "src/server/audio/data/beat-this" },
+    { "name": "mel-filterbank.bin", "dir": "src/server/audio/data/beat-this" },
+    { "name": "silero_vad_16k_op15.onnx", "dir": "src/server/audio/data/vad" },
+    { "name": "selfie_segmentation.onnx", "dir": "src/server/vision/data" },
+    { "name": "face_detection_short_range.onnx", "dir": "src/server/vision/data" }
+  ]
+}

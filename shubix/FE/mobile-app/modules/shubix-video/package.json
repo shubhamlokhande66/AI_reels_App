@@ -1,0 +1,7 @@
+{
+  "name": "shubix-video",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "description": "The phone's video engine: makes the Reel's MP4 on the phone (Android: Media3 Transformer)."
+}

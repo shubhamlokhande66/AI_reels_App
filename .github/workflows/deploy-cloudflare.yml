@@ -1,14 +1,10 @@
-# Deploy Reel Maker to Cloudflare (Worker + Container) from GitHub: the container image is built here, so no Docker is
-# needed on your computer. Runs on every push to main (not for docs-only changes), or from the Actions tab ("Run workflow").
-# Repository secrets needed: CLOUDFLARE_API_TOKEN (Workers + Containers edit) and CLOUDFLARE_ACCOUNT_ID.
-# The app's own secrets (MONGODB_URI, R2 keys, ...) are set once with `npx wrangler secret put` (docs/deploy-cloudflare.md).
 name: Deploy to Cloudflare
 on:
   push:
-    branches: [main]
+    # only a merge to monorepo deploys: PRs and other branches never do (Run workflow in the Actions tab still can)
+    branches: [monorepo]
     paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
-# one deploy at a time: a newer push cancels the deploy still running for an older one
 concurrency:
   group: deploy-cloudflare
   cancel-in-progress: true
@@ -17,16 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: cloudflare
+        working-directory: shubix/infra/cloudflare
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # the static assets (public/ and the AI models, scripts/cf-assets.mjs): the app's packages for the AI engine's files
-      - run: npm ci --ignore-scripts && node scripts/cf-assets.mjs
-        working-directory: .
-      - run: npm ci
+      # public/ and the AI models become static assets (cf-assets.mjs); the web app's vendor files come from its node_modules
+      - run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts --filter "@shubix/web-app"
+        working-directory: shubix
+      - run: npm ci && node cf-assets.mjs
       - run: npx wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

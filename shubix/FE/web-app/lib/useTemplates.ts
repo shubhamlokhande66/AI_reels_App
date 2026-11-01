@@ -1,0 +1,24 @@
+"use client";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { DEFAULT_TEMPLATES, type StudioTemplate } from "@shubix/core/lib/studio-templates";
+
+const KEY = "brs-templates";
+// the parts of a page that show templates, asking at the same moment, share one request (not kept afterwards)
+let inFlight: ReturnType<typeof api.templates> | null = null;
+const fetchTemplates = () => { if (!inFlight) { const p = api.templates(); inFlight = p; void p.then(() => {}, () => {}).finally(() => { if (inFlight === p) inFlight = null; }); } return inFlight; };
+/** the templates people see (the administrator's list, today's): the defaults first, then the server's list (also kept in
+ * localStorage, so the next visit starts with it). `ready` once the server answered or failed. */
+export function useTemplates() {
+  const [list, setList] = useState<StudioTemplate[]>(() => DEFAULT_TEMPLATES.filter((t) => t.on && !t.showFrom && !t.showTo));
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let live = true;
+    // the list kept from the last visit, then the server's (set from callbacks, after this render)
+    void Promise.resolve().then(() => { if (!live) return; try { const c = JSON.parse(localStorage.getItem(KEY) || "null"); if (Array.isArray(c?.templates)) setList(c.templates); } catch {} });
+    fetchTemplates().then((r) => { if (!live || !Array.isArray(r?.templates)) return; setList(r.templates); try { localStorage.setItem(KEY, JSON.stringify({ at: Date.now(), templates: r.templates })); } catch {} })
+      .catch(() => {}).finally(() => live && setReady(true));
+    return () => { live = false; };
+  }, []);
+  return { templates: list, ready };
+}

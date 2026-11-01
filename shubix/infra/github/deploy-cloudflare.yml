@@ -1,0 +1,30 @@
+# The monorepo's deploy (move to .github/workflows/ at the repository root when shubix/ becomes the app; the current
+# root workflow keeps deploying the current app until then).
+name: Deploy to Cloudflare
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shubix/infra/cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # public/ and the AI models become static assets (cf-assets.mjs); the web app's vendor files come from its node_modules
+      - run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts --filter "@shubix/web-app"
+        working-directory: shubix
+      - run: npm ci && node cf-assets.mjs
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

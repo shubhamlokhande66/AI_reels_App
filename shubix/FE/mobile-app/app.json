@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Shubix",
+    "slug": "shubix-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "shubix",
+    "icon": "./assets/icon.png",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose clips and photos to create your Reel.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Choose clips in the order they should play, and save finished Reels to your library.",
+          "granularPermissions": ["photo", "video"],
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#d8bd7b"
+        }
+      ]
+    ],
+    "android": {
+      "package": "com.shubix.reels",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#10100f"
+      },
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.CAMERA"
+      ]
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    }
+  }
+}

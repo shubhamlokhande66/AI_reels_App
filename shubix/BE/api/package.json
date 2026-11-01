@@ -1,0 +1,50 @@
+{
+  "name": "@shubix/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "shared": "pnpm --filter @shubix/core build",
+    "prebuild": "pnpm run shared",
+    "build": "nest build",
+    "dev": "pnpm run shared && nest start --watch --exec \"node --conditions=shubix-dist\"",
+    "start": "node --conditions=shubix-dist dist/main.js",
+    "typecheck": "pnpm run shared && tsc --noEmit",
+    "test": "vitest run",
+    "smtp-check": "node scripts/smtp-check.mjs",
+    "restore-backup": "node scripts/restore-backup.mjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.1.6",
+    "@shubix/core": "workspace:*",
+    "@techstark/opencv-js": "^4.10.0-release.1",
+    "busboy": "^1.6.0",
+    "essentia.js": "^0.1.3",
+    "mongodb": "^6.21.0",
+    "nodemailer": "^10.2.1",
+    "onnxruntime-node": "1.29.0",
+    "passport": "^0.7.0",
+    "passport-custom": "^1.1.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.10",
+    "@types/busboy": "^1.5.5",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.13.6",
+    "@types/nodemailer": "^6.4.17",
+    "mongodb-memory-server": "11.2.0",
+    "typescript": "^5.9.2",
+    "vitest": "^5.0.1"
+  },
+  "files": [
+    "dist",
+    "src",
+    "scripts"
+  ]
+}

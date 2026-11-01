@@ -1,0 +1,489 @@
+/** Fast Studio's Create flow (UI/ design "After Clip Music Reel", phones and computers), on top of the engine's steps:
+ *
+ * Computers: one page. The header (back, "Music Reel", the four steps Music · Clips · AI Edit · Preview & Export), then
+ *   1 Choose Music, 2 Add Your Clips, 3 AI Edit in a column, and the Reel Preview with Generate Reel beside them.
+ * Phones: one screen at a time: the intro, choose music, adjust music (part, length, beats), add clips, analysing, then
+ *   the finished Reel ("Your Reel is ready", the editor's tools in a row, Export).
+ *
+ * The engine makes the edit by itself as soon as there is a song and clips; the flow keeps that edit behind the
+ * Analysing screen until Generate (computers) or Next (phones) is pressed, then hands the page to the editor views
+ * (views.ts). A saved Reel that is opened again and Story → Reel skip the flow; Copy a Reel (/create/copy) first asks for
+ * the Reel to copy. Everything here shows,
+ * hides or forwards to the engine's own controls (ids from markup.ts); the progress comes from tasks.ts events. */
+
+import type { TaskEvent } from "./tasks";
+import { tx } from "./i18n";
+
+type Kind = "music" | "talk" | "photo" | "copy";
+type Step = "intro" | "choose" | "adjust" | "clips" | "analyse";
+
+const KINDS: Record<Kind, { title: string; sub: string; intro: string; checks: string[]; icon: string }> = {
+  music: { title: "Music Reel", sub: "Turn your clips into a stunning Reel with music, beats and Shubix edits.", intro: "Create a Music Reel", checks: ["Pick a song", "Add your videos or photos", "Shubix edits on the beat", "Preview, make changes and export"], icon: "music" },
+  talk: { title: "Talking Reel", sub: "Your talking video, pauses cut, captions added, music under the voice.", intro: "Create a Talking Reel", checks: ["Add your talking video", "Pauses cut, captions added", "Soft music under the voice", "Preview, make changes and export"], icon: "voice" },
+  photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Pick a song", "Add your photos", "Shubix moves them on the beat", "Preview, make changes and export"], icon: "image" },
+  copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy (its song comes with it)", "Add your clips", "Shubix copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
+};
+const ORDER: Record<"music" | "talk", Step[]> = { music: ["intro", "choose", "adjust", "clips", "analyse"], talk: ["intro", "clips", "analyse"] };
+// which engine task moves which line of the AI checklist (data-t in markup.ts)
+const LINE_OF: Record<string, string> = { clips: "clips", beats: "beats", ai: "ai" };
+// the breadcrumb's name for each step (phones walk them one by one; computers see Music, Clips and Shubix Edit at once)
+const STEP_NAME: Record<Step, string> = { intro: "Start", choose: "Music", adjust: "Adjust Music", clips: "Clips", analyse: "Shubix Edit" };
+// what the browser keeps for each screen of the flow (history.state.fflow): Back and Forward walk the screens
+type Mark = { step: Step; revealed: boolean; tool: string; n: number };
+// the engine's work the Reel waits for (the song, the beat check, reading the clips, the AI director): Next (phones) and
+// Generate Reel (computers) stay off until all of it is done, so what opens is the finished Reel
+const WAIT = new Set(["song", "beats", "clips", "ai"]);
+
+export function initFlow(root: HTMLElement): () => void {
+  const ac = new AbortController(), sig = { signal: ac.signal };
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector<T>("#" + id)!;
+  const q = new URLSearchParams(location.search);
+  // a saved Reel, a Story or a picked template opens in the editor as before
+  let revealed = q.has("p") || location.pathname === "/create/story";
+  // a saved Reel being opened: "Opening your Reel…" from the first paint (the engine takes it away once it is back)
+  if (q.has("p")) root.classList.add("opening");
+  let step: Step = "intro";
+  let kind: Kind = "music";
+  let pct = 0;
+  // Copy a Reel: the Reel being copied (its file, for its song) and whether its song is still to come (below)
+  let refFile: File | null = null, refName = "", autoSong = false;
+  const lines = new Map<string, "now" | "ok">();
+  const working = new Set<string>(); // the WAIT tasks running right now
+  const phone = () => window.matchMedia("(max-width: 1023px)").matches;
+  // how many screens of this flow the browser has before this one (0: the page as it was opened)
+  let depth = 0;
+  // a tool open on the phones' Reel (Edit Options) is a screen of its own too: Back closes it
+  let toolMarked = "";
+  const mark = (push: boolean) => {
+    if (push) depth++;
+    const fflow: Mark = { step, revealed, tool: toolMarked, n: depth };
+    const st = { ...(history.state ?? {}), fflow };
+    if (push) history.pushState(st, "");
+    else history.replaceState(st, "");
+  };
+
+  const has = (c: string) => root.classList.contains(c);
+  const done = (id: string) => $(id).classList.contains("done");
+  const made = () => has("made") || !$("s3").classList.contains("locked");
+  const chosen = () => has("c1");
+  const songOk = () => done("s1") || has("talkmode") || $("s1st").textContent?.startsWith("No song");
+  const clipsOk = () => done("s2");
+  // Shubix's line under the clips ends in "…" while it works (scoring the clips, the pace, planning the shots, the mixes)
+  // Shubix AI still working on the Reel (the studio's own state; its status line can end in "…" when it is only cut short)
+  const aiWorking = () => { const w = (root as unknown as { __studio?: { work?: { ai?: boolean; dir?: boolean } } }).__studio?.work; return !!w && (!!w.ai || !!w.dir); };
+  const shubixBusy = () => { const a = $("aistat"); return !a.hidden && /…$/.test(a.textContent ?? ""); };
+  const order = () => ORDER[has("talkmode") ? "talk" : "music"];
+
+  // the kind in the address (/create/music|talking|photo|copy): the flow is open from the first paint, before the engine
+  // has picked that kind (it does a moment later, once it has started)
+  const urlKind = (): Kind | null => ({ music: "music", talking: "talk", photo: "photo", copy: "copy" } as Record<string, Kind>)[location.pathname.split("/")[2] ?? ""] ?? null;
+  const readKind = (): Kind => {
+    if (!chosen() && urlKind()) return urlKind()!;
+    // Copy a Reel stays Copy a Reel once a song is chosen, also before the Reel to copy is picked
+    if (urlKind() === "copy" && !has("talkmode") && !has("photomode")) return "copy";
+    if (has("talkmode")) return "talk";
+    if ($("copycard").getAttribute("aria-pressed") === "true") return "copy";
+    if (has("photomode")) return "photo";
+    return "music";
+  };
+
+  // the flow's places: the clips' own sound (from the Music panel) under the clips; the format in the preview card
+  const pvbox = root.querySelector<HTMLElement>(".pvbox")!;
+  const homes = { snd: $("clipsnd").parentElement!, sndNext: $("clipsnd").nextElementSibling, asp: $("aspect").closest(".row")!, pv: pvbox.parentElement!, pvNext: pvbox.nextElementSibling };
+  const place = (on: boolean) => {
+    if (on) {
+      if ($("clipsnd").parentElement !== $("fsndslot")) $("fsndslot").append($("clipsnd"));
+      if (!phone() && $("aspect").parentElement !== $("faspslot")) $("faspslot").append($("aspect"));
+      if (phone() && $("aspect").parentElement === $("faspslot")) homes.asp.append($("aspect"));
+      // the made Reel plays in the preview card (the engine's own canvas and play button, moved here until Generate)
+      const inCard = !phone() && made();
+      if (inCard && pvbox.parentElement !== $("fprevbox")) $("fprevbox").append(pvbox);
+      if (!inCard && pvbox.parentElement === $("fprevbox")) homes.pv.insertBefore(pvbox, homes.pvNext);
+    } else {
+      if (pvbox.parentElement === $("fprevbox")) homes.pv.insertBefore(pvbox, homes.pvNext);
+      if ($("clipsnd").parentElement === $("fsndslot")) homes.snd.insertBefore($("clipsnd"), homes.sndNext);
+      if ($("aspect").parentElement === $("faspslot")) homes.asp.append($("aspect"));
+    }
+  };
+
+  // every write only when it changes something: a write is a DOM mutation even with the same value, and the flow (and
+  // views.ts) watch the DOM, so an unchanged write would wake them again and again (a busy page)
+  const setText = (el: Element, t: string) => { t = tx(t); if (el.textContent !== t) el.textContent = t; }; // the admin's wording (i18n.ts)
+  const setAttr = (el: Element, k: string, v: string) => { if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
+  const setFlag = (el: HTMLElement & { disabled?: boolean }, k: "hidden" | "disabled", v: boolean) => { if (el[k] !== v) el[k] = v; };
+  const setClass = (el: Element, c: string, on: boolean) => { if (el.classList.contains(c) !== on) el.classList.toggle(c, on); };
+  // the steps in the flow's head: at = the one you are on
+  const steps = (at: number) => root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => setAttr(li, "data-s", +li.dataset.f! === at ? "on" : +li.dataset.f! < at ? "ok" : "no"));
+  const setData = (el: HTMLElement, k: string, v: string) => { if (el.dataset[k] !== v) el.dataset[k] = v; };
+  /** Each kind starts as it is meant: a Music Reel and a Photo Reel mute the clips' own sound under the song, a Talking
+   * Reel keeps only the voices (Videos or Photos follow the kind: photomode). Only changed when it differs. */
+  const defaults = (k: Kind) => {
+    const want = k === "talk" ? "voices" : "mute";
+    const b = root.querySelector<HTMLButtonElement>(`#csnd [data-c="${want}"]`);
+    if (b && b.getAttribute("aria-pressed") !== "true") b.click();
+  };
+  const paintAi = () => {
+    const make = made();
+    for (const li of root.querySelectorAll<HTMLElement>(".faiList li")) {
+      const t = li.dataset.t!;
+      // the last line (the edit itself) runs once the song and clips are in; every line is done once the Reel is made
+      const st = make ? "ok" : t === "make" ? (clipsOk() && songOk() ? "now" : "") : (lines.get(t) ?? "");
+      setClass(li, "now", st === "now");
+      setClass(li, "ok", st === "ok");
+    }
+    const all = [...root.querySelectorAll(".fanList li")], ok = all.filter((l) => l.classList.contains("ok")).length;
+    const p = make ? 100 : Math.max(pct, Math.round((ok / all.length) * 100));
+    setText($("fanpct"), p + "%");
+    const off = String(326.7 * (1 - p / 100));
+    if ($("fanring").style.strokeDashoffset !== off) $("fanring").style.strokeDashoffset = off;
+  };
+
+  // the breadcrumb (phones and computers): Home › the kind of Reel › the screen (› the open tool on phones)
+  let crumbKey = "";
+  const crumbs = (on: boolean) => {
+    const tool = root.dataset.tool ?? "";
+    const toolName = tool && has("fpost") ? root.querySelector(`.tool[data-tool="${tool}"] span`)?.textContent ?? "" : "";
+    const flowKind = chosen() || !!urlKind();
+    const k = flowKind ? KINDS[readKind()].title : "";
+    const cur = !songOk() ? "choose" : !clipsOk() ? "clips" : "analyse";
+    const items: [string, string][] = [["Home", "home"]];   // [name, what it opens]
+    if (!flowKind && q.has("p")) items.push(["My Reels", "reels"]);
+    if (k) items.push([k, on ? "start" : "flow"]);
+    const here = step === "clips" && has("photomode") ? "Photos" : STEP_NAME[phone() ? step : (cur as Step)];
+    if (on) items.push([readKind() === "copy" && !has("pickown") && (here === "Music" || here === "Start") ? "Reel to copy" : here, ""]);
+    else if (revealed || has("made")) items.push(["Your Reel", toolName ? "reel" : ""]);
+    if (!on && toolName) items.push([toolName, ""]);
+    const key = items.map((x) => x.join(":")).join("|");
+    if (key === crumbKey) return;
+    crumbKey = key;
+    const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+    $("fcrumbs").innerHTML = "<ol>" + items.map(([t, to], i) => {
+      const last = i === items.length - 1;
+      if (last) return `<li><span aria-current="page">${esc(t)}</span></li>`;
+      if (to === "home") return `<li><a href="/">${esc(t)}</a></li>`;
+      if (to === "reels") return `<li><a href="/reels">${esc(t)}</a></li>`;
+      return `<li><button type="button" data-crumb="${to}">${esc(t)}</button></li>`;
+    }).join("") + "</ol>";
+  };
+
+  const apply = () => {
+    const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
+    setClass(root, "fopen", on);
+    setFlag($("fhead"), "hidden", !on);
+    // phones, once the Reel is made: "Your Reel is Ready!" (the editor under the flow's head, step 4), and its
+    // tools as "Edit Options" (screens 6 and 7 of the design)
+    const post = !on && revealed && made() && !has("autoing") && phone();
+    setClass(root, "fpost", post);
+    if (post) {
+      setText($("fptitle"), root.dataset.tool ? "Edit Options" : "");
+      steps(4);
+    }
+    crumbs(on);
+    if (!on) { setFlag($("fintro"), "hidden", true); setFlag($("s1"), "hidden", false); setFlag($("s2"), "hidden", false); if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
+    const k = readKind();
+    if (k !== kind || !$("ftitle").dataset.k) {
+      kind = k;
+      const K = KINDS[k];
+      $("ftitle").dataset.k = k;
+      setText($("ftitle"), K.title);
+      setText($("fsub"), K.sub);
+      setText($("fintroh"), K.intro);
+      setText($("fintrop"), K.sub);
+      root.querySelectorAll("#fintrol li").forEach((li, i) => { const svg = li.querySelector("svg"); li.textContent = K.checks[i] ?? ""; if (svg) li.prepend(svg); });
+      $("fintroic").innerHTML = root.querySelector(`#kind [data-k="${k === "talk" ? "talk" : "music"}"] svg`)?.outerHTML ?? "";
+      if (k === "photo") $("fintroic").innerHTML = $("photokind").querySelector("svg")!.outerHTML;
+      if (k === "copy") $("fintroic").innerHTML = $("copycard").querySelector("svg")!.outerHTML;
+      setText($("fgot"), k === "copy" ? "Pick the Reel to copy" : "Let's Start");
+      if (!order().includes(step)) step = "intro";
+      defaults(k);
+      // each kind at its own address (/create/music, /create/talking, /create/photo); the same page, no reload
+      const slug = { music: "music", talk: "talking", photo: "photo", copy: "copy" }[k];
+      if (slug && location.pathname !== `/create/${slug}`) history.replaceState(history.state, "", `/create/${slug}${location.search}${location.hash}`);
+    }
+    setData(root, "fstep", step);
+    setFlag($("fintro"), "hidden", step !== "intro");
+    // the cards: all on computers, one screen at a time on phones
+    setFlag($("s1"), "hidden", phone() && step !== "choose" && step !== "adjust");
+    setFlag($("s2"), "hidden", phone() && step !== "clips");
+    setData(root, "fkind", kind);
+    // the step in the address (/create/music?step=clips): each screen of the flow has its own; a made Reel moves to /create/edit?p=…
+    // (back in the steps from a made Reel, whose address is the editor's: the steps' own address again, /create/music?step=…)
+    if (!revealed) {
+      const u = new URL(location.href), want = step === "intro" ? "" : step, slug = { music: "music", talk: "talking", photo: "photo", copy: "copy" }[k];
+      let moved = false;
+      if (slug && /^\/(editor|create\/edit)$/.test(u.pathname)) { u.pathname = `/create/${slug}`; u.searchParams.delete("p"); u.searchParams.delete("session"); moved = true; }
+      if ((u.searchParams.get("step") ?? "") !== want) { if (want) u.searchParams.set("step", want); else u.searchParams.delete("step"); moved = true; }
+      if (moved) history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    }
+    setClass(root, "flive", true); for (const id of ["fhead", "fintro"]) setClass($(id), "invisible", false); // the kind's own words are in: the flow can be seen
+    // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
+    const adj = phone() && step === "adjust", copy = kind === "copy";
+    // Copy a Reel: the song is the copied Reel's ("Different song?" in the Reel to copy box opens the picker: .pickown)
+    const own = has("pickown");
+    setText($("s1").querySelector("h2")!, adj ? "Adjust Music" : copy && !own ? "Music" : "Choose Music");
+    setText($("s1").querySelector(".fsh")!, adj ? "Trim or select the best part of the song" : copy && !own ? "The song of the Reel you copy" : "Pick a song or sound for your Reel");
+    setFlag($("frefother"), "hidden", own);
+    setText($("fsteps").querySelector('li[data-f="1"] span')!, copy && !own ? "Reel" : "Music");
+    // the phones' head names the screen (the intro and Analysing have their own big titles)
+    // Adjust Music (phones): the chosen song in a row at the top
+    if (adj) { setText($("fsongn"), ($("mname").textContent ?? "").replace(/\.[^.]+$/, "")); setText($("fsongd"), "Song · " + ($("mdur").textContent ?? "")); }
+    setText($("fptitle"), { intro: "", choose: copy && !own ? "Music" : "Choose Music", adjust: "Adjust Music", clips: has("photomode") ? "Add Your Photos" : "Add Your Clips", analyse: "" }[step]);
+    place(true);
+    // the header's steps: Music · Clips · AI Edit · Preview & Export
+    const cur = !songOk() ? 1 : !clipsOk() ? 2 : 3;
+    const mob = { intro: 1, choose: 1, adjust: 1, clips: 2, analyse: 3 }[step];
+    const at = phone() ? mob : cur;
+    steps(at);
+    // clips: Videos / Photos
+    root.querySelectorAll<HTMLButtonElement>("#ftabs button").forEach((b) => setAttr(b, "aria-pressed", String((b.dataset.ft === "photos") === has("photomode"))));
+    setFlag($("ftabs"), "hidden", has("talkmode") || kind === "copy");
+    // Next on the clips step, Generate in the preview card: on once the clips are in and the Reel is made, with nothing
+    // still being read or decided (a spinner in the button meanwhile)
+    const ready = clipsOk() && !!songOk();
+    // nothing can be made from these clips (a talking Reel without a voice): no endless spinner, the reason instead
+    const stop = !made() && working.size === 0 ? root.dataset.nomake ?? "" : "";
+    // Copy a Reel: the copied Reel's song may still be coming while the clips are in (Next waits for it, spinning)
+    const songComing = working.has("refsong") || working.has("song");
+    const busy = (ready || (clipsOk() && songComing)) && !stop && (working.size > 0 || shubixBusy() || !made());
+    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk() || busy || !!stop);
+    // every button forward says what it waits for while it is off (phones: Next on each screen; computers: Generate)
+    const reading = working.has("clips") || (!!$("qinfo").textContent && !clipsOk());
+    const missing = !clipsOk() ? (reading ? "Reading your clips…" : has("photomode") ? "Add your photos to continue" : "Add your clips to continue")
+      : !songOk() && !songComing ? "Choose a song first" : "";
+    setText($("fclipsnt"), stop || (busy ? "Next" : missing || "Next"));
+    // Music (phones): Next only with a song ready (or "use my clips' own sound"), a spinner while it is read
+    const songBusy = working.has("song") || working.has("refsong");   // (the beat check is waited for at the clips)
+    for (const [b, t] of [["fchnext", "fchnt"], ["fadjnext", "fadjnt"]] as const) {
+      setFlag($<HTMLButtonElement>(b), "disabled", !songOk() || songBusy);
+      setAttr($(b), "aria-busy", String(songBusy));
+      setText($(t), songBusy ? "Reading your song…" : !songOk() ? "Choose a song to continue" : "Next");
+    }
+    setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready || busy);
+    setAttr($("fclipsnext"), "aria-busy", String(busy));
+    setAttr($("fgen"), "aria-busy", String(busy));
+    setText($("fgent"), busy ? "Making your Reel…" : ready ? "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
+    setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
+    setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : copy && !refName && !songOk() ? "Pick the Reel to copy, then add your clips."
+      : copy && songComing ? "Taking the song from the Reel you copy…" : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
+    setText($("fprevnote"), made() ? "Your Reel is ready" : "Your Reel appears here");
+    setClass($("fprevbox"), "ready", made());
+    paintAi();
+    // the phones' analysing screen: the Reel opens once it is made
+    if (step === "analyse" && made() && !aiWorking()) { revealed = true; mark(false); setTimeout(apply, 350); }   // Back from the Reel: the clips
+  };
+
+  const go = (s: Step, push = true) => {
+    const moved = s !== step || revealed;
+    step = s;
+    if (revealed) revealed = false;
+    if (moved) mark(push);
+    apply();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const next = () => {
+    const o = order(), i = o.indexOf(step);
+    if ((step === "choose" || step === "adjust") && !songOk()) return;   // (its Next is off: a click that slipped through)
+    if (step === "clips" && !songOk()) { if (kind === "copy") root.classList.add("pickown"); return go("choose"); } // no song yet (Copy a Reel: its Reel had none)
+    if (step === "clips") { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); return; }   // as Generate: Shubix AI's question first
+    if (i >= 0 && i < o.length - 1) go(o[i + 1]);
+  };
+  const closeTool = () => root.querySelector<HTMLButtonElement>(`.tool[data-tool="${root.dataset.tool}"]`)?.click();
+  const back = () => {
+    if (has("fpost") && root.dataset.tool && !toolMarked) return closeTool(); // Edit Options → back to the Reel
+    if (has("fpost") && has("editing") && !root.dataset.tool) $("feditdone").click(); // the timeline: one Back leaves it and goes on to the clips (not first to the Reel's review)
+    if (depth > 0) { history.back(); return; } // the screen before, as the browser's own Back does
+    if (has("fpost")) return go("clips"); // the Reel → back to the clips
+    const o = order(), i = o.indexOf(step);
+    if (phone() && i > 0) return go(o[i - 1]);
+    if (history.length > 1) history.back();
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- plain DOM code, leaving the studio is a full load
+    else location.href = "/";
+  };
+
+  root.addEventListener("click", (e) => {
+    const t = e.target as HTMLElement;
+    // Copy a Reel: its first button picks the Reel to copy (the phone's file picker opens from this tap); the song is next
+    if (t.closest("[data-fnext]") && step === "intro" && kind === "copy" && !refName) { e.preventDefault(); pickRef(); return; }
+    if (t.closest("[data-fnext]")) { e.preventDefault(); next(); return; }
+    if (t.closest("#frefpick")) { pickRef(); return; }
+    if (t.closest("#frefsong")) { refSong(); return; }
+    // a different song: the Choose Music panel opens (phones: its screen), the copied Reel's song is not put on
+    if (t.closest("#frefother")) { autoSong = false; working.delete("refsong"); root.classList.add("pickown"); if (phone()) go("choose"); else $("s1").scrollIntoView({ behavior: "smooth", block: "start" }); apply(); return; }
+    if (t.closest("#fback")) { back(); return; }
+    const cr = t.closest<HTMLElement>("[data-crumb]");
+    if (cr) {
+      const to = cr.dataset.crumb;
+      if (to === "reel") closeTool();
+      else if (to === "start" || to === "flow") go(to === "flow" && clipsOk() ? "clips" : order()[0]);
+      return;
+    }
+    if (t.closest("#fadd")) { $("addv").click(); return; } // the "+" tile at the end of the clips
+    if (t.closest("#fapply")) { closeTool(); return; } // Edit Options: Apply (every change is already in the Reel)
+    const fd = t.closest<HTMLElement>("[data-fd]");
+    if (fd) { done10(fd.dataset.fd!); return; }
+    if (t.closest("#fskip")) { go(order()[1]); return; }
+    if (t.closest("#fgen")) {
+      // Free: first, once per Reel, why Shubix AI is worth it (Upgrade, Create basic Reel, or ✕ to stay here)
+      const st = (root as unknown as { __studio?: { upsell?: () => Promise<string>; saveNow?: () => Promise<string> } }).__studio;
+      void (async () => {
+        const r = st?.upsell ? await st.upsell() : "skip";
+        if (r === "upgrade" || r === "close") return;
+        if (phone()) return go("analyse");   // its analysing screen opens the Reel once Shubix is done
+        await new Promise((ok) => setTimeout(ok, 400)); apply();
+        for (let t = 0; (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
+        if (made()) {
+          revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
+          history.replaceState(history.state, "", "/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
+          requestAnimationFrame(() => {
+            $<HTMLButtonElement>("fedit").click(); // open the real timeline editor; playback stays attached to this Reel
+            void st?.saveNow?.(); // persist only after the live editor is open
+          });
+        }
+      })();
+      return;
+    }
+    const ft = t.closest<HTMLButtonElement>("#ftabs button");
+    if (ft) {
+      const photos = ft.dataset.ft === "photos";
+      if (photos !== has("photomode")) (photos ? $("photokind") : root.querySelector<HTMLButtonElement>('#kind [data-k="music"]'))?.click();
+      return;
+    }
+  }, { capture: true, ...sig });
+
+  // screens 9 and 10 (phones): Exporting, then Reel Exported with the video, Share / Save / Download and the caption
+  const capHome = { box: $("postcap").parentElement!, next: $("postcap").nextElementSibling };
+  const exporting = (p: number) => {
+    const pc = Math.round(Math.max(0, Math.min(1, p)) * 100);
+    setText($("fexppct"), pc + "%");
+    $("fexpring").style.strokeDashoffset = String(326.7 * (1 - pc / 100));
+    root.querySelectorAll<HTMLElement>("#fexplist li").forEach((li) => { const at = +li.dataset.at!; setClass(li, "ok", p >= at); setClass(li, "now", p < at && p >= at - 0.35); });
+  };
+  const showDone = (title?: string) => {
+    const v = $<HTMLVideoElement>("fdvideo"), url = $<HTMLAnchorElement>("dlvid").href;
+    if (url && v.src !== url) v.src = url;
+    setText($("fdsize"), /([\d.]+ ?MB)/.exec(title ?? "")?.[1] ? `Size: ${/([\d.]+ ?MB)/.exec(title ?? "")![1]}` : "");
+    if (!$("postcap").hidden) $("fdcap").append($("postcap"));
+    $("fdone").hidden = false;
+  };
+  const done10 = (what: string) => {
+    const share = $<HTMLButtonElement>("savevid"), dl = $<HTMLAnchorElement>("dlvid");
+    if (what === "close") {
+      $("fdone").hidden = true;
+      $<HTMLVideoElement>("fdvideo").pause();
+      if ($("postcap").parentElement === $("fdcap")) capHome.box.insertBefore($("postcap"), capHome.next);
+    } else if (what === "download" || !share.onclick) dl.click(); // no share sheet here (a computer): the file is saved
+    else share.click(); // the phone's share sheet: Instagram, WhatsApp, "Save Video" to Photos
+  };
+  root.addEventListener("studio-task", (e) => {
+    const d = (e as CustomEvent<TaskEvent>).detail;
+    if (d.id !== "export" || !phone()) return;
+    if (d.state === "start") { $("fdone").hidden = true; exporting(0); $("fexp").hidden = false; }
+    else if (d.state === "progress") exporting(d.p ?? 0);
+    else { $("fexp").hidden = true; if (d.state === "done") showDone(d.title); }
+  }, sig);
+
+  /* ---- Copy a Reel (/create/copy): the Reel to copy is picked first, straight from the page (before, it was only in the
+   * finished Reel's editing modes). Picking it presses the studio's own Copy a Reel (#copycard -> the "Copy a Reel" mode
+   * -> #reffile, read by the engine); its file is kept here for its song. Once the Reel is read (not at the same time:
+   * one heavy job at a time on a phone), its own song becomes the Reel's song, unless one was chosen already; "Use its
+   * song" brings it back after another song. ---- */
+  const pickRef = () => {
+    if (refName) { $("refchange").click(); return; }   // a Reel is already copied: Change Reel
+    $("copycard").click();
+  };
+  const refSong = () => {
+    if (!refFile) return;
+    root.classList.remove("pickown");
+    const dt = new DataTransfer(); dt.items.add(refFile);
+    const mf = $<HTMLInputElement>("mfile"); mf.files = dt.files; mf.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  // captured on the way down, before the engine reads the file and empties the input
+  root.addEventListener("change", (e) => {
+    const inp = e.target as HTMLInputElement;
+    if (inp.id !== "reffile" || !inp.files?.[0]) return;
+    refFile = inp.files[0]; refName = refFile.name;
+    setText($("frefpick"), "Change Reel");
+    setFlag($("frefsong"), "hidden", false);
+    // its song comes with it: no Choose Music screen (phones go straight to the clips; Music stays reachable to change
+    // it). Next / Generate wait for that song like for any song (refsong, then the engine's song task)
+    if (!done("s1")) { autoSong = true; working.add("refsong"); apply(); }
+    if (step === "intro" || step === "choose") go("clips");
+  }, { capture: true, ...sig });
+  // what the engine says about the Reel being read ("Reading the Reel: cuts 40%", then what it found)
+  const refMo = new MutationObserver(() => {
+    const t = ($("refinfo").textContent ?? "").trim(); if (!t) return;
+    setText($("frefst"), t);
+    if (!autoSong || /^Reading/.test(t)) return;
+    autoSong = false;
+    if (!/could not read/i.test(t) && !done("s1") && !$("mpick").classList.contains("busy")) refSong();   // the engine's song task takes over
+    working.delete("refsong"); apply();
+  });
+  refMo.observe($("refinfo"), { childList: true, characterData: true, subtree: true });
+
+  // a song that is ready moves the phones on to adjusting it
+  let wasSong = done("s1");
+  // the engine's progress (reading the clips, the beats, the AI) fills the checklist and the ring
+  root.addEventListener("studio-task", (e) => {
+    const d = (e as CustomEvent<TaskEvent>).detail, line = LINE_OF[d.id];
+    // Copy a Reel whose Reel has no sound we can read: the Music card opens, to choose a song
+    if (d.id === "song" && d.state === "fail" && kind === "copy") root.classList.add("pickown");
+    // Shubix is thinking (planning, re-planning): the preview shows a loader, not the first version made without it
+    if (d.id === "ai") setClass(root, "aithink", d.state === "start" || d.state === "progress");
+    if (WAIT.has(d.id)) {
+      if (d.state === "start" || d.state === "progress") working.add(d.id);
+      else working.delete(d.id); // done, failed (the Reel goes on without it) or cleared
+      apply();
+    }
+    if (line) lines.set(line, d.state === "done" ? "ok" : d.state === "fail" || d.state === "clear" ? lines.get(line) ?? "ok" : "now");
+    if (d.id === "clips" && d.p !== null) pct = Math.max(pct, Math.round(d.p * 60));
+    if (d.id === "clips" && d.title) { setText($("fant"), d.state === "done" ? "Clips read" : "Reading your clips…"); setText($("fand"), d.title); }
+    paintAi();
+  }, sig);
+
+  // the browser's Back / Forward between the flow's screens: Next.js keeps the page, the flow shows the screen kept
+  // not enough clips for the Reel's length: the music page, to shorten it
+  root.addEventListener("studio-goto", () => { if (phone()) go("adjust"); else $("s1").scrollIntoView({ behavior: "smooth", block: "start" }); }, sig);
+  // the phone reloaded the page and the studio put the song and clips back: their screen
+  root.addEventListener("studio-restored", () => go(order().includes("clips") ? "clips" : order()[0]), sig);
+  window.addEventListener("popstate", (e) => {
+    const f = (e.state as { fflow?: Mark } | null)?.fflow;
+    if (!f) return;
+    depth = f.n;
+    const screen = f.step !== step || f.revealed !== revealed;
+    step = f.step;
+    revealed = f.revealed;
+    toolMarked = f.tool;
+    if (root.dataset.tool && root.dataset.tool !== f.tool) closeTool();
+    if (f.tool && root.dataset.tool !== f.tool) root.querySelector<HTMLButtonElement>(`.tool[data-tool="${f.tool}"]`)?.click(); // Forward into a tool
+    apply();
+    if (screen) window.scrollTo({ top: 0 });
+  }, sig);
+  // a tool opened on the phones' Reel gets its own entry; closed with its own buttons, that entry is left again
+  const toolMark = () => {
+    const tool = root.dataset.tool ?? "";
+    if (tool === toolMarked || !has("fpost")) return;
+    if (tool && !toolMarked) { toolMarked = tool; mark(true); }
+    else if (!tool && (history.state as { fflow?: Mark } | null)?.fflow?.tool) { toolMarked = ""; history.back(); }
+    else { toolMarked = tool; mark(false); }
+  };
+
+  const mo = new MutationObserver(() => {
+    toolMark();
+    const s = done("s1");
+    if (s && !wasSong && phone() && root.dataset.fstep === "choose") { wasSong = s; go("adjust"); return; }
+    wasSong = s;
+    apply();
+  });
+  mo.observe(root, { attributes: true, attributeFilter: ["class", "data-tool", "data-nomake"] });
+  ["s1", "s2", "s3", "copycard", "s1st"].forEach((id) => mo.observe($(id), { attributes: true, attributeFilter: ["class", "aria-pressed"], childList: true, characterData: true, subtree: id === "s1st" }));
+  mo.observe($("aistat"), { attributes: true, attributeFilter: ["hidden"], childList: true, characterData: true, subtree: true });
+  window.addEventListener("resize", apply, sig);
+  // the waveform appears (or changes size) with the flow's steps: the engine draws it again on a resize
+  let waveW = 0;
+  const ro = new ResizeObserver(() => { const w = $("mwave").clientWidth; if (w && w !== waveW) { waveW = w; window.dispatchEvent(new Event("resize")); } });
+  ro.observe($("mwave"));
+  // this page's first screen (a reload starts the flow again: the song and clips were not kept)
+  mark(false);
+  apply();
+  return () => { ac.abort(); mo.disconnect(); ro.disconnect(); refMo.disconnect(); place(false); };
+}

@@ -1,0 +1,255 @@
+import {
+  validateRenderJob,
+  type RenderJobSpec,
+  type RendererAdapter,
+  type RendererCapabilities,
+} from "@shubix/core/engine/rendering";
+import {
+  isAndroidEffectSupported,
+  isAndroidFilterSupported,
+  isAndroidTransitionSupported,
+} from "./native-capabilities";
+
+export interface ShubixVideoNativeModule {
+  exportReel(spec: string): Promise<{ uri: string; size: number; duration: number }>;
+  cancel(): Promise<void>;
+  addListener(event: "onProgress", listener: (event: { progress: number }) => void): { remove(): void };
+}
+
+export interface AndroidRendererOptions {
+  nativeModule: ShubixVideoNativeModule;
+  /** Return an absolute writable path in app cache/documents. */
+  createOutputPath: () => Promise<string>;
+  /** Conservative budget supplied by the device profiler; do not equate this to total RAM. */
+  maxWorkingSetBytes: number;
+  maxConcurrentDecoders?: number;
+}
+
+export class UnsupportedAndroidRenderFeature extends Error {
+  readonly code = "UNSUPPORTED_RENDER_FEATURE";
+  constructor(message: string) {
+    super(message);
+    this.name = "UnsupportedAndroidRenderFeature";
+  }
+}
+
+
+
+/**
+ * Adapter for the currently shipped Media3 module.
+ *
+ * The adapter maps the native transition/effect/audio subset explicitly and rejects
+ * crossfades, unsupported transitions, masks, extra compositor layers, animated text,
+ * unsupported effects and other fields the Kotlin module cannot reproduce losslessly.
+ */
+const reelEndMs = (job: RenderJobSpec) => job.items.reduce((end, item) => Math.max(end, item.timelineStartMs + item.durationMs), 0);
+
+export function createAndroidRendererAdapter(options: AndroidRendererOptions): RendererAdapter {
+  const { nativeModule } = options;
+  let active = false;
+  let cancelRequested = false;
+  let nativeStarted = false;
+
+  const assertSupported = (job: RenderJobSpec) => {
+    const validationErrors = validateRenderJob(job);
+    if (validationErrors.length) {
+      throw new UnsupportedAndroidRenderFeature(validationErrors.join(" "));
+    }
+    if (job.output.container !== "mp4" || job.output.videoCodec !== "h264" || job.output.audioCodec !== "aac") {
+      throw new UnsupportedAndroidRenderFeature("Android Media3 currently exports MP4 with H.264 video and AAC audio only.");
+    }
+    if (job.audio && job.audio.length > 1) {
+      throw new UnsupportedAndroidRenderFeature("Android Media3 adapter currently supports one music track.");
+    }
+    const audio = job.audio?.[0];
+    const reelDurationMs = reelEndMs(job);
+    if (audio && audio.startMs !== 0) {
+      throw new UnsupportedAndroidRenderFeature("Android Media3 currently requires the music track to start at the beginning of the Reel.");
+    }
+    if (audio && audio.volume > 1) {
+      throw new UnsupportedAndroidRenderFeature("Android Media3 music gain is currently limited to 100% to avoid clipping.");
+    }
+    if (audio && (
+      !audio.source.trim() ||
+      !Number.isFinite(audio.sourceStartMs) || audio.sourceStartMs < 0 ||
+      !Number.isFinite(audio.durationMs) || audio.durationMs <= 0 ||
+      !Number.isFinite(audio.volume) || audio.volume < 0 ||
+      !Number.isFinite(audio.fadeInMs ?? 0) || (audio.fadeInMs ?? 0) < 0 ||
+      !Number.isFinite(audio.fadeOutMs ?? 0) || (audio.fadeOutMs ?? 0) < 0 ||
+      !Number.isFinite(audio.duckLevel ?? 0.35) || (audio.duckLevel ?? 0.35) < 0 || (audio.duckLevel ?? 0.35) > 1
+    )) {
+      throw new UnsupportedAndroidRenderFeature("Background music has an invalid source, trim, volume, fade, or ducking value.");
+    }
+
+    if ((job.audio ?? []).some((track) => track.keyframes)) throw new UnsupportedAndroidRenderFeature("Animated audio gain is not supported by the Android Media3 adapter yet.");
+    if (job.layers?.length) throw new UnsupportedAndroidRenderFeature("Additional compositor layers are not supported by the Android Media3 adapter yet.");
+    if (job.items.some((item) => item.mask)) throw new UnsupportedAndroidRenderFeature("Clip masks are not supported by the Android Media3 adapter yet.");
+    if (job.items.some((item) => item.keyframes)) throw new UnsupportedAndroidRenderFeature("Shared RenderJob keyframes are not mapped by the Android adapter yet.");
+    if ((job.overlays ?? []).some((overlay) => overlay.transform || overlay.effects?.length)) throw new UnsupportedAndroidRenderFeature("Animated or effected text overlays are not supported by the Android Media3 adapter yet.");
+    const sourceById = new Map(job.sources.map((source) => [source.id, source]));
+    let expectedTimelineStart = 0;
+    for (const item of job.items) {
+      const source = sourceById.get(item.sourceId);
+      if (!source) throw new UnsupportedAndroidRenderFeature(`Missing source for timeline item ${item.id}.`);
+      if (Math.abs(item.timelineStartMs - expectedTimelineStart) > 1) {
+        throw new UnsupportedAndroidRenderFeature("Android Media3 adapter currently requires a continuous, gap-free timeline.");
+      }
+      expectedTimelineStart = item.timelineStartMs + item.durationMs;
+      if (item.transitionIn) {
+        const transition = item.transitionIn.type.toLowerCase();
+        if (!isAndroidTransitionSupported(transition)) throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} is not supported by Android export yet.`);
+        if (!Number.isFinite(item.transitionIn.durationMs) || item.transitionIn.durationMs <= 0 || item.transitionIn.durationMs > item.durationMs / 2) {
+          throw new UnsupportedAndroidRenderFeature(`Transition ${item.transitionIn.type} on ${item.id} must be positive and no longer than half of its clip.`);
+        }
+      }
+      if (item.fit === "stretch") {
+        throw new UnsupportedAndroidRenderFeature("Stretch fit is not supported by the current Android renderer.");
+      }
+      if (item.volume !== undefined && (!Number.isFinite(item.volume) || item.volume < 0 || item.volume > 1)) {
+        throw new UnsupportedAndroidRenderFeature(`Clip ${item.id} audio gain must be between 0% and 100% for the current Android renderer.`);
+      }
+      if (item.rotation !== undefined && !Number.isFinite(item.rotation)) {
+        throw new UnsupportedAndroidRenderFeature(`Clip ${item.id} has an invalid rotation value.`);
+      }
+      for (const effect of item.effects ?? []) {
+        if (effect.enabled === false) continue;
+        if (effect.type === "filter" && typeof effect.params.name === "string" && isAndroidFilterSupported(effect.params.name)) continue;
+        if (!isAndroidEffectSupported(effect.type)) throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} is not supported by Android export yet.`);
+        const intensity = effect.intensity ?? (typeof effect.params.amount === "number" ? effect.params.amount : 0.5);
+        if (!Number.isFinite(intensity) || intensity < 0 || intensity > 1) throw new UnsupportedAndroidRenderFeature(`Effect ${effect.type} requires an intensity from 0 to 1.`);
+        if (effect.startMs !== undefined || effect.endMs !== undefined || effect.keyframes) throw new UnsupportedAndroidRenderFeature(`Time-ranged or animated ${effect.type} effects are not supported by this Android export path yet.`);
+      }
+      if (source.kind === "image" && item.playbackRate !== 1) {
+        throw new UnsupportedAndroidRenderFeature("Image playback speed must be 1x.");
+      }
+      if (source.kind === "video" && item.sourceStartMs + item.durationMs * item.playbackRate > source.durationMs + 1) {
+        throw new UnsupportedAndroidRenderFeature(`Timeline item ${item.id} reads beyond its source duration.`);
+      }
+    }
+  };
+
+  return {
+    platform: "android",
+    async getCapabilities(): Promise<RendererCapabilities> {
+      return {
+        platform: "android",
+        // These describe features implemented by the current adapter, not guarantees
+        // about a particular device's codec hardware.
+        capabilities: new Set(["image-sequence", "audio-mix", "text-overlay", "transitions", "effects"]),
+        maxWidth: 3840,
+        maxHeight: 2160,
+        maxWorkingSetBytes: options.maxWorkingSetBytes,
+        maxConcurrentDecoders: Math.max(1, Math.min(2, options.maxConcurrentDecoders ?? 1)),
+      };
+    },
+    async render(job, onProgress) {
+      if (active) throw new Error("An Android render is already running.");
+      assertSupported(job);
+      active = true;
+      cancelRequested = false;
+      nativeStarted = false;
+      let subscription: { remove(): void } | undefined;
+      try {
+        subscription = nativeModule.addListener("onProgress", ({ progress }) => {
+          const normalized = Math.max(0, Math.min(1, progress));
+          onProgress({ phase: "encoding", progress: normalized });
+        });
+        const output = await options.createOutputPath();
+        if (typeof output !== "string" || !output.trim() || !output.startsWith("/") || output.includes("\0")) {
+          throw new UnsupportedAndroidRenderFeature("Android export requires a non-empty absolute filesystem output path.");
+        }
+        if (cancelRequested) {
+          onProgress({ phase: "cancelled", progress: 0 });
+          const cancelled = new Error("Export was cancelled.");
+          Object.assign(cancelled, { code: "E_EXPORT_CANCELLED" });
+          throw cancelled;
+        }
+        const sourceById = new Map(job.sources.map((source) => [source.id, source]));
+        const clips = job.items.map((item) => {
+          const source = sourceById.get(item.sourceId)!;
+          const filter = item.effects?.find((effect) => effect.type === "filter")?.params.name;
+          return {
+            uri: source.uri,
+            kind: source.kind,
+            start: source.kind === "image" ? 0 : item.sourceStartMs / 1000,
+            end: source.kind === "image"
+              ? item.durationMs / 1000
+              : (item.sourceStartMs + item.durationMs * item.playbackRate) / 1000,
+            speed: source.kind === "image" ? 1 : item.playbackRate,
+            rotation: item.rotation ?? source.rotation ?? 0,
+            mirror: item.mirror ?? false,
+            flip: item.flip ?? false,
+            fit: item.fit === "contain" ? "contain" : "cover",
+            filter: typeof filter === "string" ? filter : "Original",
+            muted: item.muted ?? false,
+            volume: item.volume ?? 1,
+            effects: (item.effects ?? []).filter((effect) => effect.enabled !== false && effect.type !== "filter").map((effect) => ({
+              type: effect.type,
+              intensity: effect.intensity ?? (typeof effect.params.amount === "number" ? effect.params.amount : 0.5),
+            })),
+            ...(item.transitionIn ? { transitionIn: { type: item.transitionIn.type.toLowerCase(), duration: item.transitionIn.durationMs / 1000 } } : {}),
+          };
+        });
+        const audio = job.audio?.[0];
+        const effectiveAudioDurationMs = audio ? Math.min(audio.durationMs, reelEndMs(job)) : 0;
+        const nativeSpec = {
+          width: job.dimensions.width,
+          height: job.dimensions.height,
+          clips,
+          ...(audio ? { audio: {
+            uri: audio.source,
+            start: audio.sourceStartMs / 1000,
+            duration: effectiveAudioDurationMs / 1000,
+            volume: audio.volume,
+            fadeIn: Math.min(audio.fadeInMs ?? 0, effectiveAudioDurationMs) / 1000,
+            fadeOut: Math.min(audio.fadeOutMs ?? 0, effectiveAudioDurationMs) / 1000,
+            ducking: audio.ducking ?? false,
+            duckLevel: audio.duckLevel ?? 0.35,
+          } } : {}),
+          texts: (job.overlays ?? []).map((overlay) => ({
+            text: overlay.text,
+            start: overlay.startMs / 1000,
+            end: overlay.endMs / 1000,
+            color: overlay.color,
+            size: overlay.size,
+          })),
+          output,
+        };
+        onProgress({ phase: "preparing", progress: 0 });
+        nativeStarted = true;
+        const result = await nativeModule.exportReel(JSON.stringify(nativeSpec));
+        if (
+          !result ||
+          typeof result.uri !== "string" || !result.uri.trim() ||
+          !Number.isFinite(result.size) || result.size <= 0 ||
+          !Number.isFinite(result.duration) || result.duration <= 0
+        ) {
+          throw new Error("Android renderer returned an invalid output (missing URI, file size, or duration).");
+        }
+        onProgress({ phase: "completed", progress: 1, outputUri: result.uri, sizeBytes: result.size });
+        return { uri: result.uri, sizeBytes: result.size, durationMs: result.duration * 1000 };
+      } catch (error) {
+        const nativeCode = error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code ?? "")
+          : "";
+        if (nativeCode === "E_EXPORT_CANCELLED") {
+          onProgress({ phase: "cancelled", progress: 0 });
+        } else {
+          const message = error instanceof Error ? error.message : "Android render failed.";
+          onProgress({ phase: "failed", progress: 0, code: error instanceof UnsupportedAndroidRenderFeature ? error.code : nativeCode || "ANDROID_RENDER_FAILED", message });
+        }
+        throw error;
+      } finally {
+        subscription?.remove();
+        active = false;
+        nativeStarted = false;
+        cancelRequested = false;
+      }
+    },
+    async cancel() {
+      if (!active) return;
+      cancelRequested = true;
+      if (nativeStarted) await nativeModule.cancel();
+    },
+  };
+}

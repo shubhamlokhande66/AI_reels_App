@@ -1,0 +1,67 @@
+"use client";
+
+import { useId, useRef, useState } from "react";
+import { useText } from "@/hooks/useApi";
+import { cn } from "@/lib/cn";
+import { buttonClass } from "@/components/atoms/Button";
+
+interface Props {
+  label: string;
+  hint: string;
+  accept: string;
+  multiple?: boolean;
+  /** Return true for files that should be kept; rejected names are reported via onReject. */
+  validate: (file: File) => boolean;
+  onFiles: (files: File[]) => void;
+  onReject?: (names: string[]) => void;
+  disabled?: boolean;
+}
+
+export function Dropzone({ label, hint, accept, multiple = false, validate, onFiles, onReject, disabled }: Props) {
+  const text = useText();
+  const inputId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [over, setOver] = useState(false);
+
+  function handle(list: FileList | null) {
+    if (!list || disabled) return;
+    const files = Array.from(list);
+    const ok = files.filter(validate);
+    const bad = files.filter((f) => !validate(f)).map((f) => f.name);
+    if (bad.length) onReject?.(bad);
+    if (ok.length) onFiles(multiple ? ok : ok.slice(0, 1));
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (!disabled) setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        handle(e.dataTransfer.files);
+      }}
+      className={cn("flex flex-col items-center rounded-2xl border-[1.5px] border-dashed p-4 text-center transition-colors", over ? "border-accent bg-[var(--chip-on)]" : "border-border bg-surface", disabled && "opacity-50")}
+    >
+      <input
+        ref={inputRef}
+        id={inputId}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        disabled={disabled}
+        className="sr-only"
+        onChange={(e) => handle(e.target.files)}
+      />
+      <label htmlFor={inputId} className="flex cursor-pointer flex-col items-center gap-1.5">
+        <b className="text-[12.5px]">{label}</b>
+        <span className="text-[11px] text-muted">{hint}</span>
+        <span className={buttonClass({ variant: "secondary", size: "sm", className: "mt-1.5" })}>{text("common.chooseFiles")}</span>
+      </label>
+    </div>
+  );
+}

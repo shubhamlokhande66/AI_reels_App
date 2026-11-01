@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.next/
+.expo/
+.env
+*.tsbuildinfo
+android/
+ios/
+.wrangler/
+.dev.vars
+infra/cloudflare/assets/
+# copied from node_modules before a build (FE/web-app/scripts/copy-ort.mjs)
+FE/web-app/public/vendor/ort/
+FE/web-app/public/vendor/piper/
+# local app data and manual test output
+**/storage/
+!BE/api/src/server/storage/
+BE/api/test/server/manual/*.json
+BE/api/test/server/manual/out/
+# personal footage (never in the repository)
+samples/
+# dev server logs (scripts/with-log.mjs)
+logs/
+# pnpm workspace: npm lockfiles never belong here
+package-lock.json

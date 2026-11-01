@@ -1,0 +1,67 @@
+// Reel Maker on Cloudflare (Workers + Containers + R2). Deploy: see docs/deploy-cloudflare.md.
+// Secrets (never in this file): npx wrangler secret put <NAME>  for MONGODB_URI, SECRET_KEY,
+// R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, OPENAI_API_KEY / GEMINI_API_KEY, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET ...
+// (every secret is passed to the app).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "shubix-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  // the API's own address (the shubix.in zone is on Cloudflare: its record is made on deploy)
+  "routes": [{ "pattern": "api.shubix.in", "custom_domain": true }],
+  "workers_dev": true,
+  "containers": [
+    {
+      "class_name": "ReelApp",
+      // the API alone (the website is on Vercel): the smaller image, quicker to wake (../docker/Dockerfile has both)
+      "image": "../docker/api.Dockerfile",
+      "image_build_context": "../..",
+      // basic = 1/4 vCPU, 1 GiB, 4 GB disk: the smallest size the API fits in (FFmpeg, the AI runtime, the R2 mount; its
+      // memory capped at 512 MB in the image; "lite", 256 MB, is too small). Billed only while awake: it sleeps
+      // SLEEP_AFTER after the last request, the Worker answers the tabs' pings while it sleeps, one instance at most.
+      "instance_type": "basic",
+      "max_instances": 1
+    }
+  ],
+  // the files that never change (public/ and the AI models at /api/studio/model/*), made by scripts/cf-assets.mjs before
+  // a deploy: served by Cloudflare itself, free and unlimited, without waking the container; every other request goes to
+  // the Worker and on to the container. No path is turned into an .html page (html_handling), so pages stay the app's.
+  "assets": { "directory": "./assets", "html_handling": "none" },
+  "durable_objects": { "bindings": [{ "name": "APP", "class_name": "ReelApp" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReelApp"] }],
+  "vars": {
+    "NODE_ENV": "production",
+    // "api": this container runs the API alone; the website is on Vercel and sends /api/* here (docs/deploy-vercel-cloudflare.md)
+    "CONTAINER_ROLE": "api",
+    // the website's address (Vercel): CORS for the browser, and the API's links in emails go to the website
+    "WEB_ORIGINS": "https://shubix.in,https://www.shubix.in,https://shubix-eight.vercel.app",
+    "SLEEP_AFTER": "2m", // stops 2 min after the last request (a cold start takes 20-30 s: a short pause should not cost one)
+    "STORAGE_PATH": "/data/storage",
+    "R2_BUCKET": "smgroup",
+    "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",
+    "PUBLIC_BASE_URL": "https://shubix.in",
+    "AUTH_ENABLED": "true",
+    // plans and credits: Free / Editor / Pro, page locks and Shubix AI credits (off: every page open, no credits counted)
+    "BILLING_ENABLED": "true",
+    // the administrators (the owners; several separated by commas): Admin, every plan open, no credits taken (empty: everyone is the administrator). More can be added in Admin → Settings → Administrators
+    "ADMIN_EMAILS": "shubix.smempire@gmail.com",
+    "COOKIE_SECURE": "true",
+    "AI_PROVIDER": "openai",
+    "OPENAI_TEXT_MODEL": "gpt-5.6-luna",
+    "GEMINI_TEXT_MODEL": "gemini-3.5-flash-lite",
+    "MAX_CONCURRENT_JOBS": "1",
+    // uploads pass through the Worker, which accepts request bodies up to 100 MB on the Free and Pro plans
+    "MAX_VIDEO_SIZE_MB": "95",
+    // email (codes, receipts, contact, notes): Gmail first, Brevo when Gmail fails. The logins and passwords are secrets:
+    // SMTP_USER, SMTP_PASSWORD, SMTP_FALLBACK_USER, SMTP_FALLBACK_PASSWORD (npx wrangler secret put …)
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "587",
+    "SMTP_SSL": "false",
+    "SMTP_FROM": "Shubix <shubix.smempire@gmail.com>",
+    "SMTP_FALLBACK_HOST": "smtp-relay.brevo.com",
+    "SMTP_FALLBACK_PORT": "587",
+    "SMTP_FALLBACK_SSL": "false",
+    "SMTP_FALLBACK_FROM": "Shubix <shubix.smempire@gmail.com>"
+  }
+}
