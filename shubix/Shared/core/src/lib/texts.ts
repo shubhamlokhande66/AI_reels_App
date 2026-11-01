@@ -462,7 +462,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   ),
   page(EVERY, "common", "Messages & dialogs",
     S("Dialogs", C("Confirm", T("common.cancel", "Cancel", "Cancel"), T("common.ok", "OK", "OK"))),
-    S("Errors", C("Error card", T("common.error", "Title", "Something went wrong"), T("common.retry", "Button", "Try again"), T("studio.failed", "Studio could not start", "The editor could not start"))),
+    S("Errors", C("Error card", T("common.error", "Title", "Please check"), T("common.retry", "Button", "Try again"), T("studio.failed", "Studio could not start", "The editor could not start"))),
     S("Files", C("File drop", T("common.chooseFiles", "Button", "Choose files"), T("common.more", "More actions menu", "More actions"))),
     S("Admin-only pages", C("Notice", T("common.adminOnly", "Label", "Admin only"), T("common.adminTitle", "Title", "This page is for the administrator"),
       T("common.adminText", "Line", "Please sign in with an admin account to continue."), T("common.adminSignIn", "Button", "Admin sign-in"))),

@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import { useState } from "react";
 import { ThemeChoice } from "@/components/molecules/ThemeToggle";
 import { useRouter } from "next/navigation";
@@ -34,7 +35,7 @@ function ChangePassword({ email, onDone }: { email: string; onDone: () => void }
     try {
       await api.changePassword(current, next);
       setCurrent(""); setNext(""); setAgain("");
-      setMsg({ ok: true, text: text("account.updated") });
+      setMsg({ ok: true, text: text("account.updated") }); toast.success(text("account.updated"));
       setTimeout(onDone, 1500);
     } catch (err) {
       setMsg({ ok: false, text: errorMessage(err) });
@@ -80,7 +81,7 @@ function Sessions() {
       <Button variant="secondary" icon="signout" loading={busy} className="self-end"
         onClick={async () => {
           setBusy(true);
-          try { await api.logoutEverywhere(); await qc.invalidateQueries({ queryKey: ["me"] }); setDone(text("account.everywhereDone")); }
+          try { await api.logoutEverywhere(); await qc.invalidateQueries({ queryKey: ["me"] }); setDone(text("account.everywhereDone")); toast.success(text("account.everywhereDone")); }
           catch (e) { setDone(errorMessage(e)); }
           finally { setBusy(false); }
         }}>

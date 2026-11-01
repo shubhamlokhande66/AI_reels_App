@@ -28,7 +28,7 @@ export function PlanLockSettings() {
   const [find, setFind] = useState("");
   const [saved, setSaved] = useState(false);
   const L = draft ?? q.data;
-  const save = useMutation({
+  const save = useMutation({ meta: { success: "Saved", errorShown: true },
     mutationFn: (x: PlanLocks) => {
       const items: Record<string, PlanId> = {};
       for (const g of x.groups) for (const it of g.items) items[`${g.id}:${it.key}`] = it.plan;

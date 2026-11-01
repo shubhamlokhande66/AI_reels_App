@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import { AdSlot } from "@/components/organisms/AdSlot";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -50,7 +51,7 @@ function Drafts({ drafts, onGone }: { drafts: Draft[] | null; onGone: (id: strin
     try {
       await deleteDraft(d.id);
       onGone(d.id);
-      setNote(text("reels.deleted", { name: d.name }));
+      setNote(text("reels.deleted", { name: d.name })); toast.success(text("reels.deleted", { name: d.name }));
     } catch {
       setNote(text("reels.deleteFailed"));
     }
@@ -110,7 +111,7 @@ function SavedCard({ r, onChange, onDelete }: { r: CloudReel; onChange: (r: Clou
   const remove = async () => {
     if (!(await confirmAction({ title: text("reels.deleteDraftTitle", { name: r.name }), body: text("reels.deleteSavedText"), ok: text("reels.delete"), danger: true }))) return;
     setBusy("delete");
-    try { await deleteCloudReel(r.id); onDelete(); }
+    try { await deleteCloudReel(r.id); onDelete(); toast.success(text("reels.deleted", { name: r.name })); }
     catch (e) { flash(e instanceof Error ? e.message : text("reels.failed")); setBusy(null); }
   };
   return (

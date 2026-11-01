@@ -25,7 +25,7 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
 function DeleteUser({ user, onDone }: { user: AdminUserDetail; onDone: () => void }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false), [typed, setTyped] = useState("");
-  const del = useMutation({
+  const del = useMutation({ meta: { success: "User deleted", errorShown: true },
     mutationFn: () => api.adminDeleteUser(user.id),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["admin"] }); onDone(); },
   });
@@ -68,7 +68,7 @@ function GiveCredits({ user }: { user: AdminUserDetail }) {
   const qc = useQueryClient();
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const give = useMutation({
+  const give = useMutation({ meta: { success: "Credits given", errorShown: true },
     mutationFn: (n: number) => api.adminGiveCredits(user.id, n, note.trim()),
     onSuccess: (d) => {
       qc.setQueryData(["admin", "user", user.id], d);

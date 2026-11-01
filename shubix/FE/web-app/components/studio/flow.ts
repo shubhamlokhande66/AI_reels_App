@@ -39,10 +39,11 @@ export function initFlow(root: HTMLElement): () => void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => root.querySelector<T>("#" + id)!;
   const q = new URLSearchParams(location.search);
   // a saved Reel, a Story or a picked template opens in the editor as before
-  let revealed = q.has("p") || location.pathname === "/create/story";
+  // (a Reel left in the steps, ?p=…&step=clips: its steps again, the engine fills in what it had)
+  let revealed = (q.has("p") && !q.has("step")) || location.pathname === "/create/story";
   // a saved Reel being opened: "Opening your Reel…" from the first paint (the engine takes it away once it is back)
   if (q.has("p")) root.classList.add("opening");
-  let step: Step = "intro";
+  let step: Step = q.has("p") && (["choose", "adjust", "clips"] as string[]).includes(q.get("step") ?? "") ? (q.get("step") as Step) : "intro";
   let kind: Kind = "music";
   let pct = 0;
   // Copy a Reel: the Reel being copied (its file, for its song) and whether its song is still to come (below)

@@ -14,7 +14,7 @@ const ICON: Record<FeatureKey, string> = { fastStudio: "sparkle", studioAI: "wan
 export function FeatureSettings({ bare = false }: { bare?: boolean }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["features"], queryFn: api.features });
-  const save = useMutation({
+  const save = useMutation({ meta: { success: "Saved", errorShown: true },
     mutationFn: (p: { key: FeatureKey; on: boolean }) => api.setFeatures({ [p.key]: p.on }),
     onSuccess: (f) => qc.setQueryData(["features"], f),
   });

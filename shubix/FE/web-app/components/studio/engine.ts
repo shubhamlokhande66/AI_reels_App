@@ -6851,6 +6851,8 @@ async function saveProject(st, sig){
     // a made Reel has its own address (/editor?p=…): a reload, a shared link or Back to it opens this Reel, not a new one
     // (only once the editor is open: still in the Create steps the address stays /create/music?step=…; flow.ts sets it on Generate)
     if(edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', '/editor?p=' + proj.id);
+    // still in the Create steps: a reload of this tab offers this Reel back (resumeOffer)
+    if(location.pathname.startsWith('/create')){ try{ sessionStorage.setItem('brs-resume:' + location.pathname, proj.id); }catch(e){} }
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }catch(err){ console.warn('project not saved:', err); $('psaved').textContent = 'Not saved'; notify('Could not save this Reel on your phone. It may be low on space.', 'err'); }
   finally{ saving = false; if(lifeNote.saving) life({ saving: 0 }); }
@@ -6868,6 +6870,25 @@ setInterval(() => {
   if(IOS && (playing || starting)) return;
   const st = stateOf(), sig = JSON.stringify(st); if(sig !== lastSig) saveProject(st, sig);
 }, 3000);
+// leaving or reloading while Shubix is still working, or before the last change is kept: the browser asks first
+window.addEventListener('beforeunload', e => {
+  if(pending || exporting || recording){ e.preventDefault(); e.returnValue = ''; return; }
+  if((song || sources.length) && !restoring){ try{ const sig = JSON.stringify(stateOf()); if(sig !== lastSig){ e.preventDefault(); e.returnValue = ''; } }catch(err){} }
+});
+// the page was reloaded in the middle of the Create steps: the Reel so far is a draft on this phone; offer it back
+async function resumeOffer(){
+  let id = ''; try{ id = sessionStorage.getItem('brs-resume:' + location.pathname) || ''; }catch(e){}
+  if(!id || new URLSearchParams(location.search).get('p')) return;
+  const p = await idb('meta', 'readonly', st => st.get(id)).catch(() => null); if(!p) return;
+  const box = $('toasts'); if(!box) return;
+  const n = document.createElement('div'); n.className = 'toast resume';
+  const t = document.createElement('span'); t.textContent = 'Your Reel "' + p.name + '" was saved on this phone.';
+  const go = document.createElement('a'); go.href = '/editor?p=' + encodeURIComponent(id); go.textContent = 'Continue';
+  const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Start new';
+  no.addEventListener('click', () => { try{ sessionStorage.removeItem('brs-resume:' + location.pathname); }catch(e){} n.remove(); });
+  n.append(t, go, no); box.appendChild(n); requestAnimationFrame(() => n.classList.add('in'));
+  setTimeout(() => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); }, 15000);
+}
 const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
 async function openProject(id){
   // "Opening your Reel…" over the page until the edit is back (flow.ts shows it from the first paint); its line follows say()
@@ -6921,7 +6942,12 @@ async function openProject(id){
   }catch(err){ console.warn('project not opened:', err); say('This Reel could not be opened.'); notify('This Reel could not be opened.', 'err'); }
   finally{ lastSig = JSON.stringify(stateOf()); restoring = false; root.classList.remove('opening');
     // nothing to show (gone, or its files are not on this phone): say so, not a blank page
-    if(!edit.length && !sources.length && expectedClips){ root.classList.add('openfail'); $('openh').textContent = 'This Reel could not be opened'; } }
+    if(!edit.length && !sources.length && expectedClips){ root.classList.add('openfail'); $('openh').textContent = 'This Reel could not be opened'; }
+    // a Reel left in the Create steps (a song, no clips yet): not an empty editor, but its steps again, where it was left
+    else if(!edit.length && !sources.length && proj && /^\/(editor|create\/edit)$/.test(location.pathname)){
+      const slug = { talk: 'talking', photo: 'photo', copy: 'copy' }[kind] || 'music';
+      location.replace('/create/' + slug + '?p=' + encodeURIComponent(proj.id) + '&step=' + (song ? 'clips' : 'choose'));
+    } }
 }
 function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
@@ -6932,7 +6958,7 @@ function restoreEdit(list){
   flickBuild();   // a saved flicker montage: its stills again
   return true;
 }
-{ const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else keptSweep(); }
+{ const q = new URLSearchParams(location.search).get('p'); if(q && typeof indexedDB !== 'undefined') openProject(q); else { keptSweep(); resumeOffer(); } }
 
 /* ---- My music: the songs used lately, on this phone, picked again in one tap ----
  * Each song is kept once (with the saved Reels' files) together with its finished analysis (beats, drops, AI check), so

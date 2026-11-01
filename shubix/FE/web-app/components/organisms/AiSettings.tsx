@@ -85,7 +85,7 @@ function ProviderForm({ cfg, onSaved }: { cfg: AiConfig; onSaved: (c: AiConfig) 
   const [result, setResult] = useState<AiTestResult | null>(cfg.lastTest);
   const [separateVision, setSeparateVision] = useState(!!visionProvider);
 
-  const save = useMutation({
+  const save = useMutation({ meta: { success: "Saved", errorShown: true },
     mutationFn: () => {
       const vp = separateVision ? visionProvider : "";
       const body: AiConfigInput = {
@@ -96,7 +96,7 @@ function ProviderForm({ cfg, onSaved }: { cfg: AiConfig; onSaved: (c: AiConfig) 
     },
     onSuccess: onSaved,
   });
-  const test = useMutation({ mutationFn: (vision: boolean) => api.testAi(provider, vision), onSuccess: setResult });
+  const test = useMutation({ meta: { errorShown: true }, mutationFn: (vision: boolean) => api.testAi(provider, vision), onSuccess: setResult });
   const p = byId[provider];
   const vp = separateVision && visionProvider ? byId[visionProvider] : null;
   const needsKey = (id: AiProviderId) => !byId[id].local && !byId[id].keyConfigured;
@@ -250,7 +250,7 @@ function BudgetForm({ daily, monthly, override, currency, onSaved }: { daily: nu
   const [d, setD] = useState(String(daily || ""));
   const [m, setM] = useState(String(monthly || ""));
   const [o, setO] = useState(override);
-  const save = useMutation({ mutationFn: () => api.saveAiConfig({ dailyBudget: Number(d) || 0, monthlyBudget: Number(m) || 0, budgetOverride: o }), onSuccess: onSaved });
+  const save = useMutation({ meta: { success: "Saved", errorShown: true }, mutationFn: () => api.saveAiConfig({ dailyBudget: Number(d) || 0, monthlyBudget: Number(m) || 0, budgetOverride: o }), onSuccess: onSaved });
   return (
     <Card as="section" aria-label="Budget" className="flex flex-col gap-3">
       <Heading size="section" as="h3" className="text-[14px]">Budget</Heading>

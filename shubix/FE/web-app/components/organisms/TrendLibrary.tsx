@@ -39,7 +39,7 @@ function LearnForm({ onDone }: { onDone: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [pct, setPct] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const learn = useMutation({
+  const learn = useMutation({ meta: { success: "Learning started: Shubix is reading the Reel" },
     mutationFn: () => api.createReference(name.trim(), notes.trim(), files, setPct),
     onSuccess: () => { setName(""); setNotes(""); setFiles([]); setPct(0); qc.invalidateQueries({ queryKey: ["references"] }); onDone(); },
     onError: (e) => setError(errorMessage(e)),
@@ -85,10 +85,10 @@ function TrendCard({ t }: { t: LearnedTrend }) {
   const [showReels, setShowReels] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ["references"] });
-  const add = useMutation({ mutationFn: (f: File[]) => api.addReferenceVideos(t.id, f), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
-  const rename = useMutation({ mutationFn: () => api.updateReference(t.id, { name: name.trim() }), onSuccess: () => { setEditing(false); refresh(); }, onError: (e) => setError(errorMessage(e)) });
-  const remove = useMutation({ mutationFn: () => api.deleteReference(t.id), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
-  const dropVideo = useMutation({ mutationFn: (i: number) => api.removeReferenceVideo(t.id, i), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
+  const add = useMutation({ meta: { success: "Added" }, mutationFn: (f: File[]) => api.addReferenceVideos(t.id, f), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
+  const rename = useMutation({ meta: { success: "Renamed" }, mutationFn: () => api.updateReference(t.id, { name: name.trim() }), onSuccess: () => { setEditing(false); refresh(); }, onError: (e) => setError(errorMessage(e)) });
+  const remove = useMutation({ meta: { success: "Removed" }, mutationFn: () => api.deleteReference(t.id), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
+  const dropVideo = useMutation({ meta: { success: "Video removed" }, mutationFn: (i: number) => api.removeReferenceVideo(t.id, i), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
   const busy = add.isPending || rename.isPending || remove.isPending || dropVideo.isPending;
   const seen = looks(t.profile).filter((l) => l.summary);
   return (
@@ -159,7 +159,7 @@ function SuggestionRow({ s }: { s: StyleSuggestion }) {
   const [error, setError] = useState<string | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ["style-suggestions"] });
   const use = useMutation({ mutationFn: () => api.useStyleSuggestion(s.id, kind), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
-  const remove = useMutation({ mutationFn: () => api.removeStyleSuggestion(s.id), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
+  const remove = useMutation({ meta: { success: "Removed" }, mutationFn: () => api.removeStyleSuggestion(s.id), onSuccess: refresh, onError: (e) => setError(errorMessage(e)) });
   const busy = use.isPending || remove.isPending;
   return (
     <li className="flex flex-col gap-2.5 rounded-xl border border-border bg-surface p-3">

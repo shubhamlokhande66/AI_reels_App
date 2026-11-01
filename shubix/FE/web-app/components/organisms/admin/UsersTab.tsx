@@ -202,7 +202,7 @@ export function AdminPlan({ small = false }: { small?: boolean }) {
 export function PlanPicker({ user }: { user: Pick<AdminUserRow, "id" | "email" | "plan" | "planName"> }) {
   const qc = useQueryClient();
   const plans = useQuery({ queryKey: ["plans"], queryFn: api.plans });
-  const set = useMutation({
+  const set = useMutation({ meta: { success: "Plan updated", errorShown: true },
     mutationFn: ({ plan, months }: { plan: string; months: number }) => api.adminSetPlan(user.id, plan, months),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["admin", "users"] }); void qc.invalidateQueries({ queryKey: ["admin", "user", user.id] }); },
   });

@@ -327,9 +327,13 @@
 .brs.photomode .vonly{display:none}
 /* notifications: short notes at the bottom (above the save bar on phones), and the in-app yes / no question */
 .brs .toasts{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;display:grid;gap:9px;width:min(92vw,420px);pointer-events:none}
+@media (max-width:1023px){.brs.fopen .toasts{bottom:calc(150px + env(safe-area-inset-bottom))}}
 .brs .toast{position:relative;display:flex;align-items:center;gap:10px;font:600 13px/1.45 var(--body);letter-spacing:.005em;color:var(--ink);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,var(--line));border-radius:16px;padding:13px 15px;box-shadow:0 18px 46px rgba(0,0,0,.28),0 1px 0 rgba(255,255,255,.06) inset;backdrop-filter:blur(18px);opacity:0;transform:translateY(12px) scale(.985);transition:opacity .24s ease,transform .24s cubic-bezier(.2,.8,.2,1)}
 .brs .toast:before{content:"";display:block;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 14%,transparent),0 0 16px color-mix(in srgb,var(--accent) 40%,transparent)}
 .brs .toast.in{opacity:1;transform:translateY(0) scale(1)}
+.brs .toast.resume{pointer-events:auto;flex-wrap:wrap}.brs .toast.resume span{flex:1 1 180px}
+.brs .toast.resume a,.brs .toast.resume button{font:700 12.5px/1 var(--body);border-radius:999px;padding:9px 14px;cursor:pointer;text-decoration:none}
+.brs .toast.resume a{color:var(--on-accent,#fff);background:var(--gold-gradient,var(--accent))}.brs .toast.resume button{color:var(--ink);background:transparent;border:1px solid var(--line)}
 .brs .toast.ok{border-color:color-mix(in srgb,var(--ok) 30%,var(--line))}
 .brs .toast.ok:before{background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 14%,transparent),0 0 16px color-mix(in srgb,var(--ok) 38%,transparent)}
 .brs .toast.err{border-color:color-mix(in srgb,var(--drop) 32%,var(--line))}
