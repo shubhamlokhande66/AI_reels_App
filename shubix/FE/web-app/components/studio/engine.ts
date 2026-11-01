@@ -1172,7 +1172,7 @@ async function makeEditCopy(src, dd, facts, plan, playable){
       const w = Math.round(((src.w || (facts && facts.width) || 1080)*sc)/2)*2, h = Math.round(((src.h || (facts && facts.height) || 1920)*sc)/2)*2;
       setEditCopy(src, blob, w, h, 'server');
     }catch(e){
-      src.proxyStatus = 'Could not convert'; src.edFail = e && e.code === 'UNAUTHORIZED' || (e && e.status === 401) ? 'signin' : e && e.code === 'OFFLINE' ? 'offline' : e && (e.code === 'CORRUPTED_MEDIA' || e.code === 'CONVERT_NO_VIDEO') ? 'broken' : e && (e.code === 'CONVERT_TOO_BIG' || e.code === 'CONVERT_TOO_LONG') ? 'big' : 'server'; src.edErr = e && e.message;
+      src.proxyStatus = 'Could not convert'; src.edFail = e && e.code === 'UNAUTHORIZED' || (e && e.status === 401) ? 'signin' : e && e.code === 'OFFLINE' ? 'offline' : e && (e.code === 'CORRUPTED_MEDIA' || e.code === 'CONVERT_NO_VIDEO') ? 'broken' : e && (e.code === 'CONVERT_TOO_BIG' || e.code === 'CONVERT_TOO_LONG') ? 'big' : e && (e.code === 'RATE_LIMITED' || e.code === 'CONVERT_BUSY') ? 'limit' : 'server'; src.edErr = e && e.message;
       updateClipHoverInfo(src); console.info('edit copy by Shubix failed', e);
       return false;
     }
@@ -1185,7 +1185,7 @@ async function makeEditCopy(src, dd, facts, plan, playable){
 // what the person sees when a heavy clip could not get its copy (it is kept, but may lag)
 function editCopyFailNote(src, facts){
   const why = whatClip(facts);
-  const tip = src.edFail === 'broken' ? ' The file looks damaged or incomplete: copy it again from your phone and add it.' : src.edFail === 'signin' ? ' Sign in and add it again: Shubix converts it for you.'
+  const tip = src.edFail === 'limit' && src.edErr ? ' ' + src.edErr : src.edFail === 'broken' ? ' The file looks damaged or incomplete: copy it again from your phone and add it.' : src.edFail === 'signin' ? ' Sign in and add it again: Shubix converts it for you.'
     : src.edFail === 'offline' ? ' Connect to the internet and add it again: Shubix converts it for you.'
     : src.edFail === 'big' ? ' It is too big to convert online: save it as MP4 (H.264, 1080p, 30 fps) from your camera or phone and add it again.'
     : ' Save it as MP4 (H.264, 1080p, 30 fps) and add it again. On an iPhone: Settings → Camera → Formats → Most Compatible.';
@@ -1354,7 +1354,7 @@ async function readVideo(src){
     try{ const f = src.file || {}, me = v && v.error;
       window.__shubixReport && window.__shubixReport('clip', 'Clip not readable at "' + stage + '": ' + String(e && e.message || e).slice(0, 160) + ' · ' + (f.type || 'no type') + ' · .' + String(src.name || '').split('.').pop().toLowerCase(),
         JSON.stringify({ size: f.size, dur: src.dur, w: src.w, h: src.h, ready: v && v.readyState, net: v && v.networkState, mediaError: me ? me.code + ' ' + (me.message || '') : null, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){}
-    dd.textContent = src.edFail === 'broken' ? 'This file looks damaged or incomplete (a copy that did not finish?). Copy it again from your phone and add it.' : src.edFail === 'signin' ? 'This camera format needs converting: sign in and add it again.' : src.edFail === 'offline' ? 'This format needs converting: connect to the internet and add it again.' : src.edFail === 'big' ? 'This camera format is too big to convert online: save it as MP4 (H.264) and add it again.' : 'This video\'s format cannot be opened here. Save it as MP4 (H.264) and add it again, or remove it with ×.'; dd.dataset.st = 'bad';
+    dd.textContent = src.edFail === 'limit' && src.edErr ? src.edErr : src.edFail === 'broken' ? 'This file looks damaged or incomplete (a copy that did not finish?). Copy it again from your phone and add it.' : src.edFail === 'signin' ? 'This camera format needs converting: sign in and add it again.' : src.edFail === 'offline' ? 'This format needs converting: connect to the internet and add it again.' : src.edFail === 'big' ? 'This camera format is too big to convert online: save it as MP4 (H.264) and add it again.' : 'This video\'s format cannot be opened here. Save it as MP4 (H.264) and add it again, or remove it with ×.'; dd.dataset.st = 'bad';
     card.style.borderColor = 'var(--drop)';
   }finally{ clearTimeout(slow); }
 }

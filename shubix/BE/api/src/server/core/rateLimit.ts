@@ -40,5 +40,7 @@ export const limits = {
   clientError: (req: Request) => limit(`clienterr:${clientIp(req)}`, 10, MIN, "Too many error reports."),
   contact: (req: Request, email: string) => { limit(`contact:ip:${clientIp(req)}`, 5, 60 * MIN, "Too many messages from here."); limit(`contact:email:${email.trim().toLowerCase()}`, 3, 60 * MIN, "We already have your messages: we'll reply soon."); },
   helpChat: (req: Request) => { limit(`help:${currentUser() ?? clientIp(req)}`, 20, 10 * MIN, "Too many questions at once. Wait a moment."); limit(`help:day:${clientIp(req)}`, 150, 24 * 60 * MIN, "That's a lot of questions today. Use the Contact page for more help."); },
+  // a clip converted on the server costs CPU: only for what a phone cannot do, so a few per hour is plenty
+  convert: (req: Request) => { const who = currentUser() ?? clientIp(req); limit(`convert:${who}`, 10, 60 * MIN, "Many videos converted in the last hour. Wait a little, or save the video as MP4 (H.264) on your phone or computer."); limit(`convert:day:${who}`, 30, 24 * 60 * MIN, "That's a lot of videos converted today. Save the video as MP4 (H.264) on your phone or computer and add it again."); },
   ai: (req: Request) => limit(`ai:${currentUser() ?? clientIp(req)}`, 40, MIN, "The AI is being asked too often. Wait a moment."),
 };

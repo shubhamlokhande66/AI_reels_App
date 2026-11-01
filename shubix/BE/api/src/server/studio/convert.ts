@@ -6,6 +6,7 @@ import { pipeline } from "node:stream/promises";
 import { settings } from "../core/config";
 import { AppError, ValidationFailed } from "../core/errors";
 import { probe, renderFfmpeg } from "../core/ffmpeg";
+import { limits } from "../core/rateLimit";
 
 /** A clip this browser cannot open or decode (a camera's ProRes / 4:2:2 10-bit, an old codec): converted here to the
  * Reel editor's format, H.264 8-bit SDR (or VP9 for a browser without H.264), at most 1080 × 1920, 30 fps; HDR is
@@ -38,6 +39,7 @@ function sweep() {
 
 export async function startConvert(req: Request): Promise<{ id: string }> {
   sweep();
+  limits.convert(req);
   const len = Number(req.headers.get("content-length") || 0);
   if (!req.body) throw new ValidationFailed("No video was sent.", { code: "CONVERT_EMPTY" });
   if (len > CONVERT_LIMITS.bytes) throw new ValidationFailed(`This video is too big to convert online (at most ${Math.round(CONVERT_LIMITS.bytes / 1048576)} MB). Export it from the camera or phone as MP4 (H.264) and add it again.`, { code: "CONVERT_TOO_BIG" });
