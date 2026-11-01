@@ -37,7 +37,7 @@ export function Button(props: AsButton | AsLink) {
     const { href, reload, onClick, title } = props;
     const Tag = reload ? "a" : Link;
     return (
-      <Tag href={href} onClick={onClick} title={title} aria-label={props["aria-label"]} aria-busy={loading || undefined} className={cls}>
+      <Tag href={href} onClick={onClick} title={title} aria-label={props["aria-label"]} aria-busy={loading || undefined} data-loading={loading || undefined} className={cls}>
         {inner}
       </Tag>
     );
