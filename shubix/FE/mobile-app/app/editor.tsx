@@ -79,7 +79,7 @@ export default function EditorScreen() {
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
   const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]), song = useAudioPlayer(p?.audioUri ?? null);
-  useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); router.back(); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); if (router.canGoBack()) router.back(); else router.replace("/reels"); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tool?.key !== "voice" || !p?.studio || !engine.holds(p.id)) return;
     void engine.tool("ttsVoices").then((r) => {

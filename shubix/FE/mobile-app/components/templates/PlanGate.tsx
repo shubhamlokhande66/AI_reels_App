@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
+import { colors } from "@shubix/ui-mobile";
 import { router } from "expo-router";
 import { useLockCheck } from "../../lib/data";
 
@@ -8,6 +9,12 @@ import { useLockCheck } from "../../lib/data";
 export function PlanGate({ href, children }: { href: string; children: ReactNode }) {
   const check = useLockCheck(), need = check ? check(href) : "";
   useEffect(() => { if (need) router.replace({ pathname: "/pricing", params: { need: href } }); }, [need, href]);
-  if (!check || need) return <View className="min-h-[40%] flex-1 bg-background" />; // not known yet, or on its way to the plans
+  // not known yet, or on its way to the plans: say which, never a blank screen
+  if (!check || need) return (
+    <View className="min-h-[40%] flex-1 items-center justify-center gap-3 bg-background px-6">
+      <ActivityIndicator color={colors.accent} />
+      <Text className="text-center text-sm text-muted">{need ? "This is in a paid plan: opening the plans…" : "Checking your plan…"}</Text>
+    </View>
+  );
   return <>{children}</>;
 }
