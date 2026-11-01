@@ -18,7 +18,9 @@ import { songAnalysis } from '@shubix/core/engine/studio/song';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
-import { createPreviewProxy, previewProxyPlan } from '../../lib/previewProxy';
+import { createPreviewProxy, previewProxyPlan, probeVideo } from '../../lib/previewProxy';
+// the file the decoders read: an iPhone 4K HDR 60 fps clip's edit copy (H.264, 1080p, 30 fps) when it has one
+const decFile = s => s.edFile || s.file;
 import { parseDirectorVisualIntent } from './visualIntent';
 import { bootPart } from '../../lib/boot';
 
@@ -677,7 +679,7 @@ async function videoData(v, ms=12000){
 async function clipReader(src, maxSide){
   try{
     const mb = await loadMediabunny();
-    const input = new mb.Input({ source: new mb.BlobSource(src.file), formats: mb.ALL_FORMATS });
+    const input = new mb.Input({ source: new mb.BlobSource(decFile(src)), formats: mb.ALL_FORMATS });
     const track = await input.getPrimaryVideoTrack();
     if(!track || !(await track.canDecode())){ try{ input.dispose(); }catch(e){} throw new Error('no WebCodecs decoder'); }
     const first = await track.getFirstTimestamp(), sc = Math.min(1, maxSide/Math.max(src.w, src.h));
@@ -1121,15 +1123,21 @@ function updateClipHoverInfo(src){
   }else if(src.proxyReason){
     lines.push('Details: '+src.proxyReason);
   }
-  lines.push('Export: original file · unchanged');
+  lines.push(src.edFile ? 'Export: the smooth edit copy (' + (src.edW||'?') + ' × ' + (src.edH||'?') + ', 30 fps)' : 'Export: original file · unchanged');
   src.card.title=lines.join('\n');
   src.card.setAttribute('aria-label',lines.join('. '));
 }
 async function compressHighResolutionPreview(src, dd){
   // Reuse the exact preview proxy for this original file when a saved draft is reopened.
   // The original File remains the export source; only the editor's lightweight preview URL changes.
+  const probe = await probeVideo(src.file).catch(() => null);
+  const facts = { size: src.file.size, width: src.w, height: src.h, duration: src.dur, fps: probe ? probe.fps : 0, hdr: !!(probe && probe.hdr), tenBit: !!(probe && probe.tenBit) };
+  const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
+  const plan=previewProxyPlan(facts, isMov);
+  const heavy = !!(plan && plan.forExport);
   const cached = await keptGet('p:', src.file);
-  if(cached && cached.v === 1 && cached.blob instanceof Blob && cached.blob.size < src.file.size){
+  if(cached && cached.blob instanceof Blob && (heavy ? cached.v === 2 && cached.edit : cached.v === 1 && cached.blob.size < src.file.size)){
+    if(cached.edit){ src.edFile = cached.blob; src.edW = cached.width || 0; src.edH = cached.height || 0; }
     src.url = URL.createObjectURL(cached.blob);
     src.previewProxy = true; src.proxySize = cached.blob.size;
     src.proxyW = cached.width || 0; src.proxyH = cached.height || 0;
@@ -1138,8 +1146,6 @@ async function compressHighResolutionPreview(src, dd){
     updateClipHoverInfo(src);
     return;
   }
-  const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
-  const plan=previewProxyPlan({size:src.file.size,width:src.w,height:src.h,duration:src.dur}, isMov);
   if(!plan){
     const longSide=Math.max(src.w||0,src.h||0), avg=src.dur>0 ? src.file.size*8/src.dur : 0;
     src.proxyStatus='Not compressed';
@@ -1149,18 +1155,19 @@ async function compressHighResolutionPreview(src, dd){
   src.proxyStatus='Compressing…'; src.proxyReason='Target preview: '+plan.width+' × '+plan.height+' · '+(plan.bitrate/1e6).toFixed(2)+' Mbps';
   updateClipHoverInfo(src);
   previewBatchDetected++;
-  previewBatchShow(src,'High-resolution video detected. Creating a lightweight editing copy…',0);
+  previewBatchShow(src, heavy ? '4K / HDR / 60 fps video (iPhone) detected. Making a smooth copy so it plays without lag…' : 'High-resolution video detected. Creating a lightweight editing copy…',0);
   try{
     life({stage:'compressing preview',size:Math.round(src.file.size/1e6)+' MB',res:src.w+'x'+src.h});
     const result=await createPreviewProxy(src.file,p=>{
       previewBatchShow(src,'Compressing '+src.name+' for smooth editing…',p);
-      const n=Math.max(0,Math.min(100,Math.round(p*100))); dd.textContent='compressing for editing… '+n+'%';
-    });
+      const n=Math.max(0,Math.min(100,Math.round(p*100))); dd.textContent=(heavy ? 'making a smooth copy… ' : 'compressing for editing… ')+n+'%';
+    }, plan);
     if(src.removed) return;
-    if(result && result.blob && result.blob.size<src.file.size){
+    if(result && result.blob && (heavy || result.blob.size<src.file.size)){
       const oldUrl=src.url; src.url=URL.createObjectURL(result.blob); src.previewProxy=true; src.proxySize=result.blob.size; src.proxyW=result.plan.width; src.proxyH=result.plan.height; src.proxyMime=result.blob.type; src.proxyStatus='Success'; src.proxyReason='Downscaled preview generated successfully.';
       // Persist the compressed preview separately; export always keeps using the original File.
-      await keptPut('p:', src.file, { v: 1, blob: result.blob, width: result.plan.width, height: result.plan.height, mime: result.blob.type || '' });
+      if(heavy){ src.edFile = result.blob; src.edW = result.plan.width; src.edH = result.plan.height; src.proxyReason = 'Smooth copy for the preview and the export (' + result.plan.width + ' × ' + result.plan.height + ', 30 fps, SDR).'; }
+      await keptPut('p:', src.file, { v: heavy ? 2 : 1, edit: heavy, blob: result.blob, width: result.plan.width, height: result.plan.height, mime: result.blob.type || '' });
       try{URL.revokeObjectURL(oldUrl);}catch(e){}
       updateClipHoverInfo(src);
       previewBatchCompressed++;
@@ -4808,7 +4815,7 @@ async function revCache(e){
   const need = e.sp.pos(e.end - e.start)*e.scaleR, key = e.src + '|' + e.in.toFixed(3) + '|' + need.toFixed(3);
   if(e.rc && e.rc.key === key) return;
   if(e.rc) e.rc.frames.forEach(f => f && f.close && f.close()); e.rc = null;
-  const s = sources[e.src], mb = await loadMediabunny(), input = new mb.Input({ source: new mb.BlobSource(s.file), formats: mb.ALL_FORMATS });
+  const s = sources[e.src], mb = await loadMediabunny(), input = new mb.Input({ source: new mb.BlobSource(decFile(s)), formats: mb.ALL_FORMATS });
   try{
     const track = await input.getPrimaryVideoTrack(), first = await track.getFirstTimestamp(), sc = Math.min(1, 480/Math.max(s.w, s.h));
     const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(s.w*sc/2)*2), height: Math.max(16, Math.round(s.h*sc/2)*2), fit: 'fill', poolSize: 2 });
@@ -5285,11 +5292,15 @@ async function fastExport(){
       if(sinks.has(key)){ const v = sinks.get(key); sinks.delete(key); sinks.set(key, v); }   // most recently used last
       else {
         while(sinks.size >= LIVE){ const [k0, old] = sinks.entries().next().value; sinks.delete(k0); try{ old.input.dispose(); }catch(err){} const ii = inputs.indexOf(old.input); if(ii >= 0) inputs.splice(ii, 1); }
-        const s0 = sources[si], input = new mb.Input({ source: new mb.BlobSource(s0.file), formats: mb.ALL_FORMATS }); inputs.push(input);
-        const track = await input.getPrimaryVideoTrack();
-        const r = Math.min(1, Math.max(W/s0.w, H/s0.h)*1.3);
+        // a heavy iPhone clip is read from its edit copy (1080p 30 fps H.264); a 4K export reads the original when it decodes
+        const s0 = sources[si];
+        let input = null, track = null, sw = s0.w, sh0 = s0.h;
+        if(s0.edFile && xq.res === '4k'){ const i0 = new mb.Input({ source: new mb.BlobSource(s0.file), formats: mb.ALL_FORMATS }); const t0 = await i0.getPrimaryVideoTrack().catch(() => null); if(t0 && await t0.canDecode().catch(() => false)){ input = i0; track = t0; } else { try{ i0.dispose(); }catch(err){} } }
+        if(!input){ input = new mb.Input({ source: new mb.BlobSource(decFile(s0)), formats: mb.ALL_FORMATS }); track = await input.getPrimaryVideoTrack(); if(s0.edFile && s0.edW){ sw = s0.edW; sh0 = s0.edH; } }
+        inputs.push(input);
+        const r = Math.min(1, Math.max(W/sw, H/sh0)*1.3);
         let sfps = 30; try{ const stt = await track.computePacketStats(90); if(stt && stt.averagePacketRate > 1) sfps = stt.averagePacketRate; }catch(err){}
-        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: EXPORT_FRAME_POOL }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
+        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(sw*r/2)*2), height: Math.max(16, Math.round(sh0*r/2)*2), fit: 'fill', poolSize: EXPORT_FRAME_POOL }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
       }
       return sinks.get(key);
     };

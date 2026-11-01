@@ -15,6 +15,22 @@ export interface PreviewProxyFacts {
   width: number;
   height: number;
   duration: number;
+  /** From probeVideo: frames per second, HDR (HLG/PQ/BT.2020) and 10-bit colour. */
+  fps?: number;
+  hdr?: boolean;
+  tenBit?: boolean;
+}
+
+/* Heavy footage: what an iPhone records by default (4K, HEVC 10-bit, HDR, 60 fps, ~55 Mbps). A browser decodes it too
+ * slowly for a live preview (the picture freezes, the song stutters) and the export's decoder may fail on it, which
+ * drops the export to the real-time recorder (a laggy file). Such a clip gets one edit copy, H.264 8-bit SDR at most
+ * 1080 × 1920 and 30 fps, used by the preview, the clip reading and the export alike (any size, even a 2 s clip). */
+export const EDIT_MAX_SIDE = 1920;
+export const EDIT_BITRATE = 10_000_000;
+export const EDIT_FPS = 30;
+export function isHeavySource(f: PreviewProxyFacts): boolean {
+  const longSide = Math.max(f.width, f.height), bitrate = f.duration > 0 ? (f.size * 8) / f.duration : 0;
+  return !!f.hdr || !!f.tenBit || (f.fps || 0) > 31 || (longSide > EDIT_MAX_SIDE && bitrate > 20_000_000);
 }
 
 export function isQuickTimeSource(fileName: string, mimeType: string): boolean {
@@ -25,14 +41,24 @@ export interface PreviewProxyPlan {
   width: number;
   height: number;
   bitrate: number;
-  reason: "resolution" | "bitrate" | "resolution-and-bitrate";
+  reason: "resolution" | "bitrate" | "resolution-and-bitrate" | "heavy";
+  /** heavy footage: frames per second of the copy, and the export reads the copy too */
+  fps?: number;
+  forExport?: boolean;
 }
 
 /** Return null for footage that is already light enough for real-time editing. */
 export function previewProxyPlan(facts: PreviewProxyFacts, forceTranscode = false): PreviewProxyPlan | null {
   const { size, width, height, duration } = facts;
-  if (![size, width, height, duration].every(Number.isFinite) ||
-      size < MIN_FILE_BYTES || size > MAX_PROXY_FILE_BYTES ||
+  if (![size, width, height, duration].every(Number.isFinite) || size <= 0 || size > MAX_PROXY_FILE_BYTES ||
+      width <= 0 || height <= 0 || duration <= 0 || duration > MAX_PROXY_DURATION) return null;
+  if (isHeavySource(facts)) {
+    const sc = Math.min(1, EDIT_MAX_SIDE / Math.max(width, height));
+    const ev = (value: number) => Math.max(2, Math.round((value * sc) / 2) * 2);
+    const src = (size * 8) / duration;
+    return { width: ev(width), height: ev(height), bitrate: Math.max(2_000_000, Math.min(EDIT_BITRATE, Math.floor(src * 0.9))), reason: "heavy", fps: EDIT_FPS, forExport: true };
+  }
+  if (size < MIN_FILE_BYTES ||
       width <= 0 || height <= 0 || duration <= 0 || duration > MAX_PROXY_DURATION) return null;
 
   const longSide = Math.max(width, height);
@@ -55,6 +81,34 @@ export function previewProxyPlan(facts: PreviewProxyFacts, forceTranscode = fals
     bitrate: targetBitrate,
     reason: highResolution && highBitrate ? "resolution-and-bitrate" : highResolution ? "resolution" : "bitrate",
   };
+}
+
+/** Frame rate, HDR and bit depth of a clip (read from its container, nothing decoded). null when unreadable. */
+export async function probeVideo(file: Blob): Promise<{ fps: number; hdr: boolean; tenBit: boolean; codec: string } | null> {
+  if (typeof window === "undefined") return null;
+  let input: import("mediabunny").Input | undefined;
+  try {
+    const mb = await import("mediabunny");
+    input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack();
+    if (!track) return null;
+    const cs = await track.getColorSpace().catch(() => ({} as VideoColorSpaceInit));
+    const cfg = await track.getDecoderConfig().catch(() => null);
+    const cstr = (cfg && cfg.codec) || "";
+    let fps = 0;
+    try { const st = await track.computePacketStats(120); fps = st.averagePacketRate || 0; } catch { /* unknown */ }
+    return {
+      fps,
+      hdr: ["hlg", "pq", "arib-std-b67", "smpte2084"].includes(String(cs.transfer || "")) || String(cs.primaries || "") === "bt2020",
+      // HEVC Main 10 (hvc1.2 / hev1.2), VP9 profile 2, AV1 10-bit
+      tenBit: /^(hvc1|hev1)\.2\./i.test(cstr) || /^vp09\.0[23]\./i.test(cstr) || /^av01\.\d\.\d+\w\.10/i.test(cstr),
+      codec: track.codec || "",
+    };
+  } catch {
+    return null;
+  } finally {
+    try { input?.dispose(); } catch { /* best-effort */ }
+  }
 }
 
 /**
@@ -117,7 +171,7 @@ async function createElementPreviewProxy(
     draw();
     const blob = await stopped;
     onProgress?.(1);
-    return blob.size < file.size * 0.9 ? blob : null;
+    return blob.size < file.size * (plan.forExport ? 1.5 : 0.9) ? blob : null;
   } finally {
     if (recorder?.state === "recording") recorder.stop();
     stream?.getTracks().forEach(track => track.stop());
@@ -136,42 +190,50 @@ async function createElementPreviewProxy(
 export async function createPreviewProxy(
   file: File,
   onProgress?: (progress: number) => void,
+  given?: PreviewProxyPlan | null,
 ): Promise<{ blob: Blob; plan: PreviewProxyPlan } | null> {
   if (typeof window === "undefined") return null;
   let input: import("mediabunny").Input | undefined;
-  let plan: PreviewProxyPlan | null = null;
+  let plan: PreviewProxyPlan | null = given || null;
   try {
     if (typeof VideoEncoder !== "undefined" && typeof VideoDecoder !== "undefined") {
       const mb = await import("mediabunny");
       input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
       const track = await input.getPrimaryVideoTrack();
       if (track) {
-        plan = previewProxyPlan({
+        if (!plan) plan = previewProxyPlan({
           size: file.size,
           width: await track.getDisplayWidth(),
           height: await track.getDisplayHeight(),
           duration: await input.computeDuration(),
         }, isQuickTimeSource(file.name, file.type));
-        if (plan && await track.canDecode() &&
-            await mb.canEncodeVideo("avc", { width: plan.width, height: plan.height, bitrate: plan.bitrate })) {
+        // H.264 in MP4; a browser without an H.264 encoder makes the edit copy in VP9 / WebM (a heavy clip still needs one)
+        const enc = { width: plan?.width || 0, height: plan?.height || 0, bitrate: plan?.bitrate || 0 };
+        const vcodec = !plan ? null : await mb.canEncodeVideo("avc", enc) ? "avc" as const
+          : plan.forExport && await mb.canEncodeVideo("vp9", enc) ? "vp9" as const : null;
+        if (plan && vcodec && await track.canDecode()) {
+          const mp4 = vcodec === "avc";
+          const acodec = mp4 ? (await mb.canEncodeAudio("aac") ? "aac" as const : await mb.canEncodeAudio("opus") ? "opus" as const : null)
+            : await mb.canEncodeAudio("opus") ? "opus" as const : null;
           const output = new mb.Output({
-            format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }),
+            format: mp4 ? new mb.Mp4OutputFormat({ fastStart: "in-memory" }) : new mb.WebMOutputFormat(),
             target: new mb.BufferTarget(),
           });
           const conversion = await mb.Conversion.init({
             input, output,
             video: {
               width: plan.width, height: plan.height, fit: "contain",
-              codec: "avc", quality: new mb.Quality(plan.bitrate), keyFrameInterval: 1,
+              codec: vcodec, quality: new mb.Quality(plan.bitrate), keyFrameInterval: 1,
+              ...(plan.fps ? { frameRate: plan.fps } : {}),
             },
-            audio: { codec: "aac" },
+            audio: acodec ? { codec: acodec } : { discard: true },
           });
           if (conversion.isValid) {
             conversion.onProgress = progress => onProgress?.(progress);
             await conversion.execute();
             const buffer = output.target.buffer;
-            if (buffer && buffer.byteLength < file.size * 0.9) {
-              return { blob: new Blob([buffer], { type: "video/mp4" }), plan };
+            if (buffer && buffer.byteLength < file.size * (plan.forExport ? 1.5 : 0.9)) {
+              return { blob: new Blob([buffer], { type: mp4 ? "video/mp4" : "video/webm" }), plan };
             }
           }
         }
