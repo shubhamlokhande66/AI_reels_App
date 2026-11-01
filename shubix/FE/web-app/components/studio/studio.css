@@ -417,7 +417,7 @@
 .brs .aonote{display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font-size:13px}
 .brs .aonote svg{color:var(--accent);flex:none;width:18px;height:18px}
 .brs .aogo{width:100%;justify-content:center;min-height:52px;font-size:16px;background:var(--gold-gradient);color:var(--on-accent)}
-.brs .aogo:disabled{opacity:.45;cursor:not-allowed}
+.brs .aogo:disabled{cursor:not-allowed;filter:grayscale(.75);color:var(--muted)}
 .brs .aoring{position:relative;width:150px;height:150px;display:grid;place-items:center}
 .brs .aoring svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .brs .aoring circle{fill:none;stroke-width:8}
@@ -1169,7 +1169,7 @@
 .brs .ss-body .ssact{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);cursor:pointer}
 .brs .ss-body .ssact:hover{border-color:var(--accent)}
 .brs .ss-body .ssact[data-op="delete"]{color:var(--danger,#f87171)}
-.brs .ss-body .ssact:disabled{opacity:.4;cursor:default}
+.brs .ss-body .ssact:disabled{cursor:default;filter:grayscale(.75);color:var(--muted)}
 .brs .ss-body .ssrep{height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);padding:0 8px;max-width:160px}
 @media (max-width:1023px){ .brs .shotsheet{width:auto} .brs :is(.ss-body,.shtilebox) .sstiles{grid-template-columns:repeat(auto-fill,minmax(60px,1fr))} }
 

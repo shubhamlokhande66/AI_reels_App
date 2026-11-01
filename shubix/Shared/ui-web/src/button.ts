@@ -5,12 +5,13 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const BASE =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-[filter,border-color,background-color,color,box-shadow,translate] duration-200 disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:translate-y-px";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-[filter,border-color,background-color,color,box-shadow,translate] duration-200 disabled:pointer-events-none disabled:shadow-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:translate-y-px";
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "border border-transparent bg-gold text-on-accent shadow-[0_12px_26px_-14px_var(--brand-glow)] hover:brightness-110",
-  secondary: "border border-border bg-surface text-foreground shadow-[var(--shadow)] hover:border-accent/60 hover:bg-surface-2",
-  ghost: "border border-transparent bg-transparent text-foreground hover:bg-surface-2",
-  danger: "border border-danger/35 bg-surface text-danger shadow-[var(--shadow)] hover:border-danger/70 hover:bg-danger/5",
+  // disabled: a solid, quieter look (never see-through: a button fixed over the page must not show the page through it)
+  primary: "border border-transparent bg-gold text-on-accent shadow-[0_12px_26px_-14px_var(--brand-glow)] hover:brightness-110 disabled:[background:color-mix(in_srgb,var(--accent)_24%,var(--surface-2))] disabled:text-[color-mix(in_srgb,var(--accent)_72%,var(--foreground))]",
+  secondary: "border border-border bg-surface text-foreground shadow-[var(--shadow)] hover:border-accent/60 hover:bg-surface-2 disabled:bg-surface-2 disabled:text-muted",
+  ghost: "border border-transparent bg-transparent text-foreground hover:bg-surface-2 disabled:text-muted",
+  danger: "border border-danger/35 bg-surface text-danger shadow-[var(--shadow)] hover:border-danger/70 hover:bg-danger/5 disabled:bg-surface-2 disabled:text-[color-mix(in_srgb,var(--danger)_55%,var(--muted))]",
 };
 const SIZE: Record<ButtonSize, string> = {
   sm: "h-9 rounded-[10px] px-3 text-[12px]",
@@ -25,4 +26,4 @@ export const buttonClass = ({ variant = "primary", size = "md", full = false }: 
  * plain: no border or fill (muted: grey); main: the brand gradient (send, apply). */
 const ICON_LOOK = { box: "border border-border bg-surface text-foreground hover:text-accent", plain: "border-0 bg-transparent text-foreground hover:text-accent", muted: "border-0 bg-transparent text-muted hover:text-foreground", main: "border-0 bg-gold text-on-accent hover:brightness-110" };
 export const iconButtonClass = (look: keyof typeof ICON_LOOK = "box") =>
-  `grid shrink-0 place-items-center rounded-full p-0 transition-[color,filter] disabled:opacity-50 ${ICON_LOOK[look]}`;
+  `grid shrink-0 place-items-center rounded-full p-0 transition-[color,filter] disabled:text-muted disabled:[filter:grayscale(.6)] ${ICON_LOOK[look]}`;

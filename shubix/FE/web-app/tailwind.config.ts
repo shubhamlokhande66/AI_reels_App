@@ -28,7 +28,7 @@ export default {
       [ARRIVING]: { animation: "enter 480ms cubic-bezier(.2,.7,.25,1) backwards" },
       ...Object.fromEntries([2, 3, 4].map((n) => [`.rm main > div > div > section:nth-of-type(${n}), .rm main > div > div > div > section:nth-of-type(${n})`, { animationDelay: `${(n - 1) * 45}ms` }])),
       // a button whose server action is on its way (lib/activity.ts sets aria-busy): a spinner, and no second click
-      [BUSY]: { pointerEvents: "none !important", opacity: "0.85 !important" },
+      [BUSY]: { pointerEvents: "none !important" }, // (not see-through: the spinner says it is busy)
       ':is(button, [role="button"])[aria-busy="true"]:not([data-loading])::before, a.btn[aria-busy="true"]::before': { content: '""', display: "inline-block", flexShrink: "0", width: "1em", height: "1em", marginRight: "0.5em", verticalAlign: "-0.15em", border: "2px solid currentColor", borderRightColor: "transparent", borderRadius: "999px", animation: "spin 0.7s linear infinite" },
       'button.ib[aria-busy="true"]:not([data-loading]) > svg': { display: "none" }, // an icon button: the spinner takes the icon's place
       'button.ib[aria-busy="true"]:not([data-loading])::before': { marginRight: "0" },
