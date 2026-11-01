@@ -5,10 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ffmpegAvailable, findBinary } from "../../src/server/core/ffmpeg";
+import { settings } from "../../src/server/core/config";
 import { CONVERT_LIMITS, convertFile, convertFilter, convertStatus, startConvert } from "../../src/server/studio/convert";
 
 /** Clips a browser cannot decode (camera ProRes / 4:2:2, old codecs) are converted here as a job: H.264 1080p 30 fps
  * SDR, HDR tone-mapped. */
+const settingsScratch = () => settings.scratchPath;
 const post = (body: Uint8Array, q = "") => new Request("http://x/api/studio/convert" + q, { method: "POST", body, headers: { "content-length": String(body.byteLength) } });
 
 describe("studio clip conversion", () => {
@@ -34,11 +36,14 @@ describe("studio clip conversion", () => {
     let st = convertStatus(id);
     for (let i = 0; i < 120 && st.status === "running"; i++) { await new Promise((r) => setTimeout(r, 250)); st = convertStatus(id); }
     expect(st).toMatchObject({ status: "done", progress: 1 });
-    const res = convertFile(new Request("http://x"), id);
+    const res = await convertFile(new Request("http://x"), id);
     expect(res.headers.get("Content-Type")).toBe("video/mp4");
     const out = path.join(dir, "out.mp4"); fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
     const info = JSON.parse(execFileSync(findBinary("ffprobe"), ["-v", "error", "-print_format", "json", "-show_streams", out]).toString());
     expect(info.streams[0]).toMatchObject({ codec_name: "h264", width: 1920, height: 1080, pix_fmt: "yuv420p", r_frame_rate: "30/1" });
+    // nothing left on the server once the phone has it
+    expect(() => convertStatus(id)).toThrowError(/no longer here/);
+    expect(fs.existsSync(path.join(settingsScratch(), "convert", id))).toBe(false);
     fs.rmSync(dir, { recursive: true, force: true });
   }, 60_000);
 

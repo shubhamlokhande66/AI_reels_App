@@ -6,17 +6,22 @@ import { pipeline } from "node:stream/promises";
 import { settings } from "../core/config";
 import { AppError, ValidationFailed } from "../core/errors";
 import { probe, renderFfmpeg } from "../core/ffmpeg";
-import { sendFile } from "../core/http";
 
 /** A clip this browser cannot open or decode (a camera's ProRes / 4:2:2 10-bit, an old codec): converted here to the
  * Reel editor's format, H.264 8-bit SDR (or VP9 for a browser without H.264), at most 1080 × 1920, 30 fps; HDR is
  * tone-mapped to normal colours. Only for what the browser cannot do itself (the studio converts on the device first).
  * A job: POST sends the file and gets an id at once; GET .../[id] tells the progress; GET .../[id]/file gives the result
- * (no request waits for the conversion, so proxy and CDN time limits never cut it). Results are removed after 15 min. */
+ * (no request waits for the conversion, so proxy and CDN time limits never cut it).
+ * Nothing stays on the server: the sent file is deleted as soon as it is converted (or fails), the result as soon as the
+ * phone has fetched it, a result never fetched 15 minutes after it was made, and anything left by a restart at start. */
 export const CONVERT_LIMITS = { bytes: 95 * 1024 * 1024, seconds: 180, running: 2, keepMs: 15 * 60_000 };
 type Job = { status: "running" | "done" | "failed"; progress: number; error?: { code: string; message: string }; dir: string; out: string; type: string; at: number };
 const jobs = new Map<string, Job>();
 let running = 0;
+const convertRoot = () => path.join(settings.scratchPath, "convert");
+// a restart forgets its jobs: their files go too
+try { fs.rmSync(convertRoot(), { recursive: true, force: true }); } catch { /* nothing there */ }
+const drop = (id: string) => { const j = jobs.get(id); if (j) fs.rmSync(j.dir, { recursive: true, force: true }); jobs.delete(id); };
 
 export function convertFilter(stream: { color_transfer?: string; color_primaries?: string }): string {
   const hdr = /arib-std-b67|smpte2084/.test(stream.color_transfer ?? "") || stream.color_primaries === "bt2020";
@@ -38,7 +43,7 @@ export async function startConvert(req: Request): Promise<{ id: string }> {
   if (len > CONVERT_LIMITS.bytes) throw new ValidationFailed(`This video is too big to convert online (at most ${Math.round(CONVERT_LIMITS.bytes / 1048576)} MB). Export it from the camera or phone as MP4 (H.264) and add it again.`, { code: "CONVERT_TOO_BIG" });
   if (running >= CONVERT_LIMITS.running) throw new AppError("Many videos are being converted right now. Please try again in a minute.", { code: "CONVERT_BUSY", status: 503 });
   const webm = new URL(req.url).searchParams.get("to") === "webm";   // a browser without H.264 (some Linux builds)
-  const id = crypto.randomUUID(), dir = path.join(settings.scratchPath, "convert", id);
+  const id = crypto.randomUUID(), dir = path.join(convertRoot(), id);
   fs.mkdirSync(dir, { recursive: true });
   const src = path.join(dir, "in"), out = path.join(dir, webm ? "out.webm" : "out.mp4");
   running++;
@@ -65,7 +70,7 @@ export async function startConvert(req: Request): Promise<{ id: string }> {
     void renderFfmpeg(args, { timeout: 20 * 60, expectedDuration: dur || undefined, onProgress: (f) => { job.progress = Math.max(job.progress, Math.min(0.99, f)); }, errorCode: "CONVERT_FAILED" })
       .then(() => { job.status = "done"; job.progress = 1; fs.rmSync(src, { force: true }); })
       .catch((e: unknown) => { const err = e as { code?: string; message?: string }; job.status = "failed"; job.error = { code: err.code || "CONVERT_FAILED", message: "Shubix could not convert this video. " + (err.message ? String(err.message).split("\n")[0].slice(0, 160) : "") }; fs.rmSync(dir, { recursive: true, force: true }); })
-      .finally(() => { running--; job.at = Date.now(); });
+      .finally(() => { running--; job.at = Date.now(); setTimeout(() => drop(id), CONVERT_LIMITS.keepMs).unref?.(); });
     return { id };
   } finally {
     if (!started) { running--; fs.rmSync(dir, { recursive: true, force: true }); }
@@ -74,8 +79,11 @@ export async function startConvert(req: Request): Promise<{ id: string }> {
 
 const jobOf = (id: string) => { const j = jobs.get(id); if (!j) throw new AppError("This conversion is no longer here. Add the video again.", { code: "CONVERT_GONE", status: 404 }); return j; };
 export function convertStatus(id: string) { const j = jobOf(id); return { status: j.status, progress: +j.progress.toFixed(3), error: j.error ?? null }; }
-export function convertFile(req: Request, id: string): Response {
+/** The result, once: read (at most a few tens of MB), deleted from the server, then sent. */
+export async function convertFile(_req: Request, id: string): Promise<Response> {
   const j = jobOf(id);
   if (j.status !== "done") throw new AppError("The video is not converted yet.", { code: "CONVERT_NOT_READY", status: 409 });
-  return sendFile(req, j.out, j.type, { cache: "no-store" });
+  const buf = await fs.promises.readFile(j.out);
+  drop(id);
+  return new Response(new Uint8Array(buf), { headers: { "Content-Type": j.type, "Content-Length": String(buf.byteLength), "Cache-Control": "no-store" } });
 }
