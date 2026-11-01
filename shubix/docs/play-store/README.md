@@ -1,6 +1,6 @@
 # Shubix on Google Play: the App content answers
 
-The phone app is the Expo app `FE/mobile-app` (package `com.shubix.reels`). This page has what Play Console → **App
+The phone app is the Expo app `FE/mobile-app` (package `in.shubix.reelmaker`). This page has what Play Console → **App
 content** asks, worked out from the code (2026-10-30). Check it again when the app starts collecting something new.
 Replace `https://SITE` with the live website.
 
