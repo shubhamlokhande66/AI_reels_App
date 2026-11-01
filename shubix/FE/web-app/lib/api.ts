@@ -1,4 +1,4 @@
-import { viaBoot } from "@/lib/boot";
+import { noteMe, noteSignedIn, skipSignedOut, viaBoot } from "@/lib/boot";
 import type { Features } from "@shubix/core/lib/features-list";
 import { tracked } from "./activity";
 
@@ -130,6 +130,7 @@ async function readWithRetry<T>(path: string, init: RequestInit | undefined, tim
 }
 
 async function send<T>(path: string, init: RequestInit | undefined, timeoutMs: number): Promise<T> {
+  if (await skipSignedOut(path, init?.method)) throw new ApiError(401, { code: "AUTH_REQUIRED", message: "Please sign in." });
   let res: Response;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -160,8 +161,11 @@ async function send<T>(path: string, init: RequestInit | undefined, timeoutMs: n
     if (err.code === "INSUFFICIENT_CREDITS" && typeof window !== "undefined") window.dispatchEvent(new CustomEvent("credits:needed", { detail: err.message }));
     throw err;
   }
+  if (path.startsWith("/api/auth/") && (init?.method ?? "GET").toUpperCase() !== "GET") noteSignedIn();
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const data = (await res.json()) as T;
+  if (path === "/api/auth/me") noteMe(data);
+  return data;
 }
 
 /** Multipart upload with progress (fetch has no upload progress events). */
@@ -224,7 +228,7 @@ export const api = {
   /** the administrator's daily code (an admin account signed in: the admin pages open after it, for a day) */
   adminCode: () => request<{ ok: boolean; wait: number; email: string }>("/api/admin/code", { method: "POST" }),
   adminVerify: (code: string) => request<{ ok: boolean; until: string }>("/api/admin/code/verify", { method: "POST", body: JSON.stringify({ code }) }),
-  plans: () => request<Pricing>("/api/plans"),
+  plans: () => viaBoot("plans", () => request<Pricing>("/api/plans")),
   credits: () => viaBoot("credits", () => request<Credits>("/api/credits")),
   createOrder: (item: string, coupon?: string) => request<CheckoutOrder>("/api/billing/order", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
   quote: (item: string, coupon?: string) => request<import("@/lib/marketing").Quote>("/api/billing/quote", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
@@ -237,7 +241,7 @@ export const api = {
   // support: the Contact page, the Help chat, Admin → Support
   contact: (d: { email: string; name?: string; topic: string; message: string; page?: string; website?: string }) =>
     request<{ ok: boolean; ticket: string }>("/api/contact", { method: "POST", body: JSON.stringify(d) }),
-  helpOn: () => request<{ on: boolean }>("/api/help"),
+  helpOn: () => viaBoot("help", () => request<{ on: boolean }>("/api/help")),
   help: (messages: { role: "user" | "assistant"; content: string }[], page = "") =>
     // quiet (no "Working…" pill over the chat): the chat shows its own typing dots
     send<{ answer: string; needsHuman: boolean; suggestions: string[] }>("/api/help", { method: "POST", body: JSON.stringify({ messages, page }) }, 60_000),
@@ -294,7 +298,7 @@ export const api = {
   /** Admin → Settings → Business details (empty fields: the server's environment). */
   setSite: (patch: Partial<SiteInfo>) => request<SiteInfo>("/api/admin/site", { method: "PUT", body: JSON.stringify(patch) }),
   /** The administrator's lists (Admin → CMS; lib/collections.ts has the first items). */
-  content: () => request<import("@shubix/core/lib/collections").Content>("/api/content"),
+  content: () => viaBoot("content", () => request<import("@shubix/core/lib/collections").Content>("/api/content")),
   setContent: (patch: Record<string, import("@shubix/core/lib/collections").ListItem[] | null>) => request<import("@shubix/core/lib/collections").Content>("/api/admin/content", { method: "PUT", body: JSON.stringify(patch) }),
   /** Which parts of the app are on (Administration → Features). */
   features: () => viaBoot("features", () => request<Features>("/api/features")),
@@ -307,11 +311,11 @@ export const api = {
   broadcasts: () => request<{ broadcasts: Broadcast[] }>("/api/admin/broadcasts"),
   sendBroadcast: (d: BroadcastInput & { dryRun?: boolean }) => request<{ ok: boolean; people: number; emails?: number; emailsOff?: number; emailed?: number; emailFailed?: number; over?: boolean }>("/api/admin/broadcasts", { method: "POST", body: JSON.stringify(d) }),
   deleteBroadcast: (id: string) => request<{ ok: boolean }>("/api/admin/broadcasts", { method: "DELETE", body: JSON.stringify({ id }) }),
-  notifications: () => request<{ items: Notice[]; unread: number }>("/api/notifications"),
+  notifications: () => viaBoot("notifications", () => request<{ items: Notice[]; unread: number }>("/api/notifications")),
   readNotifications: () => request<{ ok: boolean }>("/api/notifications", { method: "POST" }),
   /** the account and everything in it (Reels, drafts, credits, affiliate account); its payments stay, unnamed */
   adminDeleteUser: (id: string) => request<{ ok: boolean; email: string }>(`/api/admin/users/${id}`, { method: "DELETE" }),
-  ads: () => request<AdsConfig>("/api/ads"),
+  ads: () => viaBoot("ads", () => request<AdsConfig>("/api/ads")),
   setAds: (b: Partial<AdsConfig>) => request<AdsConfig>("/api/admin/ads", { method: "PUT", body: JSON.stringify(b) }),
   /** Admin: a plan by hand (Free, or a paid plan for 1 or 12 months with its credits) */
   adminSetPlan: (id: string, plan: string, months: number) => request<unknown>(`/api/admin/users/${id}/plan`, { method: "POST", body: JSON.stringify({ plan, months }) }),
