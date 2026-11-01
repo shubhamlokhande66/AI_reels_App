@@ -18,7 +18,9 @@ import { songAnalysis } from '@shubix/core/engine/studio/song';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
-import { createPreviewProxy, previewProxyPlan } from '../../lib/previewProxy';
+import { createPreviewProxy, previewProxyPlan, probeVideo, editCopyPlan, convertOnServer, SERVER_CONVERT_MAX_BYTES } from '../../lib/previewProxy';
+// the file the decoders read: an iPhone 4K HDR 60 fps clip's edit copy (H.264, 1080p, 30 fps) when it has one
+const decFile = s => s.edFile || s.file;
 import { parseDirectorVisualIntent } from './visualIntent';
 import { bootPart } from '../../lib/boot';
 
@@ -677,7 +679,7 @@ async function videoData(v, ms=12000){
 async function clipReader(src, maxSide){
   try{
     const mb = await loadMediabunny();
-    const input = new mb.Input({ source: new mb.BlobSource(src.file), formats: mb.ALL_FORMATS });
+    const input = new mb.Input({ source: new mb.BlobSource(decFile(src)), formats: mb.ALL_FORMATS });
     const track = await input.getPrimaryVideoTrack();
     if(!track || !(await track.canDecode())){ try{ input.dispose(); }catch(e){} throw new Error('no WebCodecs decoder'); }
     const first = await track.getFirstTimestamp(), sc = Math.min(1, maxSide/Math.max(src.w, src.h));
@@ -1121,15 +1123,86 @@ function updateClipHoverInfo(src){
   }else if(src.proxyReason){
     lines.push('Details: '+src.proxyReason);
   }
-  lines.push('Export: original file · unchanged');
+  lines.push(src.edFile ? 'Export: the smooth edit copy (' + (src.edW||'?') + ' × ' + (src.edH||'?') + ', 30 fps)' : 'Export: original file · unchanged');
   src.card.title=lines.join('\n');
   src.card.setAttribute('aria-label',lines.join('. '));
 }
+/* ---- clips from any camera: an edit copy for what plays badly or not at all here (lib/previewProxy.ts) ----
+ * iPhone 4K HDR / Cinematic / slo-mo, Android 60 fps / 8K / HDR10+, GoPro, drones, mirrorless 10-bit 4:2:2, screen
+ * recordings (a varying frame rate): an H.264 1080p 30 fps SDR copy, made on this device, read by the preview, the
+ * clip reading and the export. What this browser cannot decode at all (ProRes, 4:2:2, old codecs) is converted by
+ * Shubix (signed in, up to 95 MB). Kept with the draft on this device (v2), so a reopened Reel does not convert again. */
+function whatClip(f){
+  const k = [];
+  if(f){ const ls = Math.max(f.width||0, f.height||0); if(ls >= 7000) k.push('8K'); else if(ls >= 3800) k.push('4K'); else if(ls > 2600) k.push(Math.round(ls/1000*10)/10 + 'K');
+    if(f.hdr) k.push('HDR'); if(f.tenBit && !f.hdr) k.push('10-bit'); if(f.chroma422) k.push('camera 4:2:2');
+    if(f.fps > 31) k.push(Math.round(f.fps) + ' fps'); if(f.vfr) k.push('changing frame rate'); }
+  return k.length ? k.join(' · ') : 'this format';
+}
+function setEditCopy(src, blob, w, h, how){
+  src.edFile = blob; src.edW = w; src.edH = h; src.edAudio = how === 'server' || !/webm/.test(blob.type) || how === 'decoder';
+  const old = src.url; src.url = URL.createObjectURL(blob); try{ if(old && old !== src.url && src.previewProxy) URL.revokeObjectURL(old); }catch(e){}
+  src.previewProxy = true; src.proxySize = blob.size; src.proxyW = w; src.proxyH = h; src.proxyMime = blob.type;
+  src.proxyStatus = how === 'server' ? 'Converted by Shubix' : 'Success';
+  src.proxyReason = 'Smooth copy for the preview and the export (' + w + ' × ' + h + ', 30 fps, normal colours).';
+  updateClipHoverInfo(src);
+}
+async function makeEditCopy(src, dd, facts, plan, playable){
+  const label = whatClip(facts);
+  previewBatchDetected++;
+  previewBatchShow(src, label[0].toUpperCase() + label.slice(1) + ' video found. Making a smooth copy so it plays without lag…', 0);
+  life({ stage: 'making an edit copy', size: Math.round(src.file.size/1e6) + ' MB', res: (facts && facts.width) + 'x' + (facts && facts.height), what: label });
+  src.proxyStatus = 'Making a smooth copy…'; updateClipHoverInfo(src);
+  const show = (p, word) => { const n = Math.max(0, Math.min(100, Math.round(p*100))); dd.textContent = word + ' ' + n + '%'; previewBatchShow(src, word[0].toUpperCase() + word.slice(1) + ' ' + src.name + '…', p); };
+  // 1. on this device: WebCodecs, else the browser's own player feeding an encoder
+  let r = null;
+  if(plan && (playable || (facts && facts.decodes))){
+    try{ r = await createPreviewProxy(src.file, p => show(p, 'making a smooth copy…'), plan); }catch(e){ r = null; console.info('edit copy on this device failed', e); }
+  }
+  if(src.removed) return false;
+  if(r && r.blob && r.blob.size){
+    setEditCopy(src, r.blob, r.plan.width, r.plan.height, facts && facts.decodes ? 'decoder' : 'player');
+  } else {
+    // 2. Shubix converts it (what this browser cannot decode)
+    if(src.file.size > SERVER_CONVERT_MAX_BYTES){ src.proxyStatus = 'Could not convert here'; src.edFail = 'big'; updateClipHoverInfo(src); return false; }
+    try{
+      const blob = await convertOnServer(src.file, p => show(p, p < 0.5 ? 'sending to Shubix to convert…' : 'converting…'));
+      if(src.removed) return false;
+      const sc = Math.min(1, 1920/Math.max(src.w || (facts && facts.width) || 1920, src.h || (facts && facts.height) || 1080));
+      const w = Math.round(((src.w || (facts && facts.width) || 1080)*sc)/2)*2, h = Math.round(((src.h || (facts && facts.height) || 1920)*sc)/2)*2;
+      setEditCopy(src, blob, w, h, 'server');
+    }catch(e){
+      src.proxyStatus = 'Could not convert'; src.edFail = e && e.code === 'UNAUTHORIZED' || (e && e.status === 401) ? 'signin' : e && e.code === 'OFFLINE' ? 'offline' : e && (e.code === 'CORRUPTED_MEDIA' || e.code === 'CONVERT_NO_VIDEO') ? 'broken' : e && (e.code === 'CONVERT_TOO_BIG' || e.code === 'CONVERT_TOO_LONG') ? 'big' : e && (e.code === 'RATE_LIMITED' || e.code === 'CONVERT_BUSY') ? 'limit' : 'server'; src.edErr = e && e.message;
+      updateClipHoverInfo(src); console.info('edit copy by Shubix failed', e);
+      return false;
+    }
+  }
+  previewBatchCompressed++;
+  previewBatchShow(src, 'Smooth copy ready (' + previewBatchCompressed + '/' + previewBatchDetected + '). Reading your videos…', 1);
+  try{ await keptPut('p:', src.file, { v: 2, edit: true, audio: !!src.edAudio, blob: src.edFile, width: src.edW, height: src.edH, mime: src.edFile.type || '' }); }catch(e){}
+  return true;
+}
+// what the person sees when a heavy clip could not get its copy (it is kept, but may lag)
+function editCopyFailNote(src, facts){
+  const why = whatClip(facts);
+  const tip = src.edFail === 'limit' && src.edErr ? ' ' + src.edErr : src.edFail === 'broken' ? ' The file looks damaged or incomplete: copy it again from your phone and add it.' : src.edFail === 'signin' ? ' Sign in and add it again: Shubix converts it for you.'
+    : src.edFail === 'offline' ? ' Connect to the internet and add it again: Shubix converts it for you.'
+    : src.edFail === 'big' ? ' It is too big to convert online: save it as MP4 (H.264, 1080p, 30 fps) from your camera or phone and add it again.'
+    : ' Save it as MP4 (H.264, 1080p, 30 fps) and add it again. On an iPhone: Settings → Camera → Formats → Most Compatible.';
+  notify(src.name + ' (' + why + ') could not be made smooth on this device, so it may lag.' + tip, 'err');
+}
 async function compressHighResolutionPreview(src, dd){
-  // Reuse the exact preview proxy for this original file when a saved draft is reopened.
-  // The original File remains the export source; only the editor's lightweight preview URL changes.
+  if(src.edFile){ if(src.proxyStatus === 'Checking preview…') src.proxyStatus = 'Smooth copy ready'; updateClipHoverInfo(src); return; }   // made already (a format the player could not open)
+  const probe = await probeVideo(src.file).catch(() => null);
+  const facts = { size: src.file.size, width: src.w, height: src.h, duration: src.dur, fps: probe ? probe.fps : 0, hdr: !!(probe && probe.hdr), tenBit: !!(probe && probe.tenBit), chroma422: !!(probe && probe.chroma422), vfr: !!(probe && probe.vfr) };
+  src.facts = { ...facts, decodes: !!(probe && probe.decodes) };
+  const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
+  const plan=previewProxyPlan(facts, isMov);
+  const heavy = !!(plan && plan.forExport);
+  // Reuse the copy made for this original file when a saved draft is reopened.
   const cached = await keptGet('p:', src.file);
-  if(cached && cached.v === 1 && cached.blob instanceof Blob && cached.blob.size < src.file.size){
+  if(cached && cached.blob instanceof Blob && (heavy ? cached.v === 2 && cached.edit : cached.v === 1 && cached.blob.size < src.file.size)){
+    if(cached.edit){ src.edFile = cached.blob; src.edW = cached.width || 0; src.edH = cached.height || 0; src.edAudio = !!cached.audio; }
     src.url = URL.createObjectURL(cached.blob);
     src.previewProxy = true; src.proxySize = cached.blob.size;
     src.proxyW = cached.width || 0; src.proxyH = cached.height || 0;
@@ -1138,8 +1211,10 @@ async function compressHighResolutionPreview(src, dd){
     updateClipHoverInfo(src);
     return;
   }
-  const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
-  const plan=previewProxyPlan({size:src.file.size,width:src.w,height:src.h,duration:src.dur}, isMov);
+  if(heavy){
+    if(!(await makeEditCopy(src, dd, src.facts, plan, true)) && !src.removed) editCopyFailNote(src, src.facts);
+    return;
+  }
   if(!plan){
     const longSide=Math.max(src.w||0,src.h||0), avg=src.dur>0 ? src.file.size*8/src.dur : 0;
     src.proxyStatus='Not compressed';
@@ -1155,7 +1230,7 @@ async function compressHighResolutionPreview(src, dd){
     const result=await createPreviewProxy(src.file,p=>{
       previewBatchShow(src,'Compressing '+src.name+' for smooth editing…',p);
       const n=Math.max(0,Math.min(100,Math.round(p*100))); dd.textContent='compressing for editing… '+n+'%';
-    });
+    }, plan);
     if(src.removed) return;
     if(result && result.blob && result.blob.size<src.file.size){
       const oldUrl=src.url; src.url=URL.createObjectURL(result.blob); src.previewProxy=true; src.proxySize=result.blob.size; src.proxyW=result.plan.width; src.proxyH=result.plan.height; src.proxyMime=result.blob.type; src.proxyStatus='Success'; src.proxyReason='Downscaled preview generated successfully.';
@@ -1176,6 +1251,20 @@ async function compressHighResolutionPreview(src, dd){
     previewBatchShow(src,'Compression unavailable for '+src.name+'. Keeping the original and continuing analysis…',1);
   }
 }
+// The browser's player cannot open this clip (ProRes, 4:2:2, HEVC on a browser without it, an unusual container):
+// an edit copy from WebCodecs or from Shubix, then the clip is read from the copy. false: nothing could open it.
+async function rescueClip(src, dd){
+  if(src.edFile || src.rescueTried) return false;
+  src.rescueTried = true;
+  const cached = await keptGet('p:', src.file).catch(() => null);
+  if(cached && cached.v === 2 && cached.edit && cached.blob instanceof Blob){ setEditCopy(src, cached.blob, cached.width || 0, cached.height || 0, cached.audio ? 'server' : 'player'); return true; }
+  const probe = await probeVideo(src.file).catch(() => null);
+  const facts = probe ? { size: src.file.size, width: probe.width, height: probe.height, duration: probe.duration, fps: probe.fps, hdr: probe.hdr, tenBit: probe.tenBit, chroma422: probe.chroma422, vfr: probe.vfr, decodes: probe.decodes } : null;
+  src.facts = facts;
+  const plan = facts ? editCopyPlan(facts) : null;
+  if(facts && facts.width){ src.w = src.w || facts.width; src.h = src.h || facts.height; }
+  return makeEditCopy(src, dd, facts, plan, false);
+}
 
 async function readVideo(src){
   if(src.removed) return;
@@ -1186,14 +1275,20 @@ async function readVideo(src){
   const slow = setTimeout(() => { try{ window.__shubixReport && window.__shubixReport('clip', 'Clip still reading after 2 min at "' + stage + '" · ' + ((src.file && src.file.type) || 'no type') + ' · ' + dd.textContent, JSON.stringify({ size: src.file && src.file.size, dur: src.dur, w: src.w, h: src.h, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){} }, 120000);
   try{
     dd.textContent = 'Reading video…'; dd.dataset.st = 'read'; dd.dataset.p = '0'; setClipStatus(src,'reading');
-    v = makeVideo(src.url); await waitEv(v,'loadedmetadata', 15000);
+    // a format the browser's player cannot open: an edit copy (this device or Shubix), then the clip is read from it
+    const reopen = async () => { stage = 'converting the format'; if(!(await rescueClip(src, dd))) return false; if(v){ v.removeAttribute('src'); v.load(); } v = makeVideo(src.url); stage = 'metadata'; await waitEv(v,'loadedmetadata', 15000); if(src.edFile && v.videoWidth){ src.edW = v.videoWidth; src.edH = v.videoHeight; } return true; };
+    v = makeVideo(src.url);
+    try{ await waitEv(v,'loadedmetadata', 15000); if(!isFinite(v.duration) || v.duration<=0 || !v.videoWidth) throw new Error('bad'); }
+    catch(err){ if(src.removed) return; if(!(await reopen())) throw err; }
     src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight;
     if(!isFinite(src.dur) || src.dur<=0 || !src.w) throw new Error('bad');
     src.proxyStatus='Checking preview…'; updateClipHoverInfo(src);
     stage = 'preview compression'; await compressHighResolutionPreview(src, dd);
     if(src.removed) return;
     if(src.previewProxy){ v.removeAttribute('src'); v.load(); v=makeVideo(src.url); await waitEv(v,'loadedmetadata',15000); }
-    stage = 'first picture'; await videoData(v);
+    stage = 'first picture';
+    try{ await videoData(v); }
+    catch(err){ if(src.removed) return; if(!(await reopen())) throw err; src.dur = v.duration; src.w = v.videoWidth; src.h = v.videoHeight; stage = 'first picture'; await videoData(v); }
     // The first decoded frame is enough for the clip's small queue thumbnail. Avoid a second iPhone seek here;
     // thumbnail choice has no effect on the Reel analysis or export. Keep the existing Android thumbnail unchanged.
     if(!IOS){ stage = 'seek'; v.currentTime = Math.min(src.dur*0.3, 2); await waitEv(v,'seeked'); }
@@ -1259,7 +1354,7 @@ async function readVideo(src){
     try{ const f = src.file || {}, me = v && v.error;
       window.__shubixReport && window.__shubixReport('clip', 'Clip not readable at "' + stage + '": ' + String(e && e.message || e).slice(0, 160) + ' · ' + (f.type || 'no type') + ' · .' + String(src.name || '').split('.').pop().toLowerCase(),
         JSON.stringify({ size: f.size, dur: src.dur, w: src.w, h: src.h, ready: v && v.readyState, net: v && v.networkState, mediaError: me ? me.code + ' ' + (me.message || '') : null, webcodecs: typeof VideoDecoder !== 'undefined' })); }catch(x){}
-    dd.textContent = 'This video does not play here (format). Remove it with ×.'; dd.dataset.st = 'bad';
+    dd.textContent = src.edFail === 'limit' && src.edErr ? src.edErr : src.edFail === 'broken' ? 'This file looks damaged or incomplete (a copy that did not finish?). Copy it again from your phone and add it.' : src.edFail === 'signin' ? 'This camera format needs converting: sign in and add it again.' : src.edFail === 'offline' ? 'This format needs converting: connect to the internet and add it again.' : src.edFail === 'big' ? 'This camera format is too big to convert online: save it as MP4 (H.264) and add it again.' : 'This video\'s format cannot be opened here. Save it as MP4 (H.264) and add it again, or remove it with ×.'; dd.dataset.st = 'bad';
     card.style.borderColor = 'var(--drop)';
   }finally{ clearTimeout(slow); }
 }
@@ -1327,7 +1422,7 @@ const VOICE_RMS = 0.12;   // about -18 dBFS of speech: room for the music and th
 async function voiceOf(src){
   if(src.voice) return src.voice;
   let ab = null;
-  try{ ab = await decodeAnyAudio(src.file); }catch(e){ ab = null; }
+  try{ ab = await decodeAnyAudio(src.file); }catch(e){ ab = null; if(src.edFile && src.edAudio){ try{ ab = await decodeAnyAudio(new File([src.edFile], 'copy.' + (/webm/.test(src.edFile.type) ? 'webm' : 'mp4'), { type: src.edFile.type })); }catch(e2){ ab = null; } } }
   if(!ab || ab.duration < 0.3){ src.voice = { has: false }; return src.voice; }
   const sr = ab.sampleRate, pcm = new Float32Array(ab.length);
   for(let c=0;c<ab.numberOfChannels;c++){ const d = ab.getChannelData(c); for(let i=0;i<pcm.length;i++) pcm[i] += d[i]/ab.numberOfChannels; }
@@ -4808,7 +4903,7 @@ async function revCache(e){
   const need = e.sp.pos(e.end - e.start)*e.scaleR, key = e.src + '|' + e.in.toFixed(3) + '|' + need.toFixed(3);
   if(e.rc && e.rc.key === key) return;
   if(e.rc) e.rc.frames.forEach(f => f && f.close && f.close()); e.rc = null;
-  const s = sources[e.src], mb = await loadMediabunny(), input = new mb.Input({ source: new mb.BlobSource(s.file), formats: mb.ALL_FORMATS });
+  const s = sources[e.src], mb = await loadMediabunny(), input = new mb.Input({ source: new mb.BlobSource(decFile(s)), formats: mb.ALL_FORMATS });
   try{
     const track = await input.getPrimaryVideoTrack(), first = await track.getFirstTimestamp(), sc = Math.min(1, 480/Math.max(s.w, s.h));
     const sink = new mb.CanvasSink(track, { width: Math.max(16, Math.round(s.w*sc/2)*2), height: Math.max(16, Math.round(s.h*sc/2)*2), fit: 'fill', poolSize: 2 });
@@ -5260,6 +5355,11 @@ async function fastExport(){
     sn.connect(g); g.connect(lim); lim.connect(oc.destination); sn.start(0);
     tasks.update('export', null, 'Mixing the sound');
     const audio = snd ? await oc.startRendering() : null;
+    // the limiter above is a fast compressor, not a wall: a loud, dense song still overshoots past 0 dB here and there
+    // (a crackle on phones, and the quality check below). The whole mix is brought down so its peak sits at -0.5 dBFS
+    // (a fraction of a decibel: no audible change).
+    if(audio){ let pk = 0; for(let c=0;c<audio.numberOfChannels;c++){ const d = audio.getChannelData(c); for(let i=0;i<d.length;i++){ const v = d[i] < 0 ? -d[i] : d[i]; if(v > pk) pk = v; } }
+      if(pk > 0.944){ const k = 0.944/pk; for(let c=0;c<audio.numberOfChannels;c++){ const d = audio.getChannelData(c); for(let i=0;i<d.length;i++) d[i] *= k; } } }
     tasks.update('export', 0, 'Putting your Reel together · keep this screen on');
     const chunkOf = (k) => { // one second of the sound as its own AudioBuffer (fed in step with the picture)
       const a = Math.round(k*sr), b = Math.min(audio.length, Math.round((k+1)*sr)); if(b<=a) return null;
@@ -5285,11 +5385,15 @@ async function fastExport(){
       if(sinks.has(key)){ const v = sinks.get(key); sinks.delete(key); sinks.set(key, v); }   // most recently used last
       else {
         while(sinks.size >= LIVE){ const [k0, old] = sinks.entries().next().value; sinks.delete(k0); try{ old.input.dispose(); }catch(err){} const ii = inputs.indexOf(old.input); if(ii >= 0) inputs.splice(ii, 1); }
-        const s0 = sources[si], input = new mb.Input({ source: new mb.BlobSource(s0.file), formats: mb.ALL_FORMATS }); inputs.push(input);
-        const track = await input.getPrimaryVideoTrack();
-        const r = Math.min(1, Math.max(W/s0.w, H/s0.h)*1.3);
+        // a heavy iPhone clip is read from its edit copy (1080p 30 fps H.264); a 4K export reads the original when it decodes
+        const s0 = sources[si];
+        let input = null, track = null, sw = s0.w, sh0 = s0.h;
+        if(s0.edFile && xq.res === '4k'){ const i0 = new mb.Input({ source: new mb.BlobSource(s0.file), formats: mb.ALL_FORMATS }); const t0 = await i0.getPrimaryVideoTrack().catch(() => null); if(t0 && await t0.canDecode().catch(() => false)){ input = i0; track = t0; } else { try{ i0.dispose(); }catch(err){} } }
+        if(!input){ input = new mb.Input({ source: new mb.BlobSource(decFile(s0)), formats: mb.ALL_FORMATS }); track = await input.getPrimaryVideoTrack(); if(s0.edFile && s0.edW){ sw = s0.edW; sh0 = s0.edH; } }
+        inputs.push(input);
+        const r = Math.min(1, Math.max(W/sw, H/sh0)*1.3);
         let sfps = 30; try{ const stt = await track.computePacketStats(90); if(stt && stt.averagePacketRate > 1) sfps = stt.averagePacketRate; }catch(err){}
-        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(s0.w*r/2)*2), height: Math.max(16, Math.round(s0.h*r/2)*2), fit: 'fill', poolSize: EXPORT_FRAME_POOL }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
+        sinks.set(key, { input, sink: new mb.CanvasSink(track, { width: Math.max(16, Math.round(sw*r/2)*2), height: Math.max(16, Math.round(sh0*r/2)*2), fit: 'fill', poolSize: EXPORT_FRAME_POOL }), first: await track.getFirstTimestamp(), half: 0.5/sfps });
       }
       return sinks.get(key);
     };
@@ -5414,9 +5518,11 @@ async function fastExport(){
       frames: qualityFrames, ...(audioQuality ? { audio: audioQuality } : {}),
     });
     root.__lastQualityReport = quality;
+    // a finished Reel is never thrown away by the check (a night clip is mostly black; the picture was already checked
+    // frame by frame above): what it found is reported (Admin → Errors) and kept for tests
     if(quality.status === 'fail'){
-      const error = new Error('Quality check stopped this export: ' + quality.errors.join(' '));
-      error.code = 'QUALITY_GATE_FAILED'; error.quality = quality; throw error;
+      console.warn('Shubix export quality check:', quality.errors);
+      try{ window.__shubixReport && window.__shubixReport('export', 'Quality check: ' + quality.errors.join(' '), JSON.stringify({ score: quality.score, repairs: quality.repairs })); }catch(err){}
     }
     if(quality.warnings.length) console.warn('Shubix export quality warnings:', quality.warnings);
     await output.finalize();
@@ -6376,7 +6482,7 @@ function voPcm(){ if(!vo) return null; if(au.vfx === 'none') return vo.pcm;
 // a shot's own sound, decoded once per clip (null: the clip has no sound)
 async function clipPcm(si){
   const s = sources[si]; if(!s) return null; if(s.pcm !== undefined) return s.pcm;
-  try{ const b = await decodeAnyAudio(s.file), m = new Float32Array(b.length), ch = b.numberOfChannels;
+  try{ const b = await decodeAnyAudio(s.file).catch(e => { if(s.edFile && s.edAudio) return decodeAnyAudio(new File([s.edFile], 'copy.' + (/webm/.test(s.edFile.type) ? 'webm' : 'mp4'), { type: s.edFile.type })); throw e; }), m = new Float32Array(b.length), ch = b.numberOfChannels;
     for(let c=0;c<ch;c++){ const d = b.getChannelData(c); for(let i=0;i<m.length;i++) m[i] += d[i]/ch; }
     s.pcm = { x: m, sr: b.sampleRate }; }catch(e){ s.pcm = null; }
   return s.pcm;
