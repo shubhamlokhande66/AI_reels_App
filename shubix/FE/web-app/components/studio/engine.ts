@@ -78,7 +78,7 @@ async function wipRestore(w){
   setTimeout(() => { try{ notify('Your phone reloaded the page: your song and clips are back.'); }catch(e){} }, 800);
 }
 if(WIP && !(lifeBefore && Date.now() - lifeBefore.at < 10*60e3)) queueMicrotask(() => idb('files', 'readwrite', s => s.getAllKeys()).then(keys => (keys || []).filter(k => String(k).startsWith('w:')).length && idb('files', 'readwrite', s => { keys.filter(k => String(k).startsWith('w:')).forEach(k => s.delete(k)); })).catch(() => {}));
-let exporting = false;
+let exporting = false, expCancel = false;   // expCancel: Cancel export was tapped (the fast export stops at its next frame)
 // the Shubix watermark on exported Reels (bottom right). Removing it ("Remove Watermark" in the export sheet) is for paid
 // plans (and the administrator): wmPaid comes from the server when the sheet opens; until then the watermark stays
 let wmOff = false, wmPaid = false;
@@ -5378,6 +5378,7 @@ async function fastExport(){
         }
         const tb = performance.now(); prof.draw += tb - ta;
         await vs.add(k/fps, 1/fps);
+        if(expCancel){ const err = new Error('Export cancelled'); err.code = 'CANCELLED'; throw err; }
         tq = performance.now(); prof.encode += tq - tb; prof.frames++;
         while(as && nextAudio <= k/fps + 1 && nextAudio*1 < dur){ const ab = chunkOf(nextAudio); if(ab) await as.add(ab); nextAudio++; }
         k++;
@@ -5436,6 +5437,7 @@ async function fastExport(){
 // it the export. The lock is taken again if the page comes back from the background; it is let go at the end.
 let wakeLock = null, exportBusy = false;
 async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', ()=>{ wakeLock = null; }); } }catch(err){ wakeLock = null; } }
+$('fexpcancel')?.addEventListener('click', () => { if(!exportBusy) return; expCancel = true; $('fexpcancel').textContent = 'Cancelling…'; }, SIG);
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
 async function autoExport(){
   if(exportBusy) return null; exportKeep = true; exportP = 0; lastVideo = null;
@@ -5448,10 +5450,12 @@ async function runExport(toCloud){
   exportBusy = true; $('saverow').hidden = true; lastVideo = null;
   tasks.start('export', 'export', 'Exporting your Reel', 'Getting ready');   // in view at once, whatever comes next
   await holdScreen();
+  expCancel = false;
   try{
     let ok = false;
     try{ ok = await fastExport(); }
-    catch(err){ if(err && err.code === 'QUALITY_GATE_FAILED'){ tasks.fail('export', err.message); showMsg(err.message, true); throw err; } console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
+    catch(err){ if(err && err.code === 'CANCELLED'){ tasks.clear('export'); notify('Export cancelled. Your Reel is still here.'); return; }
+      if(err && err.code === 'QUALITY_GATE_FAILED'){ tasks.fail('export', err.message); showMsg(err.message, true); throw err; } console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
     if(!ok){
       try{
         ok = await recordExport();

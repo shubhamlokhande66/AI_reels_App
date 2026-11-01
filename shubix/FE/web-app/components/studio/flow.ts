@@ -125,14 +125,14 @@ export function initFlow(root: HTMLElement): () => void {
   };
   const paintAi = () => {
     const make = made();
-    for (const li of root.querySelectorAll<HTMLElement>(".faiList li")) {
+    for (const li of root.querySelectorAll<HTMLElement>(".faiList li[data-t]")) { // (not the export's list: its own progress ticks it)
       const t = li.dataset.t!;
       // the last line (the edit itself) runs once the song and clips are in; every line is done once the Reel is made
       const st = make ? "ok" : t === "make" ? (clipsOk() && songOk() ? "now" : "") : (lines.get(t) ?? "");
       setClass(li, "now", st === "now");
       setClass(li, "ok", st === "ok");
     }
-    const all = [...root.querySelectorAll(".fanList li")], ok = all.filter((l) => l.classList.contains("ok")).length;
+    const all = [...root.querySelectorAll(".fanList li:not(#fexplist li)")], ok = all.filter((l) => l.classList.contains("ok")).length;
     const p = make ? 100 : Math.max(pct, Math.round((ok / all.length) * 100));
     setText($("fanpct"), p + "%");
     const off = String(326.7 * (1 - p / 100));
@@ -378,7 +378,7 @@ export function initFlow(root: HTMLElement): () => void {
   root.addEventListener("studio-task", (e) => {
     const d = (e as CustomEvent<TaskEvent>).detail;
     if (d.id !== "export" || !phone()) return;
-    if (d.state === "start") { $("fdone").hidden = true; exporting(0); $("fexp").hidden = false; }
+    if (d.state === "start") { $("fdone").hidden = true; exporting(0); $("fexp").hidden = false; setText($("fexpcancel"), "Cancel export"); }
     else if (d.state === "progress") exporting(d.p ?? 0);
     else { $("fexp").hidden = true; if (d.state === "done") showDone(d.title); }
   }, sig);
