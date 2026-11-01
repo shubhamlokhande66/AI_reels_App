@@ -5179,7 +5179,7 @@ async function recordExport(){
     const ext = mime.includes('mp4') ? 'mp4' : 'webm';
     const blob = new Blob(chunks, {type: mime.split(';')[0]});
     if(!blob.size) throw new Error('The exported video is empty. Please retry.');
-    const name = 'reel-' + aspect.replace(':','x') + '-1080p.' + ext;
+    const name = fileTitle() + '.' + ext;
     const sh = saveFile(blob, name);
     tasks.done('export', 'Your Reel is ready · ' + (blob.size/1e6).toFixed(1) + ' MB');
     notify('Your Reel is ready', 'ok');
@@ -5421,7 +5421,7 @@ async function fastExport(){
     if(quality.warnings.length) console.warn('Shubix export quality warnings:', quality.warnings);
     await output.finalize();
     const blob = new Blob([output.target.buffer], {type: mp4 ? 'video/mp4' : 'video/webm'});
-    const name = 'reel-' + aspect.replace(':','x') + '-' + XQ[xq.res].label + (fps > 30 ? '-' + fps + 'fps' : '') + '.' + (mp4 ? 'mp4' : 'webm');
+    const name = fileTitle() + '.' + (mp4 ? 'mp4' : 'webm');   // the Reel's own name (Untitled 1, or what it was renamed to)
     const sh = saveFile(blob, name);
     tasks.done('export', 'Your Reel is ready · ' + (blob.size/1e6).toFixed(1) + ' MB');
     if(noSong){ notify('Your Reel is ready', 'ok'); showMsg(savedMsg(sh, 'Video') + ' without the song: ' + noSongTip()); return true; }
@@ -5441,6 +5441,16 @@ async function fastExport(){
 let wakeLock = null, exportBusy = false;
 async function holdScreen(){ try{ if(navigator.wakeLock && !document.hidden){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', ()=>{ wakeLock = null; }); } }catch(err){ wakeLock = null; } }
 $('fexpcancel')?.addEventListener('click', () => { if(!exportBusy) return; expCancel = true; $('fexpcancel').textContent = 'Cancelling…'; }, SIG);
+// the editor's head: tap the name to rename the Reel (Enter or tap away keeps it, Esc does not)
+{ const btn = $('tbrename'), inp = $('tbnamein');
+  if(btn && inp){
+    let open = false;
+    const close = (keep) => { if(!open) return; open = false; const v = inp.value; inp.hidden = true; btn.hidden = false;
+      if(keep && setReelTitle(v)){ notify('Renamed to "' + reelTitle + '"', 'ok'); try{ const st = stateOf(); saveProject(st, JSON.stringify(st)); }catch(e){} } };
+    btn.addEventListener('click', () => { open = true; inp.value = reelTitle || ''; btn.hidden = true; inp.hidden = false; inp.focus(); inp.select(); }, SIG);
+    inp.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); close(true); } else if(ev.key === 'Escape'){ ev.preventDefault(); close(false); } }, SIG);
+    inp.addEventListener('blur', () => close(true), SIG);
+  } }
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
 async function autoExport(){
   if(exportBusy) return null; exportKeep = true; exportP = 0; lastVideo = null;
@@ -5524,6 +5534,7 @@ function sheetPaint(){
   [...$('xfps').children].forEach(b => b.setAttribute('aria-pressed', +b.dataset.f === xq.fps));
   const [W, H] = exportDims(), dur = buf ? buf.duration : 0, mb = (XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1) + 256e3) * dur / 8 / 1e6;
   $('xsize').textContent = W + ' × ' + H + ' · ' + xq.fps + ' fps · up to ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB';
+  { const fn = $('xfname'); if(fn) fn.textContent = fileTitle() + '.mp4'; }
   // Remove Watermark, and Save to My Reels (when the account has My Reels); "Export to phone" does what they say
   wmPaid = exRule().noWatermark; const R = exRule();
   for(const b of $('xres').children) b.classList.toggle('crowned', { '720': 0, '1080': 1, '4k': 2 }[b.dataset.r] > { '720': 0, '1080': 1, '4k': 2 }[R.maxRes]);
@@ -5578,7 +5589,7 @@ $('export').onclick = () => { if(recording || exportBusy) return; if(root.classL
 
 async function saveToMyReels(blob){
   if(!cloud) return;
-  const [W, H] = exportDims(), name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
+  const [W, H] = exportDims(), name = reelTitle || 'Reel';
   const msg = $('xmsg').textContent;
   try{
     showMsg('Saving to My Reels… 0%');
@@ -5626,7 +5637,7 @@ $('cover').onclick = async () => {
   const d = edit.find(x=>x.type==='drop') || edit[0], tt = d.start + Math.min(0.6, (d.end-d.start)*0.6);
   setCanvas(true); coverMode = true; const i = segAt(tt); await prepare(i, tt); drawFrame(tt);
   const blob = await new Promise(r=>out.toBlob(r,'image/jpeg',0.92)); coverMode = false; setCanvas(false); captureLoop();
-  const sh = saveFile(blob, 'reel-cover.jpg'); showMsg(savedMsg(sh, 'Cover') + '. Pick it under "Edit cover" when you post.');
+  const sh = saveFile(blob, fileTitle() + ' cover.jpg'); showMsg(savedMsg(sh, 'Cover') + '. Pick it under "Edit cover" when you post.');
 };
 
 
@@ -6809,6 +6820,20 @@ $('postcopy').addEventListener('click', () => copyCaption($('postcapt').value.tr
  * texts, the part of the song and the captions already transcribed. It is saved a few seconds after anything changes;
  * "Your Reels" opens one again exactly as it was (the page reloads into it). */
 const PDB = 'brs-projects';
+// the Reel's name: "Untitled 1", "Untitled 2"… for a new one (the next number among this phone's drafts), changed by
+// tapping it in the editor's head; it names the draft, the Reel in My Reels and the exported video file
+let reelTitle = '';
+const fileTitle = () => (reelTitle || 'Reel').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Reel';
+async function nextUntitled(){
+  let n = 0;
+  try{ const all = await idb('meta', 'readonly', st => st.getAll()); for(const m of all || []){ const x = /^Untitled (\d+)$/.exec(m && m.name || ''); if(x) n = Math.max(n, +x[1]); } }catch(e){}
+  return 'Untitled ' + (n + 1);
+}
+function setReelTitle(t){
+  const v = String(t || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  if(!v || v === reelTitle) return false;
+  reelTitle = v; const el = $('tbname'); if(el) el.textContent = v; return true;
+}
 let proj = null, lastSig = '', restoring = false, capKeyNow = '';
 // a new Reel in Create has its own id from the start: it is a draft in My Reels from its first song or clip, kept as it
 // changes (the address stays the Create steps' until Generate opens the editor)
@@ -6832,7 +6857,7 @@ function editOf(){
 function stateOf(){
   return { kind, song: song && song.file ? { fp: fileFp(song.file), name: song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), sfx: sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '', seq: seqOn, chat: chatMsgs.slice(-20), reelId, aiOk: !!reelId && aiReel === reelId, chatUsed },
+    settings: { au, tts: ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo, trOnly, tr: trTo ? [...trCache].filter(([k]) => k.startsWith(trTo + '|')).slice(0, 200) : [], denoise: denoiseOn, mode: mode === 'copy' ? 'auto' : mode, look: look === 'copy' ? 'vivid' : look, aspect, textStyle, hookText, capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: userMarks.slice(0, 200), sfx: sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ACCENT, seed, bg: bgFile ? fileFp(bgFile) : '', seq: seqOn, title: reelTitle, chat: chatMsgs.slice(-20), reelId, aiOk: !!reelId && aiReel === reelId, chatUsed },
     overlays: overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
@@ -6852,7 +6877,8 @@ async function saveProject(st, sig){
     if(bgFile) await putFile(bgFile);
     for(const M of lmedia) await putFile(M.file);
     if(vo) await putFile(voFile());
-    const name = (song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : 'Reel');
+    if(!reelTitle){ reelTitle = await nextUntitled(); st = { ...st, settings: { ...st.settings, title: reelTitle } }; sig = JSON.stringify(st); }
+    const name = reelTitle;
     await idb('meta', 'readwrite', s => s.put({ id: proj.id, created: proj.created, updated: Date.now(), name, kind, dur: buf ? buf.duration : 0, shots: edit.length, thumb: thumbOf(), state: st }));
     life({ saving: 0, proj: proj.id });
     // a made Reel has its own address (/editor?p=…): a reload, a shared link or Back to it opens this Reel, not a new one
@@ -6905,6 +6931,7 @@ async function openProject(id){
     const p = await idb('meta', 'readonly', s => s.get(id)); if(!p){ say('That Reel is no longer on this phone.'); return; }
     const st = p.state; expectedClips = (st.clips || []).length; const getF = async (fp, name) => { const b = fp ? await idb('files', 'readonly', s => s.get('f:' + fp)) : null; return b ? new File([b], name || b.name || 'file', { type: b.type, lastModified: +fp.split('|').pop() || Date.now() }) : null; };
     say('Opening "' + p.name + '"…'); proj = { id: p.id, created: p.created };
+    reelTitle = (st.settings && st.settings.title) || p.name || '';
     const S = st.settings || {};
     keepSaved = st.kind !== 'talk' && !!(st.edit && st.edit.length);   // no plan / rebuild while it opens: its own edit comes back
     talkKfs = st.kind === 'talk' && st.kfs ? st.kfs : null;
@@ -7033,7 +7060,7 @@ async function pickRecent(fp){
 }
 listRecent();
 
-root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : sources[0] ? sources[0].name.replace(/\.[^.]+$/, '') : ''; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, setEdit: list => restoreEdit(list), get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
+root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, setEdit: list => restoreEdit(list), get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
   snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
