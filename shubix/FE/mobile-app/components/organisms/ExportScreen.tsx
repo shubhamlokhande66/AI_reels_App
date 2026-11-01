@@ -10,7 +10,7 @@ import type { IconName } from "@shubix/ui-core";
 import { megabytes } from "@shubix/utils";
 import { errorMessage } from "@shubix/api-client";
 import type { ReelProject } from "@shubix/validations";
-import { cancelExport, exportReel } from "../../lib/video";
+import { canUseSharedAndroidRenderer, cancelExport, exportReel, exportReelWithSharedRenderer } from "../../lib/video";
 import { FlowAnalyse } from "./CreateFlow";
 import { notifyAway } from "../../lib/notify";
 import { engine } from "../../lib/engine";
@@ -22,37 +22,60 @@ const STEPS: [IconName, string, number][] = [["search", "Preparing clips", 0.02]
  * the steps meanwhile, then the Reel to watch, its size, Share and Save to Photos (saved there at once when allowed). */
 export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onClose: () => void }) {
   const words = useStudioText(), insets = useSafeAreaInsets();
-  const [pct, setPct] = useState(0), [done, setDone] = useState<{ uri: string; size: number } | null>(null), [saved, setSaved] = useState(false);
+  const [pct, setPct] = useState(0), [done, setDone] = useState<{ uri: string; size: number } | null>(null), [saved, setSaved] = useState(false), [saveNotice, setSaveNotice] = useState(""), [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
   const player = useVideoPlayer(done?.uri ?? null, (p) => { p.loop = true; });
   useEffect(() => {
     if (!reel) return;
     let live = true;
-    setPct(0); setDone(null); setSaved(false);
-    // made by the website's engine (the editor's changes sent back to it): its own export (the transitions and effects); else the phone's
-    (reel.studio ? engine.edit(reel).catch(() => false) : Promise.resolve(false)).then((studio) => studio ? engine.exportReel(`${reel.id}.mp4`) : exportReel(reel, (p) => live && setPct(p)))
-      .then(async (r) => {
+    setPct(0); setDone(null); setSaved(false); setSaveNotice(""); setFailed(false);
+    // A Studio-originated Reel must use the Studio renderer so its layers, masks, effects and keyframes survive export.
+    // Never silently downgrade it to the simpler native renderer when the hidden Studio session is unavailable.
+    const make = async () => {
+      if (reel.studio) {
+        if (!engine.holds(reel.id)) throw new Error("The original Studio editing session is not available. Reopen this Reel from Fast Studio before exporting so its advanced effects and layers are preserved.");
+        const synced = await engine.edit(reel);
+        if (!synced) throw new Error("Studio could not sync this edit. Your advanced effects have been kept; reopen the Reel in Fast Studio and try Export again.");
+        return engine.exportReel(`${reel.id}.mp4`);
+      }
+      if (canUseSharedAndroidRenderer(reel)) return exportReelWithSharedRenderer(reel, (p) => live && setPct(p));
+      return exportReel(reel, (p) => live && setPct(p));
+    };
+    make().then(async (r) => {
         if (!live) return;
         setPct(1); setDone(r); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
-        const ok = (await MediaLibrary.requestPermissionsAsync(true)).granted;
-        if (ok) { await MediaLibrary.createAssetAsync(r.uri); setSaved(true); }
+        // Saving to Photos is optional: a Photos permission error must not undo a successful MP4 export.
+        try {
+          const permission = await MediaLibrary.requestPermissionsAsync(true);
+          if (permission.granted) { await MediaLibrary.createAssetAsync(r.uri); if (live) setSaved(true); }
+          else if (live) setSaveNotice(words("Your Reel is ready. Allow Photos access to save it to your gallery."));
+        } catch {
+          if (live) { setSaveNotice(words("Your Reel is ready. You can still share it or save it later.")); toast(words("Your Reel is ready. Save it to Photos using the button below."), "info"); }
+        }
       })
-      .catch((e) => { if (live) { toast(errorMessage(e), "danger"); onClose(); } });
+      .catch((e) => { if (live) { toast(errorMessage(e), "danger"); setSaveNotice(words("Export failed. Your draft is still saved. Try again when you are ready.")); setFailed(true); } });
     return () => { live = false; };
-  }, [reel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [reel, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async () => {
     if (!done) return;
-    if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return toast(words("Allow Shubix to save to your Photos in the phone's settings."), "info");
-    await MediaLibrary.createAssetAsync(done.uri); setSaved(true); toast(words("Saved to your phone"), "success");
+    try {
+      if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return toast(words("Allow Shubix to save to your Photos in the phone's settings."), "info");
+      await MediaLibrary.createAssetAsync(done.uri); setSaved(true); toast(words("Saved to your phone"), "success");
+    } catch (e) {
+      toast(words("Couldn't save to Photos. Your exported video is still available to Share."), "danger");
+    }
   };
   return (
-    <Modal visible={!!reel} animationType="slide" onRequestClose={() => { if (done) onClose(); }} statusBarTranslucent>
+    <Modal visible={!!reel} animationType="slide" onRequestClose={() => { if (done || failed) onClose(); }} statusBarTranslucent>
       <ThemeLayer className="bg-background">
         <ScrollView contentContainerClassName="gap-4 px-5" contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }}>
           {!done ? (
             <>
               <FlowAnalyse title="Exporting" pct={pct} done={STEPS.filter(([, , at]) => pct >= at).length} status={words("Making your Reel…")} sub={words("This may take a few moments. Please keep this screen open.")} steps={STEPS.map(([i, t]) => [i, t])} />
-              <Button full variant="secondary" title={words("Cancel")} onPress={() => { void cancelExport(); onClose(); }} />
+              {!!saveNotice && <Text accessibilityRole="alert" className="text-center text-[12px] text-danger">{saveNotice}</Text>}
+              {failed
+                ? <><Button full title={words("Try export again")} onPress={() => setAttempt((n) => n + 1)} /><Button full variant="secondary" title={words("Back to your Reel")} onPress={onClose} /></>
+                : (!reel?.studio && <Button full variant="secondary" title={words("Cancel")} onPress={() => { void cancelExport(); onClose(); }} />)}
             </>
           ) : (
             <>
@@ -60,7 +83,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
               <Text className="text-center text-[40px]">🎉</Text>
               <Text className="text-center text-[24px] font-semibold text-foreground">{words("Reel Exported!")}</Text>
               <View className="h-[380px] self-center overflow-hidden rounded-[18px] bg-black" style={{ aspectRatio: 9 / 16 }}><VideoView player={player} surfaceType="textureView" nativeControls contentFit="contain" style={{ flex: 1 }} /></View>
-              <View className="items-center"><Text className="text-[15px] font-semibold text-foreground">{words(saved ? "Saved to your phone" : "Your Reel is ready")}</Text><Text className="text-[12.5px] text-muted">{megabytes(done.size)}</Text></View>
+              <View className="items-center gap-1"><Text className="text-[15px] font-semibold text-foreground">{words(saved ? "Saved to your phone" : "Your Reel is ready")}</Text><Text className="text-[12.5px] text-muted">{megabytes(done.size)}</Text>{!!saveNotice && <Text accessibilityRole="alert" className="text-center text-[12px] text-muted">{saveNotice}</Text>}</View>
               <Button full size="xl" icon="upload" title={words("Share")} onPress={() => void Sharing.shareAsync(done.uri, { mimeType: "video/mp4" })} />
               {!saved && <Button full size="lg" variant="secondary" icon="download" title={words("Save to Photos")} onPress={() => void save()} />}
             </>

@@ -9,5 +9,10 @@ describe("Ask Shubix: small or whole-Reel change", () => {
     expect(chatSize("make the whole reel faster")).toBe("big");
     expect(chatSize("Make it calm and cinematic, slower cuts")).toBe("big");
     expect(chatSize("add some magic")).toBe("big");
+    expect(chatSize("saglya video vr chan effecr lav")).toBe("big");
+    expect(chatSize("apply nice effects to every video")).toBe("big");
+    expect(chatSize("सगळ्या व्हिडिओवर छान इफेक्ट लावा")).toBe("big");
+    expect(chatSize("అన్ని క్లిప్ first")).toBe("big");
+    expect(chatSize("हर एक क्लिप first")).toBe("big");
   });
 });

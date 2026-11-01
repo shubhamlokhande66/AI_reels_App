@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { analyzeAudio, ANALYSIS_VERSION, computeEnergy, findAccents, findDrops, highEnergySections } from "../../../src/server/audio/analyzer";
+import { analyzeAudio, ANALYSIS_VERSION, computeEnergy, findAccents, findDrops, highEnergySections, resolveDropPoints } from "../../../src/server/audio/analyzer";
 import { bpmFromBeats, foldBpm } from "../../../src/server/audio/bpm";
 import { median, percentile } from "../../../src/server/audio/dsp/util";
 import type { AudioAnalysis } from "../../../src/server/models/analysis";
@@ -98,6 +98,24 @@ describe("tempo and section helpers", () => {
     expect(bpm).toBeCloseTo(120, 6);
     expect(conf).toBeGreaterThan(0.9);
     expect(bpmFromBeats([0, 1])).toEqual([0, 0]);
+  });
+
+  it("uses the energy fallback when events contain no confident drop or entry", () => {
+    const energy = Float64Array.from({ length: 400 }, (_, i) => (i < 200 ? 0.1 : 0.95));
+    const [cuts, measured] = resolveDropPoints([
+      { time: 8, detectedAt: 8.02, type: "breakdown", strength: 0.1, confidence: 0.9, end: 12, measurements: {} },
+      { time: 14, detectedAt: 14.03, type: "build_up", strength: 0.2, confidence: 0.8, end: 20, measurements: {} },
+    ], energy, []);
+    expect(measured.some((time) => Math.abs(time - 20) < 0.2)).toBe(true);
+    expect(cuts).toEqual(measured);
+  });
+
+  it("keeps beat-snapped cut points separate from raw detected drop times", () => {
+    const [cuts, measured] = resolveDropPoints([
+      { time: 20, detectedAt: 19.86, type: "possible_drop", strength: 0.9, confidence: 0.9, end: null, measurements: {} },
+    ], new Float64Array(400), []);
+    expect(cuts).toEqual([20]);
+    expect(measured).toEqual([19.86]);
   });
 
   it("finds a drop and the loud section", () => {

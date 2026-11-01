@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { askAction, tasks, type TaskKind } from "@shubix/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
 import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
+import { buildSpeedRampSegments } from "@shubix/video-engine";
 import { tokenStore } from "./device";
 
 /** The website's own Fast Studio makes the phone's Reels: its page /engine (FE/web-app app/engine, worked through
@@ -17,7 +18,7 @@ import { tokenStore } from "./device";
 export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
 export type SongAnalysis = { duration: number; bpm: number; beats: number; drops: number; breaks: number };
 /** a shot of the Reel as the studio made it (its state(): the clip, where in it, the transition into it, its effect, its speed) */
-export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number };
+export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
 export type EngineReel = { work: { clips: number; shots: number }; state: { edit: EngineShot[]; mode?: string } & Record<string, unknown> };
 
 type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void };
@@ -63,18 +64,58 @@ export const engine = {
     const list = [];
     let t = 0;
     for (const c of p.clips) {
-      const from = made.get(c.id);
+      const from = made.get(c.id) ?? [...made.values()].find((candidate) => candidate.clip.uri === c.uri && candidate.clip.kind === c.kind);
       if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
-      const len = clipDuration(c), sp = (SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed);
-      if (!sp) return false; // a speed the studio has not (it has slow, normal, fast)
-      list.push({ ...from.shot, start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect });
+      const len = clipDuration(c);
+      const hasRamp = !!c.speedRamp?.length;
+      const sp = hasRamp ? "curve" : ((SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed));
+      if (!sp) return false; // a fixed speed the studio has not (it has slow, normal, fast)
+      const base = from.shot;
+      const cs = { ...(base.cs ?? {}) };
+      if (hasRamp) {
+        const segments = buildSpeedRampSegments(c.speedRamp!, c.end - c.start, { fallbackSpeed: c.speed, maxSegmentDuration: 0.2 });
+        const sample = (timelineTime: number) => {
+          const segment = segments.find((item) => timelineTime <= item.outputEnd + 0.0001) ?? segments[segments.length - 1];
+          return segment?.speed ?? c.speed;
+        };
+        cs.curve = { a: sample(0), b: sample(len * 0.25), c: sample(len * 0.5), d: sample(len * 0.75), e: sample(len) };
+      }
+      if (c.reverse !== from.clip.reverse) cs.rev = c.reverse;
+      if (c.rotation !== from.clip.rotation) cs.rot = c.rotation;
+      if (c.mirror !== from.clip.mirror) cs.fh = c.mirror;
+      if (c.flip !== from.clip.flip) cs.fv = c.flip;
+      if (c.fit !== from.clip.fit) cs.fit = c.fit === "contain";
+      if (c.muted !== from.clip.muted || c.volume !== from.clip.volume) cs.vol = c.muted ? 0 : c.volume;
+      list.push({ ...from.shot, ...(Object.keys(cs).length ? { cs } : {}), start: t, end: t + len, in: c.start, sp, tr: c.transition === "hard" ? undefined : c.transition, efx: c.effect, uk: c.keyframes ?? from.shot.uk });
       t += len;
     }
-    return (await call<{ ok: boolean }>("edit", { shots: list })).ok;
+    return (await call<{ ok: boolean }>("edit", { shots: list, overlays: p.overlays })).ok;
+  },
+  /** Studio history (including advanced tools) mapped back into the phone's clip model. */
+  undo: async () => {
+    if (!held) return { ok: false as const };
+    const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("undo");
+    if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+  },
+  redo: async () => {
+    if (!held) return { ok: false as const };
+    const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("redo");
+    if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+  },
+  /** Ask Studio for another locally generated edit, then map its shots back to the native clip model. */
+  remix: async () => {
+    if (!held) return { ok: false as const };
+    const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("remix");
+    if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
   },
   /** a choice in one of the editor's tools, made in the studio as on the website (its button `attr`=`value` in `box`,
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
    * does not hold this Reel as it is (then the phone does what it can) */
+  tool: (op: string, args: Record<string, unknown> = {}) => call<Record<string, unknown>>(op, args),
+  addLayer: (uri: string, name: string) => call<Record<string, unknown>>("layerAdd", { path: pathOf(uri), name }),
   set: async (p: ReelProject, box: string, value: string | boolean, attr?: string) => {
     if (!(await engine.edit(p))) return null;
     return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
@@ -87,7 +128,7 @@ const SPEED: Record<string, number> = { normal: 1, slow: 0.5, fast: 1.6 };
 // each clip the studio made: its shot (engine.edit sends it back changed) and the clip as made (what the studio cannot change)
 const made = new Map<string, { shot: EngineShot; clip: ProjectClip }>();
 let sources: ProjectClip[] = [];
-const KEEP = ["uri", "reverse", "rotation", "mirror", "flip", "filter", "fit", "muted", "volume"] as const;
+const KEEP = ["uri", "filter"] as const;
 /** The Reel's shots as the phone editor's clips: each shot its part of its clip (from `in`, as long as the shot at its
  * speed), the transition into it and its effect. `list`: the clips the studio kept, in its order (its `src`). */
 export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[] {
@@ -96,7 +137,7 @@ export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[]
     const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
     const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
     const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined };
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk };
     made.set(clip.id, { shot: e, clip });
     return clip;
   });

@@ -28,7 +28,8 @@
     "onnxruntime-web": "1.29.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "@shubix/video-engine": "workspace:*"
   },
   "devDependencies": {
     "@shubix/ui-web": "workspace:*",

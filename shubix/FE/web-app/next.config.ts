@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   // and the phone app while testing (docs/capacitor.md): a cloudflared tunnel to this computer
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*", "*.trycloudflare.com"],
   // the code shared with BE/api (Shared/core) is TypeScript: compile it with the app
-  transpilePackages: ["@shubix/core", "@shubix/validations", "@shubix/utils"],
+  transpilePackages: ["@shubix/core", "@shubix/validations", "@shubix/utils", "@shubix/video-engine"],
   // the API is BE/api (NestJS): the browser keeps calling /api on this origin, so the session cookie stays first-party.
   // Rewrites stream the request body (large uploads are not buffered).
   async rewrites() {

@@ -1,0 +1,46 @@
+name: Video editor quality checks
+
+on:
+  pull_request:
+    branches: [monorepo]
+
+concurrency:
+  group: shubix-video-editor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: shubix/pnpm-lock.yaml
+      - name: Install workspace
+        working-directory: shubix
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck all workspaces
+        working-directory: shubix
+        run: pnpm -r typecheck
+      - name: Typecheck Android / React Native app
+        working-directory: shubix
+        run: pnpm --filter @shubix/mobile-app typecheck
+      - name: Set up Java for Android native compilation
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Generate Android project
+        working-directory: shubix/FE/mobile-app
+        run: pnpm exec expo prebuild --platform android --no-install
+      - name: Compile native Android video module
+        working-directory: shubix/FE/mobile-app/android
+        run: ./gradlew :app:compileDebugKotlin --no-daemon
+      - name: Test web studio
+        working-directory: shubix
+        run: pnpm --filter @shubix/web-app test

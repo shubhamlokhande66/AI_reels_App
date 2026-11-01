@@ -11,7 +11,7 @@ const clip = (id: string, n = 3) => ({ id, name: `${id}.mp4`, frames: Array.from
 function fake(answer: (user: string, images: number) => unknown) {
   const calls: { user: string; images: number }[] = [];
   const p = {
-    name: "fake", model: "fake-1", visionModel: "fake-vision",
+    name: `fake-${Math.random()}`, model: "fake-1", visionModel: "fake-vision", // a new name each run: rankings stay cached in the database
     async visionStructured(_s: string, user: string, images: unknown[], schema: { parse: (v: unknown) => unknown }) {
       calls.push({ user, images: images.length });
       return schema.parse(answer(user, images.length));
@@ -38,6 +38,10 @@ describe("request limits", () => {
 
 describe("answers are bounded", () => {
   const frames = [{ t: 0 }, { t: 1.5 }, { t: 3 }];
+  it("keeps only known subject tags, at most three, for the director's mood", () => {
+    const r = parseClip("a", [{ t: 0 }], { frames: [{ frame: "f1", score: 0.5, roles: [], tags: ["Devotional", "cats", "food", "travel", "wedding"], issues: [], person: false, note: "" }], summary: "", mood: "" });
+    expect(r.frames[0].tags).toEqual(["devotional", "food", "travel"]);
+  });
   it("maps frames by label, clamps scores, keeps only known roles / issues, and fixes subject boxes", () => {
     const r = parseClip("a", frames, {
       summary: "A dancer on a rooftop at sunset, and a very long sentence that goes on and on and on and on and on and on and on and on and on and on and on",
@@ -68,7 +72,7 @@ describe("one request = one Reel", () => {
     expect(calls.map((c) => c.images)).toEqual([4, 2]);
     expect(res.clips.map((c) => [c.id, c.frames[0].score])).toEqual([["best", 0.95], ["dull", 0.2]]);
     expect(res.failed).toEqual([]);
-    expect(res.charged).toBe(0); // credits are off in tests
+    expect(res.charged).toBe(false); // credits are off in tests
   });
   it("returns what worked when one clip fails, and the error when all fail", async () => {
     const { p } = fake((user) => { if (user.includes("broken")) throw new Error("model down"); return { frames: [{ frame: "f1", score: 0.7 }] }; });
