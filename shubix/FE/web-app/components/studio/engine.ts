@@ -20,6 +20,7 @@ import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from '
 import { Button, Chip } from "./ui";
 import { createPreviewProxy, previewProxyPlan } from '../../lib/previewProxy';
 import { parseDirectorVisualIntent } from './visualIntent';
+import { bootPart } from '../../lib/boot';
 
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
@@ -97,8 +98,10 @@ const allOpen = () => !asFree() && (planOpen || root.classList.contains('planadm
 const isLocked = (cat, key) => !allOpen() && planRank(lockNeed(cat, key)) > planRank(asFree() ? 'free' : planNow);
 const crown = (cat, key, name) => (isLocked(cat, key) ? '👑 ' : '') + name;
 const exRule = () => allOpen() ? { maxRes: '4k', fps60: true, noWatermark: true } : asFree() ? EXR.free : (EXR[planNow] || EXR.free);
-function planLoad(){
-  Promise.all([fetch('/api/plan-locks').then(r => r.ok ? r.json() : null).catch(() => null), fetch('/api/credits', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : null).catch(() => null)]).then(([L, c]) => {
+function planLoad(first = false){
+  // the first read comes from the page's /api/boot answer (no extra requests: Cloudflare); later ones (export) ask again
+  const get = (key, url, opts) => (first ? bootPart(key) : Promise.resolve(undefined)).then(v => v !== undefined ? v : fetch(url, opts).then(r => r.ok ? r.json() : null)).catch(() => null);
+  Promise.all([get('planLocks', '/api/plan-locks'), get('credits', '/api/credits', { credentials: 'same-origin' })]).then(([L, c]) => {
     if(L && L.groups){ LOCKS = needMap(L); EXR = L.export || EXR; }
     // signed out with billing on (billing: true): the free plan, not everything open
     if(c){ planOpen = !c.enabled && !c.billing; planNow = c.enabled && c.plan ? c.plan : c.billing ? 'free' : planNow; }
@@ -107,7 +110,7 @@ function planLoad(){
     queueMicrotask(() => { try{ planPaint(); if(!$('xsheet').hidden) sheetPaint(); }catch(e){} });
   });
 }
-planLoad();
+planLoad(true);
 root.addEventListener('brs-asfree', () => { try{ planPaint(); if(!$('xsheet').hidden) sheetPaint(); }catch(e){} }, SIG);   // View as Free switched (views.ts)
 const crownMap = (cat, M) => Object.fromEntries(Object.entries(M).map(([k, v]) => [k, crown(cat, k, v)]));
 const wmImg = typeof Image !== 'undefined' ? Object.assign(new Image(), { src: '/brand/shubix-gold-sm.webp' }) : null;

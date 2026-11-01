@@ -10,18 +10,24 @@ import { getSite } from "../../../server/site";
 import { getTexts } from "../../../server/texts";
 import { currentOffer } from "../../../server/marketing";
 import { sweepSoon } from "../../../server/reminders";
+import { getSupport } from "../../../server/support";
+import { pricing } from "../../../server/workspace";
+import { getContent } from "../../../server/content";
+import { getAds } from "../../../server/ads";
+import { myNotifications } from "../../../server/broadcasts";
 
 /** A page's first read, in one request: what every page asks for when it opens (lib/boot.ts). Each part is exactly what
  * its own route answers; a part that fails, or that its route would refuse (credits, plan locks and features need a
- * signed-in person when accounts are on), is left out, and the page then asks its own route as before. */
+ * signed-in person when accounts are on; plan locks and features are for everyone), is left out, and the page then asks its own route as before. */
 export const GET = route(async (req) => {
   const signedIn = !settings.authEnabled || !!currentUser();
   if (settings.billingEnabled) sweepSoon(); // unfinished checkouts' reminder emails, now and then, in the background
   const part = async <T,>(f: () => Promise<T> | T) => { try { return await f(); } catch { return undefined; } };
-  const [texts, account, site, admin, features, planLocks, credits, offer] = await Promise.all([
+  const [texts, account, site, admin, features, planLocks, credits, offer, help, plans, content, ads, notifications] = await Promise.all([
     part(getTexts), part(me), part(getSite), part(() => adminState(req)),
-    signedIn ? part(getFeatures) : undefined, signedIn ? part(getLocks) : undefined, signedIn ? part(myCredits) : undefined,
+    part(getFeatures), part(getLocks), signedIn ? part(myCredits) : undefined,
     part(async () => ({ offer: await currentOffer() })),
+    part(async () => ({ on: (await getSupport()).chat })), part(pricing), part(getContent), signedIn ? part(getAds) : undefined, signedIn ? part(myNotifications) : undefined,
   ]);
-  return { texts, me: account, site, admin, features, planLocks, credits, offer };
+  return { texts, me: account, site, admin, features, planLocks, credits, offer, help, plans, content, ads, notifications };
 });

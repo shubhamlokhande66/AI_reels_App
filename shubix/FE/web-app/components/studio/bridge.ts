@@ -1,3 +1,4 @@
+import { noteSignedIn } from "@/lib/boot";
 /* The phone app's way into Fast Studio (app/engine: the studio on a page the phone keeps hidden, FE/mobile-app
  * lib/engine.tsx). The phone's screens are its own; the Reel is made here, by this very engine, so it is the same Reel
  * as on the website. The phone asks with window.engine.call(id, op, args); the answers go back with
@@ -60,7 +61,7 @@ export function initBridge(root: HTMLElement): () => void {
   const made = () => { const w = studio()?.work; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir; };
 
   const OPS: Record<string, (a: Record<string, unknown>) => Promise<unknown>> = {
-    async setup(a) { files = String(a.files); key = String(a.key); token = String(a.token || ""); await until(() => !!studio(), 60_000); return { ok: true }; },
+    async setup(a) { files = String(a.files); key = String(a.key); token = String(a.token || ""); if (token) noteSignedIn(); await until(() => !!studio(), 60_000); return { ok: true }; },
     async song(a) {
       const st = studio(), previous = st?.songR;
       const name = String(a.name);
