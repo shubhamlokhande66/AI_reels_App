@@ -66,7 +66,7 @@ export function NavGroups({ groups, pathname, onNavigate }: { groups: typeof GRO
     <>
       {groups.map((g) => (
         <div key={g.title} className="flex flex-col gap-1">
-          <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-1 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? text(g.tk) : g.title}</Eyebrow>
+          <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-1 text-[10px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? text(g.tk) : g.title}</Eyebrow>
           {g.items.map((item) => {
             const active = isActive(pathname, item.href), lock = lockOf(item.href);
             const Tag = item.fullLoad && !lock ? "a" : Link;
@@ -167,13 +167,13 @@ function Drawer({ open, onClose, groups, pathname, admin, email, credits, onSign
             <div className="flex items-center gap-3 rounded-[15px] border border-[color-mix(in_srgb,var(--accent)_14%,var(--line))] bg-[color-mix(in_srgb,var(--surface)_58%,transparent)] px-3 py-2.5 shadow-[0_8px_24px_-22px_rgba(0,0,0,.7)]">
               <Avatar email={email} />
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">{email}</span>
-              <span className="shrink-0 rounded-full border border-accent/20 bg-accent/8 px-2 py-1 text-[8px] font-extrabold tracking-[.14em] text-accent">{text("nav.studioTag")}</span>
+              <span className="shrink-0 rounded-full border border-accent/20 bg-accent/8 px-2 py-1 text-[10px] font-extrabold tracking-[.14em] text-accent">{text("nav.studioTag")}</span>
             </div>
           )}
           <nav aria-label="Pages" className="flex flex-col border-t border-[color-mix(in_srgb,var(--accent)_10%,var(--line))] pt-1">
             {main.map((g) => (
               <div key={g.title} className="flex flex-col gap-1">
-                <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-2 text-[9px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? text(g.tk) : g.title}</Eyebrow>
+                <Eyebrow className="px-2.5 pb-1 pt-4 first:pt-2 text-[10px] font-extrabold tracking-[.18em] text-muted/75">{g.tk ? text(g.tk) : g.title}</Eyebrow>
                 {g.items.map(link)}
               </div>
             ))}
@@ -342,7 +342,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <span className={cn("min-w-0", meta.left || pathname === "/" ? "text-left" : "text-center")}>
           {pathname === "/" ? <Logo height={42} /> : (
             <span className={cn("mx-auto grid min-w-0 max-w-full leading-tight", meta.left || pathname === "/" ? "justify-items-start" : "justify-items-center")}>
-              <span className="mb-1 text-[8px] font-extrabold uppercase tracking-[.2em] text-accent">{text("nav.eyebrow")}</span>
+              <span className="mb-1 text-[10px] font-extrabold uppercase tracking-[.2em] text-accent">{text("nav.eyebrow")}</span>
               <span className="max-w-full truncate whitespace-nowrap font-[family-name:var(--font-display)] text-[14px] font-semibold tracking-[-.015em] text-foreground">{title}</span>
             </span>
           )}

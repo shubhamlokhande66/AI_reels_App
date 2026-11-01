@@ -23,7 +23,7 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
           <>
             <span className="h-[18px] w-[18px] shrink-0">{s.logo}</span>
             <span className="flex min-w-0 flex-col leading-none">
-              <span className="truncate text-[8px] font-medium uppercase tracking-[0.05em] opacity-75">{soon ? text("store.soonShort") : s.top}</span>
+              <span className="truncate text-[10px] font-medium uppercase tracking-[0.05em] opacity-90">{soon ? text("store.soonShort") : s.top}</span>
               <span className="mt-[3px] truncate text-[11.5px] font-semibold tracking-[-0.01em]">{s.name}</span>
             </span>
           </>
@@ -31,7 +31,7 @@ export function StoreBadges({ compact = false, className }: { compact?: boolean;
           <>
             <span className="h-7 w-7 shrink-0">{s.logo}</span>
             <span className="flex min-w-0 flex-col leading-none">
-              <span className="text-[9.5px] font-medium uppercase tracking-[0.06em] opacity-85">{soon ? text("store.soon") : s.top}</span>
+              <span className="text-[10.5px] font-medium uppercase tracking-[0.06em] opacity-85">{soon ? text("store.soon") : s.top}</span>
               <span className="mt-1 truncate text-[17px] font-semibold tracking-[-0.01em]">{s.name}</span>
             </span>
           </>

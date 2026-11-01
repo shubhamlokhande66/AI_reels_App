@@ -29,8 +29,8 @@ export function ProPill({ plan, planId, compact = false }: { plan?: string | nul
       <Link href="/pricing" title={title} className={cn(base, "border-border bg-surface text-foreground hover:border-accent/50", compact ? "pr-1.5" : "pr-1.5")}>
         <span className="pl-2 text-muted">{tier === "free" ? text("plan.free") : text("plan.plans")}</span>
         <span className="inline-flex h-7 items-center gap-1 rounded-full bg-gold px-2.5 text-[11.5px] font-bold text-on-accent shadow-[0_6px_14px_-8px_var(--accent)]">
+          <Icon name="crown" size={13} stroke={2.4} />
           {!compact && text("plan.upgrade")}
-          {compact ? <Icon name="crown" size={13} stroke={2.4} /> : <Icon name="back" size={12} stroke={2.6} className="rotate-[135deg]" />}
         </span>
       </Link>
     );

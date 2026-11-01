@@ -113,18 +113,18 @@ export function LegalPage({ page }: { page: LegalPageId }) {
       <header className="relative overflow-hidden rounded-[24px] border border-[color-mix(in_srgb,var(--accent)_18%,var(--line))] bg-[linear-gradient(125deg,color-mix(in_srgb,var(--accent)_10%,var(--surface)),var(--surface)_56%,color-mix(in_srgb,var(--accent)_4%,var(--surface)))] px-5 py-6 shadow-[0_20px_50px_-38px_rgba(0,0,0,.82)] sm:px-8 sm:py-8">
         <span aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full border border-accent/10 bg-accent/5 blur-2xl" />
         <div className="relative flex flex-col gap-3">
-          <span className="flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[.2em] text-accent"><span className="h-px w-5 bg-accent/70" />Shubix · Legal</span>
+          <span className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.2em] text-accent"><span className="h-px w-5 bg-accent/70" />Shubix · Legal</span>
           <h1 className="m-0 font-[family-name:var(--font-display)] text-[clamp(28px,5vw,42px)] font-semibold leading-[1.08] tracking-[-0.03em]">{text(title)}</h1>
           {s.updated && <span className="text-[11.5px] text-muted">{text("legal.updated", { date: s.updated })}</span>}
         </div>
       </header>
       {toc.length > 1 && (
         <Card as="nav" aria-label={text("legal.sections")} className="!rounded-[20px] !border-[color-mix(in_srgb,var(--accent)_14%,var(--line))] !bg-[color-mix(in_srgb,var(--surface)_76%,transparent)] !p-4 md:!p-5">
-          <div className="mb-3 flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[.18em] text-muted"><span className="h-1.5 w-1.5 rounded-full bg-accent" />{text("legal.sections")}</div>
+          <div className="mb-3 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.18em] text-muted"><span className="h-1.5 w-1.5 rounded-full bg-accent" />{text("legal.sections")}</div>
           <div className="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
             {toc.map((x, i) => (
               <a key={x.id} href={`#${x.id}`} className="group flex min-w-0 items-center gap-2 border-t border-border/70 py-2.5 text-[12px] font-semibold text-muted transition-colors duration-200 hover:text-foreground">
-                <span className="font-mono text-[9px] text-accent/80">{String(i + 1).padStart(2, "0")}</span>
+                <span className="font-mono text-[10px] text-accent/80">{String(i + 1).padStart(2, "0")}</span>
                 <span className="truncate">{x.text}</span>
                 <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">↗</span>
               </a>
