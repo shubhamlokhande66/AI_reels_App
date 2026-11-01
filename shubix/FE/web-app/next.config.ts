@@ -15,7 +15,9 @@ const nextConfig: NextConfig = {
   // the code shared with BE/api (Shared/core) is TypeScript: compile it with the app
   transpilePackages: ["@shubix/core", "@shubix/validations", "@shubix/utils", "@shubix/video-engine"],
   // the API is BE/api (NestJS): the browser keeps calling /api on this origin, so the session cookie stays first-party.
-  // Rewrites stream the request body (large uploads are not buffered).
+  // Rewrites stream the request body, but Next.js caps a proxied body at 10 MB by default (the rest was cut off):
+  // a clip sent to be converted (/api/studio/convert, up to 95 MB) and a finished Reel saved to My Reels pass whole.
+  experimental: { proxyClientMaxBodySize: "100mb" },
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${API_URL}/api/:path*` },

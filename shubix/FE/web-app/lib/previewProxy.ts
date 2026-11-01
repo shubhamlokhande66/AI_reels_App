@@ -1,6 +1,11 @@
 /**
- * Creates a disposable, low-resolution copy used only by the browser editor preview.
- * The original File is never replaced: Fast Studio's export pipeline reads src.file.
+ * Editing copies of the person's clips, made in the browser (the original File is never changed).
+ *  - preview proxy: a light, low-resolution copy for the editor's live preview of big but ordinary footage
+ *    (the export still reads the original);
+ *  - edit copy: for footage a browser cannot play or decode smoothly, whatever the camera (iPhone 4K HDR / Cinematic /
+ *    slo-mo, Android 60 fps / 8K / HDR10+, GoPro, drones, mirrorless 10-bit 4:2:2, screen recordings with a varying frame
+ *    rate). H.264 8-bit SDR, at most 1080 × 1920, 30 frames a second at an even pace: the preview, the clip reading and
+ *    the export all read it, so every Reel plays without lag.
  */
 export const PREVIEW_MAX_SIDE = 960;
 export const PREVIEW_BITRATE = 2_000_000;
@@ -15,22 +20,27 @@ export interface PreviewProxyFacts {
   width: number;
   height: number;
   duration: number;
-  /** From probeVideo: frames per second, HDR (HLG/PQ/BT.2020) and 10-bit colour. */
+  /** From probeVideo: frames per second, HDR (HLG/PQ/BT.2020), 10-bit colour, 4:2:2 colour, a varying frame rate. */
   fps?: number;
   hdr?: boolean;
   tenBit?: boolean;
+  chroma422?: boolean;
+  vfr?: boolean;
 }
 
-/* Heavy footage: what an iPhone records by default (4K, HEVC 10-bit, HDR, 60 fps, ~55 Mbps). A browser decodes it too
- * slowly for a live preview (the picture freezes, the song stutters) and the export's decoder may fail on it, which
- * drops the export to the real-time recorder (a laggy file). Such a clip gets one edit copy, H.264 8-bit SDR at most
- * 1080 × 1920 and 30 fps, used by the preview, the clip reading and the export alike (any size, even a 2 s clip). */
 export const EDIT_MAX_SIDE = 1920;
 export const EDIT_BITRATE = 10_000_000;
 export const EDIT_FPS = 30;
+/** an edit copy may be this long / this big (a 20-minute 4K file still gets one; its bitrate is lowered to fit memory) */
+const EDIT_MAX_DURATION = 20 * 60;
+const EDIT_MAX_FILE_BYTES = 8 * 1024 * 1024 * 1024;
+const EDIT_MAX_COPY_BYTES = 400 * 1024 * 1024;
+
+/** Footage too heavy for a smooth live preview and a reliable export (see the top of this file). */
 export function isHeavySource(f: PreviewProxyFacts): boolean {
   const longSide = Math.max(f.width, f.height), bitrate = f.duration > 0 ? (f.size * 8) / f.duration : 0;
-  return !!f.hdr || !!f.tenBit || (f.fps || 0) > 31 || (longSide > EDIT_MAX_SIDE && bitrate > 20_000_000);
+  return !!f.hdr || !!f.tenBit || !!f.chroma422 || !!f.vfr || (f.fps || 0) > 31 ||
+    longSide > 2 * EDIT_MAX_SIDE || (longSide > EDIT_MAX_SIDE && bitrate > 20_000_000);
 }
 
 export function isQuickTimeSource(fileName: string, mimeType: string): boolean {
@@ -42,24 +52,30 @@ export interface PreviewProxyPlan {
   height: number;
   bitrate: number;
   reason: "resolution" | "bitrate" | "resolution-and-bitrate" | "heavy";
-  /** heavy footage: frames per second of the copy, and the export reads the copy too */
+  /** an edit copy: frames per second of the copy, and the export reads the copy too */
   fps?: number;
   forExport?: boolean;
+}
+
+/** The edit copy's size and bitrate (any input that has a picture; null only for unusable facts or a huge file). */
+export function editCopyPlan(facts: PreviewProxyFacts): PreviewProxyPlan | null {
+  const { size, width, height, duration } = facts;
+  if (![size, width, height, duration].every(Number.isFinite) || size <= 0 || size > EDIT_MAX_FILE_BYTES ||
+      width <= 0 || height <= 0 || duration <= 0 || duration > EDIT_MAX_DURATION) return null;
+  const sc = Math.min(1, EDIT_MAX_SIDE / Math.max(width, height));
+  const ev = (value: number) => Math.max(2, Math.round((value * sc) / 2) * 2);
+  const src = (size * 8) / duration, fit = Math.floor((EDIT_MAX_COPY_BYTES * 8) / duration);
+  const bitrate = Math.max(1_500_000, Math.min(EDIT_BITRATE, Math.floor(src * 0.9), fit));
+  return { width: ev(width), height: ev(height), bitrate, reason: "heavy", fps: EDIT_FPS, forExport: true };
 }
 
 /** Return null for footage that is already light enough for real-time editing. */
 export function previewProxyPlan(facts: PreviewProxyFacts, forceTranscode = false): PreviewProxyPlan | null {
   const { size, width, height, duration } = facts;
-  if (![size, width, height, duration].every(Number.isFinite) || size <= 0 || size > MAX_PROXY_FILE_BYTES ||
-      width <= 0 || height <= 0 || duration <= 0 || duration > MAX_PROXY_DURATION) return null;
-  if (isHeavySource(facts)) {
-    const sc = Math.min(1, EDIT_MAX_SIDE / Math.max(width, height));
-    const ev = (value: number) => Math.max(2, Math.round((value * sc) / 2) * 2);
-    const src = (size * 8) / duration;
-    return { width: ev(width), height: ev(height), bitrate: Math.max(2_000_000, Math.min(EDIT_BITRATE, Math.floor(src * 0.9))), reason: "heavy", fps: EDIT_FPS, forExport: true };
-  }
-  if (size < MIN_FILE_BYTES ||
-      width <= 0 || height <= 0 || duration <= 0 || duration > MAX_PROXY_DURATION) return null;
+  if (![size, width, height, duration].every(Number.isFinite) || size <= 0 ||
+      width <= 0 || height <= 0 || duration <= 0) return null;
+  if (isHeavySource(facts)) return editCopyPlan(facts);
+  if (size < MIN_FILE_BYTES || size > MAX_PROXY_FILE_BYTES || duration > MAX_PROXY_DURATION) return null;
 
   const longSide = Math.max(width, height);
   const bitrate = (size * 8) / duration;
@@ -83,8 +99,23 @@ export function previewProxyPlan(facts: PreviewProxyFacts, forceTranscode = fals
   };
 }
 
-/** Frame rate, HDR and bit depth of a clip (read from its container, nothing decoded). null when unreadable. */
-export async function probeVideo(file: Blob): Promise<{ fps: number; hdr: boolean; tenBit: boolean; codec: string } | null> {
+export interface VideoFacts { fps: number; hdr: boolean; tenBit: boolean; chroma422: boolean; vfr: boolean; codec: string; decodes: boolean; width: number; height: number; duration: number }
+
+/** The frame gaps of a clip (sorted presentation times) say whether its frame rate varies: screen recordings, WhatsApp
+ * and many Android phones in low light. A varying pace makes frames missing in the export (a freeze). */
+export function variesFrameRate(times: number[]): boolean {
+  if (times.length < 20) return false;
+  const t = [...times].sort((a, b) => a - b), d: number[] = [];
+  for (let i = 1; i < t.length; i++) { const g = t[i] - t[i - 1]; if (g > 1e-4) d.push(g); }
+  if (d.length < 15) return false;
+  const med = [...d].sort((a, b) => a - b)[d.length >> 1];
+  const off = d.filter(g => g > med * 1.6 || g < med * 0.6).length / d.length;
+  return off > 0.12 || Math.max(...d) > Math.max(0.25, med * 6);
+}
+
+/** What a clip is, read from its container (nothing decoded): frame rate and its pace, HDR, bit depth, colour sampling,
+ * whether this browser's decoder takes it. null when the container is not readable here. */
+export async function probeVideo(file: Blob): Promise<VideoFacts | null> {
   if (typeof window === "undefined") return null;
   let input: import("mediabunny").Input | undefined;
   try {
@@ -97,17 +128,100 @@ export async function probeVideo(file: Blob): Promise<{ fps: number; hdr: boolea
     const cstr = (cfg && cfg.codec) || "";
     let fps = 0;
     try { const st = await track.computePacketStats(120); fps = st.averagePacketRate || 0; } catch { /* unknown */ }
+    const times: number[] = [];
+    try {
+      const ps = new mb.EncodedPacketSink(track);
+      let p = await ps.getFirstPacket({ metadataOnly: true });
+      while (p && times.length < 240) { times.push(p.timestamp); p = await ps.getNextPacket(p, { metadataOnly: true }); }
+    } catch { /* no packet list: pace unknown */ }
+    const decodes = typeof VideoDecoder !== "undefined" && await track.canDecode().catch(() => false);
     return {
       fps,
       hdr: ["hlg", "pq", "arib-std-b67", "smpte2084"].includes(String(cs.transfer || "")) || String(cs.primaries || "") === "bt2020",
-      // HEVC Main 10 (hvc1.2 / hev1.2), VP9 profile 2, AV1 10-bit
-      tenBit: /^(hvc1|hev1)\.2\./i.test(cstr) || /^vp09\.0[23]\./i.test(cstr) || /^av01\.\d\.\d+\w\.10/i.test(cstr),
-      codec: track.codec || "",
+      // HEVC Main 10 (hvc1.2 / hev1.2), VP9 profile 2/3, AV1 10-bit, H.264 High 10 (avc1.6E)
+      tenBit: /^(hvc1|hev1)\.2\./i.test(cstr) || /^vp09\.0[23]\./i.test(cstr) || /^av01\.\d\.\d+\w\.10/i.test(cstr) || /^avc1\.6e/i.test(cstr),
+      // camera footage: H.264 High 4:2:2 (avc1.7A), HEVC range extensions (hvc1.4), ProRes; most browsers cannot decode it
+      chroma422: /^avc1\.7a/i.test(cstr) || /^(hvc1|hev1)\.4\./i.test(cstr) || /^(apch|apcn|apcs|apco|ap4h|ap4x)/i.test(cstr),
+      vfr: variesFrameRate(times),
+      codec: track.codec || cstr || "",
+      decodes,
+      width: await track.getDisplayWidth(), height: await track.getDisplayHeight(),
+      duration: await input.computeDuration().catch(() => 0),
     };
   } catch {
     return null;
   } finally {
     try { input?.dispose(); } catch { /* best-effort */ }
+  }
+}
+
+const loadVideo = (video: HTMLVideoElement, ms = 15_000) => new Promise<void>((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error("The browser took too long to open this video")), ms);
+  video.onloadedmetadata = () => { clearTimeout(timer); resolve(); };
+  video.onerror = () => { clearTimeout(timer); reject(new Error("The browser cannot open this video format")); };
+});
+
+/** The browser's own player (it can play some formats WebCodecs cannot decode) feeding an encoder, each frame stamped
+ * with the time the player gives it (requestVideoFrameCallback): the copy keeps the real timing even when this device
+ * drops frames while playing, and it is played at half speed for fast footage so no frame is missed. */
+async function playerToEncoder(file: File, plan: PreviewProxyPlan, onProgress?: (p: number) => void): Promise<Blob | null> {
+  if (typeof VideoEncoder === "undefined" || typeof HTMLVideoElement === "undefined" || !("requestVideoFrameCallback" in HTMLVideoElement.prototype)) return null;
+  const mb = await import("mediabunny");
+  const enc = { width: plan.width, height: plan.height, bitrate: plan.bitrate };
+  const vcodec = await mb.canEncodeVideo("avc", enc) ? "avc" as const : await mb.canEncodeVideo("vp9", enc) ? "vp9" as const : null;
+  if (!vcodec) return null;
+  const video = document.createElement("video"), canvas = document.createElement("canvas");
+  const g = canvas.getContext("2d", { alpha: false }); if (!g) return null;
+  canvas.width = plan.width; canvas.height = plan.height;
+  const url = URL.createObjectURL(file);
+  try {
+    video.muted = true; video.playsInline = true; video.preload = "auto"; video.src = url;
+    await loadVideo(video);
+    const dur = video.duration; if (!Number.isFinite(dur) || dur <= 0) return null;
+    const mp4 = vcodec === "avc";
+    const output = new mb.Output({ format: mp4 ? new mb.Mp4OutputFormat({ fastStart: "in-memory" }) : new mb.WebMOutputFormat(), target: new mb.BufferTarget() });
+    const vs = new mb.VideoSampleSource({ codec: vcodec, bitrate: plan.bitrate, keyFrameInterval: 1 });
+    const fps = plan.fps || EDIT_FPS, step = 1 / fps;
+    output.addVideoTrack(vs, { frameRate: fps });
+    await output.start();
+    let slot = 0, chain: Promise<unknown> = Promise.resolve(), failed: unknown = null, lastFrame = performance.now();
+    const draw = () => {
+      const s = Math.min(canvas.width / video.videoWidth, canvas.height / video.videoHeight), w = video.videoWidth * s, h = video.videoHeight * s;
+      g.fillStyle = "#000"; g.fillRect(0, 0, canvas.width, canvas.height);
+      g.drawImage(video, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+    };
+    // every 1/30 s slot up to this frame's time gets this picture (an even pace whatever the source's)
+    const emit = (upTo: number) => {
+      while (slot * step <= upTo + 1e-6 && slot * step < dur) {
+        const sample = new mb.VideoSample(canvas, { timestamp: slot * step, duration: step });
+        chain = chain.then(() => vs.add(sample)).catch(e => { failed = e; }).finally(() => sample.close());
+        slot++;
+      }
+    };
+    await new Promise<void>((resolve, reject) => {
+      const watch = setInterval(() => { if (performance.now() - lastFrame > 15_000) { clearInterval(watch); reject(new Error("The browser stopped playing this video")); } }, 1000);
+      const onFrame = (_now: number, meta: VideoFrameCallbackMetadata) => {
+        lastFrame = performance.now();
+        if (video.videoWidth) { draw(); emit(meta.mediaTime); }
+        onProgress?.(Math.min(0.99, meta.mediaTime / dur));
+        if (!video.ended) video.requestVideoFrameCallback(onFrame);
+      };
+      video.onended = () => { clearInterval(watch); resolve(); };
+      video.onerror = () => { clearInterval(watch); reject(new Error("The browser could not play this video to the end")); };
+      video.requestVideoFrameCallback(onFrame);
+      video.playbackRate = dur <= 120 ? 0.5 : 1;
+      video.play().catch(e => { clearInterval(watch); reject(e); });
+    });
+    if (video.videoWidth) { draw(); emit(dur); }
+    await chain;
+    if (failed) throw failed;
+    if (!slot) return null;
+    await output.finalize();
+    onProgress?.(1);
+    const buf = output.target.buffer;
+    return buf ? new Blob([buf], { type: mp4 ? "video/mp4" : "video/webm" }) : null;
+  } finally {
+    video.pause(); video.removeAttribute("src"); video.load(); URL.revokeObjectURL(url);
   }
 }
 
@@ -120,7 +234,11 @@ async function createElementPreviewProxy(
   plan: PreviewProxyPlan,
   onProgress?: (progress: number) => void,
 ): Promise<Blob | null> {
-  if (typeof document === "undefined" || typeof MediaRecorder === "undefined") return null;
+  if (typeof document === "undefined") return null;
+  // frame-timed first (exact timing); the real-time recorder below only where there is no WebCodecs encoder
+  try { const b = await playerToEncoder(file, plan, onProgress); if (b) return b; }
+  catch (error) { console.info("Player-to-encoder copy failed:", error instanceof Error ? error.message : error); }
+  if (typeof MediaRecorder === "undefined") return null;
   const video = document.createElement("video");
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d", { alpha: false });
@@ -133,12 +251,8 @@ async function createElementPreviewProxy(
     video.playsInline = true;
     video.preload = "auto";
     video.src = url;
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("MOV preview decode timed out")), 15_000);
-      video.onloadedmetadata = () => { clearTimeout(timer); resolve(); };
-      video.onerror = () => { clearTimeout(timer); reject(new Error("Browser cannot decode this MOV")); };
-    });
-    if (!Number.isFinite(video.duration) || video.duration <= 0 || video.duration > MAX_PROXY_DURATION) return null;
+    await loadVideo(video);
+    if (!Number.isFinite(video.duration) || video.duration <= 0 || video.duration > (plan.forExport ? EDIT_MAX_DURATION : MAX_PROXY_DURATION)) return null;
     canvas.width = plan.width;
     canvas.height = plan.height;
     stream = canvas.captureStream(30);
@@ -183,9 +297,8 @@ async function createElementPreviewProxy(
 }
 
 /**
- * Build a browser-only proxy. Prefer WebCodecs/Mediabunny; fall back to the browser's
- * native video decoder + canvas recorder for MOV formats such as HEVC that WebCodecs
- * cannot decode on this device. The original File is never replaced and remains export source.
+ * Build a browser-only copy. Prefer WebCodecs/Mediabunny; fall back to the browser's own player feeding an encoder
+ * for formats (HEVC, some MOV) that WebCodecs cannot decode on this device. The original File is never replaced.
  */
 export async function createPreviewProxy(
   file: File,
@@ -253,11 +366,7 @@ export async function createPreviewProxy(
       const url = URL.createObjectURL(file);
       try {
         probe.src = url;
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(() => reject(new Error("Video metadata timed out")), 15_000);
-          probe.onloadedmetadata = () => { clearTimeout(timer); resolve(); };
-          probe.onerror = () => { clearTimeout(timer); reject(new Error("Unsupported video format")); };
-        });
+        await loadVideo(probe);
         plan = previewProxyPlan({
           size: file.size, width: probe.videoWidth, height: probe.videoHeight, duration: probe.duration,
         }, isQuickTimeSource(file.name, file.type));
@@ -276,4 +385,68 @@ export async function createPreviewProxy(
     console.info("Native preview proxy unavailable; keeping original media:", error instanceof Error ? error.message : error);
     return null;
   }
+}
+
+/** An edit copy for a clip the browser's player cannot open at all (it may still decode it with WebCodecs). */
+export async function createEditCopy(file: File, facts: VideoFacts | null, onProgress?: (p: number) => void): Promise<{ blob: Blob; plan: PreviewProxyPlan } | null> {
+  if (!facts || !facts.width || !facts.height || !facts.duration) return null;
+  const plan = editCopyPlan({ size: file.size, width: facts.width, height: facts.height, duration: facts.duration });
+  return plan ? createPreviewProxy(file, onProgress, plan) : null;
+}
+
+export const SERVER_CONVERT_MAX_BYTES = 95 * 1024 * 1024;
+type ConvertError = Error & { code?: string; status?: number };
+const convertError = (message: string, code: string, status?: number): ConvertError => Object.assign(new Error(message), { code, status });
+async function readError(r: Response | Blob, status: number): Promise<ConvertError> {
+  let msg = "Shubix could not convert this video.", code = "CONVERT_FAILED";
+  try { const j = JSON.parse(await r.text()); msg = (j.error && (j.error.message || j.error)) || j.message || msg; code = (j.error && j.error.code) || j.code || code; } catch { /* not JSON */ }
+  if (status === 401) code = "UNAUTHORIZED";
+  return convertError(String(msg), code, status);
+}
+/** The last resort, for what this browser cannot decode at all (camera ProRes / 4:2:2, old codecs): Shubix converts it
+ * (signed in, at most 95 MB). The file is sent (the first 50%), converted as a job whose progress is asked every 2 s
+ * (to 95%), then the result is fetched. */
+export async function convertOnServer(file: File, onProgress?: (p: number) => void, signal?: AbortSignal): Promise<Blob> {
+  if (file.size > SERVER_CONVERT_MAX_BYTES) throw convertError("too big", "CONVERT_TOO_BIG");
+  // what this browser's player takes: H.264 MP4 (nearly all), else VP9 WebM
+  const h264 = typeof document !== "undefined" && !!document.createElement("video").canPlayType('video/mp4; codecs="avc1.640028"');
+  const id = await new Promise<string>((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", "/api/studio/convert" + (h264 ? "" : "?to=webm"));
+    x.withCredentials = true;
+    x.responseType = "blob";
+    x.setRequestHeader("Content-Type", "application/octet-stream");
+    x.upload.onprogress = e => { if (e.lengthComputable) onProgress?.(0.5 * e.loaded / e.total); };
+    x.onload = async () => {
+      if (x.status === 200) { try { resolve(JSON.parse(await (x.response as Blob).text()).id); } catch { reject(convertError("Shubix could not start converting this video.", "CONVERT_FAILED", 200)); } return; }
+      reject(await readError(x.response as Blob, x.status));
+    };
+    x.onerror = () => reject(convertError("No connection: the video could not be sent for converting.", "OFFLINE"));
+    signal?.addEventListener("abort", () => { x.abort(); reject(convertError("cancelled", "CANCELLED")); });
+    x.send(file);
+  });
+  const base = "/api/studio/convert/" + encodeURIComponent(id);
+  for (let misses = 0; ;) {
+    if (signal?.aborted) throw convertError("cancelled", "CANCELLED");
+    await new Promise(r => setTimeout(r, 2000));
+    let st: { status: string; progress: number; error?: { code: string; message: string } | null };
+    try {
+      const r = await fetch(base, { credentials: "same-origin", cache: "no-store", signal });
+      if (!r.ok) throw await readError(r, r.status);
+      st = await r.json(); misses = 0;
+    } catch (e) {
+      const err = e as ConvertError;
+      if (err.status && err.status < 500) throw err;
+      if (++misses >= 8) throw convertError("No connection while the video was being converted.", "OFFLINE");   // ~16 s offline
+      continue;
+    }
+    if (st.status === "failed") throw convertError(st.error?.message || "Shubix could not convert this video.", st.error?.code || "CONVERT_FAILED");
+    onProgress?.(0.5 + 0.45 * (st.progress || 0));
+    if (st.status === "done") break;
+  }
+  const r = await fetch(base + "/file", { credentials: "same-origin", signal });
+  if (!r.ok) throw await readError(r, r.status);
+  const blob = await r.blob();
+  onProgress?.(1);
+  return blob;
 }

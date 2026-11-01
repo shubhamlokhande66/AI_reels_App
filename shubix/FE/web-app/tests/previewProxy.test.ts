@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EDIT_BITRATE, isHeavySource, isQuickTimeSource, PREVIEW_BITRATE, PREVIEW_MAX_SIDE, previewProxyPlan } from "@/lib/previewProxy";
+import { EDIT_BITRATE, editCopyPlan, isHeavySource, variesFrameRate, isQuickTimeSource, PREVIEW_BITRATE, PREVIEW_MAX_SIDE, previewProxyPlan } from "@/lib/previewProxy";
 
 const MB = 1024 * 1024;
 
@@ -46,7 +46,8 @@ describe("browser editor preview proxies", () => {
 
   it("fails safely for invalid metadata and proxy jobs that exceed memory limits", () => {
     expect(previewProxyPlan({ size: 200 * MB, width: 3840, height: 2160, duration: 0 })).toBeNull();
-    expect(previewProxyPlan({ size: 800 * MB, width: 3840, height: 2160, duration: 60 })).toBeNull();
+    // 107 Mbps 4K: too big for a preview proxy, but heavy, so it gets an edit copy
+    expect(previewProxyPlan({ size: 800 * MB, width: 3840, height: 2160, duration: 60 })).toMatchObject({ reason: "heavy", width: 1920, height: 1080 });
     expect(previewProxyPlan({ size: 200 * MB, width: Number.NaN, height: 2160, duration: 60 })).toBeNull();
   });
 
@@ -65,5 +66,30 @@ describe("browser editor preview proxies", () => {
     const ok = { size: 17 * MB, width: 1080, height: 1920, duration: 29, fps: 30, hdr: false, tenBit: false };
     expect(isHeavySource(ok)).toBe(false);
     expect(previewProxyPlan(ok)?.forExport).toBeUndefined();
+  });
+
+  it("covers every kind of camera: 8K, 4:2:2 camera files, slow motion, screen recordings", () => {
+    const base = { size: 50 * MB, width: 1080, height: 1920, duration: 20 };
+    expect(isHeavySource({ ...base, width: 7680, height: 4320, size: 300 * MB })).toBe(true);   // Samsung 8K
+    expect(isHeavySource({ ...base, chroma422: true })).toBe(true);                               // Sony / Canon 10-bit 4:2:2
+    expect(isHeavySource({ ...base, fps: 240 })).toBe(true);                                      // slo-mo
+    expect(isHeavySource({ ...base, vfr: true })).toBe(true);                                     // screen recording
+    expect(isHeavySource({ ...base, fps: 29.97 })).toBe(false);
+    // a long heavy clip: the copy's bitrate shrinks so it stays under 400 MB
+    const long = editCopyPlan({ size: 3000 * MB, width: 3840, height: 2160, duration: 900 });
+    expect(long).toMatchObject({ width: 1920, height: 1080, fps: 30 });
+    expect((long!.bitrate * 900) / 8).toBeLessThanOrEqual(400 * MB);
+    expect(editCopyPlan({ size: 3000 * MB, width: 3840, height: 2160, duration: 3600 })).toBeNull();
+    // odd sizes stay even
+    expect(editCopyPlan({ size: 9 * MB, width: 1081, height: 1919, duration: 3 })).toMatchObject({ width: 1082, height: 1920 });
+  });
+  it("finds a changing frame rate from the frame times", () => {
+    const even = Array.from({ length: 120 }, (_, i) => i / 30);
+    expect(variesFrameRate(even)).toBe(false);
+    const jitter = Array.from({ length: 120 }, (_, i) => i / 30).filter((_, i) => i % 3 !== 0);   // low light: frames left out
+    expect(variesFrameRate(jitter)).toBe(true);
+    const gap = [...even.slice(0, 60), ...even.slice(60).map(t => t + 0.8)];   // a screen recording pausing
+    expect(variesFrameRate(gap)).toBe(true);
+    expect(variesFrameRate([0, 0.033])).toBe(false);
   });
 });
