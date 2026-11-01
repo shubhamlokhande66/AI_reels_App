@@ -84,7 +84,7 @@ export function CmsDashboard() {
   const dirty = Object.keys(draft).length + Object.keys(lists).length;
   const discard = () => { setDraft({}); setLists({}); };
   const edit = (k: string, v: string | null) => { setDone(false); setDraft((d) => ({ ...d, [k]: v })); };
-  const save = useMutation({
+  const save = useMutation({ meta: { success: "Saved", errorShown: true },
     mutationFn: async () => {
       // the lists first: a list that is not right (a card without a link) stops before any text is published
       if (Object.keys(lists).length) qc.setQueryData(["content"], await api.setContent(lists));

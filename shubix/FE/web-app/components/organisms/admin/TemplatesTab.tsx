@@ -46,8 +46,8 @@ export function TemplatesTab() {
     setOpen((o) => (o === from ? to : o));
     setMsg("");
   });
-  const save = useMutation({ mutationFn: api.setTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDraft(null); setMsg("✓ Saved: people see the new templates now."); } });
-  const reset = useMutation({ mutationFn: api.resetTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDraft(null); setOpen(null); setMsg("Back to the default templates."); } });
+  const save = useMutation({ meta: { success: "Saved", errorShown: true }, mutationFn: api.setTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDraft(null); setMsg("✓ Saved: people see the new templates now."); } });
+  const reset = useMutation({ meta: { success: "Templates reset to default" }, mutationFn: api.resetTemplates, onSuccess: (r) => { qc.setQueryData(["admin-templates"], r); setDraft(null); setOpen(null); setMsg("Back to the default templates."); } });
   if (q.error) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   if (!list) return <Spinner label="Loading templates…" />;
 

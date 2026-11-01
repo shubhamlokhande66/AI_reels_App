@@ -610,6 +610,7 @@ export const STUDIO_HTML = `
   <div class="aoring"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="fg" id="fexpring" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"/></svg><b id="fexppct">0%</b></div>
   <p class="fanst"><b>Making your Reel…</b><small>This may take a few moments. Please keep this screen open.</small></p>
   <ul class="faiList fanList" id="fexplist"><li data-at="0.02">${IC.scan}<span>Preparing clips</span></li><li data-at="0.3">${IC.spark}<span>Applying effects</span></li><li data-at="0.85">${IC.image}<span>Rendering video</span></li><li data-at="1">${IC.music}<span>Finalizing audio</span></li></ul>
+  <button type="button" class="${Button.secondary} mx-auto mt-2" id="fexpcancel">Cancel export</button>
 </section>
 <section class="fdone" id="fdone" hidden aria-labelledby="fdoneh">
   <div class="fdhead"><button type="button" class="${Button.iconBordered} size-11 max-lg:size-10" data-fd="close" aria-label="Back to your Reel">${IC.back}</button></div>

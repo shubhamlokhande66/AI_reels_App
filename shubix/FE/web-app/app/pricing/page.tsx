@@ -14,6 +14,7 @@ import { PlanAction, PlanCard, rupees } from "@/components/organisms/pricing/Pla
 import { Checkout } from "@/components/organisms/pricing/Checkout";
 import { OfferStrip } from "@/components/molecules/OfferStrip";
 import { PlanCompare } from "@/components/organisms/pricing/PlanCompare";
+import { UpgradeReason } from "@/components/organisms/pricing/UpgradeReason";
 
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 
@@ -110,6 +111,7 @@ export default function PricingPage() {
           <Icon name="coins" size={15} />
           {text("pricing.badge")}
         </Badge>
+        <UpgradeReason />
         <h1 className="m-0 max-w-3xl font-[family-name:var(--font-display)] text-[clamp(28px,5.5vw,44px)] font-semibold leading-[1.08] tracking-[-0.025em]">
           {text("pricing.title1")} <span className="bg-gold bg-clip-text text-transparent">{text("pricing.title2")}</span>
         </h1>

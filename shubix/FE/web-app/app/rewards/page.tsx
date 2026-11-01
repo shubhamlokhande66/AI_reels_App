@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "@/lib/toast";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeQuery as useQuery } from "@/lib/useSafeQuery";
@@ -41,7 +42,7 @@ function Invite({ m }: { m: MyMarketing }) {
   const link = m.link.startsWith("/") ? window.location.origin + m.link : m.link;
   const step = (s: string) => text(s === "signup" ? "rewards.whenSignup" : s === "purchase" ? "rewards.whenPurchase" : "rewards.whenVerified");
   const shareText = text("rewards.shareText", { link });
-  const copy = async () => { try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* the field can be selected by hand */ } };
+  const copy = async () => { try { await navigator.clipboard.writeText(link); setCopied(true); toast.success(text("rewards.copied")); setTimeout(() => setCopied(false), 1800); } catch { /* the field can be selected by hand */ } };
   return (
     <Card className="relative flex flex-col gap-4 overflow-hidden p-5 md:p-6">
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--accent)_22%,transparent),transparent)]" />
@@ -91,7 +92,7 @@ function SendCredits({ m }: { m: MyMarketing }) {
     setBusy(true); setMsg(null);
     try {
       const r = await api.sendCredits(name, n);
-      setMsg({ ok: true, text: text("rewards.sent", { n: r.sent, to: r.to }) }); setTo(""); setAmount("");
+      setMsg({ ok: true, text: text("rewards.sent", { n: r.sent, to: r.to }) }); toast.success(text("rewards.sent", { n: r.sent, to: r.to })); setTo(""); setAmount("");
       void qc.invalidateQueries({ queryKey: ["credits"] }); void qc.invalidateQueries({ queryKey: ["my-marketing"] });
     } catch (err) { setMsg({ ok: false, text: errorMessage(err) }); } finally { setBusy(false); }
   }
@@ -124,7 +125,7 @@ function Username({ m }: { m: MyMarketing }) {
   async function save(e: React.FormEvent) {
     e.preventDefault(); if (!valid || clean === m.username) return;
     setBusy(true); setMsg(null);
-    try { await api.setUsername(clean); setMsg({ ok: true, text: text("rewards.userSaved") }); void qc.invalidateQueries({ queryKey: ["my-marketing"] }); void qc.invalidateQueries({ queryKey: ["me"] }); }
+    try { await api.setUsername(clean); setMsg({ ok: true, text: text("rewards.userSaved") }); toast.success(text("rewards.userSaved")); void qc.invalidateQueries({ queryKey: ["my-marketing"] }); void qc.invalidateQueries({ queryKey: ["me"] }); }
     catch (err) { setMsg({ ok: false, text: errorMessage(err) }); } finally { setBusy(false); }
   }
   return (

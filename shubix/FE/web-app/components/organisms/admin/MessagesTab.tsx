@@ -25,7 +25,7 @@ export function MessagesTab() {
     api.sendBroadcast({ ...EMPTY, title: "xx", body: "xx", audience: v.audience, email: v.email, dryRun: true }).then((r) => live && setN(r)).catch(() => live && setN(null));
     return () => { live = false; };
   }, [v.audience, v.email]);
-  const send = useMutation({
+  const send = useMutation({ meta: { success: "Message sent", errorShown: true },
     mutationFn: () => api.sendBroadcast(v),
     onSuccess: (r) => {
       setDone(`Sent to ${count(r.people)} ${r.people === 1 ? "person" : "people"}${v.email ? ` · ${count(r.emailed ?? 0)} emails${r.emailFailed ? `, ${r.emailFailed} failed` : ""}` : ""}.`);
@@ -33,7 +33,7 @@ export function MessagesTab() {
       void qc.invalidateQueries({ queryKey: ["admin", "broadcasts"] });
     },
   });
-  const del = useMutation({ mutationFn: api.deleteBroadcast, onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin", "broadcasts"] }) });
+  const del = useMutation({ meta: { success: "Deleted" }, mutationFn: api.deleteBroadcast, onSuccess: () => void qc.invalidateQueries({ queryKey: ["admin", "broadcasts"] }) });
   const ready = v.title.trim().length >= 2 && v.body.trim().length >= 2;
   const go = async (e: React.FormEvent) => {
     e.preventDefault(); setDone(null);

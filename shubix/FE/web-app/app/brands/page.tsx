@@ -52,7 +52,7 @@ function Brands() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
 
-  const save = useMutation({
+  const save = useMutation({ meta: { success: "Brand saved", errorShown: true },
     mutationFn: async () => {
       if (!editing) return null;
       let b: Brand = editing.id ? await api.updateBrand(editing.id, editing.data) : await api.createBrand(editing.data);
@@ -65,7 +65,7 @@ function Brands() {
       qc.invalidateQueries({ queryKey: ["brands"] });
     },
   });
-  const del = useMutation({ mutationFn: api.deleteBrand, onSuccess: () => qc.invalidateQueries({ queryKey: ["brands"] }) });
+  const del = useMutation({ meta: { success: "Brand deleted" }, mutationFn: api.deleteBrand, onSuccess: () => qc.invalidateQueries({ queryKey: ["brands"] }) });
   const set = <K extends keyof BrandInput>(k: K, v: BrandInput[K]) => setEditing((e) => e && { ...e, data: { ...e.data, [k]: v } });
   const color = (k: keyof BrandInput["colors"], label: string) =>
     editing && (
