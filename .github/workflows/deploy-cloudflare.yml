@@ -1,8 +1,8 @@
 name: Deploy to Cloudflare
 on:
   push:
-    # only a merge to main deploys: PRs and other branches never do (Run workflow in the Actions tab still can)
-    branches: [main]
+    # only a merge to monorepo deploys: PRs and other branches never do (Run workflow in the Actions tab still can)
+    branches: [monorepo]
     paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 concurrency:
