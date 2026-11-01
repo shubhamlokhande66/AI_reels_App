@@ -268,7 +268,8 @@ export function evaluateKeyframes(frames: Keyframe<number>[], time: number): num
   let i=0;while(i<sorted.length-1&&sorted[i+1].time<time)i++;
   const a=sorted[i],b=sorted[i+1],span=Math.max(0.000001,b.time-a.time);
   let t=clamp((time-a.time)/span,0,1);
-  if(b.easing==="hold")return a.value;
+  // a hold keyframe keeps its own value until the next keyframe (a step), like a hold keyframe in any editor
+  if(a.easing==="hold")return a.value;
   if(b.easing==="ease-in" || b.easing==="in" || b.easing==="inQuad")t=t*t;
   else if(b.easing==="ease-out" || b.easing==="out")t=1-(1-t)*(1-t);
   else if(b.easing==="ease-in-out" || b.easing==="inOut")t=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;

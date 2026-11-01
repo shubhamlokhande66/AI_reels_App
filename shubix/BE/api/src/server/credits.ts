@@ -131,6 +131,16 @@ export async function setPlanByAdmin(userId: string, planId: string, months: num
   } else await givePlan(userId, planId, months >= 12 ? "yearly" : "monthly", "admin");
   return summary(userId);
 }
+/** An AI Reel's credits pay for its plan: once the plan is delivered the charge stays (marked here); a charge whose plan
+ * never came (the AI failed, answered only a part) is given back by refundUndelivered. */
+export async function markDelivered(ref: string) {
+  if (ref) await (await col("credit_ledger")).updateOne({ ref, delta: { $lt: 0 } }, { $set: { delivered: true } });
+}
+export async function refundUndelivered(ref: string): Promise<number> {
+  if (!ref) return 0;
+  const e = await (await col("credit_ledger")).findOne({ ref, delta: { $lt: 0 }, refunded: { $ne: true } });
+  return !e || e.delivered ? 0 : refund(ref);
+}
 /** Give back what a job took (it failed or was cancelled); each charge is refunded at most once. */
 export async function refund(ref: string): Promise<number> {
   const entry = await (await col("credit_ledger")).findOneAndUpdate({ ref, delta: { $lt: 0 }, refunded: { $ne: true } }, { $set: { refunded: true } });
