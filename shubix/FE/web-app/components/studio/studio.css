@@ -2239,7 +2239,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   border: 1px solid rgba(255, 255, 255, .2);
   border-radius: 999px;
   background: rgba(0, 0, 0, .28);
-  font: 600 9px var(--mono);
+  font: 600 10px var(--mono);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   z-index: 10;
@@ -2315,7 +2315,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font: 700 8px var(--font-body), sans-serif;
+  font: 700 10px var(--font-body), sans-serif;
   letter-spacing: .1em;
 }
 .brs .soundState svg { color: var(--accent); }
@@ -2485,7 +2485,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 .brs .zoomValue {
   min-width: 32px;
   color: var(--muted);
-  font: 600 9px var(--mono);
+  font: 600 10px var(--mono);
   text-align: center;
 }
 
@@ -2546,7 +2546,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   color: var(--on-accent);
   border-radius: 4px;
   background: var(--gold-gradient);
-  font: 800 6px var(--font-body), sans-serif;
+  font: 800 8px var(--font-body), sans-serif;
   letter-spacing: .04em;
   font-style: normal;
 }

@@ -21,7 +21,7 @@ const EASE = "duration-[180ms] ease-[ease]";
 const FRAMED = `inline-flex cursor-pointer items-center justify-center gap-[7px] border border-(--ed-line) bg-[color:color-mix(in_srgb,var(--surface-2)_70%,var(--surface))] text-foreground transition-[transform,border-color,background,box-shadow] ${EASE} enabled:hover:-translate-y-px enabled:hover:border-[color:color-mix(in_srgb,var(--accent)_45%,var(--border))]`;
 const GOLD = "bg-gold text-on-accent";
 const GREEN_DOT = "inline-block size-1.5 flex-none rounded-full bg-[#72bd91] shadow-[0_0_10px_color-mix(in_srgb,#72bd91_55%,transparent)]";
-const EYEBROW = "flex items-center gap-[7px] text-[9px] font-[750] tracking-[.13em] text-muted";
+const EYEBROW = "flex items-center gap-[7px] text-[10px] font-[750] tracking-[.13em] text-muted";
 const TILE_ICON = "grid flex-none place-items-center text-accent";
 /** the mono type sizes (written out: Tailwind only sees classes spelled in full) */
 const MONO = { "7b": "[font:700_7px_var(--font-geist-mono),monospace]", "9": "[font:9px_var(--font-geist-mono),monospace]", "9b": "[font:600_9px_var(--font-geist-mono),monospace]", "10b": "[font:600_10px_var(--font-geist-mono),monospace]", "11": "[font:11px_var(--font-geist-mono),monospace]" };
@@ -65,14 +65,14 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
   const choices = open ? options[open] ?? [] : [];
   const pro = ["Background", "Layers", "Voice", "Motion"];
   const shotNo = String(shot + 1).padStart(2, "0");
-  const trackLabel = "flex min-w-0 items-center gap-1.5 border-b border-[color:color-mix(in_srgb,var(--border)_65%,transparent)] pr-1.5 pl-2 text-[10px] font-semibold text-muted [&_svg]:flex-none [&_svg]:text-accent max-[680px]:gap-[5px] max-[680px]:pl-[5px] max-[680px]:text-[9px]";
+  const trackLabel = "flex min-w-0 items-center gap-1.5 border-b border-[color:color-mix(in_srgb,var(--border)_65%,transparent)] pr-1.5 pl-2 text-[10px] font-semibold text-muted [&_svg]:flex-none [&_svg]:text-accent max-[680px]:gap-[5px] max-[680px]:pl-[5px] max-[680px]:text-[10px]";
   const rowGrid = "grid grid-cols-[114px_minmax(0,1fr)] gap-2 max-[680px]:grid-cols-[92px_minmax(0,1fr)] max-[680px]:gap-1.5";
   return <main className={cn(ED_LINE, "grid w-full gap-4 font-[family-name:var(--font-body),Manrope,sans-serif] text-foreground max-[900px]:grid-cols-[minmax(0,1fr)] max-[680px]:flex max-[680px]:flex-col max-[680px]:gap-3 max-[680px]:pb-3 motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none")}>
     <header className={cn(PANEL, "flex min-h-[66px] items-center justify-between gap-3.5 rounded-[18px] px-3.5 py-2.5 max-[680px]:order-0 max-[680px]:min-h-[58px] max-[680px]:gap-2 max-[680px]:rounded-[15px] max-[680px]:px-2.5 max-[680px]:py-2")}>
       <div className="flex min-w-0 items-center gap-[11px]">
         <span className={cn(TILE_ICON, "size-10 rounded-[13px] border border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--surface))] max-[680px]:size-[34px] max-[680px]:rounded-[11px]")}><Glyph name="Shots" /></span>
         <span className="flex min-w-0 flex-col items-start gap-[3px]">
-          <small className={cn(EYEBROW, "max-[680px]:text-[7px] max-[380px]:gap-[5px] max-[380px]:text-[6px] max-[380px]:tracking-[.1em]")}>REEL STUDIO <i className={GREEN_DOT} /> {projectId ? `PROJECT ${projectId}` : "INTERACTIVE PREVIEW"}</small>
+          <small className={cn(EYEBROW, "min-w-0 overflow-hidden whitespace-nowrap max-[680px]:text-[9px] max-[380px]:gap-[5px] max-[380px]:text-[8px] max-[380px]:tracking-[.1em]")}>REEL STUDIO <i className={GREEN_DOT} /> {projectId ? `PROJECT ${projectId}` : "INTERACTIVE PREVIEW"}</small>
           <strong className="max-w-[34ch] truncate [font:600_15px/1.2_var(--font-display),var(--font-body),sans-serif] tracking-[-.02em] text-foreground max-[680px]:max-w-[22ch] max-[680px]:text-[13px] max-[380px]:max-w-[17ch] max-[380px]:text-[12px]">Golden hour memories</strong>
         </span>
       </div>
@@ -85,7 +85,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
 
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(290px,340px)] gap-4 max-[900px]:contents">
       <section className={cn(PANEL, "grid min-h-[520px] min-w-0 grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-hidden rounded-[19px] p-3.5 max-[900px]:order-1 max-[900px]:min-h-[480px] max-[900px]:p-3 max-[680px]:min-h-0 max-[680px]:grid-rows-[auto_minmax(280px,68svh)_auto_auto] max-[680px]:rounded-2xl max-[680px]:p-2.5 max-[380px]:grid-rows-[auto_minmax(260px,64svh)_auto_auto]")}>
-        <div className="flex items-center justify-between text-[9px] font-extrabold tracking-[.13em] text-muted">
+        <div className="flex items-center justify-between text-[10px] font-extrabold tracking-[.13em] text-muted">
           <span className="inline-flex items-center gap-2"><i className="inline-block size-[7px] flex-none rounded-full bg-accent shadow-[0_0_12px_var(--brand-glow)]" /> PREVIEW</span>
           <button className={cn(FRAMED, "min-h-[30px] rounded-[9px] px-2.5 [font:600_11px_var(--font-body),sans-serif]")}>9:16 <span className="text-[14px] text-muted">⌄</span></button>
         </div>
@@ -121,7 +121,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
           <span className={cn("rounded-full border border-[color:color-mix(in_srgb,var(--accent)_26%,var(--border))] bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--surface))] px-[9px] py-1.5 text-accent-hover", MONO["10b"])}>10.7 s</span>
         </div>
         <div className="grid grid-cols-4 gap-1.5 max-[900px]:gap-[5px] max-[680px]:gap-1.5 max-[380px]:grid-cols-3">{tools.map((name) => <button key={name} onClick={() => { setTool(name); setOpen(name); }}
-          className={cn(`flex min-h-[58px] min-w-0 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[11px] border border-transparent bg-[color:color-mix(in_srgb,var(--surface-2)_55%,transparent)] px-[3px] py-1.5 text-center [font:500_9px/1.1_var(--font-body),sans-serif] text-muted transition-[color,border-color,background,transform] ${EASE} hover:-translate-y-px hover:border-(--ed-line) hover:bg-[color:color-mix(in_srgb,var(--accent)_8%,var(--surface))] hover:text-foreground max-[900px]:min-h-[54px] max-[900px]:text-[8px] max-[680px]:min-h-[58px] max-[680px]:text-[9px] [&_svg]:text-[color:color-mix(in_srgb,var(--accent)_76%,var(--muted))]`,
+          className={cn(`flex min-h-[58px] min-w-0 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[11px] border border-transparent bg-[color:color-mix(in_srgb,var(--surface-2)_55%,transparent)] px-[3px] py-1.5 text-center [font:500_9px/1.1_var(--font-body),sans-serif] text-muted transition-[color,border-color,background,transform] ${EASE} hover:-translate-y-px hover:border-(--ed-line) hover:bg-[color:color-mix(in_srgb,var(--accent)_8%,var(--surface))] hover:text-foreground max-[900px]:min-h-[54px] max-[900px]:text-[10px] max-[680px]:min-h-[58px] max-[680px]:text-[10px] [&_svg]:text-[color:color-mix(in_srgb,var(--accent)_76%,var(--muted))]`,
             tool === name && "border-[color:color-mix(in_srgb,var(--accent)_34%,var(--border))] bg-[color:color-mix(in_srgb,var(--accent)_13%,var(--surface))] text-accent-hover shadow-[inset_0_1px_0_rgba(255,255,255,.035)] [&_svg]:text-accent-hover",
             name === "Delete" && "text-[color:color-mix(in_srgb,var(--danger)_82%,var(--muted))] [&_svg]:text-inherit")}><Glyph name={name} /><span>{name}</span></button>)}</div>
         <div className="mt-auto flex items-center gap-2 pt-2.5 text-[10px] text-muted max-[680px]:pt-3"><i className="inline-block size-1.5 flex-none rounded-full bg-accent shadow-[0_0_9px_var(--brand-glow)]" /> {tool} selected for Shot {shotNo}</div>
@@ -145,7 +145,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
       <div className="overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-color:color-mix(in_srgb,var(--accent)_38%,var(--muted))_transparent] [scrollbar-width:thin]">
         <div className="relative min-w-[850px] px-3 pt-2.5 pb-2 max-[900px]:min-w-[790px] max-[680px]:min-w-[760px] max-[680px]:px-[9px] max-[680px]:pt-2 max-[680px]:pb-1.5 max-[380px]:min-w-[700px]">
           <div className={cn(rowGrid, "h-7")}>
-            <div className="flex items-center pl-2 text-[8px] font-extrabold tracking-[.13em] text-muted">TRACKS</div>
+            <div className="flex items-center pl-2 text-[10px] font-extrabold tracking-[.13em] text-muted">TRACKS</div>
             <div className={cn("relative flex items-start justify-between border-b border-(--ed-line) text-muted", MONO["9"])}>
               {["00:00", "00:05", "00:10", "00:15", "00:20", "00:25", "00:30"].map((x) => <span key={x} className="relative pb-[7px] after:absolute after:-bottom-px after:left-0 after:h-[5px] after:w-px after:bg-[color:color-mix(in_srgb,var(--muted)_50%,transparent)] after:content-['']">{x}</span>)}
               <i className="absolute top-0 z-4 h-[31px] w-px bg-accent shadow-[0_0_8px_var(--brand-glow)]" style={{ left: "19%" }} />
@@ -164,13 +164,13 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
                 <span className="absolute right-1 bottom-[3px] z-2 text-white/86"><Glyph name="play" size={10} /></span>
               </button>)
               : name === "Effects" ? [["2%", "15%", "Slow drift"], ["22%", "18%", "Zoom burst"], ["48%", "14%", "Film glow"]].map(([left, width, label]) => <span key={label} style={{ left, width }}
-                className="absolute z-1 flex h-6 items-center truncate rounded-[7px] border border-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[linear-gradient(110deg,#d8bd7b,#aa8b4e)] px-2 text-[9px] font-bold text-on-accent shadow-[0_4px_12px_-8px_var(--brand-glow)]">✦ {label}</span>)
+                className="absolute z-1 flex h-6 items-center truncate rounded-[7px] border border-[color:color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[linear-gradient(110deg,#d8bd7b,#aa8b4e)] px-2 text-[10px] font-bold text-on-accent shadow-[0_4px_12px_-8px_var(--brand-glow)]">✦ {label}</span>)
               : name === "Text" ? [["4%", "24%", "golden hour memories"], ["55%", "19%", "little moments ✦"]].map(([left, width, label]) => <span key={label} style={{ left, width }}
-                className="absolute z-1 min-w-0 truncate rounded-md border border-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_75%,#514126)] px-2 py-[5px] text-[8px] font-[650] text-on-accent">{label}</span>)
+                className="absolute z-1 min-w-0 truncate rounded-md border border-[color:color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_75%,#514126)] px-2 py-[5px] text-[10px] font-[650] text-on-accent">{label}</span>)
               : name === "Voice" ? <div className="absolute inset-y-2 right-[48%] left-[5%] z-1 overflow-hidden rounded-md border border-[color:color-mix(in_srgb,#6a9f82_35%,transparent)] bg-[color:color-mix(in_srgb,#507a64_22%,var(--surface))]"><Waveform compact bar="bg-[#89b798]" /></div>
               : <div className="absolute inset-x-0 inset-y-[7px] z-1 overflow-hidden rounded-[7px] border border-[color:color-mix(in_srgb,var(--accent)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--accent)_9%,var(--surface-2))]">
                 <Waveform className="top-3 h-[calc(100%-12px)] opacity-[.68]" />
-                <span className="absolute top-0.5 left-[7px] z-2 max-w-[70%] truncate text-[8px] font-[650] text-foreground">♫ Golden Hour — JVKE</span>
+                <span className="absolute top-0.5 left-[7px] z-2 max-w-[70%] truncate text-[10px] font-[650] text-foreground">♫ Golden Hour — JVKE</span>
                 {["left-[18%]", "left-[47%]", "left-[76%]"].map((l) => <i key={l} className={cn("absolute inset-y-0 z-2 w-px bg-[rgba(255,242,197,.7)]", l)} />)}
               </div>}
             </div>
@@ -178,7 +178,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
           <div className="pointer-events-none absolute top-2 bottom-[7px] z-5 w-px bg-accent shadow-[0_0_8px_var(--brand-glow)]" style={{ left: "calc(126px + (100% - 126px) * .19)" }}><i className="absolute -top-0.5 -left-1 size-[9px] rounded-full border-2 border-surface bg-accent" /></div>
         </div>
       </div>
-      <footer className="flex min-h-[34px] items-center justify-between gap-2 border-t border-(--ed-line) px-3.5 py-[7px] text-[9px] text-muted max-[680px]:px-2.5 max-[680px]:text-[8px]">
+      <footer className="flex min-h-[34px] items-center justify-between gap-2 border-t border-(--ed-line) px-3.5 py-[7px] text-[10px] text-muted max-[680px]:px-2.5 max-[680px]:text-[10px]">
         <span className="inline-flex items-center gap-[7px] text-[color:color-mix(in_srgb,#72bd91_74%,var(--foreground))]"><i className={GREEN_DOT} /> All changes saved</span>
         <span className="inline-flex items-center gap-[7px] max-[680px]:hidden">Drag clips to rearrange · Select a shot to edit</span>
       </footer>
@@ -186,7 +186,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
 
     <nav aria-label="Editor tools" className={cn(PANEL, "grid min-w-0 grid-cols-[repeat(12,minmax(62px,1fr))] gap-1 overflow-x-auto rounded-[17px] p-2 [scrollbar-color:color-mix(in_srgb,var(--accent)_32%,var(--muted))_transparent] [scrollbar-width:thin] max-[900px]:order-3 max-[900px]:grid-cols-[repeat(12,66px)] max-[680px]:sticky max-[680px]:bottom-[72px] max-[680px]:z-5 max-[680px]:grid-cols-[repeat(12,64px)] max-[680px]:gap-[3px] max-[680px]:rounded-[14px] max-[680px]:bg-[color:color-mix(in_srgb,var(--surface)_90%,transparent)] max-[680px]:bg-[image:none] max-[680px]:p-1.5 max-[680px]:backdrop-blur-[16px]")}>
       {categories.map((name) => <button key={name} onClick={() => { setCategory(name); setOpen(name); }}
-        className={cn(`relative flex min-h-[60px] min-w-[62px] cursor-pointer flex-col items-center justify-center gap-[5px] rounded-[11px] border border-transparent bg-transparent [font:550_9px_var(--font-body),sans-serif] whitespace-nowrap text-muted transition-[color,background,border-color,transform] ${EASE} hover:-translate-y-px hover:border-(--ed-line) hover:bg-[color:color-mix(in_srgb,var(--accent)_7%,var(--surface))] hover:text-foreground max-[680px]:min-h-14 max-[680px]:min-w-16 max-[680px]:text-[8px] [&>svg]:text-[color:color-mix(in_srgb,var(--accent)_76%,var(--muted))]`,
+        className={cn(`relative flex min-h-[60px] min-w-[62px] cursor-pointer flex-col items-center justify-center gap-[5px] rounded-[11px] border border-transparent bg-transparent [font:550_9px_var(--font-body),sans-serif] whitespace-nowrap text-muted transition-[color,background,border-color,transform] ${EASE} hover:-translate-y-px hover:border-(--ed-line) hover:bg-[color:color-mix(in_srgb,var(--accent)_7%,var(--surface))] hover:text-foreground max-[680px]:min-h-14 max-[680px]:min-w-16 max-[680px]:text-[10px] [&>svg]:text-[color:color-mix(in_srgb,var(--accent)_76%,var(--muted))]`,
           category === name && "border-[color:color-mix(in_srgb,var(--accent)_25%,var(--border))] bg-[color:color-mix(in_srgb,var(--accent)_11%,var(--surface))] text-accent-hover shadow-[inset_0_-2px_0_var(--accent)] [&>svg]:text-accent-hover")}>
         <Glyph name={name} /><span>{name}</span>
         {pro.includes(name) && <i className={cn(GOLD, "absolute top-0.5 right-0.5 rounded px-1 py-0.5 [font:800_6px_var(--font-body),sans-serif] tracking-[.04em]")}>PRO</i>}
@@ -202,7 +202,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
           <header className="flex items-center justify-between gap-4 max-[680px]:min-h-[42px]">
             <div className="flex min-w-0 items-center gap-3">
               <span className={cn(TILE_ICON, "size-[42px] rounded-[14px] border border-[color:color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color:color-mix(in_srgb,var(--accent)_10%,var(--surface))]")}><Glyph name={open} /></span>
-              <span className="grid gap-[3px]"><small className="text-[9px] font-extrabold tracking-[.14em] text-muted">{categories.includes(open) ? "EDITOR TOOL" : `SHOT ${shotNo}`}</small><h2 id="tool-sheet-title" className="m-0 [font:600_21px/1.1_var(--font-display),var(--font-body),sans-serif] tracking-[-.025em] max-[680px]:text-[19px]">{open}</h2></span>
+              <span className="grid gap-[3px]"><small className="text-[10px] font-extrabold tracking-[.14em] text-muted">{categories.includes(open) ? "EDITOR TOOL" : `SHOT ${shotNo}`}</small><h2 id="tool-sheet-title" className="m-0 [font:600_21px/1.1_var(--font-display),var(--font-body),sans-serif] tracking-[-.025em] max-[680px]:text-[19px]">{open}</h2></span>
             </div>
             <button type="button" aria-label="Close options" onClick={() => setOpen(null)} className={`grid size-[34px] flex-none cursor-pointer place-items-center rounded-[11px] border border-(--ed-line) bg-surface-2 [font:300_25px/1_var(--font-body),sans-serif] text-muted transition-[color,border-color,transform] ${EASE} hover:rotate-[5deg] hover:border-accent hover:text-accent-hover`}>×</button>
           </header>
@@ -220,7 +220,7 @@ export function EditorPreview({ projectId }: { projectId?: string } = {}) {
                   <i className="absolute -right-1.5 -bottom-3 -left-1.5 h-[22px] bg-[rgba(20,25,22,.62)] [clip-path:polygon(0_30%,30%_0,55%_38%,78%_8%,100%_42%,100%_100%,0_100%)]" />
                 </span> : <Glyph name={open} />}
               </span>
-              <span className="truncate pr-3.5 text-[10px] font-[650] max-[680px]:text-[9px]">{choice}</span>
+              <span className="truncate pr-3.5 text-[10px] font-[650] max-[680px]:text-[10px]">{choice}</span>
               {on && <span className="absolute right-2 bottom-2 text-[12px] font-extrabold text-accent-hover">✓</span>}
             </button>; })}
           </div>

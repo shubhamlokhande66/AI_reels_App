@@ -63,7 +63,7 @@ export default function ContactPage() {
       <div className="mb-5 sm:mb-7"><Hero title={text("contact.title")} subtitle={text("contact.sub")} /></div>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(250px,.78fr)_minmax(0,1.22fr)] lg:gap-6">
         <aside className="flex flex-col gap-3">
-          <div className="mb-1 flex items-center gap-2 px-1 text-[9px] font-extrabold uppercase tracking-[.18em] text-muted"><span className="h-px w-5 bg-accent/70" />{text("contact.title")}</div>
+          <div className="mb-1 flex items-center gap-2 px-1 text-[10px] font-extrabold uppercase tracking-[.18em] text-muted"><span className="h-px w-5 bg-accent/70" />{text("contact.title")}</div>
           {realEmail && <Way href={`mailto:${s.email}`} icon="mail" tone="talk" title={text("contact.email")} line={s.email} />}
           {s.phone && <Way href={`https://wa.me/${wa}`} icon="chat" tone="story" title={text("contact.whatsapp")} line={s.phone} />}
           {/* more ways: Admin → CMS → Contact us → Ways to reach us */}
