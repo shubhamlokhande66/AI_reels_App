@@ -55,3 +55,15 @@ self.addEventListener("fetch", (e) => {
     );
   }
 });
+
+// a notification from long work that ended while the person was elsewhere (lib/background.ts): a tap brings the studio back
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || "/";
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      const open = list.find((c) => new URL(c.url).pathname === new URL(url, self.location.origin).pathname) || list[0];
+      return open ? open.focus() : self.clients.openWindow(url);
+    }),
+  );
+});
