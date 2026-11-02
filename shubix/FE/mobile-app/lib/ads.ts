@@ -8,3 +8,16 @@ const lib: typeof Ads | null = TurboModuleRegistry.get("RNGoogleMobileAdsModule"
 export const BannerAd = lib?.BannerAd ?? null;
 export const BannerAdSize = lib?.BannerAdSize ?? { ANCHORED_ADAPTIVE_BANNER: "" as const };
 export const TestIds = lib?.TestIds ?? { ADAPTIVE_BANNER: "" as const };
+
+/** Once per run, before the first ad: Google's consent form where the law asks for it (the message is set in AdMob →
+ * Privacy & messaging), then AdMob starts. False: no ads may be asked for. */
+let ready: Promise<boolean> | null = null;
+export const adsReady = () => ready ??= (async () => {
+  if (!lib) return false;
+  const can = await lib.AdsConsent.gatherConsent().then((c) => c.canRequestAds).catch(() => false);
+  if (can || __DEV__) await lib.default().initialize();
+  return can || __DEV__;
+})();
+/** Whether this person must be able to change their answer (My account → Ad privacy choices). */
+export const adChoicesNeeded = async () => !!lib && (await lib.AdsConsent.getConsentInfo()).privacyOptionsRequirementStatus === "REQUIRED";
+export const showAdChoices = async () => { await lib?.AdsConsent.showPrivacyOptionsForm(); };

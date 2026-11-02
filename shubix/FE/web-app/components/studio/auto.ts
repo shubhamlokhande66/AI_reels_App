@@ -113,6 +113,7 @@ export function initAuto(root: HTMLElement): () => void {
             <button type="button" class="aobtn" data-ao="edit">${ICON.edit}<span>Edit in the studio</span></button>
             <button type="button" class="aobtn ghost" data-ao="again">${ICON.again}<span>Make another</span></button>
           </div>
+          <p class="aometa" id="aoreport" hidden><a href="/contact?topic=reels&amp;message=Report%20this%20AI%20content%3A%20">Report this AI content</a></p>
           <details class="aocredits" id="aocredits" hidden><summary>Picture credits</summary><ol id="aocredlist"></ol></details>
         </div>
       </div>
@@ -219,7 +220,7 @@ export function initAuto(root: HTMLElement): () => void {
       const v = $<HTMLVideoElement>("aovid"); v.src = url; show("done"); v.play().catch(() => {});
       const scenes = mode === "story" ? sentencesOf($<HTMLTextAreaElement>("aotext").value).length : 0;
       v.onloadedmetadata = () => { $("aometa").textContent = `${Math.round(v.duration)} s` + (scenes ? ` · ${scenes} scene${scenes > 1 ? "s" : ""}` : "") + " · 9:16"; };
-      $("aocredits").hidden = !(per && credits.length); $("aocredlist").innerHTML = credits.map((c) => `<li>${c.replace(/[<&]/g, "")}</li>`).join("");
+      $("aoreport").hidden = mode !== "story"; $("aocredits").hidden = !(per && credits.length); $("aocredlist").innerHTML = credits.map((c) => `<li>${c.replace(/[<&]/g, "")}</li>`).join("");
     } catch (err) {
       $("aostage").textContent = String((err as Error)?.message || err); $("aopct").textContent = "!";
     } finally { running = false; }
