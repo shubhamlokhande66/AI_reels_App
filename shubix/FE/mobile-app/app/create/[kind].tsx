@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Keyboard, Platform, ScrollView, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +8,7 @@ import { useStudioText } from "@shubix/hooks";
 import { Button, tasks, toast } from "@shubix/ui-mobile";
 import { PlanGate } from "../../components/templates/PlanGate";
 import type { ProjectClip } from "@shubix/validations";
-import { engine, engineOn, shotsOf, type SongAnalysis } from "../../lib/engine";
+import { STOPPED, engine, engineOn, shotsOf, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@shubix/api-client";
 import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
@@ -36,7 +36,10 @@ function CreateFlowScreen() {
   useEffect(() => { void recentSongs().then(setRecent); }, []);
 
   const go = (to: FlowStep | undefined) => to && setStep(to);
-  const back = () => { const i = order.indexOf(step); if (i <= 0) router.back(); else if (step !== "analyse") go(order[i - 1]); };
+  // making the Reel stops when the person leaves (Home, another tab, back): the studio drops it all, no AI keeps working
+  const making = useRef(false), stop = () => { if (making.current) { making.current = false; tasks.clear("keep"); engine.stop(); } };
+  useFocusEffect(useCallback(() => stop, [])); // eslint-disable-line react-hooks/exhaustive-deps
+  const back = () => { const i = order.indexOf(step); if (i <= 0) router.back(); else if (step === "analyse") { stop(); go("clips"); } else go(order[i - 1]); };
   useEffect(() => { if (Platform.OS === "web") return; const h = BackHandler.addEventListener("hardwareBackPress", () => { back(); return true; }); return () => h.remove(); }); // Android back: the screen before
 
   async function choose(pick: () => Promise<Song | null>) {
@@ -70,14 +73,15 @@ function CreateFlowScreen() {
   // Analysing: the clips and the song kept on the phone, the Reel made by the website's engine (its shots on the beats,
   // their transitions and effects), the draft saved, then the editor. Without the engine (Expo Go) the clips play in turn.
   async function make() {
-    setStep("analyse");
+    setStep("analyse"); making.current = true;
+    const left = () => { if (!making.current) throw new Error(STOPPED); };
     const id = `draft-${Date.now()}`, at = (pct: number, done: number) => setProgress({ pct, done, status: words(AI_STEPS[Math.min(done, 3)][1]) });
     try {
       at(0.02, 0); setProgress((p) => ({ ...p, status: words("Reading your clips…") }));
       const style = styleFromWords(wish), speed = { fast: 1.25, smooth: 0.8, "": 1 }[style];
       tasks.start("keep", "clips", words("Adding your clips"), `${words("Clip")} 1 / ${media.length}`);
       let clips = await keepPickedAssets(id, media, (n) => { setProgress((p) => ({ ...p, pct: 0.02 + (0.3 * n) / media.length })); tasks.update("keep", n / media.length, `${words("Clip")} ${Math.min(media.length, n + 1)} / ${media.length}`); });
-      tasks.clear("keep");
+      tasks.clear("keep"); left();
       at(0.35, 1);
       const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
       let studio = false;
@@ -85,21 +89,21 @@ function CreateFlowScreen() {
         await engine.choose({ order: settings.order, aspect: settings.aspect, mode: style || "auto" }); // (the length and the part are set already)
         // each clip numbered (phones name many clips the same): the ones the studio kept, in its order
         const kept = (await engine.clips(clips.map((c, i) => ({ uri: c.uri, name: `${i + 1}-${c.name}` })))).names;
-        at(0.7, 2);
+        left(); at(0.7, 2);
         // heavy clips (4K / HDR / 60 fps / a changing frame rate): the studio's smooth copies play instead (the phone's
         // preview and export decode them easily; the Reel is the same)
         const copies = new Map((await engine.copies()).map((c) => [c.name, c]));
         const sources = kept.map((n) => { const c = clips[parseInt(n, 10) - 1], copy = copies.get(n); return c && copy ? { ...c, uri: `file://${copy.path}` } : c; }).filter((c): c is ProjectClip => !!c);
         clips = shotsOf((await engine.ready(id)).state.edit, sources.length ? sources : clips); studio = true;
       } else clips = clips.map((c) => ({ ...c, speed }));
-      at(0.92, 3);
+      left(); at(0.92, 3);
       const now = new Date().toISOString();
       await saveProject({ id, title: words(KINDS[kind].title), kind, clips, audioUri, audioName: song?.name, overlays: [], ...(music ? { music } : {}), studio, createdAt: now, updatedAt: now, status: "draft",
         ...(params.templateId ? { templateId: params.templateId } : {}), settings: { start, length, ...settings, ...(wish ? { wish } : {}) } });
-      await queryClient.invalidateQueries({ queryKey: ["drafts"] });
+      await queryClient.invalidateQueries({ queryKey: ["drafts"] }); left(); making.current = false;
       setProgress({ pct: 1, done: 4, status: words("Your Reel is ready!") });
       setTimeout(() => { setStep("clips"); router.push({ pathname: "/editor", params: { id } }); }, 450); // back from the editor: the clips again
-    } catch (e) { tasks.clear("keep"); toast(errorMessage(e), "danger"); setStep("clips"); }
+    } catch (e) { const gone = !making.current; making.current = false; tasks.clear("keep"); if (!gone) toast(errorMessage(e), "danger"); setStep("clips"); }
   }
 
   // the bottom button: its words say what it waits for while it is off (the website's flow.ts)

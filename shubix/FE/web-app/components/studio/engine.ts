@@ -5656,6 +5656,8 @@ $('fexpcancel')?.addEventListener('click', () => { if(!exportBusy) return; expCa
     inp.addEventListener('blur', () => close(true), SIG);
   } }
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
+// the preview stops when the person goes to another tab or app (the song is WebAudio: pausing the page's videos alone keeps it playing)
+document.addEventListener('visibilitychange', ()=>{ if(isHidden() && playing && !recording) stopAll(); }, SIG);
 async function autoExport(cloud = false){
   if(exportBusy) return null; exportKeep = true; exportP = 0; lastVideo = null;
   // cloud: also kept in My Reels, as the website's Export sheet does (when the account has room and the switch is on)
