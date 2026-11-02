@@ -15,7 +15,8 @@ import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
 import { isNativeEffectSupported, isNativeTransitionSupported, videoEngine } from "../lib/video";
-import { engine } from "../lib/engine";
+import { engine, textsOf } from "../lib/engine";
+import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
@@ -507,6 +508,16 @@ export default function EditorScreen() {
           <TextInput value={draft} onChangeText={setDraft} placeholder={words("Type your text")} placeholderTextColor={look.muted} maxLength={80} className="h-12 rounded-xl border border-border bg-surface-2 px-4 text-[14px] text-foreground" />
           <View className="flex-row gap-2"><Button className="flex-1" icon="plus" disabled={!draft.trim()} title={words("Text")} onPress={() => addText(draft)} /><Button className="flex-1" variant="secondary" icon="plus" title={words("Sticker")} onPress={() => setTool({ key: "stickers", name: "Stickers" })} /></View>
           <Choices items={READY_MADE} onPick={addText} />
+          {p.studio && <>
+            <Label>Text templates (at the playhead)</Label>
+            <Choices items={Object.values(TEXT_TEMPLATES).map((t) => t.name)} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              const key = Object.keys(TEXT_TEMPLATES).find((k) => TEXT_TEMPLATES[k].name === v)!;
+              try { await engine.edit(p); const r = await engine.tool("template", { key, time: now }) as { ok?: boolean; state?: { overlays?: unknown } }; const list = textsOf(r?.state?.overlays);
+                if (r?.ok && list) setP((old) => old ? { ...old, overlays: list } : old); toast(words(r?.ok ? "Template added: tap a text to change its words" : "This template is not available"), r?.ok ? "success" : "info"); }
+              catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+          </>}
           {p.overlays.map((o) => <Pressable key={o.id} onPress={() => setTxSel(txSel === o.id ? "" : o.id)} className={`flex-row items-center gap-2 rounded-xl border px-3 py-2 ${txSel === o.id ? "border-accent" : "border-border"}`}><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id) })} /></Pressable>)}
           {/* the tapped text: its look and motion, as the website's text editor (drawn by the studio in the paused preview and the export) */}
           {txt && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">

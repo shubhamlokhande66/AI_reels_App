@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getProvider, type ManagedProvider } from "../ai";
 import { clean, Text } from "../ai/text";
 import { AIResponseError } from "../ai/types";
+import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 
 /** Fast Studio's AI director: the brain of the edit, the way an editor's judgment is.
  *
@@ -170,6 +171,7 @@ export const ACTIONS = {
   sound: `a sound effect: {"do":"sound","kind":"${SOUNDS.join("|")}","at":seconds of the Reel}`,
   shot: `a timeline step on a cut, as the editor's buttons: {"do":"shot","i":<cut number>,"op":"split|dup|freeze|delete|reverse","at":<seconds into the cut>} (dup = the moment plays twice, freeze = a frozen frame there, reverse = plays backwards)`,
   background: `behind the person: {"do":"background","mode":"none|blur|color","color":"#RRGGBB"}`,
+  template: `a ready-made animated title (several texts that come in together, each with its own style, font, entrance and loop): {"do":"template","name":"${Object.keys(TEXT_TEMPLATES).join("|")}","words":["<main words>","<second words or empty>"],"at":seconds of the Reel,"len":seconds}`,
   voiceover: `a spoken voice-over (text to speech) at a time of the Reel: {"do":"voiceover","text":"<what is said>","at":seconds}`,
 } as const;
 const Action = z.object({ do: z.preprocess(lower, z.string()) }).passthrough();

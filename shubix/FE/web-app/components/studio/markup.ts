@@ -7,6 +7,7 @@
 import { PLAN_TOOLS } from "./views";
 import { GLYPH_PATHS } from "@shubix/ui-web";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
+import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 export { DOCK_CATEGORIES_DEF, SHOT_TOOLS_DEF };
 import { Button, Chip, Segmented, Tile } from "./ui";
 /** shapes: drawn in the text's colour, so they take every text tool (keyframes, entrances, exits, loops) */
@@ -476,6 +477,7 @@ export const STUDIO_HTML = `
             <span class="label">Text &amp; stickers</span>
             <div class="row ovadd">
               <button class="${Button.secondary}" id="ovtext" type="button">+ Text</button><button class="${Button.secondary}" id="ovsticker" type="button">+ Sticker</button>
+              <select id="ovtpl" aria-label="Text template"><option value="">+ Text template…</option>${Object.entries(TEXT_TEMPLATES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join("")}</select>
               <select id="ovpreset" aria-label="Ready-made text"><option value="">+ Ready-made…</option><option value="price">Price tag ₹</option><option value="follow">Follow for more</option><option value="save">Save this</option><option value="step1">Step 1</option><option value="before">BEFORE</option><option value="after">AFTER</option><option value="ganpati">गणपती बाप्पा मोरया</option><option value="diwali">शुभ दीपावली</option><option value="hdiwali">Happy Diwali</option></select>
             </div>
             <div class="row" id="ovshapes" role="group" aria-label="Shapes"><span class="fname">Shapes:</span>${SHAPES.map((s) => `<button type="button" class="${Button.small}" data-shape="${s}">${s}</button>`).join("")}</div>

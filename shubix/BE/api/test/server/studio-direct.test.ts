@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "../../src/server/ai";
 import { CHUNK, chunks, cleanActions, cleanMove, cleanTexts, direct, DirectIn, directPatch, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
+import { templateTexts } from "@shubix/core/lib/text-templates";
 import { shotCacheKey } from "../../src/server/studio/rankShots";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
@@ -330,6 +331,14 @@ describe("Shubix AI as the editor: texts and other tools", () => {
   it("keeps only the tools the studio has, in order", () => {
     const out = cleanActions([{ do: "LAYER", clip: "c2", start: 1 }, { do: "hack" }, { do: "look", name: "cine" }]);
     expect(out.map((a) => a.do)).toEqual(["layer", "look"]);
+  });
+  it("has the text templates, with the words put in and each part's own start", () => {
+    expect(cleanActions([{ do: "Template", name: "headline", words: ["HELLO", "world"], at: 2 }])[0]).toMatchObject({ do: "template", name: "headline" });
+    expect(prompt(req(2))).toContain('"do":"template"');
+    const parts = templateTexts("headline", ["HELLO", "world"], 2);
+    expect(parts.map((p) => [p.text, p.start, p.end])).toEqual([["HELLO", 2, 5], ["world", 2.35, 5]]);
+    expect(templateTexts("vlog", ["Hi", ""]).map((p) => p.text)).toEqual(["Hi"]);   // an empty second line is left out
+    expect(templateTexts("nope")).toEqual([]);
   });
   it("tells the AI about every tool", () => {
     const p = prompt(req(2));

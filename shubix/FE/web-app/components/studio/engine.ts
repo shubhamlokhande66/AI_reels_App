@@ -12,6 +12,7 @@
 import { createTasks } from './tasks';
 import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes } from '@shubix/video-engine';
 import { chatSize } from '@shubix/core/lib/chatSize';
+import { TEXT_TEMPLATES, templateTexts } from '@shubix/core/lib/text-templates';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
 import { songAnalysis } from '@shubix/core/engine/studio/song';
@@ -4122,6 +4123,15 @@ function addOverlay(o){
   overlays.push(ov); ovSel = overlays.length - 1; renderOvList(); redraw();
   return ov;
 }
+// a text template (a ready-made animated title): its texts, each with its own start, all ending together
+function addTemplate(key, words, at, len, ai){
+  const L = reelLen(), t = Math.max(0, Math.min(Math.max(0, L - 0.6), at ?? ((playing ? curTime() : pos) || 0)));
+  const parts = templateTexts(key, words, t, len); if(!parts.length) return 0;
+  for(const q of parts){ const ov = { id: ++ovSeq, text: q.text, emoji: false, style: q.style, color: q.color, anim: q.anim, out: q.out, loop: q.loop, font: q.font,
+    t0: q.start, t1: Math.min(L, q.end), x: q.x, y: q.y, size: q.size, all: false, tpl: key, ...(ai ? { aiIntent: 'ai' } : {}) };
+    overlays.push(ov); if(ov.font) loadFont(ov.font).then(redraw); }
+  ovSel = overlays.length - 1; renderOvList(); redraw(); return parts.length;
+}
 /* ---- Shubix AI as the editor: what a person does with the tools (texts and their keyframes, video boxes, the look, captions,
  * the song's sound, the voice), the AI does with the same tools; its steps are used as it gave them ---- */
 function aiTexts(list){
@@ -4151,6 +4161,7 @@ async function aiActions(list){
       else if(a.do === 'shot' && SHOT_OPS.includes(a.op) && edit[+a.i]){ const e = edit[+a.i], len = e.end - e.start;
         pos = e.start + Math.max(0.05, Math.min(len - 0.05, Number.isFinite(+a.at) ? +a.at : len/2));
         if(a.op === 'reverse'){ shotSet({ rev: a.on !== false }); done++; } else if(shotOp(a.op)) done++; }
+      else if(a.do === 'template' && TEXT_TEMPLATES[a.name]){ if(addTemplate(a.name, Array.isArray(a.words) ? a.words : [], +a.at || 0, Number.isFinite(+a.len) && +a.len > 0 ? +a.len : undefined, true)) done++; }
       else if(a.do === 'background' && ['none','blur','color'].includes(a.mode)){ if(/^#[0-9a-f]{6}$/i.test(a.color || '')) bgColor = a.color; bgmode.querySelector('[data-b="' + a.mode + '"]').click(); done++; }
       else if(a.do === 'layer'){
         const s = sources[parseInt(String(a.clip).replace(/\D/g, ''), 10) - 1]; if(!s || !s.file || !edit.length) continue;
@@ -4351,6 +4362,7 @@ $('ovsticker').addEventListener('click', () => { $('emojis').hidden = !$('emojis
 $('ovshapes').addEventListener('click', e => { const b = e.target.closest('[data-shape]'); if(b) addOverlay({ text: b.dataset.shape + '︎', style: 'clean', size: 2.2 }); }, SIG);
 OV_EMOJI.forEach(em => { const b = document.createElement('button'); b.textContent = em; b.className = 'em'; b.setAttribute('aria-label', 'Sticker ' + em);
   b.addEventListener('click', () => { addOverlay({ text: em, emoji: true, y: 0.5, x: 0.72, size: 1 }); $('emojis').hidden = true; }); $('emojis').appendChild(b); });
+$('ovtpl').addEventListener('change', e => { const k = e.target.value; e.target.value = ''; if(k) addTemplate(k); }, SIG);
 $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.value]; e.target.value = ''; if(p) addOverlay(p); }, SIG);
 // drag on the preview: the item under the finger moves with it (a tap selects it)
 { let drag = null; const fingers = new Map();
