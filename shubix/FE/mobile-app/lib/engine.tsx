@@ -128,6 +128,8 @@ export const engine = {
   /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
   exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),
   cancelExport: () => call("cancelExport").catch(() => undefined),
+  /** the Reel's picture at `t` exactly as the studio makes it (null: it could not) */
+  frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
   /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
   stop: () => restart(STOPPED),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the

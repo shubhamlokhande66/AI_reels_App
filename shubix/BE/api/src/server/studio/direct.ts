@@ -136,7 +136,7 @@ const SlotAnswer = z.object({
  * entrance, loop and keyframes (at = seconds from its start; s scale, x/y offset as fractions of the frame, r turn, o opacity) */
 const TextAnswer = z.object({ text: z.string(), start: z.coerce.number().default(0), end: z.coerce.number().default(3), x: z.coerce.number().default(0.5), y: z.coerce.number().default(0.4),
   size: z.coerce.number().default(1), style: z.preprocess(lower, z.string()).default("bold"), color: z.string().default("#FFFFFF"), anim: z.preprocess(lower, z.string()).default("pop"),
-  loop: z.preprocess(lower, z.string()).default("none"), font: z.string().default(""), behind: z.boolean().default(false), track: z.boolean().default(false), focus: z.coerce.number().optional(),
+  loop: z.preprocess(lower, z.string()).default("none"), font: z.string().default(""), behind: z.boolean().default(false), track: z.boolean().default(false), emoji: z.boolean().default(false), focus: z.coerce.number().optional(),
   keys: z.array(z.object({ at: z.coerce.number(), s: z.coerce.number().default(1), x: z.coerce.number().default(0), y: z.coerce.number().default(0), r: z.coerce.number().default(0), o: z.coerce.number().default(1), ez: z.preprocess(lower, z.string()).default("inOut") })).default([]) });
 export const TEXT_STYLES = ["bold", "box", "neon", "clean", "tag", "outline", "shadow", "bubble", "glow", "stack", "cutout"] as const;
 const TEXT_ANIMS = ["pop", "fade", "slide", "type", "none"], TEXT_LOOPS = ["none", "bounce", "spin", "wiggle", "pulse", "float", "swing", "shake"];
@@ -149,7 +149,7 @@ export function cleanTexts(raw: z.infer<typeof TextAnswer>[] | undefined) {
     const start = num(t.start, 0, 600), end = num(t.end, start + 0.2, 600);
     return { text: t.text.trim().slice(0, 120), start, end, x: num(t.x, 0, 1), y: num(t.y, 0, 1), size: num(t.size, 0.3, 3), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : "#FFFFFF",
       style: pick(TEXT_STYLES, t.style, "bold"), anim: pick(TEXT_ANIMS, t.anim, "pop"), loop: pick(TEXT_LOOPS, t.loop, "none"),
-      font: t.font.slice(0, 24), behind: t.behind, track: t.track, ...(t.focus !== undefined ? { focus: num(t.focus, 0, 1) } : {}),
+      font: t.font.slice(0, 24), behind: t.behind, track: t.track, emoji: t.emoji, ...(t.focus !== undefined ? { focus: num(t.focus, 0, 1) } : {}),
       keys: t.keys.slice(0, LIMITS.keys).map((k) => ({ at: num(k.at, 0, end - start), s: num(k.s, 0.05, 60), x: num(k.x, -2, 2), y: num(k.y, -2, 2), r: num(k.r, -720, 720), o: num(k.o, 0, 1), ez: pick(EASES, k.ez, "inOut") })).sort((a, b) => a.at - b.at) };
   });
 }
@@ -160,7 +160,10 @@ export const ACTIONS = {
   captions: `captions of what is said: {"do":"captions","on":true,"style":"pop|karaoke|box|clean","language":"<spoken language code or empty>","translation":"<language code to translate to, or empty>"}`,
   music: `the song's sound: {"do":"music","volume":0-1,"fadeIn":seconds,"fadeOut":seconds}`,
   voicefx: `the voice changer: {"do":"voicefx","fx":"none|deep|chipmunk|robot"}`,
-  layer: `a clip of this Reel shown as a box on top (split screens, grids that build up on the beats, picture in picture, a frame inside the frame): {"do":"layer","clip":"<clip alias, e.g. c2>","from":<seconds into that clip>,"start":<seconds of the Reel>,"end":<seconds>,"x":0-1,"y":0-1 (its centre),"size":0-1 (its width, a fraction of the frame's),"radius":0-1 (rounded corners),"mask":"none|circle|rect","fadeIn":seconds,"fadeOut":seconds}; e.g. 4 boxes in a 2x2 grid, one more on each beat: 4 layers of size 0.5 at x/y 0.25 or 0.75, each starting on its beat`,
+  layer: `a clip of this Reel shown as a box on top (split screens, grids that build up on the beats, picture in picture, a frame inside the frame): {"do":"layer","clip":"<clip alias, e.g. c2>","from":<seconds into that clip>,"start":<seconds of the Reel>,"end":<seconds>,"x":0-1,"y":0-1 (its centre),"size":0-1 (its width, a fraction of the frame's),"radius":0-1 (rounded corners),"mask":"none|circle|rect","fadeIn":seconds,"fadeOut":seconds,"opacity":0-1,"rotate":degrees,"blend":"source-over|multiply|screen|overlay|darken|lighten|color-dodge|color-burn|hard-light|soft-light|difference|exclusion|hue|saturation|color|luminosity","key":"<#RRGGBB: green screen, this colour becomes see-through>","tolerance":0.05-0.9}; e.g. 4 boxes in a 2x2 grid, one more on each beat: 4 layers of size 0.5 at x/y 0.25 or 0.75, each starting on its beat`,
+  sound: `a sound effect: {"do":"sound","kind":"whoosh|pop|boom|click|riser|ding","at":seconds of the Reel}`,
+  shot: `a timeline step on a cut, as the editor's buttons: {"do":"shot","i":<cut number>,"op":"split|dup|freeze|delete|reverse","at":<seconds into the cut>} (dup = the moment plays twice, freeze = a frozen frame there, reverse = plays backwards)`,
+  background: `behind the person: {"do":"background","mode":"none|blur|color","color":"#RRGGBB"}`,
   voiceover: `a spoken voice-over (text to speech) at a time of the Reel: {"do":"voiceover","text":"<what is said>","at":seconds}`,
 } as const;
 const Action = z.object({ do: z.preprocess(lower, z.string()) }).passthrough();
@@ -176,7 +179,7 @@ export interface Accent { at: number; do: (typeof ACCENTS)[number] }
 /** a camera keyframe inside a shot: at = fraction of the shot (0-1), scale, offset (fraction of the frame), turn (degrees) */
 export interface MoveKey { at: number; s: number; x: number; y: number; r: number; ez: (typeof EASES)[number] }
 /** the shot's own settings, as the creator's clip tools set them (the engine's e.cs) */
-export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; fin?: number; fout?: number }
+export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; fin?: number; fout?: number; rev?: boolean; zoom?: number; vol?: number; pitch?: number; mus?: number }
 /** auto: the AI gave nothing usable for this cut (filled with safe choices here): the phone uses its own choice for it */
 export interface DirectedSlot { i: number; shot: string | null; transition: string | null; effect: string | null; speed: string | null; keys: Accent[]; move: MoveKey[]; clip?: ClipLook; why: string; auto?: boolean }
 
@@ -195,7 +198,7 @@ Decide like this:
 - Speed: slow on breaks, held notes and emotional moments; ramp or velocity on longer shots in a build-up before a drop; fast on very short hits; freeze only with "snap" on one or two drops; hold = the whole shot is one frozen frame (a dramatic pause, a punchline, a face on a hit).
 - Style "smooth" asks for a calm feel, "fast" for energy on almost every cut: a direction, not a rule; break it when the moment is better for it.
 - Beat shapes and beat effects (effect names) step on the beats INSIDE a shot, best on shots of 1 s or more with 2+ beats: boxgrow (the shot in a small box on the subject that grows on each beat to full frame), grid (2x2 or 3x3 windows opening one per beat), strips (3 strips one per beat), circle / heartbeat / starbeat (the shot in that shape, pulsing on each beat), frame (frame in frame on its blurred copy), mirror, kaleido (kaleidoscope), triple (the shot three times, one band per beat), vhs (retro tape), strobe (black and white flash on each beat), rgbpulse (colour split on each beat), blurpulse (blur on each beat).
-- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm / hi (highlights) / sh (shadows) / hue (-1..1), sharp / vig (vignette) / beauty (smooth skin) / stab (stabilize a shaky shot) (0..1), fin / fout (fade in / out, seconds). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
+- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm / hi (highlights) / sh (shadows) / hue (-1..1), sharp / vig (vignette) / beauty (smooth skin) / stab (stabilize a shaky shot) (0..1), fin / fout (fade in / out, seconds), rev (true: plays backwards), zoom (1-3: closer in), vol (the clip's own sound 0-1), pitch (its sound, -12..12 semitones), mus (the song under this cut 0-1). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
 - Camera moves are as free as the creator's own keyframes: zoom 0.1-4, slide -1..1 of the frame, turn -360..360 degrees, up to ${LIMITS.moveKeys} keyframes; keys on hits up to ${LIMITS.keys} a shot.
 - Use everything you know about what is trending in Reels right now (velocity edits, beat-synced zoom punches, speed ramps, 3D zooms, shake on the bass, whips on snare rolls, flash on drops...): the app applies your choices as they are, nothing is cut back.
 - There are no limits on style or budget: use the WHOLE toolbox, combine tools (a grid on the drop with an RGB split key, a box that grows while the camera turns), invent. Every Reel must feel new and different from the creator's recent ones.`;
@@ -222,7 +225,7 @@ Where the reference and the general rules disagree, the reference wins.`;
 
 /** the text tool, as an editor uses it in the timeline: the AI adds texts when the creator asks for words, a title, a
  * text effect or a text transition (any language), and may add them itself where they make the Reel better */
-const TEXT_GUIDE = `TEXTS (optional, "texts" in the JSON): words on the Reel, made like an editor makes them in the timeline. Each: {"text", "start" and "end" (seconds of the Reel), "x" and "y" (0-1, the centre), "size" (1 = normal, up to 3), "style", "color" (#RRGGBB), "anim" (entrance), "loop" (keeps moving), "behind" (true: behind the person), "track" (true: follows the person), "focus" (0-1: where along the text it is sized and turned around, e.g. 0.64 = the O of WELCOME), "keys" (keyframes: at = seconds from the text's start, s = scale (1 normal, up to 60), x/y = offset as a fraction of the frame, r = turn in degrees, o = opacity 0-1, ez = easing)}.
+const TEXT_GUIDE = `TEXTS (optional, "texts" in the JSON): words on the Reel, made like an editor makes them in the timeline. Each: {"text", "start" and "end" (seconds of the Reel), "x" and "y" (0-1, the centre), "size" (1 = normal, up to 3), "style", "color" (#RRGGBB), "anim" (entrance), "loop" (keeps moving), "behind" (true: behind the person), "track" (true: follows the person), "emoji" (true: a sticker, the text is emoji), "focus" (0-1: where along the text it is sized and turned around, e.g. 0.64 = the O of WELCOME), "keys" (keyframes: at = seconds from the text's start, s = scale (1 normal, up to 60), x/y = offset as a fraction of the frame, r = turn in degrees, o = opacity 0-1, ez = easing)}.
 Styles: ${TEXT_STYLES.join(", ")} (cutout = a solid colour fills the frame and the video shows only inside the letters). Entrances: pop, fade, slide, type, none. Loops: none, bounce, spin, wiggle, pulse, float, swing, shake. Easings: ${EASES.join(", ")}.
 Whatever the creator asks for with words, make it with these: e.g. "WELCOME, then the video through the O" = a cutout text WELCOME, "focus": 0.64 (the O), then keyframes that scale it up to about 40, so the frame flies through the O into the video, then end the text. Combine keyframes freely (zoom in, fly through, spin in, drop in, fade out).
 OTHER TOOLS (optional, "actions" in the JSON, run in order): you are the editor: whatever the creator asks for, do it with the tools: the cuts (transition, effect, speed, keys, move, clip look) and the texts above, and these: ${Object.values(ACTIONS).join("; ")}.`;
@@ -293,12 +296,16 @@ export function cleanClip(raw: Record<string, unknown> | null | undefined): Clip
   if (!raw || typeof raw !== "object") return undefined;
   const o: ClipLook = {}, num = (k: string) => Number(raw[k]), hex = (v: unknown) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v.trim()) ? v.trim().toUpperCase() : null);
   const rot = Math.round(num("rot") / 90) * 90 % 360; if (Number.isFinite(rot) && rot) o.rot = (rot + 360) % 360;
-  for (const k of ["fh", "fv", "fit"] as const) if (raw[k] === true) o[k] = true;
+  for (const k of ["fh", "fv", "fit", "rev"] as const) if (raw[k] === true) o[k] = true;
   if (o.fit) { const bg = raw.bg; if (bg === "blur") o.bg = "blur"; else if (hex(bg)) { o.bg = "color"; o.bgc = hex(bg)!; }
     if (Number.isFinite(num("bd")) && num("bd") > 0) { o.bd = r3(clampN(num("bd"), 0, 1, 0)); o.bdc = hex(raw.bdc) ?? "#FFFFFF"; } }
   for (const k of ["bri", "con", "sat", "warm", "hi", "sh", "hue"] as const) if (Number.isFinite(num(k)) && num(k) !== 0) o[k] = r3(clampN(num(k), -1, 1, 0));
   for (const k of ["sharp", "vig", "beauty", "stab"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1, 0));
   for (const k of ["fin", "fout"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1.5, 0));
+  // zoom (1-3: closer in), the clip's own sound (0-1), its pitch (semitones), the song under this cut (0-1)
+  if (Number.isFinite(num("zoom")) && num("zoom") > 1) o.zoom = r3(clampN(num("zoom"), 1, 3, 1));
+  for (const k of ["vol", "mus"] as const) if (raw[k] !== undefined && Number.isFinite(num(k))) o[k] = r3(clampN(num(k), 0, 1, k === "mus" ? 1 : 0));
+  if (Number.isFinite(num("pitch")) && num("pitch")) o.pitch = Math.round(clampN(num("pitch"), -12, 12, 0));
   return Object.keys(o).length ? o : undefined;
 }
 

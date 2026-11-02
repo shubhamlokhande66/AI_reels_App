@@ -289,7 +289,8 @@ describe("every tool is open to the AI", () => {
       { i: 2, shot: "2a", transition: "star", effect: "kaleido", speed: "fast", why: "", clip: { bg: "blur", bri: "lots" } },
     ] });
     expect(out.slots[1]).toMatchObject({ effect: "boxgrow", transition: "heart", clip: { rot: 90, fh: true, fit: true, bg: "color", bgc: "#112233", bd: 1, bdc: "#FFFFFF", sat: -1, warm: 0.4, fout: 1.5 } });
-    expect(out.slots[1].clip).not.toHaveProperty("zoom");
+    expect(out.slots[1].clip).toMatchObject({ zoom: 3 });   // zoom is a clip tool: kept, in its range
+    expect(out.slots[1].clip).not.toHaveProperty("evil");
     expect(out.slots[2].effect).toBe("kaleido");
     expect(out.slots[2]).not.toHaveProperty("clip");   // a background without "fit" and a word for a number: nothing usable
   });

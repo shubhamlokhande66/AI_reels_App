@@ -130,6 +130,18 @@ export default function EditorScreen() {
 
   const clips = p?.clips ?? [], clip = clips[selected], total = projectDuration(clips);
   const before = clips.slice(0, selected).reduce((t, c) => t + clipDuration(c), 0), now = before + local;
+  // paused: the studio's own picture of this moment (what the export makes: its boxes, texts, keyframes, looks); the
+  // editor's changes reach the studio first. Asked a moment after the playhead stops moving.
+  const [still, setStill] = useState<string | null>(null), synced = useRef<ReelProject | null>(null);
+  useEffect(() => {
+    if (playing || !p || !p.studio || !engine.holds(p.id)) { setStill(null); return; }
+    let live = true;
+    const t = setTimeout(async () => {
+      if (synced.current !== p) { synced.current = p; await engine.edit(p).catch(() => false); }
+      const src = await engine.frame(now); if (live) setStill(src);
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [playing, p, now]);
   // the song plays with the Reel, from where the Reel is
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
   useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume]);
@@ -690,7 +702,7 @@ export default function EditorScreen() {
     <View className="flex-1 bg-background">
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} still={still} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <View className="mx-4 mt-2">
           <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>

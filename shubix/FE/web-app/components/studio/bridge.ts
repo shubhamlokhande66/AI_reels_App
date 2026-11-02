@@ -203,6 +203,17 @@ export function initBridge(root: HTMLElement): () => void {
         ...(a.mfout !== undefined ? { mfout: Math.max(0, Math.min(10, Number(a.mfout))) } : {}),
       });
     },
+    /** the Reel's picture at `t` seconds exactly as the studio makes it (its boxes, texts and their keyframes, looks,
+     * transitions): the phone's paused preview shows it -> { src: a JPEG data URL, 540 wide } */
+    async frame(a) {
+      const st = studio() as unknown as { frameAt?: (t: number) => Promise<number> }, out = $<HTMLCanvasElement>("out");
+      if (!st?.frameAt || !out) return { src: "" };
+      await st.frameAt(Math.max(0, Number(a.t) || 0));
+      const c = document.createElement("canvas"), w = Math.min(540, out.width);
+      c.width = w; c.height = Math.round(out.height * w / out.width);
+      c.getContext("2d")!.drawImage(out, 0, 0, c.width, c.height);
+      return { src: c.toDataURL("image/jpeg", 0.75) };
+    },
     async layerList() {
       const st = studio();
       return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", follow: layer.follow || "none", followOffsetX: layer.followOffsetX || 0, followOffsetY: layer.followOffsetY || 0, maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskThreshold: layer.mk?.th ?? 0.5, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35 }));
