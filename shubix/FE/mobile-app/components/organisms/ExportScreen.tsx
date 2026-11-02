@@ -23,7 +23,7 @@ const STEPS: [IconName, string, number][] = [["search", "Preparing clips", 0.02]
 export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onClose: () => void }) {
   const words = useStudioText(), insets = useSafeAreaInsets();
   const [pct, setPct] = useState(0), [done, setDone] = useState<{ uri: string; size: number } | null>(null), [saved, setSaved] = useState(false), [saveNotice, setSaveNotice] = useState(""), [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
-  const player = useVideoPlayer(done?.uri ?? null, (p) => { p.loop = true; });
+  const player = useVideoPlayer(done?.uri ?? null, (p) => { p.loop = true; if (done) p.play(); }); // the finished Reel plays at once, as on the website
   useEffect(() => {
     if (!reel) return;
     let live = true;
