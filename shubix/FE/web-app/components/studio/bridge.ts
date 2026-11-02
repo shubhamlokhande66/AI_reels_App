@@ -214,6 +214,11 @@ export function initBridge(root: HTMLElement): () => void {
       c.getContext("2d")!.drawImage(out, 0, 0, c.width, c.height);
       return { src: c.toDataURL("image/jpeg", 0.75) };
     },
+    /** a sound effect at `time` (the studio's Add buttons: whoosh, impact, laser...) -> { ok } */
+    async sfx(a) {
+      const st = studio(); if (st?.seek) await st.seek(Math.max(0, Number(a.time) || 0));
+      return { ok: press("sfxadd", "data-sfx", String(a.kind)) };
+    },
     async layerList() {
       const st = studio();
       return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", follow: layer.follow || "none", followOffsetX: layer.followOffsetX || 0, followOffsetY: layer.followOffsetY || 0, maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskThreshold: layer.mk?.th ?? 0.5, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35 }));

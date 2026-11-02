@@ -28,7 +28,7 @@ const UNAVAILABLE_TRANSITIONS = TRANSITIONS.filter((_, index) => !isNativeTransi
 const UNAVAILABLE_EFFECTS = EFFECTS.filter((_, index) => !isNativeEffectSupported(EFFECT_IDS[index]));
 const SPEEDS = ["0.5×", "1×", "1.6×"];
 const VOLUMES = ["0%", "25%", "50%", "75%", "100%"];
-const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"];
+const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯", "😍", "🙏", "👑", "💥", "🎵", "📍", "✅", "🚀", "■", "●", "▲", "★", "♥", "◆", "➜", "━", "○", "□"];   // the last ten are shapes (in the text colour)
 // the website's tool panels (components/studio/markup.ts): their choices, as its buttons' values and names
 const MODES = [["auto", "Auto"], ["smooth", "Smooth"], ["fast", "Fast"]];
 const MODE_HELP: Record<string, string> = {
@@ -37,7 +37,13 @@ const MODE_HELP: Record<string, string> = {
   fast: "Fast: a cut on every beat, a transition on every cut, punches and speed changes on the hits.",
 };
 // …a look's filter when the phone makes the Reel
-const LOOKS = [["natural", "Natural", "Original"], ["vivid", "Vivid", "Vivid"], ["cine", "Cinematic", "Cinematic"], ["mono", "B&W", "Noir"]];
+// the studio's 24 looks: [its key, the name, the phone preview's nearest filter]
+const LOOKS = [["natural", "Natural", "Original"], ["vivid", "Vivid", "Vivid"], ["cine", "Cinematic", "Cinematic"], ["mono", "B&W", "Noir"], ["warmfilm", "Warm film", "Warm"], ["cool", "Cool", "Cool"], ["retro", "Retro", "Vintage"], ["moody", "Moody", "Muted"],
+  ["wedding", "Wedding", "Dreamy"], ["golden", "Golden hour", "Golden"], ["tealorange", "Teal & orange", "Teal & Orange"], ["faded", "Faded", "Faded"], ["noir", "Noir", "Noir"], ["sepia", "Sepia", "Sepia"], ["cyber", "Cyber", "Cyberpunk"], ["pastel", "Pastel", "Pastel"],
+  ["dramatic", "Dramatic", "High Contrast"], ["summer", "Summer", "Sunset"], ["night", "Night", "Arctic"], ["vintage", "Vintage", "Vintage"], ["matte", "Matte", "Matte"], ["punchy", "Punchy", "Color Pop"], ["forest", "Forest", "Muted"], ["rose", "Rose", "Soft"]];
+// the studio's sound effects (its Add buttons): [key, name]
+const SOUNDS = [["whoosh", "Whoosh"], ["pop", "Pop"], ["boom", "Boom"], ["click", "Camera click"], ["riser", "Riser"], ["ding", "Ding"], ["swish", "Swish"], ["impact", "Impact"], ["glitch", "Glitch"], ["laser", "Laser"],
+  ["heartbeat", "Heartbeat"], ["tick", "Tick"], ["chime", "Chime"], ["drop", "Bass drop"], ["rewind", "Rewind"], ["notify", "Notification"]];
 const TSTYLES = [["pop", "Pop"], ["karaoke", "Karaoke"], ["box", "Box"], ["clean", "Clean"]];
 const CSNDS = [["mute", "Mute it"], ["voices", "Keep voices only"], ["all", "Keep all"]];
 const BGS = [["none", "Original"], ["blur", "Blur"]];
@@ -465,6 +471,15 @@ export default function EditorScreen() {
             <Text className="text-[12px] leading-[17px] text-muted">{words("Wind, traffic, people talking… Choose what the Reel keeps under the song.")}</Text>
             <Seg k="csnd" items={CSNDS} box="csnd" attr="data-c" here={(v) => ({ clips: clips.map((c) => ({ ...c, muted: v === "mute" })) })} />
           </View>
+          {p.studio && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+            <Label>Sound effects (at the playhead)</Label>
+            <Choices items={SOUNDS.map((s) => s[1])} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              const kind = SOUNDS.find((s) => s[1] === v)![0];
+              try { await engine.edit(p); const r = await engine.tool("sfx", { kind, time: now }) as { ok?: boolean }; toast(words(r?.ok ? "Sound added" : "This sound is not available"), r?.ok ? "success" : "info"); }
+              catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+          </View>}
           {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => change({ audioUri: undefined, audioName: undefined })} />}
           {clip && <>
             <Label>Selected shot audio volume</Label>
