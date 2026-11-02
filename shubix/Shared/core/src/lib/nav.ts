@@ -87,6 +87,7 @@ const PAGES: Record<string, PageMeta> = {
   "/account": { title: "My account", tk: "nav.myAccount" },
   "/rewards": { title: "Invite & earn", tk: "nav.rewards" },
   "/pricing": { title: "Pricing & plans", tk: "nav.pricing", credits: true },
+  "/credits": { title: "Your credits", tk: "pricing.yourCredits", credits: true },
   "/terms": LEGAL,
   "/privacy": LEGAL,
   "/refunds": LEGAL,

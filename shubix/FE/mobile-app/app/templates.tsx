@@ -35,7 +35,7 @@ function Templates() {
         return (
           <Pressable key={t.id} style={{ width: column }} accessibilityLabel={t.name} onPress={() => openTemplate(t, locked)}>
             <TemplateCard id={t.id} name={t.name} cover={t.cover && mobileApi.absoluteAsset(t.cover)} badge={templateTag(t, text)} meta={templateMeta(t)} text={t.text}
-              tag={locked ? <LockBadge card label={text("plan.lockTag")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
+              tag={locked ? <LockBadge card label={text("plan.lockTagApp")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
           </Pressable>
         );
       })}

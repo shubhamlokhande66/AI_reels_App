@@ -137,24 +137,6 @@ export function EmptyState({ title, hint, action, icon = "sparkle" }: { title: s
   );
 }
 
-/** "Go Pro with Shubix": the gold-washed banner with the crown, a line and the button. */
-export function ProBanner({ title, text, button }: { title: string; text: string; button: ReactNode }) {
-  return (
-    <View accessibilityLabel={title} className="flex-row items-center gap-3 overflow-hidden rounded-2xl border border-accent/45 p-4">
-      <Paint paint={accentWash(105, useColors())} />
-      <View className="absolute -right-5 -top-6 opacity-15"><Icon name="crown" size={96} color="accent" /></View>
-      <View className="min-w-0 flex-1 flex-row items-center gap-3">
-        <View className="h-12 w-12 items-center justify-center"><Icon name="crown" size={34} color="accent" /></View>
-        <View className="min-w-0 flex-1">
-          <Text className="text-[15px] font-extrabold text-foreground">{title}</Text>
-          <Text className="text-[12px] leading-[16px] text-muted">{text}</Text>
-        </View>
-      </View>
-      {button}
-    </View>
-  );
-}
-
 /** The shortcut to the tips: a bulb, the title and a line, and a round arrow. */
 export function TipsBanner({ title, text, onPress }: { title: string; text: string; onPress: () => void }) {
   return (

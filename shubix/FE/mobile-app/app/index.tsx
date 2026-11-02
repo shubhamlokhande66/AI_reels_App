@@ -2,7 +2,7 @@ import { useRef, type ComponentRef } from "react";
 import { router } from "expo-router";
 import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useApi, useText } from "@shubix/hooks";
-import { Badge, Button, CreateCard, DraftCard, EmptyState, LockBadge, Page, ProBanner, Scroller, SectionHeader, TemplatePoster, TipCard, TipsBanner, colors } from "@shubix/ui-mobile";
+import { Badge, Button, CreateCard, DraftCard, EmptyState, LockBadge, Page, Scroller, SectionHeader, TemplatePoster, TipCard, TipsBanner, colors } from "@shubix/ui-mobile";
 import type { IconName, Tone } from "@shubix/ui-core";
 import { linkOn } from "@shubix/core/lib/features-list";
 import { templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
@@ -10,7 +10,7 @@ import { clock, formatRelative } from "@shubix/utils";
 import { open, openTemplate } from "../lib/navigate";
 import { HomeHero } from "../components/organisms/HomeHero";
 import { AdBanner } from "../components/molecules/AdBanner";
-import { useCredits, useDraftActions, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
+import { useDraftActions, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
 import { mobileApi } from "../lib/api";
 import { useDraftThumbs } from "../lib/thumbs";
 import type { MobileProject } from "../lib/projects";
@@ -19,8 +19,7 @@ import type { MobileProject } from "../lib/projects";
  * Reels, Tips for Better Reels, Go Pro; the same CMS texts and lists. */
 export default function HomeScreen() {
   const text = useText(), { me } = useApi(), width = useWindowDimensions().width;
-  const credits = useCredits().data, signedIn = !me?.authEnabled || !!me?.user, saved = useSavedReels(signedIn);
-  const paid = credits?.enabled && credits.plan !== "free";
+  const signedIn = !me?.authEnabled || !!me?.user, saved = useSavedReels(signedIn);
   const page = useRef<ComponentRef<typeof ScrollView>>(null), tipsAt = useRef(0);
   return (
     <Page scrollRef={page}>
@@ -49,7 +48,6 @@ export default function HomeScreen() {
         )}
         <AdBanner place="homeEnd" />
         <View onLayout={(e) => { tipsAt.current = e.nativeEvent.layout.y; }}><TipsSection width={width} /></View>
-        {!paid && <ProBanner title={text("plan.bannerTitle")} text={text("plan.bannerText")} button={<Button size="sm" iconAfter="send" title={text("plan.bannerButton")} onPress={() => open("/pricing")} />} />}
       </View>
     </Page>
   );
@@ -73,7 +71,7 @@ function CreateSection({ width }: { width: number }) {
           return (
             <CreateCard key={card.id} icon={(card.icon || "sparkle") as IconName} title={card.title} text={card.text} tone={(card.tone || "brand") as Tone} big={music}
               width={music || (i === cards.length - 1 && cards.length % 2 === 1) ? width - 32 : column}
-              lock={locked ? <LockBadge card label={text("plan.lockTag")} /> : undefined} onPress={() => open(card.link, locked)} />
+              lock={locked ? <LockBadge card label={text("plan.lockTagApp")} /> : undefined} onPress={() => open(card.link, locked)} />
           );
         })}
       </View>
@@ -92,7 +90,7 @@ function TemplatesSection({ width }: { width: number }) {
           return (
             <Pressable key={t.id} style={{ width: step }} accessibilityLabel={t.name} onPress={() => openTemplate(t, locked)}>
                 <TemplatePoster id={t.id} name={t.name} cover={t.cover && mobileApi.absoluteAsset(t.cover)} badge={templateTag(t, text)}
-                  tag={locked ? <LockBadge card label={text("plan.lockTag")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
+                  tag={locked ? <LockBadge card label={text("plan.lockTagApp")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
             </Pressable>
           );
         })}
