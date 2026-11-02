@@ -58,7 +58,8 @@ export function initBridge(root: HTMLElement): () => void {
   };
   const press = (box: string, attr: string, value: string) => { const b = root.querySelector<HTMLElement>(`#${box} [${attr}="${value}"]`); if (b) b.click(); return !!b; };
   const until = async (test: () => boolean, ms = 600_000) => { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("The studio took too long"); await new Promise((r) => setTimeout(r, 250)); } };
-  const made = () => { const w = studio()?.work; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir; };
+  // made: the song read, the clips read, the shots there, and Shubix AI done with them (its clips' check, the pace, the plan)
+  const made = () => { const w = studio()?.work as (Studio["work"] & { pace?: boolean; aiWait?: boolean }) | undefined; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir && !w.pace && !w.aiWait; };
 
   const OPS: Record<string, (a: Record<string, unknown>) => Promise<unknown>> = {
     async setup(a) {
