@@ -18,7 +18,7 @@ import { songAnalysis } from '@shubix/core/engine/studio/song';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
-import { createPreviewProxy, previewProxyPlan, probeVideo, editCopyPlan, convertOnServer, SERVER_CONVERT_MAX_BYTES } from '../../lib/previewProxy';
+import { createPreviewProxy, previewProxyPlan, probeVideo, editCopyPlan, convertOnServer, SERVER_CONVERT_MAX_BYTES, hasPicture } from '../../lib/previewProxy';
 import { isHidden, whenVisible, isReclaimed, titleProgress, titleDone, askToNotify, notifyDone, holdAwake } from '../../lib/background';
 // was the page in the background at any time since `mark` (work that failed then is tried again when the page is back)
 let readyToldGen = '', bgSeq = 0; if(typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if(isHidden()) bgSeq++; });
@@ -1182,6 +1182,7 @@ async function makeEditCopy(src, dd, facts, plan, playable){
         catch(e){ if(k || !(e && e.code === 'OFFLINE') || (bgSeq === seq && !isHidden())) throw e; dd.textContent = 'waiting for you to come back…'; await whenVisible(); }
       }
       if(src.removed) return false;
+      if(!(await hasPicture(blob))){ const err = new Error('The converted copy has no picture'); err.code = 'CONVERT_NO_VIDEO'; throw err; }   // the original is kept
       const sc = Math.min(1, 1920/Math.max(src.w || (facts && facts.width) || 1920, src.h || (facts && facts.height) || 1080));
       const w = Math.round(((src.w || (facts && facts.width) || 1080)*sc)/2)*2, h = Math.round(((src.h || (facts && facts.height) || 1920)*sc)/2)*2;
       setEditCopy(src, blob, w, h, 'server');
@@ -1216,7 +1217,9 @@ async function compressHighResolutionPreview(src, dd){
   const heavy = !!(plan && plan.forExport);
   // Reuse the copy made for this original file when a saved draft is reopened.
   const cached = await keptGet('p:', src.file);
-  if(cached && cached.blob instanceof Blob && (heavy ? cached.v === 2 && cached.edit : cached.v === 1 && cached.blob.size < src.file.size)){
+  // (a copy kept without its picture, made before previewProxy.ts checked for one, is not used: it is made again)
+  const pictured = cached && cached.blob instanceof Blob && (heavy ? cached.v === 2 && cached.edit : cached.v === 1 && cached.blob.size < src.file.size) && await hasPicture(cached.blob);
+  if(pictured){
     if(cached.edit){ src.edFile = cached.blob; src.edW = cached.width || 0; src.edH = cached.height || 0; src.edAudio = !!cached.audio; }
     src.url = URL.createObjectURL(cached.blob);
     src.previewProxy = true; src.proxySize = cached.blob.size;
@@ -1272,7 +1275,7 @@ async function rescueClip(src, dd){
   if(src.edFile || src.rescueTried) return false;
   src.rescueTried = true;
   const cached = await keptGet('p:', src.file).catch(() => null);
-  if(cached && cached.v === 2 && cached.edit && cached.blob instanceof Blob){ setEditCopy(src, cached.blob, cached.width || 0, cached.height || 0, cached.audio ? 'server' : 'player'); return true; }
+  if(cached && cached.v === 2 && cached.edit && cached.blob instanceof Blob && await hasPicture(cached.blob)){ setEditCopy(src, cached.blob, cached.width || 0, cached.height || 0, cached.audio ? 'server' : 'player'); return true; }
   const probe = await probeVideo(src.file).catch(() => null);
   const facts = probe ? { size: src.file.size, width: probe.width, height: probe.height, duration: probe.duration, fps: probe.fps, hdr: probe.hdr, tenBit: probe.tenBit, chroma422: probe.chroma422, vfr: probe.vfr, decodes: probe.decodes } : null;
   src.facts = facts;

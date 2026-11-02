@@ -346,7 +346,11 @@ export async function createPreviewProxy(
             },
             audio: acodec ? { codec: acodec } : { discard: true },
           });
-          if (conversion.isValid) {
+          // valid also means "audio only": a conversion whose video track was left out (seen on Android Chrome with 4K
+          // phone clips) would make a copy without a picture, so it is not used (the player's decoder or Shubix tries next)
+          const video = conversion.utilizedTracks.some((t) => t.isVideoTrack());
+          if (!video) console.info("edit copy: the video track was left out", conversion.discardedTracks.map((d) => d.reason));
+          if (conversion.isValid && video) {
             conversion.onProgress = progress => onProgress?.(progress);
             await conversion.execute();
             const buffer = output.target.buffer;
@@ -385,11 +389,25 @@ export async function createPreviewProxy(
   if (!plan) return null;
   try {
     const blob = await createElementPreviewProxy(file, plan, onProgress);
-    return blob ? { blob, plan } : null;
+    return blob && await hasPicture(blob) ? { blob, plan } : null;
   } catch (error) {
     console.info("Native preview proxy unavailable; keeping original media:", error instanceof Error ? error.message : error);
     return null;
   }
+}
+
+/** Whether a copy really has a picture (a video track that lasts): the browser's own player on some phones makes copies
+ * with sound only. Read from the file itself, the same on every browser (no decoding). */
+export async function hasPicture(blob: Blob): Promise<boolean> {
+  let input: import("mediabunny").Input | undefined;
+  try {
+    const mb = await import("mediabunny");
+    input = new mb.Input({ source: new mb.BlobSource(blob), formats: mb.ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack();
+    const ok = !!track && (await input.computeDuration()) > 0;
+    if (!ok) console.info("edit copy: no picture in the copy, the original is kept");
+    return ok;
+  } catch { return false; } finally { try { input?.dispose(); } catch { /* best-effort */ } }
 }
 
 /** An edit copy for a clip the browser's player cannot open at all (it may still decode it with WebCodecs). */
