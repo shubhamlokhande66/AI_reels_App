@@ -132,10 +132,45 @@ const SlotAnswer = z.object({
   clip: z.record(z.string(), z.unknown()).nullish(),
   why: z.string().default(""),
 });
-const Answer = z.object({ slots: z.array(SlotAnswer), story: z.string().default("") });
+/** a text the AI puts on the Reel, as an editor does in the timeline: its words, when (seconds of the Reel), where, its look,
+ * entrance, loop and keyframes (at = seconds from its start; s scale, x/y offset as fractions of the frame, r turn, o opacity) */
+const TextAnswer = z.object({ text: z.string(), start: z.coerce.number().default(0), end: z.coerce.number().default(3), x: z.coerce.number().default(0.5), y: z.coerce.number().default(0.4),
+  size: z.coerce.number().default(1), style: z.preprocess(lower, z.string()).default("bold"), color: z.string().default("#FFFFFF"), anim: z.preprocess(lower, z.string()).default("pop"),
+  loop: z.preprocess(lower, z.string()).default("none"), font: z.string().default(""), behind: z.boolean().default(false), track: z.boolean().default(false), focus: z.coerce.number().optional(),
+  keys: z.array(z.object({ at: z.coerce.number(), s: z.coerce.number().default(1), x: z.coerce.number().default(0), y: z.coerce.number().default(0), r: z.coerce.number().default(0), o: z.coerce.number().default(1), ez: z.preprocess(lower, z.string()).default("inOut") })).default([]) });
+export const TEXT_STYLES = ["bold", "box", "neon", "clean", "tag", "outline", "shadow", "bubble", "glow", "stack", "cutout"] as const;
+const TEXT_ANIMS = ["pop", "fade", "slide", "type", "none"], TEXT_LOOPS = ["none", "bounce", "spin", "wiggle", "pulse", "float", "swing", "shake"];
+// one of the known names (any case), else the default
+const pick = (list: readonly string[], v: string, or: string) => list.find((x) => x.toLowerCase() === String(v).toLowerCase()) ?? or;
+const num = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : lo));
+/** the AI's texts, each made safe to draw (a known style, entrance and loop; numbers in range; at most 20 texts and 16 keys each) */
+export function cleanTexts(raw: z.infer<typeof TextAnswer>[] | undefined) {
+  return (raw ?? []).filter((t) => t.text.trim()).slice(0, 20).map((t) => {
+    const start = num(t.start, 0, 600), end = num(t.end, start + 0.2, 600);
+    return { text: t.text.trim().slice(0, 120), start, end, x: num(t.x, 0, 1), y: num(t.y, 0, 1), size: num(t.size, 0.3, 3), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : "#FFFFFF",
+      style: pick(TEXT_STYLES, t.style, "bold"), anim: pick(TEXT_ANIMS, t.anim, "pop"), loop: pick(TEXT_LOOPS, t.loop, "none"),
+      font: t.font.slice(0, 24), behind: t.behind, track: t.track, ...(t.focus !== undefined ? { focus: num(t.focus, 0, 1) } : {}),
+      keys: t.keys.slice(0, LIMITS.keys).map((k) => ({ at: num(k.at, 0, end - start), s: num(k.s, 0.05, 60), x: num(k.x, -2, 2), y: num(k.y, -2, 2), r: num(k.r, -720, 720), o: num(k.o, 0, 1), ez: pick(EASES, k.ez, "inOut") })).sort((a, b) => a.at - b.at) };
+  });
+}
+/** the editor's other tools, used by the AI as a person uses them (each one step: {do, ...}); the studio runs them in order
+ * with its own buttons. Unknown steps are left out. */
+export const ACTIONS = {
+  look: `the whole Reel's colour look: {"do":"look","name":"natural|vivid|cine|mono"}`,
+  captions: `captions of what is said: {"do":"captions","on":true,"style":"pop|karaoke|box|clean","language":"<spoken language code or empty>","translation":"<language code to translate to, or empty>"}`,
+  music: `the song's sound: {"do":"music","volume":0-1,"fadeIn":seconds,"fadeOut":seconds}`,
+  voicefx: `the voice changer: {"do":"voicefx","fx":"none|deep|chipmunk|robot"}`,
+  layer: `a clip of this Reel shown as a box on top (split screens, grids that build up on the beats, picture in picture, a frame inside the frame): {"do":"layer","clip":"<clip alias, e.g. c2>","from":<seconds into that clip>,"start":<seconds of the Reel>,"end":<seconds>,"x":0-1,"y":0-1 (its centre),"size":0-1 (its width, a fraction of the frame's),"radius":0-1 (rounded corners),"mask":"none|circle|rect","fadeIn":seconds,"fadeOut":seconds}; e.g. 4 boxes in a 2x2 grid, one more on each beat: 4 layers of size 0.5 at x/y 0.25 or 0.75, each starting on its beat`,
+  voiceover: `a spoken voice-over (text to speech) at a time of the Reel: {"do":"voiceover","text":"<what is said>","at":seconds}`,
+} as const;
+const Action = z.object({ do: z.preprocess(lower, z.string()) }).passthrough();
+export function cleanActions(raw: z.infer<typeof Action>[] | undefined) {
+  return (raw ?? []).map((a) => ({ ...a, do: String(a.do).toLowerCase() })).filter((a) => a.do in ACTIONS).slice(0, 12).map((a) => JSON.parse(JSON.stringify(a, (_k, v) => (typeof v === "string" ? v.slice(0, 600) : v))) as Record<string, unknown> & { do: keyof typeof ACTIONS });
+}
+const Answer = z.object({ slots: z.array(SlotAnswer), story: z.string().default(""), texts: z.array(TextAnswer).default([]), actions: z.array(Action).default([]) });
 const VariantsAnswer = z.object({ plans: z.array(z.object({ slots: z.array(SlotAnswer), story: z.string().default("") })) });
 type SlotIn = z.infer<typeof SlotAnswer>;
-type AnswerIn = { slots: (Omit<SlotIn, "keys" | "move" | "clip"> & { keys?: SlotIn["keys"]; move?: SlotIn["move"]; clip?: SlotIn["clip"] })[]; story: string };
+type AnswerIn = { slots: (Omit<SlotIn, "keys" | "move" | "clip"> & { keys?: SlotIn["keys"]; move?: SlotIn["move"]; clip?: SlotIn["clip"] })[]; story: string; texts?: z.infer<typeof TextAnswer>[]; actions?: z.infer<typeof Action>[] };
 
 export interface Accent { at: number; do: (typeof ACCENTS)[number] }
 /** a camera keyframe inside a shot: at = fraction of the shot (0-1), scale, offset (fraction of the frame), turn (degrees) */
@@ -185,6 +220,13 @@ const COPY_GUIDE = `COPY THE REFERENCE: the creator wants this Reel to feel like
 - its hook length, its mix of transitions (the budget follows it), how many shots move.
 Where the reference and the general rules disagree, the reference wins.`;
 
+/** the text tool, as an editor uses it in the timeline: the AI adds texts when the creator asks for words, a title, a
+ * text effect or a text transition (any language), and may add them itself where they make the Reel better */
+const TEXT_GUIDE = `TEXTS (optional, "texts" in the JSON): words on the Reel, made like an editor makes them in the timeline. Each: {"text", "start" and "end" (seconds of the Reel), "x" and "y" (0-1, the centre), "size" (1 = normal, up to 3), "style", "color" (#RRGGBB), "anim" (entrance), "loop" (keeps moving), "behind" (true: behind the person), "track" (true: follows the person), "focus" (0-1: where along the text it is sized and turned around, e.g. 0.64 = the O of WELCOME), "keys" (keyframes: at = seconds from the text's start, s = scale (1 normal, up to 60), x/y = offset as a fraction of the frame, r = turn in degrees, o = opacity 0-1, ez = easing)}.
+Styles: ${TEXT_STYLES.join(", ")} (cutout = a solid colour fills the frame and the video shows only inside the letters). Entrances: pop, fade, slide, type, none. Loops: none, bounce, spin, wiggle, pulse, float, swing, shake. Easings: ${EASES.join(", ")}.
+Whatever the creator asks for with words, make it with these: e.g. "WELCOME, then the video through the O" = a cutout text WELCOME, "focus": 0.64 (the O), then keyframes that scale it up to about 40, so the frame flies through the O into the video, then end the text. Combine keyframes freely (zoom in, fly through, spin in, drop in, fade out).
+OTHER TOOLS (optional, "actions" in the JSON, run in order): you are the editor: whatever the creator asks for, do it with the tools: the cuts (transition, effect, speed, keys, move, clip look) and the texts above, and these: ${Object.values(ACTIONS).join("; ")}.`;
+
 export function prompt(d: DirectIn, taste = "", trends = "") {
   const first = d.slots[0].i, last = d.slots[d.slots.length - 1].i;
   return `Plan this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s.${d.hook ? ` On-screen hook text: "${clean(d.hook, 60)}".` : ""}${d.story ? ` The story so far: "${clean(d.story, 160)}".` : ""}${first > 0 ? ` These are cuts ${first}-${last} of a longer Reel (the hook is not in this part).` : ""}
@@ -193,8 +235,9 @@ ${d.recent.length ? `Used in this creator's last Reels (make this one feel diffe
     ...(s.music ? { music: s.music } : {}),
     candidates: s.candidates.map((c) => ({ id: c.id, clip: c.clip, at: +c.at.toFixed(1), score: +c.score.toFixed(2), note: clean(c.note, 60), roles: c.roles, motion: c.motion, people: c.people, camera: c.camera })) })))}
 ${GUIDE}
+${TEXT_GUIDE}
 ${trends ? `${clean(trends, 2400)}\n` : ""}${wishText(d.wish)}Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
-Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>"} with one entry for every cut.`;
+Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>", "texts": [], "actions": []} with one entry for every cut.`;
 }
 
 /** A small change asked in the chat ("the first clip should be the dance"): the plan as it is, and the change; the AI
@@ -204,12 +247,12 @@ export function patchPrompt(d: DirectIn, taste = "") {
   return `${prompt({ ...d, wish: "" }, taste).replace(/\nReturn JSON: \{"slots"[\s\S]*$/, "")}
 THE REEL AS IT IS NOW (each cut: its clip and moment, transition, effect, speed): ${JSON.stringify(p.current)}
 THE CREATOR ASKS FOR THIS SMALL CHANGE (their words may be in any language, script, transliteration or a mixture; understand the meaning without translating away constraints. Change ONLY the cuts it is about, unless they explicitly say all/every/each clip or video, or the whole Reel, in which case apply it to every relevant cut. If they ask for good/nice effects on all clips/videos, give every cut a suitable non-none effect and vary choices by shot and music. Write story and why in the creator’s language; keep tool enum values in English): "${clean(p.ask, 300)}"
-Return JSON: {"slots": [only the cuts you change, each complete: {"i": 0, "shot": "0a", "transition": "hard", "effect": "hook", "speed": "normal", "keys": [], "move": [], "why": "<max 4 words>"}], "story": "<one sentence: what you changed>"}.`;
+Return JSON: {"slots": [only the cuts you change, each complete: {"i": 0, "shot": "0a", "transition": "hard", "effect": "hook", "speed": "normal", "keys": [], "move": [], "why": "<max 4 words>"}], "story": "<one sentence: what you changed>", "texts": [every text the Reel should have after the change, or [] to keep the texts as they are], "actions": [the other tools' steps this change needs]}.`;
 }
 export async function directPatch(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
   const ans = await provider.structured(SYSTEM, patchPrompt(d, taste), Answer, { task: TASK, temperature: 0.5, maxOutputTokens: 1200 });
   const plan = parsePlan(d, ans, false);
-  return { slots: plan.slots, story: plan.story, patch: true, model: provider.model, provider: provider.name };
+  return { slots: plan.slots, story: plan.story, texts: cleanTexts(ans.texts), actions: cleanActions(ans.actions), patch: true, model: provider.model, provider: provider.name };
 }
 
 /** New mix: the same cuts, edited differently (the first plan is the one the creator has now) */
@@ -350,12 +393,12 @@ export async function direct(d: DirectIn, provider: ManagedProvider = getProvide
   const parts = chunks(d);
   const plans = await Promise.all(parts.map(async (p) => {
     const ans = await provider.structured(SYSTEM, prompt(p, taste, trends), Answer, { task: TASK, temperature: 0.7, maxOutputTokens: Math.min(12_000, 400 + p.slots.length * 170) });
-    return parsePlan(p, ans);
+    return { ...parsePlan(p, ans), texts: cleanTexts(ans.texts), actions: cleanActions(ans.actions) };
   }));
   const slots = plans.flatMap((p) => p.slots), auto = slots.filter((s) => s.auto).length;
   // more than half of the Reel without a usable answer is not the AI's plan: it fails (the phone edits, the credits come back)
   if (auto * 2 > slots.length) throw new AIResponseError(`The AI director answered only ${slots.length - auto} of ${slots.length} cuts.`);
-  return { slots, story: plans[0].story || d.story, auto, model: provider.model, provider: provider.name };
+  return { slots, story: plans[0].story || d.story, texts: plans.flatMap((p) => p.texts).slice(0, 20), actions: plans[0].actions, auto, model: provider.model, provider: provider.name };
 }
 
 /* ---- 1. pace: how fast to cut in each section ---- */

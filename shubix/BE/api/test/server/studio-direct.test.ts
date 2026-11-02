@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "../../src/server/ai";
-import { CHUNK, chunks, cleanMove, direct, DirectIn, directPatch, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
+import { CHUNK, chunks, cleanActions, cleanMove, cleanTexts, direct, DirectIn, directPatch, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
 import { shotCacheKey } from "../../src/server/studio/rankShots";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
@@ -307,5 +307,22 @@ describe("the creator's chat (Ask Shubix)", () => {
   });
   it("keeps the wish short", () => {
     expect(() => DirectIn.parse({ ...req(1), wish: "x".repeat(801) })).toThrow();
+  });
+});
+
+describe("Shubix AI as the editor: texts and other tools", () => {
+  it("keeps a text with its keyframes and focus, made safe to draw", () => {
+    const [t] = cleanTexts([{ text: " WELCOME ", start: 0, end: 2.5, x: 0.5, y: 0.4, size: 9, style: "CUTOUT", color: "#000000", anim: "pop", loop: "none", font: "", behind: false, track: false, focus: 0.64,
+      keys: [{ at: 2, s: 40, x: 0, y: 0, r: 0, o: 1, ez: "in" }, { at: 0.5, s: 1, x: 0, y: 0, r: 0, o: 1, ez: "inOut" }] }]);
+    expect(t).toMatchObject({ text: "WELCOME", style: "cutout", size: 3, focus: 0.64 });
+    expect(t.keys.map((k) => [k.at, k.s, k.ez])).toEqual([[0.5, 1, "inOut"], [2, 40, "inOut"]]);
+  });
+  it("keeps only the tools the studio has, in order", () => {
+    const out = cleanActions([{ do: "LAYER", clip: "c2", start: 1 }, { do: "hack" }, { do: "look", name: "cine" }]);
+    expect(out.map((a) => a.do)).toEqual(["layer", "look"]);
+  });
+  it("tells the AI about every tool", () => {
+    const p = prompt(req(2));
+    for (const w of ["TEXTS", "cutout", "OTHER TOOLS", '"do":"layer"', '"do":"captions"', '"actions"']) expect(p).toContain(w);
   });
 });

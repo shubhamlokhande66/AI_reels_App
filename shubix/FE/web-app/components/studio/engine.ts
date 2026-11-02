@@ -2042,8 +2042,8 @@ function chatAnswer(text){ chatClearWait(); chatSay('ai', text); chatMsgs.push({
 let chatPending = null, chatReported = '';
 // the AI's plan arrived: asked for in the chat, it is shown as a report and waits for Generate; otherwise it is used
 function dirArrived(key, d){
-  if(chatWaiting){ const ask = chatMsgs.filter(m => m.who === 'me').slice(-1)[0]?.text || ''; chatPending = { key, slots: d.slots, story: d.story || '', cost: chatCost, intent: parseDirectorVisualIntent(ask) }; chatProposal(chatPending); return false; }
-  director = { key, slots: d.slots, story: d.story || '' }; dirCache.set(key, director); return true;
+  if(chatWaiting){ const ask = chatMsgs.filter(m => m.who === 'me').slice(-1)[0]?.text || ''; chatPending = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions, cost: chatCost, intent: parseDirectorVisualIntent(ask) }; chatProposal(chatPending); return false; }
+  director = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions }; dirCache.set(key, director); if(d.texts || d.actions) void aiApply(d); return true;
 }
 // the plan, shot by shot, in words: which clip and what is in it, the transition into it, its effect, speed and keyframes
 function planReport(slots, story, changed){
@@ -2191,14 +2191,14 @@ function applyChatVisualIntent(intent, slots = []){
   if(intent.effectsAll) applied.push('effects on all ' + effectCount + ' clips');
   return applied.join(' and ');
 }
-function chatGenerate(btn){
+async function chatGenerate(btn){
   remakeOk();
   const pd = chatPending; btn.disabled = true;
   if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\'ll plan it anew.'); return; }
   chatPending = null; chatReported = pd.key; director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
   let applied = '';
   try {
-    makeEdit();
+    makeEdit(); await aiApply(pd);
     applied = applyChatVisualIntent(pd.intent, pd.slots);
     if(!edit.length) throw new Error('The Reel timeline could not be verified after applying the plan.');
   } catch(error) {
@@ -2227,7 +2227,7 @@ async function chatApp(text){
   if(chatPending && chatPending.key === dirKey()){
     const pd = chatPending; chatPending = null; chatReported = pd.key;
     director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
-    makeEdit(); try{ applyChatVisualIntent(pd.intent, pd.slots); }catch(e){}
+    makeEdit(); await aiApply(pd); try{ applyChatVisualIntent(pd.intent, pd.slots); }catch(e){}
     applied = !!edit.length; if(applied){ chatMsgs.push({ who: 'ai', text: 'Done ✓' }); saveNow(); }
   }
   const said = chatMsgs.slice(before).filter(m => m.who === 'ai').map(m => m.text).filter(t => t !== 'Done ✓').pop() || '';
@@ -2271,7 +2271,7 @@ async function chatPatch(text, n, id){
     const intent = parseDirectorVisualIntent(text);
     if(intent.transitionAll || intent.effectsAll) edit.forEach((_, i) => changed.add(i));
     if(!changed.size && !intent.openingText && !intent.squareFrameAll && !intent.transitionAll && !intent.effectsAll){ chatAnswer('I could not tell which shot to change. Name it, e.g. "shot 3: slow-mo" or "the first clip: the dance".'); return; }
-    chatPending = { key, slots: base, story: res.story || '', changed, cost: chatCost, intent };
+    chatPending = { key, slots: base, story: res.story || '', texts: res.texts, actions: res.actions, changed, cost: chatCost, intent };
     chatProposal(chatPending);
   }catch(e){ chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : String(e && e.message || 'Shubix could not change it right now.')); }
   finally{ tm.done(); }
@@ -2807,7 +2807,7 @@ async function directorRun(key){
       // it came after the phone's edit was shown: offered, never swapped in under the person (or during an export)
       clearTimeout(soft);
       dirPlannedReel = reelIdNow();
-      const use = () => { if(recording || exportBusy) return; dirFailedKey = ''; if(dirKey() === key){ if(dirArrived(key, { slots, story: res.story || '' })) makeEdit(); } else if(buf && sources.length) directorMaybe(); };
+      const use = () => { if(recording || exportBusy) return; dirFailedKey = ''; if(dirKey() === key){ if(dirArrived(key, { slots, story: res.story || '', texts: res.texts, actions: res.actions })) makeEdit(); } else if(buf && sources.length) directorMaybe(); };
       aiStat('Shubix\'s plan for your Reel is ready.');
       notifyAct('Shubix\'s plan for your Reel is ready.', 'Use it', use, 60000);
       return;
@@ -2815,7 +2815,7 @@ async function directorRun(key){
     // the edit changed meanwhile (the song's part moved): the plan is fitted to it, or a new one asked (other clips)
     if(dirKey() !== key){ dirBusy = false; if(buf && sources.length && !recording) directorMaybe(); return; }
     dirBusy = false; dirPlannedReel = reelIdNow();
-    if(dirArrived(key, { slots, story: res.story || '' })) makeEdit();
+    if(dirArrived(key, { slots, story: res.story || '', texts: res.texts, actions: res.actions })) makeEdit();
   }catch(e){
     dirFailedKey = key;
     const back = aiCostOf('reel') && dirPlannedReel !== reelIdNow() ? ', and the credits for it come back.' : '.';
@@ -4037,7 +4037,7 @@ $('tronly').addEventListener('change', e => { trOnly = e.target.checked; redraw(
  * festival greetings. */
 let overlays = [], ovSeq = 0, ovSel = -1;
 const OV_COLORS = ['#FFFFFF', '#FFD54A', '#FF4D4D', '#3DDC84', '#4DA3FF', '#FF6FD8', '#111111'];
-const OV_STYLES = { bold: 'Bold', box: 'Box', neon: 'Neon', clean: 'Clean', tag: 'Tag', outline: 'Outline only', shadow: 'Hard shadow', bubble: 'Speech bubble', glow: 'Soft glow', stack: 'Double outline' };
+const OV_STYLES = { bold: 'Bold', box: 'Box', neon: 'Neon', clean: 'Clean', tag: 'Tag', outline: 'Outline only', shadow: 'Hard shadow', bubble: 'Speech bubble', glow: 'Soft glow', stack: 'Double outline', cutout: 'Video in letters' };
 /* ---- fonts for texts: loaded from Google Fonts the first time one is picked (cached by the browser after that), so a
  * Reel looks the same in the preview and the export. Devanagari ones for Marathi / Hindi. ---- */
 const OV_FONTS = {
@@ -4098,8 +4098,46 @@ function addOverlay(o){
   overlays.push(ov); ovSel = overlays.length - 1; renderOvList(); redraw();
   return ov;
 }
+/* ---- Shubix AI as the editor: what a person does with the tools (texts and their keyframes, video boxes, the look, captions,
+ * the song's sound, the voice), the AI does with the same tools; its steps are used as it gave them ---- */
+function aiTexts(list){
+  if(!Array.isArray(list) || !list.length) return 0;
+  const D = reelLen();
+  overlays = overlays.filter(o => o.aiIntent !== 'ai').concat(list.map(x => ({ id: ++ovSeq, aiIntent: 'ai', text: x.text, emoji: false, style: x.style, color: x.color, anim: x.anim,
+    loop: x.loop === 'none' ? undefined : x.loop, font: x.font || undefined, behind: !!x.behind, track: !!x.track, x: x.x, y: x.y, size: x.size, all: false, ...(Number.isFinite(x.focus) ? { focus: x.focus } : {}),
+    t0: Math.max(0, Math.min(D - 0.1, x.start)), t1: Math.max(0.1, Math.min(D, x.end)), uk: (x.keys || []).map(k => ({ t: k.at, x: k.x, y: k.y, s: k.s, r: k.r, o: k.o, ez: k.ez })) })));
+  overlays.filter(o => o.font).forEach(o => loadFont(o.font).then(redraw));
+  ovSel = -1; renderOvList(); redraw(); return list.length;
+}
+async function aiActions(list){
+  let done = 0;
+  for(const a of Array.isArray(list) ? list : []){
+    try{
+      if(a.do === 'look'){ const b = $('look').querySelector('[data-l="' + CSS.escape(String(a.name)) + '"]'); if(b){ b.click(); done++; } }
+      else if(a.do === 'captions'){ await setCaptions(a.on !== false, a.language, a.translation); if(a.style) setCaptionStyle(a.style); done++; }
+      else if(a.do === 'music'){ const p = {}; if(Number.isFinite(+a.volume)) p.mvol = Math.max(0, Math.min(1, +a.volume)); if(Number.isFinite(+a.fadeIn)) p.mfin = Math.max(0, +a.fadeIn);
+        if(Number.isFinite(+a.fadeOut)){ p.mfout = Math.max(0, +a.fadeOut); p.mfoutManual = true; } auSet(p); clipMixKey = ''; await ensureMix(); done++; }
+      else if(a.do === 'voicefx'){ const b = $('vfx').querySelector('[data-f="' + CSS.escape(String(a.fx)) + '"]'); if(b){ b.click(); done++; } }
+      else if(a.do === 'voiceover' && tts && tts.voices.length && a.text){ pos = Math.max(0, Math.min(reelLen() - 0.5, +a.at || 0)); await addTtsAtPlayhead(a.text, a.voice || tts.voices[0].key); done++; }
+      else if(a.do === 'layer'){
+        const s = sources[parseInt(String(a.clip).replace(/\D/g, ''), 10) - 1]; if(!s || !s.file || !edit.length) continue;
+        const M = await addLayerMedia(s.file), D = reelLen(), t0 = Math.max(0, Math.min(D - 0.1, +a.start || 0)), mask = ['circle', 'rect'].includes(a.mask) ? a.mask : 'none';
+        lmedia.push(M);
+        layers.push({ id: ++lySeq, m: lmedia.length - 1, t0, t1: Math.max(t0 + 0.1, Math.min(D, Number.isFinite(+a.end) ? +a.end : D)), in: Math.max(0, Math.min((M.dur || 1) - 0.1, +a.from || 0)),
+          ...JSON.parse(JSON.stringify(LY0)), x: Number.isFinite(+a.x) ? +a.x : 0.5, y: Number.isFinite(+a.y) ? +a.y : 0.5, s: Math.max(0.05, Math.min(1, +a.size || 0.5)),
+          rad: Math.max(0, Math.min(1, +a.radius || 0)), mask, fin: Math.max(0, +a.fadeIn || 0), fout: Math.max(0, +a.fadeOut || 0), aiIntent: 'ai' });
+        done++;
+      }
+    }catch(e){ console.warn('Shubix AI step not done:', a && a.do, e); }
+  }
+  if(layers.length){ lyUI(); await prepLayers(pos); }
+  redrawFrame(); saveNow(); return done;
+}
+// the AI's whole answer for this Reel: the cuts are in `director`; its texts and other steps are put on here
+async function aiApply(d){ if(!d) return; layers = layers.filter(L => L.aiIntent !== 'ai' || !(d.actions || []).some(a => a.do === 'layer')); aiTexts(d.texts); await aiActions(d.actions); }
 function ovTiming(ov){ const L = reelLen(); return ov.all ? [0, L] : [Math.max(0, Math.min(ov.t0, L)), Math.max(0, Math.min(ov.t1, L))]; }
 // one item at time t; its box is kept (fractions of the frame) for picking it on the preview
+let cutBuf = null;   // the cutout text's frame (the colour with the letters cut out)
 function drawOverlay(g, ov, t){
   const [a, b] = ovTiming(ov); if(!(t >= a && t < b)) return;
   const W = out.width, H = out.height;
@@ -4143,7 +4181,9 @@ function drawOverlay(g, ov, t){
     cx = Math.max(tw/2, Math.min(W - tw/2, px + ax*dw + (ov.x - 0.5)*W)); cy = Math.max(th/2, Math.min(H - th/2, py + ay*dh + (ov.y - 0.5)*H)) + dy; }
   const bs = u ? Math.max(0.2, u.s) : 1;
   ov.box = [(cx - (tw/2 + fs*0.4)*bs)/W, (cy - (th/2 + fs*0.3)*bs)/H, (tw + fs*0.8)*bs/W, (th + fs*0.6)*bs/H];
-  g.translate(cx + lx, cy + ly); if((u && u.r) || lr) g.rotate(((u && u.r) || 0)*Math.PI/180 + lr*Math.PI/180); g.scale(sc, sc);
+  // focus: where along the text it is sized and turned around (0.64: the O of WELCOME), so the frame can fly through one letter
+  const fx = Number.isFinite(ov.focus) ? (ov.focus - 0.5)*tw : 0;
+  g.translate(cx + lx + fx, cy + ly); if((u && u.r) || lr) g.rotate(((u && u.r) || 0)*Math.PI/180 + lr*Math.PI/180); g.scale(sc, sc); if(fx) g.translate(-fx, 0);
   const dark = c => { const n = parseInt(c.slice(1), 16); return ((n>>16)*0.299 + ((n>>8)&255)*0.587 + (n&255)*0.114) < 140; };
   if(!ov.emoji && (ov.style === 'box' || ov.style === 'tag')){
     const tag = ov.style === 'tag', pw = tw + fs*(tag ? 1.05 : 0.6), ph = th + fs*0.36, r = tag ? fs*0.5 : fs*0.2;
@@ -4151,6 +4191,13 @@ function drawOverlay(g, ov, t){
     if(tag){ g.fillStyle = dark(ov.color) ? '#fff' : '#111'; g.beginPath(); g.arc(-pw/2 + fs*0.36, 0, fs*0.1, 0, Math.PI*2); g.fill(); g.translate(fs*0.24, 0); }   // the tag's hole, left of the text
     g.fillStyle = dark(ov.color) ? '#fff' : '#111';
     lines.forEach((l, k) => g.fillText(l, 0, (k - (lines.length-1)/2)*lh + fs*0.03));
+  } else if(!ov.emoji && ov.style === 'cutout'){   // the colour fills the frame, the video shows only inside the letters (scale it up: the frame flies through them)
+    if(!cutBuf) cutBuf = document.createElement('canvas');
+    if(cutBuf.width !== W || cutBuf.height !== H){ cutBuf.width = W; cutBuf.height = H; }
+    const q = cutBuf.getContext('2d'); q.setTransform(1, 0, 0, 1, 0, 0); q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, W, H); q.fillStyle = ov.color; q.fillRect(0, 0, W, H);
+    q.setTransform(g.getTransform()); q.font = g.font; q.textAlign = 'center'; q.textBaseline = 'middle'; q.globalCompositeOperation = 'destination-out';
+    lines.forEach((l, k) => q.fillText(l, 0, (k - (lines.length-1)/2)*lh));
+    g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(cutBuf, 0, 0);
   } else if(!ov.emoji && ov.style === 'neon'){
     g.shadowColor = ov.color; g.shadowBlur = fs*0.6; g.fillStyle = '#fff';
     lines.forEach((l, k) => { const y = (k - (lines.length-1)/2)*lh; g.fillText(l, 0, y); g.fillText(l, 0, y); });
