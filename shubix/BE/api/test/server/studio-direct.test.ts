@@ -80,6 +80,19 @@ describe("the plan is bounded", () => {
     expect(out.slots[0]).toMatchObject({ shot: "0a", transition: "hard", effect: "none", speed: "normal" });
     expect(out.slots.every((s) => s.shot && s.transition && s.effect && s.speed)).toBe(true);
   });
+  it("marks the cuts the AI left without a usable answer, so the phone keeps its own choice there", () => {
+    const d = req(3);
+    const out = parsePlan(d, { story: "", slots: [{ i: 1, shot: "1b", transition: "whip", effect: "punch", speed: "normal", why: "drop" }, { i: 2, shot: "nope", transition: "teleport", effect: "explode", speed: "x", why: "" }] });
+    expect(out.slots.map((s) => !!s.auto)).toEqual([true, false, true]);
+  });
+  it("an AI answer covering half the Reel or less fails (the phone edits, the credits come back)", async () => {
+    const half = fake({ story: "", slots: [{ i: 0, shot: "0a", transition: "hard", effect: "hook", speed: "normal", why: "" }] });
+    await expect(direct(req(3), half.p)).rejects.toThrow(/answered only 1 of 3 cuts/);
+    const most = fake({ story: "s", slots: [0, 1].map((i) => ({ i, shot: `${i}a`, transition: "hard", effect: "punch", speed: "normal", why: "" })) });
+    const res = await direct(req(3), most.p);
+    expect(res.auto).toBe(1);
+    expect(res.slots[2].auto).toBe(true);
+  });
   it("uses role-aware fallback shots and avoids adjacent source-clip repetition", () => {
     const d = req(3);
     d.slots[0].candidates[0].roles = ["calm"];
@@ -153,7 +166,8 @@ describe("long Reels", () => {
     const calls: string[] = [];
     const p = { name: "fake", model: "m", visionModel: "", async structured(_s: string, user: string, schema: { parse: (v: unknown) => unknown }) {
       calls.push(user); const first = Number(/"i":(\d+)/.exec(user.split("Cuts (fixed")[1])![1]);
-      return schema.parse({ slots: [{ i: first, shot: `${first}a` }], story: calls.length === 1 ? "arc" : "" }); } };
+      const n = Math.min(CHUNK, LIMITS.slots - first);   // an answer for every cut of its part
+      return schema.parse({ slots: Array.from({ length: n }, (_, k) => ({ i: first + k, shot: `${first + k}a` })), story: calls.length === 1 ? "arc" : "" }); } };
     const res = await direct(d, p as unknown as ManagedProvider);
     expect(calls).toHaveLength(parts);   // all asked at the same time
     expect(res.slots.map((s) => s.i)).toEqual(Array.from({ length: LIMITS.slots }, (_, i) => i));

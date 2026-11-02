@@ -1833,7 +1833,7 @@ function aiOff(msg){ aiOn = false; aiStat(msg); const pr = [...$('mode').childre
 // asked once per Reel: Shubix AI for this Reel (its credits), or the phone's own edit (free)
 // The Reel's gate: asked before ANY Shubix AI work on a Reel (reading the clips, the pace, the shots), for every plan and every
 // Reel: Use = its credits and the AI starts; ✕ = nothing runs and nothing is taken (asked again on Generate, `again`).
-let gateNo = '';
+let gateNo = '', lowAsked = '';   // lowAsked: the Reel whose too-few-credits question was shown
 // A plan with Shubix AI makes every Reel with it: when the creator closes the credits question (or has too few credits)
 // the Reel is not shown, played or exported; the preview says so and its button asks again (or opens the top-ups)
 function aiNeed(on, low){
@@ -1855,8 +1855,14 @@ function aiGate(again = false){
   gateP = (async () => {
     const cost = aiCostOf('reel'), bal = aiBal();
     if(cost && bal !== null && bal < cost){
-      const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Not now' });
-      gateNo = id; aiNeed(true, true); aiStat('Shubix AI is waiting for credits · top up to use it on this Reel'); if(go) location.assign('/pricing'); return false; }
+      // too few credits: the Reel is still made, by the phone's own smart edit (like the Free plan), never held back;
+      // the top-up is offered once per Reel (not again on every Next)
+      aiNeed(false); gateNo = id;
+      aiStat('Edited on your phone · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
+      if(lowAsked !== id){ lowAsked = id;
+        const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit now; top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Use the phone\'s edit' });
+        if(go) location.assign('/pricing'); }
+      return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
     const ok = await askCredits({ title: 'Shubix AI will edit this Reel',
       text: cost ? 'It uses ' + creditWord(cost) + ' once for this Reel. Adding clips or changing them later costs nothing more.' : 'Included in your plan for this Reel.',
@@ -1987,7 +1993,7 @@ async function aiRun(){
   }catch(e){
     aiBusy = false;
     if(e && e.name === 'AbortError') return;
-    console.warn('AI picks not used:', e); aiStat('Your Reel uses the best moments picked on your phone.');
+    console.warn('AI picks not used:', e); aiStat('Shubix could not look at your clips right now. Your Reel uses the best moments picked on your phone' + (aiCostOf('reel') && dirPlannedReel !== reelIdNow() ? ' · no credits were used.' : '.'));
   }
 }
 function aiDone(charged, failed){
@@ -2329,10 +2335,10 @@ $('chatchips').addEventListener('click', e => { const b = e.target.closest('butt
    must still be free (no footage twice, no scene crossing, not the same clip as a neighbour), the transition must fit
    the shot and the style and stay within its ration, effects and speeds must suit the cut. Whatever fails keeps the
    rule choice. One plan per edit (style, mix and clips); a new mix or style asks again. */
-let director = null, dirBusy = false, dirFailedKey = '', dirCands = null;
+let director = null, dirBusy = false, dirFailedKey = '', dirCands = null, dirPlannedReel = '';   // dirPlannedReel: this Reel got a plan (its credits are spent)
 const dirKey = () => [wish, tplKind, mode, mode === 'copy' && refProfile ? refProfile.name + '|' + refProfile.dur : '', mixNo, plan.length, plan.map(s=>s.start.toFixed(2)).join(','), sources.map(fpOf).join(';')].join('#');
 let mixNo = 0;   // which mix: 0 = the AI's plan, 1-4 = its other mixes (one call), then the phone's own mixes in its style
-const dirSlotOf = i => (aiOn && director && director.key===dirKey() && director.slots[i]) || null;
+const dirSlotOf = i => { const d = (aiOn && director && director.key===dirKey() && director.slots[i]) || null; return d && !d.auto ? d : null; };   // an auto cut: the phone picks its moment too
 const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
 const TR_OK = { smooth: ['hard','dissolve','dip','iris','diamond','heart','star','wipe'], auto: Object.keys(TR_DUR).filter(k=>k!=='fadein'), fast: Object.keys(TR_DUR).filter(k=>k!=='fadein'), copy: Object.keys(TR_DUR).filter(k=>k!=='fadein') };
 // the beat shapes and beat effects (drawn in drawFrameGL; see shapeAt)
@@ -2350,8 +2356,9 @@ function applyDirectorStyle(){
     if(exact && !wish && !chatN) return;   // copying a Reel exactly: its own transitions, effects and moves (copyShots), the AI picks the moments; what the creator asks in the chat changes them
     // The AI decides the whole Reel: the rules' own choices (styleEdit: a bounce, a shake, a hook, a speed) go, and what
     // the AI leaves out of a shot stays plain (its answer's own defaults: a hard cut, no effect, normal speed)
+    // a cut the AI gave no usable answer for (or left out) keeps the phone's own choices, never a bare hard cut
+    if(!d || d.auto) return;
     s.tr = 'hard'; s.efx = 'none'; s.sp = SPEED.normal; s.trByDir = false; s.fxByDir = false; s.ak = []; s.acc = [];
-    if(!d) return;
     // The AI proposes creative choices, but the phone enforces the selected style, plan locks,
     // shot duration and per-Reel transition budget before anything reaches preview/export.
     if(d.tr){ asked++; const tr = d.tr;
@@ -2581,8 +2588,9 @@ function dirRequest(cands){
 // the AI's answer -> one entry per cut (its shot as a moment of a clip)
 function toSlots(list, cands){
   const slots = [];
-  for(const d of list || []){ const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
-    slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], cs: d.clip && typeof d.clip === 'object' ? d.clip : null, why: d.why || '' }; }
+  // an answer that is not a list of cuts (a broken reply) gives no slots: the phone's own edit stays
+  for(const d of Array.isArray(list) ? list : []){ if(!d || typeof d !== 'object' || !Number.isInteger(d.i) || d.i < 0 || d.i > 999) continue; const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
+    slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], cs: d.clip && typeof d.clip === 'object' ? d.clip : null, why: d.why || '', ...(d.auto ? { auto: true } : {}) }; }
   return slots;
 }
 // An AI plan made for other cuts (the song's part moved), fitted to these: every cut takes the choices of the AI's cut
@@ -2769,7 +2777,12 @@ async function paceRun(key){
 }
 async function directorRun(key){
   dirBusy = true; aiStat('Shubix is choosing every shot, transition and effect…');
-  const tm = timeoutSignal(45000);
+  // 45 s: the phone's own edit is shown and the person can go on; the request is NOT dropped (the plan is paid for): when it
+  // comes later it is offered ("Use it"). 4 min: given up (the server's AI gives up before that and the credits come back).
+  const tm = timeoutSignal(240000);
+  let late = false;
+  const soft = setTimeout(() => { late = true; dirBusy = false; dirFailedKey = key;
+    aiStat('Shubix is taking longer than usual. Your Reel uses the phone\'s own smart edit for now; Shubix\'s plan comes as soon as it is ready.'); }, 45000);
   try{
     const cands = directorCandidates(); dirCands = cands;
     const { req, ctx } = dirRequest(cands), sig = planSig(), mix = mixNo, st = mixStore();
@@ -2777,19 +2790,33 @@ async function directorRun(key){
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not plan the Reel (' + r.status + ').'));
     const slots = toSlots(res.slots, cands);
+    if(!slots.some(x => x && !x.auto)) throw new Error('Shubix returned no usable plan.');
     chatSync(res); if(typeof res.balance === 'number' && aiInfo){ aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
     if(chatAsk && req.chat) chatAsk = null;   // that chat message is answered (and charged once)
     if(!st.plans[mix]) st.plans[mix] = { slots, ctx, sig, story: res.story || '' };   // kept for the song's other parts
+    if(late){
+      // it came after the phone's edit was shown: offered, never swapped in under the person (or during an export)
+      clearTimeout(soft);
+      dirPlannedReel = reelIdNow();
+      const use = () => { if(recording || exportBusy) return; dirFailedKey = ''; if(dirKey() === key){ if(dirArrived(key, { slots, story: res.story || '' })) makeEdit(); } else if(buf && sources.length) directorMaybe(); };
+      aiStat('Shubix\'s plan for your Reel is ready.');
+      notifyAct('Shubix\'s plan for your Reel is ready.', 'Use it', use, 60000);
+      return;
+    }
     // the edit changed meanwhile (the song's part moved): the plan is fitted to it, or a new one asked (other clips)
     if(dirKey() !== key){ dirBusy = false; if(buf && sources.length && !recording) directorMaybe(); return; }
-    dirBusy = false;
+    dirBusy = false; dirPlannedReel = reelIdNow();
     if(dirArrived(key, { slots, story: res.story || '' })) makeEdit();
   }catch(e){
     dirFailedKey = key;
-    chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : 'Shubix could not change the Reel right now. Try again in a moment.');
-    if(tm.timedOut()) aiStat('Shubix took too long this time. Your Reel uses the phone\'s own smart edit.');
-    else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('Shubix is busy right now. Your Reel uses the phone\'s own smart edit.'); }
-  }finally{ dirBusy = false; tm.done(); }
+    const back = aiCostOf('reel') && dirPlannedReel !== reelIdNow() ? ', and the credits for it come back.' : '.';
+    if(late){ aiStat('Shubix could not plan this Reel. It keeps the phone\'s own smart edit' + back); }
+    else {
+      chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : 'Shubix could not change the Reel right now. Try again in a moment.');
+      if(tm.timedOut()) aiStat('Shubix took too long this time. Your Reel uses the phone\'s own smart edit' + back);
+      else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('Shubix is busy right now. Your Reel uses the phone\'s own smart edit' + back); }
+    }
+  }finally{ clearTimeout(soft); if(!late) dirBusy = false; tm.done(); }
 }
 (async () => {   // is the studio's AI on? The administrator decides (Administration -> Features -> AI director) and the
   // server has an AI provider; people never choose: when it is on, every Reel is edited by the AI
@@ -3145,7 +3172,10 @@ function makeEditNow(){
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
   if(dirInfo && !director.interim){ const shots = edit.filter((e,i)=>dirShot(i)).length, kept = edit.filter(e=>e.byDir).length;
     const keys = edit.reduce((n,e)=>n+((e.acc&&e.acc.length)||0), 0);
-    aiStat('Shubix planned your Reel' + (director.story ? ': ' + director.story : '.') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '')); }
+    // what the AI really decided: the cuts it answered; the rest are the phone's (said, never hidden)
+    const answered = plan.filter((_, i) => { const d = director.slots[i]; return d && !d.auto; }).length;
+    if(!answered) aiStat('Shubix could not plan this Reel. Your Reel uses the phone\'s own smart edit.');
+    else aiStat('Shubix planned your Reel' + (director.story ? ': ' + director.story : '') + (answered < plan.length ? ' (' + answered + ' of ' + plan.length + ' shots; the rest from your phone\'s edit)' : '') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '') + (answered < plan.length || director.story ? '' : '.')); }
   captureLoop(); editGen++;
   paceMaybe(); directorMaybe();
   chatReportAuto();
@@ -5228,6 +5258,19 @@ function notify(t, kind){
   box.appendChild(n); while(box.children.length > 3) box.firstChild.remove();
   requestAnimationFrame(() => n.classList.add('in'));
   setTimeout(() => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); }, kind === 'err' ? 6000 : 3500);
+}
+// a message with one action button (a late AI plan: "Use it"); it stays a while, the action runs once
+function notifyAct(t, label, fn, ms = 20000){
+  const box = $('toasts'); if(!box || !t) return;
+  const n = document.createElement('div'); n.className = 'toast resume'; n.setAttribute('role', 'status');
+  const x = document.createElement('span'); x.textContent = t;
+  const go = document.createElement('button'); go.type = 'button'; go.textContent = label;
+  const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Not now';
+  const close = () => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); };
+  go.addEventListener('click', () => { close(); try{ fn(); }catch(e){ console.warn(e); } });
+  no.addEventListener('click', close);
+  n.append(x, go, no); box.appendChild(n); requestAnimationFrame(() => n.classList.add('in'));
+  setTimeout(close, ms);
 }
 // a yes / no question inside the studio (instead of the browser's own box)
 function askConfirm(text, okLabel){
