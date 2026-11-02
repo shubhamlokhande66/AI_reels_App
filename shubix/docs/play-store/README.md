@@ -63,8 +63,8 @@ My Reels are stored (for the days shown in the app).
 - **Content rating**: no violence or other mature content; people can share content they make (the questionnaire's
   "user-generated content" answer: yes).
 - **News app**: no. **Government app**: no. **Financial features**: no.
-- **Payments**: Google Play asks for Play Billing for plans and credits bought inside an app. Decide before the
-  public release: Play Billing, User Choice Billing (India), or buying only on the website.
+- **Payments**: plans and credits are bought only on the website. The app has no prices, no way to buy and no way to
+  the website's pricing page: keep it so, or Google Play asks for Play Billing. It only shows what the account has.
 
 ## Store listing
 

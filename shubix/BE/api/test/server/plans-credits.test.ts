@@ -72,6 +72,18 @@ describe("plans and Shubix AI credits", () => {
     expect((await chargeOnce("studio_chat_big", "reelA:chat2", "chat")).taken).toBe(2);
     expect(await balanceNow()).toBe(720 - 13);
   });
+  it("gives an AI Reel's credits back when its plan never came, and keeps them once it did", async () => {
+    const { chargeOnce, setPlanByAdmin, balanceNow, markDelivered, refundUndelivered } = await import("../../src/server/credits");
+    await setPlanByAdmin("u1", "pro", 1);
+    const a = await chargeOnce("studio_ai", "reelA", "AI Reel");
+    expect(await refundUndelivered(a.ref)).toBe(10);        // the AI failed: back
+    expect(await balanceNow()).toBe(720);
+    expect(await refundUndelivered(a.ref)).toBe(0);         // only once
+    const b = await chargeOnce("studio_ai", "reelB", "AI Reel");
+    await markDelivered(b.ref);                             // the plan came
+    expect(await refundUndelivered(b.ref)).toBe(0);         // a later failure (another part of the song) keeps it
+    expect(await balanceNow()).toBe(710);
+  });
   it("gives Editor 2 and Pro 5 free chat changes per Reel, then charges", async () => {
     const { chatTurn, setPlanByAdmin, balanceNow } = await import("../../src/server/credits");
     await setPlanByAdmin("u1", "creator", 1);

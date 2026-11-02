@@ -384,7 +384,7 @@ export default function EditorScreen() {
 
   function use(key: string, name: string) {
     const lock = locked?.(key);
-    if (lock) { router.push("/pricing"); return; }
+    if (lock) return toast(words("This isn't in your current plan."), "info");
     if (LATER.has(key)) return toast(words("{tool} comes with the phone's video engine, in the Play Store app.", { tool: words(name) }), "info");
     if (!clip) return;
     const s = clip.end - clip.start;

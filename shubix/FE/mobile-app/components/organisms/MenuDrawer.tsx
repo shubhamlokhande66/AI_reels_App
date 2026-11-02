@@ -11,6 +11,9 @@ import { ThemeToggle } from "../molecules/ThemeToggle";
 
 /** The website's phone menu (AppShell's Drawer): the logo, the person's email, every page by group, sign out. It
  * slides in from the left over a dark veil; 88% of the screen, at most 360px. */
+// Google Play: the app has no pricing page, only your credits
+const CREDITS: NavItem = { href: "/credits", label: "Your credits", tk: "pricing.yourCredits", icon: "coins" };
+
 export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
   const text = useText(), { me } = useApi(), insets = useSafeAreaInsets();
   const signOut = useSignOut(() => { onClose(); router.replace("/login"); });
@@ -58,7 +61,7 @@ export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose
             {GROUPS.filter((group) => !group.admin).map((group, index) => (
               <View key={group.title} className="gap-1">
                 <Text className={`px-2.5 pb-1 text-[9px] font-extrabold uppercase tracking-[1.6px] text-muted/75 ${index ? "pt-4" : "pt-2"}`}>{group.tk ? text(group.tk) : group.title}</Text>
-                {group.items.map(link)}
+                {group.items.map((item) => link(item.href === "/pricing" ? CREDITS : item))}
               </View>
             ))}
           </View>

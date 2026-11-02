@@ -446,7 +446,7 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Plan pill",
       C("Pill", T("plan.free", "On Free", "Free"), T("plan.freeUpgrade", "On Free, after the name", "· Upgrade"), T("plan.upgrade", "On Free: the upgrade chip", "Upgrade"), T("plan.plans", "Before sign-in", "Plans"), T("common.planHint", "Hover on Free", "Free plan: see Editor & Pro"),
         T("plan.admin", "For the administrator (everything open)", "Admin · all open"))),
-    S("Locked pages", C("Upgrade tag", T("plan.lockTag", "Tag (cards and menu)", "Upgrade"), T("plan.lockHint", "Hover", "In a paid plan: see the plans"))),
+    S("Locked pages", C("Upgrade tag", T("plan.lockTag", "Tag (cards and menu)", "Upgrade"), T("plan.lockHint", "Hover", "In a paid plan: see the plans"), T("plan.lockTagApp", "Tag in the Android app", "Plan"), T("credits.notInPlan", "Android app: a page outside the plan", "This isn't in your current plan."))),
     S("Upgrade banners",
       C("Home banner", T("plan.bannerTitle", "Title", "Go Pro with Shubix"), T("plan.bannerText", "Line", "More templates, premium styles and advanced Shubix edits."), T("plan.bannerButton", "Button", "Upgrade")),
       C("Sidebar card", T("plan.bannerTitleSmall", "Title", "Upgrade to Pro"), T("plan.bannerTextSmall", "Line", "Premium templates & Shubix edits"))),

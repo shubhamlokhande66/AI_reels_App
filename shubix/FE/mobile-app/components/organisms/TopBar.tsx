@@ -35,18 +35,17 @@ export function TopBar({ pathname, onMenu }: { pathname: string; onMenu: () => v
   );
 }
 
-/** The plan in the top bar (the website's ProPill): "Free" with a crown to the plans, or the paid plan's name. */
+/** The plan in the top bar, to your credits. Google Play: a label only, never an upgrade prompt: "Free", or the paid
+ * plan's name with a crown. */
 function PlanPill() {
   const text = useText(), c = useCredits().data;
   if (!c || !("enabled" in c) || !c.enabled) return null;
   const free = c.plan === "free";
   return (
-    <Pressable onPress={() => router.push("/pricing")} accessibilityRole="button" accessibilityLabel={free ? text("plan.upgrade") : c.planName}
-      className={`h-9 flex-row items-center gap-1.5 rounded-full border pl-3 ${free ? "border-border bg-surface pr-1" : "border-accent/40 bg-surface-2 pr-3"}`}>
+    <Pressable onPress={() => router.push("/credits")} accessibilityRole="button" accessibilityLabel={text("pricing.yourCredits")}
+      className={`h-9 flex-row items-center gap-1.5 rounded-full border px-3 ${free ? "border-border bg-surface" : "border-accent/40 bg-surface-2"}`}>
       <Text className={`text-[13px] font-semibold ${free ? "text-muted" : "text-foreground"}`}>{free ? text("plan.free") : c.planName}</Text>
-      {free
-        ? <View className="h-7 w-7 items-center justify-center rounded-full bg-accent"><Crown size={13} color={colors.onAccent ?? "#fff"} /></View>
-        : <Crown size={14} color={colors.accent} />}
+      {!free && <Crown size={14} color={colors.accent} />}
     </Pressable>
   );
 }

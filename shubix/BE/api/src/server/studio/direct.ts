@@ -142,7 +142,8 @@ export interface Accent { at: number; do: (typeof ACCENTS)[number] }
 export interface MoveKey { at: number; s: number; x: number; y: number; r: number; ez: (typeof EASES)[number] }
 /** the shot's own settings, as the creator's clip tools set them (the engine's e.cs) */
 export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; fin?: number; fout?: number }
-export interface DirectedSlot { i: number; shot: string | null; transition: string | null; effect: string | null; speed: string | null; keys: Accent[]; move: MoveKey[]; clip?: ClipLook; why: string }
+/** auto: the AI gave nothing usable for this cut (filled with safe choices here): the phone uses its own choice for it */
+export interface DirectedSlot { i: number; shot: string | null; transition: string | null; effect: string | null; speed: string | null; keys: Accent[]; move: MoveKey[]; clip?: ClipLook; why: string; auto?: boolean }
 
 const GUIDE = `You are the editor's brain. Decide every creative choice from the music and the footage, like a top Reels editor. Understand the creator’s request in any language or script, including transliterated words and mixed-language instructions; do not ignore an instruction because it is not in English. Write the story and each short explanation in the language of the creator’s latest request. Keep transition, effect, speed and keyframe enum values in their exact English machine-readable form.
 How to read the music of each cut ("music"): loud/bass/drums/voice are 0-1 for THIS song (1 = its fullest). trend: getting louder or quieter. vox: what the singer does. hits: the strongest hits inside the shot, "at" = seconds from the shot's start, k = kick (bass drum), dhol (dhol/tom, deep hand drum), snare (snare, clap or tabla stroke), hat (hi-hat, cymbal), p = 1-3 strength. toDrop: beats left before the drop (a build-up). gapEnd: the shot ends in the short silence before a drop.
@@ -308,8 +309,10 @@ export function parsePlan(d: DirectIn, a: AnswerIn, complete = true): { slots: D
     // A safe complete edit is better than a missing cut or a null renderer instruction.
     const allowedTransitions = d.allowed ? TRANSITIONS.filter((x) => x === "hard" || d.allowed!.tr.includes(x)) : TRANSITIONS;
     const allowedEffects = d.allowed ? EFFECTS.filter((x) => x === "none" || d.allowed!.fx.includes(x)) : EFFECTS;
-    const transition = one(answer?.transition, allowedTransitions) ?? "hard";
-    const effect = one(answer?.effect, allowedEffects) ?? "none";
+    const trPick = one(answer?.transition, allowedTransitions), fxPick = one(answer?.effect, allowedEffects);
+    const transition = trPick ?? "hard";
+    const effect = fxPick ?? "none";
+    const auto = !answer || (!selected && !trPick && !fxPick);
     const speed = one(answer?.speed, SPEEDS) ?? "normal";
     const move = cleanMove(answer?.move ?? []);
     const clip = cleanClip(answer?.clip);
@@ -318,6 +321,7 @@ export function parsePlan(d: DirectIn, a: AnswerIn, complete = true): { slots: D
       keys: keys.sort((x, y) => x.at - y.at), move,
       ...(clip ? { clip } : {}),
       why: clean(answer?.why ?? "automatic safe completion", 60),
+      ...(auto ? { auto: true } : {}),
     });
   }
   return { slots: slots.sort((x, y) => x.i - y.i), story: clean(a.story, 160) };
@@ -348,7 +352,10 @@ export async function direct(d: DirectIn, provider: ManagedProvider = getProvide
     const ans = await provider.structured(SYSTEM, prompt(p, taste, trends), Answer, { task: TASK, temperature: 0.7, maxOutputTokens: Math.min(12_000, 400 + p.slots.length * 170) });
     return parsePlan(p, ans);
   }));
-  return { slots: plans.flatMap((p) => p.slots), story: plans[0].story || d.story, model: provider.model, provider: provider.name };
+  const slots = plans.flatMap((p) => p.slots), auto = slots.filter((s) => s.auto).length;
+  // more than half of the Reel without a usable answer is not the AI's plan: it fails (the phone edits, the credits come back)
+  if (auto * 2 > slots.length) throw new AIResponseError(`The AI director answered only ${slots.length - auto} of ${slots.length} cuts.`);
+  return { slots, story: plans[0].story || d.story, auto, model: provider.model, provider: provider.name };
 }
 
 /* ---- 1. pace: how fast to cut in each section ---- */
