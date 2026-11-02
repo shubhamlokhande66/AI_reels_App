@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,7 +16,7 @@ const LEGAL = [["/terms", "legal.terms"], ["/privacy", "legal.privacy"], ["/cont
  * is wrong once left), the button that waits until the form is right, and the links. Logic: @shubix/hooks useAuthForm. */
 export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signup" }) {
   const f = useAuthForm((signedUp) => router.replace(signedUp ? "/verify" : "/"));
-  const { t: text, signin } = f, insets = useSafeAreaInsets();
+  const { t: text, signin } = f, insets = useSafeAreaInsets(), [code, setCode] = useState("");
   useEffect(() => { if (initial !== "signin") f.setMode(initial); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tab = (mode: "signin" | "signup", label: string) => (
     <Pressable onPress={() => f.setMode(mode)} accessibilityRole="button" accessibilityState={{ selected: f.mode === mode }} className="min-h-10 flex-1 items-center justify-center overflow-hidden rounded-[9px]">
@@ -53,6 +53,20 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
         </View>
         <View accessibilityRole="tablist" className="mb-3 flex-row gap-1 rounded-xl border border-border bg-surface-2 p-1">{tab("signin", text("auth.signIn"))}{tab("signup", text("auth.createLink"))}</View>
 
+        {f.adminCode ? (
+          <Card className="gap-4 overflow-hidden rounded-[22px] p-5">
+            <View className="flex-row items-center gap-2"><Icon name="shield" size={14} color="muted" /><Eyebrow className="text-[10px] text-muted">{text("auth.adminEyebrow")}</Eyebrow></View>
+            <Text className="text-[22px] font-semibold text-foreground">{text("auth.adminTitle")}</Text>
+            <Text className="text-[12.5px] leading-[19px] text-muted">{text("auth.adminSent")}</Text>
+            <Input value={code} onChangeText={(v) => { const c = v.replace(/\D/g, "").slice(0, 6); setCode(c); if (c.length === 6) void f.verifyAdmin(c); }} keyboardType="number-pad" maxLength={6} autoFocus textContentType="oneTimeCode" placeholder="000000" />
+            {f.error ? <ErrorBanner message={f.error} /> : null}
+            <Button full size="lg" loading={f.busy} disabled={code.length !== 6} title={text("auth.adminVerify")} onPress={() => void f.verifyAdmin(code)} />
+            <View className="items-center gap-2">
+              <Text onPress={() => void f.resendAdmin()} accessibilityRole="link" className="text-[12px] font-bold text-accent">{text("auth.adminResend")}</Text>
+              <Text onPress={f.skipAdmin} accessibilityRole="link" className="text-[12px] text-muted">{text("auth.adminSkip")}</Text>
+            </View>
+          </Card>
+        ) : (
         <Card className="gap-4 overflow-hidden rounded-[22px] p-5">
           <View>
             <Text className="text-[25px] font-semibold tracking-[-0.9px] text-foreground">{text(signin ? "auth.signIn" : "auth.signUp")}</Text>
@@ -82,6 +96,7 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
             {signin && <Text onPress={() => router.push("/forgot")} accessibilityRole="link" className="text-[12px] font-bold text-accent">{text("auth.forgotLink")}</Text>}
           </View>
         </Card>
+        )}
 
         <View className="mt-6 flex-row flex-wrap justify-center gap-x-4 gap-y-1 border-t border-border/70 pt-3">
           {LEGAL.map(([href, key]) => <Text key={href} onPress={() => router.push(href)} accessibilityRole="link" className="py-1.5 text-xs text-muted">{text(key)}</Text>)}

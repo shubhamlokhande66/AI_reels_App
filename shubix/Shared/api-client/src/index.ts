@@ -45,6 +45,9 @@ export function createApiClient(o: ClientOptions) {
       changePassword: (currentPassword: string, newPassword: string) => post<OkResponse & { token?: string }>("/api/auth/password", { currentPassword, newPassword }).then(async (r) => { if (r.token) await o.setToken?.(r.token); return r; }),
       logoutEverywhere: () => post<OkResponse & { token?: string }>("/api/auth/logout-everywhere").then(async (r) => { if (r.token) await o.setToken?.(r.token); return r; }),
       deleteAccount: (password: string, confirm: string) => post<OkResponse>("/api/auth/delete-account", { password, confirm }).then(async (r) => { await o.setToken?.(null); return r; }),
+      /** an administrator's daily code: sent again, and entered (the admin powers for 24 hours, as on the website) */
+      adminCode: () => post<OkResponse & { wait?: number }>("/api/admin/code"),
+      adminVerify: (code: string) => post<OkResponse & { token?: string }>("/api/admin/code/verify", { code }).then(async (r) => { if (r.token) await o.setToken?.(r.token); return r; }),
       logout: async () => { try { await post<OkResponse>("/api/auth/logout"); } finally { await o.setToken?.(null); } },
     },
     texts: () => request<Record<string, string>>("/api/texts"),

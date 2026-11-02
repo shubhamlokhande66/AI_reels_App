@@ -197,7 +197,7 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
           })}
         </View>
         {custom && <View className="w-[140px]"><Input keyboardType="number-pad" maxLength={3} autoFocus selectTextOnFocus returnKeyType="done" value={typed ? String(typed) : ""} accessibilityLabel={words("Reel length")} right={<Text className="text-[13px] text-muted">s</Text>}
-          onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5 && n <= 180) onLength(n); }} onEndEditing={applyTyped} onBlur={applyTyped} /></View>}
+          onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5) onLength(Math.min(180, n)); }} onEndEditing={applyTyped} onBlur={applyTyped} onSubmitEditing={applyTyped} /></View>}
         {duration > 0 && <Text className="text-[12.5px] text-muted">{clock(from)} – {clock(from + len)}</Text>}
       </View>
     </FlowCard>
