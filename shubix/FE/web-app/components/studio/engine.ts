@@ -5653,9 +5653,10 @@ $('fexpcancel')?.addEventListener('click', () => { if(!exportBusy) return; expCa
     inp.addEventListener('blur', () => close(true), SIG);
   } }
 document.addEventListener('visibilitychange', ()=>{ if(exportBusy && !document.hidden && !wakeLock) holdScreen(); }, SIG);
-async function autoExport(){
+async function autoExport(cloud = false){
   if(exportBusy) return null; exportKeep = true; exportP = 0; lastVideo = null;
-  try{ await runExport(false); } finally { exportKeep = false; }
+  // cloud: also kept in My Reels, as the website's Export sheet does (when the account has room and the switch is on)
+  try{ await runExport(!!cloud && !!cloudInfo && cloudInfo.used < cloudInfo.limit && xq.my); } finally { exportKeep = false; }
   return lastVideo;
 }
 async function runExport(toCloud){
@@ -5699,7 +5700,7 @@ const XQ = { '720': { scale: 2/3, bitrate: 6e6, label: '720p' }, '1080': { scale
 const xq = { res: '1080', fps: 30, nowm: false, my: true };
 try{ const v = JSON.parse(localStorage.getItem('studio-export') || 'null'); if(v && XQ[v.res]) xq.res = v.res; if(v && (v.fps === 30 || v.fps === 60)) xq.fps = v.fps; if(v && typeof v.nowm === 'boolean') xq.nowm = v.nowm; if(v && typeof v.my === 'boolean') xq.my = v.my; }catch(e){}
 wmOff = false;   // set from the person's plan when the sheet opens (sheetOpen)
-let can4k = null, cloudInfo = null;
+let can4k = null, cloudInfo = null, cloudAt = 0;
 function exportDims(){ const [W0,H0] = SIZES[aspect], k = XQ[xq.res].scale; return [Math.round(W0*k/2)*2, Math.round(H0*k/2)*2]; }
 function planPaint(){
   const lb = $('look'); if(lb) for(const b of lb.querySelectorAll('[data-l]')){ const k = b.dataset.l, on = isLocked('look', k); b.classList.toggle('crowned', on); b.title = on ? PLAN_NAME[lockNeed('look', k)] + ' filter: try it, export asks' : ''; }
@@ -5780,7 +5781,8 @@ function sheetOpen(open){
   $('xgo').focus();
   if(can4k === null) loadMediabunny().then(mb => { const [W0,H0] = SIZES[aspect]; return mb.getFirstEncodableVideoCodec(['avc','vp9','av1'], {width: W0*2, height: H0*2}); })
     .then(c => { can4k = !!c; if(!can4k && xq.res === '4k') xq.res = '1080'; sheetPaint(); }, () => { can4k = false; sheetPaint(); });
-  if(cloud) cloud.usage().then(u => { cloudInfo = u; sheetPaint(); }, () => {});
+  // My Reels' room, asked once a minute at most (the sheet opens often; each request wakes the API's container)
+  if(cloud && Date.now() - cloudAt > 60_000){ cloudAt = Date.now(); cloud.usage().then(u => { cloudInfo = u; sheetPaint(); }, () => { cloudAt = 0; }); }
   // a paid plan (or the administrator) may remove the watermark
   planLoad();   // the plan's rules (watermark, quality) are read again; sheetPaint follows
 }
@@ -7278,7 +7280,11 @@ root.__studio = { get songR(){ return song && song.r; }, get now(){ return playi
     aiWait: !!(aiOn && aiReelOk() && aiGaveUp !== reelIdNow() && edit.length && !(director && director.key === dirKey() && !director.interim) && dirFailedKey !== dirKey()), speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt,
   // the phone app (bridge.ts): the account known after the start, Ask Shubix, the clips' smooth copies
-  account, chatApp, get aiOn(){ return aiOn; }, copies: () => sources.map((s, i) => ({ i, name: s.name, blob: s.edFile || null, w: s.edW || 0, h: s.edH || 0 })) };   // read by tests
+  account, chatApp, get aiOn(){ return aiOn; },
+  // the export's plan check (what the plan does not include, as the website's Export button asks) and the post's caption
+  exportLocked: () => lockedUsed().map(x => ({ name: x.name, need: PLAN_NAME[x.need] })),
+  exportFix: () => { lockedUsed().forEach(x => x.fix()); renderEDL(true); renderOvList(); sheetPaint(); }, caption: () => captionOf(),
+  copies: () => sources.map((s, i) => ({ i, name: s.name, blob: s.edFile || null, w: s.edW || 0, h: s.edH || 0 })) };   // read by tests
 
   return () => {
     try{ stopAll(); }catch(err){}

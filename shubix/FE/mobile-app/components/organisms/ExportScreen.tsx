@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Modal, ScrollView, Switch, Text, View } from "react-native";
+import { Image, Modal, ScrollView, Switch, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import * as MediaLibrary from "expo-media-library/legacy";
 import * as Sharing from "expo-sharing";
+import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useStudioText } from "@shubix/hooks";
 import { Button, Chip, IconButton, ThemeLayer, colors, toast } from "@shubix/ui-mobile";
@@ -13,39 +14,40 @@ import type { ReelProject } from "@shubix/validations";
 import { canUseSharedAndroidRenderer, cancelExport, exportReel, exportReelWithSharedRenderer } from "../../lib/video";
 import { FlowAnalyse } from "./CreateFlow";
 import { notifyAway } from "../../lib/notify";
+import { useThumb } from "../../lib/thumbs";
 import { engine, type ExportChoice, type ExportOptions } from "../../lib/engine";
 
 // the website's Exporting list: each line done once the Reel is that far
 const STEPS: [IconName, string, number][] = [["search", "Preparing clips", 0.02], ["sparkle", "Applying effects", 0.3], ["image", "Rendering video", 0.85], ["music", "Finalizing audio", 1]];
 const RES = [["720", "720p"], ["1080", "1080p"], ["4k", "4K"]] as const;
+type Made = { uri: string; size: number; caption?: string };
 
-/** Export (the website's Export Your Reel, Exporting and Reel Exported! screens): first the choices (quality, frame rate,
- * the watermark, without the song; what the plan does not include is marked Pro and asked about when exporting), then the
- * Reel made into an MP4 on this phone (Cancel stops it), then the Reel to watch, Download (to the gallery) and Share. */
+/** Export (the website's Export Your Reel, Exporting and Reel Exported! screens): first the Reel's picture and the choices
+ * (quality, frame rate, the size it will be, its file name, the watermark, without the song, Save to My Reels); what the
+ * plan does not include is listed and taken out before the export (the app never sends people to buy), then the Reel made
+ * into an MP4 on this phone (Cancel stops it), then the Reel to watch, Download, Share and the caption for the post. */
 export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onClose: () => void }) {
   const words = useStudioText(), insets = useSafeAreaInsets();
   const [step, setStep] = useState<"choose" | "make" | "done">("choose"), [allowed, setAllowed] = useState<ExportOptions | null>(null);
-  const [choice, setChoice] = useState<Required<ExportChoice>>({ res: "1080", fps: 30, noWatermark: false, noSong: false });
-  const [pct, setPct] = useState(0), [done, setDone] = useState<{ uri: string; size: number } | null>(null), [saved, setSaved] = useState(false), [notice, setNotice] = useState(""), [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
+  const [choice, setChoice] = useState<Required<Omit<ExportChoice, "fixLocked">>>({ res: "1080", fps: 30, noWatermark: false, noSong: false, myReels: true });
+  const [pct, setPct] = useState(0), [done, setDone] = useState<Made | null>(null), [saved, setSaved] = useState(false), [notice, setNotice] = useState(""), [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
   const player = useVideoPlayer(done?.uri ?? null, (p) => { p.loop = true; if (done) p.play(); });
-  const studio = !!reel?.studio;
-  // a new Reel to export: its choices first (a Studio Reel: what its plan allows), the others start at once
-  useEffect(() => {
-    if (!reel) return;
-    setDone(null); setSaved(false); setNotice(""); setFailed(false); setPct(0); setAllowed(null);
-    setStep(reel.studio ? "choose" : "make");
-    if (reel.studio) void engine.exportOptions().then(setAllowed).catch(() => setAllowed(null));
-  }, [reel]);
+  const first = reel?.clips[0], picture = useThumb(first?.uri, first?.kind === "image" ? "image" : "video");
+  const studio = !!reel?.studio, locked = allowed?.locked ?? [];
+  // a new Reel: its choices first (a Studio Reel), the others start at once
+  useEffect(() => { if (!reel) return; setDone(null); setSaved(false); setNotice(""); setFailed(false); setPct(0); setAllowed(null); setStep(reel.studio ? "choose" : "make"); }, [reel]);
+  // what the plan allows, the size and the name, for these choices (the studio on this phone answers: no request to the server)
+  useEffect(() => { if (reel?.studio && step === "choose") void engine.exportOptions(choice).then(setAllowed).catch(() => setAllowed(null)); }, [reel, step, choice]);
   useEffect(() => {
     if (!reel || step !== "make") return;
     let live = true;
     setPct(0); setDone(null); setSaved(false); setNotice(""); setFailed(false);
     // A Studio Reel uses the Studio renderer, so its layers, masks, effects and keyframes survive the export.
-    const make = async () => {
+    const make = async (): Promise<Made> => {
       if (reel.studio) {
         if (!engine.holds(reel.id)) throw new Error("The original Studio editing session is not available. Reopen this Reel from Fast Studio before exporting so its advanced effects and layers are preserved.");
         if (!(await engine.edit(reel))) throw new Error("Studio could not sync this edit. Your advanced effects have been kept; reopen the Reel in Fast Studio and try Export again.");
-        return engine.exportReel(`${reel.id}.mp4`, choice);
+        return engine.exportReel(`${reel.id}.mp4`, { ...choice, fixLocked: true }); // the person saw the list and chose Export
       }
       if (canUseSharedAndroidRenderer(reel)) return exportReelWithSharedRenderer(reel, (p) => live && setPct(p));
       return exportReel(reel, (p) => live && setPct(p));
@@ -71,12 +73,13 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
       await MediaLibrary.createAssetAsync(done.uri); setSaved(true); toast(words("Saved to your phone"), "success");
     } catch { toast(words("Couldn't save to Photos. Your exported video is still available to Share."), "danger"); }
   };
-  const pro = (locked?: boolean) => (locked ? " · Pro" : "");
+  const pro = (on?: boolean) => (on ? " · Pro" : "");
+  const set = (patch: Partial<typeof choice>) => setChoice((c) => ({ ...c, ...patch }));
   const label = (s: string) => <Text className="px-1 text-[11px] font-bold uppercase tracking-[2px] text-muted">{words(s)}</Text>;
-  const toggle = (title: string, sub: string, on: boolean, set: (v: boolean) => void, disabled = false) => (
+  const toggle = (title: string, sub: string, on: boolean, change: (v: boolean) => void, disabled = false) => (
     <View className="flex-row items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
       <View className="min-w-0 flex-1"><Text className="text-[14px] font-semibold text-foreground">{title}</Text>{!!sub && <Text className="text-[12px] text-muted">{sub}</Text>}</View>
-      <Switch value={on} onValueChange={set} disabled={disabled} trackColor={{ true: colors.accent }} />
+      <Switch value={on} onValueChange={change} disabled={disabled} trackColor={{ true: colors.accent }} />
     </View>
   );
   return (
@@ -86,13 +89,24 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
           {step === "choose" ? (
             <>
               <View className="flex-row items-center justify-between"><Text className="text-[22px] font-semibold text-foreground">{words("Export Your Reel")}</Text><IconButton icon="close" label={words("Close")} size={40} onPress={onClose} /></View>
+              <View className="h-[220px] self-center overflow-hidden rounded-2xl bg-black" style={{ aspectRatio: 9 / 16 }}>{picture && <Image source={{ uri: picture }} resizeMode="cover" className="h-full w-full" />}</View>
               {label("Quality")}
-              <View className="flex-row flex-wrap gap-2">{RES.filter(([r]) => !allowed?.res[r].off).map(([r, name]) => <Chip key={r} label={name + pro(allowed?.res[r].locked)} on={choice.res === r} onPress={() => setChoice((c) => ({ ...c, res: r }))} />)}</View>
+              <View className="flex-row flex-wrap gap-2">{RES.filter(([r]) => !allowed?.res[r].off).map(([r, name]) => <Chip key={r} label={name + pro(allowed?.res[r].locked)} on={choice.res === r} onPress={() => set({ res: r })} />)}</View>
               {label("Frame rate")}
-              <View className="flex-row flex-wrap gap-2">{([30, 60] as const).map((f) => <Chip key={f} label={`${f} fps${f === 60 ? pro(allowed?.fps60Locked) : ""}`} on={choice.fps === f} onPress={() => setChoice((c) => ({ ...c, fps: f }))} />)}</View>
-              {toggle(words("Remove Watermark"), allowed && !allowed.watermarkOff ? words("Paid plans can remove the watermark") : "", choice.noWatermark, (v) => setChoice((c) => ({ ...c, noWatermark: v })), !!allowed && !allowed.watermarkOff)}
-              {toggle(words("Without the song"), words("Add it in Instagram as its own sound"), choice.noSong, (v) => setChoice((c) => ({ ...c, noSong: v })))}
-              <Button full size="xl" icon="download" title={words("Export to phone")} onPress={() => setStep("make")} />
+              <View className="flex-row flex-wrap gap-2">{([30, 60] as const).map((f) => <Chip key={f} label={`${f} fps${f === 60 ? pro(allowed?.fps60Locked) : ""}`} on={choice.fps === f} onPress={() => set({ fps: f })} />)}</View>
+              {!!allowed?.size && <Text className="px-1 text-[12.5px] text-muted">{allowed.size}</Text>}
+              {!!allowed?.fileName && <Text className="px-1 text-[12.5px] text-muted">{words("File name")}: <Text className="font-semibold text-foreground">{allowed.fileName}</Text></Text>}
+              {toggle(words("Remove Watermark"), allowed && !allowed.watermarkOff ? words("Paid plans can remove the watermark") : "", choice.noWatermark, (v) => set({ noWatermark: v }), !!allowed && !allowed.watermarkOff)}
+              {allowed?.myReels && toggle(words("Save to My Reels"), allowed.myReelsNote, choice.myReels, (v) => set({ myReels: v }))}
+              {toggle(words("Without the song"), words("Add it in Instagram as its own sound"), choice.noSong, (v) => set({ noSong: v }))}
+              {locked.length > 0 && (
+                <View className="gap-1 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-3">
+                  <Text className="text-[14px] font-semibold text-foreground">{words("Your Reel uses features your plan does not include")}</Text>
+                  {locked.map((x) => <Text key={x.name} className="text-[12.5px] text-muted">• {x.name} · {x.need}</Text>)}
+                  <Text className="mt-1 text-[12px] text-muted">{words("They are taken out when you export.")}</Text>
+                </View>
+              )}
+              <Button full size="xl" icon="download" title={words(locked.length ? "Take them out and export" : "Export to phone")} onPress={() => setStep("make")} />
             </>
           ) : step === "make" ? (
             <>
@@ -111,6 +125,13 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
               <View className="items-center gap-1"><Text className="text-[15px] font-semibold text-foreground">{words(saved ? "Saved to your phone" : "Your Reel is ready")}</Text><Text className="text-[12.5px] text-muted">{megabytes(done.size)}</Text>{!!notice && <Text accessibilityRole="alert" className="text-center text-[12px] text-muted">{notice}</Text>}</View>
               <Button full size="xl" icon="upload" title={words("Share")} onPress={() => void Sharing.shareAsync(done.uri, { mimeType: "video/mp4" })} />
               <Button full size="lg" variant="secondary" icon={saved ? "check" : "download"} title={words(saved ? "Saved to Photos" : "Download")} onPress={() => void download()} />
+              {!!done.caption && (
+                <View className="gap-2 rounded-2xl border border-border bg-surface px-4 py-3">
+                  <Text className="text-[14px] font-semibold text-foreground">{words("Caption for your Post")}</Text>
+                  <Text selectable className="text-[13px] leading-5 text-foreground">{done.caption}</Text>
+                  <Button variant="secondary" size="sm" title={words("Copy caption")} onPress={() => void Clipboard.setStringAsync(done.caption!).then(() => toast(words("Copied ✓"), "success"))} />
+                </View>
+              )}
             </>
           )}
         </ScrollView>

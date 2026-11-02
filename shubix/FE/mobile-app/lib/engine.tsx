@@ -21,8 +21,9 @@ export type SongAnalysis = { duration: number; bpm: number; beats: number; drops
 export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
 export type EngineReel = { work: { clips: number; shots: number }; state: { edit: EngineShot[]; mode?: string } & Record<string, unknown> };
 /** the website's Export sheet: quality, frame rate, the watermark, without the song */
-export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWatermark?: boolean; noSong?: boolean };
-export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean };
+export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWatermark?: boolean; noSong?: boolean; myReels?: boolean; fixLocked?: boolean };
+export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean;
+  size: string; fileName: string; myReels: boolean; myReelsNote: string; locked: { name: string; need: string }[] };
 
 type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 type Page = { injectJavaScript: (js: string) => void; reload: () => void };
@@ -123,9 +124,9 @@ export const engine = {
     if (!(await engine.edit(p))) return null;
     return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
   },
-  exportReel: (name: string, o: ExportChoice = {}) => call<{ path: string; size: number }>("exportReel", { name, ...o }).then((r) => ({ uri: `file://${r.path}`, size: r.size })),
-  /** what the plan and the phone allow in the export (the website's Export sheet) */
-  exportOptions: () => call<ExportOptions>("exportOptions"),
+  exportReel: (name: string, o: ExportChoice = {}) => call<{ path: string; size: number; caption?: string }>("exportReel", { name, ...o }).then((r) => ({ uri: `file://${r.path}`, size: r.size, caption: r.caption ?? "" })),
+  /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
+  exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),
   cancelExport: () => call("cancelExport").catch(() => undefined),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the
    * phone's preview and export play these, so heavy footage never stutters or stalls (`name`: the clip as sent) */

@@ -22,7 +22,7 @@ import { noteSignedIn } from "@/lib/boot";
 
 type KeyframeTarget = { what?: string; a?: number; i?: number; obj?: { uk?: Array<Record<string, unknown> & { t: number }> } } | null;
 type StudioLayer = { id?: number; t0?: number; t1?: number; x?: number; y?: number; s?: number; op?: number; r?: number; mask?: string; blend?: string; follow?: string; followOffsetX?: number; followOffsetY?: number; mk?: { w?: number; h?: number; f?: number; th?: number; a?: number; inv?: boolean }; key?: { on?: boolean; c?: string; tol?: number } };
-type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: () => Promise<Blob | null>; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => KeyframeTarget; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: StudioLayer[]; setAudioMix: (patch: { mvol?: number; mfin?: number; mfout?: number }) => Promise<unknown>; remix: () => boolean; saveNow: () => unknown; ttsVoices: Array<{ key: string; label: string }>; addTts: (text: string, voice: string) => Promise<unknown>; clearTts: () => boolean; setCaptions: (enabled: boolean, language?: string, translation?: string) => Promise<unknown>; setCaptionStyle: (style: string) => string; setOverlays: (list: Array<Record<string, unknown>>) => number };
+type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: (cloud?: boolean) => Promise<Blob | null>; exportLocked: () => { name: string; need: string }[]; exportFix: () => void; caption: () => string; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => KeyframeTarget; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: StudioLayer[]; setAudioMix: (patch: { mvol?: number; mfin?: number; mfout?: number }) => Promise<unknown>; remix: () => boolean; saveNow: () => unknown; ttsVoices: Array<{ key: string; label: string }>; addTts: (text: string, voice: string) => Promise<unknown>; clearTts: () => boolean; setCaptions: (enabled: boolean, language?: string, translation?: string) => Promise<unknown>; setCaptionStyle: (style: string) => string; setOverlays: (list: Array<Record<string, unknown>>) => number };
 type Native = { postMessage: (m: string) => void };
 
 export function initBridge(root: HTMLElement): () => void {
@@ -59,6 +59,15 @@ export function initBridge(root: HTMLElement): () => void {
   const press = (box: string, attr: string, value: string) => { const b = root.querySelector<HTMLElement>(`#${box} [${attr}="${value}"]`); if (b) b.click(); return !!b; };
   // the website's Export sheet, opened (it reads the plan and the phone) or closed, unseen here
   const sheet = async (open: boolean) => { $(open ? "export" : "xshclose")?.click(); await new Promise((r) => setTimeout(r, 150)); };
+  // the phone's choices put into the open sheet: quality, frame rate, the watermark, without the song, My Reels
+  const pick = (a: Record<string, unknown>) => {
+    if (a.res) press("xres", "data-r", String(a.res));
+    if (a.fps) press("xfps", "data-f", String(a.fps));
+    for (const [id, on] of [["xwm", a.noWatermark], ["nosong", a.noSong], ["xmy", a.myReels]] as const) {
+      const box = $<HTMLInputElement>(id);
+      if (box && on !== undefined && !box.disabled && box.checked !== !!on) { box.checked = !!on; box.dispatchEvent(new Event("change", { bubbles: true })); }
+    }
+  };
   const until = async (test: () => boolean, ms = 600_000) => { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("The studio took too long"); await new Promise((r) => setTimeout(r, 250)); } };
   // made: the song read, the clips read, the shots there, and Shubix AI done with them (its clips' check, the pace, the plan)
   const made = () => { const w = studio()?.work as (Studio["work"] & { pace?: boolean; aiWait?: boolean }) | undefined; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir && !w.pace && !w.aiWait; };
@@ -310,13 +319,16 @@ export function initBridge(root: HTMLElement): () => void {
       return out;
     },
     async answer(a) { const b = $({ ok: "cconfok", no: "cconfno" }[String(a.pick)] ?? "cconfx"); b?.click(); return { ok: !!b }; },
-    /** what the plan and the phone allow in the website's Export sheet -> { res: { 720|1080|4k: { locked, off } }, fps60Locked, watermarkOff } */
-    async exportOptions() {
+    /** The website's Export sheet, with the phone's choices so far -> what the plan and the phone allow ({ res: { 720|1080|4k:
+     * { locked, off } }, fps60Locked, watermarkOff }), the size and the file name, My Reels (whether the account has it, and
+     * its note), and what in this Reel the plan does not include ({ name, need }) */
+    async exportOptions(a) {
       await until(made);
-      await sheet(true);
-      const btn = (box: string, attr: string, v: string) => root.querySelector<HTMLButtonElement>(`#${box} [${attr}="${v}"]`);
+      await sheet(true); pick(a);
+      const btn = (box: string, attr: string, v: string) => root.querySelector<HTMLButtonElement>(`#${box} [${attr}="${v}"]`), text = (id: string) => $(id)?.textContent?.trim() ?? "";
       const res = Object.fromEntries(["720", "1080", "4k"].map((r) => { const b = btn("xres", "data-r", r); return [r, { locked: !!b?.classList.contains("crowned"), off: !!b?.disabled }]; }));
-      const out = { res, fps60Locked: !!btn("xfps", "data-f", "60")?.classList.contains("crowned"), watermarkOff: !$<HTMLInputElement>("xwm")?.disabled };
+      const out = { res, fps60Locked: !!btn("xfps", "data-f", "60")?.classList.contains("crowned"), watermarkOff: !$<HTMLInputElement>("xwm")?.disabled,
+        size: text("xsize"), fileName: text("xfname"), myReels: !$("xmyrow")?.hidden, myReelsNote: $("xcloudnote")?.hidden ? "" : text("xcloudnote"), locked: studio()!.exportLocked() };
       await sheet(false);
       return out;
     },
@@ -326,22 +338,18 @@ export function initBridge(root: HTMLElement): () => void {
       await until(made);
       // the creator closed Shubix AI's question: the studio keeps the Reel for Shubix AI (its own words say so)
       if (root.classList.contains("aineed")) throw new Error($("aiaskt")?.textContent || "Your Reel is waiting for Shubix AI");
-      // the choices of the website's Export sheet: quality, frame rate, watermark, without the song
-      if (a.res || a.fps || a.noWatermark !== undefined || a.noSong !== undefined) {
-        await sheet(true);
-        if (a.res) press("xres", "data-r", String(a.res));
-        if (a.fps) press("xfps", "data-f", String(a.fps));
-        for (const [id, on] of [["xwm", a.noWatermark], ["nosong", a.noSong]] as const) {
-          const box = $<HTMLInputElement>(id);
-          if (box && on !== undefined && !box.disabled && box.checked !== !!on) { box.checked = !!on; box.dispatchEvent(new Event("change", { bubbles: true })); }
-        }
-        await sheet(false);
-      }
-      const blob = await studio()!.autoExport();
+      // the choices of the website's Export sheet, then its plan check: what the plan does not include is taken out only when
+      // the person said so (fixLocked), else the phone is told what it is (LOCKED:[…]) and asks
+      await sheet(true); pick(a);
+      const locked = studio()!.exportLocked();
+      if (locked.length && !a.fixLocked) { await sheet(false); throw new Error("LOCKED:" + JSON.stringify(locked)); }
+      if (locked.length) studio()!.exportFix();
+      await sheet(false);
+      const blob = await studio()!.autoExport(!!a.myReels);
       if (!blob) throw new Error("The Reel could not be made");
       const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(String(a.name || "reel.mp4"))}`, { method: "PUT", body: blob });
       if (!r.ok) throw new Error("The Reel could not be saved on the phone");
-      return { ...(await r.json()), size: blob.size };
+      return { ...(await r.json()), size: blob.size, caption: studio()!.caption() };
     },
   };
 
