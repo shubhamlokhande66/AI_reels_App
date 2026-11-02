@@ -4685,7 +4685,7 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
-  shotMask(t); if(layers.length) drawLayers(og, t);
+  shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -4945,10 +4945,20 @@ for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null };
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null, ck:null };
 /* ---- a shot's mask (Clip tools -> Mask, CapCut's Mask): the shot shows only inside a shape (or outside it, inverted);
  * the rest is a colour. Drawn over the finished shot, before the boxes and texts, by both renderers and in the export. ---- */
-let mkBuf = null;
+/* ---- a shot's green screen (Clip tools -> Chroma key, CapCut's Chroma key): its key colour goes, the colour behind shows ---- */
+let ckBuf = null;
+function shotKey(t){
+  const e = edit[segAt(t)], k = e && e.cs && e.cs.ck; if(!k) return;
+  const W = out.width, H = out.height;
+  if(!ckBuf) ckBuf = document.createElement('canvas');
+  if(ckBuf.width !== W || ckBuf.height !== H){ ckBuf.width = W; ckBuf.height = H; }
+  const q = ckBuf.getContext('2d', { willReadFrequently: true }); q.globalCompositeOperation = 'copy'; q.drawImage(out, 0, 0); q.globalCompositeOperation = 'source-over';
+  chromaKey(q, W, H, k);
+  og.save(); og.setTransform(1, 0, 0, 1, 0, 0); og.globalAlpha = 1; og.globalCompositeOperation = 'source-over'; og.fillStyle = k.bg || '#000000'; og.fillRect(0, 0, W, H); og.drawImage(ckBuf, 0, 0); og.restore();
+}let mkBuf = null;
 function maskPath(q, m, W, H){
   const w = m.w*W, h = m.h*W, R = Math.hypot(W, H)*2;   // sized on the width, so a circle stays round
   q.translate(m.x*W, m.y*H); q.rotate((m.a || 0)*Math.PI/180); q.beginPath();
@@ -5179,7 +5189,7 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
-  shotMask(t); if(layers.length) drawLayers(og, t);
+  shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();

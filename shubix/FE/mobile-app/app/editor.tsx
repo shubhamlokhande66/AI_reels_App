@@ -676,6 +676,19 @@ export default function EditorScreen() {
         if (v === "Remove magnifier") return void studioPatch({ mg: null });
         void studioPatch({ mg: { x: 0.5, y: 0.45, r: 0.18, z: v === "Zoom 1.5×" ? 1.5 : v === "Zoom 2×" ? 2 : v === "Zoom 3×" ? 3 : 2 } });
       }} />;
+      // a mask on the shot (the website's Clip tools -> Mask): the shot shows inside the shape, black around it
+      case "mask": return <Choices items={["Circle", "Rectangle", "Heart", "Star", "Split", "Filmstrip", "Invert", "Remove mask"]} onPick={(v) => {
+        if (v === "Remove mask") return void studioPatch({ mk: null });
+        if (v === "Invert") return void (async () => { const c = await engine.tool("shotCs").catch(() => null) as { mk?: Record<string, unknown> | null } | null; if (c?.mk) void studioPatch({ mk: { ...c.mk, inv: !c.mk.inv } }); })();
+        const s = ({ Circle: "circle", Rectangle: "rect", Heart: "heart", Star: "star", Split: "split", Filmstrip: "film" } as Record<string, string>)[v];
+        void studioPatch({ mk: { s, x: 0.5, y: 0.5, w: 0.7, h: s === "film" ? 0.5 : 0.7, a: 0, f: 0.04, inv: false, c: "#000000" } });
+      }} />;
+      // green screen on the shot (the website's Clip tools -> Chroma key): the colour goes, black shows behind
+      case "chroma": return <Choices items={["Green screen", "Blue screen", "Stronger", "Softer", "Remove chroma key"]} onPick={(v) => void (async () => {
+        if (v === "Remove chroma key") return void studioPatch({ ck: null });
+        const c = await engine.tool("shotCs").catch(() => null) as { ck?: { c: string; tol: number; bg: string } | null } | null, ck = c?.ck ?? { c: "#00FF00", tol: 0.35, bg: "#000000" };
+        void studioPatch({ ck: v === "Green screen" ? { ...ck, c: "#00FF00" } : v === "Blue screen" ? { ...ck, c: "#0000FF" } : { ...ck, tol: Math.max(0.05, Math.min(0.9, ck.tol + (v === "Stronger" ? 0.1 : -0.1))) } });
+      })()} />;
       case "border": return <Choices items={["No border", "Fine white", "Gold frame", "Soft frame"]} onPick={(v) => {
         if (v === "No border") return void studioPatch({ fit: false, bd: 0 });
         void studioPatch({ fit: true, bd: v === "Fine white" ? 0.035 : 0.08, bdc: v === "Gold frame" ? "#d4b07a" : v === "Soft frame" ? "#f3ede3" : "#ffffff" });
