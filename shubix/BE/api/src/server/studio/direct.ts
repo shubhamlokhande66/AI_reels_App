@@ -26,7 +26,9 @@ export const TRANSITIONS = ["hard", "fadein", "flash", "whip", "zoom", "glitch",
 export const EASES = ["lin", "inOut", "outCubic", "outExpo", "outBack"] as const;
 export const EFFECTS = ["none", "hook", "zoomburst", "punch", "punch-soft", "tilt", "shake", "bounce", "pan", "pan-soft", "drift", "snap",
   /* beat shapes and beat effects (they step on the shot's beats) */
-  "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"] as const;
+  "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse",
+  /* picture effects (a GPU pass over the shot) */
+  "grain", "leak", "rainbow", "negative", "halftone", "pixel8", "crt", "fisheye", "swirl", "sketch", "duotone"] as const;
 export const SPEEDS = ["normal", "slow", "fast", "velocity", "ramp", "freeze", "hold"] as const;   // hold = a freeze frame for the whole shot
 /** keyframes the AI places at a moment inside a shot (on a hit) */
 export const ACCENTS = ["punch", "shake", "flash", "pulse"] as const;

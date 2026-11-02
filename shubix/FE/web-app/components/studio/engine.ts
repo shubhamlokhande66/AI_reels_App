@@ -1753,7 +1753,8 @@ const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip
   zoomblur:'Zoom blur', shake:'Shake', squeeze:'Squeeze', rotatein:'Rotate in'};
 const FX_NAME = {jump:'Punch-in (jump cut)', 'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce',
   boxgrow:'Shape: box grows on the beat', grid:'Shape: grid opens on the beat', strips:'Shape: strips on the beat', circle:'Shape: circle pulse', heartbeat:'Shape: heart pulse', starbeat:'Shape: star pulse',
-  frame:'Frame in frame', mirror:'Mirror', kaleido:'Kaleidoscope', triple:'Triple split', vhs:'VHS retro', strobe:'Strobe on the beat', rgbpulse:'RGB split on the beat', blurpulse:'Blur pulse on the beat'};
+  frame:'Frame in frame', mirror:'Mirror', kaleido:'Kaleidoscope', triple:'Triple split', vhs:'VHS retro', strobe:'Strobe on the beat', rgbpulse:'RGB split on the beat', blurpulse:'Blur pulse on the beat',
+  grain:'Film grain', leak:'Light leak', rainbow:'Rainbow', negative:'Negative', halftone:'Halftone', pixel8:'8-bit pixels', crt:'CRT screen', fisheye:'Fisheye', swirl:'Swirl', sketch:'Sketch', duotone:'Duotone'};
 const trDur = e => e.trd ?? (TR_DUR[e.tr] || 0);   // a shot's own (shorter) transition, else the transition's usual length
 const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2, diamond:0.36, heart:0.42, star:0.4,
   slideleft:0.24, slideright:0.24, slideup:0.24, slidedown:0.24, swipeup:0.2, zoomout:0.3, blur:0.35, flip:0.3, luma:0.45, pixelate:0.4, clock:0.4, doors:0.35, ripple:0.45, burn:0.4, dropin:0.32,
@@ -4688,7 +4689,7 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
-  shotGrade(t); shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
+  shotGrade(t); shotFx(t); shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -5015,6 +5016,59 @@ function shotGrade(t){
   gl.uniform1f(P.useH, cs.hsl ? 1 : 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   og.save(); og.setTransform(1, 0, 0, 1, 0, 0); og.globalAlpha = 1; og.globalCompositeOperation = 'copy'; og.drawImage(cv, 0, 0); og.restore();
+}/* ---- the picture effects (Effect: film grain, light leak, rainbow, negative, halftone, 8-bit, CRT, fisheye, swirl, sketch,
+ * duotone): one small GPU pass over the finished shot, the same for both renderers and the export ---- */
+const PIC_FX = { grain: 1, leak: 2, rainbow: 3, negative: 4, halftone: 5, pixel8: 6, crt: 7, fisheye: 8, swirl: 9, sketch: 10, duotone: 11 };
+let picGL = null;
+function picProgram(){
+  if(picGL !== null) return picGL;
+  try{
+    const cv = document.createElement('canvas'), gl = cv.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true });
+    if(!gl){ picGL = false; return false; }
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, 'attribute vec2 a; varying vec2 v; void main(){ v = vec2(a.x*0.5+0.5, 0.5-a.y*0.5); gl_Position = vec4(a, 0.0, 1.0); }'));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, `precision mediump float; varying vec2 v; uniform sampler2D T; uniform vec2 res; uniform float time, kind, amt;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7)))*43758.5453); }
+      float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+      vec3 hue(vec3 c, float a){ const vec3 k = vec3(0.57735); float ca = cos(a); return c*ca + cross(k, c)*sin(a) + k*dot(k, c)*(1.0 - ca); }
+      void main(){ vec2 uv = v, px = 1.0/res; vec2 d = uv - 0.5;
+        if(kind > 7.5 && kind < 8.5){ float r = length(d); uv = 0.5 + d*(1.0 - 0.35*amt + 0.35*amt*r*r*2.0); }
+        if(kind > 8.5 && kind < 9.5){ float r = length(d), a = amt*3.0*max(0.0, 0.5 - r)*sin(time*1.5); float s = sin(a), c = cos(a); uv = 0.5 + vec2(c*d.x - s*d.y, s*d.x + c*d.y); }
+        if(kind > 5.5 && kind < 6.5){ float n = 64.0 - 40.0*amt; vec2 N = vec2(n, n*res.y/res.x); uv = (floor(uv*N)+0.5)/N; }
+        if(kind > 6.5 && kind < 7.5){ uv = 0.5 + d*(1.0 + 0.08*amt*dot(d, d)*4.0); }
+        vec3 col = texture2D(T, clamp(uv, 0.0, 1.0)).rgb;
+        if(kind < 1.5){ float g = hash(uv*res + time*60.0) - 0.5; col += g*0.22*amt; if(hash(vec2(floor(uv.x*res.x/3.0), floor(time*12.0))) > 0.997) col *= 0.6; }
+        else if(kind < 2.5){ vec2 c = vec2(0.5 + 0.5*sin(time*0.7), 0.3 + 0.25*cos(time*0.5)); float k = 1.0 - smoothstep(0.0, 0.8, distance(uv, c)); vec3 lc = vec3(1.0, 0.55, 0.25)*k*0.85*amt; col = 1.0 - (1.0 - col)*(1.0 - lc); }
+        else if(kind < 3.5) col = hue(col, time*2.0 + uv.y*3.0)*mix(1.0, 1.15, amt);
+        else if(kind < 4.5) col = mix(col, 1.0 - col, amt);
+        else if(kind < 5.5){ float cell = 9.0, l = lum(col); vec2 q = mod(uv*res, cell) - cell*0.5; float dot0 = step(length(q), cell*0.55*sqrt(1.0 - l)); col = mix(col, vec3(1.0 - dot0)*mix(vec3(1.0), col*1.4, 0.5), amt); }
+        else if(kind < 6.5) col = floor(col*6.0 + 0.5)/6.0;
+        else if(kind < 7.5){ col *= 0.85 + 0.15*sin(uv.y*res.y*3.14159); col.r = texture2D(T, clamp(uv + vec2(px.x*2.0, 0.0), 0.0, 1.0)).r; col *= 1.0 - 0.6*amt*dot(d, d)*2.0; }
+        else if(kind > 9.5 && kind < 10.5){ float gx = lum(texture2D(T, uv + vec2(px.x, 0.0)).rgb) - lum(texture2D(T, uv - vec2(px.x, 0.0)).rgb), gy = lum(texture2D(T, uv + vec2(0.0, px.y)).rgb) - lum(texture2D(T, uv - vec2(0.0, px.y)).rgb);
+          float e = clamp(length(vec2(gx, gy))*4.0, 0.0, 1.0); col = mix(col, vec3(1.0 - e)*vec3(0.98, 0.96, 0.92), amt); }
+        else if(kind > 10.5){ float l = lum(col); col = mix(col, mix(vec3(0.22, 0.05, 0.42), vec3(1.0, 0.62, 0.25), smoothstep(0.1, 0.9, l)), amt); }
+        gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0); }`));
+    gl.linkProgram(p); gl.useProgram(p);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const a = gl.getAttribLocation(p, 'a'); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE)); [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR));
+    const u = n => gl.getUniformLocation(p, n);
+    picGL = { cv, gl, res: u('res'), time: u('time'), kind: u('kind'), amt: u('amt') };
+  }catch(e){ console.warn('Picture effects are not available here:', e); picGL = false; }
+  return picGL;
+}
+function shotFx(t){
+  const i = segAt(t), e = edit[i], k = e && PIC_FX[e.efx]; if(!k) return;
+  const P = picProgram(); if(!P) return;
+  const W = out.width, H = out.height, { gl, cv } = P;
+  if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+  gl.viewport(0, 0, W, H); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, out);
+  const local = t - e.start, ramp = Math.min(1, local/0.25, Math.max(0, e.end - t)/0.15);   // in over 0.25 s, out over the last 0.15 s
+  gl.uniform2f(P.res, W, H); gl.uniform1f(P.time, local); gl.uniform1f(P.kind, k); gl.uniform1f(P.amt, Math.max(0, ramp)*(e.fxAmt ?? 1));
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  og.save(); og.setTransform(1, 0, 0, 1, 0, 0); og.globalAlpha = 1; og.globalCompositeOperation = 'copy'; og.drawImage(cv, 0, 0); og.restore();
 }let ckBuf = null;
 function shotKey(t){
   const e = edit[segAt(t)], k = e && e.cs && e.cs.ck; if(!k) return;
@@ -5262,7 +5316,7 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
-  shotGrade(t); shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
+  shotGrade(t); shotFx(t); shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
