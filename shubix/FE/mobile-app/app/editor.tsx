@@ -656,7 +656,11 @@ export default function EditorScreen() {
         <View className="flex-row flex-wrap gap-2">
           <Button size="sm" variant="secondary" title={words("Previous")} onPress={() => void studioKeyframeAction("kfStep", { direction: -1 })} />
           <Button size="sm" variant="secondary" title={words("Next")} onPress={() => void studioKeyframeAction("kfStep", { direction: 1 })} />
-          <Button size="sm" variant="secondary" title={words("Delete keyframe")} onPress={() => void studioKeyframeAction("kfRemov      case "tr": {
+          <Button size="sm" variant="secondary" title={words("Delete keyframe")} onPress={() => void studioKeyframeAction("kfRemove")} />
+          <Button size="sm" variant="danger" title={words("Clear all")} onPress={() => void studioKeyframeAction("kfClear")} />
+        </View>
+      </View>;
+      case "tr": {
         const studioCanRender = !!p.studio && engine.holds(p.id);
         const choices = studioCanRender ? TRANSITIONS : TRANSITIONS.filter((_, index) => isNativeTransitionSupported(TRANSITION_IDS[index]));
         return <View className="gap-2">
@@ -678,10 +682,6 @@ export default function EditorScreen() {
           {!studioCanRender && <Text className="text-[11px] text-muted">{words("Only effects supported by this Android export engine are shown. Reopen this Reel in Fast Studio for the full effects library.")}</Text>}
         </View>;
       }
- onPick={(label) => {
-        const effect = EFFECT_IDS[EFFECTS.indexOf(label)] ?? "none";
-        patch({ effect }); void studioStyle("effect", effect);
-      }} />;
       case "adjust": return <Choices items={["Reset colour", "Brighten", "More contrast", "Warm cinematic", "Vivid colour", "Matte film"]} onPick={(v) => {
         const values: Record<string, Record<string, number>> = {
           "Reset colour": { bri: 0, con: 0, sat: 0, warm: 0, hi: 0, sh: 0, hue: 0, sharp: 0, vig: 0 },
