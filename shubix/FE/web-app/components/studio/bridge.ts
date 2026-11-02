@@ -323,12 +323,18 @@ export function initBridge(root: HTMLElement): () => void {
   const onTask = (e: Event) => { const d = (e as CustomEvent).detail; if (d.id === "clips" && (d.state === "done" || d.state === "fail")) reading = false; post({ event: "task", ...d }); };
   root.addEventListener("studio-task", onTask);
   // the studio's question opens (#cconf shown): the phone asks it
-  const box = $("cconf"), text = (id: string) => $(id)?.textContent?.trim() ?? "";
-  const asking = new MutationObserver(() => {
-    if (!box || box.hidden) return;
+  // every question once, by its number (a question asked while another was still showing, or a box drawn anew, used to
+  // stay unasked on the phone: the studio then waited for ever, e.g. Ask Shubix)
+  const text = (id: string) => $(id)?.textContent?.trim() ?? "";
+  let askedQ = "";
+  const askNow = () => {
+    const box = $("cconf");
+    if (!box || box.hidden || box.dataset.q === askedQ) return;
+    askedQ = box.dataset.q ?? "";
     post({ event: "ask", title: text("cconft"), text: text("cconfp"), list: [...(box.querySelectorAll("#cconfl li") ?? [])].map((li) => li.textContent ?? ""), balance: text("cconfbal"), ok: text("cconfok"), no: $("cconfno")?.hidden ? "" : text("cconfno") });
-  });
-  if (box) asking.observe(box, { attributes: true, attributeFilter: ["hidden"] });
+  };
+  const asking = new MutationObserver(askNow);
+  asking.observe(root, { subtree: true, attributes: true, attributeFilter: ["hidden", "data-q"] });
   (window as unknown as { engine: unknown }).engine = {
     async call(id: number, op: string, args: Record<string, unknown>) {
       try {

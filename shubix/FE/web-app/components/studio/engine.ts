@@ -1836,6 +1836,7 @@ function askCredits(o){
     $('cconfbal').textContent = o.bal == null ? '' : 'You have ' + creditWord(o.bal) + (o.after != null ? ' · ' + creditWord(Math.max(0, o.after)) + ' left after this' : '');
     // no second choice (o.no empty): just the button and ✕
     $('cconfok').textContent = o.ok; $('cconfno').textContent = o.no || ''; $('cconfno').hidden = !o.no;
+    $('cconf').dataset.q = String((+($('cconf').dataset.q || 0)) + 1);   // each question its number (the phone app is asked each one)
     $('cconf').hidden = false; $('cconfok').focus();
     const esc = e => { if(e.key === 'Escape') done(null); };
     const done = v => { $('cconf').hidden = true; $('cconfok').onclick = $('cconfno').onclick = $('cconfx').onclick = $('cconf').onclick = null; removeEventListener('keydown', esc); res(v); };
