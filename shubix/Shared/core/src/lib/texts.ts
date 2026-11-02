@@ -500,7 +500,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   ),
   page(EVERY, "common", "Messages & dialogs",
     S("Dialogs", C("Confirm", T("common.cancel", "Cancel", "Cancel"), T("common.ok", "OK", "OK"))),
-    S("Errors", C("Error card", T("common.pageBroke", "A page that broke: title", "Something went wrong"), T("common.pageBrokeText", "A page that broke: line", "We have been told about it. Please try again."), T("common.error", "Title", "Please check"), T("common.retry", "Button", "Try again"), T("studio.failed", "Studio could not start", "The editor could not start"))),
+    S("Errors", C("Error card", T("common.connecting", "Checking who is signed in", "Connecting to Shubix…"), T("common.offline", "The server cannot be reached", "Shubix can't be reached right now. Check your internet and try again."), T("common.pageBroke", "A page that broke: title", "Something went wrong"), T("common.pageBrokeText", "A page that broke: line", "We have been told about it. Please try again."), T("common.error", "Title", "Please check"), T("common.retry", "Button", "Try again"), T("studio.failed", "Studio could not start", "The editor could not start"))),
     S("Files", C("File drop", T("common.chooseFiles", "Button", "Choose files"), T("common.more", "More actions menu", "More actions"))),
     S("Admin-only pages", C("Notice", T("common.adminOnly", "Label", "Admin only"), T("common.adminTitle", "Title", "This page is for the administrator"),
       T("common.adminText", "Line", "Please sign in with an admin account to continue."), T("common.adminSignIn", "Button", "Admin sign-in"))),

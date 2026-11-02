@@ -63,7 +63,7 @@ export const TABS: NavTab[] = [
 
 /** Pages shown on their own (no bars), and pages open before signing in. */
 export const AUTH_PAGES = ["/login", "/forgot", "/reset", "/verify"];
-export const PUBLIC_PAGES = ["/pricing", "/terms", "/privacy", "/refunds", "/delete-account", "/contact", "/editor"];
+export const PUBLIC_PAGES = ["/about", "/pricing", "/terms", "/privacy", "/refunds", "/delete-account", "/contact", "/editor"];
 
 export function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
