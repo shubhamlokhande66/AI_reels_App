@@ -3564,3 +3564,29 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
     height: 0 !important;
   }
 }
+
+/* Keep the Mix Video action reachable on narrow phones. The transport contains
+   time, skip, play, sound, remix and fullscreen controls; a single no-wrap row
+   can push the remix action beyond the viewport. */
+@media (max-width: 680px) {
+  .brs .previewPanel .transport {
+    flex-wrap: wrap !important;
+    row-gap: 6px !important;
+  }
+  .brs .previewPanel .transport .transportSpacer {
+    display: none !important;
+  }
+  .brs .previewPanel .transport #remix {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    min-width: max-content;
+    white-space: nowrap;
+  }
+  .brs .previewPanel .transport #remix span {
+    display: inline !important;
+  }
+  .brs .previewPanel .transport #pvfull {
+    margin-left: auto !important;
+  }
+}
+

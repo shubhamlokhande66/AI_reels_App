@@ -18,7 +18,7 @@ import { songAnalysis } from '@shubix/core/engine/studio/song';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
-import { createPreviewProxy, previewProxyPlan, probeVideo, editCopyPlan, convertOnServer, SERVER_CONVERT_MAX_BYTES } from '../../lib/previewProxy';
+import { createPreviewProxy, previewProxyPlan, probeVideo, editCopyPlan, convertOnServer, SERVER_CONVERT_MAX_BYTES, shouldUseServerConversion } from '../../lib/previewProxy';
 // the file the decoders read: an iPhone 4K HDR 60 fps clip's edit copy (H.264, 1080p, 30 fps) when it has one
 const decFile = s => s.edFile || s.file;
 import { parseDirectorVisualIntent } from './visualIntent';
@@ -1163,6 +1163,12 @@ async function makeEditCopy(src, dd, facts, plan, playable){
   if(r && r.blob && r.blob.size){
     setEditCopy(src, r.blob, r.plan.width, r.plan.height, facts && facts.decodes ? 'decoder' : 'player');
   } else {
+    // The phone's private engine must not upload source footage: only convert it locally there.
+    if(!shouldUseServerConversion(location.pathname)){
+      src.proxyStatus = 'Could not convert on this phone'; src.edFail = 'local';
+      src.edErr = 'Your video stays on this phone. This format could not be converted locally.';
+      updateClipHoverInfo(src); return false;
+    }
     // 2. Shubix converts it (what this browser cannot decode)
     if(src.file.size > SERVER_CONVERT_MAX_BYTES){ src.proxyStatus = 'Could not convert here'; src.edFail = 'big'; updateClipHoverInfo(src); return false; }
     try{
@@ -1185,7 +1191,7 @@ async function makeEditCopy(src, dd, facts, plan, playable){
 // what the person sees when a heavy clip could not get its copy (it is kept, but may lag)
 function editCopyFailNote(src, facts){
   const why = whatClip(facts);
-  const tip = src.edFail === 'limit' && src.edErr ? ' ' + src.edErr : src.edFail === 'broken' ? ' The file looks damaged or incomplete: copy it again from your phone and add it.' : src.edFail === 'signin' ? ' Sign in and add it again: Shubix converts it for you.'
+  const tip = src.edFail === 'local' ? ' Your video stays on this phone. This format could not be converted locally; save it as MP4 (H.264, 1080p, 30 fps) and add it again.' : src.edFail === 'limit' && src.edErr ? ' ' + src.edErr : src.edFail === 'broken' ? ' The file looks damaged or incomplete: copy it again from your phone and add it.' : src.edFail === 'signin' ? ' Sign in and add it again: Shubix converts it for you.'
     : src.edFail === 'offline' ? ' Connect to the internet and add it again: Shubix converts it for you.'
     : src.edFail === 'big' ? ' It is too big to convert online: save it as MP4 (H.264, 1080p, 30 fps) from your camera or phone and add it again.'
     : ' Save it as MP4 (H.264, 1080p, 30 fps) and add it again. On an iPhone: Settings → Camera → Formats → Most Compatible.';
@@ -3151,13 +3157,26 @@ function makeEditNow(){
   chatReportAuto();
   if(look === 'copy' && refProfile) setTimeout(()=>{ copyLook(); }, 0);
 }
+// Preview preparation can take time on a cold decoder. Serialize refreshes so two
+// captureLoop calls never seek the same video element at the same time. Play waits
+// for this promise before it starts the audio clock.
+let previewPrepPromise = Promise.resolve();
 function captureLoop(){
-  if(!edit.length) return;
+  if(!edit.length) return previewPrepPromise;
   // the edit made again (a late AI answer, New mix): the playhead stays where the creator left it
   const at = () => pos > 0.31 && buf && pos < buf.duration - 0.05 ? pos : 0.3;
-  return prepare(0, 0.6).then(()=>{ loopImg=null; const sv=showSafe, h=hookText; showSafe=false; hookText=''; drawFrame(0.6);
+  const run = previewPrepPromise.catch(()=>{}).then(async()=>{
+    if(!edit.length) return;
+    await prepare(0, 0.6);
+    if(!edit.length) return;
+    loopImg=null; const sv=showSafe, h=hookText; showSafe=false; hookText=''; drawFrame(0.6);
     const c=document.createElement('canvas'); c.width=out.width; c.height=out.height; c.getContext('2d').drawImage(out,0,0); loopImg=c;
-    showSafe=sv; hookText=h; pos = at(); return prepare(segAt(pos), pos); }).then(()=>{ drawFrame(pos); if(kfOpen()) kfSync(); });
+    showSafe=sv; hookText=h; pos = at();
+    await prepare(segAt(pos), pos);
+    drawFrame(pos); if(kfOpen()) kfSync();
+  });
+  previewPrepPromise = run.catch(error=>{ console.warn('Preview preparation failed:', error); });
+  return previewPrepPromise;
 }
 // an AI camera move in words: "zoom 1.00→1.18, slides right, turns 4°, fast then settles"
 function moveWords(K){
@@ -5068,7 +5087,14 @@ async function startPlayback(from, destNode){
   // the phone's sound wakes up first. An iPhone leaves it "interrupted" after a call, Siri, a locked screen or another
   // app's sound, and then waking it may never answer: Play would hang. So it gets 1.5 s; if the sound still sleeps, Play
   // stops and says so, and the next tap (a new touch, which an iPhone needs) wakes it.
-  const c = getCtx(); await Promise.race([c.resume().catch(()=>{}), new Promise(r => setTimeout(r, 1500))]); if(gone()) return;
+  const c = getCtx();
+  // resume synchronously from the user's tap (required by mobile autoplay policies),
+  // while the already-running preview warm-up finishes without racing playback.
+  await Promise.all([
+    Promise.race([c.resume().catch(()=>{}), new Promise(r => setTimeout(r, 1500))]),
+    previewPrepPromise.catch(()=>{})
+  ]);
+  if(gone()) return;
   if(c.state !== 'running' && !destNode){
     stopAll(); showMsg('The sound did not start (the phone paused it). Tap Play again.', true);
     try{ window.__shubixReport && window.__shubixReport('audio', 'Sound did not start: AudioContext ' + c.state); }catch(e){}
@@ -5085,8 +5111,14 @@ async function startPlayback(from, destNode){
   if(gone()) return;
   edit.forEach(x=>{ x._cued = false; });
   curIdx = segAt(from); const quick = !destNode;
-  if(edit[curIdx-1]){ if(quick) prepare(curIdx-1, edit[curIdx-1].end-0.01, true); else await prepare(curIdx-1, edit[curIdx-1].end-0.01); }
-  if(gone()) return; await prepare(curIdx, from, quick); if(gone()) return; if(edit[curIdx+1]) prepare(curIdx+1, edit[curIdx+1].start);
+  // Prepare the visible shot and its incoming transition frame together. Serial
+  // preparation made a cold first play wait for the previous shot unnecessarily.
+  const nearby = [];
+  if(edit[curIdx-1]) nearby.push(prepare(curIdx-1, edit[curIdx-1].end-0.01, quick));
+  nearby.push(prepare(curIdx, from, quick));
+  await Promise.all(nearby);
+  if(gone()) return;
+  if(edit[curIdx+1]) void prepare(curIdx+1, edit[curIdx+1].start, quick).catch(()=>{});
   starting = false;
   const s = c.createBufferSource(); s.buffer = buf;
   // loudness: bring the song to about -14 LUFS (social media level), limiter stops clipping, tiny fades stop clicks

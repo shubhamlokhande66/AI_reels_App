@@ -9,6 +9,11 @@
  */
 export const PREVIEW_MAX_SIDE = 960;
 export const PREVIEW_BITRATE = 2_000_000;
+
+/** The hidden phone engine must never send a source video to the conversion API. */
+export function shouldUseServerConversion(pathname: string): boolean {
+  return pathname !== "/engine";
+}
 const MIN_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_PROXY_FILE_BYTES = 450 * 1024 * 1024;
 const MAX_PROXY_DURATION = 300;

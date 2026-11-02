@@ -792,11 +792,15 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
   }
 
   if (plan.length < 2) warnings.push("Only one usable shot was selected; add more footage for a richer edit.");
-  if (mustInclude.length && hasRequiredShot && !plan.some((item) => {
+  const hasRequiredCoverage = mustInclude.length === 0 || plan.some((item) => {
     const source = available.find((shot) => shot.id === item.sourceId);
     return !!source && matchesTerms(source,mustInclude).length > 0;
-  })) warnings.push("The required subject was present in the source analysis but did not make the final edit; review the plan before export.");
-  if (cursor + 0.05 < duration) warnings.push("The supplied footage could not fill the requested duration without repeating clips.");
+  });
+  if (mustInclude.length && hasRequiredShot && !hasRequiredCoverage) {
+    warnings.push("The required subject was present in the source analysis but did not make the final edit; review the plan before export.");
+  }
+  const hasDurationCoverage = cursor + Math.max(0.25, duration * 0.03) >= duration;
+  if (!hasDurationCoverage) warnings.push("The supplied footage could not fill the requested duration without repeating clips.");
   if (!beats.length) decisions.push("No beat grid was supplied; cut timing follows visual rhythm.");
   else decisions.push("Cuts were aligned to nearby beat or downbeat positions where timing allowed.");
   if (drops.length) decisions.push("Music drops were used as emphasis points for selected transitions and motion.");
@@ -808,7 +812,9 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
     mood === "product" || mood === "fashion" ? ["contrast","sharpen"] :
     mood === "food" ? ["contrast","saturation"] : [];
   return {
-    version: 1, status: !music ? "audio-missing" : plan.length < 2 ? "needs-more-footage" : "ready",
+    version: 1,
+    // Do not label a short or instruction-incomplete edit as ready merely because it has two shots.
+    status: !music ? "audio-missing" : plan.length < 2 || !hasDurationCoverage || !hasRequiredCoverage ? "needs-more-footage" : "ready",
     mood, aspect: request.aspect ?? "9:16", duration: cursor,
     soundtrack: { ...(music?.bpm ? { bpm: music.bpm } : {}), beatSync: beats.length > 0,
       cutPoints: plan.slice(1).map((shot)=>shot.timelineStart), drops },

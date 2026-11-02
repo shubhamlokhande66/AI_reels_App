@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BackHandler, Platform, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -15,6 +15,7 @@ import { keepPickedAssets, keepPickedFile, saveProject } from "../../lib/project
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
 import { AskShubix, styleFromWords } from "../../components/organisms/AskShubix";
 import { pickInOrder } from "../../components/organisms/Gallery";
+import { inspectMusicReelSelection } from "@shubix/core/lib/music-reel-media";
 import { AI_STEPS, FlowAdjust, FlowAnalyse, FlowChoose, FlowClips, FlowHead, FlowIntro, KINDS, ORDER, type ClipSettings, type FlowKind, type FlowStep } from "../../components/organisms/CreateFlow";
 
 /** Create (the website's /create/music, /talking, /photo, /copy on a phone): the flow's screens one at a time, with
@@ -35,6 +36,7 @@ function CreateFlowScreen() {
   const [length, setLength] = useState(0), [start, setStart] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [settings, setSettings] = useState<ClipSettings>({ order: "order", aspect: "9:16", pace: "natural", under: "0.09" });
   const [progress, setProgress] = useState({ pct: 0, done: 0, status: "" }), [wish, setWish] = useState("");
+  const songAnalysisRequest = useRef(0);
   useEffect(() => { void recentSongs().then(setRecent); }, []);
 
   const go = (to: FlowStep | undefined) => to && setStep(to);
@@ -43,16 +45,42 @@ function CreateFlowScreen() {
 
   async function choose(pick: () => Promise<Song | null>) {
     setReading(true);
-    try { const s = await pick(); if (s) { setSong(s); await hear(s); setRecent(await recentSongs()); } } catch (e) { toast(errorMessage(e), "danger"); } finally { setReading(false); }
+    try {
+      const selected = await pick();
+      if (selected) {
+        if (!(selected.duration > 0)) throw new Error(words("This song could not be read. Choose another audio file."));
+        setSong(selected);
+        await hear(selected);
+        setRecent(await recentSongs());
+      }
+    } catch (e) { toast(errorMessage(e), "danger"); }
+    finally { setReading(false); }
   }
   async function pickRecent(s: Song) {
-    setReading(true); setSong(s.duration ? s : { ...s, duration: await songLength(s.uri) }); await hear(s); setReading(false);
+    setReading(true);
+    try {
+      const selected = s.duration > 0 ? s : { ...s, duration: await songLength(s.uri) };
+      if (!(selected.duration > 0)) throw new Error(words("This song could not be read. Choose another audio file."));
+      setSong(selected);
+      await hear(selected);
+    } catch (e) { toast(errorMessage(e), "danger"); }
+    finally { setReading(false); }
   }
   // the song as the website's engine hears it (its beats, drops and breaks, checked by Shubix: the Reel is cut on them); its cards show the way
   async function hear(s: Song) {
+    const request = ++songAnalysisRequest.current;
     setMusic(null); setStart(0);
-    if (!engineOn) return toast(words("The song's beats and the Reel's edit are made by the Shubix app: Expo Go cannot run them."), "info");
-    try { setMusic(await engine.song(s.uri, s.name)); } catch (e) { toast(errorMessage(e), "danger"); }
+    if (!engineOn) return toast(words("Music analysis needs the installed Shubix app. Expo Go cannot run the beat-sync engine."), "info");
+    try {
+      const result = await engine.song(s.uri, s.name);
+      if (request !== songAnalysisRequest.current) return;
+      if (!Number.isFinite(result.duration) || result.duration <= 0 || !Number.isFinite(result.bpm) || result.bpm <= 0) {
+        throw new Error(words("Shubix could not analyse this song. Choose another audio file."));
+      }
+      setMusic(result);
+    } catch (e) {
+      if (request === songAnalysisRequest.current) { setMusic(null); toast(errorMessage(e), "danger"); }
+    }
   }
   // the Reel's length: the website's engine places the part on the song's best part (without it, from the start)
   async function lengthTo(n: number) {
@@ -66,12 +94,36 @@ function CreateFlowScreen() {
     if (engineOn && music) try { setStart((await engine.part(t)).start); } catch (e) { toast(errorMessage(e), "danger"); }
   }
   async function addMedia() {
-    const got = await pickInOrder({ kind: photos ? "image" : "video", limit: Math.max(1, 30 - media.length) }); // in the order tapped ("In my order")
-    if (got) setMedia((old) => [...old, ...got].slice(0, 30));
+    const remaining = 30 - media.length;
+    if (remaining <= 0) return toast(words("You can add up to 30 clips to one Reel."), "info");
+    const got = await pickInOrder({ kind: photos ? "image" : "video", limit: remaining }); // in the order tapped ("In my order")
+    if (!got?.length) return;
+    if (kind === "music") {
+      const inspection = inspectMusicReelSelection(got, media.length, media);
+      if (inspection.error) return toast(words(inspection.error), "danger");
+      if (inspection.requiresLargeFileConfirmation) {
+        const answer = await askAction({
+          title: words("Large media selection"),
+          body: words("These original media files may take longer to copy, analyse and edit, and need enough free storage. Shubix will keep your originals unchanged."),
+          list: [words("Selected media: " + inspection.videoCount + " videos / " + (media.length + got.length - inspection.videoCount) + " photos · " + inspection.totalSizeLabel), words("Continue with original quality"), words("Cancel and choose fewer or smaller videos")],
+          ok: words("Continue"), cancel: words("Cancel"),
+        });
+        if (answer !== 0) return;
+      }
+    }
+    setMedia((old) => [...old, ...got].slice(0, 30));
   }
   // Analysing: the clips and the song kept on the phone, the Reel made by the website's engine (its shots on the beats,
   // their transitions and effects), the draft saved, then the editor. Without the engine (Expo Go) the clips play in turn.
   async function make() {
+    // Never silently create a basic, unsynchronised reel when Music Reel analysis is unavailable.
+    if (kind === "music" && (!engineOn || !song || !music)) {
+      toast(words(!engineOn
+        ? "Install the Shubix app to create a beat-synced Music Reel. Expo Go is not supported."
+        : "Finish analysing your selected song before creating the Music Reel."), "info");
+      setStep("choose");
+      return;
+    }
     setStep("analyse");
     const id = `draft-${Date.now()}`, at = (pct: number, done: number) => setProgress({ pct, done, status: words(AI_STEPS[Math.min(done, 3)][1]) });
     try {
@@ -115,9 +167,9 @@ function CreateFlowScreen() {
   const needSong = kind !== "talking";
   const button = {
     intro: { title: words(kind === "copy" ? "Pick the Reel to copy" : "Let's Start"), on: true, press: () => go(order[1]) },
-    choose: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : "Next"), on: !!song && !reading, press: () => go("adjust") },
-    adjust: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : "Next"), on: !!song && !reading, press: () => go("clips") },
-    clips: { title: words(!media.length ? (photos ? "Add your photos to continue" : "Add your clips to continue") : needSong && !song ? "Choose a song first" : "Next"), on: !!media.length && (!needSong || !!song), press: () => void upsell() },
+    choose: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : kind === "music" && !engineOn ? "Open in the Shubix app to analyse music" : kind === "music" && !music ? "Waiting for song analysis" : "Next"), on: !!song && !reading && (kind !== "music" || (engineOn && !!music)), press: () => go("adjust") },
+    adjust: { title: words(reading ? "Reading your song…" : !song ? "Choose a song to continue" : kind === "music" && !engineOn ? "Open in the Shubix app to analyse music" : kind === "music" && !music ? "Waiting for song analysis" : "Next"), on: !!song && !reading && (kind !== "music" || (engineOn && !!music)), press: () => go("clips") },
+    clips: { title: words(!media.length ? (photos ? "Add your photos to continue" : "Add your clips to continue") : needSong && !song ? "Choose a song first" : kind === "music" && !music ? "Finish song analysis to continue" : "Next"), on: !!media.length && (!needSong || !!song) && (kind !== "music" || (engineOn && !!music)), press: () => void upsell() },
     analyse: null,
   }[step];
   const title = { intro: "", choose: kind === "copy" ? words("Music") : words("Choose Music"), adjust: words("Adjust Music"), clips: words(photos ? "Add Your Photos" : "Add Your Clips"), analyse: "" }[step];
@@ -127,7 +179,7 @@ function CreateFlowScreen() {
       <ScrollView className="flex-1" contentContainerClassName="px-4 pb-6 pt-2" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {step !== "intro" && step !== "analyse" && <View className="mb-4"><AskShubix onAsk={(t) => { setWish((w) => `${w} · ${t}`.replace(/^ · /, "").slice(-800)); return words("Got it! I'll edit your Reel this way as soon as it is made."); }} /></View>}
         {step === "intro" && <FlowIntro kind={kind} />}
-        {step === "choose" && <FlowChoose kind={kind} song={song} recent={recent} busy={reading} onPick={() => void choose(() => pickSong())} onPickReel={() => void choose(() => pickSong("video"))} onRecent={(s) => void pickRecent(s)} onForget={(uri) => { setRecent((r) => r.filter((s) => s.uri !== uri)); if (song?.uri === uri) setSong(null); }} />}
+        {step === "choose" && <FlowChoose kind={kind} song={song} recent={recent} busy={reading} onPick={() => void choose(() => pickSong())} onPickReel={() => void choose(() => pickSong("video"))} onRecent={(s) => void pickRecent(s)} onForget={(uri) => { setRecent((r) => r.filter((s) => s.uri !== uri)); if (song?.uri === uri) { songAnalysisRequest.current += 1; setSong(null); setMusic(null); setStart(0); } }} />}
         {step === "adjust" && song && <FlowAdjust song={song} music={music} length={length} start={start} onLength={(n) => void lengthTo(n)} onStart={(t) => void partFrom(t)} />}
         {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} onReverse={() => setMedia((m) => [...m].reverse())} onEarlier={(i) => setMedia((m) => i > 0 ? [...m.slice(0, i - 1), m[i], m[i - 1], ...m.slice(i + 1)] : m)} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
         {step === "analyse" && <FlowAnalyse {...progress} />}

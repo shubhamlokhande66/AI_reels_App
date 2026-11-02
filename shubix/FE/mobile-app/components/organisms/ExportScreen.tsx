@@ -42,6 +42,9 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     };
     make().then(async (r) => {
         if (!live) return;
+        if (!r || typeof r.uri !== "string" || !r.uri.trim() || !Number.isFinite(r.size) || r.size <= 0) {
+          throw new Error("The renderer returned an invalid MP4. Your draft is still saved; please retry export.");
+        }
         setPct(1); setDone(r); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
         // Saving to Photos is optional: a Photos permission error must not undo a successful MP4 export.
         try {

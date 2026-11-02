@@ -1,14 +1,14 @@
 name: Shubix CI
 
 on:
-  # checks only, nothing deploys from here: PRs into main, and main itself after a merge
+  # checks only, nothing deploys from here: PRs into main, main after merge, and ChatGPTV1 validation pushes
   pull_request:
     branches: [main]
     paths:
       - "shubix/**"
       - ".github/workflows/shubix-ci.yml"
   push:
-    branches: [main]
+    branches: [main, ChatGPTV1]
     paths:
       - "shubix/**"
       - ".github/workflows/shubix-ci.yml"

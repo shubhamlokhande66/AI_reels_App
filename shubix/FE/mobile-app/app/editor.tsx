@@ -15,7 +15,7 @@ import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
 import { isNativeEffectSupported, isNativeTransitionSupported, videoEngine } from "../lib/video";
-import { engine } from "../lib/engine";
+import { engine, engineOn } from "../lib/engine";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
@@ -78,7 +78,7 @@ export default function EditorScreen() {
   const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
-  const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]), song = useAudioPlayer(p?.audioUri ?? null);
+  const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]), songRequest = useRef(0), song = useAudioPlayer(p?.audioUri ?? null);
   useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); if (router.canGoBack()) router.back(); else router.replace("/reels"); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tool?.key !== "voice" || !p?.studio || !engine.holds(p.id)) return;
@@ -335,7 +335,9 @@ export default function EditorScreen() {
         const effectChoices = ["punch-soft", "pan-soft", "drift", "bounce", "tilt"];
         setClips(reordered.map((item, index) => ({
           ...item,
-          transition: index === 0 ? "fadein" : index % 2 ? "dissolve" : "slideleft",
+          // The saved-draft native renderer has no dissolve compositor; use only
+          // transitions that the installed Android Media3 engine can actually export.
+          transition: index === 0 ? "fadein" : index % 2 ? "fadein" : "slideleft",
           effect: effectChoices[index % effectChoices.length],
         })));
       }
@@ -350,7 +352,31 @@ export default function EditorScreen() {
 
   async function chooseSong() {
     if (!p) return;
-    try { const s = await pickSong(); if (s) { const uri = await keepPickedFile(p.id, s.uri, `${s.name}.m4a`); if (p.studio && engine.holds(p.id)) await engine.song(uri, s.name); change({ audioUri: uri, audioName: s.name }); } } catch (e) { toast(errorMessage(e), "danger"); }
+    const request = ++songRequest.current;
+    if (p.kind === "music" && !engineOn) {
+      return toast(words("Music Reel needs the installed Shubix app to analyse beats. Your current draft has not been changed."), "info");
+    }
+    try {
+      const selected = await pickSong();
+      if (!selected || request !== songRequest.current) return;
+      const uri = await keepPickedFile(p.id, selected.uri, `${selected.name}.m4a`);
+      // Analyse before replacing the existing soundtrack. A failed read must not leave
+      // the draft showing a new song with the old song's beat grid.
+      const needsStudioAnalysis = p.kind === "music" || (!!p.studio && engine.holds(p.id));
+      const analysis = needsStudioAnalysis ? await engine.song(uri, selected.name) : undefined;
+      if (request !== songRequest.current) return;
+      change({
+        audioUri: uri,
+        audioName: selected.name,
+        ...(analysis ? { music: analysis } : {}),
+        // The held Studio session has already loaded and analysed this soundtrack.
+        // Keep its layers/effects alive so the final export stays on the Studio renderer.
+        studio: !!p.studio && engine.holds(p.id),
+        settings: { ...p.settings, start: 0 },
+      });
+    } catch (e) {
+      if (request === songRequest.current) toast(errorMessage(e), "danger");
+    }
   }
   async function removeShot() {
     if (clips.length === 1) return toast(words("A Reel needs at least one shot."), "info");
@@ -361,7 +387,11 @@ export default function EditorScreen() {
     if (now >= total - 0.05) return toast(words("Move the playhead before the end of the Reel to add text."), "info");
     const start = Math.max(0, now), end = Math.min(total, start + 3);
     if (end - start < 0.1) return toast(words("There is not enough time left in this Reel for a text overlay."), "info");
-    change({ overlays: [...p.overlays, { id: `t-${Date.now()}`, text: text.trim(), start, end, color: "#FFFFFF", size: 36 } as Overlay] });
+    change({
+      overlays: [...p.overlays, { id: `t-${Date.now()}`, text: text.trim(), start, end, color: "#FFFFFF", size: 36 } as Overlay],
+      // Studio can sync ordinary overlay edits; preserve its compositor layers for export.
+      studio: !!p.studio && engine.holds(p.id),
+    });
     setDraft("");
   };
 
@@ -453,7 +483,7 @@ export default function EditorScreen() {
             <Text className="text-[12px] leading-[17px] text-muted">{words("Wind, traffic, people talking… Choose what the Reel keeps under the song.")}</Text>
             <Seg k="csnd" items={CSNDS} box="csnd" attr="data-c" here={(v) => ({ clips: clips.map((c) => ({ ...c, muted: v === "mute" })) })} />
           </View>
-          {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => change({ audioUri: undefined, audioName: undefined })} />}
+          {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => { songRequest.current += 1; change({ audioUri: undefined, audioName: undefined, music: undefined }); }} />}
           {clip && <>
             <Label>Selected shot audio volume</Label>
             <Choices items={["0%", "25%", "50%", "75%", "100%", "125%", "150%", "200%"]} on={`${Math.round((clip.volume ?? 1) * 100)}%`} onPick={(v) => patch({ volume: Number(v.replace("%", "")) / 100, muted: v === "0%" })} />
@@ -471,7 +501,7 @@ export default function EditorScreen() {
           <TextInput value={draft} onChangeText={setDraft} placeholder={words("Type your text")} placeholderTextColor={look.muted} maxLength={80} className="h-12 rounded-xl border border-border bg-surface-2 px-4 text-[14px] text-foreground" />
           <View className="flex-row gap-2"><Button className="flex-1" icon="plus" disabled={!draft.trim()} title={words("Text")} onPress={() => addText(draft)} /><Button className="flex-1" variant="secondary" icon="plus" title={words("Sticker")} onPress={() => setTool({ key: "stickers", name: "Stickers" })} /></View>
           <Choices items={READY_MADE} onPick={addText} />
-          {p.overlays.map((o) => <View key={o.id} className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-2"><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id) })} /></View>)}
+          {p.overlays.map((o) => <View key={o.id} className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-2"><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id), studio: !!p.studio && engine.holds(p.id) })} /></View>)}
         </View>
       );
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
@@ -626,15 +656,29 @@ export default function EditorScreen() {
         <View className="flex-row flex-wrap gap-2">
           <Button size="sm" variant="secondary" title={words("Previous")} onPress={() => void studioKeyframeAction("kfStep", { direction: -1 })} />
           <Button size="sm" variant="secondary" title={words("Next")} onPress={() => void studioKeyframeAction("kfStep", { direction: 1 })} />
-          <Button size="sm" variant="secondary" title={words("Delete keyframe")} onPress={() => void studioKeyframeAction("kfRemove")} />
-          <Button size="sm" variant="danger" title={words("Clear all")} onPress={() => void studioKeyframeAction("kfClear")} />
-        </View>
-      </View>;
-      case "tr": return <Choices items={TRANSITIONS} on={TRANSITIONS[TRANSITION_IDS.indexOf(clip?.transition ?? "hard")] ?? "Cut"} onPick={(label) => {
-        const transition = TRANSITION_IDS[TRANSITIONS.indexOf(label)] ?? "hard";
-        patch({ transition }); void studioStyle("transition", transition);
-      }} />;
-      case "fx": return <Choices items={EFFECTS} on={EFFECTS[EFFECT_IDS.indexOf(clip?.effect ?? "none")] ?? "None"} onPick={(label) => {
+          <Button size="sm" variant="secondary" title={words("Delete keyframe")} onPress={() => void studioKeyframeAction("kfRemov      case "tr": {
+        const studioCanRender = !!p.studio && engine.holds(p.id);
+        const choices = studioCanRender ? TRANSITIONS : TRANSITIONS.filter((_, index) => isNativeTransitionSupported(TRANSITION_IDS[index]));
+        return <View className="gap-2">
+          <Choices items={choices} on={TRANSITIONS[TRANSITION_IDS.indexOf(clip?.transition ?? "hard")] ?? "Cut"} onPick={(label) => {
+            const transition = TRANSITION_IDS[TRANSITIONS.indexOf(label)] ?? "hard";
+            patch({ transition }); void studioStyle("transition", transition);
+          }} />
+          {!studioCanRender && <Text className="text-[11px] text-muted">{words("Only transitions supported by this Android export engine are shown. Reopen this Reel in Fast Studio for the full transition library.")}</Text>}
+        </View>;
+      }
+      case "fx": {
+        const studioCanRender = !!p.studio && engine.holds(p.id);
+        const choices = studioCanRender ? EFFECTS : EFFECTS.filter((_, index) => isNativeEffectSupported(EFFECT_IDS[index]));
+        return <View className="gap-2">
+          <Choices items={choices} on={EFFECTS[EFFECT_IDS.indexOf(clip?.effect ?? "none")] ?? "None"} onPick={(label) => {
+            const effect = EFFECT_IDS[EFFECTS.indexOf(label)] ?? "none";
+            patch({ effect }); void studioStyle("effect", effect);
+          }} />
+          {!studioCanRender && <Text className="text-[11px] text-muted">{words("Only effects supported by this Android export engine are shown. Reopen this Reel in Fast Studio for the full effects library.")}</Text>}
+        </View>;
+      }
+ onPick={(label) => {
         const effect = EFFECT_IDS[EFFECTS.indexOf(label)] ?? "none";
         patch({ effect }); void studioStyle("effect", effect);
       }} />;

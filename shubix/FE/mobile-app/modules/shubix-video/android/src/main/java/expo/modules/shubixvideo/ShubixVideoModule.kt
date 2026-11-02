@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Matrix
 import android.graphics.Typeface
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -329,8 +330,32 @@ class ShubixVideoModule : Module() {
               releaseExport(session)
               return
             }
-            settleExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
-            releaseExport(session)
+            // A non-empty MP4 is not enough: inspect the encoded file before reporting
+            // success so corrupt/empty containers and truncated exports can be retried.
+            val metadata = MediaMetadataRetriever()
+            try {
+              metadata.setDataSource(out.absolutePath)
+              val actualWidth = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+              val actualHeight = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+              val actualDurationMs = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+              require(actualWidth > 0 && actualHeight > 0 && actualWidth.toLong() * actualHeight.toLong() <= 8_294_400L) {
+                "The exported MP4 has invalid video dimensions. Please retry export."
+              }
+              require(actualDurationMs > 0L) {
+                "The exported MP4 has no readable duration. Please retry export."
+              }
+              val expectedDurationMs = at * 1000.0
+              require(kotlin.math.abs(actualDurationMs - expectedDurationMs) <= maxOf(1500.0, expectedDurationMs * 0.03)) {
+                "The exported MP4 is shorter or longer than the edit. Please retry export."
+              }
+              settleExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to actualDurationMs / 1000.0))
+            } catch (error: Exception) {
+              if (out.exists()) out.delete()
+              settleExport(session, error)
+            } finally {
+              metadata.release()
+              releaseExport(session)
+            }
           }
           override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
             if (activeExport !== session) return
