@@ -1,37 +1,28 @@
 # Shubix Android app
 
-The Expo + React Native app of the Shubix monorepo (FE/mobile-app). It replaces the old Capacitor shells, which were not moved. The visual direction follows its graphite, ivory, and champagne palette; NativeWind provides Tailwind-style classes and Expo Router provides native routes.
+The Expo + React Native app (`in.shubix.reelmaker`): the website's phone view, built natively, with the same account,
+plan and credits. Plans are bought only on the website (`docs/play-store/README.md`).
 
-## Start on Android
+- Screens: Expo Router (`app/`), NativeWind classes, the components of `@shubix/ui-mobile`, texts from the CMS (`useText`).
+- The studio: the website's own engine runs in a hidden page (`lib/engine.tsx`, the site's `/engine`): it reads the song and
+  the clips, makes the Reel and exports it. `modules/shubix-video` gives it the phone's files and the native export.
+- Ads: AdMob banners on the plans with ads, after Google's consent form where the law asks for it (`lib/ads.ts`). The app id
+  comes from `ADMOB_ANDROID_APP_ID` at build time (Google's test ids without it); the ad units from Admin → Settings → Ads.
+- Errors on the phone reach Admin → Errors (`lib/errors.ts`).
+- Icons: `assets/icon.png` and `assets/adaptive-icon.png` come from `FE/web-app/scripts/brand-assets.mjs`.
 
-1. Install Node.js 22.13 or newer and Android Studio (or Expo Go for an initial device preview).
-2. In this folder, run `npm install`.
-3. Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_URL` to BE/api (the monorepo backend, port 4000). The default host works only in the Android emulator; a physical phone needs a reachable LAN or HTTPS address.
-4. Run `npx expo install --fix` to align Expo native modules with the selected SDK, then `npm run android`.
+## Run it
 
-The app targets Expo SDK 57 / React Native 0.86, the Expo Router file-based navigation, and stable NativeWind 4.2.7 with Tailwind CSS 3.4. Expo's current guidance recommends Expo Router for new native apps, and NativeWind's stable setup documents SDK 57 support.
+| How | What works | Command |
+|---|---|---|
+| Expo Go | screens and sign-in only: no studio, export or ads | `npx pnpm@10.20.0 dev:mobile` (from `shubix/`) |
+| Development build on a phone (USB) | everything, with live reload | `npx expo run:android` (here) |
+| Test APK | everything, like the store app | GitHub → Actions → **Android test APK** → Run workflow; download it from the run's Artifacts |
+| Play Store | | EAS: `docs/android-release.md` |
 
-## Porting plan and parity
+The API address is `EXPO_PUBLIC_API_URL` (`.env`; `https://api.shubix.in` for real use; `http://10.0.2.2:4000` is the
+emulator's view of this computer). `EXPO_PUBLIC_SITE_URL` is the website the hidden studio opens.
 
-The mobile implementation is being built natively. Browser-only components and the WebCodecs editor cannot be copied into React Native unchanged. Each screen needs native UI and device services while sharing the same API contracts and product rules.
+Release builds keep R8 off (`app.config.ts`): it removed a class WorkManager needs and the app closed at start.
 
-| Existing app area | Native route | Status |
-| --- | --- | --- |
-| Home dashboard | `/(tabs)` | Native dashboard and navigation |
-| Reel creation modes | `/create` | Mode selection, native media picking and private draft storage |
-| Reel editing | `/editor/[id]` | Native timeline and editing controls; native video renderer remains to be ported |
-| My Reels | `/(tabs)/reels` | Account library listing, opening and deletion |
-| Templates | `/(tabs)/templates` | Live catalog, search and create-from-template entry point |
-| Account / sign-in | `/(tabs)/profile`, `/auth/*` | Native auth forms and secure token storage |
-| Your credits, brands, voices, trends, rewards, settings, legal and support | `/credits`, `/brands`, `/voices`, `/trends`, `/rewards`, `/settings`, `/privacy`, `/terms`, `/contact` | Native screens with calls to the existing server |
-
-## Important remaining work
-
-- Endpoint types, schemas and the sign-in logic live in `Shared/*` (`@shubix/types`, `@shubix/validations`, `@shubix/api-client`, `@shubix/hooks`); the screens use the atoms/molecules of `@shubix/ui-mobile`.
-- Verify native sign-in and existing API behavior against a reachable backend host on an Android device.
-- Replace browser media analysis and WebCodecs export with Android-native media probing, timeline transforms, rendering, audio mixing, progress, background recovery, and saving/sharing.
-- Ads: Google AdMob banners (AdBanner) in the same spots and for the same plans as the website (AdSense there); the AdMob app ids come from ADMOB_ANDROID_APP_ID / ADMOB_IOS_APP_ID at build time (Google test ids otherwise), the banner ad units from Admin → Settings → Ads. Needs a development build (not Expo Go). The affiliate program is on the website only.
-- Port the admin-only console and remaining secondary account flows, then run a complete route-by-route parity review.
-- Build and run on an Android emulator and a physical device, then compare each important screen against the web reference and address phone-size issues.
-
-Checked: `tsc --noEmit` passes, `npx expo export --platform android` bundles, `npx expo install --check` matches SDK 57 (except TypeScript 6, a dev tool). Not run yet on an emulator or a phone.
+A crash on a phone: connect it with USB debugging on, then `adb logcat -b crash`.

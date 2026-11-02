@@ -85,5 +85,19 @@ No button, banner or text in the app may lead to it.
 
 ## Store listing
 
-`icon-512.png` and `feature-graphic-1024x500.png` are in this folder. Still needed: at least 2 phone screenshots
-(Create, the editor, My Reels), the short and full descriptions.
+`icon-512.png` (the gold emblem on a clear background, from `FE/web-app/scripts/brand-assets.mjs`) and
+`feature-graphic-1024x500.png` are in this folder. The name, short and full descriptions are filled in the Console (the
+full one names only what the app does: no voiceover, the microphone is blocked). Phone screenshots go in `screenshots/`:
+at least 2, best 4 (Home, Create, the editor, My Reels), 1080 px or more on each side, from the real app.
+
+## Where it stands (2026-11-02)
+
+- [x] App content: privacy, sign-in, ads, content rating, target audience, data safety, government, financial, health
+- [x] Store listing: name, descriptions, icon, feature graphic (draft saved)
+- [ ] Store listing: phone screenshots
+- [ ] Data safety: crash logs "Yes" (above); check Ads says "contains ads"
+- [x] Closed testing - Alpha: India, the "Shubix testers" list, feedback at `https://shubix.in/contact`
+- [ ] At least 12 testers (better 15-20) in the list: the Gmail each uses on Play
+- [ ] A production build (EAS, `docs/android-release.md`): `versionCode` 2 or more (1 is taken), `ADMOB_ANDROID_APP_ID`
+- [ ] Release on the closed track, sent for review; testers opt in from the link Play shows and install
+- [ ] 14 days with 12+ testers opted in, then Dashboard → Apply for production

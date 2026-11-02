@@ -1,3 +1,5 @@
+> Written for the first, Python version. Today the editing happens on the device (Fast Studio, `fast-studio.md`); the launch and Play Store steps are in `play-store/README.md`.
+
 # Roadmap: mapping `adv_requirement.md` to phases
 
 Legend: ✅ built and tested · 🟡 partly built · ⬜ planned (design notes below) · ❌ deliberately not done
