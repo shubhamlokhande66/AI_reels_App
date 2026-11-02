@@ -13,3 +13,6 @@ shubix/BE/api/*
 !shubix/BE/api/package.json
 shubix/FE/mobile-app/*
 !shubix/FE/mobile-app/package.json
+# tests never run on Vercel, and two of them read the phone app, which is not uploaded
+shubix/FE/web-app/tests
+shubix/FE/web-app/**/*.test.*
