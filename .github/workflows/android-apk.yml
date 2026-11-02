@@ -1,10 +1,8 @@
 name: Android test APK
 
-# A release APK to install on a phone by hand (signed with the debug key, never for Google Play). Download it from the
-# run's Artifacts.
+# A release APK to install on a phone by hand (signed with the debug key, never for Google Play). Run it by hand:
+# Actions, Android test APK, Run workflow; download it from the run's Artifacts.
 on:
-  push:
-    branches: [fix/android-release-build]
   workflow_dispatch:
 
 jobs:
