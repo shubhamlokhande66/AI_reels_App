@@ -8,7 +8,7 @@ on:
       - "shubix/**"
       - ".github/workflows/shubix-ci.yml"
   push:
-    branches: [main, ChatGPTV1]
+    branches: [main, ChatGPTV1, 'fix/shubix-reliability']
     paths:
       - "shubix/**"
       - ".github/workflows/shubix-ci.yml"
