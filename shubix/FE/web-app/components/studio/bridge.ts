@@ -94,6 +94,8 @@ export function initBridge(root: HTMLElement): () => void {
       const list = a.paths as { path: string; name: string }[], got: File[] = [];
       for (const c of list) got.push(await fileOf(c.path, c.name));
       // the studio may leave a clip out (one it cannot play, the same footage twice): done when its reading is over
+      // a new Reel: the last Reel's clips go first (the studio's file box adds to what it has, as Add clips does)
+      $("clearv")?.click();
       reading = true; put($("vfile"), got); await until(() => !reading && !studio()!.work.pending);
       return { clips: studio()!.work.clips, names: studio()!.sources.map((s) => s.name) };
     },

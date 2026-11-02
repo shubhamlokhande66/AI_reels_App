@@ -2380,7 +2380,6 @@ const dirKey = () => [wish, tplKind, mode, mode === 'copy' && refProfile ? refPr
 let mixNo = 0;   // which mix: 0 = the AI's plan, 1-4 = its other mixes (one call), then the phone's own mixes in its style
 const dirSlotOf = i => { const d = (aiOn && director && director.key===dirKey() && director.slots[i]) || null; return d && !d.auto ? d : null; };   // an auto cut: the phone picks its moment too
 const dirShot = i => { const d = dirSlotOf(i); return d && d.cand ? d.cand : null; };
-const TR_OK = { smooth: ['hard','dissolve','dip','iris','diamond','heart','star','wipe'], auto: Object.keys(TR_DUR).filter(k=>k!=='fadein'), fast: Object.keys(TR_DUR).filter(k=>k!=='fadein'), copy: Object.keys(TR_DUR).filter(k=>k!=='fadein') };
 // the beat shapes and beat effects (drawn in drawFrameGL; see shapeAt)
 const BEAT_FX = ['boxgrow','grid','strips','circle','heartbeat','starbeat','frame','mirror','kaleido','triple','vhs','strobe','rgbpulse','blurpulse'];
 const FX_OK = { smooth: ['none','pan-soft','drift'], auto: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'], fast: ['none','zoomburst','punch','punch-soft','tilt','shake','bounce','pan','pan-soft','drift','snap'] };
@@ -2399,51 +2398,38 @@ function applyDirectorStyle(){
     // a cut the AI gave no usable answer for (or left out) keeps the phone's own choices, never a bare hard cut
     if(!d || d.auto) return;
     s.tr = 'hard'; s.efx = 'none'; s.sp = SPEED.normal; s.trByDir = false; s.fxByDir = false; s.ak = []; s.acc = [];
-    // The AI proposes creative choices, but the phone enforces the selected style, plan locks,
-    // shot duration and per-Reel transition budget before anything reaches preview/export.
+    // The AI's transition and effect are used as it chose them, every one (no style filter, no count limit): only a tool
+    // the plan does not include, or one the studio does not know, is left out (finishTransitions only shortens one to fit)
     if(d.tr){ asked++; const tr = d.tr;
-      // The server may suggest any known tool; the phone is the final style/quality gate.
-      const styleTransitions = TR_OK[mode] || TR_OK.auto;
-      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR && styleTransitions.includes(tr) && !isLocked('tr', tr);
+      const ok = i===0 ? (tr==='hard' || tr==='fadein') : tr in TR_DUR && !isLocked('tr', tr);
       if(ok){ s.tr = tr; s.trByDir = true; used++; } else fixed++;
     }
-    // effect: only tools in this Reel's style; the hook is reserved for the opener.
     if(d.fx){ asked++; const fx = d.fx;
-      const styleEffects = FX_OK[mode] || FX_OK.auto;
-      let ok = fx==='hook' ? i===0 : styleEffects.includes(fx);
-      ok = ok && fx in FX_NAME && !isLocked('fx', fx);
-      if(fx==='snap' && len <= 0.7) ok = false;
-      if(ok){ s.efx = fx; s.fxByDir = true; used++; } else fixed++;
+      if(fx in FX_NAME && !isLocked('fx', fx)){ s.efx = fx; s.fxByDir = true; used++; } else fixed++;
     }
-    // speed: respect the selected pace as well as what the shot can play.
-    if(d.sp){ asked++; let ok = true, sp = null; const bl = beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
-      if(mode==='smooth' && !['normal','slow','hold'].includes(d.sp)) ok = false;
-      if(mode==='fast' && !['normal','fast','slow','velocity','ramp','freeze','hold'].includes(d.sp)) ok = false;
-      if(d.sp==='freeze' && s.efx!=='snap') ok = false;
-      if(d.sp==='ramp' && len < 0.4) ok = false;
-      if(d.sp==='velocity' && !bl.length) ok = false;
-      if(ok) sp = d.sp==='velocity' ? velocitySpeed(len, bl) : d.sp==='ramp' ? rampSpeed(len) : d.sp==='freeze' ? snapSpeed : d.sp==='hold' ? holdSpeed : SPEED[d.sp];
+    // speed: the AI's, in any style (a velocity on a shot without a beat inside rides a ramp instead)
+    if(d.sp){ asked++; const bl = beats.filter(b=>b>s.start+0.15 && b<s.end-0.1).map(b=>b-s.start);
+      const sp = d.sp==='velocity' ? (bl.length ? velocitySpeed(len, bl) : rampSpeed(len)) : d.sp==='ramp' ? rampSpeed(len) : d.sp==='freeze' ? snapSpeed : d.sp==='hold' ? holdSpeed : SPEED[d.sp];
       if(sp){ s.sp = sp; used++; } else fixed++;
     }
     if(s.efx==='snap' && s.sp!==snapSpeed) s.sp = snapSpeed;   // the photo snap is a freeze by definition
     // the camera moves inside the shot: the AI's keyframes (at = fraction of the shot), on top of the shot's framing;
     // its effect steps aside (a zoom effect and a zoom keyframe would fight)
     s.ak = [];
-    if(d.move && d.move.length >= 2 && len >= 0.3){ asked++;
+    if(d.move && d.move.length >= 2){ asked++;
       s.ak = d.move.map(k=>({ t: +(k.at*len).toFixed(3), s: k.s, x: k.x, y: k.y, r: k.r, o: 1, ez: k.ez || 'inOut' }));
       if(!['snap','hook'].includes(s.efx) && !(d.fx && d.fx !== 'none')) s.efx = 'none';
       used++; }
-    // keyframes on the hits: inside the shot, not in the first frames of a transition, none in a Smooth Reel
+    // keyframes on the hits: every one the AI placed (a time outside the shot is brought just inside it)
     s.acc = [];
     if(d.keys && d.keys.length){ asked += d.keys.length;
-      for(const k of d.keys){ if(k.at > Math.max(0.04, (i && TR_DUR[s.tr]) || 0) && k.at < len-0.05 && ACCENTS.includes(k.do)){ s.acc.push({at:k.at, do:k.do}); used++; } else fixed++; } }
+      for(const k of d.keys){ if(ACCENTS.includes(k.do)){ s.acc.push({at: Math.min(Math.max(0.04, k.at), Math.max(0.04, len-0.05)), do:k.do}); used++; } else fixed++; } }
   });
-  const undone = finishTransitions();
-  return {used: used - undone, fixed: fixed + undone, asked};
+  finishTransitions();
+  return {used, fixed, asked};
 }
-// One last pass over every cut, whoever chose it: special transitions stay within their ration (the director's own
-// choices are served first), finish well inside both shots, and the same special one never runs twice in a row.
-// Returns how many of the director's transitions had to become hard cuts.
+// One last pass over every cut: the AI's transitions all stay (shortened to fit a short shot); the rules' own special
+// transitions stay within their ration, finish well inside both shots, and the same one never runs twice in a row.
 /* ---- a human editor's taste: what makes a Reel look made by a good editor, not by a random generator ----
  * Trending Reels are mostly plain cuts on the beat; a special transition only where the song changes (a drop, a break),
  * in one style for the whole Reel; a zoom only on a drop, never on shot after shot; most shots clean; shape effects
@@ -2521,12 +2507,6 @@ function tasteFx(e, i, t){
 function finishTransitions(){
   const per = Math.max(1, buf.duration/30), left = {snap:Math.round(2*per), whip:Math.round(2*per), spin:Math.round(1*per), glitch:Math.round(2*per), bars:Math.round(2*per), iris:Math.round(3*per), zoom:Math.round(3*per), wipe:Math.round(2*per), dissolve:Math.round(2*per) + (mode==='smooth' ? 99 : 0), flash:Math.round(6*per) + (mode==='fast' ? 99 : 0)};
   if(mode==='copy' && copyBudget){ Object.keys(left).forEach(k=>{ left[k] = copyBudget[k] || 0; }); }   // copying a Reel: its own counts are the ration
-  const want = {}; plan.forEach(s=>{ if(s.trByDir && left[s.tr]!==undefined) want[s.tr] = (want[s.tr]||0) + 1; });
-  const mine = s => s.trByDir || s.trByRef;   // the director's or the copied Reel's own: never rationed
-  let undone = 0;
-  // A global ceiling also covers transition types without a dedicated per-type counter.
-  let directorSpecialUsed = 0;
-  const directorSpecialMax = Math.max(1, Math.round(buf.duration / 7));
   plan.forEach((s,i)=>{
     if(i===0 || s.tr==='hard') return;
     const len = s.end - s.start, prev = plan[i-1];
@@ -2534,26 +2514,15 @@ function finishTransitions(){
     let ok = TR_DUR[s.tr] <= fit*len && TR_DUR[s.tr] <= 0.8*(prev.end-prev.start);
     // a copied Reel's transition on a short shot is as quick as the Reel's own (a whip of 3 frames between shots of 0.2 s)
     s.trd = undefined;
+    // the AI's own transition is never taken out: on a short shot it is just quicker (as short as the two shots allow)
+    if(s.trByDir){ if(!ok) s.trd = +Math.max(1/30, Math.min(TR_DUR[s.tr] || 0, fit*len, 0.8*(prev.end-prev.start))).toFixed(3); return; }
     if(!ok && s.trByRef && copyTimed()){ const d = Math.min(TR_DUR[s.tr] || 0, 0.6*len, 0.8*(prev.end-prev.start)); if(d >= 2/30){ s.trd = +d.toFixed(3); ok = true; } }
-    // the AI director's own choices only have to fit in time (its taste decides the mix); the rules' choices are
-    // rationed and never repeat, leaving room for the director's
-    if(ok && !s.trByDir && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
+    // the rules' choices are rationed and never repeat
+    if(ok && s.tr===prev.tr && !(s.type==='break' && prev.type==='break') && mode !== 'copy') ok = false;   // (a copied Reel may repeat its transition)
     if(ok && left[s.tr]!==undefined && s.trByRef) left[s.tr]--;
-    else if(ok && left[s.tr]!==undefined){
-      if(s.trByDir){
-        // Director choices are not exempt from the per-Reel ration: an oversized AI answer
-        // must not turn every cut into a flash/whip. Keep the highest-priority cuts first.
-        if(left[s.tr] > 0 && want[s.tr] > 0){ want[s.tr]--; left[s.tr]--; }
-        else ok = false;
-      } else { ok = left[s.tr] - (want[s.tr]||0) > 0; if(ok) left[s.tr]--; }
-    }
-    if(ok && s.trByDir && s.tr !== 'hard'){
-      if(directorSpecialUsed >= directorSpecialMax) ok = false;
-      else directorSpecialUsed++;
-    }
-    if(!ok){ if(s.trByDir) undone++; s.tr = 'hard'; }
+    else if(ok && left[s.tr]!==undefined){ ok = left[s.tr] > 0; if(ok) left[s.tr]--; }
+    if(!ok) s.tr = 'hard';
   });
-  return undone;
 }
 // For each cut: the moment it has now, plus up to 2 alternatives from footage that no other cut has or is offered, so
 // any combination the director chooses fits together (cuts that matter most get their alternatives first).
