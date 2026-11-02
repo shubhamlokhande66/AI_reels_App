@@ -26,6 +26,7 @@ function visitorId(): string {
 const last = { path: "", at: 0 };
 export function usePresence(pathname: string) {
   useEffect(() => {
+    if (!pathname) return; // not a visitor (the phone app's hidden studio)
     const beat = () => {
       // the same page counted once (React may start the page twice; a tab coming back right away is not a new visit)
       if (document.visibilityState !== "visible") return;

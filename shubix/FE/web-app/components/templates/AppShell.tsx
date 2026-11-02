@@ -222,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const paid = !!credits && credits.plan !== "free";
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
-  usePresence(pathname); // "online now" on the admin dashboard
+  usePresence(pathname === "/engine" ? "" : pathname); // "online now" on the admin dashboard (not the phone's hidden studio)
   useEffect(() => { captureRef(); }, []); // a friend's invite link (?ref=username): kept for the sign-up
   const offer = useQuery({ queryKey: ["offer"], queryFn: api.offer, staleTime: 60_000 }).data?.offer ?? null; // a sale running: a slim bar
   useErrorReport(); // errors on people's phones reach Admin → Errors
