@@ -19,6 +19,9 @@ import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
 import { createPreviewProxy, previewProxyPlan, probeVideo, editCopyPlan, convertOnServer, SERVER_CONVERT_MAX_BYTES } from '../../lib/previewProxy';
+import { isHidden, whenVisible, isReclaimed, titleProgress, titleDone, askToNotify, notifyDone, holdAwake } from '../../lib/background';
+// was the page in the background at any time since `mark` (work that failed then is tried again when the page is back)
+let readyToldGen = '', bgSeq = 0; if(typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if(isHidden()) bgSeq++; });
 // the file the decoders read: an iPhone 4K HDR 60 fps clip's edit copy (H.264, 1080p, 30 fps) when it has one
 const decFile = s => s.edFile || s.file;
 import { parseDirectorVisualIntent } from './visualIntent';
@@ -1153,30 +1156,42 @@ async function makeEditCopy(src, dd, facts, plan, playable){
   previewBatchShow(src, label[0].toUpperCase() + label.slice(1) + ' video found. Making a smooth copy so it plays without lag…', 0);
   life({ stage: 'making an edit copy', size: Math.round(src.file.size/1e6) + ' MB', res: (facts && facts.width) + 'x' + (facts && facts.height), what: label });
   src.proxyStatus = 'Making a smooth copy…'; updateClipHoverInfo(src);
-  const show = (p, word) => { const n = Math.max(0, Math.min(100, Math.round(p*100))); dd.textContent = word + ' ' + n + '%'; previewBatchShow(src, word[0].toUpperCase() + word.slice(1) + ' ' + src.name + '…', p); };
+  const show = (p, word) => { const n = Math.max(0, Math.min(100, Math.round(p*100))); dd.textContent = word + ' ' + n + '%'; titleProgress('copy', 'Preparing your clips', p); previewBatchShow(src, word[0].toUpperCase() + word.slice(1) + ' ' + src.name + '…', p); };
   // 1. on this device: WebCodecs, else the browser's own player feeding an encoder
   let r = null;
   if(plan && (playable || (facts && facts.decodes))){
-    try{ r = await createPreviewProxy(src.file, p => show(p, 'making a smooth copy…'), plan); }catch(e){ r = null; console.info('edit copy on this device failed', e); }
+    // tried twice when the page went to the background meanwhile (the browser may take the decoder back there)
+    for(let k = 0; k < 2 && !r && !src.removed; k++){
+      const seq = bgSeq;
+      try{ r = await createPreviewProxy(src.file, p => show(p, 'making a smooth copy…'), plan); }catch(e){ r = null; console.info('edit copy on this device failed', e); }
+      if(r || (bgSeq === seq && !isHidden())) break;
+      dd.textContent = 'waiting for you to come back…'; await whenVisible();
+    }
   }
   if(src.removed) return false;
   if(r && r.blob && r.blob.size){
     setEditCopy(src, r.blob, r.plan.width, r.plan.height, facts && facts.decodes ? 'decoder' : 'player');
   } else {
     // 2. Shubix converts it (what this browser cannot decode)
-    if(src.file.size > SERVER_CONVERT_MAX_BYTES){ src.proxyStatus = 'Could not convert here'; src.edFail = 'big'; updateClipHoverInfo(src); return false; }
+    if(src.file.size > SERVER_CONVERT_MAX_BYTES){ src.proxyStatus = 'Could not convert here'; src.edFail = 'big'; updateClipHoverInfo(src); titleDone('copy'); return false; }
     try{
-      const blob = await convertOnServer(src.file, p => show(p, p < 0.5 ? 'sending to Shubix to convert…' : 'converting…'));
+      let blob = null;
+      for(let k = 0; ; k++){   // the phone cut the network in the background: sent again when the page is back
+        const seq = bgSeq;
+        try{ blob = await convertOnServer(src.file, p => show(p, p < 0.5 ? 'sending to Shubix to convert…' : 'converting…')); break; }
+        catch(e){ if(k || !(e && e.code === 'OFFLINE') || (bgSeq === seq && !isHidden())) throw e; dd.textContent = 'waiting for you to come back…'; await whenVisible(); }
+      }
       if(src.removed) return false;
       const sc = Math.min(1, 1920/Math.max(src.w || (facts && facts.width) || 1920, src.h || (facts && facts.height) || 1080));
       const w = Math.round(((src.w || (facts && facts.width) || 1080)*sc)/2)*2, h = Math.round(((src.h || (facts && facts.height) || 1920)*sc)/2)*2;
       setEditCopy(src, blob, w, h, 'server');
     }catch(e){
       src.proxyStatus = 'Could not convert'; src.edFail = e && e.code === 'UNAUTHORIZED' || (e && e.status === 401) ? 'signin' : e && e.code === 'OFFLINE' ? 'offline' : e && (e.code === 'CORRUPTED_MEDIA' || e.code === 'CONVERT_NO_VIDEO') ? 'broken' : e && (e.code === 'CONVERT_TOO_BIG' || e.code === 'CONVERT_TOO_LONG') ? 'big' : e && (e.code === 'RATE_LIMITED' || e.code === 'CONVERT_BUSY') ? 'limit' : 'server'; src.edErr = e && e.message;
-      updateClipHoverInfo(src); console.info('edit copy by Shubix failed', e);
+      updateClipHoverInfo(src); console.info('edit copy by Shubix failed', e); titleDone('copy');
       return false;
     }
   }
+  titleDone('copy');
   previewBatchCompressed++;
   previewBatchShow(src, 'Smooth copy ready (' + previewBatchCompressed + '/' + previewBatchDetected + '). Reading your videos…', 1);
   try{ await keptPut('p:', src.file, { v: 2, edit: true, audio: !!src.edAudio, blob: src.edFile, width: src.edW, height: src.edH, mime: src.edFile.type || '' }); }catch(e){}
@@ -3176,6 +3191,8 @@ function makeEditNow(){
     const answered = plan.filter((_, i) => { const d = director.slots[i]; return d && !d.auto; }).length;
     if(!answered) aiStat('Shubix could not plan this Reel. Your Reel uses the phone\'s own smart edit.');
     else aiStat('Shubix planned your Reel' + (director.story ? ': ' + director.story : '') + (answered < plan.length ? ' (' + answered + ' of ' + plan.length + ' shots; the rest from your phone\'s edit)' : '') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '') + (answered < plan.length || director.story ? '' : '.')); }
+  // made while the person was in another app (the clips read, the AI's plan arrived): they are told
+  if(isHidden() && !aiBusy && !dirBusy && !paceBusy && readyToldGen !== reelIdNow()){ readyToldGen = reelIdNow(); void notifyDone('Your Reel is ready', 'Tap to preview it in Shubix', 'shubix-reel'); }
   captureLoop(); editGen++;
   paceMaybe(); directorMaybe();
   chatReportAuto();
@@ -5286,7 +5303,9 @@ function askConfirm(text, okLabel){
   });
 }
 // Real-time recording: only when this browser has no WebCodecs encoder (older Firefox / Safari)
+let bgStopped = false, recCleanup = null;
 async function recordExport(){
+  bgStopped = false;
   const mime = pickMime();
   if(!mime || !out.captureStream){ showMsg('This browser cannot save videos. Please open the studio in Chrome or Safari.', true); return; }
   const keepBuf = buf, keepNorm = normGain;
@@ -5308,11 +5327,16 @@ async function recordExport(){
       rec.onerror = e => reject(e.error || new Error('The browser recorder failed while saving the video.'));
     });
     rec.start(500);
+    // this way records the screen as it plays: in the background the browser stops drawing it (a frozen video), so the
+    // recording stops there and starts again when the page is back (runExport)
+    const onHide = () => { if(isHidden() && rec && rec.state !== 'inactive'){ bgStopped = true; try{ rec.stop(); }catch(err){} } };
+    document.addEventListener('visibilitychange', onHide); recCleanup = () => document.removeEventListener('visibilitychange', onHide);
     onEnd = () => { onEnd=null; setTimeout(()=>{ try{ if(rec && rec.state !== 'inactive') rec.stop(); }catch(err){} }, 150); };
     if(noSong){ const sd = exportSound(); buf = sd ? sd.buf : c.createBuffer(2, Math.ceil(keepBuf.duration*c.sampleRate), c.sampleRate); normGain = sd ? sd.gain : 1; }
     pos = 0;
     await startPlayback(0, dest);
     await done;
+    if(bgStopped){ const err = new Error('Paused in the background'); err.code = 'BG_PAUSED'; throw err; }
     if(!chunks.length) throw new Error('The browser produced an empty video. Please retry the export.');
     const ext = mime.includes('mp4') ? 'mp4' : 'webm';
     const blob = new Blob(chunks, {type: mime.split(';')[0]});
@@ -5323,7 +5347,7 @@ async function recordExport(){
     notify('Your Reel is ready', 'ok');
     showMsg(savedMsg(sh, 'Video') + ': '+name+' ('+(blob.size/1e6).toFixed(1)+' MB). Ready for Instagram, TikTok and Shorts.');
   } finally {
-    onEnd = null;
+    onEnd = null; if(recCleanup){ recCleanup(); recCleanup = null; }
     if(tick) clearInterval(tick);
     try{ if(rec && rec.state !== 'inactive') rec.stop(); }catch(err){}
     try{ stopAll(); }catch(err){}
@@ -5536,7 +5560,7 @@ async function fastExport(){
           const done = k/total, el = (performance.now()-tStart)/1000, left = done > 0.03 ? el/done - el : null;
           $('xmsg').textContent = 'Exporting… ' + Math.round(done*100) + '%' + (left !== null ? ' · about ' + (left < 60 ? Math.ceil(left) + ' s' : Math.ceil(left/60) + ' min') + ' left' : '') + (document.hidden ? '' : ' · keep this screen on');
           $('prog').style.width = (done*100).toFixed(1) + '%';
-          tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file'); exportP = done;
+          tasks.update('export', done, done < 0.95 ? 'Putting your Reel together · keep this screen on' : 'Finishing the video file'); exportP = done; titleProgress('export', 'Exporting your Reel', done);
           await yieldNow();
         }
         if(k < sh.fEnd && !r.done) r = await cur.it.next();
@@ -5611,21 +5635,31 @@ async function runExport(toCloud){
   if(root.classList.contains('aineed')){ $('aiaskgo').click(); return; }   // no Reel without its Shubix AI (the creator closed the question)
   exportBusy = true; $('saverow').hidden = true; lastVideo = null;
   tasks.start('export', 'export', 'Exporting your Reel', 'Getting ready');   // in view at once, whatever comes next
+  askToNotify();   // once: a notification when the Reel is ready while the person is in another app
+  const awake = holdAwake();
   await holdScreen();
   expCancel = false;
+  // work interrupted by the background (the browser took the decoder back, or stopped drawing) is not lost: it waits
+  // for the page to come back and goes on (twice at most), instead of falling to the slower way or failing
+  const paused = async () => { tasks.update('export', null, 'Paused while you were away · it goes on when you come back'); showMsg('Your export paused while Shubix was in the background. It goes on now that you are back.'); await whenVisible(); tasks.update('export', exportP || 0, 'Going on with your export'); };
+  const fastBg = async () => { for(let k = 0; ; k++){ const seq = bgSeq; try{ return await fastExport(); } catch(err){ if(err && (err.code === 'CANCELLED' || err.code === 'QUALITY_GATE_FAILED')) throw err; if(k >= 2 || !(isReclaimed(err) || isHidden() || bgSeq !== seq)) throw err; console.info('export paused by the background', err); await paused(); } } };
+  const recordBg = async () => { for(let k = 0; ; k++){ try{ return await recordExport(); } catch(err){ if(k >= 3 || !(err && err.code === 'BG_PAUSED')) throw err; await paused(); } } };
   try{
     let ok = false;
-    try{ ok = await fastExport(); }
+    try{ ok = await fastBg(); }
     catch(err){ if(err && err.code === 'CANCELLED'){ tasks.clear('export'); notify('Export cancelled. Your Reel is still here.'); return; }
       if(err && err.code === 'QUALITY_GATE_FAILED'){ tasks.fail('export', err.message); showMsg(err.message, true); throw err; } console.warn('fast export failed', err); tasks.update('export', null, 'Switching to a slower way to save on this phone…'); showMsg('Switching to a slower way to save on this phone. Please keep this screen open…'); }
     if(!ok){
       try{
-        ok = await recordExport();
+        ok = await recordBg();
         if(!ok){ tasks.fail('export', 'This browser cannot export video. Open Fast Studio in Chrome or Safari.'); showMsg('This browser cannot export video. Please open Fast Studio in Chrome or Safari.', true); }
       } catch(err){ console.error('real-time export failed', err); tasks.fail('export', 'Export failed. Please retry with the screen open.'); showMsg('Export failed: ' + (err && err.message ? err.message : 'Please retry in Chrome or Safari.'), true); }
     }
     if(toCloud && lastVideo) await saveToMyReels(lastVideo);
+    if(lastVideo) void notifyDone('Your Reel is ready', fileTitle() + ' is saved · tap to open Shubix', 'shubix-export');
+    else void notifyDone('Your export stopped', 'Open Shubix to try again', 'shubix-export');
   } finally {
+    titleDone('export'); awake();
     exportBusy = false; if(wakeLock){ try{ await wakeLock.release(); }catch(err){} wakeLock = null; }
     if(remakeAfterExport){ remakeAfterExport = false; if(buf && sources.length && !recording) makeEdit(); }
   }
