@@ -45,18 +45,22 @@ const TRANSITION_ALIASES: Array<[string, RegExp]> = [
 export function parseDirectorVisualIntent(prompt: string): DirectorVisualIntent {
   const value = String(prompt || "").trim();
   const intent: DirectorVisualIntent = {};
-  const asksForText = /\b(text|title|caption|overlay|headline)\b|मजकूर|टेक्स्ट|शीर्षक|عنوان|உரை|వచనం/i.test(value);
+  const asksForText = /\b(text|title|caption|overlay|headline)\b|मजकूर|टेक्स्ट|शीर्षक|عنوان|உரை|వచనం|लिहा|लिही|लिखो|लिखें|दाखवा|दिखाओ|\b(?:liha|lihi|lih|likho|likhe|dakhav|dakhva)\b/i.test(value);
   if (asksForText) {
     const quoted = value.match(/["“]([^"”]{1,80})["”]|'([^']{1,80})'/);
     let text = (quoted?.[1] || quoted?.[2] || "").trim();
     if (!text) {
-      const match = value.match(/(?:opening|intro|first|hook)?\s*(?:text|title|caption|overlay)\s*(?:effect\s*)?(?:add(?:\s+kar)?|put|show|write|display)?\s*[:=-]?\s*([A-Z0-9][A-Z0-9 !?.-]{0,50})/i);
-      text = (match?.[1] || "").trim().replace(/\s+(?:at|on|for|in)\s+(?:the\s+)?(?:opening|intro|first|hook).*$/i, "").trim();
+      const labelled = value.match(/(?:opening|intro|first|hook)?\s*(?:text|title|caption|overlay)\s*(?:effect\s*)?(?:add(?:\s+kar)?|put|show|write|display)?\s*[:=-]?\s*([A-Z0-9][A-Z0-9 !?.-]{0,50})/i);
+      const afterVerb = value.match(/(?:write|show|display|लिहा|लिही|लिखो|लिखें|दाखवा|दिखाओ|liha|lihi|lih|likho|likhe|dakhav|dakhva)\s+["']?([A-Z0-9][A-Z0-9 !?.-]{0,50})/i);
+      const beforeVerb = value.match(/\b([A-Z][A-Z0-9 !?.-]{0,40})\s+(?:liha|lihi|lih|likho|write)\b/i)
+        || value.match(/\b([A-Z][A-Z0-9 !?.-]{0,40})\s+(?:लिहा|लिही|लिखो|लिखें)/i);
+      text = (labelled?.[1] || afterVerb?.[1] || beforeVerb?.[1] || "").trim()
+        .replace(/\s+(?:at|on|for|in)\s+(?:the\s+)?(?:opening|intro|first|hook).*$/i, "").trim();
     }
     if (text) intent.openingText = text.slice(0, 80);
   }
 
-  const squareFrame = /(?:square\s*(?:frame|border)|1\s*:\s*1\s*(?:frame|border)?)/i.test(value);
+  const squareFrame = /(?:square\s*(?:frame|border|format)|1\s*:\s*1\s*(?:frame|border|format)?|चौकोनी\s*(?:फ्रेम|फ्रेमिंग)|चौकोर\s*(?:फ्रेम|बॉर्डर)|वर्गाकार\s*(?:फ्रेम|बॉर्डर)|\b(?:chaukor|vargakar)\s+frame\b)/i.test(value);
   const allClips = asksForAllClips(value);
   if (squareFrame && allClips) intent.squareFrameAll = true;
 
