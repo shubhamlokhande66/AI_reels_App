@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Animated, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -52,58 +52,85 @@ function rampRateAt(segments: SpeedRampSegment[], sourceTime: number, fallback: 
 
 /** The preview: the shot under the playhead (a video plays; a photo stays), the big play button over it while still,
  * which shot it is (01 / 08). `at`: the time in the shot (followed while still: the timeline is scrubbed); `onTime`
- * reports it while playing, `onEnded` when the shot is over. */
-export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overlays = [], onToggle, onTime, onEnded }: { clip?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; now?: number; overlays?: ReelProject["overlays"]; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
+ * reports it while playing, `onEnded` when the shot is over.
+ *
+ * Playing keeps time by the clock, like the song does: a shot lasts exactly its length, so the picture never falls
+ * behind the music, whatever the phone's video decoder does. Two players take turns: while one shows the shot, the other
+ * already has the next shot loaded and waiting on its first frame, so a cut is instant (one player re-loading at every
+ * cut used to drift seconds behind the song and look stuck). A shot from the same clip as the loaded one only seeks. A
+ * clip the decoder is slow with catches up when it can; one it cannot play shows a note, and the Reel goes on. */
+type Slot = { uri: string; ready: boolean; failed: boolean };
+export function Preview({ clip, next, n, of, playing, at, aspect, beat, now = 0, overlays = [], onToggle, onTime, onEnded }: { clip?: ProjectClip; next?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; now?: number; overlays?: ReelProject["overlays"]; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
-  const speedSegments = video ? buildSpeedRampSegments(video.speedRamp ?? [], video.end - video.start, { fallbackSpeed: video.speed, maxSegmentDuration: 0.2 }) : [];
-  const player = useVideoPlayer(null, (p) => { p.audioMixingMode = "mixWithOthers"; });
-  const [readyVideoId, setReadyVideoId] = useState<string | null>(null);
-  const videoReady = !!video && readyVideoId === video.id;
+  const segsOf = (c?: ProjectClip) => c && c.kind === "video" ? buildSpeedRampSegments(c.speedRamp ?? [], c.end - c.start, { fallbackSpeed: c.speed, maxSegmentDuration: 0.2 }) : [];
+  const speedSegments = segsOf(video);
+  const setup = (p: { audioMixingMode: string }) => { p.audioMixingMode = "mixWithOthers"; };
+  const pA = useVideoPlayer(null, setup as never), pB = useVideoPlayer(null, setup as never);
+  const players = [pA, pB];
+  const slots = useRef<Slot[]>([{ uri: "", ready: false, failed: false }, { uri: "", ready: false, failed: false }]);
+  const [active, setActive] = useState(0), [, bump] = useState(0);
+  const activeRef = useRef(0); activeRef.current = active;
   const endedRef = useRef(false);
-  // Do not seek/play until the native decoder has its first frame. Calling replace(),
-  // currentTime and play in one render used to make the first preview start stutter or miss.
+  // the source time a clip shows at a time in its shot
+  const sourceAt = (c: ProjectClip, t: number) => c.start + rampSourceAt(segsOf(c), t);
+  // a slot gets a clip: the same file only seeks (instant); another file is loaded and waits for its first frame
+  const load = (k: number, c: ProjectClip, t: number) => {
+    const pl = players[k], sl = slots.current[k];
+    pl.muted = c.muted; pl.volume = c.volume;
+    // the same file: a seek once it is ready (still loading: it is put at the right time when it is, by the play tick)
+    if (sl.uri === c.uri) { if (sl.ready) pl.currentTime = sourceAt(c, t); return; }
+    slots.current[k] = { uri: c.uri, ready: false, failed: false };
+    pl.replace(c.uri);
+  };
+  // each player's state: ready (its first frame is there) or failed (this phone cannot decode the file)
   useEffect(() => {
-    if (!video) { setReadyVideoId(null); player.pause(); return; }
-    setReadyVideoId(null); player.pause();
-    const subscription = player.addListener("statusChange", ({ status }) => {
-      if (status !== "readyToPlay") return;
-      player.currentTime = video.start + rampSourceAt(speedSegments, at);
-      player.playbackRate = rampRateAt(speedSegments, rampSourceAt(speedSegments, at), video.speed);
-      player.muted = video.muted; player.volume = video.volume;
-      setReadyVideoId(video.id);
-    });
-    player.replace(video.uri);
-    return () => { subscription.remove(); player.pause(); };
+    const subs = players.map((pl, k) => pl.addListener("statusChange", ({ status }: { status: string }) => {
+      const sl = slots.current[k];
+      if (status === "readyToPlay" && !sl.ready) { sl.ready = true; sl.failed = false; bump((x) => x + 1); }
+      else if (status === "error") { sl.failed = true; bump((x) => x + 1); }
+    }));
+    return () => subs.forEach((x) => x.remove());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // the shot changes: the player that already holds it (loaded as "next") takes over, else the shown one loads it
+  useEffect(() => {
+    endedRef.current = false;
+    if (!video) { players.forEach((pl) => pl.pause()); return; }
+    const other = 1 - activeRef.current;
+    const k = slots.current[other].uri === video.uri ? other : activeRef.current;
+    players[1 - k].pause();
+    load(k, video, at);
+    if (k !== activeRef.current) { activeRef.current = k; setActive(k); }   // now: the next shot's loading below uses the other one
   }, [video?.id, video?.uri]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the next shot waits in the other player, on its first frame
   useEffect(() => {
-    if (!video) return;
-    const sourceOffset = rampSourceAt(speedSegments, at);
-    player.playbackRate = rampRateAt(speedSegments, sourceOffset, video.speed);
-    player.muted = video.muted; player.volume = video.volume;
-  }, [video?.speed, video?.speedRamp, video?.muted, video?.volume]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!playing && video && videoReady) player.currentTime = video.start + rampSourceAt(speedSegments, at); }, [at, playing, videoReady, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
-  // playing: update the native player's rate as it crosses ramp segments and report timeline time
+    if (!next || next.kind !== "video") return;
+    // the shown player is busy with this shot (a photo now: the shown one is free); the same file as now still goes to
+    // the other player (seeking the shown one would jump mid-shot)
+    const k = video ? 1 - activeRef.current : activeRef.current;
+    load(k, next, 0); players[k].pause();
+  }, [next?.id, next?.uri, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  const slot = slots.current[active], ready = !!video && slot.uri === video.uri && slot.ready, failed = !!video && slot.uri === video.uri && slot.failed;
+  // still: the frame of the scrubbed time
+  useEffect(() => { if (!playing && video && ready) players[active].currentTime = sourceAt(video, at); }, [at, playing, ready, active, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  // playing: the clock decides the time in the shot; the video follows it (it plays, and is put right when it drifts)
   useEffect(() => {
+    if (!playing || !clip) { players.forEach((pl) => pl.pause()); return; }
     endedRef.current = false;
-  }, [clip?.id, playing]);
-  useEffect(() => {
-    if (!playing || !clip || (video && !videoReady)) { player.pause(); return; }
-    endedRef.current = false;
-    if (video) player.play();
-    const t0 = Date.now() - at * 1000, len = clipDuration(clip);
+    const pl = players[active], len = clipDuration(clip), t0 = Date.now() - at * 1000;
+    let started = false;
     const tick = setInterval(() => {
-      const sourceOffset = video ? Math.max(0, player.currentTime - video.start) : 0;
-      const t = video ? rampTimelineAt(speedSegments, sourceOffset) : (Date.now() - t0) / 1000;
-      if (video) player.playbackRate = rampRateAt(speedSegments, sourceOffset, video.speed);
-      onTime(Math.max(0, Math.min(t, len)));
-      if (t >= len - 0.05 && !endedRef.current) {
-        endedRef.current = true;
-        player.pause();
-        onEnded();
+      const t = Math.min((Date.now() - t0) / 1000, len);
+      if (video && ready) {
+        const want = sourceAt(video, t);
+        pl.playbackRate = rampRateAt(speedSegments, want - video.start, video.speed);
+        if (!started) { pl.currentTime = want; pl.play(); started = true; }
+        else if (Math.abs(pl.currentTime - want) > 0.3) pl.currentTime = want;   // a slow decoder: catch up, never lag
       }
-    }, 80);
+      onTime(Math.max(0, t));
+      if (t >= len - 0.04 && !endedRef.current) { endedRef.current = true; pl.pause(); onEnded(); }
+    }, 50);
     return () => clearInterval(tick);
-  }, [playing, clip?.id, videoReady, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playing, clip?.id, ready, active, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
   const motion = useShotMotion(clip, playing, at, 360 * aspect, beat); // the shot's transition in and its effect
   const flip = clip ? [{ rotate: `${clip.rotation}deg` }, { scaleX: clip.mirror ? -1 : 1 }, { scaleY: clip.flip ? -1 : 1 }] : [];
   return (
@@ -112,7 +139,12 @@ export function Preview({ clip, n, of, playing, at, aspect, beat, now = 0, overl
       <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ height: 360, aspectRatio: aspect }}>
         <Animated.View style={[{ flex: 1 }, motion.content]}>
           {clip?.kind === "image" && <Image source={{ uri: clip.uri }} resizeMode={clip.fit} className="h-full w-full" style={{ transform: flip }} />}
-          {video && <VideoView player={player} surfaceType="textureView" contentFit={video.fit} nativeControls={false} style={{ flex: 1, transform: flip }} />}
+          {players.map((pl, k) => (
+            <VideoView key={k} player={pl} surfaceType="textureView" contentFit={video?.fit ?? "cover"} nativeControls={false}
+              style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, opacity: video && k === active ? 1 : 0, transform: flip }} />
+          ))}
+          {video && !ready && !failed && playing && <View pointerEvents="none" className="absolute inset-0 items-center justify-center"><ActivityIndicator color="#fff" /></View>}
+          {failed && <View pointerEvents="none" className="absolute inset-0 items-center justify-center px-6"><Text className="text-center text-[12px] font-semibold text-white">{words("This clip does not play in the preview on this phone. The Reel goes on; add it again to make a smooth copy.")}</Text></View>}
         </Animated.View>
         <Animated.View pointerEvents="none" className="absolute inset-0" style={motion.veil} />
         <View pointerEvents="none" className="absolute inset-0 justify-center px-3">

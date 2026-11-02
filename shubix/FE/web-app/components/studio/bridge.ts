@@ -58,10 +58,19 @@ export function initBridge(root: HTMLElement): () => void {
   };
   const press = (box: string, attr: string, value: string) => { const b = root.querySelector<HTMLElement>(`#${box} [${attr}="${value}"]`); if (b) b.click(); return !!b; };
   const until = async (test: () => boolean, ms = 600_000) => { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("The studio took too long"); await new Promise((r) => setTimeout(r, 250)); } };
-  const made = () => { const w = studio()?.work; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir; };
+  // made: the song read, the clips read, the shots there, and Shubix AI done with them (its clips' check, the pace, the plan)
+  const made = () => { const w = studio()?.work as (Studio["work"] & { pace?: boolean; aiWait?: boolean }) | undefined; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir && !w.pace && !w.aiWait; };
 
   const OPS: Record<string, (a: Record<string, unknown>) => Promise<unknown>> = {
-    async setup(a) { files = String(a.files); key = String(a.key); token = String(a.token || ""); if (token) noteSignedIn(); await until(() => !!studio(), 60_000); return { ok: true }; },
+    async setup(a) {
+      files = String(a.files); key = String(a.key); token = String(a.token || ""); if (token) noteSignedIn();
+      await until(() => !!studio(), 60_000);
+      // the studio started before the phone's sign-in reached it: its plan, credits and Shubix AI are read again now
+      // (else the app's Reels were made as signed out: no Shubix AI, the free plan's rules)
+      const st = studio() as unknown as { account?: () => Promise<void>; aiOn?: boolean };
+      if (token && st.account) await st.account().catch(() => undefined);
+      return { ok: true, ai: !!st.aiOn };
+    },
     async song(a) {
       const st = studio(), previous = st?.songR;
       const name = String(a.name);
@@ -278,6 +287,26 @@ export function initBridge(root: HTMLElement): () => void {
       await until(() => studio()!.editGen !== gen, 1500).catch(() => {}); // a new style makes a new Reel (a filter does not)
       return OPS.ready(a);
     },
+    /** Ask Shubix from the phone's editor: the website's chat; its plan applied -> { answer, applied, state } */
+    async chat(a) {
+      const st = studio() as unknown as { chatApp?: (t: string) => Promise<{ answer: string; applied: boolean }>; state: () => unknown };
+      if (!st.chatApp) throw new Error("Ask Shubix is not ready");
+      const r = await st.chatApp(String(a.text || "").slice(0, 300));
+      await until(made, 240_000).catch(() => undefined);
+      return { ...r, state: st.state() };
+    },
+    /** the clips' smooth copies (4K / HDR / 60 fps / changing frame rate), saved on the phone for its own preview and
+     * export -> [{ name, path, w, h }] (clips that need none are left out) */
+    async copies() {
+      const list = ((studio() as unknown as { copies?: () => { i: number; name: string; blob: Blob | null; w: number; h: number }[] }).copies?.() ?? []).filter((c) => c.blob);
+      const out: { name: string; path: string; w: number; h: number }[] = [];
+      for (const c of list) {
+        const ext = /webm/.test(c.blob!.type) ? "webm" : "mp4", name = `copy-${c.i}-${c.name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "_").slice(0, 60)}.${ext}`;
+        const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(name)}`, { method: "PUT", body: c.blob });
+        if (r.ok) out.push({ name: c.name, path: String((await r.json()).path), w: c.w, h: c.h });
+      }
+      return out;
+    },
     async answer(a) { const b = $({ ok: "cconfok", no: "cconfno" }[String(a.pick)] ?? "cconfx"); b?.click(); return { ok: !!b }; },
     async exportReel(a) {
       await until(made);
@@ -294,12 +323,18 @@ export function initBridge(root: HTMLElement): () => void {
   const onTask = (e: Event) => { const d = (e as CustomEvent).detail; if (d.id === "clips" && (d.state === "done" || d.state === "fail")) reading = false; post({ event: "task", ...d }); };
   root.addEventListener("studio-task", onTask);
   // the studio's question opens (#cconf shown): the phone asks it
-  const box = $("cconf"), text = (id: string) => $(id)?.textContent?.trim() ?? "";
-  const asking = new MutationObserver(() => {
-    if (!box || box.hidden) return;
+  // every question once, by its number (a question asked while another was still showing, or a box drawn anew, used to
+  // stay unasked on the phone: the studio then waited for ever, e.g. Ask Shubix)
+  const text = (id: string) => $(id)?.textContent?.trim() ?? "";
+  let askedQ = "";
+  const askNow = () => {
+    const box = $("cconf");
+    if (!box || box.hidden || box.dataset.q === askedQ) return;
+    askedQ = box.dataset.q ?? "";
     post({ event: "ask", title: text("cconft"), text: text("cconfp"), list: [...(box.querySelectorAll("#cconfl li") ?? [])].map((li) => li.textContent ?? ""), balance: text("cconfbal"), ok: text("cconfok"), no: $("cconfno")?.hidden ? "" : text("cconfno") });
-  });
-  if (box) asking.observe(box, { attributes: true, attributeFilter: ["hidden"] });
+  };
+  const asking = new MutationObserver(askNow);
+  asking.observe(root, { subtree: true, attributes: true, attributeFilter: ["hidden", "data-q"] });
   (window as unknown as { engine: unknown }).engine = {
     async call(id: number, op: string, args: Record<string, unknown>) {
       try {
