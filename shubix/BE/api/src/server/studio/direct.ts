@@ -20,7 +20,8 @@ import { AIResponseError } from "../ai/types";
 
 export const TASK = "studio_director";
 export const TRANSITIONS = ["hard", "fadein", "flash", "whip", "zoom", "glitch", "dip", "dissolve", "iris", "wipe", "bars", "spin", "diamond", "heart", "star",
-  "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin"] as const;
+  "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin",
+  "stripes", "blinds", "checker", "dots", "noise", "splith", "wave", "dipwhite", "chroma", "tiles", "zoomblur", "shake", "squeeze", "rotatein"] as const;
 /** eases of a camera move into its keyframe (the studio's EASE) */
 export const EASES = ["lin", "inOut", "outCubic", "outExpo", "outBack"] as const;
 export const EFFECTS = ["none", "hook", "zoomburst", "punch", "punch-soft", "tilt", "shake", "bounce", "pan", "pan-soft", "drift", "snap",

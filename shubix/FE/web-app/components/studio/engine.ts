@@ -1748,13 +1748,16 @@ function styleEdit(){
 const TR_NAME = {hard:'Hard cut', fadein:'Fade-in', flash:'Exposure flash', whip:'Whip pan (blur)', zoom:'Zoom-through', glitch:'Glitch RGB', dip:'Dip to black', dissolve:'Dissolve',
   iris:'Mask: iris', wipe:'Mask: soft wipe', bars:'Mask: bars', spin:'Spin + blur', diamond:'Mask: diamond', heart:'Mask: heart', star:'Mask: star',
   slideleft:'Push left', slideright:'Push right', slideup:'Push up', slidedown:'Push down', swipeup:'Swipe up (feed scroll)', zoomout:'Zoom out', blur:'Blur through', flip:'Card flip',
-  luma:'Light fade (by brightness)', pixelate:'Pixelate', clock:'Clock wipe', doors:'Doors open', ripple:'Ripple', burn:'Film burn', dropin:'Drop in (bounce)'};
+  luma:'Light fade (by brightness)', pixelate:'Pixelate', clock:'Clock wipe', doors:'Doors open', ripple:'Ripple', burn:'Film burn', dropin:'Drop in (bounce)',
+  stripes:'Stripes', blinds:'Blinds', checker:'Checkerboard', dots:'Dots', noise:'Noise dissolve', splith:'Split open', wave:'Wave wipe', dipwhite:'Dip to white', chroma:'Colour split', tiles:'Random tiles',
+  zoomblur:'Zoom blur', shake:'Shake', squeeze:'Squeeze', rotatein:'Rotate in'};
 const FX_NAME = {jump:'Punch-in (jump cut)', 'punch-soft':'Soft zoom', 'pan-soft':'Ken Burns (soft)', snap:'Photo snap (freeze + flash)', hook:'Hook zoom + RGB', none:'—', pan:'Ken Burns + beat bounce', zoomburst:'Zoom burst + RGB', drift:'Slow drift + vignette', punch:'Zoom punch', tilt:'Tilt punch', shake:'Shake', bounce:'Beat bounce',
   boxgrow:'Shape: box grows on the beat', grid:'Shape: grid opens on the beat', strips:'Shape: strips on the beat', circle:'Shape: circle pulse', heartbeat:'Shape: heart pulse', starbeat:'Shape: star pulse',
   frame:'Frame in frame', mirror:'Mirror', kaleido:'Kaleidoscope', triple:'Triple split', vhs:'VHS retro', strobe:'Strobe on the beat', rgbpulse:'RGB split on the beat', blurpulse:'Blur pulse on the beat'};
 const trDur = e => e.trd ?? (TR_DUR[e.tr] || 0);   // a shot's own (shorter) transition, else the transition's usual length
 const TR_DUR = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2, diamond:0.36, heart:0.42, star:0.4,
-  slideleft:0.24, slideright:0.24, slideup:0.24, slidedown:0.24, swipeup:0.2, zoomout:0.3, blur:0.35, flip:0.3, luma:0.45, pixelate:0.4, clock:0.4, doors:0.35, ripple:0.45, burn:0.4, dropin:0.32};
+  slideleft:0.24, slideright:0.24, slideup:0.24, slidedown:0.24, swipeup:0.2, zoomout:0.3, blur:0.35, flip:0.3, luma:0.45, pixelate:0.4, clock:0.4, doors:0.35, ripple:0.45, burn:0.4, dropin:0.32,
+  stripes:0.4, blinds:0.4, checker:0.45, dots:0.45, noise:0.4, splith:0.35, wave:0.4, dipwhite:0.3, chroma:0.35, tiles:0.45, zoomblur:0.3, shake:0.3, squeeze:0.35, rotatein:0.35};
 
 /* ---- keyframes: [time, value, ease] per property, local to the shot ---- */
 const EASE = {
@@ -4662,7 +4665,7 @@ function drawFrame2D(t){
         if(p<0.5){ drawShot(og, pe, pl); og.fillStyle=`rgba(0,0,0,${EASE.inOut(p*2)})`; og.fillRect(0,0,W,H); }
         else { drawShot(og, e, local); og.fillStyle=`rgba(0,0,0,${1-EASE.inOut((p-0.5)*2)})`; og.fillRect(0,0,W,H); }
         break;
-      case 'slideleft': case 'slideright': case 'slideup': case 'slidedown': case 'swipeup': case 'zoomout': case 'blur': case 'flip': case 'luma': case 'pixelate': case 'clock': case 'doors': case 'ripple': case 'burn': case 'dropin':   // the 2D renderer: a dissolve
+      case 'slideleft': case 'slideright': case 'slideup': case 'slidedown': case 'swipeup': case 'zoomout': case 'blur': case 'flip': case 'luma': case 'pixelate': case 'clock': case 'doors': case 'ripple': case 'burn': case 'dropin': case 'stripes': case 'blinds': case 'checker': case 'dots': case 'noise': case 'splith': case 'wave': case 'dipwhite': case 'chroma': case 'tiles': case 'zoomblur': case 'shake': case 'squeeze': case 'rotatein':   // the 2D renderer: a dissolve
       case 'dissolve': drawShot(og, pe, pl, {noFx:true}); drawShot(og, e, local, {alpha:EASE.inOut(p)}); break;
       case 'fadein': drawShot(og, e, local, {alpha:q}); break;
       case 'flash': {   // exposure flash: picture blows out to white, then settles
@@ -4823,6 +4826,19 @@ void main(){
   }
   else if(mode<6.5){ float q=1.-pow(1.-prog,3.); vec2 far=max(irisC,res-irisC); float R=length(far)*q*1.05; float f=max(1.,R*0.18); float mk=1.-smoothstep(R-f,R,distance(p0,irisC)); col=mix(A,B,mk); }
   else if(mode<7.5){ float q=1.-pow(1.-prog,3.); float s=(p0.x+p0.y*0.6)/(res.x+res.y*0.6); float e=-0.15+q*1.3; float mk=1.-smoothstep(e-0.08,e,s); col=mix(A,B,mk); }
+  else if(mode>16.5){ float mk = 0.;   /* the pattern transitions: where the next shot shows */
+    if(mode<17.5) mk = step(fract(p0.y/(res.y/12.)), prog);                                   /* stripes */
+    else if(mode<18.5) mk = step(fract(p0.x/(res.x/8.)), prog);                               /* blinds */
+    else if(mode<19.5){ vec2 c = floor(p0/(res.x/7.)); float t0 = 0.1 + mod(c.x+c.y, 2.)*0.45; mk = smoothstep(t0, t0+0.12, prog); }   /* checkerboard */
+    else if(mode<20.5){ float cell = res.x/10.; vec2 c = (floor(p0/cell)+0.5)*cell; mk = step(distance(p0, c)/cell, prog*0.75); }      /* dots */
+    else if(mode<21.5) mk = step(hash(floor(p0/3.)), prog);                                    /* noise dissolve */
+    else if(mode<22.5) mk = step(abs(p0.y-res.y*0.5), prog*res.y*0.5);                          /* split open */
+    else if(mode<23.5){ float e = prog*1.3-0.15 + 0.05*sin(p0.y/res.y*18.+prog*10.); mk = 1.-smoothstep(e-0.02, e, p0.x/res.x); }   /* wave wipe */
+    else if(mode<26.5 && mode>25.5){ vec2 c = floor(p0/(res.x/6.)); float h = hash(c)*0.8; mk = smoothstep(h, h+0.2, prog); }       /* random tiles */
+    if(mode>23.5 && mode<24.5) col = prog<0.5 ? mix(A, vec3(1.), 2.*prog) : mix(vec3(1.), B, 2.*prog-1.);                      /* dip to white */
+    else if(mode>24.5 && mode<25.5) col = vec3(mix(A.r, B.r, smoothstep(0., 0.6, prog)), mix(A.g, B.g, smoothstep(0.2, 0.8, prog)), mix(A.b, B.b, smoothstep(0.4, 1., prog)));   /* colour split */
+    else col = mix(A, B, mk);
+  }
   else if(mode>11.5){
     if(mode<12.5){ float lb = dot(B, vec3(0.299,0.587,0.114)); col = mix(A, B, smoothstep(0., 0.15, prog*1.2-(1.-lb))); }
     else if(mode<13.5 || mode>15.5) col = mix(A, B, smoothstep(0.35, 0.65, prog));
@@ -5218,6 +5234,13 @@ function drawFrameGL(t){
       case 'ripple': S.mode = 16; S.prog = p; break;
       case 'burn': S.mode = 1; S.mix = EASE.inOut(p); S.leak = [W*0.55, H*0.4, 1.5*Math.sin(Math.PI*p)]; S.flash = 0.25*Math.sin(Math.PI*p); break;
       case 'dropin': S.A = layerOf(pe, pl, {noFx:true}); S.B = layerOf(e, local, {dy:-(1 - EASE.outBack(p))*H}); S.mode = 3; break;
+      case 'stripes': case 'blinds': case 'checker': case 'dots': case 'noise': case 'splith': case 'wave': case 'dipwhite': case 'chroma': case 'tiles':
+        S.mode = {stripes:17, blinds:18, checker:19, dots:20, noise:21, splith:22, wave:23, dipwhite:24, chroma:25, tiles:26}[e.tr]; S.prog = EASE.inOut(p); break;
+      case 'zoomblur': S.A = layerOf(pe, pl, {scale:1+1.2*p*p, zb:2.5*p, noFx:true}); S.B = layerOf(e, local, {scale:1+0.8*(1-q)*(1-q), zb:2.5*(1-q)}); S.mode = 1; S.mix = EASE.inOut(p); break;
+      case 'shake': { const j = Math.sin(Math.PI*p)*0.05*W, sx = Math.sin(p*90)*j, sy = Math.cos(p*70)*j; S.A = layerOf(pe, pl, {dx:sx, dy:sy, noFx:true}); S.B = layerOf(e, local, {dx:-sx, dy:-sy}); S.mode = 1; S.mix = EASE.inOut(p); break; }
+      case 'squeeze': { const k = EASE.inOut(p), a = layerOf(pe, pl, {noFx:true}), [ax, ay, aw, ah] = a.rect, [bx, by, bw, bh] = S.B.rect;
+        a.rect = [ax*(1-k), ay, Math.max(1, aw*(1-k)), ah]; a.clip = 1; S.A = a; S.B.rect = [W*(1-k) + bx*k, by, Math.max(1, bw*k), bh]; S.B.clip = 1; S.mode = 3; break; }
+      case 'rotatein': S.A = layerOf(pe, pl, {scale:1-0.3*p, zb:0.6*p, noFx:true}); S.B = layerOf(e, local, {rot:-180*(1-q)*(1-q), scale:0.4+0.6*q}); S.mode = 1; S.mix = EASE.inOut(p); break;
       case 'dissolve': S.mode = 1; S.mix = EASE.inOut(p); break;
       case 'fadein': S.mode = 1; S.mix = q; if(!pe) S.A = null; break;
       case 'flash': S.flash = 0.85*Math.pow(1-p,2); if(e.efx!=='snap') S.B.expo += Math.max(0, 1-p*1.6); break;
