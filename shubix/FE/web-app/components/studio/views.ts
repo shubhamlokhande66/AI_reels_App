@@ -84,11 +84,30 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     if (tag && tag.textContent !== name.toUpperCase()) tag.textContent = name.toUpperCase();
     if (b.title !== title) b.title = title;
   });
+  // a phone's tool sheet: changes are tried live and stay only with Done; ✕, a tap outside or Back puts the Reel and the sheet's controls back
+  let openTool = "", toolKeep = false, toolBack: (() => void) | null = null;
+  const toolBackOf = (k: string) => {
+    const st = S(), snap = st?.snap(), pnl = root.querySelector<HTMLElement>(`.panel[data-panel="${k}"]`);
+    const fields = [...(pnl?.querySelectorAll<HTMLInputElement>("input:not([type=file]),select,textarea") ?? [])].map((el) => ({ el, on: el.checked, val: el.value }));
+    const pressed = [...(pnl?.querySelectorAll<HTMLElement>('[aria-pressed="true"]') ?? [])];
+    return () => {
+      for (const { el, on, val } of fields) if (el.checked !== on || el.value !== val) { el.checked = on; el.value = val; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }
+      for (const b of pressed) if (b.getAttribute("aria-pressed") !== "true") b.click();
+      if (st && snap) st.unsnap(snap);
+    };
+  };
+  const toolTurn = () => {
+    if (tool === openTool) return;
+    const back = toolKeep ? null : toolBack; toolKeep = false; toolBack = null; openTool = tool;
+    back?.();
+    if (tool && !wide() && made()) toolBack = toolBackOf(tool);
+  };
   const apply = () => {
     root.classList.remove("v-simple", "v-editor", "v-pro", "v-one", "v-all");
     root.classList.add("v-" + view);
     if (tool && !wide() && !editing) editing = true; // a phone: a tool opened means editing
     root.dataset.tool = tool;
+    toolTurn();
     root.classList.toggle("made", made());
     root.classList.toggle("editing", editing);
     root.classList.toggle("review", reviewNow());
@@ -183,7 +202,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   $("xmsg").addEventListener("click", () => { if ($("xmsg").classList.contains("addclips")) { tool = "media"; apply(); } }, sig);
   // computers: the tool panel's ✕ closes it (the Reel takes the whole width again)
   $("pclose").addEventListener("click", () => { tool = ""; apply(); }, sig);
-  $("pdone")?.addEventListener("click", () => { tool = ""; apply(); }, sig); // the popup's Done: every change is already in the Reel
+  $("pdone")?.addEventListener("click", () => { toolKeep = true; tool = ""; apply(); }, sig); // the popup's Done: what was tried stays
   // play over the preview, previous / next shot
   $("playov").addEventListener("click", () => $("play").click(), sig);
   // the progress bar under the preview: tap or drag along it to move through the Reel
@@ -405,9 +424,10 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     peaksOf = a; peaks = out; return out;
   };
   const span = () => (S()?.dur || 1) / zoom;
-  // phones, as VN: the playhead stands in the middle of the tracks and the Reel slides under it (a swipe scrubs)
+  // phones, as VN: the playhead stands in the middle of the tracks and the Reel slides under it (a swipe scrubs); at the
+  // start the Reel sits right beside the tracks' icons, with no empty stretch, and the playhead walks to the middle
   const vn = () => !wide();
-  const centre = () => { if (!vn()) return; const st = S(); if (st) t0 = st.now - span() / 2; };
+  const centre = () => { if (!vn()) return; const st = S(); if (st) t0 = Math.max(0, st.now - span() / 2); };
   const fix = () => {
     const D = S()?.dur || 1; zoom = Math.max(vn() ? 0.6 : 1, Math.min(ZMAX, zoom)); if (vn()) centre(); else t0 = Math.max(0, Math.min(D - D / zoom, t0)); lanesKey = "";
     setText($("tlz"), Math.round((zoom / (vn() ? Math.max(1, D / 6) : 1)) * 100) + "%"); // 100% = the view it opens with (a phone: 6 s)
@@ -903,8 +923,11 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
     ctPopRender(); if (ctpop.hidden) ctSnap = st.snap(); ctpop.hidden = false;
   }
   // the inspector's Clip Controls: the same tools as the clip bar, on the selected clip
-  const stGrid = $("shottoolgrid");
-  stGrid?.addEventListener("click", (ev) => {
+  const stGrid = $("shottoolgrid"), stHome = $("inspector-card"), stNext = $("inspect-tool-note");
+  // phones and tablets: in the tool bar, so the tools and the clip controls are one sideways row
+  const placeStGrid = () => { const to = wide() ? stHome : $("dock"); if (stGrid.parentElement !== to) to.insertBefore(stGrid, wide() ? stNext : null); };
+  placeStGrid(); window.addEventListener("resize", placeStGrid, sig);
+  stGrid.addEventListener("click", (ev) => {
     const btn = (ev.target as HTMLElement).closest<HTMLButtonElement>("[data-st]"), st = S();
     if (!btn || btn.disabled || !st || !made() || !st.edit.length) return;
     const k = btn.dataset.st!, cur = sel >= 0 ? sel : Math.max(0, st.segAt(st.now));
@@ -934,7 +957,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   document.addEventListener("pointerdown", (e) => {
     const t = e.target as Node;
     if (!ctpop.hidden && !ctpop.contains(t) && !stGrid?.contains(t)) {
-      ctpop.hidden = true; ctPopKey = ""; ctSnap = null;
+      $("ctpopx").click(); // only Done keeps what was tried
     }
     const pnl = $("panels");
     if (tool && pnl && !pnl.hidden && !pnl.contains(t) && !$("dock")?.contains(t)) {
@@ -1030,7 +1053,7 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   sheet.addEventListener("pointercancel", dragEnd, sig);
   sheet.addEventListener("dblclick", (e) => { const t = e.target as HTMLElement; if (!t.closest(".ssh, .ss-head") || t.closest("button, select, input")) return; free = null; keepFree(); placeSheet(); }, sig);
   // computers: ✕ puts the shot back as it was when the picker opened, ✓ keeps the choice (phones: ✕ closes, as before)
-  $("ssx").addEventListener("click", () => { const st = S(); if (wide() && st && sheetSnap) st.unsnap(sheetSnap); sheetSnap = null; closeShot(); }, sig);
+  $("ssx").addEventListener("click", () => { const st = S(); if (st && sheetSnap) st.unsnap(sheetSnap); sheetSnap = null; closeShot(); }, sig);
   $("ssok").addEventListener("click", () => { sheetSnap = null; closeShot(); }, sig);
   // the custom speed: the number while dragging, the shot's speed when let go (a constant speed curve, the engine's own)
   $("ssbody").addEventListener("input", (e) => { const t = e.target as HTMLInputElement; if (t.id === "ssspd") { const o = $("ssspdv"); o.textContent = spdTxt(spdOf(+t.value)); } }, sig);
@@ -1041,8 +1064,8 @@ export function initViews(root: HTMLElement, onView: (v: StudioView) => void) {
   // ‹ › : the shot before / after, in the same sheet
   $("ssbody").addEventListener("click", (e) => { const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-snav]"); const st = S(); if (!b || !st) return;
     const k = Math.max(0, Math.min(st.edit.length - 1, st.segAt(st.now) + +b.dataset.snav!)); openShot(k, shotTab, xOf((st.edit[k].start + st.edit[k].end) / 2)); }, sig);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeShot(); }, sig);
-  document.addEventListener("pointerdown", (e) => { const t = e.target as Node; if (!sheet.hidden && !sheet.contains(t) && !lanes.contains(t)) closeShot(); }, { capture: true, ...sig });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.hidden) $("ssx").click(); }, sig);
+  document.addEventListener("pointerdown", (e) => { const t = e.target as Node; if (!sheet.hidden && !sheet.contains(t) && !lanes.contains(t)) $("ssx").click(); }, { capture: true, ...sig });
   window.addEventListener("scroll", placeSheet, { passive: true, ...sig });
   window.addEventListener("resize", placeSheet, sig);
 

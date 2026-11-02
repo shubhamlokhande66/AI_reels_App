@@ -424,7 +424,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${tabs ? "pb-28" : "pb-10"}`}>
+      <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 max-lg:has-[.fpost]:px-0! max-lg:has-[.fpost]:pt-0! ${tabs ? "pb-28" : "pb-10"}`}>
         <DesktopHeader email={me.data?.user?.email} credits={credits} admin={adminLink} onSignOut={signOut} />
         {/* "Get the Shubix app" until it is installed (not over the studio while a Reel is made) */}
         <div className="mx-auto w-full max-w-6xl">
