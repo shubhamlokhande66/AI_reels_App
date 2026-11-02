@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,18 +22,22 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
   return otp ? <Suspense fallback={null}><AdminCode /></Suspense> : <AdminSignIn />;
 }
 
-/** The admin code, emailed at sign-in (?code=sent) or on asking: once a day, for security. */
-function AdminCode() {
+/** The admin code, once a day for security: emailed at sign-in (?code=sent), else at once when this opens (a code sent a
+ * moment ago counts as sent). `onLater`: the studio's own pages may go on without the admin powers for now. */
+export function AdminCode({ onLater }: { onLater?: () => void }) {
   const qc = useQueryClient(), me = useMe(), params = useSearchParams();
   const justSent = params.get("code") === "sent";
   const [sent, setSent] = useState(justSent), [code, setCode] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const wait = useCountdown(justSent ? 60 : 0);
   const email = me.data?.user?.email ?? "";
-  const send = async () => {
+  const send = async (first = false) => {
     setError(null); setBusy(true);
-    try { const r = await api.adminCode(); wait.start(r.wait ?? 60); setSent(true); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
+    try { const r = await api.adminCode(); wait.start(r.wait ?? 60); setSent(true); }
+    catch (e) { if (first && (e as { code?: string }).code === "VERIFY_TOO_SOON") { setSent(true); wait.start(60); } else setError(errorMessage(e)); }
+    finally { setBusy(false); }
   };
+  useEffect(() => { if (!justSent) void send(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const verify = async (c = code) => {
     if (c.length !== 6 || busy) return;
     setBusy(true); setError(null);
@@ -65,7 +69,9 @@ function AdminCode() {
             <Button icon="mail" loading={busy} onClick={() => void send()}>Email me a code</Button>
           </>
         )}
-        <Link href="/" className="text-center text-[12.5px] font-bold text-accent">Back to the studio</Link>
+        {onLater
+          ? <button type="button" className="text-center text-[12.5px] text-muted" onClick={onLater}>Continue without admin powers</button>
+          : <Link href="/" className="text-center text-[12.5px] font-bold text-accent">Back to the studio</Link>}
       </section>
     </div>
   );
