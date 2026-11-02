@@ -123,7 +123,7 @@ function CreateFlowScreen() {
         {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} onReverse={() => setMedia((m) => [...m].reverse())} onEarlier={(i) => setMedia((m) => i > 0 ? [...m.slice(0, i - 1), m[i], m[i - 1], ...m.slice(i + 1)] : m)} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
         {step === "analyse" && <FlowAnalyse {...progress} />}
       </ScrollView>
-      {button && <View className="px-4 pt-2" style={{ paddingBottom: 14 + insets.bottom }}><Button full size="xl" title={button.title} iconAfter={button.on ? "arrow" : undefined} disabled={!button.on} onPress={button.press} /></View>}
+      {button && <View className="px-4 pt-2" style={{ paddingBottom: Math.max(12, insets.bottom + 4) }}><Button full size="xl" title={button.title} iconAfter={button.on ? "arrow" : undefined} disabled={!button.on} onPress={button.press} /></View>}
     </View>
   );
 }
