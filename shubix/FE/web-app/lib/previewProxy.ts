@@ -7,6 +7,8 @@
  *    rate). H.264 8-bit SDR, at most 1080 × 1920, 30 frames a second at an even pace: the preview, the clip reading and
  *    the export all read it, so every Reel plays without lag.
  */
+import { isHidden, nap, whenVisible } from "./background";
+
 export const PREVIEW_MAX_SIDE = 960;
 export const PREVIEW_BITRATE = 2_000_000;
 const MIN_FILE_BYTES = 16 * 1024 * 1024;
@@ -199,18 +201,21 @@ async function playerToEncoder(file: File, plan: PreviewProxyPlan, onProgress?: 
       }
     };
     await new Promise<void>((resolve, reject) => {
-      const watch = setInterval(() => { if (performance.now() - lastFrame > 15_000) { clearInterval(watch); reject(new Error("The browser stopped playing this video")); } }, 1000);
+      // a page in the background: the browser pauses its videos; the copy waits and plays on when the page is back
+      const onVis = () => { if (!isHidden()) { lastFrame = performance.now(); if (video.paused && !video.ended) video.play().catch(() => undefined); } };
+      document.addEventListener("visibilitychange", onVis);
+      const watch = setInterval(() => { if (isHidden()) { lastFrame = performance.now(); return; } if (performance.now() - lastFrame > 15_000) { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); reject(new Error("The browser stopped playing this video")); } }, 1000);
       const onFrame = (_now: number, meta: VideoFrameCallbackMetadata) => {
         lastFrame = performance.now();
         if (video.videoWidth) { draw(); emit(meta.mediaTime); }
         onProgress?.(Math.min(0.99, meta.mediaTime / dur));
         if (!video.ended) video.requestVideoFrameCallback(onFrame);
       };
-      video.onended = () => { clearInterval(watch); resolve(); };
-      video.onerror = () => { clearInterval(watch); reject(new Error("The browser could not play this video to the end")); };
+      video.onended = () => { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); resolve(); };
+      video.onerror = () => { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); reject(new Error("The browser could not play this video to the end")); };
       video.requestVideoFrameCallback(onFrame);
       video.playbackRate = dur <= 120 ? 0.5 : 1;
-      video.play().catch(e => { clearInterval(watch); reject(e); });
+      void whenVisible().then(() => video.play()).catch(e => { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); reject(e); });
     });
     if (video.videoWidth) { draw(); emit(dur); }
     await chain;
@@ -428,7 +433,7 @@ export async function convertOnServer(file: File, onProgress?: (p: number) => vo
   const base = "/api/studio/convert/" + encodeURIComponent(id);
   for (let misses = 0; ;) {
     if (signal?.aborted) throw convertError("cancelled", "CANCELLED");
-    await new Promise(r => setTimeout(r, 2000));
+    await nap(2000);   // slower in the background; checked at once when the page is back
     let st: { status: string; progress: number; error?: { code: string; message: string } | null };
     try {
       const r = await fetch(base, { credentials: "same-origin", cache: "no-store", signal });
@@ -437,7 +442,8 @@ export async function convertOnServer(file: File, onProgress?: (p: number) => vo
     } catch (e) {
       const err = e as ConvertError;
       if (err.status && err.status < 500) throw err;
-      if (++misses >= 8) throw convertError("No connection while the video was being converted.", "OFFLINE");   // ~16 s offline
+      // a phone in the background may cut the network for a while: only misses while the page is visible count
+      if (!isHidden() && ++misses >= 8) throw convertError("No connection while the video was being converted.", "OFFLINE");   // ~16 s offline
       continue;
     }
     if (st.status === "failed") throw convertError(st.error?.message || "Shubix could not convert this video.", st.error?.code || "CONVERT_FAILED");
