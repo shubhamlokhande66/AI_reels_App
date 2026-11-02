@@ -709,6 +709,8 @@ export default function EditorScreen() {
           "Reset curve": { a: 1, b: 1, c: 1, d: 1, e: 1 },
         }; void studioPatch({ curve: curves[v] });
       }} />;
+      case "kf": return <View className="gap-2"><Choices items={["Add keyframe here", "Remove this keyframe", "Remove all keyframes"]} onPick={(v) => void studioPatch({ kxOp: v.startsWith("Add") ? "add" : v.startsWith("Remove this") ? "del" : "clear" })} />
+        <Text className="text-[12px] leading-[17px] text-muted">{words("Saves the shot's colour, volume, zoom, framing and mask here. Move the playhead, change Adjust, Volume, Crop or Mask, and the shot glides between the keys.")}</Text></View>;
       case "smooth": return <Choices items={["Off", "Light", "Smooth", "Smoothest"]} onPick={(v) => void studioPatch({ smooth: ({ Off: 0, Light: 0.4, Smooth: 0.75, Smoothest: 1 } as Record<string, number>)[v] })} />;
       case "stab": return <Choices items={["Off", "Light", "Balanced", "Strong"]} onPick={(v) => void studioPatch({ stab: ({ Off: 0, Light: 0.25, Balanced: 0.55, Strong: 0.85 } as Record<string, number>)[v] })} />;
       case "beauty": return <Choices items={["Off", "Natural", "Soft", "Smooth"]} onPick={(v) => void studioPatch({ beauty: ({ Off: 0, Natural: 0.2, Soft: 0.45, Smooth: 0.7 } as Record<string, number>)[v] })} />;

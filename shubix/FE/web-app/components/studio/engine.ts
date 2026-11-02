@@ -3383,15 +3383,37 @@ function shotReorder(from, to){   // (not shotMove: that name is refread's camer
   return true;
 }
 // the current shot's clip settings: read, change (a patch; null resets them all)
-function shotCs(){ return edit.length && kind !== 'talk' ? { ...csOf(edit[segAt(pos)]), i: segAt(pos), crown: ['beauty','curve','stab'].filter(k => isLocked('tool', k)) } : null; }
+function shotCs(){ const e = edit.length ? edit[segAt(pos)] : null, l = e ? pos - e.start : 0, K = (e && e.cs && e.cs.kx) || [];
+  return e && kind !== 'talk' ? { ...csOf(e, l), kx: K.length, kxHere: K.some(k => Math.abs(k.t - l) < 0.05), i: segAt(pos), crown: ['beauty','curve','stab'].filter(k => isLocked('tool', k)) } : null; }
 function shotSet(patch){
   if(!edit.length || kind === 'talk' || exporting || recording) return;
-  const e = edit[segAt(pos)]; e.cs = patch === null ? undefined : { ...(e.cs || {}), ...patch };
+  const e = edit[segAt(pos)];
+  if(patch && ('kxOp' in patch || (e.cs && e.cs.kx && e.cs.kx.length))) patch = kxSet(e, patch);
+  e.cs = patch === null ? undefined : { ...(e.cs || {}), ...patch };
   if(e.cs && e.cs.auto){ e.cs.auto = e.cs.auto.filter(k => !(k in patch)); if(!e.cs.auto.length) delete e.cs.auto; }
   if(e.cs) for(const k of Object.keys(e.cs)) if(JSON.stringify(e.cs[k]) === JSON.stringify(CS0[k])) delete e.cs[k];
+  if(e.cs && e.cs.kx === null) delete e.cs.kx;
   if(e.cs && !Object.keys(e.cs).length) e.cs = undefined;
   if(patch && 'curve' in patch){ e.sp = speedFor('curve', e); changed(segAt(pos), true); }
   if(!playing) redrawFrame();
+}
+// keyframes: kxOp add (the shot as it is here), del (the key here), clear; with keys, a keyframed field changes the key at the
+// playhead (made there if none: every keyed field as it shows now); what is left of the patch goes to the shot itself
+function kxSet(e, patch){
+  const l = Math.max(0, Math.min(e.end - e.start, pos - e.start)), K = ((e.cs && e.cs.kx) || []).map(k => ({ ...k, ...(k.mk ? { mk: { ...k.mk } } : {}) })), rest = { ...patch }, op = rest.kxOp; delete rest.kxOp;
+  const now = csOf(e, l), here = () => { let k = K.find(q => Math.abs(q.t - l) < 0.05); if(k) return k;
+    k = { t: +l.toFixed(3) }; const used = new Set(K.flatMap(q => Object.keys(q)));
+    for(const n of KX) if(used.has(n) || (op === 'add' && !((n === 'cx' || n === 'cy') && now[n] == null))) k[n] = now[n] ?? KX_D[n] ?? 0;   // automatic framing (follows the face) stays automatic
+    if(now.mk && (used.has('mk') || op === 'add')) k.mk = Object.fromEntries(KX_MK.map(n => [n, now.mk[n]]));
+    K.push(k); K.sort((a, b) => a.t - b.t); return k; };
+  if(op === 'add') here();
+  else if(op === 'del'){ const i = K.findIndex(q => Math.abs(q.t - l) < 0.05); if(i >= 0) K.splice(i, 1); }
+  else if(op === 'clear') K.length = 0;
+  else if(K.length){
+    for(const n of KX) if(n in rest && typeof rest[n] === 'number'){ here()[n] = rest[n]; delete rest[n]; }
+    if(rest.mk && e.cs && e.cs.mk){ const k = here(); k.mk = Object.fromEntries(KX_MK.map(n => [n, rest.mk[n]])); rest.mk = { ...rest.mk, ...Object.fromEntries(KX_MK.map(n => [n, e.cs.mk[n]])) }; }
+  }
+  rest.kx = K.length ? K : null; return rest;
 }
 // slip: the same shot, an earlier or later moment of its clip (the shot's place in the song stays)
 function shotSlip(d){
@@ -3651,9 +3673,9 @@ function drawShot(g, e, local, o={}){
   if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local), ux = u ? u.x*W : 0, uy = u ? u.y*H : 0;
   if(u){ scale *= u.s; rot += u.r; }
-  const cs0 = csOf(e); let stab = null;
+  const cs0 = csOf(e, local); let stab = null;
   if(cs0.stab > 0 && !o.noStab){ stab = stabAt(sources[e.src], srcPos(e, local)); scale *= 1 + 0.12*cs0.stab; }
-  const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
+  const G = csGeom(e, scale, local), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
   if(stab){ x += stab[0]*dw*cs0.stab; y += stab[1]*dh*cs0.stab; }
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py0 = H/2 - ccy*dh; py0 = panClamp(py0, H, dh);
@@ -5126,7 +5148,7 @@ function maskPath(q, m, W, H){
   else q.ellipse(0, 0, w/2, h/2, 0, 0, 2*Math.PI);
 }
 function shotMask(t){
-  const e = edit[segAt(t)], m = e && e.cs && e.cs.mk; if(!m) return;
+  const e = edit[segAt(t)], m = e && e.cs && e.cs.mk && csOf(e, t - e.start).mk; if(!m) return;
   const W = out.width, H = out.height;
   if(!mkBuf) mkBuf = document.createElement('canvas');
   if(mkBuf.width !== W || mkBuf.height !== H){ mkBuf.width = W; mkBuf.height = H; }
@@ -5135,7 +5157,21 @@ function shotMask(t){
   if(!m.inv){ q.fillStyle = m.c || '#000000'; q.fillRect(0, 0, W, H); q.globalCompositeOperation = 'destination-out'; }
   q.save(); q.filter = soft; maskPath(q, m, W, H); q.fillStyle = m.inv ? (m.c || '#000000') : '#000'; q.fill(); q.restore();
   og.drawImage(mkBuf, 0, 0);
-}const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
+}/* ---- keyframes on a shot's settings (as CapCut's keyframes on colour, volume, zoom, framing, mask): cs.kx is a list of
+ * { t: seconds into the shot, ez, and any of the KX fields / mk: {x,y,w,h,a,f} }; between two the values glide with the
+ * ease, a field a key leaves out is the shot's own value. Once a shot has keys, changing one of these at the playhead
+ * changes (or adds) the key there, as in CapCut. ---- */
+const KX = ['bri','con','sat','warm','hi','sh','hue','vig','sharp','zoom','cx','cy','vol'], KX_MK = ['x','y','w','h','a','f'], KX_D = { cx: 0.5, cy: 0.5 };
+function kxAt(c, l){ const K = c.kx; if(!Array.isArray(K) || !K.length || l === undefined) return c;
+  let a = K[0], b = K[0], p = 0;
+  if(l >= K[K.length-1].t) a = b = K[K.length-1];
+  else if(l > K[0].t) for(let k=1;k<K.length;k++) if(l <= K[k].t){ a = K[k-1]; b = K[k]; p = (EASE[b.ez || 'inOut'] || EASE.inOut)((l - a.t)/Math.max(1e-6, b.t - a.t)); break; }
+  const o = { ...c }, mix = (x, y, d) => { const A = x ?? d, B = y ?? d; return A + (B - A)*p; };
+  for(const n of KX) if(n in a || n in b) o[n] = mix(a[n], b[n], c[n] ?? KX_D[n] ?? CS0[n] ?? 0);
+  if(c.mk && (a.mk || b.mk)){ o.mk = { ...c.mk }; for(const n of KX_MK) o.mk[n] = mix(a.mk && a.mk[n], b.mk && b.mk[n], c.mk[n]); }
+  return o; }
+// a shot's settings (at `l` seconds into it, when it has keyframes)
+const csOf = (e, l) => e && e.cs ? kxAt({ ...CS0, ...e.cs }, l) : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
 // display uv -> source uv: the picture is turned, then mirrored / flipped
 function csMat(c){ const R = ROTI[(c.rot/90)&3], fx = c.fh ? -1 : 1, fy = c.fv ? -1 : 1; return [R[0]*fx, R[1]*fy, R[2]*fx, R[3]*fy]; }
@@ -5143,8 +5179,8 @@ function csMat(c){ const R = ROTI[(c.rot/90)&3], fx = c.fh ? -1 : 1, fy = c.fv ?
 function csFwd(c, x, y){ const R = ROTI[(c.rot/90)&3], sx = x-0.5, sy = y-0.5; return [(R[0]*sx + R[2]*sy)*(c.fh?-1:1) + 0.5, (R[1]*sx + R[3]*sy)*(c.fv?-1:1) + 0.5]; }
 const hexRgb = h => { const n = parseInt(String(h).replace('#',''), 16) || 0; return [(n>>16&255)/255, (n>>8&255)/255, (n&255)/255]; };
 // the picture's size on the display (turned a quarter: width and height swap) and its scale (fill or fit)
-function csGeom(e, scale){
-  const W=out.width, H=out.height, c = csOf(e), odd = (c.rot/90)&1, s0 = sources[e.src];
+function csGeom(e, scale, l){
+  const W=out.width, H=out.height, c = csOf(e, l), odd = (c.rot/90)&1, s0 = sources[e.src];
   const sw = odd ? s0.h : s0.w, sh = odd ? s0.w : s0.h, r = (c.fit ? Math.min(W/sw, H/sh) : Math.max(W/sw, H/sh))*scale*(c.zoom || 1);
   return { c, odd, sw, sh, dw: sw*r, dh: sh*r };
 }
@@ -5180,9 +5216,9 @@ function layerOf(e, local, o={}){
   if(am){ scale *= am.s; rot += am.r; x += am.x*W; y += am.y*H; }
   const u = uAt(e.uk, local);
   if(u){ scale *= u.s; rot += u.r; }
-  const cs0 = csOf(e); let stab = null;
+  const cs0 = csOf(e, local); let stab = null;
   if(cs0.stab > 0 && !o.noStab){ stab = stabAt(sources[e.src], srcPos(e, local)); scale *= 1 + 0.12*cs0.stab; }
-  const G = csGeom(e, scale), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
+  const G = csGeom(e, scale, local), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = csCam(e, local, c);
   if(stab){ x += stab[0]*dw*cs0.stab; y += stab[1]*dh*cs0.stab; }
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
   let py = H/2 - ccy*dh; py = panClamp(py, H, dh) + y;
@@ -5292,7 +5328,7 @@ function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = trDur(e), p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
   const S = { mode:0, prog:p, mix:1, time:t, grade:{...GRADES[look]}, A:null, B:null, lens: lensOf(e) };
-  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : (GRADES[look].vig ?? 0.22))) + (csOf(e).vig || 0)*0.9;
+  S.grade.vig = (kf(e.kf && e.kf.vig, local) ?? (look === 'copy' ? (GRADES.copy.vig || 0) : (GRADES[look].vig ?? 0.22))) + (csOf(e, local).vig || 0)*0.9;
   const inTr = p < 1 && (pe || e.tr==='fadein');
   if(inTr && pe) S.A = layerOf(pe, pl, {noFx:true});
   S.B = layerOf(e, local);
@@ -6837,7 +6873,8 @@ async function clipPcm(si){
     s.pcm = { x: m, sr: b.sampleRate }; }catch(e){ s.pcm = null; }
   return s.pcm;
 }
-const clipVoiced = () => kind !== 'talk' && edit.some(e => e.cs && e.cs.vol > 0);
+const csVoiced = e => !!(e.cs && (e.cs.vol > 0 || (e.cs.kx || []).some(k => k.vol > 0)));   // the shot's own sound plays (its volume, or a volume keyframe)
+const clipVoiced = () => kind !== 'talk' && edit.some(e => csVoiced(e));
 /* ---- text to speech (on the phone, Piper voices): each piece of speech starts at its time and is mixed like the
  * voiceover (the voice changer works on it too; the song steps back while it speaks) ---- */
 let ttsClips = [], ttsSeq = 0;
@@ -6900,11 +6937,11 @@ $('ttsadd').addEventListener('click', ttsAdd, SIG);
 // the mix is made again only when something in it changed (called before playing and exporting)
 async function ensureMix(){
   if(kind === 'talk' || !baseBuf) return;
-  const shots = clipVoiced() ? edit.filter(e => e.cs && e.cs.vol > 0) : [];
+  const shots = clipVoiced() ? edit.filter(e => csVoiced(e)) : [];
   for(const e of shots) await clipPcm(e.src);
   for(const c of ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
   for(const L of layers){ const M = lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await decodeAnyAudio(M.file), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
-  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout])]);
+  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout, e.cs.kx ? JSON.stringify(e.cs.kx.filter(k => 'vol' in k)) : 0])]);
   const key2 = key + JSON.stringify([sfxEvents(), au.sfx, au.sfxv, edit.map(e => e.cs ? [e.cs.mus, e.cs.pitch] : 0)]);
   if(key2 !== clipMixKey){ clipMixKey = key2; applyVo(); }
 }
@@ -6962,7 +6999,7 @@ $('sfxv').addEventListener('input', e => { au = { ...au, sfxv: +e.target.value }
 $('sfxv').addEventListener('change', () => ensureMix(), SIG);
 function applyVo(){   // (the name stays: everything that changes the sound calls it)
   if(kind === 'talk' || !baseBuf) return;
-  const shots = edit.filter(e => e.cs && e.cs.vol > 0 && sources[e.src] && sources[e.src].pcm);
+  const shots = edit.filter(e => csVoiced(e) && sources[e.src] && sources[e.src].pcm);
   const lyVoiced = layers.filter(L => L.vol > 0 && lmedia[L.m] && lmedia[L.m].pcm);
   const speech = ttsClips.filter(c => c.pcm);
   const fxEv = sfxEvents(), musShots = edit.some(e => e.cs && e.cs.mus !== undefined && e.cs.mus !== 1);
@@ -6980,9 +7017,10 @@ function applyVo(){   // (the name stays: everything that changes the sound call
   for(const e of shots){ const P = sources[e.src].pcm, c = csOf(e), a = Math.round(e.start*sr), b = Math.min(N, Math.round(e.end*sr)), L = e.end - e.start;
     // the shot's loudness: about -16 dBFS at volume 100%, short fades at its cuts
     let q2 = 0, qn = 0; const i0 = Math.round(e.in*P.sr), i1 = Math.min(P.x.length, i0 + Math.round(L*P.sr*2)); for(let k=i0;k<i1;k+=8){ q2 += P.x[k]*P.x[k]; qn++; }
-    const gain = c.vol * Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn)))), ramp = Math.round(0.012*sr);
+    const norm = Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn)))), ramp = Math.round(0.012*sr);
+    const vk = !!(c.kx && c.kx.some(k => 'vol' in k)); let gain = (vk ? csOf(e, 0).vol : c.vol)*norm;   // volume keyframes: read every 256 samples
     const seg = new Float32Array(Math.max(0, b - a));
-    for(let i=a;i<b;i++){ const l = (i - a)/sr; if(rateAt(e, l) <= 0) continue;
+    for(let i=a;i<b;i++){ const l = (i - a)/sr; if(vk && !((i - a) & 255)) gain = csOf(e, l).vol*norm; if(rateAt(e, l) <= 0) continue;
       const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
       const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
       seg[i - a] = P.x[k]*gain*edge; }
@@ -7050,7 +7088,7 @@ const AI_CS = c => { const o = {}, n = (k, a, b) => { const v = Number(c[k]); if
   n('stab', 0, 1); n('smooth', 0, 1); n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('hi', -1, 1); n('sh', -1, 1); n('hue', -1, 1); n('sharp', 0, 1); n('vig', 0, 1); n('beauty', 0, 1); n('fin', 0, 1.5); n('fout', 0, 1.5);
   // reverse, zoom, the clip's sound, and the mask / green screen / curves / HSL objects (the server checked their fields)
   if(c.rev === true) o.rev = true; n('zoom', 1, 3); n('pitch', -12, 12); for(const k of ['vol','mus']) if(Number.isFinite(Number(c[k])) && c[k] !== undefined) o[k] = Math.min(2, Math.max(0, Number(c[k])));
-  for(const k of ['mk','ck','cv','hsl']) if(c[k] && typeof c[k] === 'object') o[k] = JSON.parse(JSON.stringify(c[k]));
+  for(const k of ['mk','ck','cv','hsl','kx']) if(c[k] && typeof c[k] === 'object') o[k] = JSON.parse(JSON.stringify(c[k]));
   return o; };
 function csAutoSet(e, patch){
   e.cs = e.cs || {}; const auto = e.cs.auto || [];

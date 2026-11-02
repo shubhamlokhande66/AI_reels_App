@@ -6,7 +6,7 @@ import { Chip, Tile } from "./ui";
 
 export type ClipCs = {
   i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
-  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; smooth?: number; crown?: string[]; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
+  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; smooth?: number; kx?: number; kxHere?: boolean; kxOp?: "add" | "del" | "clear"; crown?: string[]; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
   mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
   mk?: Mask | null;
   /** green screen: the key colour, how much around it goes (0.05-0.9), the colour shown behind */
@@ -31,6 +31,7 @@ export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs
 const I = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 /** every clip tool: [key, name, icon] (the phones' clip toolbar shows them too, components/studio/views.ts) */
 export const CLIP_TOOLS: [string, string, string][] = [
+  ["kf", "Keyframe", I('<path d="M12 3l5 9-5 9-5-9z"/><path d="M3 12h3M18 12h3" opacity=".5"/>')],
   ["vol", "Volume", I('<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>')],
   ["extract", "Extract audio", I('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')],
   ["crop", "Crop", I('<path d="M6 2v16h16M2 6h16v16"/>')],
@@ -79,7 +80,7 @@ const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5
 /** The row of tools and the open tool's controls */
 export function clipToolsHtml(c: ClipCs, open: string): string {
   const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
-    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "smooth" ? !!c.smooth : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : k === "mask" ? !!c.mk : k === "chroma" ? !!c.ck : k === "curves" ? !!c.cv : k === "hsl" ? !!c.hsl : false;
+    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "kf" ? !!c.kx: k === "smooth" ? !!c.smooth : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : k === "mask" ? !!c.mk : k === "chroma" ? !!c.ck : k === "curves" ? !!c.cv : k === "hsl" ? !!c.hsl : false;
   const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${CLIP_TOOLS.map(([k, n, ic]) =>
     `<button type="button" class="ct ${Tile} min-w-[62px]"${on(k) ? " data-on" : ""} data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
@@ -95,6 +96,8 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
   else if (open === "adjust") body = slider("bri", "Brightness", c.bri, -1, 1, 0.05) + slider("con", "Contrast", c.con, -1, 1, 0.05) + slider("sat", "Saturation", c.sat, -1, 1, 0.05) + slider("warm", "Warmth", c.warm, -1, 1, 0.05)
     + slider("hi", "Highlights", c.hi ?? 0, -1, 1, 0.05) + slider("sh", "Shadows", c.sh ?? 0, -1, 1, 0.05) + slider("hue", "Hue", c.hue ?? 0, -1, 1, 0.02) + slider("sharp", "Sharpen", c.sharp ?? 0, 0, 1, 0.05, "%") + slider("vig", "Vignette", c.vig ?? 0, 0, 1, 0.05, "%");
   else if (open === "curve") body = (["a", "b", "c", "d", "e"] as const).map((k, i) => slider("curve." + k, ["Start", "¼", "Middle", "¾", "End"][i], c.curve?.[k] ?? 1, 0.2, 4, 0.1, "x")).join("") + need("The shot's speed at five points, smooth in between: slow it down in the middle, speed it into the end.");
+  else if (open === "kf") body = `<div class="chips"><button type="button" class="${Chip}" data-act="kf-add"${c.kxHere ? " disabled" : ""}>◆ Add keyframe here</button>${c.kxHere ? `<button type="button" class="${Chip}" data-act="kf-del">Remove this keyframe</button>` : ""}${c.kx ? `<button type="button" class="${Chip}" data-act="kf-clear">Remove all (${c.kx})</button>` : ""}</div>`
+    + need(c.kx ? "Move the playhead and change Adjust, Volume, Crop or Mask: the key there changes (or a new one is made), and the shot glides between them." : "Saves the shot's colour, volume, zoom, framing and mask at the playhead. Add another later in the shot with other values and it glides between them.");
   else if (open === "smooth") body = slider("smooth", "Smooth slow-mo", c.smooth ?? 0, 0, 1, 0.05, "%") + need("A slowed shot glides: the pictures between two real frames are blended. Slow the shot first (Speed 0.5× or slower, or a Speed curve).");
   else if (open === "stab") body = slider("stab", "Stabilize", c.stab ?? 0, 0, 1, 0.05, "%") + need("Takes out the camera's shake, zoomed in a little so no edge shows.");
   else if (open === "beauty") body = slider("beauty", "Smooth skin", c.beauty ?? 0, 0, 1, 0.05, "%") + need("Softens skin and keeps the eyes, hair and edges sharp.");
@@ -147,6 +150,7 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
     else if (act === "ck-off") A.shotSet({ ck: null });
     else if (act === "cv-off") A.shotSet({ cv: null });
     else if (act === "hsl-off") A.shotSet({ hsl: null });
+    else if (act === "kf-add" || act === "kf-del" || act === "kf-clear") A.shotSet({ kxOp: act.slice(3) as "add" | "del" | "clear" });
     const cvch = t.closest<HTMLElement>("[data-cvch]")?.dataset.cvch; if (cvch) cvCh = cvch;
     const hb = t.closest<HTMLElement>("[data-hb]")?.dataset.hb; if (hb) hslBand = hb;
     const cvp = t.closest<HTMLElement>("[data-cvp]")?.dataset.cvp; if (cvp) A.shotSet({ cv: { ...CV_PRESETS.find((x) => x[0] === cvp)![2] } });

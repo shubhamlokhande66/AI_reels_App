@@ -332,6 +332,12 @@ describe("Shubix AI as the editor: texts and other tools", () => {
     const out = cleanActions([{ do: "LAYER", clip: "c2", start: 1 }, { do: "hack" }, { do: "look", name: "cine" }]);
     expect(out.map((a) => a.do)).toEqual(["layer", "look"]);
   });
+  it("keeps the AI's keyframes on a shot's settings, in range and in time order", () => {
+    const d = req(2), out = parsePlan(d, { story: "", slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "",
+      clip: { kx: [{ t: 1.2, bri: 5, vol: 0, ez: "warp", mk: { x: 2 } }, { t: 0, sat: -0.5, zoom: 9 }, { t: 0.5 }, "junk"] } }] });
+    expect(out.slots[0].clip?.kx).toEqual([{ t: 0, ez: "inOut", sat: -0.5, zoom: 3 }, { t: 1.2, ez: "inOut", bri: 1, vol: 0, mk: { x: 1 } }]);
+    expect(prompt(d)).toContain("kx (keyframes");
+  });
   it("has the text templates, with the words put in and each part's own start", () => {
     expect(cleanActions([{ do: "Template", name: "headline", words: ["HELLO", "world"], at: 2 }])[0]).toMatchObject({ do: "template", name: "headline" });
     expect(prompt(req(2))).toContain('"do":"template"');
