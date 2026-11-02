@@ -7094,7 +7094,7 @@ async function saveProject(st, sig){
     life({ saving: 0, proj: proj.id });
     // a made Reel has its own address (/editor?p=…): a reload, a shared link or Back to it opens this Reel, not a new one
     // (only once the editor is open: still in the Create steps the address stays /create/music?step=…; flow.ts sets it on Generate)
-    if(edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', '/editor?p=' + proj.id);
+    if(!IN_APP && edit.length && root.classList.contains('made') && !root.classList.contains('fopen') && new URLSearchParams(location.search).get('p') !== proj.id) history.replaceState(history.state, '', '/editor?p=' + proj.id);
     // still in the Create steps: a reload of this tab offers this Reel back (resumeOffer)
     if(location.pathname.startsWith('/create')){ try{ sessionStorage.setItem('brs-resume:' + location.pathname, proj.id); }catch(e){} }
     lastSig = sig; $('psaved').textContent = 'Saved on this phone ✓ ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

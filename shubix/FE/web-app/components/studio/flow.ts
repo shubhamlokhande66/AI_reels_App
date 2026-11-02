@@ -53,6 +53,10 @@ export function initFlow(root: HTMLElement): () => void {
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
   // how many screens of this flow the browser has before this one (0: the page as it was opened)
   let depth = 0;
+  // the phone app's hidden studio (/engine) keeps its own address: a reload there (the phone restarting the page) must
+  // open the engine again, never the Create flow or the editor (the app would stop working)
+  const inEngine = location.pathname === "/engine";
+  const setAddress = (url: string) => { if (!inEngine) history.replaceState(history.state, "", url); };
   // a tool open on the phones' Reel (Edit Options) is a screen of its own too: Back closes it
   let toolMarked = "";
   const mark = (push: boolean) => {
@@ -199,7 +203,7 @@ export function initFlow(root: HTMLElement): () => void {
       defaults(k);
       // each kind at its own address (/create/music, /create/talking, /create/photo); the same page, no reload
       const slug = { music: "music", talk: "talking", photo: "photo", copy: "copy" }[k];
-      if (slug && location.pathname !== `/create/${slug}`) history.replaceState(history.state, "", `/create/${slug}${location.search}${location.hash}`);
+      if (slug && location.pathname !== `/create/${slug}`) setAddress(`/create/${slug}${location.search}${location.hash}`);
     }
     setData(root, "fstep", step);
     setFlag($("fintro"), "hidden", step !== "intro");
@@ -214,7 +218,7 @@ export function initFlow(root: HTMLElement): () => void {
       let moved = false;
       if (slug && /^\/(editor|create\/edit)$/.test(u.pathname)) { u.pathname = `/create/${slug}`; u.searchParams.delete("p"); u.searchParams.delete("session"); moved = true; }
       if ((u.searchParams.get("step") ?? "") !== want) { if (want) u.searchParams.set("step", want); else u.searchParams.delete("step"); moved = true; }
-      if (moved) history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+      if (moved) setAddress(u.pathname + u.search + u.hash);
     }
     setClass(root, "flive", true); for (const id of ["fhead", "fintro"]) setClass($(id), "invisible", false); // the kind's own words are in: the flow can be seen
     // the music card's title: choosing on computers and the phones' first screen, adjusting on the second
@@ -334,7 +338,7 @@ export function initFlow(root: HTMLElement): () => void {
         for (let t = 0; (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
         if (made()) {
           revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
-          history.replaceState(history.state, "", "/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
+          setAddress("/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
           requestAnimationFrame(() => {
             $<HTMLButtonElement>("fedit").click(); // open the real timeline editor; playback stays attached to this Reel
             void st?.saveNow?.(); // persist only after the live editor is open
