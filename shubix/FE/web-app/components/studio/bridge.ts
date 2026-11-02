@@ -219,6 +219,13 @@ export function initBridge(root: HTMLElement): () => void {
       const st = studio(); if (st?.seek) await st.seek(Math.max(0, Number(a.time) || 0));
       return { ok: press("sfxadd", "data-sfx", String(a.kind)) };
     },
+    /** the creator's own beat markers at `time`: add / del (the one there) / clear -> { ok, state } (the edit is made again) */
+    async mark(a) {
+      const st = studio(), id = ({ add: "addbeat", del: "delbeat", clear: "clrbeat" } as Record<string, string>)[String(a.op)], b = id ? $(id) : null;
+      if (!st || !b) return { ok: false };
+      if (st.seek) await st.seek(Math.max(0, Number(a.time) || 0));
+      b.click(); await new Promise((r) => setTimeout(r, 300)); return { ok: true, state: st.state() };
+    },
     /** a text template (a ready-made animated title) at `time` -> { ok, state } (its texts come back in state.overlays) */
     async template(a) {
       const st = studio(), s = $<HTMLSelectElement>("ovtpl"); if (!st || !s) return { ok: false };

@@ -457,7 +457,7 @@ export const STUDIO_HTML = `
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
             <div class="beatmarks"><span class="label">Your beat markers</span>
               <p class="hint">Hear a beat Shubix missed? Pause on it and add a marker: a cut can land there.</p>
-              <div class="row"><button class="${Button.small}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${Button.small}" id="clrbeat" type="button">Remove my markers</button></div></div>
+              <div class="row"><button class="${Button.small}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${Button.small}" id="delbeat" type="button">－ Remove marker here</button><button class="${Button.small}" id="clrbeat" type="button">Remove my markers</button></div></div>
             <label class="tog"><input type="checkbox" id="sfxon" checked> Sound effects on transitions (whoosh, boom, click, pop)</label>
             <label class="cslide"><span>Effects volume</span><input type="range" id="sfxv" min="0" max="1.5" step="0.05" value="0.6"><output>60%</output></label>
             <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="${Button.small}" data-sfx="whoosh">Whoosh</button><button type="button" class="${Button.small}" data-sfx="pop">Pop</button><button type="button" class="${Button.small}" data-sfx="boom">Boom</button><button type="button" class="${Button.small}" data-sfx="click">Click</button><button type="button" class="${Button.small}" data-sfx="riser">Riser</button><button type="button" class="${Button.small}" data-sfx="ding">Ding</button></div>
@@ -556,7 +556,7 @@ export const STUDIO_HTML = `
               <div class="ttslist" id="ttslist"></div>
             </div>
             <span class="label musiconly">Voice changer</span>
-            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${Chip}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${Chip}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${Chip}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${Chip}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${Chip}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${Chip}" data-f="echo" aria-pressed="false">Echo</button></div>
+            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${Chip}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${Chip}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${Chip}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${Chip}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${Chip}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${Chip}" data-f="echo" aria-pressed="false">Echo</button><button type="button" class="${Chip}" data-f="enhance" aria-pressed="false">Enhance voice</button></div>
             <p class="hint talkonly">Talking videos: pauses, music under the voice and noise cleanup are in step 2.</p>
           </section>
 

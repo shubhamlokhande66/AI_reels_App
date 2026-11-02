@@ -182,6 +182,8 @@ function withMarks(b, dur){ if(!userMarks.length) return b; const out = b.slice(
   for(const m of userMarks){ const t = m - secStart; if(t > 0.05 && t < dur - 0.05 && !out.some(x => Math.abs(x - t) < 0.08)) out.push(t); }
   return out.sort((x, y) => x - y); }
 function addMark(t){ if(!buf || !edit.length) return false; remakeOk(); userMarks.push(+(secStart + t).toFixed(3)); beats = withMarks(beats, buf.duration); makeEdit(); notify('Beat added at ' + t.toFixed(1) + ' s: a cut can land there now'); return true; }
+function delMark(t){ const T = secStart + t, i = userMarks.findIndex(m => Math.abs(m - T) < 0.15); if(i < 0){ notify('No marker of yours here: move the playhead onto a yellow marker.'); return false; }
+  remakeOk(); const m = userMarks.splice(i, 1)[0] - secStart; beats = beats.filter(b => Math.abs(b - m) > 0.005); makeEdit(); notify('Marker removed'); return true; }
 function clearMarks(){ if(!userMarks.length) return false; remakeOk(); const ts = userMarks.map(m => m - secStart); userMarks = []; beats = beats.filter(b => !ts.some(t => Math.abs(t - b) < 0.005)); makeEdit(); notify('Your beats are cleared'); return true; }
 // On an iPhone the page's sound is muted by the ring/silent switch unless it says it is playing media (Audio Session API)
 function getCtx(){ if(!ctx){ try{ if(navigator.audioSession) navigator.audioSession.type = 'playback'; }catch(e){} ctx = new (window.AudioContext||window.webkitAudioContext)(); } return ctx; }
@@ -3387,6 +3389,7 @@ function shotCs(){ const e = edit.length ? edit[segAt(pos)] : null, l = e ? pos 
   return e && kind !== 'talk' ? { ...csOf(e, l), kx: K.length, kxHere: K.some(k => Math.abs(k.t - l) < 0.05), i: segAt(pos), crown: ['beauty','curve','stab'].filter(k => isLocked('tool', k)) } : null; }
 function shotSet(patch){
   if(!edit.length || kind === 'talk' || exporting || recording) return;
+  if(patch && patch.all === true){ const { all, ...rest } = patch, at = pos; for(const x of edit){ pos = x.start + 0.01; shotSet(rest); } pos = at; if(!playing) redrawFrame(); return; }   // the same on every shot (e.g. a fade on each)
   const e = edit[segAt(pos)];
   if(patch && ('kxOp' in patch || (e.cs && e.cs.kx && e.cs.kx.length))) patch = kxSet(e, patch);
   e.cs = patch === null ? undefined : { ...(e.cs || {}), ...patch };
@@ -3567,6 +3570,7 @@ let tlZoom = 1;
 function setTlZoom(z){ tlZoom = Math.max(1, Math.min(8, z)); const c = $('tl'); if(c) c.style.width = (tlZoom*100) + '%';
   root.classList.toggle('tlzoomed', tlZoom > 1); drawTimeline(); }
 $('addbeat').addEventListener('click', () => addMark(playing ? curTime() : pos), SIG);
+$('delbeat').addEventListener('click', () => delMark(playing ? curTime() : pos), SIG);
 $('clrbeat').addEventListener('click', () => clearMarks(), SIG);
 $('tl').addEventListener('click', ev=>{ if(!edit.length) return; const r=$('tl').getBoundingClientRect(), tt=(ev.clientX-r.left)/r.width*buf.duration;
   const i = segAt(tt); if(playing) startPlayback(tt); else { const rows=$('edl').children; rows[i] && rows[i].scrollIntoView({block:'nearest'}); showShot(i); } });
@@ -4183,6 +4187,7 @@ async function aiActions(list){
       else if(a.do === 'shot' && SHOT_OPS.includes(a.op) && edit[+a.i]){ const e = edit[+a.i], len = e.end - e.start;
         pos = e.start + Math.max(0.05, Math.min(len - 0.05, Number.isFinite(+a.at) ? +a.at : len/2));
         if(a.op === 'reverse'){ shotSet({ rev: a.on !== false }); done++; } else if(shotOp(a.op)) done++; }
+      else if(a.do === 'beatmark'){ const ts = (Array.isArray(a.at) ? a.at : [a.at]).map(Number).filter(Number.isFinite); if(a.clear) clearMarks(); for(const t of ts.slice(0, 32)) if(addMark(Math.max(0, t))) done++; }
       else if(a.do === 'template' && TEXT_TEMPLATES[a.name]){ if(addTemplate(a.name, Array.isArray(a.words) ? a.words : [], +a.at || 0, Number.isFinite(+a.len) && +a.len > 0 ? +a.len : undefined, true)) done++; }
       else if(a.do === 'background' && ['none','blur','color'].includes(a.mode)){ if(/^#[0-9a-f]{6}$/i.test(a.color || '')) bgColor = a.color; bgmode.querySelector('[data-b="' + a.mode + '"]').click(); done++; }
       else if(a.do === 'layer'){
@@ -5015,7 +5020,7 @@ for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, smooth:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null, ck:null, cv:null, hsl:null };
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, smooth:0, enh:false, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null, ck:null, cv:null, hsl:null };
 /* ---- a shot's mask (Clip tools -> Mask, CapCut's Mask): the shot shows only inside a shape (or outside it, inverted);
  * the rest is a colour. Drawn over the finished shot, before the boxes and texts, by both renderers and in the export. ---- */
 /* ---- a shot's green screen (Clip tools -> Chroma key, CapCut's Chroma key): its key colour goes, the colour behind shows ---- */
@@ -6941,7 +6946,7 @@ async function ensureMix(){
   for(const e of shots) await clipPcm(e.src);
   for(const c of ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
   for(const L of layers){ const M = lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await decodeAnyAudio(M.file), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
-  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout, e.cs.kx ? JSON.stringify(e.cs.kx.filter(k => 'vol' in k)) : 0])]);
+  const key = JSON.stringify([au, vo && vo.key, ttsClips.map(c => [c.id, c.at, !!c.pcm]), layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), denoiseOn, baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout, !!e.cs.enh, e.cs.kx ? JSON.stringify(e.cs.kx.filter(k => 'vol' in k)) : 0])]);
   const key2 = key + JSON.stringify([sfxEvents(), au.sfx, au.sfxv, edit.map(e => e.cs ? [e.cs.mus, e.cs.pitch] : 0)]);
   if(key2 !== clipMixKey){ clipMixKey = key2; applyVo(); }
 }
@@ -7024,7 +7029,7 @@ function applyVo(){   // (the name stays: everything that changes the sound call
       const k = Math.floor(srcPos(e, l)*P.sr); if(k < 0 || k >= P.x.length) continue;
       const edge = Math.min(1, (i - a)/ramp, (b - i)/ramp) * csFade(c, l, L);
       seg[i - a] = P.x[k]*gain*edge; }
-    const ps = c.pitch ? pitchShift(seg, sr, Math.pow(2, c.pitch/12)) : seg;   // the shot's own pitch (semitones)
+    const ps0 = c.pitch ? pitchShift(seg, sr, Math.pow(2, c.pitch/12)) : seg, ps = c.enh ? voiceFx(ps0, sr, 'enhance') : ps0;   // the shot's own pitch (semitones), its voice enhanced
     for(let i=0;i<ps.length;i++) cs[a + i] += ps[i]; }
   for(const L of lyVoiced){ const P = lmedia[L.m].pcm, a = Math.round(L.t0*sr), b = Math.min(N, Math.round(L.t1*sr)), ramp = Math.round(0.02*sr);
     let q2 = 0, qn = 0; for(let k=0;k<P.x.length;k+=16){ q2 += P.x[k]*P.x[k]; qn++; } const g = L.vol*Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn))));
@@ -7069,6 +7074,12 @@ function voiceFx(x, sr, fx){
   if(fx === 'radio'){ // telephone band (300-3400 Hz) and a little crunch
     let lp = 0, hp = 0, px = 0; const a1 = Math.exp(-2*Math.PI*3400/sr), a2 = Math.exp(-2*Math.PI*300/sr);
     for(let i=0;i<x.length;i++){ lp = (1 - a1)*x[i] + a1*lp; hp = a2*(hp + lp - px); px = lp; y[i] = Math.tanh(hp*3)*0.6; } return y; }
+  if(fx === 'enhance'){ // voice enhance (as CapCut's): rumble out (high-pass 90 Hz), the voice's presence (2-5 kHz) up, gently levelled, peaks at -1 dB
+    let hp = 0, px = 0, lo = 0, lo2 = 0, env = 0; const ah = Math.exp(-2*Math.PI*90/sr), aL = Math.exp(-2*Math.PI*5000/sr), aH = Math.exp(-2*Math.PI*2000/sr), att = Math.exp(-1/(0.005*sr)), rel = Math.exp(-1/(0.12*sr));
+    for(let i=0;i<x.length;i++){ hp = ah*(hp + x[i] - px); px = x[i]; lo = (1 - aL)*hp + aL*lo; lo2 = (1 - aH)*hp + aH*lo2;
+      const v = hp + 0.45*(lo - lo2), a = Math.abs(v); env = a > env ? att*env + (1 - att)*a : rel*env + (1 - rel)*a;
+      y[i] = v*(env > 0.12 ? Math.pow(0.12/env, 0.5) : 1); }
+    let pk = 0; for(let i=0;i<y.length;i++) pk = Math.max(pk, Math.abs(y[i])); if(pk > 0){ const g = Math.min(4, 0.89/pk); for(let i=0;i<y.length;i++) y[i] *= g; } return y; }
   if(fx === 'echo'){ const d = Math.round(0.24*sr); for(let i=0;i<x.length;i++) y[i] = x[i] + (i >= d ? y[i-d]*0.42 : 0); return y; }
   return x;
 }
@@ -7083,7 +7094,7 @@ function voiceFx(x, sr, fx){
  * What the AI set is listed in cs.auto; anything the creator changes is theirs and stays. Off: au.ai = false. ---- */
 // the AI's shot settings, each a known field of the clip tools in its range (the server checked them too)
 const AI_CS = c => { const o = {}, n = (k, a, b) => { const v = Number(c[k]); if(Number.isFinite(v) && v) o[k] = Math.min(b, Math.max(a, v)); };
-  if([90,180,270].includes(c.rot)) o.rot = c.rot; for(const k of ['fh','fv','fit']) if(c[k] === true) o[k] = true;
+  if([90,180,270].includes(c.rot)) o.rot = c.rot; for(const k of ['fh','fv','fit','enh']) if(c[k] === true) o[k] = true;
   if(o.fit){ if(c.bg === 'blur' || c.bg === 'color') o.bg = c.bg; if(/^#[0-9a-f]{6}$/i.test(c.bgc || '')) o.bgc = c.bgc; n('bd', 0, 1); if(/^#[0-9a-f]{6}$/i.test(c.bdc || '')) o.bdc = c.bdc; }
   n('stab', 0, 1); n('smooth', 0, 1); n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('hi', -1, 1); n('sh', -1, 1); n('hue', -1, 1); n('sharp', 0, 1); n('vig', 0, 1); n('beauty', 0, 1); n('fin', 0, 1.5); n('fout', 0, 1.5);
   // reverse, zoom, the clip's sound, and the mask / green screen / curves / HSL objects (the server checked their fields)

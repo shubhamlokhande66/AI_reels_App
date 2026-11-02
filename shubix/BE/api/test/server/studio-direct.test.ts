@@ -338,6 +338,11 @@ describe("Shubix AI as the editor: texts and other tools", () => {
     expect(out.slots[0].clip?.kx).toEqual([{ t: 0, ez: "inOut", sat: -0.5, zoom: 3 }, { t: 1.2, ez: "inOut", bri: 1, vol: 0, mk: { x: 1 } }]);
     expect(prompt(d)).toContain("kx (keyframes");
   });
+  it("has the audio tools: beat markers, voice enhance on a shot", () => {
+    expect(cleanActions([{ do: "beatmark", at: [1.5, 3] }])[0]).toMatchObject({ do: "beatmark" });
+    const p = prompt(req(2)); expect(p).toContain('"do":"beatmark"'); expect(p).toContain("enhance");
+    expect(parsePlan(req(1), { story: "", slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { enh: true } }] }).slots[0].clip).toEqual({ enh: true });
+  });
   it("has the text templates, with the words put in and each part's own start", () => {
     expect(cleanActions([{ do: "Template", name: "headline", words: ["HELLO", "world"], at: 2 }])[0]).toMatchObject({ do: "template", name: "headline" });
     expect(prompt(req(2))).toContain('"do":"template"');

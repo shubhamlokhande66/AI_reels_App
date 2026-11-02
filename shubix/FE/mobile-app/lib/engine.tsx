@@ -129,6 +129,12 @@ export const engine = {
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
    * does not hold this Reel as it is (then the phone does what it can) */
   tool: (op: string, args: Record<string, unknown> = {}) => call<Record<string, unknown>>(op, args),
+  /** the creator's own beat markers (add at `time`, del the one there, clear): the Reel's clips after the edit is made again */
+  mark: async (p: ReelProject, op: "add" | "del" | "clear", time: number) => {
+    if (!(await engine.edit(p))) return null;
+    const r = await call<{ ok: boolean; state?: { edit?: EngineShot[] } }>("mark", { op, time });
+    return r.ok && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null;
+  },
   addLayer: (uri: string, name: string) => call<Record<string, unknown>>("layerAdd", { path: pathOf(uri), name }),
   set: async (p: ReelProject, box: string, value: string | boolean, attr?: string) => {
     if (!(await engine.edit(p))) return null;

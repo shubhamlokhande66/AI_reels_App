@@ -52,6 +52,7 @@ const TX_COLORS = [["#FFFFFF", "White"], ["#111111", "Black"], ["#FFD54A", "Gold
 const SOUNDS = [["whoosh", "Whoosh"], ["pop", "Pop"], ["boom", "Boom"], ["click", "Camera click"], ["riser", "Riser"], ["ding", "Ding"], ["swish", "Swish"], ["impact", "Impact"], ["glitch", "Glitch"], ["laser", "Laser"],
   ["heartbeat", "Heartbeat"], ["tick", "Tick"], ["chime", "Chime"], ["drop", "Bass drop"], ["rewind", "Rewind"], ["notify", "Notification"]];
 const TSTYLES = [["pop", "Pop"], ["karaoke", "Karaoke"], ["box", "Box"], ["clean", "Clean"]];
+const VFX = [["none", "Original"], ["enhance", "Enhance voice"], ["deep", "Deep"], ["chipmunk", "Chipmunk"], ["robot", "Robot"], ["radio", "Radio"], ["echo", "Echo"]];
 const CSNDS = [["mute", "Mute it"], ["voices", "Keep voices only"], ["all", "Keep all"]];
 const BGS = [["none", "Original"], ["blur", "Blur"]];
 const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER", "गणपती बाप्पा मोरया", "शुभ दीपावली", "Happy Diwali"];
@@ -490,11 +491,26 @@ export default function EditorScreen() {
               catch (e) { toast(errorMessage(e), "danger"); }
             })()} />
           </View>}
+          {p.studio && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+            <Label>Your beat markers (a cut can land on each)</Label>
+            <Choices items={["Add marker here", "Remove marker here", "Remove all markers"]} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              try { const next = await engine.mark(p, v.startsWith("Add") ? "add" : v.startsWith("Remove marker") ? "del" : "clear", now);
+                if (next) { setP((old) => old ? { ...old, clips: next } : old); toast(words("Done: the cuts follow your markers"), "success"); } else toast(words("Nothing changed"), "info"); }
+              catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+            <Label>Voice effect (on your recorded voiceover)</Label>
+            <Choices items={VFX.map((x) => x[1])} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              try { await engine.set(p, "vfx", VFX.find((x) => x[1] === v)![0], "data-f"); toast(words("Voice effect applied"), "success"); } catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+          </View>}
           {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => change({ audioUri: undefined, audioName: undefined })} />}
           {clip && <>
             <Label>Selected shot audio volume</Label>
             <Choices items={["0%", "25%", "50%", "75%", "100%", "125%", "150%", "200%"]} on={`${Math.round((clip.volume ?? 1) * 100)}%`} onPick={(v) => patch({ volume: Number(v.replace("%", "")) / 100, muted: v === "0%" })} />
             <Button full variant="secondary" title={words(clip.muted ? "Turn the clip's sound on" : "Mute the clip's sound")} onPress={() => patch({ muted: !clip.muted })} />
+            {p.studio && <Button full variant="secondary" title={words("Enhance this shot's voice")} onPress={() => void studioPatch({ enh: true })} />}
           </>}
         </View>
       );
@@ -714,9 +730,9 @@ export default function EditorScreen() {
       case "smooth": return <Choices items={["Off", "Light", "Smooth", "Smoothest"]} onPick={(v) => void studioPatch({ smooth: ({ Off: 0, Light: 0.4, Smooth: 0.75, Smoothest: 1 } as Record<string, number>)[v] })} />;
       case "stab": return <Choices items={["Off", "Light", "Balanced", "Strong"]} onPick={(v) => void studioPatch({ stab: ({ Off: 0, Light: 0.25, Balanced: 0.55, Strong: 0.85 } as Record<string, number>)[v] })} />;
       case "beauty": return <Choices items={["Off", "Natural", "Soft", "Smooth"]} onPick={(v) => void studioPatch({ beauty: ({ Off: 0, Natural: 0.2, Soft: 0.45, Smooth: 0.7 } as Record<string, number>)[v] })} />;
-      case "fade": return <Choices items={["No fade", "Fade in", "Fade out", "Fade both"]} onPick={(v) => {
-        const values: Record<string, Record<string, number>> = { "No fade": { fin: 0, fout: 0 }, "Fade in": { fin: 0.5, fout: 0 }, "Fade out": { fin: 0, fout: 0.6 }, "Fade both": { fin: 0.5, fout: 0.6 } };
-        void studioPatch(values[v]);
+      case "fade": return <Choices items={["No fade", "Fade in", "Fade out", "Fade both", "Fade both, every shot"]} onPick={(v) => {
+        const values: Record<string, Record<string, number>> = { "No fade": { fin: 0, fout: 0 }, "Fade in": { fin: 0.5, fout: 0 }, "Fade out": { fin: 0, fout: 0.6 }, "Fade both": { fin: 0.5, fout: 0.6 }, "Fade both, every shot": { fin: 0.3, fout: 0.3 } };
+        void studioPatch(v.endsWith("every shot") ? { ...values[v], all: true } : values[v]);
       }} />;
       case "mosaic": return <Choices items={["Add mosaic region", "Remove mosaic", "Blur centre region"]} onPick={(v) => void studioPatch({ mz: v === "Remove mosaic" ? null : { x: v === "Blur centre region" ? 0.32 : 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 } })} />;
       case "lens": return <Choices items={["Add magnifier", "Remove magnifier", "Zoom 1.5×", "Zoom 2×", "Zoom 3×"]} onPick={(v) => {

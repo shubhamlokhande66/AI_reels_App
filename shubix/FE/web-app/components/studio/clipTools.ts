@@ -6,7 +6,7 @@ import { Chip, Tile } from "./ui";
 
 export type ClipCs = {
   i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
-  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; smooth?: number; kx?: number; kxHere?: boolean; kxOp?: "add" | "del" | "clear"; crown?: string[]; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
+  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; smooth?: number; enh?: boolean; kx?: number; kxHere?: boolean; kxOp?: "add" | "del" | "clear"; all?: boolean; crown?: string[]; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
   mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
   mk?: Mask | null;
   /** green screen: the key colour, how much around it goes (0.05-0.9), the colour shown behind */
@@ -85,7 +85,7 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
     `<button type="button" class="ct ${Tile} min-w-[62px]"${on(k) ? " data-on" : ""} data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
   const need = (t: string) => `<p class="cnote">${t}</p>`;
-  if (open === "vol") body = slider("vol", "Clip sound", c.vol, 0, 2, 0.05, "%") + slider("pitch", "Pitch (semitones)", c.pitch ?? 0, -12, 12, 1, "st") + slider("mus", "Music under this shot", c.mus ?? 1, 0, 1.5, 0.05, "%") + need("The clip's own sound under the music (0% = the song alone). The music steps back while the clip is loud.");
+  if (open === "vol") body = slider("vol", "Clip sound", c.vol, 0, 2, 0.05, "%") + slider("pitch", "Pitch (semitones)", c.pitch ?? 0, -12, 12, 1, "st") + slider("mus", "Music under this shot", c.mus ?? 1, 0, 1.5, 0.05, "%") + `<button type="button" class="${Chip}" data-act="enh" aria-pressed="${!!c.enh}">Enhance voice</button>` + need("The clip's own sound under the music (0% = the song alone). The music steps back while the clip is loud.");
   else if (open === "extract") body = `<button type="button" class="${Chip}" data-act="extract">Use this clip's sound as the song</button>${need("Its beats then lead the cuts, as with any song. Change it back in Music.")}`;
   else if (open === "crop") body = slider("zoom", "Zoom", c.zoom, 1, 3, 0.05, "x") + slider("cx", "Across", c.cx ?? 0.5, 0, 1, 0.01, "%") + slider("cy", "Down", c.cy ?? 0.5, 0, 1, 0.01, "%")
     + `<button type="button" class="${Chip}" data-act="crop-auto">${c.cx == null ? "Following the face (automatic)" : "Back to automatic (follows the face)"}</button>`;
@@ -101,7 +101,7 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
   else if (open === "smooth") body = slider("smooth", "Smooth slow-mo", c.smooth ?? 0, 0, 1, 0.05, "%") + need("A slowed shot glides: the pictures between two real frames are blended. Slow the shot first (Speed 0.5× or slower, or a Speed curve).");
   else if (open === "stab") body = slider("stab", "Stabilize", c.stab ?? 0, 0, 1, 0.05, "%") + need("Takes out the camera's shake, zoomed in a little so no edge shows.");
   else if (open === "beauty") body = slider("beauty", "Smooth skin", c.beauty ?? 0, 0, 1, 0.05, "%") + need("Softens skin and keeps the eyes, hair and edges sharp.");
-  else if (open === "fade") body = slider("fin", "Fade in", c.fin, 0, 1.5, 0.1, "s") + slider("fout", "Fade out", c.fout, 0, 1.5, 0.1, "s");
+  else if (open === "fade") body = slider("fin", "Fade in", c.fin, 0, 1.5, 0.1, "s") + slider("fout", "Fade out", c.fout, 0, 1.5, 0.1, "s") + `<button type="button" class="${Chip}" data-act="fade-all">Same fades on every shot</button>`;
   else if (open === "mosaic") body = !c.mz ? `<button type="button" class="${Chip}" data-act="mz-on">Add mosaic</button>${need("Hides a face, a plate or a logo with blocks.")}`
     : slider("mz.x", "Left", c.mz.x, 0, 0.95, 0.01, "%") + slider("mz.y", "Top", c.mz.y, 0, 0.95, 0.01, "%") + slider("mz.w", "Width", c.mz.w, 0.05, 1, 0.01, "%") + slider("mz.h", "Height", c.mz.h, 0.05, 1, 0.01, "%") + slider("mz.s", "Block size", c.mz.s, 0.01, 0.1, 0.005, "%") + `<button type="button" class="${Chip}" data-act="mz-off">Remove mosaic</button>`;
   else if (open === "lens") body = !c.mg ? `<button type="button" class="${Chip}" data-act="mg-on">Add magnifier</button>${need("A round lens that zooms into one spot.")}`
@@ -150,6 +150,8 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
     else if (act === "ck-off") A.shotSet({ ck: null });
     else if (act === "cv-off") A.shotSet({ cv: null });
     else if (act === "hsl-off") A.shotSet({ hsl: null });
+    else if (act === "enh") A.shotSet({ enh: !c.enh });
+    else if (act === "fade-all") A.shotSet({ fin: c.fin, fout: c.fout, all: true } as Partial<ClipCs>);
     else if (act === "kf-add" || act === "kf-del" || act === "kf-clear") A.shotSet({ kxOp: act.slice(3) as "add" | "del" | "clear" });
     const cvch = t.closest<HTMLElement>("[data-cvch]")?.dataset.cvch; if (cvch) cvCh = cvch;
     const hb = t.closest<HTMLElement>("[data-hb]")?.dataset.hb; if (hb) hslBand = hb;
