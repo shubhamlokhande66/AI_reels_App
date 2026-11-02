@@ -1848,6 +1848,8 @@ function aiOff(msg){ aiOn = false; aiStat(msg); const pr = [...$('mode').childre
 // asked once per Reel: Shubix AI for this Reel (its credits), or the phone's own edit (free)
 // The Reel's gate: asked before ANY Shubix AI work on a Reel (reading the clips, the pace, the shots), for every plan and every
 // Reel: Use = its credits and the AI starts; ✕ = nothing runs and nothing is taken (asked again on Generate, `again`).
+// the phone app's hidden studio (/engine): no prices, plans or top-ups there (the app sells nothing: Google Play rules)
+const IN_APP = location.pathname === '/engine';
 let gateNo = '', lowAsked = '';   // lowAsked: the Reel whose too-few-credits question was shown
 // A plan with Shubix AI makes every Reel with it: when the creator closes the credits question (or has too few credits)
 // the Reel is not shown, played or exported; the preview says so and its button asks again (or opens the top-ups)
@@ -1859,7 +1861,7 @@ function aiNeed(on, low){
   $('aiaskgo').textContent = low ? 'Top up' : 'Make it with Shubix AI'; $('aiaskgo').dataset.low = low ? '1' : '';
 }
 $('aiaskgo').addEventListener('click', async () => {
-  if($('aiaskgo').dataset.low){ location.assign('/pricing'); return; }
+  if($('aiaskgo').dataset.low){ if(!IN_APP) location.assign('/pricing'); return; }
   if(await aiGate(true)) aiRun();
 }, SIG);
 function aiGate(again = false){
@@ -1875,8 +1877,9 @@ function aiGate(again = false){
       aiNeed(false); gateNo = id;
       aiStat('Edited on your phone · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
       if(lowAsked !== id){ lowAsked = id;
-        const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit now; top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Use the phone\'s edit' });
-        if(go) location.assign('/pricing'); }
+        if(IN_APP) await askCredits({ title: 'Not enough credits for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit.', bal, ok: 'OK' });
+        else { const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit now; top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Use the phone\'s edit' });
+          if(go) location.assign('/pricing'); } }
       return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
     const ok = await askCredits({ title: 'Shubix AI will edit this Reel',
@@ -1902,7 +1905,7 @@ async function upsell(){
     if(go){ aiRun(); return 'skip'; }   // Use: the AI starts on this Reel
     return 'close';                      // ✕: back, nothing generated
   }
-  const id = reelIdNow(); if(upsold === id) return 'skip';
+  const id = reelIdNow(); if(upsold === id || IN_APP) return 'skip';   // never an upgrade offer in the app
   const cost = aiCostOf('reel');
   const v = await askCredits({ upsell: true, title: 'Make it perfect with Shubix AI', text: 'Your Reel is ready. With the Editor or Pro plan, Shubix AI edits it like a pro' + (cost ? ' (' + creditWord(cost) + ' per Reel)' : '') + ':' + (aiInfo && aiInfo.creditsOpen ? ' Or invite friends on Invite & earn: your credits pay for AI Reels on Free too.' : ''),
     list: ['The best moments of every clip, picked for you', 'Trendy transitions and effects, right on the beat', 'Ask Shubix: change anything in your own words', 'Captions and pro colour, automatically'],
@@ -2208,6 +2211,23 @@ function chatReportAuto(){
   if(chatWaiting || chatPending || !aiOn || !director || director.key !== dirKey() || chatReported === director.key) return;
   chatReported = director.key; $('chatlog').appendChild(planReport(director.slots, director.story)); $('chatfab').classList.add('news'); $('tbchat').classList.add('news');
 }
+// the phone app's Ask Shubix: the website's own chat (the same AI, its credit questions asked on the phone); the plan it
+// makes is applied at once (the phone has no Generate button of the studio's), and the answer goes back to the phone
+async function chatApp(text){
+  const before = chatMsgs.length;
+  await chatSend(text);
+  const t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms));
+  while((chatWaiting || dirBusy || paceBusy) && Date.now() - t0 < 240000) await wait(300);
+  let applied = false;
+  if(chatPending && chatPending.key === dirKey()){
+    const pd = chatPending; chatPending = null; chatReported = pd.key;
+    director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
+    makeEdit(); try{ applyChatVisualIntent(pd.intent, pd.slots); }catch(e){}
+    applied = !!edit.length; if(applied){ chatMsgs.push({ who: 'ai', text: 'Done ✓' }); saveNow(); }
+  }
+  const said = chatMsgs.slice(before).filter(m => m.who === 'ai').map(m => m.text).filter(t => t !== 'Done ✓').pop() || '';
+  return { applied, answer: applied ? 'Done ✓ Your Reel is edited the way you asked' + (director && director.story ? ': ' + director.story : '.') : said || (chatWaiting ? 'Shubix is still working on it. Ask again in a moment.' : 'OK') };
+}
 function chatDone(story){ if(!chatWaiting) return; chatAnswer('Done ✓ Your Reel is edited the way you asked' + (story ? ': ' + story : '.') + ' Tell me if you want anything else.'); }
 function chatFail(msg){ if(chatWaiting) chatAnswer(msg); }
 function chatRestore(list){
@@ -2282,8 +2302,8 @@ async function chatSend(text){
   if(!aiOn){
     const did = chatLocal(text);
     if(ready && did.length) makeEdit();
-    chatAnswer((did.length ? 'Done ✓ I used ' + did.join(' and ') + ' (on your phone). ' : '') + (aiLocked ? 'Changing the Reel from your words is Shubix AI: it is in the Editor and Pro plans.' : 'Shubix AI is off for this Reel, so I can only switch the style (say "faster" or "calmer") or make a new version.'));
-    if(aiLocked){ const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = 'See Editor & Pro'; $('chatlog').appendChild(a); }
+    chatAnswer((did.length ? 'Done ✓ I used ' + did.join(' and ') + ' (on your phone). ' : '') + (aiLocked && IN_APP ? 'Changing the Reel from your words is Shubix AI, which is not on your plan.' : aiLocked ? 'Changing the Reel from your words is Shubix AI: it is in the Editor and Pro plans.' : 'Shubix AI is off for this Reel, so I can only switch the style (say "faster" or "calmer") or make a new version.'));
+    if(aiLocked && !IN_APP){ const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = 'See Editor & Pro'; $('chatlog').appendChild(a); }
     return;
   }
   if(!ready){ wish = chatMsgs.filter(m => m.who === 'me').map(m => m.text).join(' · ').slice(-800); chatAnswer('Got it! I\'ll edit your Reel this way as soon as it is made.'); return; }
@@ -2299,7 +2319,7 @@ async function chatSend(text){
     const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (cost ? 'It uses ' + creditWord(cost) + '.' : 'Included in your plan.'), bal, ok: 'Make the change', no: 'Cancel' });
     if(!ok){ chatAnswer('OK, nothing changed.'); return; }
   } else if(cost && bal !== null){
-    if(bal < cost){ chatAnswer('This change needs ' + creditWord(cost) + ' and you have ' + creditWord(bal) + '.'); const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = 'Top up'; $('chatlog').appendChild(a); return; }
+    if(bal < cost){ chatAnswer('This change needs ' + creditWord(cost) + ' and you have ' + creditWord(bal) + '.'); if(!IN_APP){ const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = 'Top up'; $('chatlog').appendChild(a); } return; }
     const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (freeN ? 'The ' + freeN + ' free changes for this Reel are used, so this' : 'It') + ' uses ' + creditWord(cost) + '.', bal, after: bal - cost, ok: 'Use ' + creditWord(cost), no: 'Cancel' });
     if(!ok){ chatAnswer('OK, nothing changed and no credits used.'); return; }
   }
@@ -2833,13 +2853,16 @@ async function directorRun(key){
     }
   }finally{ clearTimeout(soft); if(!late) dirBusy = false; tm.done(); }
 }
-(async () => {   // is the studio's AI on? The administrator decides (Administration -> Features -> AI director) and the
-  // server has an AI provider; people never choose: when it is on, every Reel is edited by the AI
+// is the studio's AI on? The administrator decides (Administration -> Features -> AI director) and the server has an AI
+// provider; people never choose: when it is on, every Reel is edited by the AI. Asked at the start, and again when the
+// person's account becomes known (the phone app signs the hidden studio in after it has started: account())
+async function aiCheck(){
   try{
     const r = await fetch('/api/studio/rank-shots', ac ? { signal: ac.signal } : undefined); if(!r.ok) return;
-    aiInfo = await r.json(); if(!aiInfo || !aiInfo.available) return;
+    aiInfo = await r.json(); aiLocked = false; if(!aiInfo || !aiInfo.available){ aiOn = false; return; }
     // a plan without Shubix AI (Free): the phone edits; the chat and the plans say how to get it
-    if(aiInfo.planAi === false){ aiLocked = true; aiStat('Edited on your phone · Shubix AI is in the Editor and Pro plans'); return; }
+    if(aiInfo.planAi === false){ aiOn = false; aiLocked = true; aiStat(IN_APP ? 'Edited on your phone' : 'Edited on your phone · Shubix AI is in the Editor and Pro plans'); return; }
+    if(aiOn) return;
     aiOn = true;
     // a template's learned style was put on before the AI was known: the AI combines it now (its trend, this song)
     if(refProfile && refProfile.learned && refProfile.byTpl){ const sh = refProfile.shown || 'auto'; refProfile = null; learnedKind = ''; if(mode === 'copy') setMode(sh); }
@@ -2847,7 +2870,10 @@ async function directorRun(key){
     modeWords(pressed ? pressed.dataset.m : mode);
     if(sources.length && !aiHeld) aiRun();
   }catch(e){}
-})();
+}
+aiCheck();
+// the person is known now (the phone app's sign-in reached the hidden studio): their plan, credits and Shubix AI
+async function account(){ planLoad(); await aiCheck(); }
 /* ---- virtual camera: the crop follows the subject smoothly ----
    Like a camera operator: hold still while the subject stays near the middle (a locked-off shot looks professional),
    pan smoothly when it moves away, never twitch. Positions come from the tracked face, else from what moves on its own
@@ -7246,7 +7272,9 @@ listRecent();
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, setEdit: list => restoreEdit(list), get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
   snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
-  frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt };   // read by tests
+  frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt,
+  // the phone app (bridge.ts): the account known after the start, Ask Shubix, the clips' smooth copies
+  account, chatApp, get aiOn(){ return aiOn; }, copies: () => sources.map((s, i) => ({ i, name: s.name, blob: s.edFile || null, w: s.edW || 0, h: s.edH || 0 })) };   // read by tests
 
   return () => {
     try{ stopAll(); }catch(err){}

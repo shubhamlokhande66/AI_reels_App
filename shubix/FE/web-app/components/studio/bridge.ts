@@ -61,7 +61,15 @@ export function initBridge(root: HTMLElement): () => void {
   const made = () => { const w = studio()?.work; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir; };
 
   const OPS: Record<string, (a: Record<string, unknown>) => Promise<unknown>> = {
-    async setup(a) { files = String(a.files); key = String(a.key); token = String(a.token || ""); if (token) noteSignedIn(); await until(() => !!studio(), 60_000); return { ok: true }; },
+    async setup(a) {
+      files = String(a.files); key = String(a.key); token = String(a.token || ""); if (token) noteSignedIn();
+      await until(() => !!studio(), 60_000);
+      // the studio started before the phone's sign-in reached it: its plan, credits and Shubix AI are read again now
+      // (else the app's Reels were made as signed out: no Shubix AI, the free plan's rules)
+      const st = studio() as unknown as { account?: () => Promise<void>; aiOn?: boolean };
+      if (token && st.account) await st.account().catch(() => undefined);
+      return { ok: true, ai: !!st.aiOn };
+    },
     async song(a) {
       const st = studio(), previous = st?.songR;
       const name = String(a.name);
@@ -277,6 +285,26 @@ export function initBridge(root: HTMLElement): () => void {
       }
       await until(() => studio()!.editGen !== gen, 1500).catch(() => {}); // a new style makes a new Reel (a filter does not)
       return OPS.ready(a);
+    },
+    /** Ask Shubix from the phone's editor: the website's chat; its plan applied -> { answer, applied, state } */
+    async chat(a) {
+      const st = studio() as unknown as { chatApp?: (t: string) => Promise<{ answer: string; applied: boolean }>; state: () => unknown };
+      if (!st.chatApp) throw new Error("Ask Shubix is not ready");
+      const r = await st.chatApp(String(a.text || "").slice(0, 300));
+      await until(made, 240_000).catch(() => undefined);
+      return { ...r, state: st.state() };
+    },
+    /** the clips' smooth copies (4K / HDR / 60 fps / changing frame rate), saved on the phone for its own preview and
+     * export -> [{ name, path, w, h }] (clips that need none are left out) */
+    async copies() {
+      const list = ((studio() as unknown as { copies?: () => { i: number; name: string; blob: Blob | null; w: number; h: number }[] }).copies?.() ?? []).filter((c) => c.blob);
+      const out: { name: string; path: string; w: number; h: number }[] = [];
+      for (const c of list) {
+        const ext = /webm/.test(c.blob!.type) ? "webm" : "mp4", name = `copy-${c.i}-${c.name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "_").slice(0, 60)}.${ext}`;
+        const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(name)}`, { method: "PUT", body: c.blob });
+        if (r.ok) out.push({ name: c.name, path: String((await r.json()).path), w: c.w, h: c.h });
+      }
+      return out;
     },
     async answer(a) { const b = $({ ok: "cconfok", no: "cconfno" }[String(a.pick)] ?? "cconfx"); b?.click(); return { ok: !!b }; },
     async exportReel(a) {

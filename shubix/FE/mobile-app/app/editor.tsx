@@ -690,12 +690,24 @@ export default function EditorScreen() {
     <View className="flex-1 bg-background">
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview clip={clip} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <View className="mx-4 mt-2">
           <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
-        <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
+        <View className="mx-4 mt-3"><AskShubix onAsk={async (t) => {
+          // a Reel the studio made and still holds: Shubix AI itself (the website's chat: its credit question asked here,
+          // its plan applied there, the clips back here); otherwise the phone's own changes below
+          if (p.studio && engine.holds(p.id)) {
+            try {
+              setPlaying(false);
+              const r = await engine.chat(p, t);
+              if (r) {
+                if (r.clips) { const next = r.clips; setP((old) => old ? { ...old, clips: next, ...(r.overlays ? { overlays: r.overlays } : {}), studio: true } : old); setSelected(0); }
+                return r.answer;
+              }
+            } catch (e) { return errorMessage(e); }
+          }
           const bulk = parseBulkVisualCommand(t);
           if (bulk?.unsupportedTransition) {
             return words("{transition} is not available in the current Android export engine yet. I did not change your clips. Choose Fade in, Whip pan, Zoom, Flash, Spin, Slide, Blur or Swipe up instead.", { transition: words(bulk.unsupportedTransition) });

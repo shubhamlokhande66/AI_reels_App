@@ -121,6 +121,17 @@ export const engine = {
     return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
   },
   exportReel: (name: string) => call<{ path: string; size: number }>("exportReel", { name }).then((r) => ({ uri: `file://${r.path}`, size: r.size })),
+  /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the
+   * phone's preview and export play these, so heavy footage never stutters or stalls (`name`: the clip as sent) */
+  copies: () => call<{ name: string; path: string; w: number; h: number }[]>("copies").catch(() => []),
+  /** Ask Shubix from the editor: the website's own AI chat on the Reel the studio holds; its plan is applied there and
+   * the Reel's clips come back (null: the studio does not hold this Reel) */
+  chat: async (p: ReelProject, text: string) => {
+    if (!engine.holds(p.id)) return null;
+    await engine.edit(p).catch(() => false);
+    const r = await call<{ answer: string; applied: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("chat", { text });
+    return { answer: r.answer, clips: r.applied && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null, overlays: r.state?.overlays };
+  },
 };
 
 // the studio's speeds as the phone plays them (ramps, freezes and curves play at 1× here; the studio's export keeps them)

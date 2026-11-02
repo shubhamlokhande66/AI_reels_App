@@ -86,7 +86,10 @@ function CreateFlowScreen() {
         // each clip numbered (phones name many clips the same): the ones the studio kept, in its order
         const kept = (await engine.clips(clips.map((c, i) => ({ uri: c.uri, name: `${i + 1}-${c.name}` })))).names;
         at(0.7, 2);
-        const sources = kept.map((n) => clips[parseInt(n, 10) - 1]).filter((c): c is ProjectClip => !!c);
+        // heavy clips (4K / HDR / 60 fps / a changing frame rate): the studio's smooth copies play instead (the phone's
+        // preview and export decode them easily; the Reel is the same)
+        const copies = new Map((await engine.copies()).map((c) => [c.name, c]));
+        const sources = kept.map((n) => { const c = clips[parseInt(n, 10) - 1], copy = copies.get(n); return c && copy ? { ...c, uri: `file://${copy.path}` } : c; }).filter((c): c is ProjectClip => !!c);
         clips = shotsOf((await engine.ready(id)).state.edit, sources.length ? sources : clips); studio = true;
       } else clips = clips.map((c) => ({ ...c, speed }));
       at(0.92, 3);
