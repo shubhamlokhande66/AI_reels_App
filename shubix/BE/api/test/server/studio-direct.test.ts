@@ -318,7 +318,11 @@ describe("Shubix AI as the editor: texts and other tools", () => {
     expect(t).toMatchObject({ text: "WELCOME", style: "cutout", size: 3, focus: 0.64 });
     expect(t.keys.map((k) => [k.at, k.s, k.ez])).toEqual([[0.5, 1, "inOut"], [2, 40, "inOut"]]);
   });
-  it("keeps only the tools the studio has, in order", () => {
+  it("keeps a shot's mask, in range", () => {
+    const out = parsePlan(req(2), { slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { mk: { s: "heart", x: 2, y: 0.4, w: 0.5, h: 0.5, a: 400, f: 0.1, inv: true, c: "#ff0000" } } }, { i: 1, shot: "1a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { mk: { s: "blob" } } }], story: "" });
+    expect(out.slots[0].clip?.mk).toEqual({ s: "heart", x: 1, y: 0.4, w: 0.5, h: 0.5, a: 180, f: 0.1, inv: true, c: "#FF0000" });
+    expect(out.slots[1].clip).toBeUndefined();
+  });  it("keeps only the tools the studio has, in order", () => {
     const out = cleanActions([{ do: "LAYER", clip: "c2", start: 1 }, { do: "hack" }, { do: "look", name: "cine" }]);
     expect(out.map((a) => a.do)).toEqual(["layer", "look"]);
   });

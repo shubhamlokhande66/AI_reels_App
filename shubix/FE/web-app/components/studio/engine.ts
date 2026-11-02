@@ -4685,7 +4685,7 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
-  if(layers.length) drawLayers(og, t);
+  shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -4945,8 +4945,31 @@ for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null };
-const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null };
+/* ---- a shot's mask (Clip tools -> Mask, CapCut's Mask): the shot shows only inside a shape (or outside it, inverted);
+ * the rest is a colour. Drawn over the finished shot, before the boxes and texts, by both renderers and in the export. ---- */
+let mkBuf = null;
+function maskPath(q, m, W, H){
+  const w = m.w*W, h = m.h*W, R = Math.hypot(W, H)*2;   // sized on the width, so a circle stays round
+  q.translate(m.x*W, m.y*H); q.rotate((m.a || 0)*Math.PI/180); q.beginPath();
+  if(m.s === 'rect') q.rect(-w/2, -h/2, w, h);
+  else if(m.s === 'heart'){ const s = w/2; q.moveTo(0, s*0.9); q.bezierCurveTo(-s*1.7, -s*0.15, -s*0.65, -s*1.35, 0, -s*0.45); q.bezierCurveTo(s*0.65, -s*1.35, s*1.7, -s*0.15, 0, s*0.9); }
+  else if(m.s === 'star'){ for(let k = 0; k < 10; k++){ const r = k % 2 ? w*0.21 : w/2, a = -Math.PI/2 + k*Math.PI/5; q.lineTo(Math.cos(a)*r, Math.sin(a)*r); } q.closePath(); }
+  else if(m.s === 'split') q.rect(-R, 0, 2*R, R);      // one side of a line through the centre
+  else if(m.s === 'film') q.rect(-R, -h/2, 2*R, h);    // a band across the frame
+  else q.ellipse(0, 0, w/2, h/2, 0, 0, 2*Math.PI);
+}
+function shotMask(t){
+  const e = edit[segAt(t)], m = e && e.cs && e.cs.mk; if(!m) return;
+  const W = out.width, H = out.height;
+  if(!mkBuf) mkBuf = document.createElement('canvas');
+  if(mkBuf.width !== W || mkBuf.height !== H){ mkBuf.width = W; mkBuf.height = H; }
+  const q = mkBuf.getContext('2d'); q.setTransform(1, 0, 0, 1, 0, 0); q.filter = 'none'; q.globalCompositeOperation = 'source-over'; q.clearRect(0, 0, W, H);
+  const soft = m.f > 0.005 ? 'blur(' + Math.round(m.f*W*0.4) + 'px)' : 'none';
+  if(!m.inv){ q.fillStyle = m.c || '#000000'; q.fillRect(0, 0, W, H); q.globalCompositeOperation = 'destination-out'; }
+  q.save(); q.filter = soft; maskPath(q, m, W, H); q.fillStyle = m.inv ? (m.c || '#000000') : '#000'; q.fill(); q.restore();
+  og.drawImage(mkBuf, 0, 0);
+}const csOf = e => e && e.cs ? { ...CS0, ...e.cs } : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];   // display -> source, per quarter turn
 // display uv -> source uv: the picture is turned, then mirrored / flipped
 function csMat(c){ const R = ROTI[(c.rot/90)&3], fx = c.fh ? -1 : 1, fy = c.fv ? -1 : 1; return [R[0]*fx, R[1]*fy, R[2]*fx, R[3]*fy]; }
@@ -5156,7 +5179,7 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
-  if(layers.length) drawLayers(og, t);
+  shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();

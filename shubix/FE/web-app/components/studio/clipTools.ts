@@ -8,7 +8,11 @@ export type ClipCs = {
   i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
   bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; crown?: string[]; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
   mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
+  mk?: Mask | null;
 };
+/** a mask on the shot (CapCut's Mask): its shape, centre, size, turn (degrees), soft edge, inverted, the colour outside it */
+export type Mask = { s: string; x: number; y: number; w: number; h: number; a: number; f: number; inv: boolean; c: string };
+export const MASKS: [string, string][] = [["circle", "Circle"], ["rect", "Rectangle"], ["heart", "Heart"], ["star", "Star"], ["split", "Split"], ["film", "Filmstrip"]];
 export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
 
 const I = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -30,6 +34,7 @@ export const CLIP_TOOLS: [string, string, string][] = [
   ["beauty", "Beauty", I('<circle cx="12" cy="10" r="6"/><path d="M9 9h.01M15 9h.01M9.5 12.5a3.5 3.5 0 0 0 5 0M6 21c1.5-3 4-4 6-4s4.5 1 6 4"/>')],
   ["fade", "Fade", I('<path d="M3 20L12 4l9 16z"/><path d="M12 4v16" stroke-dasharray="2 2"/>')],
   ["mosaic", "Mosaic", I('<rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/>')],
+  ["mask", "Mask", I('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" opacity=".35"/>')],
   ["lens", "Magnifier", I('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5"/>')],
   ["slip", "Slip", I('<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/>')],
   ["trim", "Trim", I('<path d="M7 4v16M17 4v16M7 12h10"/>')],
@@ -50,14 +55,14 @@ const SLIDE_IC: Record<string, string> = {
 };
 const slider = (k: string, label: string, v: number, min: number, max: number, step: number, unit = "") =>
   `<label class="cslide${SLIDE_IC[k] ? " csi" : ""}">${SLIDE_IC[k] ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLIDE_IC[k]}</svg>` : ""}<span>${label}</span><input type="range" data-s="${k}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${fmtV(v, unit)}</output></label>`;
-const fmtV = (v: number, unit: string) => unit === "st" ? `${v > 0 ? "+" : ""}${Math.round(v)}` : unit === "s" ? `${v.toFixed(1)} s` : unit === "x" ? `${v.toFixed(1)}×` : unit === "%" ? `${Math.round(v * 100)}%` : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
+const fmtV = (v: number, unit: string) => unit === "°" ? `${Math.round(v)}°` : unit === "st" ? `${v > 0 ? "+" : ""}${Math.round(v)}` : unit === "s" ? `${v.toFixed(1)} s` : unit === "x" ? `${v.toFixed(1)}×` : unit === "%" ? `${Math.round(v * 100)}%` : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
 const swatches = (k: string, cur: string) => `<span class="cswatch">${SWATCH.map((c) => `<button type="button" data-col="${k}" data-v="${c}" aria-pressed="${c === cur}" aria-label="Colour ${c}" style="background:${c}"></button>`).join("")}</span>`;
-const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5, y: 0.45, r: 0.18, z: 2 };
+const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5, y: 0.45, r: 0.18, z: 2 }, DEF_MK: Mask = { s: "circle", x: 0.5, y: 0.5, w: 0.7, h: 0.7, a: 0, f: 0.04, inv: false, c: "#000000" };
 
 /** The row of tools and the open tool's controls */
 export function clipToolsHtml(c: ClipCs, open: string): string {
   const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
-    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : false;
+    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : k === "mask" ? !!c.mk : false;
   const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${CLIP_TOOLS.map(([k, n, ic]) =>
     `<button type="button" class="ct ${Tile} min-w-[62px]"${on(k) ? " data-on" : ""} data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
@@ -80,6 +85,9 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
     : slider("mz.x", "Left", c.mz.x, 0, 0.95, 0.01, "%") + slider("mz.y", "Top", c.mz.y, 0, 0.95, 0.01, "%") + slider("mz.w", "Width", c.mz.w, 0.05, 1, 0.01, "%") + slider("mz.h", "Height", c.mz.h, 0.05, 1, 0.01, "%") + slider("mz.s", "Block size", c.mz.s, 0.01, 0.1, 0.005, "%") + `<button type="button" class="${Chip}" data-act="mz-off">Remove mosaic</button>`;
   else if (open === "lens") body = !c.mg ? `<button type="button" class="${Chip}" data-act="mg-on">Add magnifier</button>${need("A round lens that zooms into one spot.")}`
     : slider("mg.x", "Across", c.mg.x, 0, 1, 0.01, "%") + slider("mg.y", "Down", c.mg.y, 0, 1, 0.01, "%") + slider("mg.r", "Size", c.mg.r, 0.05, 0.45, 0.01, "%") + slider("mg.z", "Zoom", c.mg.z, 1.2, 4, 0.1, "x") + `<button type="button" class="${Chip}" data-act="mg-off">Remove magnifier</button>`;
+  else if (open === "mask") body = `<div class="chips">${MASKS.map(([k, n]) => `<button type="button" class="${Chip}" data-mk="${k}" aria-pressed="${c.mk?.s === k}">${n}</button>`).join("")}</div>`
+    + (!c.mk ? need("Shows the shot only inside a shape (or outside it, inverted); the rest is a colour.") : slider("mk.x", "Across", c.mk.x, 0, 1, 0.01, "%") + slider("mk.y", "Down", c.mk.y, 0, 1, 0.01, "%") + slider("mk.w", "Width", c.mk.w, 0.05, 1.5, 0.01, "%") + slider("mk.h", "Height", c.mk.h, 0.05, 1.5, 0.01, "%")
+      + slider("mk.a", "Turn", c.mk.a, -180, 180, 1, "°") + slider("mk.f", "Soft edge", c.mk.f, 0, 0.3, 0.01, "%") + swatches("mk.c", c.mk.c) + `<div class="chips"><button type="button" class="${Chip}" data-act="mk-inv" aria-pressed="${c.mk.inv}">Invert</button><button type="button" class="${Chip}" data-act="mk-off">Remove mask</button></div>`);
   else if (open === "slip") body = `<div class="chips"><button type="button" class="${Chip}" data-slip="-1">◀ 1 s earlier</button><button type="button" class="${Chip}" data-slip="-0.25">◀ ¼ s</button><button type="button" class="${Chip}" data-slip="0.25">¼ s ▶</button><button type="button" class="${Chip}" data-slip="1">1 s later ▶</button></div>${need("Shows an earlier or later moment of the same clip. The shot keeps its place on the beat.")}`;
   else if (open === "trim") body = `<div class="chips"><button type="button" class="${Chip}" data-trim="-1">Shorter by a beat</button><button type="button" class="${Chip}" data-trim="1">Longer by a beat</button></div>${need("The cut moves one beat; the next shot starts there.")}`;
   const reset = `<button type="button" class="${Chip} text-muted" data-act="reset">Reset this shot</button>`;
@@ -107,21 +115,24 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
     else if (act === "mz-off") A.shotSet({ mz: null });
     else if (act === "mg-on") A.shotSet({ mg: { ...DEF_MG } });
     else if (act === "mg-off") A.shotSet({ mg: null });
+    else if (act === "mk-off") A.shotSet({ mk: null });
+    else if (act === "mk-inv" && c.mk) A.shotSet({ mk: { ...c.mk, inv: !c.mk.inv } });
     else if (act === "reset") A.shotSet(null);
     else if (act === "extract") void A.shotExtract();
     else if (act === "crop-auto") A.shotSet({ zoom: 1, cx: null, cy: null });
+    const mk = t.closest<HTMLElement>("[data-mk]")?.dataset.mk; if (mk) A.shotSet({ mk: { ...(c.mk ?? DEF_MK), s: mk } });
     const bg = t.closest<HTMLElement>("[data-bg]")?.dataset.bg; if (bg) A.shotSet({ bg: bg === "blur" ? "blur" : "color" });
-    const col = t.closest<HTMLElement>("[data-col]"); if (col) A.shotSet({ [col.dataset.col!]: col.dataset.v } as Partial<ClipCs>);
+    const col = t.closest<HTMLElement>("[data-col]"); if (col) A.shotSet(col.dataset.col === "mk.c" ? { mk: { ...(c.mk ?? DEF_MK), c: col.dataset.v! } } : { [col.dataset.col!]: col.dataset.v } as Partial<ClipCs>);
     const sl = t.closest<HTMLElement>("[data-slip]")?.dataset.slip; if (sl) A.shotSlip(+sl);
     const tr = t.closest<HTMLElement>("[data-trim]")?.dataset.trim; if (tr) A.shotTrim(+tr);
-    if (act || bg || col || sl || tr) rerender();
+    if (act || bg || col || sl || tr || mk) rerender();
   }, sig);
   // sliders change the picture while they move; the tools are drawn again when they are let go
   const fromSlider = (el: HTMLInputElement) => {
     const A = api(), c = A?.shotCs(); if (!A || !c) return; const k = el.dataset.s!, v = +el.value;
-    const out = el.parentElement?.querySelector("output"); if (out) { const unit = k === "pitch" ? "st" : k === "mus" ? "%" : /^(fin|fout)$/.test(k) ? "s" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
+    const out = el.parentElement?.querySelector("output"); if (out) { const unit = k === "pitch" ? "st" : k === "mus" ? "%" : /^(fin|fout)$/.test(k) ? "s" : k === "mk.a" ? "°" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|mk|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
     if (k === "cx" || k === "cy") A.shotSet({ cx: k === "cx" ? v : c.cx ?? 0.5, cy: k === "cy" ? v : c.cy ?? 0.5 });
-    else if (k.includes(".")) { const [o, f] = k.split(".") as ["mz" | "mg" | "curve", string]; A.shotSet({ [o]: { ...(c[o] as object), [f]: v } } as Partial<ClipCs>); }
+    else if (k.includes(".")) { const [o, f] = k.split(".") as ["mz" | "mg" | "mk" | "curve", string]; A.shotSet({ [o]: { ...(c[o] as object), [f]: v } } as Partial<ClipCs>); }
     else A.shotSet({ [k]: v } as Partial<ClipCs>);
   };
   box.addEventListener("input", (ev) => { const el = ev.target as HTMLInputElement; if (el.dataset.s) fromSlider(el); }, sig);
