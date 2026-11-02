@@ -9,6 +9,8 @@ import { GLYPH_PATHS } from "@shubix/ui-web";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
 export { DOCK_CATEGORIES_DEF, SHOT_TOOLS_DEF };
 import { Button, Chip, Segmented, Tile } from "./ui";
+/** shapes: drawn in the text's colour, so they take every text tool (keyframes, entrances, exits, loops) */
+export const SHAPES = ["■", "●", "▲", "★", "♥", "◆", "➜", "━", "○", "□"];
 
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
@@ -476,6 +478,7 @@ export const STUDIO_HTML = `
               <button class="${Button.secondary}" id="ovtext" type="button">+ Text</button><button class="${Button.secondary}" id="ovsticker" type="button">+ Sticker</button>
               <select id="ovpreset" aria-label="Ready-made text"><option value="">+ Ready-made…</option><option value="price">Price tag ₹</option><option value="follow">Follow for more</option><option value="save">Save this</option><option value="step1">Step 1</option><option value="before">BEFORE</option><option value="after">AFTER</option><option value="ganpati">गणपती बाप्पा मोरया</option><option value="diwali">शुभ दीपावली</option><option value="hdiwali">Happy Diwali</option></select>
             </div>
+            <div class="row" id="ovshapes" role="group" aria-label="Shapes"><span class="fname">Shapes:</span>${SHAPES.map((s) => `<button type="button" class="${Button.small}" data-shape="${s}">${s}</button>`).join("")}</div>
             <div class="emojis" id="emojis" hidden></div>
             <div class="ovlist" id="ovlist"></div>
             <p class="hint" id="ovhint" hidden>Drag a text or sticker on the preview to move it; pinch it with two fingers, or drag its yellow corner, to make it bigger or smaller. Pause the preview where it should start or end.</p>

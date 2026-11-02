@@ -4061,7 +4061,8 @@ function loadFont(key){
 function redrawSoon(){ clearTimeout(redrawSoon.h); redrawSoon.h = setTimeout(() => { if(!playing && edit.length) redraw(); }, 50); }
 const ovFont = (ov, fs, weight) => { const f = OV_FONTS[ov.font]; if(!f || !f[1]) return fontFor(ov.text, fs, weight); loadFont(ov.font);
   return `${weight} ${fs}px "${f[0]}", ${isIndic(ov.text) ? '"Noto Sans Devanagari", ' : ''}"Arial Black", sans-serif`; };
-const OV_ANIMS = { pop: 'Pop', fade: 'Fade', slide: 'Slide up', type: 'Typewriter', none: 'None' };
+const OV_ANIMS = { pop: 'Pop', fade: 'Fade', slide: 'Slide up', type: 'Typewriter', zoom: 'Zoom in', drop: 'Drop in', blur: 'Blur in', spin: 'Spin in', flicker: 'Flicker', glitch: 'Glitch', none: 'None' };
+const OV_OUTS = { none: 'None', fade: 'Fade out', pop: 'Pop out', slide: 'Slide down', zoom: 'Zoom out', blur: 'Blur out', spin: 'Spin out' };   // how it leaves (its last 0.3 s)
 const OV_LOOPS = { none: 'Still', bounce: 'Bounce', spin: 'Spin', wiggle: 'Wiggle', pulse: 'Pulse', float: 'Float', swing: 'Swing', shake: 'Shake' };   // keeps moving while it shows
 const OV_EMOJI = ['🔥','😂','😍','👇','👉','✅','❌','⭐','💯','🎉','❤️','👀','🙏','🪔','🌺','🎵','📍','💰','⚡','😱'];
 const OV_PRESETS = {
@@ -4104,7 +4105,7 @@ function aiTexts(list){
   if(!Array.isArray(list) || !list.length) return 0;
   const D = reelLen();
   overlays = overlays.filter(o => o.aiIntent !== 'ai').concat(list.map(x => ({ id: ++ovSeq, aiIntent: 'ai', text: x.text, emoji: !!x.emoji, style: x.style, color: x.color, anim: x.anim,
-    loop: x.loop === 'none' ? undefined : x.loop, font: x.font || undefined, behind: !!x.behind, track: !!x.track, x: x.x, y: x.y, size: x.size, all: false, ...(Number.isFinite(x.focus) ? { focus: x.focus } : {}),
+    loop: x.loop === 'none' ? undefined : x.loop, out: x.out === 'none' ? undefined : x.out, font: x.font || undefined, behind: !!x.behind, track: !!x.track, x: x.x, y: x.y, size: x.size, all: false, ...(Number.isFinite(x.focus) ? { focus: x.focus } : {}),
     t0: Math.max(0, Math.min(D - 0.1, x.start)), t1: Math.max(0.1, Math.min(D, x.end)), uk: (x.keys || []).map(k => ({ t: k.at, x: k.x, y: k.y, s: k.s, r: k.r, o: k.o, ez: k.ez })) })));
   overlays.filter(o => o.font).forEach(o => loadFont(o.font).then(redraw));
   ovSel = -1; renderOvList(); redraw(); return list.length;
@@ -4160,7 +4161,7 @@ function drawOverlay(g, ov, t){
   }
   const base = Math.min(W, H*0.5625), since = t - a, left = b - t;
   const fs = Math.round(base*(ov.emoji ? 0.16 : 0.075)*ov.size);
-  let alpha = Math.min(1, left/0.15), sc = 1, dy = 0, txt = ov.emoji ? ov.text : (isIndic(ov.text) ? ov.text : ov.text);
+  let blurPx = 0, turn = 0, glitchPx = 0, alpha = (ov.out && ov.out !== 'none') ? 1 : Math.min(1, left/0.15), sc = 1, dy = 0, txt = ov.emoji ? ov.text : (isIndic(ov.text) ? ov.text : ov.text);
   // paused in the editor: a text shows as it will look once in (its entrance played), so a text just added, or one being
   // keyframed at its first moment, is there to see and to drag (at its first frame it would still be invisible)
   const still = !playing && !recording && !exporting;
@@ -4169,6 +4170,16 @@ function drawOverlay(g, ov, t){
     else if(ov.anim === 'fade') alpha *= Math.min(1, since/0.35);
     else if(ov.anim === 'slide'){ const q = Math.min(1, since/0.3); dy = (1 - EASE.outCubic(q))*fs*1.2; alpha *= q; }
     else if(ov.anim === 'type'){ const chars = [...txt]; txt = chars.slice(0, Math.max(1, Math.ceil(since/0.05))).join(''); }
+    else if(ov.anim === 'zoom'){ const q = Math.min(1, since/0.3); sc = 2.4 - 1.4*EASE.outCubic(q); alpha *= q; }
+    else if(ov.anim === 'drop'){ const q = Math.min(1, since/0.45); dy = -(1 - EASE.outBack(q))*fs*3; alpha *= Math.min(1, since/0.1); }
+    else if(ov.anim === 'blur'){ const q = Math.min(1, since/0.4); blurPx = (1 - q)*fs*0.4; alpha *= q; }
+    else if(ov.anim === 'spin'){ const q = Math.min(1, since/0.4); turn = (1 - EASE.outCubic(q))*-180; sc = 0.3 + 0.7*EASE.outCubic(q); alpha *= q; }
+    else if(ov.anim === 'flicker'){ if(since < 0.5) alpha *= [1, 0, 1, 0.2, 1, 0, 1][Math.floor(since/0.07)] ?? 1; }
+    else if(ov.anim === 'glitch'){ if(since < 0.45){ const j = Math.floor(since*40); dy = ((j*37) % 7 - 3)*fs*0.04; glitchPx = ((j*53) % 9 - 4)*fs*0.05; } }
+    // the exit, in the text's last 0.3 s
+    const q2 = Math.max(0, 1 - left/0.3);
+    if(ov.out && q2 > 0){ if(ov.out === 'fade') alpha *= 1 - q2; else if(ov.out === 'pop'){ sc *= 1 - 0.7*EASE.inOut(q2); alpha *= 1 - q2; } else if(ov.out === 'slide'){ dy += q2*q2*fs*1.5; alpha *= 1 - q2; }
+      else if(ov.out === 'zoom'){ sc *= 1 + 1.6*q2*q2; alpha *= 1 - q2; } else if(ov.out === 'blur'){ blurPx += q2*fs*0.4; alpha *= 1 - q2; } else if(ov.out === 'spin'){ turn += q2*q2*180; sc *= 1 - 0.7*q2; alpha *= 1 - q2; } }
     if(ov.emoji) sc *= 1 + 0.05*Math.sin(t*6);   // stickers breathe a little
   }
   let lx = 0, ly = 0, lr = 0;   // a sticker / text that keeps moving (its loop)
@@ -4178,7 +4189,7 @@ function drawOverlay(g, ov, t){
     else if(ov.loop === 'swing') lr = Math.sin(w*0.8)*18; else if(ov.loop === 'shake'){ lx = Math.sin(since*97)*fs*0.06; ly = Math.cos(since*71)*fs*0.05; } }
   const u = uAt(ov.uk, since);   // the creator's keyframes: moved, sized, turned, faded over its time
   if(u){ sc *= Math.max(0.01, u.s); alpha *= Math.max(0, Math.min(1, u.o)); }
-  g.save(); g.globalAlpha = Math.max(0, alpha);
+  g.save(); g.globalAlpha = Math.max(0, alpha); if(blurPx > 0.5) g.filter = 'blur(' + Math.round(blurPx) + 'px)';
   g.font = ov.emoji ? `${fs}px "Apple Color Emoji","Noto Color Emoji","Segoe UI Emoji",sans-serif` : ovFont(ov, fs, ov.style === 'clean' ? 600 : 800);
   g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round';
   const lines = ov.emoji ? [txt] : wrapLines(g, txt, W*0.82), lh = fs*1.18;
@@ -4194,7 +4205,8 @@ function drawOverlay(g, ov, t){
   ov.box = [(cx - (tw/2 + fs*0.4)*bs)/W, (cy - (th/2 + fs*0.3)*bs)/H, (tw + fs*0.8)*bs/W, (th + fs*0.6)*bs/H];
   // focus: where along the text it is sized and turned around (0.64: the O of WELCOME), so the frame can fly through one letter
   const fx = Number.isFinite(ov.focus) ? (ov.focus - 0.5)*tw : 0;
-  g.translate(cx + lx + fx, cy + ly); if((u && u.r) || lr) g.rotate(((u && u.r) || 0)*Math.PI/180 + lr*Math.PI/180); g.scale(sc, sc); if(fx) g.translate(-fx, 0);
+  g.translate(cx + lx + fx, cy + ly); if((u && u.r) || lr || turn) g.rotate(((u && u.r) || 0)*Math.PI/180 + (lr + turn)*Math.PI/180); g.scale(sc, sc); if(fx) g.translate(-fx, 0);
+  if(glitchPx){ g.save(); g.globalAlpha *= 0.6; g.fillStyle = '#ff2a6d'; lines.forEach((l, k) => g.fillText(l, glitchPx, (k - (lines.length-1)/2)*lh)); g.fillStyle = '#05d9e8'; lines.forEach((l, k) => g.fillText(l, -glitchPx, (k - (lines.length-1)/2)*lh)); g.restore(); }
   const dark = c => { const n = parseInt(c.slice(1), 16); return ((n>>16)*0.299 + ((n>>8)&255)*0.587 + (n&255)*0.114) < 140; };
   if(!ov.emoji && (ov.style === 'box' || ov.style === 'tag')){
     const tag = ov.style === 'tag', pw = tw + fs*(tag ? 1.05 : 0.6), ph = th + fs*0.36, r = tag ? fs*0.5 : fs*0.2;
@@ -4262,7 +4274,7 @@ function renderOvList(){
       <div class="ovpane" data-p="font"><div class="ovfrow"><select class="ovf" aria-label="Font"></select><label class="ovsz">Size <input type="range" min="0.3" max="4" step="0.05" aria-label="Size"></label></div>
         <div class="ovcrow"><span class="ovclab">Color</span><span class="ovc"></span><label class="ovpick" title="Any colour"><input type="color" class="ovcol" aria-label="Any colour"></label></div></div>
       <div class="ovpane" data-p="style"><select class="ovs" aria-label="Style" hidden></select><div class="ovchips" data-for="ovs"></div></div>
-      <div class="ovpane" data-p="anim"><select class="ova" aria-label="Entrance" hidden></select><div class="ovchips" data-for="ova"></div></div>
+      <div class="ovpane" data-p="anim"><select class="ova" aria-label="Entrance" hidden></select><div class="ovchips" data-for="ova"></div><select class="ovo" aria-label="Exit" hidden></select><div class="ovchips" data-for="ovo"></div></div>
       <div class="ovpane" data-p="loop"><select class="ovl" aria-label="Keeps moving" hidden></select><div class="ovchips" data-for="ovl"></div></div>
       <div class="ovctl ovflags"><label class="tog switch"><input type="checkbox" class="ovtrk"> Follow the person</label><label class="tog switch"><input type="checkbox" class="ovbeh"> Behind the person</label><label class="tog switch"><input type="checkbox" class="ovall"> Whole Reel</label></div>
       <div class="ovctl ovtime"><span class="ovtl">Start</span><button class="${Button.small} ovfrom" title="Start where the playhead is">Here</button><span class="fname ovtm"></span><span class="ovtl">End</span><button class="${Button.small} ovto" title="End where the playhead is">Here</button><button class="${Button.small} ovdel2" type="button">Delete</button></div>`;
@@ -4274,6 +4286,7 @@ function renderOvList(){
     Object.entries(OV_STYLES).forEach(([k, v]) => ss.add(new Option(crown('text', k, v), k, false, k === ov.style)));
     Object.entries(OV_ANIMS).forEach(([k, v]) => sa.add(new Option(v, k, false, k === ov.anim)));
     ss.addEventListener('change', () => { ov.style = ss.value; redraw(); }); sa.addEventListener('change', () => { ov.anim = sa.value; redraw(); });
+    const so = row.querySelector('.ovo'); Object.entries(OV_OUTS).forEach(([k, v]) => so.add(new Option(v, k, false, k === (ov.out || 'none')))); so.addEventListener('change', () => { ov.out = so.value === 'none' ? undefined : so.value; redraw(); });
     const sl = row.querySelector('.ovl'); Object.entries(OV_LOOPS).forEach(([k, v]) => sl.add(new Option(v, k, false, k === (ov.loop || 'none')))); sl.addEventListener('change', () => { ov.loop = sl.value === 'none' ? undefined : sl.value; redraw(); });
     const sf = row.querySelector('.ovf'); if(ov.emoji) sf.hidden = true;
     Object.entries(OV_FONTS).forEach(([k, v]) => sf.add(new Option(crown('font', k, v[0]), k, false, k === (ov.font || 'auto'))));
@@ -4311,6 +4324,8 @@ function renderOvList(){
 }
 $('ovtext').addEventListener('click', () => { const ov = addOverlay({ text: 'Your text', style: 'bold', color: '#FFFFFF', y: 0.4 }); const inp = $('ovlist').lastElementChild.querySelector('.ovt'); inp.focus(); inp.select(); }, SIG);
 $('ovsticker').addEventListener('click', () => { $('emojis').hidden = !$('emojis').hidden; }, SIG);
+// a shape: a text of one sign, in the text's colour (so every text tool works on it); ︎ keeps it a plain sign, not an emoji
+$('ovshapes').addEventListener('click', e => { const b = e.target.closest('[data-shape]'); if(b) addOverlay({ text: b.dataset.shape + '︎', style: 'clean', size: 2.2 }); }, SIG);
 OV_EMOJI.forEach(em => { const b = document.createElement('button'); b.textContent = em; b.className = 'em'; b.setAttribute('aria-label', 'Sticker ' + em);
   b.addEventListener('click', () => { addOverlay({ text: em, emoji: true, y: 0.5, x: 0.72, size: 1 }); $('emojis').hidden = true; }); $('emojis').appendChild(b); });
 $('ovpreset').addEventListener('change', e => { const p = OV_PRESETS[e.target.value]; e.target.value = ''; if(p) addOverlay(p); }, SIG);
@@ -6701,11 +6716,11 @@ async function ensureMix(){
  * Automatic ones follow the edit (a whoosh into a push / swipe / whip / zoom / spin, a boom on a flash into a drop, a
  * click on a photo snap or a freeze, a pop when a text or sticker pops in); the creator adds more at the playhead. ---- */
 let sfxList = [], sfxSeq = 0;
-const SFX_NAMES = { whoosh: 'Whoosh', pop: 'Pop', boom: 'Boom', click: 'Camera click', riser: 'Riser', ding: 'Ding' };
+const SFX_NAMES = { whoosh: 'Whoosh', pop: 'Pop', boom: 'Boom', click: 'Camera click', riser: 'Riser', ding: 'Ding', swish: 'Swish', impact: 'Impact', glitch: 'Glitch', laser: 'Laser', heartbeat: 'Heartbeat', tick: 'Tick', chime: 'Chime', drop: 'Bass drop', rewind: 'Rewind', notify: 'Notification' };
 const sfxCache = new Map();
 function sfxSynth(kind, sr){
   const key = kind + sr; if(sfxCache.has(key)) return sfxCache.get(key);
-  const len = { whoosh: 0.42, pop: 0.09, boom: 0.9, click: 0.09, riser: 1.2, ding: 0.7 }[kind] || 0.3, n = Math.round(len*sr), y = new Float32Array(n);
+  const len = { whoosh: 0.42, pop: 0.09, boom: 0.9, click: 0.09, riser: 1.2, ding: 0.7, swish: 0.22, impact: 0.6, glitch: 0.35, laser: 0.3, heartbeat: 0.8, tick: 0.03, chime: 1.4, drop: 1.4, rewind: 0.7, notify: 0.45 }[kind] || 0.3, n = Math.round(len*sr), y = new Float32Array(n);
   let seed = 7; const rnd = () => { seed = (seed*16807) % 2147483647; return seed/2147483647*2 - 1; };
   let lp = 0, ph = 0;
   for(let i = 0; i < n; i++){ const t = i/sr, f = t/len;
@@ -6714,7 +6729,17 @@ function sfxSynth(kind, sr){
     else if(kind === 'boom'){ ph += 2*Math.PI*(70 - 30*f)/sr; y[i] = Math.sin(ph)*Math.exp(-t/0.28) + rnd()*0.3*Math.exp(-t/0.03); }
     else if(kind === 'click'){ y[i] = rnd()*(Math.exp(-t/0.004) + (t > 0.045 ? 0.7*Math.exp(-(t - 0.045)/0.006) : 0)); }
     else if(kind === 'riser'){ const a = Math.exp(-2*Math.PI*(300 + 6000*f*f)/sr); lp = (1 - a)*rnd() + a*lp; ph += 2*Math.PI*(200 + 900*f*f)/sr; y[i] = (lp*1.4 + Math.sin(ph)*0.25)*f*f; }
-    else if(kind === 'ding'){ y[i] = (Math.sin(2*Math.PI*1320*t) + 0.5*Math.sin(2*Math.PI*1980*t))*Math.exp(-t/0.18)*0.7; } }
+    else if(kind === 'ding'){ y[i] = (Math.sin(2*Math.PI*1320*t) + 0.5*Math.sin(2*Math.PI*1980*t))*Math.exp(-t/0.18)*0.7; }
+    else if(kind === 'swish'){ const a = Math.exp(-2*Math.PI*(2500 + 6000*f)/sr); lp = (1 - a)*rnd() + a*lp; y[i] = (rnd() - lp)*Math.sin(Math.PI*f)**2; }
+    else if(kind === 'impact'){ ph += 2*Math.PI*(55 - 20*f)/sr; y[i] = Math.tanh(2*Math.sin(ph))*Math.exp(-t/0.2) + rnd()*0.6*Math.exp(-t/0.015); }
+    else if(kind === 'glitch'){ const blk = Math.floor(t*40); ph += 2*Math.PI*(200 + (blk*397 % 1800))/sr; y[i] = ((blk % 3) ? Math.sign(Math.sin(ph))*0.5 : rnd()*0.7)*(blk % 5 === 4 ? 0 : 1); }
+    else if(kind === 'laser'){ ph += 2*Math.PI*(2400*Math.exp(-f*3) + 200)/sr; y[i] = Math.sign(Math.sin(ph))*0.4*Math.exp(-t/0.15); }
+    else if(kind === 'heartbeat'){ const b = (x, at) => { const d = x - at; return d < 0 ? 0 : Math.sin(2*Math.PI*55*d)*Math.exp(-d/0.06); }; y[i] = b(t, 0) + 0.8*b(t, 0.22); }
+    else if(kind === 'tick'){ y[i] = Math.sin(2*Math.PI*3200*t)*Math.exp(-t/0.004); }
+    else if(kind === 'chime'){ y[i] = [1, 1.5, 2, 2.67].reduce((s, m, k) => s + Math.sin(2*Math.PI*880*m*t)*Math.exp(-Math.max(0, t - k*0.08)/0.5)*(t >= k*0.08 ? 1 : 0), 0)*0.3; }
+    else if(kind === 'drop'){ ph += 2*Math.PI*(180*Math.exp(-f*4) + 35)/sr; y[i] = Math.sin(ph)*(1 - f)**0.5; }
+    else if(kind === 'rewind'){ const a = Math.exp(-2*Math.PI*(800 + 3000*(1 - f))/sr); lp = (1 - a)*rnd() + a*lp; ph += 2*Math.PI*(1400 - 1000*f)/sr; y[i] = (lp + 0.25*Math.sin(ph)*Math.sin(2*Math.PI*18*t))*Math.sin(Math.PI*f); }
+    else if(kind === 'notify'){ const tone = t < 0.15 ? 988 : 1319, d = t < 0.15 ? t : t - 0.15; y[i] = Math.sin(2*Math.PI*tone*t)*Math.exp(-d/0.12)*0.6; } }
   let pk = 0; for(const v of y) pk = Math.max(pk, Math.abs(v)); for(let i = 0; i < n; i++) y[i] *= 0.5/Math.max(1e-6, pk);
   sfxCache.set(key, y); return y;
 }
@@ -6733,6 +6758,8 @@ function sfxAdd(k){ if(!SFX_NAMES[k] || !buf) return; sfxList.push({ id: ++sfxSe
 function sfxUI(){ const box = $('sfxlist'); if(!box) return; box.innerHTML = '';
   for(const x of sfxList){ const b = document.createElement('button'); b.type = 'button'; b.className = `${Chip}`; b.textContent = SFX_NAMES[x.kind] + ' · ' + x.at.toFixed(1) + ' s ×'; b.title = 'Remove';
     b.addEventListener('click', () => { sfxList = sfxList.filter(y => y !== x); sfxUI(); clipMixKey = ''; ensureMix(); }); box.appendChild(b); } }
+// the Add buttons: one for every sound the studio makes (the list above)
+{ const box = $('sfxadd'); if(box){ box.querySelectorAll('[data-sfx]').forEach(b => b.remove()); for(const [k, v] of Object.entries(SFX_NAMES)){ const b = document.createElement('button'); b.type = 'button'; b.className = Button.small; b.dataset.sfx = k; b.textContent = v; box.appendChild(b); } } }
 $('sfxadd').addEventListener('click', e => { const b = e.target.closest('[data-sfx]'); if(b) sfxAdd(b.dataset.sfx); }, SIG);
 $('sfxon').addEventListener('change', e => { au = { ...au, sfx: e.target.checked }; clipMixKey = ''; ensureMix(); }, SIG);
 $('sfxv').addEventListener('input', e => { au = { ...au, sfxv: +e.target.value }; const o = e.target.parentElement.querySelector('output'); if(o) o.textContent = Math.round(au.sfxv*100) + '%'; clipMixKey = ''; }, SIG);
