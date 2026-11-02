@@ -455,7 +455,7 @@ export const TEXT_GROUPS: TextGroup[] = [
       C("Links", T("nav.voices", "Voice profiles", "Voice profiles"), T("nav.rewardsLink", "Invite & earn", "Invite & earn"), T("nav.home", "Home", "Home"), T("nav.music", "Music Reel", "Music Reel"), T("nav.talking", "Talking Reel", "Talking Reel"), T("nav.photo", "Photo Reel", "Photo Reel"),
         T("nav.copy", "Copy a Reel", "Copy a Reel"), T("nav.story", "Story Maker", "Story Maker"), T("nav.reels", "My Reels", "My Reels"), T("nav.templates", "Templates", "Templates"),
         T("nav.brands", "Brands", "Brands"), T("nav.pricing", "Pricing & plans", "Pricing & plans")),
-      C("Bottom", T("nav.newReel", "New Reel button", "New Reel"), T("nav.signOut", "Sign out", "Sign out"), T("nav.studioTag", "Tag next to the email", "STUDIO"), T("common.adminDashboard", "Admin dashboard", "Admin dashboard"))),
+      C("Bottom", T("nav.newReel", "New Reel button", "New Reel"), T("nav.adminDashboard", "Phone app menu: the administrators' link", "Admin dashboard"), T("nav.signOut", "Sign out", "Sign out"), T("nav.studioTag", "Tag next to the email", "STUDIO"), T("common.adminDashboard", "Admin dashboard", "Admin dashboard"))),
     S("Top bar",
       C("Titles", T("nav.yourReel", "Editor page", "Your Reel"), T("nav.eyebrow", "Small line above the title", "Shubix · Studio")),
       C("Credits pill", T("nav.credits", "After the number", "credits"), T("nav.creditsHint", "Hover", "Your credits: plans and top-ups"), T("nav.planSuffix", "Plan (“{plan} plan”)", "{plan} plan")),
