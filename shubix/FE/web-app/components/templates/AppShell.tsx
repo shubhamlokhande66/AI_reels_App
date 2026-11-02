@@ -222,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const paid = !!credits && credits.plan !== "free";
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
-  usePresence(pathname); // "online now" on the admin dashboard
+  usePresence(pathname === "/engine" ? "" : pathname); // "online now" on the admin dashboard (not the phone's hidden studio)
   useEffect(() => { captureRef(); }, []); // a friend's invite link (?ref=username): kept for the sign-up
   const offer = useQuery({ queryKey: ["offer"], queryFn: api.offer, staleTime: 60_000 }).data?.offer ?? null; // a sale running: a slim bar
   useErrorReport(); // errors on people's phones reach Admin → Errors
@@ -278,6 +278,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const offKey = pageFeature(pathname, features);
   const off = offKey && !features[offKey] ? FEATURE_LIST.find((f) => f.key === offKey)! : null;
   if (enginePage) return <main className="rm min-h-screen">{children}</main>;
+  // who is signed in is not known yet (or the server cannot be reached): no page of the app until it is
+  if (!me.data && !authPage && !publicPage) return (
+    <main className="rm grid min-h-screen place-items-center px-4">
+      {me.isError
+        ? <div className="flex max-w-sm flex-col items-center gap-3 text-center"><p className="m-0 text-sm text-muted">{text("common.offline")}</p><Button onClick={() => void me.refetch()}>{text("common.retry")}</Button></div>
+        : <Spinner label={text("common.connecting")} />}
+    </main>
+  );
   if ((pathname.startsWith("/admin") || pathname.startsWith("/cms")) && !signedOut) {
     // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
     return (

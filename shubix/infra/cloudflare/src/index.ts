@@ -63,11 +63,14 @@ const awake = async (env: Env) => {
 // The API alone answers only these: anything else (bots looking for .env files and the like) is answered here, without
 // waking the container (it is billed while awake).
 const API_PATHS = /^\/(api\/|ads\.txt$|app-ads\.txt$)/;
+// bots looking for secrets under /api too (/api/.env, /api/v1/.git/config, /api/x.php): no real route has a part starting
+// with a dot or ends like that
+const PROBE = /\/\.|\.(env|php|asp|aspx|jsp|cgi|bak|sql|ini|log|ya?ml)$/i;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const path = new URL(request.url).pathname;
-    if (env.CONTAINER_ROLE === "api" && !API_PATHS.test(path)) return new Response("Not found", { status: 404 });
+    if ((env.CONTAINER_ROLE === "api" && !API_PATHS.test(path)) || PROBE.test(path)) return new Response("Not found", { status: 404 });
     if (request.method === "POST" && path === PING && !(await awake(env)))
       return Response.json({ ok: true, asleep: true });
     return app(env).fetch(request);

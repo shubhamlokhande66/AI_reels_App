@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { router } from "expo-router";
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useQuery } from "@tanstack/react-query";
+import { mobileApi } from "../../lib/api";
+import { SITE_URL } from "../../lib/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useSignOut, useText } from "@shubix/hooks";
 import { Avatar, Hairline, Icon, IconButton, Sidebar, colors } from "@shubix/ui-mobile";
@@ -16,6 +19,8 @@ const CREDITS: NavItem = { href: "/credits", label: "Your credits", tk: "pricing
 
 export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose: () => void; pathname: string }) {
   const text = useText(), { me } = useApi(), insets = useSafeAreaInsets();
+  // administrators: the website's admin dashboard, in the phone's browser (once per sign-in, kept 10 minutes)
+  const adminQ = useQuery({ queryKey: ["native-admin", me?.user?.id], queryFn: mobileApi.adminSession, enabled: !!me?.user, staleTime: 600_000, retry: false });
   const signOut = useSignOut(() => { onClose(); router.replace("/login"); });
   const width = Math.min(useWindowDimensions().width * 0.88, 360);
   const shown = useRef(new Animated.Value(0)).current, [mounted, setMounted] = useState(open);
@@ -65,6 +70,13 @@ export function MenuDrawer({ open, onClose, pathname }: { open: boolean; onClose
               </View>
             ))}
           </View>
+          {(adminQ.data?.admin || adminQ.data?.otp) && (
+            <Pressable onPress={() => { onClose(); void Linking.openURL(`${SITE_URL}/admin`); }} accessibilityRole="link" className="mt-3 min-h-[44px] flex-row items-center gap-3 rounded-[12px] border border-accent/20 bg-accent/5 px-2.5">
+              <Icon name="shield" size={18} color="accent" />
+              <Text className="min-w-0 flex-1 text-[12.5px] font-semibold text-foreground">{text("nav.adminDashboard")}</Text>
+              <Icon name="arrow" size={16} color="muted" />
+            </Pressable>
+          )}
           <View className="flex-1" />
           <View className="border-t border-accent/10 pt-3"><ThemeToggle /></View>
           {email && (

@@ -43,6 +43,8 @@ export const mobileApi = {
   site: () => json<{ businessName: string; supportEmail: string; supportPhone: string; businessAddress: string; playStoreUrl: string; appStoreUrl: string }>("/api/site"),
   pricing: () => json<Pricing>("/api/plans"),
   ads: () => json<AdsConfig>("/api/ads"),
+  /** an administrator's account (admin: its code entered today; otp: the code is still to come) */
+  adminSession: () => json<{ admin: boolean; otp?: boolean }>("/api/admin/session"),
   credits: () => json<Credits>("/api/credits"),
   payments: () => json<{ id: string; label: string; amount: number; status: string; createdAt: string; paidAt: string | null; receiptNo: string | null }[]>("/api/billing/payments"),
   planLocks: () => json<PlanLocks>("/api/plan-locks"),

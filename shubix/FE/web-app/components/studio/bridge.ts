@@ -57,6 +57,8 @@ export function initBridge(root: HTMLElement): () => void {
     input.files = dt.files; input.dispatchEvent(new Event("change", { bubbles: true }));
   };
   const press = (box: string, attr: string, value: string) => { const b = root.querySelector<HTMLElement>(`#${box} [${attr}="${value}"]`); if (b) b.click(); return !!b; };
+  // the website's Export sheet, opened (it reads the plan and the phone) or closed, unseen here
+  const sheet = async (open: boolean) => { $(open ? "export" : "xshclose")?.click(); await new Promise((r) => setTimeout(r, 150)); };
   const until = async (test: () => boolean, ms = 600_000) => { const t0 = Date.now(); while (!test()) { if (Date.now() - t0 > ms) throw new Error("The studio took too long"); await new Promise((r) => setTimeout(r, 250)); } };
   // made: the song read, the clips read, the shots there, and Shubix AI done with them (its clips' check, the pace, the plan)
   const made = () => { const w = studio()?.work as (Studio["work"] & { pace?: boolean; aiWait?: boolean }) | undefined; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir && !w.pace && !w.aiWait; };
@@ -308,10 +310,33 @@ export function initBridge(root: HTMLElement): () => void {
       return out;
     },
     async answer(a) { const b = $({ ok: "cconfok", no: "cconfno" }[String(a.pick)] ?? "cconfx"); b?.click(); return { ok: !!b }; },
+    /** what the plan and the phone allow in the website's Export sheet -> { res: { 720|1080|4k: { locked, off } }, fps60Locked, watermarkOff } */
+    async exportOptions() {
+      await until(made);
+      await sheet(true);
+      const btn = (box: string, attr: string, v: string) => root.querySelector<HTMLButtonElement>(`#${box} [${attr}="${v}"]`);
+      const res = Object.fromEntries(["720", "1080", "4k"].map((r) => { const b = btn("xres", "data-r", r); return [r, { locked: !!b?.classList.contains("crowned"), off: !!b?.disabled }]; }));
+      const out = { res, fps60Locked: !!btn("xfps", "data-f", "60")?.classList.contains("crowned"), watermarkOff: !$<HTMLInputElement>("xwm")?.disabled };
+      await sheet(false);
+      return out;
+    },
+    /** stops a running export (the website's Cancel export) */
+    async cancelExport() { $("fexpcancel")?.click(); return { ok: true }; },
     async exportReel(a) {
       await until(made);
       // the creator closed Shubix AI's question: the studio keeps the Reel for Shubix AI (its own words say so)
       if (root.classList.contains("aineed")) throw new Error($("aiaskt")?.textContent || "Your Reel is waiting for Shubix AI");
+      // the choices of the website's Export sheet: quality, frame rate, watermark, without the song
+      if (a.res || a.fps || a.noWatermark !== undefined || a.noSong !== undefined) {
+        await sheet(true);
+        if (a.res) press("xres", "data-r", String(a.res));
+        if (a.fps) press("xfps", "data-f", String(a.fps));
+        for (const [id, on] of [["xwm", a.noWatermark], ["nosong", a.noSong]] as const) {
+          const box = $<HTMLInputElement>(id);
+          if (box && on !== undefined && !box.disabled && box.checked !== !!on) { box.checked = !!on; box.dispatchEvent(new Event("change", { bubbles: true })); }
+        }
+        await sheet(false);
+      }
       const blob = await studio()!.autoExport();
       if (!blob) throw new Error("The Reel could not be made");
       const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(String(a.name || "reel.mp4"))}`, { method: "PUT", body: blob });

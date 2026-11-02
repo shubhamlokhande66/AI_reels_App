@@ -4,9 +4,9 @@ import { useEffect } from "react";
 import { api } from "@/lib/api";
 import { isStandalone } from "@/lib/pwa";
 
-/** "Online now" on the admin dashboard: while the page is visible, this browser says it is here every 5 minutes (and on
- * each new page, and when the tab is shown again). Not more often: on Cloudflare every request keeps the app's container
- * awake (it sleeps 30 s after the last one), and a ping every 30 s from one open tab kept it running all day.
+/** "Online now" on the admin dashboard: while the page is visible, this browser says it is here once every 5 minutes at
+ * most (a new page or a tab shown again sends nothing sooner). Not more often: on Cloudflare every request keeps the app's
+ * container awake (it sleeps 2 min after the last one), and frequent pings from one open tab kept it running all day.
  * One id per browser, kept on this device, so several tabs count as one visitor. */
 const KEY = "reel-visitor", EVERY_MS = 5 * 60_000;
 
@@ -26,10 +26,12 @@ function visitorId(): string {
 const last = { path: "", at: 0 };
 export function usePresence(pathname: string) {
   useEffect(() => {
+    if (!pathname) return; // not a visitor (the phone app's hidden studio)
     const beat = () => {
-      // the same page counted once (React may start the page twice; a tab coming back right away is not a new visit)
+      // once every 5 minutes at most, whatever happens meanwhile (another page, the tab left and shown again): enough to
+      // count the visitor as online, and each request wakes the API's container
       if (document.visibilityState !== "visible") return;
-      const now = Date.now(); if (last.path === pathname && now - last.at < 3000) return; last.path = pathname; last.at = now;
+      const now = Date.now(); if (now - last.at < EVERY_MS - 5000) return; last.path = pathname; last.at = now;
       // app: opened from the home screen (an iPhone's Safari then knows the app is installed: InstallBanner)
       if (document.visibilityState === "visible") api.ping(visitorId(), pathname, isStandalone()).catch(() => {}); // never in anyone's way
     };
