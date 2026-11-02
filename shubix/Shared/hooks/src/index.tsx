@@ -42,7 +42,6 @@ export function useAuthForm(onDone: (signedUp: boolean) => void) {
   const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [again, setAgain] = useState("");
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
-  const [adminCode, setAdminCode] = useState(false); // an administrator signed in: the code emailed to them comes next
   const signin = mode === "signin";
   const errors = {
     email: touched.email && email && !emailOk(email) ? text("auth.badEmail") : "",
@@ -58,19 +57,12 @@ export function useAuthForm(onDone: (signedUp: boolean) => void) {
     if (!valid) return;
     setBusy(true);
     try {
-      const r = signin ? await api.auth.login(email.trim(), password) : await api.auth.register(email.trim(), password);
+      if (signin) await api.auth.login(email.trim(), password); else await api.auth.register(email.trim(), password);
       await refresh();
-      if (signin && "adminCode" in r && r.adminCode) return setAdminCode(true);
-      onDone(!signin);
+      onDone(!signin); // an administrator: the app asks for the daily code next (the phone's AppFrame, the website's AdminGate)
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
-  // the administrator's code: entered, the admin powers are on (else the account signs in without them)
-  async function verifyAdmin(code: string) {
-    setError(null); setBusy(true);
-    try { await api.auth.adminVerify(code.trim()); await refresh(); onDone(false); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
-  }
-  async function resendAdmin() { setError(null); try { await api.auth.adminCode(); } catch (e) { setError(errorMessage(e)); } }
-  return { mode, setMode, signin, email, setEmail, password, setPassword, again, setAgain, touch, errors, ok, valid, error, busy, submit, adminCode, verifyAdmin, resendAdmin, skipAdmin: () => onDone(false), t: text };
+  return { mode, setMode, signin, email, setEmail, password, setPassword, again, setAgain, touch, errors, ok, valid, error, busy, submit, t: text };
 }
 
 /** Forgot password: the email, then the code + a new password (signed in at the end, every other session ends). */

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { AdminCode } from "@/components/organisms/admin/AdminGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { applyTheme } from "@/lib/theme";
@@ -217,6 +218,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const me = useMe();
   const text = useText();
   const [drawer, setDrawer] = useState(false);
+  // an administrator who chose "Continue without admin powers" is not asked again in this tab
+  const [adminLater, setAdminLater] = useState(() => { try { return sessionStorage.getItem("admin-later") === "1"; } catch { return false; } });
   const creditsQ = useCredits();
   const credits = creditsQ.data?.enabled ? creditsQ.data : null;
   const paid = !!credits && credits.plan !== "free";
@@ -286,7 +289,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         : <Spinner label={text("common.connecting")} />}
     </main>
   );
-  if ((pathname.startsWith("/admin") || pathname.startsWith("/cms")) && !signedOut) {
+  // an administrator whose daily code is due (still signed in): the code first, emailed at once (the admin pages ask it themselves)
+  const adminArea = pathname.startsWith("/admin") || pathname.startsWith("/cms");
+  if (otp && !adminLater && !authPage && !publicPage && !adminArea) return (
+    <main className="rm min-h-screen">
+      <Suspense fallback={null}><AdminCode onLater={() => { try { sessionStorage.setItem("admin-later", "1"); } catch { /* private mode */ } setAdminLater(true); }} /></Suspense>
+    </main>
+  );
+  if (adminArea && !signedOut) {
     // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
     return (
       <main className="rm min-h-screen">
