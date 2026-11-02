@@ -12,6 +12,9 @@ import { useThemePref } from "../lib/theme";
 import { AppFrame } from "../components/templates/AppFrame";
 import { EngineHost } from "../lib/engine";
 import { GalleryHost } from "../components/organisms/Gallery";
+import { reportErrors } from "../lib/errors";
+
+reportErrors();
 
 export default function RootLayout() {
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { staleTime: 45_000, retry: 1 } } }));

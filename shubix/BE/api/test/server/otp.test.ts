@@ -32,7 +32,8 @@ afterAll(async () => {
 });
 beforeEach(async () => { sent.length = 0; await (await mainDb()).collection("users").deleteMany({}); });
 
-const lastCode = () => /\b(\d{6})\b/.exec(sent.at(-1)?.subject ?? "")?.[1] ?? "";
+const codeMails = () => sent.filter((m) => /\d{6}/.test(m.subject)); // (a new account also gets the welcome email)
+const lastCode = () => /\d{6}/.exec(codeMails().at(-1)!.subject)![0];
 const signUp = async (email: string) => { await A.register(email, "password123"); return String((await (await mainDb()).collection("users").findOne({ email }))!._id); };
 const other = (c: string) => String((Number(c) + 1) % 1_000_000).padStart(6, "0");
 
@@ -41,7 +42,8 @@ describe("one-time codes", () => {
     const id = await signUp("otp@x.com");
     const code = lastCode();
     expect(code).toMatch(/^\d{6}$/);
-    expect(sent.at(-1)?.text).toContain(code);
+    expect(codeMails().at(-1)?.text).toContain(code);
+    await vi.waitFor(() => expect(sent.find((m) => m.to === "otp@x.com" && m.subject.startsWith("Welcome"))?.text).toMatch(/\/pricing[\s\S]*Stop these emails/));
     await expect(withUser(id, () => A.verifyCode(other(code)))).rejects.toThrow(/not right. 4 tries left/);
     expect(await withUser(id, () => A.verifyCode(code))).toMatchObject({ ok: true, email: "otp@x.com" });
     expect((await withUser(id, () => A.me())).user?.emailVerified).toBe(true);

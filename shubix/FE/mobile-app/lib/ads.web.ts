@@ -2,3 +2,6 @@
 export const BannerAd = null;
 export const BannerAdSize = { ANCHORED_ADAPTIVE_BANNER: "" } as const;
 export const TestIds = { ADAPTIVE_BANNER: "" } as const;
+export const adsReady = async () => false;
+export const adChoicesNeeded = async () => false;
+export const showAdChoices = async () => {};

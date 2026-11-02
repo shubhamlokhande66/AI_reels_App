@@ -1,5 +1,6 @@
 import { ensureUsername, noteReferral, rewardFor } from "./marketing";
 import { grantCredits } from "./credits";
+import { sendWelcome } from "./broadcasts";
 import crypto from "node:crypto";
 import { AuthRequired, clearCookie, currentUser, forgetSessionCache, hashPassword, sessionCookie, verifyPassword } from "./core/auth";
 import { settings } from "./core/config";
@@ -139,6 +140,7 @@ export async function register(email0: string, password: string, ref?: string) {
   await sendCode(u, "verify"); // the sign-up code (not sent: the server log says so, the account works anyway)
   // a username (also the invite code) and, if a friend's link brought them, the invite (its rewards follow the admin's rule)
   const uid = String(u._id);
+  void sendWelcome(uid, email); // after the code, not waited for: the sign-up stays quick
   try { (u as Doc).username = await ensureUsername(uid); await noteReferral(uid, ref, grantCredits); } catch (e) { console.warn("sign-up marketing:", (e as Error).message); }
   return withCookie({ user: userOut(u) }, sessionCookie(u), 201);
 }

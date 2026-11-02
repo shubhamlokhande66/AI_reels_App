@@ -2,7 +2,7 @@
 
 The phone app is the Expo app `FE/mobile-app` (package `in.shubix.reelmaker`). This page has what Play Console → **App
 content** asks, worked out from the code (2026-10-30). Check it again when the app starts collecting something new.
-Replace `https://SITE` with the live website.
+`https://SITE` is `https://shubix.in`.
 
 ## Links
 
@@ -36,6 +36,8 @@ advertising**.
 - The AdMob **app ID** is set at build time: `ADMOB_ANDROID_APP_ID` (EAS → Environment variables). Without it,
   `app.config.ts` builds in Google's sample ID, which shows test ads only. Set it before the production build.
 - The banner **ad units** are set at run time: Admin → Settings → Ads.
+- **Consent**: the app shows Google's consent form before the first ad (`lib/ads.ts`) and My account → Ad privacy choices where it is required. Publish the message in AdMob → Privacy & messaging, or people in the EU, UK and Switzerland get no ads.
+- **AI content**: a Report link under Ask Shubix's answers opens Contact.
 
 ## Data safety
 
@@ -49,7 +51,7 @@ Data is encrypted in transit (https). People can ask for deletion (above).
 | Photos and videos | Yes, when Shubix AI is used: small frames of the clips go to the server to choose the cuts; also the Reels saved to My Reels | No | App functionality | Yes |
 | Audio → Music files / other audio | Yes, when captions or Shubix AI are used: the song's audio for the words | No | App functionality | Yes |
 | App activity → Other user-generated content | Yes: texts, templates, brands, saved styles | No | App functionality | Yes |
-| App info and performance → Crash logs | No (no crash reporting yet) | | | |
+| App info and performance → Crash logs | Yes: the error message and where it happened, kept 30 days, not linked to an account (`lib/errors.ts`) | No | Analytics (fixing errors) | No |
 | Device or other IDs → Advertising ID | Yes, by AdMob | Yes, with Google (AdMob) | Advertising | No on the Free plan |
 
 The song analysis, the beat check, the clip reading and the export run **on the phone**: the clips themselves are
@@ -65,6 +67,21 @@ My Reels are stored (for the days shown in the app).
 - **News app**: no. **Government app**: no. **Financial features**: no.
 - **Payments**: plans and credits are bought only on the website. The app has no prices, no way to buy and no way to
   the website's pricing page: keep it so, or Google Play asks for Play Billing. It only shows what the account has.
+
+## Buying a plan
+
+The app never mentions buying. A new account gets a welcome email (`sendWelcome` in `BE/api/src/server/broadcasts.ts`) with the
+plans on shubix.in; it can be switched off in Admin → Marketing → Emails, and every copy has a "Stop these emails" link.
+No button, banner or text in the app may lead to it.
+
+## To do later: buying inside the app
+
+- [ ] Decide: Google Play Billing, or User Choice Billing (check the current fee and rules in Play Console)
+- [ ] Create the plans and credit packs as products in Play Console
+- [ ] Add billing to `FE/mobile-app` (prices shown from Play, not from our plans)
+- [ ] Server: verify each purchase with Google, then give the plan or credits to the same account as Razorpay does
+- [ ] Server: handle Google refunds and cancelled purchases (take the plan or credits back)
+- [ ] Test with Play's license testers, then update Payments above and in `docs/android-release.md`
 
 ## Store listing
 

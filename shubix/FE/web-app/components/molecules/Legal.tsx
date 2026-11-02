@@ -15,6 +15,7 @@ import { RichText } from "./RichText";
 
 // the legal links: their names are texts (Admin → CMS → Legal pages)
 export const LEGAL_LINKS = [
+  ["/about", "legal.about"],
   ["/terms", "legal.terms"],
   ["/privacy", "legal.privacy"],
   ["/refunds", "legal.refunds"],
@@ -77,7 +78,7 @@ export function LegalFooter({ className = "", compact = false }: { className?: s
   );
 }
 
-const PAGES = { terms: ["/terms", "legal.termsTitle", "legal.termsBody"], privacy: ["/privacy", "legal.privacyTitle", "legal.privacyBody"], refunds: ["/refunds", "legal.refundsTitle", "legal.refundsBody"], deletion: ["/delete-account", "legal.deleteTitle", "legal.deleteBody"] } as const;
+const PAGES = { about: ["/about", "legal.aboutTitle", "legal.aboutBody"], terms: ["/terms", "legal.termsTitle", "legal.termsBody"], privacy: ["/privacy", "legal.privacyTitle", "legal.privacyBody"], refunds: ["/refunds", "legal.refundsTitle", "legal.refundsBody"], deletion: ["/delete-account", "legal.deleteTitle", "legal.deleteBody"] } as const;
 export type LegalPageId = keyof typeof PAGES;
 
 /** A readable legal page (design: "Legal"): the three legal pages as chips, the title and date, a list of the sections

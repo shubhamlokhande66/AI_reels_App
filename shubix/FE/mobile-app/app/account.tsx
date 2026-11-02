@@ -9,6 +9,7 @@ import { passwordOk } from "@shubix/validations";
 import { errorMessage } from "@shubix/api-client";
 import { ThemeChoice } from "../components/molecules/ThemeToggle";
 import { AdBanner } from "../components/molecules/AdBanner";
+import { adChoicesNeeded, showAdChoices } from "../lib/ads";
 import { mobileApi } from "../lib/api";
 import { useCredits } from "../lib/data";
 import { open } from "../lib/navigate";
@@ -24,6 +25,7 @@ const Note = ({ ok, children }: { ok: boolean; children: ReactNode }) =>
 export default function AccountScreen() {
   const text = useText(), { me } = useApi(), credits = useCredits().data, [panel, setPanel] = useState<PanelId | null>(null);
   const signOut = useSignOut(() => router.replace("/login"));
+  const adChoices = useQuery({ queryKey: ["ad-choices"], queryFn: adChoicesNeeded });
   if (!me) return <Page><ActivityIndicator color={colors.accent} /></Page>;
   if (!me.authEnabled) return <Page><View className="gap-3"><Card><Text className="text-[12.5px] text-muted">{text("account.noAccounts")}</Text></Card><ThemeChoice /></View></Page>;
   const user = me.user;
@@ -86,6 +88,7 @@ export default function AccountScreen() {
           </Card>
         </View>
         <ThemeChoice />
+        {adChoices.data && <Button variant="secondary" icon="shield" title={text("account.adChoices")} onPress={() => void showAdChoices()} />}
         <View className="gap-2">
           {label(text("account.danger"))}
           <Card className="overflow-hidden border-danger/30 p-0">{row("delete", "trash", text("account.deleteTitle"), text("account.rowDelete"), true)}</Card>

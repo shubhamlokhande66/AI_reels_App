@@ -2,6 +2,7 @@
 
 import { AdSlot } from "@/components/organisms/AdSlot";
 import { GetAppSection } from "@/components/molecules/StoreBadges";
+import { RichText } from "@/components/molecules/RichText";
 import Link from "next/link";
 import { useState } from "react";
 import { DurationTag, Photo, Skeleton } from "@/components/atoms";
@@ -48,6 +49,7 @@ function SavedSection({ reels }: { reels: CloudReel[] | null }) {
 }
 
 export default function Home() {
+  const text = useText();
   const features = useFeatures();
   const me = useMe();
   const credits = useCredits();
@@ -71,6 +73,7 @@ export default function Home() {
       <AdSlot place="homeEnd" />
       <TipsSection />
       <GetAppSection />
+      <section aria-label="About Shubix" className="max-w-3xl text-[14px] leading-relaxed text-muted"><RichText text={text("home.aboutBody")} /></section>
       {!paid && <ProBanner />}
     </div>
   );

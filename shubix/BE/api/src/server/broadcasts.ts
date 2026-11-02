@@ -4,7 +4,7 @@ import { AuthRequired, currentUser } from "./core/auth";
 import { settings } from "./core/config";
 import { mainDb, ObjectId } from "./core/db";
 import { NotFoundError, ValidationFailed } from "./core/errors";
-import { esc, frame, mailParts as P, sendMail, siteUrl } from "./core/mail";
+import { esc, frame, mailParts as P, notesOn, sendMail, siteUrl } from "./core/mail";
 
 /** Admin → Messages: a message from the administrator to the people of the studio, in the bell (the site and the phone
  * app, which shows the site) and, if chosen, by email. Who gets it: everyone, the paying ones (a paid plan now), the
@@ -74,6 +74,20 @@ function letterFor(b: { title: string; body: string; link: string; button: strin
     + P.row(`<p style="margin:0;font-family:${P.SANS};font-size:11.5px;color:${P.SOFT}"><a href="${esc(off)}" style="color:${P.SOFT}">Stop these emails</a></p>`, "0 0 18px 0"));
   const text = `${b.title}\n\n${b.body}\n\n${b.button || "Open Shubix"}: ${url}\n\nStop these emails: ${off}\n`;
   return { html, text };
+}
+
+/** A new account's welcome, sent with the sign-up code: what Shubix does and the plans on the website. Plans are sold only
+ * there, and the Play app must not point to them: this email is the way people hear of them (never a button in the app).
+ * Admin → Marketing → Emails switches it off with the notes; it never fails the sign-up. */
+export async function sendWelcome(uid: string, email: string) {
+  if (!(await notesOn().catch(() => false))) return false;
+  const b = settings.businessName, title = `Welcome to ${b}`;
+  const m = letterFor({ title, link: "/pricing", button: "See plans on shubix.in", body: `Your account is ready. Choose a song, add your clips or photos, and ${b} cuts them to the beat. Then change anything you like in the editor.
+
+You can make a Music Reel, a Talking Reel with captions or a Photo Reel on the Free plan.
+
+Paid plans add more tools and credits and remove the ads. See them and buy on shubix.in, then sign in with this email on the website or in the app: your plan works in both.` }, uid);
+  return sendMail(email, title, m.text, m.html).catch(() => false);
 }
 
 /** Send a message (or, dryRun, only count who gets it): saved for the bell at once; the emails go now, a few at a time. */

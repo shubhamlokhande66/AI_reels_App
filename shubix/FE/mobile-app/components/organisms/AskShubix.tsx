@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import { router } from "expo-router";
 import { useStudioText } from "@shubix/hooks";
 import { Bubble, ChatChip, Gold, Icon, useColors } from "@shubix/ui-mobile";
 
@@ -30,6 +31,7 @@ export function AskShubix({ onAsk }: { onAsk: (text: string) => string | Promise
       {open && (
         <View className="gap-3 border-t border-border px-3.5 pb-3.5 pt-3">
           {log.map((m, i) => <Bubble key={i} mine={m.me}>{m.text}</Bubble>)}
+          {log.some((m) => !m.me) && <Pressable onPress={() => router.push({ pathname: "/contact", params: { topic: "reels", message: `${words("Report an AI answer")}: ` } })} accessibilityRole="link" className="self-end py-1"><Text className="text-[12px] font-semibold text-muted underline">{words("Report an AI answer")}</Text></Pressable>}
           <View className="flex-row items-center gap-2 rounded-2xl border border-border bg-surface-2 pl-3.5 pr-1.5">
             <TextInput value={said} onChangeText={setSaid} onSubmitEditing={() => void ask(said)} returnKeyType="send" maxLength={300} placeholder={words("e.g. Fast cuts, zoom on the drop")} placeholderTextColor={look.muted} className="h-11 flex-1 text-[14px] text-foreground" />
             <Pressable onPress={() => void ask(said)} disabled={!said.trim() || busy} accessibilityLabel={words("Ask Shubix")} className={`h-9 w-9 items-center justify-center overflow-hidden rounded-full ${!said.trim() || busy ? "opacity-40" : ""}`}><Gold /><Icon name="arrow" size={17} color="onAccent" /></Pressable>

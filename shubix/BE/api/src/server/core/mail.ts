@@ -4,7 +4,7 @@ import { mainDb, ObjectId } from "./db";
 
 /** Whether the notes about invites, credits and affiliates are emailed (Admin → Marketing → Emails; on unless switched
  * off). The codes (sign-up, password) are always sent. */
-async function notesOn() {
+export async function notesOn() {
   const m = await (await mainDb()).collection("app_settings").findOne({ _id: "marketing" as unknown as ObjectId }, { projection: { emails: 1 } });
   return (m?.emails as { notes?: boolean } | undefined)?.notes !== false;
 }

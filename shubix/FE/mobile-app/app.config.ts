@@ -12,6 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ["react-native-google-mobile-ads", {
       androidAppId: process.env.ADMOB_ANDROID_APP_ID || GOOGLE_TEST_APP.android,
       iosAppId: process.env.ADMOB_IOS_APP_ID || GOOGLE_TEST_APP.ios,
+      delayAppMeasurementInit: true, // nothing is measured before the consent answer (lib/ads.ts)
     }],
   ],
 });
