@@ -149,7 +149,26 @@ async function flickBuild(){
 }
 let blackC = null;
 const blackPic = () => { if(!blackC){ blackC = document.createElement('canvas'); blackC.width = 16; blackC.height = 16; const g = blackC.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, 16, 16); } return blackC; };
-const texOf = (e, local) => e.black ? blackPic() : e.flick && flickPool.length ? flickPick(e, local || 0) : exporting ? (e.fc || e.fcLast) : e.rc && e.cs && e.cs.rev && local !== undefined ? revFrame(e, local) : e.el;
+const texOf = (e, local) => e.black ? blackPic() : e.flick && flickPool.length ? flickPick(e, local || 0) : exporting ? (e.fc || e.fcLast) : e.rc && e.cs && e.cs.rev && local !== undefined ? revFrame(e, local) : smoothOn(e, local) ? smoothLive(e, local) : e.el;
+/* ---- smooth slow motion (Clip tools -> Smooth slow-mo, as CapCut's): on a slowed shot every picture between two real frames
+ * is the two mixed by how far between them the moment is, so a 0.25× shot glides instead of stepping. The two frames are the
+ * last two the decoder gave (a, then b at ts); the mix runs a -> b over one frame's time, so it lags one frame and never jumps. ---- */
+const smoothOn = (e, local) => !!(e.cs && e.cs.smooth > 0 && !e.cs.rev && local !== undefined && e.sp && rateAt(e, local) < 0.95);
+function smoothPic(e, pic, ts, want, step){
+  const w = pic.videoWidth || pic.width, h = pic.videoHeight || pic.height; if(!w || !h || !(step > 0)) return pic;
+  const mk = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  let s = e.smo; if(!s || s.w !== w || s.h !== h) s = e.smo = { w, h, a: mk(), b: mk(), m: mk(), ts: null };
+  if(s.ts !== ts){ const jump = s.ts === null || ts < s.ts || ts - s.ts > step*3;   // a seek: both frames are the new one
+    [s.a, s.b] = [s.b, s.a]; s.b.getContext('2d').drawImage(pic, 0, 0); if(jump) s.a.getContext('2d').drawImage(pic, 0, 0); s.ts = ts; }
+  const f = Math.max(0, Math.min(1, (want - ts)/step))*Math.min(1, e.cs.smooth), g = s.m.getContext('2d');
+  g.globalAlpha = 1; g.drawImage(s.a, 0, 0); if(f > 0.01){ g.globalAlpha = f; g.drawImage(s.b, 0, 0); g.globalAlpha = 1; }
+  return s.m;
+}
+// the preview: the video's own frame times (requestVideoFrameCallback), the picture mixed toward the next one
+function smoothLive(e, local){ const v = e.el; if(!v || v.readyState < 2 || !v.requestVideoFrameCallback) return v;
+  if(!v.__rvf){ v.__rvf = 1; const cb = (now, m) => { if(v.__mt !== undefined && m.mediaTime > v.__mt && m.mediaTime - v.__mt < 0.2) v.__dt = m.mediaTime - v.__mt; v.__mt = m.mediaTime; v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+  if(v.__mt === undefined) return v;
+  return smoothPic(e, v, v.__mt, srcPos(e, local), v.__dt || 1/30); }
 const fmt = t => { t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(2); };
 let ctx = null, buf = null, mono = null;
 let period = 0, phase = 0, hopSec = 0, rmsF = null, hitsStr = [], barOff = 0, beatLvl = [];
@@ -4962,7 +4981,7 @@ for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null, ck:null, cv:null, hsl:null };
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, smooth:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null, ck:null, cv:null, hsl:null };
 /* ---- a shot's mask (Clip tools -> Mask, CapCut's Mask): the shot shows only inside a shape (or outside it, inverted);
  * the rest is a colour. Drawn over the finished shot, before the boxes and texts, by both renderers and in the export. ---- */
 /* ---- a shot's green screen (Clip tools -> Chroma key, CapCut's Chroma key): its key colour goes, the colour behind shows ---- */
@@ -5718,7 +5737,7 @@ async function fastExport(){
       for(let k=sh.f0; k<sh.fEnd; k++){ const v = first + half + Math.min(Math.max(0, srcPos(e, Math.max(0, k/fps - e.start))), sdur - 2*half - 0.01); ts.push(!ts.length ? v : e.cs && e.cs.rev ? Math.min(v, ts[ts.length-1]) : Math.max(v, ts[ts.length-1])); }
       const it = (e.cs && e.cs.rev ? revFramesExport(sink, ts) : sink.canvasesAtTimestamps(ts))[Symbol.asyncIterator]();
       const firstP = it.next(); firstP.catch(()=>{});
-      return { it, firstP, ts, sink, first };
+      return { it, firstP, ts, sink, first, half };
     };
     // yield to the page without timers (a hidden tab throttles setTimeout to once a second or less)
     const yieldNow = () => (globalThis.scheduler && scheduler.yield) ? scheduler.yield() : new Promise(r => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
@@ -5755,7 +5774,7 @@ async function fastExport(){
       while(k < sh.fEnd){
         const wc = r.done ? null : r.value;
         const ta = performance.now(); prof.decode += ta - tq;
-        if(wc){ e.fc = wc.canvas; consecutiveMissing = 0; }
+        if(wc){ const l = k/fps - e.start; e.fc = smoothOn(e, l) ? smoothPic(e, wc.canvas, wc.timestamp, cur.ts[k-sh.f0], wc.duration > 0 ? wc.duration : 2*cur.half) : wc.canvas; consecutiveMissing = 0; }
         else {
           prof.missing++;
           const requested = cur.ts[k-sh.f0];
@@ -7011,7 +7030,11 @@ function voiceFx(x, sr, fx){
 const AI_CS = c => { const o = {}, n = (k, a, b) => { const v = Number(c[k]); if(Number.isFinite(v) && v) o[k] = Math.min(b, Math.max(a, v)); };
   if([90,180,270].includes(c.rot)) o.rot = c.rot; for(const k of ['fh','fv','fit']) if(c[k] === true) o[k] = true;
   if(o.fit){ if(c.bg === 'blur' || c.bg === 'color') o.bg = c.bg; if(/^#[0-9a-f]{6}$/i.test(c.bgc || '')) o.bgc = c.bgc; n('bd', 0, 1); if(/^#[0-9a-f]{6}$/i.test(c.bdc || '')) o.bdc = c.bdc; }
-  n('stab', 0, 1); n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('hi', -1, 1); n('sh', -1, 1); n('hue', -1, 1); n('sharp', 0, 1); n('vig', 0, 1); n('beauty', 0, 1); n('fin', 0, 1.5); n('fout', 0, 1.5); return o; };
+  n('stab', 0, 1); n('smooth', 0, 1); n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('hi', -1, 1); n('sh', -1, 1); n('hue', -1, 1); n('sharp', 0, 1); n('vig', 0, 1); n('beauty', 0, 1); n('fin', 0, 1.5); n('fout', 0, 1.5);
+  // reverse, zoom, the clip's sound, and the mask / green screen / curves / HSL objects (the server checked their fields)
+  if(c.rev === true) o.rev = true; n('zoom', 1, 3); n('pitch', -12, 12); for(const k of ['vol','mus']) if(Number.isFinite(Number(c[k])) && c[k] !== undefined) o[k] = Math.min(2, Math.max(0, Number(c[k])));
+  for(const k of ['mk','ck','cv','hsl']) if(c[k] && typeof c[k] === 'object') o[k] = JSON.parse(JSON.stringify(c[k]));
+  return o; };
 function csAutoSet(e, patch){
   e.cs = e.cs || {}; const auto = e.cs.auto || [];
   for(const k in patch){ if(k in e.cs && !auto.includes(k)) continue; e.cs[k] = patch[k]; if(!auto.includes(k)) auto.push(k); }
