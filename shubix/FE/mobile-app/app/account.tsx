@@ -58,8 +58,7 @@ export default function AccountScreen() {
             </View>
           </View>
           <View className="gap-1.5">
-            <Button icon={paid ? "coins" : "crown"} variant={paid ? "secondary" : "primary"} title={text(paid ? "account.manage" : "account.upgrade")} onPress={() => open("/pricing")} />
-            {!paid && <Text className="text-[12px] text-muted">{text("account.freeLine")}</Text>}
+            <Button icon="coins" variant="secondary" title={text("pricing.yourCredits")} onPress={() => open("/credits")} />
           </View>
         </Card>
         {c && (

@@ -82,7 +82,6 @@ function Saved({ query }: { query: ReturnType<typeof useQuery<Awaited<ReturnType
           <View className={`h-full overflow-hidden rounded-full ${share > 85 ? "bg-warning" : ""}`} style={{ width: `${Math.max(share, usage.used ? 3 : 0)}%` }}>{share <= 85 && <Gold />}</View>
         </View>
         {!!usage.keepDays && <Text className="text-[11.5px] text-muted">{text("reels.keepDays", { days: usage.keepDays })}</Text>}
-        <Button size="sm" variant="secondary" icon="crown" title={text("reels.moreSpace")} onPress={() => open("/pricing")} />
       </Card>
       {!reels.length ? <EmptyState icon="upload" title={text("reels.noSaved")} hint={text("reels.noSavedText")} action={<MakeReel />} /> : (
         <View className="flex-row flex-wrap gap-3">

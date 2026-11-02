@@ -59,8 +59,6 @@ function usePlanReach() {
   if (credits.isLoading) return null;
   return { open: !d || (!d.enabled && !d.billing), plan: d?.enabled ? d.plan : "free" };
 }
-/** Shubix AI in the creator's plan (the Editor and Pro plans; open when plans are off): true, false, or null while unknown. */
-export function usePlanAi() { const reach = usePlanReach(); return reach && (reach.open || reach.plan === "editor" || reach.plan === "pro"); }
 /** A page's lock (Shared/core plan-locks "page:…"): (address) => the plan it needs, or "" when open. */
 export function useLockCheck(): ((href: string) => PlanId | "") | null {
   const locked = useLocked();

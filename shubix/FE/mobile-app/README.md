@@ -23,7 +23,7 @@ The mobile implementation is being built natively. Browser-only components and t
 | My Reels | `/(tabs)/reels` | Account library listing, opening and deletion |
 | Templates | `/(tabs)/templates` | Live catalog, search and create-from-template entry point |
 | Account / sign-in | `/(tabs)/profile`, `/auth/*` | Native auth forms and secure token storage |
-| Pricing, brands, voices, trends, rewards, settings, legal and support | `/pricing`, `/brands`, `/voices`, `/trends`, `/rewards`, `/settings`, `/privacy`, `/terms`, `/contact` | Native screens with calls to the existing server |
+| Your credits, brands, voices, trends, rewards, settings, legal and support | `/credits`, `/brands`, `/voices`, `/trends`, `/rewards`, `/settings`, `/privacy`, `/terms`, `/contact` | Native screens with calls to the existing server |
 
 ## Important remaining work
 

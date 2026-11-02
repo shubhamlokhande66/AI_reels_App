@@ -9,7 +9,7 @@ import { Logo } from "../atoms/Logo";
 import { SoundBars } from "./HomeHero";
 
 // the website's legal links under the form (components/molecules/Legal.tsx, compact): the pages the app has
-const LEGAL = [["/terms", "legal.terms"], ["/privacy", "legal.privacy"], ["/contact", "legal.contact"], ["/pricing", "legal.pricing"]] as const;
+const LEGAL = [["/terms", "legal.terms"], ["/privacy", "legal.privacy"], ["/contact", "legal.contact"]] as const;
 
 /** Sign in, or create an account (the website's app/login/page.tsx on a phone): the dark studio band (the logo, the
  * three-line title, the soundtrack's bars), then the form sheet: the two tabs, the card with the fields (each says what
