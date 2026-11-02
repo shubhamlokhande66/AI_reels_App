@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
   // Phone mode: let a phone on the same Wi-Fi load the dev server through this computer's private address.
   // (Only matters when the dev server is started with -H 0.0.0.0.)
-  // and the phone app while testing (docs/capacitor.md): a cloudflared tunnel to this computer
+  // and a cloudflared tunnel to this computer, to open it from anywhere while testing
   allowedDevOrigins: ["192.168.*.*", "10.*.*.*", "172.*.*.*", "*.trycloudflare.com"],
   // the code shared with BE/api (Shared/core) is TypeScript: compile it with the app
   transpilePackages: ["@shubix/core", "@shubix/validations", "@shubix/utils", "@shubix/video-engine"],

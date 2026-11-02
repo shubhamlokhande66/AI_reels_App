@@ -62,5 +62,7 @@ and `PUBLIC_BASE_URL`, and to the R2 bucket's CORS (Settings → CORS policy →
 - Vercel limits request bodies (4.5 MB on its functions). Big uploads (clips, saved Reels) go from the browser straight
   to R2 (presigned, needs the R2 settings), so they never pass through Vercel. Check one upload after the first deploy.
 - `API_URL` is read when the website is built: after changing it, deploy the website again.
-- The API container sleeps 30 s after the last request (`SLEEP_AFTER`): the first API call after a pause takes a few
-  seconds while it wakes.
+- The API container sleeps 2 minutes after the last request (`SLEEP_AFTER`): the first API call after a pause takes
+  20-30 s while it wakes.
+- After every deploy, open `https://api.shubix.in/api/health` (`{"status":"ok"}`). Once a new version left the container
+  running but not answering: running Deploy to Cloudflare again (GitHub → Actions) started it fresh.
