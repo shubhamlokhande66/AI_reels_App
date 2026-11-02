@@ -11,7 +11,18 @@ export type ClipCs = {
   mk?: Mask | null;
   /** green screen: the key colour, how much around it goes (0.05-0.9), the colour shown behind */
   ck?: { c: string; tol: number; bg: string } | null;
+  /** Curves: per channel (m = all three) 5 outputs at the inputs 0, ¼, ½, ¾, 1; HSL: per colour band [hue, saturation, lightness] -1..1 */
+  cv?: Partial<Record<"m" | "r" | "g" | "b", number[]>> | null;
+  hsl?: Partial<Record<string, number[]>> | null;
 };
+const CV_ID = [0, 0.25, 0.5, 0.75, 1];
+const CV_CH: [string, string][] = [["m", "All"], ["r", "Red"], ["g", "Green"], ["b", "Blue"]];
+const CV_PRESETS: [string, string, Record<string, number[]>][] = [
+  ["contrast", "More contrast", { m: [0, 0.18, 0.5, 0.82, 1] }], ["fade", "Faded film", { m: [0.1, 0.3, 0.52, 0.76, 0.94] }], ["bright", "Brighter mids", { m: [0, 0.32, 0.6, 0.83, 1] }],
+  ["moody", "Moody", { m: [0, 0.2, 0.45, 0.72, 0.95], b: [0.05, 0.28, 0.52, 0.75, 0.97] }], ["cross", "Cross process", { r: [0, 0.2, 0.55, 0.85, 1], g: [0, 0.25, 0.52, 0.8, 1], b: [0.12, 0.3, 0.48, 0.66, 0.85] }],
+];
+const HSL_BANDS: [string, string, string][] = [["red", "Red", "#ff3b30"], ["orange", "Orange", "#ff9500"], ["yellow", "Yellow", "#ffcc00"], ["green", "Green", "#34c759"], ["aqua", "Aqua", "#32d2e6"], ["blue", "Blue", "#0a84ff"], ["purple", "Purple", "#8e5cf7"], ["magenta", "Magenta", "#ff2d92"]];
+let cvCh = "m", hslBand = "red";   // the channel and the colour band being edited
 /** a mask on the shot (CapCut's Mask): its shape, centre, size, turn (degrees), soft edge, inverted, the colour outside it */
 export type Mask = { s: string; x: number; y: number; w: number; h: number; a: number; f: number; inv: boolean; c: string };
 export const MASKS: [string, string][] = [["circle", "Circle"], ["rect", "Rectangle"], ["heart", "Heart"], ["star", "Star"], ["split", "Split"], ["film", "Filmstrip"]];
@@ -37,6 +48,8 @@ export const CLIP_TOOLS: [string, string, string][] = [
   ["fade", "Fade", I('<path d="M3 20L12 4l9 16z"/><path d="M12 4v16" stroke-dasharray="2 2"/>')],
   ["mosaic", "Mosaic", I('<rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/>')],
   ["mask", "Mask", I('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" opacity=".35"/>')],
+  ["curves", "Curves", I('<path d="M4 20C9 20 9 4 20 4"/><path d="M4 4v16h16" opacity=".4"/>')],
+  ["hsl", "HSL", I('<circle cx="12" cy="12" r="9"/><path d="M12 3v9l7.8 4.5M12 12L4.2 16.5"/>')],
   ["chroma", "Chroma key", I('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6" /><circle cx="16" cy="8" r="1.5"/>')],
   ["lens", "Magnifier", I('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5"/>')],
   ["slip", "Slip", I('<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/>')],
@@ -65,7 +78,7 @@ const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5
 /** The row of tools and the open tool's controls */
 export function clipToolsHtml(c: ClipCs, open: string): string {
   const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
-    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : k === "mask" ? !!c.mk : k === "chroma" ? !!c.ck : false;
+    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : k === "mask" ? !!c.mk : k === "chroma" ? !!c.ck : k === "curves" ? !!c.cv : k === "hsl" ? !!c.hsl : false;
   const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${CLIP_TOOLS.map(([k, n, ic]) =>
     `<button type="button" class="ct ${Tile} min-w-[62px]"${on(k) ? " data-on" : ""} data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
   let body = "";
@@ -91,6 +104,14 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
   else if (open === "mask") body = `<div class="chips">${MASKS.map(([k, n]) => `<button type="button" class="${Chip}" data-mk="${k}" aria-pressed="${c.mk?.s === k}">${n}</button>`).join("")}</div>`
     + (!c.mk ? need("Shows the shot only inside a shape (or outside it, inverted); the rest is a colour.") : slider("mk.x", "Across", c.mk.x, 0, 1, 0.01, "%") + slider("mk.y", "Down", c.mk.y, 0, 1, 0.01, "%") + slider("mk.w", "Width", c.mk.w, 0.05, 1.5, 0.01, "%") + slider("mk.h", "Height", c.mk.h, 0.05, 1.5, 0.01, "%")
       + slider("mk.a", "Turn", c.mk.a, -180, 180, 1, "°") + slider("mk.f", "Soft edge", c.mk.f, 0, 0.3, 0.01, "%") + swatches("mk.c", c.mk.c) + `<div class="chips"><button type="button" class="${Chip}" data-act="mk-inv" aria-pressed="${c.mk.inv}">Invert</button><button type="button" class="${Chip}" data-act="mk-off">Remove mask</button></div>`);
+  else if (open === "curves") { const pts = c.cv?.[cvCh as "m"] ?? CV_ID;
+    body = `<div class="chips">${CV_CH.map(([k, n]) => `<button type="button" class="${Chip}" data-cvch="${k}" aria-pressed="${cvCh === k}">${n}</button>`).join("")}</div>`
+      + ["Shadows", "Darks", "Middle", "Lights", "Highlights"].map((n, i) => slider(`cv.${cvCh}.${i}`, n, pts[i], 0, 1, 0.01, "%")).join("")
+      + `<div class="chips">${CV_PRESETS.map(([k, n]) => `<button type="button" class="${Chip}" data-cvp="${k}">${n}</button>`).join("")}<button type="button" class="${Chip}" data-act="cv-off">Reset curves</button></div>`; }
+  else if (open === "hsl") { const v = c.hsl?.[hslBand] ?? [0, 0, 0];
+    body = `<div class="chips">${HSL_BANDS.map(([k, n, col]) => `<button type="button" class="${Chip}" data-hb="${k}" aria-pressed="${hslBand === k}"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${col};margin-right:6px"></span>${n}</button>`).join("")}</div>`
+      + slider(`hsl.${hslBand}.0`, "Hue", v[0], -1, 1, 0.02) + slider(`hsl.${hslBand}.1`, "Saturation", v[1], -1, 1, 0.02) + slider(`hsl.${hslBand}.2`, "Lightness", v[2], -1, 1, 0.02)
+      + `<button type="button" class="${Chip}" data-act="hsl-off">Reset HSL</button>` + need("Changes one colour only: make skies bluer, skin warmer, leaves greener."); }
   else if (open === "chroma") body = `<div class="chips"><button type="button" class="${Chip}" data-ck="#00FF00" aria-pressed="${c.ck?.c === "#00FF00"}">Green</button><button type="button" class="${Chip}" data-ck="#0000FF" aria-pressed="${c.ck?.c === "#0000FF"}">Blue</button><button type="button" class="${Chip}" data-ck="#FFFFFF" aria-pressed="${c.ck?.c === "#FFFFFF"}">White</button><button type="button" class="${Chip}" data-ck="#000000" aria-pressed="${c.ck?.c === "#000000"}">Black</button></div>`
     + (!c.ck ? need("Takes a colour out of the shot (a green screen); the colour you choose shows behind.") : slider("ck.tol", "Strength", c.ck.tol, 0.05, 0.9, 0.01, "%") + `<p class="cnote">Behind</p>` + swatches("ck.bg", c.ck.bg) + `<button type="button" class="${Chip}" data-act="ck-off">Remove chroma key</button>`);
   else if (open === "slip") body = `<div class="chips"><button type="button" class="${Chip}" data-slip="-1">◀ 1 s earlier</button><button type="button" class="${Chip}" data-slip="-0.25">◀ ¼ s</button><button type="button" class="${Chip}" data-slip="0.25">¼ s ▶</button><button type="button" class="${Chip}" data-slip="1">1 s later ▶</button></div>${need("Shows an earlier or later moment of the same clip. The shot keeps its place on the beat.")}`;
@@ -122,6 +143,12 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
     else if (act === "mg-off") A.shotSet({ mg: null });
     else if (act === "mk-off") A.shotSet({ mk: null });
     else if (act === "ck-off") A.shotSet({ ck: null });
+    else if (act === "cv-off") A.shotSet({ cv: null });
+    else if (act === "hsl-off") A.shotSet({ hsl: null });
+    const cvch = t.closest<HTMLElement>("[data-cvch]")?.dataset.cvch; if (cvch) cvCh = cvch;
+    const hb = t.closest<HTMLElement>("[data-hb]")?.dataset.hb; if (hb) hslBand = hb;
+    const cvp = t.closest<HTMLElement>("[data-cvp]")?.dataset.cvp; if (cvp) A.shotSet({ cv: { ...CV_PRESETS.find((x) => x[0] === cvp)![2] } });
+    if (cvch || hb || cvp) { rerender(); return; }
     const ck = t.closest<HTMLElement>("[data-ck]")?.dataset.ck; if (ck) A.shotSet({ ck: { tol: 0.35, bg: "#000000", ...(c.ck ?? {}), c: ck } });
     else if (act === "mk-inv" && c.mk) A.shotSet({ mk: { ...c.mk, inv: !c.mk.inv } });
     else if (act === "reset") A.shotSet(null);
@@ -137,7 +164,10 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
   // sliders change the picture while they move; the tools are drawn again when they are let go
   const fromSlider = (el: HTMLInputElement) => {
     const A = api(), c = A?.shotCs(); if (!A || !c) return; const k = el.dataset.s!, v = +el.value;
-    const out = el.parentElement?.querySelector("output"); if (out) { const unit = k === "pitch" ? "st" : k === "mus" ? "%" : /^(fin|fout)$/.test(k) ? "s" : k === "mk.a" ? "°" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|mk|ck|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
+    const out = el.parentElement?.querySelector("output"); if (out) { const unit = k === "pitch" ? "st" : k === "mus" ? "%" : /^(fin|fout)$/.test(k) ? "s" : k === "mk.a" ? "°" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|mk|ck|cv|vol)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
+    // a curve's point or a colour band's value: cv.<channel>.<n> / hsl.<band>.<n>
+    if (k.startsWith("cv.") || k.startsWith("hsl.")) { const [o, ch, n] = k.split("."), base = o === "cv" ? { ...(c.cv ?? {}) } : { ...(c.hsl ?? {}) } as Record<string, number[]>;
+      const arr = [...((base as Record<string, number[]>)[ch] ?? (o === "cv" ? CV_ID : [0, 0, 0]))]; arr[+n] = v; (base as Record<string, number[]>)[ch] = arr; A.shotSet({ [o]: base } as Partial<ClipCs>); return; }
     if (k === "cx" || k === "cy") A.shotSet({ cx: k === "cx" ? v : c.cx ?? 0.5, cy: k === "cy" ? v : c.cy ?? 0.5 });
     else if (k.includes(".")) { const [o, f] = k.split(".") as ["mz" | "mg" | "mk" | "ck" | "curve", string]; A.shotSet({ [o]: { ...(c[o] as object), [f]: v } } as Partial<ClipCs>); }
     else A.shotSet({ [k]: v } as Partial<ClipCs>);

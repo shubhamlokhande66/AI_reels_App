@@ -722,6 +722,16 @@ export default function EditorScreen() {
         const c = await engine.tool("shotCs").catch(() => null) as { ck?: { c: string; tol: number; bg: string } | null } | null, ck = c?.ck ?? { c: "#00FF00", tol: 0.35, bg: "#000000" };
         void studioPatch({ ck: v === "Green screen" ? { ...ck, c: "#00FF00" } : v === "Blue screen" ? { ...ck, c: "#0000FF" } : { ...ck, tol: Math.max(0.05, Math.min(0.9, ck.tol + (v === "Stronger" ? 0.1 : -0.1))) } });
       })()} />;
+      // Curves and HSL (the website's Clip tools): ready-made curves, and one colour band at a time
+      case "curves": return <Choices items={["More contrast", "Faded film", "Brighter mids", "Moody", "Cross process", "Reset curves"]} onPick={(v) => void studioPatch({ cv: ({
+        "More contrast": { m: [0, 0.18, 0.5, 0.82, 1] }, "Faded film": { m: [0.1, 0.3, 0.52, 0.76, 0.94] }, "Brighter mids": { m: [0, 0.32, 0.6, 0.83, 1] },
+        Moody: { m: [0, 0.2, 0.45, 0.72, 0.95], b: [0.05, 0.28, 0.52, 0.75, 0.97] }, "Cross process": { r: [0, 0.2, 0.55, 0.85, 1], g: [0, 0.25, 0.52, 0.8, 1], b: [0.12, 0.3, 0.48, 0.66, 0.85] },
+      } as Record<string, unknown>)[v] ?? null })} />;
+      case "hsl": return <Choices items={["Bluer sky", "Warm skin", "Greener leaves", "Only red in colour", "Teal & orange", "Reset HSL"]} onPick={(v) => void studioPatch({ hsl: ({
+        "Bluer sky": { blue: [0, 0.45, -0.1], aqua: [0.1, 0.3, 0] }, "Warm skin": { orange: [-0.05, 0.15, 0.1], red: [0.05, -0.1, 0.05] }, "Greener leaves": { green: [0, 0.5, -0.05], yellow: [0.15, 0.2, 0] },
+        "Only red in colour": { orange: [0, -1, 0], yellow: [0, -1, 0], green: [0, -1, 0], aqua: [0, -1, 0], blue: [0, -1, 0], purple: [0, -1, 0], magenta: [0, -0.6, 0] },
+        "Teal & orange": { green: [0.35, -0.2, 0], aqua: [0.1, 0.3, 0], blue: [-0.15, 0.2, -0.1], orange: [0, 0.3, 0.05], yellow: [-0.2, 0.1, 0] },
+      } as Record<string, unknown>)[v] ?? null })} />;
       case "border": return <Choices items={["No border", "Fine white", "Gold frame", "Soft frame"]} onPick={(v) => {
         if (v === "No border") return void studioPatch({ fit: false, bd: 0 });
         void studioPatch({ fit: true, bd: v === "Fine white" ? 0.035 : 0.08, bdc: v === "Gold frame" ? "#d4b07a" : v === "Soft frame" ? "#f3ede3" : "#ffffff" });

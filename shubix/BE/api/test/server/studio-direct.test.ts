@@ -322,7 +322,12 @@ describe("Shubix AI as the editor: texts and other tools", () => {
     const out = parsePlan(req(2), { slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { mk: { s: "heart", x: 2, y: 0.4, w: 0.5, h: 0.5, a: 400, f: 0.1, inv: true, c: "#ff0000" } } }, { i: 1, shot: "1a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { mk: { s: "blob" } } }], story: "" });
     expect(out.slots[0].clip?.mk).toEqual({ s: "heart", x: 1, y: 0.4, w: 0.5, h: 0.5, a: 180, f: 0.1, inv: true, c: "#FF0000" });
     expect(out.slots[1].clip).toBeUndefined();
-  });  it("keeps only the tools the studio has, in order", () => {
+  });  it("keeps a shot's curves and HSL, in range", () => {
+    const out = parsePlan(req(1), { slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { cv: { m: [0, 0.2, 0.5, 0.8, 2], x: [1, 2, 3, 4, 5], r: [1] }, hsl: { blue: [0, 3, -0.2], pink: [1, 1, 1] } } }], story: "" });
+    expect(out.slots[0].clip).toMatchObject({ cv: { m: [0, 0.2, 0.5, 0.8, 1] }, hsl: { blue: [0, 1, -0.2] } });
+    expect(out.slots[0].clip?.cv).not.toHaveProperty("r"); expect(out.slots[0].clip?.hsl).not.toHaveProperty("pink");
+  });
+  it("keeps only the tools the studio has, in order", () => {
     const out = cleanActions([{ do: "LAYER", clip: "c2", start: 1 }, { do: "hack" }, { do: "look", name: "cine" }]);
     expect(out.map((a) => a.do)).toEqual(["layer", "look"]);
   });

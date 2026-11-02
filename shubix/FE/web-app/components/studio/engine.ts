@@ -4685,7 +4685,7 @@ function drawFrame2D(t){
   // seamless loop: the last 0.4 s melts into the opening frame
   const dur = buf.duration;
   if(loopImg && t > dur-0.4){ og.globalAlpha = EASE.inOut((t-(dur-0.4))/0.4); og.drawImage(loopImg,0,0,W,H); og.globalAlpha=1; }
-  shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
+  shotGrade(t); shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
@@ -4945,11 +4945,61 @@ for(const [k, n] of Object.entries(LOOK_EXTRA)){ const G = GRADES[k];   // the 2
  * rot 0/90/180/270 (clockwise), fh / fv mirror and flip, fit (whole picture) on a canvas (bg 'blur' or a colour) with a
  * border, bri / con / sat / warm (-1..1), fin / fout fades (s), mz mosaic {x,y,w,h,s} and mg magnifier {x,y,r,z}
  * (0..1 of the frame). The AI can set the same fields. ---- */
-const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null, ck:null };
+const CS0 = { rev:false, zoom:1, cx:null, cy:null, vol:0, pitch:0, mus:1, rot:0, fh:false, fv:false, fit:false, bg:'blur', bgc:'#000000', bd:0, bdc:'#ffffff', bri:0, con:0, sat:0, warm:0, hi:0, sh:0, hue:0, sharp:0, vig:0, beauty:0, stab:0, curve:null, fin:0, fout:0, mz:null, mg:null, mk:null, ck:null, cv:null, hsl:null };
 /* ---- a shot's mask (Clip tools -> Mask, CapCut's Mask): the shot shows only inside a shape (or outside it, inverted);
  * the rest is a colour. Drawn over the finished shot, before the boxes and texts, by both renderers and in the export. ---- */
 /* ---- a shot's green screen (Clip tools -> Chroma key, CapCut's Chroma key): its key colour goes, the colour behind shows ---- */
-let ckBuf = null;
+/* ---- a shot's Curves and HSL (Clip tools -> Curves / HSL, as CapCut's): one small GPU pass over the finished shot, the same
+ * for both renderers and the export. cv: {m, r, g, b}: each 5 outputs (0-1) at the inputs 0, ¼, ½, ¾, 1 (m = all three);
+ * hsl: per colour band (red orange yellow green aqua blue purple magenta) [hue, saturation, lightness], each -1..1 ---- */
+const HSL_BANDS = ['red','orange','yellow','green','aqua','blue','purple','magenta'];
+let gradeGL = null;
+function gradeProgram(){
+  if(gradeGL !== null) return gradeGL;
+  try{
+    const cv = document.createElement('canvas'), gl = cv.getContext('webgl', { premultipliedAlpha: false, preserveDrawingBuffer: true });
+    if(!gl){ gradeGL = false; return false; }
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const p = gl.createProgram();
+    gl.attachShader(p, sh(gl.VERTEX_SHADER, 'attribute vec2 a; varying vec2 v; void main(){ v = vec2(a.x*0.5+0.5, 0.5-a.y*0.5); gl_Position = vec4(a, 0.0, 1.0); }'));
+    gl.attachShader(p, sh(gl.FRAGMENT_SHADER, `precision mediump float; varying vec2 v; uniform sampler2D T; uniform float M[5], R[5], G[5], B[5]; uniform vec3 H[8]; uniform float useH;
+      float cv(float x, float P[5]){ float s = clamp(x, 0.0, 1.0)*4.0; float k = floor(min(s, 3.999)); float f = s - k; float a = P[0], b = P[1];
+        if(k > 0.5){ a = P[1]; b = P[2]; } if(k > 1.5){ a = P[2]; b = P[3]; } if(k > 2.5){ a = P[3]; b = P[4]; } return mix(a, b, f*f*(3.0 - 2.0*f)); }
+      vec3 hsv(vec3 c){ vec4 K = vec4(0.0, -1.0/3.0, 2.0/3.0, -1.0); vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g)); vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+        float d = q.x - min(q.w, q.y); return vec3(abs(q.z + (q.w - q.y)/(6.0*d + 1e-6)), d/(q.x + 1e-6), q.x); }
+      vec3 rgb(vec3 c){ vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0))*6.0 - 3.0); return c.z*mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y); }
+      void main(){ vec4 t = texture2D(T, v); vec3 c = t.rgb;
+        c = vec3(cv(cv(c.r, M), R), cv(cv(c.g, M), G), cv(cv(c.b, M), B));
+        if(useH > 0.5){ vec3 x = hsv(c); float hs = 0.0, ss = 0.0, ls = 0.0, ws = 0.0;
+          float C[8]; C[0] = 0.0; C[1] = 30.0; C[2] = 60.0; C[3] = 120.0; C[4] = 180.0; C[5] = 235.0; C[6] = 275.0; C[7] = 315.0;
+          for(int k = 0; k < 8; k++){ float d = abs(x.x*360.0 - C[k]); d = min(d, 360.0 - d); float w = max(0.0, 1.0 - d/45.0); hs += H[k].x*w; ss += H[k].y*w; ls += H[k].z*w; ws += w; }
+          float g = smoothstep(0.05, 0.25, x.y); x.x = fract(x.x + hs*g/12.0 + 1.0); x.y = clamp(x.y*(1.0 + ss*g), 0.0, 1.0); x.z = clamp(x.z*(1.0 + ls*g*0.5), 0.0, 1.0); c = rgb(x); }
+        gl_FragColor = vec4(c, t.a); }`));
+    gl.linkProgram(p); gl.useProgram(p);
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const a = gl.getAttribLocation(p, 'a'); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+    const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.CLAMP_TO_EDGE)); [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER].forEach(k => gl.texParameteri(gl.TEXTURE_2D, k, gl.LINEAR));
+    const u = n => gl.getUniformLocation(p, n);
+    gradeGL = { cv, gl, M: u('M'), R: u('R'), G: u('G'), B: u('B'), H: u('H'), useH: u('useH') };
+  }catch(e){ console.warn('Curves / HSL are not available here:', e); gradeGL = false; }
+  return gradeGL;
+}
+const CV_ID = [0, 0.25, 0.5, 0.75, 1];
+function shotGrade(t){
+  const e = edit[segAt(t)], cs = e && e.cs; if(!cs || (!cs.cv && !cs.hsl)) return;
+  const P = gradeProgram(); if(!P) return;
+  const W = out.width, H = out.height, { gl, cv } = P;
+  if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+  gl.viewport(0, 0, W, H);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, out);
+  const curve = k => { const a = cs.cv && Array.isArray(cs.cv[k]) && cs.cv[k].length === 5 ? cs.cv[k] : CV_ID; return new Float32Array(a.map(x => Math.max(0, Math.min(1, +x || 0)))); };
+  gl.uniform1fv(P.M, curve('m')); gl.uniform1fv(P.R, curve('r')); gl.uniform1fv(P.G, curve('g')); gl.uniform1fv(P.B, curve('b'));
+  gl.uniform3fv(P.H, new Float32Array(HSL_BANDS.flatMap(k => { const x = cs.hsl && cs.hsl[k]; return Array.isArray(x) ? x.slice(0, 3).map(n => Math.max(-1, Math.min(1, +n || 0))) : [0, 0, 0]; })));
+  gl.uniform1f(P.useH, cs.hsl ? 1 : 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  og.save(); og.setTransform(1, 0, 0, 1, 0, 0); og.globalAlpha = 1; og.globalCompositeOperation = 'copy'; og.drawImage(cv, 0, 0); og.restore();
+}let ckBuf = null;
 function shotKey(t){
   const e = edit[segAt(t)], k = e && e.cs && e.cs.ck; if(!k) return;
   const W = out.width, H = out.height;
@@ -5189,7 +5239,7 @@ function drawFrameGL(t){
   const dur = buf.duration; if(loopImg && t > dur-0.4){ S.loopMix = EASE.inOut((t-(dur-0.4))/0.4); S.loopImg = loopImg; }
   GL.render(S); if(playing && (Math.floor(t*10)%3===0)) drawTimeline();
   og.globalCompositeOperation='source-over'; og.globalAlpha=1; og.drawImage(GL.canvas, 0, 0);
-  shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
+  shotGrade(t); shotKey(t); shotMask(t); if(layers.length) drawLayers(og, t);
   if(holdText) return;
   bgPass(t); drawText(t);
   if(showSafe && !recording && !coverMode) drawSafe();
