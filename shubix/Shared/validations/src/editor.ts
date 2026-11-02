@@ -3,7 +3,12 @@ import { z } from "zod";
 export const mediaKindSchema = z.enum(["video", "image"]);
 export const transitionSchema = z.enum(["Cut", "Fade", "Dissolve", "Push", "Wipe", "Zoom", "Flash", "Blur"]);
 export const filterSchema = z.enum(["Original", "Golden", "Film", "Noir", "Soft", "Vivid", "Cinematic"]);
-export const overlaySchema = z.object({ id: z.string(), text: z.string().max(300), start: z.number().min(0), end: z.number().positive(), color: z.string(), size: z.number().min(8).max(120) });
+/** a text or sticker on the Reel; the studio's settings (style, entrance, exit, loop, place, font, keyframes...) are kept
+ * as they are, so a text made by the studio or Shubix AI comes back to the phone and goes to the studio unchanged */
+export const overlaySchema = z.object({ id: z.string(), text: z.string().max(300), start: z.number().min(0), end: z.number().positive(), color: z.string(), size: z.number().min(8).max(120),
+  style: z.string().max(24).optional(), anim: z.string().max(24).optional(), out: z.string().max(24).optional(), loop: z.string().max(24).optional(), font: z.string().max(24).optional(),
+  x: z.number().optional(), y: z.number().optional(), emoji: z.boolean().optional(), behind: z.boolean().optional(), track: z.boolean().optional(), focus: z.number().optional(),
+  aiIntent: z.string().max(24).optional(), uk: z.array(z.record(z.string(), z.unknown())).max(64).optional() });
 export const clipSchema = z.object({
   id: z.string(), uri: z.string(), name: z.string(), kind: mediaKindSchema, duration: z.number().positive(),
   sourceDuration: z.number().positive(), start: z.number().min(0), end: z.number().positive(), speed: z.number().min(0.25).max(4),

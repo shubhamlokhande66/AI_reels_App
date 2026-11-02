@@ -41,6 +41,12 @@ const MODE_HELP: Record<string, string> = {
 const LOOKS = [["natural", "Natural", "Original"], ["vivid", "Vivid", "Vivid"], ["cine", "Cinematic", "Cinematic"], ["mono", "B&W", "Noir"], ["warmfilm", "Warm film", "Warm"], ["cool", "Cool", "Cool"], ["retro", "Retro", "Vintage"], ["moody", "Moody", "Muted"],
   ["wedding", "Wedding", "Dreamy"], ["golden", "Golden hour", "Golden"], ["tealorange", "Teal & orange", "Teal & Orange"], ["faded", "Faded", "Faded"], ["noir", "Noir", "Noir"], ["sepia", "Sepia", "Sepia"], ["cyber", "Cyber", "Cyberpunk"], ["pastel", "Pastel", "Pastel"],
   ["dramatic", "Dramatic", "High Contrast"], ["summer", "Summer", "Sunset"], ["night", "Night", "Arctic"], ["vintage", "Vintage", "Vintage"], ["matte", "Matte", "Matte"], ["punchy", "Punchy", "Color Pop"], ["forest", "Forest", "Muted"], ["rose", "Rose", "Soft"]];
+// the studio's text styles, entrances, exits and loops (components/studio/engine.ts OV_STYLES, OV_ANIMS, OV_OUTS, OV_LOOPS)
+const TX_STYLES = [["bold", "Bold"], ["box", "Box"], ["neon", "Neon"], ["clean", "Clean"], ["tag", "Tag"], ["outline", "Outline"], ["shadow", "Hard shadow"], ["bubble", "Bubble"], ["glow", "Glow"], ["stack", "Double outline"], ["cutout", "Video in letters"]];
+const TX_INS = [["pop", "Pop"], ["fade", "Fade"], ["slide", "Slide up"], ["type", "Typewriter"], ["zoom", "Zoom in"], ["drop", "Drop in"], ["blur", "Blur in"], ["spin", "Spin in"], ["flicker", "Flicker"], ["glitch", "Glitch"], ["none", "None"]];
+const TX_OUTS = [["none", "None"], ["fade", "Fade out"], ["pop", "Pop out"], ["slide", "Slide down"], ["zoom", "Zoom out"], ["blur", "Blur out"], ["spin", "Spin out"]];
+const TX_LOOPS = [["none", "Still"], ["bounce", "Bounce"], ["spin", "Spin"], ["wiggle", "Wiggle"], ["pulse", "Pulse"], ["float", "Float"], ["swing", "Swing"], ["shake", "Shake"]];
+const TX_COLORS = [["#FFFFFF", "White"], ["#111111", "Black"], ["#FFD54A", "Gold"], ["#FF4D6D", "Red"], ["#3DDC84", "Green"], ["#4DA3FF", "Blue"], ["#FF9F1C", "Orange"], ["#C77DFF", "Purple"]];
 // the studio's sound effects (its Add buttons): [key, name]
 const SOUNDS = [["whoosh", "Whoosh"], ["pop", "Pop"], ["boom", "Boom"], ["click", "Camera click"], ["riser", "Riser"], ["ding", "Ding"], ["swish", "Swish"], ["impact", "Impact"], ["glitch", "Glitch"], ["laser", "Laser"],
   ["heartbeat", "Heartbeat"], ["tick", "Tick"], ["chime", "Chime"], ["drop", "Bass drop"], ["rewind", "Rewind"], ["notify", "Notification"]];
@@ -374,6 +380,9 @@ export default function EditorScreen() {
     if (clips.length === 1) return toast(words("A Reel needs at least one shot."), "info");
     if (await confirmAction({ title: words("Delete this shot?"), ok: words("Delete"), danger: true })) setClips(clips.filter((_, i) => i !== selected));
   }
+  // the text being edited (the Text panel): its settings change as on the website's text editor
+  const [txSel, setTxSel] = useState(""), txt = p?.overlays.find((o) => o.id === txSel);
+  const setTx = (patch: Partial<Overlay>) => p && txt && change({ overlays: p.overlays.map((o) => (o.id === txt.id ? { ...o, ...patch } : o)) });
   const addText = (text: string) => {
     if (!text.trim() || !p) return;
     if (now >= total - 0.05) return toast(words("Move the playhead before the end of the Reel to add text."), "info");
@@ -498,7 +507,16 @@ export default function EditorScreen() {
           <TextInput value={draft} onChangeText={setDraft} placeholder={words("Type your text")} placeholderTextColor={look.muted} maxLength={80} className="h-12 rounded-xl border border-border bg-surface-2 px-4 text-[14px] text-foreground" />
           <View className="flex-row gap-2"><Button className="flex-1" icon="plus" disabled={!draft.trim()} title={words("Text")} onPress={() => addText(draft)} /><Button className="flex-1" variant="secondary" icon="plus" title={words("Sticker")} onPress={() => setTool({ key: "stickers", name: "Stickers" })} /></View>
           <Choices items={READY_MADE} onPick={addText} />
-          {p.overlays.map((o) => <View key={o.id} className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-2"><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id) })} /></View>)}
+          {p.overlays.map((o) => <Pressable key={o.id} onPress={() => setTxSel(txSel === o.id ? "" : o.id)} className={`flex-row items-center gap-2 rounded-xl border px-3 py-2 ${txSel === o.id ? "border-accent" : "border-border"}`}><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id) })} /></Pressable>)}
+          {/* the tapped text: its look and motion, as the website's text editor (drawn by the studio in the paused preview and the export) */}
+          {txt && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+            <Label>Style</Label><Choices items={TX_STYLES.map((s) => s[1])} on={TX_STYLES.find((s) => s[0] === (txt.style ?? "bold"))?.[1]} onPick={(v) => setTx({ style: TX_STYLES.find((s) => s[1] === v)![0] })} />
+            <Label>Entrance</Label><Choices items={TX_INS.map((s) => s[1])} on={TX_INS.find((s) => s[0] === (txt.anim ?? "pop"))?.[1]} onPick={(v) => setTx({ anim: TX_INS.find((s) => s[1] === v)![0] })} />
+            <Label>Exit</Label><Choices items={TX_OUTS.map((s) => s[1])} on={TX_OUTS.find((s) => s[0] === (txt.out ?? "none"))?.[1]} onPick={(v) => setTx({ out: TX_OUTS.find((s) => s[1] === v)![0] })} />
+            <Label>Keeps moving</Label><Choices items={TX_LOOPS.map((s) => s[1])} on={TX_LOOPS.find((s) => s[0] === (txt.loop ?? "none"))?.[1]} onPick={(v) => setTx({ loop: TX_LOOPS.find((s) => s[1] === v)![0] })} />
+            <Label>Colour</Label><Choices items={TX_COLORS.map((s) => s[1])} on={TX_COLORS.find((s) => s[0] === txt.color)?.[1]} onPick={(v) => setTx({ color: TX_COLORS.find((s) => s[1] === v)![0] })} />
+            <Label>Size</Label><Choices items={["Small", "Medium", "Large", "Huge"]} on={txt.size <= 26 ? "Small" : txt.size <= 40 ? "Medium" : txt.size <= 60 ? "Large" : "Huge"} onPick={(v) => setTx({ size: ({ Small: 24, Medium: 36, Large: 54, Huge: 80 } as Record<string, number>)[v] })} />
+          </View>}
         </View>
       );
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;

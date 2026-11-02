@@ -44,6 +44,16 @@ async function call<T>(op: string, args: Record<string, unknown> = {}): Promise<
     page?.injectJavaScript(`window.engine.call(${id}, ${JSON.stringify(op)}, ${JSON.stringify(args)}); true;`);
   });
 }
+/** the studio's texts as the phone keeps them (its own: a number id, t0 / t1, size as a multiple of 36); every setting kept */
+export function textsOf(list: unknown): ReelProject["overlays"] | undefined {
+  if (!Array.isArray(list)) return undefined;
+  return (list as Record<string, unknown>[]).filter((o) => typeof o.text === "string" && o.kind !== "squareFrame").map((o) => {
+    const start = Math.max(0, Number(o.start ?? o.t0) || 0), size = Number(o.size) || 1;
+    const { box: _b, t0: _a, t1: _z, all: _l, ...rest } = o;
+    return { ...rest, id: String(o.id), text: String(o.text).slice(0, 300), start, end: Math.max(start + 0.05, Number(o.end ?? o.t1) || start + 3), color: String(o.color || "#FFFFFF"),
+      size: Math.max(8, Math.min(120, size > 4 ? size : Math.round(size * 36))) } as ReelProject["overlays"][number];
+  });
+}
 const pathOf = (uri: string) => decodeURIComponent(uri.replace(/^file:\/\//, ""));
 
 export const engine = {
@@ -100,20 +110,20 @@ export const engine = {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("undo");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   redo: async () => {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("redo");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   /** Ask Studio for another locally generated edit, then map its shots back to the native clip model. */
   remix: async () => {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("remix");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   /** a choice in one of the editor's tools, made in the studio as on the website (its button `attr`=`value` in `box`,
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
@@ -141,7 +151,7 @@ export const engine = {
     if (!engine.holds(p.id)) return null;
     await engine.edit(p).catch(() => false);
     const r = await call<{ answer: string; applied: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("chat", { text });
-    return { answer: r.answer, clips: r.applied && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null, overlays: r.state?.overlays };
+    return { answer: r.answer, clips: r.applied && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null, overlays: textsOf(r.state?.overlays) };
   },
 };
 
