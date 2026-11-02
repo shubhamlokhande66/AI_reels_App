@@ -14,5 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       iosAppId: process.env.ADMOB_IOS_APP_ID || GOOGLE_TEST_APP.ios,
       delayAppMeasurementInit: true, // nothing is measured before the consent answer (lib/ads.ts)
     }],
+    // R8 (on by default in release builds) removed WorkManager's database class: the app closed at start
+    ["expo-build-properties", { android: { enableMinifyInReleaseBuilds: false, enableShrinkResourcesInReleaseBuilds: false } }],
   ],
 });
