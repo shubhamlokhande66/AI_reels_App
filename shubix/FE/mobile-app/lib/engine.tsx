@@ -128,6 +128,8 @@ export const engine = {
   /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
   exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),
   cancelExport: () => call("cancelExport").catch(() => undefined),
+  /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
+  stop: () => restart(STOPPED),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the
    * phone's preview and export play these, so heavy footage never stutters or stalls (`name`: the clip as sent) */
   copies: () => call<{ name: string; path: string; w: number; h: number }[]>("copies").catch(() => []),
@@ -163,7 +165,9 @@ export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[]
 
 // the studio's task cards ("studio-task") on the phone's
 type TaskEvent = { event: "task"; id: string; kind?: TaskKind; state: "start" | "progress" | "done" | "fail" | "clear"; p: number | null; title?: string; detail?: string };
+const shown = new Set<string>(); // the studio's cards on screen now (cleared when it starts again)
 function onTask(t: TaskEvent) {
+  if (t.state === "start" || t.state === "progress") shown.add(t.id); else shown.delete(t.id);
   if (t.state === "start") tasks.start(t.id, t.kind ?? "ai", t.title ?? "", t.detail ?? "");
   else if (t.state === "progress") tasks.update(t.id, t.p, t.detail, t.title);
   else if (t.state === "done") tasks.done(t.id, t.title);
@@ -186,20 +190,22 @@ function onMessage(e: WebViewMessageEvent) {
   if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error));
 }
 
+/** said when the person left the screen that asked: nobody is there to show it */
+export const STOPPED = "Stopped.";
+// the studio starts again (the phone stopped its page, out of memory, or the person left): what it was doing fails
+function restart(why = "The phone stopped the studio. Please try again.") {
+  waiting.forEach((w) => w.reject(new Error(why))); waiting.clear(); shown.forEach((id) => tasks.clear(id)); shown.clear();
+  setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); page?.reload();
+}
+
 /** The studio's page, hidden (behind everything, never touched): mounted once at the app's root. */
 export function EngineHost() {
-  const ref = useRef<Page | null>(null);
-  // the page was stopped by the phone (out of memory): what it was doing fails, and it starts again
-  const restart = () => {
-    waiting.forEach((w) => w.reject(new Error("The phone stopped the studio. Please try again."))); waiting.clear();
-    setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); ref.current?.reload();
-  };
   if (!engineOn) return null;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0, zIndex: -1 }}>
-      <WebView ref={(w: Page | null) => { ref.current = w; page = w; }} source={{ uri: `${SITE_URL}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
+      <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `${SITE_URL}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
         mixedContentMode="always" mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback webviewDebuggingEnabled={__DEV__}
-        onContentProcessDidTerminate={restart} onRenderProcessGone={restart} />
+        onContentProcessDidTerminate={() => restart()} onRenderProcessGone={() => restart()} />
     </View>
   );
 }

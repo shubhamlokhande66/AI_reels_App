@@ -7,6 +7,12 @@
 
 export const isHidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
 
+/** Every video and song on the page stops (the person went to another page, tab or app). Videos the studio decodes off
+ * the page (its smooth copies) are not on it, so their work goes on. */
+export function pauseAllMedia() {
+  if (typeof document !== "undefined") document.querySelectorAll<HTMLMediaElement>("video, audio").forEach((m) => m.pause());
+}
+
 /** Resolves as soon as the page is visible again (at once when it is). */
 export function whenVisible(): Promise<void> {
   if (!isHidden()) return Promise.resolve();

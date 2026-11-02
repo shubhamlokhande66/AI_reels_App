@@ -42,6 +42,7 @@ import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useLockCheck, useMe, useText } from "@/hooks/useApi";
 import { lockTag, PAGE_LOCK } from "@shubix/core/lib/plan-locks";
 import { usePresence } from "@/lib/usePresence";
+import { isHidden, pauseAllMedia } from "@/lib/background";
 import { useErrorReport } from "@/lib/useErrorReport";
 import { FEATURE_LIST, linkOn, pageFeature } from "@shubix/core/lib/features-list";
 import { AUTH_PAGES, GROUPS, PUBLIC_PAGES, TABS, isActive, isStudio, pageMeta, showTabs } from "@shubix/core/lib/nav";
@@ -227,6 +228,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const customTitle = useCustomTitle();
   usePresence(pathname === "/engine" ? "" : pathname); // "online now" on the admin dashboard (not the phone's hidden studio)
   useEffect(() => { captureRef(); }, []); // a friend's invite link (?ref=username): kept for the sign-up
+  // a video playing stops when the person goes to another page, tab or app (the studio stops its own preview too)
+  useEffect(() => pauseAllMedia, [pathname]);
+  useEffect(() => { const hide = () => isHidden() && pauseAllMedia(); document.addEventListener("visibilitychange", hide); return () => document.removeEventListener("visibilitychange", hide); }, []);
   const offer = useQuery({ queryKey: ["offer"], queryFn: api.offer, staleTime: 60_000 }).data?.offer ?? null; // a sale running: a slim bar
   useErrorReport(); // errors on people's phones reach Admin → Errors
 
