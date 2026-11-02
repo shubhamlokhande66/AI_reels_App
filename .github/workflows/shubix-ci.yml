@@ -58,6 +58,15 @@ jobs:
       run:
         working-directory: shubix
     steps:
+      # the native build (CMake for reanimated / worklets) needs more room than the runner leaves free: the toolchains
+      # this job never uses go first (it ran out of disk after 20 minutes)
+      - name: Free disk space
+        working-directory: /
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/lib/node_modules/@angular "$AGENT_TOOLSDIRECTORY/PyPy" "$AGENT_TOOLSDIRECTORY/Ruby" "$AGENT_TOOLSDIRECTORY/go" || true
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          df -h /
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
@@ -87,4 +96,5 @@ jobs:
         run: pnpm --filter @shubix/mobile-app exec expo prebuild --platform android --no-install
       - name: Assemble Android debug APK
         working-directory: shubix/FE/mobile-app/android
-        run: ./gradlew assembleDebug --no-daemon
+        # one architecture is enough to prove the native build compiles (all four filled the disk); releases build all
+        run: ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=arm64-v8a

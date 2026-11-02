@@ -15,7 +15,7 @@ export function AdsSettings() {
   const q = useQuery({ queryKey: ["ads"], queryFn: api.ads });
   const [f, setF] = useState<AdsConfig | null>(null);
   const cur = f ?? q.data ?? null;
-  const save = useMutation({ mutationFn: api.setAds, onSuccess: (d) => { qc.setQueryData(["ads"], d); setF(null); } });
+  const save = useMutation({ meta: { success: "Saved", errorShown: true }, mutationFn: api.setAds, onSuccess: (d) => { qc.setQueryData(["ads"], d); setF(null); } });
   if (!cur) return null;
   const IN = "w-full rounded-xl border border-border bg-surface px-2.5 py-1.5 outline-none focus:border-accent";
   return (

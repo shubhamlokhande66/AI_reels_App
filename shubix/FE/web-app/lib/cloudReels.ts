@@ -4,6 +4,7 @@
  */
 
 
+import { skipSignedOut } from "@/lib/boot";
 import type { CloudReel, CloudUsage } from "@shubix/types";
 export type { CloudReel, CloudUsage };
 export type SaveMeta = { name: string; dur: number; width: number; height: number; fps: number; thumb?: string };
@@ -18,6 +19,7 @@ export class CloudError extends Error {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (await skipSignedOut(path, init.method)) throw new CloudError("Please sign in.", "AUTH_REQUIRED");
   let res: Response;
   try {
     res = await fetch(path, {

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStudioText } from "@shubix/hooks";
 import { Button, tasks, toast } from "@shubix/ui-mobile";
+import { PlanGate } from "../../components/templates/PlanGate";
 import type { ProjectClip } from "@shubix/validations";
 import { engine, engineOn, shotsOf, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@shubix/api-client";
@@ -19,6 +20,11 @@ import { AI_STEPS, FlowAdjust, FlowAnalyse, FlowChoose, FlowClips, FlowHead, Flo
  * Next at the bottom, off (and saying what it waits for) until the screen is done. At the end the clips and the song
  * are kept on the phone as a draft and the editor opens. Story Maker: the Music Reel flow for now. */
 export default function CreateScreen() {
+  const { kind } = useLocalSearchParams<{ kind: string }>();
+  // Copy a Reel and Story Maker open on their plan (the website's /create/copy, /create/story)
+  return <PlanGate href={`/create/${kind}`}><CreateFlowScreen /></PlanGate>;
+}
+function CreateFlowScreen() {
   const params = useLocalSearchParams<{ kind: string; templateId?: string }>();
   const kind: FlowKind = (["music", "talking", "photo", "copy"] as const).find((k) => k === params.kind) ?? "music";
   const words = useStudioText(), insets = useSafeAreaInsets(), queryClient = useQueryClient(), order = ORDER[kind];

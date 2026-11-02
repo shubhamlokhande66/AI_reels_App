@@ -22,9 +22,10 @@ const seenAt = () => {
  * Reels lately; a red dot for what is new. Opening it marks the messages read (on the server: every device). */
 export function NotificationBell() {
   const text = useText();
-  const q = useQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, staleTime: 60_000, retry: false });
-  const notes = useQuery({ queryKey: ["notifications"], queryFn: api.notifications, staleTime: 60_000, refetchInterval: 5 * 60_000, retry: false });
   const [open, setOpen] = useState(false);
+  // My Reels' list only once the bell is opened (or another page already read it): not one more request on every page
+  const q = useQuery({ queryKey: ["cloud-reels"], queryFn: listCloudReels, staleTime: 5 * 60_000, retry: false, enabled: open });
+  const notes = useQuery({ queryKey: ["notifications"], queryFn: api.notifications, staleTime: 5 * 60_000, retry: false });
   const [seen, setSeen] = useState(Number.MAX_SAFE_INTEGER); // no dot until this device's memory is read
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { ActivityIndicator, Pressable, Text } from "react-native";
 import type { IconName } from "@shubix/ui-core";
 import { useColors, type ColorName } from "../theme";
+import { mix } from "../colors";
 import { Gold } from "./Gold";
 import { Icon } from "./Icon";
 
@@ -24,14 +25,19 @@ const SIZE: Record<ButtonSize, { box: string; text: string; icon: number }> = {
 };
 
 export function Button({ title, onPress, variant = "primary", size = "md", full = false, icon, iconAfter, loading = false, disabled = false, className = "" }: { title: string; onPress: () => void; variant?: ButtonVariant; size?: ButtonSize; full?: boolean; icon?: IconName | ReactNode; iconAfter?: IconName; loading?: boolean; disabled?: boolean; className?: string }) {
-  const v = VARIANT[variant], s = SIZE[size], look = useColors();
+  const v = VARIANT[variant], s = SIZE[size], look = useColors() as Record<string, string>;
+  // off: a solid, quieter look of its own, never see-through (a bottom button over the page must not show the page through it)
+  const off = disabled && !loading;
+  const offBg = variant === "primary" ? mix(look.accent, look.raised, 0.24) : variant === "destroy" ? mix(look.danger, look.raised, 0.35) : look.raised;
+  const offInk = variant === "primary" ? mix(look.accent, look.foreground, 0.72) : look.muted;
   return (
     <Pressable onPress={onPress} disabled={disabled || loading} accessibilityRole="button" accessibilityState={{ busy: loading, disabled }}
-      className={`flex-row items-center justify-center gap-2 overflow-hidden active:opacity-80 ${v.box} ${s.box} ${full ? "w-full" : "self-start"} ${disabled ? "opacity-50" : ""} ${className}`}>
-      {variant === "primary" && <Gold />}
-      {loading ? <ActivityIndicator size="small" color={look[v.color] ?? v.color} /> : typeof icon === "string" ? <Icon name={icon as IconName} size={s.icon} color={v.color} /> : icon}
-      <Text numberOfLines={1} className={`font-bold ${v.text} ${s.text}`}>{title}</Text>
-      {iconAfter && <Icon name={iconAfter} size={s.icon} color={v.color} />}
+      style={off ? { backgroundColor: offBg } : undefined}
+      className={`flex-row items-center justify-center gap-2 overflow-hidden active:opacity-80 ${v.box} ${s.box} ${full ? "w-full" : "self-start"} ${className}`}>
+      {variant === "primary" && !off && <Gold />}
+      {loading ? <ActivityIndicator size="small" color={look[v.color] ?? v.color} /> : typeof icon === "string" ? <Icon name={icon as IconName} size={s.icon} color={(off ? offInk : v.color) as ColorName} /> : icon}
+      <Text numberOfLines={1} style={off ? { color: offInk } : undefined} className={`font-bold ${v.text} ${s.text}`}>{title}</Text>
+      {iconAfter && <Icon name={iconAfter} size={s.icon} color={(off ? offInk : v.color) as ColorName} />}
     </Pressable>
   );
 }
@@ -49,9 +55,9 @@ export function IconButton({ icon, label, onPress, size = 44, iconSize, look = "
   const l = ICON_LOOK[look];
   return (
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={label} style={{ width: size, height: size }}
-      className={`items-center justify-center overflow-hidden rounded-full active:opacity-70 ${l.box} ${disabled ? "opacity-50" : ""} ${className}`}>
-      {look === "main" && <Gold />}
-      <Icon name={icon} size={iconSize ?? Math.round(size * 0.45)} color={l.color} />
+      className={`items-center justify-center overflow-hidden rounded-full active:opacity-70 ${l.box} ${className}`}>
+      {look === "main" && !disabled && <Gold />}
+      <Icon name={icon} size={iconSize ?? Math.round(size * 0.45)} color={disabled ? "muted" : l.color} />
     </Pressable>
   );
 }

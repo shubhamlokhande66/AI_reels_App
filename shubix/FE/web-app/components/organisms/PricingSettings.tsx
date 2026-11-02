@@ -42,7 +42,7 @@ export function PricingSettings() {
     setForm(toForm(q.data));
   }
 
-  const save = useMutation({
+  const save = useMutation({ meta: { success: "Saved", errorShown: true },
     mutationFn: (f: Form) => api.setPricing({ plans: f.plans.map((p) => ({ ...p, features: p.features.map((x) => x.trim()).filter(Boolean) })), topUps: f.topUps, costs: f.costs }),
     onSuccess: (p) => {
       qc.setQueryData(["plans"], p);

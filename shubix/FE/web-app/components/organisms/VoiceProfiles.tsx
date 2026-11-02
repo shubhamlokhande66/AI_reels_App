@@ -36,14 +36,14 @@ export function VoiceProfiles() {
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
-  const save = useMutation({
+  const save = useMutation({ meta: { success: "Voice profile saved", errorShown: true },
     mutationFn: (e: NonNullable<typeof editing>) => {
       const data = { ...e.data, pronunciations: fromLines(e.pron) };
       return e.id ? api.updateVoice(e.id, data) : api.createVoice(data);
     },
     onSuccess: () => { setEditing(null); qc.invalidateQueries({ queryKey: ["voices"] }); },
   });
-  const del = useMutation({ mutationFn: api.deleteVoice, onSuccess: () => qc.invalidateQueries({ queryKey: ["voices"] }) });
+  const del = useMutation({ meta: { success: "Deleted" }, mutationFn: api.deleteVoice, onSuccess: () => qc.invalidateQueries({ queryKey: ["voices"] }) });
 
   async function preview(p: VoiceProfile) {
     setPreviewError(null);

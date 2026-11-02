@@ -30,7 +30,7 @@ export function BusinessSettings({ bare = false }: { bare?: boolean }) {
   const site = useSite();
   const [draft, setDraft] = useState<Partial<SiteInfo>>({});
   const [saved, setSaved] = useState(false);
-  const save = useMutation({ mutationFn: () => api.setSite(draft), onSuccess: (s) => { qc.setQueryData(["site"], s); setDraft({}); setSaved(true); } });
+  const save = useMutation({ meta: { success: "Saved", errorShown: true }, mutationFn: () => api.setSite(draft), onSuccess: (s) => { qc.setQueryData(["site"], s); setDraft({}); setSaved(true); } });
   if (!site.data) return site.isLoading ? <Spinner size="sm" label="Loading business details…" /> : null;
   const value = (k: keyof SiteInfo) => draft[k] ?? site.data![k] ?? "";
   const missing = FIELDS.filter((f) => f.needed && !value(f.key).trim());

@@ -1,5 +1,6 @@
 "use client";
 
+import { Spinner } from "@/components/atoms/Spinner";
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { usePlanNeed } from "@/hooks/useApi";
@@ -12,6 +13,6 @@ export function TemplateGate({ id, children }: { id: string; children: ReactNode
   const t = templates.find((x) => x.id === id);
   const locked = !!need && !!t && need(t.plan);
   useEffect(() => { if (locked) router.replace(`/pricing?need=${encodeURIComponent(`template:${id}`)}`); }, [locked, id, router]);
-  if (!need || (!ready && !t) || locked) return <div className="min-h-[40vh]" aria-busy="true" />;
+  if (!need || (!ready && !t) || locked) return <div className="grid min-h-[40vh] place-items-center" aria-busy="true"><Spinner label={locked ? "This template is in a paid plan: opening the plans…" : "Checking your plan…"} /></div>;
   return <>{children}</>;
 }

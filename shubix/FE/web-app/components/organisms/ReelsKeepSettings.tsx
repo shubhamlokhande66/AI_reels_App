@@ -16,7 +16,7 @@ export function ReelsKeepSettings({ bare = false }: { bare?: boolean }) {
   const q = useQuery({ queryKey: ["reels-keep"], queryFn: api.reelsKeep });
   const [draft, setDraft] = useState<Record<string, number> | null>(null);
   const [saved, setSaved] = useState(false);
-  const save = useMutation({ mutationFn: api.setReelsKeep, onSuccess: (d) => { qc.setQueryData(["reels-keep"], d); setDraft(null); setSaved(true); } });
+  const save = useMutation({ meta: { success: "Saved", errorShown: true }, mutationFn: api.setReelsKeep, onSuccess: (d) => { qc.setQueryData(["reels-keep"], d); setDraft(null); setSaved(true); } });
   if (q.error) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   if (!q.data) return <Spinner size="sm" label="Loading My Reels storage…" />;
   const days = draft ?? q.data.days;

@@ -1,5 +1,5 @@
 import { api, API_URL } from "./session";
-import { fetchWithToken } from "./device";
+import { fetchWithToken, tokenStore } from "./device";
 import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
 import type { Features } from "@shubix/core/lib/features-list";
 import type { Content } from "@shubix/core/lib/collections";
@@ -8,7 +8,12 @@ import type { PlanLocks } from "@shubix/core/lib/plan-locks";
 
 /** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
  * secure storage, the app's error messages, the same logic as the website. */
-const json = <T = unknown>(path: string, init?: RequestInit) => api.request<T>(path, init);
+const USER_ONLY = ["/api/credits", "/api/notifications", "/api/studio/reels", "/api/ads", "/api/templates", "/api/marketing", "/api/brands", "/api/voices"];
+const json = async <T = unknown>(path: string, init?: RequestInit): Promise<T> => {
+  if ((init?.method ?? "GET").toUpperCase() === "GET" && USER_ONLY.includes(path.split("?")[0]) && !(await tokenStore.get().catch(() => null)))
+    throw Object.assign(new Error("Please sign in."), { status: 401, code: "AUTH_REQUIRED" });
+  return api.request<T>(path, init);
+};
 
 /** the spots with an ad (the same as the website's) */
 export type AdPlace = "home" | "homeEnd" | "reels" | "rewards" | "account";

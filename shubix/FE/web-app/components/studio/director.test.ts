@@ -258,7 +258,8 @@ describe("speed ramp curves", () => {
       { time: 1, speed: 1.5 },
       { time: Number.NaN, speed: 2 },
     ], 4);
-    expect(points[0]).toEqual({ time: 0, speed: 1.5 });
+    // before the first point the clip keeps its own speed (the fallback), as the native renderer does
+    expect(points[0]).toEqual({ time: 0, speed: 1 });
     expect(points[1]).toEqual({ time: 1, speed: 1.5 });
     expect(points[2]).toEqual({ time: 3, speed: 4 });
     expect(points[3]).toEqual({ time: 4, speed: 4 });

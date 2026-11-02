@@ -44,28 +44,28 @@ export function HomeHero({ href, reload }: { href: string; reload: boolean }) {
           <div className="relative aspect-[9/16] overflow-hidden rounded-[18px] border border-white/15 shadow-[0_16px_34px_-16px_rgba(0,0,0,.8)]" style={{ background: paintCss(heroArt.sky) }}>
             <span className="absolute left-[18%] top-[18%] size-[46%] rounded-full blur-[1px]" style={{ background: heroArt.sun }} />
             {heroArt.hills.map((hill) => <span key={hill.height} className="absolute inset-x-0 bottom-0" style={{ height: `${hill.height}%`, background: paintCss(hill.paint), clipPath: polygon(hill.points) }} />)}
-            <span className="absolute left-2.5 top-2.5 rounded-full border border-white/25 bg-black/25 px-2 py-1 text-[8px] font-bold tracking-[.12em] text-white/90 backdrop-blur">{text("home.mockPreview")}</span>
+            <span className="absolute left-2.5 top-2.5 rounded-full border border-white/25 bg-black/25 px-2 py-1 text-[10px] font-bold tracking-[.12em] text-white/90 backdrop-blur">{text("home.mockPreview")}</span>
             <span className="absolute inset-0 grid place-items-center"><i className="grid size-9 place-items-center rounded-full border border-white/55 bg-black/25 text-white shadow-lg backdrop-blur"><Icon name="play" size={16} /></i></span>
-            <span className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center gap-1.5 text-[8px] font-semibold tracking-[.1em] text-white/80"><Icon name="sparkle" size={11} /> {text("home.mockMove")}</span>
+            <span className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center gap-1.5 text-[10px] font-semibold tracking-[.1em] text-white/80"><Icon name="sparkle" size={11} /> {text("home.mockMove")}</span>
           </div>
 
           <div className="flex min-w-0 flex-col gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[.045] p-3 md:p-3.5">
               <div className="mb-2.5 flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-2"><i className="grid size-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-accent"><Icon name="music" size={15} /></i><span className="truncate text-[10px] font-bold uppercase tracking-[.12em] text-white/75">{text("home.mockSound")}</span></span>
-                <span className="shrink-0 font-mono text-[9px] text-white/45">00:24</span>
+                <span className="shrink-0 font-mono text-[10px] text-white/45">00:24</span>
               </div>
               <SoundBars bars={heroArt.bars} className="h-10 gap-[2px]" />
-              <div className="mt-2 flex items-center justify-between text-[9px] font-mono text-white/40"><span>0:00</span><span className="text-accent/85">{text("home.mockBeat")}</span><span>0:24</span></div>
+              <div className="mt-2 flex items-center justify-between text-[10px] font-mono text-white/40"><span>0:00</span><span className="text-accent/85">{text("home.mockBeat")}</span><span>0:24</span></div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[.045] p-3 md:p-3.5">
-              <div className="mb-2 flex items-center justify-between"><span className="text-[9px] font-bold uppercase tracking-[.13em] text-white/50">{text("home.mockClips")}</span><span className="text-[9px] text-white/40">{text("home.mockMoments")}</span></div>
+              <div className="mb-2 flex items-center justify-between"><span className="text-[10px] font-bold uppercase tracking-[.13em] text-white/50">{text("home.mockClips")}</span><span className="text-[10px] text-white/40">{text("home.mockMoments")}</span></div>
               <div className="flex h-9 gap-1 overflow-hidden rounded-lg">
                 {heroArt.clips.map((clip, i) => <i key={i} className="flex-1 rounded-md" style={{ background: paintCss(clip) }} />)}
               </div>
               <div className="relative mt-2 h-1 overflow-hidden rounded-full bg-white/10"><i className="absolute inset-y-0 left-0 w-[62%] rounded-full [background:var(--gold-gradient)]" /><i className="absolute -top-1 left-[62%] h-3 w-px bg-white/90" /></div>
             </div>
-            <span className="flex items-center gap-2 pl-1 text-[9px] font-semibold uppercase tracking-[.13em] text-white/45"><i className="size-1.5 animate-pulse rounded-full bg-accent motion-reduce:animate-none" /> {text("home.mockSync")}</span>
+            <span className="flex items-center gap-2 pl-1 text-[10px] font-semibold uppercase tracking-[.13em] text-white/45"><i className="size-1.5 animate-pulse rounded-full bg-accent motion-reduce:animate-none" /> {text("home.mockSync")}</span>
           </div>
         </div>
       </div>

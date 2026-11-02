@@ -12,7 +12,7 @@ const KIND: Record<string, string> = { error: "Error", rejection: "Error (async)
 export function ErrorsTab() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["admin-errors"], queryFn: api.adminErrors, refetchInterval: 60_000 });
-  const fix = useMutation({ mutationFn: api.clearAdminError, onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-errors"] }) });
+  const fix = useMutation({ meta: { success: "Marked as fixed" }, mutationFn: api.clearAdminError, onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-errors"] }) });
   if (q.error) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   const rows = q.data?.errors ?? [];
   return (

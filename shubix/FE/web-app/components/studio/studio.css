@@ -327,9 +327,13 @@
 .brs.photomode .vonly{display:none}
 /* notifications: short notes at the bottom (above the save bar on phones), and the in-app yes / no question */
 .brs .toasts{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:80;display:grid;gap:9px;width:min(92vw,420px);pointer-events:none}
+@media (max-width:1023px){.brs.fopen .toasts{bottom:calc(150px + env(safe-area-inset-bottom))}}
 .brs .toast{position:relative;display:flex;align-items:center;gap:10px;font:600 13px/1.45 var(--body);letter-spacing:.005em;color:var(--ink);background:color-mix(in srgb,var(--surface) 90%,transparent);border:1px solid color-mix(in srgb,var(--accent) 18%,var(--line));border-radius:16px;padding:13px 15px;box-shadow:0 18px 46px rgba(0,0,0,.28),0 1px 0 rgba(255,255,255,.06) inset;backdrop-filter:blur(18px);opacity:0;transform:translateY(12px) scale(.985);transition:opacity .24s ease,transform .24s cubic-bezier(.2,.8,.2,1)}
 .brs .toast:before{content:"";display:block;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 14%,transparent),0 0 16px color-mix(in srgb,var(--accent) 40%,transparent)}
 .brs .toast.in{opacity:1;transform:translateY(0) scale(1)}
+.brs .toast.resume{pointer-events:auto;flex-wrap:wrap}.brs .toast.resume span{flex:1 1 180px}
+.brs .toast.resume a,.brs .toast.resume button{font:700 12.5px/1 var(--body);border-radius:999px;padding:9px 14px;cursor:pointer;text-decoration:none}
+.brs .toast.resume a{color:var(--on-accent,#fff);background:var(--gold-gradient,var(--accent))}.brs .toast.resume button{color:var(--ink);background:transparent;border:1px solid var(--line)}
 .brs .toast.ok{border-color:color-mix(in srgb,var(--ok) 30%,var(--line))}
 .brs .toast.ok:before{background:var(--ok);box-shadow:0 0 0 4px color-mix(in srgb,var(--ok) 14%,transparent),0 0 16px color-mix(in srgb,var(--ok) 38%,transparent)}
 .brs .toast.err{border-color:color-mix(in srgb,var(--drop) 32%,var(--line))}
@@ -413,7 +417,7 @@
 .brs .aonote{display:flex;align-items:center;gap:8px;margin:0;color:var(--muted);font-size:13px}
 .brs .aonote svg{color:var(--accent);flex:none;width:18px;height:18px}
 .brs .aogo{width:100%;justify-content:center;min-height:52px;font-size:16px;background:var(--gold-gradient);color:var(--on-accent)}
-.brs .aogo:disabled{opacity:.45;cursor:not-allowed}
+.brs .aogo:disabled{cursor:not-allowed;filter:grayscale(.75);color:var(--muted)}
 .brs .aoring{position:relative;width:150px;height:150px;display:grid;place-items:center}
 .brs .aoring svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .brs .aoring circle{fill:none;stroke-width:8}
@@ -1165,7 +1169,7 @@
 .brs .ss-body .ssact{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);cursor:pointer}
 .brs .ss-body .ssact:hover{border-color:var(--accent)}
 .brs .ss-body .ssact[data-op="delete"]{color:var(--danger,#f87171)}
-.brs .ss-body .ssact:disabled{opacity:.4;cursor:default}
+.brs .ss-body .ssact:disabled{cursor:default;filter:grayscale(.75);color:var(--muted)}
 .brs .ss-body .ssrep{height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 12.5px var(--body);padding:0 8px;max-width:160px}
 @media (max-width:1023px){ .brs .shotsheet{width:auto} .brs :is(.ss-body,.shtilebox) .sstiles{grid-template-columns:repeat(auto-fill,minmax(60px,1fr))} }
 
@@ -2235,7 +2239,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   border: 1px solid rgba(255, 255, 255, .2);
   border-radius: 999px;
   background: rgba(0, 0, 0, .28);
-  font: 600 9px var(--mono);
+  font: 600 10px var(--mono);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   z-index: 10;
@@ -2311,7 +2315,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font: 700 8px var(--font-body), sans-serif;
+  font: 700 10px var(--font-body), sans-serif;
   letter-spacing: .1em;
 }
 .brs .soundState svg { color: var(--accent); }
@@ -2481,7 +2485,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
 .brs .zoomValue {
   min-width: 32px;
   color: var(--muted);
-  font: 600 9px var(--mono);
+  font: 600 10px var(--mono);
   text-align: center;
 }
 
@@ -2542,7 +2546,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   color: var(--on-accent);
   border-radius: 4px;
   background: var(--gold-gradient);
-  font: 800 6px var(--font-body), sans-serif;
+  font: 800 8px var(--font-body), sans-serif;
   letter-spacing: .04em;
   font-style: normal;
 }

@@ -31,8 +31,8 @@ function ModelPicker() {
 function PickerBody({ data, onSaved }: { data: AiModels; onSaved: (d: AiModels) => void }) {
   const [pick, setPick] = useState(data.current);
   const [results, setResults] = useState<Record<string, ModelTestResult>>({});
-  const save = useMutation({ mutationFn: (m: string | null) => api.chooseModel(m), onSuccess: onSaved });
-  const test = useMutation({ mutationFn: (m: string) => api.testModel(m), onSuccess: (r) => setResults((cur) => ({ ...cur, [r.model]: r })) });
+  const save = useMutation({ meta: { success: "Saved", errorShown: true }, mutationFn: (m: string | null) => api.chooseModel(m), onSuccess: onSaved });
+  const test = useMutation({ meta: { errorShown: true }, mutationFn: (m: string) => api.testModel(m), onSuccess: (r) => setResults((cur) => ({ ...cur, [r.model]: r })) });
   const chosen = data.models.find((m) => m.name === pick);
   const usable = data.models.filter((m) => !m.embeddingOnly);
   const result = results[pick];

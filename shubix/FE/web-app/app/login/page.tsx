@@ -104,10 +104,10 @@ export default function LoginPage() {
               <div className="relative mt-3 h-[clamp(112px,16vw,168px)] overflow-hidden rounded-xl bg-[linear-gradient(160deg,#806541_0%,#473b2b_43%,#1b1a17_100%)] lg:h-[clamp(150px,22vh,220px)]">
                 <span className="absolute top-[13%] left-[58%] aspect-square w-[28%] animate-breathe rounded-full bg-[radial-gradient(circle_at_35%_35%,#ffe9b3,#d3ae65_76%)] shadow-[0_0_50px_16px_rgba(230,196,124,.22)] motion-reduce:animate-none" aria-hidden />
                 <span className="absolute inset-x-[-5%] top-[34%] bottom-[-20%] bg-[linear-gradient(180deg,rgba(29,27,23,.18),#111110_72%)] [clip-path:polygon(0_56%,18%_22%,38%_57%,59%_14%,78%_47%,100%_18%,100%_100%,0_100%)]" aria-hidden />
-                <div className="absolute inset-x-3.5 bottom-3 grid gap-0.5 text-white [text-shadow:0_2px_14px_rgba(0,0,0,.55)]"><small className="text-[8px] font-extrabold tracking-[.18em] text-white/65">MADE TO MOVE</small><b className="text-[clamp(16px,2vw,22px)] font-[650] tracking-[-.04em]">{text("home.hero2")}</b></div>
+                <div className="absolute inset-x-3.5 bottom-3 grid gap-0.5 text-white [text-shadow:0_2px_14px_rgba(0,0,0,.55)]"><small className="text-[10px] font-extrabold tracking-[.18em] text-white/65">MADE TO MOVE</small><b className="text-[clamp(16px,2vw,22px)] font-[650] tracking-[-.04em]">{text("home.hero2")}</b></div>
               </div>
               <SoundBars bars={bars} unit="%" step={-0.13} speed="animate-[wave_.9s_ease-in-out_infinite_alternate]" barClassName="max-w-[5px]" className="mt-3 h-[26px] gap-[3px]" />
-              <div className="mt-2 flex items-center justify-between text-[9px] font-mono uppercase tracking-[.12em] text-white/45"><span>00:00</span><span className="text-accent">BEAT MATCH</span><span>00:24</span></div>
+              <div className="mt-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-[.12em] text-white/45"><span>00:00</span><span className="text-accent">BEAT MATCH</span><span>00:24</span></div>
             </div>
           </div>
 
@@ -121,7 +121,7 @@ export default function LoginPage() {
           <div className="mx-auto w-full max-w-[440px] animate-[enter_.55s_.05s_both_cubic-bezier(.2,.7,.25,1)] motion-reduce:animate-none">
             <div className="mb-5 flex items-center justify-between gap-3 sm:mb-6">
               <div className="min-w-0"><Eyebrow className="text-[10px] text-accent">SHUBIX ACCOUNT</Eyebrow><p className="mt-1 text-[12px] text-muted">{text("auth.signIn")} · {text("auth.signUp")}</p></div>
-              <span className={cn(PILL, "border-border bg-surface px-[9px] py-1.5 text-[9px] font-bold tracking-[.08em] text-muted")}><Icon name="shield" size={13} />PRIVATE &amp; SECURE</span>
+              <span className={cn(PILL, "border-border bg-surface px-[9px] py-1.5 text-[10px] font-bold tracking-[.08em] text-muted")}><Icon name="shield" size={13} />PRIVATE &amp; SECURE</span>
             </div>
 
             <div role="group" aria-label={text("auth.signIn")} className="mb-3 shadow-[0_8px_24px_-20px_rgba(0,0,0,.35)] grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface-2 p-1">

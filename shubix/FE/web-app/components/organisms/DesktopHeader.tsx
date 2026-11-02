@@ -28,7 +28,7 @@ export function DesktopHeader({ email, credits, admin, onSignOut }: { email?: st
           <Icon name="reels" size={20} stroke={1.8} />
         </span>
         <span className="hidden min-w-0 flex-col leading-tight lg:flex">
-          <small className="text-[9px] font-extrabold tracking-[.18em] text-muted">SHUBIX · STUDIO</small>
+          <small className="text-[10px] font-extrabold tracking-[.18em] text-muted">SHUBIX · STUDIO</small>
           <strong className="mt-1 whitespace-nowrap font-[family-name:var(--font-display)] text-[14px] font-semibold tracking-[-.02em] text-foreground">Creator workspace</strong>
         </span>
       </div>

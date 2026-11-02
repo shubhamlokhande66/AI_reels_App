@@ -8,7 +8,7 @@
     "dev:mobile": "npx -y pnpm@10.20.0 --filter @shubix/mobile-app start",
     "build": "npx -y pnpm@10.20.0 -r build",
     "typecheck": "npx -y pnpm@10.20.0 -r typecheck",
-    "test": "npx -y pnpm@10.20.0 -r --workspace-concurrency=1 test",
+    "test": "npx -y pnpm@10.20.0 -r --workspace-concurrency=1 --no-bail test",
     "setup": "npx -y pnpm@10.20.0 install"
   }
 }

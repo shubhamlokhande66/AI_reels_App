@@ -17,8 +17,8 @@ export function AdminsSettings({ bare = false }: { bare?: boolean }) {
   const q = useQuery({ queryKey: ["admins"], queryFn: api.admins });
   const [email, setEmail] = useState("");
   const done = (d: Awaited<ReturnType<typeof api.admins>>) => { qc.setQueryData(["admins"], d); setEmail(""); };
-  const add = useMutation({ mutationFn: api.addAdmin, onSuccess: done });
-  const remove = useMutation({ mutationFn: api.removeAdmin, onSuccess: (d) => qc.setQueryData(["admins"], d) });
+  const add = useMutation({ meta: { success: "Admin added", errorShown: true }, mutationFn: api.addAdmin, onSuccess: done });
+  const remove = useMutation({ meta: { success: "Admin removed", errorShown: true }, mutationFn: api.removeAdmin, onSuccess: (d) => qc.setQueryData(["admins"], d) });
   if (q.error) return <ErrorBanner message={errorMessage(q.error)} onRetry={() => q.refetch()} />;
   if (!q.data) return <Spinner size="sm" label="Loading administrators…" />;
   const drop = async (e: string) => {
