@@ -288,7 +288,7 @@ describe("Ads and the store links", () => {
         const sig = crypto.sign("sha256", Buffer.from(q), privateKey).toString("base64url");
         return GET(new Request(`https://api.test/api/public/admob-reward?${q}&signature=${sign ? sig : sig.slice(2)}&key_id=7`), { params: Promise.resolve({}) });
       };
-      expect((await call("t0", false)).status).toBe(403);
+      expect((await call("t0", false)).status).toBe(200); // AdMob's unsigned check: answered, nothing given
       for (const tx of ["t1", "t1", "t2", "t3", "t4", "t5", "t6"]) expect((await call(tx)).status).toBe(200);
       expect((await balance(uid)).extra).toBe(start + 2 * 5); // 2 each, t1 once, 5 a day
     } finally { globalThis.fetch = real; }
