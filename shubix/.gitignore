@@ -28,3 +28,4 @@ package-lock.json
 keystore.properties
 *.jks
 upload_certificate.pem
+FE/mobile-app/keys/

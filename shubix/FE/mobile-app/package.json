@@ -7,7 +7,8 @@
     "start": "expo start --lan --go",
     "android": "expo start --android --lan --go",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "aab": "node scripts/build-aab.mjs"
   },
   "dependencies": {
     "@expo/dom-webview": "~58.0.2",
