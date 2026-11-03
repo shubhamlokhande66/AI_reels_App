@@ -12,39 +12,115 @@ interface Env {
   [key: string]: unknown;
 }
 
+const RETRYABLE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const RETRY_AFTER_SECONDS = "2";
+
+/** Only treat known container/proxy transport failures as a dead container; ordinary application 5xx responses
+ * must pass through untouched. */
+async function isContainerProxyFailure(response: Response): Promise<boolean> {
+  if (response.status < 500) return false;
+  const body = (await response.clone().text()).slice(0, 2048);
+  return /^(Error proxying request to container|Failed to start container|Container is not running|Container failed to start)/i.test(body.trim())
+    || /upstream connect error|connection refused|container unavailable/i.test(body);
+}
+
+function unavailable(): Response {
+  return Response.json(
+    { error: "The API is waking up after a temporary interruption. Please retry shortly.", code: "API_CONTAINER_RECOVERING" },
+    { status: 503, headers: { "Retry-After": RETRY_AFTER_SECONDS, "Cache-Control": "no-store" } },
+  );
+}
+
 export class ReelApp extends Container<Env> {
   defaultPort = 3000;
   sleepAfter = "30s";
   constructor(ctx: ConstructorParameters<typeof Container<Env>>[0], env: Env) {
     super(ctx, env);
     if (typeof env.SLEEP_AFTER === "string" && env.SLEEP_AFTER) this.sleepAfter = env.SLEEP_AFTER;
-    if (env.CONTAINER_ROLE === "api") this.defaultPort = 4000; // the API alone (the website on Vercel)
+    if (env.CONTAINER_ROLE === "api") this.defaultPort = 4000; // the API alone (the website is on Vercel)
     // every setting (vars and secrets) goes to the app as an environment variable; bindings are not strings
     this.envVars = Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === "string"));
   }
-  // A cold start (the machine, the R2 mount, the server) takes 20-30 s, more than the library waits by itself (20 s), and
-  // its saved state can still say "healthy" from the container before: this object waits for the port itself, once
-  // per start (`ready`: the server answered since this object woke or the container last stopped).
-  // If the container stopped without this object hearing it (a new version rolled out), the answer is "not running":
-  // the container is let go, started again and the request asked once more (a request with a body: the next one is).
+
+  // A cold start includes the machine, R2 mount and API bootstrap. Wait for the actual listening port, not only
+  // the container state: a stale "healthy" state can outlive the process that previously answered requests.
   private ready = false;
   override onStop() { this.ready = false; }
+
   private wake(signal?: AbortSignal) {
-    // up to 4 min: before the one-file bundle a wake on 1/4 vCPU took more than the 90 s waited here and the API stayed down
-    return this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 240_000, instanceGetTimeoutMS: 60_000, abort: signal });
+    return this.startAndWaitForPorts(this.defaultPort, {
+      portReadyTimeoutMS: 240_000,
+      instanceGetTimeoutMS: 60_000,
+      abort: signal,
+    });
   }
-  override async fetch(request: Request): Promise<Response> {
-    const again = request.method === "GET" || request.method === "HEAD" ? request.clone() : null;
-    if (!this.ready || !this.ctx.container?.running) { await this.wake(request.signal); this.ready = true; }
-    const res = await super.fetch(request);
-    if (res.status < 500 || !/^(Error proxying request to container|Failed to start container)/.test(await res.clone().text())) return res;
+
+  private async resetContainer() {
     this.ready = false;
-    try { await this.destroy(); } catch { /* already gone */ }
-    if (!again) return res;
-    await this.wake(again.signal); this.ready = true;
-    return super.fetch(again);
+    try { await this.destroy(); } catch { /* it may already have stopped */ }
   }
+
+  override async fetch(request: Request): Promise<Response> {
+    // Replaying a POST/PUT/PATCH/DELETE can duplicate payments, credits or AI jobs. Only retry safe methods.
+    const retry = RETRYABLE_METHODS.has(request.method) ? request.clone() : null;
+
+    if (!this.ready || !this.ctx.container?.running) {
+      try {
+        await this.wake(request.signal);
+        this.ready = true;
+      } catch (error) {
+        this.ready = false;
+        if (request.signal.aborted) throw error;
+        console.error("API container wake failed", error);
+        return unavailable();
+      }
+    }
+
+    let response: Response;
+    try {
+      response = await super.fetch(request);
+    } catch (error) {
+      await this.resetContainer();
+      if (request.signal.aborted) throw error;
+      console.error("API container proxy request failed", error);
+      if (!retry) return unavailable();
+
+      try {
+        await this.wake(retry.signal);
+        this.ready = true;
+        const retried = await super.fetch(retry);
+        if (await isContainerProxyFailure(retried)) await this.resetContainer();
+        return retried;
+      } catch (retryError) {
+        await this.resetContainer();
+        if (retry.signal.aborted) throw retryError;
+        console.error("API container retry failed", retryError);
+        return unavailable();
+      }
+    }
+
+    if (!(await isContainerProxyFailure(response))) return response;
+
+    await this.resetContainer();
+    // Never replay a non-idempotent request: the container may have processed it before the proxy failed.
+    if (!retry) return unavailable();
+
+    try {
+      await this.wake(retry.signal);
+      this.ready = true;
+      const retried = await super.fetch(retry);
+      if (await isContainerProxyFailure(retried)) await this.resetContainer();
+      return retried;
+    } catch (error) {
+      await this.resetContainer();
+      if (retry.signal.aborted) throw error;
+      console.error("API container recovery retry failed", error);
+      return unavailable();
+    }
+  }
+
   override onError(error: unknown) {
+    this.ready = false;
     console.error("app container error", error);
     throw error;
   }
