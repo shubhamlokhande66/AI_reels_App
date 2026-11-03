@@ -1,17 +1,8 @@
 name: Shubix CI
 
 on:
-  # checks only, nothing deploys from here: PRs into main, and main itself after a merge
-  pull_request:
-    branches: [main]
-    paths:
-      - "shubix/**"
-      - ".github/workflows/shubix-ci.yml"
-  push:
-    branches: [main]
-    paths:
-      - "shubix/**"
-      - ".github/workflows/shubix-ci.yml"
+  # by hand only (Actions, Shubix CI, Run workflow; pick the branch): not on PRs, pushes or main, so Actions minutes are
+  # spent only when the owner chooses (the free ones ran out in 3 days, 2026-11-03). Checks only; nothing deploys here.
   workflow_dispatch:
 
 concurrency:

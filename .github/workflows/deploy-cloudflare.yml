@@ -1,9 +1,7 @@
 name: Deploy to Cloudflare
 on:
-  push:
-    # only a merge to main deploys: PRs and other branches never do (Run workflow in the Actions tab still can)
-    branches: [main]
-    paths-ignore: ["docs/**", "**/*.md"]
+  # by hand only (Actions, Deploy to Cloudflare, Run workflow): a merge to main does not deploy by itself, so Actions
+  # minutes are spent only when the owner chooses (the free ones ran out in 3 days, 2026-11-03)
   workflow_dispatch:
 concurrency:
   group: deploy-cloudflare
