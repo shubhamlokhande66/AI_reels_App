@@ -37,7 +37,7 @@ const env = {
 // 2. android/ from the config, then 3. the bundle
 run("npx", ["expo", "prebuild", "-p", "android", "--clean", "--no-install"], app, env);
 const android = join(app, "android");
-run(win ? "gradlew.bat" : "./gradlew", ["bundleRelease"], android, env);
+run(win ? `"${join(android, "gradlew.bat")}"` : "./gradlew", ["bundleRelease"], android, env);
 
 const aab = join(android, "app", "build", "outputs", "bundle", "release", "app-release.aab");
 if (!existsSync(aab)) stop("The build finished but app-release.aab is not there.");
