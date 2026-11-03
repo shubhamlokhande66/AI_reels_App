@@ -4218,7 +4218,12 @@ async function aiActions(list){
   redrawFrame(); saveNow(); return done;
 }
 // the AI's whole answer for this Reel: the cuts are in `director`; its texts and other steps are put on here
-async function aiApply(d){ if(!d) return; layers = layers.filter(L => L.aiIntent !== 'ai' || !(d.actions || []).some(a => a.do === 'layer')); aiTexts(d.texts); await aiActions(d.actions); }
+async function aiApply(d){ if(!d) return; layers = layers.filter(L => L.aiIntent !== 'ai' || !(d.actions || []).some(a => a.do === 'layer')); aiTexts(d.texts);
+  // the AI's own shot steps (split, freeze, delete...) change the plan, so its key: the plan stays the AI's (else the
+  // Reel counted as waiting for Shubix for ever: the phone stopped at 70%, and the house taste cut the AI's choices back)
+  const k0 = dirKey(), mine = !!director && director.key === k0;
+  await aiActions(d.actions);
+  const k1 = dirKey(); if(mine && k1 !== k0){ director = { ...director, key: k1 }; dirCache.set(k1, director); } }
 function ovTiming(ov){ const L = reelLen(); return ov.all ? [0, L] : [Math.max(0, Math.min(ov.t0, L)), Math.max(0, Math.min(ov.t1, L))]; }
 // one item at time t; its box is kept (fractions of the frame) for picking it on the preview
 let cutBuf = null;   // the cutout text's frame (the colour with the letters cut out)

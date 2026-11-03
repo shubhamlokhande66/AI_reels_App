@@ -842,7 +842,7 @@ export default function EditorScreen() {
     <View className="flex-1 bg-background">
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} still={still} live={liveOn ? <LivePlayer p={p} now={now} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onFail={() => setLiveBroken(true)} /> : undefined} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} still={still} live={liveOn ? <LivePlayer p={p} now={now} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onFail={(why) => { setLiveBroken(true); if (process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1") toast(`Live preview off: ${why}`, "danger"); }} /> : undefined} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <View className="mx-4 mt-2">
           <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>
