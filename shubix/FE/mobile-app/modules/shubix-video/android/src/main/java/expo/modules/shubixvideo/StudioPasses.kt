@@ -119,13 +119,15 @@ internal fun studioMask(clip: JSONObject, offset: Double, w: Int, h: Int): andro
   val mkKeys = keys.map { JSONObject(it.optJSONObject("mk")!!.toString()).put("t", it.optDouble("t")).put("ez", it.optString("ez", "inOut")) }
   val shape = mk.optString("s", "circle"); val inv = mk.optBoolean("inv"); val col = android.graphics.Color.parseColor(mk.optString("c", "#000000").takeIf { it.length == 7 } ?: "#000000")
   return object : androidx.media3.effect.BitmapOverlay() {
-    private val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+    // two in turn: Media3 uploads an overlay again only when it is given another bitmap
+    private val bufs = Array(2) { android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888) }
+    private var cur = 0
     private var last: Map<String, Float>? = null
     override fun getBitmap(presentationTimeUs: Long): android.graphics.Bitmap {
       val m = kxAt(base, mkKeys, offset + presentationTimeUs / 1_000_000.0)
         .mapValues { Math.round(it.value * 1000f) / 1000f }
-      if (m != last) { drawMask(bmp, m, shape, inv, col); last = m }
-      return bmp
+      if (m != last) { cur = 1 - cur; drawMask(bufs[cur], m, shape, inv, col); last = m }
+      return bufs[cur]
     }
   }
 }

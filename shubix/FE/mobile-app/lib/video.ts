@@ -78,7 +78,9 @@ function nativeSpec(p: ReelProject, width: number, height: number, preview = fal
         : {}),
     })),
     audio: p.audioUri ? { uri: p.audioUri, start: p.settings?.start ?? 0, volume: Math.min(1, Math.max(0, p.settings?.musicVolume ?? 1)), fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0, ducking: p.settings?.musicDucking ?? false, duckLevel: p.settings?.musicDuckLevel ?? 0.35 } : undefined,
-    texts: p.overlays.map(({ text, start, end, color, size }) => ({ text, start, end, color, size })),
+    // every setting of a text (style, font, entrance, exit, loop, place, keyframes), drawn as the studio does (StudioTexts.kt)
+    studioTexts: true,
+    texts: p.overlays.map((o) => ({ ...o, size: Math.min(120, Math.max(8, o.size ?? 36)) })),
   };
 }
 /** the live preview's spec: the export's, half size (smooth on any phone), without what the phone's engine cannot draw

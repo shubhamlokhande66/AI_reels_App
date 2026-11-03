@@ -33,7 +33,7 @@ The engine is the app's own Expo module `FE/mobile-app/modules/shubix-video` (Ko
    sequences.
 6. **DONE (all 44, the outgoing shot's last frame as on the website; StudioTransitions.kt): the 44 transitions.** Two shots overlap for the transition's length. Media3 sequences don't overlap, so the
    transition is drawn by one GPU pass that reads the end of one shot and the start of the next.
-7. **Texts as the studio draws them.** Its styles, fonts, entrances, exits, loops and keyframes, drawn per frame onto a
+7. **DONE (StudioTexts.kt; Google fonts drawn in the nearest Android family, text behind the person and follow-the-person not yet): texts as the studio draws them.** Its styles, fonts, entrances, exits, loops and keyframes, drawn per frame onto a
    bitmap overlay.
 8. **Parity check.** A test that draws the same frames on the website and on the phone and compares them. Then the
    phone's export can move from the hidden studio page to the native engine.
