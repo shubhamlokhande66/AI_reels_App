@@ -21,7 +21,7 @@ async function isContainerProxyFailure(response: Response): Promise<boolean> {
 
 function recovering(): Response {
   return Response.json(
-    { error: "The API is restarting after a temporary interruption. Please retry shortly.", code: "API_CONTAINER_RECOVERING" },
+    { error: { code: "API_CONTAINER_RECOVERING", message: "Shubix is starting its API after an idle period or temporary interruption. Please retry shortly." } },
     { status: 503, headers: { "Retry-After": RETRY_AFTER_SECONDS, "Cache-Control": "no-store" } },
   );
 }
