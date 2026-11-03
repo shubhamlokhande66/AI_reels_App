@@ -26,7 +26,7 @@ The engine is the app's own Expo module `FE/mobile-app/modules/shubix-video` (Ko
 3. **DONE (picture effects, Curves, HSL; adjust and looks move to step 4): native GPU passes from those shaders** (`StudioPasses.kt`). In Kotlin, one Media3 `GlEffect` (a `BaseGlShaderProgram`) per pass, with the
    same uniforms the website sets: picture effects, Curves and HSL, adjust (bri, con, sat, warm, hi, sh, hue, sharpen,
    vignette), the look (`GRADES`), 3D zoom, canvas patterns.
-4. **The studio's shot settings in the spec.** The phone gets each shot's `cs` (and its keyframes `kx`) from the studio
+4. **DONE (adjust with keyframes, Curves, HSL; the studio look is still the phone filter): the studio's shot settings in the spec.** The phone gets each shot's `cs` (and its keyframes `kx`) from the studio
    (`engine.tool("state")`) and sends them in the spec; the Kotlin passes read them per frame (keyframes as on the
    website, `kxAt`).
 5. **Masks, chroma key, blend, boxes.** Mask shapes and chroma key as GPU passes. Video boxes (layers) as extra Composition

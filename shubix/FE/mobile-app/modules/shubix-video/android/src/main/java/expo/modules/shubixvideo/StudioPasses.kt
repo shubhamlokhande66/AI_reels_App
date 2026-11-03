@@ -14,14 +14,14 @@ import org.json.JSONObject
 /** The studio's GPU passes on the phone: the website's own shader text (Shared/core/src/lib/shaders.ts), sent by the
  * phone's JS in the spec ("shaders"), so both engines run one program. A website texture's row 0 is the picture's top,
  * a Media3 texture's is its bottom: one #define turns every texture read over, the shader itself stays the website's. */
-internal class StudioShaders(val vert: String, val pic: String, val grade: String) {
+internal class StudioShaders(val vert: String, val pic: String, val grade: String, val adj: String?) {
   companion object {
     private const val FLIP = "#define texture2D(s, c) texture2D(s, vec2((c).x, 1.0 - (c).y))\n"
     fun of(spec: JSONObject): StudioShaders? {
       val s = spec.optJSONObject("shaders") ?: return null
       val vert = s.optString("vert"); val pic = s.optString("pic"); val grade = s.optString("grade")
       if (vert.isBlank() || pic.isBlank() || grade.isBlank()) return null
-      return StudioShaders(vert, FLIP + pic, FLIP + grade)
+      return StudioShaders(vert, FLIP + pic, FLIP + grade, s.optString("adj").takeIf { it.isNotBlank() }?.let { FLIP + it })
     }
   }
 }
@@ -53,6 +53,19 @@ private class StudioPass(private val vert: String, private val frag: String, pri
 internal fun studioPasses(sh: StudioShaders?, clip: JSONObject, offset: Double, len: Double): List<GlEffect> {
   if (sh == null) return emptyList()
   val out = mutableListOf<GlEffect>()
+  // Adjust (the shot's cs: bri con sat warm hi sh hue sharp vig), with its keyframes (cs.kx, as the website's kxAt)
+  val cs = clip.optJSONObject("cs")
+  if (sh.adj != null && cs != null) {
+    val base = ADJ.associateWith { cs.optDouble(it, 0.0).takeIf { v -> v.isFinite() } ?: 0.0 }
+    val keys = cs.optJSONArray("kx")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) }.filter { it.has("t") }.sortedBy { it.optDouble("t") } } ?: emptyList()
+    if (base.values.any { it != 0.0 } || keys.any { k -> ADJ.any { k.has(it) } }) out += StudioPass(sh.vert, sh.adj) { p, w, h, t ->
+      val v = kxAt(base, keys, offset + t)
+      GLES20.glUniform2f(p.getUniformLocation("res"), w, h)
+      GLES20.glUniform4f(p.getUniformLocation("ad"), v.getValue("bri"), v.getValue("con"), v.getValue("sat"), v.getValue("warm"))
+      GLES20.glUniform4f(p.getUniformLocation("ad2"), v.getValue("hi"), v.getValue("sh"), v.getValue("hue"), v.getValue("sharp"))
+      GLES20.glUniform1f(p.getUniformLocation("vig"), v.getValue("vig") * 0.9f)
+    }
+  }
   val g = clip.optJSONObject("grade")
   if (g != null) {
     val curve = { k: String -> val a = g.optJSONObject("cv")?.optJSONArray(k); FloatArray(5) { i -> (a?.optDouble(i, i / 4.0) ?: (i / 4.0)).toFloat().coerceIn(0f, 1f) } }
@@ -80,4 +93,23 @@ internal fun studioPasses(sh: StudioShaders?, clip: JSONObject, offset: Double, 
     }
   }
   return out
+}
+
+private val ADJ = listOf("bri", "con", "sat", "warm", "hi", "sh", "hue", "sharp", "vig")
+private fun ease(name: String, x: Double): Double = when (name) {
+  "lin" -> x; "outCubic" -> 1 - Math.pow(1 - x, 3.0); "outExpo" -> if (x >= 1) 1.0 else 1 - Math.pow(2.0, -10 * x)
+  "outBack" -> { val c1 = 1.70158; val c3 = c1 + 1; 1 + c3 * Math.pow(x - 1, 3.0) + c1 * Math.pow(x - 1, 2.0) }
+  "inQuad" -> x * x; else -> -(Math.cos(Math.PI * x) - 1) / 2
+}
+/** a shot's values at `l` seconds into it: between its two keys, eased (a field a key leaves out is the shot's own), as
+ * the website's kxAt (engine.ts) */
+private fun kxAt(base: Map<String, Double>, keys: List<JSONObject>, l: Double): Map<String, Float> {
+  if (keys.isEmpty()) return base.mapValues { it.value.toFloat() }
+  var a = keys.first(); var b = a; var p = 0.0
+  if (l >= keys.last().optDouble("t")) { a = keys.last(); b = a }
+  else if (l > keys.first().optDouble("t")) for (k in 1 until keys.size) if (l <= keys[k].optDouble("t")) {
+    a = keys[k - 1]; b = keys[k]; val ta = a.optDouble("t"); val tb = b.optDouble("t")
+    p = ease(b.optString("ez", "inOut"), ((l - ta) / maxOf(1e-6, tb - ta)).coerceIn(0.0, 1.0)); break
+  }
+  return base.mapValues { (n, d) -> val x = if (a.has(n)) a.optDouble(n, d) else d; val y = if (b.has(n)) b.optDouble(n, d) else d; (x + (y - x) * p).toFloat() }
 }

@@ -16,6 +16,8 @@ export const clipSchema = z.object({
   rotation: z.number(), mirror: z.boolean(), flip: z.boolean(), fit: z.enum(["cover", "contain"]),
   // the studio's effect during the shot (its name: punch, shake, glow…) when the website's engine made the Reel
   effect: z.string().optional(),
+  // the studio's own settings of the shot (Clip tools: adjust, curves, HSL, mask, keyframes kx...), for the phone's engine
+  cs: z.record(z.string(), z.unknown()).optional(),
   // Shot-level transform keyframes shared by the native preview and Studio renderer.
   keyframes: z.array(z.object({ t: z.number().min(0), x: z.number(), y: z.number(), s: z.number().positive(), r: z.number(), o: z.number().min(0).max(1), ez: z.string().optional(), bezier: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional() })).optional(),
   // Optional source-time variable speed curve (1 = normal speed); renderers can subdivide it into constant-rate segments.

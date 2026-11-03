@@ -232,3 +232,16 @@ export const PIC_FRAG = `precision mediump float; varying vec2 v; uniform sample
           float e = clamp(length(vec2(gx, gy))*4.0, 0.0, 1.0); col = mix(col, vec3(1.0 - e)*vec3(0.98, 0.96, 0.92), amt); }
         else if(kind > 10.5 && kind < 11.5){ float l = lum(col); col = mix(col, mix(vec3(0.22, 0.05, 0.42), vec3(1.0, 0.62, 0.25), smoothstep(0.1, 0.9, l)), amt); }
         gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0); }`;
+
+/** a shot's Adjust on its own, for the native engine (the website does it inside MAIN_FRAG, with these same two
+ * functions, taken from it): ad = brightness, contrast, saturation, warmth; ad2 = highlights, shadows, hue, sharpen */
+const ADJ_FNS = MAIN_FRAG.slice(MAIN_FRAG.indexOf("vec3 adj("), MAIN_FRAG.indexOf("vec3 shotL("));
+export const ADJ_FRAG = `precision mediump float; varying vec2 v; uniform sampler2D T; uniform vec2 res; uniform vec4 ad, ad2; uniform float vig;
+${ADJ_FNS}
+void main(){ vec3 c = texture2D(T, v).rgb;
+  if(ad2.w>0.01){ vec2 ox = vec2(1.6/res.x, 0.), oy = vec2(0., 1.6/res.y); vec3 bl = (texture2D(T, v+ox).rgb + texture2D(T, v-ox).rgb + texture2D(T, v+oy).rgb + texture2D(T, v-oy).rgb)*0.25; c += (c-bl)*ad2.w*2.5; }
+  c = adj(c, ad);
+  if(ad2.x!=0. || ad2.y!=0.){ float l = dot(c, vec3(0.299,0.587,0.114)); c += ad2.x*0.28*smoothstep(0.45,1.,l) + ad2.y*0.28*(1.-smoothstep(0.,0.55,l)); }
+  if(ad2.z!=0.) c = hueRot(c, ad2.z*3.14159);
+  if(vig>0.){ float vd = length((v-0.5)*vec2(res.x/res.y, 1.)); c *= 1. - vig*smoothstep(0.3,0.75,vd); }
+  gl_FragColor = vec4(clamp(c, 0., 1.), 1.); }`;

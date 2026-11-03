@@ -175,7 +175,7 @@ export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[]
     const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
     const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
     const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk };
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk, ...(e.cs ? { cs: e.cs } : {}) };
     made.set(clip.id, { shot: e, clip });
     return clip;
   });
