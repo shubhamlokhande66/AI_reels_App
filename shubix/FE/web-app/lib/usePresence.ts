@@ -5,9 +5,9 @@ import { api } from "@/lib/api";
 import { isStandalone } from "@/lib/pwa";
 
 /** "Online now" on the admin dashboard: while the page is visible, this browser says it is here once every 5 minutes at
- * most (a new page or a tab shown again sends nothing sooner). Not more often: on Cloudflare every request keeps the app's
- * container awake (it sleeps 2 min after the last one), and frequent pings from one open tab kept it running all day.
- * One id per browser, kept on this device, so several tabs count as one visitor. */
+ * most (a new page or a tab shown again sends nothing sooner). Cloudflare answers this heartbeat at the edge whenever
+ * the API container is asleep, so an idle tab never wakes or keeps the paid container running. A heartbeat is forwarded
+ * only when the API is already ready. One id per browser, kept on this device, so several tabs count as one visitor. */
 const KEY = "reel-visitor", EVERY_MS = 5 * 60_000;
 
 function visitorId(): string {
@@ -28,8 +28,7 @@ export function usePresence(pathname: string) {
   useEffect(() => {
     if (!pathname) return; // not a visitor (the phone app's hidden studio)
     const beat = () => {
-      // once every 5 minutes at most, whatever happens meanwhile (another page, the tab left and shown again): enough to
-      // count the visitor as online, and each request wakes the API's container
+      // once every 5 minutes at most: enough to count an active visitor without waking an idle API container
       if (document.visibilityState !== "visible") return;
       const now = Date.now(); if (now - last.at < EVERY_MS - 5000) return; last.path = pathname; last.at = now;
       // app: opened from the home screen (an iPhone's Safari then knows the app is installed: InstallBanner)
