@@ -205,7 +205,7 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
 }
 
 export type ClipOrder = "mix" | "order";
-export type Aspect = "9:16" | "4:5" | "1:1" | "16:9";
+export type Aspect = "9:16" | "4:5" | "1:1" | "16:9" | "3:4" | "4:3" | "2:1" | "2.35:1";
 export type TalkPace = "tight" | "natural" | "relaxed" | "off";
 export type ClipSettings = { order: ClipOrder; aspect: Aspect; pace: TalkPace; under: string };
 
@@ -265,7 +265,7 @@ export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarli
           <Segmented small value={settings.order} onChange={(order) => onSettings({ order })} options={[{ value: "mix" as ClipOrder, label: words("Mix all clips") }, { value: "order" as ClipOrder, label: words("In my order") }]} />
         </Row>
       )}
-      <Row label={words("Format")}><Segmented small value={settings.aspect} onChange={(aspect) => onSettings({ aspect })} options={(["9:16", "4:5", "1:1", "16:9"] as Aspect[]).map((a) => ({ value: a, label: a === "9:16" ? words("9:16 Reel") : a }))} /></Row>
+      <Row label={words("Format")}><Segmented small value={settings.aspect} onChange={(aspect) => onSettings({ aspect })} options={(["9:16", "4:5", "1:1", "16:9", "3:4", "4:3", "2:1", "2.35:1"] as Aspect[]).map((a) => ({ value: a, label: a === "9:16" ? words("9:16 Reel") : a }))} /></Row>
     </FlowCard>
   );
 }

@@ -1792,9 +1792,14 @@
 .brs[data-asp="4:5"] .fprevbox{aspect-ratio:4/5}
 .brs[data-asp="1:1"] .fprevbox{aspect-ratio:1/1}
 .brs[data-asp="16:9"] .fprevbox{aspect-ratio:16/9}
+.brs[data-asp="3:4"] .fprevbox{aspect-ratio:3/4}
+.brs[data-asp="4:3"] .fprevbox{aspect-ratio:4/3}
+.brs[data-asp="2:1"] .fprevbox{aspect-ratio:2/1}
+.brs[data-asp="2.35:1"] .fprevbox{aspect-ratio:2.35/1}
 @media (min-width:1024px){
-  .brs.fopen:is([data-asp="4:5"],[data-asp="1:1"],[data-asp="16:9"]) .fprevbox{width:100%;height:auto;max-height:clamp(260px,calc(100vh - 320px),680px)}
+  .brs.fopen:is([data-asp="4:5"],[data-asp="1:1"],[data-asp="16:9"],[data-asp="3:4"],[data-asp="4:3"],[data-asp="2:1"],[data-asp="2.35:1"]) .fprevbox{width:100%;height:auto;max-height:clamp(260px,calc(100vh - 320px),680px)}
   .brs.fopen[data-asp="4:5"] .fprevbox{width:min(100%,calc(clamp(260px,calc(100vh - 320px),680px) * .8))}
+  .brs.fopen[data-asp="3:4"] .fprevbox{width:min(100%,calc(clamp(260px,calc(100vh - 320px),680px) * .75))}
 }
 @media (min-width:1024px){
   .brs.fopen .fprevbox{--pvh:clamp(260px,calc(100vh - 320px),680px)}

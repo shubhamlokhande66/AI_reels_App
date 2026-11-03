@@ -57,6 +57,8 @@ export const CLIP_TOOLS: [string, string, string][] = [
   ["slip", "Slip", I('<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/>')],
   ["trim", "Trim", I('<path d="M7 4v16M17 4v16M7 12h10"/>')],
 ];
+/** the canvas patterns behind a fitted picture (in the chosen colour) */
+const PATS: [string, string][] = [["grad", "Gradient"], ["stripes", "Stripes"], ["dots", "Dots"], ["grid", "Grid"], ["checker", "Checker"]];
 const SWATCH = ["#000000", "#ffffff", "#f3ede3", "#d4b07a", "#e85d75", "#4f7cff", "#1db954", "#ff9f1c"];
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 // the Adjust sliders' signs (the design: a sign, the name, the slider, the value)
@@ -90,7 +92,7 @@ export function clipToolsHtml(c: ClipCs, open: string): string {
   else if (open === "crop") body = slider("zoom", "Zoom", c.zoom, 1, 3, 0.05, "x") + slider("cx", "Across", c.cx ?? 0.5, 0, 1, 0.01, "%") + slider("cy", "Down", c.cy ?? 0.5, 0, 1, 0.01, "%")
     + `<button type="button" class="${Chip}" data-act="crop-auto">${c.cx == null ? "Following the face (automatic)" : "Back to automatic (follows the face)"}</button>`;
   else if (open === "canvas") body = !c.fit ? need("Canvas shows around a fitted picture. Turn on Fit first.") + `<button type="button" class="${Chip}" data-act="fit-on">Fit the whole picture</button>`
-    : `<div class="chips"><button type="button" class="${Chip}" data-bg="blur" aria-pressed="${c.bg === "blur"}">Blur</button><button type="button" class="${Chip}" data-bg="color" aria-pressed="${c.bg !== "blur"}">Colour</button></div>${c.bg !== "blur" ? swatches("bgc", c.bgc) : ""}`;
+    : `<div class="chips"><button type="button" class="${Chip}" data-bg="blur" aria-pressed="${c.bg === "blur"}">Blur</button><button type="button" class="${Chip}" data-bg="color" aria-pressed="${c.bg === "color"}">Colour</button>${PATS.map(([k, n]) => `<button type="button" class="${Chip}" data-bg="${k}" aria-pressed="${c.bg === k}">${n}</button>`).join("")}</div>${c.bg !== "blur" ? swatches("bgc", c.bgc) : ""}`;
   else if (open === "border") body = !c.fit ? need("A border goes around a fitted picture. Turn on Fit first.") + `<button type="button" class="${Chip}" data-act="fit-on">Fit the whole picture</button>`
     : slider("bd", "Width", c.bd, 0, 1, 0.05, "%") + swatches("bdc", c.bdc);
   else if (open === "adjust") body = slider("bri", "Brightness", c.bri, -1, 1, 0.05) + slider("con", "Contrast", c.con, -1, 1, 0.05) + slider("sat", "Saturation", c.sat, -1, 1, 0.05) + slider("warm", "Warmth", c.warm, -1, 1, 0.05)
@@ -163,7 +165,7 @@ export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined
     else if (act === "extract") void A.shotExtract();
     else if (act === "crop-auto") A.shotSet({ zoom: 1, cx: null, cy: null });
     const mk = t.closest<HTMLElement>("[data-mk]")?.dataset.mk; if (mk) A.shotSet({ mk: { ...(c.mk ?? DEF_MK), s: mk } });
-    const bg = t.closest<HTMLElement>("[data-bg]")?.dataset.bg; if (bg) A.shotSet({ bg: bg === "blur" ? "blur" : "color" });
+    const bg = t.closest<HTMLElement>("[data-bg]")?.dataset.bg; if (bg) A.shotSet({ bg: bg === "blur" || PATS.some(([k]) => k === bg) ? bg : "color" });
     const col = t.closest<HTMLElement>("[data-col]"); if (col) A.shotSet(col.dataset.col === "mk.c" ? { mk: { ...(c.mk ?? DEF_MK), c: col.dataset.v! } } : col.dataset.col === "ck.bg" && c.ck ? { ck: { ...c.ck, bg: col.dataset.v! } } : { [col.dataset.col!]: col.dataset.v } as Partial<ClipCs>);
     const sl = t.closest<HTMLElement>("[data-slip]")?.dataset.slip; if (sl) A.shotSlip(+sl);
     const tr = t.closest<HTMLElement>("[data-trim]")?.dataset.trim; if (tr) A.shotTrim(+tr);

@@ -51,7 +51,7 @@ const IC = {
 // the Create flow's AI checklist (step 3 on computers, the Analysing screen on phones); data-t: the tasks it follows
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
-const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
+const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"], ["3:4", "Portrait photo", "w-[15px] h-5"], ["4:3", "Classic TV", "w-5 h-[15px]"], ["2:1", "Wide banner", "w-[22px] h-[11px]"], ["2.35:1", "Cinema", "w-[23px] h-[10px]"]];
 // a card of the flow (Music, Clips, Shubix Edit); on phones the Music and Clips screens have no card around them;
 // locked: waits for the step before it
 const flowCard = "animate-none grid min-w-0 gap-3 rounded-[20px] border border-[color-mix(in_srgb,var(--accent)_13%,var(--border))] bg-surface px-5 py-[18px] shadow-[0_18px_44px_-36px_rgba(0,0,0,.7),inset_0_1px_0_rgba(255,255,255,.035)] transition-[border-color,box-shadow] duration-200 hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] hover:shadow-[0_20px_44px_-34px_rgba(0,0,0,.72),inset_0_1px_0_rgba(255,255,255,.04)] [&.locked]:saturate-[.72] max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:px-0 max-lg:pt-1 max-lg:pb-0 max-lg:shadow-none max-lg:hover:shadow-none";
@@ -288,6 +288,10 @@ export const STUDIO_HTML = `
         <button data-a="4:5" aria-pressed="false">4:5</button>
         <button data-a="1:1" aria-pressed="false">1:1</button>
         <button data-a="16:9" aria-pressed="false">16:9</button>
+        <button data-a="3:4" aria-pressed="false">3:4</button>
+        <button data-a="4:3" aria-pressed="false">4:3</button>
+        <button data-a="2:1" aria-pressed="false">2:1</button>
+        <button data-a="2.35:1" aria-pressed="false">2.35:1</button>
       </div>
     </div>
     <span class="fslot" id="fsndslot"></span>

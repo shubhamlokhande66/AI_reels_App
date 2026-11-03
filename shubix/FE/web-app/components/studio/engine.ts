@@ -1665,7 +1665,7 @@ dz.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventD
 dz.addEventListener('drop', e=>addVideos(e.dataTransfer.files));
 
 let aspect = '9:16';
-const SIZES = {'9:16':[1080,1920], '4:5':[1080,1350], '1:1':[1080,1080], '16:9':[1920,1080]};   // Instagram / YouTube full HD
+const SIZES = {'9:16':[1080,1920], '4:5':[1080,1350], '1:1':[1080,1080], '16:9':[1920,1080], '3:4':[1080,1440], '4:3':[1440,1080], '2:1':[1920,960], '2.35:1':[1920,816]};   // + CapCut's other formats   // Instagram / YouTube full HD
 $('aspect').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return; aspect=b.dataset.a; root.dataset.asp = aspect; // the preview card takes this shape too
   [...$('aspect').children].forEach(x=>x.setAttribute('aria-pressed', x===b)); setCanvas(); if(edit.length && !playing && !recording) captureLoop(); });
 
@@ -3695,6 +3695,7 @@ function drawShot(g, e, local, o={}){
     g.save(); g.globalAlpha = alpha;
     if(ux || uy) g.translate(ux, uy);
     if(c.bg === 'blur'){ const rb = Math.max(W/G.sw, H/G.sh)*1.12; g.filter = 'blur(' + Math.round(W*0.03) + 'px) brightness(0.62)'; csDraw(g, v, c, W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb); g.filter = 'none'; }
+    else if(CANVAS_PATS.includes(c.bg)) canvasPat(g, W, H, c.bg, c.bgc);
     else { g.fillStyle = c.bgc; g.fillRect(-W, -H, 3*W, 3*H); }
     if(c.bd > 0){ const b = c.bd*0.04*W; if(rot){ g.translate(W/2,H/2); g.rotate(rot*Math.PI/180); g.translate(-W/2,-H/2); } g.fillStyle = c.bdc; g.fillRect(px-b, py-b, dw+2*b, dh+2*b); }
     g.restore(); };
@@ -3720,6 +3721,17 @@ function drawShot(g, e, local, o={}){
   if(br < 1){ g.fillStyle=`rgba(0,0,0,${(1-br)*alpha})`; g.fillRect(0,0,W,H); }
 }
 // the shot's colour as a canvas filter (the shader's adj(); warmth as a sepia / hue nudge)
+// the canvas patterns (the same as the GPU's pat()): the colour and a lighter one, sized to a 1080-wide frame
+const CANVAS_PATS = ['grad','stripes','dots','grid','checker'];
+function canvasPat(g, W, H, k, col){
+  const [r, gg, b] = hexRgb(col), L = `rgb(${[r, gg, b].map(v => Math.round((v + (1 - v)*0.35)*255)).join(',')})`, z = W/1080;
+  if(k === 'grad'){ const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, L); gr.addColorStop(1, `rgb(${[r, gg, b].map(v => Math.round(v*0.55*255)).join(',')})`); g.fillStyle = gr; g.fillRect(-W, -H, 3*W, 3*H); return; }
+  g.fillStyle = L; g.fillRect(-W, -H, 3*W, 3*H); g.fillStyle = col;
+  if(k === 'stripes'){ g.save(); g.beginPath(); for(let d = -H; d < W + H; d += 80*z){ g.moveTo(d + 40*z, 0); g.lineTo(d + 80*z, 0); g.lineTo(d + 80*z - H, H); g.lineTo(d + 40*z - H, H); } g.fill(); g.restore(); }
+  else if(k === 'dots'){ g.fillRect(-W, -H, 3*W, 3*H); g.fillStyle = L; for(let y = 30*z; y < H + 60*z; y += 60*z) for(let x = 30*z; x < W + 60*z; x += 60*z){ g.beginPath(); g.arc(x, y, 14*z, 0, 7); g.fill(); } }
+  else if(k === 'grid'){ g.fillRect(-W, -H, 3*W, 3*H); g.fillStyle = L; for(let x = 0; x < W; x += 64*z) g.fillRect(x, 0, 4*z, H); for(let y = 0; y < H; y += 64*z) g.fillRect(0, y, W, 4*z); }
+  else for(let y = 0, j = 0; y < H; y += 72*z, j++) for(let x = 0, i = 0; x < W; x += 72*z, i++) if((i + j) % 2) g.fillRect(x, y, 72*z, 72*z);
+}
 function csFilter(c){ if(!c.bri && !c.con && !c.sat && !c.warm) return '';
   return ` brightness(${(1+c.bri*0.5).toFixed(3)}) contrast(${(1+c.con).toFixed(3)}) saturate(${(1+c.sat).toFixed(3)})` + (c.warm ? (c.warm > 0 ? ` sepia(${(c.warm*0.25).toFixed(3)})` : ` hue-rotate(${(c.warm*-12).toFixed(1)}deg)`) : ''); }
 // the picture in its display rect: turned, then mirrored / flipped
@@ -4771,6 +4783,11 @@ uniform vec4 ad2A, ad2B, tsh, thi;   /* a shot's highlights, shadows, hue, sharp
 uniform float beA, beB;   /* skin smoothing of a shot */
 uniform float mzc;
 uniform vec4 shp, shq;   // a beat shape of the shot: kind, level, centre, and the grid / strips count
+/* a canvas pattern behind a fitted shot (k: 0 gradient, 1 stripes, 2 dots, 3 grid, 4 checker), in its colour and a lighter one; sized to a 1080-wide frame */
+vec3 pat(vec2 p, vec3 c, float k){ vec2 q = p/res.x*1080.; vec3 l = mix(c, vec3(1.), 0.35); float s;
+  if(k<0.5) return mix(l, c*0.55, clamp(p.y/res.y, 0., 1.));
+  if(k<1.5) s = step(40., mod(q.x+q.y, 80.)); else if(k<2.5) s = step(14., length(mod(q, 60.)-30.)); else if(k<3.5) s = step(4., min(mod(q.x, 64.), mod(q.y, 64.))); else s = mod(floor(q.x/72.)+floor(q.y/72.), 2.);
+  return mix(l, c, s); }
 vec2 rotP(vec2 p, float r){ vec2 c=res*0.5; vec2 d=p-c; float cs=cos(-r), sn=sin(-r); return c+vec2(cs*d.x-sn*d.y, sn*d.x+cs*d.y); }
 vec3 tap(sampler2D t, vec2 uv, float ro){ uv=clamp(uv,0.001,0.999);
   if(ro<0.0001) return texture2D(t,uv).rgb;
@@ -4807,7 +4824,7 @@ vec3 shotL(sampler2D t, vec2 p, vec4 r, float rot, float zb, vec2 db, float rgb,
     }
   }
   if(inside<0.5 && bd.w>0.){ vec2 q = rotP(p,rot); if(q.x>r.x-bd.w && q.x<r.x+r.z+bd.w && q.y>r.y-bd.w && q.y<r.y+r.w+bd.w){ c = bd.rgb; inside = 1.; } }
-  if(inside<0.5 && bg.w>-0.5){ float ib; c = bg.w>0.5 ? layer(t,p,bgr,0.,1.,vec2(0.),0.,tf,ib)*0.62 : bg.rgb; inside = 1.; }
+  if(inside<0.5 && bg.w>-0.5){ float ib; c = bg.w>1.5 ? pat(p, bg.rgb, bg.w-2.) : bg.w>0.5 ? layer(t,p,bgr,0.,1.,vec2(0.),0.,tf,ib)*0.62 : bg.rgb; inside = 1.; }
   c = adj(c, ad);
   if(ad2.x!=0. || ad2.y!=0.){ float l = dot(c, vec3(0.299,0.587,0.114)); c += ad2.x*0.28*smoothstep(0.45,1.,l) + ad2.y*0.28*(1.-smoothstep(0.,0.55,l)); }
   if(ad2.z!=0.) c = hueRot(c, ad2.z*3.14159);
@@ -5235,7 +5252,7 @@ function layerOf(e, local, o={}){
   return { el:texOf(e, local), rect: still ? [0,0,W,H] : [px,py,dw,dh], rot: still ? 0 : rot*Math.PI/180, zb: zb + (o.zb||0), db: o.db || [0,0], rgb: (o.noFx ? 0 : (kf(K.rgb,local)||0)) + (o.rgb||0) + (ac ? ac.rgb : 0),
     expo, bright: (br===undefined ? 1 : br) * (e.type==='break' ? 0.88 : 1) * fade, alpha: (o.alpha ?? 1) * (u ? Math.max(0, Math.min(1, u.o)) : 1),
     off: u ? [u.x*W, u.y*H] : [0,0], clip: u ? 1 : 0, uo: u ? Math.max(0, Math.min(1, u.o)) : 1,
-    tf: csMat(c), bg: !c.fit ? [0,0,0,-1] : c.bg === 'blur' ? [0,0,0,1] : [...hexRgb(c.bgc), 0], bgr: [W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb],
+    tf: csMat(c), bg: !c.fit ? [0,0,0,-1] : c.bg === 'blur' ? [0,0,0,1] : [...hexRgb(c.bgc), CANVAS_PATS.includes(c.bg) ? 2 + CANVAS_PATS.indexOf(c.bg) : 0], bgr: [W/2 - G.sw*rb/2, H/2 - G.sh*rb/2, G.sw*rb, G.sh*rb],
     bd: c.fit && c.bd > 0 ? [...hexRgb(c.bdc), c.bd*0.04*W] : [0,0,0,0], ad: [c.bri, c.con, c.sat, c.warm], ad2: [c.hi || 0, c.sh || 0, c.hue || 0, (c.sharp || 0) + upSharp(e, dh)], be: c.beauty || 0 };
 }
 // a clip smaller than it is shown (a 480p or 720p video in a 1080p or 4K Reel): sharpened in step with how much it is
@@ -7095,7 +7112,7 @@ function voiceFx(x, sr, fx){
 // the AI's shot settings, each a known field of the clip tools in its range (the server checked them too)
 const AI_CS = c => { const o = {}, n = (k, a, b) => { const v = Number(c[k]); if(Number.isFinite(v) && v) o[k] = Math.min(b, Math.max(a, v)); };
   if([90,180,270].includes(c.rot)) o.rot = c.rot; for(const k of ['fh','fv','fit','enh']) if(c[k] === true) o[k] = true;
-  if(o.fit){ if(c.bg === 'blur' || c.bg === 'color') o.bg = c.bg; if(/^#[0-9a-f]{6}$/i.test(c.bgc || '')) o.bgc = c.bgc; n('bd', 0, 1); if(/^#[0-9a-f]{6}$/i.test(c.bdc || '')) o.bdc = c.bdc; }
+  if(o.fit){ if(c.bg === 'blur' || c.bg === 'color' || CANVAS_PATS.includes(c.bg)) o.bg = c.bg; if(/^#[0-9a-f]{6}$/i.test(c.bgc || '')) o.bgc = c.bgc; n('bd', 0, 1); if(/^#[0-9a-f]{6}$/i.test(c.bdc || '')) o.bdc = c.bdc; }
   n('stab', 0, 1); n('smooth', 0, 1); n('bri', -1, 1); n('con', -1, 1); n('sat', -1, 1); n('warm', -1, 1); n('hi', -1, 1); n('sh', -1, 1); n('hue', -1, 1); n('sharp', 0, 1); n('vig', 0, 1); n('beauty', 0, 1); n('fin', 0, 1.5); n('fout', 0, 1.5);
   // reverse, zoom, the clip's sound, and the mask / green screen / curves / HSL objects (the server checked their fields)
   if(c.rev === true) o.rev = true; n('zoom', 1, 3); n('pitch', -12, 12); for(const k of ['vol','mus']) if(Number.isFinite(Number(c[k])) && c[k] !== undefined) o[k] = Math.min(2, Math.max(0, Number(c[k])));

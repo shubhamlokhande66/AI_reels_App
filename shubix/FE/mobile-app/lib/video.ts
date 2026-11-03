@@ -16,7 +16,7 @@ import {
 /** The Reel as an MP4, made on this phone by its video engine (modules/shubix-video). `ready`: the engine is in this
  * app (a development or Play Store build; Expo Go has not). */
 export const videoEngine = { ready: !!ShubixVideo };
-const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1080, 1350], "1:1": [1080, 1080], "16:9": [1920, 1080] };
+const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1080, 1350], "1:1": [1080, 1080], "16:9": [1920, 1080], "3:4": [1080, 1440], "4:3": [1440, 1080], "2:1": [1920, 960], "2.35:1": [1920, 816] };
 /** Shared capability checks used by editor UI and export validation. */
 export const isNativeTransitionSupported = isAndroidTransitionSupported;
 export const isNativeEffectSupported = isAndroidEffectSupported;
