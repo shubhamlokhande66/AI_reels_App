@@ -1,0 +1,38 @@
+name: Deploy website (Vercel)
+
+# The website (shubix/FE/web-app) to production on Vercel, by hand only: Actions, Deploy website (Vercel), Run workflow.
+# Vercel's own deploy on a push is off (vercel.json git.deploymentEnabled false). Built here with the Vercel CLI and the
+# project's settings and environment variables from Vercel, then deployed as it was built.
+# Secrets (Settings, Secrets and variables, Actions): VERCEL_TOKEN (vercel.com/account/tokens), VERCEL_ORG_ID and
+# VERCEL_PROJECT_ID (the project's Settings, General: Team ID / Project ID).
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vercel
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: The Vercel secrets are there
+        run: test -n "$VERCEL_TOKEN" && test -n "$VERCEL_ORG_ID" && test -n "$VERCEL_PROJECT_ID" || { echo "::error::Add VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID to the repo secrets first."; exit 1; }
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: shubix/pnpm-lock.yaml
+      # from the repository root: the project's Root Directory (shubix/FE/web-app) is set on Vercel
+      - run: npx -y vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - run: npx -y vercel@latest build --prod --token="$VERCEL_TOKEN"
+      - run: npx -y vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN"
