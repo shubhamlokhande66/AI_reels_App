@@ -3,7 +3,12 @@ import { z } from "zod";
 export const mediaKindSchema = z.enum(["video", "image"]);
 export const transitionSchema = z.enum(["Cut", "Fade", "Dissolve", "Push", "Wipe", "Zoom", "Flash", "Blur"]);
 export const filterSchema = z.enum(["Original", "Golden", "Film", "Noir", "Soft", "Vivid", "Cinematic"]);
-export const overlaySchema = z.object({ id: z.string(), text: z.string().max(300), start: z.number().min(0), end: z.number().positive(), color: z.string(), size: z.number().min(8).max(120) });
+/** a text or sticker on the Reel; the studio's settings (style, entrance, exit, loop, place, font, keyframes...) are kept
+ * as they are, so a text made by the studio or Shubix AI comes back to the phone and goes to the studio unchanged */
+export const overlaySchema = z.object({ id: z.string(), text: z.string().max(300), start: z.number().min(0), end: z.number().positive(), color: z.string(), size: z.number().min(8).max(120),
+  style: z.string().max(24).optional(), anim: z.string().max(24).optional(), out: z.string().max(24).optional(), loop: z.string().max(24).optional(), font: z.string().max(24).optional(),
+  x: z.number().optional(), y: z.number().optional(), emoji: z.boolean().optional(), behind: z.boolean().optional(), track: z.boolean().optional(), focus: z.number().optional(),
+  aiIntent: z.string().max(24).optional(), uk: z.array(z.record(z.string(), z.unknown())).max(64).optional() });
 export const clipSchema = z.object({
   id: z.string(), uri: z.string(), name: z.string(), kind: mediaKindSchema, duration: z.number().positive(),
   sourceDuration: z.number().positive(), start: z.number().min(0), end: z.number().positive(), speed: z.number().min(0.25).max(4),
@@ -11,6 +16,8 @@ export const clipSchema = z.object({
   rotation: z.number(), mirror: z.boolean(), flip: z.boolean(), fit: z.enum(["cover", "contain"]),
   // the studio's effect during the shot (its name: punch, shake, glow…) when the website's engine made the Reel
   effect: z.string().optional(),
+  // the studio's own settings of the shot (Clip tools: adjust, curves, HSL, mask, keyframes kx...), for the phone's engine
+  cs: z.record(z.string(), z.unknown()).optional(),
   // Shot-level transform keyframes shared by the native preview and Studio renderer.
   keyframes: z.array(z.object({ t: z.number().min(0), x: z.number(), y: z.number(), s: z.number().positive(), r: z.number(), o: z.number().min(0).max(1), ez: z.string().optional(), bezier: z.tuple([z.number(), z.number(), z.number(), z.number()]).optional() })).optional(),
   // Optional source-time variable speed curve (1 = normal speed); renderers can subdivide it into constant-rate segments.
@@ -23,7 +30,7 @@ export const projectSchema = z.object({
   // the Create flow's choices: how much of the song (seconds, 0 = all), the clip order, the format, a Talking Reel's pauses and music under the voice, and what was asked of Shubix AI
   // the song as the website's engine heard it (its tempo, beats, drops, breaks), and whether that engine made the Reel (its shots: the clips)
   music: z.object({ duration: z.number(), bpm: z.number(), beats: z.number(), drops: z.number(), breaks: z.number() }).optional(), studio: z.boolean().optional(),
-  settings: z.object({ start: z.number().min(0), length: z.number(), order: z.enum(["mix", "order"]), aspect: z.enum(["9:16", "4:5", "1:1", "16:9"]), pace: z.enum(["tight", "natural", "relaxed", "off"]), under: z.string(), wish: z.string().max(800),
+  settings: z.object({ start: z.number().min(0), length: z.number(), order: z.enum(["mix", "order"]), aspect: z.enum(["9:16", "4:5", "1:1", "16:9", "3:4", "4:3", "2:1", "2.35:1"]), pace: z.enum(["tight", "natural", "relaxed", "off"]), under: z.string(), wish: z.string().max(800),
     // the studio's choices in the editor's tools (as the website's): style, filter, Shubix touch-ups, hook, text style, the clips' sound, background
     mode: z.string(), look: z.string(), touch: z.boolean(), hook: z.string().max(40), tstyle: z.string(), csnd: z.string(), bg: z.string(), musicVolume: z.number().min(0).max(1), musicFadeIn: z.number().min(0).max(10), musicFadeOut: z.number().min(0).max(10), musicDucking: z.boolean(), musicDuckLevel: z.number().min(0.1).max(1) }).partial().optional(),
 });

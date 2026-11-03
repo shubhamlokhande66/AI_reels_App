@@ -21,7 +21,7 @@ export const viewport: Viewport = {
   themeColor: "#10100f",
 };
 
-export const metadata: Metadata = {
+const site: Metadata = {
   title: { default: "Shubix · Reels video studio", template: "%s · Shubix" },
   description: "Turn your clips, photos and a song into a beat-synced Reel.",
   applicationName: "Shubix",
@@ -32,6 +32,13 @@ export const metadata: Metadata = {
   openGraph: { type: "website", siteName: "Shubix", title: "Shubix · Reels video studio", description: "Turn your clips, photos and a song into a beat-synced Reel.", images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "Shubix" }] },
   twitter: { card: "summary", title: "Shubix · Reels video studio", description: "Turn your clips, photos and a song into a beat-synced Reel.", images: ["/icon-512.png"] },
 };
+
+/** The AdSense publisher id for Google's site check, from the public /ads.txt (the id set in Admin → Settings → Ads; none: no tag). */
+export async function generateMetadata(): Promise<Metadata> {
+  const pub = await fetch(`${(process.env.API_URL || "http://localhost:4000").replace(/\/$/, "")}/ads.txt`, { next: { revalidate: 300 }, signal: AbortSignal.timeout(2500) })
+    .then(async (r) => (r.ok ? /pub-\d+/.exec(await r.text())?.[0] : undefined)).catch(() => undefined);
+  return pub ? { ...site, other: { "google-adsense-account": `ca-${pub}` } } : site;
+}
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

@@ -18,7 +18,7 @@ export function BottomNav({ pathname }: { pathname: string }) {
     </Pressable>
   );
   return (
-    <View className="flex-row items-end rounded-t-[22px] border-t border-border bg-bar px-1 pt-2" style={{ paddingBottom: Math.max(14, insets.bottom) }}>
+    <View className="flex-row items-end rounded-t-[22px] border-t border-border bg-bar px-1 pt-2" style={{ paddingBottom: Math.max(6, insets.bottom) }}>
       {TABS.map((tab) => tab.primary ? (
         <Pressable key={tab.href} onPress={() => router.push(tab.href as never)} accessibilityRole="button" accessibilityLabel={text(tab.tk)} className="min-h-[52px] flex-1 items-center justify-end gap-1 pb-1">
           <View className="-mt-8 h-[60px] w-[60px] items-center justify-center overflow-hidden rounded-full border-4 border-background">

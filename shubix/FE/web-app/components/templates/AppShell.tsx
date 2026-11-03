@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { AdminCode } from "@/components/organisms/admin/AdminGate";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { applyTheme } from "@/lib/theme";
@@ -41,6 +42,7 @@ import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
 import { useAdmin, useCredits, useFeatures, useLockCheck, useMe, useText } from "@/hooks/useApi";
 import { lockTag, PAGE_LOCK } from "@shubix/core/lib/plan-locks";
 import { usePresence } from "@/lib/usePresence";
+import { isHidden, pauseAllMedia } from "@/lib/background";
 import { useErrorReport } from "@/lib/useErrorReport";
 import { FEATURE_LIST, linkOn, pageFeature } from "@shubix/core/lib/features-list";
 import { AUTH_PAGES, GROUPS, PUBLIC_PAGES, TABS, isActive, isStudio, pageMeta, showTabs } from "@shubix/core/lib/nav";
@@ -217,13 +219,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const me = useMe();
   const text = useText();
   const [drawer, setDrawer] = useState(false);
+  // an administrator who chose "Continue without admin powers" is not asked again in this tab
+  const [adminLater, setAdminLater] = useState(() => { try { return sessionStorage.getItem("admin-later") === "1"; } catch { return false; } });
   const creditsQ = useCredits();
   const credits = creditsQ.data?.enabled ? creditsQ.data : null;
   const paid = !!credits && credits.plan !== "free";
   const [needCredits, setNeedCredits] = useState<string | null>(null);
   const customTitle = useCustomTitle();
-  usePresence(pathname); // "online now" on the admin dashboard
+  usePresence(pathname === "/engine" ? "" : pathname); // "online now" on the admin dashboard (not the phone's hidden studio)
   useEffect(() => { captureRef(); }, []); // a friend's invite link (?ref=username): kept for the sign-up
+  // a video playing stops when the person goes to another page, tab or app (the studio stops its own preview too)
+  useEffect(() => pauseAllMedia, [pathname]);
+  useEffect(() => { const hide = () => isHidden() && pauseAllMedia(); document.addEventListener("visibilitychange", hide); return () => document.removeEventListener("visibilitychange", hide); }, []);
   const offer = useQuery({ queryKey: ["offer"], queryFn: api.offer, staleTime: 60_000 }).data?.offer ?? null; // a sale running: a slim bar
   useErrorReport(); // errors on people's phones reach Admin → Errors
 
@@ -278,7 +285,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const offKey = pageFeature(pathname, features);
   const off = offKey && !features[offKey] ? FEATURE_LIST.find((f) => f.key === offKey)! : null;
   if (enginePage) return <main className="rm min-h-screen">{children}</main>;
-  if ((pathname.startsWith("/admin") || pathname.startsWith("/cms")) && !signedOut) {
+  // who is signed in is not known yet (or the server cannot be reached): no page of the app until it is
+  if (!me.data && !authPage && !publicPage) return (
+    <main className="rm grid min-h-screen place-items-center px-4">
+      {me.isError
+        ? <div className="flex max-w-sm flex-col items-center gap-3 text-center"><p className="m-0 text-sm text-muted">{text("common.offline")}</p><Button onClick={() => void me.refetch()}>{text("common.retry")}</Button></div>
+        : <Spinner label={text("common.connecting")} />}
+    </main>
+  );
+  // an administrator whose daily code is due (still signed in): the code first, emailed at once (the admin pages ask it themselves)
+  const adminArea = pathname.startsWith("/admin") || pathname.startsWith("/cms");
+  if (otp && !adminLater && !authPage && !publicPage && !adminArea) return (
+    <main className="rm min-h-screen">
+      <Suspense fallback={null}><AdminCode onLater={() => { try { sessionStorage.setItem("admin-later", "1"); } catch { /* private mode */ } setAdminLater(true); }} /></Suspense>
+    </main>
+  );
+  if (adminArea && !signedOut) {
     // the admin dashboard is its own full-screen panel (its sidebar: Overview, Users, Settings, Tools)
     return (
       <main className="rm min-h-screen">
@@ -424,7 +446,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 ${tabs ? "pb-28" : "pb-10"}`}>
+      <main className={`min-w-0 flex-1 px-4 pt-4 md:ml-60 md:px-8 md:pb-10 md:pt-5 max-lg:has-[.fpost]:px-0! max-lg:has-[.fpost]:pt-0! ${tabs ? "pb-28" : "pb-10"}`}>
         <DesktopHeader email={me.data?.user?.email} credits={credits} admin={adminLink} onSignOut={signOut} />
         {/* "Get the Shubix app" until it is installed (not over the studio while a Reel is made) */}
         <div className="mx-auto w-full max-w-6xl">

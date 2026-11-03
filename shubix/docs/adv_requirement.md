@@ -1,3 +1,5 @@
+> Historical: the original requirements brief for the first version. What exists today: `architecture.md`; what is planned: `roadmap.md`.
+
 You are working on my existing AI Reel Maker project.
 
 IMPORTANT:

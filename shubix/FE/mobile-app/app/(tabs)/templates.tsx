@@ -4,10 +4,10 @@ import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-na
 import { useText } from "@shubix/hooks";
 import { Badge, Button, Chip, EmptyState, Icon, LockBadge, Page, Paint, SearchBox, SectionHeader, TemplateCard, mix, useColors } from "@shubix/ui-mobile";
 import { groupsOf, lookName, templateMeta, templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
-import { PlanGate } from "../components/templates/PlanGate";
-import { usePlanNeed, useTemplates } from "../lib/data";
-import { mobileApi } from "../lib/api";
-import { openTemplate } from "../lib/navigate";
+import { PlanGate } from "../../components/templates/PlanGate";
+import { usePlanNeed, useTemplates } from "../../lib/data";
+import { mobileApi } from "../../lib/api";
+import { openTemplate } from "../../lib/navigate";
 
 /** Templates (the website's app/templates/page.tsx): the ready-made Reels by group, searchable and filtered by group
  * (or the new ones); each opens the Create flow with it picked. Every text: Admin → CMS → Templates. */
@@ -35,7 +35,7 @@ function Templates() {
         return (
           <Pressable key={t.id} style={{ width: column }} accessibilityLabel={t.name} onPress={() => openTemplate(t, locked)}>
             <TemplateCard id={t.id} name={t.name} cover={t.cover && mobileApi.absoluteAsset(t.cover)} badge={templateTag(t, text)} meta={templateMeta(t)} text={t.text}
-              tag={locked ? <LockBadge card label={text("plan.lockTag")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
+              tag={locked ? <LockBadge card label={text("plan.lockTagApp")} /> : t.isNew ? <Badge tone="dark">{text("templates.newTag")}</Badge> : undefined} />
           </Pressable>
         );
       })}

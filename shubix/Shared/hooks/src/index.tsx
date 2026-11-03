@@ -59,7 +59,7 @@ export function useAuthForm(onDone: (signedUp: boolean) => void) {
     try {
       if (signin) await api.auth.login(email.trim(), password); else await api.auth.register(email.trim(), password);
       await refresh();
-      onDone(!signin);
+      onDone(!signin); // an administrator: the app asks for the daily code next (the phone's AppFrame, the website's AdminGate)
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   return { mode, setMode, signin, email, setEmail, password, setPassword, again, setAgain, touch, errors, ok, valid, error, busy, submit, t: text };

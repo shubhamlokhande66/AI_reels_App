@@ -3,7 +3,7 @@ import { fetchWithToken, tokenStore } from "./device";
 import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
 import type { Features } from "@shubix/core/lib/features-list";
 import type { Content } from "@shubix/core/lib/collections";
-import type { CloudReel, CloudUsage, Credits, MyMarketing, Offer, Pricing, Quote } from "@shubix/types";
+import type { CloudReel, CloudUsage, Credits, MyMarketing, Pricing } from "@shubix/types";
 import type { PlanLocks } from "@shubix/core/lib/plan-locks";
 
 /** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
@@ -42,14 +42,12 @@ export const mobileApi = {
   /** the business details (Admin → Settings → Business details) */
   site: () => json<{ businessName: string; supportEmail: string; supportPhone: string; businessAddress: string; playStoreUrl: string; appStoreUrl: string }>("/api/site"),
   pricing: () => json<Pricing>("/api/plans"),
-  offer: () => json<{ offer: Offer | null }>("/api/offer"),
-  quote: (item: string, coupon?: string) => json<Quote>("/api/billing/quote", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
   ads: () => json<AdsConfig>("/api/ads"),
+  /** an administrator's account (admin: its code entered today; otp: the code is still to come) */
+  adminSession: () => json<{ admin: boolean; otp?: boolean }>("/api/admin/session"),
   credits: () => json<Credits>("/api/credits"),
   payments: () => json<{ id: string; label: string; amount: number; status: string; createdAt: string; paidAt: string | null; receiptNo: string | null }[]>("/api/billing/payments"),
   planLocks: () => json<PlanLocks>("/api/plan-locks"),
-  createOrder: (item: string, coupon?: string) => json<{ orderId: string; keyId: string; amount: number; currency: string; label: string; email: string }>("/api/billing/order", { method: "POST", body: JSON.stringify({ item, ...(coupon ? { coupon } : {}) }) }),
-  verifyPayment: (body: { razorpayOrderId: string; razorpayPaymentId: string; razorpaySignature: string }) => json<{ enabled: boolean; balance?: number; plan?: string; planName?: string; monthly?: number; extra?: number }>("/api/billing/verify", { method: "POST", body: JSON.stringify(body) }),
   brands: () => json<Record<string, unknown>[]>("/api/brands"),
   createBrand: (body: Record<string, unknown>) => json<Record<string, unknown>>("/api/brands", { method: "POST", body: JSON.stringify(body) }),
   deleteBrand: (id: string) => json<void>(`/api/brands/${encodeURIComponent(id)}`, { method: "DELETE" }),

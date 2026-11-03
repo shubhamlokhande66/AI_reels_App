@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { ManagedProvider } from "../../src/server/ai";
-import { CHUNK, chunks, cleanMove, direct, DirectIn, directPatch, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
+import { CHUNK, chunks, cleanActions, cleanMove, cleanTexts, direct, DirectIn, directPatch, directVariants, LIMITS, MAX_VARIANTS, pace, PaceIn, pacePrompt, parsePace, parsePlan, prompt, variantsPrompt } from "../../src/server/studio/direct";
+import { templateTexts } from "@shubix/core/lib/text-templates";
 import { shotCacheKey } from "../../src/server/studio/rankShots";
 
 /** Fast Studio's AI director: the request is bounded, and the plan can only name what the phone offered. */
@@ -80,6 +81,19 @@ describe("the plan is bounded", () => {
     expect(out.slots[0]).toMatchObject({ shot: "0a", transition: "hard", effect: "none", speed: "normal" });
     expect(out.slots.every((s) => s.shot && s.transition && s.effect && s.speed)).toBe(true);
   });
+  it("marks the cuts the AI left without a usable answer, so the phone keeps its own choice there", () => {
+    const d = req(3);
+    const out = parsePlan(d, { story: "", slots: [{ i: 1, shot: "1b", transition: "whip", effect: "punch", speed: "normal", why: "drop" }, { i: 2, shot: "nope", transition: "teleport", effect: "explode", speed: "x", why: "" }] });
+    expect(out.slots.map((s) => !!s.auto)).toEqual([true, false, true]);
+  });
+  it("an AI answer covering half the Reel or less fails (the phone edits, the credits come back)", async () => {
+    const half = fake({ story: "", slots: [{ i: 0, shot: "0a", transition: "hard", effect: "hook", speed: "normal", why: "" }] });
+    await expect(direct(req(3), half.p)).rejects.toThrow(/answered only 1 of 3 cuts/);
+    const most = fake({ story: "s", slots: [0, 1].map((i) => ({ i, shot: `${i}a`, transition: "hard", effect: "punch", speed: "normal", why: "" })) });
+    const res = await direct(req(3), most.p);
+    expect(res.auto).toBe(1);
+    expect(res.slots[2].auto).toBe(true);
+  });
   it("uses role-aware fallback shots and avoids adjacent source-clip repetition", () => {
     const d = req(3);
     d.slots[0].candidates[0].roles = ["calm"];
@@ -153,7 +167,8 @@ describe("long Reels", () => {
     const calls: string[] = [];
     const p = { name: "fake", model: "m", visionModel: "", async structured(_s: string, user: string, schema: { parse: (v: unknown) => unknown }) {
       calls.push(user); const first = Number(/"i":(\d+)/.exec(user.split("Cuts (fixed")[1])![1]);
-      return schema.parse({ slots: [{ i: first, shot: `${first}a` }], story: calls.length === 1 ? "arc" : "" }); } };
+      const n = Math.min(CHUNK, LIMITS.slots - first);   // an answer for every cut of its part
+      return schema.parse({ slots: Array.from({ length: n }, (_, k) => ({ i: first + k, shot: `${first + k}a` })), story: calls.length === 1 ? "arc" : "" }); } };
     const res = await direct(d, p as unknown as ManagedProvider);
     expect(calls).toHaveLength(parts);   // all asked at the same time
     expect(res.slots.map((s) => s.i)).toEqual(Array.from({ length: LIMITS.slots }, (_, i) => i));
@@ -271,11 +286,12 @@ describe("every tool is open to the AI", () => {
     const d = DirectIn.parse(req(3));
     const out = parsePlan(d, { story: "", slots: [
       { i: 0, shot: "0a", transition: "hard", effect: "hook", speed: "normal", why: "" },
-      { i: 1, shot: "1a", transition: "heart", effect: "boxgrow", speed: "normal", why: "", clip: { rot: 92, fh: true, fit: true, bg: "#112233", bd: 3, sat: -1, warm: 0.4, fout: 9, zoom: 7, evil: "x" } },
+      { i: 1, shot: "1a", transition: "heart", effect: "boxgrow", speed: "normal", why: "", clip: { rot: 92, fh: true, fit: true, bg: "#112233", bd: 3, sat: -1, warm: 0.4, fout: 9, zoom: 7, smooth: 4, evil: "x" } },
       { i: 2, shot: "2a", transition: "star", effect: "kaleido", speed: "fast", why: "", clip: { bg: "blur", bri: "lots" } },
     ] });
     expect(out.slots[1]).toMatchObject({ effect: "boxgrow", transition: "heart", clip: { rot: 90, fh: true, fit: true, bg: "color", bgc: "#112233", bd: 1, bdc: "#FFFFFF", sat: -1, warm: 0.4, fout: 1.5 } });
-    expect(out.slots[1].clip).not.toHaveProperty("zoom");
+    expect(out.slots[1].clip).toMatchObject({ zoom: 3, smooth: 1 });   // zoom is a clip tool: kept, in its range
+    expect(out.slots[1].clip).not.toHaveProperty("evil");
     expect(out.slots[2].effect).toBe("kaleido");
     expect(out.slots[2]).not.toHaveProperty("clip");   // a background without "fit" and a word for a number: nothing usable
   });
@@ -293,5 +309,50 @@ describe("the creator's chat (Ask Shubix)", () => {
   });
   it("keeps the wish short", () => {
     expect(() => DirectIn.parse({ ...req(1), wish: "x".repeat(801) })).toThrow();
+  });
+});
+
+describe("Shubix AI as the editor: texts and other tools", () => {
+  it("keeps a text with its keyframes and focus, made safe to draw", () => {
+    const [t] = cleanTexts([{ text: " WELCOME ", start: 0, end: 2.5, x: 0.5, y: 0.4, size: 9, style: "CUTOUT", color: "#000000", anim: "pop", loop: "none", font: "", behind: false, track: false, focus: 0.64,
+      keys: [{ at: 2, s: 40, x: 0, y: 0, r: 0, o: 1, ez: "in" }, { at: 0.5, s: 1, x: 0, y: 0, r: 0, o: 1, ez: "inOut" }] }]);
+    expect(t).toMatchObject({ text: "WELCOME", style: "cutout", size: 3, focus: 0.64 });
+    expect(t.keys.map((k) => [k.at, k.s, k.ez])).toEqual([[0.5, 1, "inOut"], [2, 40, "inOut"]]);
+  });
+  it("keeps a shot's mask, in range", () => {
+    const out = parsePlan(req(2), { slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { mk: { s: "heart", x: 2, y: 0.4, w: 0.5, h: 0.5, a: 400, f: 0.1, inv: true, c: "#ff0000" } } }, { i: 1, shot: "1a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { mk: { s: "blob" } } }], story: "" });
+    expect(out.slots[0].clip?.mk).toEqual({ s: "heart", x: 1, y: 0.4, w: 0.5, h: 0.5, a: 180, f: 0.1, inv: true, c: "#FF0000" });
+    expect(out.slots[1].clip).toBeUndefined();
+  });  it("keeps a shot's curves and HSL, in range", () => {
+    const out = parsePlan(req(1), { slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { cv: { m: [0, 0.2, 0.5, 0.8, 2], x: [1, 2, 3, 4, 5], r: [1] }, hsl: { blue: [0, 3, -0.2], pink: [1, 1, 1] } } }], story: "" });
+    expect(out.slots[0].clip).toMatchObject({ cv: { m: [0, 0.2, 0.5, 0.8, 1] }, hsl: { blue: [0, 1, -0.2] } });
+    expect(out.slots[0].clip?.cv).not.toHaveProperty("r"); expect(out.slots[0].clip?.hsl).not.toHaveProperty("pink");
+  });
+  it("keeps only the tools the studio has, in order", () => {
+    const out = cleanActions([{ do: "LAYER", clip: "c2", start: 1 }, { do: "hack" }, { do: "look", name: "cine" }]);
+    expect(out.map((a) => a.do)).toEqual(["layer", "look"]);
+  });
+  it("keeps the AI's keyframes on a shot's settings, in range and in time order", () => {
+    const d = req(2), out = parsePlan(d, { story: "", slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "",
+      clip: { kx: [{ t: 1.2, bri: 5, vol: 0, ez: "warp", mk: { x: 2 } }, { t: 0, sat: -0.5, zoom: 9 }, { t: 0.5 }, "junk"] } }] });
+    expect(out.slots[0].clip?.kx).toEqual([{ t: 0, ez: "inOut", sat: -0.5, zoom: 3 }, { t: 1.2, ez: "inOut", bri: 1, vol: 0, mk: { x: 1 } }]);
+    expect(prompt(d)).toContain("kx (keyframes");
+  });
+  it("has the audio tools: beat markers, voice enhance on a shot", () => {
+    expect(cleanActions([{ do: "beatmark", at: [1.5, 3] }])[0]).toMatchObject({ do: "beatmark" });
+    const p = prompt(req(2)); expect(p).toContain('"do":"beatmark"'); expect(p).toContain("enhance");
+    expect(parsePlan(req(1), { story: "", slots: [{ i: 0, shot: "0a", transition: "hard", effect: "none", speed: "normal", why: "", clip: { enh: true } }] }).slots[0].clip).toEqual({ enh: true });
+  });
+  it("has the text templates, with the words put in and each part's own start", () => {
+    expect(cleanActions([{ do: "Template", name: "headline", words: ["HELLO", "world"], at: 2 }])[0]).toMatchObject({ do: "template", name: "headline" });
+    expect(prompt(req(2))).toContain('"do":"template"');
+    const parts = templateTexts("headline", ["HELLO", "world"], 2);
+    expect(parts.map((p) => [p.text, p.start, p.end])).toEqual([["HELLO", 2, 5], ["world", 2.35, 5]]);
+    expect(templateTexts("vlog", ["Hi", ""]).map((p) => p.text)).toEqual(["Hi"]);   // an empty second line is left out
+    expect(templateTexts("nope")).toEqual([]);
+  });
+  it("tells the AI about every tool", () => {
+    const p = prompt(req(2));
+    for (const w of ["TEXTS", "cutout", "OTHER TOOLS", '"do":"layer"', '"do":"captions"', '"actions"']) expect(p).toContain(w);
   });
 });

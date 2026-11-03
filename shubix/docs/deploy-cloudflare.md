@@ -1,5 +1,8 @@
 # Deploying to Cloudflare (Workers + Containers + R2)
 
+> Live today: the website on Vercel and only the API on Cloudflare (`docs/deploy-vercel-cloudflare.md`). This page is the
+> setup shared by both (the account, R2, MongoDB, the secrets) and the older way of running everything in one container.
+
 The whole app (website, API, FFmpeg) runs in **one Cloudflare Container**, built from
 `docker/Dockerfile`. A small Worker (`cloudflare/`) sends every request to it. Uploads and Reels are kept in an **R2 bucket**,
 mounted inside the container at `/data/storage` (the container's own disk is temporary). The database is your MongoDB

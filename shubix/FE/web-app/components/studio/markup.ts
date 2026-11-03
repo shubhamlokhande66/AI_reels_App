@@ -7,8 +7,11 @@
 import { PLAN_TOOLS } from "./views";
 import { GLYPH_PATHS } from "@shubix/ui-web";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
+import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 export { DOCK_CATEGORIES_DEF, SHOT_TOOLS_DEF };
 import { Button, Chip, Segmented, Tile } from "./ui";
+/** shapes: drawn in the text's colour, so they take every text tool (keyframes, entrances, exits, loops) */
+export const SHAPES = ["■", "●", "▲", "★", "♥", "◆", "➜", "━", "○", "□"];
 
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
@@ -48,10 +51,10 @@ const IC = {
 // the Create flow's AI checklist (step 3 on computers, the Analysing screen on phones); data-t: the tasks it follows
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
-const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
+const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"], ["3:4", "Portrait photo", "w-[15px] h-5"], ["4:3", "Classic TV", "w-5 h-[15px]"], ["2:1", "Wide banner", "w-[22px] h-[11px]"], ["2.35:1", "Cinema", "w-[23px] h-[10px]"]];
 // a card of the flow (Music, Clips, Shubix Edit); on phones the Music and Clips screens have no card around them;
 // locked: waits for the step before it
-const flowCard = "grid min-w-0 gap-3 rounded-[20px] border border-[color-mix(in_srgb,var(--accent)_13%,var(--border))] bg-surface px-5 py-[18px] shadow-[0_18px_44px_-36px_rgba(0,0,0,.7),inset_0_1px_0_rgba(255,255,255,.035)] transition-[border-color,box-shadow] duration-200 hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] hover:shadow-[0_20px_44px_-34px_rgba(0,0,0,.72),inset_0_1px_0_rgba(255,255,255,.04)] [&.locked]:saturate-[.72] max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:px-0 max-lg:pt-1 max-lg:pb-0 max-lg:shadow-none max-lg:hover:shadow-none";
+const flowCard = "animate-none grid min-w-0 gap-3 rounded-[20px] border border-[color-mix(in_srgb,var(--accent)_13%,var(--border))] bg-surface px-5 py-[18px] shadow-[0_18px_44px_-36px_rgba(0,0,0,.7),inset_0_1px_0_rgba(255,255,255,.035)] transition-[border-color,box-shadow] duration-200 hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] hover:shadow-[0_20px_44px_-34px_rgba(0,0,0,.72),inset_0_1px_0_rgba(255,255,255,.04)] [&.locked]:saturate-[.72] max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:px-0 max-lg:pt-1 max-lg:pb-0 max-lg:shadow-none max-lg:hover:shadow-none";
 // a step's head: its number, its name (and what it is for)
 const stepHead = "flex w-full items-start gap-3 text-left";
 const stepNumber = "grid size-7 flex-none place-items-center rounded-[9px] bg-gold text-[13px] font-semibold text-on-accent";
@@ -59,7 +62,7 @@ const stepText = "grid min-w-0 flex-1 gap-px";
 const stepNote = "text-[12.5px] font-medium text-muted";
 const stepTitle = "font-display text-[16px] font-semibold tracking-[-.005em]";
 // the flow's main button: on phones fixed at the bottom of the screen
-const phoneBottomButton = `${Button.primaryLarge} max-lg:fixed max-lg:inset-x-4 max-lg:bottom-[calc(14px+env(safe-area-inset-bottom))] max-lg:z-30 max-lg:min-h-[52px] max-lg:w-auto max-lg:rounded-[14px] max-lg:text-[16px] max-lg:shadow-[0_14px_30px_-12px_var(--brand-glow)]`;
+const phoneBottomButton = `${Button.primaryLarge} max-lg:fixed max-lg:inset-x-4 max-lg:bottom-[calc(10px+env(safe-area-inset-bottom))] max-lg:z-30 max-lg:min-h-[52px] max-lg:w-auto max-lg:rounded-[14px] max-lg:text-[16px] max-lg:shadow-[0_14px_30px_-12px_var(--brand-glow)]`;
 // a step of the flow's head (data-s: on = this one, ok = done); on phones a dot, the steps joined by a line
 const stepItem = "group relative grid min-w-[84px] justify-items-center gap-1.5 text-xs font-semibold text-muted data-[s=on]:text-accent before:absolute before:top-[13px] before:right-[calc(50%+18px)] before:h-0.5 before:w-[calc(100%-36px)] before:bg-border first:before:hidden data-[s=on]:before:bg-accent data-[s=ok]:before:bg-accent max-lg:flex max-lg:min-w-0 max-lg:flex-1 max-lg:items-center max-lg:gap-0 max-lg:first:flex-none max-lg:before:static max-lg:before:mx-1.5 max-lg:before:w-auto max-lg:before:flex-1 max-lg:before:rounded-sm max-lg:last:hidden";
 const stepDot = "grid size-7 flex-none place-items-center rounded-full border border-border bg-surface-2 text-xs font-semibold not-italic text-muted group-data-[s=on]:border-transparent group-data-[s=on]:bg-gold group-data-[s=on]:text-on-accent group-data-[s=on]:shadow-[0_0_0_5px_color-mix(in_srgb,var(--accent)_22%,transparent)] group-data-[s=ok]:border-accent group-data-[s=ok]:bg-[color-mix(in_srgb,var(--accent)_25%,var(--surface))] group-data-[s=ok]:text-foreground max-lg:size-2.5 max-lg:border-0 max-lg:bg-muted/55 max-lg:text-[0px] max-lg:group-data-[s=ok]:bg-accent max-lg:group-data-[s=on]:size-[30px] max-lg:group-data-[s=on]:bg-gold max-lg:group-data-[s=on]:text-[13px]";
@@ -102,7 +105,7 @@ const panelHead = (k: string) => {
 
 export const STUDIO_HTML = `
 <nav class="fcrumbs" id="fcrumbs" aria-label="Breadcrumb"></nav>
-<header id="topbar" class="hidden in-[.made]:flex in-[.fopen]:hidden! in-[.opening]:hidden! top-0 z-30 max-lg:sticky max-lg:top-[65px] max-lg:z-20 w-full max-w-[1240px] min-h-[66px] mx-auto mb-4 items-center justify-between gap-3.5 rounded-[18px] border border-edge shadow-(--shadow) bg-[linear-gradient(145deg,color-mix(in_srgb,var(--surface)_97%,var(--accent)),var(--surface))] lg:pb-2.5 lg:in-[.editing]:px-4 in-[.fpost]:sticky in-[.fpost]:z-40 in-[.fpost]:-mx-4 in-[.fpost]:mb-1 in-[.fpost]:px-3 in-[.fpost]:pb-2 in-[.fpost]:pt-[max(8px,env(safe-area-inset-top))] in-[.fpost]:gap-1.5 in-[.fpost]:in-[.editing]:gap-1 in-[.fpost]:border-b-border in-[.fpost]:bg-none in-[.fpost]:bg-background max-[680px]:relative! max-[680px]:min-h-[58px] max-[680px]:px-2.5! max-[680px]:gap-2! max-[680px]:rounded-[15px]">
+<header id="topbar" class="hidden in-[.made]:flex in-[.fopen]:hidden! in-[.opening]:hidden! top-0 z-30 max-lg:sticky max-lg:top-[65px] max-lg:z-20 w-full max-w-[1240px] min-h-[66px] mx-auto mb-4 items-center justify-between gap-3.5 rounded-[18px] border border-edge shadow-(--shadow) bg-[linear-gradient(145deg,color-mix(in_srgb,var(--surface)_97%,var(--accent)),var(--surface))] lg:pb-2.5 lg:in-[.editing]:px-4 in-[.fpost]:sticky in-[.fpost]:z-40 in-[.fpost]:mb-1 in-[.fpost]:rounded-none! in-[.fpost]:border-x-0 in-[.fpost]:border-t-0 in-[.fpost]:shadow-none in-[.fpost]:px-3 in-[.fpost]:pb-2 in-[.fpost]:pt-[max(8px,env(safe-area-inset-top))] in-[.fpost]:gap-1.5 in-[.fpost]:in-[.editing]:gap-1 in-[.fpost]:border-b-border in-[.fpost]:bg-none in-[.fpost]:bg-background max-[680px]:min-h-[58px] max-[680px]:px-2.5! max-[680px]:gap-2! max-[680px]:rounded-[15px]">
   <button type="button" id="tbback" aria-label="Back" class="${Button.iconBordered} size-10 shrink-0 max-[680px]:size-9">${IC.back}</button>
   <div class="flex min-w-0 flex-1 items-center gap-[11px] leading-[1.15] max-[680px]:basis-auto">
     <span class="grid size-10 shrink-0 place-items-center rounded-[13px] border border-[color-mix(in_srgb,var(--accent)_28%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_10%,var(--surface))] text-accent max-[680px]:size-[34px] max-[680px]:rounded-[11px]">${Glyph("Shots", 20)}</span>
@@ -157,7 +160,7 @@ export const STUDIO_HTML = `
     </div>
     </div>
   </form>
-  <section class="invisible grid content-start justify-items-center gap-3 px-1 pt-2 pb-1 text-center lg:hidden" id="fintro" aria-labelledby="fintroh" hidden>
+  <section class="animate-none invisible grid content-start justify-items-center gap-3 px-1 pt-2 pb-1 text-center lg:hidden" id="fintro" aria-labelledby="fintroh" hidden>
     <span class="grid size-[76px] place-items-center rounded-[22px] bg-gold shadow-[0_0_0_10px_color-mix(in_srgb,var(--accent)_12%,transparent),0_18px_40px_-16px_var(--brand-glow)] [&>svg]:size-12! [&>svg]:bg-transparent! [&>svg]:p-0! [&>svg]:text-white" id="fintroic">${IC.music}</span>
     <h2 class="mt-1.5 font-display text-[27px] font-semibold tracking-[-.02em]" id="fintroh">Create a Music Reel</h2>
     <p class="max-w-[30ch] text-[14.5px] text-muted" id="fintrop">Turn your clips into a stunning Reel with music, beats and Shubix edits.</p>
@@ -200,6 +203,8 @@ export const STUDIO_HTML = `
       <button type="button" class="justify-self-start text-[13px] font-semibold text-accent underline" id="frefother">Different song? Choose it here</button></span>
     <span class="frefbtns"><button type="button" class="${Button.primary}" id="frefpick">Pick the Reel</button><button type="button" class="${Button.ghost}" id="frefsong" hidden>Use its song</button></span>
   </section>
+  <!-- phones: the solid strip behind the bottom button, so the list never shows under or around it -->
+  <div aria-hidden="true" class="fixed inset-x-0 bottom-0 z-20 hidden h-[calc(72px+env(safe-area-inset-bottom))] border-t border-border bg-background max-lg:in-[[data-fstep]:not([data-fstep=analyse])]:block"></div>
   <section class="${flowCard}" id="s1">
     <button type="button" class="sh ${stepHead} max-lg:hidden" aria-expanded="true"><span class="${stepNumber}">1</span><span class="${stepText}"><h2 class="${stepTitle}">Choose Music</h2><small class="fsh ${stepNote}">Pick a song or sound for your Reel</small></span><span class="hidden" id="s1st">Choose a song to start</span></button>
     <div class="grid min-w-0 gap-3.5">
@@ -283,6 +288,10 @@ export const STUDIO_HTML = `
         <button data-a="4:5" aria-pressed="false">4:5</button>
         <button data-a="1:1" aria-pressed="false">1:1</button>
         <button data-a="16:9" aria-pressed="false">16:9</button>
+        <button data-a="3:4" aria-pressed="false">3:4</button>
+        <button data-a="4:3" aria-pressed="false">4:3</button>
+        <button data-a="2:1" aria-pressed="false">2:1</button>
+        <button data-a="2.35:1" aria-pressed="false">2.35:1</button>
       </div>
     </div>
     <span class="fslot" id="fsndslot"></span>
@@ -369,7 +378,7 @@ export const STUDIO_HTML = `
           </div>
         </section>
 
-        <aside class="max-[680px]:mx-[-28px] max-[680px]:w-[calc(100%+56px)]! max-[680px]:max-w-none! max-[680px]:rounded-none! max-[680px]:border-x-0! inspector" id="inspector-card">
+        <aside class="inspector" id="inspector-card">
           <div class="inspectorHead">
             <div><span class="eyebrow">CLIP CONTROLS</span><h2 id="inspect-shot-title">Shot 01</h2></div>
             <span class="durationPill" id="inspect-shot-dur">0.0 s</span>
@@ -383,7 +392,7 @@ export const STUDIO_HTML = `
         </aside>
       </div>
 
-      <section class="max-[680px]:mx-[-28px] max-[680px]:w-[calc(100%+56px)]! max-[680px]:max-w-none! max-[680px]:rounded-none! max-[680px]:border-x-0! timelineCard" id="timelinecard">
+      <section class="timelineCard" id="timelinecard">
         <header class="timelineHeader">
           <div class="timelineTitle">
             <span class="timelineIcon">${Glyph("Shots", 18)}</span>
@@ -411,7 +420,7 @@ export const STUDIO_HTML = `
       </section>
 
       <div class="tools">
-        <nav class="max-[680px]:mx-[-28px] max-[680px]:w-[calc(100%+56px)]! max-[680px]:max-w-none! max-[680px]:rounded-none! max-[680px]:border-x-0! toolDock dock" id="dock" aria-label="Editor tools">${dock}</nav>
+        <nav class="max-[680px]:rounded-none! max-[680px]:border-x-0! toolDock dock" id="dock" aria-label="Editor tools">${dock}</nav>
 
         <div class="panels" id="panels">
           <button type="button" class="${Button.iconBordered} absolute top-6 right-5 z-2 size-[34px] max-lg:top-7 max-lg:right-4" id="pclose" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -452,7 +461,7 @@ export const STUDIO_HTML = `
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
             <div class="beatmarks"><span class="label">Your beat markers</span>
               <p class="hint">Hear a beat Shubix missed? Pause on it and add a marker: a cut can land there.</p>
-              <div class="row"><button class="${Button.small}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${Button.small}" id="clrbeat" type="button">Remove my markers</button></div></div>
+              <div class="row"><button class="${Button.small}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${Button.small}" id="delbeat" type="button">－ Remove marker here</button><button class="${Button.small}" id="clrbeat" type="button">Remove my markers</button></div></div>
             <label class="tog"><input type="checkbox" id="sfxon" checked> Sound effects on transitions (whoosh, boom, click, pop)</label>
             <label class="cslide"><span>Effects volume</span><input type="range" id="sfxv" min="0" max="1.5" step="0.05" value="0.6"><output>60%</output></label>
             <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="${Button.small}" data-sfx="whoosh">Whoosh</button><button type="button" class="${Button.small}" data-sfx="pop">Pop</button><button type="button" class="${Button.small}" data-sfx="boom">Boom</button><button type="button" class="${Button.small}" data-sfx="click">Click</button><button type="button" class="${Button.small}" data-sfx="riser">Riser</button><button type="button" class="${Button.small}" data-sfx="ding">Ding</button></div>
@@ -472,8 +481,10 @@ export const STUDIO_HTML = `
             <span class="label">Text &amp; stickers</span>
             <div class="row ovadd">
               <button class="${Button.secondary}" id="ovtext" type="button">+ Text</button><button class="${Button.secondary}" id="ovsticker" type="button">+ Sticker</button>
+              <select id="ovtpl" aria-label="Text template"><option value="">+ Text template…</option>${Object.entries(TEXT_TEMPLATES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join("")}</select>
               <select id="ovpreset" aria-label="Ready-made text"><option value="">+ Ready-made…</option><option value="price">Price tag ₹</option><option value="follow">Follow for more</option><option value="save">Save this</option><option value="step1">Step 1</option><option value="before">BEFORE</option><option value="after">AFTER</option><option value="ganpati">गणपती बाप्पा मोरया</option><option value="diwali">शुभ दीपावली</option><option value="hdiwali">Happy Diwali</option></select>
             </div>
+            <div class="row" id="ovshapes" role="group" aria-label="Shapes"><span class="fname">Shapes:</span>${SHAPES.map((s) => `<button type="button" class="${Button.small}" data-shape="${s}">${s}</button>`).join("")}</div>
             <div class="emojis" id="emojis" hidden></div>
             <div class="ovlist" id="ovlist"></div>
             <p class="hint" id="ovhint" hidden>Drag a text or sticker on the preview to move it; pinch it with two fingers, or drag its yellow corner, to make it bigger or smaller. Pause the preview where it should start or end.</p>
@@ -549,7 +560,7 @@ export const STUDIO_HTML = `
               <div class="ttslist" id="ttslist"></div>
             </div>
             <span class="label musiconly">Voice changer</span>
-            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${Chip}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${Chip}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${Chip}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${Chip}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${Chip}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${Chip}" data-f="echo" aria-pressed="false">Echo</button></div>
+            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${Chip}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${Chip}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${Chip}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${Chip}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${Chip}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${Chip}" data-f="echo" aria-pressed="false">Echo</button><button type="button" class="${Chip}" data-f="enhance" aria-pressed="false">Enhance voice</button></div>
             <p class="hint talkonly">Talking videos: pauses, music under the voice and noise cleanup are in step 2.</p>
           </section>
 
@@ -595,7 +606,7 @@ export const STUDIO_HTML = `
 </div></div>
 <div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
 <section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">
-  <div class="ctpoph sheetHeader"><span class="sheetHeading"><span class="sheetIcon" id="ctpopic"></span><span><small id="ctpopsub">SHOT 01</small><b id="ctpoph"></b></span></span><span class="ctpopbtns"><button type="button" class="${Button.iconBordered} size-[34px] max-lg:hidden" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></span></div>
+  <div class="ctpoph sheetHeader"><span class="sheetHeading"><span class="sheetIcon" id="ctpopic"></span><span><small id="ctpopsub">SHOT 01</small><b id="ctpoph"></b></span></span><span class="ctpopbtns"><button type="button" class="${Button.iconBordered} size-[34px]" id="ctpopx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></span></div>
   <p class="sheetDescription">Adjust this shot. Your changes show in the preview right away.</p>
   <div class="ctpopb" id="ctpopb"></div>
   <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ctpopfoot">Preview selection</span></span><button type="button" class="${Button.primary}" id="ctpopok" title="Apply">Done ${IC.check}</button></footer>
@@ -603,7 +614,7 @@ export const STUDIO_HTML = `
 <section class="shotsheet" id="shotsheet" hidden role="dialog" aria-label="Shot">
   <div class="ss-head"><span class="ss-grip" aria-hidden="true"></span><button type="button" class="${Button.close} absolute top-3 right-3" id="ssx" aria-label="Cancel" title="Cancel">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button></div>
   <div class="ss-body shotcard" id="ssbody"></div>
-  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ssfoot">Preview selection</span></span><button type="button" class="${Button.iconPrimary} size-[34px] max-lg:hidden" id="ssok" title="Apply">Done ${IC.check}</button></footer>
+  <footer class="sheetFooter"><span><i aria-hidden="true"></i><span id="ssfoot">Preview selection</span></span><button type="button" class="${Button.iconPrimary} size-[34px]" id="ssok" title="Apply">Done ${IC.check}</button></footer>
   <span class="ss-rs" aria-hidden="true" title="Drag to resize"></span>
 </section>
 <section class="fexp" id="fexp" hidden aria-live="polite" aria-labelledby="fexph">

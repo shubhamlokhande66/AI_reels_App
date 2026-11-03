@@ -197,7 +197,7 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
           })}
         </View>
         {custom && <View className="w-[140px]"><Input keyboardType="number-pad" maxLength={3} autoFocus selectTextOnFocus returnKeyType="done" value={typed ? String(typed) : ""} accessibilityLabel={words("Reel length")} right={<Text className="text-[13px] text-muted">s</Text>}
-          onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5 && n <= 180) onLength(n); }} onEndEditing={applyTyped} onBlur={applyTyped} /></View>}
+          onChangeText={(v) => { const n = Number(v.replace(/\D/g, "")); setTyped(n); if (n >= 5) onLength(Math.min(180, n)); }} onEndEditing={applyTyped} onBlur={applyTyped} onSubmitEditing={applyTyped} /></View>}
         {duration > 0 && <Text className="text-[12.5px] text-muted">{clock(from)} – {clock(from + len)}</Text>}
       </View>
     </FlowCard>
@@ -205,7 +205,7 @@ export function FlowAdjust({ song, music, length, start, onLength, onStart }: { 
 }
 
 export type ClipOrder = "mix" | "order";
-export type Aspect = "9:16" | "4:5" | "1:1" | "16:9";
+export type Aspect = "9:16" | "4:5" | "1:1" | "16:9" | "3:4" | "4:3" | "2:1" | "2.35:1";
 export type TalkPace = "tight" | "natural" | "relaxed" | "off";
 export type ClipSettings = { order: ClipOrder; aspect: Aspect; pace: TalkPace; under: string };
 
@@ -265,7 +265,7 @@ export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarli
           <Segmented small value={settings.order} onChange={(order) => onSettings({ order })} options={[{ value: "mix" as ClipOrder, label: words("Mix all clips") }, { value: "order" as ClipOrder, label: words("In my order") }]} />
         </Row>
       )}
-      <Row label={words("Format")}><Segmented small value={settings.aspect} onChange={(aspect) => onSettings({ aspect })} options={(["9:16", "4:5", "1:1", "16:9"] as Aspect[]).map((a) => ({ value: a, label: a === "9:16" ? words("9:16 Reel") : a }))} /></Row>
+      <Row label={words("Format")}><Segmented small value={settings.aspect} onChange={(aspect) => onSettings({ aspect })} options={(["9:16", "4:5", "1:1", "16:9", "3:4", "4:3", "2:1", "2.35:1"] as Aspect[]).map((a) => ({ value: a, label: a === "9:16" ? words("9:16 Reel") : a }))} /></Row>
     </FlowCard>
   );
 }

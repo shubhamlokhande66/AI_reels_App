@@ -8,12 +8,12 @@ import { useText } from "@shubix/hooks";
 import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors, confirmAction, toast } from "@shubix/ui-mobile";
 import type { CloudReel } from "@shubix/types";
 import { clock, formatRelative, megabytes, videoQuality } from "@shubix/utils";
-import { AdBanner } from "../components/molecules/AdBanner";
-import { mobileApi } from "../lib/api";
-import { useDraftThumbs } from "../lib/thumbs";
-import { useDraftActions, useDrafts } from "../lib/data";
-import { open } from "../lib/navigate";
-import type { MobileProject } from "../lib/projects";
+import { AdBanner } from "../../components/molecules/AdBanner";
+import { mobileApi } from "../../lib/api";
+import { useDraftThumbs } from "../../lib/thumbs";
+import { useDraftActions, useDrafts } from "../../lib/data";
+import { open } from "../../lib/navigate";
+import type { MobileProject } from "../../lib/projects";
 
 /** My Reels (the website's app/reels/page.tsx): Drafts are the Reels being made, kept on this phone; Saved are the
  * finished Reels kept in the account (watch, save to the phone, share a link, delete). Every text: Admin → CMS → My Reels. */
@@ -82,7 +82,6 @@ function Saved({ query }: { query: ReturnType<typeof useQuery<Awaited<ReturnType
           <View className={`h-full overflow-hidden rounded-full ${share > 85 ? "bg-warning" : ""}`} style={{ width: `${Math.max(share, usage.used ? 3 : 0)}%` }}>{share <= 85 && <Gold />}</View>
         </View>
         {!!usage.keepDays && <Text className="text-[11.5px] text-muted">{text("reels.keepDays", { days: usage.keepDays })}</Text>}
-        <Button size="sm" variant="secondary" icon="crown" title={text("reels.moreSpace")} onPress={() => open("/pricing")} />
       </Card>
       {!reels.length ? <EmptyState icon="upload" title={text("reels.noSaved")} hint={text("reels.noSavedText")} action={<MakeReel />} /> : (
         <View className="flex-row flex-wrap gap-3">

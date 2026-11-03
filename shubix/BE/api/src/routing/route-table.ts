@@ -1,12 +1,12 @@
-import fs from "node:fs";
-import path from "node:path";
 import { Injectable, Logger } from "@nestjs/common";
+import { ROUTES } from "./routes.manifest";
 
 /** The app's endpoints, as the web app had them: src/routes/<path>/route.ts exports GET/POST/PUT/PATCH/DELETE, each a
- * web-standard (Request, { params }) => Response handler. The table is built once at start; a request is matched
- * against it in order (fixed segments before params, as Next.js does). */
+ * web-standard (Request, { params }) => Response handler. The table is built once at start from routes.manifest.ts
+ * (scripts/route-manifest.mjs, before each build); each route file is loaded on its first request, so the API starts
+ * fast; a request is matched against it in order (fixed segments before params, as Next.js does). */
 export type Handler = (req: Request, ctx: { params: Promise<Record<string, string>> }) => Promise<Response> | Response;
-type Entry = { route: string; re: RegExp; keys: string[]; mod: Record<string, unknown> };
+type Entry = { route: string; re: RegExp; keys: string[]; readonly mod: Record<string, unknown> };
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function compile(route: string) {
@@ -22,14 +22,9 @@ export class RouteTable {
   private entries: Entry[] = [];
   private log = new Logger("Routes");
   constructor() {
-    const root = path.join(__dirname, "..", "routes");
-    const found: string[] = [];
-    const walk = (dir: string) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p); else if (/^route\.(js|ts)$/.test(e.name)) found.push(p); } };
-    walk(root);
-    for (const file of found) {
-      const route = path.relative(root, path.dirname(file)).split(path.sep).join("/");
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      this.entries.push({ route, ...compile(route), mod: require(file) as Record<string, unknown> });
+    for (const [route, load] of ROUTES) {
+      let mod: Record<string, unknown> | undefined;
+      this.entries.push({ route, ...compile(route), get mod() { return (mod ??= load()); } });
     }
     this.entries.sort((a, b) => (rank(a.route) > rank(b.route) ? -1 : rank(a.route) < rank(b.route) ? 1 : 0));
     this.log.log(`${this.entries.length} endpoints`);

@@ -62,9 +62,11 @@ These terms are governed by the laws of India. Questions: {contact}. {business}.
 const LEGAL_PRIVACY = `This policy explains what {name} collects, why, and the choices you have. We collect as little as we can and keep it only as long as needed.
 
 ## What we collect
-- **Account:** your email address and a securely hashed password (we never see or store the password itself).
+- **Account:** your email address, your name if you add it, and a securely hashed password (we never see or store the password itself).
 - **Your content:** the clips, music, photos and stories you upload, and the Reels made from them.
 - **Usage:** your projects, credits and their history, and payment records (amount, date, plan).
+- **Phone app:** on the Free plan, Google AdMob uses your device's Advertising ID to show ads.
+- **Error reports:** when the website or the app breaks, the error message, the page and the type of browser or device, so we can fix it. Kept for 30 days.
 - **Payments:** handled by Razorpay. Your card, UPI or bank details go to Razorpay, not to us; we only receive a payment confirmation.
 - **Invites and rewards:** your username (people you share it with can send you credits with it), who invited you, and the credits you send or receive.
 - **Affiliates:** if you join the affiliate program, the payout details you give us (a UPI ID or bank account), used only to pay your commission, and the sales made through your link (the customers' usernames are shown to you, never their emails).
@@ -78,8 +80,8 @@ const LEGAL_PRIVACY = `This policy explains what {name} collects, why, and the c
 - AI services (for example Google Gemini) receive the text or keyframes needed for a feature you use, such as planning a story or making a narration.
 - Cloud services host the app and its database, and may make AI pictures for story scenes.
 - Razorpay processes payments. Social networks receive a Reel only when you ask us to post it.
-- Google AdSense may show ads on the Free plan (only on pages like Home and My Reels, never in the editor).
-- An email service sends account emails (sign-up and password codes, payment receipts) and notes about your invites, credits and affiliate earnings.
+- Google AdSense on the website and Google AdMob in the phone app may show ads on the Free plan (only on pages like Home and My Reels, never in the editor).
+- An email service sends account emails (sign-up and password codes, a welcome email about the app and its plans, payment receipts) and notes about your invites, credits and affiliate earnings.
 - The Help chat sends your questions to the AI service that answers them. Messages you send from the Contact page, and the questions you ask the Help chat, are kept so our team can help you and improve the answers.
 
 ## How long we keep it
@@ -89,6 +91,7 @@ const LEGAL_PRIVACY = `This policy explains what {name} collects, why, and the c
 ## Ads and cookies
 - We use one essential cookie to keep you signed in. Your browser also remembers a friend's invite link for 30 days, so the sign-up knows who invited you.
 - On the Free plan, ads may be shown by Google AdSense. Google and its partners may use cookies to show ads based on your visits to this and other websites. You can turn off personalised ads in [Google's Ads Settings](https://adssettings.google.com), and read [how Google uses data](https://policies.google.com/technologies/partner-sites).
+- In the phone app, ads on the Free plan are shown by Google AdMob, which uses your Advertising ID and may collect device and usage data. Where the law asks for consent, the app asks first, and you can change your choice in My account → Ad privacy choices. You can delete your Advertising ID in your phone's Google settings.
 - Paid plans see no ads, and we do not use other advertising or tracking cookies.
 
 ## Your rights
@@ -116,6 +119,39 @@ If you were charged twice, or a payment did not add your plan or credits, write 
 
 ## Delivery
 {name} is a digital service. Plans and credits are added to your account immediately after a successful payment; nothing is shipped.`;
+
+const LEGAL_ABOUT = `{name} is a Reels video studio for creators, small businesses and anyone who wants short videos without learning a complicated editor. You bring the clips, the photos and the song; {name} finds the beats and cuts everything to the music.
+
+## What you can make
+- **Music Reel:** choose a song and your clips, and the cuts land on the beat.
+- **Talking Reel:** turn a video of someone speaking into a Reel with captions.
+- **Photo Reel:** make a moving Reel from your photos.
+- **Copy a Reel:** start from the rhythm and style of a Reel you like.
+- **Story Maker:** write a story, and it becomes scenes with a narration and captions.
+
+## How it works
+Pick a sound, add your clips, and let {name} make the first edit. Then change anything you like in the editor: clips, text, filters, effects and sound. Your video is made on your own device, so your original clips stay with you unless you use a feature that needs them on our servers. The [Privacy Policy](/privacy) explains exactly what is sent and why.
+
+## Plans
+You can start on the Free plan. Paid plans add more tools and credits and show no ads. See [Pricing](/pricing).
+
+## Contact
+Questions or ideas: {contact}. {business}.`;
+
+const HOME_ABOUT = `## Reels that move with your music
+Shubix is a video studio for short vertical videos. Choose a song, add your clips or photos, and Shubix finds the beats and places every cut on them, so your Reel feels edited by hand. It works in your browser and in the Android app, with no complicated timeline to learn before your first video.
+
+## How to make a Reel
+- **Pick a sound:** choose a song from your device and the part of it you want. Shubix reads its beats, drops and quiet moments.
+- **Add your moments:** select your clips or photos, in the order you like or in the order Shubix suggests.
+- **Get your first edit:** the clips are cut to the music, with transitions and effects that follow the song.
+- **Make it yours:** change the clips, add text and captions, adjust colour and sound, then export in 9:16.
+
+## Made for every kind of Reel
+A Music Reel is cut to a song. A Talking Reel keeps the words of someone speaking and adds captions. A Photo Reel brings your pictures to life. Copy a Reel starts from the rhythm of a Reel you like, and Story Maker turns your written story into scenes with a narration.
+
+## Tips for a better Reel
+Start with your strongest moment, because people decide in the first seconds. Use several short clips instead of one long clip, keep your subject in the centre of the 9:16 frame, and use music you have the right to use. Read more about [Shubix](/about), or see the [plans](/pricing).`;
 
 const LEGAL_DELETE = `This page explains how to delete your {name} account and its data, from the app or without it.
 
@@ -148,6 +184,7 @@ export const TEXT_GROUPS: TextGroup[] = [
       C("Studio picture", T("home.mockPreview", "On the Reel", "9:16 PREVIEW"), T("home.mockMove", "Under the Reel", "MADE TO MOVE"), T("home.mockSound", "Sound card", "Soundtrack"), T("home.mockBeat", "Under the sound", "BEAT MATCH"),
         T("home.mockClips", "Clips card", "Your clips"), T("home.mockMoments", "Clips count", "3 moments"), T("home.mockSync", "Last line", "Clips, music, perfectly in sync"))),
     S("Create Your Reel", C("Section", T("home.createTitle", "Title", "Create Your Reel"))),
+    S("About Shubix (lower on Home)", C("Section", T("home.aboutBody", "The text", HOME_ABOUT, true))),
     S("Popular Templates", C("Section", T("home.templatesTitle", "Title", "Popular Templates"), T("home.seeAll", "“See all” link (every section)", "See All"))),
     S("Continue Editing",
       C("Section", T("home.continueTitle", "Title", "Continue Editing"), T("common.edited", "Under a draft ({when})", "Edited {when}")),
@@ -251,7 +288,7 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Sign in",
       C("Form", T("auth.signIn", "Title and button", "Sign in"), T("auth.signInSub", "Line under sign in title", "Sign in to get back to your Reel studio."), T("auth.email", "Email label", "Email"), T("auth.emailPlaceholder", "Email placeholder", "you@email.com"),
         T("auth.password", "Password label", "Password"), T("auth.passwordPlaceholder", "Password placeholder", "Your password"), T("auth.wait", "While signing in", "Please wait…")),
-      C("Links", T("auth.forgotLink", "Forgot password", "Forgot your password?"), T("auth.newHere", "Before “Create an account”", "New here?"), T("auth.createLink", "Create an account", "Create an account"),
+      C("Links", T("auth.adminEyebrow", "Admin code: small heading", "Admin security"), T("auth.adminTitle", "Admin code: title", "Confirm it's you"), T("auth.adminSent", "Admin code: line", "We emailed a 6-digit code to your administrator account. Enter it to use the admin powers for the next 24 hours."), T("auth.adminVerify", "Admin code: button", "Confirm"), T("auth.adminResend", "Admin code: send again", "Send a new code"), T("auth.adminSkip", "Admin code: continue without", "Continue without admin powers"), T("auth.forgotLink", "Forgot password", "Forgot your password?"), T("auth.newHere", "Before “Create an account”", "New here?"), T("auth.createLink", "Create an account", "Create an account"),
         T("auth.partnerLink", "Affiliate partners link", "Affiliate partner? Open your dashboard"))),
     S("Create an account",
       C("Form", T("auth.signUp", "Title", "Create your account"), T("auth.signUpSub", "Line under sign up title", "Create your account and start making Reels with music."), T("auth.signUpButton", "Button", "Create account"), T("auth.newPasswordPlaceholder", "Password placeholder", "At least 8 characters"),
@@ -300,7 +337,7 @@ export const TEXT_GROUPS: TextGroup[] = [
         T("account.rowSessions", "Devices: line", "Sign out on every other phone and computer"), T("account.paymentsTitle", "Payments: title", "Payments & receipts"), T("account.rowPayments", "Payments: row line", "Your purchases and receipt numbers"),
         T("account.paymentsNote", "Payments: note", "A receipt for every payment was emailed to you. All purchases are final."), T("account.noPayments", "Payments: none", "No payments yet."),
         T("account.paid", "Payments: paid", "Paid"), T("account.notPaid", "Payments: not finished", "Not completed"), T("account.devices", "Devices: title", "Signed-in devices"),
-        T("account.danger", "Heading: danger zone", "Danger zone"), T("account.rowDelete", "Delete: line", "Remove your account and everything in it"),
+        T("account.adChoices", "Ad consent button (where the law asks for it)", "Ad privacy choices"), T("account.danger", "Heading: danger zone", "Danger zone"), T("account.rowDelete", "Delete: line", "Remove your account and everything in it"),
         T("account.lookHeading", "Heading: appearance", "Appearance"))),
     S("Password",
       C("Change password card", T("account.changeTitle", "Title", "Change password"), T("account.current", "Current password", "Current password"), T("account.newPassword", "New password", "New password"),
@@ -401,8 +438,9 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Privacy Policy", C("Page", T("legal.privacyTitle", "Title", "Privacy Policy"), T("legal.privacyBody", "The page", LEGAL_PRIVACY, true))),
     S("Refund & Cancellation", C("Page", T("legal.refundsTitle", "Title", "Refund & Cancellation Policy"), T("legal.refundsBody", "The page", LEGAL_REFUNDS, true))),
     S("Delete your account", C("Page", T("legal.deleteTitle", "Title", "Delete your account"), T("legal.deleteBody", "The page", LEGAL_DELETE, true))),
+    S("About Shubix", C("Page", T("legal.aboutTitle", "Title", "About Shubix"), T("legal.aboutBody", "The page", LEGAL_ABOUT, true))),
     S("Around the pages",
-      C("Tabs & footer links", T("legal.terms", "Terms", "Terms"), T("legal.privacy", "Privacy", "Privacy"), T("legal.refunds", "Refunds", "Refunds & cancellation"), T("legal.delete", "Delete account", "Delete account"), T("legal.contact", "Contact", "Contact"), T("legal.pricing", "Pricing", "Pricing")),
+      C("Tabs & footer links", T("legal.about", "About", "About"), T("legal.terms", "Terms", "Terms"), T("legal.privacy", "Privacy", "Privacy"), T("legal.refunds", "Refunds", "Refunds & cancellation"), T("legal.delete", "Delete account", "Delete account"), T("legal.contact", "Contact", "Contact"), T("legal.pricing", "Pricing", "Pricing")),
       C("Details", T("nav.legal", "Phone top bar title", "Legal"), T("legal.updated", "Last updated ({date})", "Last updated {date}"), T("legal.sections", "Sections list (screen readers)", "Sections"),
         T("legal.writeUs", "{contact} with no email set", "write to us from the Contact page"))),
   ),
@@ -417,7 +455,7 @@ export const TEXT_GROUPS: TextGroup[] = [
       C("Links", T("nav.voices", "Voice profiles", "Voice profiles"), T("nav.rewardsLink", "Invite & earn", "Invite & earn"), T("nav.home", "Home", "Home"), T("nav.music", "Music Reel", "Music Reel"), T("nav.talking", "Talking Reel", "Talking Reel"), T("nav.photo", "Photo Reel", "Photo Reel"),
         T("nav.copy", "Copy a Reel", "Copy a Reel"), T("nav.story", "Story Maker", "Story Maker"), T("nav.reels", "My Reels", "My Reels"), T("nav.templates", "Templates", "Templates"),
         T("nav.brands", "Brands", "Brands"), T("nav.pricing", "Pricing & plans", "Pricing & plans")),
-      C("Bottom", T("nav.newReel", "New Reel button", "New Reel"), T("nav.signOut", "Sign out", "Sign out"), T("nav.studioTag", "Tag next to the email", "STUDIO"), T("common.adminDashboard", "Admin dashboard", "Admin dashboard"))),
+      C("Bottom", T("nav.newReel", "New Reel button", "New Reel"), T("nav.adminDashboard", "Phone app menu: the administrators' link", "Admin dashboard"), T("nav.signOut", "Sign out", "Sign out"), T("nav.studioTag", "Tag next to the email", "STUDIO"), T("common.adminDashboard", "Admin dashboard", "Admin dashboard"))),
     S("Top bar",
       C("Titles", T("nav.yourReel", "Editor page", "Your Reel"), T("nav.eyebrow", "Small line above the title", "Shubix · Studio")),
       C("Credits pill", T("nav.credits", "After the number", "credits"), T("nav.creditsHint", "Hover", "Your credits: plans and top-ups"), T("nav.planSuffix", "Plan (“{plan} plan”)", "{plan} plan")),
@@ -446,7 +484,7 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Plan pill",
       C("Pill", T("plan.free", "On Free", "Free"), T("plan.freeUpgrade", "On Free, after the name", "· Upgrade"), T("plan.upgrade", "On Free: the upgrade chip", "Upgrade"), T("plan.plans", "Before sign-in", "Plans"), T("common.planHint", "Hover on Free", "Free plan: see Editor & Pro"),
         T("plan.admin", "For the administrator (everything open)", "Admin · all open"))),
-    S("Locked pages", C("Upgrade tag", T("plan.lockTag", "Tag (cards and menu)", "Upgrade"), T("plan.lockHint", "Hover", "In a paid plan: see the plans"))),
+    S("Locked pages", C("Upgrade tag", T("plan.lockTag", "Tag (cards and menu)", "Upgrade"), T("plan.lockHint", "Hover", "In a paid plan: see the plans"), T("plan.lockTagApp", "Tag in the Android app", "Plan"), T("credits.notInPlan", "Android app: a page outside the plan", "This isn't in your current plan."))),
     S("Upgrade banners",
       C("Home banner", T("plan.bannerTitle", "Title", "Go Pro with Shubix"), T("plan.bannerText", "Line", "More templates, premium styles and advanced Shubix edits."), T("plan.bannerButton", "Button", "Upgrade")),
       C("Sidebar card", T("plan.bannerTitleSmall", "Title", "Upgrade to Pro"), T("plan.bannerTextSmall", "Line", "Premium templates & Shubix edits"))),
@@ -462,7 +500,7 @@ export const TEXT_GROUPS: TextGroup[] = [
   ),
   page(EVERY, "common", "Messages & dialogs",
     S("Dialogs", C("Confirm", T("common.cancel", "Cancel", "Cancel"), T("common.ok", "OK", "OK"))),
-    S("Errors", C("Error card", T("common.error", "Title", "Please check"), T("common.retry", "Button", "Try again"), T("studio.failed", "Studio could not start", "The editor could not start"))),
+    S("Errors", C("Error card", T("common.connecting", "Checking who is signed in", "Connecting to Shubix…"), T("common.offline", "The server cannot be reached", "Shubix can't be reached right now. Check your internet and try again."), T("common.pageBroke", "A page that broke: title", "Something went wrong"), T("common.pageBrokeText", "A page that broke: line", "We have been told about it. Please try again."), T("common.error", "Title", "Please check"), T("common.retry", "Button", "Try again"), T("studio.failed", "Studio could not start", "The editor could not start"))),
     S("Files", C("File drop", T("common.chooseFiles", "Button", "Choose files"), T("common.more", "More actions menu", "More actions"))),
     S("Admin-only pages", C("Notice", T("common.adminOnly", "Label", "Admin only"), T("common.adminTitle", "Title", "This page is for the administrator"),
       T("common.adminText", "Line", "Please sign in with an admin account to continue."), T("common.adminSignIn", "Button", "Admin sign-in"))),

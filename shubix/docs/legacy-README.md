@@ -1,3 +1,5 @@
+> Historical: the first, Python version of Shubix (server-side editing and rendering). Not used any more; the current app is described in `../README.md` and `architecture.md`.
+
 # AI Reel Maker
 
 Upload raw clips and a song, pick a style, and get a real, beat-synced **1080×1920 H.264/AAC MP4**
