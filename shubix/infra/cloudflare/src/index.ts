@@ -69,7 +69,7 @@ export class ReelApp extends Container<Env> {
   }
 
   /** True only when this Durable Object has confirmed readiness for the current container start. */
-  canHandlePresencePing(): boolean {
+  async canHandlePresencePing(): Promise<boolean> {
     return this.ready && this.ctx.container?.running === true;
   }
 
