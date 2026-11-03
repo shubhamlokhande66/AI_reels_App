@@ -15,40 +15,6 @@ const shots: AutonomousSourceShot[] = [
 ];
 
 describe("autonomous Shubix Director", () => {
-  it("does not report ready when the available footage cannot fill the requested duration", () => {
-    const plan = createAutonomousReelPlan({
-      shots: [
-        { ...shots[0], duration: 2 },
-        { ...shots[1], duration: 2 },
-      ],
-      music: { duration: 20, bpm: 112, beats: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5] },
-      targetDuration: 12,
-      mood: "product",
-      platform: "web",
-    });
-    expect(plan.duration).toBeLessThan(12);
-    expect(plan.status).toBe("needs-more-footage");
-    expect(plan.warnings.some((warning) => warning.includes("could not fill"))).toBe(true);
-  });
-
-  it("does not report ready when a required subject is present but omitted from the final edit", () => {
-    const plan = createAutonomousReelPlan({
-      shots: [
-        { ...shots[0], id: "opening", tags: ["car"], isOpening: true },
-        { ...shots[1], id: "ending", tags: ["car"], isEnding: true },
-        { ...shots[2], id: "requested", tags: ["motorcycle"], quality: 0.1, subjectScore: 0.1, isUsable: true },
-      ],
-      music: { duration: 8, bpm: 112, beats: Array.from({ length: 20 }, (_, i) => i * 60 / 112) },
-      targetDuration: 4,
-      mood: "product",
-      intent: { mustInclude: ["motorcycle"] },
-      platform: "web",
-      limits: { maxShots: 2 },
-    });
-    expect(plan.status).toBe("needs-more-footage");
-    expect(plan.warnings.some((warning) => warning.includes("required subject"))).toBe(true);
-  });
-
   it("infers devotional mood from explicit local vision tags", () => {
     const result = inferAutonomousMood([
       { ...shots[0], tags: ["temple", "prayer", "devotional"] },

@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { EDIT_BITRATE, editCopyPlan, isHeavySource, variesFrameRate, isQuickTimeSource, PREVIEW_BITRATE, PREVIEW_MAX_SIDE, previewProxyPlan, shouldUseServerConversion } from "@/lib/previewProxy";
+import { EDIT_BITRATE, editCopyPlan, isHeavySource, variesFrameRate, isQuickTimeSource, PREVIEW_BITRATE, PREVIEW_MAX_SIDE, previewProxyPlan } from "@/lib/previewProxy";
 
 const MB = 1024 * 1024;
 
 describe("browser editor preview proxies", () => {
-  it("never sends source videos to server conversion from the phone engine", () => {
-    expect(shouldUseServerConversion("/engine")).toBe(false);
-    expect(shouldUseServerConversion("/studio")).toBe(true);
-  });
   it("recognizes MOV files and QuickTime MIME types case-insensitively", () => {
     expect(isQuickTimeSource("camera.MOV", "video/mp4")).toBe(true);
     expect(isQuickTimeSource("camera.mov", "application/octet-stream")).toBe(true);

@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useStudioText } from "@shubix/hooks";
 import { asksForAllClips } from "@shubix/core/lib/chatSize";
-import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
+import { Button, IconButton, Segmented, Slider, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
 import { evaluateAudioGain, evaluateSpeedRamp, recordEdit, slipClip, stepEditHistory } from "@shubix/video-engine";
@@ -14,21 +14,23 @@ import { useLocked } from "../lib/data";
 import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
-import { isNativeEffectSupported, isNativeTransitionSupported, videoEngine } from "../lib/video";
-import { engine, engineOn } from "../lib/engine";
+import { isNativeEffectSupported, isNativeTransitionSupported, previewSpec, videoEngine } from "../lib/video";
+import { ShubixPreviewView, type PreviewRef } from "../modules/shubix-video";
+import { engine, textsOf } from "../lib/engine";
+import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
 const FILTERS = ["Original", "Golden", "Film", "Noir", "Soft", "Vivid", "Cinematic", "Warm", "Cool", "Teal & Orange", "Sepia", "Matte", "High Contrast", "Faded", "Vintage", "Pastel", "Cyberpunk", "Dreamy", "Black & White", "Soft Focus", "Color Pop", "Muted", "Sunset", "Arctic"];
-const TRANSITIONS = ["Cut", "Fade in", "Dissolve", "Whip pan", "Zoom", "Flash", "Glitch", "Dip to black", "Iris", "Soft wipe", "Spin", "Slide left", "Slide right", "Slide up", "Slide down", "Swipe up", "Zoom out", "Blur through", "Card flip", "Luma fade", "Pixelate", "Clock wipe", "Doors", "Ripple", "Film burn", "Drop in", "Bars wipe", "Diamond wipe", "Heart wipe", "Star wipe"];
-const TRANSITION_IDS = ["hard", "fadein", "dissolve", "whip", "zoom", "flash", "glitch", "dip", "iris", "wipe", "spin", "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin", "bars", "diamond", "heart", "star"];
-const EFFECTS = ["None", "Zoom punch", "Soft zoom", "Ken Burns", "Zoom burst", "Slow drift", "Shake", "Beat bounce", "Tilt punch", "Photo snap", "Hook zoom", "Punch-in (jump cut)", "Ken Burns beat", "Box pulse", "Grid pulse", "Strip pulse", "Circle pulse", "Heart pulse", "Star pulse", "Frame in frame", "Mirror", "Kaleidoscope", "Triple split", "VHS retro", "Strobe", "RGB pulse", "Blur pulse"];
-const EFFECT_IDS = ["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"];
+const TRANSITIONS = ["Cut", "Fade in", "Dissolve", "Whip pan", "Zoom", "Flash", "Glitch", "Dip to black", "Iris", "Soft wipe", "Spin", "Slide left", "Slide right", "Slide up", "Slide down", "Swipe up", "Zoom out", "Blur through", "Card flip", "Luma fade", "Pixelate", "Clock wipe", "Doors", "Ripple", "Film burn", "Drop in", "Bars wipe", "Diamond wipe", "Heart wipe", "Star wipe", "Stripes", "Blinds", "Checkerboard", "Dots", "Noise dissolve", "Split open", "Wave wipe", "Dip to white", "Colour split", "Random tiles", "Zoom blur", "Shake", "Squeeze", "Rotate in"];
+const TRANSITION_IDS = ["hard", "fadein", "dissolve", "whip", "zoom", "flash", "glitch", "dip", "iris", "wipe", "spin", "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin", "bars", "diamond", "heart", "star", "stripes", "blinds", "checker", "dots", "noise", "splith", "wave", "dipwhite", "chroma", "tiles", "zoomblur", "shake", "squeeze", "rotatein"];
+const EFFECTS = ["None", "Zoom punch", "Soft zoom", "Ken Burns", "Zoom burst", "Slow drift", "Shake", "Beat bounce", "Tilt punch", "Photo snap", "Hook zoom", "Punch-in (jump cut)", "Ken Burns beat", "Box pulse", "Grid pulse", "Strip pulse", "Circle pulse", "Heart pulse", "Star pulse", "Frame in frame", "Mirror", "Kaleidoscope", "Triple split", "VHS retro", "Strobe", "RGB pulse", "Blur pulse", "Film grain", "Light leak", "Rainbow", "Negative", "Halftone", "8-bit pixels", "CRT screen", "Fisheye", "Swirl", "Sketch", "Duotone", "3D zoom"];
+const EFFECT_IDS = ["none", "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse", "grain", "leak", "rainbow", "negative", "halftone", "pixel8", "crt", "fisheye", "swirl", "sketch", "duotone", "zoom3d"];
 const UNAVAILABLE_TRANSITIONS = TRANSITIONS.filter((_, index) => !isNativeTransitionSupported(TRANSITION_IDS[index]));
 const UNAVAILABLE_EFFECTS = EFFECTS.filter((_, index) => !isNativeEffectSupported(EFFECT_IDS[index]));
 const SPEEDS = ["0.5×", "1×", "1.6×"];
 const VOLUMES = ["0%", "25%", "50%", "75%", "100%"];
-const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯"];
+const STICKERS = ["✨", "🔥", "❤️", "😂", "🎉", "⭐", "👀", "💯", "😍", "🙏", "👑", "💥", "🎵", "📍", "✅", "🚀", "■", "●", "▲", "★", "♥", "◆", "➜", "━", "○", "□"];   // the last ten are shapes (in the text colour)
 // the website's tool panels (components/studio/markup.ts): their choices, as its buttons' values and names
 const MODES = [["auto", "Auto"], ["smooth", "Smooth"], ["fast", "Fast"]];
 const MODE_HELP: Record<string, string> = {
@@ -37,12 +39,69 @@ const MODE_HELP: Record<string, string> = {
   fast: "Fast: a cut on every beat, a transition on every cut, punches and speed changes on the hits.",
 };
 // …a look's filter when the phone makes the Reel
-const LOOKS = [["natural", "Natural", "Original"], ["vivid", "Vivid", "Vivid"], ["cine", "Cinematic", "Cinematic"], ["mono", "B&W", "Noir"]];
+// the studio's 24 looks: [its key, the name, the phone preview's nearest filter]
+const LOOKS = [["natural", "Natural", "Original"], ["vivid", "Vivid", "Vivid"], ["cine", "Cinematic", "Cinematic"], ["mono", "B&W", "Noir"], ["warmfilm", "Warm film", "Warm"], ["cool", "Cool", "Cool"], ["retro", "Retro", "Vintage"], ["moody", "Moody", "Muted"],
+  ["wedding", "Wedding", "Dreamy"], ["golden", "Golden hour", "Golden"], ["tealorange", "Teal & orange", "Teal & Orange"], ["faded", "Faded", "Faded"], ["noir", "Noir", "Noir"], ["sepia", "Sepia", "Sepia"], ["cyber", "Cyber", "Cyberpunk"], ["pastel", "Pastel", "Pastel"],
+  ["dramatic", "Dramatic", "High Contrast"], ["summer", "Summer", "Sunset"], ["night", "Night", "Arctic"], ["vintage", "Vintage", "Vintage"], ["matte", "Matte", "Matte"], ["punchy", "Punchy", "Color Pop"], ["forest", "Forest", "Muted"], ["rose", "Rose", "Soft"]];
+// the studio's text styles, entrances, exits and loops (components/studio/engine.ts OV_STYLES, OV_ANIMS, OV_OUTS, OV_LOOPS)
+const TX_STYLES = [["bold", "Bold"], ["box", "Box"], ["neon", "Neon"], ["clean", "Clean"], ["tag", "Tag"], ["outline", "Outline"], ["shadow", "Hard shadow"], ["bubble", "Bubble"], ["glow", "Glow"], ["stack", "Double outline"], ["cutout", "Video in letters"]];
+const TX_INS = [["pop", "Pop"], ["fade", "Fade"], ["slide", "Slide up"], ["type", "Typewriter"], ["zoom", "Zoom in"], ["drop", "Drop in"], ["blur", "Blur in"], ["spin", "Spin in"], ["flicker", "Flicker"], ["glitch", "Glitch"], ["none", "None"]];
+const TX_OUTS = [["none", "None"], ["fade", "Fade out"], ["pop", "Pop out"], ["slide", "Slide down"], ["zoom", "Zoom out"], ["blur", "Blur out"], ["spin", "Spin out"]];
+const TX_LOOPS = [["none", "Still"], ["bounce", "Bounce"], ["spin", "Spin"], ["wiggle", "Wiggle"], ["pulse", "Pulse"], ["float", "Float"], ["swing", "Swing"], ["shake", "Shake"]];
+const TX_COLORS = [["#FFFFFF", "White"], ["#111111", "Black"], ["#FFD54A", "Gold"], ["#FF4D6D", "Red"], ["#3DDC84", "Green"], ["#4DA3FF", "Blue"], ["#FF9F1C", "Orange"], ["#C77DFF", "Purple"]];
+// the studio's sound effects (its Add buttons): [key, name]
+const SOUNDS = [["whoosh", "Whoosh"], ["pop", "Pop"], ["boom", "Boom"], ["click", "Camera click"], ["riser", "Riser"], ["ding", "Ding"], ["swish", "Swish"], ["impact", "Impact"], ["glitch", "Glitch"], ["laser", "Laser"],
+  ["heartbeat", "Heartbeat"], ["tick", "Tick"], ["chime", "Chime"], ["drop", "Bass drop"], ["rewind", "Rewind"], ["notify", "Notification"]];
 const TSTYLES = [["pop", "Pop"], ["karaoke", "Karaoke"], ["box", "Box"], ["clean", "Clean"]];
+const CANVAS = [["blur", "Blur"], ["color", "Colour"], ["grad", "Gradient"], ["stripes", "Stripes"], ["dots", "Dots"], ["grid", "Grid"], ["checker", "Checker"]];
+const CANVAS_COLS = [["#000000", "Black"], ["#FFFFFF", "White"], ["#E85D75", "Pink"], ["#4F7CFF", "Blue"], ["#1DB954", "Green"], ["#FF9F1C", "Orange"], ["#D4B07A", "Gold"]];
+/** the website's sliders for one tool: [field, name, min, max, step]; a field is a.b (an object's value) or a.b.n (one
+ * point of a list, e.g. a curve); the shot's values are read from the studio, each slider sends its value when let go */
+/** the Reel playing on the phone's own video engine (modules/shubix-video, Media3): the export's picture, smooth on the
+ * GPU. Made when play is pressed (at `now`), gone when paused; its time moves the editor's playhead. */
+function LivePlayer({ p, now, sound, onTime, onEnd, onFail }: { p: ReelProject; now: number; sound: boolean; onTime: (t: number) => void; onEnd: () => void; onFail: (why: string) => void }) {
+  const ref = useRef<PreviewRef>(null), start = useRef(now);
+  useEffect(() => {
+    let live = true; const spec = previewSpec(p);
+    if (!spec) { onFail("no engine"); return; }
+    void (async () => {
+      try { const v = ref.current; if (!v) return; await v.load(spec, start.current); await v.setMuted(!sound); if (live) await v.play(); }
+      catch (e) { if (live) onFail(errorMessage(e)); }
+    })();
+    return () => { live = false; void ref.current?.release().catch(() => {}); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void ref.current?.setMuted(!sound).catch(() => {}); }, [sound]);
+  if (!ShubixPreviewView) return null;
+  return <ShubixPreviewView ref={ref} style={{ flex: 1 }} onTime={(e) => { if (e.nativeEvent.playing) onTime(e.nativeEvent.time); }} onEnded={onEnd} onError={(e) => onFail(e.nativeEvent.message)} />;
+}
+type Fine = [string, string, number, number, number?];
+const CV_ID = [0, 0.25, 0.5, 0.75, 1];
+const ADJUST_FINE: Fine[] = [["bri", "Brightness", -1, 1], ["con", "Contrast", -1, 1], ["sat", "Saturation", -1, 1], ["warm", "Warmth", -1, 1], ["hi", "Highlights", -1, 1], ["sh", "Shadows", -1, 1], ["hue", "Hue", -1, 1], ["sharp", "Sharpen", 0, 1], ["vig", "Vignette", 0, 1]];
+const MASK_FINE: Fine[] = [["mk.x", "Across", 0, 1], ["mk.y", "Down", 0, 1], ["mk.w", "Width", 0.05, 1.5], ["mk.h", "Height", 0.05, 1.5], ["mk.a", "Turn", -180, 180, 1], ["mk.f", "Soft edge", 0, 0.3]];
+const CURVE_FINE: Fine[] = ["Shadows", "Darks", "Middle", "Lights", "Highlights"].map((n, i) => [`cv.m.${i}`, n, 0, 1] as Fine);
+const CROP_FINE: Fine[] = [["zoom", "Zoom", 1, 3, 0.05], ["cx", "Across", 0, 1], ["cy", "Down", 0, 1]];
+function FineTune({ fields, patch }: { fields: Fine[]; patch: (v: Record<string, unknown>) => unknown }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [cs, setCs] = useState<Record<string, any> | null>(null);
+  useEffect(() => { let live = true; void engine.tool("shotCs").then((c) => { if (live) setCs(c as Record<string, unknown>); }).catch(() => {}); return () => { live = false; }; }, []);
+  if (!cs) return null;
+  const at = (k: string) => { const [a, b, n] = k.split("."); const v = b === undefined ? cs[a] : n === undefined ? cs[a]?.[b] : (cs[a]?.[b] ?? (a === "cv" ? CV_ID : [0, 0, 0]))[+n];
+    return Number(v ?? (a === "cx" || a === "cy" ? 0.5 : a === "zoom" ? 1 : a === "cv" ? CV_ID[+n] : 0)); };
+  const set = (k: string, v: number) => { const [a, b, n] = k.split("."); let pt: Record<string, unknown>;
+    if (b === undefined) pt = a === "cx" || a === "cy" ? { cx: a === "cx" ? v : at("cx"), cy: a === "cy" ? v : at("cy") } : { [a]: v };
+    else if (n === undefined) pt = { [a]: { ...(cs[a] ?? {}), [b]: v } };
+    else { const arr = [...(cs[a]?.[b] ?? (a === "cv" ? CV_ID : [0, 0, 0]))]; arr[+n] = v; pt = { [a]: { ...(cs[a] ?? {}), [b]: arr } }; }
+    setCs({ ...cs, ...pt }); void patch(pt); };
+  const shown = fields.filter(([k]) => !k.startsWith("mk.") || cs.mk);
+  return shown.length ? <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+    {shown.map(([k, label, min, max, step]) => <Slider key={k} label={label} value={at(k)} min={min} max={max} step={step ?? 0.01} format={(v) => k === "mk.a" ? `${Math.round(v)}°` : k === "zoom" ? `${v.toFixed(2)}×` : min < 0 ? `${v > 0 ? "+" : ""}${Math.round(v * 100)}` : `${Math.round(v * 100)}%`} onDone={(v) => set(k, v)} />)}
+  </View> : null;
+}
+const VFX = [["none", "Original"], ["enhance", "Enhance voice"], ["deep", "Deep"], ["chipmunk", "Chipmunk"], ["robot", "Robot"], ["radio", "Radio"], ["echo", "Echo"]];
 const CSNDS = [["mute", "Mute it"], ["voices", "Keep voices only"], ["all", "Keep all"]];
 const BGS = [["none", "Original"], ["blur", "Blur"]];
 const READY_MADE = ["Follow for more", "Save this", "Step 1", "BEFORE", "AFTER", "गणपती बाप्पा मोरया", "शुभ दीपावली", "Happy Diwali"];
-const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9 };
+const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1, "16:9": 16 / 9, "3:4": 3 / 4, "4:3": 4 / 3, "2:1": 2, "2.35:1": 2.35 };
 // the tools the phone cannot do yet (they need the video engine the export uses): a line instead of a sheet
 const LATER = new Set<string>();
 type BulkVisualCommand = { transition?: string; effect?: boolean; unsupportedTransition?: string };
@@ -74,11 +133,14 @@ export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [mixing, setMixing] = useState(false);
+  // the live native player plays while it works on this phone (it stops being used after an error, for this Reel)
+  const [liveBroken, setLiveBroken] = useState(false), liveOn = !!ShubixPreviewView && !liveBroken && playing;
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
   const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
+  const [canvasCol, setCanvasCol] = useState("#4F7CFF");
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
-  const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]), songRequest = useRef(0), song = useAudioPlayer(p?.audioUri ?? null);
+  const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]), song = useAudioPlayer(p?.audioUri ?? null);
   useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); if (router.canGoBack()) router.back(); else router.replace("/reels"); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tool?.key !== "voice" || !p?.studio || !engine.holds(p.id)) return;
@@ -130,9 +192,21 @@ export default function EditorScreen() {
 
   const clips = p?.clips ?? [], clip = clips[selected], total = projectDuration(clips);
   const before = clips.slice(0, selected).reduce((t, c) => t + clipDuration(c), 0), now = before + local;
+  // paused: the studio's own picture of this moment (what the export makes: its boxes, texts, keyframes, looks); the
+  // editor's changes reach the studio first. Asked a moment after the playhead stops moving.
+  const [still, setStill] = useState<string | null>(null), synced = useRef<ReelProject | null>(null);
+  useEffect(() => {
+    if (playing || !p || !p.studio || !engine.holds(p.id)) { setStill(null); return; }
+    let live = true;
+    const t = setTimeout(async () => {
+      if (synced.current !== p) { synced.current = p; await engine.edit(p).catch(() => false); }
+      const src = await engine.frame(now); if (live) setStill(src);
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [playing, p, now]);
   // the song plays with the Reel, from where the Reel is
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
-  useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume]);
+  useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound && !liveOn) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume, liveOn]);
   useEffect(() => {
     if (!p?.audioUri) return;
     song.volume = evaluateAudioGain(now, {
@@ -335,9 +409,7 @@ export default function EditorScreen() {
         const effectChoices = ["punch-soft", "pan-soft", "drift", "bounce", "tilt"];
         setClips(reordered.map((item, index) => ({
           ...item,
-          // The saved-draft native renderer has no dissolve compositor; use only
-          // transitions that the installed Android Media3 engine can actually export.
-          transition: index === 0 ? "fadein" : index % 2 ? "fadein" : "slideleft",
+          transition: index === 0 ? "fadein" : index % 2 ? "dissolve" : "slideleft",
           effect: effectChoices[index % effectChoices.length],
         })));
       }
@@ -352,46 +424,21 @@ export default function EditorScreen() {
 
   async function chooseSong() {
     if (!p) return;
-    const request = ++songRequest.current;
-    if (p.kind === "music" && !engineOn) {
-      return toast(words("Music Reel needs the installed Shubix app to analyse beats. Your current draft has not been changed."), "info");
-    }
-    try {
-      const selected = await pickSong();
-      if (!selected || request !== songRequest.current) return;
-      const uri = await keepPickedFile(p.id, selected.uri, `${selected.name}.m4a`);
-      // Analyse before replacing the existing soundtrack. A failed read must not leave
-      // the draft showing a new song with the old song's beat grid.
-      const needsStudioAnalysis = p.kind === "music" || (!!p.studio && engine.holds(p.id));
-      const analysis = needsStudioAnalysis ? await engine.song(uri, selected.name) : undefined;
-      if (request !== songRequest.current) return;
-      change({
-        audioUri: uri,
-        audioName: selected.name,
-        ...(analysis ? { music: analysis } : {}),
-        // The held Studio session has already loaded and analysed this soundtrack.
-        // Keep its layers/effects alive so the final export stays on the Studio renderer.
-        studio: !!p.studio && engine.holds(p.id),
-        settings: { ...p.settings, start: 0 },
-      });
-    } catch (e) {
-      if (request === songRequest.current) toast(errorMessage(e), "danger");
-    }
+    try { const s = await pickSong(); if (s) { const uri = await keepPickedFile(p.id, s.uri, `${s.name}.m4a`); if (p.studio && engine.holds(p.id)) await engine.song(uri, s.name); change({ audioUri: uri, audioName: s.name }); } } catch (e) { toast(errorMessage(e), "danger"); }
   }
   async function removeShot() {
     if (clips.length === 1) return toast(words("A Reel needs at least one shot."), "info");
     if (await confirmAction({ title: words("Delete this shot?"), ok: words("Delete"), danger: true })) setClips(clips.filter((_, i) => i !== selected));
   }
+  // the text being edited (the Text panel): its settings change as on the website's text editor
+  const [txSel, setTxSel] = useState(""), txt = p?.overlays.find((o) => o.id === txSel);
+  const setTx = (patch: Partial<Overlay>) => p && txt && change({ overlays: p.overlays.map((o) => (o.id === txt.id ? { ...o, ...patch } : o)) });
   const addText = (text: string) => {
     if (!text.trim() || !p) return;
     if (now >= total - 0.05) return toast(words("Move the playhead before the end of the Reel to add text."), "info");
     const start = Math.max(0, now), end = Math.min(total, start + 3);
     if (end - start < 0.1) return toast(words("There is not enough time left in this Reel for a text overlay."), "info");
-    change({
-      overlays: [...p.overlays, { id: `t-${Date.now()}`, text: text.trim(), start, end, color: "#FFFFFF", size: 36 } as Overlay],
-      // Studio can sync ordinary overlay edits; preserve its compositor layers for export.
-      studio: !!p.studio && engine.holds(p.id),
-    });
+    change({ overlays: [...p.overlays, { id: `t-${Date.now()}`, text: text.trim(), start, end, color: "#FFFFFF", size: 36 } as Overlay] });
     setDraft("");
   };
 
@@ -414,7 +461,7 @@ export default function EditorScreen() {
 
   function use(key: string, name: string) {
     const lock = locked?.(key);
-    if (lock) { router.push("/pricing"); return; }
+    if (lock) return toast(words("This isn't in your current plan."), "info");
     if (LATER.has(key)) return toast(words("{tool} comes with the phone's video engine, in the Play Store app.", { tool: words(name) }), "info");
     if (!clip) return;
     const s = clip.end - clip.start;
@@ -483,11 +530,35 @@ export default function EditorScreen() {
             <Text className="text-[12px] leading-[17px] text-muted">{words("Wind, traffic, people talking… Choose what the Reel keeps under the song.")}</Text>
             <Seg k="csnd" items={CSNDS} box="csnd" attr="data-c" here={(v) => ({ clips: clips.map((c) => ({ ...c, muted: v === "mute" })) })} />
           </View>
-          {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => { songRequest.current += 1; change({ audioUri: undefined, audioName: undefined, music: undefined }); }} />}
+          {p.studio && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+            <Label>Sound effects (at the playhead)</Label>
+            <Choices items={SOUNDS.map((s) => s[1])} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              const kind = SOUNDS.find((s) => s[1] === v)![0];
+              try { await engine.edit(p); const r = await engine.tool("sfx", { kind, time: now }) as { ok?: boolean }; toast(words(r?.ok ? "Sound added" : "This sound is not available"), r?.ok ? "success" : "info"); }
+              catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+          </View>}
+          {p.studio && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+            <Label>Your beat markers (a cut can land on each)</Label>
+            <Choices items={["Add marker here", "Remove marker here", "Remove all markers"]} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              try { const next = await engine.mark(p, v.startsWith("Add") ? "add" : v.startsWith("Remove marker") ? "del" : "clear", now);
+                if (next) { setP((old) => old ? { ...old, clips: next } : old); toast(words("Done: the cuts follow your markers"), "success"); } else toast(words("Nothing changed"), "info"); }
+              catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+            <Label>Voice effect (on your recorded voiceover)</Label>
+            <Choices items={VFX.map((x) => x[1])} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              try { await engine.set(p, "vfx", VFX.find((x) => x[1] === v)![0], "data-f"); toast(words("Voice effect applied"), "success"); } catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+          </View>}
+          {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => change({ audioUri: undefined, audioName: undefined })} />}
           {clip && <>
             <Label>Selected shot audio volume</Label>
             <Choices items={["0%", "25%", "50%", "75%", "100%", "125%", "150%", "200%"]} on={`${Math.round((clip.volume ?? 1) * 100)}%`} onPick={(v) => patch({ volume: Number(v.replace("%", "")) / 100, muted: v === "0%" })} />
             <Button full variant="secondary" title={words(clip.muted ? "Turn the clip's sound on" : "Mute the clip's sound")} onPress={() => patch({ muted: !clip.muted })} />
+            {p.studio && <Button full variant="secondary" title={words("Enhance this shot's voice")} onPress={() => void studioPatch({ enh: true })} />}
           </>}
         </View>
       );
@@ -501,7 +572,26 @@ export default function EditorScreen() {
           <TextInput value={draft} onChangeText={setDraft} placeholder={words("Type your text")} placeholderTextColor={look.muted} maxLength={80} className="h-12 rounded-xl border border-border bg-surface-2 px-4 text-[14px] text-foreground" />
           <View className="flex-row gap-2"><Button className="flex-1" icon="plus" disabled={!draft.trim()} title={words("Text")} onPress={() => addText(draft)} /><Button className="flex-1" variant="secondary" icon="plus" title={words("Sticker")} onPress={() => setTool({ key: "stickers", name: "Stickers" })} /></View>
           <Choices items={READY_MADE} onPick={addText} />
-          {p.overlays.map((o) => <View key={o.id} className="flex-row items-center gap-2 rounded-xl border border-border px-3 py-2"><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id), studio: !!p.studio && engine.holds(p.id) })} /></View>)}
+          {p.studio && <>
+            <Label>Text templates (at the playhead)</Label>
+            <Choices items={Object.values(TEXT_TEMPLATES).map((t) => t.name)} onPick={(v) => void (async () => {
+              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              const key = Object.keys(TEXT_TEMPLATES).find((k) => TEXT_TEMPLATES[k].name === v)!;
+              try { await engine.edit(p); const r = await engine.tool("template", { key, time: now }) as { ok?: boolean; state?: { overlays?: unknown } }; const list = textsOf(r?.state?.overlays);
+                if (r?.ok && list) setP((old) => old ? { ...old, overlays: list } : old); toast(words(r?.ok ? "Template added: tap a text to change its words" : "This template is not available"), r?.ok ? "success" : "info"); }
+              catch (e) { toast(errorMessage(e), "danger"); }
+            })()} />
+          </>}
+          {p.overlays.map((o) => <Pressable key={o.id} onPress={() => setTxSel(txSel === o.id ? "" : o.id)} className={`flex-row items-center gap-2 rounded-xl border px-3 py-2 ${txSel === o.id ? "border-accent" : "border-border"}`}><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id) })} /></Pressable>)}
+          {/* the tapped text: its look and motion, as the website's text editor (drawn by the studio in the paused preview and the export) */}
+          {txt && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+            <Label>Style</Label><Choices items={TX_STYLES.map((s) => s[1])} on={TX_STYLES.find((s) => s[0] === (txt.style ?? "bold"))?.[1]} onPick={(v) => setTx({ style: TX_STYLES.find((s) => s[1] === v)![0] })} />
+            <Label>Entrance</Label><Choices items={TX_INS.map((s) => s[1])} on={TX_INS.find((s) => s[0] === (txt.anim ?? "pop"))?.[1]} onPick={(v) => setTx({ anim: TX_INS.find((s) => s[1] === v)![0] })} />
+            <Label>Exit</Label><Choices items={TX_OUTS.map((s) => s[1])} on={TX_OUTS.find((s) => s[0] === (txt.out ?? "none"))?.[1]} onPick={(v) => setTx({ out: TX_OUTS.find((s) => s[1] === v)![0] })} />
+            <Label>Keeps moving</Label><Choices items={TX_LOOPS.map((s) => s[1])} on={TX_LOOPS.find((s) => s[0] === (txt.loop ?? "none"))?.[1]} onPick={(v) => setTx({ loop: TX_LOOPS.find((s) => s[1] === v)![0] })} />
+            <Label>Colour</Label><Choices items={TX_COLORS.map((s) => s[1])} on={TX_COLORS.find((s) => s[0] === txt.color)?.[1]} onPick={(v) => setTx({ color: TX_COLORS.find((s) => s[1] === v)![0] })} />
+            <Label>Size</Label><Choices items={["Small", "Medium", "Large", "Huge"]} on={txt.size <= 26 ? "Small" : txt.size <= 40 ? "Medium" : txt.size <= 60 ? "Large" : "Huge"} onPick={(v) => setTx({ size: ({ Small: 24, Medium: 36, Large: 54, Huge: 80 } as Record<string, number>)[v] })} />
+          </View>}
         </View>
       );
       case "bg": return <Seg k="bg" items={BGS} box="bgmode" attr="data-b" />;
@@ -617,7 +707,13 @@ export default function EditorScreen() {
           <Button full variant="danger" title={words("Delete selected layer")} onPress={() => void studioLayerAction("layerDelete")} />
         </>}
       </View>;
-      case "canvas": case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
+      case "canvas": return <View className="gap-2">
+        <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />
+        {p.studio && <><Label>Behind a fitted picture</Label>
+          <Choices items={CANVAS.map((c) => c[1])} onPick={(v) => { const k = CANVAS.find((c) => c[1] === v)![0]; void studioPatch({ fit: true, bg: k === "blur" ? "blur" : k, ...(k === "blur" ? {} : { bgc: canvasCol }) }); }} />
+          <Choices items={CANVAS_COLS.map((c) => c[1])} on={CANVAS_COLS.find((c) => c[0] === canvasCol)?.[1]} onPick={(v) => setCanvasCol(CANVAS_COLS.find((c) => c[1] === v)![0])} /></>}
+      </View>;
+      case "crop": return <View className="gap-2"><Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />{p.studio && <FineTune key={`z${selected}`} fields={CROP_FINE} patch={studioPatch} />}</View>;
       case "sp": return <View className="gap-2">
         <Label>Playback speed</Label>
         <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v), speedRamp: undefined })} />
@@ -660,36 +756,22 @@ export default function EditorScreen() {
           <Button size="sm" variant="danger" title={words("Clear all")} onPress={() => void studioKeyframeAction("kfClear")} />
         </View>
       </View>;
-      case "tr": {
-        const studioCanRender = !!p.studio && engine.holds(p.id);
-        const choices = studioCanRender ? TRANSITIONS : TRANSITIONS.filter((_, index) => isNativeTransitionSupported(TRANSITION_IDS[index]));
-        return <View className="gap-2">
-          <Choices items={choices} on={TRANSITIONS[TRANSITION_IDS.indexOf(clip?.transition ?? "hard")] ?? "Cut"} onPick={(label) => {
-            const transition = TRANSITION_IDS[TRANSITIONS.indexOf(label)] ?? "hard";
-            patch({ transition }); void studioStyle("transition", transition);
-          }} />
-          {!studioCanRender && <Text className="text-[11px] text-muted">{words("Only transitions supported by this Android export engine are shown. Reopen this Reel in Fast Studio for the full transition library.")}</Text>}
-        </View>;
-      }
-      case "fx": {
-        const studioCanRender = !!p.studio && engine.holds(p.id);
-        const choices = studioCanRender ? EFFECTS : EFFECTS.filter((_, index) => isNativeEffectSupported(EFFECT_IDS[index]));
-        return <View className="gap-2">
-          <Choices items={choices} on={EFFECTS[EFFECT_IDS.indexOf(clip?.effect ?? "none")] ?? "None"} onPick={(label) => {
-            const effect = EFFECT_IDS[EFFECTS.indexOf(label)] ?? "none";
-            patch({ effect }); void studioStyle("effect", effect);
-          }} />
-          {!studioCanRender && <Text className="text-[11px] text-muted">{words("Only effects supported by this Android export engine are shown. Reopen this Reel in Fast Studio for the full effects library.")}</Text>}
-        </View>;
-      }
-      case "adjust": return <Choices items={["Reset colour", "Brighten", "More contrast", "Warm cinematic", "Vivid colour", "Matte film"]} onPick={(v) => {
+      case "tr": return <Choices items={TRANSITIONS} on={TRANSITIONS[TRANSITION_IDS.indexOf(clip?.transition ?? "hard")] ?? "Cut"} onPick={(label) => {
+        const transition = TRANSITION_IDS[TRANSITIONS.indexOf(label)] ?? "hard";
+        patch({ transition }); void studioStyle("transition", transition);
+      }} />;
+      case "fx": return <Choices items={EFFECTS} on={EFFECTS[EFFECT_IDS.indexOf(clip?.effect ?? "none")] ?? "None"} onPick={(label) => {
+        const effect = EFFECT_IDS[EFFECTS.indexOf(label)] ?? "none";
+        patch({ effect }); void studioStyle("effect", effect);
+      }} />;
+      case "adjust": return <View className="gap-2">{p.studio && <FineTune key={`a${selected}`} fields={ADJUST_FINE} patch={studioPatch} />}<Choices items={["Reset colour", "Brighten", "More contrast", "Warm cinematic", "Vivid colour", "Matte film"]} onPick={(v) => {
         const values: Record<string, Record<string, number>> = {
           "Reset colour": { bri: 0, con: 0, sat: 0, warm: 0, hi: 0, sh: 0, hue: 0, sharp: 0, vig: 0 },
           Brighten: { bri: 0.18, sh: 0.2 }, "More contrast": { con: 0.22, hi: -0.08 },
           "Warm cinematic": { warm: 0.28, con: 0.12, vig: 0.18 }, "Vivid colour": { sat: 0.28, sharp: 0.12 },
           "Matte film": { con: -0.12, sat: -0.16, sh: 0.18, vig: 0.22 },
         }; void studioPatch(values[v]);
-      }} />;
+      }} /></View>;
       case "curve": return <Choices items={["Montage", "Hero moment", "Bullet", "Smooth", "Reset curve"]} onPick={(v) => {
         const curves: Record<string, { a: number; b: number; c: number; d: number; e: number }> = {
           Montage: { a: 1.8, b: 2.4, c: 1, d: 2.4, e: 1.8 }, "Hero moment": { a: 1.8, b: 1.2, c: 0.45, d: 0.7, e: 1.8 },
@@ -697,17 +779,43 @@ export default function EditorScreen() {
           "Reset curve": { a: 1, b: 1, c: 1, d: 1, e: 1 },
         }; void studioPatch({ curve: curves[v] });
       }} />;
+      case "kf": return <View className="gap-2"><Choices items={["Add keyframe here", "Remove this keyframe", "Remove all keyframes"]} onPick={(v) => void studioPatch({ kxOp: v.startsWith("Add") ? "add" : v.startsWith("Remove this") ? "del" : "clear" })} />
+        <Text className="text-[12px] leading-[17px] text-muted">{words("Saves the shot's colour, volume, zoom, framing and mask here. Move the playhead, change Adjust, Volume, Crop or Mask, and the shot glides between the keys.")}</Text></View>;
+      case "smooth": return <Choices items={["Off", "Light", "Smooth", "Smoothest"]} onPick={(v) => void studioPatch({ smooth: ({ Off: 0, Light: 0.4, Smooth: 0.75, Smoothest: 1 } as Record<string, number>)[v] })} />;
       case "stab": return <Choices items={["Off", "Light", "Balanced", "Strong"]} onPick={(v) => void studioPatch({ stab: ({ Off: 0, Light: 0.25, Balanced: 0.55, Strong: 0.85 } as Record<string, number>)[v] })} />;
       case "beauty": return <Choices items={["Off", "Natural", "Soft", "Smooth"]} onPick={(v) => void studioPatch({ beauty: ({ Off: 0, Natural: 0.2, Soft: 0.45, Smooth: 0.7 } as Record<string, number>)[v] })} />;
-      case "fade": return <Choices items={["No fade", "Fade in", "Fade out", "Fade both"]} onPick={(v) => {
-        const values: Record<string, Record<string, number>> = { "No fade": { fin: 0, fout: 0 }, "Fade in": { fin: 0.5, fout: 0 }, "Fade out": { fin: 0, fout: 0.6 }, "Fade both": { fin: 0.5, fout: 0.6 } };
-        void studioPatch(values[v]);
+      case "fade": return <Choices items={["No fade", "Fade in", "Fade out", "Fade both", "Fade both, every shot"]} onPick={(v) => {
+        const values: Record<string, Record<string, number>> = { "No fade": { fin: 0, fout: 0 }, "Fade in": { fin: 0.5, fout: 0 }, "Fade out": { fin: 0, fout: 0.6 }, "Fade both": { fin: 0.5, fout: 0.6 }, "Fade both, every shot": { fin: 0.3, fout: 0.3 } };
+        void studioPatch(v.endsWith("every shot") ? { ...values[v], all: true } : values[v]);
       }} />;
       case "mosaic": return <Choices items={["Add mosaic region", "Remove mosaic", "Blur centre region"]} onPick={(v) => void studioPatch({ mz: v === "Remove mosaic" ? null : { x: v === "Blur centre region" ? 0.32 : 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 } })} />;
       case "lens": return <Choices items={["Add magnifier", "Remove magnifier", "Zoom 1.5×", "Zoom 2×", "Zoom 3×"]} onPick={(v) => {
         if (v === "Remove magnifier") return void studioPatch({ mg: null });
         void studioPatch({ mg: { x: 0.5, y: 0.45, r: 0.18, z: v === "Zoom 1.5×" ? 1.5 : v === "Zoom 2×" ? 2 : v === "Zoom 3×" ? 3 : 2 } });
       }} />;
+      // a mask on the shot (the website's Clip tools -> Mask): the shot shows inside the shape, black around it
+      case "mask": return <View className="gap-2">{p.studio && <FineTune key={`m${selected}`} fields={MASK_FINE} patch={studioPatch} />}<Choices items={["Circle", "Rectangle", "Heart", "Star", "Split", "Filmstrip", "Invert", "Remove mask"]} onPick={(v) => {
+        if (v === "Remove mask") return void studioPatch({ mk: null });
+        if (v === "Invert") return void (async () => { const c = await engine.tool("shotCs").catch(() => null) as { mk?: Record<string, unknown> | null } | null; if (c?.mk) void studioPatch({ mk: { ...c.mk, inv: !c.mk.inv } }); })();
+        const s = ({ Circle: "circle", Rectangle: "rect", Heart: "heart", Star: "star", Split: "split", Filmstrip: "film" } as Record<string, string>)[v];
+        void studioPatch({ mk: { s, x: 0.5, y: 0.5, w: 0.7, h: s === "film" ? 0.5 : 0.7, a: 0, f: 0.04, inv: false, c: "#000000" } });
+      }} /></View>;
+      // green screen on the shot (the website's Clip tools -> Chroma key): the colour goes, black shows behind
+      case "chroma": return <Choices items={["Green screen", "Blue screen", "Stronger", "Softer", "Remove chroma key"]} onPick={(v) => void (async () => {
+        if (v === "Remove chroma key") return void studioPatch({ ck: null });
+        const c = await engine.tool("shotCs").catch(() => null) as { ck?: { c: string; tol: number; bg: string } | null } | null, ck = c?.ck ?? { c: "#00FF00", tol: 0.35, bg: "#000000" };
+        void studioPatch({ ck: v === "Green screen" ? { ...ck, c: "#00FF00" } : v === "Blue screen" ? { ...ck, c: "#0000FF" } : { ...ck, tol: Math.max(0.05, Math.min(0.9, ck.tol + (v === "Stronger" ? 0.1 : -0.1))) } });
+      })()} />;
+      // Curves and HSL (the website's Clip tools): ready-made curves, and one colour band at a time
+      case "curves": return <View className="gap-2">{p.studio && <FineTune key={`c${selected}`} fields={CURVE_FINE} patch={studioPatch} />}<Choices items={["More contrast", "Faded film", "Brighter mids", "Moody", "Cross process", "Reset curves"]} onPick={(v) => void studioPatch({ cv: ({
+        "More contrast": { m: [0, 0.18, 0.5, 0.82, 1] }, "Faded film": { m: [0.1, 0.3, 0.52, 0.76, 0.94] }, "Brighter mids": { m: [0, 0.32, 0.6, 0.83, 1] },
+        Moody: { m: [0, 0.2, 0.45, 0.72, 0.95], b: [0.05, 0.28, 0.52, 0.75, 0.97] }, "Cross process": { r: [0, 0.2, 0.55, 0.85, 1], g: [0, 0.25, 0.52, 0.8, 1], b: [0.12, 0.3, 0.48, 0.66, 0.85] },
+      } as Record<string, unknown>)[v] ?? null })} /></View>;
+      case "hsl": return <Choices items={["Bluer sky", "Warm skin", "Greener leaves", "Only red in colour", "Teal & orange", "Reset HSL"]} onPick={(v) => void studioPatch({ hsl: ({
+        "Bluer sky": { blue: [0, 0.45, -0.1], aqua: [0.1, 0.3, 0] }, "Warm skin": { orange: [-0.05, 0.15, 0.1], red: [0.05, -0.1, 0.05] }, "Greener leaves": { green: [0, 0.5, -0.05], yellow: [0.15, 0.2, 0] },
+        "Only red in colour": { orange: [0, -1, 0], yellow: [0, -1, 0], green: [0, -1, 0], aqua: [0, -1, 0], blue: [0, -1, 0], purple: [0, -1, 0], magenta: [0, -0.6, 0] },
+        "Teal & orange": { green: [0.35, -0.2, 0], aqua: [0.1, 0.3, 0], blue: [-0.15, 0.2, -0.1], orange: [0, 0.3, 0.05], yellow: [-0.2, 0.1, 0] },
+      } as Record<string, unknown>)[v] ?? null })} />;
       case "border": return <Choices items={["No border", "Fine white", "Gold frame", "Soft frame"]} onPick={(v) => {
         if (v === "No border") return void studioPatch({ fit: false, bd: 0 });
         void studioPatch({ fit: true, bd: v === "Fine white" ? 0.035 : 0.08, bdc: v === "Gold frame" ? "#d4b07a" : v === "Soft frame" ? "#f3ede3" : "#ffffff" });
@@ -734,12 +842,24 @@ export default function EditorScreen() {
     <View className="flex-1 bg-background">
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview clip={clip} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} still={still} live={liveOn ? <LivePlayer p={p} now={now} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onFail={() => setLiveBroken(true)} /> : undefined} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <View className="mx-4 mt-2">
           <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
-        <View className="mx-4 mt-3"><AskShubix onAsk={(t) => {
+        <View className="mx-4 mt-3"><AskShubix onAsk={async (t) => {
+          // a Reel the studio made and still holds: Shubix AI itself (the website's chat: its credit question asked here,
+          // its plan applied there, the clips back here); otherwise the phone's own changes below
+          if (p.studio && engine.holds(p.id)) {
+            try {
+              setPlaying(false);
+              const r = await engine.chat(p, t);
+              if (r) {
+                if (r.clips) { const next = r.clips; setP((old) => old ? { ...old, clips: next, ...(r.overlays ? { overlays: r.overlays } : {}), studio: true } : old); setSelected(0); }
+                return r.answer;
+              }
+            } catch (e) { return errorMessage(e); }
+          }
           const bulk = parseBulkVisualCommand(t);
           if (bulk?.unsupportedTransition) {
             return words("{transition} is not available in the current Android export engine yet. I did not change your clips. Choose Fade in, Whip pan, Zoom, Flash, Spin, Slide, Blur or Swipe up instead.", { transition: words(bulk.unsupportedTransition) });

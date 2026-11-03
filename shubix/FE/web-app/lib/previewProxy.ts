@@ -7,13 +7,10 @@
  *    rate). H.264 8-bit SDR, at most 1080 × 1920, 30 frames a second at an even pace: the preview, the clip reading and
  *    the export all read it, so every Reel plays without lag.
  */
+import { isHidden, nap, whenVisible } from "./background";
+
 export const PREVIEW_MAX_SIDE = 960;
 export const PREVIEW_BITRATE = 2_000_000;
-
-/** The hidden phone engine must never send a source video to the conversion API. */
-export function shouldUseServerConversion(pathname: string): boolean {
-  return pathname !== "/engine";
-}
 const MIN_FILE_BYTES = 16 * 1024 * 1024;
 const MAX_PROXY_FILE_BYTES = 450 * 1024 * 1024;
 const MAX_PROXY_DURATION = 300;
@@ -204,18 +201,21 @@ async function playerToEncoder(file: File, plan: PreviewProxyPlan, onProgress?: 
       }
     };
     await new Promise<void>((resolve, reject) => {
-      const watch = setInterval(() => { if (performance.now() - lastFrame > 15_000) { clearInterval(watch); reject(new Error("The browser stopped playing this video")); } }, 1000);
+      // a page in the background: the browser pauses its videos; the copy waits and plays on when the page is back
+      const onVis = () => { if (!isHidden()) { lastFrame = performance.now(); if (video.paused && !video.ended) video.play().catch(() => undefined); } };
+      document.addEventListener("visibilitychange", onVis);
+      const watch = setInterval(() => { if (isHidden()) { lastFrame = performance.now(); return; } if (performance.now() - lastFrame > 15_000) { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); reject(new Error("The browser stopped playing this video")); } }, 1000);
       const onFrame = (_now: number, meta: VideoFrameCallbackMetadata) => {
         lastFrame = performance.now();
         if (video.videoWidth) { draw(); emit(meta.mediaTime); }
         onProgress?.(Math.min(0.99, meta.mediaTime / dur));
         if (!video.ended) video.requestVideoFrameCallback(onFrame);
       };
-      video.onended = () => { clearInterval(watch); resolve(); };
-      video.onerror = () => { clearInterval(watch); reject(new Error("The browser could not play this video to the end")); };
+      video.onended = () => { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); resolve(); };
+      video.onerror = () => { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); reject(new Error("The browser could not play this video to the end")); };
       video.requestVideoFrameCallback(onFrame);
       video.playbackRate = dur <= 120 ? 0.5 : 1;
-      video.play().catch(e => { clearInterval(watch); reject(e); });
+      void whenVisible().then(() => video.play()).catch(e => { clearInterval(watch); document.removeEventListener("visibilitychange", onVis); reject(e); });
     });
     if (video.videoWidth) { draw(); emit(dur); }
     await chain;
@@ -346,7 +346,11 @@ export async function createPreviewProxy(
             },
             audio: acodec ? { codec: acodec } : { discard: true },
           });
-          if (conversion.isValid) {
+          // valid also means "audio only": a conversion whose video track was left out (seen on Android Chrome with 4K
+          // phone clips) would make a copy without a picture, so it is not used (the player's decoder or Shubix tries next)
+          const video = conversion.utilizedTracks.some((t) => t.isVideoTrack());
+          if (!video) console.info("edit copy: the video track was left out", conversion.discardedTracks.map((d) => d.reason));
+          if (conversion.isValid && video) {
             conversion.onProgress = progress => onProgress?.(progress);
             await conversion.execute();
             const buffer = output.target.buffer;
@@ -385,11 +389,25 @@ export async function createPreviewProxy(
   if (!plan) return null;
   try {
     const blob = await createElementPreviewProxy(file, plan, onProgress);
-    return blob ? { blob, plan } : null;
+    return blob && await hasPicture(blob) ? { blob, plan } : null;
   } catch (error) {
     console.info("Native preview proxy unavailable; keeping original media:", error instanceof Error ? error.message : error);
     return null;
   }
+}
+
+/** Whether a copy really has a picture (a video track that lasts): the browser's own player on some phones makes copies
+ * with sound only. Read from the file itself, the same on every browser (no decoding). */
+export async function hasPicture(blob: Blob): Promise<boolean> {
+  let input: import("mediabunny").Input | undefined;
+  try {
+    const mb = await import("mediabunny");
+    input = new mb.Input({ source: new mb.BlobSource(blob), formats: mb.ALL_FORMATS });
+    const track = await input.getPrimaryVideoTrack();
+    const ok = !!track && (await input.computeDuration()) > 0;
+    if (!ok) console.info("edit copy: no picture in the copy, the original is kept");
+    return ok;
+  } catch { return false; } finally { try { input?.dispose(); } catch { /* best-effort */ } }
 }
 
 /** An edit copy for a clip the browser's player cannot open at all (it may still decode it with WebCodecs). */
@@ -433,7 +451,7 @@ export async function convertOnServer(file: File, onProgress?: (p: number) => vo
   const base = "/api/studio/convert/" + encodeURIComponent(id);
   for (let misses = 0; ;) {
     if (signal?.aborted) throw convertError("cancelled", "CANCELLED");
-    await new Promise(r => setTimeout(r, 2000));
+    await nap(2000);   // slower in the background; checked at once when the page is back
     let st: { status: string; progress: number; error?: { code: string; message: string } | null };
     try {
       const r = await fetch(base, { credentials: "same-origin", cache: "no-store", signal });
@@ -442,7 +460,8 @@ export async function convertOnServer(file: File, onProgress?: (p: number) => vo
     } catch (e) {
       const err = e as ConvertError;
       if (err.status && err.status < 500) throw err;
-      if (++misses >= 8) throw convertError("No connection while the video was being converted.", "OFFLINE");   // ~16 s offline
+      // a phone in the background may cut the network for a while: only misses while the page is visible count
+      if (!isHidden() && ++misses >= 8) throw convertError("No connection while the video was being converted.", "OFFLINE");   // ~16 s offline
       continue;
     }
     if (st.status === "failed") throw convertError(st.error?.message || "Shubix could not convert this video.", st.error?.code || "CONVERT_FAILED");

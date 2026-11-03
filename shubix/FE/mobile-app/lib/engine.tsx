@@ -20,95 +20,45 @@ export type SongAnalysis = { duration: number; bpm: number; beats: number; drops
 /** a shot of the Reel as the studio made it (its state(): the clip, where in it, the transition into it, its effect, its speed) */
 export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
 export type EngineReel = { work: { clips: number; shots: number }; state: { edit: EngineShot[]; mode?: string } & Record<string, unknown> };
+/** the website's Export sheet: quality, frame rate, the watermark, without the song */
+export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWatermark?: boolean; noSong?: boolean; myReels?: boolean; fixLocked?: boolean };
+export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean;
+  size: string; fileName: string; myReels: boolean; myReelsNote: string; locked: { name: string; need: string }[] };
 
-type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> };
+type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 type Page = { injectJavaScript: (js: string) => void; reload: () => void };
 const waiting = new Map<number, Waiting>();
-const ENGINE_READY_TIMEOUT_MS = 45_000;
-const ENGINE_CALL_TIMEOUT_MS = 12 * 60_000;
-let page: Page | null = null, held = "", next = 1, ready: (() => void) | null = null;
-let isReady = new Promise<void>((r) => { ready = r; });
-let setUp = false, setupPromise: Promise<void> | null = null, generation = 0;
+let page: Page | null = null, held = "", next = 1, ready: (() => void) | null = null, isReady = new Promise<void>((r) => { ready = r; }), setUp = false;
 const files = ShubixVideo ? ShubixVideo.fileServer() : null;
 
 /** whether this phone can make Reels with the studio (the app's own build, not Expo Go or the web) */
 export const engineOn = Platform.OS !== "web" && !!files;
 
-function resetReady() {
-  isReady = new Promise<void>((resolve) => { ready = resolve; });
-}
-function rejectPending(message: string) {
-  waiting.forEach((entry) => {
-    clearTimeout(entry.timer);
-    entry.reject(new Error(message));
-  });
-  waiting.clear();
-}
-async function waitUntilReady() {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    await Promise.race([
-      isReady,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("Shubix Studio is taking too long to start. Check your connection and try again.")), ENGINE_READY_TIMEOUT_MS);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-async function ensureSetup() {
-  if (setUp) return;
-  if (!setupPromise) {
-    const startedAt = generation;
-    const pending = (async () => {
-      await call("setup", { files: `http://127.0.0.1:${files!.port}`, key: files!.key, token: await tokenStore.get() });
-      if (startedAt !== generation) throw new Error("Shubix Studio restarted during setup. Please try again.");
-      setUp = true;
-    })();
-    setupPromise = pending;
-  }
-  const pending = setupPromise;
-  try { await pending; }
-  finally { if (setupPromise === pending) setupPromise = null; }
-}
 async function call<T>(op: string, args: Record<string, unknown> = {}): Promise<T> {
   if (!engineOn) throw new Error("Making Reels needs the Shubix app (not Expo Go).");
-  await waitUntilReady();
-  if (!page) throw new Error("Shubix Studio is not connected to the Android app. Reopen the screen and try again.");
-  if (!setUp && op !== "setup") await ensureSetup();
+  await isReady;
+  if (!setUp && op !== "setup") { setUp = true; await call("setup", { files: `http://127.0.0.1:${files!.port}`, key: files!.key, token: await tokenStore.get() }); }
   const id = next++;
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      waiting.delete(id);
-      reject(new Error("Shubix Studio did not respond in time. Your draft is still on this phone; try the action again."));
-    }, ENGINE_CALL_TIMEOUT_MS);
-    waiting.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
-    try {
-      if (!page) throw new Error("Shubix Studio disconnected before the request was sent.");
-      page.injectJavaScript(`window.engine.call(${id}, ${JSON.stringify(op)}, ${JSON.stringify(args)}); true;`);
-    } catch (error) {
-      clearTimeout(timer);
-      waiting.delete(id);
-      reject(error instanceof Error ? error : new Error("Shubix Studio could not receive the request."));
-    }
+    waiting.set(id, { resolve: resolve as (v: unknown) => void, reject });
+    page?.injectJavaScript(`window.engine.call(${id}, ${JSON.stringify(op)}, ${JSON.stringify(args)}); true;`);
+  });
+}
+/** the studio's texts as the phone keeps them (its own: a number id, t0 / t1, size as a multiple of 36); every setting kept */
+export function textsOf(list: unknown): ReelProject["overlays"] | undefined {
+  if (!Array.isArray(list)) return undefined;
+  return (list as Record<string, unknown>[]).filter((o) => typeof o.text === "string" && o.kind !== "squareFrame").map((o) => {
+    const start = Math.max(0, Number(o.start ?? o.t0) || 0), size = Number(o.size) || 1;
+    const { box: _b, t0: _a, t1: _z, all: _l, ...rest } = o;
+    return { ...rest, id: String(o.id), text: String(o.text).slice(0, 300), start, end: Math.max(start + 0.05, Number(o.end ?? o.t1) || start + 3), color: String(o.color || "#FFFFFF"),
+      size: Math.max(8, Math.min(120, size > 4 ? size : Math.round(size * 36))) } as ReelProject["overlays"][number];
   });
 }
 const pathOf = (uri: string) => decodeURIComponent(uri.replace(/^file:\/\//, ""));
 
 export const engine = {
   /** the song: the website analyses it (beats, drops, breaks) and checks its beats */
-  song: async (uri: string, name: string) => {
-    const result = await call<SongAnalysis>("song", { path: pathOf(uri), name });
-    if (!result || !Number.isFinite(result.duration) || result.duration <= 0 ||
-        !Number.isFinite(result.bpm) || result.bpm <= 0 ||
-        !Number.isFinite(result.beats) || result.beats < 0 ||
-        !Number.isFinite(result.drops) || result.drops < 0 ||
-        !Number.isFinite(result.breaks) || result.breaks < 0) {
-      throw new Error("Shubix could not analyse this song reliably. Choose another audio file and try again.");
-    }
-    return result;
-  },
+  song: (uri: string, name: string) => call<SongAnalysis>("song", { path: pathOf(uri), name }),
   /** the Reel's choices, as the website's buttons: length (0 = the whole song), clip order, format, style */
   choose: (c: { length?: number; order?: "mix" | "order"; aspect?: string; mode?: "auto" | "smooth" | "fast" }) => call<{ start: number }>("choose", c),
   /** the song's part moved on the waves: the Reel uses the song from `start` */
@@ -116,17 +66,7 @@ export const engine = {
   /** the clips: the website reads them (motion, scenes, faces) and makes the Reel on the beats */
   clips: (list: { uri: string; name: string }[]) => call<{ clips: number; names: string[] }>("clips", { paths: list.map((c) => ({ path: pathOf(c.uri), name: c.name })) }),
   /** once the Reel is made: its shots (`id`: the phone's draft, which the studio now holds) */
-  ready: async (id: string) => {
-    const result = await call<EngineReel>("ready");
-    if (!result || !Array.isArray(result.state?.edit) || result.state.edit.length < 2 ||
-        !Number.isFinite(result.work?.clips) || result.work.clips < 1 ||
-        !Number.isFinite(result.work?.shots) || result.work.shots < 2) {
-      held = "";
-      throw new Error("Shubix AI could not build a complete Reel from these clips. Add more usable footage and try again.");
-    }
-    held = id;
-    return result;
-  },
+  ready: (id: string) => call<EngineReel>("ready").then((r) => { held = id; return r; }),
   /** whether the studio holds this draft as it made it (then the website's export makes it, with its transitions and effects) */
   holds: (id: string) => engineOn && held === id,
   /** the website's export of the Reel the studio holds: the MP4 on the phone */
@@ -170,37 +110,54 @@ export const engine = {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("undo");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   redo: async () => {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("redo");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   /** Ask Studio for another locally generated edit, then map its shots back to the native clip model. */
   remix: async () => {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("remix");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   /** a choice in one of the editor's tools, made in the studio as on the website (its button `attr`=`value` in `box`,
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
    * does not hold this Reel as it is (then the phone does what it can) */
   tool: (op: string, args: Record<string, unknown> = {}) => call<Record<string, unknown>>(op, args),
+  /** the creator's own beat markers (add at `time`, del the one there, clear): the Reel's clips after the edit is made again */
+  mark: async (p: ReelProject, op: "add" | "del" | "clear", time: number) => {
+    if (!(await engine.edit(p))) return null;
+    const r = await call<{ ok: boolean; state?: { edit?: EngineShot[] } }>("mark", { op, time });
+    return r.ok && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null;
+  },
   addLayer: (uri: string, name: string) => call<Record<string, unknown>>("layerAdd", { path: pathOf(uri), name }),
   set: async (p: ReelProject, box: string, value: string | boolean, attr?: string) => {
     if (!(await engine.edit(p))) return null;
     return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
   },
-  exportReel: async (name: string) => {
-    const result = await call<{ path: string; size: number }>("exportReel", { name });
-    if (!result || typeof result.path !== "string" || !result.path.startsWith("/") ||
-        !Number.isFinite(result.size) || result.size <= 0) {
-      throw new Error("Android Studio returned an invalid MP4. Your editable draft is still saved; please retry export.");
-    }
-    return { uri: `file://${result.path}`, size: result.size };
+  exportReel: (name: string, o: ExportChoice = {}) => call<{ path: string; size: number; caption?: string }>("exportReel", { name, ...o }).then((r) => ({ uri: `file://${r.path}`, size: r.size, caption: r.caption ?? "" })),
+  /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
+  exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),
+  cancelExport: () => call("cancelExport").catch(() => undefined),
+  /** the Reel's picture at `t` exactly as the studio makes it (null: it could not) */
+  frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
+  /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
+  stop: () => restart(STOPPED),
+  /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the
+   * phone's preview and export play these, so heavy footage never stutters or stalls (`name`: the clip as sent) */
+  copies: () => call<{ name: string; path: string; w: number; h: number }[]>("copies").catch(() => []),
+  /** Ask Shubix from the editor: the website's own AI chat on the Reel the studio holds; its plan is applied there and
+   * the Reel's clips come back (null: the studio does not hold this Reel) */
+  chat: async (p: ReelProject, text: string) => {
+    if (!engine.holds(p.id)) return null;
+    await engine.edit(p).catch(() => false);
+    const r = await call<{ answer: string; applied: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("chat", { text });
+    return { answer: r.answer, clips: r.applied && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null, overlays: textsOf(r.state?.overlays) };
   },
 };
 
@@ -218,7 +175,7 @@ export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[]
     const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
     const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
     const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk };
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk, ...(e.cs ? { cs: e.cs } : {}) };
     made.set(clip.id, { shot: e, clip });
     return clip;
   });
@@ -226,7 +183,9 @@ export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[]
 
 // the studio's task cards ("studio-task") on the phone's
 type TaskEvent = { event: "task"; id: string; kind?: TaskKind; state: "start" | "progress" | "done" | "fail" | "clear"; p: number | null; title?: string; detail?: string };
+const shown = new Set<string>(); // the studio's cards on screen now (cleared when it starts again)
 function onTask(t: TaskEvent) {
+  if (t.state === "start" || t.state === "progress") shown.add(t.id); else shown.delete(t.id);
   if (t.state === "start") tasks.start(t.id, t.kind ?? "ai", t.title ?? "", t.detail ?? "");
   else if (t.state === "progress") tasks.update(t.id, t.p, t.detail, t.title);
   else if (t.state === "done") tasks.done(t.id, t.title);
@@ -236,51 +195,35 @@ function onTask(t: TaskEvent) {
 // the studio's question (Shubix AI's credits: "Shubix AI will edit this Reel", Use 10 credits) asked on the phone, its answer pressed there
 type AskEvent = { event: "ask"; title: string; text: string; list: string[]; balance: string; ok: string; no: string };
 async function onAsk(q: AskEvent) {
-  let pick: "ok" | "no" | "close" = "close";
-  try {
-    const value = await askAction({ title: q.title, body: [q.text, q.balance].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) });
-    pick = value === 0 ? "ok" : value === 1 && q.no ? "no" : "close";
-  } catch {
-    // Always release the hidden Studio confirmation if the native dialog cannot be shown.
-  }
-  await call("answer", { pick }).catch(() => {});
+  const v = await askAction({ title: q.title, body: [q.text, q.balance].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) });
+  void call("answer", { pick: v === 0 ? "ok" : v === 1 && q.no ? "no" : "close" });
 }
 function onMessage(e: WebViewMessageEvent) {
-  let m: { id: number; ok: boolean; result?: unknown; error?: string } | TaskEvent | AskEvent;
-  try { m = JSON.parse(e.nativeEvent.data); } catch { return; }
-  if (!m || typeof m !== "object") return;
-  if ("event" in m) return m.event === "ask" ? void onAsk(m).catch(() => {}) : onTask(m);
+  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string } | TaskEvent | AskEvent;
+  if ("event" in m) return m.event === "ask" ? void onAsk(m) : onTask(m);
   if (m.id === 0) return ready?.();
   const w = waiting.get(m.id);
   if (!w) return;
   waiting.delete(m.id);
-  clearTimeout(w.timer);
-  if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error || "Shubix Studio could not complete this action."));
+  if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error));
+}
+
+/** said when the person left the screen that asked: nobody is there to show it */
+export const STOPPED = "Stopped.";
+// the studio starts again (the phone stopped its page, out of memory, or the person left): what it was doing fails
+function restart(why = "The phone stopped the studio. Please try again.") {
+  waiting.forEach((w) => w.reject(new Error(why))); waiting.clear(); shown.forEach((id) => tasks.clear(id)); shown.clear();
+  setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); page?.reload();
 }
 
 /** The studio's page, hidden (behind everything, never touched): mounted once at the app's root. */
 export function EngineHost() {
-  const ref = useRef<Page | null>(null);
-  // the page was stopped by the phone (out of memory): what it was doing fails, and it starts again
-  const restart = () => {
-    generation += 1;
-    rejectPending("Android restarted Shubix Studio. Your saved draft is safe; please retry the interrupted action.");
-    setUp = false; setupPromise = null; held = "";
-    resetReady();
-    ref.current?.reload();
-  };
   if (!engineOn) return null;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0, zIndex: -1 }}>
-      <WebView ref={(w: Page | null) => { ref.current = w; page = w; }} source={{ uri: `${SITE_URL}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
+      <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `${SITE_URL}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
         mixedContentMode="always" mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback webviewDebuggingEnabled={__DEV__}
-        onContentProcessDidTerminate={restart} onRenderProcessGone={restart}
-        onError={() => {
-          generation += 1;
-          rejectPending("Shubix Studio could not load on this phone. Check the app connection and try again.");
-          setUp = false; setupPromise = null; held = "";
-          resetReady();
-        }} />
+        onContentProcessDidTerminate={() => restart()} onRenderProcessGone={() => restart()} />
     </View>
   );
 }

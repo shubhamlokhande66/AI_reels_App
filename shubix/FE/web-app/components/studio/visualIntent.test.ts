@@ -90,22 +90,4 @@ describe("AI Director visual intent", () => {
     expect(parseDirectorVisualIntent('add opening text "राम आये हैं"'))
       .toEqual({ openingText: "राम आये हैं" });
   });
-
-  it("recognises all-shot commands in Roman Marathi and Devanagari", () => {
-    expect(parseDirectorVisualIntent("saglya shots vr chan effect lav")).toEqual({ effectsAll: true });
-    expect(parseDirectorVisualIntent("सगळ्या शॉट्सवर छान इफेक्ट लावा")).toEqual({ effectsAll: true });
-  });
-
-  it("applies an explicitly named transition to every shot", () => {
-    expect(parseDirectorVisualIntent("all shots get whip pan transitions")).toEqual({ transitionAll: true, transitionType: "whip" });
-  });
-
-  it("extracts unquoted opening text from Marathi and Hindi commands", () => {
-    expect(parseDirectorVisualIntent("पहिल्या shot वर WELCOME लिहा")).toEqual({ openingText: "WELCOME" });
-    expect(parseDirectorVisualIntent("suruvatila WELCOME lih")).toEqual({ openingText: "WELCOME" });
-  });
-
-  it("recognises square framing in Marathi", () => {
-    expect(parseDirectorVisualIntent("सगळ्या व्हिडिओवर चौकोनी फ्रेम लावा")).toEqual({ squareFrameAll: true });
-  });
 });

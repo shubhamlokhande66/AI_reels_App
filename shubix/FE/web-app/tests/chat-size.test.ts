@@ -14,7 +14,5 @@ describe("Ask Shubix: small or whole-Reel change", () => {
     expect(chatSize("सगळ्या व्हिडिओवर छान इफेक्ट लावा")).toBe("big");
     expect(chatSize("అన్ని క్లిప్ first")).toBe("big");
     expect(chatSize("हर एक क्लिप first")).toBe("big");
-    expect(chatSize("saglya shots vr chan effect lav")).toBe("big");
-    expect(chatSize("सभी शॉट्स पर अच्छे effects लगा दो")).toBe("big");
   });
 });

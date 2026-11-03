@@ -692,7 +692,7 @@
 
   /* ---- the screens are the page itself: no cards, no card headings; the button at the bottom ---- */
   /* room for the fixed button at the bottom (the page under it adds 40px more): nothing empty to scroll to */
-  .brs.fopen .wrap{gap:18px;padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+  .brs.fopen .wrap{gap:18px;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
   .brs.fopen .label{font:600 15px var(--body);letter-spacing:0;text-transform:none;color:var(--ink)}
 
   /* 1 Music Reel Start */
@@ -1322,7 +1322,7 @@
   .brs.made.v-one .transport #ttot::before{margin:0 2px}
 }
 @media (max-width:1023px){
-  .brs.made.v-one .transport #remix{white-space:nowrap;padding:0 12px;flex:0 0 auto}
+  .brs.made.v-one .transport #remix{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:0 12px;flex:0 0 auto}
 }
 /* a phone's tool sheet: Done stays at the bottom while the tool scrolls; a band of the sheet's colour above it, so what
    scrolls under it reads as behind it (it looked laid over the stickers) */
@@ -1792,9 +1792,14 @@
 .brs[data-asp="4:5"] .fprevbox{aspect-ratio:4/5}
 .brs[data-asp="1:1"] .fprevbox{aspect-ratio:1/1}
 .brs[data-asp="16:9"] .fprevbox{aspect-ratio:16/9}
+.brs[data-asp="3:4"] .fprevbox{aspect-ratio:3/4}
+.brs[data-asp="4:3"] .fprevbox{aspect-ratio:4/3}
+.brs[data-asp="2:1"] .fprevbox{aspect-ratio:2/1}
+.brs[data-asp="2.35:1"] .fprevbox{aspect-ratio:2.35/1}
 @media (min-width:1024px){
-  .brs.fopen:is([data-asp="4:5"],[data-asp="1:1"],[data-asp="16:9"]) .fprevbox{width:100%;height:auto;max-height:clamp(260px,calc(100vh - 320px),680px)}
+  .brs.fopen:is([data-asp="4:5"],[data-asp="1:1"],[data-asp="16:9"],[data-asp="3:4"],[data-asp="4:3"],[data-asp="2:1"],[data-asp="2.35:1"]) .fprevbox{width:100%;height:auto;max-height:clamp(260px,calc(100vh - 320px),680px)}
   .brs.fopen[data-asp="4:5"] .fprevbox{width:min(100%,calc(clamp(260px,calc(100vh - 320px),680px) * .8))}
+  .brs.fopen[data-asp="3:4"] .fprevbox{width:min(100%,calc(clamp(260px,calc(100vh - 320px),680px) * .75))}
 }
 @media (min-width:1024px){
   .brs.fopen .fprevbox{--pvh:clamp(260px,calc(100vh - 320px),680px)}
@@ -3565,28 +3570,14 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   }
 }
 
-/* Keep the Mix Video action reachable on narrow phones. The transport contains
-   time, skip, play, sound, remix and fullscreen controls; a single no-wrap row
-   can push the remix action beyond the viewport. */
-@media (max-width: 680px) {
-  .brs .previewPanel .transport {
-    flex-wrap: wrap !important;
-    row-gap: 6px !important;
-  }
-  .brs .previewPanel .transport .transportSpacer {
-    display: none !important;
-  }
-  .brs .previewPanel .transport #remix {
-    display: inline-flex !important;
-    flex: 0 0 auto !important;
-    min-width: max-content;
-    white-space: nowrap;
-  }
-  .brs .previewPanel .transport #remix span {
-    display: inline !important;
-  }
-  .brs .previewPanel .transport #pvfull {
-    margin-left: auto !important;
-  }
+/* phones and tablets: the tools and the clip controls are one sideways row at the bottom (views.ts moves the controls into the tool bar) */
+@media (max-width:1023px){
+  .brs.fpost.made.v-one:not(.fopen) :is(.create,.previewPanel,#timelinecard){width:100% !important;min-width:0 !important;max-width:100% !important}
+  .brs.fpost.made.v-one:not(.fopen) #inspector-card{display:none !important}
+  .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid{display:contents !important}
+  .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid > button{flex:0 0 64px !important;min-width:64px !important;min-height:52px !important;gap:4px !important;padding:4px 2px !important;border:1px solid transparent !important;border-radius:10px !important;background:transparent !important;box-shadow:none !important;color:#aeb4b9 !important;font-size:9px !important;line-height:1.1 !important;white-space:nowrap}
+  .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid > button svg{width:19px !important;height:19px !important;padding:0 !important;background:none !important;color:#cbb274 !important}
+  :root[data-theme="light"] .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid > button{color:var(--muted) !important}
+  .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid > button[aria-pressed="true"]{border-color:rgba(216,189,123,.4) !important;background:rgba(216,189,123,.13) !important}
+  .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid > button:first-child{margin-left:8px}
 }
-

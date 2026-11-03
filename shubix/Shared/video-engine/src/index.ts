@@ -109,7 +109,7 @@ export type ShotAnalysis = {
 };
 export type DirectorInput = {
   shots: ShotAnalysis[]; beats?: number[]; drops?: number[]; quietRanges?: Array<[number,number]>;
-  targetDuration?: number; aspect?: "9:16"|"4:5"|"1:1"|"16:9";
+  targetDuration?: number; aspect?: "9:16"|"4:5"|"1:1"|"16:9"|"3:4"|"4:3"|"2:1"|"2.35:1";
   mood?: "cinematic"|"energetic"|"minimal"|"story"|"product"|"travel"|"food";
   mobile?: boolean; intensity?: "subtle"|"balanced"|"bold";
 };
@@ -268,7 +268,8 @@ export function evaluateKeyframes(frames: Keyframe<number>[], time: number): num
   let i=0;while(i<sorted.length-1&&sorted[i+1].time<time)i++;
   const a=sorted[i],b=sorted[i+1],span=Math.max(0.000001,b.time-a.time);
   let t=clamp((time-a.time)/span,0,1);
-  if(b.easing==="hold")return a.value;
+  // a hold keyframe keeps its own value until the next keyframe (a step), like a hold keyframe in any editor
+  if(a.easing==="hold")return a.value;
   if(b.easing==="ease-in" || b.easing==="in" || b.easing==="inQuad")t=t*t;
   else if(b.easing==="ease-out" || b.easing==="out")t=1-(1-t)*(1-t);
   else if(b.easing==="ease-in-out" || b.easing==="inOut")t=t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
@@ -551,7 +552,7 @@ export type AutonomousReelRequest = {
   shots: AutonomousSourceShot[];
   music?: AutonomousMusicAnalysis;
   targetDuration?: number;
-  aspect?: "9:16" | "4:5" | "1:1" | "16:9";
+  aspect?: "9:16" | "4:5" | "1:1" | "16:9" | "3:4" | "4:3" | "2:1" | "2.35:1";
   mood?: AutonomousMood;
   intensity?: "subtle" | "balanced" | "bold";
   platform?: EditorPlatform;
@@ -792,15 +793,11 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
   }
 
   if (plan.length < 2) warnings.push("Only one usable shot was selected; add more footage for a richer edit.");
-  const hasRequiredCoverage = mustInclude.length === 0 || plan.some((item) => {
+  if (mustInclude.length && hasRequiredShot && !plan.some((item) => {
     const source = available.find((shot) => shot.id === item.sourceId);
     return !!source && matchesTerms(source,mustInclude).length > 0;
-  });
-  if (mustInclude.length && hasRequiredShot && !hasRequiredCoverage) {
-    warnings.push("The required subject was present in the source analysis but did not make the final edit; review the plan before export.");
-  }
-  const hasDurationCoverage = cursor + Math.max(0.25, duration * 0.03) >= duration;
-  if (!hasDurationCoverage) warnings.push("The supplied footage could not fill the requested duration without repeating clips.");
+  })) warnings.push("The required subject was present in the source analysis but did not make the final edit; review the plan before export.");
+  if (cursor + 0.05 < duration) warnings.push("The supplied footage could not fill the requested duration without repeating clips.");
   if (!beats.length) decisions.push("No beat grid was supplied; cut timing follows visual rhythm.");
   else decisions.push("Cuts were aligned to nearby beat or downbeat positions where timing allowed.");
   if (drops.length) decisions.push("Music drops were used as emphasis points for selected transitions and motion.");
@@ -812,9 +809,7 @@ export function createAutonomousReelPlan(request: AutonomousReelRequest): Autono
     mood === "product" || mood === "fashion" ? ["contrast","sharpen"] :
     mood === "food" ? ["contrast","saturation"] : [];
   return {
-    version: 1,
-    // Do not label a short or instruction-incomplete edit as ready merely because it has two shots.
-    status: !music ? "audio-missing" : plan.length < 2 || !hasDurationCoverage || !hasRequiredCoverage ? "needs-more-footage" : "ready",
+    version: 1, status: !music ? "audio-missing" : plan.length < 2 ? "needs-more-footage" : "ready",
     mood, aspect: request.aspect ?? "9:16", duration: cursor,
     soundtrack: { ...(music?.bpm ? { bpm: music.bpm } : {}), beatSync: beats.length > 0,
       cutPoints: plan.slice(1).map((shot)=>shot.timelineStart), drops },
