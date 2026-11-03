@@ -222,7 +222,7 @@ export function EngineHost() {
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0, zIndex: -1 }}>
       <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `${SITE_URL}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
-        mixedContentMode="always" mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback webviewDebuggingEnabled={__DEV__}
+        mixedContentMode="always" mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback webviewDebuggingEnabled={__DEV__ || process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1"}
         onContentProcessDidTerminate={() => restart()} onRenderProcessGone={() => restart()} />
     </View>
   );
