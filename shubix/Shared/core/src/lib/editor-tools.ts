@@ -4,8 +4,8 @@
 export const SHOT_TOOLS_DEF: [string, string][] = [
   ["Transition", "tr"], ["Effect", "fx"], ["Speed", "sp"], ["Split", "split"], ["Duplicate", "dup"], ["Freeze", "freeze"], ["Other moment", "other"],
   ["Volume", "vol"], ["Extract audio", "extract"], ["Crop", "crop"], ["Reverse", "rev"], ["Rotate", "rot"], ["Mirror", "fh"], ["Flip", "fv"], ["Fit", "fit"],
-  ["Canvas", "canvas"], ["Border", "border"], ["Adjust", "adjust"], ["Speed curve", "curve"], ["Stabilize", "stab"], ["Beauty", "beauty"], ["Fade", "fade"],
-  ["Mosaic", "mosaic"], ["Magnifier", "lens"], ["Slip", "slip"], ["Trim", "trim"], ["Reset", "reset"], ["Delete", "delete"]
+  ["Canvas", "canvas"], ["Border", "border"], ["Adjust", "adjust"], ["Speed curve", "curve"], ["Stabilize", "stab"], ["Smooth slow-mo", "smooth"], ["Keyframe", "kf"], ["Beauty", "beauty"], ["Fade", "fade"],
+  ["Mosaic", "mosaic"], ["Magnifier", "lens"], ["Mask", "mask"], ["Chroma key", "chroma"], ["Curves", "curves"], ["HSL", "hsl"], ["Slip", "slip"], ["Trim", "trim"], ["Reset", "reset"], ["Delete", "delete"]
 ];
 
 export const DOCK_CATEGORIES_DEF: [string, string, boolean][] = [

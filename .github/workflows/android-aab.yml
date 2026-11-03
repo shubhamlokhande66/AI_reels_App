@@ -1,0 +1,70 @@
+name: Android Play bundle
+
+# The signed .aab for Google Play (closed testing, then production). Run it by hand: Actions, Android Play bundle,
+# Run workflow; download it from the run's Artifacts and upload it in Play Console. Raise versionCode in
+# shubix/FE/mobile-app/app.json first. Built on Linux: on Windows, React Native's C++ build loops on pnpm's paths.
+# Secrets (Settings, Secrets and variables, Actions): ANDROID_UPLOAD_KEYSTORE_BASE64 (the .jks as base64),
+# ANDROID_UPLOAD_STORE_PASSWORD, ANDROID_UPLOAD_KEY_PASSWORD; the key alias is "upload".
+on:
+  workflow_dispatch:
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shubix
+    env:
+      EXPO_PUBLIC_API_URL: https://api.shubix.in
+      EXPO_PUBLIC_SITE_URL: https://shubix.in
+      ADMOB_ANDROID_APP_ID: ca-app-pub-9328015888325658~3154965659
+      NODE_ENV: production
+    steps:
+      - name: Free disk space
+        working-directory: /
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/lib/node_modules/@angular "$AGENT_TOOLSDIRECTORY/PyPy" "$AGENT_TOOLSDIRECTORY/Ruby" "$AGENT_TOOLSDIRECTORY/go" || true
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: shubix/pnpm-lock.yaml
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - name: The upload key (from the secrets, only for this run)
+        env:
+          KS: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          SP: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          KP: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          test -n "$KS" && test -n "$SP" && test -n "$KP" || { echo "::error::Add the three ANDROID_UPLOAD_* secrets first."; exit 1; }
+          mkdir -p FE/mobile-app/keys
+          echo "$KS" | base64 -d > FE/mobile-app/keys/shubix-upload.jks
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$PWD/FE/mobile-app/keys/shubix-upload.jks" "$SP" "$KP" > FE/mobile-app/keystore.properties
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @shubix/mobile-app exec expo prebuild --platform android --clean --no-install
+      - name: Bundle the release (.aab)
+        working-directory: shubix/FE/mobile-app/android
+        run: ./gradlew bundleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+      - name: Signed with the upload key, not the debug key
+        working-directory: shubix/FE/mobile-app/android
+        run: |
+          keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab | grep -q "CN=Shubix" || { echo "::error::The bundle is not signed with the upload key."; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shubix-play-aab
+          path: shubix/FE/mobile-app/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 14
+      - name: Remove the key
+        if: always()
+        run: rm -rf FE/mobile-app/keys FE/mobile-app/keystore.properties

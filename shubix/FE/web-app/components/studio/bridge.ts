@@ -94,6 +94,8 @@ export function initBridge(root: HTMLElement): () => void {
       const list = a.paths as { path: string; name: string }[], got: File[] = [];
       for (const c of list) got.push(await fileOf(c.path, c.name));
       // the studio may leave a clip out (one it cannot play, the same footage twice): done when its reading is over
+      // a new Reel: the last Reel's clips go first (the studio's file box adds to what it has, as Add clips does)
+      $("clearv")?.click();
       reading = true; put($("vfile"), got); await until(() => !reading && !studio()!.work.pending);
       return { clips: studio()!.work.clips, names: studio()!.sources.map((s) => s.name) };
     },
@@ -200,6 +202,36 @@ export function initBridge(root: HTMLElement): () => void {
         ...(a.mfin !== undefined ? { mfin: Math.max(0, Math.min(10, Number(a.mfin))) } : {}),
         ...(a.mfout !== undefined ? { mfout: Math.max(0, Math.min(10, Number(a.mfout))) } : {}),
       });
+    },
+    /** the Reel's picture at `t` seconds exactly as the studio makes it (its boxes, texts and their keyframes, looks,
+     * transitions): the phone's paused preview shows it -> { src: a JPEG data URL, 540 wide } */
+    async frame(a) {
+      const st = studio() as unknown as { frameAt?: (t: number) => Promise<number> }, out = $<HTMLCanvasElement>("out");
+      if (!st?.frameAt || !out) return { src: "" };
+      await st.frameAt(Math.max(0, Number(a.t) || 0));
+      const c = document.createElement("canvas"), w = Math.min(540, out.width);
+      c.width = w; c.height = Math.round(out.height * w / out.width);
+      c.getContext("2d")!.drawImage(out, 0, 0, c.width, c.height);
+      return { src: c.toDataURL("image/jpeg", 0.75) };
+    },
+    /** a sound effect at `time` (the studio's Add buttons: whoosh, impact, laser...) -> { ok } */
+    async sfx(a) {
+      const st = studio(); if (st?.seek) await st.seek(Math.max(0, Number(a.time) || 0));
+      return { ok: press("sfxadd", "data-sfx", String(a.kind)) };
+    },
+    /** the creator's own beat markers at `time`: add / del (the one there) / clear -> { ok, state } (the edit is made again) */
+    async mark(a) {
+      const st = studio(), id = ({ add: "addbeat", del: "delbeat", clear: "clrbeat" } as Record<string, string>)[String(a.op)], b = id ? $(id) : null;
+      if (!st || !b) return { ok: false };
+      if (st.seek) await st.seek(Math.max(0, Number(a.time) || 0));
+      b.click(); await new Promise((r) => setTimeout(r, 300)); return { ok: true, state: st.state() };
+    },
+    /** a text template (a ready-made animated title) at `time` -> { ok, state } (its texts come back in state.overlays) */
+    async template(a) {
+      const st = studio(), s = $<HTMLSelectElement>("ovtpl"); if (!st || !s) return { ok: false };
+      if (st.seek) await st.seek(Math.max(0, Number(a.time) || 0));
+      s.value = String(a.key); if (s.value !== String(a.key)) return { ok: false };
+      s.dispatchEvent(new Event("change")); return { ok: true, state: st.state() };
     },
     async layerList() {
       const st = studio();

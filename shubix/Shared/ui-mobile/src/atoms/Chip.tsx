@@ -17,7 +17,7 @@ export function Chip({ label, on = false, onPress, icon, count, tall = false }: 
  * whole width, shared. */
 export function Segmented<T extends string>({ value, options, onChange, small = false, full = false }: { value: T; options: { value: T; label: string; count?: number }[]; onChange: (v: T) => void; small?: boolean; full?: boolean }) {
   return (
-    <View className={`flex-row gap-[3px] rounded-[14px] border border-border bg-surface-2 p-[3px] ${full ? "w-full" : "self-start"}`}>
+    <View className={`flex-row flex-wrap gap-[3px] rounded-[14px] border border-border bg-surface-2 p-[3px] ${full ? "w-full" : "self-start"}`}>
       {options.map((o) => {
         const on = o.value === value;
         return (

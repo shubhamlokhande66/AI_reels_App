@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getProvider, type ManagedProvider } from "../ai";
 import { clean, Text } from "../ai/text";
 import { AIResponseError } from "../ai/types";
+import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 
 /** Fast Studio's AI director: the brain of the edit, the way an editor's judgment is.
  *
@@ -13,19 +14,22 @@ import { AIResponseError } from "../ai/types";
  *   2. direct(): for every cut, which offered moment, its transition, effect and speed, and keyframes placed on the
  *      hits inside the shot (a punch on the tabla hit, a shake on the bass)
  * The AI may propose from the studio's full creative toolbox (transitions, effects, beat shapes, camera keyframes,
- * accents, speed and per-shot looks). The phone is the final authority: it validates the selected style, plan locks,
- * shot duration, transition budgets, footage availability and renderability before applying any choice. Each Reel is
+ * accents, speed and per-shot looks). Its transitions and effects are used exactly as chosen (the phone only leaves out a
+ * tool the plan does not include, and makes a transition quicker on a short shot); speeds and moments are checked. Each Reel is
  * asked to feel new: the tools used in the creator's last Reels are listed so the AI makes other choices. Without the
  * AI, the phone's own rules make the edit. */
 
 export const TASK = "studio_director";
 export const TRANSITIONS = ["hard", "fadein", "flash", "whip", "zoom", "glitch", "dip", "dissolve", "iris", "wipe", "bars", "spin", "diamond", "heart", "star",
-  "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin"] as const;
+  "slideleft", "slideright", "slideup", "slidedown", "swipeup", "zoomout", "blur", "flip", "luma", "pixelate", "clock", "doors", "ripple", "burn", "dropin",
+  "stripes", "blinds", "checker", "dots", "noise", "splith", "wave", "dipwhite", "chroma", "tiles", "zoomblur", "shake", "squeeze", "rotatein"] as const;
 /** eases of a camera move into its keyframe (the studio's EASE) */
 export const EASES = ["lin", "inOut", "outCubic", "outExpo", "outBack"] as const;
 export const EFFECTS = ["none", "hook", "zoomburst", "punch", "punch-soft", "tilt", "shake", "bounce", "pan", "pan-soft", "drift", "snap",
   /* beat shapes and beat effects (they step on the shot's beats) */
-  "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"] as const;
+  "boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse",
+  /* picture effects (a GPU pass over the shot) */
+  "grain", "leak", "rainbow", "negative", "halftone", "pixel8", "crt", "fisheye", "swirl", "sketch", "duotone", "zoom3d"] as const;
 export const SPEEDS = ["normal", "slow", "fast", "velocity", "ramp", "freeze", "hold"] as const;   // hold = a freeze frame for the whole shot
 /** keyframes the AI places at a moment inside a shot (on a hit) */
 export const ACCENTS = ["punch", "shake", "flash", "pulse"] as const;
@@ -132,16 +136,59 @@ const SlotAnswer = z.object({
   clip: z.record(z.string(), z.unknown()).nullish(),
   why: z.string().default(""),
 });
-const Answer = z.object({ slots: z.array(SlotAnswer), story: z.string().default("") });
+/** a text the AI puts on the Reel, as an editor does in the timeline: its words, when (seconds of the Reel), where, its look,
+ * entrance, loop and keyframes (at = seconds from its start; s scale, x/y offset as fractions of the frame, r turn, o opacity) */
+const TextAnswer = z.object({ text: z.string(), start: z.coerce.number().default(0), end: z.coerce.number().default(3), x: z.coerce.number().default(0.5), y: z.coerce.number().default(0.4),
+  size: z.coerce.number().default(1), style: z.preprocess(lower, z.string()).default("bold"), color: z.string().default("#FFFFFF"), anim: z.preprocess(lower, z.string()).default("pop"),
+  loop: z.preprocess(lower, z.string()).default("none"), out: z.preprocess(lower, z.string()).default("none"), font: z.string().default(""), behind: z.boolean().default(false), track: z.boolean().default(false), emoji: z.boolean().default(false), focus: z.coerce.number().optional(),
+  keys: z.array(z.object({ at: z.coerce.number(), s: z.coerce.number().default(1), x: z.coerce.number().default(0), y: z.coerce.number().default(0), r: z.coerce.number().default(0), o: z.coerce.number().default(1), ez: z.preprocess(lower, z.string()).default("inOut") })).default([]) });
+export const TEXT_STYLES = ["bold", "box", "neon", "clean", "tag", "outline", "shadow", "bubble", "glow", "stack", "cutout"] as const;
+const TEXT_ANIMS = ["pop", "fade", "slide", "type", "zoom", "drop", "blur", "spin", "flicker", "glitch", "none"], TEXT_OUTS = ["none", "fade", "pop", "slide", "zoom", "blur", "spin"], TEXT_LOOPS = ["none", "bounce", "spin", "wiggle", "pulse", "float", "swing", "shake"];
+// one of the known names (any case), else the default
+const pick = (list: readonly string[], v: string, or: string) => list.find((x) => x.toLowerCase() === String(v).toLowerCase()) ?? or;
+const num = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : lo));
+/** the AI's texts, each made safe to draw (a known style, entrance and loop; numbers in range; at most 20 texts and 16 keys each) */
+export function cleanTexts(raw: z.infer<typeof TextAnswer>[] | undefined) {
+  return (raw ?? []).filter((t) => t.text.trim()).slice(0, 20).map((t) => {
+    const start = num(t.start, 0, 600), end = num(t.end, start + 0.2, 600);
+    return { text: t.text.trim().slice(0, 120), start, end, x: num(t.x, 0, 1), y: num(t.y, 0, 1), size: num(t.size, 0.3, 3), color: /^#[0-9a-f]{6}$/i.test(t.color) ? t.color : "#FFFFFF",
+      style: pick(TEXT_STYLES, t.style, "bold"), anim: pick(TEXT_ANIMS, t.anim, "pop"), loop: pick(TEXT_LOOPS, t.loop, "none"), out: pick(TEXT_OUTS, t.out, "none"),
+      font: t.font.slice(0, 24), behind: t.behind, track: t.track, emoji: t.emoji, ...(t.focus !== undefined ? { focus: num(t.focus, 0, 1) } : {}),
+      keys: t.keys.slice(0, LIMITS.keys).map((k) => ({ at: num(k.at, 0, end - start), s: num(k.s, 0.05, 60), x: num(k.x, -2, 2), y: num(k.y, -2, 2), r: num(k.r, -720, 720), o: num(k.o, 0, 1), ez: pick(EASES, k.ez, "inOut") })).sort((a, b) => a.at - b.at) };
+  });
+}
+/** the editor's other tools, used by the AI as a person uses them (each one step: {do, ...}); the studio runs them in order
+ * with its own buttons. Unknown steps are left out. */
+/** the studio's colour looks and its sound effects (components/studio/engine.ts LOOKS + LOOK_EXTRA, SFX_NAMES) */
+const LOOKS = ["natural", "vivid", "cine", "mono", "warmfilm", "cool", "retro", "moody", "wedding", "golden", "tealorange", "faded", "noir", "sepia", "cyber", "pastel", "dramatic", "summer", "night", "vintage", "matte", "punchy", "forest", "rose"];
+const SOUNDS = ["whoosh", "pop", "boom", "click", "riser", "ding", "swish", "impact", "glitch", "laser", "heartbeat", "tick", "chime", "drop", "rewind", "notify"];
+export const ACTIONS = {
+  look: `the whole Reel's colour look: {"do":"look","name":"${LOOKS.join("|")}"}`,
+  captions: `captions of what is said: {"do":"captions","on":true,"style":"pop|karaoke|box|clean","language":"<spoken language code or empty>","translation":"<language code to translate to, or empty>"}`,
+  music: `the song's sound: {"do":"music","volume":0-1,"fadeIn":seconds,"fadeOut":seconds}`,
+  voicefx: `the voice changer: {"do":"voicefx","fx":"none|deep|chipmunk|robot|radio|echo|enhance"}`,
+  layer: `a clip of this Reel shown as a box on top (split screens, grids that build up on the beats, picture in picture, a frame inside the frame): {"do":"layer","clip":"<clip alias, e.g. c2>","from":<seconds into that clip>,"start":<seconds of the Reel>,"end":<seconds>,"x":0-1,"y":0-1 (its centre),"size":0-1 (its width, a fraction of the frame's),"radius":0-1 (rounded corners),"mask":"none|circle|rect","fadeIn":seconds,"fadeOut":seconds,"opacity":0-1,"rotate":degrees,"blend":"source-over|multiply|screen|overlay|darken|lighten|color-dodge|color-burn|hard-light|soft-light|difference|exclusion|hue|saturation|color|luminosity","key":"<#RRGGBB: green screen, this colour becomes see-through>","tolerance":0.05-0.9}; e.g. 4 boxes in a 2x2 grid, one more on each beat: 4 layers of size 0.5 at x/y 0.25 or 0.75, each starting on its beat`,
+  sound: `a sound effect: {"do":"sound","kind":"${SOUNDS.join("|")}","at":seconds of the Reel}`,
+  shot: `a timeline step on a cut, as the editor's buttons: {"do":"shot","i":<cut number>,"op":"split|dup|freeze|delete|reverse","at":<seconds into the cut>} (dup = the moment plays twice, freeze = a frozen frame there, reverse = plays backwards)`,
+  background: `behind the person: {"do":"background","mode":"none|blur|color","color":"#RRGGBB"}`,
+  beatmark: `your own beat markers (a cut can land on each, as on the beats of the song): {"do":"beatmark","at":[seconds of the Reel],"clear":true|false}`,
+  template: `a ready-made animated title (several texts that come in together, each with its own style, font, entrance and loop): {"do":"template","name":"${Object.keys(TEXT_TEMPLATES).join("|")}","words":["<main words>","<second words or empty>"],"at":seconds of the Reel,"len":seconds}`,
+  voiceover: `a spoken voice-over (text to speech) at a time of the Reel: {"do":"voiceover","text":"<what is said>","at":seconds}`,
+} as const;
+const Action = z.object({ do: z.preprocess(lower, z.string()) }).passthrough();
+export function cleanActions(raw: z.infer<typeof Action>[] | undefined) {
+  return (raw ?? []).map((a) => ({ ...a, do: String(a.do).toLowerCase() })).filter((a) => a.do in ACTIONS).slice(0, 12).map((a) => JSON.parse(JSON.stringify(a, (_k, v) => (typeof v === "string" ? v.slice(0, 600) : v))) as Record<string, unknown> & { do: keyof typeof ACTIONS });
+}
+const Answer = z.object({ slots: z.array(SlotAnswer), story: z.string().default(""), texts: z.array(TextAnswer).default([]), actions: z.array(Action).default([]) });
 const VariantsAnswer = z.object({ plans: z.array(z.object({ slots: z.array(SlotAnswer), story: z.string().default("") })) });
 type SlotIn = z.infer<typeof SlotAnswer>;
-type AnswerIn = { slots: (Omit<SlotIn, "keys" | "move" | "clip"> & { keys?: SlotIn["keys"]; move?: SlotIn["move"]; clip?: SlotIn["clip"] })[]; story: string };
+type AnswerIn = { slots: (Omit<SlotIn, "keys" | "move" | "clip"> & { keys?: SlotIn["keys"]; move?: SlotIn["move"]; clip?: SlotIn["clip"] })[]; story: string; texts?: z.infer<typeof TextAnswer>[]; actions?: z.infer<typeof Action>[] };
 
 export interface Accent { at: number; do: (typeof ACCENTS)[number] }
 /** a camera keyframe inside a shot: at = fraction of the shot (0-1), scale, offset (fraction of the frame), turn (degrees) */
 export interface MoveKey { at: number; s: number; x: number; y: number; r: number; ez: (typeof EASES)[number] }
 /** the shot's own settings, as the creator's clip tools set them (the engine's e.cs) */
-export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; fin?: number; fout?: number }
+export interface ClipLook { rot?: number; fh?: boolean; fv?: boolean; fit?: boolean; bg?: string; bgc?: string; bd?: number; bdc?: string; bri?: number; con?: number; sat?: number; warm?: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; smooth?: number; enh?: boolean; kx?: Record<string, unknown>[]; fin?: number; fout?: number; rev?: boolean; zoom?: number; vol?: number; pitch?: number; mus?: number; mk?: { s: string; x: number; y: number; w: number; h: number; a: number; f: number; inv: boolean; c: string }; ck?: { c: string; tol: number; bg: string }; cv?: Record<string, number[]>; hsl?: Record<string, number[]> }
 /** auto: the AI gave nothing usable for this cut (filled with safe choices here): the phone uses its own choice for it */
 export interface DirectedSlot { i: number; shot: string | null; transition: string | null; effect: string | null; speed: string | null; keys: Accent[]; move: MoveKey[]; clip?: ClipLook; why: string; auto?: boolean }
 
@@ -151,7 +198,7 @@ Decide like this:
 - The first shot (i=0) is the hook: the most striking moment, it must stop the scroll in under a second. Its transition is "hard" (or "fadein" only for a calm Smooth Reel).
 - Tell a story: set the scene, build energy through build-ups (toDrop), put the best "action" moments on drops, calm moments on breaks and quiet parts, end on a satisfying "ending" moment.
 - Variety: never two moments of the same clip, or two that look alike, next to each other; alternate wide and close, still and moving.
-- If the creator explicitly asks for a transition on all/every/each clip (in any language), every cut must receive a non-hard transition; the first shot may use fadein. If they name one transition, use that exact transition on every clip. Never apply it to only a sample of the shots.\n- Transitions follow the music. Hard cuts give the special ones their punch; use the special ones freely wherever the music invites them: flash or zoom on a drop or a big hit after a gap, whip when the camera already moves or on a fast snare roll, glitch on electronic hits, dissolve or dip when the music gets calm or the voice holds a long note, iris/wipe/bars on a section change. Avoid the same special transition twice in a row. The budget is a guide for how many look good in this Reel.
+- If the creator explicitly asks for a transition on all/every/each clip (in any language), every cut must receive a non-hard transition; the first shot may use fadein. If they name one transition, use that exact transition on every clip. Never apply it to only a sample of the shots.\n- Transitions follow the music. Hard cuts give the special ones their punch; use the special ones freely wherever the music invites them: flash or zoom on a drop or a big hit after a gap, whip when the camera already moves or on a fast snare roll, glitch on electronic hits, dissolve or dip when the music gets calm or the voice holds a long note, iris/wipe/bars on a section change. There is no limit and no style filter: every transition, effect, speed, move and key you choose is used exactly as you choose it (the budget only says how many a typical Reel of this length has).
 - Effects follow the sound: zoomburst or punch on a drop or a p=3 hit, shake on heavy bass and kicks, tilt on snares, pan/pan-soft on long calm shots, drift on breaks, bounce when the drums are steady, none when the moment is strong by itself. If the creator asks for a nice/good/beautiful effect on all/every/each clip or video (in any language), choose a suitable non-"none" effect for EVERY cut, not just a sample; vary effects by the shot's role, motion and music, avoid repetitive or excessive effects, and prefer subtle motion/grade on calm shots and punchier effects on drops/hits.
 - Keyframes ("keys"): place up to ${LIMITS.accents} moments INSIDE a shot, exactly on its hits ("at" copied from hits): "punch" (quick zoom) on a strong dhol/snare/tabla hit, "shake" on a heavy kick or bass, "flash" (light burst) on the biggest hit, "pulse" (small bump) on lighter repeated hits. Trending edits put a key on most strong hits: use them freely, as many as the music asks for.
 - Camera moves ("move"): keyframes of the camera inside the shot, like an editor's keyframes: at = fraction of the shot (0 = its start, 1 = its end), s = zoom (1 = as filmed, 1.2 = 20% closer), x / y = slide (fraction of the frame, -0.15..0.15), r = turn in degrees (-15..15), ez = how it moves into that keyframe (lin, inOut, outCubic, outExpo = fast then settles, outBack = overshoots). E.g. a push-in on a build-up: [{"at":0,"s":1},{"at":1,"s":1.18,"ez":"inOut"}]; a snap zoom on the drop: [{"at":0,"s":1.3},{"at":0.25,"s":1,"ez":"outExpo"}]; a slow tilt: [{"at":0,"r":-4},{"at":1,"r":3}]. Use moves for long shots and for anything the reference does; leave "effect" "none" on a shot with a move.
@@ -160,7 +207,7 @@ Decide like this:
 - Speed: slow on breaks, held notes and emotional moments; ramp or velocity on longer shots in a build-up before a drop; fast on very short hits; freeze only with "snap" on one or two drops; hold = the whole shot is one frozen frame (a dramatic pause, a punchline, a face on a hit).
 - Style "smooth" asks for a calm feel, "fast" for energy on almost every cut: a direction, not a rule; break it when the moment is better for it.
 - Beat shapes and beat effects (effect names) step on the beats INSIDE a shot, best on shots of 1 s or more with 2+ beats: boxgrow (the shot in a small box on the subject that grows on each beat to full frame), grid (2x2 or 3x3 windows opening one per beat), strips (3 strips one per beat), circle / heartbeat / starbeat (the shot in that shape, pulsing on each beat), frame (frame in frame on its blurred copy), mirror, kaleido (kaleidoscope), triple (the shot three times, one band per beat), vhs (retro tape), strobe (black and white flash on each beat), rgbpulse (colour split on each beat), blurpulse (blur on each beat).
-- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur" or a colour "#RRGGBB" and a border bd 0-1 with bdc colour, bri / con / sat / warm / hi (highlights) / sh (shadows) / hue (-1..1), sharp / vig (vignette) / beauty (smooth skin) / stab (stabilize a shaky shot) (0..1), fin / fout (fade in / out, seconds). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
+- Each shot's own look ("clip", optional): rot (0/90/180/270), fh (mirror), fv (flip), fit (whole picture) with bg "blur", a colour "#RRGGBB" or a pattern "grad|stripes|dots|grid|checker" (in the colour bgc) and a border bd 0-1 with bdc colour, bri / con / sat / warm / hi (highlights) / sh (shadows) / hue (-1..1), sharp / vig (vignette) / beauty (smooth skin) / stab (stabilize a shaky shot) / smooth (smooth slow motion: in-between frames on a slowed shot, use with a slow speed) (0..1), fin / fout (fade in / out, seconds), rev (true: plays backwards), enh (true: the clip's own voice enhanced: clearer, less rumble, levelled), kx (keyframes on these settings inside the cut, e.g. a colour change, a slow push in or a volume swell: [{"t":seconds into the cut,"ez":"<ease>", any of bri/con/sat/warm/hi/sh/hue -1..1, vig/sharp 0..1, zoom 1-3, cx/cy 0..1 (framing centre), vol 0-2, "mk":{x,y,w,h,a,f} (the mask moving)}], 2 or more; it glides between them), zoom (1-3: closer in), vol (the clip's own sound 0-1), pitch (its sound, -12..12 semitones), mus (the song under this cut 0-1), mk (a mask: {"s":"circle|rect|heart|star|split|film","x":0-1,"y":0-1,"w":0-1.5,"h":0-1.5,"a":degrees,"f":soft edge 0-0.3,"inv":false,"c":"#RRGGBB" outside}), ck (a green screen on a shot filmed on one colour: {"c":"#00FF00","tol":0.05-0.9,"bg":"#RRGGBB" shown behind}), cv (curves: {"m"|"r"|"g"|"b": 5 outputs 0-1 at the inputs 0, 0.25, 0.5, 0.75, 1; m = all channels}), hsl (one colour at a time: {"red"|"orange"|"yellow"|"green"|"aqua"|"blue"|"purple"|"magenta": [hue, saturation, lightness] each -1..1}). Use it for a framed photo-like shot, a black-and-white moment (sat -1), a warm golden memory, a mirrored dance move...
 - Camera moves are as free as the creator's own keyframes: zoom 0.1-4, slide -1..1 of the frame, turn -360..360 degrees, up to ${LIMITS.moveKeys} keyframes; keys on hits up to ${LIMITS.keys} a shot.
 - Use everything you know about what is trending in Reels right now (velocity edits, beat-synced zoom punches, speed ramps, 3D zooms, shake on the bass, whips on snare rolls, flash on drops...): the app applies your choices as they are, nothing is cut back.
 - There are no limits on style or budget: use the WHOLE toolbox, combine tools (a grid on the drop with an RGB split key, a box that grows while the camera turns), invent. Every Reel must feel new and different from the creator's recent ones.`;
@@ -185,6 +232,13 @@ const COPY_GUIDE = `COPY THE REFERENCE: the creator wants this Reel to feel like
 - its hook length, its mix of transitions (the budget follows it), how many shots move.
 Where the reference and the general rules disagree, the reference wins.`;
 
+/** the text tool, as an editor uses it in the timeline: the AI adds texts when the creator asks for words, a title, a
+ * text effect or a text transition (any language), and may add them itself where they make the Reel better */
+const TEXT_GUIDE = `TEXTS (optional, "texts" in the JSON): words on the Reel, made like an editor makes them in the timeline. Each: {"text", "start" and "end" (seconds of the Reel), "x" and "y" (0-1, the centre), "size" (1 = normal, up to 3), "style", "color" (#RRGGBB), "anim" (entrance), "loop" (keeps moving), "behind" (true: behind the person), "track" (true: follows the person), "emoji" (true: a sticker, the text is emoji), "focus" (0-1: where along the text it is sized and turned around, e.g. 0.64 = the O of WELCOME), "keys" (keyframes: at = seconds from the text's start, s = scale (1 normal, up to 60), x/y = offset as a fraction of the frame, r = turn in degrees, o = opacity 0-1, ez = easing)}.
+Styles: ${TEXT_STYLES.join(", ")} (cutout = a solid colour fills the frame and the video shows only inside the letters). Entrances: ${TEXT_ANIMS.join(", ")}. Exits ("out", its last 0.3 s): ${TEXT_OUTS.join(", ")}. Shapes are texts of one sign in the text's colour: ■ ● ▲ ★ ♥ ◆ ➜ ━ ○ □ (style clean; size them, keyframe them, use them as frames, arrows, highlights). Loops: none, bounce, spin, wiggle, pulse, float, swing, shake. Easings: ${EASES.join(", ")}.
+Whatever the creator asks for with words, make it with these: e.g. "WELCOME, then the video through the O" = a cutout text WELCOME, "focus": 0.64 (the O), then keyframes that scale it up to about 40, so the frame flies through the O into the video, then end the text. Combine keyframes freely (zoom in, fly through, spin in, drop in, fade out).
+OTHER TOOLS (optional, "actions" in the JSON, run in order): you are the editor: whatever the creator asks for, do it with the tools: the cuts (transition, effect, speed, keys, move, clip look) and the texts above, and these: ${Object.values(ACTIONS).join("; ")}.`;
+
 export function prompt(d: DirectIn, taste = "", trends = "") {
   const first = d.slots[0].i, last = d.slots[d.slots.length - 1].i;
   return `Plan this Reel. Style: ${d.mode}. Music: ${Math.round(d.bpm)} BPM, ${d.duration.toFixed(1)} s.${d.hook ? ` On-screen hook text: "${clean(d.hook, 60)}".` : ""}${d.story ? ` The story so far: "${clean(d.story, 160)}".` : ""}${first > 0 ? ` These are cuts ${first}-${last} of a longer Reel (the hook is not in this part).` : ""}
@@ -193,8 +247,9 @@ ${d.recent.length ? `Used in this creator's last Reels (make this one feel diffe
     ...(s.music ? { music: s.music } : {}),
     candidates: s.candidates.map((c) => ({ id: c.id, clip: c.clip, at: +c.at.toFixed(1), score: +c.score.toFixed(2), note: clean(c.note, 60), roles: c.roles, motion: c.motion, people: c.people, camera: c.camera })) })))}
 ${GUIDE}
+${TEXT_GUIDE}
 ${trends ? `${clean(trends, 2400)}\n` : ""}${wishText(d.wish)}Allowed transitions: ${(d.allowed ? TRANSITIONS.filter((t) => t === "hard" || d.allowed!.tr.includes(t)) : TRANSITIONS).join(", ")}. Allowed effects: ${(d.allowed ? EFFECTS.filter((e) => e === "none" || d.allowed!.fx.includes(e)) : EFFECTS).join(", ")}. Allowed speeds: ${SPEEDS.join(", ")}. Allowed keys: ${ACCENTS.join(", ")}. Allowed eases: ${EASES.join(", ")}.
-Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>"} with one entry for every cut.`;
+Return JSON: {"slots": [{"i": ${first}, "shot": "${first}a", "transition": "hard", "effect": "${first === 0 ? "hook" : "none"}", "speed": "normal", "keys": [{"at": 0.38, "do": "punch"}], "move": [], "clip": {}, "why": "<max 4 words>"}], "story": "<one sentence: the arc of this Reel>", "texts": [], "actions": []} with one entry for every cut.`;
 }
 
 /** A small change asked in the chat ("the first clip should be the dance"): the plan as it is, and the change; the AI
@@ -204,12 +259,12 @@ export function patchPrompt(d: DirectIn, taste = "") {
   return `${prompt({ ...d, wish: "" }, taste).replace(/\nReturn JSON: \{"slots"[\s\S]*$/, "")}
 THE REEL AS IT IS NOW (each cut: its clip and moment, transition, effect, speed): ${JSON.stringify(p.current)}
 THE CREATOR ASKS FOR THIS SMALL CHANGE (their words may be in any language, script, transliteration or a mixture; understand the meaning without translating away constraints. Change ONLY the cuts it is about, unless they explicitly say all/every/each clip or video, or the whole Reel, in which case apply it to every relevant cut. If they ask for good/nice effects on all clips/videos, give every cut a suitable non-none effect and vary choices by shot and music. Write story and why in the creator’s language; keep tool enum values in English): "${clean(p.ask, 300)}"
-Return JSON: {"slots": [only the cuts you change, each complete: {"i": 0, "shot": "0a", "transition": "hard", "effect": "hook", "speed": "normal", "keys": [], "move": [], "why": "<max 4 words>"}], "story": "<one sentence: what you changed>"}.`;
+Return JSON: {"slots": [only the cuts you change, each complete: {"i": 0, "shot": "0a", "transition": "hard", "effect": "hook", "speed": "normal", "keys": [], "move": [], "why": "<max 4 words>"}], "story": "<one sentence: what you changed>", "texts": [every text the Reel should have after the change, or [] to keep the texts as they are], "actions": [the other tools' steps this change needs]}.`;
 }
 export async function directPatch(d: DirectIn, provider: ManagedProvider = getProvider(TASK), taste = "") {
   const ans = await provider.structured(SYSTEM, patchPrompt(d, taste), Answer, { task: TASK, temperature: 0.5, maxOutputTokens: 1200 });
   const plan = parsePlan(d, ans, false);
-  return { slots: plan.slots, story: plan.story, patch: true, model: provider.model, provider: provider.name };
+  return { slots: plan.slots, story: plan.story, texts: cleanTexts(ans.texts), actions: cleanActions(ans.actions), patch: true, model: provider.model, provider: provider.name };
 }
 
 /** New mix: the same cuts, edited differently (the first plan is the one the creator has now) */
@@ -250,12 +305,43 @@ export function cleanClip(raw: Record<string, unknown> | null | undefined): Clip
   if (!raw || typeof raw !== "object") return undefined;
   const o: ClipLook = {}, num = (k: string) => Number(raw[k]), hex = (v: unknown) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v.trim()) ? v.trim().toUpperCase() : null);
   const rot = Math.round(num("rot") / 90) * 90 % 360; if (Number.isFinite(rot) && rot) o.rot = (rot + 360) % 360;
-  for (const k of ["fh", "fv", "fit"] as const) if (raw[k] === true) o[k] = true;
-  if (o.fit) { const bg = raw.bg; if (bg === "blur") o.bg = "blur"; else if (hex(bg)) { o.bg = "color"; o.bgc = hex(bg)!; }
+  for (const k of ["fh", "fv", "fit", "rev", "enh"] as const) if (raw[k] === true) o[k] = true;
+  if (o.fit) { const bg = raw.bg; if (bg === "blur") o.bg = "blur"; else if (hex(bg)) { o.bg = "color"; o.bgc = hex(bg)!; } else if (["grad", "stripes", "dots", "grid", "checker"].includes(String(bg))) { o.bg = String(bg); o.bgc = hex(raw.bgc) ?? "#4F7CFF"; }
     if (Number.isFinite(num("bd")) && num("bd") > 0) { o.bd = r3(clampN(num("bd"), 0, 1, 0)); o.bdc = hex(raw.bdc) ?? "#FFFFFF"; } }
   for (const k of ["bri", "con", "sat", "warm", "hi", "sh", "hue"] as const) if (Number.isFinite(num(k)) && num(k) !== 0) o[k] = r3(clampN(num(k), -1, 1, 0));
-  for (const k of ["sharp", "vig", "beauty", "stab"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1, 0));
+  for (const k of ["sharp", "vig", "beauty", "stab", "smooth"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1, 0));
   for (const k of ["fin", "fout"] as const) if (Number.isFinite(num(k)) && num(k) > 0) o[k] = r3(clampN(num(k), 0, 1.5, 0));
+  // zoom (1-3: closer in), the clip's own sound (0-1), its pitch (semitones), the song under this cut (0-1)
+  if (Number.isFinite(num("zoom")) && num("zoom") > 1) o.zoom = r3(clampN(num("zoom"), 1, 3, 1));
+  for (const k of ["vol", "mus"] as const) if (raw[k] !== undefined && Number.isFinite(num(k))) o[k] = r3(clampN(num(k), 0, 1, k === "mus" ? 1 : 0));
+  if (Number.isFinite(num("pitch")) && num("pitch")) o.pitch = Math.round(clampN(num("pitch"), -12, 12, 0));
+  // a mask: the shot shows only inside a shape (or outside it, inv); the rest is the colour c
+  const m = raw.mk as Record<string, unknown> | undefined, mn = (k: string, lo: number, hi: number, d: number) => r3(clampN(Number(m?.[k]), lo, hi, d));
+  // curves: per channel (m = all) 5 outputs 0-1 at the inputs 0, ¼, ½, ¾, 1; HSL: per colour band [hue, saturation, lightness] -1..1
+  const cvIn = raw.cv as Record<string, unknown> | undefined, cv: Record<string, number[]> = {};
+  if (cvIn && typeof cvIn === "object") for (const ch of ["m", "r", "g", "b"]) { const a = cvIn[ch]; if (Array.isArray(a) && a.length === 5 && a.every((x) => Number.isFinite(Number(x)))) cv[ch] = a.map((x) => r3(clampN(Number(x), 0, 1, 0))); }
+  if (Object.keys(cv).length) o.cv = cv;
+  const hIn = raw.hsl as Record<string, unknown> | undefined, hsl: Record<string, number[]> = {};
+  if (hIn && typeof hIn === "object") for (const band of ["red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta"]) { const a = hIn[band]; if (Array.isArray(a) && a.length === 3) hsl[band] = a.map((x) => r3(clampN(Number(x), -1, 1, 0))); }
+  if (Object.keys(hsl).length) o.hsl = hsl;
+  // a green screen: the key colour c goes (tol: how much around it), bg shows behind
+  const k = raw.ck as Record<string, unknown> | undefined;
+  if (k && typeof k === "object" && hex(k.c)) o.ck = { c: hex(k.c)!, tol: r3(clampN(Number(k.tol), 0.05, 0.9, 0.35)), bg: hex(k.bg) ?? "#000000" };
+  if (m && typeof m === "object" && ["circle", "rect", "heart", "star", "split", "film"].includes(String(m.s)))
+    o.mk = { s: String(m.s), x: mn("x", 0, 1, 0.5), y: mn("y", 0, 1, 0.5), w: mn("w", 0.05, 1.5, 0.7), h: mn("h", 0.05, 1.5, 0.7), a: Math.round(clampN(Number(m.a), -180, 180, 0)), f: mn("f", 0, 0.3, 0.04), inv: m.inv === true, c: hex(m.c) ?? "#000000" };
+  // keyframes on the settings inside the cut: each key's fields in their ranges, sorted by time (at least 2 kept)
+  if (Array.isArray(raw.kx)) {
+    const R: Record<string, [number, number]> = { bri: [-1, 1], con: [-1, 1], sat: [-1, 1], warm: [-1, 1], hi: [-1, 1], sh: [-1, 1], hue: [-1, 1], vig: [0, 1], sharp: [0, 1], zoom: [1, 3], cx: [0, 1], cy: [0, 1], vol: [0, 2] };
+    const MK: Record<string, [number, number]> = { x: [0, 1], y: [0, 1], w: [0.05, 1.5], h: [0.05, 1.5], a: [-180, 180], f: [0, 0.3] };
+    const keys = (raw.kx as Record<string, unknown>[]).slice(0, 16).filter((k) => k && typeof k === "object" && Number.isFinite(Number(k.t))).map((k) => {
+      const out: Record<string, unknown> = { t: r3(clampN(Number(k.t), 0, 60, 0)), ez: (EASES as readonly string[]).includes(String(k.ez)) ? k.ez : "inOut" };
+      for (const [n, [lo, hi]] of Object.entries(R)) if (Number.isFinite(Number(k[n])) && k[n] !== null && k[n] !== "") out[n] = r3(clampN(Number(k[n]), lo, hi, 0));
+      const m = k.mk as Record<string, unknown> | undefined;
+      if (m && typeof m === "object") { const mo: Record<string, number> = {}; for (const [n, [lo, hi]] of Object.entries(MK)) if (Number.isFinite(Number(m[n]))) mo[n] = r3(clampN(Number(m[n]), lo, hi, 0)); if (Object.keys(mo).length) out.mk = mo; }
+      return out;
+    }).filter((k) => Object.keys(k).length > 2).sort((a, b) => (a.t as number) - (b.t as number));
+    if (keys.length >= 2) o.kx = keys;
+  }
   return Object.keys(o).length ? o : undefined;
 }
 
@@ -350,12 +436,12 @@ export async function direct(d: DirectIn, provider: ManagedProvider = getProvide
   const parts = chunks(d);
   const plans = await Promise.all(parts.map(async (p) => {
     const ans = await provider.structured(SYSTEM, prompt(p, taste, trends), Answer, { task: TASK, temperature: 0.7, maxOutputTokens: Math.min(12_000, 400 + p.slots.length * 170) });
-    return parsePlan(p, ans);
+    return { ...parsePlan(p, ans), texts: cleanTexts(ans.texts), actions: cleanActions(ans.actions) };
   }));
   const slots = plans.flatMap((p) => p.slots), auto = slots.filter((s) => s.auto).length;
   // more than half of the Reel without a usable answer is not the AI's plan: it fails (the phone edits, the credits come back)
   if (auto * 2 > slots.length) throw new AIResponseError(`The AI director answered only ${slots.length - auto} of ${slots.length} cuts.`);
-  return { slots, story: plans[0].story || d.story, auto, model: provider.model, provider: provider.name };
+  return { slots, story: plans[0].story || d.story, texts: plans.flatMap((p) => p.texts).slice(0, 20), actions: plans[0].actions, auto, model: provider.model, provider: provider.name };
 }
 
 /* ---- 1. pace: how fast to cut in each section ---- */

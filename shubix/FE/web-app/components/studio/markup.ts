@@ -7,8 +7,11 @@
 import { PLAN_TOOLS } from "./views";
 import { GLYPH_PATHS } from "@shubix/ui-web";
 import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
+import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 export { DOCK_CATEGORIES_DEF, SHOT_TOOLS_DEF };
 import { Button, Chip, Segmented, Tile } from "./ui";
+/** shapes: drawn in the text's colour, so they take every text tool (keyframes, entrances, exits, loops) */
+export const SHAPES = ["■", "●", "▲", "★", "♥", "◆", "➜", "━", "○", "□"];
 
 const I = (d: string, extra = "") =>
   `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
@@ -48,7 +51,7 @@ const IC = {
 // the Create flow's AI checklist (step 3 on computers, the Analysing screen on phones); data-t: the tasks it follows
 // the top bar: the format menu (each format's shape) and undo / redo
 // the format menu: ratio, its CMS label (texts-studio), the little frame's size
-const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"]];
+const ASPECTS = [["9:16", "Reels, Shorts, Stories", "w-3 h-[21px]"], ["4:5", "Instagram feed", "w-4 h-5"], ["1:1", "Square post", "size-[18px]"], ["16:9", "YouTube, wide", "w-[22px] h-[13px]"], ["3:4", "Portrait photo", "w-[15px] h-5"], ["4:3", "Classic TV", "w-5 h-[15px]"], ["2:1", "Wide banner", "w-[22px] h-[11px]"], ["2.35:1", "Cinema", "w-[23px] h-[10px]"]];
 // a card of the flow (Music, Clips, Shubix Edit); on phones the Music and Clips screens have no card around them;
 // locked: waits for the step before it
 const flowCard = "animate-none grid min-w-0 gap-3 rounded-[20px] border border-[color-mix(in_srgb,var(--accent)_13%,var(--border))] bg-surface px-5 py-[18px] shadow-[0_18px_44px_-36px_rgba(0,0,0,.7),inset_0_1px_0_rgba(255,255,255,.035)] transition-[border-color,box-shadow] duration-200 hover:border-[color-mix(in_srgb,var(--accent)_34%,var(--border))] hover:shadow-[0_20px_44px_-34px_rgba(0,0,0,.72),inset_0_1px_0_rgba(255,255,255,.04)] [&.locked]:saturate-[.72] max-lg:rounded-none max-lg:border-0 max-lg:bg-transparent max-lg:px-0 max-lg:pt-1 max-lg:pb-0 max-lg:shadow-none max-lg:hover:shadow-none";
@@ -285,6 +288,10 @@ export const STUDIO_HTML = `
         <button data-a="4:5" aria-pressed="false">4:5</button>
         <button data-a="1:1" aria-pressed="false">1:1</button>
         <button data-a="16:9" aria-pressed="false">16:9</button>
+        <button data-a="3:4" aria-pressed="false">3:4</button>
+        <button data-a="4:3" aria-pressed="false">4:3</button>
+        <button data-a="2:1" aria-pressed="false">2:1</button>
+        <button data-a="2.35:1" aria-pressed="false">2.35:1</button>
       </div>
     </div>
     <span class="fslot" id="fsndslot"></span>
@@ -454,7 +461,7 @@ export const STUDIO_HTML = `
             <label class="cslide"><span>Music volume</span><input type="range" id="mvol" min="0" max="1.5" step="0.05" value="1"><output>100%</output></label>
             <div class="beatmarks"><span class="label">Your beat markers</span>
               <p class="hint">Hear a beat Shubix missed? Pause on it and add a marker: a cut can land there.</p>
-              <div class="row"><button class="${Button.small}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${Button.small}" id="clrbeat" type="button">Remove my markers</button></div></div>
+              <div class="row"><button class="${Button.small}" id="addbeat" type="button">＋ Add marker at playhead</button><button class="${Button.small}" id="delbeat" type="button">－ Remove marker here</button><button class="${Button.small}" id="clrbeat" type="button">Remove my markers</button></div></div>
             <label class="tog"><input type="checkbox" id="sfxon" checked> Sound effects on transitions (whoosh, boom, click, pop)</label>
             <label class="cslide"><span>Effects volume</span><input type="range" id="sfxv" min="0" max="1.5" step="0.05" value="0.6"><output>60%</output></label>
             <div class="row" id="sfxadd"><span class="fname">Add at the playhead:</span><button type="button" class="${Button.small}" data-sfx="whoosh">Whoosh</button><button type="button" class="${Button.small}" data-sfx="pop">Pop</button><button type="button" class="${Button.small}" data-sfx="boom">Boom</button><button type="button" class="${Button.small}" data-sfx="click">Click</button><button type="button" class="${Button.small}" data-sfx="riser">Riser</button><button type="button" class="${Button.small}" data-sfx="ding">Ding</button></div>
@@ -474,8 +481,10 @@ export const STUDIO_HTML = `
             <span class="label">Text &amp; stickers</span>
             <div class="row ovadd">
               <button class="${Button.secondary}" id="ovtext" type="button">+ Text</button><button class="${Button.secondary}" id="ovsticker" type="button">+ Sticker</button>
+              <select id="ovtpl" aria-label="Text template"><option value="">+ Text template…</option>${Object.entries(TEXT_TEMPLATES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join("")}</select>
               <select id="ovpreset" aria-label="Ready-made text"><option value="">+ Ready-made…</option><option value="price">Price tag ₹</option><option value="follow">Follow for more</option><option value="save">Save this</option><option value="step1">Step 1</option><option value="before">BEFORE</option><option value="after">AFTER</option><option value="ganpati">गणपती बाप्पा मोरया</option><option value="diwali">शुभ दीपावली</option><option value="hdiwali">Happy Diwali</option></select>
             </div>
+            <div class="row" id="ovshapes" role="group" aria-label="Shapes"><span class="fname">Shapes:</span>${SHAPES.map((s) => `<button type="button" class="${Button.small}" data-shape="${s}">${s}</button>`).join("")}</div>
             <div class="emojis" id="emojis" hidden></div>
             <div class="ovlist" id="ovlist"></div>
             <p class="hint" id="ovhint" hidden>Drag a text or sticker on the preview to move it; pinch it with two fingers, or drag its yellow corner, to make it bigger or smaller. Pause the preview where it should start or end.</p>
@@ -551,7 +560,7 @@ export const STUDIO_HTML = `
               <div class="ttslist" id="ttslist"></div>
             </div>
             <span class="label musiconly">Voice changer</span>
-            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${Chip}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${Chip}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${Chip}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${Chip}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${Chip}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${Chip}" data-f="echo" aria-pressed="false">Echo</button></div>
+            <div class="chips musiconly" id="vfx" role="group" aria-label="Voice changer"><button type="button" class="${Chip}" data-f="none" aria-pressed="true">Original</button><button type="button" class="${Chip}" data-f="deep" aria-pressed="false">Deep</button><button type="button" class="${Chip}" data-f="chipmunk" aria-pressed="false">Chipmunk</button><button type="button" class="${Chip}" data-f="robot" aria-pressed="false">Robot</button><button type="button" class="${Chip}" data-f="radio" aria-pressed="false">Radio</button><button type="button" class="${Chip}" data-f="echo" aria-pressed="false">Echo</button><button type="button" class="${Chip}" data-f="enhance" aria-pressed="false">Enhance voice</button></div>
             <p class="hint talkonly">Talking videos: pauses, music under the voice and noise cleanup are in step 2.</p>
           </section>
 

@@ -44,6 +44,16 @@ async function call<T>(op: string, args: Record<string, unknown> = {}): Promise<
     page?.injectJavaScript(`window.engine.call(${id}, ${JSON.stringify(op)}, ${JSON.stringify(args)}); true;`);
   });
 }
+/** the studio's texts as the phone keeps them (its own: a number id, t0 / t1, size as a multiple of 36); every setting kept */
+export function textsOf(list: unknown): ReelProject["overlays"] | undefined {
+  if (!Array.isArray(list)) return undefined;
+  return (list as Record<string, unknown>[]).filter((o) => typeof o.text === "string" && o.kind !== "squareFrame").map((o) => {
+    const start = Math.max(0, Number(o.start ?? o.t0) || 0), size = Number(o.size) || 1;
+    const { box: _b, t0: _a, t1: _z, all: _l, ...rest } = o;
+    return { ...rest, id: String(o.id), text: String(o.text).slice(0, 300), start, end: Math.max(start + 0.05, Number(o.end ?? o.t1) || start + 3), color: String(o.color || "#FFFFFF"),
+      size: Math.max(8, Math.min(120, size > 4 ? size : Math.round(size * 36))) } as ReelProject["overlays"][number];
+  });
+}
 const pathOf = (uri: string) => decodeURIComponent(uri.replace(/^file:\/\//, ""));
 
 export const engine = {
@@ -100,25 +110,31 @@ export const engine = {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("undo");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   redo: async () => {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("redo");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   /** Ask Studio for another locally generated edit, then map its shots back to the native clip model. */
   remix: async () => {
     if (!held) return { ok: false as const };
     const result = await call<{ ok: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("remix");
     if (!result.ok || !Array.isArray(result.state?.edit)) return { ok: false as const };
-    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: result.state.overlays };
+    return { ok: true as const, clips: shotsOf(result.state.edit, sources), overlays: textsOf(result.state.overlays) };
   },
   /** a choice in one of the editor's tools, made in the studio as on the website (its button `attr`=`value` in `box`,
    * or its input `box` set to `value`), the editor's changes sent first: the Reel's clips after it; null when the studio
    * does not hold this Reel as it is (then the phone does what it can) */
   tool: (op: string, args: Record<string, unknown> = {}) => call<Record<string, unknown>>(op, args),
+  /** the creator's own beat markers (add at `time`, del the one there, clear): the Reel's clips after the edit is made again */
+  mark: async (p: ReelProject, op: "add" | "del" | "clear", time: number) => {
+    if (!(await engine.edit(p))) return null;
+    const r = await call<{ ok: boolean; state?: { edit?: EngineShot[] } }>("mark", { op, time });
+    return r.ok && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null;
+  },
   addLayer: (uri: string, name: string) => call<Record<string, unknown>>("layerAdd", { path: pathOf(uri), name }),
   set: async (p: ReelProject, box: string, value: string | boolean, attr?: string) => {
     if (!(await engine.edit(p))) return null;
@@ -128,6 +144,8 @@ export const engine = {
   /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
   exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),
   cancelExport: () => call("cancelExport").catch(() => undefined),
+  /** the Reel's picture at `t` exactly as the studio makes it (null: it could not) */
+  frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
   /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
   stop: () => restart(STOPPED),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the
@@ -139,7 +157,7 @@ export const engine = {
     if (!engine.holds(p.id)) return null;
     await engine.edit(p).catch(() => false);
     const r = await call<{ answer: string; applied: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("chat", { text });
-    return { answer: r.answer, clips: r.applied && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null, overlays: r.state?.overlays };
+    return { answer: r.answer, clips: r.applied && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null, overlays: textsOf(r.state?.overlays) };
   },
 };
 
@@ -157,7 +175,7 @@ export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[]
     const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
     const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
     const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk };
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk, ...(e.cs ? { cs: e.cs } : {}) };
     made.set(clip.id, { shot: e, clip });
     return clip;
   });

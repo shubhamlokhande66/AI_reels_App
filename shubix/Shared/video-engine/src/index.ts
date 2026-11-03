@@ -109,7 +109,7 @@ export type ShotAnalysis = {
 };
 export type DirectorInput = {
   shots: ShotAnalysis[]; beats?: number[]; drops?: number[]; quietRanges?: Array<[number,number]>;
-  targetDuration?: number; aspect?: "9:16"|"4:5"|"1:1"|"16:9";
+  targetDuration?: number; aspect?: "9:16"|"4:5"|"1:1"|"16:9"|"3:4"|"4:3"|"2:1"|"2.35:1";
   mood?: "cinematic"|"energetic"|"minimal"|"story"|"product"|"travel"|"food";
   mobile?: boolean; intensity?: "subtle"|"balanced"|"bold";
 };
@@ -552,7 +552,7 @@ export type AutonomousReelRequest = {
   shots: AutonomousSourceShot[];
   music?: AutonomousMusicAnalysis;
   targetDuration?: number;
-  aspect?: "9:16" | "4:5" | "1:1" | "16:9";
+  aspect?: "9:16" | "4:5" | "1:1" | "16:9" | "3:4" | "4:3" | "2:1" | "2.35:1";
   mood?: AutonomousMood;
   intensity?: "subtle" | "balanced" | "bold";
   platform?: EditorPlatform;

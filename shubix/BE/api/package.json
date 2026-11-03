@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "shared": "pnpm --filter @shubix/core build",
-    "prebuild": "pnpm run shared",
+    "prebuild": "pnpm run shared && node scripts/route-manifest.mjs",
     "build": "nest build",
+    "bundle": "node scripts/bundle.mjs",
     "dev": "pnpm run shared && nest start --watch --exec \"node --conditions=shubix-dist\"",
     "start": "node --conditions=shubix-dist dist/main.js",
+    "start:bundle": "node dist/main.bundle.js",
     "typecheck": "pnpm run shared && tsc --noEmit",
     "test": "vitest run",
     "smtp-check": "node scripts/smtp-check.mjs",
@@ -38,6 +40,7 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.13.6",
     "@types/nodemailer": "^6.4.17",
+    "esbuild": "0.28.2",
     "mongodb-memory-server": "11.2.0",
     "typescript": "^5.9.2",
     "vitest": "^5.0.1"

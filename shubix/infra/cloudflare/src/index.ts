@@ -30,7 +30,8 @@ export class ReelApp extends Container<Env> {
   private ready = false;
   override onStop() { this.ready = false; }
   private wake(signal?: AbortSignal) {
-    return this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 90_000, instanceGetTimeoutMS: 30_000, abort: signal });
+    // up to 4 min: before the one-file bundle a wake on 1/4 vCPU took more than the 90 s waited here and the API stayed down
+    return this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 240_000, instanceGetTimeoutMS: 60_000, abort: signal });
   }
   override async fetch(request: Request): Promise<Response> {
     const again = request.method === "GET" || request.method === "HEAD" ? request.clone() : null;
