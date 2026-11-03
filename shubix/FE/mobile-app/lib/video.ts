@@ -85,10 +85,18 @@ function nativeSpec(p: ReelProject, width: number, height: number, preview = fal
 }
 /** the live preview's spec: the export's, half size (smooth on any phone), without what the phone's engine cannot draw
  * yet (it is left out, never an error: the export still checks it); null when the engine is not in this app */
+/** a shot's keyframes and speed ramp as the phone's engine accepts them (finite, increasing, within the clip's source
+ * length): Shubix AI's keys on a slowed shot can run past it, and one such key turned the whole live preview off (the
+ * old player then stuttered back and forth). Left out here, never an error: the export still checks them. */
+function fitTimes(c: ProjectClip) {
+  const len = Math.max(0, c.end - c.start), ok = (t: unknown) => typeof t === "number" && Number.isFinite(t) && t >= 0 && t <= len;
+  const rising = <T,>(list: T[] | undefined, at: (x: T) => unknown) => { let last = -1; return list?.filter((x) => { const t = at(x); if (!ok(t) || (t as number) <= last) return false; last = t as number; return true; }); };
+  return { keyframes: rising(c.keyframes, (k) => (k as { t?: unknown }).t), speedRamp: rising(c.speedRamp, (k) => (k as { time?: unknown }).time)?.filter((k) => Number((k as { speed?: unknown }).speed) > 0) };
+}
 export function previewSpec(p: ReelProject): string | null {
   if (!ShubixVideo || !p.clips.length) return null;
   const [w, h] = SIZE[p.settings?.aspect ?? "9:16"] ?? SIZE["9:16"], k = 540 / Math.min(w, h);
-  const spec = nativeSpec({ ...p, clips: p.clips.map((c) => ({ ...c, reverse: false, filter: isAndroidFilterSupported(c.filter) ? c.filter : "Original", volume: Math.min(1, c.volume ?? 1) })),
+  const spec = nativeSpec({ ...p, clips: p.clips.map((c) => ({ ...c, ...fitTimes(c), reverse: false, filter: isAndroidFilterSupported(c.filter) ? c.filter : "Original", volume: Math.min(1, c.volume ?? 1) })),
     overlays: p.overlays.filter((o) => o.text?.trim() && o.end > o.start).slice(0, 40).map((o) => ({ ...o, text: o.text.slice(0, 300), size: Math.min(120, Math.max(8, o.size ?? 36)) })) }, Math.round(w * k / 2) * 2, Math.round(h * k / 2) * 2, true);
   return JSON.stringify(spec);
 }
