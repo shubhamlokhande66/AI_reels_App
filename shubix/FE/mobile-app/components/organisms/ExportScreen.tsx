@@ -1,5 +1,7 @@
+import { useAdPlan } from "../molecules/AdBanner";
+import { showInterstitial } from "../../lib/ads";
 import { useEffect, useState } from "react";
-import { Image, Modal, ScrollView, Switch, Text, View } from "react-native";
+import { Image, Modal, Platform, ScrollView, Switch, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import * as MediaLibrary from "expo-media-library/legacy";
 import * as Sharing from "expo-sharing";
@@ -33,6 +35,8 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
   const [pct, setPct] = useState(0), [done, setDone] = useState<Made | null>(null), [saved, setSaved] = useState(false), [notice, setNotice] = useState(""), [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
   const player = useVideoPlayer(done?.uri ?? null, (p) => { p.loop = true; if (done) p.play(); });
   const first = reel?.clips[0], picture = useThumb(first?.uri, first?.kind === "image" ? "image" : "video");
+  // the plans with ads: a full-screen ad once the Reel is made (never while editing)
+  const { ads, adPlan } = useAdPlan(), full = Platform.OS === "android" ? ads.data?.admob?.interstitial ?? "" : "";
   const studio = !!reel?.studio, locked = allowed?.locked ?? [];
   // a new Reel: its choices first (a Studio Reel), the others start at once
   useEffect(() => { if (!reel) return; setDone(null); setSaved(false); setNotice(""); setFailed(false); setPct(0); setAllowed(null); setStep(reel.studio ? "choose" : "make"); }, [reel]);
@@ -54,7 +58,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     };
     make().then(async (r) => {
       if (!live) return;
-      setPct(1); setDone(r); setStep("done"); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
+      setPct(1); setDone(r); setStep("done"); if (adPlan && full) void showInterstitial(full); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
       // saved to the gallery at once when allowed (a Photos permission error never undoes the export)
       try {
         if ((await MediaLibrary.requestPermissionsAsync(true)).granted) { await MediaLibrary.createAssetAsync(r.uri); if (live) setSaved(true); }

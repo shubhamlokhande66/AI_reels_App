@@ -82,6 +82,7 @@ export const ROUTES: [string, () => Record<string, unknown>][] = [
   ["api/partner/verify", () => require("../routes/api/partner/verify/route")],
   ["api/plan-locks", () => require("../routes/api/plan-locks/route")],
   ["api/plans", () => require("../routes/api/plans/route")],
+  ["api/public/admob-reward", () => require("../routes/api/public/admob-reward/route")],
   ["api/public/billing/webhook", () => require("../routes/api/public/billing/webhook/route")],
   ["api/public/client-error", () => require("../routes/api/public/client-error/route")],
   ["api/public/ping", () => require("../routes/api/public/ping/route")],

@@ -270,11 +270,28 @@ describe("Ads and the store links", () => {
     expect(await (await GET()).text()).toBe("google.com, pub-1234567890123456, DIRECT, f08c47fec0942fa0\n");
     // the phone app: AdMob ad units, checked, and /app-ads.txt from their publisher id
     const app = await import("../../src/routes/app-ads.txt/route");
-    expect((await app.GET()).status).toBe(404);
+    expect(await (await app.GET()).text()).toBe("google.com, pub-5459735473283681, DIRECT, f08c47fec0942fa0\n"); // the built-in units
     await expect(A.setAds({ admob: { android: "ca-app-pub-123/1" } as never })).rejects.toThrow(/AdMob/);
     await A.setAds({ admob: { android: "ca-app-pub-9876543210987654/1234567890" } as never });
-    expect((await A.getAds()).admob).toEqual({ android: "ca-app-pub-9876543210987654/1234567890", ios: "" });
+    expect((await A.getAds()).admob).toMatchObject({ android: "ca-app-pub-9876543210987654/1234567890", ios: "", rewarded: "ca-app-pub-5459735473283681/5578697445", rewardCredits: 2 });
     expect(await (await app.GET()).text()).toBe("google.com, pub-9876543210987654, DIRECT, f08c47fec0942fa0\n");
+  });
+  it("gives rewarded-ad credits only for AdMob's signed call, once per transaction, up to the daily number", async () => {
+    const crypto = await import("node:crypto"), { privateKey, publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    const pem = publicKey.export({ type: "spki", format: "pem" }).toString(), real = globalThis.fetch;
+    globalThis.fetch = (async () => Response.json({ keys: [{ keyId: 7, pem }] })) as typeof fetch;
+    try {
+      const { GET } = await import("../../src/routes/api/public/admob-reward/route");
+      const uid = new ObjectId().toString(), start = (await balance(uid)).extra;
+      const call = (tx: string, sign = true) => {
+        const q = `ad_network=1&ad_unit=5578697445&reward_amount=1&reward_item=credits&timestamp=1&transaction_id=${tx}&user_id=${uid}`;
+        const sig = crypto.sign("sha256", Buffer.from(q), privateKey).toString("base64url");
+        return GET(new Request(`https://api.test/api/public/admob-reward?${q}&signature=${sign ? sig : sig.slice(2)}&key_id=7`), { params: Promise.resolve({}) });
+      };
+      expect((await call("t0", false)).status).toBe(403);
+      for (const tx of ["t1", "t1", "t2", "t3", "t4", "t5", "t6"]) expect((await call(tx)).status).toBe(200);
+      expect((await balance(uid)).extra).toBe(start + 2 * 5); // 2 each, t1 once, 5 a day
+    } finally { globalThis.fetch = real; }
   });
   it("keeps the app store links (https only); empty means Coming soon", async () => {
     const S = await import("../../src/server/site");

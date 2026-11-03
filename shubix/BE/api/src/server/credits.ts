@@ -295,3 +295,11 @@ export async function myPayments() {
   const uid = uidOrThrow();
   return (await (await col("payments")).find({ userId: uid }).sort({ createdAt: -1 }).limit(30).toArray()).map((p) => ({ id: p._id, label: (p.item as Doc).label, amount: Number(p.amount) / 100, status: p.status, createdAt: p.createdAt, paidAt: p.paidAt ?? null, receiptNo: p.receiptNo ?? null, paymentId: p.paymentId ?? null }));
 }
+/** Credits for watching a rewarded ad (the phone's "Watch an ad"): once per AdMob transaction, at most `daily` a day. */
+export async function adRewardCredits(userId: string, credits: number, daily: number, transaction: string): Promise<boolean> {
+  if (!enabled() || !userId || !(await (await col("wallets")).findOne({ _id: userId }))) return false;
+  const since = new Date(); since.setUTCHours(0, 0, 0, 0);
+  if (await (await col("credit_ledger")).countDocuments({ userId, ref: /^admob:/, delta: { $gt: 0 }, at: { $gte: since } }) >= daily) return false;
+  await grantCredits(userId, credits, "Watched an ad", `admob:${transaction}`);
+  return true;
+}
