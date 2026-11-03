@@ -33,6 +33,8 @@ keyAlias=upload
 keyPassword=...
 ```
 
+Back up the key and the .env files (a locked zip on the Desktop, for Google Drive): `npm run backup:keys`.
+
 Then, at the repo root: `npm run android:aab` (or `pnpm aab` in `FE/mobile-app`). It checks the key, makes `android/`
 again from the config (AdMob id, version, the key: `plugins/with-upload-key.js`) and prints where the `.aab` is
 (`FE/mobile-app/android/app/build/outputs/bundle/release/app-release.aab`). Raise `versionCode` first.

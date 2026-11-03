@@ -10,6 +10,7 @@
     "typecheck": "npx -y pnpm@10.20.0 -r typecheck",
     "test": "npx -y pnpm@10.20.0 -r --workspace-concurrency=1 --no-bail test",
     "setup": "npx -y pnpm@10.20.0 install",
-    "android:aab": "npx -y pnpm@10.20.0 --filter @shubix/mobile-app aab"
+    "android:aab": "npx -y pnpm@10.20.0 --filter @shubix/mobile-app aab",
+    "backup:keys": "node scripts/backup-keys.mjs"
   }
 }
