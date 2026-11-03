@@ -62,7 +62,11 @@ and `PUBLIC_BASE_URL`, and to the R2 bucket's CORS (Settings → CORS policy →
 - Vercel limits request bodies (4.5 MB on its functions). Big uploads (clips, saved Reels) go from the browser straight
   to R2 (presigned, needs the R2 settings), so they never pass through Vercel. Check one upload after the first deploy.
 - `API_URL` is read when the website is built: after changing it, deploy the website again.
-- The API container sleeps 2 minutes after the last request (`SLEEP_AFTER`): the first API call after a pause takes
-  20-30 s while it wakes.
-- After every deploy, open `https://api.shubix.in/api/health` (`{"status":"ok"}`). Once a new version left the container
-  running but not answering: running Deploy to Cloudflare again (GitHub → Actions) started it fresh.
+- The current production setting is `SLEEP_AFTER=30s`: after 30 seconds without traffic the container may sleep. The
+  next request starts it and waits for the API port (up to 4 minutes); a normal cold start can take 20-30 seconds.
+- The Worker detects known container/proxy failures, clears its stale ready state and destroys the unhealthy container
+  so the next start is clean. It retries safe `GET`, `HEAD` and `OPTIONS` requests once. It deliberately does not replay
+  `POST`, `PUT`, `PATCH` or `DELETE` requests because the API may already have processed them; those receive a
+  `503 API_CONTAINER_RECOVERING` response with `Retry-After: 2` so the client can safely decide what to do.
+- After every deploy, check `https://api.shubix.in/api/health` (`{"status":"ok"}`) and Cloudflare Worker logs. If the
+  API remains unavailable, inspect the container startup/R2 mount logs and MongoDB connectivity before redeploying.
