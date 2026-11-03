@@ -52,6 +52,16 @@ describe("AI Director visual intent", () => {
       .toEqual({ transitionAll: true });
   });
 
+  it("recognises a fade transition in Roman Marathi all-clips instructions", () => {
+    expect(parseDirectorVisualIntent("saglya clips var fade transition lav"))
+      .toEqual({ transitionAll: true, transitionType: "fadein" });
+  });
+
+  it("keeps a generic all-clips transition request scoped without inventing a transition type", () => {
+    expect(parseDirectorVisualIntent("apply a transition to every clip"))
+      .toEqual({ transitionAll: true });
+  });
+
   it("recognises a named transition in an English all-clips request", () => {
     expect(parseDirectorVisualIntent("apply whip pan transition to every clip"))
       .toEqual({ transitionAll: true, transitionType: "whip" });

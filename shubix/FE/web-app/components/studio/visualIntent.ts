@@ -10,7 +10,7 @@ export type DirectorVisualIntent = {
 
 const TRANSITION_ALIASES: Array<[string, RegExp]> = [
   ["hard", /\bhard\s*cut\b/i],
-  ["fadein", /\bfade\s*in\b|\bfadein\b/i],
+  ["fadein", /\bfade(?:\s*in)?\b|\bfadein\b/i],
   ["flash", /\bflash\b/i],
   ["whip", /\bwhip(?:\s*pan)?\b/i],
   ["zoomout", /\bzoom\s*out\b/i],
