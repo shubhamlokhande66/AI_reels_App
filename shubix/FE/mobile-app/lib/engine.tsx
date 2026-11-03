@@ -216,11 +216,13 @@ function restart(why = "The phone stopped the studio. Please try again.") {
   setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); page?.reload();
 }
 
-/** The studio's page, hidden (behind everything, never touched): mounted once at the app's root. */
+/** The studio's page, hidden (behind everything, never touched): mounted once at the app's root. Not opacity 0:
+ * Android never draws a fully transparent view, and a WebView that is never drawn gets no frames (no animation frames,
+ * its videos barely decode): reading clips took minutes in the app and seconds in Chrome. 0.01 is drawn yet unseen. */
 export function EngineHost() {
   if (!engineOn) return null;
   return (
-    <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0, zIndex: -1 }}>
+    <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0.01, zIndex: -1 }}>
       <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `${SITE_URL}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
         mixedContentMode="always" mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback webviewDebuggingEnabled={__DEV__}
         onContentProcessDidTerminate={() => restart()} onRenderProcessGone={() => restart()} />
