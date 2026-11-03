@@ -62,11 +62,15 @@ and `PUBLIC_BASE_URL`, and to the R2 bucket's CORS (Settings → CORS policy →
 - Vercel limits request bodies (4.5 MB on its functions). Big uploads (clips, saved Reels) go from the browser straight
   to R2 (presigned, needs the R2 settings), so they never pass through Vercel. Check one upload after the first deploy.
 - `API_URL` is read when the website is built: after changing it, deploy the website again.
-- The current production setting is `SLEEP_AFTER=30s`: after 30 seconds without traffic the container may sleep. The
-  next request starts it and waits for the API port (up to 4 minutes); a normal cold start can take 20-30 seconds.
-- The Worker detects known container/proxy failures, clears its stale ready state and destroys the unhealthy container
-  so the next start is clean. It retries safe `GET`, `HEAD` and `OPTIONS` requests once. It deliberately does not replay
-  `POST`, `PUT`, `PATCH` or `DELETE` requests because the API may already have processed them; those receive a
-  `503 API_CONTAINER_RECOVERING` response with `Retry-After: 2` so the client can safely decide what to do.
+- Cost policy: `SLEEP_AFTER=30s`. No cron, scheduled warm-up or keep-alive request is used to keep the API container
+  running. When no real API traffic arrives for 30 seconds, the container is allowed to stop; container images being
+  prepared do not mean a running instance is being kept alive.
+- The app's periodic presence ping is answered by the Worker while the container is stopped, so an open browser tab
+  alone does not wake or bill the API container. A real API request automatically starts it and waits for port 4000
+  to become ready (up to 4 minutes per start attempt). A transient start/readiness failure triggers one clean restart
+  and a second automatic start attempt; no manual redeploy is needed for that recoverable failure.
+- For failures after proxying begins, the Worker resets the stale container. It retries safe `GET`, `HEAD` and
+  `OPTIONS` requests once. It never replays `POST`, `PUT`, `PATCH` or `DELETE`, because the API may already have
+  processed them; those receive `503 API_CONTAINER_RECOVERING` with `Retry-After: 2` so the client can retry safely.
 - After every deploy, check `https://api.shubix.in/api/health` (`{"status":"ok"}`) and Cloudflare Worker logs. If the
   API remains unavailable, inspect the container startup/R2 mount logs and MongoDB connectivity before redeploying.
