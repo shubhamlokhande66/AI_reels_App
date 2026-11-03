@@ -105,7 +105,7 @@ async function parseError(res: Response): Promise<ApiError> {
 }
 
 /** No request may hang forever: without an answer in time it fails with a clear message (the server may be down). */
-const DEFAULT_TIMEOUT_MS = 45_000;
+const DEFAULT_TIMEOUT_MS = 90_000;
 
 /** A read that timed out or lost the connection is asked again this many times (a busy server usually answers the next one). */
 const GET_RETRIES = 3;
