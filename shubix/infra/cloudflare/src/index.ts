@@ -49,8 +49,8 @@ export class ReelApp extends Container<Env> {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         await this.startAndWaitForPorts(this.defaultPort, {
-          portReadyTimeoutMS: 240_000,
-          instanceGetTimeoutMS: 60_000,
+          portReadyTimeoutMS: 35_000,
+          instanceGetTimeoutMS: 10_000,
           abort: signal,
         });
         this.ready = true;
