@@ -1,7 +1,7 @@
 import { Paths } from "expo-file-system";
 import { clipDuration, type ReelProject } from "@shubix/validations";
 import { ShubixVideo } from "../modules/shubix-video";
-import { ADJ_FRAG, GRADE_FRAG, PASS_VERT, PIC_FRAG, PIC_FX } from "@shubix/core/lib/shaders";
+import { ADJ_FRAG, GRADE_FRAG, KEY_FRAG, PASS_VERT, PIC_FRAG, PIC_FX } from "@shubix/core/lib/shaders";
 import {
   createAndroidRendererAdapter,
   createRenderJobFromProject,
@@ -59,7 +59,7 @@ function nativeSpec(p: ReelProject, width: number, height: number, preview = fal
   return {
     width, height,
     // the studio's own shader text for its GPU passes (one copy for both engines: Shared/core/src/lib/shaders.ts)
-    shaders: { vert: PASS_VERT, pic: PIC_FRAG, grade: GRADE_FRAG, adj: ADJ_FRAG },
+    shaders: { vert: PASS_VERT, pic: PIC_FRAG, grade: GRADE_FRAG, adj: ADJ_FRAG, key: KEY_FRAG },
     clips: p.clips.map((clip) => ({
       uri: clip.uri, kind: clip.kind, start: clip.start, end: clip.end, speed: clip.speed,
       speedRamp: clip.speedRamp, keyframes: clip.keyframes, muted: clip.muted, volume: clip.volume,

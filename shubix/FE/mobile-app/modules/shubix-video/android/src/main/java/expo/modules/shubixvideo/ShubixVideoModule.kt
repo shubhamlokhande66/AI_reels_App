@@ -350,6 +350,7 @@ class ShubixVideoModule : Module() {
         video += filter(c.optString("filter"))
         video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration, w, h)
         video += studioPasses(shaders, c, clipOutputDuration, clipTotalOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
+        studioMask(c, clipOutputDuration, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts
         if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at + clipOutputDuration)))
         require(items.size < 10_000) { "This Reel contains too many speed-ramp segments for a safe native export." }
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()

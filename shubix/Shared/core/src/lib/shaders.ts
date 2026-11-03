@@ -245,3 +245,11 @@ void main(){ vec3 c = texture2D(T, v).rgb;
   if(ad2.z!=0.) c = hueRot(c, ad2.z*3.14159);
   if(vig>0.){ float vd = length((v-0.5)*vec2(res.x/res.y, 1.)); c *= 1. - vig*smoothstep(0.3,0.75,vd); }
   gl_FragColor = vec4(clamp(c, 0., 1.), 1.); }`;
+
+/** a shot's chroma key (green screen) for the native engine: the website's chromaKey() (engine.ts) per pixel on the GPU:
+ * the key colour goes within tol (40 + tol*180 in 0-255 units), a 40-wide soft edge with its spill taken out, bg behind */
+export const KEY_FRAG = `precision mediump float; varying vec2 v; uniform sampler2D T; uniform vec3 key, bg; uniform float tol;
+void main(){ vec3 c = texture2D(T, v).rgb*255., k = key*255.; float d = distance(c, k), t = 40. + tol*180., km = max(k.r, max(k.g, k.b));
+  float a = clamp((d - t)/40., 0., 1.);
+  if(d < t + 40.){ if(k.g == km && c.g > max(c.r, c.b)) c.g = max(c.r, c.b); else if(k.b == km && c.b > max(c.r, c.g)) c.b = max(c.r, c.g); }
+  gl_FragColor = vec4(mix(bg, c/255., a), 1.); }`;

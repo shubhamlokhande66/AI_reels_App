@@ -29,7 +29,7 @@ The engine is the app's own Expo module `FE/mobile-app/modules/shubix-video` (Ko
 4. **DONE (adjust with keyframes, Curves, HSL; the studio look is still the phone filter): the studio's shot settings in the spec.** The phone gets each shot's `cs` (and its keyframes `kx`) from the studio
    (`engine.tool("state")`) and sends them in the spec; the Kotlin passes read them per frame (keyframes as on the
    website, `kxAt`).
-5. **Masks, chroma key, blend, boxes.** Mask shapes and chroma key as GPU passes. Video boxes (layers) as extra Composition
+5. **DONE (masks with their keyframes, chroma key; video boxes and blend still open): masks, chroma key, blend, boxes.** Mask shapes and chroma key as GPU passes. Video boxes (layers) as extra Composition
    sequences.
 6. **The 44 transitions.** Two shots overlap for the transition's length. Media3 sequences don't overlap, so the
    transition is drawn by one GPU pass that reads the end of one shot and the start of the next.
