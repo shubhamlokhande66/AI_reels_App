@@ -30,7 +30,7 @@ export class ReelApp extends Container<Env> {
   private ready = false;
   override onStop() { this.ready = false; }
   private wake(signal?: AbortSignal) {
-    // up to 4 min: a wake on a cold machine (the image read from far away, 1/4 vCPU) took more than 90 s and the API stayed down
+    // up to 4 min: before the one-file bundle a wake on 1/4 vCPU took more than the 90 s waited here and the API stayed down
     return this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 240_000, instanceGetTimeoutMS: 60_000, abort: signal });
   }
   override async fetch(request: Request): Promise<Response> {
@@ -75,10 +75,5 @@ export default {
     if (request.method === "POST" && path === PING && !(await awake(env)))
       return Response.json({ ok: true, asleep: true });
     return app(env).fetch(request);
-  },
-  // Kept awake (wrangler.jsonc crons, every 5 min): a sleeping API woke too slowly and stayed down (2026-11-02/03); this
-  // asks for its health, which wakes it if it stopped for any reason, so it is back within 5 min by itself.
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(app(env).fetch(new Request("https://api.shubix.in/api/health")).then((r) => r.text()).catch((err) => console.error("keep-awake", err)));
   },
 } satisfies ExportedHandler<Env>;

@@ -30,15 +30,13 @@
   "assets": { "directory": "./assets", "html_handling": "none" },
   "durable_objects": { "bindings": [{ "name": "APP", "class_name": "ReelApp" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ReelApp"] }],
-  // keep-awake: the Worker asks the API for its health every 5 min (src/index.ts scheduled)
-  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
     "NODE_ENV": "production",
     // "api": this container runs the API alone; the website is on Vercel and sends /api/* here (docs/deploy-vercel-cloudflare.md)
     "CONTAINER_ROLE": "api",
     // the website's address (Vercel): CORS for the browser, and the API's links in emails go to the website
     "WEB_ORIGINS": "https://shubix.in,https://www.shubix.in,https://shubix-eight.vercel.app",
-    "SLEEP_AFTER": "10m", // the cron below asks every 5 min, so it stays awake (waking from sleep was too slow: the API stayed down)
+    "SLEEP_AFTER": "15m", // sleeps 15 min after the last request (no one using it: no cost); the next request wakes it (the API is one file now, quick to start)
     "STORAGE_PATH": "/data/storage",
     "R2_BUCKET": "smgroup",
     "R2_ACCOUNT_ID": "2d7702f8679dc5b3d44ce59ab951ca00",

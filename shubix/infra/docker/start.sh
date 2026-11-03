@@ -19,7 +19,8 @@ if [ -n "${R2_BUCKET:-}" ] && [ -n "${R2_ACCOUNT_ID:-}" ]; then
   echo "R2 bucket $R2_BUCKET mounted at $STORAGE_PATH"
 fi
 # CONTAINER_ROLE=api: the API alone, on API_PORT (the website runs elsewhere, e.g. Vercel, and sends /api here)
-if [ "${CONTAINER_ROLE:-all}" = "api" ]; then cd /app/api && exec node --conditions=shubix-dist dist/main.js; fi
+# the one-file bundle when the image has it (it wakes much faster: BE/api/scripts/bundle.mjs), else the compiled files
+if [ "${CONTAINER_ROLE:-all}" = "api" ]; then cd /app/api && if [ -f dist/main.bundle.js ]; then exec node dist/main.bundle.js; fi; exec node --conditions=shubix-dist dist/main.js; fi
 # the API reads its data files from src/server (cwd = the api folder)
 (cd /app/api && exec node --conditions=shubix-dist dist/main.js) &
 api_pid=$!

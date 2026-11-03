@@ -8,7 +8,8 @@ RUN corepack enable && corepack prepare pnpm@10.20.0 --activate
 ENV npm_config_onnxruntime_node_install=skip
 COPY . ./
 RUN pnpm install --frozen-lockfile --filter "@shubix/api..."
-RUN pnpm --filter @shubix/api build && pnpm --filter @shubix/api deploy --prod --legacy /out/api
+# bundle: the API as one file (dist/main.bundle.js), so a sleeping container wakes fast (scripts/bundle.mjs)
+RUN pnpm --filter @shubix/api build && pnpm --filter @shubix/api bundle && pnpm --filter @shubix/api deploy --prod --legacy /out/api
 
 FROM node:22-trixie-slim AS run
 ARG TIGRISFS_VERSION=1.2.1
