@@ -48,13 +48,20 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   const root = Paths.document.uri.replace(/^file:\/\//, "").replace(/\/$/, "");
   const safeId = p.id.replace(/[^A-Za-z0-9._-]/g, "_") || "reel";
   const output = `${root}/exports/${safeId}-${Date.now()}.mp4`;
-  const spec = {
-    width, height, output,
+  const spec = { ...nativeSpec(p, width, height), output };
+  const sub = ShubixVideo.addListener("onProgress", (e) => onProgress(e.progress));
+  try { return await ShubixVideo.exportReel(JSON.stringify(spec)); } finally { sub.remove(); }
+}
+export const cancelExport = () => ShubixVideo?.cancel();
+/** the Reel for the phone's video engine (modules/shubix-video): what the export writes and the live preview plays */
+function nativeSpec(p: ReelProject, width: number, height: number, preview = false) {
+  return {
+    width, height,
     clips: p.clips.map((clip) => ({
       uri: clip.uri, kind: clip.kind, start: clip.start, end: clip.end, speed: clip.speed,
       speedRamp: clip.speedRamp, keyframes: clip.keyframes, muted: clip.muted, volume: clip.volume,
       rotation: clip.rotation, mirror: clip.mirror, flip: clip.flip, fit: clip.fit, filter: clip.filter,
-      effects: clip.effect && clip.effect !== "none" ? [{ type: clip.effect, intensity: 0.5 }] : [],
+      effects: clip.effect && clip.effect !== "none" && (!preview || isAndroidEffectSupported(clip.effect)) ? [{ type: clip.effect, intensity: 0.5 }] : [],
       ...(clip.transition && normalizeAndroidTransition(clip.transition)
         ? { transitionIn: { type: normalizeAndroidTransition(clip.transition)!, duration: Math.min(0.35, Math.max(0.001, clipDuration(clip) / 2)) } }
         : {}),
@@ -62,10 +69,17 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
     audio: p.audioUri ? { uri: p.audioUri, start: p.settings?.start ?? 0, volume: Math.min(1, Math.max(0, p.settings?.musicVolume ?? 1)), fadeIn: p.settings?.musicFadeIn ?? 0, fadeOut: p.settings?.musicFadeOut ?? 0, ducking: p.settings?.musicDucking ?? false, duckLevel: p.settings?.musicDuckLevel ?? 0.35 } : undefined,
     texts: p.overlays.map(({ text, start, end, color, size }) => ({ text, start, end, color, size })),
   };
-  const sub = ShubixVideo.addListener("onProgress", (e) => onProgress(e.progress));
-  try { return await ShubixVideo.exportReel(JSON.stringify(spec)); } finally { sub.remove(); }
 }
-export const cancelExport = () => ShubixVideo?.cancel();
+/** the live preview's spec: the export's, half size (smooth on any phone), without what the phone's engine cannot draw
+ * yet (it is left out, never an error: the export still checks it); null when the engine is not in this app */
+export function previewSpec(p: ReelProject): string | null {
+  if (!ShubixVideo || !p.clips.length) return null;
+  const [w, h] = SIZE[p.settings?.aspect ?? "9:16"] ?? SIZE["9:16"], k = 540 / Math.min(w, h);
+  const spec = nativeSpec({ ...p, clips: p.clips.map((c) => ({ ...c, reverse: false, filter: isAndroidFilterSupported(c.filter) ? c.filter : "Original", volume: Math.min(1, c.volume ?? 1) })),
+    overlays: p.overlays.filter((o) => o.text?.trim() && o.end > o.start).slice(0, 40).map((o) => ({ ...o, text: o.text.slice(0, 300), size: Math.min(120, Math.max(8, o.size ?? 36)) })) }, Math.round(w * k / 2) * 2, Math.round(h * k / 2) * 2, true);
+  return JSON.stringify(spec);
+}
+
 
 
 /**

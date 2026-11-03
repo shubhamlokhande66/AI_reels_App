@@ -14,7 +14,8 @@ import { useLocked } from "../lib/data";
 import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
 import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
-import { isNativeEffectSupported, isNativeTransitionSupported, videoEngine } from "../lib/video";
+import { isNativeEffectSupported, isNativeTransitionSupported, previewSpec, videoEngine } from "../lib/video";
+import { ShubixPreviewView, type PreviewRef } from "../modules/shubix-video";
 import { engine, textsOf } from "../lib/engine";
 import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
@@ -56,6 +57,23 @@ const CANVAS = [["blur", "Blur"], ["color", "Colour"], ["grad", "Gradient"], ["s
 const CANVAS_COLS = [["#000000", "Black"], ["#FFFFFF", "White"], ["#E85D75", "Pink"], ["#4F7CFF", "Blue"], ["#1DB954", "Green"], ["#FF9F1C", "Orange"], ["#D4B07A", "Gold"]];
 /** the website's sliders for one tool: [field, name, min, max, step]; a field is a.b (an object's value) or a.b.n (one
  * point of a list, e.g. a curve); the shot's values are read from the studio, each slider sends its value when let go */
+/** the Reel playing on the phone's own video engine (modules/shubix-video, Media3): the export's picture, smooth on the
+ * GPU. Made when play is pressed (at `now`), gone when paused; its time moves the editor's playhead. */
+function LivePlayer({ p, now, sound, onTime, onEnd, onFail }: { p: ReelProject; now: number; sound: boolean; onTime: (t: number) => void; onEnd: () => void; onFail: (why: string) => void }) {
+  const ref = useRef<PreviewRef>(null), start = useRef(now);
+  useEffect(() => {
+    let live = true; const spec = previewSpec(p);
+    if (!spec) { onFail("no engine"); return; }
+    void (async () => {
+      try { const v = ref.current; if (!v) return; await v.load(spec, start.current); await v.setMuted(!sound); if (live) await v.play(); }
+      catch (e) { if (live) onFail(errorMessage(e)); }
+    })();
+    return () => { live = false; void ref.current?.release().catch(() => {}); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void ref.current?.setMuted(!sound).catch(() => {}); }, [sound]);
+  if (!ShubixPreviewView) return null;
+  return <ShubixPreviewView ref={ref} style={{ flex: 1 }} onTime={(e) => { if (e.nativeEvent.playing) onTime(e.nativeEvent.time); }} onEnded={onEnd} onError={(e) => onFail(e.nativeEvent.message)} />;
+}
 type Fine = [string, string, number, number, number?];
 const CV_ID = [0, 0.25, 0.5, 0.75, 1];
 const ADJUST_FINE: Fine[] = [["bri", "Brightness", -1, 1], ["con", "Contrast", -1, 1], ["sat", "Saturation", -1, 1], ["warm", "Warmth", -1, 1], ["hi", "Highlights", -1, 1], ["sh", "Shadows", -1, 1], ["hue", "Hue", -1, 1], ["sharp", "Sharpen", 0, 1], ["vig", "Vignette", 0, 1]];
@@ -115,6 +133,8 @@ export default function EditorScreen() {
   const { id } = useLocalSearchParams<{ id: string }>(), words = useStudioText(), look = useColors(), locked = useLocked();
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [mixing, setMixing] = useState(false);
+  // the live native player plays while it works on this phone (it stops being used after an error, for this Reel)
+  const [liveBroken, setLiveBroken] = useState(false), liveOn = !!ShubixPreviewView && !liveBroken && playing;
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
   const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [canvasCol, setCanvasCol] = useState("#4F7CFF");
@@ -186,7 +206,7 @@ export default function EditorScreen() {
   }, [playing, p, now]);
   // the song plays with the Reel, from where the Reel is
   useEffect(() => { void setAudioModeAsync({ interruptionMode: "mixWithOthers", playsInSilentMode: true }).catch(() => {}); }, []); // the song and the shots play together
-  useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume]);
+  useEffect(() => { if (!p?.audioUri) return; song.volume = p.settings?.musicVolume ?? 1; if (playing && sound && !liveOn) { song.seekTo(now + (p.settings?.start ?? 0)).catch(() => {}); song.play(); } else song.pause(); }, [playing, sound, p?.audioUri, p?.settings?.musicVolume, liveOn]);
   useEffect(() => {
     if (!p?.audioUri) return;
     song.volume = evaluateAudioGain(now, {
@@ -822,7 +842,7 @@ export default function EditorScreen() {
     <View className="flex-1 bg-background">
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} still={still} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
+        <Preview clip={clip} next={clips[selected + 1]} n={selected} of={clips.length} playing={playing} at={local} now={now} overlays={p.overlays} still={still} live={liveOn ? <LivePlayer p={p} now={now} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onFail={() => setLiveBroken(true)} /> : undefined} aspect={aspect} beat={p.music?.bpm ? 60 / p.music.bpm : undefined} onToggle={() => setPlaying(!playing)} onTime={setLocal} onEnded={ended} />
         <View className="mx-4 mt-2">
           <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>

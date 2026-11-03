@@ -42,6 +42,7 @@ import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import com.google.common.collect.ImmutableList
 import expo.modules.kotlin.Promise
+import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONObject
@@ -121,6 +122,23 @@ class ShubixVideoModule : Module() {
       }
     }
     AsyncFunction("cancel") { main.post { cancelActiveExport() } }
+    // the live preview: the Reel as the export makes it, playing (ShubixPreviewView); a smaller frame is fine here
+    View(ShubixPreviewView::class) {
+      Events("onTime", "onEnded", "onError")
+      AsyncFunction("load") { view: ShubixPreviewView, specJson: String, at: Double ->
+        val spec = JSONObject(specJson)
+        val w = spec.getInt("width"); val h = spec.getInt("height")
+        require(w in 2..3840 && h in 2..3840) { "Preview dimensions are out of range." }
+        val built = buildComposition(spec, w, h)
+        view.load(built.composition, at)
+        built.duration
+      }.runOnQueue(Queues.MAIN)
+      AsyncFunction("play") { view: ShubixPreviewView -> view.play() }.runOnQueue(Queues.MAIN)
+      AsyncFunction("pause") { view: ShubixPreviewView -> view.pause() }.runOnQueue(Queues.MAIN)
+      AsyncFunction("seek") { view: ShubixPreviewView, at: Double -> view.seek(at) }.runOnQueue(Queues.MAIN)
+      AsyncFunction("setMuted") { view: ShubixPreviewView, muted: Boolean -> view.setMuted(muted) }.runOnQueue(Queues.MAIN)
+      AsyncFunction("release") { view: ShubixPreviewView -> view.release() }.runOnQueue(Queues.MAIN)
+    }
     // the engine page's way to the app's files (FileServer): started once, its port and key
     Function("fileServer") {
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
@@ -159,6 +177,80 @@ class ShubixVideoModule : Module() {
       "The export destination is not a writable directory."
     }
     require(!outputFile.isDirectory) { "The export destination must be a file, not a directory." }
+    val built = buildComposition(spec, w, h)
+    val at = built.duration
+    val out = outputFile.apply {
+      if (exists()) require(delete()) { "The previous export file could not be replaced." }
+    }
+    val session = ActiveExport(promise).also { it.output = out }
+    activeExport = session
+    val transformer = try {
+      Transformer.Builder(context)
+        .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
+        .addListener(object : Transformer.Listener {
+          override fun onCompleted(composition: Composition, result: ExportResult) {
+            if (activeExport !== session) return
+            if (session.cancelRequested) {
+              session.output?.let { if (it.exists()) it.delete() }
+              if (!session.settled) settleExport(session, ExportCancelledException())
+              releaseExport(session)
+              return
+            }
+            if (!out.isFile || out.length() <= 0L) {
+              if (out.exists()) out.delete()
+              settleExport(session, IllegalStateException("Video export completed without a valid output file."))
+              releaseExport(session)
+              return
+            }
+            settleExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
+            releaseExport(session)
+          }
+          override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+            if (activeExport !== session) return
+            if (session.cancelRequested) {
+              session.output?.let { if (it.exists()) it.delete() }
+              if (!session.settled) settleExport(session, ExportCancelledException())
+            } else {
+              // Media3 may leave a partial MP4 behind after a failed export. Never expose it as a usable Reel.
+              session.output?.let { if (it.exists()) it.delete() }
+              settleExport(session, exception)
+            }
+            releaseExport(session)
+          }
+        }).build()
+    } catch (error: Exception) {
+      session.output?.let { if (it.exists()) it.delete() }
+      settleExport(session, error)
+      releaseExport(session)
+      return
+    }
+    session.transformer = transformer
+    try {
+      transformer.start(built.composition, out.absolutePath)
+    } catch (error: Exception) {
+      session.output?.let { if (it.exists()) it.delete() }
+      settleExport(session, error)
+      releaseExport(session)
+      return
+    }
+    val holder = ProgressHolder()
+    val progressTask = object : Runnable {
+      override fun run() {
+        if (activeExport !== session || session.settled) return
+        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) {
+          sendEvent("onProgress", mapOf("progress" to holder.progress / 100.0))
+        }
+        main.postDelayed(this, 250)
+      }
+    }
+    session.progressTask = progressTask
+    main.post(progressTask)
+  }
+
+  /** the Reel as a Media3 Composition (the clips with their changes and texts, the song under them) and its length in
+   * seconds: the same for the export and the live preview (ShubixPreviewView) */
+  internal class Built(val composition: Composition, val duration: Double)
+  internal fun buildComposition(spec: JSONObject, w: Int, h: Int): Built {
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
     require(clips.length() <= 500) { "A Reel can contain at most 500 clips." }
@@ -306,72 +398,7 @@ class ShubixVideoModule : Module() {
         else listOf(gainProcessor(musicVolume, audioDuration, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
-    val out = outputFile.apply {
-      if (exists()) require(delete()) { "The previous export file could not be replaced." }
-    }
-    val session = ActiveExport(promise).also { it.output = out }
-    activeExport = session
-    val transformer = try {
-      Transformer.Builder(context)
-        .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
-        .addListener(object : Transformer.Listener {
-          override fun onCompleted(composition: Composition, result: ExportResult) {
-            if (activeExport !== session) return
-            if (session.cancelRequested) {
-              session.output?.let { if (it.exists()) it.delete() }
-              if (!session.settled) settleExport(session, ExportCancelledException())
-              releaseExport(session)
-              return
-            }
-            if (!out.isFile || out.length() <= 0L) {
-              if (out.exists()) out.delete()
-              settleExport(session, IllegalStateException("Video export completed without a valid output file."))
-              releaseExport(session)
-              return
-            }
-            settleExport(session, result = mapOf("uri" to Uri.fromFile(out).toString(), "size" to out.length(), "duration" to at))
-            releaseExport(session)
-          }
-          override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
-            if (activeExport !== session) return
-            if (session.cancelRequested) {
-              session.output?.let { if (it.exists()) it.delete() }
-              if (!session.settled) settleExport(session, ExportCancelledException())
-            } else {
-              // Media3 may leave a partial MP4 behind after a failed export. Never expose it as a usable Reel.
-              session.output?.let { if (it.exists()) it.delete() }
-              settleExport(session, exception)
-            }
-            releaseExport(session)
-          }
-        }).build()
-    } catch (error: Exception) {
-      session.output?.let { if (it.exists()) it.delete() }
-      settleExport(session, error)
-      releaseExport(session)
-      return
-    }
-    session.transformer = transformer
-    try {
-      transformer.start(Composition.Builder(sequences).build(), out.absolutePath)
-    } catch (error: Exception) {
-      session.output?.let { if (it.exists()) it.delete() }
-      settleExport(session, error)
-      releaseExport(session)
-      return
-    }
-    val holder = ProgressHolder()
-    val progressTask = object : Runnable {
-      override fun run() {
-        if (activeExport !== session || session.settled) return
-        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) {
-          sendEvent("onProgress", mapOf("progress" to holder.progress / 100.0))
-        }
-        main.postDelayed(this, 250)
-      }
-    }
-    session.progressTask = progressTask
-    main.post(progressTask)
+    return Built(Composition.Builder(sequences).build(), at)
   }
 
   private data class RampPoint(val time: Double, val speed: Double, val easing: String)

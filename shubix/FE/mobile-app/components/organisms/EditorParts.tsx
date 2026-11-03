@@ -60,7 +60,7 @@ function rampRateAt(segments: SpeedRampSegment[], sourceTime: number, fallback: 
  * cut used to drift seconds behind the song and look stuck). A shot from the same clip as the loaded one only seeks. A
  * clip the decoder is slow with catches up when it can; one it cannot play shows a note, and the Reel goes on. */
 type Slot = { uri: string; ready: boolean; failed: boolean };
-export function Preview({ clip, next, n, of, playing, at, aspect, beat, now = 0, overlays = [], still = null, onToggle, onTime, onEnded }: { clip?: ProjectClip; next?: ProjectClip; n: number; of: number; playing: boolean; at: number; aspect: number; beat?: number; now?: number; overlays?: ReelProject["overlays"]; still?: string | null; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
+export function Preview({ clip, next, n, of, playing, at, aspect, beat, now = 0, overlays = [], still = null, live, onToggle, onTime, onEnded }: { clip?: ProjectClip; next?: ProjectClip; n: number; of: number; playing: boolean; live?: ReactNode; at: number; aspect: number; beat?: number; now?: number; overlays?: ReelProject["overlays"]; still?: string | null; onToggle: () => void; onTime: (t: number) => void; onEnded: () => void }) {
   const words = useStudioText(), video = clip?.kind === "video" ? clip : undefined;
   const segsOf = (c?: ProjectClip) => c && c.kind === "video" ? buildSpeedRampSegments(c.speedRamp ?? [], c.end - c.start, { fallbackSpeed: c.speed, maxSegmentDuration: 0.2 }) : [];
   const speedSegments = segsOf(video);
@@ -113,8 +113,9 @@ export function Preview({ clip, next, n, of, playing, at, aspect, beat, now = 0,
   // still: the frame of the scrubbed time
   useEffect(() => { if (!playing && video && ready) players[active].currentTime = sourceAt(video, at); }, [at, playing, ready, active, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
   // playing: the clock decides the time in the shot; the video follows it (it plays, and is put right when it drifts)
+  const own = playing && !live;   // the live native player (live) plays the Reel itself: these two stay paused
   useEffect(() => {
-    if (!playing || !clip) { players.forEach((pl) => pl.pause()); return; }
+    if (!own || !clip) { players.forEach((pl) => pl.pause()); return; }
     endedRef.current = false;
     const pl = players[active], len = clipDuration(clip), t0 = Date.now() - at * 1000;
     let started = false;
@@ -130,8 +131,8 @@ export function Preview({ clip, next, n, of, playing, at, aspect, beat, now = 0,
       if (t >= len - 0.04 && !endedRef.current) { endedRef.current = true; pl.pause(); onEnded(); }
     }, 50);
     return () => clearInterval(tick);
-  }, [playing, clip?.id, ready, active, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
-  const motion = useShotMotion(clip, playing, at, 360 * aspect, beat); // the shot's transition in and its effect
+  }, [own, clip?.id, ready, active, video?.speed, video?.speedRamp]); // eslint-disable-line react-hooks/exhaustive-deps
+  const motion = useShotMotion(clip, own, at, 360 * aspect, beat); // the shot's transition in and its effect
   const flip = clip ? [{ rotate: `${clip.rotation}deg` }, { scaleX: clip.mirror ? -1 : 1 }, { scaleY: clip.flip ? -1 : 1 }] : [];
   return (
     <View className="gap-2 px-4">
@@ -155,6 +156,8 @@ export function Preview({ clip, next, n, of, playing, at, aspect, beat, now = 0,
         {/* paused: the studio's own picture of this moment (its boxes, texts, keyframes and looks), as the export makes it */}
         {!playing && still && <Image source={{ uri: still }} resizeMode="contain" fadeDuration={0} className="absolute inset-0 bg-black" />}
         {!playing && <View className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}
+        {/* playing: the Reel as the phone's engine draws it (its effects, transitions and texts), the export's picture */}
+        {playing && live && <View className="absolute inset-0 bg-black">{live}</View>}
         <View className="absolute bottom-2.5 right-2.5 rounded-full bg-black/55 px-2 py-0.5"><Text className="text-[10px] font-semibold text-white">{String(n + 1).padStart(2, "0")} / {String(of).padStart(2, "0")}</Text></View>
       </Pressable>
     </View>
