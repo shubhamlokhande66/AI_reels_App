@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useStudioText } from "@shubix/hooks";
 import { asksForAllClips } from "@shubix/core/lib/chatSize";
-import { Button, IconButton, Segmented, confirmAction, toast, useColors } from "@shubix/ui-mobile";
+import { Button, IconButton, Segmented, Slider, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
 import { evaluateAudioGain, evaluateSpeedRamp, recordEdit, slipClip, stepEditHistory } from "@shubix/video-engine";
@@ -54,6 +54,31 @@ const SOUNDS = [["whoosh", "Whoosh"], ["pop", "Pop"], ["boom", "Boom"], ["click"
 const TSTYLES = [["pop", "Pop"], ["karaoke", "Karaoke"], ["box", "Box"], ["clean", "Clean"]];
 const CANVAS = [["blur", "Blur"], ["color", "Colour"], ["grad", "Gradient"], ["stripes", "Stripes"], ["dots", "Dots"], ["grid", "Grid"], ["checker", "Checker"]];
 const CANVAS_COLS = [["#000000", "Black"], ["#FFFFFF", "White"], ["#E85D75", "Pink"], ["#4F7CFF", "Blue"], ["#1DB954", "Green"], ["#FF9F1C", "Orange"], ["#D4B07A", "Gold"]];
+/** the website's sliders for one tool: [field, name, min, max, step]; a field is a.b (an object's value) or a.b.n (one
+ * point of a list, e.g. a curve); the shot's values are read from the studio, each slider sends its value when let go */
+type Fine = [string, string, number, number, number?];
+const CV_ID = [0, 0.25, 0.5, 0.75, 1];
+const ADJUST_FINE: Fine[] = [["bri", "Brightness", -1, 1], ["con", "Contrast", -1, 1], ["sat", "Saturation", -1, 1], ["warm", "Warmth", -1, 1], ["hi", "Highlights", -1, 1], ["sh", "Shadows", -1, 1], ["hue", "Hue", -1, 1], ["sharp", "Sharpen", 0, 1], ["vig", "Vignette", 0, 1]];
+const MASK_FINE: Fine[] = [["mk.x", "Across", 0, 1], ["mk.y", "Down", 0, 1], ["mk.w", "Width", 0.05, 1.5], ["mk.h", "Height", 0.05, 1.5], ["mk.a", "Turn", -180, 180, 1], ["mk.f", "Soft edge", 0, 0.3]];
+const CURVE_FINE: Fine[] = ["Shadows", "Darks", "Middle", "Lights", "Highlights"].map((n, i) => [`cv.m.${i}`, n, 0, 1] as Fine);
+const CROP_FINE: Fine[] = [["zoom", "Zoom", 1, 3, 0.05], ["cx", "Across", 0, 1], ["cy", "Down", 0, 1]];
+function FineTune({ fields, patch }: { fields: Fine[]; patch: (v: Record<string, unknown>) => unknown }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [cs, setCs] = useState<Record<string, any> | null>(null);
+  useEffect(() => { let live = true; void engine.tool("shotCs").then((c) => { if (live) setCs(c as Record<string, unknown>); }).catch(() => {}); return () => { live = false; }; }, []);
+  if (!cs) return null;
+  const at = (k: string) => { const [a, b, n] = k.split("."); const v = b === undefined ? cs[a] : n === undefined ? cs[a]?.[b] : (cs[a]?.[b] ?? (a === "cv" ? CV_ID : [0, 0, 0]))[+n];
+    return Number(v ?? (a === "cx" || a === "cy" ? 0.5 : a === "zoom" ? 1 : a === "cv" ? CV_ID[+n] : 0)); };
+  const set = (k: string, v: number) => { const [a, b, n] = k.split("."); let pt: Record<string, unknown>;
+    if (b === undefined) pt = a === "cx" || a === "cy" ? { cx: a === "cx" ? v : at("cx"), cy: a === "cy" ? v : at("cy") } : { [a]: v };
+    else if (n === undefined) pt = { [a]: { ...(cs[a] ?? {}), [b]: v } };
+    else { const arr = [...(cs[a]?.[b] ?? (a === "cv" ? CV_ID : [0, 0, 0]))]; arr[+n] = v; pt = { [a]: { ...(cs[a] ?? {}), [b]: arr } }; }
+    setCs({ ...cs, ...pt }); void patch(pt); };
+  const shown = fields.filter(([k]) => !k.startsWith("mk.") || cs.mk);
+  return shown.length ? <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
+    {shown.map(([k, label, min, max, step]) => <Slider key={k} label={label} value={at(k)} min={min} max={max} step={step ?? 0.01} format={(v) => k === "mk.a" ? `${Math.round(v)}°` : k === "zoom" ? `${v.toFixed(2)}×` : min < 0 ? `${v > 0 ? "+" : ""}${Math.round(v * 100)}` : `${Math.round(v * 100)}%`} onDone={(v) => set(k, v)} />)}
+  </View> : null;
+}
 const VFX = [["none", "Original"], ["enhance", "Enhance voice"], ["deep", "Deep"], ["chipmunk", "Chipmunk"], ["robot", "Robot"], ["radio", "Radio"], ["echo", "Echo"]];
 const CSNDS = [["mute", "Mute it"], ["voices", "Keep voices only"], ["all", "Keep all"]];
 const BGS = [["none", "Original"], ["blur", "Blur"]];
@@ -668,7 +693,7 @@ export default function EditorScreen() {
           <Choices items={CANVAS.map((c) => c[1])} onPick={(v) => { const k = CANVAS.find((c) => c[1] === v)![0]; void studioPatch({ fit: true, bg: k === "blur" ? "blur" : k, ...(k === "blur" ? {} : { bgc: canvasCol }) }); }} />
           <Choices items={CANVAS_COLS.map((c) => c[1])} on={CANVAS_COLS.find((c) => c[0] === canvasCol)?.[1]} onPick={(v) => setCanvasCol(CANVAS_COLS.find((c) => c[1] === v)![0])} /></>}
       </View>;
-      case "crop": return <Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />;
+      case "crop": return <View className="gap-2"><Choices items={["Fill", "Fit"]} on={clip?.fit === "contain" ? "Fit" : "Fill"} onPick={(v) => patch({ fit: v === "Fit" ? "contain" : "cover" })} />{p.studio && <FineTune key={`z${selected}`} fields={CROP_FINE} patch={studioPatch} />}</View>;
       case "sp": return <View className="gap-2">
         <Label>Playback speed</Label>
         <Choices items={SPEEDS} on={`${clip?.speed}×`} onPick={(v) => patch({ speed: parseFloat(v), speedRamp: undefined })} />
@@ -719,14 +744,14 @@ export default function EditorScreen() {
         const effect = EFFECT_IDS[EFFECTS.indexOf(label)] ?? "none";
         patch({ effect }); void studioStyle("effect", effect);
       }} />;
-      case "adjust": return <Choices items={["Reset colour", "Brighten", "More contrast", "Warm cinematic", "Vivid colour", "Matte film"]} onPick={(v) => {
+      case "adjust": return <View className="gap-2">{p.studio && <FineTune key={`a${selected}`} fields={ADJUST_FINE} patch={studioPatch} />}<Choices items={["Reset colour", "Brighten", "More contrast", "Warm cinematic", "Vivid colour", "Matte film"]} onPick={(v) => {
         const values: Record<string, Record<string, number>> = {
           "Reset colour": { bri: 0, con: 0, sat: 0, warm: 0, hi: 0, sh: 0, hue: 0, sharp: 0, vig: 0 },
           Brighten: { bri: 0.18, sh: 0.2 }, "More contrast": { con: 0.22, hi: -0.08 },
           "Warm cinematic": { warm: 0.28, con: 0.12, vig: 0.18 }, "Vivid colour": { sat: 0.28, sharp: 0.12 },
           "Matte film": { con: -0.12, sat: -0.16, sh: 0.18, vig: 0.22 },
         }; void studioPatch(values[v]);
-      }} />;
+      }} /></View>;
       case "curve": return <Choices items={["Montage", "Hero moment", "Bullet", "Smooth", "Reset curve"]} onPick={(v) => {
         const curves: Record<string, { a: number; b: number; c: number; d: number; e: number }> = {
           Montage: { a: 1.8, b: 2.4, c: 1, d: 2.4, e: 1.8 }, "Hero moment": { a: 1.8, b: 1.2, c: 0.45, d: 0.7, e: 1.8 },
@@ -749,12 +774,12 @@ export default function EditorScreen() {
         void studioPatch({ mg: { x: 0.5, y: 0.45, r: 0.18, z: v === "Zoom 1.5×" ? 1.5 : v === "Zoom 2×" ? 2 : v === "Zoom 3×" ? 3 : 2 } });
       }} />;
       // a mask on the shot (the website's Clip tools -> Mask): the shot shows inside the shape, black around it
-      case "mask": return <Choices items={["Circle", "Rectangle", "Heart", "Star", "Split", "Filmstrip", "Invert", "Remove mask"]} onPick={(v) => {
+      case "mask": return <View className="gap-2">{p.studio && <FineTune key={`m${selected}`} fields={MASK_FINE} patch={studioPatch} />}<Choices items={["Circle", "Rectangle", "Heart", "Star", "Split", "Filmstrip", "Invert", "Remove mask"]} onPick={(v) => {
         if (v === "Remove mask") return void studioPatch({ mk: null });
         if (v === "Invert") return void (async () => { const c = await engine.tool("shotCs").catch(() => null) as { mk?: Record<string, unknown> | null } | null; if (c?.mk) void studioPatch({ mk: { ...c.mk, inv: !c.mk.inv } }); })();
         const s = ({ Circle: "circle", Rectangle: "rect", Heart: "heart", Star: "star", Split: "split", Filmstrip: "film" } as Record<string, string>)[v];
         void studioPatch({ mk: { s, x: 0.5, y: 0.5, w: 0.7, h: s === "film" ? 0.5 : 0.7, a: 0, f: 0.04, inv: false, c: "#000000" } });
-      }} />;
+      }} /></View>;
       // green screen on the shot (the website's Clip tools -> Chroma key): the colour goes, black shows behind
       case "chroma": return <Choices items={["Green screen", "Blue screen", "Stronger", "Softer", "Remove chroma key"]} onPick={(v) => void (async () => {
         if (v === "Remove chroma key") return void studioPatch({ ck: null });
@@ -762,10 +787,10 @@ export default function EditorScreen() {
         void studioPatch({ ck: v === "Green screen" ? { ...ck, c: "#00FF00" } : v === "Blue screen" ? { ...ck, c: "#0000FF" } : { ...ck, tol: Math.max(0.05, Math.min(0.9, ck.tol + (v === "Stronger" ? 0.1 : -0.1))) } });
       })()} />;
       // Curves and HSL (the website's Clip tools): ready-made curves, and one colour band at a time
-      case "curves": return <Choices items={["More contrast", "Faded film", "Brighter mids", "Moody", "Cross process", "Reset curves"]} onPick={(v) => void studioPatch({ cv: ({
+      case "curves": return <View className="gap-2">{p.studio && <FineTune key={`c${selected}`} fields={CURVE_FINE} patch={studioPatch} />}<Choices items={["More contrast", "Faded film", "Brighter mids", "Moody", "Cross process", "Reset curves"]} onPick={(v) => void studioPatch({ cv: ({
         "More contrast": { m: [0, 0.18, 0.5, 0.82, 1] }, "Faded film": { m: [0.1, 0.3, 0.52, 0.76, 0.94] }, "Brighter mids": { m: [0, 0.32, 0.6, 0.83, 1] },
         Moody: { m: [0, 0.2, 0.45, 0.72, 0.95], b: [0.05, 0.28, 0.52, 0.75, 0.97] }, "Cross process": { r: [0, 0.2, 0.55, 0.85, 1], g: [0, 0.25, 0.52, 0.8, 1], b: [0.12, 0.3, 0.48, 0.66, 0.85] },
-      } as Record<string, unknown>)[v] ?? null })} />;
+      } as Record<string, unknown>)[v] ?? null })} /></View>;
       case "hsl": return <Choices items={["Bluer sky", "Warm skin", "Greener leaves", "Only red in colour", "Teal & orange", "Reset HSL"]} onPick={(v) => void studioPatch({ hsl: ({
         "Bluer sky": { blue: [0, 0.45, -0.1], aqua: [0.1, 0.3, 0] }, "Warm skin": { orange: [-0.05, 0.15, 0.1], red: [0.05, -0.1, 0.05] }, "Greener leaves": { green: [0, 0.5, -0.05], yellow: [0.15, 0.2, 0] },
         "Only red in colour": { orange: [0, -1, 0], yellow: [0, -1, 0], green: [0, -1, 0], aqua: [0, -1, 0], blue: [0, -1, 0], purple: [0, -1, 0], magenta: [0, -0.6, 0] },
