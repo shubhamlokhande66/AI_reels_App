@@ -5,3 +5,6 @@ export const TestIds = { ADAPTIVE_BANNER: "" } as const;
 export const adsReady = async () => false;
 export const adChoicesNeeded = async () => false;
 export const showAdChoices = async () => {};
+export const adsInApp = false;
+export const showInterstitial = async (_unit: string) => {};
+export const showRewarded = async (_unit: string, _userId: string) => false;

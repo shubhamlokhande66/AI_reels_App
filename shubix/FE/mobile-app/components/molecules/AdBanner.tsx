@@ -1,22 +1,51 @@
 import { useEffect, useState } from "react";
 import { Platform, Text, View } from "react-native";
-import { useQuery } from "@tanstack/react-query";
-import { BannerAd, BannerAdSize, TestIds, adsReady } from "../../lib/ads";
-import { useText } from "@shubix/hooks";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BannerAd, BannerAdSize, TestIds, adsInApp, adsReady, showRewarded } from "../../lib/ads";
+import { useApi, useText } from "@shubix/hooks";
+import { Button, Card, toast } from "@shubix/ui-mobile";
 import { mobileApi, type AdPlace } from "../../lib/api";
 
 /** An ad for the plans that show ads (Free by default) in one of the spots the administrator left on (Admin → Settings →
  * Ads), the same rule as the website's AdSlot: Google AdMob here (the website uses AdSense), Google's test ads in a
  * development build. Without an AdMob ad unit, in a browser (Expo web), or when no ad loads, nothing. */
-export function AdBanner({ place }: { place: AdPlace }) {
-  const text = useText(), [failed, setFailed] = useState(false), [ready, setReady] = useState(false);
+/** The administrator's ad settings and whether this person's plan shows ads (Free by default) with ads on. */
+export function useAdPlan() {
   const ads = useQuery({ queryKey: ["native-ads"], queryFn: mobileApi.ads, staleTime: 300_000 });
   const plans = useQuery({ queryKey: ["native-plans"], queryFn: mobileApi.pricing, staleTime: 300_000 });
   const credits = useQuery({ queryKey: ["native-credits"], queryFn: mobileApi.credits, staleTime: 60_000, retry: false });
   const c = credits.data, plan = c?.enabled ? plans.data?.plans.find((p) => p.id === c.plan) : undefined;
-  const show = !!c?.enabled && !!plan && (plan.ads ?? plan.id === "free") && ads.data?.enabled !== false && ads.data?.places?.[place] !== false;
+  return { ads, credits, adPlan: !!c?.enabled && !!plan && (plan.ads ?? plan.id === "free") && ads.data?.enabled !== false };
+}
+
+/** Watch a rewarded ad for credits (any plan, with credits on): the server gives them once AdMob confirms the ad was
+ * watched, up to the administrator's number a day. */
+export function RewardedAdCard() {
+  const text = useText(), { me } = useApi(), { ads, credits } = useAdPlan(), qc = useQueryClient(), [busy, setBusy] = useState(false);
+  const a = ads.data?.admob, unit = Platform.OS === "android" ? a?.rewarded : "", userId = me?.user?.id;
+  if (!adsInApp || !unit || !userId || !credits.data?.enabled || ads.data?.enabled === false || !a?.rewardCredits) return null;
+  const watch = async () => {
+    setBusy(true);
+    const earned = await showRewarded(unit, userId).catch(() => false);
+    setBusy(false);
+    if (!earned) return toast(text("ads.rewardNone"), "danger");
+    toast(text("ads.rewardDone", { n: a.rewardCredits! }), "success");
+    setTimeout(() => void qc.invalidateQueries({ queryKey: ["native-credits"] }), 4000); // AdMob calls the server within seconds
+  };
+  return (
+    <Card className="gap-3">
+      <Text className="text-[15px] font-bold text-foreground">{text("ads.rewardTitle", { n: a.rewardCredits })}</Text>
+      <Text className="text-[12.5px] text-muted">{text("ads.rewardSub", { n: a.rewardDaily ?? 5 })}</Text>
+      <Button icon="play" title={text(busy ? "ads.rewardLoading" : "ads.rewardWatch")} disabled={busy} onPress={() => void watch()} />
+    </Card>
+  );
+}
+
+export function AdBanner({ place }: { place: AdPlace }) {
+  const text = useText(), [failed, setFailed] = useState(false), [ready, setReady] = useState(false);
+  const { ads, adPlan, credits } = useAdPlan(), show = adPlan && ads.data?.places?.[place] !== false;
   useEffect(() => { if (show) void adsReady().then(setReady); }, [show]); // consent first, then the ad
-  if (!show) return null;
+  if (!show || !credits.data) return null;
   const unit = __DEV__ ? TestIds.ADAPTIVE_BANNER : Platform.OS === "ios" ? ads.data?.admob?.ios : ads.data?.admob?.android;
   if (!BannerAd || !unit || failed || !ready) return null;
   return (

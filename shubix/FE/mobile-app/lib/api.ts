@@ -17,7 +17,7 @@ const json = async <T = unknown>(path: string, init?: RequestInit): Promise<T> =
 
 /** the spots with an ad (the same as the website's) */
 export type AdPlace = "home" | "homeEnd" | "reels" | "rewards" | "account";
-export type AdsConfig = { enabled: boolean; places: Record<AdPlace, boolean>; admob: { android: string; ios: string } };
+export type AdsConfig = { enabled: boolean; places: Record<AdPlace, boolean>; admob: { android: string; ios: string; interstitial?: string; rewarded?: string; rewardCredits?: number; rewardDaily?: number } };
 
 /** One of the administrator's messages (Admin → Messages: the bell) */
 export interface Notice { id: string; title: string; body: string; link: string; button: string; at: string; unread: boolean }

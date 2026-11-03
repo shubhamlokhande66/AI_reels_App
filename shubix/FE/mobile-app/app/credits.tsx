@@ -6,6 +6,7 @@ import { Badge, Card, ErrorBanner, Icon, Page, SectionHeader, useColors } from "
 import type { Credits } from "@shubix/types";
 import { errorMessage } from "@shubix/api-client";
 import { mobileApi } from "../lib/api";
+import { RewardedAdCard } from "../components/molecules/AdBanner";
 import { useCredits } from "../lib/data";
 
 const day = (d: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
@@ -24,6 +25,7 @@ export default function CreditsScreen() {
       <View className="gap-6 pb-4">
         {!!need && <Text className="text-center text-[14px] font-semibold text-muted">{text("credits.notInPlan")}</Text>}
         {mine && <MyCredits c={mine} />}
+        <RewardedAdCard />
         <View className="gap-3">
           <SectionHeader title={text("pricing.costsTitle")} />
           <Card className="p-2">

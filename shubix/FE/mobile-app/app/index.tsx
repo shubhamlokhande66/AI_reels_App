@@ -7,13 +7,13 @@ import type { IconName, Tone } from "@shubix/ui-core";
 import { linkOn } from "@shubix/core/lib/features-list";
 import { templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
 import { clock, formatRelative } from "@shubix/utils";
-import { open, openTemplate } from "../../lib/navigate";
-import { HomeHero } from "../../components/organisms/HomeHero";
-import { AdBanner } from "../../components/molecules/AdBanner";
-import { useDraftActions, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../../lib/data";
-import { mobileApi } from "../../lib/api";
-import { useDraftThumbs } from "../../lib/thumbs";
-import type { MobileProject } from "../../lib/projects";
+import { open, openTemplate } from "../lib/navigate";
+import { HomeHero } from "../components/organisms/HomeHero";
+import { AdBanner } from "../components/molecules/AdBanner";
+import { useDraftActions, useDrafts, useFeatures, useList, useLockCheck, usePlanNeed, useSavedReels, useTemplates } from "../lib/data";
+import { mobileApi } from "../lib/api";
+import { useDraftThumbs } from "../lib/thumbs";
+import type { MobileProject } from "../lib/projects";
 
 /** Home (the website's app/page.tsx): the hero, Create Your Reel, Popular Templates, Continue Editing, Saved in My
  * Reels, Tips for Better Reels, Go Pro; the same CMS texts and lists. */

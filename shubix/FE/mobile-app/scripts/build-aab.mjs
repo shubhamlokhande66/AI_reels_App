@@ -30,7 +30,7 @@ const env = {
   ...process.env,
   NODE_ENV: "production",
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL || "https://api.shubix.in",
-  ADMOB_ANDROID_APP_ID: process.env.ADMOB_ANDROID_APP_ID || "ca-app-pub-9328015888325658~3154965659",
+  ADMOB_ANDROID_APP_ID: process.env.ADMOB_ANDROID_APP_ID || "ca-app-pub-5459735473283681~7574692434",
   ANDROID_HOME: process.env.ANDROID_HOME || (process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, "Android", "Sdk") : ""),
 };
 

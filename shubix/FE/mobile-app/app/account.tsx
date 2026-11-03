@@ -7,12 +7,12 @@ import { Avatar, Badge, Button, Card, ErrorBanner, Field, Heading, Icon, Input, 
 import type { IconName } from "@shubix/ui-core";
 import { passwordOk } from "@shubix/validations";
 import { errorMessage } from "@shubix/api-client";
-import { ThemeChoice } from "../../components/molecules/ThemeToggle";
-import { AdBanner } from "../../components/molecules/AdBanner";
-import { adChoicesNeeded, showAdChoices } from "../../lib/ads";
-import { mobileApi } from "../../lib/api";
-import { useCredits } from "../../lib/data";
-import { open } from "../../lib/navigate";
+import { ThemeChoice } from "../components/molecules/ThemeToggle";
+import { AdBanner } from "../components/molecules/AdBanner";
+import { adChoicesNeeded, showAdChoices } from "../lib/ads";
+import { mobileApi } from "../lib/api";
+import { useCredits } from "../lib/data";
+import { open } from "../lib/navigate";
 
 const day = (d?: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
 type PanelId = "password" | "sessions" | "payments" | "delete";
