@@ -29,8 +29,14 @@ export class ReelApp extends Container<Env> {
   // the container is let go, started again and the request asked once more (a request with a body: the next one is).
   private ready = false;
   override onStop() { this.ready = false; }
-  private wake(signal?: AbortSignal) {
-    // up to 4 min: before the one-file bundle a wake on 1/4 vCPU took more than the 90 s waited here and the API stayed down
+  private async wake(signal?: AbortSignal) {
+    // "running" but not yet confirmed by this object: a live server answers within seconds; one that does not is a
+    // stuck container (it never really stopped) and is replaced, never waited on for minutes
+    if (this.ctx.container?.running) {
+      try { return await this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 20_000, instanceGetTimeoutMS: 10_000, abort: signal }); }
+      catch (e) { if (signal?.aborted) throw e; console.error("running container not answering: replaced", e); try { await this.destroy(); } catch { /* gone */ } }
+    }
+    // a fresh start, up to 4 min: before the one-file bundle a wake on 1/4 vCPU took more than 90 s
     return this.startAndWaitForPorts(this.defaultPort, { portReadyTimeoutMS: 240_000, instanceGetTimeoutMS: 60_000, abort: signal });
   }
   override async fetch(request: Request): Promise<Response> {
