@@ -60,10 +60,9 @@ export class ReelApp extends Container<Env> {
         lastError = error;
         if (signal?.aborted) throw error;
         console.error("API container start/readiness attempt failed", { attempt: attempt + 1, error });
-        if (attempt === 0) {
-          // Clear a half-started or stale instance before the second automatic start attempt.
-          try { await this.destroy(); } catch { /* it may already have stopped */ }
-        }
+        // Clear a half-started or stale instance after every failed attempt, including the final one.
+        // The next real request will then start from a clean stopped state instead of inheriting a wedged VM.
+        try { await this.destroy(); } catch { /* it may already have stopped */ }
       }
     }
     throw lastError instanceof Error ? lastError : new Error("API container did not become ready");
