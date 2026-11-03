@@ -19,9 +19,9 @@ The engine is the app's own Expo module `FE/mobile-app/modules/shubix-video` (Ko
 1. **DONE: the live native player.** It plays the whole Reel (clips, speed, filters, the native transitions and effects,
    texts, song) with what the native export already supports. The studio-only tools (`cs`: masks, curves, HSL, picture
    effects, the 44 transitions) are not in it yet.
-2. **The studio's shaders in one shared file.** Move the GLSL of the studio's GPU passes (picture effects `PIC_FX`,
+2. **DONE: the studio's shaders in one shared file** (`Shared/core/src/lib/shaders.ts`). Move the GLSL of the studio's GPU passes (picture effects `PIC_FX`,
    Curves / HSL, the transitions' `GLSL_F` modes) out of `FE/web-app/components/studio/engine.ts` into a shared package
-   file. The website keeps using it as it does now, and a build step copies it into the Android module's assets. Then
+   file. The website keeps using it as it does now,; the phone's JS sends it to the Android engine with the Reel (no copy, so the two can never differ). Then
    both engines run the same shader text, and the website's `studio-shader` test keeps guarding it.
 3. **Native GPU passes from those shaders.** In Kotlin, one Media3 `GlEffect` (a `BaseGlShaderProgram`) per pass, with the
    same uniforms the website sets: picture effects, Curves and HSL, adjust (bri, con, sat, warm, hi, sh, hue, sharpen,
