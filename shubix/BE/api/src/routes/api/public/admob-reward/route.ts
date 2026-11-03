@@ -17,9 +17,11 @@ async function key(id: string) {
 
 export const GET = route(async (req) => {
   const raw = new URL(req.url).search.slice(1), at = raw.indexOf("&signature="), q = new URLSearchParams(raw);
-  const pem = at > 0 ? await key(q.get("key_id") ?? "") : undefined;
-  const ok = !!pem && crypto.verify("sha256", Buffer.from(raw.slice(0, at)), { key: pem, dsaEncoding: "der" }, Buffer.from(q.get("signature") ?? "", "base64url"));
-  if (!ok) return new Response("bad signature", { status: 403 });
+  const pem = at > 0 ? await key(q.get("key_id") ?? "").catch(() => undefined) : undefined;
+  let ok = false;
+  try { ok = !!pem && crypto.verify("sha256", Buffer.from(raw.slice(0, at)), { key: pem, dsaEncoding: "der" }, Buffer.from(q.get("signature") ?? "", "base64url")); } catch { /* a malformed signature */ }
+  // AdMob's own check when the URL is saved is not signed and must get 200: nothing is given without a valid signature
+  if (!ok) return new Response("ok");
   const a = (await getAds()).admob, user = q.get("user_id") ?? "", tx = q.get("transaction_id") ?? "";
   if (user && tx && q.get("ad_unit") === a.rewarded.split("/")[1]) await adRewardCredits(user, a.rewardCredits, a.rewardDaily, tx);
   return new Response("ok"); // 200 for every verified call (AdMob retries otherwise)
