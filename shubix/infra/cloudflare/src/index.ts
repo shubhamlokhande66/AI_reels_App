@@ -69,6 +69,11 @@ export class ReelApp extends Container<Env> {
     throw lastError instanceof Error ? lastError : new Error("API container did not become ready");
   }
 
+  /** True only when this Durable Object has confirmed readiness for the current container start. */
+  canHandlePresencePing(): boolean {
+    return this.ready && this.ctx.container?.running === true;
+  }
+
   private async resetContainer(): Promise<void> {
     this.ready = false;
     try { await this.destroy(); } catch { /* already stopped or being replaced */ }
@@ -136,8 +141,9 @@ const app = (env: Env) => getContainer(env.APP, "main");
 const PING = "/api/public/ping";
 const awake = async (env: Env) => {
   try {
-    const state = await app(env).getState();
-    return state.status === "running" || state.status === "healthy";
+    // Do not trust a stale "healthy" status: only this DO instance can confirm it has checked
+    // the current container port. If not confirmed, answer the heartbeat at the edge.
+    return await app(env).canHandlePresencePing();
   } catch {
     return false;
   }
