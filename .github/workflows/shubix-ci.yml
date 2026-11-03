@@ -1,0 +1,91 @@
+name: Shubix CI
+
+on:
+  # by hand only (Actions, Shubix CI, Run workflow; pick the branch): not on PRs, pushes or main, so Actions minutes are
+  # spent only when the owner chooses (the free ones ran out in 3 days, 2026-11-03). Checks only; nothing deploys here.
+  workflow_dispatch:
+
+concurrency:
+  group: shubix-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-and-api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shubix
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: shubix/pnpm-lock.yaml
+      - name: Install FFmpeg for audio-analysis tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ffmpeg
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build shared core
+        run: pnpm --filter @shubix/core build
+      - name: Typecheck workspace packages
+        run: pnpm -r typecheck
+      - name: Run API tests
+        run: pnpm --filter @shubix/api test
+      - name: Run web tests
+        run: pnpm --filter @shubix/web-app test
+      - name: Build web app
+        run: pnpm --filter @shubix/web-app build
+
+  android-native-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shubix
+    steps:
+      # the native build (CMake for reanimated / worklets) needs more room than the runner leaves free: the toolchains
+      # this job never uses go first (it ran out of disk after 20 minutes)
+      - name: Free disk space
+        working-directory: /
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/lib/node_modules/@angular "$AGENT_TOOLSDIRECTORY/PyPy" "$AGENT_TOOLSDIRECTORY/Ruby" "$AGENT_TOOLSDIRECTORY/go" || true
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          df -h /
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.20.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: shubix/pnpm-lock.yaml
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Configure Android SDK
+        run: |
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+      - name: Install Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate Android native project
+        run: pnpm --filter @shubix/mobile-app exec expo prebuild --platform android --no-install
+      - name: Assemble Android debug APK
+        working-directory: shubix/FE/mobile-app/android
+        # one architecture is enough to prove the native build compiles (all four filled the disk); releases build all
+        run: ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=arm64-v8a
