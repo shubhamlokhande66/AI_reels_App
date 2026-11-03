@@ -62,6 +62,11 @@ describe("AI Director visual intent", () => {
       .toEqual({ transitionAll: true });
   });
 
+  it("maps crossfade to the shared dissolve transition", () => {
+    expect(parseDirectorVisualIntent("apply crossfade transition to every clip"))
+      .toEqual({ transitionAll: true, transitionType: "dissolve" });
+  });
+
   it("recognises a named transition in an English all-clips request", () => {
     expect(parseDirectorVisualIntent("apply whip pan transition to every clip"))
       .toEqual({ transitionAll: true, transitionType: "whip" });

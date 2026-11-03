@@ -2064,7 +2064,7 @@ function chatSay(who, text, wait){
 }
 function chatClearWait(){ $('chatlog').querySelectorAll('.wait').forEach(x => x.remove()); }
 function chatAnswer(text){ chatClearWait(); chatSay('ai', text); chatMsgs.push({ who: 'ai', text }); chatWaiting = false; $('chatsend').disabled = false; }
-let chatPending = null, chatReported = '';
+let chatPending = null, chatReported = '', chatLocalResult = null;
 // the AI's plan arrived: asked for in the chat, it is shown as a report and waits for Generate; otherwise it is used
 function dirArrived(key, d){
   if(chatWaiting){ const ask = chatMsgs.filter(m => m.who === 'me').slice(-1)[0]?.text || ''; chatPending = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions, cost: chatCost, intent: parseDirectorVisualIntent(ask) }; chatProposal(chatPending); return false; }
@@ -2245,18 +2245,46 @@ function chatReportAuto(){
 // makes is applied at once (the phone has no Generate button of the studio's), and the answer goes back to the phone
 async function chatApp(text){
   const before = chatMsgs.length;
+  chatLocalResult = null;
   await chatSend(text);
   const t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms));
   while((chatWaiting || dirBusy || paceBusy) && Date.now() - t0 < 240000) await wait(300);
-  let applied = false;
+
+  if(chatWaiting || dirBusy || paceBusy){
+    const said = chatMsgs.slice(before).filter(m => m.who === 'ai').map(m => m.text).pop() || '';
+    return { applied: false, answer: said || 'Shubix is still working. The Reel has not been marked as complete; please check again shortly.' };
+  }
+
+  if(chatLocalResult) return { applied: true, answer: chatLocalResult.answer };
+
+  let applied = false, applySummary = '';
   if(chatPending && chatPending.key === dirKey()){
     const pd = chatPending; chatPending = null; chatReported = pd.key;
     director = { key: pd.key, slots: pd.slots, story: pd.story }; dirCache.set(pd.key, director);
-    makeEdit(); await aiApply(pd); try{ applyChatVisualIntent(pd.intent, pd.slots); }catch(e){}
-    applied = !!edit.length; if(applied){ chatMsgs.push({ who: 'ai', text: 'Done ✓' }); saveNow(); }
+    try {
+      makeEdit();
+      await aiApply(pd);
+      applySummary = applyChatVisualIntent(pd.intent, pd.slots);
+      if(!edit.length) throw new Error('The Reel timeline is empty after applying the plan.');
+      applied = true;
+      chatMsgs.push({ who: 'ai', text: 'Done ✓' });
+      saveNow();
+    } catch(error) {
+      applied = false;
+      const reason = String(error && error.message || error || 'Unknown edit error');
+      const answer = 'I could not verify that the requested edit was fully applied. ' + reason + ' The Reel was not marked as complete.';
+      chatMsgs.push({ who: 'ai', text: answer });
+      return { applied: false, answer };
+    }
   }
+
   const said = chatMsgs.slice(before).filter(m => m.who === 'ai').map(m => m.text).filter(t => t !== 'Done ✓').pop() || '';
-  return { applied, answer: applied ? 'Done ✓ Your Reel is edited the way you asked' + (director && director.story ? ': ' + director.story : '.') : said || (chatWaiting ? 'Shubix is still working on it. Ask again in a moment.' : 'OK') };
+  return {
+    applied,
+    answer: applied
+      ? 'Done ✓ Your Reel is edited the way you asked' + (applySummary ? '. Applied: ' + applySummary : '') + (director && director.story ? ': ' + director.story : '.')
+      : said || 'I could not confirm that a new edit was applied. Tell me what you want changed and I will try again.'
+  };
 }
 function chatDone(story){ if(!chatWaiting) return; chatAnswer('Done ✓ Your Reel is edited the way you asked' + (story ? ': ' + story : '.') + ' Tell me if you want anything else.'); }
 function chatFail(msg){ if(chatWaiting) chatAnswer(msg); }
@@ -2304,6 +2332,7 @@ async function chatPatch(text, n, id){
 async function chatSend(text){
   remakeOk();
   text = String(text || '').trim().slice(0, 300); if(!text || chatWaiting) return;
+  chatLocalResult = null;
   chatSay('me', text); chatMsgs.push({ who: 'me', text });
   $('chatin').value = ''; chatFit();
   const ready = buf && sources.length && edit.length && !recording;
@@ -2322,7 +2351,8 @@ async function chatSend(text){
       hist.u.push(before); if(hist.u.length > HIST_MAX) hist.u.shift();
       hist.r = []; hist.cur = histSnap(); hist.cand = ''; histUI();
       saveNow();
-      chatAnswer('Done ✓ Applied ' + applied + ' to the current Reel on this device. No Shubix AI credits used.');
+      chatLocalResult = { answer: 'Done ✓ Applied ' + applied + ' to the current Reel on this device. No Shubix AI credits used.' };
+      chatAnswer(chatLocalResult.answer);
     }catch(error){
       chatAnswer('I could not verify that every requested change was applied. ' + String(error && error.message || error));
     }
@@ -2331,8 +2361,9 @@ async function chatSend(text){
   // no Shubix AI in this plan (Free): the phone's own changes, and the way to get the AI
   if(!aiOn){
     const did = chatLocal(text);
-    if(ready && did.length) makeEdit();
-    chatAnswer((did.length ? 'Done ✓ I used ' + did.join(' and ') + ' (on your phone). ' : '') + (aiLocked && IN_APP ? 'Changing the Reel from your words is Shubix AI, which is not on your plan.' : aiLocked ? 'Changing the Reel from your words is Shubix AI: it is in the Editor and Pro plans.' : 'Shubix AI is off for this Reel, so I can only switch the style (say "faster" or "calmer") or make a new version.'));
+    const localAnswer = (did.length ? 'Done ✓ I used ' + did.join(' and ') + ' (on your phone). ' : '') + (aiLocked && IN_APP ? 'Changing the Reel from your words is Shubix AI, which is not on your plan.' : aiLocked ? 'Changing the Reel from your words is Shubix AI: it is in the Editor and Pro plans.' : 'Shubix AI is off for this Reel, so I can only switch the style (say "faster" or "calmer") or make a new version.');
+    if(ready && did.length){ makeEdit(); chatLocalResult = { answer: localAnswer }; }
+    chatAnswer(localAnswer);
     if(aiLocked && !IN_APP){ const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = 'See Editor & Pro'; $('chatlog').appendChild(a); }
     return;
   }
@@ -4185,8 +4216,10 @@ const BLENDS = ['source-over','multiply','screen','overlay','darken','lighten','
 const SHOT_OPS = ['split','dup','freeze','delete','reverse'];
 async function aiActions(list){
   let done = 0;
+  const failures = [];
   const steps = (Array.isArray(list) ? list : []).slice().sort((a, b) => a.do === 'shot' && b.do === 'shot' ? (+b.i || 0) - (+a.i || 0) : 0);
   for(const a of steps){
+    const before = done;
     try{
       if(a.do === 'look'){ const b = $('look').querySelector('[data-l="' + CSS.escape(String(a.name)) + '"]'); if(b){ b.click(); done++; } }
       else if(a.do === 'captions'){ await setCaptions(a.on !== false, a.language, a.translation); if(a.style) setCaptionStyle(a.style); done++; }
@@ -4198,7 +4231,7 @@ async function aiActions(list){
       else if(a.do === 'shot' && SHOT_OPS.includes(a.op) && edit[+a.i]){ const e = edit[+a.i], len = e.end - e.start;
         pos = e.start + Math.max(0.05, Math.min(len - 0.05, Number.isFinite(+a.at) ? +a.at : len/2));
         if(a.op === 'reverse'){ shotSet({ rev: a.on !== false }); done++; } else if(shotOp(a.op)) done++; }
-      else if(a.do === 'beatmark'){ const ts = (Array.isArray(a.at) ? a.at : [a.at]).map(Number).filter(Number.isFinite); if(a.clear) clearMarks(); for(const t of ts.slice(0, 32)) if(addMark(Math.max(0, t))) done++; }
+      else if(a.do === 'beatmark'){ const ts = (Array.isArray(a.at) ? a.at : [a.at]).map(Number).filter(Number.isFinite); if(a.clear){ clearMarks(); done++; } for(const t of ts.slice(0, 32)) if(addMark(Math.max(0, t))) done++; }
       else if(a.do === 'template' && TEXT_TEMPLATES[a.name]){ if(addTemplate(a.name, Array.isArray(a.words) ? a.words : [], +a.at || 0, Number.isFinite(+a.len) && +a.len > 0 ? +a.len : undefined, true)) done++; }
       else if(a.do === 'background' && ['none','blur','color'].includes(a.mode)){ if(/^#[0-9a-f]{6}$/i.test(a.color || '')) bgColor = a.color; bgmode.querySelector('[data-b="' + a.mode + '"]').click(); done++; }
       else if(a.do === 'layer'){
@@ -4212,13 +4245,29 @@ async function aiActions(list){
           ...(a.key ? { key: { on: true, c: /^#[0-9a-f]{6}$/i.test(a.key) ? a.key : '#00FF00', tol: Number.isFinite(+a.tolerance) ? Math.max(0.05, Math.min(0.9, +a.tolerance)) : 0.35 } } : {}) });
         done++;
       }
-    }catch(e){ console.warn('Shubix AI step not done:', a && a.do, e); }
+    }catch(e){
+      failures.push(String(a && a.do || 'unknown') + ': ' + String(e && e.message || e));
+      console.warn('Shubix AI step not done:', a && a.do, e);
+    }
+    if(done === before && !failures.some(x => x.startsWith(String(a && a.do || 'unknown') + ':'))){
+      failures.push(String(a && a.do || 'unknown') + ': tool unavailable or request invalid');
+    }
   }
   if(layers.length){ lyUI(); await prepLayers(pos); }
-  redrawFrame(); saveNow(); return done;
+  redrawFrame(); saveNow();
+  if(failures.length) throw new Error('Some requested AI tools did not run: ' + failures.join('; '));
+  return done;
 }
 // the AI's whole answer for this Reel: the cuts are in `director`; its texts and other steps are put on here
-async function aiApply(d){ if(!d) return; layers = layers.filter(L => L.aiIntent !== 'ai' || !(d.actions || []).some(a => a.do === 'layer')); aiTexts(d.texts); await aiActions(d.actions); }
+async function aiApply(d){
+  if(!d) return { textsApplied: 0, actionsApplied: 0 };
+  layers = layers.filter(L => L.aiIntent !== 'ai' || !(d.actions || []).some(a => a.do === 'layer'));
+  const expectedTexts = Array.isArray(d.texts) ? d.texts.filter(x => x && typeof x.text === 'string' && x.text.trim()).length : 0;
+  const textsApplied = aiTexts(d.texts);
+  if(textsApplied !== expectedTexts) throw new Error('Not all requested AI text overlays could be applied.');
+  const actionsApplied = await aiActions(d.actions);
+  return { textsApplied, actionsApplied };
+}
 function ovTiming(ov){ const L = reelLen(); return ov.all ? [0, L] : [Math.max(0, Math.min(ov.t0, L)), Math.max(0, Math.min(ov.t1, L))]; }
 // one item at time t; its box is kept (fractions of the frame) for picking it on the preview
 let cutBuf = null;   // the cutout text's frame (the colour with the letters cut out)

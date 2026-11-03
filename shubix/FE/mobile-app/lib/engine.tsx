@@ -155,7 +155,8 @@ export const engine = {
    * the Reel's clips come back (null: the studio does not hold this Reel) */
   chat: async (p: ReelProject, text: string) => {
     if (!engine.holds(p.id)) return null;
-    await engine.edit(p).catch(() => false);
+    const synced = await engine.edit(p).catch(() => false);
+    if (!synced) return null; // Never ask the hidden Studio to edit a stale or partially synced phone timeline.
     const r = await call<{ answer: string; applied: boolean; state?: { edit?: EngineShot[]; overlays?: ReelProject["overlays"] } }>("chat", { text });
     return { answer: r.answer, clips: r.applied && Array.isArray(r.state?.edit) ? shotsOf(r.state!.edit!, sources) : null, overlays: textsOf(r.state?.overlays) };
   },

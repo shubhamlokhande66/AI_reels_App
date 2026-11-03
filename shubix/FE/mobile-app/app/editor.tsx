@@ -3,7 +3,7 @@ import { BackHandler, Platform, Pressable, ScrollView, Text, TextInput, View } f
 import { router, useLocalSearchParams } from "expo-router";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import { useStudioText } from "@shubix/hooks";
-import { asksForAllClips } from "@shubix/core/lib/chatSize";
+import { parseDirectorVisualIntent } from "@shubix/core/lib/visual-intent";
 import { Button, IconButton, Segmented, Slider, confirmAction, toast, useColors } from "@shubix/ui-mobile";
 import { errorMessage } from "@shubix/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
@@ -106,23 +106,15 @@ const ASPECT: Record<string, number> = { "9:16": 9 / 16, "4:5": 4 / 5, "1:1": 1,
 const LATER = new Set<string>();
 type BulkVisualCommand = { transition?: string; effect?: boolean; unsupportedTransition?: string };
 function parseBulkVisualCommand(prompt: string): BulkVisualCommand | null {
-  const value = String(prompt || "").trim();
-  if (!asksForAllClips(value)) return null;
-  const asksTransition = /\btransitions?\b|ट्रांजिशन|ट्रांज़िशन|ट्रान्जिशन|ट्रान्झिशन|संक्रमण|转场|переход/iu.test(value);
-  const asksEffect = /\b(?:effects?|effecr|fx)\b|इफेक्ट(?:्स)?|प्रभाव|效果|эффекты/iu.test(value);
-  if (!asksTransition && !asksEffect) return null;
-  const namedTransition: Array<[string, RegExp]> = [
-    ["hard", /\bhard\s*cut\b/i], ["fadein", /\bfade\s*in\b|\bfadein\b/i],
-    ["dissolve", /\bdissolve\b/i], ["crossfade", /\bcross[\s-]?fade\b/i], ["whip", /\bwhip(?:\s*pan)?\b/i], ["zoom", /\bzoom(?:\s*through)?\b/i],
-    ["flash", /\bflash\b/i], ["glitch", /\bglitch\b/i], ["dip", /\bdip(?:\s*to\s*black)?\b/i],
-    ["iris", /\biris\b/i], ["wipe", /\bwipe\b/i], ["spin", /\bspin\b/i],
-    ["slideleft", /\b(?:slide|push)\s*left\b/i], ["slideright", /\b(?:slide|push)\s*right\b/i],
-    ["bars", /\bbars?\b/i], ["diamond", /\bdiamond\b/i], ["heart", /\bheart\b/i], ["star", /\bstar\b/i],
-  ];
-  const matchedTransition = asksTransition ? namedTransition.find(([, pattern]) => pattern.test(value))?.[0] : undefined;
-  const transition = asksTransition ? (matchedTransition ?? "fadein") : undefined;
+  // Keep the standalone Android fallback aligned with the shared web/Studio parser.
+  const intent = parseDirectorVisualIntent(prompt);
+  if (!intent.transitionAll && !intent.effectsAll) return null;
+  const transition = intent.transitionAll ? intent.transitionType ?? "fadein" : undefined;
   const unsupportedTransition = transition && !isNativeTransitionSupported(transition) ? transition : undefined;
-  return { ...(unsupportedTransition ? { unsupportedTransition } : transition ? { transition } : {}), ...(asksEffect ? { effect: true } : {}) };
+  return {
+    ...(unsupportedTransition ? { unsupportedTransition } : transition ? { transition } : {}),
+    ...(intent.effectsAll ? { effect: true } : {}),
+  };
 }
 
 // …and Export needs the video engine, which a development or Play Store build has (Expo Go has not)
