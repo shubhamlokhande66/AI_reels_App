@@ -1,7 +1,7 @@
 import { Paths } from "expo-file-system";
-import { clipDuration, type ReelProject } from "@shubix/validations";
+import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
 import { ShubixVideo } from "../modules/shubix-video";
-import { ADJ_FRAG, GRADE_FRAG, KEY_FRAG, PASS_VERT, PIC_FRAG, PIC_FX } from "@shubix/core/lib/shaders";
+import { ADJ_FRAG, GRADE_FRAG, KEY_FRAG, MAIN_FRAG, PASS_VERT, PIC_FRAG, PIC_FX, TR_DUR } from "@shubix/core/lib/shaders";
 import {
   createAndroidRendererAdapter,
   createRenderJobFromProject,
@@ -54,13 +54,15 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   try { return await ShubixVideo.exportReel(JSON.stringify(spec)); } finally { sub.remove(); }
 }
 export const cancelExport = () => ShubixVideo?.cancel();
+/** a clip that comes in with one of the studio's transitions (the first clip only with a fade in) */
+const studioTr = (c: ProjectClip | undefined, i: number) => !!c && !!TR_DUR[c.transition] && (i > 0 || c.transition === "fadein");
 /** the Reel for the phone's video engine (modules/shubix-video): what the export writes and the live preview plays */
 function nativeSpec(p: ReelProject, width: number, height: number, preview = false) {
   return {
     width, height,
     // the studio's own shader text for its GPU passes (one copy for both engines: Shared/core/src/lib/shaders.ts)
-    shaders: { vert: PASS_VERT, pic: PIC_FRAG, grade: GRADE_FRAG, adj: ADJ_FRAG, key: KEY_FRAG },
-    clips: p.clips.map((clip) => ({
+    shaders: { vert: PASS_VERT, pic: PIC_FRAG, grade: GRADE_FRAG, adj: ADJ_FRAG, key: KEY_FRAG, main: MAIN_FRAG },
+    clips: p.clips.map((clip, i) => ({
       uri: clip.uri, kind: clip.kind, start: clip.start, end: clip.end, speed: clip.speed,
       speedRamp: clip.speedRamp, keyframes: clip.keyframes, muted: clip.muted, volume: clip.volume,
       rotation: clip.rotation, mirror: clip.mirror, flip: clip.flip, fit: clip.fit, filter: clip.filter,
@@ -68,7 +70,10 @@ function nativeSpec(p: ReelProject, width: number, height: number, preview = fal
       ...(clip.effect && PIC_FX[clip.effect] ? { pic: { kind: PIC_FX[clip.effect], amt: 1 } } : {}),
       // the studio's settings of this shot (Adjust and its keyframes; Curves / HSL as the grade pass)
       ...(clip.cs ? { cs: clip.cs, ...(clip.cs.cv || clip.cs.hsl ? { grade: { cv: clip.cs.cv ?? null, hsl: clip.cs.hsl ?? null } } : {}) } : {}),
-      ...(clip.transition && normalizeAndroidTransition(clip.transition)
+      // the studio's own transition (all 44, StudioTransitions.kt); the clip before it keeps its last frame for it
+      ...(studioTr(clip, i) ? { tr: { id: clip.transition, dur: Math.min(TR_DUR[clip.transition], clipDuration(clip) / 2) } } : {}),
+      ...(studioTr(p.clips[i + 1], i + 1) ? { keep: true } : {}),
+      ...(!studioTr(clip, i) && clip.transition && normalizeAndroidTransition(clip.transition)
         ? { transitionIn: { type: normalizeAndroidTransition(clip.transition)!, duration: Math.min(0.35, Math.max(0.001, clipDuration(clip) / 2)) } }
         : {}),
     })),

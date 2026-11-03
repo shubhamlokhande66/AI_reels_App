@@ -252,6 +252,7 @@ class ShubixVideoModule : Module() {
   internal class Built(val composition: Composition, val duration: Double)
   internal fun buildComposition(spec: JSONObject, w: Int, h: Int): Built {
     val shaders = StudioShaders.of(spec)
+    val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
     require(clips.length() <= 500) { "A Reel can contain at most 500 clips." }
@@ -348,6 +349,10 @@ class ShubixVideoModule : Module() {
         }
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
+        // the studio's transition into this shot (tr: id, dur): the old shot's last frame and this one, as the website
+        val tr = c.optJSONObject("tr")
+        if (shaders?.main != null && tr != null && clipOutputDuration < tr.optDouble("dur", 0.0)) video += Transition(shaders.vert, shaders.main, held, tr.optString("id"), tr.optDouble("dur"), clipOutputDuration)
+        if (shaders?.main != null && c.optBoolean("keep")) video += KeepLast(shaders.vert, held)
         video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration, w, h)
         video += studioPasses(shaders, c, clipOutputDuration, clipTotalOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
         studioMask(c, clipOutputDuration, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts

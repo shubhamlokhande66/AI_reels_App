@@ -14,7 +14,7 @@ import org.json.JSONObject
 /** The studio's GPU passes on the phone: the website's own shader text (Shared/core/src/lib/shaders.ts), sent by the
  * phone's JS in the spec ("shaders"), so both engines run one program. A website texture's row 0 is the picture's top,
  * a Media3 texture's is its bottom: one #define turns every texture read over, the shader itself stays the website's. */
-internal class StudioShaders(val vert: String, val pic: String, val grade: String, val adj: String?, val key: String?) {
+internal class StudioShaders(val vert: String, val pic: String, val grade: String, val adj: String?, val key: String?, val main: String?) {
   companion object {
     private const val FLIP = "#define texture2D(s, c) texture2D(s, vec2((c).x, 1.0 - (c).y))\n"
     fun of(spec: JSONObject): StudioShaders? {
@@ -22,7 +22,7 @@ internal class StudioShaders(val vert: String, val pic: String, val grade: Strin
       val vert = s.optString("vert"); val pic = s.optString("pic"); val grade = s.optString("grade")
       if (vert.isBlank() || pic.isBlank() || grade.isBlank()) return null
       val opt = { k: String -> s.optString(k).takeIf { it.isNotBlank() }?.let { FLIP + it } }
-      return StudioShaders(vert, FLIP + pic, FLIP + grade, opt("adj"), opt("key"))
+      return StudioShaders(vert, FLIP + pic, FLIP + grade, opt("adj"), opt("key"), opt("main"))
     }
   }
 }

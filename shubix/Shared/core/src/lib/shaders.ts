@@ -5,6 +5,11 @@
 /** the picture effects' numbers in PIC_FRAG (kind): the studio's effect id -> its kind */
 export const PIC_FX: Record<string, number> = { grain: 1, leak: 2, rainbow: 3, negative: 4, halftone: 5, pixel8: 6, crt: 7, fisheye: 8, swirl: 9, sketch: 10, duotone: 11, zoom3d: 12 };
 
+/** each transition's usual length in seconds (a shot may have a shorter one of its own) */
+export const TR_DUR: Record<string, number> = {hard:0, fadein:0.35, flash:0.22, whip:0.16, zoom:0.18, glitch:0.14, dip:0.26, dissolve:0.35, iris:0.24, wipe:0.22, bars:0.26, spin:0.2, diamond:0.36, heart:0.42, star:0.4,
+  slideleft:0.24, slideright:0.24, slideup:0.24, slidedown:0.24, swipeup:0.2, zoomout:0.3, blur:0.35, flip:0.3, luma:0.45, pixelate:0.4, clock:0.4, doors:0.35, ripple:0.45, burn:0.4, dropin:0.32,
+  stripes:0.4, blinds:0.4, checker:0.45, dots:0.45, noise:0.4, splith:0.35, wave:0.4, dipwhite:0.3, chroma:0.35, tiles:0.45, zoomblur:0.3, shake:0.3, squeeze:0.35, rotatein:0.35};
+
 /** the studio renderer: a full-frame quad */
 export const MAIN_VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a,0.,1.); }`;
 
