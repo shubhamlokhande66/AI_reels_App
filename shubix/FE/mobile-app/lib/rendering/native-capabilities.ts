@@ -13,7 +13,10 @@ const TRANSITIONS: Record<string, string> = {
   stripes: "fade", blinds: "fade", checker: "fade", dots: "fade", noise: "fade", splith: "fade", wave: "fade", chroma: "fade", tiles: "fade",
 };
 
-const EFFECTS = new Set([
+import { PIC_FX } from "@shubix/core/lib/shaders";
+
+const EFFECTS = new Set([...Object.keys(PIC_FX),   // the studio's picture effects: its own shader on the phone (StudioPasses.kt)
+
   "blur", "blurpulse", "brightness", "contrast", "saturation", "hue",
   "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake",
   "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat",

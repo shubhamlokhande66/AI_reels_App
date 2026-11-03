@@ -1,6 +1,7 @@
 import { Paths } from "expo-file-system";
 import { clipDuration, type ReelProject } from "@shubix/validations";
 import { ShubixVideo } from "../modules/shubix-video";
+import { GRADE_FRAG, PASS_VERT, PIC_FRAG, PIC_FX } from "@shubix/core/lib/shaders";
 import {
   createAndroidRendererAdapter,
   createRenderJobFromProject,
@@ -57,11 +58,14 @@ export const cancelExport = () => ShubixVideo?.cancel();
 function nativeSpec(p: ReelProject, width: number, height: number, preview = false) {
   return {
     width, height,
+    // the studio's own shader text for its GPU passes (one copy for both engines: Shared/core/src/lib/shaders.ts)
+    shaders: { vert: PASS_VERT, pic: PIC_FRAG, grade: GRADE_FRAG },
     clips: p.clips.map((clip) => ({
       uri: clip.uri, kind: clip.kind, start: clip.start, end: clip.end, speed: clip.speed,
       speedRamp: clip.speedRamp, keyframes: clip.keyframes, muted: clip.muted, volume: clip.volume,
       rotation: clip.rotation, mirror: clip.mirror, flip: clip.flip, fit: clip.fit, filter: clip.filter,
-      effects: clip.effect && clip.effect !== "none" && (!preview || isAndroidEffectSupported(clip.effect)) ? [{ type: clip.effect, intensity: 0.5 }] : [],
+      effects: clip.effect && clip.effect !== "none" && !PIC_FX[clip.effect] && (!preview || isAndroidEffectSupported(clip.effect)) ? [{ type: clip.effect, intensity: 0.5 }] : [],
+      ...(clip.effect && PIC_FX[clip.effect] ? { pic: { kind: PIC_FX[clip.effect], amt: 1 } } : {}),
       ...(clip.transition && normalizeAndroidTransition(clip.transition)
         ? { transitionIn: { type: normalizeAndroidTransition(clip.transition)!, duration: Math.min(0.35, Math.max(0.001, clipDuration(clip) / 2)) } }
         : {}),

@@ -23,7 +23,7 @@ The engine is the app's own Expo module `FE/mobile-app/modules/shubix-video` (Ko
    Curves / HSL, the transitions' `GLSL_F` modes) out of `FE/web-app/components/studio/engine.ts` into a shared package
    file. The website keeps using it as it does now,; the phone's JS sends it to the Android engine with the Reel (no copy, so the two can never differ). Then
    both engines run the same shader text, and the website's `studio-shader` test keeps guarding it.
-3. **Native GPU passes from those shaders.** In Kotlin, one Media3 `GlEffect` (a `BaseGlShaderProgram`) per pass, with the
+3. **DONE (picture effects, Curves, HSL; adjust and looks move to step 4): native GPU passes from those shaders** (`StudioPasses.kt`). In Kotlin, one Media3 `GlEffect` (a `BaseGlShaderProgram`) per pass, with the
    same uniforms the website sets: picture effects, Curves and HSL, adjust (bri, con, sat, warm, hi, sh, hue, sharpen,
    vignette), the look (`GRADES`), 3D zoom, canvas patterns.
 4. **The studio's shot settings in the spec.** The phone gets each shot's `cs` (and its keyframes `kx`) from the studio

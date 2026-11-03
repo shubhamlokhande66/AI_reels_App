@@ -251,6 +251,7 @@ class ShubixVideoModule : Module() {
    * seconds: the same for the export and the live preview (ShubixPreviewView) */
   internal class Built(val composition: Composition, val duration: Double)
   internal fun buildComposition(spec: JSONObject, w: Int, h: Int): Built {
+    val shaders = StudioShaders.of(spec)
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
     require(clips.length() <= 500) { "A Reel can contain at most 500 clips." }
@@ -348,6 +349,7 @@ class ShubixVideoModule : Module() {
         video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
         video += filter(c.optString("filter"))
         video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration, w, h)
+        video += studioPasses(shaders, c, clipOutputDuration, clipTotalOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
         if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at + clipOutputDuration)))
         require(items.size < 10_000) { "This Reel contains too many speed-ramp segments for a safe native export." }
         items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()

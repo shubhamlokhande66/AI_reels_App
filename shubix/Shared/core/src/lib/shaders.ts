@@ -2,6 +2,9 @@
  * app's native engine (modules/shubix-video: copied into its assets by `pnpm shaders`). Change them here only; never
  * put a // comment in MAIN_FRAG (the website joins it into one line). */
 
+/** the picture effects' numbers in PIC_FRAG (kind): the studio's effect id -> its kind */
+export const PIC_FX: Record<string, number> = { grain: 1, leak: 2, rainbow: 3, negative: 4, halftone: 5, pixel8: 6, crt: 7, fisheye: 8, swirl: 9, sketch: 10, duotone: 11, zoom3d: 12 };
+
 /** the studio renderer: a full-frame quad */
 export const MAIN_VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a,0.,1.); }`;
 

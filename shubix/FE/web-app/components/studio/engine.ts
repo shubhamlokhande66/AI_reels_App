@@ -13,7 +13,7 @@ import { createTasks } from './tasks';
 import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes } from '@shubix/video-engine';
 import { chatSize } from '@shubix/core/lib/chatSize';
 import { TEXT_TEMPLATES, templateTexts } from '@shubix/core/lib/text-templates';
-import { MAIN_VERT, MAIN_FRAG, PASS_VERT, GRADE_FRAG, PIC_FRAG } from '@shubix/core/lib/shaders';
+import { MAIN_VERT, MAIN_FRAG, PASS_VERT, GRADE_FRAG, PIC_FRAG, PIC_FX } from '@shubix/core/lib/shaders';
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
 import { songAnalysis } from '@shubix/core/engine/studio/song';
@@ -4906,7 +4906,6 @@ function shotGrade(t){
   og.save(); og.setTransform(1, 0, 0, 1, 0, 0); og.globalAlpha = 1; og.globalCompositeOperation = 'copy'; og.drawImage(cv, 0, 0); og.restore();
 }/* ---- the picture effects (Effect: film grain, light leak, rainbow, negative, halftone, 8-bit, CRT, fisheye, swirl, sketch,
  * duotone): one small GPU pass over the finished shot, the same for both renderers and the export ---- */
-const PIC_FX = { grain: 1, leak: 2, rainbow: 3, negative: 4, halftone: 5, pixel8: 6, crt: 7, fisheye: 8, swirl: 9, sketch: 10, duotone: 11, zoom3d: 12 };
 let picGL = null;
 function picProgram(){
   if(picGL !== null) return picGL;

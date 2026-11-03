@@ -1,0 +1,83 @@
+package expo.modules.shubixvideo
+
+import android.content.Context
+import android.opengl.GLES20
+import androidx.media3.common.util.GlProgram
+import androidx.media3.common.util.GlUtil
+import androidx.media3.common.util.Size
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.BaseGlShaderProgram
+import androidx.media3.effect.GlEffect
+import androidx.media3.effect.GlShaderProgram
+import org.json.JSONObject
+
+/** The studio's GPU passes on the phone: the website's own shader text (Shared/core/src/lib/shaders.ts), sent by the
+ * phone's JS in the spec ("shaders"), so both engines run one program. A website texture's row 0 is the picture's top,
+ * a Media3 texture's is its bottom: one #define turns every texture read over, the shader itself stays the website's. */
+internal class StudioShaders(val vert: String, val pic: String, val grade: String) {
+  companion object {
+    private const val FLIP = "#define texture2D(s, c) texture2D(s, vec2((c).x, 1.0 - (c).y))\n"
+    fun of(spec: JSONObject): StudioShaders? {
+      val s = spec.optJSONObject("shaders") ?: return null
+      val vert = s.optString("vert"); val pic = s.optString("pic"); val grade = s.optString("grade")
+      if (vert.isBlank() || pic.isBlank() || grade.isBlank()) return null
+      return StudioShaders(vert, FLIP + pic, FLIP + grade)
+    }
+  }
+}
+
+/** One full-frame pass of a studio shader over a clip. `local(t)`: the shot's own time for a frame `t` seconds into
+ * this item (a speed-ramp slice starts `offset` seconds into its shot); `set` puts the uniforms for that moment. */
+@UnstableApi
+private class StudioPass(private val vert: String, private val frag: String, private val set: (GlProgram, Float, Float, Double) -> Unit) : GlEffect {
+  override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = object : BaseGlShaderProgram(useHdr, 1) {
+    private val program = GlProgram(vert, frag)
+    private var w = 1f; private var h = 1f
+    override fun configure(inputWidth: Int, inputHeight: Int): Size { w = inputWidth.toFloat(); h = inputHeight.toFloat(); return Size(inputWidth, inputHeight) }
+    override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) {
+      program.use()
+      program.setSamplerTexIdUniform("T", inputTexId, 0)
+      program.setBufferAttribute("a", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
+      program.bindAttributesAndUniforms()
+      set(program, w, h, presentationTimeUs / 1_000_000.0)   // after: arrays (M[5], H[8]) go straight to GL
+      GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+      GlUtil.checkGlError()
+    }
+    override fun release() { super.release(); program.delete() }
+  }
+}
+
+/** a clip's studio passes from its spec: "pic" { kind (PIC_FX), amt } and "grade" { cv, hsl }; `offset` = where this
+ * item starts in its shot, `len` = the shot's length (seconds), both on the output's clock */
+@UnstableApi
+internal fun studioPasses(sh: StudioShaders?, clip: JSONObject, offset: Double, len: Double): List<GlEffect> {
+  if (sh == null) return emptyList()
+  val out = mutableListOf<GlEffect>()
+  val g = clip.optJSONObject("grade")
+  if (g != null) {
+    val curve = { k: String -> val a = g.optJSONObject("cv")?.optJSONArray(k); FloatArray(5) { i -> (a?.optDouble(i, i / 4.0) ?: (i / 4.0)).toFloat().coerceIn(0f, 1f) } }
+    val bands = listOf("red", "orange", "yellow", "green", "aqua", "blue", "purple", "magenta")
+    val hsl = g.optJSONObject("hsl")
+    val H = FloatArray(24) { i -> (hsl?.optJSONArray(bands[i / 3])?.optDouble(i % 3, 0.0) ?: 0.0).toFloat().coerceIn(-1f, 1f) }
+    val m = curve("m"); val r = curve("r"); val gg = curve("g"); val b = curve("b"); val useH = if (hsl != null) 1f else 0f
+    out += StudioPass(sh.vert, sh.grade) { p, _, _, _ ->
+      for ((n, a) in listOf("M" to m, "R" to r, "G" to gg, "B" to b)) GLES20.glUniform1fv(p.getUniformLocation(n), 5, a, 0)
+      GLES20.glUniform3fv(p.getUniformLocation("H"), 8, H, 0); GLES20.glUniform1f(p.getUniformLocation("useH"), useH)
+    }
+  }
+  val f = clip.optJSONObject("pic")
+  val kind = f?.optInt("kind", 0) ?: 0
+  if (kind in 1..12) {
+    val amt = f!!.optDouble("amt", 1.0).coerceIn(0.0, 1.0)
+    out += StudioPass(sh.vert, sh.pic) { p, w, h, t ->
+      val local = offset + t
+      // in over 0.25 s, out over the shot's last 0.15 s; 3D zoom (12) runs the whole shot on its progress (as the website)
+      val ramp = if (kind == 12) 1.0 else minOf(1.0, local / 0.25, maxOf(0.0, len - local) / 0.15)
+      GLES20.glUniform2f(p.getUniformLocation("res"), w, h)
+      GLES20.glUniform1f(p.getUniformLocation("time"), (if (kind == 12) local / maxOf(0.1, len) else local).toFloat())
+      GLES20.glUniform1f(p.getUniformLocation("kind"), kind.toFloat())
+      GLES20.glUniform1f(p.getUniformLocation("amt"), (maxOf(0.0, ramp) * amt).toFloat())
+    }
+  }
+  return out
+}
