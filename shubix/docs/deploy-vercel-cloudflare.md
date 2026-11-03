@@ -67,8 +67,9 @@ and `PUBLIC_BASE_URL`, and to the R2 bucket's CORS (Settings → CORS policy →
   prepared do not mean a running instance is being kept alive.
 - The app's periodic presence ping is answered by the Worker while the container is stopped, so an open browser tab
   alone does not wake or bill the API container. A real API request automatically starts it and waits for port 4000
-  to become ready (up to 4 minutes per start attempt). A transient start/readiness failure triggers one clean restart
-  and a second automatic start attempt; no manual redeploy is needed for that recoverable failure.
+  to become ready (10 seconds to acquire the instance, then up to 35 seconds for readiness). A failed attempt is
+  destroyed and retried once from a clean state. The website API client allows 90 seconds for this cold-start path;
+  no manual redeploy is needed for a recoverable start failure.
 - For failures after proxying begins, the Worker resets the stale container. It retries safe `GET`, `HEAD` and
   `OPTIONS` requests once. It never replays `POST`, `PUT`, `PATCH` or `DELETE`, because the API may already have
   processed them; those receive `503 API_CONTAINER_RECOVERING` with `Retry-After: 2` so the client can retry safely.
