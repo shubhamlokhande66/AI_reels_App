@@ -4,7 +4,7 @@ import {
   isAndroidFilterSupported,
   isAndroidTransitionSupported,
   normalizeAndroidTransition,
-} from "../../mobile-app/lib/rendering/native-capabilities";
+} from "../lib/rendering/native-capabilities";
 
 describe("Android native export capabilities", () => {
   it("normalizes supported transition aliases consistently", () => {
