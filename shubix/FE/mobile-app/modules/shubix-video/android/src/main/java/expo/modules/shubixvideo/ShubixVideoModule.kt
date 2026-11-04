@@ -256,6 +256,8 @@ class ShubixVideoModule : Module() {
     val shaders = StudioShaders.of(spec)
     // the studio's texts as the website draws them (StudioTexts.kt), when the phone sends them so (studioTexts)
     val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { StudioTextRenderer(it, w, h) }
+    // the overlay layers, live player only (the export of a Reel with layers is the engine page's)
+    val studioLayers = spec.optJSONArray("layers")?.takeIf { live && it.length() > 0 }?.let { StudioLayerRenderer(it, w, h) }
     val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
@@ -352,6 +354,7 @@ class ShubixVideoModule : Module() {
       video += customEffects(c.optJSONArray("effects"), base, clipOutputDuration, w, h)
       video += studioPasses(shaders, c, -base, clipOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
       studioMask(c, -base, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts
+      if (studioLayers != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioLayers.overlay(at - base)))
       if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at - base)))
       else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at - base)))
       items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply {

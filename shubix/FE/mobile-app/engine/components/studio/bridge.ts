@@ -46,6 +46,12 @@ export function initBridge(root: HTMLElement): () => void {
     return send(input, init);
   };
 
+  // what the phone's own player needs to draw a layer (StudioLayers.kt); no path: a layer it cannot read (an old project)
+  const nativeLayer = (layer: Record<string, unknown>) => {
+    const media = (studio() as unknown as { layerMedia?: { file?: File; kind?: string }[] } | undefined)?.layerMedia?.[Number(layer.m)], file = media?.file;
+    const path = file && (window as unknown as { __phone?: PhoneFiles }).__phone?.paths[`${file.name}|${file.size}`];
+    return path ? { path, kind: media.kind, t0: layer.t0, t1: layer.t1, in: layer.in, x: layer.x, y: layer.y, s: layer.s, r: layer.r, op: layer.op, fh: layer.fh, fv: layer.fv, fin: layer.fin, fout: layer.fout, crop: layer.crop, mask: layer.mask, mk: layer.mk, rad: layer.rad } : null;
+  };
   const fileOf = async (path: string, name: string) => {
     const r = await send(`${files}/f?k=${key}&p=${encodeURIComponent(path)}`);
     if (!r.ok) throw new Error(`The phone could not give ${name} (${r.status})`);
@@ -238,7 +244,7 @@ export function initBridge(root: HTMLElement): () => void {
     },
     async layerList() {
       const st = studio();
-      return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", follow: layer.follow || "none", followOffsetX: layer.followOffsetX || 0, followOffsetY: layer.followOffsetY || 0, maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskThreshold: layer.mk?.th ?? 0.5, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35 }));
+      return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", follow: layer.follow || "none", followOffsetX: layer.followOffsetX || 0, followOffsetY: layer.followOffsetY || 0, maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskThreshold: layer.mk?.th ?? 0.5, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35, native: nativeLayer(layer) }));
     },
     async layerAdd(a) {
       const st = studio();

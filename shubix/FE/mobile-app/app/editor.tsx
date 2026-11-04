@@ -58,9 +58,9 @@ const CANVAS_COLS = [["#000000", "Black"], ["#FFFFFF", "White"], ["#E85D75", "Pi
  * point of a list, e.g. a curve); the shot's values are read from the studio, each slider sends its value when let go */
 /** the editor's one player: the Reel on the phone's own video engine (modules/shubix-video, Media3), the export's
  * picture, playing, paused or on a scrubbed frame. Its time moves the playhead; a playhead moved by hand moves it. */
-function ReelPlayer({ p, now, playing, sound, onTime, onEnd, onError }: { p: ReelProject; now: number; playing: boolean; sound: boolean; onTime: (t: number) => void; onEnd: () => void; onError: (why: string | null) => void }) {
+function ReelPlayer({ p, layers, now, playing, sound, onTime, onEnd, onError }: { p: ReelProject; layers: { native?: unknown }[]; now: number; playing: boolean; sound: boolean; onTime: (t: number) => void; onEnd: () => void; onError: (why: string | null) => void }) {
   const ref = useRef<PreviewRef>(null), told = useRef(now), nowRef = useRef(now); nowRef.current = now;
-  const [loaded, setLoaded] = useState(false), spec = useMemo(() => previewSpec(p), [p]);
+  const [loaded, setLoaded] = useState(false), spec = useMemo(() => previewSpec(p, layers), [p, layers]);
   useEffect(() => {
     if (!spec) return;
     const t = setTimeout(() => { const v = ref.current; if (!v) return; onError(null); told.current = nowRef.current; v.load(spec, nowRef.current).then(() => setLoaded(true)).catch((e) => onError(errorMessage(e))); }, loaded ? 250 : 0);
@@ -133,7 +133,7 @@ export default function EditorScreen() {
   const [mixing, setMixing] = useState(false);
   const [playError, setPlayError] = useState<string | null>(null);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
-  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
+  const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number; native?: unknown }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [canvasCol, setCanvasCol] = useState("#4F7CFF");
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
@@ -816,7 +816,7 @@ export default function EditorScreen() {
     <View className="flex-1 bg-background">
       <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
-        <Preview n={selected} of={clips.length} playing={playing} aspect={aspect} error={playError} onToggle={() => setPlaying(!playing)}><ReelPlayer p={p} now={now} playing={playing} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onError={setPlayError} /></Preview>
+        <Preview n={selected} of={clips.length} playing={playing} aspect={aspect} error={playError} onToggle={() => setPlaying(!playing)}><ReelPlayer p={p} layers={studioLayers} now={now} playing={playing} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onError={setPlayError} /></Preview>
         <View className="mx-4 mt-2">
           <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>
