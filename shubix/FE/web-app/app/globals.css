@@ -8,3 +8,5 @@ html:has([data-tasks]:not([hidden])), html:has(#cconf:not([hidden])), html:has([
 /* every button: the hand; one that is off: the red circle with a line (it must still get the pointer to show it; a disabled button takes no click) */
 button, [role=button], a[href], summary, label[for] { cursor: pointer; }
 button:disabled, button[aria-disabled=true], [role=button][aria-disabled=true], a[aria-disabled=true] { cursor: not-allowed !important; pointer-events: auto !important; }
+/* a click on what is inside a button that is off must not reach the page's own click handlers (browsers send it past the button) */
+button:disabled *, button[aria-disabled=true] *, [role=button][aria-disabled=true] *, a[aria-disabled=true] * { pointer-events: none !important; }

@@ -131,12 +131,14 @@ export function initFlow(root: HTMLElement): () => void {
     const b = root.querySelector<HTMLButtonElement>(`#csnd [data-c="${want}"]`);
     if (b && b.getAttribute("aria-pressed") !== "true") b.click();
   };
+  // Shubix Edit's lines say what Shubix has done: nothing until Generate has started it
+  let aiGo = false;
   const paintAi = () => {
-    const make = made();
+    const make = made() && !aiWorking();
     for (const li of root.querySelectorAll<HTMLElement>(".faiList li[data-t]")) { // (not the export's list: its own progress ticks it)
       const t = li.dataset.t!;
       // the last line (the edit itself) runs once the song and clips are in; every line is done once the Reel is made
-      const st = make ? "ok" : t === "make" ? (clipsOk() && songOk() ? "now" : "") : (lines.get(t) ?? "");
+      const st = !aiGo ? "" : make ? "ok" : t === "make" ? "now" : (lines.get(t) ?? "");
       setClass(li, "now", st === "now");
       setClass(li, "ok", st === "ok");
     }
@@ -300,10 +302,11 @@ export function initFlow(root: HTMLElement): () => void {
     setAttr($("fclipsnext"), "aria-busy", String(busy));
     setAttr($("fgen"), "aria-busy", String(busy));
     setText($("fgent"), paused ? "Continue analysis" : busy ? "Making your Reel…" : ready ? "Generate Reel" : stopped().song ? missing || "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
-    setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
-    setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : copy && !refName && !songOk() ? "Pick the Reel to copy, then add your clips."
+    const aiDone = aiGo && made() && !aiWorking();
+    setText($("freadyt"), aiDone ? "Your Reel is ready!" : aiGo ? "Shubix is editing your Reel…" : "Ready to create your Reel!");
+    setText($("freadys"), aiDone ? "Opening your Reel…" : aiGo ? "Every clip, every beat: it takes a moment." : ready ? "Press Generate Reel to start Shubix." : copy && !refName && !songOk() ? "Pick the Reel to copy, then add your clips."
       : copy && songComing ? "Taking the song from the Reel you copy…" : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
-    setText($("fprevnote"), made() ? "Your Reel is ready" : "Your Reel appears here");
+    setText($("fprevnote"), aiDone ? "Your Reel is ready" : "Your Reel appears here");
     setClass($("fprevbox"), "ready", made());
     paintAi();
     // the phones' analysing screen: the Reel opens once it is made
@@ -316,7 +319,7 @@ export function initFlow(root: HTMLElement): () => void {
     if (revealed) revealed = false;
     if (moved) mark(push);
     apply();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (phone()) window.scrollTo({ top: 0, behavior: "smooth" });   // (computers: all on one page, the page stays where it is)
   };
   const next = () => {
     const o = order(), i = o.indexOf(step);
@@ -344,7 +347,14 @@ export function initFlow(root: HTMLElement): () => void {
     const t = e.target as HTMLElement;
     // Copy a Reel: its first button picks the Reel to copy (the phone's file picker opens from this tap); the song is next
     if (t.closest("[data-fnext]") && step === "intro" && kind === "copy" && !refName) { e.preventDefault(); pickRef(); return; }
-    if (t.closest("[data-fnext]")) { e.preventDefault(); next(); return; }
+    const nextBtn = t.closest<HTMLElement>("[data-fnext]");
+    if (nextBtn && !phone() && nextBtn.closest("#s1")) {   // computers: Music's Next goes on to Clips, where it is on this page
+      e.preventDefault();
+      if (stopped().song) void live()?.askNotDone?.(); else if (songOk()) toClips();
+      return;
+    }
+    if (nextBtn && !phone() && nextBtn.closest("#s2")) { e.preventDefault(); if (!songOk() && !stopped().song) openSection("s1"); else { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); } return; }
+    if (nextBtn) { e.preventDefault(); next(); return; }
     if (t.closest("#frefpick")) { pickRef(); return; }
     if (t.closest("#frefsong")) { refSong(); return; }
     // a different song: the Choose Music panel opens (phones: its screen), the copied Reel's song is not put on
@@ -374,6 +384,7 @@ export function initFlow(root: HTMLElement): () => void {
         if (await st?.askNotDone?.()) return;   // after a Cancel: Proceed reads it again, then Next
         const r = st?.upsell ? await st.upsell() : "skip";
         if (r === "upgrade" || r === "close") return;
+        aiGo = true; apply();
         if (phone()) return go("analyse");   // its analysing screen opens the Reel once Shubix is done
         await new Promise((ok) => setTimeout(ok, 400)); apply();
         for (let t = 0; run === aiRunNo && (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
@@ -468,7 +479,7 @@ export function initFlow(root: HTMLElement): () => void {
 
   // the popup's Cancel during Shubix AI: back to the clips, nothing opens
   root.addEventListener("studio-cancelled", () => { if (step === "adjust" && !done("s1")) go("choose"); else apply(); }, sig);
-  root.addEventListener("studio-ai-cancel", () => { aiRunNo++; if (step === "analyse") go("clips"); else apply(); }, sig);
+  root.addEventListener("studio-ai-cancel", () => { aiRunNo++; aiGo = false; if (step === "analyse") go("clips"); else apply(); }, sig);
   // a song that is ready moves the phones on to adjusting it
   let wasSong = done("s1");
   // the engine's progress (reading the clips, the beats, the AI) fills the checklist and the ring
