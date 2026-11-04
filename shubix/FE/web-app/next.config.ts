@@ -22,11 +22,7 @@ const nextConfig: NextConfig = {
   // a clip sent to be converted (/api/studio/convert, up to 95 MB) and a finished Reel saved to My Reels pass whole.
   experimental: { proxyClientMaxBodySize: "100mb" },
   async rewrites() {
-    return [
-      { source: "/api/:path*", destination: `${API_URL}/api/:path*` },
-      { source: "/ads.txt", destination: `${API_URL}/ads.txt` },
-      { source: "/app-ads.txt", destination: `${API_URL}/app-ads.txt` },
-    ];
+    return [{ source: "/api/:path*", destination: `${API_URL}/api/:path*` }];
   },
   // the clip analysis runs OpenCV in the browser too (lib/clipAnalysis): its Node-only branch requires these, never used there
   // Fast Studio runs its AI beat tracker (WebAssembly) on several CPU cores, which browsers allow only on a
