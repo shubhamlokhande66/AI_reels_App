@@ -91,12 +91,12 @@ function fitTimes(c: ProjectClip) {
 }
 /** the player's spec: the export's, half size (smooth on any phone), without what the phone's engine cannot draw yet
  * (it is left out, never an error: the export still checks it); null when the engine is not in this app */
-export function previewSpec(p: ReelProject): string | null {
+export function previewSpec(p: ReelProject, layers: { native?: unknown }[] = []): string | null {
   if (!ShubixVideo || !p.clips.length) return null;
   const [w, h] = SIZE[p.settings?.aspect ?? "9:16"] ?? SIZE["9:16"], k = 540 / Math.min(w, h);
   const spec = nativeSpec({ ...p, clips: p.clips.map((c) => ({ ...c, ...fitTimes(c), reverse: false, filter: isAndroidFilterSupported(c.filter) ? c.filter : "Original", volume: Math.min(1, c.volume ?? 1) })),
     overlays: p.overlays.filter((o) => o.text?.trim() && o.end > o.start).slice(0, 40).map((o) => ({ ...o, text: o.text.slice(0, 300), size: Math.min(120, Math.max(8, o.size ?? 36)) })) }, Math.round(w * k / 2) * 2, Math.round(h * k / 2) * 2, true);
-  return JSON.stringify(spec);
+  return JSON.stringify({ ...spec, layers: layers.map((l) => l.native).filter(Boolean) });
 }
 
 

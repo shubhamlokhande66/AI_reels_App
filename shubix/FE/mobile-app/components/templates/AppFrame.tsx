@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, BackHandler, Platform, Text, View } from "react-native";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, BackHandler, Easing, Platform, Text, View } from "react-native";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useApi, useText } from "@mobile/hooks";
-import { Button, FeedbackHost, TaskHost, colors } from "@mobile/ui-mobile";
+import { Button, FeedbackHost, TaskHost } from "@mobile/ui-mobile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tokenStore } from "../../lib/device";
 import { mobileApi } from "../../lib/api";
@@ -14,6 +14,20 @@ import { BottomNav } from "../organisms/BottomNav";
 import { MenuDrawer } from "../organisms/MenuDrawer";
 import { HelpChat } from "../organisms/HelpChat";
 import { useNotes } from "../../lib/notify";
+
+/** while the server wakes (20-30 s): three gold dots rising in turn, so the wait is seen to be moving */
+function WakeMark() {
+  const clock = useRef(new Animated.Value(0)).current;
+  useEffect(() => { const run = Animated.loop(Animated.timing(clock, { toValue: 1, duration: 1200, easing: Easing.linear, useNativeDriver: true })); run.start(); return () => run.stop(); }, [clock]);
+  return (
+    <View className="h-8 flex-row items-end gap-2">
+      {[0, 1, 2].map((i) => {
+        const at = i / 4, rise = clock.interpolate({ inputRange: [0, at, at + 0.2, at + 0.4, 1].map((v, k, all) => k ? Math.max(v, all[k - 1] + 0.001) : v), outputRange: [0, 0, -14, 0, 0] });
+        return <Animated.View key={i} className="h-3 w-3 rounded-full bg-accent" style={{ transform: [{ translateY: rise }] }} />;
+      })}
+    </View>
+  );
+}
 
 /** The website's phone frame (FE/web-app/components/templates/AppShell.tsx): the top bar, the page, the bottom bar
  * (not in the studio: /create and /editor keep the screen, as on the website) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
@@ -41,8 +55,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
   // an administrator whose daily code is due (still signed in): the code first, emailed at once
   if (adminQ.data?.otp && adminCodeWanted() && !open) return <AdminCode onDone={() => void qc.invalidateQueries({ queryKey: ["native-admin"] })} />;
   if (unknown) return (
-    <View className="flex-1 items-center justify-center gap-3 bg-background px-6">
-      <ActivityIndicator color={colors.accent} />
+    <View className="flex-1 items-center justify-center gap-4 bg-background px-6">
+      {!slow && <WakeMark />}
       <Text className="text-center text-[13px] text-muted">{text(slow ? "common.offline" : "common.connecting")}</Text>
       {slow && <Button title={text("common.retry")} onPress={() => void refresh()} />}
     </View>

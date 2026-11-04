@@ -54,13 +54,13 @@ internal class Transition(private val vert: String, private val main: String, pr
       if (p >= 1.0 || (!held.has && id != "fadein")) { draw(copy, inputTexId); return }
       val s = stateOf(id, p, w, h, held.has)
       prog.use()
+      // Media3 binds every sampler itself: each must be named here, before bindAttributesAndUniforms
+      prog.setSamplerTexIdUniform("tB", if (s.swap) held.tex else inputTexId, 0)
+      prog.setSamplerTexIdUniform("tA", if (held.has) held.tex else inputTexId, 1)
+      prog.setSamplerTexIdUniform("tL", inputTexId, 2)
       prog.setBufferAttribute("a", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
       prog.bindAttributesAndUniforms()
       val u = { n: String -> prog.getUniformLocation(n) }
-      GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (s.swap) held.tex else inputTexId); GLES20.glUniform1i(u("tB"), 0)
-      GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (held.has) held.tex else inputTexId); GLES20.glUniform1i(u("tA"), 1)
-      GLES20.glActiveTexture(GLES20.GL_TEXTURE2); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, inputTexId); GLES20.glUniform1i(u("tL"), 2)
-      GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
       val f1 = { n: String, v: Float -> GLES20.glUniform1f(u(n), v) }
       val f2 = { n: String, a: Float, b: Float -> GLES20.glUniform2f(u(n), a, b) }
       val f3 = { n: String, a: Float, b: Float, c: Float -> GLES20.glUniform3f(u(n), a, b, c) }

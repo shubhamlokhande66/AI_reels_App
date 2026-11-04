@@ -143,7 +143,7 @@ class ShubixVideoModule : Module() {
     // the engine page's home on the phone (FileServer): started once, its port and key; `api`: where its /api calls go
     Function("fileServer") { api: String ->
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
-      val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out"), c.assets, api.trimEnd('/')).also { files = it }
+      val s = files ?: FileServer(c, listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out"), api.trimEnd('/')).also { files = it }
       mapOf("port" to s.port, "key" to s.key)
     }
     OnDestroy {
@@ -255,7 +255,14 @@ class ShubixVideoModule : Module() {
     val lengths = mutableMapOf<String, Long?>()
     val shaders = StudioShaders.of(spec)
     // the studio's texts as the website draws them (StudioTexts.kt), when the phone sends them so (studioTexts)
-    val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { StudioTextRenderer(it, w, h) }
+    val shotTimes = mutableListOf<ShotTime>()
+    val sharedEffects = mutableMapOf<String, MutableList<Effect>>()
+    val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { list ->
+      val behind = live && (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
+      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes) else null)
+    }
+    // the overlay layers, live player only (the export of a Reel with layers is the engine page's)
+    val studioLayers = spec.optJSONArray("layers")?.takeIf { live && it.length() > 0 }?.let { StudioLayerRenderer(it, w, h) }
     val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
@@ -305,9 +312,10 @@ class ShubixVideoModule : Module() {
       val muted = c.optBoolean("muted")
       val textCache = if (texts != null && texts.length() > 0) TextOverlayCache(texts, w, h) else null
       val clipTimelineStart = at
+      shotTimes += ShotTime(PersonMask.pathOf(uri), image, at, clipOutputDuration, startSeconds, sourceDuration / clipOutputDuration)
       // the time the effects get: the export counts from this shot's start, the live player from the Reel's start
       val base = if (live) at else 0.0
-      val video = mutableListOf<Effect>()
+      var video = mutableListOf<Effect>()
       val audio = mutableListOf<AudioProcessor>()
       if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
       if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
@@ -352,8 +360,15 @@ class ShubixVideoModule : Module() {
       video += customEffects(c.optJSONArray("effects"), base, clipOutputDuration, w, h)
       video += studioPasses(shaders, c, -base, clipOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
       studioMask(c, -base, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts
+      if (studioLayers != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioLayers.overlay(at - base)))
       if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at - base)))
       else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at - base)))
+      // the live player keeps its GPU programs when the next shot's effects are the same objects: shots with nothing of
+      // their own (most cuts of a fast Reel) share one list, so a cut does not rebuild them
+      if (live && turn == 0f && !mirror && !flip && (keyframes == null || keyframes.length() == 0) && transitionIn == null && tr == null && !c.optBoolean("keep") &&
+        (c.optJSONArray("effects")?.length() ?: 0) == 0 && c.optJSONObject("cs") == null && c.optJSONObject("pic") == null && c.optJSONObject("grade") == null) {
+        video = sharedEffects.getOrPut(c.optString("fit") + "|" + c.optString("filter")) { video }
+      }
       items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply {
         if (image) setFrameRate(30)
         else {
@@ -470,15 +485,14 @@ class ShubixVideoModule : Module() {
       val y = keyframeValue(frames, time, "y", 0.0)
       val scale = keyframeValue(frames, time, "s", 1.0).coerceIn(0.05, 8.0)
       val rotation = keyframeValue(frames, time, "r", 0.0)
-      val centerX = frameWidth / 2f
-      val centerY = frameHeight / 2f
+      // Media3 applies this matrix to points from -1 to 1 (y up), not to pixels: x and y are in frame widths and heights,
+      // so one frame across is 2 here. The turn is done in the frame's real shape, so a picture is not squeezed by it.
+      val shape = frameHeight.toFloat() / frameWidth
       Matrix().apply {
-        // Project keyframe x/y values are normalized to the frame (-1…1), not pixels.
-        // Transform around the frame centre so zoom and rotation do not orbit the top-left corner.
-        postTranslate(-centerX, -centerY)
-        postScale(scale.toFloat(), scale.toFloat())
-        postRotate(rotation.toFloat())
-        postTranslate(centerX + (x * frameWidth).toFloat(), centerY - (y * frameHeight).toFloat())
+        postScale(scale.toFloat(), scale.toFloat() * shape)
+        postRotate(-rotation.toFloat())
+        postScale(1f, 1f / shape)
+        postTranslate((x * 2).toFloat(), (y * 2).toFloat())
       }
     }
   }

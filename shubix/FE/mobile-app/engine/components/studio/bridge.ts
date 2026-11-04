@@ -1,4 +1,5 @@
 import { noteSignedIn } from "@/lib/boot";
+import { copyOfState, reelFromCopy } from "@/brain/index";
 /* The phone app's way into Fast Studio (app/engine: the studio on a page the phone keeps hidden, FE/mobile-app
  * lib/engine.tsx). The phone's screens are its own; the Reel is made here, by this very engine, so it is the same Reel
  * as on the website. The phone asks with window.engine.call(id, op, args); the answers go back with
@@ -25,6 +26,7 @@ type StudioLayer = { id?: number; t0?: number; t1?: number; x?: number; y?: numb
 type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: (cloud?: boolean) => Promise<Blob | null>; exportLocked: () => { name: string; need: string }[]; exportFix: () => void; caption: () => string; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => KeyframeTarget; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: StudioLayer[]; setAudioMix: (patch: { mvol?: number; mfin?: number; mfout?: number }) => Promise<unknown>; remix: () => boolean; saveNow: () => unknown; ttsVoices: Array<{ key: string; label: string }>; addTts: (text: string, voice: string) => Promise<unknown>; clearTts: () => boolean; setCaptions: (enabled: boolean, language?: string, translation?: string) => Promise<unknown>; setCaptionStyle: (style: string) => string; setOverlays: (list: Array<Record<string, unknown>>) => number };
 type Native = { postMessage: (m: string) => void };
 
+type PhoneFiles = { base: string; key: string; paths: Record<string, string> };
 export function initBridge(root: HTMLElement): () => void {
   // the phone's side (found when it is needed: the phone sets it up with the page)
   const post = (m: object) => (window as unknown as { ReactNativeWebView?: Native }).ReactNativeWebView?.postMessage(JSON.stringify(m));
@@ -45,10 +47,18 @@ export function initBridge(root: HTMLElement): () => void {
     return send(input, init);
   };
 
+  // what the phone's own player needs to draw a layer (StudioLayers.kt); no path: a layer it cannot read (an old project)
+  const nativeLayer = (layer: Record<string, unknown>) => {
+    const media = (studio() as unknown as { layerMedia?: { file?: File; kind?: string }[] } | undefined)?.layerMedia?.[Number(layer.m)], file = media?.file;
+    const path = file && (window as unknown as { __phone?: PhoneFiles }).__phone?.paths[`${file.name}|${file.size}`];
+    return path ? { path, kind: media.kind, t0: layer.t0, t1: layer.t1, in: layer.in, x: layer.x, y: layer.y, s: layer.s, r: layer.r, op: layer.op, fh: layer.fh, fv: layer.fv, fin: layer.fin, fout: layer.fout, crop: layer.crop, mask: layer.mask, mk: layer.mk, rad: layer.rad } : null;
+  };
   const fileOf = async (path: string, name: string) => {
     const r = await send(`${files}/f?k=${key}&p=${encodeURIComponent(path)}`);
     if (!r.ok) throw new Error(`The phone could not give ${name} (${r.status})`);
     const b = await r.blob();
+    // the phone's own decoder reads this clip from its path (engine.ts clipReader)
+    (window as unknown as { __phone?: PhoneFiles }).__phone = { base: files, key, paths: { ...(window as unknown as { __phone?: PhoneFiles }).__phone?.paths, [`${name}|${b.size}`]: path } };
     return new File([b], name, { type: b.type || "application/octet-stream", lastModified: Date.now() });
   };
   const put = (input: HTMLInputElement | null, list: File[]) => {
@@ -235,7 +245,7 @@ export function initBridge(root: HTMLElement): () => void {
     },
     async layerList() {
       const st = studio();
-      return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", follow: layer.follow || "none", followOffsetX: layer.followOffsetX || 0, followOffsetY: layer.followOffsetY || 0, maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskThreshold: layer.mk?.th ?? 0.5, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35 }));
+      return (st?.layers || []).map((layer, index) => ({ index, id: layer.id, t0: layer.t0, t1: layer.t1, x: layer.x, y: layer.y, scale: layer.s, opacity: layer.op, rotation: layer.r, mask: layer.mask, blend: layer.blend || "source-over", follow: layer.follow || "none", followOffsetX: layer.followOffsetX || 0, followOffsetY: layer.followOffsetY || 0, maskWidth: layer.mk?.w ?? 0.8, maskHeight: layer.mk?.h ?? 0.8, maskThreshold: layer.mk?.th ?? 0.5, maskFeather: layer.mk?.f ?? 0.12, maskAngle: layer.mk?.a ?? 0, maskInverted: !!layer.mk?.inv, chromaKey: !!layer.key?.on, chromaColor: layer.key?.c ?? "#00FF00", chromaTolerance: layer.key?.tol ?? 0.35, native: nativeLayer(layer) }));
     },
     async layerAdd(a) {
       const st = studio();
@@ -314,6 +324,9 @@ export function initBridge(root: HTMLElement): () => void {
         const cs = { ...((current.cs as Record<string, unknown>) || {}), ...((shot.cs as Record<string, unknown>) || {}) };
         return { ...shot, ...(Object.keys(cs).length ? { cs } : {}), uk: shot.uk ?? current.uk, acc: current.acc, ak: current.ak };
       });
+      // the export runs as long as the song's part: shots that end before it (a trimmed shot) must not leave black, the last shot holds
+      const last = merged[merged.length - 1];
+      if (last && Number(last.end) < st.dur) last.end = st.dur;
       const ok = !!st.setEdit(merged);
       if (Array.isArray(a.overlays) && st.setOverlays) st.setOverlays(a.overlays as Array<Record<string, unknown>>);
       return { ok };
@@ -330,6 +343,13 @@ export function initBridge(root: HTMLElement): () => void {
       await until(() => studio()!.editGen !== gen, 1500).catch(() => {}); // a new style makes a new Reel (a filter does not)
       return OPS.ready(a);
     },
+    /** the test APK: a copy of the engine's state and the Reel the brain makes from it here; the phone's own JS makes it too and compares */
+    async brainCheck() {
+      const d = (studio() as unknown as { brainDebug: { ES: unknown; HOOKS: unknown } }).brainDebug, copy = copyOfState(d.ES, d.HOOKS);
+      return { copy, shots: reelFromCopy(copy).shots };
+    },
+    /** what Shubix AI planned for this Reel, in the chat's words: its story and a line for each shot; null when it has not edited it */
+    async aiPlan() { return (studio() as unknown as { aiPlan?: unknown } | undefined)?.aiPlan ?? null; },
     /** Ask Shubix from the phone's editor: the website's chat; its plan applied -> { answer, applied, state } */
     async chat(a) {
       const st = studio() as unknown as { chatApp?: (t: string) => Promise<{ answer: string; applied: boolean }>; state: () => unknown };
@@ -341,9 +361,10 @@ export function initBridge(root: HTMLElement): () => void {
     /** the clips' smooth copies (4K / HDR / 60 fps / changing frame rate), saved on the phone for its own preview and
      * export -> [{ name, path, w, h }] (clips that need none are left out) */
     async copies() {
-      const list = ((studio() as unknown as { copies?: () => { i: number; name: string; blob: Blob | null; w: number; h: number }[] }).copies?.() ?? []).filter((c) => c.blob);
+      const list = ((studio() as unknown as { copies?: () => { i: number; name: string; blob: Blob | null; path: string; w: number; h: number }[] }).copies?.() ?? []).filter((c) => c.blob);
       const out: { name: string; path: string; w: number; h: number }[] = [];
       for (const c of list) {
+        if (c.path) { out.push({ name: c.name, path: c.path, w: c.w, h: c.h }); continue; }   // made by the phone: already there
         const ext = /webm/.test(c.blob!.type) ? "webm" : "mp4", name = `copy-${c.i}-${c.name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "_").slice(0, 60)}.${ext}`;
         const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(name)}`, { method: "PUT", body: c.blob });
         if (r.ok) out.push({ name: c.name, path: String((await r.json()).path), w: c.w, h: c.h });

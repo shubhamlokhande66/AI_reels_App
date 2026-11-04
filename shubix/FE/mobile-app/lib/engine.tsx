@@ -7,6 +7,8 @@ import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/valida
 import { buildSpeedRampSegments } from "@mobile/video-engine";
 import { tokenStore } from "./device";
 import { API_URL } from "./session";
+import { fitShot } from "./shotFit";
+import { reelFromCopy } from "../engine/brain/index";
 
 /** The phone's own engine makes its Reels: the page in FE/mobile-app/engine (its own code, worked through
  * components/studio/bridge.ts), built into the APK and run hidden in the phone's browser engine. It does not come from
@@ -15,6 +17,7 @@ import { API_URL } from "./session";
  * serves the page, its files and its API calls, so this needs the app's own build (not Expo Go).
  * TODO (later): the same engine in Kotlin, without the hidden page (docs/roadmap.md). */
 export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
+export type AiPlan = { story: string; lines: string[] };
 export type SongAnalysis = { duration: number; bpm: number; beats: number; drops: number; breaks: number };
 /** a shot of the Reel as the studio made it (its state(): the clip, where in it, the transition into it, its effect, its speed) */
 export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
@@ -81,7 +84,7 @@ export const engine = {
       if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
       const len = clipDuration(c);
       const hasRamp = !!c.speedRamp?.length;
-      const sp = hasRamp ? "curve" : ((SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed));
+      const sp = hasRamp ? "curve" : (from.clip.speed === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed));
       if (!sp) return false; // a fixed speed the studio has not (it has slow, normal, fast)
       const base = from.shot;
       const cs = { ...(base.cs ?? {}) };
@@ -145,6 +148,16 @@ export const engine = {
   cancelExport: () => call("cancelExport").catch(() => undefined),
   /** the Reel's picture at `t` exactly as the studio makes it (null: it could not) */
   frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
+  /** a new Reel: the studio's page is loaded again, so nothing of the Reel before it stays (song, clips, edit, AI, cards);
+   * it signs in again and reads the plan and credits anew on its first call */
+  fresh: () => restart("A new Reel was started."),
+  /** the test APK: the brain makes this Reel again in the app's own JS, from a copy of the studio's state (the Reel itself is not touched) */
+  brainCheck: async () => {
+    const r = await call<{ copy: string; shots: unknown[] }>("brainCheck"), t0 = Date.now(), here = reelFromCopy(r.copy);
+    return { same: JSON.stringify(here.shots) === JSON.stringify(r.shots), shots: here.shots.length, ms: Date.now() - t0, pageJobs: here.pageJobs };
+  },
+  /** what Shubix AI planned for the Reel the studio holds: its story and a line per shot; null when it did not edit it */
+  aiPlan: () => call<AiPlan | null>("aiPlan"),
   /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
   stop: () => restart(STOPPED),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the
@@ -171,10 +184,9 @@ const KEEP = ["uri", "filter"] as const;
 export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[] {
   made.clear(); sources = list;
   return shots.map((e, i) => {
-    const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
-    const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
-    const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk, ...(e.cs ? { cs: e.cs } : {}) };
+    const c = list[e.src] ?? list[0], timeline = e.end - e.start;
+    const { start, end, speed } = c.kind === "image" ? { start: 0, end: timeline, speed: 1 } : fitShot(timeline, SPEED[e.sp] ?? 1, c.sourceDuration, e.in);
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk, ...(e.cs ? { cs: e.cs } : {}) };
     made.set(clip.id, { shot: e, clip });
     return clip;
   });

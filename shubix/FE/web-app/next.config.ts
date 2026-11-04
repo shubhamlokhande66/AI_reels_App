@@ -4,6 +4,9 @@ import type { NextConfig } from "next";
 // the API's address, with or without its https:// (a rewrite needs it, or the whole build stops)
 const API_HOST = (process.env.API_URL?.trim() || "http://localhost:4000").replace(/\/+$/, "");
 const API_URL = /^https?:\/\//i.test(API_HOST) ? API_HOST : `https://${API_HOST}`;
+// a wrong address must stop the build: a site that deployed with one cannot reach its API at all (a Sensitive variable on
+// Vercel reaches a CLI build as the text [SENSITIVE]; this address is not secret, keep it a plain variable)
+if (!/^https?:\/\/[a-z0-9.-]+(:\d+)?(\/|$)/i.test(API_URL)) throw new Error("API_URL is not a web address. Set it on Vercel as a plain (not Sensitive) variable: https://api.shubix.in");
 
 const nextConfig: NextConfig = {
   // Self-contained server output, used by docker/Dockerfile (Vercel builds its own: VERCEL is set there)
