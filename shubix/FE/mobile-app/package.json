@@ -8,14 +8,13 @@
     "android": "expo start --android --lan --go",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "engine:build": "node engine/build.mjs",
     "aab": "node scripts/build-aab.mjs"
   },
   "dependencies": {
     "@expo/dom-webview": "~58.0.2",
     "@expo/metro-runtime": "~58.0.15",
-    "@react-native-async-storage/async-storage": "2.2.0",
-    "@react-native-masked-view/masked-view": "0.3.2",
     "@mobile/api-client": "workspace:*",
     "@mobile/core": "workspace:*",
     "@mobile/hooks": "workspace:*",
@@ -25,6 +24,8 @@
     "@mobile/utils": "workspace:*",
     "@mobile/validations": "workspace:*",
     "@mobile/video-engine": "workspace:*",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-masked-view/masked-view": "0.3.2",
     "@tanstack/react-query": "^5.103.1",
     "expo": "~58.0.21",
     "expo-audio": "~58.0.10",
@@ -76,6 +77,7 @@
     "mediabunny": "1.60.0",
     "onnxruntime-web": "1.29.0",
     "tailwindcss": "^3.4.17",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
   }
 }

@@ -38,6 +38,8 @@ jobs:
         run: pnpm -r typecheck
       - name: Run API tests
         run: pnpm --filter @shubix/api test
+      - name: Run Android tests
+        run: pnpm --filter @shubix/mobile-app test
       - name: Run web tests
         run: pnpm --filter @shubix/web-app test
       - name: Build web app

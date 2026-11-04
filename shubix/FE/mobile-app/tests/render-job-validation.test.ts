@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { validateRenderJob, type RenderJobSpec } from "../../../Shared/core/src/engine/rendering/renderer";
-import { createAndroidRendererAdapter } from "../../mobile-app/lib/rendering/android-renderer.adapter";
+import { validateRenderJob, type RenderJobSpec } from "@mobile/core/engine/rendering/renderer";
+import { createAndroidRendererAdapter } from "../lib/rendering/android-renderer.adapter";
 
 const validJob = (): RenderJobSpec => ({
   version: 1,
