@@ -80,7 +80,7 @@ While the inputs differ from the Reel that was made, the changes are not saved o
 | 2. Clips play in their cards | Tested in the browser | Not built |
 | 2. Drag to move a clip | Tested in the browser | Not built |
 | 3. Shubix AI and credits | Tested with a fake AI | Engine tested, screens not run on a phone |
-| 4. Changes after a Reel is made | Tested with a fake AI | Not built |
+| 4. Changes after a Reel is made | Tested with a fake AI | Engine tested, screen not run on a phone |
 | 5. Steps and Back | Tested in the browser | Green steps built; accordion is computer only |
 | 6. Editor | Tested in the browser | Header line removed, the rest is website only |
 

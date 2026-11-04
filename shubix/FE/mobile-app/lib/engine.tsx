@@ -156,6 +156,9 @@ export const engine = {
   cancel: () => call<{ ok: boolean }>("cancel"),
   /** Next after the clips: Shubix AI's question, then its work; false when the person closed the question or cancelled */
   ai: () => call<{ went: boolean }>("ai").then((r) => r.went),
+  /** Make new Reel: charged as a new Reel; Keep old Reel: the studio holds that Reel again */
+  newReel: () => call<{ ok: boolean }>("newReel"),
+  keptOldReel: () => call<{ ok: boolean }>("keptOldReel"),
   /** whether this person's plan has Shubix AI */
   aiOn: () => call<{ on: boolean }>("aiState").then((r) => r.on),
   fresh: () => restart("A new Reel was started."),

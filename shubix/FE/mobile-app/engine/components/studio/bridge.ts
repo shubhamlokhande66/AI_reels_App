@@ -33,7 +33,7 @@ export function initBridge(root: HTMLElement): () => void {
   const $ = <T extends HTMLElement>(id: string) => root.querySelector<T>("#" + id);
   const studio = () => (root as unknown as { __studio?: Studio }).__studio;
   let files = "", key = "", reading = false, stops = 0;   // stops: the popup's Cancels (whoever waits for that work stops waiting)
-  const flow = () => studio() as unknown as { cancelNow: () => void; resumeSong: () => void; resumeClips: () => void; upsell: () => Promise<string>; work: { aiOn?: boolean } };
+  const flow = () => studio() as unknown as { cancelNow: () => void; resumeSong: () => void; resumeClips: () => void; upsell: () => Promise<string>; newReel: () => void; keptOldReel: () => void; work: { aiOn?: boolean } };
 
   // the phone's sign-in on the API's requests (the page has no sign-in cookie)
   const send = window.fetch.bind(window);
@@ -121,6 +121,9 @@ export function initBridge(root: HTMLElement): () => void {
       return { went: stops === g };
     },
     async aiState() { return { on: !!flow().work.aiOn }; },
+    /** Make new Reel: a new id, so it is charged as a new Reel; Keep old Reel: the studio holds that Reel again */
+    async newReel() { flow().newReel(); return { ok: true }; },
+    async keptOldReel() { flow().keptOldReel(); return { ok: true }; },
     async clips(a) {
       const list = a.paths as { path: string; name: string }[], got: File[] = [], g = stops;
       // only what is new is read: what was read stays, what the popup's Cancel left unread goes on. A clip taken out or moved: all again

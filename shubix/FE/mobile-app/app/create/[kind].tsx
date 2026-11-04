@@ -10,7 +10,7 @@ import { PlanGate } from "../../components/templates/PlanGate";
 import type { ProjectClip } from "@mobile/validations";
 import { engine, engineOn, shotsOf, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@mobile/api-client";
-import { forgetKeptFiles, keepPickedAssets, keepPickedFile, saveProject } from "../../lib/projects";
+import { forgetKeptFiles, keepPickedAssets, keepPickedFile, removeProject, saveProject } from "../../lib/projects";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
 import { AskShubix, styleFromWords } from "../../components/organisms/AskShubix";
 import { pickInOrder } from "../../components/organisms/Gallery";
@@ -38,7 +38,7 @@ function CreateFlowScreen() {
   const go = (to: FlowStep | undefined) => to && setStep(to);
   const styleNow = () => styleFromWords(wish);
   // leaving the screen: the studio drops everything (no AI keeps working), so what it held is read again
-  const making = useRef(false), stage = useRef<"song" | "clips" | "ai">("song"), askAgain = useRef(false), songStopped = useRef(false), kept = useRef<{ uris: string[]; clips: ProjectClip[] }>({ uris: [], clips: [] }), fresh = useRef(false), heard = useRef("");
+  const making = useRef(false), stage = useRef<"song" | "clips" | "ai">("song"), askAgain = useRef(false), songStopped = useRef(false), madeReel = useRef<{ id: string; sig: string; media: ImagePicker.ImagePickerAsset[]; song: Song | null; start: number; length: number; kept: { uris: string[]; clips: ProjectClip[] } } | null>(null), kept = useRef<{ uris: string[]; clips: ProjectClip[] }>({ uris: [], clips: [] }), fresh = useRef(false), heard = useRef("");
   const read = useRef<{ key: string; clips: ProjectClip[]; sources: ProjectClip[] } | null>(null), draft = useRef(`draft-${Date.now()}`);
   const stop = () => { making.current = false; tasks.clear("flow"); read.current = null; heard.current = ""; fresh.current = true; engine.stop(); };
   // the popup's Cancel: the studio stops what is running, what is done stays done, and Next goes on from there
@@ -111,7 +111,7 @@ function CreateFlowScreen() {
   }
   const keyOf = (list: ImagePicker.ImagePickerAsset[]) => list.map((m) => m.uri).join("|");
   // the clips kept on the phone and read by the website's engine (compressed when heavy, each one analysed), in the popup
-  async function readClips(list: ImagePicker.ImagePickerAsset[]) {
+  async function readClips(list: ImagePicker.ImagePickerAsset[], sg: Song | null = song) {
     stage.current = "clips"; making.current = true;
     tasks.start("flow", "clips", words("Adding your clips"), `${words("Clip")} 1 / ${list.length}`);
     try {
@@ -120,12 +120,12 @@ function CreateFlowScreen() {
       const clips = [...had, ...await keepPickedAssets(draft.current, rest, (n) => tasks.update("flow", (had.length + n) / list.length, `${words("Clip")} ${Math.min(list.length, had.length + n + 1)} / ${list.length}`), had.length)];
       kept.current = { uris: list.map((m) => m.uri), clips };
       let sources = clips;
-      if (engineOn && song) {
+      if (engineOn && sg) {
         startFresh();
-        if (songStopped.current) { setMusic(await engine.songAgain()); songStopped.current = false; heard.current = song.uri; }
-        if (heard.current !== song.uri) { // the studio started again (the screen was left): it has lost the song and its part
+        if (songStopped.current) { setMusic(await engine.songAgain()); songStopped.current = false; heard.current = sg.uri; }
+        if (heard.current !== sg.uri) { // the studio started again (the screen was left): it has lost the song and its part
           tasks.update("flow", null, words("Reading your song…"));
-          setMusic(await engine.song(song.uri, song.name)); heard.current = song.uri;
+          setMusic(await engine.song(sg.uri, sg.name)); heard.current = sg.uri;
           if (length) await engine.choose({ length });
           if (start) await engine.part(start);
         }
@@ -144,6 +144,13 @@ function CreateFlowScreen() {
     } catch (e) { if (making.current) tell(errorMessage(e), "danger"); return false; }
     finally { making.current = false; tasks.clear("flow"); }
   }
+  // Keep old Reel: the clips and song it was made from again, and the editor with it
+  async function keepOldReel(old: NonNullable<typeof madeReel.current>) {
+    setMedia(old.media); setSong(old.song); setLength(old.length); draft.current = old.id; kept.current = old.kept;
+    if (old.song && heard.current !== old.song.uri) await hear(old.song);
+    setStart(old.start);
+    if (await readClips(old.media, old.song)) { await engine.keptOldReel().catch(() => undefined); setStep("clips"); router.push({ pathname: "/editor", params: { id: old.id } }); }
+  }
   async function addMedia() {
     const got = await pickInOrder({ kind: photos ? "image" : "video", limit: Math.max(1, 30 - media.length) }); // in the order tapped ("In my order")
     if (!got) return;
@@ -153,6 +160,16 @@ function CreateFlowScreen() {
   // Next after the clips: Free or Upgrade (a plan without Shubix AI), or Shubix AI's question and its work in the popup; the
   // draft saved, then the editor with the Reel. Without the engine (Expo Go) the clips play in turn.
   async function make() {
+    // a Reel was made here: nothing changed, the same Reel; changed, a new Reel is asked for (it costs credits), or the old one stays
+    const now = `${keyOf(media)};${song?.uri ?? ""};${start};${length}`, old = madeReel.current;
+    if (old && old.sig === now) return void router.push({ pathname: "/editor", params: { id: old.id } });
+    const again = !!old && (await engine.aiOn().catch(() => false));
+    if (again) {
+      const v = await askAction({ title: words("You changed your Reel"), body: words("Your song or clips are different now. Make a new Reel with these changes? Keeping the old Reel changes nothing and uses no credits."), ok: words("Make new Reel"), cancel: words("Keep old Reel") });
+      if (v === 1) return void keepOldReel(old);
+      if (v !== 0) return;
+      draft.current = `draft-${Date.now()}`; kept.current = { uris: [], clips: [] }; read.current = null;
+    }
     if (read.current?.key !== keyOf(media)) {
       if (askAgain.current && !(await notDone(words("Your clips' analysis did not finish.")))) return;
       if (!(await readClips(media))) return;
@@ -169,7 +186,10 @@ function CreateFlowScreen() {
         stage.current = "ai"; making.current = true; setStep("analyse"); tasks.unlock();
         tasks.start("flow", "ai", words("Shubix at work"), words("Getting your Reel ready…"));
         await engine.choose({ order: settings.order, aspect: settings.aspect, mode: style || "auto" }); // (the length and the part are set already)
-        if (!(await engine.ai()) || !making.current) { making.current = false; tasks.clear("flow"); setStep("clips"); return; }
+        if (again) await engine.newReel();
+        const went = await engine.ai();
+        if (!went && again && making.current) { making.current = false; tasks.clear("flow"); setStep("clips"); return void keepOldReel(old); }   // Shubix AI's question closed: the old Reel
+        if (!went || !making.current) { making.current = false; tasks.clear("flow"); setStep("clips"); return; }
         clips = shotsOf((await engine.ready(id)).state.edit, sources.length ? sources : clips); studio = true;
         if (process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1") void engine.brainCheck().then((r) => tell(`Brain on the phone: ${r.same ? "same Reel" : "DIFFERENT"}, ${r.shots} shots, ${r.ms} ms`, r.same ? "info" : "danger")).catch((e) => tell(`Brain check: ${errorMessage(e)}`, "danger"));
       } else clips = clips.map((c) => ({ ...c, speed: { fast: 1.25, smooth: 0.8, "": 1 }[style] }));
@@ -177,6 +197,8 @@ function CreateFlowScreen() {
       const now = new Date().toISOString();
       await saveProject({ id, title: words(KINDS[kind].title), kind, clips, audioUri, audioName: song?.name, overlays: [], ...(music ? { music } : {}), studio, createdAt: now, updatedAt: now, status: "draft",
         ...(params.templateId ? { templateId: params.templateId } : {}), settings: { start, length, ...settings, ...(wish ? { wish } : {}) } });
+      if (old && old.id !== id) { await removeProject(old.id); forgetKeptFiles(old.id); }
+      madeReel.current = { id, sig: `${keyOf(media)};${song?.uri ?? ""};${start};${length}`, media, song, start, length, kept: kept.current };
       await queryClient.invalidateQueries({ queryKey: ["drafts"] }); making.current = false; tasks.clear("flow"); tasks.unlock();
       setStep("clips"); router.push({ pathname: "/editor", params: { id } }); // back from the editor: the clips again
     } catch (e) { const gone = !making.current; making.current = false; tasks.clear("flow"); tasks.unlock(); if (!gone) tell(errorMessage(e), "danger"); setStep("clips"); }

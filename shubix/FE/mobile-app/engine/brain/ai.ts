@@ -27,7 +27,7 @@ function aiGate(again = false){
       return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
     const ok = await EH.askCredits({ title: 'Shubix AI will edit this Reel',
-      text: cost ? 'It uses ' + EH.creditWord(cost) + ' once for this Reel. Adding clips or changing them later costs nothing more.' : 'Included in your plan for this Reel.',
+      text: cost ? 'It uses ' + EH.creditWord(cost) + ' for this Reel. A new Reel after changing it uses credits again.' : 'Included in your plan for this Reel.',
       list: ['The best moments of every clip', 'Trendy transitions and effects on the beat', 'Pro colour and framing'],
       bal, after: bal !== null && cost ? bal - cost : null, ok: cost ? 'Use ' + EH.creditWord(cost) : 'Use Shubix AI' });
     if(ok){ ES.aiReel = id; ES.gateNo = ''; EH.aiNeed(false); return true; }
@@ -37,7 +37,7 @@ function aiGate(again = false){
   return ES.gateP;
 }
 async function aiRun(){
-  if(!ES.aiOn || ES.aiBusy || !ES.sources.length) return;
+  if(!ES.aiOn || ES.aiBusy || !ES.sources.length || EH.aiHeldBack()) return;
   if(!EH.aiReelOk()){ ES.aiBusy = true; const go = await aiGate(); ES.aiBusy = false; if(!go) return; }
   ES.sources.forEach(s=>{ if(!s.ai) EH.aiRestore(s); });
   const need = ES.sources.filter(s=>!s.ai && !s.aiFailed && !s.removed);

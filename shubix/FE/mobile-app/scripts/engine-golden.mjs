@@ -97,6 +97,15 @@ try {
     for (let i = 0; i < 240 && !aiCalls.includes("/api/studio/direct"); i++) await wait(250);
     for (let i = 0; i < 80 && (await run(`${S}.work.aiWait||${S}.work.dir||${S}.work.ai||${S}.work.pace`)); i++) await wait(250);
     say("Proceed: the AI goes on to its plan", aiCalls.includes("/api/studio/direct") && !(await run(`${S}.work.aiWait`)), aiCalls.join(" "));
+    // a change after the Reel is made: no AI by itself; Make new Reel: a new id, so a new charge
+    const n0 = aiCalls.length, id0 = await run(`${S}.brainDebug.ES.reelId`);
+    await run(`${root}.querySelector("#clips .clip:last-child .del").click()`); await wait(1800);
+    say("a change after the Reel: Shubix AI does not run by itself", aiCalls.length === n0 && (await run(`${S}.work.aiWait`)) === false, aiCalls.slice(n0).join(" "));
+    await run(`${S}.newReel()`); const id1 = await run(`${S}.brainDebug.ES.reelId`);
+    say("Make new Reel has a new id", !!id1 && id1 !== id0, `${id0} -> ${id1}`);
+    await useNow();
+    for (let i = 0; i < 160 && !aiCalls.slice(n0).includes("/api/studio/direct"); i++) await wait(250);
+    say("Use makes its plan", aiCalls.slice(n0).includes("/api/studio/direct"), aiCalls.slice(n0).join(" "));
     say("no page errors", !errors.length, errors.join(" | ").slice(0, 300));
     code = seen.every(Boolean) ? 0 : 1;
     console.log(code ? "CANCEL FAILED" : "CANCEL OK");
