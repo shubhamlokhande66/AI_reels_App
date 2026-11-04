@@ -1140,7 +1140,7 @@ function cardsPlay(){
   [...cardsPlaying].forEach(c => { if(!want.includes(c)) cardStop(c); });
   want.forEach(c => { if(cardsPlaying.has(c)) return; cardsPlaying.add(c); const v = c.querySelector('.cv'); v.muted = true; v.src = c.__src.url; v.onplaying = () => v.classList.add('on'); v.play().catch(() => {}); });
 }
-{ const t = setInterval(cardsPlay, 700); ac.signal.addEventListener('abort', () => { clearInterval(t); cardSight.disconnect(); [...cardsPlaying].forEach(cardStop); }); }
+{ const t = setInterval(() => { cardsPlay(); void editorChangeCheck(); }, 700); ac.signal.addEventListener('abort', () => { clearInterval(t); cardSight.disconnect(); [...cardsPlaying].forEach(cardStop); }); }
 function makeCard(f){
   const url = URL.createObjectURL(f);
   const card = document.createElement('div'); card.className='clip';
@@ -1911,6 +1911,8 @@ let aiOn = false, aiBusy = false, aiInfo = null, aiLocked = false;
 let aiDoneSig = null, regenOk = false, leavingOk = false;
 const inputSig = () => [song && song.file ? fileFp(song.file) : '', (+secStart || 0).toFixed(2), buf ? buf.duration.toFixed(2) : '', ...[...$('clips').children].map(c => c.__src && !c.__src.removed ? fileFp(c.__src.file) : '').filter(Boolean)].join(';');
 const aiHeldBack = () => !!aiDoneSig && !regenOk && inputSig() !== aiDoneSig;
+// a Reel has its plan: the AI plans again only when it is asked (Make new Reel, or the chat, which have their charges), never by itself
+const planIsFinal = () => !!aiDoneSig && !regenOk && !chatWaiting;
 // Next on the steps: 'same' (nothing changed: the same Reel), 'new' (a new Reel, its credits are asked next), 'old' (keep the old Reel), 'stay' (closed)
 async function changeGate(){
   if(!aiDoneSig) return 'go';
@@ -1921,6 +1923,17 @@ async function changeGate(){
   if(v === false) return 'old';
   regenOk = true; reelId = newId(); aiReel = ''; gateNo = ''; chatUsed = 0; director = null; dirCache.clear(); aiMixes.clear(); dirPlannedReel = ''; aiGaveUp = ''; dirFailedKey = ''; paceFailedKey = '';
   return 'new';
+}
+// a change made inside the editor (clips added or removed, another song): asked the same way, straight away
+let askingChange = false;
+async function editorChangeCheck(){
+  if(askingChange || root.classList.contains('fopen') || restoring || pending || recording || !aiOn || !aiHeldBack() || !$('cconf').hidden) return;
+  askingChange = true;
+  try{
+    const g = await changeGate();
+    if(g === 'new'){ if(await upsell() === 'close') keepOldReel(); else if(buf && sources.length) makeEdit(); }
+    else if(g === 'old' || g === 'stay') keepOldReel();
+  } finally { askingChange = false; }
 }
 // the old Reel, exactly as it was saved
 function keepOldReel(){ if(proj){ leavingOk = true; location.assign('/editor?p=' + encodeURIComponent(proj.id)); } }
@@ -2805,6 +2818,7 @@ function directorMaybe(){
     const from = st.plans.filter(Boolean), src = from[mixNo % from.length], slots = refitDirector(src, false);
     if(slots){ director = { key, slots, story: src.story, interim: st.busy }; if(!st.busy) dirCache.set(key, director); makeEdit(); return; }
   }
+  if(planIsFinal()) return;
   directorRun(key);
 }
 // New mix: the AI's other plans for these cuts, all in one call (the input is sent once)
@@ -7506,7 +7520,7 @@ root.__studio = { get songR(){ return song && song.r; }, get now(){ return playi
   snap: histSnap, unsnap: snapRestore, upsell, changeGate, keepOldReel, askNotDone, cancelled: () => ({ song: songCancelled, clips: clipsStopped }), guard: on => tasks.setGuard(on ? flowGuard : null), projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, pace: paceBusy,
     // Shubix AI is on for this Reel and its plan has not come yet (nor failed): the Reel is not final (the phone app waits)
-    aiWait: !!(aiOn && !aiHeldBack() && aiReelOk() && aiGaveUp !== reelIdNow() && edit.length && !(director && director.key === dirKey() && !director.interim) && dirFailedKey !== dirKey()), speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
+    aiWait: !!(aiOn && !planIsFinal() && !aiHeldBack() && aiReelOk() && aiGaveUp !== reelIdNow() && edit.length && !(director && director.key === dirKey() && !director.interim) && dirFailedKey !== dirKey()), speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt,
   // the phone app (bridge.ts): the account known after the start, Ask Shubix, the clips' smooth copies
   account, chatApp, get aiOn(){ return aiOn; },

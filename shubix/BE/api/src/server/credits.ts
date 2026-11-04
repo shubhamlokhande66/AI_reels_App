@@ -142,8 +142,16 @@ export async function setPlanByAdmin(userId: string, planId: string, months: num
 }
 /** An AI Reel's credits pay for its plan: once the plan is delivered the charge stays (marked here); a charge whose plan
  * never came (the AI failed, answered only a part) is given back by refundUndelivered. */
-export async function markDelivered(ref: string) {
-  if (ref) await (await col("credit_ledger")).updateOne({ ref, delta: { $lt: 0 } }, { $set: { delivered: true } });
+export async function markDelivered(ref: string, fingerprint?: string) {
+  if (ref) await (await col("credit_ledger")).updateOne({ ref, delta: { $lt: 0 } }, { $set: { delivered: true, ...(fingerprint ? { fingerprint } : {}) } });
+}
+/** What an AI Reel's work is charged under. The app's id alone does not decide: once a Reel has its plan, other footage or another
+ * plan under the same id is a new Reel, with its own charge. The same work again (a retry) is not. */
+export async function reelChargeKey(action: string, key: string, fingerprint: string) {
+  const uid = currentUser();
+  if (!uid) return key;
+  const paid = await (await col("credit_ledger")).findOne({ ref: `${action}:${uid}:${key}`, delta: { $lt: 0 }, refunded: { $ne: true } });
+  return paid?.delivered && paid.fingerprint !== fingerprint ? `${key}:again:${fingerprint}` : key;
 }
 export async function refundUndelivered(ref: string): Promise<number> {
   if (!ref) return 0;

@@ -51,6 +51,10 @@ Every new Reel from Shubix AI costs credits. Shubix AI never runs by itself on c
 
 While the inputs differ from the Reel that was made, the changes are not saved over that Reel.
 
+- On the website, a change inside the editor is asked straight away, in the same way.
+- Once a Reel has its plan, Shubix AI plans again only through Make new Reel or the chat, which have their own charges. A style change does not re-run it.
+- The server decides too: other footage or another plan under the same Reel id, after its plan was delivered, takes a new charge. A retry of the same work does not.
+
 ## 5. Steps and Back
 
 - On a computer one section is open at a time. Music is open first and Clips is minimised.
@@ -77,8 +81,8 @@ While the inputs differ from the Reel that was made, the changes are not saved o
 |---|---|---|
 | 1. Popups | Tested in the browser | Built, not run on a phone |
 | 2. Cancel and Proceed | Tested in the browser | Engine tested, screens not run on a phone |
-| 2. Clips play in their cards | Tested in the browser | Not built |
-| 2. Drag to move a clip | Tested in the browser | Not built |
+| 2. Clips play in their cards | Tested in the browser | Built, not run on a phone (the first 4 clips play) |
+| 2. Drag to move a clip | Tested in the browser | Built, not run on a phone |
 | 3. Shubix AI and credits | Tested with a fake AI | Engine tested, screens not run on a phone |
 | 4. Changes after a Reel is made | Tested with a fake AI | Engine tested, screen not run on a phone |
 | 5. Steps and Back | Tested in the browser | Green steps built; accordion is computer only |

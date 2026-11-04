@@ -1,6 +1,8 @@
+import { useVideoPlayer, VideoView } from "expo-video";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SongAnalysis } from "../../lib/engine";
-import { Image, PanResponder, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Image, PanResponder, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import type { ImagePickerAsset } from "expo-image-picker";
@@ -211,7 +213,34 @@ export type ClipSettings = { order: ClipOrder; aspect: Aspect; pace: TalkPace; u
 
 /** Add Your Clips: Videos / Photos, the tap-to-add area, the clips as squares (their length, remove), the clip order,
  * a Talking Reel's pauses and music, and the format. */
-export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarlier, onReverse, settings, onSettings }: { kind: FlowKind; photos: boolean; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; onEarlier: (i: number) => void; onReverse: () => void; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
+/** How many clips play at once: each holds a decoder and its frames, and many would run a phone out of memory. */
+const CARD_PLAYERS = 4;
+/** A clip's card: it plays itself, muted and looping (a very big clip keeps its picture, for the same reason), and goes where it is
+ * dragged after holding it a moment, so a quick swipe still scrolls the page. */
+function ClipTile({ asset, n, of, size, playing, onMove, onRemove }: { asset: ImagePickerAsset; n: number; of: number; size: number; playing: boolean; onMove: (from: number, to: number) => void; onRemove: (i: number) => void }) {
+  const words = useStudioText(), shift = useRef(new Animated.ValueXY()).current, [held, setHeld] = useState(false);
+  const light = asset.type !== "image" && (asset.width ?? 0) * (asset.height ?? 0) <= 2_400_000, on = playing && light;
+  const player = useVideoPlayer(on ? asset.uri : null, (p) => { p.loop = true; p.muted = true; p.play(); });
+  const step = size + 8, perRow = 3;
+  const drag = Gesture.Pan().runOnJS(true).activateAfterLongPress(220)
+    .onStart(() => setHeld(true))
+    .onUpdate((e) => shift.setValue({ x: e.translationX, y: e.translationY }))
+    .onEnd((e) => { const to = Math.max(0, Math.min(of - 1, n + Math.round(e.translationX / step) + Math.round(e.translationY / step) * perRow)); if (to !== n) onMove(n, to); })
+    .onFinalize(() => { setHeld(false); shift.setValue({ x: 0, y: 0 }); });
+  return (
+    <GestureDetector gesture={drag}>
+      <Animated.View accessibilityLabel={words("Clip {n}", { n: String(n + 1) })} className="overflow-hidden rounded-[14px] bg-surface-2" style={{ width: size, height: size, zIndex: held ? 20 : 0, elevation: held ? 12 : 0, transform: [...shift.getTranslateTransform(), { scale: held ? 1.06 : 1 }] }}>
+        <Thumb uri={asset.uri} kind={asset.type === "image" ? "image" : "video"} />
+        {on && <View pointerEvents="none" className="absolute inset-0"><VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} /></View>}
+        <View className="absolute left-1.5 top-1.5 h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5"><Text className="text-[11px] font-bold text-background">{n + 1}</Text></View>
+        <View className="absolute bottom-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5"><Text className="text-[11px] font-semibold text-white">{asset.type === "image" ? "5s" : clock((asset.duration ?? 0) / 1000)}</Text></View>
+        <Pressable onPress={() => onRemove(n)} accessibilityLabel={words("Remove")} hitSlop={6} className="absolute right-1.5 top-1.5 h-6 w-6 items-center justify-center rounded-full bg-black/70"><Icon name="close" size={13} color="#fff" /></Pressable>
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onMove, play, settings, onSettings }: { kind: FlowKind; photos: boolean; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; onMove: (from: number, to: number) => void; play: boolean; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
   const words = useStudioText(), { width } = useWindowDimensions(), tile = (Math.min(width, 520) - 32 - 36 - 16) / 3;
   return (
     <FlowCard>
@@ -235,22 +264,9 @@ export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onEarli
       ) : (
         <View className="gap-2.5">
           <Label>{words("Selected Clips")}</Label>
-          {media.length > 1 && (
-            <View className="-mt-1 flex-row items-center gap-2">
-              <Text className="flex-1 text-[12px] text-muted">{words("The numbers are the order (In my order). Tap a clip to move it earlier.")}</Text>
-              {/* some phones give the clips newest first, whatever order they were tapped in: one tap turns it round */}
-              <Pressable onPress={onReverse} accessibilityRole="button" className="flex-row items-center gap-1 rounded-full border border-border bg-surface-2 px-3 py-1.5 active:opacity-80"><Icon name="refresh" size={13} /><Text className="text-[12px] font-semibold text-foreground">{words("Reverse order")}</Text></Pressable>
-            </View>
-          )}
+          {media.length > 1 && <Text className="-mt-1 text-[12px] text-muted">{words("Hold a clip and drag it to move it. The numbers are the order.")}</Text>}
           <View className="flex-row flex-wrap gap-2">
-            {media.map((m, i) => (
-              <Pressable key={`${m.uri}-${i}`} onPress={() => onEarlier(i)} disabled={i === 0} accessibilityLabel={words("Clip {n}: move earlier", { n: String(i + 1) })} className="overflow-hidden rounded-[14px] bg-surface-2" style={{ width: tile, height: tile }}>
-                <Thumb uri={m.uri} kind={m.type === "image" ? "image" : "video"} />
-                <View className="absolute left-1.5 top-1.5 h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5"><Text className="text-[11px] font-bold text-background">{i + 1}</Text></View>
-                <View className="absolute bottom-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5"><Text className="text-[11px] font-semibold text-white">{m.type === "image" ? "5s" : clock((m.duration ?? 0) / 1000)}</Text></View>
-                <Pressable onPress={() => onRemove(i)} accessibilityLabel={words("Remove")} hitSlop={6} className="absolute right-1.5 top-1.5 h-6 w-6 items-center justify-center rounded-full bg-black/70"><Icon name="close" size={13} color="#fff" /></Pressable>
-              </Pressable>
-            ))}
+            {media.map((m, i) => <ClipTile key={`${m.uri}-${i}`} asset={m} n={i} of={media.length} size={tile} playing={play && i < CARD_PLAYERS} onMove={onMove} onRemove={onRemove} />)}
             <Pressable onPress={onAdd} accessibilityLabel={words("Add more clips")} className="items-center justify-center rounded-[14px] border-[1.5px] border-dashed border-border bg-surface-2 active:opacity-80" style={{ width: tile, height: tile }}><Icon name="plus" size={28} /></Pressable>
           </View>
         </View>

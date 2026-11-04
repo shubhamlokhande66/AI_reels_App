@@ -32,7 +32,7 @@ function CreateFlowScreen() {
   const [music, setMusic] = useState<SongAnalysis | null>(null), [song, setSong] = useState<Song | null>(null), [recent, setRecent] = useState<Song[]>([]), [reading, setReading] = useState(false);
   const [length, setLength] = useState(0), [start, setStart] = useState(0), [photos, setPhotos] = useState(kind === "photo"), [media, setMedia] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [settings, setSettings] = useState<ClipSettings>({ order: "order", aspect: "9:16", pace: "natural", under: "0.09" });
-  const [wish, setWish] = useState("");
+  const [wish, setWish] = useState(""), [working, setWorking] = useState(false), [focused, setFocused] = useState(true);
   useEffect(() => { void recentSongs().then(setRecent); }, []);
 
   const go = (to: FlowStep | undefined) => to && setStep(to);
@@ -55,8 +55,8 @@ function CreateFlowScreen() {
   }
   const act = useRef({ cancelWork, cancelReel }); act.current = { cancelWork, cancelReel };
   useFocusEffect(useCallback(() => {
-    tasks.guard({ onCancel: () => act.current.cancelWork(), onCancelReel: () => void act.current.cancelReel() });
-    return () => { tasks.guard(null); if (making.current) stop(); };
+    setFocused(true); tasks.guard({ onCancel: () => act.current.cancelWork(), onCancelReel: () => void act.current.cancelReel() });
+    return () => { setFocused(false); tasks.guard(null); if (making.current) stop(); };
   }, [])); // eslint-disable-line react-hooks/exhaustive-deps
   const back = () => { const i = order.indexOf(step); if (i <= 0) router.back(); else go(order[i - 1]); };
   useEffect(() => { if (Platform.OS === "web") return; const h = BackHandler.addEventListener("hardwareBackPress", () => { back(); return true; }); return () => h.remove(); }); // Android back: the screen before
@@ -112,7 +112,7 @@ function CreateFlowScreen() {
   const keyOf = (list: ImagePicker.ImagePickerAsset[]) => list.map((m) => m.uri).join("|");
   // the clips kept on the phone and read by the website's engine (compressed when heavy, each one analysed), in the popup
   async function readClips(list: ImagePicker.ImagePickerAsset[], sg: Song | null = song) {
-    stage.current = "clips"; making.current = true;
+    stage.current = "clips"; making.current = true; setWorking(true);
     tasks.start("flow", "clips", words("Adding your clips"), `${words("Clip")} 1 / ${list.length}`);
     try {
       // only the new ones are copied (what is kept stays, unless a clip was taken out or moved)
@@ -142,7 +142,7 @@ function CreateFlowScreen() {
       read.current = { key: keyOf(list), clips, sources }; askAgain.current = false;
       return true;
     } catch (e) { if (making.current) tell(errorMessage(e), "danger"); return false; }
-    finally { making.current = false; tasks.clear("flow"); }
+    finally { making.current = false; setWorking(false); tasks.clear("flow"); }
   }
   // Keep old Reel: the clips and song it was made from again, and the editor with it
   async function keepOldReel(old: NonNullable<typeof madeReel.current>) {
@@ -183,7 +183,7 @@ function CreateFlowScreen() {
           if (v === 0) router.push("/credits");
           if (v !== 1) return;
         }
-        stage.current = "ai"; making.current = true; setStep("analyse"); tasks.unlock();
+        stage.current = "ai"; making.current = true; setStep("analyse"); tasks.unlock();   // (the cards stop playing: another step)
         tasks.start("flow", "ai", words("Shubix at work"), words("Getting your Reel ready…"));
         await engine.choose({ order: settings.order, aspect: settings.aspect, mode: style || "auto" }); // (the length and the part are set already)
         if (again) await engine.newReel();
@@ -222,7 +222,7 @@ function CreateFlowScreen() {
         {step === "intro" && <FlowIntro kind={kind} />}
         {step === "choose" && <FlowChoose kind={kind} song={song} recent={recent} busy={reading} onPick={() => void choose(() => pickSong())} onPickReel={() => void choose(() => pickSong("video"))} onRecent={(s) => void pickRecent(s)} onForget={(uri) => { setRecent((r) => r.filter((s) => s.uri !== uri)); if (song?.uri === uri) setSong(null); }} />}
         {step === "adjust" && song && <FlowAdjust song={song} music={music} length={length} start={start} onLength={(n) => void lengthTo(n)} onStart={(t) => void partFrom(t)} />}
-        {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} onReverse={() => setMedia((m) => [...m].reverse())} onEarlier={(i) => setMedia((m) => i > 0 ? [...m.slice(0, i - 1), m[i], m[i - 1], ...m.slice(i + 1)] : m)} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
+        {step === "clips" && <FlowClips kind={kind} photos={photos} onTab={(p) => { setPhotos(p); setMedia([]); }} media={media} onAdd={() => void addMedia()} onRemove={(i) => setMedia((m) => m.filter((_, j) => j !== i))} onMove={(from, to) => setMedia((m) => { const list = [...m], [one] = list.splice(from, 1); list.splice(to, 0, one); return list; })} play={focused && !working && step === "clips"} settings={settings} onSettings={(s) => setSettings((o) => ({ ...o, ...s }))} />}
       </ScrollView>
       {button && <View className="px-4 pt-2" style={{ paddingBottom: Math.max(12, insets.bottom + 4) }}><Button full size="xl" title={button.title} iconAfter={button.on ? "arrow" : undefined} disabled={!button.on} onPress={() => { Keyboard.dismiss(); button.press(); }} /></View>}
     </View>

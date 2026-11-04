@@ -5,7 +5,7 @@ import { getProvider, type ManagedProvider } from "../ai";
 import { effective, keyConfigured, providerFor } from "../ai/config";
 import { clean, Text } from "../ai/text";
 import { AIResponseError } from "../ai/types";
-import { canChargeOnce, chargeOnce, costOf, enabled as creditsOn } from "../credits";
+import { canChargeOnce, chargeOnce, costOf, enabled as creditsOn, reelChargeKey } from "../credits";
 import { db } from "../core/db";
 
 /** Fast Studio's optional AI step: the phone sends a few small frames of each clip, a vision model says how strong each
@@ -181,7 +181,9 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
   const uniqueMisses = new Map<string, RankIn["clips"][number]>();
   for (let i = 0; i < input.clips.length; i++) if (!cached.has(keys[i]) && !uniqueMisses.has(keys[i])) uniqueMisses.set(keys[i], input.clips[i]);
 
-  const chargeKey = input.reelId || crypto.randomUUID().slice(0, 12);
+  // (new footage on a Reel that already has its plan is a new Reel: it has its own charge)
+  const footage = crypto.createHash("sha256").update([...uniqueMisses.keys()].sort().join()).digest("hex").slice(0, 16);
+  const chargeKey = input.reelId ? await reelChargeKey(COST_ACTION, input.reelId, footage) : crypto.randomUUID().slice(0, 12);
   if (uniqueMisses.size) await canChargeOnce(COST_ACTION, chargeKey);
 
   const misses = [...uniqueMisses.entries()];

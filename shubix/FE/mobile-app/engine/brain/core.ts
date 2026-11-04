@@ -305,6 +305,7 @@ function directorMaybe(){
     const from = st.plans.filter(Boolean), src = from[ES.mixNo % from.length], slots = EH.refitDirector(src, false);
     if(slots){ ES.director = { key, slots, story: src.story, interim: st.busy }; if(!st.busy) ES.dirCache.set(key, ES.director); makeEdit(); return; }
   }
+  if(EH.planIsFinal()) return;
   EH.directorRun(key);
 }
 function paceMaybe(){
