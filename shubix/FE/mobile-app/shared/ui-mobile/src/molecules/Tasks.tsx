@@ -97,7 +97,7 @@ function TaskCard({ t }: { t: Task }) {
       </View>
       <View className="min-w-0 flex-1">
         <View className="flex-row items-baseline justify-between gap-2"><Text numberOfLines={1} className="flex-1 text-[16px] font-semibold tracking-tight text-foreground">{t.title}</Text><Text className="text-[11.5px] text-muted">{info}</Text></View>
-        <Text numberOfLines={3} className="text-[12.5px] text-muted">{t.detail}</Text>
+        <Text numberOfLines={1} className="text-[12.5px] text-muted">{t.detail}</Text>
         <View className="mt-2.5 h-1 overflow-hidden rounded-full bg-foreground/10">
           {t.p === null && t.state === "run"
             ? <Animated.View className="h-full w-[40%] rounded-full bg-accent" style={{ transform: [{ translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [-40, 190] }) }] }} />

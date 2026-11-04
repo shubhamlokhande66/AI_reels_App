@@ -3615,3 +3615,12 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.brs.made.v-one .previewPanel .transport #soundstate{font-size:0 !important;gap:0 !important;flex:none}
   .brs.brs.made.v-one .previewPanel .transport #remix{padding:0 10px !important}
 }
+@media (max-width:340px){
+  .brs.brs.made.v-one .previewPanel .transport #remix span{display:none !important}
+  .brs.brs.made.v-one .previewPanel .transport #remix{padding:0 10px !important;gap:0 !important}
+}
+/* phones, no tool open: the Reel as wide as the card (what the person came to check), as tall as most of the screen */
+@media (max-width:1023px){
+  .brs.brs.made.v-one:is([data-tool=""],:not([data-tool])) .previewPanel .previewStage{height:auto !important;max-height:none !important;flex:none !important;padding:6px 0 !important;container-type:inline-size}
+  .brs.brs.made.v-one:is([data-tool=""],:not([data-tool])) .previewPanel .previewStage .videoFrame{width:min(100cqw,74svh * var(--ar,.5625)) !important;max-width:100% !important;height:auto !important;max-height:none !important}
+}

@@ -50,9 +50,10 @@ const EXPORT_FRAME_POOL = LOW_MEMORY_DEVICE ? 2 : 4;
  * normally. Found at the next start, it means the page died: it is reported (Admin → Errors), and the Reel is reopened
  * from this phone when it was saved (the clips' reading is kept, so the second time is fast). */
 const LIFE_KEY = 'brs-life';
-let lifeNote = {};
-function life(p){ lifeNote = { ...lifeNote, ...p, at: Date.now() }; try{ sessionStorage.setItem(LIFE_KEY, JSON.stringify(lifeNote)); }catch(e){} }
-const lifeEnd = () => { try{ sessionStorage.removeItem(LIFE_KEY); }catch(e){} };
+let lifeNote = {}, lifeOver = false;
+function life(p){ if(lifeOver) return; lifeNote = { ...lifeNote, ...p, at: Date.now() }; try{ sessionStorage.setItem(LIFE_KEY, JSON.stringify(lifeNote)); }catch(e){} }
+// the studio was left in the normal way: work still finishing must not write again, or the next studio takes it for a crash
+const lifeEnd = () => { lifeOver = true; try{ sessionStorage.removeItem(LIFE_KEY); }catch(e){} };
 let lifeBefore = null;
 try{ lifeBefore = JSON.parse(sessionStorage.getItem(LIFE_KEY) || 'null'); }catch(e){}
 life({ path: location.pathname + location.search, stage: 'open' });

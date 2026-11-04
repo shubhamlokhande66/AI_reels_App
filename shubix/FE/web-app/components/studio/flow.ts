@@ -393,7 +393,11 @@ export function initFlow(root: HTMLElement): () => void {
         // the popup shows the work on every screen size; the Reel opens once Shubix is done
         await new Promise((ok) => setTimeout(ok, 400)); apply();
         for (let t = 0; run === aiRunNo && (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
-        if (run === aiRunNo && made() && phone()) { revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); return; }   // phones: the finished Reel first
+        if (run === aiRunNo && made() && phone()) {   // phones: the finished Reel, with its timeline (also when it is opened again after Back)
+          revealed = true; mark(true); apply(); window.scrollTo({ top: 0 });
+          requestAnimationFrame(() => { if (!has("editing")) $<HTMLButtonElement>("fedit").click(); });
+          return;
+        }
         if (run === aiRunNo && made()) {
           revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
           setAddress("/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
