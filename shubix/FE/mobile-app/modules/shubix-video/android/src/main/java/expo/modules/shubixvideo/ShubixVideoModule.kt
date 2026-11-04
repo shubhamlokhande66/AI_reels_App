@@ -478,15 +478,14 @@ class ShubixVideoModule : Module() {
       val y = keyframeValue(frames, time, "y", 0.0)
       val scale = keyframeValue(frames, time, "s", 1.0).coerceIn(0.05, 8.0)
       val rotation = keyframeValue(frames, time, "r", 0.0)
-      val centerX = frameWidth / 2f
-      val centerY = frameHeight / 2f
+      // Media3 applies this matrix to points from -1 to 1 (y up), not to pixels: x and y are in frame widths and heights,
+      // so one frame across is 2 here. The turn is done in the frame's real shape, so a picture is not squeezed by it.
+      val shape = frameHeight.toFloat() / frameWidth
       Matrix().apply {
-        // Project keyframe x/y values are normalized to the frame (-1…1), not pixels.
-        // Transform around the frame centre so zoom and rotation do not orbit the top-left corner.
-        postTranslate(-centerX, -centerY)
-        postScale(scale.toFloat(), scale.toFloat())
-        postRotate(rotation.toFloat())
-        postTranslate(centerX + (x * frameWidth).toFloat(), centerY - (y * frameHeight).toFloat())
+        postScale(scale.toFloat(), scale.toFloat() * shape)
+        postRotate(-rotation.toFloat())
+        postScale(1f, 1f / shape)
+        postTranslate((x * 2).toFloat(), (y * 2).toFloat())
       }
     }
   }
