@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { AppShell } from "@/components/templates/AppShell";
 import { Providers } from "@/components/templates/Providers";
+import { fetchAdsFile } from "@/lib/adsFile";
 import { THEME_SCRIPT } from "@/lib/theme";
 
 // One clean geometric sans (UI/ design): bold for headings, regular for everything else.
@@ -35,7 +36,7 @@ const site: Metadata = {
 
 /** The AdSense publisher id for Google's site check, from the public /ads.txt (the id set in Admin → Settings → Ads; none: no tag). */
 export async function generateMetadata(): Promise<Metadata> {
-  const pub = await fetch(`${(process.env.API_URL || "http://localhost:4000").replace(/\/$/, "")}/ads.txt`, { next: { revalidate: 300 }, signal: AbortSignal.timeout(2500) })
+  const pub = await fetchAdsFile("ads.txt")
     .then(async (r) => (r.ok ? /pub-\d+/.exec(await r.text())?.[0] : undefined)).catch(() => undefined);
   return pub ? { ...site, other: { "google-adsense-account": `ca-${pub}` } } : site;
 }
