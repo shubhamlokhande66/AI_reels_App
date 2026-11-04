@@ -817,7 +817,7 @@ export default function EditorScreen() {
   const aspect = ASPECT[p.settings?.aspect ?? "9:16"];
   return (
     <View className="flex-1 bg-background">
-      <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return tell(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
+      <StudioBar title={p.title} onBack={back} onExport={() => { if (!videoEngine.ready) return tell(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
         <Preview n={selected} of={clips.length} playing={playing} aspect={aspect} error={playError} onToggle={() => setPlaying(!playing)}><ReelPlayer p={p} layers={studioLayers} now={now} playing={playing} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onError={setPlayError} /></Preview>
         <View className="mx-4 mt-2">

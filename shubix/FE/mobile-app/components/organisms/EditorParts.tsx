@@ -17,15 +17,14 @@ import { useThumb } from "../../lib/thumbs";
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"];
 export const mmss = (t: number, tenth = true) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 9.95 ? "0" : ""}${s.toFixed(tenth ? 1 : 0)}`; };
 
-/** The studio's top bar: its sign, REEL STUDIO with the saved dot, the Reel's name, and Export. */
-export function StudioBar({ title, saved, onBack, onExport }: { title: string; saved: boolean; onBack: () => void; onExport: () => void }) {
+/** The studio's top bar: its sign, the Reel's name, and Export. */
+export function StudioBar({ title, onBack, onExport }: { title: string; onBack: () => void; onExport: () => void }) {
   const words = useStudioText();
   return (
     <View className="mx-4 mb-3 mt-2 min-h-[58px] flex-row items-center gap-3 rounded-[18px] border border-border bg-surface px-3">
       <IconButton icon="back" label={words("Back")} size={36} look="plain" onPress={onBack} />
       <View className="h-[34px] w-[34px] items-center justify-center rounded-[11px] border border-accent/30 bg-accent/10"><Glyph name="Shots" size={18} color="accent" /></View>
       <View className="min-w-0 flex-1 gap-[3px]">
-        <View className="flex-row items-center gap-1.5"><Text className="text-[8px] font-bold tracking-[1px] text-muted">REEL STUDIO</Text><View className={`h-1.5 w-1.5 rounded-full ${saved ? "bg-[#72bd91]" : "bg-border"}`} /><Text numberOfLines={1} className="text-[8px] font-bold tracking-[1px] text-muted">{words(saved ? "SAVED REEL" : "SAVING…")}</Text></View>
         <Text numberOfLines={1} className="text-[13px] text-foreground">{title}</Text>
       </View>
       <View><Button title={words("Export")} iconAfter="arrow" onPress={onExport} /></View>
