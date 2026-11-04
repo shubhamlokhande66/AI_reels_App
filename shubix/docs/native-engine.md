@@ -43,10 +43,10 @@ stays on the studio until step 8.
 
 ## AI models on the phone
 
-`Models.kt` runs the beat tracker, speech finder, voices, person mask and faces with ONNX Runtime for Android. The hidden page reaches it through the file server (`/model`, `/onnx`, `/speech`). If the phone's model fails, the page's WebAssembly copy takes over and a warning goes to the console.
+`Models.kt` runs the beat tracker, speech finder, person mask and faces with ONNX Runtime for Android. `SystemVoice.kt` speaks with the phone's own text-to-speech. The hidden page reaches it through the file server (`/model`, `/onnx`, `/speech`, `/speak`). If the phone's model fails, the page's WebAssembly copy takes over and a warning goes to the console.
 
-Still in the page: turning a voice's text into phonemes (piper-phonemize, WebAssembly), and the audio and mel steps before the models run. These must move before the WebView can go.
+Still in the page: the audio and mel steps before the models run. These must move before the WebView can go.
 
 `node scripts/models-check.mjs [voice]` compares the phone's models with the WebAssembly copies on a connected phone. The same-input outputs must be within 0.01. The beat tracker is an 8-bit network, so it has its own rule: the same number of beats and downbeats, each within 20 ms, one network frame.
 
-Tested on a computer: `Models.kt` on the JVM against the page's copies passed, with beats up to 20 ms apart. Not yet run on a phone.
+Tested on a computer: `Models.kt` on the JVM against the page's copies passed, with beats up to 20 ms apart. `SystemVoice.kt` needs a phone. Neither has run on a phone.

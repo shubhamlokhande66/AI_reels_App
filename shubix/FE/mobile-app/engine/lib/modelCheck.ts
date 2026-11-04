@@ -7,7 +7,7 @@ import { findFaces, personMask } from "./vision/client";
 
 /** Do the phone's models answer as the WebAssembly copies do? The same made-up input goes to both (scripts/models-check.mjs
  * calls this; nothing in the app does). Then the real way in, through the workers, must do its work on the
- * phone's models. `voice`: a voice's name, which downloads it and speaks. A voice is random by design: only its length is reported. */
+ * phone's models. `voice`: a language such as hi-IN, spoken by the phone's own voice. */
 const API = "/api/studio/model/";
 
 export async function modelCheck(voice?: string) {
@@ -79,6 +79,6 @@ export async function modelCheck(voice?: string) {
   await worker("speech", async () => { const p = await speechProbs(sound.slice(), 16000); if (p.some((v, i) => Math.abs(v - phone[i]) > 0.01)) throw new Error("the worker's speech differs"); return `${p.length} values`; });
   await worker("mask", async () => `${(await personMask(new Uint8ClampedArray(256 * 256 * 4).fill(128))).length} values`);
   await worker("faces", async () => `${(await findFaces([new Uint8ClampedArray(128 * 128 * 4).fill(128)])).length} squares`);
-  if (voice) await worker("voice", async () => { const r = await speak("Hello from the phone.", voice); if (!r.pcm.length) throw new Error("no sound"); return `${r.pcm.length} samples at ${r.sr}`; });
+  if (voice) { const [r, nativeMs] = await timed(() => speak("Hello from the phone.", voice)); rows.push({ model: `voice: ${voice}`, diff: r.pcm.length ? 0 : 1, nativeMs, wasmMs: 0, note: `${r.pcm.length} samples at ${r.sr}` }); }
   return { rows, ok: close && rows.every((r) => r.diff < 0.01) };
 }

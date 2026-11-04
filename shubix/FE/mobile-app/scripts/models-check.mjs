@@ -1,7 +1,7 @@
 // Do the phone's AI models (Models.kt, ONNX Runtime for Android) answer as the engine page's WebAssembly copies do?
 //   node scripts/models-check.mjs [voice]                  on the connected phone, with the app open
 //   node scripts/models-check.mjs --page=URL --port=P [voice]  a page in a Chrome listening on debug port P (a test on a computer)
-// Voice: a voice's name such as en_US-hfc_female-medium; about 60 MB is downloaded the first time.
+// Voice: a language such as hi-IN, spoken by the phone's own voice.
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 

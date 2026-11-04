@@ -4400,7 +4400,7 @@ async function clipPcm(si){
 }
 const csVoiced = e => !!(e.cs && (e.cs.vol > 0 || (e.cs.kx || []).some(k => k.vol > 0)));   // the shot's own sound plays (its volume, or a volume keyframe)
 const clipVoiced = () => ES.kind !== 'talk' && ES.edit.some(e => csVoiced(e));
-/* ---- text to speech (on the phone, Piper voices): each piece of speech starts at its time and is mixed like the
+/* ---- text to speech (the phone's own voices): each piece of speech starts at its time and is mixed like the
  * voiceover (the voice changer works on it too; the song steps back while it speaks) ---- */
 let ttsSeq = 0; ES.ttsClips = [];
 const ttsPcm = (c) => { if(!c.pcm) return null; if(ES.au.vfx === 'none') return c.pcm; const k = 'tts' + c.id + '|' + ES.au.vfx; if(!fxCache.has(k)) fxCache.set(k, voiceFx(c.pcm, c.sr, ES.au.vfx)); return fxCache.get(k); };
@@ -4481,7 +4481,7 @@ $('sfxv').addEventListener('change', () => ensureMix(), SIG);
 ES.speechBusy = false;
 
 /* =============== STORY -> REEL (on the phone) ===============
- * A written story becomes a narrated Reel: each sentence is spoken by a text-to-speech voice (Piper, on the phone), the
+ * A written story becomes a narrated Reel: each sentence is spoken by the phone's text-to-speech voice, the
  * narration is the Reel's voiceover (the song, if any, plays quietly under it), each sentence is a scene cut from the
  * creator's clips or photos (a soft zoom or drift on each shot, a dissolve between scenes), and the captions are the
  * story's own words timed to the speech. Nothing is uploaded and nothing is charged. ---- */

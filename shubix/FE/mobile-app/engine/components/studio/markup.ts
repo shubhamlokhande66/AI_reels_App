@@ -556,7 +556,7 @@ export const STUDIO_HTML = `
               <label class="label" for="ttstext">Text to speech</label>
               <textarea id="ttstext" rows="2" maxlength="1200" placeholder="Type what the voice should say… (English, हिन्दी, मराठी, తెలుగు, മലയാളം)"></textarea>
               <div class="row"><select id="ttsvoice" aria-label="Voice"></select><button type="button" class="${Button.secondary}" id="ttsadd">${IC.voice}Add at the playhead</button></div>
-              <p class="hint">Made on this phone. Each voice is downloaded once (about 60 MB).</p>
+              <p class="hint">Made on this phone with its own voices.</p>
               <div class="ttslist" id="ttslist"></div>
             </div>
             <span class="label musiconly">Voice changer</span>

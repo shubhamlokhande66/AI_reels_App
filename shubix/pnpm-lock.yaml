@@ -249,9 +249,6 @@ importers:
       '@babel/plugin-transform-react-jsx':
         specifier: ^7.29.7
         version: 7.29.7(@babel/core@7.29.7)
-      '@diffusionstudio/piper-wasm':
-        specifier: 1.0.0
-        version: 1.0.0
       '@mediabunny/aac-encoder':
         specifier: 1.60.0
         version: 1.60.0(mediabunny@1.60.0)

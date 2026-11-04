@@ -67,7 +67,6 @@
   },
   "devDependencies": {
     "@babel/plugin-transform-react-jsx": "^7.29.7",
-    "@diffusionstudio/piper-wasm": "1.0.0",
     "@mediabunny/aac-encoder": "1.60.0",
     "@react-native/metro-config": "0.88.0",
     "@shiguredo/rnnoise-wasm": "2025.1.5",
