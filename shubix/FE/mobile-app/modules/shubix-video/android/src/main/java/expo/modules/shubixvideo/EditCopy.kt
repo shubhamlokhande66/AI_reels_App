@@ -23,7 +23,8 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** A heavy clip's edit copy (10-bit HDR, high frame rate, very large), made by the phone's hardware: H.264, normal colours,
- * the size and frame rate asked for. Blocks until it is done, and throws when it could not be made. */
+ * the size and frame rate asked for, a key frame every half second (a Reel cuts into its clips many times a second, and
+ * each cut decodes from the key frame before it). Blocks until it is done, and throws when it could not be made. */
 @UnstableApi
 internal fun makeEditCopy(context: Context, from: File, to: File, width: Int, height: Int, fps: Float, bitrate: Int) {
   val worker = HandlerThread("shubix-copy").apply { start() }
@@ -40,7 +41,7 @@ internal fun makeEditCopy(context: Context, from: File, to: File, width: Int, he
         .setLooper(worker.looper)
         .setVideoMimeType(MimeTypes.VIDEO_H264)
         .setAudioMimeType(MimeTypes.AUDIO_AAC)
-        .setEncoderFactory(DefaultEncoderFactory.Builder(context).setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build()).build())
+        .setEncoderFactory(DefaultEncoderFactory.Builder(context).setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).setiFrameIntervalSeconds(0.5f).build()).build())
         .addListener(object : Transformer.Listener {
           override fun onCompleted(composition: Composition, exportResult: ExportResult) { done.countDown() }
           override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) { failure = exportException; done.countDown() }

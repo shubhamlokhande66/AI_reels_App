@@ -256,6 +256,7 @@ class ShubixVideoModule : Module() {
     val shaders = StudioShaders.of(spec)
     // the studio's texts as the website draws them (StudioTexts.kt), when the phone sends them so (studioTexts)
     val shotTimes = mutableListOf<ShotTime>()
+    val sharedEffects = mutableMapOf<String, MutableList<Effect>>()
     val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { list ->
       val behind = live && (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
       StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes) else null)
@@ -314,7 +315,7 @@ class ShubixVideoModule : Module() {
       shotTimes += ShotTime(PersonMask.pathOf(uri), image, at, clipOutputDuration, startSeconds, sourceDuration / clipOutputDuration)
       // the time the effects get: the export counts from this shot's start, the live player from the Reel's start
       val base = if (live) at else 0.0
-      val video = mutableListOf<Effect>()
+      var video = mutableListOf<Effect>()
       val audio = mutableListOf<AudioProcessor>()
       if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
       if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
@@ -362,6 +363,12 @@ class ShubixVideoModule : Module() {
       if (studioLayers != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioLayers.overlay(at - base)))
       if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at - base)))
       else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at - base)))
+      // the live player keeps its GPU programs when the next shot's effects are the same objects: shots with nothing of
+      // their own (most cuts of a fast Reel) share one list, so a cut does not rebuild them
+      if (live && turn == 0f && !mirror && !flip && (keyframes == null || keyframes.length() == 0) && transitionIn == null && tr == null && !c.optBoolean("keep") &&
+        (c.optJSONArray("effects")?.length() ?: 0) == 0 && c.optJSONObject("cs") == null && c.optJSONObject("pic") == null && c.optJSONObject("grade") == null) {
+        video = sharedEffects.getOrPut(c.optString("fit") + "|" + c.optString("filter")) { video }
+      }
       items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply {
         if (image) setFrameRate(30)
         else {
