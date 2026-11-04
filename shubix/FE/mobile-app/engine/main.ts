@@ -51,6 +51,8 @@ async function start() {
     personMask: (rgba: Uint8ClampedArray) => import("@/lib/vision/client").then((m) => m.personMask(rgba)),
     findFaces: (squares: Uint8ClampedArray[]) => import("@/lib/vision/client").then((m) => m.findFaces(squares)),
   });
+  // for scripts/models-check.mjs: do the phone's models answer as the page's do?
+  (window as unknown as { modelCheck: (voice?: string) => unknown }).modelCheck = (voice) => import("@/lib/modelCheck").then((m) => m.modelCheck(voice));
   const { initBridge } = await import("@/components/studio/bridge");
   initBridge(root);
 }

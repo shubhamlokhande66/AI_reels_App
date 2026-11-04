@@ -28,7 +28,11 @@ import kotlin.concurrent.thread
  *   POST /frames?k=KEY&p=PATH&w=W&h=H  a clip's frames at the times in the body, comma separated (FrameReader.kt)
  *   GET  /sound?k=KEY&p=PATH        a file's sound, decoded (SoundReader.kt)
  *   POST /copy?k=KEY&p=PATH&w=W&h=H&fps=F&b=BITRATE  a heavy clip's edit copy; answers its path (EditCopy.kt)
- *   PUT  /out?k=KEY&name=NAME       the body is kept as <cache>/engine-out/NAME; answers its path */
+ *   PUT  /out?k=KEY&name=NAME       the body is kept as <cache>/engine-out/NAME; answers its path
+ *   POST /model?k=KEY&u=MODEL       the model is downloaded when needed: lines of progress, then "ok" (Models.kt)
+ *   GET  /model?k=KEY               how many runs the models have done
+ *   POST /onnx?k=KEY&u=MODEL        one run of a model
+ *   POST /speech?k=KEY&u=MODEL      the chance of speech in a 16 kHz sound */
 @androidx.media3.common.util.UnstableApi
 class FileServer(private val context: Context, private val roots: List<File>, private val outDir: File, private val api: String) {
   private val assets: AssetManager = context.assets
@@ -38,6 +42,7 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
   val port: Int get() = server.localPort
   private val decoders = Semaphore(3, true)
   private val copies = Semaphore(1, true)
+  private val models = Models(File(context.filesDir, "models"), api)
 
   init { thread(isDaemon = true, name = "shubix-files") { while (!server.isClosed) try { val s = server.accept(); thread(isDaemon = true) { serve(s) } } catch (_: Exception) {} } }
   fun close() = try { server.close() } catch (_: Exception) {}
@@ -53,7 +58,7 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -73,6 +78,27 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
         if (method == "GET") RandomAccessFile(f, "r").use { r -> r.seek(a); val buf = ByteArray(256 * 1024); var left = b - a + 1
           while (left > 0) { val n = r.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n <= 0) break; out.write(buf, 0, n); left -= n } }
         out.flush()
+      }
+      url.path == "/model" && method == "GET" -> reply(out, 200, "OK", mapOf("Content-Type" to "text/plain"), models.runs.get().toString().toByteArray())
+      url.path == "/model" && method == "POST" -> {
+        write(out, 200, "OK", mapOf("Content-Type" to "text/plain"))
+        // Throwable: a phone that cannot load the runtime gets an answer too, and the page uses its own copy
+        try { models.fetch(url.getQueryParameter("u") ?: "") { p -> out.write("$p\n".toByteArray()); out.flush() }; out.write("ok\n".toByteArray()) }
+        catch (e: Throwable) { out.write("${(e.message ?: "no model").replace('\n', ' ').ifBlank { "no model" }}\n".toByteArray()) }
+        out.flush()
+      }
+      url.path == "/onnx" && method == "POST" -> {
+        val body = ByteArray((headers["content-length"]?.toIntOrNull() ?: 0).coerceIn(0, 64_000_000)); var read = 0
+        while (read < body.size) { val n = input.read(body, read, body.size - read); if (n <= 0) break; read += n }
+        try { reply(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream"), models.run(url.getQueryParameter("u") ?: "", body)) }
+        catch (e: Throwable) { reply(out, 500, "Model failed", mapOf("Content-Type" to "text/plain"), (e.message ?: "model failed").toByteArray()) }
+      }
+      url.path == "/speech" && method == "POST" -> {
+        try {
+          val probs = models.speech(url.getQueryParameter("u") ?: "", input, headers["content-length"]?.toLongOrNull() ?: 0L)
+          val bytes = java.nio.ByteBuffer.allocate(probs.size * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN); bytes.asFloatBuffer().put(probs)
+          reply(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream"), bytes.array())
+        } catch (e: Throwable) { reply(out, 500, "Model failed", mapOf("Content-Type" to "text/plain"), (e.message ?: "model failed").toByteArray()) }
       }
       url.path == "/copy" && method == "POST" -> {
         val f = File(url.getQueryParameter("p") ?: "")
