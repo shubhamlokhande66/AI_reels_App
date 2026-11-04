@@ -255,7 +255,11 @@ class ShubixVideoModule : Module() {
     val lengths = mutableMapOf<String, Long?>()
     val shaders = StudioShaders.of(spec)
     // the studio's texts as the website draws them (StudioTexts.kt), when the phone sends them so (studioTexts)
-    val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { StudioTextRenderer(it, w, h) }
+    val shotTimes = mutableListOf<ShotTime>()
+    val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { list ->
+      val behind = live && (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
+      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes) else null)
+    }
     // the overlay layers, live player only (the export of a Reel with layers is the engine page's)
     val studioLayers = spec.optJSONArray("layers")?.takeIf { live && it.length() > 0 }?.let { StudioLayerRenderer(it, w, h) }
     val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
@@ -307,6 +311,7 @@ class ShubixVideoModule : Module() {
       val muted = c.optBoolean("muted")
       val textCache = if (texts != null && texts.length() > 0) TextOverlayCache(texts, w, h) else null
       val clipTimelineStart = at
+      shotTimes += ShotTime(PersonMask.pathOf(uri), image, at, clipOutputDuration, startSeconds, sourceDuration / clipOutputDuration)
       // the time the effects get: the export counts from this shot's start, the live player from the Reel's start
       val base = if (live) at else 0.0
       val video = mutableListOf<Effect>()

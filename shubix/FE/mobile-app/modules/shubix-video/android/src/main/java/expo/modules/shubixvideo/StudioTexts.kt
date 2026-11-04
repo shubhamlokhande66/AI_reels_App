@@ -3,6 +3,7 @@ package expo.modules.shubixvideo
 import android.graphics.Bitmap
 import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
+import android.graphics.Matrix
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
@@ -27,17 +28,34 @@ import kotlin.math.sin
  * the nearest Android family (condensed, serif, script, casual). One renderer for the whole Reel, two full-frame bitmaps
  * in turn (Media3 uploads an overlay again only when it is given another bitmap). */
 @UnstableApi
-internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private val h: Int) {
+internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private val h: Int, private val person: PersonMask? = null) {
   private val list = (0 until texts.length()).mapNotNull { texts.optJSONObject(it) }.filter { it.optString("text").isNotBlank() }
   private val bufs = arrayOf(Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888), Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888))
   private var turn = 0
+  private var behindBuf: Bitmap? = null
   private val blank = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
   @Synchronized fun at(t: Double): Bitmap {
     val on = list.filter { t >= it.optDouble("start") && t < it.optDouble("end") }
     if (on.isEmpty()) return blank
     turn = 1 - turn; val b = bufs[turn]; b.eraseColor(Color.TRANSPARENT)
-    val c = Canvas(b); for (ov in on) draw(c, ov, t)
+    val c = Canvas(b)
+    // text behind the person: drawn on its own, the person cut out of it, then put under the other texts
+    val back = if (person != null) on.filter { it.optBoolean("behind") } else emptyList()
+    if (back.isNotEmpty()) {
+      person!!.want(t)
+      val under = behindBuf ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { behindBuf = it }
+      under.eraseColor(Color.TRANSPARENT)
+      val cut = Canvas(under); for (ov in back) draw(cut, ov, t)
+      person.latest?.let { mask ->
+        // the mask of the whole frame, placed as the shot fills the Reel (cover)
+        val scale = max(w.toFloat() / mask.width, h.toFloat() / mask.height)
+        val place = Matrix().apply { setScale(scale, scale); postTranslate((w - mask.width * scale) / 2, (h - mask.height * scale) / 2) }
+        cut.drawBitmap(mask, place, Paint(Paint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) })
+      }
+      c.drawBitmap(under, 0f, 0f, null)
+    }
+    for (ov in on) if (ov !in back) draw(c, ov, t)
     return b
   }
 
