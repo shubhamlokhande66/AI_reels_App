@@ -338,6 +338,15 @@ function drawMusic(){
 // mediabunny copies just the sound track, unchanged, into a small .m4a that the browser's decoder accepts (fast, any
 // browser); a sound that cannot be copied so is decoded with WebCodecs where the browser has an audio decoder.
 async function decodeAnyAudio(file){
+  // on the phone its own decoder reads it (SoundReader.kt); a file it cannot read goes on below
+  const ph = window.__phone, path = ph && ph.paths[file.name + '|' + file.size];
+  if(path){ try{
+    const r = await fetch(ph.base + '/sound?k=' + ph.key + '&p=' + encodeURIComponent(path));
+    if(r.ok){ const raw = await r.arrayBuffer(), top = new DataView(raw, 0, 8), sr = top.getInt32(0, true), ch = top.getInt32(4, true), all = new Float32Array(raw, 8), n = Math.floor(all.length/ch);
+      if(n > 0){ const out = getCtx().createBuffer(ch, n, sr);
+        for(let k = 0; k < ch; k++){ const d = out.getChannelData(k); for(let i = 0; i < n; i++) d[i] = all[i*ch + k]; }
+        return out; } }
+  }catch(e){ console.warn('the phone could not read the sound', e); } }
   const c = getCtx(), isVideo = /^video\//.test(file.type) || /\.(mov|mp4|m4v|3gp|webm|mkv)$/i.test(file.name);
   let firstErr = null;
   if(!isVideo || file.size < 60e6){

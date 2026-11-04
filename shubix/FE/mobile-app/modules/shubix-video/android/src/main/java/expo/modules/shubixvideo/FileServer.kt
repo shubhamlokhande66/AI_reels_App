@@ -25,6 +25,7 @@ import kotlin.concurrent.thread
  * key. Only files inside the app's own folders are served or written.
  *   GET  /f?k=KEY&p=PATH            a file (PATH: an absolute path or a file:// address)
  *   POST /frames?k=KEY&p=PATH&w=W&h=H  a clip's frames at the times in the body, comma separated (FrameReader.kt)
+ *   GET  /sound?k=KEY&p=PATH        a file's sound, decoded (SoundReader.kt)
  *   PUT  /out?k=KEY&name=NAME       the body is kept as <cache>/engine-out/NAME; answers its path */
 class FileServer(private val roots: List<File>, private val outDir: File, private val assets: AssetManager, private val api: String) {
   val key: String = ByteArray(18).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
@@ -47,7 +48,7 @@ class FileServer(private val roots: List<File>, private val outDir: File, privat
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out" && url.path != "/frames") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -67,6 +68,15 @@ class FileServer(private val roots: List<File>, private val outDir: File, privat
         if (method == "GET") RandomAccessFile(f, "r").use { r -> r.seek(a); val buf = ByteArray(256 * 1024); var left = b - a + 1
           while (left > 0) { val n = r.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n <= 0) break; out.write(buf, 0, n); left -= n } }
         out.flush()
+      }
+      url.path == "/sound" && method == "GET" -> {
+        val f = File(url.getQueryParameter("p") ?: "")
+        if (!f.isFile || !inside(f)) return@use reply(out, 404, "Not Found", emptyMap(), null)
+        if (!decoders.tryAcquire(30, TimeUnit.SECONDS)) return@use reply(out, 503, "Busy", emptyMap(), null)
+        var began = false
+        try { readSound(f, out) { began = true; write(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream")) } }
+        catch (e: Exception) { if (!began) reply(out, 422, "Unreadable", emptyMap(), null) }
+        finally { decoders.release() }
       }
       url.path == "/frames" && method == "POST" -> {
         val f = File(url.getQueryParameter("p") ?: "")
