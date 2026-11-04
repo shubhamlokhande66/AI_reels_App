@@ -1040,13 +1040,13 @@ function addVideos(files, restored = false){
   if(jobs.length > 1 && !restored && location.pathname !== '/engine') askOrder(jobs.map(j => j.card));   // (the phone app sends its clips in the order tapped)
 }
 /* ---- the clips' order: browsers give the chosen files in their own order (phones often newest first, a computer often
- * the last clicked first), so each card shows its number, ↑ plays it earlier and Reverse order turns the list round.
+ * the last clicked first), so each card shows its number and goes where it is dragged.
  * "In my order" plays them in this order (sources); the Reel is made again. */
 function renumber(){
   const cards = [...$('clips').children];
   wipNote();
   if(ordering) return;   // the numbers are the taps meanwhile
-  cards.forEach((c, i) => { const n = c.querySelector('.cnum'), u = c.querySelector('.cup'); if(n){ n.textContent = String(i + 1); n.classList.remove('bg-neutral-900', 'ring-2', 'ring-white'); n.classList.add('bg-accent'); } if(u) u.hidden = i === 0; });
+  cards.forEach((c, i) => { const n = c.querySelector('.cnum'); if(n){ n.textContent = String(i + 1); n.classList.remove('bg-neutral-900', 'ring-2', 'ring-white'); n.classList.add('bg-accent'); } });
   $('crev').hidden = cards.length < 2;
 }
 // The clips just added, each with an empty circle: a tap numbers it (1, 2, 3…, a second tap takes the number back);
@@ -1054,7 +1054,7 @@ function renumber(){
 let ordering = null;
 function askOrder(cards){
   ordering = { cards, taps: [] }; $('corder').hidden = false; $('crev').hidden = true;
-  cards.forEach(c => { c.classList.add('cursor-pointer'); const n = c.querySelector('.cnum'); n.textContent = ''; n.classList.remove('bg-accent'); n.classList.add('bg-neutral-900', 'ring-2', 'ring-white'); c.querySelector('.cup').hidden = true; });
+  cards.forEach(c => { c.classList.add('cursor-pointer'); const n = c.querySelector('.cnum'); n.textContent = ''; n.classList.remove('bg-accent'); n.classList.add('bg-neutral-900', 'ring-2', 'ring-white'); });
 }
 function endOrder(apply){
   const o = ordering; if(!o) return; ordering = null; $('corder').hidden = true;
@@ -1077,7 +1077,41 @@ function reorderClips(){
   sources.splice(0, sources.length, ...order); renumber();
   remakeOk(); if(buf && sources.length && kind !== 'talk') makeEdit();
 }
-$('crev').addEventListener('click', () => { if(pending || recording) return; const box = $('clips'); [...box.children].reverse().forEach(c => box.appendChild(c)); reorderClips(); });
+/* ---- a clip goes where it is dragged: at once with a mouse, after holding it a moment on a phone (a quick swipe still scrolls) ---- */
+{
+  const box = $('clips'); let drag = null;
+  const place = () => {
+    const { card, x, y } = drag;
+    card.style.transform = ''; let r = card.getBoundingClientRect();
+    const over = document.elementsFromPoint(x, y).map(el => el.closest && el.closest('.clip')).find(c => c && c !== card && c.parentElement === box);
+    if(over){ const all = [...box.children]; if(all.indexOf(card) < all.indexOf(over)) over.after(card); else over.before(card); r = card.getBoundingClientRect(); }
+    card.style.transform = 'translate(' + (x - r.left - drag.gx) + 'px,' + (y - r.top - drag.gy) + 'px) scale(1.05)';
+    if(y < 90) window.scrollBy(0, -12); else if(y > innerHeight - 90) window.scrollBy(0, 12);
+  };
+  const begin = () => { if(ordering) endOrder(false); drag.on = true; drag.was = [...box.children]; drag.card.classList.add('dragging'); if(drag.touch) navigator.vibrate?.(12); place(); };
+  const end = () => {
+    if(!drag) return; const d = drag; drag = null; clearTimeout(d.timer); if(!d.on) return;
+    d.card.classList.remove('dragging'); d.card.style.transform = '';
+    if([...box.children].some((c, i) => c !== d.was[i])) reorderClips();
+  };
+  box.addEventListener('pointerdown', e => {
+    if(e.button || pending || recording || e.target.closest('button,a,input')) return;
+    const card = e.target.closest('.clip'); if(!card) return;
+    const r = card.getBoundingClientRect(), touch = e.pointerType !== 'mouse';
+    drag = { card, id: e.pointerId, touch, gx: e.clientX - r.left, gy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, x: e.clientX, y: e.clientY, on: false, timer: touch ? setTimeout(() => { if(drag && !drag.on) begin(); }, 220) : 0 };
+  }, SIG);
+  addEventListener('pointermove', e => {
+    if(!drag || e.pointerId !== drag.id) return; drag.x = e.clientX; drag.y = e.clientY;
+    if(drag.on) return void place();
+    const far = Math.hypot(drag.x - drag.sx, drag.y - drag.sy);
+    if(!drag.touch && far > 6) begin(); else if(drag.touch && far > 10){ clearTimeout(drag.timer); drag = null; }   // a swipe: the page scrolls
+  }, SIG);
+  // a finger: the browser cancels its pointer when it takes the move for a scroll, so the drag follows the touch itself
+  addEventListener('pointerup', end, SIG); addEventListener('pointercancel', () => { if(!drag || !drag.on || !drag.touch) end(); }, SIG);
+  addEventListener('touchmove', e => { if(!drag || !drag.on) return; e.preventDefault(); const t = e.touches[0]; if(t){ drag.x = t.clientX; drag.y = t.clientY; place(); } }, { passive: false, ...SIG });
+  addEventListener('touchend', end, SIG); addEventListener('touchcancel', end, SIG);
+  box.addEventListener('contextmenu', e => { if(drag) e.preventDefault(); }, SIG);
+}
 function updateQ(){ const off = clipsStopped;   // cancelled in the popup: nothing is being read, whatever is still finishing
   $('qinfo').textContent = pending && !off ? pending + ' clips left to read…' : ''; $('s2st').textContent = off ? 'Clips not analysed yet' : pending ? 'Reading clips…' : (sources.length + ' clips ready'); }
 function setClipStatus(src, status, detail){
@@ -1110,11 +1144,10 @@ function cardsPlay(){
 function makeCard(f){
   const url = URL.createObjectURL(f);
   const card = document.createElement('div'); card.className='clip';
-  card.innerHTML = `<canvas class="th"></canvas><video class="cv" muted loop playsinline preload="none" aria-hidden="true"></video><span class="cnum absolute left-2 top-2 z-3 grid h-7 min-w-7 place-items-center rounded-full bg-accent px-2 text-[11px] font-bold text-black"></span><button type="button" class="cup absolute left-11 top-2 z-3 grid size-7 place-items-center rounded-full bg-black/65 text-[13px] leading-none text-white" title="Play this clip earlier" aria-label="Play this clip earlier">↑</button><span class="clip-status is-reading" role="status" aria-label="Video is being analysed" title="Analysing video"><span class="clip-status-mark">…</span></span><button class="del" title="Remove video" aria-label="Remove video">×</button><div class="meta"><div class="nm"></div><div class="dd">Waiting to analyse…</div><canvas></canvas></div>`;
+  card.innerHTML = `<canvas class="th"></canvas><video class="cv" muted loop playsinline preload="none" aria-hidden="true"></video><span class="cnum absolute left-2 top-2 z-3 grid h-7 min-w-7 place-items-center rounded-full bg-accent px-2 text-[11px] font-bold text-black"></span><span class="clip-status is-reading" role="status" aria-label="Video is being analysed" title="Analysing video"><span class="clip-status-mark">…</span></span><button class="del" title="Remove video" aria-label="Remove video">×</button><div class="meta"><div class="nm"></div><div class="dd">Waiting to analyse…</div><canvas></canvas></div>`;
   card.querySelector('.nm').textContent = f.name; $('clips').appendChild(card); renumber();
   const src = {name:f.name, file:f, url, card, spark: card.querySelector('.meta canvas'), removed:false};
   card.__src = src; cardSight.observe(card); setClipStatus(src,'reading'); card.querySelector('.del').addEventListener('click', ()=>removeVideo(src));
-  card.querySelector('.cup').addEventListener('click', ()=>{ const prev = card.previousElementSibling; if(prev && !pending && !recording){ prev.before(card); reorderClips(); } });
   return src;
 }
 /* ---- what was found in a clip, kept on this phone next to the clip's file ----
