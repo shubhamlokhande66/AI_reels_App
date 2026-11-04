@@ -1180,6 +1180,8 @@ async function makeEditCopy(src, dd, facts, plan, playable){
   const ph = window.__phone, phonePath = ph && ph.paths[src.file.name + '|' + src.file.size];
   if(plan && phonePath){ try{
     show(0, 'making a smooth copy…');
+    // this page is hidden on the phone: its own card says what is happening
+    tasks.update('clips', batchDone / Math.max(1, batchN), 'Making a smooth copy · Clip ' + Math.min(batchN, batchDone + 1) + ' of ' + batchN + ' · ' + src.name);
     const made = await fetch(ph.base + '/copy?k=' + ph.key + '&p=' + encodeURIComponent(phonePath) + '&w=' + plan.width + '&h=' + plan.height + '&fps=' + (plan.fps || 30) + '&b=' + plan.bitrate, { method: 'POST' });
     if(made.ok){ const { path } = await made.json(), got = await fetch(ph.base + '/f?k=' + ph.key + '&p=' + encodeURIComponent(path)), blob = got.ok ? await got.blob() : null;
       if(blob && blob.size && await hasPicture(blob)){ r = { blob, plan }; src.edPath = path; } }
