@@ -9,7 +9,8 @@ const nextConfig: NextConfig = {
   // Self-contained server output, used by docker/Dockerfile (Vercel builds its own: VERCEL is set there)
   output: process.env.VERCEL ? undefined : "standalone",
   // a pnpm monorepo: trace the shared packages (Shared/*) into the standalone server too
-  outputFileTracingRoot: path.resolve(process.cwd(), "../.."),
+  // the checkout's root on Vercel (its CLI runs from there and joins this path to it), the workspace elsewhere
+  outputFileTracingRoot: path.resolve(process.cwd(), process.env.VERCEL ? "../../.." : "../.."),
   // Phone mode: let a phone on the same Wi-Fi load the dev server through this computer's private address.
   // (Only matters when the dev server is started with -H 0.0.0.0.)
   // and a cloudflared tunnel to this computer, to open it from anywhere while testing
