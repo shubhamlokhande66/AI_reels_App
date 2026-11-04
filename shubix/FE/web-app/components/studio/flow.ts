@@ -122,7 +122,7 @@ export function initFlow(root: HTMLElement): () => void {
   const setFlag = (el: HTMLElement & { disabled?: boolean }, k: "hidden" | "disabled", v: boolean) => { if (el[k] !== v) el[k] = v; };
   const setClass = (el: Element, c: string, on: boolean) => { if (el.classList.contains(c) !== on) el.classList.toggle(c, on); };
   // the steps in the flow's head: at = the one you are on
-  const steps = (at: number) => root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => setAttr(li, "data-s", +li.dataset.f! === at ? "on" : +li.dataset.f! < at ? "ok" : "no"));
+  const steps = (at: number) => root.querySelectorAll<HTMLElement>("#fsteps li").forEach((li) => { const f = +li.dataset.f!; setAttr(li, "data-s", f === at ? "on" : f < at ? "ok" : "no"); setText(li.querySelector("i")!, f < at ? "✓" : String(f)); });
   const setData = (el: HTMLElement, k: string, v: string) => { if (el.dataset[k] !== v) el.dataset[k] = v; };
   /** Each kind starts as it is meant: a Music Reel and a Photo Reel mute the clips' own sound under the song, a Talking
    * Reel keeps only the voices (Videos or Photos follow the kind: photomode). Only changed when it differs. */
@@ -177,14 +177,20 @@ export function initFlow(root: HTMLElement): () => void {
 
   /* Computers: one section open at a time. Music first, Clips minimised; once the song and its beat check are done, Music
    * minimises with a green tick (its song's name on it) and the page goes on to Clips. A section's head opens it again. */
-  let openSec: "s1" | "s2" | null = null, songWas = false, songTimer: ReturnType<typeof setTimeout> | undefined;
+  let openSec: "s1" | "s2" | "fai" | null = null, songWas = false, clipsWas = false, songTimer: ReturnType<typeof setTimeout> | undefined, clipsTimer: ReturnType<typeof setTimeout> | undefined;
+  const clipsDoneNow = () => clipsOk() && !stopped().clips && !working.has("clips");
+  const openSection = (id: "s1" | "s2" | "fai") => { openSec = id; apply(); setTimeout(() => $(id).scrollIntoView({ behavior: "smooth", block: "start" }), 60); };
   const songDoneNow = () => !!songOk() && !stopped().song && !working.has("song") && !working.has("beats") && !working.has("refsong");
-  const toClips = () => { openSec = "s2"; apply(); setTimeout(() => $("s2").scrollIntoView({ behavior: "smooth", block: "start" }), 60); };
+  const toClips = () => openSection("s2");
   const sections = (on: boolean) => {
     const desk = on && !phone(), songDone = songDoneNow();
     if (desk && openSec === null) { openSec = songDone ? "s2" : "s1"; songWas = songDone; }
     if (desk && songDone && !songWas) { clearTimeout(songTimer); songTimer = setTimeout(() => { if (songDoneNow() && !songWas) { songWas = true; toClips(); } }, 700); }   // (the beat check may start right after the song)
     if (!songDone) { clearTimeout(songTimer); if (desk && songWas) openSec = "s1"; songWas = false; }
+    // the clips done: they minimise too and the page goes on to Shubix Edit
+    const clipsDone = clipsDoneNow();
+    if (desk && clipsDone && !clipsWas) { clearTimeout(clipsTimer); clipsTimer = setTimeout(() => { if (clipsDoneNow() && !clipsWas) { clipsWas = true; if (songDoneNow()) openSection("fai"); else apply(); } }, 700); }
+    if (!clipsDone) { clearTimeout(clipsTimer); if (desk && clipsWas) openSec = songDone ? "s2" : "s1"; clipsWas = false; }
     for (const id of ["s1", "s2"] as const) {
       const s = $(id), head = s.querySelector<HTMLElement>(".sh")!, num = head.firstElementChild as HTMLElement, fold = desk && openSec !== id, tick = desk && done(id) && (id !== "s1" || songDone);
       setClass(s, "ffold", fold);
@@ -260,7 +266,7 @@ export function initFlow(root: HTMLElement): () => void {
     place(true);
     sections(on);
     // the header's steps: Music · Clips · AI Edit · Preview & Export
-    const cur = !songOk() ? 1 : !clipsOk() ? 2 : 3;
+    const cur = !songDoneNow() ? 1 : !clipsDoneNow() ? 2 : 3;
     const mob = { intro: 1, choose: 1, adjust: 1, clips: 2, analyse: 3 }[step];
     const at = phone() ? mob : cur;
     steps(at);
@@ -351,6 +357,9 @@ export function initFlow(root: HTMLElement): () => void {
       else if (to === "start" || to === "flow") go(to === "flow" && clipsOk() ? "clips" : order()[0]);
       return;
     }
+    // computers: a step at the top opens its section (one that is done, or the one now)
+    const stepLi = t.closest<HTMLElement>("#fsteps li");
+    if (stepLi && !phone() && !revealed && stepLi.dataset.s !== "no") { const to = ({ 1: "s1", 2: "s2", 3: "fai" } as const)[+stepLi.dataset.f! as 1 | 2 | 3]; if (to) openSection(to); return; }
     const secHead = t.closest<HTMLElement>("#s1 > .sh, #s2 > .sh");   // computers: a section's head opens that section
     if (secHead && root.classList.contains("fopen") && !phone()) { openSec = secHead.parentElement!.id === "s1" ? "s1" : "s2"; apply(); return; }
     if (t.closest("#fadd")) { $("addv").click(); return; } // the "+" tile at the end of the clips
