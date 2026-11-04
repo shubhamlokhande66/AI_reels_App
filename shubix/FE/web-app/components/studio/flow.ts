@@ -179,13 +179,16 @@ export function initFlow(root: HTMLElement): () => void {
 
   /* Computers: one section open at a time. Music first, Clips minimised; once the song and its beat check are done, Music
    * minimises with a green tick (its song's name on it) and the page goes on to Clips. A section's head opens it again. */
-  let openSec: "s1" | "s2" | "fai" | null = null, songWas = false, clipsWas = false, songTimer: ReturnType<typeof setTimeout> | undefined, clipsTimer: ReturnType<typeof setTimeout> | undefined;
+  let sectionsOn = false, openSec: "s1" | "s2" | "fai" | null = null, songWas = false, clipsWas = false, songTimer: ReturnType<typeof setTimeout> | undefined, clipsTimer: ReturnType<typeof setTimeout> | undefined;
   const clipsDoneNow = () => clipsOk() && !stopped().clips && !working.has("clips");
   const openSection = (id: "s1" | "s2" | "fai") => { openSec = id; apply(); setTimeout(() => $(id).scrollIntoView({ behavior: "smooth", block: "start" }), 60); };
   const songDoneNow = () => !!songOk() && !stopped().song && !working.has("song") && !working.has("beats") && !working.has("refsong");
   const toClips = () => openSection("s2");
   const sections = (on: boolean) => {
     const desk = on && !phone(), songDone = songDoneNow();
+    // the Reel opens: the editor hides these sections again (it keeps them folded; its own tools can still open one)
+    if (sectionsOn && !desk && revealed) for (const id of ["s1", "s2"]) { setClass($(id), "folded", true); setAttr($(id).querySelector(".sh")!, "aria-expanded", "false"); }
+    sectionsOn = desk;
     if (desk && openSec === null) { openSec = songDone ? "s2" : "s1"; songWas = songDone; }
     if (desk && songDone && !songWas) { clearTimeout(songTimer); songTimer = setTimeout(() => { if (songDoneNow() && !songWas) { songWas = true; toClips(); } }, 700); }   // (the beat check may start right after the song)
     if (!songDone) { clearTimeout(songTimer); if (desk && songWas) openSec = "s1"; songWas = false; }
@@ -216,7 +219,7 @@ export function initFlow(root: HTMLElement): () => void {
       steps(4);
     }
     crumbs(on);
-    if (!on) { setFlag($("fintro"), "hidden", true); setFlag($("s1"), "hidden", false); setFlag($("s2"), "hidden", false); if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
+    if (!on) { sections(false); setFlag($("fintro"), "hidden", true); setFlag($("s1"), "hidden", false); setFlag($("s2"), "hidden", false); if (root.hasAttribute("data-fstep")) root.removeAttribute("data-fstep"); place(false); return; }
     const k = readKind();
     if (k !== kind || !$("ftitle").dataset.k) {
       kind = k;
