@@ -1906,6 +1906,24 @@ let dupCount = 0;
 let aiOn = false, aiBusy = false, aiInfo = null, aiLocked = false;
 /* ---- credits: Shubix AI is paid per Reel (once, however many clips come later) and per chat change; the person is asked
  * each time, with what it costs and what they have. Free plans (no AI) edit on the phone. ---- */
+/* ---- a Reel made by Shubix AI costs credits each time. aiDoneSig: the song and clips of the Reel that was made. While they
+ * differ (and the person has not said yes, regenOk), Shubix AI does not run by itself and nothing is saved over that Reel ---- */
+let aiDoneSig = null, regenOk = false, leavingOk = false;
+const inputSig = () => [song && song.file ? fileFp(song.file) : '', (+secStart || 0).toFixed(2), buf ? buf.duration.toFixed(2) : '', ...[...$('clips').children].map(c => c.__src && !c.__src.removed ? fileFp(c.__src.file) : '').filter(Boolean)].join(';');
+const aiHeldBack = () => !!aiDoneSig && !regenOk && inputSig() !== aiDoneSig;
+// Next on the steps: 'same' (nothing changed: the same Reel), 'new' (a new Reel, its credits are asked next), 'old' (keep the old Reel), 'stay' (closed)
+async function changeGate(){
+  if(!aiDoneSig) return 'go';
+  if(inputSig() === aiDoneSig) return 'same';
+  if(!aiOn) return 'go';   // no Shubix AI in this plan: the phone's own edit, no credits
+  const v = await askCredits({ title: 'You changed your Reel', text: 'Your song or clips are different now. Make a new Reel with these changes? Keeping the old Reel changes nothing and uses no credits.', bal: null, ok: 'Make new Reel', no: 'Keep old Reel' });
+  if(v === null) return 'stay';
+  if(v === false) return 'old';
+  regenOk = true; reelId = newId(); aiReel = ''; gateNo = ''; chatUsed = 0; director = null; dirCache.clear(); aiMixes.clear(); dirPlannedReel = ''; aiGaveUp = ''; dirFailedKey = ''; paceFailedKey = '';
+  return 'new';
+}
+// the old Reel, exactly as it was saved
+function keepOldReel(){ if(proj){ leavingOk = true; location.assign('/editor?p=' + encodeURIComponent(proj.id)); } }
 let reelId = '', aiReel = '', gateP = null, chatUsed = 0;   // aiReel: the Reel the person said yes to ('no:' + id: said no); chatUsed: Ask Shubix changes on it (the plan's first few are free)
 const newId = () => { try{ return crypto.randomUUID().replace(/-/g, '').slice(0, 20); }catch(e){ return Math.random().toString(36).slice(2, 12) + Date.now().toString(36); } };
 function reelIdNow(){ if(!reelId) reelId = newId(); return reelId; }
@@ -1970,7 +1988,7 @@ function aiGate(again = false){
       return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
     const ok = await askCredits({ title: 'Shubix AI will edit this Reel',
-      text: cost ? 'It uses ' + creditWord(cost) + ' once for this Reel. Adding clips or changing them later costs nothing more.' : 'Included in your plan for this Reel.',
+      text: cost ? 'It uses ' + creditWord(cost) + ' for this Reel. A new Reel after changing it uses credits again.' : 'Included in your plan for this Reel.',
       list: ['The best moments of every clip', 'Trendy transitions and effects on the beat', 'Pro colour and framing'],
       bal, after: bal !== null && cost ? bal - cost : null, ok: cost ? 'Use ' + creditWord(cost) : 'Use Shubix AI' });
     if(ok){ aiReel = id; gateNo = ''; aiNeed(false); return true; }
@@ -2009,7 +2027,7 @@ async function cancelReel(){
   if(v !== true) return;
   aiStopper.abort();
   try{ life({ wip: null }); if(proj) await idb('meta', 'readwrite', s => s.delete(proj.id)); sessionStorage.removeItem('brs-resume:' + location.pathname); }catch(e){}
-  location.assign('/');
+  leavingOk = true; location.assign('/');
 }
 const flowGuard = { onCancel: cancelNow, onCancelReel: () => void cancelReel() };
 // Proceed goes on from where the song stopped: read and analysed, only the beat check is left; analysed, it is not done again
@@ -2113,7 +2131,7 @@ let aiHeld = location.pathname.startsWith('/create');
 // …and the API (asleep after a quiet while: 20-30 s to wake) is woken now, so Generate does not wait for it
 if(aiHeld) fetch('/api/health').catch(() => {});
 async function aiRun(){
-  if(!aiOn || aiBusy || !sources.length) return;
+  if(!aiOn || aiBusy || !sources.length || aiHeldBack()) return;
   if(!aiReelOk()){ aiBusy = true; const go = await aiGate(); aiBusy = false; if(!go) return; }
   sources.forEach(s=>{ if(!s.ai) aiRestore(s); });
   const need = sources.filter(s=>!s.ai && !s.aiFailed && !s.removed);
@@ -2171,6 +2189,7 @@ let chatPending = null, chatReported = '';
 // the AI's plan arrived: asked for in the chat, it is shown as a report and waits for Generate; otherwise it is used
 function dirArrived(key, d){
   if(chatWaiting){ const ask = chatMsgs.filter(m => m.who === 'me').slice(-1)[0]?.text || ''; chatPending = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions, cost: chatCost, intent: parseDirectorVisualIntent(ask) }; chatProposal(chatPending); return false; }
+  aiDoneSig = inputSig(); regenOk = false;
   director = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions }; dirCache.set(key, director); if(d.texts || d.actions) queueMicrotask(() => void aiApply(d)); return true;   // (after the shots are made: makeEdit)
 }
 // the plan, shot by shot, in words: which clip and what is in it, the transition into it, its effect, speed and keyframes
@@ -2407,6 +2426,7 @@ async function chatPatch(text, n, id){
 async function chatSend(text){
   remakeOk();
   text = String(text || '').trim().slice(0, 300); if(!text || chatWaiting) return;
+  if(aiHeldBack()){ chatSay('me', text); chatMsgs.push({ who: 'me', text }); $('chatin').value = ''; chatAnswer('Your song or clips changed. Go on with Next to make a new Reel first.'); return; }
   chatSay('me', text); chatMsgs.push({ who: 'me', text });
   $('chatin').value = ''; chatFit();
   const ready = buf && sources.length && edit.length && !recording;
@@ -2766,7 +2786,7 @@ function refitDirector(src, withShots){
   return slots;
 }
 function directorMaybe(){
-  if(keepSaved) return;
+  if(keepSaved || aiHeldBack()) return;
   if(!aiOn || dirBusy || !edit.length || recording || !aiReelOk() || refReading) return;
   if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed && !s.removed)) return;   // after the AI has looked at the clips (or could not)
   if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
@@ -2876,7 +2896,7 @@ function paceFromSong(sp){
     return { t: x.t, len: x.len, every: best ? best.every : x.now }; }) };
 }
 function paceMaybe(){
-  if(keepSaved) return;
+  if(keepSaved || aiHeldBack()) return;
   if(paceBusy || !paceWanted() || !aiReelOk() || refReading) return;
   const key = paceKey();
   if(paceCache.has(key)){ pacing = paceCache.get(key); makeEdit(); return; }
@@ -7324,13 +7344,14 @@ async function saveNow(){
   return proj ? proj.id : '';
 }
 setInterval(() => {
-  if(restoring || recording || exporting || pending || (!song && !sources.length) || typeof indexedDB === 'undefined') return;
+  if(restoring || recording || exporting || pending || aiDoneSig && inputSig() !== aiDoneSig || (!song && !sources.length) || typeof indexedDB === 'undefined') return;
   // an iPhone: copying big clip files into the phone's storage is not done while the preview plays (memory)
   if(IOS && (playing || starting)) return;
   const st = stateOf(), sig = JSON.stringify(st); if(sig !== lastSig) saveProject(st, sig);
 }, 3000);
 // leaving or reloading while Shubix is still working, or before the last change is kept: the browser asks first
 window.addEventListener('beforeunload', e => {
+  if(leavingOk) return;   // the person chose to leave (Keep old Reel, Cancel Reel): nothing to warn about
   if(pending || exporting || recording){ e.preventDefault(); e.returnValue = ''; return; }
   if((song || sources.length) && !restoring){ try{ const sig = JSON.stringify(stateOf()); if(sig !== lastSig){ e.preventDefault(); e.returnValue = ''; } }catch(err){} }
 });
@@ -7395,7 +7416,7 @@ async function openProject(id){
     const unreadable = (st.clips || []).length - sources.length;
     say(missing ? missing + ' file(s) of this Reel are no longer on this phone' : unreadable ? unreadable + ' clip(s) could not be read on this device' : 'Opened "' + p.name + '" · saved on this phone');
   }catch(err){ console.warn('project not opened:', err); say('This Reel could not be opened.'); notify('This Reel could not be opened.', 'err'); }
-  finally{ lastSig = JSON.stringify(stateOf()); restoring = false; root.classList.remove('opening');
+  finally{ if(keepSaved && edit.length) aiDoneSig = inputSig(); lastSig = JSON.stringify(stateOf()); restoring = false; root.classList.remove('opening');
     // nothing to show (gone, or its files are not on this phone): say so, not a blank page
     if(!edit.length && !sources.length && expectedClips){ root.classList.add('openfail'); $('openh').textContent = 'This Reel could not be opened'; }
     // a Reel left in the Create steps (a song, no clips yet): not an empty editor, but its steps again, where it was left
@@ -7482,10 +7503,10 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, setEdit: list => restoreEdit(list), get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
-  snap: histSnap, unsnap: snapRestore, upsell, askNotDone, cancelled: () => ({ song: songCancelled, clips: clipsStopped }), guard: on => tasks.setGuard(on ? flowGuard : null), projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  snap: histSnap, unsnap: snapRestore, upsell, changeGate, keepOldReel, askNotDone, cancelled: () => ({ song: songCancelled, clips: clipsStopped }), guard: on => tasks.setGuard(on ? flowGuard : null), projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, pace: paceBusy,
     // Shubix AI is on for this Reel and its plan has not come yet (nor failed): the Reel is not final (the phone app waits)
-    aiWait: !!(aiOn && aiReelOk() && aiGaveUp !== reelIdNow() && edit.length && !(director && director.key === dirKey() && !director.interim) && dirFailedKey !== dirKey()), speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
+    aiWait: !!(aiOn && !aiHeldBack() && aiReelOk() && aiGaveUp !== reelIdNow() && edit.length && !(director && director.key === dirKey() && !director.interim) && dirFailedKey !== dirKey()), speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt,
   // the phone app (bridge.ts): the account known after the start, Ask Shubix, the clips' smooth copies
   account, chatApp, get aiOn(){ return aiOn; },

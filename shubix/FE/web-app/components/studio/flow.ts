@@ -76,7 +76,7 @@ export function initFlow(root: HTMLElement): () => void {
   // Shubix's line under the clips ends in "…" while it works (scoring the clips, the pace, planning the shots, the mixes)
   // Shubix AI still working on the Reel (the studio's own state; its status line can end in "…" when it is only cut short)
   const aiWorking = () => { const w = (root as unknown as { __studio?: { work?: { ai?: boolean; dir?: boolean; pace?: boolean; aiWait?: boolean } } }).__studio?.work; return !!w && (!!w.ai || !!w.dir || !!w.pace || !!w.aiWait); };   // (aiWait: agreed to, its plan not here yet, also between its steps)
-  type Live = { upsell?: () => Promise<string>; saveNow?: () => Promise<string>; askNotDone?: () => Promise<boolean>; cancelled?: () => { song: boolean; clips: boolean }; guard?: (on: boolean) => void };
+  type Live = { upsell?: () => Promise<string>; changeGate?: () => Promise<string>; keepOldReel?: () => void; saveNow?: () => Promise<string>; askNotDone?: () => Promise<boolean>; cancelled?: () => { song: boolean; clips: boolean }; guard?: (on: boolean) => void };
   const live = () => (root as unknown as { __studio?: Live }).__studio;
   const stopped = () => live()?.cancelled?.() ?? { song: false, clips: false };
   let aiRunNo = 0;   // the wait for the Reel that the popup's Cancel ended
@@ -340,7 +340,7 @@ export function initFlow(root: HTMLElement): () => void {
     if (depth > 0) { history.back(); return; } // the screen before, as the browser's own Back does
     // opened part way (no screen before it in this visit): the screen before takes this entry's place. A new entry here would
     // be "the screen before" for the next Back, and Back would go round between two screens
-    if (has("fpost")) return go("clips", false); // the Reel → back to the clips
+    if (has("fpost") && revealed) return go("clips", false); // the Reel → back to the clips
     const o = order(), i = o.indexOf(step);
     if (phone() && i > 0) return go(o[i - 1], false);
     if (history.length > 1) history.back();
@@ -387,7 +387,11 @@ export function initFlow(root: HTMLElement): () => void {
       const st = live(), run = ++aiRunNo;
       void (async () => {
         if (await st?.askNotDone?.()) return;   // after a Cancel: Proceed reads it again, then Next
-        const r = st?.upsell ? await st.upsell() : "skip";
+        const change = st?.changeGate ? await st.changeGate() : "go";   // changed since the Reel was made: a new Reel, or the old one
+        if (change === "stay") return;
+        if (change === "old") return st?.keepOldReel?.();
+        const r = change === "same" ? "skip" : st?.upsell ? await st.upsell() : "skip";   // (nothing changed: the same Reel, no new credits)
+        if (r === "close" && change === "new") return st?.keepOldReel?.();
         if (r === "upgrade" || r === "close") return;
         aiGo = true; apply();
         // the popup shows the work on every screen size; the Reel opens once Shubix is done
@@ -395,7 +399,7 @@ export function initFlow(root: HTMLElement): () => void {
         for (let t = 0; run === aiRunNo && (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
         if (run === aiRunNo && made() && phone()) {   // phones: the finished Reel, with its timeline (also when it is opened again after Back)
           revealed = true; mark(true); apply(); window.scrollTo({ top: 0 });
-          requestAnimationFrame(() => { if (!has("editing")) $<HTMLButtonElement>("fedit").click(); });
+          requestAnimationFrame(() => { if (!has("editing")) $<HTMLButtonElement>("fedit").click(); void st?.saveNow?.(); });
           return;
         }
         if (run === aiRunNo && made()) {
