@@ -389,7 +389,7 @@ function aiTimes(src){
 }
 // the plan, shot by shot, in words: which clip and what is in it, the transition into it, its effect, speed and keyframes
 function planLine(s, i, slots){
-    const d = slots[i] || {}, c = d.cand, src = c ? EH.sources[c.src] : null;
+    const d = slots[i] || {}, c = d.cand, src = c ? ES.sources[c.src] : null;
     const cand = c && ES.dirCands && (ES.dirCands[i] || []).find(x => x.si === c.src && Math.abs(x.a - c.in) < 0.05);
     const what = (cand && cand.note) || (src && src.ai && src.ai.summary) || '';
     const bits = [];
@@ -425,7 +425,7 @@ function tastePlan(){
       if(!at || !room || used >= most || s.start - last < apart) s.tr = 'hard';
       else {
         const rc = recipeNow();
-        if(s.type === 'drop') s.tr = rc.drop; else if(s.type === 'break') s.tr = rc.brk; else if(!EH.TR_CLASSY.has(s.tr)) s.tr = style[1];
+        if(s.type === 'drop') s.tr = rc.drop; else if(s.type === 'break') s.tr = rc.brk; else if(!ES.TR_CLASSY.has(s.tr)) s.tr = style[1];
         if((TR_DUR[s.tr] || 0) > 0.6 * len) s.tr = 'hard'; else { used++; last = s.start; }
       }
     }
@@ -459,13 +459,13 @@ function finishTransitions(){
 // For each cut: the moment it has now, plus up to 2 alternatives from footage that no other cut has or is offered, so
 // any combination the director chooses fits together (cuts that matter most get their alternatives first).
 function directorCandidates(){
-  const gmax = Math.max(1e-6, ...EH.sources.flatMap(s=>s.samples.map(x=>x.m)));
-  const reserved = EH.sources.map(()=>[]);
+  const gmax = Math.max(1e-6, ...ES.sources.flatMap(s=>s.samples.map(x=>x.m)));
+  const reserved = ES.sources.map(()=>[]);
   ES.edit.forEach(e=>reserved[e.src].push([e.in, e.in + e.sp.pos(e.end-e.start)*e.scaleR]));
   const free = (si, a, b) => !reserved[si].some(([u,v])=>Math.min(v,b+0.05)-Math.max(u,a-0.05) > 0);
   const order = ES.plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return (a===0?-1:pr[ES.plan[a].type]) - (b===0?-1:pr[ES.plan[b].type]) || a-b; });
   const out = ES.plan.map(()=>[]);
-  const describe = (i, k, si, a, need, w) => { const src = EH.sources[si], S = src.samples.filter(x=>x.t>=a && x.t<=a+need);
+  const describe = (i, k, si, a, need, w) => { const src = ES.sources[si], S = src.samples.filter(x=>x.t>=a && x.t<=a+need);
     const gx = S.length ? S.reduce((q,x)=>q+(x.gx||0),0)/S.length : 0, m = w.m;
     return { id: i + 'abc'[k], si, a, clip: 'c'+(si+1), at: +a.toFixed(2), score: +w.sc.toFixed(2), note: w.ai ? w.ai.note : '',
       roles: w.ai ? Object.keys(w.ai.roles).filter(r=>w.ai.roles[r] > 0.4) : [], motion: m < 0.08 ? 'still' : m < 0.3 ? 'low' : m < 0.6 ? 'medium' : 'high', people: w.st.face > 0.3,
@@ -473,10 +473,10 @@ function directorCandidates(){
   order.forEach(i=>{
     const s = ES.plan[i], e = ES.edit[i], len = s.end - s.start, nb = [ES.edit[i-1], ES.edit[i+1]].filter(Boolean).map(x=>x.src);
     const cur = e.sp.pos(len)*e.scaleR;
-    out[i].push(describe(i, 0, e.src, e.in, cur, scoreWindow(i, EH.sources[e.src], e.in, cur, gmax)));
+    out[i].push(describe(i, 0, e.src, e.in, cur, scoreWindow(i, ES.sources[e.src], e.in, cur, gmax)));
     const all = [];
-    EH.sources.forEach((src,si)=>{
-      if(EH.sources.length > 1 && nb.includes(si)) return;   // not the clip of a neighbour
+    ES.sources.forEach((src,si)=>{
+      if(ES.sources.length > 1 && nb.includes(si)) return;   // not the clip of a neighbour
       let need = s.sp.pos(len); if(need > src.dur-TAIL) need *= Math.max(0.05, (src.dur-TAIL)/need*0.98);
       const stepT = Math.max(0.2, Math.min(0.5, src.dur/60));
       for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=stepT){ if(crossesScene(src, a, a+need) || !free(si, a, a+need)) continue; all.push({si, a, need, w: scoreWindow(i, src, a, need, gmax)}); }
@@ -491,7 +491,7 @@ function directorCandidates(){
   });
   return out;
 }
-function mixStore(){ const b = EH.dirBase(); if(!EH.aiMixes.has(b)) EH.aiMixes.set(b, { plans: [], asked: false, busy: false }); return EH.aiMixes.get(b); }
+function mixStore(){ const b = EH.dirBase(); if(!ES.aiMixes.has(b)) ES.aiMixes.set(b, { plans: [], asked: false, busy: false }); return ES.aiMixes.get(b); }
 // what the music does under every cut (the AI reads it; a fitted plan matches on it)
 function cutMusic(){
   const sm = getSoundMap(), cx = { hits: ES.hitsRaw || [], hitStr: ES.hitsStr || [], drops: ES.plan.filter(s=>s.type==='drop').map(s=>s.start), beats: ES.beats };
@@ -625,7 +625,7 @@ function camPath(src, a, b, cw, ch){
 }
 // where the camera looks at this moment of the shot (fraction of the source frame); built once per shot and format
 function camAt(e, local){
-  const src = EH.sources[e.src]; if(!src) return [0.5, 0.5];
+  const src = ES.sources[e.src]; if(!src) return [0.5, 0.5];
   const L = e.end - e.start, key = ES.aspect+'|'+e.src+'|'+e.in+'|'+e.scaleR+'|'+e.sp.label+'|'+L+'|'+(ES.aiOn && src.ai ? 1 : 0);
   if(!e.cam || e.cam.key !== key){
     const [W,H] = EH.SIZES[ES.aspect], base = Math.max(W/src.w, H/src.h);
@@ -635,12 +635,12 @@ function camAt(e, local){
   return [c.x[k] + (c.x[k+1]-c.x[k])*f, c.y[k] + (c.y[k+1]-c.y[k])*f];
 }
 function clipFlaw(src){
-  const key = EH.sources.length; if(src._flaw && src._flaw.key === key) return src._flaw.v;
+  const key = ES.sources.length; if(src._flaw && src._flaw.key === key) return src._flaw.v;
   const med = a => { const x = a.filter(v => isFinite(v)).sort((p,q)=>p-q); return x.length ? x[x.length>>1] : 0; };
   const S = src.samples || [];
   const jit = med(S.slice(1).map((x,i) => Math.abs((x.gx||0) - (S[i].gx||0)) + Math.abs((x.gy||0) - (S[i].gy||0))));
-  const shAll = med(EH.sources.filter(o => !o.removed && o.samples && o.samples.length).map(o => med(o.samples.map(x => x.sh))));
-  const soft = shAll > 0 && EH.sources.length > 1 ? med(S.map(x => x.sh))/shAll : 1;
+  const shAll = med(ES.sources.filter(o => !o.removed && o.samples && o.samples.length).map(o => med(o.samples.map(x => x.sh))));
+  const soft = shAll > 0 && ES.sources.length > 1 ? med(S.map(x => x.sh))/shAll : 1;
   const v = (jit >= 1.5 ? 3 : 0) + (soft < 0.15 ? 3 : 0);
   src._flaw = { key, v }; return v;
 }
@@ -669,7 +669,7 @@ function ukRestore(kept){ for(const k of kept){ const e = ES.edit.find(x => Math
   if(e && k.uk && k.uk.length) e.uk = k.uk;
   if(k.cs){ const m = (k.s + k.e)/2, c = e || ES.edit.find(x => x.start <= m && x.end > m); if(c && !c.cs) c.cs = k.cs; } } }
 function seqSlots(n){
-  const S = EH.sources, avg = S.reduce((a,s)=>a+s.dur,0)/S.length, w = S.map(s=>Math.min(2*avg, Math.max(0.5*avg, s.dur))), tot = w.reduce((a,b)=>a+b,0);
+  const S = ES.sources, avg = S.reduce((a,s)=>a+s.dur,0)/S.length, w = S.map(s=>Math.min(2*avg, Math.max(0.5*avg, s.dur))), tot = w.reduce((a,b)=>a+b,0);
   const sum = c => c.reduce((a,b)=>a+b,0);
   const cnt = w.map(x => Math.max(n >= S.length ? 1 : 0, Math.round(n*x/tot)));   // every clip once while there are shots enough
   while(sum(cnt) > n){ const k = cnt.lastIndexOf(Math.max(...cnt)); cnt[k]--; }   // (fewer shots than clips: the last clips wait)
@@ -680,7 +680,7 @@ function seqPick(seq, res, gmax){
   const n = ES.plan.length, lenOf = i => ES.plan[i].end - ES.plan[i].start, fast = new Array(n).fill(false);
   for(let i = 0; i < n;){ let j = i; while(j < n && lenOf(j) <= EH.SEQ_FAST) j++; if(j - i >= 4) for(let k = i; k < j; k++) fast[k] = true; i = Math.max(j, i + 1); }
   for(const si of [...new Set(seq)]){
-    const src = EH.sources[si], ids = seq.map((x, i) => x === si ? i : -1).filter(i => i >= 0), foot = Math.max(0.05, src.dur - TAIL);
+    const src = ES.sources[si], ids = seq.map((x, i) => x === si ? i : -1).filter(i => i >= 0), foot = Math.max(0.05, src.dur - TAIL);
     const need = ids.map(i => ES.plan[i].sp.pos(lenOf(i))), sum = a => a.reduce((x, y) => x + y, 0);
     const fastNeed = sum(need.filter((x, k) => fast[ids[k]])), spare = foot - sum(need);
     const scale = ids.map(i => spare < 0 ? Math.max(0.005, foot / sum(need)*0.98) : fast[i] && fastNeed > 0 ? Math.min(EH.SEQ_MAX, 1 + spare*0.6/fastNeed) : 1);
@@ -718,14 +718,14 @@ function speedFor(key, e){
   if(key==='slow') return EH.SPEED.slow; if(key==='fast') return EH.SPEED.fast; if(key==='ramp') return rampSpeed(len);
   if(key==='velocity') return bl.length ? velocitySpeed(len, bl) : rampSpeed(len); if(key==='freeze') return EH.snapSpeed; if(key==='hold') return EH.holdSpeed; if(key==='curve') return curveSpeed(len, e.cs && e.cs.curve); return EH.SPEED.normal;
 }
-function assignPlayers(){ const uc = EH.sources.map(()=>0); ES.edit.forEach(e=>{ e.el = EH.sources[e.src].els[(uc[e.src]++)%3]; }); }
+function assignPlayers(){ const uc = ES.sources.map(()=>0); ES.edit.forEach(e=>{ e.el = ES.sources[e.src].els[(uc[e.src]++)%3]; }); }
 // pick another moment of footage for shot i: never one already used, never the same clip as its neighbours
 function repick(i, avoidCurrent, onlySrc){
-  const e = ES.edit[i], len = e.end-e.start, gmax = Math.max(1e-6, ...EH.sources.flatMap(s=>s.samples.map(x=>x.m)));
-  const used = EH.sources.map(()=>[]); ES.edit.forEach((x,k)=>{ if(k!==i) used[x.src].push([x.in, x.in + x.sp.pos(x.end-x.start)*x.scaleR]); });
+  const e = ES.edit[i], len = e.end-e.start, gmax = Math.max(1e-6, ...ES.sources.flatMap(s=>s.samples.map(x=>x.m)));
+  const used = ES.sources.map(()=>[]); ES.edit.forEach((x,k)=>{ if(k!==i) used[x.src].push([x.in, x.in + x.sp.pos(x.end-x.start)*x.scaleR]); });
   let best=null, bs=-Infinity;
-  EH.sources.forEach((src,si)=>{
-    if(onlySrc != null ? si !== onlySrc : EH.sources.length>1 && [ES.edit[i-1],ES.edit[i+1]].some(x=>x && x.src===si)) return;
+  ES.sources.forEach((src,si)=>{
+    if(onlySrc != null ? si !== onlySrc : ES.sources.length>1 && [ES.edit[i-1],ES.edit[i+1]].some(x=>x && x.src===si)) return;
     let need = e.sp.pos(len), scaleR = 1; if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
     for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=Math.max(0.1, Math.min(0.5, src.dur/120))){
       if(avoidCurrent && si===e.src && Math.abs(a-e.in) < Math.max(0.3, need*0.5)) continue;
@@ -761,7 +761,7 @@ function kxSet(e, patch){
   rest.kx = K.length ? K : null; return rest;
 }
 function histSnap(){ const ov = ES.overlays.map(o => { const c = { ...o }; delete c.box; return c; }), ed = editOf(), ly = EH.lyOf(); return { ed, ov, ly, sig: JSON.stringify([ed, ov, ly]) }; }
-function histBase(){ return ES.kind + '|' + EH.sources.map(s => s.name + s.dur).join() + '|' + (ES.buf ? ES.buf.duration.toFixed(2) : ''); }
+function histBase(){ return ES.kind + '|' + ES.sources.map(s => s.name + s.dur).join() + '|' + (ES.buf ? ES.buf.duration.toFixed(2) : ''); }
 function segAt(t){ let lo=0,hi=ES.edit.length-1,r=0; while(lo<=hi){ const m=(lo+hi)>>1; if(ES.edit[m].start<=t+1e-4){ r=m; lo=m+1; } else hi=m-1; } return r; }
 function strongHit(t){
   if(ES.strongFor !== ES.hitsRaw){ ES.strongFor = ES.hitsRaw; const v = (ES.hitsStr || []).slice().sort((a,b)=>a-b), cut = v[Math.floor(v.length*0.67)] ?? 0;
@@ -849,7 +849,7 @@ function stabAt(src, st){ const P = stabPath(src); if(!P) return null; const t =
   return [P.dx[lo] + (P.dx[hi] - P.dx[lo])*f, P.dy[lo] + (P.dy[hi] - P.dy[lo])*f]; }
 // a clip smaller than it is shown (a 480p or 720p video in a 1080p or 4K Reel): sharpened in step with how much it is
 // enlarged, so the chosen quality looks like that quality (a clip at its own size or larger: untouched)
-function upSharp(e, dh){ const src = EH.sources[e.src], h = src && (src.h || src.w); if(!h || !(dh > 0)) return 0; const up = dh / h; return up > 1.15 ? Math.min(0.55, (up - 1) * 0.3) : 0; }
+function upSharp(e, dh){ const src = ES.sources[e.src], h = src && (src.h || src.w); if(!h || !(dh > 0)) return 0; const up = dh / h; return up > 1.15 ? Math.min(0.55, (up - 1) * 0.3) : 0; }
 function captionOf(){
   const t = EH.CAP_TPL[ES.tplName] || ['', ES.kind === 'talk' ? '#reels #creator #reelsindia' : '#reels #reelsinstagram #trending #explorepage'];
   const tplHook = ES.tplName && ES.TEMPLATES[ES.tplName] ? ES.TEMPLATES[ES.tplName].hook : undefined;

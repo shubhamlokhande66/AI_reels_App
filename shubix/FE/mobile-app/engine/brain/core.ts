@@ -101,14 +101,14 @@ function styleEdit(){
   if(ES.mode==='copy' && ES.refProfile) EH.copyStyle();
 }
 function aiDone(charged, failed){
-  const withAi = EH.sources.filter(s=>s.ai), n = withAi.reduce((q,s)=>q+s.ai.frames.length, 0);
+  const withAi = ES.sources.filter(s=>s.ai), n = withAi.reduce((q,s)=>q+s.ai.frames.length, 0);
   EH.aiStat('Shubix scored ' + n + ' moments in ' + withAi.length + ' clip' + (withAi.length>1?'s':'') + (failed ? ' (' + failed + ' skipped)' : '') + (charged ? ' · ' + charged + ' credit' + (charged>1?'s':'') : ''));
-  if(ES.buf && EH.sources.length && !ES.recording) makeEdit();
+  if(ES.buf && ES.sources.length && !ES.recording) makeEdit();
 }
 // the AI's plan arrived: asked for in the chat, it is shown as a report and waits for Generate; otherwise it is used
 function dirArrived(key, d){
   if(ES.chatWaiting){ const ask = ES.chatMsgs.filter(m => m.who === 'me').slice(-1)[0]?.text || ''; ES.chatPending = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions, cost: ES.chatCost, intent: parseDirectorVisualIntent(ask) }; EH.chatProposal(ES.chatPending); return false; }
-  ES.director = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions }; EH.dirCache.set(key, ES.director); if(d.texts || d.actions) queueMicrotask(() => void aiApply(d)); return true;   // (after the shots are made: makeEdit)
+  ES.director = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions }; ES.dirCache.set(key, ES.director); if(d.texts || d.actions) queueMicrotask(() => void aiApply(d)); return true;   // (after the shots are made: makeEdit)
 }
 function applyChatVisualIntent(intent, slots = []){
   if(!intent || (!intent.openingText && !intent.squareFrameAll && !intent.transitionAll && !intent.effectsAll)) return '';
@@ -274,7 +274,7 @@ function applyDirectorStyle(){
 function dirRequest(cands){
   const per = Math.max(1, ES.buf.duration/30), music = EH.cutMusic(), pc = EH.paceNow();
   const req = { mode: ES.mode, reelId: EH.reelIdNow(), ...(ES.tplKind ? { reelKind: ES.tplKind } : {}), ...(ES.chatAsk ? { chat: { n: ES.chatAsk.n, id: ES.chatAsk.id, text: ES.chatAsk.text } } : {}), wish: ES.wish.slice(-800), duration: +ES.buf.duration.toFixed(2), bpm: +(60/ES.period).toFixed(1), hook: ES.hookText.slice(0,60), story: (pc && pc.story || '').slice(0,160), reference: EH.refContext(),
-    clips: EH.sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
+    clips: ES.sources.map((s,k)=>({ alias:'c'+(k+1), summary: (s.ai && s.ai.summary) || '', mood: (s.ai && s.ai.mood) || '' })),
     recent: EH.recentTools(),
     allowed: { fx: Object.keys(EH.FX_NAME).filter(k => !EH.isLocked('fx', k)), tr: Object.keys(TR_DUR).filter(k => !EH.isLocked('tr', k)) },
     budget: ES.mode === 'copy' && ES.copyBudget ? ES.copyBudget : {whip:Math.round(2*per), spin:Math.round(per), glitch:Math.round(2*per), zoom:Math.round(3*per), iris:Math.round(3*per), dissolve:Math.round(2*per), snap:Math.round(2*per)},
@@ -287,22 +287,22 @@ function dirRequest(cands){
 function directorMaybe(){
   if(ES.keepSaved) return;
   if(!ES.aiOn || ES.dirBusy || !ES.edit.length || ES.recording || !EH.aiReelOk() || ES.refReading) return;
-  if(!EH.sources.length || EH.sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
+  if(!ES.sources.length || ES.sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
   if(ES.paceBusy || EH.paceWanted()) return;   // the pace first: it decides where the cuts are
   const key = EH.dirKey(); if((ES.director && ES.director.key===key && !ES.director.interim) || ES.dirFailedKey===key) return;
   if(ES.chatPending && ES.chatPending.key === key) return;   // the creator's asked-for plan waits for Generate
-  if(EH.dirCache.has(key)){ if(dirArrived(key, EH.dirCache.get(key))) makeEdit(); return; }
+  if(ES.dirCache.has(key)){ if(dirArrived(key, ES.dirCache.get(key))) makeEdit(); return; }
   const st = EH.mixStore();
   if(ES.mixNo > 0 && !st.asked && st.plans[0]) EH.variantsRun(st);   // the first New mix: the AI's other mixes, in one call
   const own = st.plans[ES.mixNo];
   if(own){   // the AI's plan for this mix: as it is on the same cuts, else fitted to these (the song's part moved)
     const slots = own.sig === EH.planSig() ? own.slots : EH.refitDirector(own, true);
-    if(slots){ ES.director = { key, slots, story: own.story }; EH.dirCache.set(key, ES.director); makeEdit(); return; }
+    if(slots){ ES.director = { key, slots, story: own.story }; ES.dirCache.set(key, ES.director); makeEdit(); return; }
   }
   if(ES.mixNo > 0 && st.plans.length){   // past the AI's mixes, or while they come: the phone's own mix in the AI's style
     if(ES.director && ES.director.key===key && ES.director.interim) return;   // waiting for the AI's mixes
     const from = st.plans.filter(Boolean), src = from[ES.mixNo % from.length], slots = EH.refitDirector(src, false);
-    if(slots){ ES.director = { key, slots, story: src.story, interim: st.busy }; if(!st.busy) EH.dirCache.set(key, ES.director); makeEdit(); return; }
+    if(slots){ ES.director = { key, slots, story: src.story, interim: st.busy }; if(!st.busy) ES.dirCache.set(key, ES.director); makeEdit(); return; }
   }
   EH.directorRun(key);
 }
@@ -310,9 +310,9 @@ function paceMaybe(){
   if(ES.keepSaved) return;
   if(ES.paceBusy || !EH.paceWanted() || !EH.aiReelOk() || ES.refReading) return;
   const key = EH.paceKey();
-  if(EH.paceCache.has(key)){ ES.pacing = EH.paceCache.get(key); makeEdit(); return; }
-  const sp = EH.songPace.get(EH.paceSongKey()), p = sp && EH.paceFromSong(sp);
-  if(p){ ES.pacing = { key, ...p }; EH.paceCache.set(key, ES.pacing); makeEdit(); return; }
+  if(ES.paceCache.has(key)){ ES.pacing = ES.paceCache.get(key); makeEdit(); return; }
+  const sp = ES.songPace.get(EH.paceSongKey()), p = sp && EH.paceFromSong(sp);
+  if(p){ ES.pacing = { key, ...p }; ES.paceCache.set(key, ES.pacing); makeEdit(); return; }
   EH.paceRun(key);
 }
 // the person is known now (the phone app's sign-in reached the hidden studio): their plan, credits and Shubix AI
@@ -329,7 +329,7 @@ async function showShot(i){ ES.pos = ES.edit[i].start + Math.min(0.4, (ES.edit[i
   await Promise.all([ES.edit[i-1]?EH.prepare(i-1,ES.edit[i-1].end-0.01):0, EH.prepare(i, ES.pos)]); EH.drawFrame(ES.pos); EH.drawTimeline(); }
 function changed(i, refit){
   EH.stopAll(); const e = ES.edit[i]; e.kf = keyframesFor(e);
-  if(refit){ const need = e.sp.pos(e.end-e.start)*e.scaleR, src = EH.sources[e.src];
+  if(refit){ const need = e.sp.pos(e.end-e.start)*e.scaleR, src = ES.sources[e.src];
     const clash = ES.edit.some((x,k)=>k!==i && x.src===e.src && Math.min(x.in+x.sp.pos(x.end-x.start)*x.scaleR, e.in+need)-Math.max(x.in,e.in) > 0.001);
     if(e.in + need > src.dur || clash || crossesScene(src, e.in, e.in+need)) EH.repick(i, false); }
   EH.renderEDL(true); showShot(i);
@@ -379,10 +379,10 @@ function shotOp(op, arg){
     changed(k, true); return true;
   }
   if(op === 'replace'){
-    const si = +arg; if(!EH.sources[si]) return false;
+    const si = +arg; if(!ES.sources[si]) return false;
     if(!EH.repick(i, si === e.src, si)){ EH.notify('Every moment of that clip is already in the Reel. Pick another clip.'); return false; }
     e.kf = keyframesFor(e); EH.renderEDL(true); showShot(i); ES.editGen++;
-    EH.notify('Shot ' + (i + 1) + ' now uses ' + EH.sources[si].name.replace(/\.[^.]+$/, '') + '.'); return true;
+    EH.notify('Shot ' + (i + 1) + ' now uses ' + ES.sources[si].name.replace(/\.[^.]+$/, '') + '.'); return true;
   }
   return false;
 }
@@ -398,7 +398,7 @@ function shotReorder(from, to){   // (not shotMove: that name is refread's camer
   const [m] = look.splice(from, 1); look.splice(to, 0, m);
   const lo = Math.min(from, to), hi = Math.max(from, to);
   for(let k = lo; k <= hi; k++){
-    const slot = L[k], c = look[k], src = EH.sources[c.src]; if(!src) return false;
+    const slot = L[k], c = look[k], src = ES.sources[c.src]; if(!src) return false;
     const x = { ...slot, ...c, start: slot.start, end: slot.end };
     const sp = EH.speedFor(x.sp, x), need = sp.pos(x.end - x.start), room = Math.max(0.05, src.dur - TAIL);
     x.scaleR = need > room ? Math.max(0.05, room/need*0.98) : 1;
@@ -429,7 +429,7 @@ function shotSet(patch){
 // slip: the same shot, an earlier or later moment of its clip (the shot's place in the song stays)
 function shotSlip(d){
   if(!ES.edit.length || ES.kind === 'talk') return false; EH.stopAll();
-  const i = EH.segAt(ES.pos), e = ES.edit[i], need = e.sp.pos(e.end - e.start)*e.scaleR, max = Math.max(0, EH.sources[e.src].dur - need - TAIL);
+  const i = EH.segAt(ES.pos), e = ES.edit[i], need = e.sp.pos(e.end - e.start)*e.scaleR, max = Math.max(0, ES.sources[e.src].dur - need - TAIL);
   const v = Math.max(0, Math.min(max, e.in + d)); if(Math.abs(v - e.in) < 1e-3){ EH.notify(d < 0 ? 'This is the start of the clip.' : 'This is the end of the clip.'); return false; }
   e.in = v; e.cam = null; e.kf = keyframesFor(e); EH.renderEDL(true); showShot(i); ES.editGen++; return true;
 }
@@ -518,7 +518,7 @@ function snapRestore(s){
   return true;
 }
 function remixNow(){
-  if(!ES.buf || !EH.sources.length || !ES.edit.length || ES.exporting || ES.recording) return false;
+  if(!ES.buf || !ES.sources.length || !ES.edit.length || ES.exporting || ES.recording) return false;
   EH.remakeOk(); ES.seed = (ES.seed*7919 + 13) % 2147483647 || 7; ES.mixNo++; makeEdit();
   return true;
 }
@@ -587,7 +587,7 @@ function drawHook(t){
 // where a face is on the screen at t (fraction of the height), if the shot follows one
 function facePosOnScreen(t){
   if(!ES.edit.length) return null;
-  const e = ES.edit[EH.segAt(t)], src = EH.sources[e.src]; if(!src || !src.faces?.length) return null;
+  const e = ES.edit[EH.segAt(t)], src = ES.sources[e.src]; if(!src || !src.faces?.length) return null;
   const local = Math.max(0, t - e.start), st = srcPos(e, local), near = src.faces.filter(f=>f.n && Math.abs(f.t - st) < 0.6);
   if(!near.length) return null;
   const f = near.reduce((q,x)=>Math.abs(x.t-st) < Math.abs(q.t-st) ? x : q, near[0]);
@@ -628,7 +628,7 @@ async function aiApply(d){ if(!d) return; ES.layers = ES.layers.filter(L => L.ai
   // Reel counted as waiting for Shubix for ever: the phone stopped at 70%, and the house taste cut the AI's choices back)
   const k0 = EH.dirKey(), mine = !!ES.director && ES.director.key === k0;
   await EH.aiActions(d.actions);
-  const k1 = EH.dirKey(); if(mine && k1 !== k0){ ES.director = { ...ES.director, key: k1 }; EH.dirCache.set(k1, ES.director); } }
+  const k1 = EH.dirKey(); if(mine && k1 !== k0){ ES.director = { ...ES.director, key: k1 }; ES.dirCache.set(k1, ES.director); } }
 function drawOverlays(t){ for(const ov of ES.overlays) if(!ov.behind || !EH.personMask || !ES.bgMask) EH.drawOverlay(EH.og, ov, t); }
 function kfNow(){ return Math.max(0, ES.playing ? EH.curTime() : ES.pos || 0); }
 function kfTarget(){
@@ -636,7 +636,7 @@ function kfTarget(){
   if(ES.ovSel >= 0 && ES.overlays[ES.ovSel]){ const ov = ES.overlays[ES.ovSel], [a, b] = EH.ovTiming(ov);
     return { what: 'text', obj: ov, a, b: Math.max(a + 0.05, b), name: ov.emoji ? 'Sticker ' + ov.text : 'Text “' + (ov.text.length > 22 ? ov.text.slice(0, 21) + '…' : ov.text) + '”' }; }
   const i = EH.segAt(kfNow()), e = ES.edit[i];
-  return { what: 'shot', obj: e, i, a: e.start, b: e.end, name: 'Shot ' + (i + 1) + ' · ' + EH.sources[e.src].name.replace(/\.[^.]+$/, '') };
+  return { what: 'shot', obj: e, i, a: e.start, b: e.end, name: 'Shot ' + (i + 1) + ' · ' + ES.sources[e.src].name.replace(/\.[^.]+$/, '') };
 }
 function kfLocal(T){ return Math.max(0, Math.min(T.b - T.a - 0.01, kfNow() - T.a)); }
 function kfAtHead(T){ const l = kfLocal(T); return (T.obj.uk || []).find(q => Math.abs(q.t - l) < EH.KF_NEAR) || null; }
@@ -676,7 +676,7 @@ function shiftCaptions(){
 }
 // the picture's size on the display (turned a quarter: width and height swap) and its scale (fill or fit)
 function csGeom(e, scale, l){
-  const W=EH.out.width, H=EH.out.height, c = EH.csOf(e, l), odd = (c.rot/90)&1, s0 = EH.sources[e.src];
+  const W=EH.out.width, H=EH.out.height, c = EH.csOf(e, l), odd = (c.rot/90)&1, s0 = ES.sources[e.src];
   const sw = odd ? s0.h : s0.w, sh = odd ? s0.w : s0.h, r = (c.fit ? Math.min(W/sw, H/sh) : Math.max(W/sw, H/sh))*scale*(c.zoom || 1);
   return { c, odd, sw, sh, dw: sw*r, dh: sh*r };
 }
@@ -695,7 +695,7 @@ function layerOf(e, local, o={}){
   const u = EH.uAt(e.uk, local);
   if(u){ scale *= u.s; rot += u.r; }
   const cs0 = EH.csOf(e, local); let stab = null;
-  if(cs0.stab > 0 && !o.noStab){ stab = EH.stabAt(EH.sources[e.src], srcPos(e, local)); scale *= 1 + 0.12*cs0.stab; }
+  if(cs0.stab > 0 && !o.noStab){ stab = EH.stabAt(ES.sources[e.src], srcPos(e, local)); scale *= 1 + 0.12*cs0.stab; }
   const G = csGeom(e, scale, local), c = G.c, dw = G.dw, dh = G.dh, [ccx, ccy] = EH.csCam(e, local, c);
   if(stab){ x += stab[0]*dw*cs0.stab; y += stab[1]*dh*cs0.stab; }
   let px = W/2 - ccx*dw; px = panClamp(px, W, dw) + x;
@@ -825,7 +825,7 @@ async function renderedLook(){
 async function copyLook(){
   const R = ES.refProfile; if(!R || !R.look || ES.copyLookBusy || ES.look !== 'copy') return;
   const T = R.look, cl = (x,a,b)=>Math.min(b, Math.max(a, x)), mono = T.sat < 0.05 ? 1 : 0;
-  const key = R.name + '|' + R.dur + '|' + EH.sources.map(EH.fpOf).join(';') + '|' + ES.aspect;
+  const key = R.name + '|' + R.dur + '|' + ES.sources.map(EH.fpOf).join(';') + '|' + ES.aspect;
   if(key === ES.copyLookKey && EH.GRADES.copy) return;
   const G = { con:1, sat:1, bri:1, warm:0, teal:0, mono, lift:0, vig:0, grain:0 };
   EH.GRADES.copy = { ...G };
@@ -877,7 +877,7 @@ async function ensureMix(){
 function sfxAdd(k){ if(!EH.SFX_NAMES[k] || !ES.buf) return; ES.sfxList.push({ id: ++ES.sfxSeq, at: +(ES.playing ? EH.curTime() : ES.pos).toFixed(2), kind: k }); EH.sfxUI(); ES.clipMixKey = ''; ensureMix(); EH.notify(EH.SFX_NAMES[k] + ' added at ' + (ES.playing ? EH.curTime() : ES.pos).toFixed(1) + ' s'); }
 function applyVo(){   // (the name stays: everything that changes the sound calls it)
   if(ES.kind === 'talk' || !ES.baseBuf) return;
-  const shots = ES.edit.filter(e => EH.csVoiced(e) && EH.sources[e.src] && EH.sources[e.src].pcm);
+  const shots = ES.edit.filter(e => EH.csVoiced(e) && ES.sources[e.src] && ES.sources[e.src].pcm);
   const lyVoiced = ES.layers.filter(L => L.vol > 0 && ES.lmedia[L.m] && ES.lmedia[L.m].pcm);
   const speech = ES.ttsClips.filter(c => c.pcm);
   const fxEv = EH.sfxEvents(), musShots = ES.edit.some(e => e.cs && e.cs.mus !== undefined && e.cs.mus !== 1);
@@ -892,7 +892,7 @@ function applyVo(){   // (the name stays: everything that changes the sound call
   const fi = Math.round(ES.au.mfin*sr), fo = Math.round(EH.musicOut()*sr), mv = (i) => ES.au.mvol * (fi && i < fi ? i/fi : 1) * (fo && i > N - fo ? Math.max(0, (N - i)/fo) : 1);
   // the shots' own sound (mono), placed where each shot plays, at its speed; silent while a shot is frozen
   const cs = new Float32Array(N);
-  for(const e of shots){ const P = EH.sources[e.src].pcm, c = EH.csOf(e), a = Math.round(e.start*sr), b = Math.min(N, Math.round(e.end*sr)), L = e.end - e.start;
+  for(const e of shots){ const P = ES.sources[e.src].pcm, c = EH.csOf(e), a = Math.round(e.start*sr), b = Math.min(N, Math.round(e.end*sr)), L = e.end - e.start;
     // the shot's loudness: about -16 dBFS at volume 100%, short fades at its cuts
     let q2 = 0, qn = 0; const i0 = Math.round(e.in*P.sr), i1 = Math.min(P.x.length, i0 + Math.round(L*P.sr*2)); for(let k=i0;k<i1;k+=8){ q2 += P.x[k]*P.x[k]; qn++; }
     const norm = Math.min(6, 0.16/Math.max(0.002, Math.sqrt(q2/Math.max(1, qn)))), ramp = Math.round(0.012*sr);
@@ -933,7 +933,7 @@ function autoTools(){
   if(!ES.au.ai){ if(ES.au.clip === 'all') ES.edit.forEach(e => EH.csAutoSet(e, { vol: 0.7 })); ES.clipMixKey = ''; return; }
   const W = EH.out.width, H = EH.out.height;
   ES.edit.forEach((e) => {
-    const s = EH.sources[e.src]; if(!s || !s.w) return;
+    const s = ES.sources[e.src]; if(!s || !s.w) return;
     const keep = Math.min(W/s.w, H/s.h)/Math.max(W/s.w, H/s.h);   // the share of the picture a filled frame keeps
     if(keep < 0.5 && !(e.face > 0.3)) EH.csAutoSet(e, { fit: true, bg: 'blur' });
     const need = e.sp.pos(e.end - e.start)*e.scaleR, st = s.samples && s.samples.length ? windowStats(s, e.in, e.in + need) : null;
@@ -953,8 +953,8 @@ function autoTools(){
 }
 async function speechScan(){
   if(ES.speechBusy || !EH.speechProbs || ES.kind === 'talk' || !ES.au.ai || ES.au.clip !== 'voices') return; ES.speechBusy = true; let found = false;
-  try{ for(const s of EH.sources){ if(s.speech !== undefined || s.removed) continue;
-      const P = await EH.clipPcm(EH.sources.indexOf(s)); if(!P){ s.speech = null; continue; }
+  try{ for(const s of ES.sources){ if(s.speech !== undefined || s.removed) continue;
+      const P = await EH.clipPcm(ES.sources.indexOf(s)); if(!P){ s.speech = null; continue; }
       try{ const p = await EH.speechProbs(P.x, P.sr); s.speech = { p, hop: 512/16000 }; found = found || p.some(x => x > 0.5); }catch(e){ s.speech = null; } }
   } finally { ES.speechBusy = false; }
   if(found && ES.edit.length) autoTools();
@@ -963,9 +963,9 @@ async function speechScan(){
 // loudest clip's own sound becomes the song. 'none': no clip has any sound.
 async function autoSound(){
   let talkShare = 0, loud = -1, loudV = 0;
-  for(let i=0;i<EH.sources.length;i++){ const P = await EH.clipPcm(i); if(!P) continue;
+  for(let i=0;i<ES.sources.length;i++){ const P = await EH.clipPcm(i); if(!P) continue;
     let q = 0, n = 0; for(let k=0;k<P.x.length;k+=32){ q += P.x[k]*P.x[k]; n++; } const r = Math.sqrt(q/Math.max(1, n)); if(r > loudV){ loudV = r; loud = i; }
-    if(EH.speechProbs){ try{ const p = await EH.speechProbs(P.x, P.sr); EH.sources[i].speech = { p, hop: 512/16000 }; talkShare = Math.max(talkShare, p.filter(x => x > 0.5).length/Math.max(1, p.length)); }catch(e){} } }
+    if(EH.speechProbs){ try{ const p = await EH.speechProbs(P.x, P.sr); ES.sources[i].speech = { p, hop: 512/16000 }; talkShare = Math.max(talkShare, p.filter(x => x > 0.5).length/Math.max(1, p.length)); }catch(e){} } }
   if(talkShare >= 0.3){ EH.setKind('talk'); return 'talk'; }
   if(loud >= 0 && loudV > 0.003){ await EH.extractAudio(loud); return 'extract'; }
   return 'none';
@@ -989,14 +989,14 @@ function idb(store, mode, fn){ return EH.pdb().then(d => new Promise((res, rej) 
   t.oncomplete = () => { d.close(); res(req && 'result' in req ? req.result : undefined); }; t.onerror = () => { d.close(); rej(t.error); }; t.onabort = () => { d.close(); rej(t.error || new Error('storage full')); }; })); }
 async function putFile(f){ const k = 'f:' + EH.fileFp(f); if(await idb('files', 'readonly', s => s.getKey(k)) === undefined) await idb('files', 'readwrite', s => s.put(f, k)); }
 function restoreEdit(list){
-  if(!list.every(x => EH.sources[x.src])) return false;
+  if(!list.every(x => ES.sources[x.src])) return false;
   // the AI's plan stays this Reel's plan through an edit: its key has the shots' times in it, and without this the
   // studio would say it is still waiting for the AI, and every next step on the phone would wait for it too
   const keyBefore = EH.dirKey(), planned = !!ES.director && ES.director.key === keyBefore;
-  EH.stopAll(); const uc = EH.sources.map(() => 0);
-  ES.edit = list.map(x => { const e = { ...x, el: EH.sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = EH.speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = ES.beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
+  EH.stopAll(); const uc = ES.sources.map(() => 0);
+  ES.edit = list.map(x => { const e = { ...x, el: ES.sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = EH.speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = ES.beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
   ES.plan = ES.edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak, ref: e.ref, flick: e.flick, trd: e.trd, black: e.black }));
-  if(planned){ const keyNow = EH.dirKey(); if(keyNow !== keyBefore){ ES.director = { ...ES.director, key: keyNow }; EH.dirCache.set(keyNow, ES.director); } }
+  if(planned){ const keyNow = EH.dirKey(); if(keyNow !== keyBefore){ ES.director = { ...ES.director, key: keyNow }; ES.dirCache.set(keyNow, ES.director); } }
   EH.setCanvas(); ES.edit.forEach(e => EH.camAt(e, 0)); EH.renderEDL(); EH.drawMusic(); EH.captureLoop(); ES.editGen++;
   EH.flickBuild();   // a saved flicker montage: its stills again
   return true;

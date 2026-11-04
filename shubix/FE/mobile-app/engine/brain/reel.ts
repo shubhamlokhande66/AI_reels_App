@@ -8,27 +8,45 @@ import { inferAutonomousMood, createAutonomousReelPlan, validateAutonomousReelPl
 import { TR_DUR } from '@mobile/core/lib/shaders';
 
 export function createReelBrain(ES, EH){
+function tasteFx(e, i, t){
+  if(ES.mode === 'copy' || EH.aiTrusted()) return;
+  const len = e.end - e.start, photo = EH.isPhotoMode();
+  if(EH.BEAT_FX.includes(e.efx)){ if(ES.mode === 'fast' && e.type === 'drop' && !t.shape) t.shape = true; else e.efx = 'none'; }
+  if(e.efx === 'hook' && i > 0) e.efx = 'none';
+  if(e.type === 'drop' && i > 0 && len >= 0.4 && e.efx !== 'snap' && !EH.BEAT_FX.includes(e.efx)) e.efx = ES.mode === 'smooth' ? 'zoomburst' : EH.recipeNow().zoom;
+  if(EH.ZOOM_FX.has(e.efx)){
+    const ok = e.type === 'drop' || (ES.mode === 'fast' && e.type === 'hit' && !t.prevZoom && e.start - t.lastZoom >= 3 && !(t.drops || []).some(d => d > e.start && d - e.start < 3));
+    if(!ok) e.efx = photo || len >= 2.5 ? 'pan-soft' : 'none';
+  }
+  if(e.efx === 'pan') e.efx = photo || len >= 2.5 ? 'pan-soft' : 'none';   // Ken Burns, without the bounce on every beat
+  if(EH.MOVE_FX.has(e.efx) && !photo){
+    if(len < 2.5 || t.moves >= Math.ceil(t.n / 3)) e.efx = 'none'; else t.moves++;
+  }
+  if(photo && e.efx === 'none') e.efx = 'pan-soft';   // a photo always moves a little (Ken Burns); a still one looks stuck
+  t.prevZoom = EH.ZOOM_FX.has(e.efx) || e.efx === 'hook';
+  if(t.prevZoom) t.lastZoom = e.start;
+}
 function makeEditNow(){
   if(ES.refReading) return;   // the Reel to copy is being read: its copy is made right after (no ordinary Reel meanwhile)
-  EH.life({ stage: 'making the Reel', clips: EH.sources.length });
+  EH.life({ stage: 'making the Reel', clips: ES.sources.length });
   if(ES.exportBusy){ ES.remakeAfterExport = true; return; }   // a late AI answer: the video being made keeps its edit
   if(ES.keepSaved) return;   // an opened Reel: as it was saved
-  if(ES.kind === 'talk'){ if(EH.sources.length) EH.buildTalk(); return; }
+  if(ES.kind === 'talk'){ if(ES.sources.length) EH.buildTalk(); return; }
   if(ES.story && EH.storyEdit()) return;
-  if(!ES.buf || !EH.sources.length) return;
+  if(!ES.buf || !ES.sources.length) return;
   const keptUk = EH.ukKeep();
   EH.stopAll(); ES.plan = EH.adaptPlan(); { const pc = EH.paceNow(); if(pc) ES.plan = EH.beatEdit(endWell(EH.noFlashCuts(EH.withPartCuts(repace(ES.basePlan, pc.secs.map(x => ({ ...x, every: x.every === 'hits' ? 1 : x.every === 'flicker' ? 8 : x.every })), ES.beats, ES.buf.duration, ES.mode)))), pc.secs); } EH.styleEdit(); const dirInfo = EH.applyDirectorStyle(); if(!dirInfo) EH.finishTransitions(); EH.tastePlan();
-  const gmax = Math.max(1e-6, ...EH.sources.flatMap(s=>s.samples.map(x=>x.m)));
-  const used = EH.sources.map(()=>[]);
+  const gmax = Math.max(1e-6, ...ES.sources.flatMap(s=>s.samples.map(x=>x.m)));
+  const used = ES.sources.map(()=>[]);
   // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
   // "In my order": each shot has its clip and its part of that clip (seqSlots), so the clips play one after another
-  const seq = ES.seqOn && EH.sources.length > 1 ? EH.seqSlots(ES.plan.length) : null;
+  const seq = ES.seqOn && ES.sources.length > 1 ? EH.seqSlots(ES.plan.length) : null;
   const order = ES.plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return (a===0?-1:pr[ES.plan[a].type]) - (b===0?-1:pr[ES.plan[b].type]) || a-b; });
   const res = new Array(ES.plan.length); ES.dupCount = 0;
   // Shared Director pass: rank the source clips once, then use its explainable quality ranking
   // as a gentle prior in the existing per-shot visual scorer. The music edit still owns timing;
   // the existing AI's explicit shot choices remain authoritative.
-  const directorShots = EH.sources.map((src, sourceIndex) => {
+  const directorShots = ES.sources.map((src, sourceIndex) => {
     const samples = src.samples || [];
     const avg = (key, fallback = 0) => samples.length ? samples.reduce((n, x) => n + (Number(x[key]) || 0), 0) / samples.length : fallback;
     const sharp = avg('sh') / Math.max(1e-6, src.shMed || 1);
@@ -74,10 +92,10 @@ function makeEditNow(){
   const pick = (i, allowNeighbour, allowOverlap, anyScene) => {
     const s = ES.plan[i], len = s.end - s.start, dir = EH.dirShot(i);
     let best=null, bs=-Infinity;
-    EH.sources.forEach((src,si)=>{
+    ES.sources.forEach((src,si)=>{
       let need = s.sp.pos(len), scaleR = 1;
       if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
-      if(!allowNeighbour && EH.sources.length>1 && [res[i-1],res[i+1]].some(x=>x && x.src===si)) return;
+      if(!allowNeighbour && ES.sources.length>1 && [res[i-1],res[i+1]].some(x=>x && x.src===si)) return;
       const stepT = Math.max(0.1, Math.min(0.5, src.dur/120));
       const tryAt = (a) => {
         let ov = 0; used[si].forEach(([u0,u1])=>{ ov += Math.max(0, Math.min(u1,a+need)-Math.max(u0,a)); });
@@ -105,8 +123,8 @@ function makeEditNow(){
     used[best.src].push([best.in, best.in + ES.plan[i].sp.pos(len)*best.scaleR]);
     res[i] = best;
   });
-  const useCount = EH.sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
-  ES.edit = ES.plan.map((s,i)=>({...s, ...res[i], el: EH.sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
+  const useCount = ES.sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
+  ES.edit = ES.plan.map((s,i)=>({...s, ...res[i], el: ES.sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
   EH.flickBuild();   // a copied flicker montage: its stills (once per set of clips)
   const taste = { n: ES.edit.length, moves: 0, prevZoom: false, lastZoom: -99, shape: false, drops: ES.edit.filter(x => x.type === 'drop').map(x => x.start) };
   ES.edit.forEach((e,i)=>{
@@ -114,7 +132,7 @@ function makeEditNow(){
     e.dirWhy = d ? d.why : '';
     e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8);
     if(ES.mode!=='smooth' && !e.fxByDir) suitFx(e);
-    EH.tasteFx(e, i, taste);
+    tasteFx(e, i, taste);
     // When the optional cloud AI director is unavailable, apply the shared on-device director's
     // renderable treatment as a conservative fallback. Never overwrite an explicit AI choice.
     if(!dirInfo && shared){

@@ -63,6 +63,34 @@ try {
   if (!read) throw new Error("The engine gave no edit.");
   if (errors.length) throw new Error("The engine threw:\n" + [...new Set(errors)].join("\n"));
   const round = (k, v) => (typeof v === "number" ? +v.toFixed(3) : v);
+  // the same Reel made again with no browser: the engine's state taken just before it makes it, then the brain alone in Node
+  const snapshot = await run(`(()=>{const seen=new WeakSet(),{ES,HOOKS,makeEditNow}=document.querySelector("#studio").__studio.brainDebug,speedKey=HOOKS.core.speedKey;
+    const dump=(k,v)=>{if(k==="sp"&&v&&typeof v.pos==="function")return{__sp:speedKey(v)};if(typeof v==="function"||(typeof Node!=="undefined"&&v instanceof Node)||v instanceof HTMLElement||v instanceof CanvasRenderingContext2D)return undefined;
+      if(ArrayBuffer.isView(v))return{__t:v.constructor.name,v:Array.from(v)};
+      if(v instanceof AudioBuffer)return{__t:"AudioBuffer",duration:v.duration,length:v.length,sampleRate:v.sampleRate,numberOfChannels:v.numberOfChannels};
+      if(v instanceof Map)return{__t:"Map",v:[...v]};if(v instanceof Set)return{__t:"Set",v:[...v]};
+      if(v&&typeof v==="object"){if(seen.has(v))return undefined;seen.add(v);}return v;};
+    const consts={};for(const g of Object.values(HOOKS))for(const k of Object.keys(g)){try{const v=g[k];if(typeof v!=="function"&&v!==undefined)consts[k]=v;}catch(e){}}
+    const before=JSON.stringify({ES,consts},dump);makeEditNow();return JSON.stringify({before,after:ES.edit.map(e=>[e.start,e.end,e.src,e.in,e.tr,e.efx])});})()`);
+  const { before, after } = JSON.parse(snapshot);
+  const { build } = await import("esbuild");
+  const entry = join(work, "brain-entry.ts"), bundle = join(work, "brain.mjs");
+  writeFileSync(entry, ["edit", "core", "reel", "shared"].map((n) => `export * from ${JSON.stringify(join(app, "engine", "brain", n + ".ts").replace(/\\/g, "/"))};`).join("\n"));
+  await build({ entryPoints: [entry], bundle: true, format: "esm", platform: "node", outfile: bundle, logLevel: "error", absWorkingDir: app, nodePaths: [join(app, "node_modules")], tsconfigRaw: { compilerOptions: { baseUrl: join(app, "engine"), paths: { "@/*": ["./*"] } } } });
+  const brainModule = await import("file:///" + bundle.replace(/\\/g, "/"));
+  const revive = (k, v) => { if (v && v.__t === "Map") return new Map(v.v); if (v && v.__t === "Set") return new Set(v.v); if (v && v.__t === "AudioBuffer") return v; if (v && v.__t) return new globalThis[v.__t](v.v); return v; };
+  const { ES: ES2, consts } = JSON.parse(before, revive), called = new Map(), parts = {};
+  const EH2 = new Proxy({}, { get: (_, n) => { for (const p of Object.values(parts)) if (p[n] !== undefined) return p[n]; if (n in consts) return consts[n]; return (...a) => { called.set(n, (called.get(n) || 0) + 1); return undefined; }; } });
+  Object.assign(parts, { shared: brainModule.createSharedBrain(ES2, EH2), edit: brainModule.createEditBrain(ES2, EH2), core: brainModule.createCoreBrain(ES2, EH2), reel: brainModule.createReelBrain(ES2, EH2) });
+  // a shot's speed is a function, and JSON keeps only its name: the brain's own speedFor makes it again
+  const speeds = (o, seenAgain = new Set()) => { if (!o || typeof o !== "object" || seenAgain.has(o)) return; seenAgain.add(o); if (o.sp && o.sp.__sp !== undefined) o.sp = parts.edit.speedFor(o.sp.__sp, o); for (const v of Array.isArray(o) ? o : Object.values(o)) speeds(v, seenAgain); };
+  speeds(ES2);
+  let headless = "";
+  try { parts.reel.makeEditNow(); headless = JSON.stringify(ES2.edit.map((e) => [e.start, e.end, e.src, e.in, e.tr, e.efx]), round); } catch (e) { console.log("NO BROWSER: threw:", e.stack?.split("\n").slice(0, 3).join(" | ")); }
+  console.log("page hooks it called:", [...called].map(([n, c]) => n + "×" + c).join(" ") || "none");
+  const browserMade = JSON.stringify(after, round);
+  if (headless === browserMade) console.log(`NO BROWSER: same Reel, ${after.length} shots`);
+  else { console.log("NO BROWSER: different"); console.log("  browser", browserMade.slice(0, 260)); console.log("  node   ", headless.slice(0, 260)); errors.push("The brain alone made a different Reel."); }
   const edit = JSON.stringify(JSON.parse(read), round, 1);
   if (process.argv.includes("--update")) { mkdirSync(dirname(golden), { recursive: true }); writeFileSync(golden, edit + "\n"); console.log(`Written: ${JSON.parse(edit).length} shots`); code = 0; }
   else {
