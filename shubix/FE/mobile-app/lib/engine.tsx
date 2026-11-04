@@ -145,6 +145,9 @@ export const engine = {
   cancelExport: () => call("cancelExport").catch(() => undefined),
   /** the Reel's picture at `t` exactly as the studio makes it (null: it could not) */
   frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
+  /** a new Reel: the studio's page is loaded again, so nothing of the Reel before it stays (song, clips, edit, AI, cards);
+   * it signs in again and reads the plan and credits anew on its first call */
+  fresh: () => restart("A new Reel was started."),
   /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
   stop: () => restart(STOPPED),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the

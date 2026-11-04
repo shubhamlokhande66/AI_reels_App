@@ -49,10 +49,15 @@ function CreateFlowScreen() {
   async function pickRecent(s: Song) {
     setReading(true); setSong(s.duration ? s : { ...s, duration: await songLength(s.uri) }); await hear(s); setReading(false);
   }
+  // once for this Reel, at its first use of the studio (not on opening this screen: leaving without making a Reel keeps
+  // the last Reel's session; a second song for this same Reel does not start it again)
+  const fresh = useRef(false);
+  const startFresh = () => { if (!fresh.current) { fresh.current = true; engine.fresh(); } };
   // the song as the website's engine hears it (its beats, drops and breaks, checked by Shubix: the Reel is cut on them); its cards show the way
   async function hear(s: Song) {
     setMusic(null); setStart(0);
     if (!engineOn) return toast(words("The song's beats and the Reel's edit are made by the Shubix app: Expo Go cannot run them."), "info");
+    startFresh();
     try { setMusic(await engine.song(s.uri, s.name)); } catch (e) { toast(errorMessage(e), "danger"); }
   }
   // the Reel's length: the website's engine places the part on the song's best part (without it, from the start)
@@ -86,6 +91,7 @@ function CreateFlowScreen() {
       const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
       let studio = false;
       if (engineOn && music) {
+        startFresh();
         await engine.choose({ order: settings.order, aspect: settings.aspect, mode: style || "auto" }); // (the length and the part are set already)
         // each clip numbered (phones name many clips the same): the ones the studio kept, in its order
         const kept = (await engine.clips(clips.map((c, i) => ({ uri: c.uri, name: `${i + 1}-${c.name}` })))).names;
