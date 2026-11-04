@@ -7,7 +7,7 @@ import { TemplateGate } from "@/components/organisms/TemplateGate";
 /** Fast Studio, one address per way in:
  * - /create/music, /create/talking, /create/photo, /create/copy: the Create flow of that kind, its defaults set
  *   (components/studio/flow.ts); Copy a Reel starts by picking the Reel to copy
- * - /create/story: Story Maker on the phone (components/studio/auto.ts)
+ * - /create/story: Story Maker needs a voice, and the website has none now (docs/third-party-licenses.md): old links go to Music Reel
  * - /create/edit: legacy saved Reel / template links redirect to /editor with their original query parameters */
 const KINDS = { music: "Music Reel", talking: "Talking Reel", photo: "Photo Reel", copy: "Copy a Reel", story: "Story Maker", edit: "Your Reel" } as const;
 type Kind = keyof typeof KINDS;
@@ -28,6 +28,7 @@ export default async function CreatePage({ params, searchParams }: { params: Pro
   if (!(kind in KINDS)) notFound();
   const q = await searchParams;
   if (kind === "edit" && !q.p && !q.tpl) notFound();
+  if (kind === "story") redirect("/create/music");
   if (kind === "edit") {
     const target = new URLSearchParams();
     for (const [key, value] of Object.entries(q)) {
@@ -37,8 +38,8 @@ export default async function CreatePage({ params, searchParams }: { params: Pro
     redirect(`/editor?${target.toString()}`);
   }
   const studio = <FastStudio kind={FLOW.has(kind as Kind) ? (kind as "music" | "talking" | "photo" | "copy") : undefined} />;
-  // Copy a Reel, Story Maker and a template open on their plan (lib/plan-locks.ts "page:…"); a saved Reel always opens
-  const lock = kind === "copy" ? "page:copy" : kind === "story" ? "page:story" : kind === "edit" && q.tpl && !q.p ? "page:templates" : "";
+  // Copy a Reel and a template open on their plan (lib/plan-locks.ts "page:…"); a saved Reel always opens
+  const lock = kind === "copy" ? "page:copy" : kind === "edit" && q.tpl && !q.p ? "page:templates" : "";
   // a template has its own plan too (Admin → Templates)
   const tpl = kind === "edit" && typeof q.tpl === "string" && !q.p ? q.tpl : "";
   const gated = tpl ? <TemplateGate id={tpl}>{studio}</TemplateGate> : studio;

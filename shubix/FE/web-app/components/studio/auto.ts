@@ -4,7 +4,6 @@
  * not saved until the creator chooses). "Edit" opens the same Reel in the editor. Without a song: clips where people talk
  * make a talking Reel, otherwise the loudest clip's own sound becomes the song. */
 
-import { TTS_VOICES } from "@/lib/tts/voices";
 import { Button } from "./ui";
 
 type Work = { song: boolean; songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; speech: boolean; exporting: boolean; exportP: number };
@@ -151,7 +150,6 @@ export function initAuto(root: HTMLElement): () => void {
     $("aonotetx").textContent = m === "story" ? "Only your story's words are sent to find pictures. Narration and video are made on your phone." : "Original videos stay on your phone. Selected preview frames may be sent securely for AI analysis.";
     $("aoclipsh").innerHTML = m === "story" ? "Your own clips or photos <em>optional</em>" : "Your clips";
     if (m === "story") { $("aoclips").textContent = "Instead of the pictures Shubix finds"; $("aosong").textContent = "Plays softly under the narration"; if (!styles.length) void loadStyles(); }
-    if (m === "story" && !$<HTMLSelectElement>("aovoice").options.length) $("aovoice").innerHTML = TTS_VOICES.map((v) => `<option value="${v.key}">${v.label}</option>`).join("");
     $("aolist").innerHTML = (m === "story" ? STORY_STAGES : STAGES).map(([k, t]) => `<li data-s="${k}">${t}</li>`).join("");
     ready(); show("pick");
   };
