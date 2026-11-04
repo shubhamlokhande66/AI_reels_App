@@ -39,4 +39,7 @@ export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], o
   }));
 }
 
+/** A Reel given up before it was saved: its kept files go. */
+export function forgetKeptFiles(id: string) { try { const dir = new Directory(Paths.document, "projects", id); if (dir.exists) dir.delete(); } catch (e) { console.warn("Kept files not removed:", e instanceof Error ? e.message : e); } }
+
 export const keepPickedFile = (projectId: string, from: string, name: string) => keepFile(from, `projects/${projectId}`, `audio-${name}`);

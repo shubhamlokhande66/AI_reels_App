@@ -3,7 +3,7 @@ import { Platform, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BannerAd, BannerAdSize, TestIds, adsInApp, adsReady, showRewarded } from "../../lib/ads";
 import { useApi, useText } from "@mobile/hooks";
-import { Button, Card, toast } from "@mobile/ui-mobile";
+import { Button, Card, tell } from "@mobile/ui-mobile";
 import { mobileApi, type AdPlace } from "../../lib/api";
 
 /** An ad for the plans that show ads (Free by default) in one of the spots the administrator left on (Admin → Settings →
@@ -28,8 +28,8 @@ export function RewardedAdCard() {
     setBusy(true);
     const earned = await showRewarded(unit, userId).catch(() => false);
     setBusy(false);
-    if (!earned) return toast(text("ads.rewardNone"), "danger");
-    toast(text("ads.rewardDone", { n: a.rewardCredits! }), "success");
+    if (!earned) return tell(text("ads.rewardNone"), "danger");
+    tell(text("ads.rewardDone", { n: a.rewardCredits! }), "success");
     setTimeout(() => void qc.invalidateQueries({ queryKey: ["native-credits"] }), 4000); // AdMob calls the server within seconds
   };
   return (

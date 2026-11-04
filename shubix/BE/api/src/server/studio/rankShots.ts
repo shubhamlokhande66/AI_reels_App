@@ -5,7 +5,7 @@ import { getProvider, type ManagedProvider } from "../ai";
 import { effective, keyConfigured, providerFor } from "../ai/config";
 import { clean, Text } from "../ai/text";
 import { AIResponseError } from "../ai/types";
-import { chargeOnce, costOf, enabled as creditsOn, refund } from "../credits";
+import { canChargeOnce, chargeOnce, costOf, enabled as creditsOn } from "../credits";
 import { db } from "../core/db";
 
 /** Fast Studio's optional AI step: the phone sends a few small frames of each clip, a vision model says how strong each
@@ -181,11 +181,8 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
   const uniqueMisses = new Map<string, RankIn["clips"][number]>();
   for (let i = 0; i < input.clips.length; i++) if (!cached.has(keys[i]) && !uniqueMisses.has(keys[i])) uniqueMisses.set(keys[i], input.clips[i]);
 
-  let charged = false, chargeRef: string | undefined;
-  if (uniqueMisses.size) {
-    const charge = await chargeOnce(COST_ACTION, input.reelId || crypto.randomUUID().slice(0, 12), "Shubix AI Reel");
-    charged = charge.taken > 0; chargeRef = charge.ref;
-  }
+  const chargeKey = input.reelId || crypto.randomUUID().slice(0, 12);
+  if (uniqueMisses.size) await canChargeOnce(COST_ACTION, chargeKey);
 
   const misses = [...uniqueMisses.entries()];
   const results = await pool(misses, 4, async ([key, clip]) => {
@@ -211,10 +208,11 @@ export async function rankShots(input: RankIn, provider: ManagedProvider = getPr
     else failed.push({ id: input.clips[i].id, error: failedByKey.get(keys[i]) ?? "The frame ranking failed." });
   }
   if (!clips.length) {
-    if (charged && chargeRef) await refund(chargeRef);
     const failedKey = failedByKey.keys().next().value;
     throw (results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined)?.reason ?? new AIResponseError("No usable cached or newly ranked frames.");
   }
+  // the AI has answered: only now the Reel's credits are taken (cancelled before this, nothing is)
+  const charged = uniqueMisses.size ? (await chargeOnce(COST_ACTION, chargeKey, "Shubix AI Reel")).taken > 0 : false;
   const cacheHits = input.clips.reduce((count, _clip, i) => count + (cached.has(keys[i]) ? 1 : 0), 0);
   return { clips, failed, charged, cacheHits, model: provider.visionModel || provider.model, provider: provider.name };
 }

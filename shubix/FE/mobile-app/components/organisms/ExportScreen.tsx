@@ -9,7 +9,7 @@ import * as Sharing from "expo-sharing";
 import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useStudioText } from "@mobile/hooks";
-import { Button, Chip, IconButton, ThemeLayer, colors, toast } from "@mobile/ui-mobile";
+import { Button, Chip, IconButton, ThemeLayer, colors, tell } from "@mobile/ui-mobile";
 import type { IconName } from "@mobile/ui-core";
 import { megabytes } from "@mobile/utils";
 import { errorMessage } from "@mobile/api-client";
@@ -38,7 +38,7 @@ async function saveParityPair(reel: ReelProject, engineUri: string) {
     new File(uri).copy(copy);
     await MediaLibrary.createAssetAsync(copy.uri);
   }
-  toast("Parity pair saved", "success");
+  tell("Parity pair saved", "info");
 }
 
 export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onClose: () => void }) {
@@ -73,13 +73,13 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
       if (!live) return;
       setPct(1); setDone(r); setStep("done"); if (adPlan && full) void showInterstitial(full); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
       // the test APK only: the native engine makes the same Reel, both go to the gallery for scripts/parity.mjs
-      if (reel.studio && process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1") void saveParityPair(reel, r.uri).catch((e) => toast(`Native export: ${errorMessage(e)}`, "danger"));
+      if (reel.studio && process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1") void saveParityPair(reel, r.uri).catch((e) => tell(`Native export: ${errorMessage(e)}`, "danger"));
       // saved to the gallery at once when allowed (a Photos permission error never undoes the export)
       try {
         if ((await MediaLibrary.requestPermissionsAsync(true)).granted) { await MediaLibrary.createAssetAsync(r.uri); if (live) setSaved(true); }
         else if (live) setNotice(words("Your Reel is ready. Allow Photos access to save it to your gallery."));
       } catch { if (live) setNotice(words("Your Reel is ready. You can still share it or save it later.")); }
-    }).catch((e) => { if (live) { toast(errorMessage(e), "danger"); setNotice(words("Export failed. Your draft is still saved. Try again when you are ready.")); setFailed(true); } });
+    }).catch((e) => { if (live) { tell(errorMessage(e), "danger"); setNotice(words("Export failed. Your draft is still saved. Try again when you are ready.")); setFailed(true); } });
     return () => { live = false; };
   }, [step, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -88,9 +88,9 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
   const download = async () => {
     if (!done) return;
     try {
-      if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return toast(words("Allow Shubix to save to your Photos in the phone's settings."), "info");
-      await MediaLibrary.createAssetAsync(done.uri); setSaved(true); toast(words("Saved to your phone"), "success");
-    } catch { toast(words("Couldn't save to Photos. Your exported video is still available to Share."), "danger"); }
+      if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return tell(words("Allow Shubix to save to your Photos in the phone's settings."), "info");
+      await MediaLibrary.createAssetAsync(done.uri); setSaved(true); tell(words("Saved to your phone"), "success");
+    } catch { tell(words("Couldn't save to Photos. Your exported video is still available to Share."), "danger"); }
   };
   const pro = (on?: boolean) => (on ? " · Pro" : "");
   const set = (patch: Partial<typeof choice>) => setChoice((c) => ({ ...c, ...patch }));
@@ -148,7 +148,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
                 <View className="gap-2 rounded-2xl border border-border bg-surface px-4 py-3">
                   <Text className="text-[14px] font-semibold text-foreground">{words("Caption for your Post")}</Text>
                   <Text selectable className="text-[13px] leading-5 text-foreground">{done.caption}</Text>
-                  <Button variant="secondary" size="sm" title={words("Copy caption")} onPress={() => void Clipboard.setStringAsync(done.caption!).then(() => toast(words("Copied ✓"), "success"))} />
+                  <Button variant="secondary" size="sm" title={words("Copy caption")} onPress={() => void Clipboard.setStringAsync(done.caption!).then(() => tell(words("Copied ✓"), "success"))} />
                 </View>
               )}
             </>

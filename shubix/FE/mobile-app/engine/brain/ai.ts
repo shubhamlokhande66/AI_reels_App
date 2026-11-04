@@ -45,13 +45,15 @@ async function aiRun(){
   let charged = 0, failed = 0;
   try{
     const jobs = [];
-    for(const s of need){ const frames = await EH.aiFrames(s); if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
+    for(const [i, s] of need.entries()){ EH.aiStat('Shubix is looking at clip ' + (i + 1) + ' of ' + need.length + '…'); const frames = await EH.aiFrames(s); if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
+    EH.aiStat('Shubix is choosing the best moments of your clips…');
     for(let k=0; k<jobs.length; k+=12){
       const part = jobs.slice(k, k+12);
       const r = await EH.apiFetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: EH.ac.signal,
         body: JSON.stringify({ reelId: EH.reelIdNow(), clips: part.map(j=>({ id:j.id, name:j.src.name, frames:j.frames })) }) });
       const res = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not do this step (' + r.status + ').'));
+      EH.aiSpent();
       charged += res.charged || 0; if(typeof res.balance === 'number' && ES.aiInfo){ ES.aiInfo.balance = res.balance; EH.creditsChanged(); }
       for(const c of res.clips || []){ const j = part.find(x=>x.id===c.id); if(!j) continue;
         j.src.ai = { frames: c.frames, summary: c.summary, mood: c.mood }; const fp = EH.fpOf(j.src); EH.aiCache.set(fp, j.src.ai);

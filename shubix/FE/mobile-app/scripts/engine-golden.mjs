@@ -73,6 +73,8 @@ try {
   await put("#mfile", [song]);
   for (let i = 0; i < 240 && !(await run(`document.querySelector("#studio").__studio.work.songReady`)); i++) await wait(250);
   await put("#vfile", clips);
+  // the phone's Next after the clips: Shubix AI's question, then its work
+  if (AI) { for (let i = 0; i < 240 && !(await run(`(()=>{const w=document.querySelector("#studio").__studio.work;return w.songReady&&!w.pending&&w.shots>0})()`)); i++) await wait(250); run(`document.querySelector("#studio").__studio.upsell().then(String)`); }
   if (CHAT) {
     const press = (button) => run(`(()=>{const r=document.querySelector("#studio"),c=r.querySelector("#cconf");if(c.hidden)return false;r.querySelector("${button}").click();return true})()`);
     for (let i = 0; i < 240 && !(await press("#cconfx")); i++) await wait(250);

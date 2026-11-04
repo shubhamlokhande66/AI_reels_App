@@ -120,6 +120,14 @@ export function initBridge(root: HTMLElement): () => void {
       await new Promise((r) => setTimeout(r, 400)); // the part is placed (useSection)
       return { mode: studio()?.mode, start: studio()?.section.start ?? 0 };
     },
+    /** Next after the clips: Shubix AI's question (Use), then its work. `went`: false when the person closed the question */
+    async ai() {
+      const went = await (studio() as unknown as { upsell: () => Promise<string> }).upsell();
+      if (went === "close") return { went: false };
+      await until(made, 300_000);
+      return { went: true };
+    },
+    async aiState() { return { on: !!(studio()!.work as unknown as { aiOn?: boolean }).aiOn }; },
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
     async undo() {
@@ -408,6 +416,8 @@ export function initBridge(root: HTMLElement): () => void {
 
   const onTask = (e: Event) => { const d = (e as CustomEvent).detail; if (d.id === "clips" && (d.state === "done" || d.state === "fail")) reading = false; post({ event: "task", ...d }); };
   root.addEventListener("studio-task", onTask);
+  const onSpent = () => post({ event: "spent" });
+  root.addEventListener("studio-ai-spent", onSpent);
   // the studio's question opens (#cconf shown): the phone asks it
   // every question once, by its number (a question asked while another was still showing, or a box drawn anew, used to
   // stay unasked on the phone: the studio then waited for ever, e.g. Ask Shubix)
@@ -430,5 +440,5 @@ export function initBridge(root: HTMLElement): () => void {
     },
   };
   post({ id: 0, ok: true, result: "ready" });
-  return () => { root.removeEventListener("studio-task", onTask); asking.disconnect(); window.fetch = send; };
+  return () => { root.removeEventListener("studio-task", onTask); root.removeEventListener("studio-ai-spent", onSpent); asking.disconnect(); window.fetch = send; };
 }

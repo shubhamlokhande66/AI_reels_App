@@ -62,6 +62,15 @@ describe("plans and Shubix AI credits", () => {
     expect((await aiAllowed()).ok).toBe(false);
     expect((await aiAllowed(true)).ok).toBe(true); // the administrator always
   });
+  it("takes nothing before the AI has answered, and says early when there are too few credits", async () => {
+    const { canChargeOnce, chargeOnce, setPlanByAdmin, balanceNow } = await import("../../src/server/credits");
+    await setPlanByAdmin("u1", "pro", 1);
+    const before = await balanceNow();
+    await canChargeOnce("studio_ai", "reelCancelled");
+    expect(await balanceNow()).toBe(before); // cancelled now: nothing was taken
+    expect((await chargeOnce("studio_ai", "reelCancelled", "AI Reel")).taken).toBe(10);
+    await expect(canChargeOnce("studio_ai", "reelCancelled")).resolves.toBeUndefined(); // paid already: more clips cost nothing
+  });
   it("charges an AI Reel once and each chat message once", async () => {
     const { chargeOnce, setPlanByAdmin, balanceNow } = await import("../../src/server/credits");
     await setPlanByAdmin("u1", "pro", 1);

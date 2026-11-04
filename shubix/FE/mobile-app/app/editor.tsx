@@ -3,7 +3,7 @@ import { BackHandler, Platform, Pressable, ScrollView, Text, TextInput, View } f
 import { router, useLocalSearchParams } from "expo-router";
 import { useStudioText } from "@mobile/hooks";
 import { asksForAllClips } from "@mobile/core/lib/chatSize";
-import { Button, IconButton, Segmented, Slider, confirmAction, toast, useColors } from "@mobile/ui-mobile";
+import { Button, IconButton, Segmented, Slider, confirmAction, tell, useColors } from "@mobile/ui-mobile";
 import { errorMessage } from "@mobile/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@mobile/validations";
 import { evaluateSpeedRamp, recordEdit, slipClip, stepEditHistory } from "@mobile/video-engine";
@@ -139,7 +139,7 @@ export default function EditorScreen() {
   const [ttsVoices, setTtsVoices] = useState<Array<{ key: string; label: string }>>([]), [ttsVoice, setTtsVoice] = useState(""), [voiceDraft, setVoiceDraft] = useState("");
   const [captionSettings, setCaptionSettings] = useState({ enabled: false, language: "", translation: "", style: "pop" });
   const undo = useRef<ReelProject[]>([]), redo = useRef<ReelProject[]>([]), keyframeClipboard = useRef<NonNullable<ProjectClip["keyframes"]>>([]);
-  useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { toast(words("This draft is no longer on this phone."), "danger"); if (router.canGoBack()) router.back(); else router.replace("/reels"); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { void getProject(id).then((x) => { if (x) setP(x); else { tell(words("This draft is no longer on this phone."), "danger"); if (router.canGoBack()) router.back(); else router.replace("/reels"); } }); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (tool?.key !== "voice" || !p?.studio || !engine.holds(p.id)) return;
     void engine.tool("ttsVoices").then((r) => {
@@ -184,7 +184,7 @@ export default function EditorScreen() {
   useEffect(() => {
     if (!p) return;
     setSaved(false);
-    const t = setTimeout(() => void saveProject({ ...p, updatedAt: new Date().toISOString() }).then(() => setSaved(true)).catch((e) => toast(errorMessage(e), "danger")), 400);
+    const t = setTimeout(() => void saveProject({ ...p, updatedAt: new Date().toISOString() }).then(() => setSaved(true)).catch((e) => tell(errorMessage(e), "danger")), 400);
     return () => clearTimeout(t);
   }, [p]);
   const back = useCallback(() => { setPlaying(false); router.back(); }, []);
@@ -214,35 +214,35 @@ export default function EditorScreen() {
           ...(patch.musicFadeIn !== undefined ? { mfin: patch.musicFadeIn } : {}),
           ...(patch.musicFadeOut !== undefined ? { mfout: patch.musicFadeOut } : {}),
         });
-      } catch (e) { toast(errorMessage(e), "danger"); }
+      } catch (e) { tell(errorMessage(e), "danger"); }
     }
   };
   const studioPatch = async (value: Record<string, unknown>) => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("This advanced tool needs a Reel made by Shubix Studio."), "info");
-    try { await engine.tool("seek", { time: now }); await engine.tool("shotSet", { patch: value }); toast(words("Applied to this shot"), "success"); }
-    catch (e) { toast(errorMessage(e), "danger"); }
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("This advanced tool needs a Reel made by Shubix Studio."), "info");
+    try { await engine.tool("seek", { time: now }); await engine.tool("shotSet", { patch: value }); tell(words("Applied to this shot"), "success"); }
+    catch (e) { tell(errorMessage(e), "danger"); }
   };
   const studioStyle = async (kind: "transition" | "effect", value: string) => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("This tool needs a Reel made by Shubix Studio."), "info");
     try { await engine.tool("seek", { time: now }); await engine.tool("shotStyle", { kind, value }); }
-    catch (e) { toast(errorMessage(e), "danger"); }
+    catch (e) { tell(errorMessage(e), "danger"); }
   };
   const copyKeyframes = () => {
     keyframeClipboard.current = clip?.keyframes?.map((frame) => ({ ...frame })) ?? [];
-    toast(words(keyframeClipboard.current.length ? "Keyframes copied" : "This shot has no keyframes to copy"), keyframeClipboard.current.length ? "success" : "info");
+    tell(words(keyframeClipboard.current.length ? "Keyframes copied" : "This shot has no keyframes to copy"), keyframeClipboard.current.length ? "success" : "info");
   };
   const pasteKeyframes = () => {
     const frames = keyframeClipboard.current;
-    if (!frames?.length) return toast(words("Copy keyframes from another shot first"), "info");
+    if (!frames?.length) return tell(words("Copy keyframes from another shot first"), "info");
     if (!clip) return;
     const maxTime = clipDuration(clip);
     patch({ keyframes: frames.map((frame) => ({ ...frame, t: Math.min(maxTime, frame.t), ...(frame.bezier ? { bezier: [...frame.bezier] as [number, number, number, number] } : {}) })) });
-    toast(words("Keyframes pasted to this shot"), "success");
+    tell(words("Keyframes pasted to this shot"), "success");
   };
   const studioKeyframe = async (values: Record<string, number>) => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframes need a Reel made by Shubix Studio."), "info");
-    try { await engine.tool("kfSeek", { time: now }); const result = await engine.tool("kfSet", { values }); if (Array.isArray(result.keyframes)) patch({ keyframes: result.keyframes as ProjectClip["keyframes"] }); toast(words("Keyframe added at the playhead"), "success"); }
-    catch (e) { toast(errorMessage(e), "danger"); }
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("Keyframes need a Reel made by Shubix Studio."), "info");
+    try { await engine.tool("kfSeek", { time: now }); const result = await engine.tool("kfSet", { values }); if (Array.isArray(result.keyframes)) patch({ keyframes: result.keyframes as ProjectClip["keyframes"] }); tell(words("Keyframe added at the playhead"), "success"); }
+    catch (e) { tell(errorMessage(e), "danger"); }
   };
   const go = (i: number) => { setSelected(Math.max(0, Math.min(clips.length - 1, i))); setLocal(0); };
   // a place on the timeline: the shot there and the time in it
@@ -305,21 +305,21 @@ export default function EditorScreen() {
     setLocal(0);
   };
   const addStudioTts = async () => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Voice tools need a Reel made by Shubix Studio."), "info");
-    if (!voiceDraft.trim() || !ttsVoice) return toast(words("Enter the words and choose a voice first."), "info");
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("Voice tools need a Reel made by Shubix Studio."), "info");
+    if (!voiceDraft.trim() || !ttsVoice) return tell(words("Enter the words and choose a voice first."), "info");
     try {
       await engine.tool("seek", { time: now });
       await engine.tool("ttsAdd", { text: voiceDraft.trim(), voice: ttsVoice });
-      setVoiceDraft(""); toast(words("Voice track added at the playhead"), "success");
-    } catch (e) { toast(errorMessage(e), "danger"); }
+      setVoiceDraft(""); tell(words("Voice track added at the playhead"), "success");
+    } catch (e) { tell(errorMessage(e), "danger"); }
   };
   const setStudioCaptions = async (enabled: boolean, language = captionSettings.language, translation = captionSettings.translation) => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Caption tools need a Reel made by Shubix Studio."), "info");
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("Caption tools need a Reel made by Shubix Studio."), "info");
     try {
       const result = await engine.tool("captions", { enabled, language, translation });
       setCaptionSettings((old) => ({ ...old, enabled, language, translation, ...(result && typeof result === "object" && "language" in result ? { language: String(result.language ?? language), translation: String(result.translation ?? translation) } : {}) }));
-      toast(words(enabled ? "Captions updated" : "Captions turned off"), "success");
-    } catch (e) { toast(errorMessage(e), "danger"); }
+      tell(words(enabled ? "Captions updated" : "Captions turned off"), "success");
+    } catch (e) { tell(errorMessage(e), "danger"); }
   };
   const refreshStudioLayers = async () => {
     const result = await engine.tool("layerList");
@@ -327,7 +327,7 @@ export default function EditorScreen() {
     setStudioLayers(list); return list;
   };
   const addStudioLayer = async () => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Overlay layers need a Reel made by Shubix Studio."), "info");
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("Overlay layers need a Reel made by Shubix Studio."), "info");
     const assets = await pickInOrder({ kind: "both", limit: 8 });
     if (!assets?.length) return;
     try {
@@ -335,28 +335,28 @@ export default function EditorScreen() {
       for (const file of files) await engine.addLayer(file.uri, file.name);
       const list = await refreshStudioLayers(), index = Math.max(0, list.length - 1);
       setStudioLayerIndex(index); await engine.tool("layerSelect", { index });
-      toast(words("Overlay layer added"), "success");
-    } catch (e) { toast(errorMessage(e), "danger"); }
+      tell(words("Overlay layer added"), "success");
+    } catch (e) { tell(errorMessage(e), "danger"); }
   };
   const studioLayerAction = async (op: string, args: Record<string, unknown> = {}) => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Layer editing needs a Reel made by Shubix Studio."), "info");
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("Layer editing needs a Reel made by Shubix Studio."), "info");
     try {
       if (op !== "layerList" && op !== "layerAdd") await engine.tool("layerSelect", { index: studioLayerIndex });
       const result = await engine.tool(op, args);
       if (op === "layerList") setStudioLayers(Array.isArray(result) ? result as typeof studioLayers : []);
       else { await refreshStudioLayers(); if (op === "layerDelete") setStudioLayerIndex((i) => Math.max(0, i - 1)); }
-    } catch (e) { toast(errorMessage(e), "danger"); }
+    } catch (e) { tell(errorMessage(e), "danger"); }
   };
   const studioKeyframeAction = async (op: "kfEase" | "kfRemove" | "kfClear" | "kfStep", args: Record<string, unknown> = {}) => {
-    if (!p || !p.studio || !engine.holds(p.id)) return toast(words("Keyframe controls need a Reel made by Shubix Studio."), "info");
+    if (!p || !p.studio || !engine.holds(p.id)) return tell(words("Keyframe controls need a Reel made by Shubix Studio."), "info");
     try {
       await engine.tool("kfSeek", { time: now });
       const result = await engine.tool(op, args);
       if (Array.isArray(result.keyframes)) patch({ keyframes: result.keyframes as ProjectClip["keyframes"] });
       else if (op === "kfClear") patch({ keyframes: undefined });
       if (op === "kfStep" && typeof result.time === "number") seek(result.time);
-      if (op !== "kfStep") toast(words("Keyframe updated"), "success");
-    } catch (e) { toast(errorMessage(e), "danger"); }
+      if (op !== "kfStep") tell(words("Keyframe updated"), "success");
+    } catch (e) { tell(errorMessage(e), "danger"); }
   };
 
   async function addClips(replace = false) {
@@ -365,12 +365,12 @@ export default function EditorScreen() {
     try {
       const got = await keepPickedAssets(`${p.id}-${Date.now()}`, assets);
       setClips(replace && clip ? clips.map((c, i) => (i === selected ? { ...got[0], id: c.id } : c)) : [...clips, ...got]);
-    } catch (e) { toast(errorMessage(e), "danger"); }
+    } catch (e) { tell(errorMessage(e), "danger"); }
   }
   async function mixVideo() {
     if (!p || clips.length < 2 || mixing) return;
     if (p.studio && !engine.holds(p.id)) {
-      return toast(words("Reopen this Reel from Fast Studio to create another mix without losing its advanced effects."));
+      return tell(words("Reopen this Reel from Fast Studio to create another mix without losing its advanced effects."));
     }
     setMixing(true); setPlaying(false);
     try {
@@ -391,9 +391,9 @@ export default function EditorScreen() {
         })));
       }
       setSelected(0); setLocal(0);
-      toast(words("A new video mix is ready. No AI credits used."), "success");
+      tell(words("A new video mix is ready. No AI credits used."), "success");
     } catch (error) {
-      toast(errorMessage(error), "danger");
+      tell(errorMessage(error), "danger");
     } finally {
       setMixing(false);
     }
@@ -401,10 +401,10 @@ export default function EditorScreen() {
 
   async function chooseSong() {
     if (!p) return;
-    try { const s = await pickSong(); if (s) { const uri = await keepPickedFile(p.id, s.uri, `${s.name}.m4a`); if (p.studio && engine.holds(p.id)) await engine.song(uri, s.name); change({ audioUri: uri, audioName: s.name }); } } catch (e) { toast(errorMessage(e), "danger"); }
+    try { const s = await pickSong(); if (s) { const uri = await keepPickedFile(p.id, s.uri, `${s.name}.m4a`); if (p.studio && engine.holds(p.id)) await engine.song(uri, s.name); change({ audioUri: uri, audioName: s.name }); } } catch (e) { tell(errorMessage(e), "danger"); }
   }
   async function removeShot() {
-    if (clips.length === 1) return toast(words("A Reel needs at least one shot."), "info");
+    if (clips.length === 1) return tell(words("A Reel needs at least one shot."), "info");
     if (await confirmAction({ title: words("Delete this shot?"), ok: words("Delete"), danger: true })) setClips(clips.filter((_, i) => i !== selected));
   }
   // the text being edited (the Text panel): its settings change as on the website's text editor
@@ -412,9 +412,9 @@ export default function EditorScreen() {
   const setTx = (patch: Partial<Overlay>) => p && txt && change({ overlays: p.overlays.map((o) => (o.id === txt.id ? { ...o, ...patch } : o)) });
   const addText = (text: string) => {
     if (!text.trim() || !p) return;
-    if (now >= total - 0.05) return toast(words("Move the playhead before the end of the Reel to add text."), "info");
+    if (now >= total - 0.05) return tell(words("Move the playhead before the end of the Reel to add text."), "info");
     const start = Math.max(0, now), end = Math.min(total, start + 3);
-    if (end - start < 0.1) return toast(words("There is not enough time left in this Reel for a text overlay."), "info");
+    if (end - start < 0.1) return tell(words("There is not enough time left in this Reel for a text overlay."), "info");
     change({ overlays: [...p.overlays, { id: `t-${Date.now()}`, text: text.trim(), start, end, color: "#FFFFFF", size: 36 } as Overlay] });
     setDraft("");
   };
@@ -428,7 +428,7 @@ export default function EditorScreen() {
     try {
       const next = p.studio ? await engine.set(p, box, value, attr) : null;
       if (next) return change({ clips: next, settings });
-    } catch (e) { return toast(errorMessage(e), "danger"); }
+    } catch (e) { return tell(errorMessage(e), "danger"); }
     change({ ...here?.(), settings, studio: false });
   }
   const Seg = ({ k, items, box, attr, here }: { k: "mode" | "look" | "tstyle" | "csnd" | "bg"; items: string[][]; box: string; attr: string; here?: (v: string) => Partial<ReelProject> }) =>
@@ -438,12 +438,12 @@ export default function EditorScreen() {
 
   function use(key: string, name: string) {
     const lock = locked?.(key);
-    if (lock) return toast(words("This isn't in your current plan."), "info");
-    if (LATER.has(key)) return toast(words("{tool} comes with the phone's video engine, in the Play Store app.", { tool: words(name) }), "info");
+    if (lock) return tell(words("This isn't in your current plan."), "info");
+    if (LATER.has(key)) return tell(words("{tool} comes with the phone's video engine, in the Play Store app.", { tool: words(name) }), "info");
     if (!clip) return;
     const s = clip.end - clip.start;
     switch (key) {
-      case "split": { const r = splitClip(clip, `${clip.id}-${Date.now()}`); if (!r) return toast(words("Keep at least a small moment on each side of the split."), "info"); setClips(clips.flatMap((c, i) => (i === selected ? r : [c]))); return; }
+      case "split": { const r = splitClip(clip, `${clip.id}-${Date.now()}`); if (!r) return tell(words("Keep at least a small moment on each side of the split."), "info"); setClips(clips.flatMap((c, i) => (i === selected ? r : [c]))); return; }
       case "dup": setClips([...clips.slice(0, selected + 1), { ...clip, id: `${clip.id}-${Date.now()}` }, ...clips.slice(selected + 1)]); return go(selected + 1);
       case "freeze": return patch({ speed: 0.25 });
       case "other": case "slip": {
@@ -451,7 +451,7 @@ export default function EditorScreen() {
           id: clip.id, start: 0, duration: s, sourceStart: clip.start, sourceEnd: clip.end,
         }, 1, clip.sourceDuration);
         const nextStart = slipped.sourceStart ?? clip.start;
-        if (Math.abs(nextStart - clip.start) < 0.001) return toast(words("This clip has no other moment."), "info");
+        if (Math.abs(nextStart - clip.start) < 0.001) return tell(words("This clip has no other moment."), "info");
         return patch({ start: nextStart, end: slipped.sourceEnd ?? nextStart + s });
       }
       case "rev": return patch({ reverse: !clip.reverse });
@@ -510,24 +510,24 @@ export default function EditorScreen() {
           {p.studio && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
             <Label>Sound effects (at the playhead)</Label>
             <Choices items={SOUNDS.map((s) => s[1])} onPick={(v) => void (async () => {
-              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              if (!engine.holds(p.id)) return tell(words("This tool needs a Reel made by Shubix Studio."), "info");
               const kind = SOUNDS.find((s) => s[1] === v)![0];
-              try { await engine.edit(p); const r = await engine.tool("sfx", { kind, time: now }) as { ok?: boolean }; toast(words(r?.ok ? "Sound added" : "This sound is not available"), r?.ok ? "success" : "info"); }
-              catch (e) { toast(errorMessage(e), "danger"); }
+              try { await engine.edit(p); const r = await engine.tool("sfx", { kind, time: now }) as { ok?: boolean }; tell(words(r?.ok ? "Sound added" : "This sound is not available"), r?.ok ? "success" : "info"); }
+              catch (e) { tell(errorMessage(e), "danger"); }
             })()} />
           </View>}
           {p.studio && <View className="gap-2 rounded-xl border border-border bg-surface-2 p-3">
             <Label>Your beat markers (a cut can land on each)</Label>
             <Choices items={["Add marker here", "Remove marker here", "Remove all markers"]} onPick={(v) => void (async () => {
-              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              if (!engine.holds(p.id)) return tell(words("This tool needs a Reel made by Shubix Studio."), "info");
               try { const next = await engine.mark(p, v.startsWith("Add") ? "add" : v.startsWith("Remove marker") ? "del" : "clear", now);
-                if (next) { setP((old) => old ? { ...old, clips: next } : old); toast(words("Done: the cuts follow your markers"), "success"); } else toast(words("Nothing changed"), "info"); }
-              catch (e) { toast(errorMessage(e), "danger"); }
+                if (next) { setP((old) => old ? { ...old, clips: next } : old); tell(words("Done: the cuts follow your markers"), "success"); } else tell(words("Nothing changed"), "info"); }
+              catch (e) { tell(errorMessage(e), "danger"); }
             })()} />
             <Label>Voice effect (on your recorded voiceover)</Label>
             <Choices items={VFX.map((x) => x[1])} onPick={(v) => void (async () => {
-              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
-              try { await engine.set(p, "vfx", VFX.find((x) => x[1] === v)![0], "data-f"); toast(words("Voice effect applied"), "success"); } catch (e) { toast(errorMessage(e), "danger"); }
+              if (!engine.holds(p.id)) return tell(words("This tool needs a Reel made by Shubix Studio."), "info");
+              try { await engine.set(p, "vfx", VFX.find((x) => x[1] === v)![0], "data-f"); tell(words("Voice effect applied"), "success"); } catch (e) { tell(errorMessage(e), "danger"); }
             })()} />
           </View>}
           {p.audioUri && <Button full variant="danger" icon="trash" title={words("Remove music")} onPress={() => change({ audioUri: undefined, audioName: undefined })} />}
@@ -552,11 +552,11 @@ export default function EditorScreen() {
           {p.studio && <>
             <Label>Text templates (at the playhead)</Label>
             <Choices items={Object.values(TEXT_TEMPLATES).map((t) => t.name)} onPick={(v) => void (async () => {
-              if (!engine.holds(p.id)) return toast(words("This tool needs a Reel made by Shubix Studio."), "info");
+              if (!engine.holds(p.id)) return tell(words("This tool needs a Reel made by Shubix Studio."), "info");
               const key = Object.keys(TEXT_TEMPLATES).find((k) => TEXT_TEMPLATES[k].name === v)!;
               try { await engine.edit(p); const r = await engine.tool("template", { key, time: now }) as { ok?: boolean; state?: { overlays?: unknown } }; const list = textsOf(r?.state?.overlays);
-                if (r?.ok && list) setP((old) => old ? { ...old, overlays: list } : old); toast(words(r?.ok ? "Template added: tap a text to change its words" : "This template is not available"), r?.ok ? "success" : "info"); }
-              catch (e) { toast(errorMessage(e), "danger"); }
+                if (r?.ok && list) setP((old) => old ? { ...old, overlays: list } : old); tell(words(r?.ok ? "Template added: tap a text to change its words" : "This template is not available"), r?.ok ? "success" : "info"); }
+              catch (e) { tell(errorMessage(e), "danger"); }
             })()} />
           </>}
           {p.overlays.map((o) => <Pressable key={o.id} onPress={() => setTxSel(txSel === o.id ? "" : o.id)} className={`flex-row items-center gap-2 rounded-xl border px-3 py-2 ${txSel === o.id ? "border-accent" : "border-border"}`}><Text numberOfLines={1} className="flex-1 text-[13px] text-foreground">{o.text}</Text><IconButton icon="trash" look="danger" size={32} label={words("Delete")} onPress={() => change({ overlays: p.overlays.filter((x) => x.id !== o.id) })} /></Pressable>)}
@@ -588,7 +588,7 @@ export default function EditorScreen() {
         <Label>Caption animation</Label>
         <Choices items={["Pop", "Karaoke", "Box", "Clean"]} on={({ pop: "Pop", karaoke: "Karaoke", box: "Box", clean: "Clean" } as Record<string, string>)[captionSettings.style] ?? "Pop"} onPick={(v) => {
           const style = ({ Pop: "pop", Karaoke: "karaoke", Box: "box", Clean: "clean" } as Record<string, string>)[v];
-          setCaptionSettings((old) => ({ ...old, style })); void engine.tool("captionStyle", { style }).catch((e) => toast(errorMessage(e), "danger"));
+          setCaptionSettings((old) => ({ ...old, style })); void engine.tool("captionStyle", { style }).catch((e) => tell(errorMessage(e), "danger"));
         }} />
       </View>;
       case "voice": return <View className="gap-2">
@@ -596,7 +596,7 @@ export default function EditorScreen() {
         <TextInput value={voiceDraft} onChangeText={setVoiceDraft} multiline placeholder={words("Write the voiceover script…")} placeholderTextColor={look.muted} className="min-h-[96px] rounded-xl border border-border bg-surface px-3 py-2 text-foreground" />
         <Choices items={ttsVoices.map((v) => v.label)} on={ttsVoices.find((v) => v.key === ttsVoice)?.label} onPick={(label) => setTtsVoice(ttsVoices.find((v) => v.label === label)?.key ?? "")} />
         <Button full icon="music" title={words("Add voice at playhead")} disabled={!voiceDraft.trim() || !ttsVoice} onPress={() => void addStudioTts()} />
-        <Button full variant="danger" title={words("Remove generated speech")} onPress={() => void engine.tool("ttsClear").then(() => toast(words("Generated speech removed"), "success")).catch((e) => toast(errorMessage(e), "danger"))} />
+        <Button full variant="danger" title={words("Remove generated speech")} onPress={() => void engine.tool("ttsClear").then(() => tell(words("Generated speech removed"), "success")).catch((e) => tell(errorMessage(e), "danger"))} />
         <Text className="text-[11px] text-muted">{words("Generated voice is mixed into the Studio export and saved with this Reel.")}</Text>
       </View>;
       case "layers": return <View className="gap-2">
@@ -606,7 +606,7 @@ export default function EditorScreen() {
           <Label>Overlay layers</Label>
           <Choices items={studioLayers.map((layer) => `Layer ${layer.index + 1}`)} on={`Layer ${studioLayerIndex + 1}`} onPick={(v) => {
             const index = Math.max(0, Number(v.replace("Layer ", "")) - 1); setStudioLayerIndex(index);
-            void engine.tool("layerSelect", { index }).catch((e) => toast(errorMessage(e), "danger"));
+            void engine.tool("layerSelect", { index }).catch((e) => tell(errorMessage(e), "danger"));
           }} />
           <Label>Position and transform</Label>
           <Choices items={["Move left", "Move right", "Move up", "Move down", "Scale up", "Scale down", "Rotate left", "Rotate right", "Opacity 50%", "Opacity 100%"]} onPick={(v) => {
@@ -706,7 +706,7 @@ export default function EditorScreen() {
             "Action punch": [{ time: 0, speed: 1 }, { time: duration * 0.35, speed: 0.45, easing: "outCubic" }, { time: duration * 0.55, speed: 0.45, easing: "hold" }, { time: duration, speed: 2.4, easing: "inOut" }],
           };
           patch({ speed: 1, speedRamp: curves[v].length ? curves[v] : undefined });
-          toast(words(v === "Normal" ? "Speed ramp cleared" : `${v} curve saved to this clip`), "success");
+          tell(words(v === "Normal" ? "Speed ramp cleared" : `${v} curve saved to this clip`), "success");
         }} />
         <Text className="text-[11px] text-muted">{words(clip?.speedRamp?.length ? `${clip.speedRamp.length} curve points saved. The mobile preview and native export use this variable-speed curve.` : "Choose a speed curve preset. The curve is stored with this clip.")}</Text>
       </View>;
@@ -798,8 +798,8 @@ export default function EditorScreen() {
         void studioPatch({ fit: true, bd: v === "Fine white" ? 0.035 : 0.08, bdc: v === "Gold frame" ? "#d4b07a" : v === "Soft frame" ? "#f3ede3" : "#ffffff" });
       }} />;
       case "extract": return <Button full icon="music" title={words("Extract clip audio")} onPress={() => void (async () => {
-        try { await engine.tool("seek", { time: now }); await engine.tool("shotExtract"); toast(words("Audio extracted"), "success"); }
-        catch (e) { toast(errorMessage(e), "danger"); }
+        try { await engine.tool("seek", { time: now }); await engine.tool("shotExtract"); tell(words("Audio extracted"), "success"); }
+        catch (e) { tell(errorMessage(e), "danger"); }
       })()} />;
       case "vol": return <Choices items={VOLUMES} on={clip?.muted ? "0%" : `${Math.round((clip?.volume ?? 1) * 100)}%`} onPick={(v) => { const volume = parseInt(v) / 100; patch({ volume, muted: v === "0%" }); void studioPatch({ vol: v === "0%" ? 0 : volume }); }} />;
       case "trim": return clip && (
@@ -817,7 +817,7 @@ export default function EditorScreen() {
   const aspect = ASPECT[p.settings?.aspect ?? "9:16"];
   return (
     <View className="flex-1 bg-background">
-      <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return toast(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
+      <StudioBar title={p.title} saved={saved} onBack={back} onExport={() => { if (!videoEngine.ready) return tell(words("Export needs the Shubix app (Expo Go has no video engine). Your Reel is saved on this phone."), "info"); setPlaying(false); setExporting(p); }} />
       <ScrollView className="flex-1" contentContainerClassName="pb-3" showsVerticalScrollIndicator={false}>
         <Preview n={selected} of={clips.length} playing={playing} aspect={aspect} error={playError} onToggle={() => setPlaying(!playing)}><ReelPlayer p={p} layers={studioLayers} now={now} playing={playing} sound={sound} onTime={seek} onEnd={() => { setPlaying(false); seek(0); }} onError={setPlayError} /></Preview>
         <View className="mx-4 mt-2">
