@@ -101,6 +101,7 @@ function CreateFlowScreen() {
         const copies = new Map((await engine.copies()).map((c) => [c.name, c]));
         const sources = kept.map((n) => { const c = clips[parseInt(n, 10) - 1], copy = copies.get(n); return c && copy ? { ...c, uri: `file://${copy.path}` } : c; }).filter((c): c is ProjectClip => !!c);
         clips = shotsOf((await engine.ready(id)).state.edit, sources.length ? sources : clips); studio = true;
+        if (process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1") void engine.brainCheck().then((r) => toast(`Brain on the phone: ${r.same ? "same Reel" : "DIFFERENT"}, ${r.shots} shots, ${r.ms} ms`, r.same ? "success" : "danger")).catch((e) => toast(`Brain check: ${errorMessage(e)}`, "danger"));
       } else clips = clips.map((c) => ({ ...c, speed }));
       left(); at(0.92, 3);
       const now = new Date().toISOString();

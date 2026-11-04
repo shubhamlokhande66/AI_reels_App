@@ -7,6 +7,7 @@ import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/valida
 import { buildSpeedRampSegments } from "@mobile/video-engine";
 import { tokenStore } from "./device";
 import { API_URL } from "./session";
+import { reelFromCopy } from "../engine/brain/index";
 
 /** The phone's own engine makes its Reels: the page in FE/mobile-app/engine (its own code, worked through
  * components/studio/bridge.ts), built into the APK and run hidden in the phone's browser engine. It does not come from
@@ -149,6 +150,11 @@ export const engine = {
   /** a new Reel: the studio's page is loaded again, so nothing of the Reel before it stays (song, clips, edit, AI, cards);
    * it signs in again and reads the plan and credits anew on its first call */
   fresh: () => restart("A new Reel was started."),
+  /** the test APK: the brain makes this Reel again in the app's own JS, from a copy of the studio's state (the Reel itself is not touched) */
+  brainCheck: async () => {
+    const r = await call<{ copy: string; shots: unknown[] }>("brainCheck"), t0 = Date.now(), here = reelFromCopy(r.copy);
+    return { same: JSON.stringify(here.shots) === JSON.stringify(r.shots), shots: here.shots.length, ms: Date.now() - t0, pageJobs: here.pageJobs };
+  },
   /** what Shubix AI planned for the Reel the studio holds: its story and a line per shot; null when it did not edit it */
   aiPlan: () => call<AiPlan | null>("aiPlan"),
   /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */

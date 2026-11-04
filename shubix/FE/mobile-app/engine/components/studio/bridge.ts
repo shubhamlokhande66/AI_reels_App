@@ -1,4 +1,5 @@
 import { noteSignedIn } from "@/lib/boot";
+import { copyOfState, reelFromCopy } from "@/brain/index";
 /* The phone app's way into Fast Studio (app/engine: the studio on a page the phone keeps hidden, FE/mobile-app
  * lib/engine.tsx). The phone's screens are its own; the Reel is made here, by this very engine, so it is the same Reel
  * as on the website. The phone asks with window.engine.call(id, op, args); the answers go back with
@@ -338,6 +339,11 @@ export function initBridge(root: HTMLElement): () => void {
       }
       await until(() => studio()!.editGen !== gen, 1500).catch(() => {}); // a new style makes a new Reel (a filter does not)
       return OPS.ready(a);
+    },
+    /** the test APK: a copy of the engine's state and the Reel the brain makes from it here; the phone's own JS makes it too and compares */
+    async brainCheck() {
+      const d = (studio() as unknown as { brainDebug: { ES: unknown; HOOKS: unknown } }).brainDebug, copy = copyOfState(d.ES, d.HOOKS);
+      return { copy, shots: reelFromCopy(copy).shots };
     },
     /** what Shubix AI planned for this Reel, in the chat's words: its story and a line for each shot; null when it has not edited it */
     async aiPlan() { return (studio() as unknown as { aiPlan?: unknown } | undefined)?.aiPlan ?? null; },
