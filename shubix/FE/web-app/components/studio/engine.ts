@@ -1093,13 +1093,27 @@ function setClipStatus(src, status, detail){
   el.title=detail || (ready?'Video analysed and ready':failed?'Could not read this video':'Analysing video');
   el.setAttribute('aria-label',el.title);
 }
+/* ---- on the Create page each clip plays itself in its card (muted, looping), once the work is over. Only the cards on the
+ * screen, and only a few at once: each playing video holds a decoder and its frames, and many would run a phone out of memory
+ * (the rest show their picture until they are scrolled to). A heavy clip with no light copy keeps its picture on phones. ---- */
+const CARD_PLAYERS = IOS ? 2 : matchMedia('(max-width:1023px)').matches ? 4 : 8, cardsOnScreen = new Set(), cardsPlaying = new Set();
+const cardSight = new IntersectionObserver(list => { list.forEach(e => { if(e.isIntersecting) cardsOnScreen.add(e.target); else cardsOnScreen.delete(e.target); }); cardsPlay(); }, { threshold: 0.25 });
+function cardStop(card){ const v = card.querySelector('.cv'); cardsPlaying.delete(card); if(v){ v.classList.remove('on'); v.pause(); v.removeAttribute('src'); v.load(); } }
+function cardsPlay(){
+  const free = root.classList.contains('fopen') && !document.hidden && !pending && !aiBusy && !paceBusy && !dirBusy && !recording && !playing && !exportBusy && $('cconf').hidden && root.querySelector('[data-tasks]')?.hidden !== false;
+  const light = s => !matchMedia('(max-width:1023px)').matches || s.previewProxy || (s.w || 0) * (s.h || 0) <= 2400000;
+  const want = free ? [...$('clips').children].filter(c => cardsOnScreen.has(c) && c.__src && !c.__src.removed && sources.includes(c.__src) && light(c.__src)).slice(0, CARD_PLAYERS) : [];
+  [...cardsPlaying].forEach(c => { if(!want.includes(c)) cardStop(c); });
+  want.forEach(c => { if(cardsPlaying.has(c)) return; cardsPlaying.add(c); const v = c.querySelector('.cv'); v.muted = true; v.src = c.__src.url; v.onplaying = () => v.classList.add('on'); v.play().catch(() => {}); });
+}
+{ const t = setInterval(cardsPlay, 700); ac.signal.addEventListener('abort', () => { clearInterval(t); cardSight.disconnect(); [...cardsPlaying].forEach(cardStop); }); }
 function makeCard(f){
   const url = URL.createObjectURL(f);
   const card = document.createElement('div'); card.className='clip';
-  card.innerHTML = `<canvas class="th"></canvas><span class="cnum absolute left-2 top-2 z-3 grid h-7 min-w-7 place-items-center rounded-full bg-accent px-2 text-[11px] font-bold text-black"></span><button type="button" class="cup absolute left-11 top-2 z-3 grid size-7 place-items-center rounded-full bg-black/65 text-[13px] leading-none text-white" title="Play this clip earlier" aria-label="Play this clip earlier">↑</button><span class="clip-status is-reading" role="status" aria-label="Video is being analysed" title="Analysing video"><span class="clip-status-mark">…</span></span><button class="del" title="Remove video" aria-label="Remove video">×</button><div class="meta"><div class="nm"></div><div class="dd">Waiting to analyse…</div><canvas></canvas></div>`;
+  card.innerHTML = `<canvas class="th"></canvas><video class="cv" muted loop playsinline preload="none" aria-hidden="true"></video><span class="cnum absolute left-2 top-2 z-3 grid h-7 min-w-7 place-items-center rounded-full bg-accent px-2 text-[11px] font-bold text-black"></span><button type="button" class="cup absolute left-11 top-2 z-3 grid size-7 place-items-center rounded-full bg-black/65 text-[13px] leading-none text-white" title="Play this clip earlier" aria-label="Play this clip earlier">↑</button><span class="clip-status is-reading" role="status" aria-label="Video is being analysed" title="Analysing video"><span class="clip-status-mark">…</span></span><button class="del" title="Remove video" aria-label="Remove video">×</button><div class="meta"><div class="nm"></div><div class="dd">Waiting to analyse…</div><canvas></canvas></div>`;
   card.querySelector('.nm').textContent = f.name; $('clips').appendChild(card); renumber();
   const src = {name:f.name, file:f, url, card, spark: card.querySelector('.meta canvas'), removed:false};
-  card.__src = src; setClipStatus(src,'reading'); card.querySelector('.del').addEventListener('click', ()=>removeVideo(src));
+  card.__src = src; cardSight.observe(card); setClipStatus(src,'reading'); card.querySelector('.del').addEventListener('click', ()=>removeVideo(src));
   card.querySelector('.cup').addEventListener('click', ()=>{ const prev = card.previousElementSibling; if(prev && !pending && !recording){ prev.before(card); reorderClips(); } });
   return src;
 }
