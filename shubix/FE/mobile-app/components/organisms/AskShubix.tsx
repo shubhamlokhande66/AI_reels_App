@@ -9,9 +9,9 @@ const IDEAS: [string, string][] = [["Fast & energetic", "Fast cuts on every beat
 
 /** Ask Shubix AI (the website's studio askbar): a card that opens to a box where you say how you want your Reel, the
  * ideas to tap, and the conversation. `onAsk` does what was asked and returns the answer. */
-export function AskShubix({ onAsk }: { onAsk: (text: string) => string | Promise<string> }) {
+export function AskShubix({ onAsk, plan, planned }: { onAsk: (text: string) => string | Promise<string>; plan?: { story: string; lines: string[] } | null; planned?: boolean }) {
   const words = useStudioText(), look = useColors();
-  const [open, setOpen] = useState(false), [said, setSaid] = useState(""), [log, setLog] = useState<{ me: boolean; text: string }[]>([]), [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false), [said, setSaid] = useState(""), [log, setLog] = useState<{ me: boolean; text: string }[]>([]), [busy, setBusy] = useState(false), [shots, setShots] = useState(false);
   async function ask(text: string) {
     text = text.trim().slice(0, 300);
     if (!text || busy) return;
@@ -30,6 +30,14 @@ export function AskShubix({ onAsk }: { onAsk: (text: string) => string | Promise
       </Pressable>
       {open && (
         <View className="gap-3 border-t border-border px-3.5 pb-3.5 pt-3">
+          {plan ? (
+            <View className="gap-1.5 rounded-2xl border border-accent/25 bg-surface-2 p-3">
+              <Text className="text-[13px] font-bold text-foreground">{words("Shubix's plan for this Reel")}</Text>
+              {!!plan.story && <Text className="text-[12.5px] leading-[18px] text-foreground">{plan.story}</Text>}
+              <Pressable onPress={() => setShots(!shots)} accessibilityRole="button" accessibilityState={{ expanded: shots }}><Text className="text-[12px] font-semibold text-accent">{words(shots ? "Hide the shots" : "See every shot")} ({plan.lines.length})</Text></Pressable>
+              {shots && plan.lines.map((line, i) => <Text key={i} className="text-[11.5px] leading-[16px] text-muted">{i + 1}. {line}</Text>)}
+            </View>
+          ) : planned === false ? <Text className="text-[12px] leading-[17px] text-muted">{words("Shubix AI has not edited this Reel. This is the phone's own edit.")}</Text> : null}
           {log.map((m, i) => <Bubble key={i} mine={m.me}>{m.text}</Bubble>)}
           {log.some((m) => !m.me) && <Pressable onPress={() => router.push({ pathname: "/contact", params: { topic: "reels", message: `${words("Report an AI answer")}: ` } })} accessibilityRole="link" className="self-end py-1"><Text className="text-[12px] font-semibold text-muted underline">{words("Report an AI answer")}</Text></Pressable>}
           <View className="flex-row items-center gap-2 rounded-2xl border border-border bg-surface-2 pl-3.5 pr-1.5">

@@ -15,7 +15,7 @@ import { ExportScreen } from "../components/organisms/ExportScreen";
 import { pickInOrder } from "../components/organisms/Gallery";
 import { isNativeEffectSupported, isNativeTransitionSupported, previewSpec, videoEngine } from "../lib/video";
 import { ShubixPreviewView, type PreviewRef } from "../modules/shubix-video";
-import { engine, textsOf } from "../lib/engine";
+import { type AiPlan, engine, textsOf } from "../lib/engine";
 import { TEXT_TEMPLATES } from "@mobile/core/lib/text-templates";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
@@ -132,6 +132,7 @@ export default function EditorScreen() {
   const [p, setP] = useState<ReelProject | null>(null), [selected, setSelected] = useState(0), [playing, setPlaying] = useState(false), [local, setLocal] = useState(0);
   const [mixing, setMixing] = useState(false);
   const [playError, setPlayError] = useState<string | null>(null);
+  const [aiPlan, setAiPlan] = useState<AiPlan | null | undefined>(undefined);
   const [exporting, setExporting] = useState<ReelProject | null>(null), [sound, setSound] = useState(true), [saved, setSaved] = useState(true), [tool, setTool] = useState<{ key: string; name: string } | null>(null), [draft, setDraft] = useState("");
   const [studioLayers, setStudioLayers] = useState<Array<{ index: number; id: number; t0: number; t1: number; x: number; y: number; scale: number; opacity: number; rotation: number; mask: string; blend: string; follow: string; followOffsetX: number; followOffsetY: number; maskWidth: number; maskHeight: number; maskThreshold: number; maskFeather: number; maskAngle: number; maskInverted: boolean; chromaKey: boolean; chromaColor: string; chromaTolerance: number; native?: unknown }>>([]), [studioLayerIndex, setStudioLayerIndex] = useState(0);
   const [canvasCol, setCanvasCol] = useState("#4F7CFF");
@@ -153,6 +154,8 @@ export default function EditorScreen() {
       setCaptionSettings({ enabled: !!settings.capsOn, language: String(settings.caplang ?? ""), translation: String(settings.captr ?? ""), style: String(settings.textStyle ?? "pop") });
     }).catch(() => {});
   }, [tool?.key, p?.id]);
+  // what Shubix AI planned for this Reel, shown in Ask Shubix (read when the Reel opens, and again after each answer)
+  useEffect(() => { if (p?.studio && engine.holds(p.id)) void engine.aiPlan().then(setAiPlan).catch(() => setAiPlan(undefined)); else setAiPlan(undefined); }, [p?.id, p?.studio]);
   useEffect(() => {
     if (!p?.studio || !engine.holds(p.id)) { setStudioLayers([]); return; }
     void engine.tool("layerList").then((r) => setStudioLayers(Array.isArray(r) ? r as typeof studioLayers : [])).catch(() => setStudioLayers([]));
@@ -821,7 +824,7 @@ export default function EditorScreen() {
           <Button full icon="shuffle" variant="secondary" title={words(mixing ? "Mixing video…" : "Mix Video")} disabled={mixing || clips.length < 2} onPress={() => void mixVideo()} />
         </View>
         <Transport now={now} total={total} playing={playing} sound={sound} onPrev={() => go(selected - 1)} onToggle={() => setPlaying(!playing)} onNext={() => go(selected + 1)} onSound={() => setSound(!sound)} />
-        <View className="mx-4 mt-3"><AskShubix onAsk={async (t) => {
+        <View className="mx-4 mt-3"><AskShubix plan={aiPlan} planned={aiPlan === undefined ? undefined : !!aiPlan} onAsk={async (t) => {
           // a Reel the studio made and still holds: Shubix AI itself (the website's chat: its credit question asked here,
           // its plan applied there, the clips back here); otherwise the phone's own changes below
           if (p.studio && engine.holds(p.id)) {
@@ -829,6 +832,7 @@ export default function EditorScreen() {
               setPlaying(false);
               const r = await engine.chat(p, t);
               if (r) {
+                void engine.aiPlan().then(setAiPlan).catch(() => {});
                 if (r.clips) { const next = r.clips; setP((old) => old ? { ...old, clips: next, ...(r.overlays ? { overlays: r.overlays } : {}), studio: true } : old); setSelected(0); }
                 return r.answer;
               }

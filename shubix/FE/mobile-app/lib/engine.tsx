@@ -15,6 +15,7 @@ import { API_URL } from "./session";
  * serves the page, its files and its API calls, so this needs the app's own build (not Expo Go).
  * TODO (later): the same engine in Kotlin, without the hidden page (docs/roadmap.md). */
 export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
+export type AiPlan = { story: string; lines: string[] };
 export type SongAnalysis = { duration: number; bpm: number; beats: number; drops: number; breaks: number };
 /** a shot of the Reel as the studio made it (its state(): the clip, where in it, the transition into it, its effect, its speed) */
 export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
@@ -148,6 +149,8 @@ export const engine = {
   /** a new Reel: the studio's page is loaded again, so nothing of the Reel before it stays (song, clips, edit, AI, cards);
    * it signs in again and reads the plan and credits anew on its first call */
   fresh: () => restart("A new Reel was started."),
+  /** what Shubix AI planned for the Reel the studio holds: its story and a line per shot; null when it did not edit it */
+  aiPlan: () => call<AiPlan | null>("aiPlan"),
   /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
   stop: () => restart(STOPPED),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the

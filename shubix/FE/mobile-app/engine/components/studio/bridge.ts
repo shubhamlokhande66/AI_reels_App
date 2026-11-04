@@ -339,6 +339,8 @@ export function initBridge(root: HTMLElement): () => void {
       await until(() => studio()!.editGen !== gen, 1500).catch(() => {}); // a new style makes a new Reel (a filter does not)
       return OPS.ready(a);
     },
+    /** what Shubix AI planned for this Reel, in the chat's words: its story and a line for each shot; null when it has not edited it */
+    async aiPlan() { return (studio() as unknown as { aiPlan?: unknown } | undefined)?.aiPlan ?? null; },
     /** Ask Shubix from the phone's editor: the website's chat; its plan applied -> { answer, applied, state } */
     async chat(a) {
       const st = studio() as unknown as { chatApp?: (t: string) => Promise<{ answer: string; applied: boolean }>; state: () => unknown };

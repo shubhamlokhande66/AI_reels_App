@@ -2016,6 +2016,18 @@ function dirArrived(key, d){
   director = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions }; dirCache.set(key, director); if(d.texts || d.actions) queueMicrotask(() => void aiApply(d)); return true;   // (after the shots are made: makeEdit)
 }
 // the plan, shot by shot, in words: which clip and what is in it, the transition into it, its effect, speed and keyframes
+function planLine(s, i, slots){
+    const d = slots[i] || {}, c = d.cand, src = c ? sources[c.src] : null;
+    const cand = c && dirCands && (dirCands[i] || []).find(x => x.si === c.src && Math.abs(x.a - c.in) < 0.05);
+    const what = (cand && cand.note) || (src && src.ai && src.ai.summary) || '';
+    const bits = [];
+    if(i && d.tr && d.tr !== 'hard') bits.push('↪ ' + (TR_NAME[d.tr] || d.tr));
+    if(d.fx && d.fx !== 'none') bits.push('✦ ' + (d.fx === 'hook' ? 'Hook' : FX_NAME[d.fx] || d.fx));
+    if(d.sp && d.sp !== 'normal') bits.push('⏱ ' + d.sp);
+    if(d.keys && d.keys.length) bits.push('◆ ' + d.keys.map(k => k.do).join(', '));
+    if(d.move && d.move.length) bits.push('◆ camera move');
+    return fmt(s.start).replace(/\.\d+$/, '') + ' · ' + (src ? src.name.replace(/\.[^.]+$/, '') + (c ? ' @' + c.in.toFixed(1) + 's' : '') : 'best moment') + (what ? ' — ' + what : '') + (s.type === 'drop' ? ' · DROP' : s.type === 'break' ? ' · break' : '') + '\n' + (bits.length ? bits.join('  ') : 'clean cut, no effect') + (d.why ? ' · ' + d.why : '');
+}
 function planReport(slots, story, changed){
   const box = document.createElement('div'); box.className = 'ai rep';
   const n = plan.length, tr = slots.filter((d,i) => i && d && d.tr && d.tr !== 'hard').length, fx = slots.filter((d,i) => d && d.fx && d.fx !== 'none' && !(i === 0 && d.fx === 'hook')).length,
@@ -2029,17 +2041,8 @@ function planReport(slots, story, changed){
   sum.textContent = changed && changed.size ? 'See the change' : 'See every shot'; det.appendChild(sum); if(changed && changed.size) det.open = true;
   plan.forEach((s, i) => {
     if(changed && changed.size && !changed.has(i)) return;
-    const d = slots[i] || {}, li = document.createElement('li'), c = d.cand, src = c ? sources[c.src] : null;
-    if(changed && changed.has(i)) li.className = 'chg';
-    const cand = c && dirCands && (dirCands[i] || []).find(x => x.si === c.src && Math.abs(x.a - c.in) < 0.05);
-    const what = (cand && cand.note) || (src && src.ai && src.ai.summary) || '';
-    const bits = [];
-    if(i && d.tr && d.tr !== 'hard') bits.push('↪ ' + (TR_NAME[d.tr] || d.tr));
-    if(d.fx && d.fx !== 'none') bits.push('✦ ' + (d.fx === 'hook' ? 'Hook' : FX_NAME[d.fx] || d.fx));
-    if(d.sp && d.sp !== 'normal') bits.push('⏱ ' + d.sp);
-    if(d.keys && d.keys.length) bits.push('◆ ' + d.keys.map(k => k.do).join(', '));
-    if(d.move && d.move.length) bits.push('◆ camera move');
-    li.textContent = fmt(s.start).replace(/\.\d+$/, '') + ' · ' + (src ? src.name.replace(/\.[^.]+$/, '') + (c ? ' @' + c.in.toFixed(1) + 's' : '') : 'best moment') + (what ? ' — ' + what : '') + (s.type === 'drop' ? ' · DROP' : s.type === 'break' ? ' · break' : '') + '\n' + (bits.length ? bits.join('  ') : 'clean cut, no effect') + (d.why ? ' · ' + d.why : '');
+    const li = document.createElement('li'); if(changed && changed.has(i)) li.className = 'chg';
+    li.textContent = planLine(s, i, slots);
     ol.appendChild(li);
   });
   det.appendChild(ol); box.appendChild(det);
@@ -7260,7 +7263,7 @@ async function pickRecent(fp){
 }
 listRecent();
 
-root.__studio = { get layerMedia(){ return lmedia; }, get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, setEdit: list => restoreEdit(list), get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
+root.__studio = { get layerMedia(){ return lmedia; }, get aiPlan(){ return director && director.slots && !director.interim ? { story: director.story || '', lines: plan.map((p, i) => planLine(p, i, director.slots)) } : null; }, get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, setEdit: list => restoreEdit(list), get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
   snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, pace: paceBusy,
     // Shubix AI is on for this Reel and its plan has not come yet (nor failed): the Reel is not final (the phone app waits)
