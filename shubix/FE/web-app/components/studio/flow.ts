@@ -52,7 +52,7 @@ export function initFlow(root: HTMLElement): () => void {
   const working = new Set<string>(); // the WAIT tasks running right now
   const phone = () => window.matchMedia("(max-width: 1023px)").matches;
   // how many screens of this flow the browser has before this one (0: the page as it was opened)
-  let depth = 0;
+  let depth = (history.state as { fflow?: Mark } | null)?.fflow?.n ?? 0;   // (a reload keeps its place in the walk)
   // the phone app's hidden studio (/engine) keeps its own address: a reload there (the phone restarting the page) must
   // open the engine again, never the Create flow or the editor (the app would stop working)
   const inEngine = location.pathname === "/engine";
@@ -338,9 +338,11 @@ export function initFlow(root: HTMLElement): () => void {
     if (has("fpost") && root.dataset.tool && !toolMarked) return closeTool(); // Edit Options → back to the Reel
     if (has("fpost") && has("editing") && !root.dataset.tool) $("feditdone").click(); // the timeline: one Back leaves it and goes on to the clips (not first to the Reel's review)
     if (depth > 0) { history.back(); return; } // the screen before, as the browser's own Back does
-    if (has("fpost")) return go("clips"); // the Reel → back to the clips
+    // opened part way (no screen before it in this visit): the screen before takes this entry's place. A new entry here would
+    // be "the screen before" for the next Back, and Back would go round between two screens
+    if (has("fpost")) return go("clips", false); // the Reel → back to the clips
     const o = order(), i = o.indexOf(step);
-    if (phone() && i > 0) return go(o[i - 1]);
+    if (phone() && i > 0) return go(o[i - 1], false);
     if (history.length > 1) history.back();
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- plain DOM code, leaving the studio is a full load
     else location.href = "/";
