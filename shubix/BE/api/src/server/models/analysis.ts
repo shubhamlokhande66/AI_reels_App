@@ -17,18 +17,17 @@ export interface Transient { t: number; band: "low" | "mid" | "high"; strength: 
 export interface AudioAnalysis {
   bpm: number;
   duration: number;
-  /** Essentia's beats exactly as detected (or an even grid when it found none: beatSource says which) */
+  /** the neural tracker's beats as detected (or an even grid when it could not run: beatSource says which) */
   beats: number[];
-  /** beat_this = the neural beat and bar tracker (Beat This!); essentia = its fallback; inferred_grid = an even grid */
+  /** beat_this = the neural beat and bar tracker (Beat This!); inferred_grid = an even grid; essentia: analyses made before version 12 */
   beatSource: "beat_this" | "essentia" | "inferred_grid";
   /** per beat: its place in the bar (1 = the bar start), like All-In-One's beat_positions; empty when bars are unknown */
   beatPositions: number[];
   /** the tracker's GLOBAL confidence (Essentia's, scaled to 0..1): a score, not a measured timing error */
   beatConfidence: number;
   /** Essentia's own confidence, 0..5.32 */
-  essentiaConfidence: number;
   /** independent tempo estimates; they are compared, not averaged */
-  bpmEstimates: { beatThis?: number | null; rhythmExtractor: number; percival: number | null; beatIntervals: number | null };
+  bpmEstimates: { beatThis?: number | null; envelope: number | null; beatIntervals: number | null };
   /** agree | octave (half / double or 2:3: a metrical-level ambiguity) | disagree | unknown */
   bpmAgreement: "agree" | "octave" | "disagree" | "unknown";
   /** beats per bar, only when the bar phase is clear */
@@ -70,7 +69,7 @@ export function withDefaults(doc: Partial<AudioAnalysis> & { bpm: number; durati
     beatConfidence: 0, strongBeats: [], onsets: [], accents: [], accentStrengths: [], analysisVersion: 1, highEnergySections: [], sections: [],
     drops: [], energyHop: 0.1, energy: [], curveHop: 0.5, loudnessDb: [], brightness: [], density: [], vocal: [], songSections: [], tempoSections: [],
     beatConfidences: [], downbeats: [], downbeatConfidence: 0, beatLevels: [], mediumBeats: [], beatKick: [], events: [], beatSource: "essentia",
-    essentiaConfidence: 0, bpmEstimates: { rhythmExtractor: doc.bpm, percival: null, beatIntervals: null }, bpmAgreement: "unknown", meter: null, transients: [], dropTimes: doc.drops ?? [], beatPositions: [], ...doc,
+    bpmEstimates: { envelope: null, beatIntervals: null }, bpmAgreement: "unknown", meter: null, transients: [], dropTimes: doc.drops ?? [], beatPositions: [], ...doc,
   } as AudioAnalysis;
 }
 

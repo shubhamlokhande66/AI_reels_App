@@ -6,7 +6,6 @@ import path from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 import { analyzeAudio } from "../../../src/server/audio/analyzer";
 import { decode } from "../../../src/server/audio/decode";
-import { essentiaBeats } from "../../../src/server/audio/essentia";
 import { detectTransients, type Transient } from "../../../src/server/audio/transients";
 import { findBinary } from "../../../src/server/core/ffmpeg";
 import type { AudioAnalysis } from "../../../src/server/models/analysis";
@@ -66,17 +65,15 @@ beforeAll(async () => {
 }, 600_000);
 
 describe("analysis against ground truth (100 BPM drums, 4/4)", () => {
-  it("takes the beats from the neural tracker (Beat This!), with Essentia's tempo kept as a cross-check", { timeout: 300_000 }, async () => {
-    const raw = await essentiaBeats(await decode(wav, 44100));
-    expect(analysis.beatSource).toBe("beat_this"); // Essentia's beats are the fallback when the network cannot run
-    expect(analysis.bpmEstimates.rhythmExtractor).toBeCloseTo(raw.bpm, 1);
-    expect(Math.abs(analysis.bpmEstimates.rhythmExtractor - BPM)).toBeLessThan(BPM * 0.02);
+  it("takes the beats from the neural tracker (Beat This!), with the envelope's tempo kept as a cross-check", () => {
+    expect(analysis.beatSource).toBe("beat_this");
+    expect(Math.abs((analysis.bpmEstimates.envelope ?? 0) - BPM)).toBeLessThan(BPM * 0.02);
   });
 
   it("finds the tempo, with two independent estimates that agree", () => {
     expect(analysis.bpm).toBeGreaterThan(BPM * 0.98);
     expect(analysis.bpm).toBeLessThan(BPM * 1.02);
-    expect(analysis.bpmEstimates.percival).not.toBeNull();
+    expect(analysis.bpmEstimates.envelope).not.toBeNull();
     expect(analysis.bpmAgreement).toBe("agree");
   });
 

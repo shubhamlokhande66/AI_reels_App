@@ -12,7 +12,6 @@ import { agglomerative } from "./dsp/segment";
 import * as sp from "./dsp/spectral";
 import { argsortDesc, percentile, uniformFilter1d, vec } from "./dsp/util";
 import { BEAT_THIS_SR, beatThis } from "./beatThis";
-import { essentiaBeats, essentiaOnsets, essentiaPercivalBpm } from "./essentia";
 import { computeCurves, CURVE_HOP, labelSections, structuralParts } from "./structure";
 import { detectTransients, mergedHits } from "./transients";
 
@@ -21,13 +20,13 @@ import { detectTransients, mergedHits } from "./transients";
  * separate lists: a transient is not a beat, and an onset is not necessarily an attack. Cached by the song's content. */
 
 export const SR = 22050;
-export const ESSENTIA_SR = 44100;
 export const MAX_SECONDS = 600;
 export const ENERGY_HOP = 0.1;
-/** 11 = beats and bar starts from the neural tracker Beat This! (Essentia as the fallback), beat positions in the bar;
+/** 12 = onsets and the second tempo estimate from the onset envelope, an even grid when the neural tracker cannot run;
+ * 11 = beats and bar starts from the neural tracker Beat This! (Essentia as the fallback), beat positions in the bar;
  * 10 = Essentia's beats never changed afterwards, PercivalBpmEstimator as a second tempo estimate, transients per band
  * (impacts), bars only with evidence; 9 = beats moved onto nearby hits (older caches are redone) */
-export const ANALYSIS_VERSION = 11;
+export const ANALYSIS_VERSION = 12;
 
 export type StageFn = (stage: string, progress: number) => void;
 
@@ -131,14 +130,10 @@ export async function analyzeAudio(file: string, onStage: StageFn = () => {}, ma
 /** The analysis and the decoded song it came from (the analysis JSON reads both). */
 export async function analyzeWithSignal(file: string, onStage: StageFn = () => {}, maxSeconds = MAX_SECONDS): Promise<{ analysis: AudioAnalysis; y: Float32Array; env: Float64Array }> {
   onStage("analyzing_music", 0);
-  const [y, y44, yMean] = await Promise.all([decode(file, SR, maxSeconds), decode(file, ESSENTIA_SR, maxSeconds), decode(file, BEAT_THIS_SR, maxSeconds, "mean")]);
+  const [y, yMean] = await Promise.all([decode(file, SR, maxSeconds), decode(file, BEAT_THIS_SR, maxSeconds, "mean")]);
   checkAudio(y, SR);
-  // Essentia's beat tracker and onsets run in their own threads while this one measures the rest
-  const essBeats = essentiaBeats(y44);
-  const essOnsets = essentiaOnsets(y44);
-  const essPercival = essentiaPercivalBpm(y44).catch(() => null); // a second opinion only: the analysis goes on without it
-  // the beats and bar starts: the neural tracker; if it cannot run, Essentia's beats are used instead
-  const net = beatThis(yMean).catch((e) => { console.warn(`Beat This! failed, using Essentia's beats: ${e}`); return null; });
+  // the beats and bar starts: the neural tracker; if it cannot run, an even grid is used instead
+  const net = beatThis(yMean).catch((e) => { console.warn(`Beat This! failed, using an even grid: ${e}`); return null; });
   const duration = y.length / SR;
   onStage("analyzing_music", 0.4);
   const energy = computeEnergy(y, SR);
@@ -146,7 +141,8 @@ export async function analyzeWithSignal(file: string, onStage: StageFn = () => {
   const hi = highEnergySections(energy);
   onStage("analyzing_music", 1);
   onStage("detecting_beats", 0);
-  const beat = detectBeats(await essBeats, await essOnsets, env, duration, await essPercival, { y, sr: SR }, await net);
+  const onsets = sp.onsetDetect(env, SR, 512).map((frame) => frame * 512 / SR);
+  const beat = detectBeats(onsets, env, duration, sp.tempo(env, SR, 512) || null, await net);
   const transients = detectTransients(y, SR);
   onStage("detecting_beats", 0.6);
   const events = detectEvents(measurements(y, SR, env, beat.onsets), beat.beats);
@@ -159,7 +155,7 @@ export async function analyzeWithSignal(file: string, onStage: StageFn = () => {
   const labelled = labelSections(structuralParts(y, SR, beat.beats, duration, e, ENERGY_HOP, drops), e, ENERGY_HOP, drops, curves);
   const analysis = withDefaults({
     bpm: beat.bpm, duration: round(duration, 3), beats: beat.beats, beatConfidence: beat.confidence, beatSource: beat.beatSource,
-    essentiaConfidence: beat.essentiaConfidence, beatPositions: beat.beatPositions, bpmEstimates: beat.bpmEstimates, bpmAgreement: beat.bpmAgreement, meter: beat.meter,
+    beatPositions: beat.beatPositions, bpmEstimates: beat.bpmEstimates, bpmAgreement: beat.bpmAgreement, meter: beat.meter,
     // the bar starts, only when the bar phase is clear (no per-beat strong / medium labels)
     strongBeats: beat.downbeats, onsets: beat.onsets, transients, accents, accentStrengths: strengths,
     analysisVersion: ANALYSIS_VERSION, highEnergySections: hi, sections, drops, dropTimes, energyHop: ENERGY_HOP, energy: e.map((v) => round(v, 3)),
