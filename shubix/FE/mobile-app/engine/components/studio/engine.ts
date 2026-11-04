@@ -29,6 +29,7 @@ const decFile = s => s.edFile || s.file;
 import { parseDirectorVisualIntent } from './visualIntent';
 import { bootPart } from '../../lib/boot';
 
+import { TAIL, aiBonus, beatFxOf, buildCapLines, clipBytes, crossesScene, csFilter, curveSpeed, endWell, fmt, goodSecs, isIndic, keyframesFor, lowerB, maskPath, moveWords, nearestS, panClamp, rampSpeed, revFrame, rmsOf, shotBeats, splitPoint, srcPos, statsIndex, suitFx, toSlots, updateClipHoverInfo, upperB, velocitySpeed, whatClip, windowStats, wrapLines } from '../../brain/pure';
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
 
@@ -171,7 +172,6 @@ function smoothLive(e, local){ const v = e.el; if(!v || v.readyState < 2 || !v.r
   if(!v.__rvf){ v.__rvf = 1; const cb = (now, m) => { if(v.__mt !== undefined && m.mediaTime > v.__mt && m.mediaTime - v.__mt < 0.2) v.__dt = m.mediaTime - v.__mt; v.__mt = m.mediaTime; v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
   if(v.__mt === undefined) return v;
   return smoothPic(e, v, v.__mt, srcPos(e, local), v.__dt || 1/30); }
-const fmt = t => { t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(2); };
 let ctx = null, buf = null, mono = null;
 let period = 0, phase = 0, hopSec = 0, rmsF = null, hitsStr = [], barOff = 0, beatLvl = [];
 let onEnv=null, onFps=0, onOff=0, hitsRaw=[];
@@ -535,7 +535,6 @@ function withPartCuts(p){
     p.splice(k + 1, 0, { ...s, start: t, type: T, fx: T === 'drop' ? 'Best shot · flash + zoom-in' : T === 'break' ? 'Slow-mo / freeze / text' : 'Hard cut' }); s.end = t; });
   return p;
 }
-function endWell(p){ while(p.length > 1 && p[p.length-1].end - p[p.length-1].start < 1){ const l = p.pop(); p[p.length-1].end = l.end; } return p; }
 function partsOfSong(){
   if(song && song.r && song.partsOf !== song.r){ try{ song.parts = songParts(song.mono, song.buf.sampleRate, song.r.beats); }catch(e){ console.warn('song parts', e); song.parts = []; }
     song.partsOf = song.r; }
@@ -959,13 +958,7 @@ async function findScenes(rd, src, S, H, LM){
   for(const o of out){ const l = merged[merged.length-1]; if(l && o.t0 <= l.t1 + 0.05){ l.t1 = Math.max(l.t1, o.t1); if(l.kind==='cut'){ l.kind = o.kind; if(o.tc !== undefined){ l.tc = o.tc; l.white = o.white; } } } else merged.push({...o}); }
   return merged;
 }
-function nearestS(S, t){ let lo=0, hi=S.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(S[m].t < t) lo=m+1; else hi=m; } return (lo>0 && Math.abs(S[lo-1].t-t) < Math.abs(S[lo].t-t)) ? lo-1 : lo; }
 // does the stretch of footage [a,b] cross a scene change? (a small margin either side)
-function crossesScene(src, a, b){
-  const sc = src.scenes; if(!sc || !sc.length) return false;
-  for(const s of sc){ if(s.t0 > b + 0.06) break; if(s.t1 >= a - 0.03 && s.t0 <= b + 0.06) return true; }
-  return false;
-}
 // faces: up to 2.5 looks a second (at most about 60 per clip), then cleaned up over time (see trackFaces). faceScanner
 // gives the times it wants and takes their frames from any reader: its own (scanFaces), or the motion pass on an
 // iPhone (one decode of the clip for both)
@@ -1162,46 +1155,11 @@ function previewBatchClose(){
   if(previewBatchUi){previewBatchUi.overlay.remove();previewBatchUi=null;}
   previewBatchCompressed=0; previewBatchDetected=0;
 }
-function clipBytes(bytes){
-  if(!Number.isFinite(bytes)) return '—';
-  if(bytes < 1024*1024) return (bytes/1024).toFixed(0)+' KB';
-  return (bytes/1024/1024).toFixed(2)+' MB';
-}
-function updateClipHoverInfo(src){
-  if(!src || !src.card || !src.file) return;
-  const lines=[
-    src.name,
-    'Original: '+clipBytes(src.file.size)+' · '+(src.w&&src.h ? src.w+' × '+src.h : 'resolution pending'),
-    'Format: '+(src.file.type || (src.name.split('.').pop() || 'unknown').toUpperCase()),
-    'Duration: '+(Number.isFinite(src.dur)&&src.dur>0 ? fmt(src.dur) : '—'),
-    'Average bitrate: '+(src.dur>0 ? ((src.file.size*8/src.dur)/1e6).toFixed(2)+' Mbps (estimated)' : '—'),
-    'Preview: '+(src.proxyStatus || 'Checking…'),
-  ];
-  if(src.previewProxy && src.proxySize){
-    const saved=Math.max(0,src.file.size-src.proxySize);
-    const pct=src.file.size ? saved/src.file.size*100 : 0;
-    lines.push('Preview copy: '+clipBytes(src.proxySize)+' · '+(src.proxyW&&src.proxyH ? src.proxyW+' × '+src.proxyH : '—'));
-    lines.push('Saved: '+clipBytes(saved)+' ('+pct.toFixed(1)+'%)');
-    lines.push('Format: '+(src.proxyMime || 'browser preview'));
-  }else if(src.proxyReason){
-    lines.push('Details: '+src.proxyReason);
-  }
-  lines.push(src.edFile ? 'Export: the smooth edit copy (' + (src.edW||'?') + ' × ' + (src.edH||'?') + ', 30 fps)' : 'Export: original file · unchanged');
-  src.card.title=lines.join('\n');
-  src.card.setAttribute('aria-label',lines.join('. '));
-}
 /* ---- clips from any camera: an edit copy for what plays badly or not at all here (lib/previewProxy.ts) ----
  * iPhone 4K HDR / Cinematic / slo-mo, Android 60 fps / 8K / HDR10+, GoPro, drones, mirrorless 10-bit 4:2:2, screen
  * recordings (a varying frame rate): an H.264 1080p 30 fps SDR copy, made on this device, read by the preview, the
  * clip reading and the export. What this browser cannot decode at all (ProRes, 4:2:2, old codecs) is converted by
  * Shubix (signed in, up to 95 MB). Kept with the draft on this device (v2), so a reopened Reel does not convert again. */
-function whatClip(f){
-  const k = [];
-  if(f){ const ls = Math.max(f.width||0, f.height||0); if(ls >= 7000) k.push('8K'); else if(ls >= 3800) k.push('4K'); else if(ls > 2600) k.push(Math.round(ls/1000*10)/10 + 'K');
-    if(f.hdr) k.push('HDR'); if(f.tenBit && !f.hdr) k.push('10-bit'); if(f.chroma422) k.push('camera 4:2:2');
-    if(f.fps > 31) k.push(Math.round(f.fps) + ' fps'); if(f.vfr) k.push('changing frame rate'); }
-  return k.length ? k.join(' · ') : 'this format';
-}
 function setEditCopy(src, blob, w, h, how){
   src.edFile = blob; src.edW = w; src.edH = h; src.edAudio = how === 'server' || !/webm/.test(blob.type) || how === 'decoder';
   const old = src.url; src.url = URL.createObjectURL(blob); try{ if(old && old !== src.url && src.previewProxy) URL.revokeObjectURL(old); }catch(e){}
@@ -1531,12 +1489,6 @@ function speechParts(v, dur, pace){
   return merged.filter(([a,b]) => b - a >= 0.25);
 }
 // where to split a long take: the quietest moment (lowest speech probability) 2.5-4.5 s in
-function splitPoint(v, a, b){
-  const h = v.hop; let best = Math.min(b, a + 3.2), bp = Infinity;
-  for(let t = a + 2.5; t <= Math.min(b - 1, a + 4.5); t += h){ const p = v.probs[Math.round(t/h)] ?? 1; if(p < bp){ bp = p; best = t; } }
-  return best;
-}
-function rmsOf(x, gate = 0.01){ let s2 = 0, n = 0; for(let i=0;i<x.length;i+=4){ const v = x[i]; if(Math.abs(v) > gate){ s2 += v*v; n++; } } return Math.sqrt(s2/Math.max(1, n)); }
 async function buildTalk(){
   delete root.dataset.nomake;   // set again below when these clips have no voice (flow.ts shows it on Next)
   const token = ++talkToken;
@@ -1712,27 +1664,6 @@ let edit = [], seed = 1;
 function rng(){ seed = (seed*16807) % 2147483647; return (seed-1)/2147483646; }
 // Window statistics in O(log n): prefix sums over the clip's samples and faces (built once per clip). The edit scores
 // thousands of windows, so a plain loop here froze the page on long videos.
-function statsIndex(src){
-  if(src._st) return src._st;
-  const S = src.samples, n = S.length, T = new Float64Array(n), cm = new Float64Array(n+1), cb = new Float64Array(n+1), cc = new Float64Array(n+1), cs = new Float64Array(n+1);
-  for(let i=0;i<n;i++){ T[i]=S[i].t; cm[i+1]=cm[i]+S[i].m; cb[i+1]=cb[i]+S[i].b; cc[i+1]=cc[i]+S[i].cx*S[i].m; cs[i+1]=cs[i]+S[i].sh; }
-  const F = src.faces || [], k = F.length, FT = new Float64Array(k), cn = new Float64Array(k+1), cfx = new Float64Array(k+1), cfy = new Float64Array(k+1), cfs = new Float64Array(k+1);
-  for(let i=0;i<k;i++){ const f=F[i], on=f.n?1:0; FT[i]=f.t; cn[i+1]=cn[i]+on; cfx[i+1]=cfx[i]+(on?f.fx:0); cfy[i+1]=cfy[i]+(on?f.fy:0); cfs[i+1]=cfs[i]+(on?f.fs:0); }
-  return (src._st = {T, cm, cb, cc, cs, FT, cn, cfx, cfy, cfs});
-}
-const lowerB = (A, x) => { let lo=0, hi=A.length; while(lo<hi){ const m=(lo+hi)>>1; if(A[m]<x) lo=m+1; else hi=m; } return lo; };
-const upperB = (A, x) => { let lo=0, hi=A.length; while(lo<hi){ const m=(lo+hi)>>1; if(A[m]<=x) lo=m+1; else hi=m; } return lo; };
-const TAIL = 0.15;   // seconds of clip kept free after a shot's window
-function windowStats(src, a, b){
-  const X = statsIndex(src);
-  let i0 = lowerB(X.T, a), i1 = upperB(X.T, b), n = i1 - i0, m, br, cx, sh;
-  if(n > 0){ m = X.cm[i1]-X.cm[i0]; br = X.cb[i1]-X.cb[i0]; cx = X.cc[i1]-X.cc[i0]; sh = X.cs[i1]-X.cs[i0]; }
-  else { const k = Math.min(Math.max(i0,0), src.samples.length-1), k2 = Math.max(0, k-1), s = Math.abs(src.samples[k2].t-a) < Math.abs(src.samples[k].t-a) ? src.samples[k2] : src.samples[k];
-    m = s.m; br = s.b; cx = s.cx*s.m; sh = s.sh; n = 1; }
-  const f0 = lowerB(X.FT, a-0.5), f1 = upperB(X.FT, b+0.5), fT = f1-f0, fN = X.cn[f1]-X.cn[f0];
-  return { m: m/n, b: br/n, cx: m>1e-6 ? cx/m : 0.5, sh: sh/n, face: fT ? fN/fT : 0,
-    fx: fN ? (X.cfx[f1]-X.cfx[f0])/fN : 0.5, fy: fN ? (X.cfy[f1]-X.cfy[f0])/fN : 0.5, fs: fN ? (X.cfs[f1]-X.cfs[f0])/fN : 0 };
-}
 /* ---- editing style: transition in, effect during, speed ---- */
 const SPEED = {
   normal: {label:'1×', at:()=>1, pos:l=>l},
@@ -1740,19 +1671,9 @@ const SPEED = {
   fast:   {label:'Fast 1.6×', at:()=>1.6, pos:l=>1.6*l},
 };
 // velocity edit: slow-mo after each beat, fast whoosh into the next one
-function velocitySpeed(len, bl){
-  const pts = [0, ...bl.filter(b=>b>0.15 && b<len-0.1), len], segs = [];
-  let acc = 0;
-  for(let k=0;k<pts.length-1;k++){ const a=pts[k], b=pts[k+1], T=b-a, m=a+0.6*T;
-    segs.push([a,m,0.45,acc]); acc += 0.45*(m-a); segs.push([m,b,2.2,acc]); acc += 2.2*(b-m); }
-  const find = l => segs.find(s=>l<=s[1]) || segs[segs.length-1];
-  return {label:'Velocity (beat)', at:l=>find(l)[2], pos:l=>{ const s=find(l); return s[3] + s[2]*(Math.min(l,s[1])-s[0]); }};
-}
 // photo snap: freeze 0.32 s like a camera shot, then play
 const SNAP_T = 0.32;
 const snapSpeed = {label:'Freeze → 1×', at:l=> l<SNAP_T ? 0 : 1, pos:l=> l<SNAP_T ? 0 : l-SNAP_T};
-function rampSpeed(len){ const sp = 0.45*len;   // fast, then slow into the next beat
-  return {label:'Ramp 1.8×→0.6×', at:l=> l<sp ? 1.8 : 0.6, pos:l=> l<sp ? 1.8*l : 1.8*sp + 0.6*(l-sp)}; }
 function styleEdit(){
   // pros mostly hard-cut; special transitions go on hits, drops and section changes, never twice in a row
   const HIT_TR = ['whip','iris','zoom','glitch','swipeup','spin','dropin','bars','pixelate'].filter(k => !isLocked('tr', k));   // only what the plan opens
@@ -1844,7 +1765,6 @@ function uAt(list, l){
   return list[list.length-1];
 }
 // a shot that is moved, made smaller or turned shows black around it (not stretched edge pixels)
-function panClamp(p, W, dw){ return dw <= W + 0.5 ? (W - dw)/2 : Math.min(0, Math.max(W - dw, p)); }
 // The AI director's keyframes on the hits inside a shot, on top of the shot's own effect: a punch (quick zoom), a shake,
 // a flash of light or a small pulse, each starting exactly on its hit and gone within 0.4 s.
 const ACCENTS = ['punch','shake','flash','pulse'], ACC_T = 0.4;
@@ -1857,24 +1777,6 @@ function accentAt(e, local){
     else if(a.do==='shake'){ sh += Math.exp(-d/0.12); s *= 1.04; }
     else if(a.do==='flash') ex += 0.85*Math.exp(-d/0.08); }
   return any ? {s, sh, ex, rgb} : null;
-}
-function keyframesFor(e){
-  const L = e.end - e.start;
-  switch(e.efx){
-    case 'snap': return {expo:[[0,1.1],[0.14,0,'outCubic']]};
-    case 'hook': return {scale:[[0,1.4],[0.55,1,'outExpo']], zblur:[[0,1],[0.35,0,'outCubic']], rgb:[[0,12],[0.3,0,'outCubic']], bounce:[[0,1]]};
-    case 'zoomburst': return {scale:[[0,1.32],[0.45,1,'outExpo']], zblur:[[0,1],[0.3,0,'outCubic']], expo:[[0,0.9],[0.28,0,'outCubic']], rgb:[[0,16],[0.3,0,'outCubic']], vig:[[0,0.35]]};
-    case 'punch': return {scale:[[0,1.16],[0.32,1,'outBack']], rgb:[[0,7],[0.16,0,'outCubic']]};
-    case 'tilt': return {scale:[[0,1.18],[0.3,1.02,'outBack']], rot:[[0,-4],[0.3,0,'outBack']]};
-    case 'shake': return {scale:[[0,1.08]], shake:[[0,1],[0.3,0,'outCubic']], rgb:[[0,5],[0.12,0]]};
-    case 'pan': return {scale:[[0,1.04],[L,1.14,'inOut']], x:[[0,-0.02],[L,0.02,'inOut']], bounce:[[0,1]]};
-    case 'pan-soft': return {scale:[[0,1.02],[L,1.09,'inOut']], x:[[0,-0.015],[L,0.015,'inOut']]};
-    case 'drift': return {scale:[[0,1],[L,1.07,'inOut']], bright:[[0,0.86]], vig:[[0,0.6]]};
-    case 'bounce': return {scale:[[0,1.06],[0.25,1,'outCubic']], bounce:[[0,1]]};
-    case 'punch-soft': return {scale:[[0,1.07],[0.3,1,'outCubic']]};
-    case 'jump': return {scale:[[0,1.14]]};   // a jump cut inside one take: framed closer, so the cut reads as intended
-    default: return {};
-  }
 }
 
 let dupCount = 0;
@@ -2006,13 +1908,6 @@ function aiAt(src, a, b){
   return { score: s/w, conf: Math.min(1, w), roles, note: best ? best.note : '' };
 }
 // how much the AI's opinion adds to a candidate moment for this slot
-function aiBonus(ai, slot, last){
-  const role = slot==='hook' ? 'hook' : (slot==='drop' || slot==='hit') ? 'action' : slot==='break' ? 'calm' : last ? 'ending' : null;
-  let fit = 0;
-  if(role) fit = 0.6*(ai.roles[role] || 0) + (role==='hook' ? 0.3*(ai.roles.action || 0) : 0);
-  if(last && role!=='ending') fit += 0.3*(ai.roles.ending || 0);
-  return ai.conf * (2.2*(ai.score - 0.5) + fit);
-}
 // which moments to show: evenly over the clip, the sharpest well-lit moment of each part, never on a scene change
 function aiTimes(src){
   const n = Math.max(3, Math.min(5, Math.round(src.dur/3))), out = [];
@@ -2657,13 +2552,6 @@ function dirRequest(cands){
   return { req, ctx };
 }
 // the AI's answer -> one entry per cut (its shot as a moment of a clip)
-function toSlots(list, cands){
-  const slots = [];
-  // an answer that is not a list of cuts (a broken reply) gives no slots: the phone's own edit stays
-  for(const d of Array.isArray(list) ? list : []){ if(!d || typeof d !== 'object' || !Number.isInteger(d.i) || d.i < 0 || d.i > 999) continue; const c = (cands[d.i]||[]).find(x=>x.id===d.shot);
-    slots[d.i] = { cand: c ? {src:c.si, in:c.a} : null, tr: d.transition, fx: d.effect, sp: d.speed, keys: Array.isArray(d.keys) ? d.keys : [], move: Array.isArray(d.move) ? d.move : [], cs: d.clip && typeof d.clip === 'object' ? d.clip : null, why: d.why || '', ...(d.auto ? { auto: true } : {}) }; }
-  return slots;
-}
 // An AI plan made for other cuts (the song's part moved), fitted to these: every cut takes the choices of the AI's cut
 // whose music is most alike (a drop's transition goes to the new drop, the hook stays the hook), its keyframes land on
 // this cut's own hits, and its moments of the clips are kept where this cut can use them. withShots false: the phone
@@ -2975,14 +2863,6 @@ function camAt(e, local){
 }
 // Should this shot get a zoom effect at all? A punch on a big face or on footage that already moves a lot looks messy,
 // and a punch in the middle of a long calm shot is out of place: those get a softer move instead.
-function suitFx(e){
-  e.why = '';
-  if(!['punch','tilt','zoomburst','hook','bounce'].includes(e.efx)) return;
-  const len = e.end - e.start;
-  if((e.face||0) > 0.3 && (e.fs||0) > 0.28){ e.efx = (e.efx==='zoomburst' || e.efx==='hook') ? 'punch-soft' : 'none'; e.why = 'close-up: kept gentle'; }
-  else if((e.mot||0) > 0.75 && e.efx!=='hook'){ e.efx = 'punch-soft'; e.why = 'busy shot: softer zoom'; }
-  else if(len > 2.2 && (e.efx==='punch' || e.efx==='tilt')){ e.efx = 'pan'; e.why = 'long shot: slow move instead'; }
-}
 // how good footage [a, a+need] of src is for cut i (the rules, plus the AI's opinion of the moment when it is on)
 // a clip that is bad all through (shaky handheld, out of focus) looks fine next to itself: judged against the other
 // clips. Shaky = the camera's own movement jumps around from frame to frame; soft = far fewer fine edges than the rest.
@@ -2991,11 +2871,6 @@ function suitFx(e){
  * enough: said plainly, with the way out (a shorter Reel on the music page, or more clips), so the Reel is never filled
  * by repeating moments or slowing clips down. ---- */
 const fmtS = s => s >= 60 ? Math.floor(s/60) + ':' + String(Math.round(s % 60)).padStart(2, '0') + ' min' : Math.round(s) + ' s';
-function goodSecs(src){
-  const S = src.samples || [], med = src.shMed || 1, usable = Math.max(0, (src.dur || 0) - TAIL);
-  if(!S.length) return usable;
-  return usable * S.filter(x => (x.sh || 0) / med >= 0.45 && (x.b ?? 1) >= 0.08).length / S.length;
-}
 let footTimer = 0, footSaid = '';
 function footCheckSoon(){ if(!location.pathname.startsWith('/create') || kind === 'talk') return; clearTimeout(footTimer); footTimer = setTimeout(footCheck, 900); }
 async function footCheck(){
@@ -3269,15 +3144,6 @@ function captureLoop(){
     showSafe=sv; hookText=h; pos = at(); return prepare(segAt(pos), pos); }).then(()=>{ drawFrame(pos); if(kfOpen()) kfSync(); });
 }
 // an AI camera move in words: "zoom 1.00→1.18, slides right, turns 4°, fast then settles"
-function moveWords(K){
-  const a = K[0], b = K[K.length-1], w = [];
-  if(Math.abs(b.s - a.s) > 0.02) w.push('zoom ' + a.s.toFixed(2) + '→' + b.s.toFixed(2));
-  if(Math.abs(b.x - a.x) > 0.01) w.push(b.x > a.x ? 'slides right' : 'slides left');
-  if(Math.abs(b.y - a.y) > 0.01) w.push(b.y > a.y ? 'slides down' : 'slides up');
-  if(Math.abs(b.r - a.r) >= 1) w.push('turns ' + Math.round(b.r - a.r) + '°');
-  const ez = { outExpo: 'fast then settles', outCubic: 'quick then eases', outBack: 'overshoots', inOut: 'smooth', lin: 'steady' }[b.ez];
-  return (w.join(', ') || 'moves') + (ez ? ' · ' + ez : '') + ' · ' + K.length + ' keyframes';
-}
 function kfSummary(e){
   const cam = e.cam ? {face:'camera follows the face', subject:'camera follows the subject', still:'camera locked on the subject'}[e.cam.mode] : '';
   const notes = [e.dirWhy && aiOn ? 'Shubix: ' + e.dirWhy : '', e.aiNote && aiOn ? 'Shubix saw: ' + e.aiNote : '', e.why, cam].filter(Boolean).join(' · ');
@@ -3295,13 +3161,6 @@ const holdSpeed = {label:'Freeze frame', at:()=>0, pos:()=>0};   // the picture 
 SPEED_KEYS.curve = 'Custom curve';
 /* a custom speed curve: five speeds across the shot (start, 1/4, middle, 3/4, end; 0.2x-4x), smooth in between; the clip
  * time is the integral of the speed (precomputed in 96 steps) */
-function curveSpeed(len, cv){
-  const v = ['a','b','c','d','e'].map(k => Math.min(4, Math.max(0.2, +(cv && cv[k]) || 1)));
-  const at = l => { const x = Math.min(1, Math.max(0, l/Math.max(1e-6, len)))*4, i = Math.min(3, Math.floor(x)), f = x - i, s2 = f*f*(3 - 2*f); return v[i] + (v[i+1] - v[i])*s2; };
-  const N = 96, cum = new Float64Array(N + 1); for(let k = 0; k < N; k++){ const a = k*len/N, b = (k + 1)*len/N; cum[k+1] = cum[k] + (at(a) + at(b))/2*(b - a); }
-  const pos = l => { const x = Math.min(N, Math.max(0, l/Math.max(1e-6, len)*N)), i = Math.min(N - 1, Math.floor(x)); return cum[i] + (cum[i+1] - cum[i])*(x - i); };
-  return { label:'Custom curve', at, pos };
-}
 function speedFor(key, e){
   const len = e.end - e.start, bl = beats.filter(b=>b>e.start+0.15 && b<e.end-0.1).map(b=>b-e.start);
   if(key==='slow') return SPEED.slow; if(key==='fast') return SPEED.fast; if(key==='ramp') return rampSpeed(len);
@@ -3658,7 +3517,6 @@ async function prepare(i, t, quick){
   if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 650 : 4000); }catch(err){} }
 }
 const srcPosF = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
-const srcPos = (e, l) => e.cs && e.cs.rev ? e.in + (e.sp.pos(e.end - e.start) - e.sp.pos(l))*e.scaleR : srcPosF(e, l);
 const rateAt = (e, l) => { const r = e.sp.at(l)*e.scaleR; return r<=0 ? 0 : Math.max(0.0625, Math.min(16, r)); };
 // faster than a video can play (16x, a very fast shot "In my order"): the preview shows it frame by frame, by seeking
 const PLAY_MAX = 16, rawRate = (e, l) => e.sp.at(l)*e.scaleR;
@@ -3768,8 +3626,6 @@ function canvasPat(g, W, H, k, col){
   else if(k === 'grid'){ g.fillRect(-W, -H, 3*W, 3*H); g.fillStyle = L; for(let x = 0; x < W; x += 64*z) g.fillRect(x, 0, 4*z, H); for(let y = 0; y < H; y += 64*z) g.fillRect(0, y, W, 4*z); }
   else for(let y = 0, j = 0; y < H; y += 72*z, j++) for(let x = 0, i = 0; x < W; x += 72*z, i++) if((i + j) % 2) g.fillRect(x, y, 72*z, 72*z);
 }
-function csFilter(c){ if(!c.bri && !c.con && !c.sat && !c.warm) return '';
-  return ` brightness(${(1+c.bri*0.5).toFixed(3)}) contrast(${(1+c.con).toFixed(3)}) saturate(${(1+c.sat).toFixed(3)})` + (c.warm ? (c.warm > 0 ? ` sepia(${(c.warm*0.25).toFixed(3)})` : ` hue-rotate(${(c.warm*-12).toFixed(1)}deg)`) : ''); }
 // the picture in its display rect: turned, then mirrored / flipped
 function csDraw(g, v, c, x, y, w, h){
   if(!c.rot && !c.fh && !c.fv){ g.drawImage(v, x, y, w, h); return; }
@@ -3961,8 +3817,6 @@ $('lyedit').addEventListener('click', e => { const t = e.target.closest('button'
   else if(t.dataset.lykey){ L.key = { ...(L.key || { tol: 0.35 }), on: true, c: t.dataset.lykey }; lyUI(); redrawFrame(); }
   else if(t.dataset.lydel){ layers.splice(lySel, 1); lySel = Math.min(lySel, layers.length - 1); clipMixKey = ''; lyUI(); redrawFrame(); }
 }, SIG);
-function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let cur='';
-  words.forEach(w=>{ const tryL = cur ? cur+' '+w : w; if(g.measureText(tryL).width > maxW && cur){ lines.push(cur); cur=w; } else cur=tryL; }); if(cur) lines.push(cur); return lines; }
 /* ---- text: the hook word by word on the beats, captions of the song word by word ----
    Styles: pop (each word pops in on its beat / when it is sung), karaoke (the line is shown, the sung word lights up),
    box (words on coloured boxes), clean (calm, small). Everything stays inside Instagram's safe area (the top 220 px and
@@ -3970,7 +3824,6 @@ function wrapLines(g, text, maxW){ const words=text.split(/\s+/), lines=[]; let 
    are drawn with a font that shapes them. Drawn into the frame itself, so the export has it too. */
 let textStyle = 'pop', capsOn = false, capWords = null, capLines = null;
 let ACCENT = '#FFD54A';   // the captions' highlight (a copied Reel can change it)
-const isIndic = s2 => /[ऀ-෿]/.test(s2);
 const fontFor = (txt, px, weight=800) => isIndic(txt) ? `${weight} ${px}px "Noto Sans Devanagari", "Nirmala UI", "Mangal", "Kohinoor Devanagari", sans-serif` : `${weight} ${px}px "Bricolage Grotesque", "Arial Black", system-ui, sans-serif`;
 const shown = txt => isIndic(txt) ? txt : txt.toUpperCase();
 // words laid out in lines centred on (W/2, cy): [{word, x, y, w}], wrapped to maxW
@@ -4018,15 +3871,6 @@ function drawHook(t){
     const cur = !coverMode && since < 0.45; drawWord(og, w, fs, textStyle, textStyle === 'karaoke' ? 2 : (cur ? 1 : 2), a, sc); });
 }
 // lines of the song's words: a new line at a pause, after 4 words, or when it gets long
-function buildCapLines(words){
-  const lines = []; let cur = [];
-  const flush = () => { if(cur.length) lines.push(cur); cur = []; };
-  words.forEach((w,i)=>{ const prev = cur[cur.length-1], chars = cur.reduce((q,x)=>q+x.text.length+1,0) + w.text.length;
-    if(prev && (w.start - prev.end > 0.45 || cur.length >= 4 || chars > (isIndic(w.text) ? 20 : 24) || /[.,!?।]$/.test(prev.text))) flush();
-    cur.push(w); });
-  flush();
-  return lines.map((ws,k)=>({ words: ws, a: ws[0].start - 0.12, b: ws[ws.length-1].end + 0.3 })).map((l,k,arr)=>({ ...l, b: arr[k+1] ? Math.min(l.b, arr[k+1].a - 0.02) : l.b }));
-}
 // where a face is on the screen at t (fraction of the height), if the shot follows one
 function facePosOnScreen(t){
   if(!edit.length) return null;
@@ -4986,16 +4830,6 @@ function shotKey(t){
   chromaKey(q, W, H, k);
   og.save(); og.setTransform(1, 0, 0, 1, 0, 0); og.globalAlpha = 1; og.globalCompositeOperation = 'source-over'; og.fillStyle = k.bg || '#000000'; og.fillRect(0, 0, W, H); og.drawImage(ckBuf, 0, 0); og.restore();
 }let mkBuf = null;
-function maskPath(q, m, W, H){
-  const w = m.w*W, h = m.h*W, R = Math.hypot(W, H)*2;   // sized on the width, so a circle stays round
-  q.translate(m.x*W, m.y*H); q.rotate((m.a || 0)*Math.PI/180); q.beginPath();
-  if(m.s === 'rect') q.rect(-w/2, -h/2, w, h);
-  else if(m.s === 'heart'){ const s = w/2; q.moveTo(0, s*0.9); q.bezierCurveTo(-s*1.7, -s*0.15, -s*0.65, -s*1.35, 0, -s*0.45); q.bezierCurveTo(s*0.65, -s*1.35, s*1.7, -s*0.15, 0, s*0.9); }
-  else if(m.s === 'star'){ for(let k = 0; k < 10; k++){ const r = k % 2 ? w*0.21 : w/2, a = -Math.PI/2 + k*Math.PI/5; q.lineTo(Math.cos(a)*r, Math.sin(a)*r); } q.closePath(); }
-  else if(m.s === 'split') q.rect(-R, 0, 2*R, R);      // one side of a line through the centre
-  else if(m.s === 'film') q.rect(-R, -h/2, 2*R, h);    // a band across the frame
-  else q.ellipse(0, 0, w/2, h/2, 0, 0, 2*Math.PI);
-}
 function shotMask(t){
   const e = edit[segAt(t)], m = e && e.cs && e.cs.mk && csOf(e, t - e.start).mk; if(!m) return;
   const W = out.width, H = out.height;
@@ -5089,10 +4923,6 @@ function upSharp(e, dh){ const src = sources[e.src], h = src && (src.h || src.w)
  * The preview plays it from its frames, decoded once at a small size (rc); the export decodes it forwards in windows of
  * a dozen frames (a ring of canvases, so a long or 4K shot never fills the memory) and hands them out backwards. ---- */
 const REV_MAX = 8;   // seconds of clip a shot may play backwards
-function revFrame(e, local){
-  const rc = e.rc, st = srcPos(e, local), k = Math.max(0, Math.min(rc.frames.length - 1, Math.round((st - rc.a)/rc.dt)));
-  return rc.frames[k] || e.el;
-}
 async function revCache(e){
   const need = e.sp.pos(e.end - e.start)*e.scaleR, key = e.src + '|' + e.in.toFixed(3) + '|' + need.toFixed(3);
   if(e.rc && e.rc.key === key) return;
@@ -5144,7 +4974,6 @@ function lensOf(e){ const c = csOf(e), W = out.width, H = out.height;
  * a white-edged frame on its own blurred copy, bumping on the beats · mirror, kaleido · triple: the shot three times,
  * one band a beat · vhs: retro tape. Shot without beats (talking): a step every 0.6 s. Drawn by the WebGL renderer. */
 const SHAPE_K = { boxgrow:1, grid:2, strips:3, circle:4, heartbeat:5, starbeat:6, frame:7, mirror:8, kaleido:9, triple:10, vhs:11 };
-const shotBeats = e => { const L = e.end - e.start, b = (e.beatsIn || []).filter(x => x > 0.08 && x < L - 0.05); if(b.length) return b; const o = []; for(let x = 0.6; x < L - 0.1; x += 0.6) o.push(x); return o; };
 function shapeAt(e, local, B){
   const k = SHAPE_K[e.efx]; if(!k) return null;
   const W = out.width, H = out.height, bts = shotBeats(e), past = bts.filter(b => local >= b), n = past.length, since = n ? local - past[n-1] : local;
@@ -5167,12 +4996,6 @@ function shapeAt(e, local, B){
   return { a: [k, lv, cx, cy], b: [cells, 0, 0, 0] };
 }
 // beat effects that ride on the picture's own settings: an RGB split or a blur on each beat
-function beatFxOf(e, local){
-  if(e.efx !== 'rgbpulse' && e.efx !== 'blurpulse' && e.efx !== 'vhs') return null;
-  if(e.efx === 'vhs') return { rgb: 5 + 3*Math.abs(Math.sin(local*7)), zb: 0 };
-  let r = 0; for(const b of shotBeats(e)){ const d = local - b; if(d >= 0 && d < 0.4) r = Math.max(r, Math.exp(-d/0.09)); }
-  return e.efx === 'rgbpulse' ? { rgb: 18*r, zb: 0 } : { rgb: 0, zb: 1.4*r };
-}
 function drawFrameGL(t){
   const W=out.width, H=out.height, i = segAt(t), e = edit[i], local = t - e.start, pe = edit[i-1], pl = pe ? pe.end-pe.start : 0;
   const d = trDur(e), p = d ? Math.min(1, local/d) : 1, q = EASE.outCubic(p);
