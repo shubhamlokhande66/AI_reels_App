@@ -27,7 +27,7 @@ it.skipIf(!dir)("beat check on real songs", { timeout: 3_600_000 }, async () => 
     fs.rmSync(clicks);
     const gaps = a.beats.slice(1).map((t, i) => t - a.beats[i]).sort((p, q) => p - q);
     const summary = { song: name, seconds: a.duration, bpm: a.bpm, bpmEstimates: a.bpmEstimates, bpmAgreement: a.bpmAgreement,
-      trackerConfidence: a.beatConfidence, essentiaConfidence: a.essentiaConfidence, beats: a.beats.length, beatSource: a.beatSource,
+      trackerConfidence: a.beatConfidence, beats: a.beats.length, beatSource: a.beatSource,
       gapMedian: gaps[gaps.length >> 1], gapMin: gaps[0], gapMax: gaps[gaps.length - 1], meter: a.meter, downbeatConfidence: a.downbeatConfidence,
       tempoSections: a.tempoSections.length, transients: a.transients.length, drops: a.dropTimes, analysisSeconds: (Date.now() - t0) / 1000 };
     fs.writeFileSync(path.join(out, `${base}.json`), JSON.stringify({ ...summary, beatTimes: a.beats, downbeats: a.downbeats }, null, 1));
