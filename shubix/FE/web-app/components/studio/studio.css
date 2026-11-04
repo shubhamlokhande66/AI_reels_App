@@ -593,8 +593,11 @@
 .brs .fready small{color:var(--muted);font-size:13px}
 
 /* the Reel Preview (computers) */
-.brs .fprev{display:grid;gap:14px;align-content:start}
-.brs .fprevh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brs .fprev{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-content:start;min-width:0}
+.brs .fprevh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+/* the Reel's shape: under the title, as wide as the card (it never leaves it) */
+.brs .fprevh #aspect{flex:1 1 100%;flex-wrap:wrap;min-width:0;max-width:100%}
+.brs .fprevh #aspect button{flex:1 1 22%;min-width:0;padding-inline:6px;white-space:nowrap}
 .brs .fprevh b{font:600 15px var(--body)}
 .brs .fprevbox{position:relative;aspect-ratio:9/16;border-radius:18px;overflow:hidden;display:grid;place-items:center;align-content:center;gap:10px;background:radial-gradient(60% 50% at 50% 35%,color-mix(in srgb,var(--accent) 38%,transparent),transparent 70%),linear-gradient(170deg,#373124,#10100f);color:#fff}
 .brs .fplay{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.75)}
@@ -602,7 +605,9 @@
 .brs .fprevbox small{font:600 13px var(--body);color:rgba(255,255,255,.8)}
 .brs .fprevbox.ready{box-shadow:0 0 0 2px var(--accent)}
 /* computers: the card fits the window (Generate Reel always in reach on a short laptop screen); the preview 9:16 inside */
-@media (min-width:1024px){ .brs.fopen .fprevbox{height:clamp(260px,calc(100vh - 320px),680px);width:auto;justify-self:center} }
+/* as tall as the screen allows, never wider than its card */
+@media (min-width:1024px){ .brs.fopen .fprevbox{height:auto;width:min(100%,calc(clamp(260px,calc(100vh - 320px),680px) * .5625));justify-self:center}
+  .brs.fopen[data-asp="4:5"] .fprevbox,.brs.fopen[data-asp="1:1"] .fprevbox{width:100%} }
 .brs .fgen{width:100%;justify-content:center;gap:9px;min-height:48px;font-size:14.5px;border-radius:13px}
 .brs .fgen svg{width:19px;height:19px}
 .brs .fnote{display:flex;align-items:center;justify-content:center;gap:6px;margin:0;color:var(--muted);font-size:12.5px;text-align:center}
