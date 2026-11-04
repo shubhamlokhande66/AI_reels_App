@@ -1,7 +1,9 @@
 import path from "node:path";
 import type { NextConfig } from "next";
 
-const API_URL = (process.env.API_URL || "http://localhost:4000").replace(/\/$/, "");
+// the API's address, with or without its https:// (a rewrite needs it, or the whole build stops)
+const API_HOST = (process.env.API_URL?.trim() || "http://localhost:4000").replace(/\/+$/, "");
+const API_URL = /^https?:\/\//i.test(API_HOST) ? API_HOST : `https://${API_HOST}`;
 
 const nextConfig: NextConfig = {
   // Self-contained server output, used by docker/Dockerfile (Vercel builds its own: VERCEL is set there)
