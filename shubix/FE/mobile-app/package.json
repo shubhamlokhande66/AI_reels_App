@@ -8,6 +8,7 @@
     "android": "expo start --android --lan --go",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "engine:build": "node engine/build.mjs",
     "aab": "node scripts/build-aab.mjs"
   },
   "dependencies": {
@@ -65,9 +66,16 @@
   },
   "devDependencies": {
     "@babel/plugin-transform-react-jsx": "^7.29.7",
+    "@diffusionstudio/piper-wasm": "1.0.0",
+    "@mediabunny/aac-encoder": "1.60.0",
     "@react-native/metro-config": "0.88.0",
+    "@shiguredo/rnnoise-wasm": "2025.1.5",
+    "@shubix/ui-web": "workspace:*",
     "@types/react": "~19.3.0",
     "babel-preset-expo": "~58.0.0",
+    "esbuild": "0.28.2",
+    "mediabunny": "1.60.0",
+    "onnxruntime-web": "1.29.0",
     "tailwindcss": "^3.4.17",
     "typescript": "~6.0.3"
   }

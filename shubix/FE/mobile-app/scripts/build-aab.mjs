@@ -35,6 +35,7 @@ const env = {
 };
 
 // 2. android/ from the config, then 3. the bundle
+run("node", ["engine/build.mjs"], app, env);
 run("npx", ["expo", "prebuild", "-p", "android", "--clean", "--no-install"], app, env);
 const android = join(app, "android");
 run(win ? `"${join(android, "gradlew.bat")}"` : "./gradlew", ["bundleRelease"], android, env);

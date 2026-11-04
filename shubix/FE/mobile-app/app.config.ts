@@ -16,6 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     }],
     // R8 (on by default in release builds) removed WorkManager's database class: the app closed at start
     ["expo-build-properties", { android: { enableMinifyInReleaseBuilds: false, enableShrinkResourcesInReleaseBuilds: false } }],
+    "./plugins/with-local-engine", // the hidden engine page on http://127.0.0.1 (only that address)
     "./plugins/with-upload-key", // the Play upload key in release builds (plugins/with-upload-key.js)
   ],
 });
