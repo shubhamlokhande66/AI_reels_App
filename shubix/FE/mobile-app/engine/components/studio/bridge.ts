@@ -324,6 +324,9 @@ export function initBridge(root: HTMLElement): () => void {
         const cs = { ...((current.cs as Record<string, unknown>) || {}), ...((shot.cs as Record<string, unknown>) || {}) };
         return { ...shot, ...(Object.keys(cs).length ? { cs } : {}), uk: shot.uk ?? current.uk, acc: current.acc, ak: current.ak };
       });
+      // the export runs as long as the song's part: shots that end before it (a trimmed shot) must not leave black, the last shot holds
+      const last = merged[merged.length - 1];
+      if (last && Number(last.end) < st.dur) last.end = st.dur;
       const ok = !!st.setEdit(merged);
       if (Array.isArray(a.overlays) && st.setOverlays) st.setOverlays(a.overlays as Array<Record<string, unknown>>);
       return { ok };

@@ -7,6 +7,7 @@ import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/valida
 import { buildSpeedRampSegments } from "@mobile/video-engine";
 import { tokenStore } from "./device";
 import { API_URL } from "./session";
+import { fitShot } from "./shotFit";
 import { reelFromCopy } from "../engine/brain/index";
 
 /** The phone's own engine makes its Reels: the page in FE/mobile-app/engine (its own code, worked through
@@ -83,7 +84,7 @@ export const engine = {
       if (!from || KEEP.some((k) => c[k] !== from.clip[k])) return false;
       const len = clipDuration(c);
       const hasRamp = !!c.speedRamp?.length;
-      const sp = hasRamp ? "curve" : ((SPEED[from.shot.sp] ?? 1) === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed));
+      const sp = hasRamp ? "curve" : (from.clip.speed === c.speed ? from.shot.sp : Object.keys(SPEED).find((k) => SPEED[k] === c.speed));
       if (!sp) return false; // a fixed speed the studio has not (it has slow, normal, fast)
       const base = from.shot;
       const cs = { ...(base.cs ?? {}) };
@@ -183,10 +184,9 @@ const KEEP = ["uri", "filter"] as const;
 export function shotsOf(shots: EngineShot[], list: ProjectClip[]): ProjectClip[] {
   made.clear(); sources = list;
   return shots.map((e, i) => {
-    const c = list[e.src] ?? list[0], speed = SPEED[e.sp] ?? 1, len = (e.end - e.start) * speed;
-    const start = c.kind === "image" ? 0 : Math.min(Math.max(0, e.in), Math.max(0, c.sourceDuration - 0.1));
-    const end = c.kind === "image" ? e.end - e.start : Math.min(c.sourceDuration, start + Math.max(0.1, len));
-    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed: c.kind === "image" ? 1 : speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk, ...(e.cs ? { cs: e.cs } : {}) };
+    const c = list[e.src] ?? list[0], timeline = e.end - e.start;
+    const { start, end, speed } = c.kind === "image" ? { start: 0, end: timeline, speed: 1 } : fitShot(timeline, SPEED[e.sp] ?? 1, c.sourceDuration, e.in);
+    const clip = { ...c, id: `${c.id}-s${i}`, start, end, duration: end - start, speed, transition: e.tr || "hard", effect: e.efx || undefined, keyframes: e.uk, ...(e.cs ? { cs: e.cs } : {}) };
     made.set(clip.id, { shot: e, clip });
     return clip;
   });
