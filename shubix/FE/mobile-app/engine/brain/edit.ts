@@ -228,6 +228,25 @@ function partsOfSong(){
     ES.song.partsOf = ES.song.r; }
   return ES.song ? ES.song.parts : [];
 }
+/** one frame of a clip, as plain numbers: `d` the small frame's RGBA (SW x SH), `d2` a 128 x 72 one, `prev` the small
+ * frame before it (its light). No picture is needed, so the phone's own decoder can give the bytes (FrameReader.kt). */
+function frameStats(d, d2, prev){
+  const SW = EH.SW, SH = EH.SH, lum = new Float32Array(SW*SH); let b=0;
+  for(let i=0;i<SW*SH;i++){ const y=(d[i*4]*0.3+d[i*4+1]*0.59+d[i*4+2]*0.11)/255; lum[i]=y; b+=y; }
+  const hist = colorHist(d);
+  const sal = saliency(d);   // what stands out from the picture (a person in red on a grey street), moving or not
+  let m=0, mx=0;
+  if(prev){ for(let i=0;i<lum.length;i++){ const df=Math.abs(lum[i]-prev[i]); m+=df; mx+=df*((i%SW)+0.5)/SW; } }
+  const sub = prev ? subjectMotion(prev, lum) : null;   // where something moves on its own (camera motion removed)
+  // sharpness: how strong the fine edges are (Laplacian variance) - blurry or shaky frames score low
+  const L2 = new Float32Array(128*72);
+  for(let i=0;i<L2.length;i++) L2[i] = d2[i*4]*0.3+d2[i*4+1]*0.59+d2[i*4+2]*0.11;
+  let sm=0, sq=0, n=0;
+  for(let y=1;y<71;y++) for(let x=1;x<127;x++){ const i=y*128+x, lap = 4*L2[i]-L2[i-1]-L2[i+1]-L2[i-128]-L2[i+128]; sm+=lap; sq+=lap*lap; n++; }
+  const sh = sq/n - (sm/n)*(sm/n);
+  return { lum, hist, row: { m: prev ? m/lum.length : 0, b:b/lum.length, cx: m>1e-6 ? mx/m : 0.5, sh,
+    sx: sub ? sub.x : -1, sy: sub ? sub.y : -1, sw: sub ? sub.w : 0, gx: sub ? sub.gx : 0, gy: sub ? sub.gy : 0, ax: sal.x, ay: sal.y, aw: sal.w } };
+}
 function colorHist(d){
   const h = new Float32Array(EH.FEAT), gs = new Float32Array(40); let n = 0;
   for(let i=0;i<d.length;i+=4){
@@ -1092,5 +1111,5 @@ function remakeOk(){ if(!ES.restoring) ES.keepSaved = false; }
 function editOf(){
   return ES.kind === 'talk' ? [] : ES.edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, tr: e.tr, efx: e.efx, sp: EH.speedKey(e.sp), src: e.src, in: e.in, scaleR: e.scaleR, cx: e.cx, cy: e.cy, face: e.face, fs: e.fs, uk: e.uk && e.uk.length ? e.uk : undefined, acc: e.acc && e.acc.length ? e.acc : undefined, ak: e.ak && e.ak.length ? e.ak : undefined, cs: e.cs ? JSON.parse(JSON.stringify(e.cs)) : undefined, flick: e.flick || undefined, trd: e.trd ?? undefined, black: e.black || undefined }));
 }
-  return { flickPick, withMarks, drumness, snap, adaptPlan, beatEdit, noFlashCuts, adaptPlan0, buildPlan, partBeats, bestPart, snapToBeat, songParts, applyParts, partAt, gridOf, withPartCuts, partsOfSong, colorHist, saliency, subjectMotion, trackFaces, previewBatchClose, speechParts, rng, kf, uAt, accentAt, reelIdNow, aiTags, aiAt, aiTimes, planLine, recipeNow, tastePlan, finishTransitions, directorCandidates, mixStore, cutMusic, refitDirector, getSoundMap, cleanMoments, refContext, wholeSections, paceFromSong, camPath, camAt, clipFlaw, scoreWindow, ukKeep, ukRestore, seqSlots, seqPick, kfSummary, speedFor, assignPlayers, repick, kxSet, histSnap, histBase, segAt, strongHit, beatPulse, drawWord, speakingVoice, markKeyWords, emphAt, ovTiming, kxAt, csMat, csFwd, csCam, stabPath, stabAt, upSharp, captionOf, noSongTip, exportDims, cutKind, describeRef, copyPlanTimed, copyPlan, copyStyle, copyShots, copyMatch, fingerprintOf, voPcm, sfxSynth, sfxEvents, pitchShift, voiceFx, csAutoSet, csAutoClear, speechShare, storyVoice, remakeOk, editOf };
+  return { frameStats, flickPick, withMarks, drumness, snap, adaptPlan, beatEdit, noFlashCuts, adaptPlan0, buildPlan, partBeats, bestPart, snapToBeat, songParts, applyParts, partAt, gridOf, withPartCuts, partsOfSong, colorHist, saliency, subjectMotion, trackFaces, previewBatchClose, speechParts, rng, kf, uAt, accentAt, reelIdNow, aiTags, aiAt, aiTimes, planLine, recipeNow, tastePlan, finishTransitions, directorCandidates, mixStore, cutMusic, refitDirector, getSoundMap, cleanMoments, refContext, wholeSections, paceFromSong, camPath, camAt, clipFlaw, scoreWindow, ukKeep, ukRestore, seqSlots, seqPick, kfSummary, speedFor, assignPlayers, repick, kxSet, histSnap, histBase, segAt, strongHit, beatPulse, drawWord, speakingVoice, markKeyWords, emphAt, ovTiming, kxAt, csMat, csFwd, csCam, stabPath, stabAt, upSharp, captionOf, noSongTip, exportDims, cutKind, describeRef, copyPlanTimed, copyPlan, copyStyle, copyShots, copyMatch, fingerprintOf, voPcm, sfxSynth, sfxEvents, pitchShift, voiceFx, csAutoSet, csAutoClear, speechShare, storyVoice, remakeOk, editOf };
 }
