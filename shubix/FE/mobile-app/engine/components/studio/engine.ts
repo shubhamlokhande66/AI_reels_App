@@ -712,7 +712,7 @@ async function videoData(v, ms=12000){
 // to be used before the next one is asked for; at(t) gives one.
 // On the phone the app's hardware decoder gives the frames (FrameReader.kt); a clip it cannot read goes the web's way.
 async function clipReader(src, maxSide){
-  const ph = window.__phone, path = ph && !src.edFile && src.file && ph.paths[src.file.name + '|' + src.file.size];
+  const ph = window.__phone, path = ph && src.file && (src.edFile ? src.edPath : ph.paths[src.file.name + '|' + src.file.size]);
   if(!path) return webReader(src, maxSide);
   const sc = Math.min(1, maxSide/Math.max(src.w, src.h)), W = Math.max(2, Math.round(src.w*sc/2)*2), H = Math.max(2, Math.round(src.h*sc/2)*2), size = W*H*4;
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'), pic = g.createImageData(W, H);
@@ -1175,9 +1175,18 @@ async function makeEditCopy(src, dd, facts, plan, playable){
   life({ stage: 'making an edit copy', size: Math.round(src.file.size/1e6) + ' MB', res: (facts && facts.width) + 'x' + (facts && facts.height), what: label });
   src.proxyStatus = 'Making a smooth copy…'; updateClipHoverInfo(src);
   const show = (p, word) => { const n = Math.max(0, Math.min(100, Math.round(p*100))); dd.textContent = word + ' ' + n + '%'; titleProgress('copy', 'Preparing your clips', p); previewBatchShow(src, word[0].toUpperCase() + word.slice(1) + ' ' + src.name + '…', p); };
-  // 1. on this device: WebCodecs, else the browser's own player feeding an encoder
+  // 0. on the phone: its own hardware (EditCopy.kt), far quicker than the page's encoder
   let r = null;
-  if(plan && (playable || (facts && facts.decodes))){
+  const ph = window.__phone, phonePath = ph && ph.paths[src.file.name + '|' + src.file.size];
+  if(plan && phonePath){ try{
+    show(0, 'making a smooth copy…');
+    const made = await fetch(ph.base + '/copy?k=' + ph.key + '&p=' + encodeURIComponent(phonePath) + '&w=' + plan.width + '&h=' + plan.height + '&fps=' + (plan.fps || 30) + '&b=' + plan.bitrate, { method: 'POST' });
+    if(made.ok){ const { path } = await made.json(), got = await fetch(ph.base + '/f?k=' + ph.key + '&p=' + encodeURIComponent(path)), blob = got.ok ? await got.blob() : null;
+      if(blob && blob.size && await hasPicture(blob)){ r = { blob, plan }; src.edPath = path; } }
+    else console.info('the phone could not make the copy', await made.text());
+  }catch(e){ console.info('the phone could not make the copy', e); } }
+  // 1. on this device: WebCodecs, else the browser's own player feeding an encoder
+  if(!r && plan && (playable || (facts && facts.decodes))){
     // tried twice when the page went to the background meanwhile (the browser may take the decoder back there)
     for(let k = 0; k < 2 && !r && !src.removed; k++){
       const seq = bgSeq;
@@ -1213,7 +1222,7 @@ async function makeEditCopy(src, dd, facts, plan, playable){
   titleDone('copy');
   previewBatchCompressed++;
   previewBatchShow(src, 'Smooth copy ready (' + previewBatchCompressed + '/' + previewBatchDetected + '). Reading your videos…', 1);
-  try{ await keptPut('p:', src.file, { v: 2, edit: true, audio: !!src.edAudio, blob: src.edFile, width: src.edW, height: src.edH, mime: src.edFile.type || '' }); }catch(e){}
+  try{ await keptPut('p:', src.file, { v: 2, edit: true, audio: !!src.edAudio, blob: src.edFile, width: src.edW, height: src.edH, mime: src.edFile.type || '', path: src.edPath || '' }); }catch(e){}
   return true;
 }
 // what the person sees when a heavy clip could not get its copy (it is kept, but may lag)
@@ -1231,14 +1240,16 @@ async function compressHighResolutionPreview(src, dd){
   const facts = { size: src.file.size, width: src.w, height: src.h, duration: src.dur, fps: probe ? probe.fps : 0, hdr: !!(probe && probe.hdr), tenBit: !!(probe && probe.tenBit), chroma422: !!(probe && probe.chroma422), vfr: !!(probe && probe.vfr) };
   src.facts = { ...facts, decodes: !!(probe && probe.decodes) };
   const isMov = /\.mov$/i.test(src.name || src.file.name || '') || /quicktime/i.test(src.file.type || '');
-  const plan=previewProxyPlan(facts, isMov);
-  const heavy = !!(plan && plan.forExport);
+  const planned=previewProxyPlan(facts, isMov);
+  const heavy = !!(planned && planned.forExport);
+  // the phone's own player plays the original: only a heavy clip needs a copy there, for the export
+  const plan = window.__phone && !heavy ? null : planned;
   // Reuse the copy made for this original file when a saved draft is reopened.
   const cached = await keptGet('p:', src.file);
   // (a copy kept without its picture, made before previewProxy.ts checked for one, is not used: it is made again)
   const pictured = cached && cached.blob instanceof Blob && (heavy ? cached.v === 2 && cached.edit : cached.v === 1 && cached.blob.size < src.file.size) && await hasPicture(cached.blob);
   if(pictured){
-    if(cached.edit){ src.edFile = cached.blob; src.edW = cached.width || 0; src.edH = cached.height || 0; src.edAudio = !!cached.audio; }
+    if(cached.edit){ src.edFile = cached.blob; src.edPath = cached.path || ''; src.edW = cached.width || 0; src.edH = cached.height || 0; src.edAudio = !!cached.audio; }
     src.url = URL.createObjectURL(cached.blob);
     src.previewProxy = true; src.proxySize = cached.blob.size;
     src.proxyW = cached.width || 0; src.proxyH = cached.height || 0;
@@ -7259,7 +7270,7 @@ root.__studio = { get layerMedia(){ return lmedia; }, get songR(){ return song &
   // the export's plan check (what the plan does not include, as the website's Export button asks) and the post's caption
   exportLocked: () => lockedUsed().map(x => ({ name: x.name, need: PLAN_NAME[x.need] })),
   exportFix: () => { lockedUsed().forEach(x => x.fix()); renderEDL(true); renderOvList(); sheetPaint(); }, caption: () => captionOf(),
-  copies: () => sources.map((s, i) => ({ i, name: s.name, blob: s.edFile || null, w: s.edW || 0, h: s.edH || 0 })) };   // read by tests
+  copies: () => sources.map((s, i) => ({ i, name: s.name, blob: s.edFile || null, path: s.edPath || '', w: s.edW || 0, h: s.edH || 0 })) };   // read by tests
 
   return () => {
     try{ stopAll(); }catch(err){}

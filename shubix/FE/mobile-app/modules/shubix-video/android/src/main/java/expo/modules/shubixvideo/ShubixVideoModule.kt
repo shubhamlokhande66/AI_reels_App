@@ -143,7 +143,7 @@ class ShubixVideoModule : Module() {
     // the engine page's home on the phone (FileServer): started once, its port and key; `api`: where its /api calls go
     Function("fileServer") { api: String ->
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
-      val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out"), c.assets, api.trimEnd('/')).also { files = it }
+      val s = files ?: FileServer(c, listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out"), api.trimEnd('/')).also { files = it }
       mapOf("port" to s.port, "key" to s.key)
     }
     OnDestroy {

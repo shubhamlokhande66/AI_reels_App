@@ -350,9 +350,10 @@ export function initBridge(root: HTMLElement): () => void {
     /** the clips' smooth copies (4K / HDR / 60 fps / changing frame rate), saved on the phone for its own preview and
      * export -> [{ name, path, w, h }] (clips that need none are left out) */
     async copies() {
-      const list = ((studio() as unknown as { copies?: () => { i: number; name: string; blob: Blob | null; w: number; h: number }[] }).copies?.() ?? []).filter((c) => c.blob);
+      const list = ((studio() as unknown as { copies?: () => { i: number; name: string; blob: Blob | null; path: string; w: number; h: number }[] }).copies?.() ?? []).filter((c) => c.blob);
       const out: { name: string; path: string; w: number; h: number }[] = [];
       for (const c of list) {
+        if (c.path) { out.push({ name: c.name, path: c.path, w: c.w, h: c.h }); continue; }   // made by the phone: already there
         const ext = /webm/.test(c.blob!.type) ? "webm" : "mp4", name = `copy-${c.i}-${c.name.replace(/\.[^.]+$/, "").replace(/[^\w.-]+/g, "_").slice(0, 60)}.${ext}`;
         const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(name)}`, { method: "PUT", body: c.blob });
         if (r.ok) out.push({ name: c.name, path: String((await r.json()).path), w: c.w, h: c.h });

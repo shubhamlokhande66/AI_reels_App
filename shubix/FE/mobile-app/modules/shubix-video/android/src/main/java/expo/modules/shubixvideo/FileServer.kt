@@ -1,5 +1,6 @@
 package expo.modules.shubixvideo
 
+import android.content.Context
 import android.content.res.AssetManager
 import android.net.Uri
 import java.io.BufferedInputStream
@@ -26,13 +27,17 @@ import kotlin.concurrent.thread
  *   GET  /f?k=KEY&p=PATH            a file (PATH: an absolute path or a file:// address)
  *   POST /frames?k=KEY&p=PATH&w=W&h=H  a clip's frames at the times in the body, comma separated (FrameReader.kt)
  *   GET  /sound?k=KEY&p=PATH        a file's sound, decoded (SoundReader.kt)
+ *   POST /copy?k=KEY&p=PATH&w=W&h=H&fps=F&b=BITRATE  a heavy clip's edit copy; answers its path (EditCopy.kt)
  *   PUT  /out?k=KEY&name=NAME       the body is kept as <cache>/engine-out/NAME; answers its path */
-class FileServer(private val roots: List<File>, private val outDir: File, private val assets: AssetManager, private val api: String) {
+@androidx.media3.common.util.UnstableApi
+class FileServer(private val context: Context, private val roots: List<File>, private val outDir: File, private val api: String) {
+  private val assets: AssetManager = context.assets
   val key: String = ByteArray(18).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
   // one address, so the page keeps its storage from one run to the next; any free port when another app holds it
   private val server = try { ServerSocket(47831, 16, InetAddress.getByName("127.0.0.1")) } catch (_: Exception) { ServerSocket(0, 16, InetAddress.getByName("127.0.0.1")) }
   val port: Int get() = server.localPort
   private val decoders = Semaphore(3, true)
+  private val copies = Semaphore(1, true)
 
   init { thread(isDaemon = true, name = "shubix-files") { while (!server.isClosed) try { val s = server.accept(); thread(isDaemon = true) { serve(s) } } catch (_: Exception) {} } }
   fun close() = try { server.close() } catch (_: Exception) {}
@@ -48,7 +53,7 @@ class FileServer(private val roots: List<File>, private val outDir: File, privat
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -68,6 +73,20 @@ class FileServer(private val roots: List<File>, private val outDir: File, privat
         if (method == "GET") RandomAccessFile(f, "r").use { r -> r.seek(a); val buf = ByteArray(256 * 1024); var left = b - a + 1
           while (left > 0) { val n = r.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n <= 0) break; out.write(buf, 0, n); left -= n } }
         out.flush()
+      }
+      url.path == "/copy" && method == "POST" -> {
+        val f = File(url.getQueryParameter("p") ?: "")
+        val w = url.getQueryParameter("w")?.toIntOrNull() ?: 0; val h = url.getQueryParameter("h")?.toIntOrNull() ?: 0
+        val fps = url.getQueryParameter("fps")?.toFloatOrNull() ?: 30f; val rate = url.getQueryParameter("b")?.toIntOrNull() ?: 6_000_000
+        if (!f.isFile || !inside(f) || w !in 2..3840 || h !in 2..3840) return@use reply(out, 404, "Not Found", emptyMap(), null)
+        // the same clip at the same size is made once
+        val to = File(outDir.apply { mkdirs() }, "copy-${(f.path + f.length() + f.lastModified() + w + h + fps + rate).hashCode().toUInt()}.mp4")
+        copies.acquire()   // the phone's hardware encoder: one copy at a time; the others wait for their turn
+        try {
+          if (!to.isFile || to.length() == 0L) makeEditCopy(context, f, to, w, h, fps, rate)
+          reply(out, 200, "OK", mapOf("Content-Type" to "application/json"), "{\"path\":${org.json.JSONObject.quote(to.absolutePath)}}".toByteArray())
+        } catch (e: Exception) { reply(out, 422, "Unreadable", mapOf("Content-Type" to "text/plain"), (e.message ?: "no copy").toByteArray()) }
+        finally { copies.release() }
       }
       url.path == "/sound" && method == "GET" -> {
         val f = File(url.getQueryParameter("p") ?: "")
