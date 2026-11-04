@@ -7188,9 +7188,13 @@ async function openProject(id){
 }
 function restoreEdit(list){
   if(!list.every(x => sources[x.src])) return false;
+  // the AI's plan stays this Reel's plan through an edit: its key has the shots' times in it, and without this the
+  // studio would say it is still waiting for the AI, and every next step on the phone would wait for it too
+  const keyBefore = dirKey(), planned = !!director && director.key === keyBefore;
   stopAll(); const uc = sources.map(() => 0);
   edit = list.map(x => { const e = { ...x, el: sources[x.src].els[(uc[x.src]++) % 3], dirWhy: '', why: '' }; e.sp = speedFor(x.sp, e); e.kf = keyframesFor(e); e.beatsIn = beats.filter(b => b > e.start + 0.12 && b < e.end - 0.05).map(b => b - e.start); return e; });
   plan = edit.map(e => ({ start: e.start, end: e.end, type: e.type, fx: e.fx, sp: e.sp, tr: e.tr, efx: e.efx, acc: e.acc, ak: e.ak, ref: e.ref, flick: e.flick, trd: e.trd, black: e.black }));
+  if(planned){ const keyNow = dirKey(); if(keyNow !== keyBefore){ director = { ...director, key: keyNow }; dirCache.set(keyNow, director); } }
   setCanvas(); edit.forEach(e => camAt(e, 0)); renderEDL(); drawMusic(); captureLoop(); editGen++;
   flickBuild();   // a saved flicker montage: its stills again
   return true;
