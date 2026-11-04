@@ -34,10 +34,12 @@ import { createEditBrain } from '../../brain/edit';
 import { createCoreBrain } from '../../brain/core';
 import { createReelBrain } from '../../brain/reel';
 import { createSharedBrain } from '../../brain/shared';
+import { createAiBrain } from '../../brain/ai';
 export function initStudio(root, deps) {
 
 // the edit core's state (brain/edit.ts); everything it needs from the page comes through the getters of EH
 const ES = {}, HOOKS = {};
+const { aiRun, aiGate, directorRun, variantsRun, paceRun, aiActions, aiTexts, timeoutSignal } = createAiBrain(ES, HOOKS.ai = { get BLENDS(){ return BLENDS; }, get IN_APP(){ return IN_APP; }, get LY0(){ return LY0; }, get SFX_NAMES(){ return SFX_NAMES; }, get SHOT_OPS(){ return SHOT_OPS; }, get VARIANTS(){ return VARIANTS; }, get ac(){ return ac; }, get addLayerMedia(){ return addLayerMedia; }, get addMark(){ return addMark; }, get addTemplate(){ return addTemplate; }, get addTtsAtPlayhead(){ return addTtsAtPlayhead; }, get aiBal(){ return aiBal; }, get aiCache(){ return aiCache; }, get aiCostOf(){ return aiCostOf; }, get aiDone(){ return aiDone; }, get aiFrames(){ return aiFrames; }, get aiNeed(){ return aiNeed; }, get aiReelOk(){ return aiReelOk; }, get aiRestore(){ return aiRestore; }, get aiStat(){ return aiStat; }, get aiStatText(){ return aiStatText; }, get apiFetch(){ return apiFetch; }, get askCredits(){ return askCredits; }, get auSet(){ return auSet; }, get chatFail(){ return chatFail; }, get chatSync(){ return chatSync; }, get clearMarks(){ return clearMarks; }, get creditWord(){ return creditWord; }, get creditsChanged(){ return creditsChanged; }, get dirArrived(){ return dirArrived; }, get dirKey(){ return dirKey; }, get dirRequest(){ return dirRequest; }, get directorCandidates(){ return directorCandidates; }, get directorMaybe(){ return directorMaybe; }, get ensureMix(){ return ensureMix; }, get fpOf(){ return fpOf; }, get getSoundMap(){ return getSoundMap; }, get isPhotoMode(){ return isPhotoMode; }, get keepAiPick(){ return keepAiPick; }, get loadFont(){ return loadFont; }, get lyUI(){ return lyUI; }, get makeEdit(){ return makeEdit; }, get mixStore(){ return mixStore; }, get notifyAct(){ return notifyAct; }, get openPricing(){ return openPricing; }, get paceFromSong(){ return paceFromSong; }, get paceKey(){ return paceKey; }, get paceMaybe(){ return paceMaybe; }, get paceSongKey(){ return paceSongKey; }, get pickBackground(){ return pickBackground; }, get pickLook(){ return pickLook; }, get pickVoiceFx(){ return pickVoiceFx; }, get planSig(){ return planSig; }, get prepLayers(){ return prepLayers; }, get redraw(){ return redraw; }, get redrawFrame(){ return redrawFrame; }, get reelIdNow(){ return reelIdNow; }, get reelLen(){ return reelLen; }, get refContext(){ return refContext; }, get renderOvList(){ return renderOvList; }, get saveNow(){ return saveNow; }, get setCaptionStyle(){ return setCaptionStyle; }, get setCaptions(){ return setCaptions; }, get sfxUI(){ return sfxUI; }, get shotOp(){ return shotOp; }, get shotSet(){ return shotSet; }, get tts(){ return tts; }, get wholeSections(){ return wholeSections; } });
 const { lockNeed, isLocked, isPartStart, SIZES, SPEED, SNAP_T, snapSpeed, FX_NAME, ACCENTS, aiReelOk, fpOf, aiTrusted, dirKey, dirSlotOf, dirShot, TR_STYLE, RECIPES, dirBase, planSig, paceUsable, paceNow, paceWanted, SEQ_FAST, SEQ_MAX, SPEED_KEYS, holdSpeed, speedKey, lyOf, refKeyOf, copyTimed, REF_TR, copyExact, AI_CS } = createSharedBrain(ES, HOOKS.shared = { get paceKey(){ return paceKey; }, get CANVAS_PATS(){ return CANVAS_PATS; }, get allOpen(){ return allOpen; }, get asFree(){ return asFree; } });
 
 // the engine's logic without browser code (brain/reel.ts)
@@ -1376,15 +1378,15 @@ ES.dupCount = 0;
    The phone sends a few small frames per clip; a vision model scores each moment like a pro editor (strength, what it
    suits, what is wrong, where the subject is). Timing stays with the music analysis; the AI only steers the choice of
    moment and the framing. Scores are cached per clip (also across visits), so re-edits cost nothing. */
-let aiBusy = false, aiInfo = null, aiLocked = false; ES.aiOn = false;
+let aiLocked = false; ES.aiBusy = false; ES.aiInfo = null; ES.aiOn = false;
 /* ---- credits: Shubix AI is paid per Reel (once, however many clips come later) and per chat change; the person is asked
  * each time, with what it costs and what they have. Free plans (no AI) edit on the phone. ---- */
-let gateP = null, chatUsed = 0; ES.aiReel = ''; ES.reelId = '';   // aiReel: the Reel the person said yes to ('no:' + id: said no); chatUsed: Ask Shubix changes on it (the plan's first few are free)
+let chatUsed = 0; ES.gateP = null; ES.aiReel = ''; ES.reelId = '';   // aiReel: the Reel the person said yes to ('no:' + id: said no); chatUsed: Ask Shubix changes on it (the plan's first few are free)
 const newId = () => { try{ return crypto.randomUUID().replace(/-/g, '').slice(0, 20); }catch(e){ return Math.random().toString(36).slice(2, 12) + Date.now().toString(36); } };
-const aiCostOf = k => (aiInfo && aiInfo.costs && Number(aiInfo.costs[k])) || 0;
-const aiBal = () => aiInfo && typeof aiInfo.balance === 'number' ? aiInfo.balance : null;
+const aiCostOf = k => (ES.aiInfo && ES.aiInfo.costs && Number(ES.aiInfo.costs[k])) || 0;
+const aiBal = () => ES.aiInfo && typeof ES.aiInfo.balance === 'number' ? ES.aiInfo.balance : null;
 const creditWord = n => n + ' credit' + (n === 1 ? '' : 's');
-const aiFreeChats = () => (aiInfo && Number(aiInfo.freeChats)) || 0;
+const aiFreeChats = () => (ES.aiInfo && Number(ES.aiInfo.freeChats)) || 0;
 const chatSync = res => { if(res && res.chat && typeof res.chat.used === 'number') chatUsed = res.chat.used; };
 function askCredits(o){
   return new Promise(res => {
@@ -1409,7 +1411,7 @@ function aiOff(msg){ ES.aiOn = false; aiStat(msg); const pr = [...$('mode').chil
 // Reel: Use = its credits and the AI starts; ✕ = nothing runs and nothing is taken (asked again on Generate, `again`).
 // the phone app's hidden studio (/engine): no prices, plans or top-ups there (the app sells nothing: Google Play rules)
 const IN_APP = location.pathname === '/engine';
-let gateNo = '', lowAsked = '';   // lowAsked: the Reel whose too-few-credits question was shown
+ES.gateNo = ''; ES.lowAsked = '';   // lowAsked: the Reel whose too-few-credits question was shown
 // A plan with Shubix AI makes every Reel with it: when the creator closes the credits question (or has too few credits)
 // the Reel is not shown, played or exported; the preview says so and its button asks again (or opens the top-ups)
 function aiNeed(on, low){
@@ -1423,34 +1425,15 @@ $('aiaskgo').addEventListener('click', async () => {
   if($('aiaskgo').dataset.low){ if(!IN_APP) location.assign('/pricing'); return; }
   if(await aiGate(true)) aiRun();
 }, SIG);
-function aiGate(again = false){
-  if(!ES.aiOn) return Promise.resolve(false);
-  const id = reelIdNow(); if(ES.aiReel === id) return Promise.resolve(true);
-  if(!again && (ES.aiReel === 'no:' + id || gateNo === id)) return Promise.resolve(false);
-  if(gateP) return gateP;
-  gateP = (async () => {
-    const cost = aiCostOf('reel'), bal = aiBal();
-    if(cost && bal !== null && bal < cost){
-      // too few credits: the Reel is still made, by the phone's own smart edit (like the Free plan), never held back;
-      // the top-up is offered once per Reel (not again on every Next)
-      aiNeed(false); gateNo = id;
-      aiStat('Edited on your phone · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
-      if(lowAsked !== id){ lowAsked = id;
-        if(IN_APP) await askCredits({ title: 'Not enough credits for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit.', bal, ok: 'OK' });
-        else { const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit now; top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Use the phone\'s edit' });
-          if(go) location.assign('/pricing'); } }
-      return false; }
-    // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
-    const ok = await askCredits({ title: 'Shubix AI will edit this Reel',
-      text: cost ? 'It uses ' + creditWord(cost) + ' once for this Reel. Adding clips or changing them later costs nothing more.' : 'Included in your plan for this Reel.',
-      list: ['The best moments of every clip', 'Trendy transitions and effects on the beat', 'Pro colour and framing'],
-      bal, after: bal !== null && cost ? bal - cost : null, ok: cost ? 'Use ' + creditWord(cost) : 'Use Shubix AI' });
-    if(ok){ ES.aiReel = id; gateNo = ''; aiNeed(false); return true; }
-    gateNo = id; aiNeed(true); aiStat('Your Reel waits for Shubix AI · tap "Make it with Shubix AI"');
-    return false;
-  })().finally(() => { gateP = null; });
-  return gateP;
-}
+// the page's side of Shubix AI (brain/ai.ts asks for these)
+const apiFetch = (url, options) => fetch(url, options);
+const creditsChanged = () => window.dispatchEvent(new Event('brs-credits'));
+const keepAiPick = (fp, ai) => localStorage.setItem('brs-ai:' + fp, JSON.stringify(ai));
+const openPricing = () => location.assign('/pricing');
+const aiStatText = () => $('aistat').textContent || '';
+function pickLook(name){ const b = $('look').querySelector('[data-l="' + CSS.escape(String(name)) + '"]'); if(b) b.click(); return !!b; }
+function pickVoiceFx(fx){ const b = $('vfx').querySelector('[data-f="' + CSS.escape(String(fx)) + '"]'); if(b) b.click(); return !!b; }
+function pickBackground(mode, color){ if(/^#[0-9a-f]{6}$/i.test(color || '')) bgColor = color; bgmode.querySelector('[data-b="' + mode + '"]').click(); }
 
 // Free (no Shubix AI in the plan): on Generate, once per Reel, what Shubix AI would do and the way to it.
 // 'upgrade' (to Plans), 'basic' (the phone's own edit), 'close' (✕: nothing) or 'skip' (a plan with Shubix AI, or already asked)
@@ -1466,7 +1449,7 @@ async function upsell(){
   }
   const id = reelIdNow(); if(upsold === id || IN_APP) return 'skip';   // never an upgrade offer in the app
   const cost = aiCostOf('reel');
-  const v = await askCredits({ upsell: true, title: 'Make it perfect with Shubix AI', text: 'Your Reel is ready. With the Editor or Pro plan, Shubix AI edits it like a pro' + (cost ? ' (' + creditWord(cost) + ' per Reel)' : '') + ':' + (aiInfo && aiInfo.creditsOpen ? ' Or invite friends on Invite & earn: your credits pay for AI Reels on Free too.' : ''),
+  const v = await askCredits({ upsell: true, title: 'Make it perfect with Shubix AI', text: 'Your Reel is ready. With the Editor or Pro plan, Shubix AI edits it like a pro' + (cost ? ' (' + creditWord(cost) + ' per Reel)' : '') + ':' + (ES.aiInfo && ES.aiInfo.creditsOpen ? ' Or invite friends on Invite & earn: your credits pay for AI Reels on Free too.' : ''),
     list: ['The best moments of every clip, picked for you', 'Trendy transitions and effects, right on the beat', 'Ask Shubix: change anything in your own words', 'Captions and pro colour, automatically'],
     bal: null, ok: 'Upgrade to Shubix AI', no: 'Create basic Reel' });
   if(v !== null) upsold = id;
@@ -1500,39 +1483,6 @@ function aiRestore(src){
 let aiHeld = location.pathname.startsWith('/create');
 // …and the API (asleep after a quiet while: 20-30 s to wake) is woken now, so Generate does not wait for it
 if(aiHeld) fetch('/api/health').catch(() => {});
-async function aiRun(){
-  if(!ES.aiOn || aiBusy || !ES.sources.length) return;
-  if(!aiReelOk()){ aiBusy = true; const go = await aiGate(); aiBusy = false; if(!go) return; }
-  ES.sources.forEach(s=>{ if(!s.ai) aiRestore(s); });
-  const need = ES.sources.filter(s=>!s.ai && !s.aiFailed && !s.removed);
-  if(!need.length){ aiDone(); return; }
-  aiBusy = true; aiStat('Shubix is looking at ' + need.length + (need.length>1 ? ' clips…' : ' clip…'));
-  let charged = 0, failed = 0;
-  try{
-    const jobs = [];
-    for(const s of need){ const frames = await aiFrames(s); if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
-    for(let k=0; k<jobs.length; k+=12){
-      const part = jobs.slice(k, k+12);
-      const r = await fetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: ac.signal,
-        body: JSON.stringify({ reelId: reelIdNow(), clips: part.map(j=>({ id:j.id, name:j.src.name, frames:j.frames })) }) });
-      const res = await r.json().catch(()=>({}));
-      if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not do this step (' + r.status + ').'));
-      charged += res.charged || 0; if(typeof res.balance === 'number' && aiInfo){ aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
-      for(const c of res.clips || []){ const j = part.find(x=>x.id===c.id); if(!j) continue;
-        j.src.ai = { frames: c.frames, summary: c.summary, mood: c.mood }; const fp = fpOf(j.src); aiCache.set(fp, j.src.ai);
-        try{ localStorage.setItem('brs-ai:'+fp, JSON.stringify(j.src.ai)); }catch(e){} }
-      for(const f of res.failed || []){ const j = part.find(x=>x.id===f.id); if(j){ j.src.aiFailed = true; failed++; } }
-    }
-    aiBusy = false;
-    if(ES.sources.some(s=>!s.ai && !s.aiFailed && !s.removed) && !ES.pending) return aiRun();   // clips added meanwhile
-    aiDone(charged, failed);
-  }catch(e){
-    aiBusy = false;
-    if(e && e.name === 'AbortError') return;
-    aiGaveUp = reelIdNow();   // nothing more comes from Shubix for this Reel: it is final as the phone made it
-    console.warn('AI picks not used:', e); aiStat('Shubix could not look at your clips right now. Your Reel uses the best moments picked on your phone' + (aiCostOf('reel') && dirPlannedReel !== reelIdNow() ? ' · no credits were used.' : '.'));
-  }
-}
 /* ---- Ask Shubix: the creator says in their own words how the Reel should be ("faster", "zoom on the drop", "start
  * with my face"), and the AI edits it that way. Everything they said (newest last) goes with the AI's pace and plan as
  * the creator's wish, which wins over the style and over the house taste (tastePlan / tasteFx step aside for the AI's
@@ -1639,7 +1589,7 @@ async function chatPatch(text, n, id){
     const r = await fetch('/api/studio/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not change it (' + r.status + ').'));
-    chatSync(res); if(typeof res.balance === 'number' && aiInfo){ aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
+    chatSync(res); if(typeof res.balance === 'number' && ES.aiInfo){ ES.aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
     const base = ES.director && ES.director.key === key ? ES.director.slots.slice() : ES.edit.map((e, i) => ({ cand: { src: e.src, in: e.in }, tr: e.tr, fx: e.efx, sp: speedKey(e.sp),
       keys: (e.acc || []).map(q => ({ at: q.at, do: q.do })), move: (e.ak || []).map(q => ({ at: q.t / Math.max(0.05, len(i)), s: q.s, x: q.x, y: q.y, r: q.r, ez: q.ez })), cs: e.cs || null, why: '' }));
     const got = toSlots(res.slots, cands), changed = new Set();
@@ -1751,7 +1701,7 @@ $('chatchips').addEventListener('click', e => { const b = e.target.closest('butt
    must still be free (no footage twice, no scene crossing, not the same clip as a neighbour), the transition must fit
    the shot and the style and stay within its ration, effects and speeds must suit the cut. Whatever fails keeps the
    rule choice. One plan per edit (style, mix and clips); a new mix or style asks again. */
-let dirPlannedReel = '', aiGaveUp = ''; ES.director = null; ES.dirBusy = false; ES.dirFailedKey = ''; ES.dirCands = null;   // dirPlannedReel: this Reel got a plan (its credits are spent)
+ES.dirPlannedReel = ''; ES.aiGaveUp = ''; ES.director = null; ES.dirBusy = false; ES.dirFailedKey = ''; ES.dirCands = null;   // dirPlannedReel: this Reel got a plan (its credits are spent)
 
 ES.mixNo = 0;   // which mix: 0 = the AI's plan, 1-4 = its other mixes (one call), then the phone's own mixes in its style
    // an auto cut: the phone picks its moment too
@@ -1794,34 +1744,7 @@ function recentTools(){ let L = []; try{ L = JSON.parse(localStorage.getItem(REC
 function rememberTools(){ if(!ES.edit.length) return; const used = new Set();
   for(const e of ES.edit){ if(e.tr && e.tr !== 'hard') used.add(e.tr); if(e.efx && e.efx !== 'none') used.add(e.efx); if(e.sp && e.sp.label && e.sp.label !== '1×') used.add('speed ' + e.sp.label); }
   try{ const L = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); L.push([...used].slice(0, 30)); localStorage.setItem(RECENT_KEY, JSON.stringify(L.slice(-6))); }catch(e){} }
-// New mix: the AI's other plans for these cuts, all in one call (the input is sent once)
-async function variantsRun(st){
-  st.asked = true; st.busy = true;
-  aiStat('Shubix is making ' + VARIANTS + ' more versions for Change Reel…');
-  const tm = timeoutSignal(90000);
-  let n = 0;
-  try{
-    const cands = directorCandidates(), { req, ctx } = dirRequest(cands), sig = planSig();
-    const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...req, variants: VARIANTS }), signal: tm.signal });
-    const res = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not make the mixes (' + r.status + ').'));
-    let k = 1;
-    for(const pl of res.plans || []){ while(st.plans[k]) k++; st.plans[k] = { slots: toSlots(pl.slots, cands), ctx, sig, story: pl.story || '' }; n++; }
-    aiStat('Shubix made ' + n + ' more version' + (n === 1 ? '' : 's') + ' · press Change Reel to see each.');
-  }catch(e){
-    if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI mixes not used:', e);
-    aiStat('Change Reel uses the phone\'s own versions in Shubix\'s style.');
-  }finally{ st.busy = false; tm.done(); }
-  if(ES.mixNo > 0 && ES.buf && ES.sources.length && !ES.recording) makeEdit();
-}
 ES.dirCache = new Map();
-// a request that gives up after ms (the phone's own edit is already on screen, so nobody waits for a slow AI)
-function timeoutSignal(ms){
-  const c = new AbortController(); let late = false;
-  const t = setTimeout(()=>{ late = true; c.abort(); }, ms), stop = () => c.abort();
-  ac.signal.addEventListener('abort', stop);
-  return { signal: c.signal, timedOut: () => late, done: () => { clearTimeout(t); ac.signal.removeEventListener('abort', stop); } };
-}
 /* ---- the sound map: what the AI hears (components/studio/soundmap.ts), measured once per song part ---- */
 ES.smapKey = ''; ES.smapVal = null;
 /* ---- the AI's first decision: how fast to cut in each section of the song ----
@@ -1840,90 +1763,15 @@ ES.songPace = new Map();   // paceSongKey -> { secs: [{ t, len, every }] in the 
 const paceSongKey = () => ES.song ? [ES.song.key, ES.mode, ES.mode === 'copy' && ES.refProfile ? ES.refProfile.name + '|' + ES.refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', ES.sources.length, Math.round(ES.sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#') : '';
 const partOn = () => !!ES.song && ES.buf !== ES.song.buf;
 ES.wholeMapKey = ''; ES.wholeMap = null;
-async function paceRun(key){
-  const sm = getSoundMap(); if(!sm){ ES.paceFailedKey = key; return; }
-  const whole = wholeSections(), songKey = paceSongKey();
-  const secs = whole || sectionsOf(sm, ES.basePlan, ES.beats, ES.period, ES.buf.duration).slice(0, 24);
-  if(!secs.length){ ES.paceFailedKey = key; return; }
-  ES.paceBusy = true; aiStat('Shubix is listening to the song and choosing the pace…');
-  const tm = timeoutSignal(25000);
-  try{
-    const req = { mode: ES.mode, reelId: reelIdNow(), ...(ES.tplKind ? { reelKind: ES.tplKind } : {}), wish: ES.wish.slice(-800), duration: +(whole ? ES.song.buf.duration : ES.buf.duration).toFixed(2), bpm: +(60/(whole ? ES.song.r.period : ES.period)).toFixed(1), clips: ES.sources.filter(s=>!s.removed).length,
-      footage: +ES.sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0).toFixed(1), kind: root.classList.contains('photomode') ? 'photo' : 'music', sections: secs, reference: refContext(),
-      ...(whole ? { reel: +ES.buf.duration.toFixed(2) } : {}) };
-    const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
-    const res = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not choose the pace (' + r.status + ').'));
-    const every = new Map((res.sections || []).map(x=>[x.i, x.every]));
-    const answer = secs.map(s=>({ t: s.t, len: s.len, every: every.get(s.i) || s.now }));
-    if(whole) ES.songPace.set(songKey, { secs: answer, story: res.story || '' });   // kept even if the part moved meanwhile
-    if(paceKey() !== key){ ES.paceBusy = false; if(ES.buf && ES.sources.length && !ES.recording) paceMaybe(); return; }
-    if(whole){ const p = paceFromSong(ES.songPace.get(songKey)); ES.pacing = p ? { key, ...p, why: res.sections || [] } : null; }
-    else ES.pacing = { key, story: res.story || '', secs: answer, why: res.sections || [] };
-    if(!ES.pacing){ ES.paceFailedKey = key; ES.paceBusy = false; return; }
-    ES.paceCache.set(key, ES.pacing);
-    aiStat('Shubix chose the pace' + (ES.pacing.story ? ': ' + ES.pacing.story : '') + '. Now planning the shots…');
-    ES.paceBusy = false; makeEdit();
-  }catch(e){
-    ES.paceFailedKey = key;
-    if(!(e && e.name==='AbortError') || tm.timedOut()) console.warn('AI pace not used:', e);
-    ES.paceBusy = false; if(ES.buf && ES.sources.length && !ES.recording) directorMaybe();
-    // the director did not start (already planned, or no edit yet): the line must not stay on "choosing the pace…"
-    if(!ES.dirBusy && /…$/.test($('aistat').textContent || '')) aiStat('Your Reel keeps the song\'s own pace.');
-  }finally{ ES.paceBusy = false; tm.done(); }
-}
-async function directorRun(key){
-  ES.dirBusy = true; aiStat('Shubix is choosing every shot, transition and effect…');
-  // 45 s: the phone's own edit is shown and the person can go on; the request is NOT dropped (the plan is paid for): when it
-  // comes later it is offered ("Use it"). 4 min: given up (the server's AI gives up before that and the credits come back).
-  const tm = timeoutSignal(240000);
-  let late = false;
-  const soft = setTimeout(() => { late = true; ES.dirBusy = false; ES.dirFailedKey = key;
-    aiStat('Shubix is taking longer than usual. Your Reel uses the phone\'s own smart edit for now; Shubix\'s plan comes as soon as it is ready.'); }, 45000);
-  try{
-    const cands = directorCandidates(); ES.dirCands = cands;
-    const { req, ctx } = dirRequest(cands), sig = planSig(), mix = ES.mixNo, st = mixStore();
-    const r = await fetch('/api/studio/direct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
-    const res = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not plan the Reel (' + r.status + ').'));
-    const slots = toSlots(res.slots, cands);
-    if(!slots.some(x => x && !x.auto)) throw new Error('Shubix returned no usable plan.');
-    chatSync(res); if(typeof res.balance === 'number' && aiInfo){ aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
-    if(ES.chatAsk && req.chat) ES.chatAsk = null;   // that chat message is answered (and charged once)
-    if(!st.plans[mix]) st.plans[mix] = { slots, ctx, sig, story: res.story || '' };   // kept for the song's other parts
-    if(late){
-      // it came after the phone's edit was shown: offered, never swapped in under the person (or during an export)
-      clearTimeout(soft);
-      dirPlannedReel = reelIdNow();
-      const use = () => { if(ES.recording || ES.exportBusy) return; ES.dirFailedKey = ''; if(dirKey() === key){ if(dirArrived(key, { slots, story: res.story || '', texts: res.texts, actions: res.actions })) makeEdit(); } else if(ES.buf && ES.sources.length) directorMaybe(); };
-      aiStat('Shubix\'s plan for your Reel is ready.');
-      notifyAct('Shubix\'s plan for your Reel is ready.', 'Use it', use, 60000);
-      return;
-    }
-    // the edit changed meanwhile (the song's part moved): the plan is fitted to it, or a new one asked (other clips)
-    if(dirKey() !== key){ ES.dirBusy = false; if(ES.buf && ES.sources.length && !ES.recording) directorMaybe(); return; }
-    ES.dirBusy = false; dirPlannedReel = reelIdNow();
-    if(dirArrived(key, { slots, story: res.story || '', texts: res.texts, actions: res.actions })) makeEdit();
-  }catch(e){
-    ES.dirFailedKey = key;
-    const back = aiCostOf('reel') && dirPlannedReel !== reelIdNow() ? ', and the credits for it come back.' : '.';
-    if(late){ aiStat('Shubix could not plan this Reel. It keeps the phone\'s own smart edit' + back); }
-    else {
-      chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : 'Shubix could not change the Reel right now. Try again in a moment.');
-      if(tm.timedOut()) aiStat('Shubix took too long this time. Your Reel uses the phone\'s own smart edit' + back);
-      else if(!(e && e.name==='AbortError')){ console.warn('AI director not used:', e); aiStat('Shubix is busy right now. Your Reel uses the phone\'s own smart edit' + back); }
-    }
-  }finally{ clearTimeout(soft); if(!late) ES.dirBusy = false; tm.done(); }
-}
 // is the studio's AI on? The administrator decides (Administration -> Features -> AI director) and the server has an AI
 // provider; people never choose: when it is on, every Reel is edited by the AI. Asked at the start, and again when the
 // person's account becomes known (the phone app signs the hidden studio in after it has started: account())
 async function aiCheck(){
   try{
     const r = await fetch('/api/studio/rank-shots', ac ? { signal: ac.signal } : undefined); if(!r.ok) return;
-    aiInfo = await r.json(); aiLocked = false; if(!aiInfo || !aiInfo.available){ ES.aiOn = false; return; }
+    ES.aiInfo = await r.json(); aiLocked = false; if(!ES.aiInfo || !ES.aiInfo.available){ ES.aiOn = false; return; }
     // a plan without Shubix AI (Free): the phone edits; the chat and the plans say how to get it
-    if(aiInfo.planAi === false){ ES.aiOn = false; aiLocked = true; aiStat(IN_APP ? 'Edited on your phone' : 'Edited on your phone · Shubix AI is in the Editor and Pro plans'); return; }
+    if(ES.aiInfo.planAi === false){ ES.aiOn = false; aiLocked = true; aiStat(IN_APP ? 'Edited on your phone' : 'Edited on your phone · Shubix AI is in the Editor and Pro plans'); return; }
     if(ES.aiOn) return;
     ES.aiOn = true;
     // a template's learned style was put on before the AI was known: the AI combines it now (its trend, this song)
@@ -1990,7 +1838,7 @@ function editShown(dupCount){
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
 }
 function tellReadyIfAway(){
-  if(isHidden() && !aiBusy && !ES.dirBusy && !ES.paceBusy && readyToldGen !== reelIdNow()){ readyToldGen = reelIdNow(); void notifyDone('Your Reel is ready', 'Tap to preview it in Shubix', 'shubix-reel'); }
+  if(isHidden() && !ES.aiBusy && !ES.dirBusy && !ES.paceBusy && readyToldGen !== reelIdNow()){ readyToldGen = reelIdNow(); void notifyDone('Your Reel is ready', 'Tap to preview it in Shubix', 'shubix-reel'); }
 }
 function copyLookSoon(){ if(ES.look === 'copy' && ES.refProfile) setTimeout(()=>{ copyLook(); }, 0); }
 function captureLoop(){
@@ -2493,54 +2341,9 @@ function addTemplate(key, words, at, len, ai){
     ES.overlays.push(ov); if(ov.font) loadFont(ov.font).then(redraw); }
   ES.ovSel = ES.overlays.length - 1; renderOvList(); redraw(); return parts.length;
 }
-/* ---- Shubix AI as the editor: what a person does with the tools (texts and their keyframes, video boxes, the look, captions,
- * the song's sound, the voice), the AI does with the same tools; its steps are used as it gave them ---- */
-function aiTexts(list){
-  if(!Array.isArray(list) || !list.length) return 0;
-  const D = reelLen();
-  ES.overlays = ES.overlays.filter(o => o.aiIntent !== 'ai').concat(list.map(x => ({ id: ++ES.ovSeq, aiIntent: 'ai', text: x.text, emoji: !!x.emoji, style: x.style, color: x.color, anim: x.anim,
-    loop: x.loop === 'none' ? undefined : x.loop, out: x.out === 'none' ? undefined : x.out, font: x.font || undefined, behind: !!x.behind, track: !!x.track, x: x.x, y: x.y, size: x.size, all: false, ...(Number.isFinite(x.focus) ? { focus: x.focus } : {}),
-    t0: Math.max(0, Math.min(D - 0.1, x.start)), t1: Math.max(0.1, Math.min(D, x.end)), uk: (x.keys || []).map(k => ({ t: k.at, x: k.x, y: k.y, s: k.s, r: k.r, o: k.o, ez: k.ez })) })));
-  ES.overlays.filter(o => o.font).forEach(o => loadFont(o.font).then(redraw));
-  ES.ovSel = -1; renderOvList(); redraw(); return list.length;
-}
 const BLENDS = ['source-over','multiply','screen','overlay','darken','lighten','color-dodge','color-burn','hard-light','soft-light','difference','exclusion','hue','saturation','color','luminosity'];
 // shot steps change the shots' numbers: the last shot's first, so each step's number is the shot the AI meant
 const SHOT_OPS = ['split','dup','freeze','delete','reverse'];
-async function aiActions(list){
-  let done = 0;
-  const steps = (Array.isArray(list) ? list : []).slice().sort((a, b) => a.do === 'shot' && b.do === 'shot' ? (+b.i || 0) - (+a.i || 0) : 0);
-  for(const a of steps){
-    try{
-      if(a.do === 'look'){ const b = $('look').querySelector('[data-l="' + CSS.escape(String(a.name)) + '"]'); if(b){ b.click(); done++; } }
-      else if(a.do === 'captions'){ await setCaptions(a.on !== false, a.language, a.translation); if(a.style) setCaptionStyle(a.style); done++; }
-      else if(a.do === 'music'){ const p = {}; if(Number.isFinite(+a.volume)) p.mvol = Math.max(0, Math.min(1, +a.volume)); if(Number.isFinite(+a.fadeIn)) p.mfin = Math.max(0, +a.fadeIn);
-        if(Number.isFinite(+a.fadeOut)){ p.mfout = Math.max(0, +a.fadeOut); p.mfoutManual = true; } auSet(p); ES.clipMixKey = ''; await ensureMix(); done++; }
-      else if(a.do === 'voicefx'){ const b = $('vfx').querySelector('[data-f="' + CSS.escape(String(a.fx)) + '"]'); if(b){ b.click(); done++; } }
-      else if(a.do === 'voiceover' && tts && tts.voices.length && a.text){ ES.pos = Math.max(0, Math.min(reelLen() - 0.5, +a.at || 0)); await addTtsAtPlayhead(a.text, a.voice || tts.voices[0].key); done++; }
-      else if(a.do === 'sound' && SFX_NAMES[a.kind] && ES.buf){ ES.sfxList.push({ id: ++ES.sfxSeq, at: +Math.max(0, Math.min(reelLen(), +a.at || 0)).toFixed(2), kind: a.kind }); sfxUI(); ES.clipMixKey = ''; await ensureMix(); done++; }
-      else if(a.do === 'shot' && SHOT_OPS.includes(a.op) && ES.edit[+a.i]){ const e = ES.edit[+a.i], len = e.end - e.start;
-        ES.pos = e.start + Math.max(0.05, Math.min(len - 0.05, Number.isFinite(+a.at) ? +a.at : len/2));
-        if(a.op === 'reverse'){ shotSet({ rev: a.on !== false }); done++; } else if(shotOp(a.op)) done++; }
-      else if(a.do === 'beatmark'){ const ts = (Array.isArray(a.at) ? a.at : [a.at]).map(Number).filter(Number.isFinite); if(a.clear) clearMarks(); for(const t of ts.slice(0, 32)) if(addMark(Math.max(0, t))) done++; }
-      else if(a.do === 'template' && TEXT_TEMPLATES[a.name]){ if(addTemplate(a.name, Array.isArray(a.words) ? a.words : [], +a.at || 0, Number.isFinite(+a.len) && +a.len > 0 ? +a.len : undefined, true)) done++; }
-      else if(a.do === 'background' && ['none','blur','color'].includes(a.mode)){ if(/^#[0-9a-f]{6}$/i.test(a.color || '')) bgColor = a.color; bgmode.querySelector('[data-b="' + a.mode + '"]').click(); done++; }
-      else if(a.do === 'layer'){
-        const s = ES.sources[parseInt(String(a.clip).replace(/\D/g, ''), 10) - 1]; if(!s || !s.file || !ES.edit.length) continue;
-        const M = await addLayerMedia(s.file), D = reelLen(), t0 = Math.max(0, Math.min(D - 0.1, +a.start || 0)), mask = ['circle', 'rect'].includes(a.mask) ? a.mask : 'none';
-        ES.lmedia.push(M);
-        ES.layers.push({ id: ++ES.lySeq, m: ES.lmedia.length - 1, t0, t1: Math.max(t0 + 0.1, Math.min(D, Number.isFinite(+a.end) ? +a.end : D)), in: Math.max(0, Math.min((M.dur || 1) - 0.1, +a.from || 0)),
-          ...JSON.parse(JSON.stringify(LY0)), x: Number.isFinite(+a.x) ? +a.x : 0.5, y: Number.isFinite(+a.y) ? +a.y : 0.5, s: Math.max(0.05, Math.min(1, +a.size || 0.5)),
-          rad: Math.max(0, Math.min(1, +a.radius || 0)), mask, fin: Math.max(0, +a.fadeIn || 0), fout: Math.max(0, +a.fadeOut || 0), aiIntent: 'ai',
-          op: Number.isFinite(+a.opacity) ? Math.max(0, Math.min(1, +a.opacity)) : 1, r: +a.rotate || 0, blend: BLENDS.includes(a.blend) ? a.blend : 'source-over',
-          ...(a.key ? { key: { on: true, c: /^#[0-9a-f]{6}$/i.test(a.key) ? a.key : '#00FF00', tol: Number.isFinite(+a.tolerance) ? Math.max(0.05, Math.min(0.9, +a.tolerance)) : 0.35 } } : {}) });
-        done++;
-      }
-    }catch(e){ console.warn('Shubix AI step not done:', a && a.do, e); }
-  }
-  if(ES.layers.length){ lyUI(); await prepLayers(ES.pos); }
-  redrawFrame(); saveNow(); return done;
-}
 // one item at time t; its box is kept (fractions of the frame) for picking it on the preview
 let cutBuf = null;   // the cutout text's frame (the colour with the letters cut out)
 function drawOverlay(g, ov, t){
@@ -5010,9 +4813,9 @@ listRecent();
 
 root.__studio = { brainDebug: { ES, HOOKS, makeEditNow }, get layerMedia(){ return ES.lmedia; }, get aiPlan(){ return ES.director && ES.director.slots && !ES.director.interim ? { story: ES.director.story || '', lines: ES.plan.map((p, i) => planLine(p, i, ES.director.slots)) } : null; }, get songR(){ return ES.song && ES.song.r; }, get now(){ return ES.playing ? Math.max(0, curTime()) : (ES.pos || 0); }, get playing(){ return ES.playing; }, get dur(){ return ES.buf ? ES.buf.duration : 0; }, get songName(){ return ES.song && ES.song.name ? ES.song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return ES.hookText; }, get capsOn(){ return ES.capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return ES.pos; }, get playing(){ return ES.playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return ES.capLines; }, get editGen(){ return ES.editGen; }, get vo(){ return ES.vo; }, get base(){ return { buf: ES.baseBuf, norm: ES.baseNorm }; }, get overlays(){ return ES.overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!ES.bgMask, err: ES.bgErr }; }, get faceHow(){ return ES.sources.map(s => s.faceHow); }, seek: t => { ES.pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return ES.talk; }, get audio(){ return ES.buf; }, get kind(){ return ES.kind; }, get section(){ return { start: ES.secStart, len: ES.buf ? ES.buf.duration : 0, auto: sec.auto, whole: ES.song ? ES.song.buf.duration : 0, words: ES.capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return ES.capLines; }, faceYOnScreen, get edit(){ return ES.edit; }, setEdit: list => restoreEdit(list), get plan(){ return ES.plan; }, sources: ES.sources, gl: !!GL, get beats(){ return ES.beats; }, get parts(){ return ES.songPartsRel; }, get mode(){ return ES.mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return ES.beatInfo; }, get ref(){ return ES.refProfile; }, fingerprint: () => ES.refProfile ? fingerprintOf(ES.refProfile) : null, copyMatch, get grade(){ return GRADES[ES.look]; },
   snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ES.ovSel = ES.overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ES.ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return ES.look; }, get marks(){ return ES.userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => ES.lastVideo && saveFile(ES.lastVideo, lastName || 'reel.mp4'),
-  get work(){ return { song: !!ES.song || ES.kind === 'talk', songReady: ES.kind === 'talk' || !!(ES.song && ES.buf && ES.song.r), beats: ES.beatsBusy, pending: ES.pending, clips: ES.sources.length, shots: ES.edit.length, ai: aiBusy, dir: ES.dirBusy, pace: ES.paceBusy,
+  get work(){ return { song: !!ES.song || ES.kind === 'talk', songReady: ES.kind === 'talk' || !!(ES.song && ES.buf && ES.song.r), beats: ES.beatsBusy, pending: ES.pending, clips: ES.sources.length, shots: ES.edit.length, ai: ES.aiBusy, dir: ES.dirBusy, pace: ES.paceBusy,
     // Shubix AI is on for this Reel and its plan has not come yet (nor failed): the Reel is not final (the phone app waits)
-    aiWait: !!(ES.aiOn && aiReelOk() && aiGaveUp !== reelIdNow() && ES.edit.length && !(ES.director && ES.director.key === dirKey() && !ES.director.interim) && ES.dirFailedKey !== dirKey()), speech: ES.speechBusy, exporting: ES.exportBusy, exportP: ES.exportP }; }, shotExtract: () => ES.edit.length && extractAudio(ES.edit[segAt(ES.pos)].src), get au(){ return ES.au; }, setAudioMix: async patch => { auSet(patch); ES.clipMixKey = ''; await ensureMix(); return ES.au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return ES.layers; }, get lmedia(){ return ES.lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
+    aiWait: !!(ES.aiOn && aiReelOk() && ES.aiGaveUp !== reelIdNow() && ES.edit.length && !(ES.director && ES.director.key === dirKey() && !ES.director.interim) && ES.dirFailedKey !== dirKey()), speech: ES.speechBusy, exporting: ES.exportBusy, exportP: ES.exportP }; }, shotExtract: () => ES.edit.length && extractAudio(ES.edit[segAt(ES.pos)].src), get au(){ return ES.au; }, setAudioMix: async patch => { auSet(patch); ES.clipMixKey = ''; await ensureMix(); return ES.au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return ES.layers; }, get lmedia(){ return ES.lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
   frameAt: async t => { const i = segAt(t); await prepare(i, t); drawFrame(t); return i; }, camAt,
   // the phone app (bridge.ts): the account known after the start, Ask Shubix, the clips' smooth copies
   account, chatApp, get aiOn(){ return ES.aiOn; },
