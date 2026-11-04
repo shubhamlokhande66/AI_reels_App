@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
-import { useText } from "@shubix/hooks";
-import { Badge, Button, Chip, EmptyState, Icon, LockBadge, Page, Paint, SearchBox, SectionHeader, TemplateCard, mix, useColors } from "@shubix/ui-mobile";
-import { groupsOf, lookName, templateMeta, templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
+import { useText } from "@mobile/hooks";
+import { Badge, Button, Chip, EmptyState, Icon, LockBadge, Page, Paint, SearchBox, SectionHeader, TemplateCard, mix, useColors } from "@mobile/ui-mobile";
+import { groupsOf, lookName, templateMeta, templateTag, type StudioTemplate } from "@mobile/core/lib/studio-templates";
 import { PlanGate } from "../components/templates/PlanGate";
 import { usePlanNeed, useTemplates } from "../lib/data";
 import { mobileApi } from "../lib/api";

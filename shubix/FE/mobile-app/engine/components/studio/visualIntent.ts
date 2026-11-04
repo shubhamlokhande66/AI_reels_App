@@ -1,4 +1,4 @@
-import { asksForAllClips } from "@shubix/core/lib/chatSize";
+import { asksForAllClips } from "@mobile/core/lib/chatSize";
 
 export type DirectorVisualIntent = {
   openingText?: string;

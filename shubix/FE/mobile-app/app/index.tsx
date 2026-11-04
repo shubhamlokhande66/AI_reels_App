@@ -1,12 +1,12 @@
 import { useRef, type ComponentRef } from "react";
 import { router } from "expo-router";
 import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
-import { useApi, useText } from "@shubix/hooks";
-import { Badge, Button, CreateCard, DraftCard, EmptyState, LockBadge, Page, Scroller, SectionHeader, TemplatePoster, TipCard, TipsBanner, colors } from "@shubix/ui-mobile";
-import type { IconName, Tone } from "@shubix/ui-core";
-import { linkOn } from "@shubix/core/lib/features-list";
-import { templateTag, type StudioTemplate } from "@shubix/core/lib/studio-templates";
-import { clock, formatRelative } from "@shubix/utils";
+import { useApi, useText } from "@mobile/hooks";
+import { Badge, Button, CreateCard, DraftCard, EmptyState, LockBadge, Page, Scroller, SectionHeader, TemplatePoster, TipCard, TipsBanner, colors } from "@mobile/ui-mobile";
+import type { IconName, Tone } from "@mobile/ui-core";
+import { linkOn } from "@mobile/core/lib/features-list";
+import { templateTag, type StudioTemplate } from "@mobile/core/lib/studio-templates";
+import { clock, formatRelative } from "@mobile/utils";
 import { open, openTemplate } from "../lib/navigate";
 import { HomeHero } from "../components/organisms/HomeHero";
 import { AdBanner } from "../components/molecules/AdBanner";

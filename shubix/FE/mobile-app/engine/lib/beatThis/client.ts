@@ -1,5 +1,5 @@
-import type { BeatThisResult } from "@shubix/core/lib/beatThis/core";
-import { FILTERBANK_PATH, MODEL_PATH, resample, simdOk } from "@shubix/core/lib/beatThis/device";
+import type { BeatThisResult } from "@mobile/core/lib/beatThis/core";
+import { FILTERBANK_PATH, MODEL_PATH, resample, simdOk } from "@mobile/core/lib/beatThis/device";
 import { isIOS } from "../ortThreads";
 
 /** Fast Studio's on-device beat tracker: Beat This! in a worker (lib/beatThis/beatThis.worker.ts). The song is resampled

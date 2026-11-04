@@ -4,10 +4,10 @@ import { ActivityIndicator, Modal, Pressable, Share, Text, View, useWindowDimens
 import { useQuery } from "@tanstack/react-query";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useText } from "@shubix/hooks";
-import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors, confirmAction, toast } from "@shubix/ui-mobile";
-import type { CloudReel } from "@shubix/types";
-import { clock, formatRelative, megabytes, videoQuality } from "@shubix/utils";
+import { useText } from "@mobile/hooks";
+import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors, confirmAction, toast } from "@mobile/ui-mobile";
+import type { CloudReel } from "@mobile/types";
+import { clock, formatRelative, megabytes, videoQuality } from "@mobile/utils";
 import { AdBanner } from "../components/molecules/AdBanner";
 import { mobileApi } from "../lib/api";
 import { useDraftThumbs } from "../lib/thumbs";

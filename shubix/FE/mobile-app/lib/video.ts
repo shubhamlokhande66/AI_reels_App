@@ -1,7 +1,7 @@
 import { Paths } from "expo-file-system";
-import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
+import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
 import { ShubixVideo } from "../modules/shubix-video";
-import { ADJ_FRAG, GRADE_FRAG, KEY_FRAG, MAIN_FRAG, PASS_VERT, PIC_FRAG, PIC_FX, TR_DUR } from "@shubix/core/lib/shaders";
+import { ADJ_FRAG, GRADE_FRAG, KEY_FRAG, MAIN_FRAG, PASS_VERT, PIC_FRAG, PIC_FX, TR_DUR } from "@mobile/core/lib/shaders";
 import {
   createAndroidRendererAdapter,
   createRenderJobFromProject,

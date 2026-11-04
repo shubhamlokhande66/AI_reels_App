@@ -1,10 +1,10 @@
 import { useRef } from "react";
 import { Platform, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { askAction, tasks, type TaskKind } from "@shubix/ui-mobile";
+import { askAction, tasks, type TaskKind } from "@mobile/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
-import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
-import { buildSpeedRampSegments } from "@shubix/video-engine";
+import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
+import { buildSpeedRampSegments } from "@mobile/video-engine";
 import { tokenStore } from "./device";
 import { API_URL } from "./session";
 

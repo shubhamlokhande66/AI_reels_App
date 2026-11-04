@@ -5,7 +5,7 @@
 
 
 import { skipSignedOut } from "@/lib/boot";
-import type { CloudReel, CloudUsage } from "@shubix/types";
+import type { CloudReel, CloudUsage } from "@mobile/types";
 export type { CloudReel, CloudUsage };
 export type SaveMeta = { name: string; dur: number; width: number; height: number; fps: number; thumb?: string };
 

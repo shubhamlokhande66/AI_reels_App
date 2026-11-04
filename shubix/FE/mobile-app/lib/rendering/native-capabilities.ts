@@ -13,7 +13,7 @@ const TRANSITIONS: Record<string, string> = {
   stripes: "fade", blinds: "fade", checker: "fade", dots: "fade", noise: "fade", splith: "fade", wave: "fade", chroma: "fade", tiles: "fade",
 };
 
-import { PIC_FX } from "@shubix/core/lib/shaders";
+import { PIC_FX } from "@mobile/core/lib/shaders";
 
 const EFFECTS = new Set([...Object.keys(PIC_FX),   // the studio's picture effects: its own shader on the phone (StudioPasses.kt)
 

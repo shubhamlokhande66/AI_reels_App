@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApi, useText } from "@shubix/hooks";
-import { errorMessage } from "@shubix/api-client";
-import { Button, Card, ErrorBanner, Eyebrow, Icon, Input } from "@shubix/ui-mobile";
+import { useApi, useText } from "@mobile/hooks";
+import { errorMessage } from "@mobile/api-client";
+import { Button, Card, ErrorBanner, Eyebrow, Icon, Input } from "@mobile/ui-mobile";
 
 let later = false; // "Later" was chosen: not asked again until the app starts again
 

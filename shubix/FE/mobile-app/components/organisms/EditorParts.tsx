@@ -2,11 +2,11 @@ import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } 
 import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { useStudioText } from "@shubix/hooks";
-import { Button, Glyph, Icon, IconButton, ThemeLayer } from "@shubix/ui-mobile";
-import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
-import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
-import { buildSpeedRampSegments, type SpeedRampSegment } from "@shubix/video-engine";
+import { useStudioText } from "@mobile/hooks";
+import { Button, Glyph, Icon, IconButton, ThemeLayer } from "@mobile/ui-mobile";
+import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@mobile/core/lib/editor-tools";
+import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
+import { buildSpeedRampSegments, type SpeedRampSegment } from "@mobile/video-engine";
 import { useThumb } from "../../lib/thumbs";
 
 /** The website's phone editor (FE/web-app/components/studio/markup.ts and views.ts), drawn natively: the studio's top

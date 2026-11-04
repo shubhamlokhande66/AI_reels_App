@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { Linking } from "react-native";
-import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
+import type { StudioTemplate } from "@mobile/core/lib/studio-templates";
 
 /** A page of the app, another site, or your credits when the page is on a higher plan. */
 export const open = (href: string, locked = false) =>

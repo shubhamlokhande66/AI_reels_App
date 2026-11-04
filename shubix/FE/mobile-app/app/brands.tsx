@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { BadgeCheck, Check, Plus, Trash2 } from "lucide-react-native";
 import { Modal, Pressable, Text, TextInput, View } from "react-native";
-import { Button, Card, Eyebrow, Heading, Page, SectionHeader, colors, confirmAction, toast } from "@shubix/ui-mobile";
+import { Button, Card, Eyebrow, Heading, Page, SectionHeader, colors, confirmAction, toast } from "@mobile/ui-mobile";
 import { mobileApi } from "../lib/api";
 import { PlanGate } from "../components/templates/PlanGate";
 const palette = ["#d8bd7b", "#c57f75", "#8aa988", "#829cc2", "#b18bc3", "#ded9cc"];

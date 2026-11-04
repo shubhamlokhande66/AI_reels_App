@@ -3,8 +3,8 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuthForm } from "@shubix/hooks";
-import { Button, Card, ErrorBanner, Eyebrow, Field, Gold, Icon, Input, PasswordInput } from "@shubix/ui-mobile";
+import { useAuthForm } from "@mobile/hooks";
+import { Button, Card, ErrorBanner, Eyebrow, Field, Gold, Icon, Input, PasswordInput } from "@mobile/ui-mobile";
 import { Logo } from "../atoms/Logo";
 import { SoundBars } from "./HomeHero";
 
@@ -13,7 +13,7 @@ const LEGAL = [["/terms", "legal.terms"], ["/privacy", "legal.privacy"], ["/cont
 
 /** Sign in, or create an account (the website's app/login/page.tsx on a phone): the dark studio band (the logo, the
  * three-line title, the soundtrack's bars), then the form sheet: the two tabs, the card with the fields (each says what
- * is wrong once left), the button that waits until the form is right, and the links. Logic: @shubix/hooks useAuthForm. */
+ * is wrong once left), the button that waits until the form is right, and the links. Logic: @mobile/hooks useAuthForm. */
 export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signup" }) {
   const f = useAuthForm((signedUp) => router.replace(signedUp ? "/verify" : "/"));
   const { t: text, signin } = f, insets = useSafeAreaInsets();

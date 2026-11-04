@@ -5,9 +5,9 @@
  * motion, background, overlay, voice, style), one panel open at a time. A plan's tools carry its tag (views.ts PLAN_TOOLS).
  * ?view=all opens every panel at once (checks and support). */
 import { PLAN_TOOLS } from "./views";
-import { GLYPH_PATHS } from "@shubix/ui-web";
-import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@shubix/core/lib/editor-tools";
-import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
+import { GLYPH_PATHS } from "@mobile/ui-core";
+import { DOCK_CATEGORIES_DEF, PANEL_NOTE, SHOT_TOOLS_DEF } from "@mobile/core/lib/editor-tools";
+import { TEXT_TEMPLATES } from "@mobile/core/lib/text-templates";
 export { DOCK_CATEGORIES_DEF, SHOT_TOOLS_DEF };
 import { Button, Chip, Segmented, Tile } from "./ui";
 /** shapes: drawn in the text's colour, so they take every text tool (keyframes, entrances, exits, loops) */

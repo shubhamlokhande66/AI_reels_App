@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
-import { useText } from "@shubix/hooks";
-import { Card, Chip, Heading, Icon, useTheme, type ThemePref } from "@shubix/ui-mobile";
-import type { IconName } from "@shubix/ui-core";
+import { useText } from "@mobile/hooks";
+import { Card, Chip, Heading, Icon, useTheme, type ThemePref } from "@mobile/ui-mobile";
+import type { IconName } from "@mobile/ui-core";
 
 /** The quick switch in the menu: Light <-> Dark (the website's ThemeToggle; kept on this phone). */
 export function ThemeToggle() {

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BannerAd, BannerAdSize, TestIds, adsInApp, adsReady, showRewarded } from "../../lib/ads";
-import { useApi, useText } from "@shubix/hooks";
-import { Button, Card, toast } from "@shubix/ui-mobile";
+import { useApi, useText } from "@mobile/hooks";
+import { Button, Card, toast } from "@mobile/ui-mobile";
 import { mobileApi, type AdPlace } from "../../lib/api";
 
 /** An ad for the plans that show ads (Free by default) in one of the spots the administrator left on (Admin → Settings →

@@ -39,7 +39,7 @@ const fmt2 = (t: number) => { t = Math.max(0, t); const m = Math.floor(t / 60), 
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"]; // as the engine's strip
 const TYPE: Record<string, string> = { drop: "Drop", hit: "Hit", cut: "Cut", break: "Break", talk: "Talk", jump: "Talk" };
 import { CLIP_TOOLS, clipToolsEvents, clipToolsHtml, type ClipApi } from "./clipTools";
-import { DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, type PlanId } from "@shubix/core/lib/plan-locks";
+import { DEFAULT_LOCKS, needMap, PLAN_NAME, planRank, type PlanId } from "@mobile/core/lib/plan-locks";
 import { tx } from "./i18n";
 import { Glyph, GLYPH_PATHS } from "./markup";
 import { Button, Chip } from "./ui";

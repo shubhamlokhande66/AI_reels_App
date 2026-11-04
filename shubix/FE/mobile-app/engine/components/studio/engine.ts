@@ -10,13 +10,13 @@
  * Plain JS on purpose (ported from the standalone page); the page mounts it with initStudio(root).
  */
 import { createTasks } from './tasks';
-import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes } from '@shubix/video-engine';
-import { chatSize } from '@shubix/core/lib/chatSize';
-import { TEXT_TEMPLATES, templateTexts } from '@shubix/core/lib/text-templates';
-import { MAIN_VERT, MAIN_FRAG, PASS_VERT, GRADE_FRAG, PIC_FRAG, PIC_FX, TR_DUR } from '@shubix/core/lib/shaders';
-import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@shubix/core/lib/plan-locks';
-import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@shubix/core/lib/studio-templates';
-import { songAnalysis } from '@shubix/core/engine/studio/song';
+import { createDirectorPlan, createAutonomousReelPlan, validateAutonomousReelPlan, assessAutonomousRenderQuality, inferAutonomousMood, evaluateKeyframes } from '@mobile/video-engine';
+import { chatSize } from '@mobile/core/lib/chatSize';
+import { TEXT_TEMPLATES, templateTexts } from '@mobile/core/lib/text-templates';
+import { MAIN_VERT, MAIN_FRAG, PASS_VERT, GRADE_FRAG, PIC_FRAG, PIC_FX, TR_DUR } from '@mobile/core/lib/shaders';
+import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@mobile/core/lib/plan-locks';
+import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@mobile/core/lib/studio-templates';
+import { songAnalysis } from '@mobile/core/engine/studio/song';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
@@ -192,7 +192,7 @@ const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).
 const TCOL = {drop:'--drop', hit:'--hit', cut:'--cut', break:'--break'};
 const TNAME = {drop:'DROP', hit:'HIT', cut:'CUT', break:'BREAK'};
 
-/* =============== MUSIC ENGINE: songAnalysis, shared with the phone (@shubix/core/engine/studio/song) =============== */
+/* =============== MUSIC ENGINE: songAnalysis, shared with the phone (@mobile/core/engine/studio/song) =============== */
 function analyseInWorker(m, sr, opts){
   return new Promise((resolve, reject) => {
     // beats the creator tapped in are the page's: with any, the song is analysed on the page (they become its beats)

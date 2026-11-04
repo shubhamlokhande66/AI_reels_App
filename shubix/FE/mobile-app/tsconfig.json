@@ -8,7 +8,7 @@
       ]
     }
   },
-  "exclude": ["engine"],
+  "exclude": ["engine", "shared"],
   "include": [
     "**/*.ts",
     "**/*.tsx",

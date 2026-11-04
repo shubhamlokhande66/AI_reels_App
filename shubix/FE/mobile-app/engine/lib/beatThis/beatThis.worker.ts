@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web/wasm";
-import { runBeatThis } from "@shubix/core/lib/beatThis/device";
+import { runBeatThis } from "@mobile/core/lib/beatThis/device";
 import { ortThreads } from "../ortThreads";
 
 /** Beat This! on the phone: the same 8-bit model and the same pre- / post-processing as the server

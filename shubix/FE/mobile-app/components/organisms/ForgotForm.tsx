@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Text } from "react-native";
 import { router } from "expo-router";
-import { useForgotFlow } from "@shubix/hooks";
-import { Button, ErrorBanner, Field, Icon, Input, OtpInput, PasswordInput } from "@shubix/ui-mobile";
-import { emailOk, passwordOk } from "@shubix/validations";
+import { useForgotFlow } from "@mobile/hooks";
+import { Button, ErrorBanner, Field, Icon, Input, OtpInput, PasswordInput } from "@mobile/ui-mobile";
+import { emailOk, passwordOk } from "@mobile/validations";
 import { AuthFrame } from "../templates/AuthFrame";
 
 /** Forgot password (the website's app/forgot/page.tsx): the email, then the 6-digit code with a new password twice;
- * signed in at the end. Logic: @shubix/hooks useForgotFlow. */
+ * signed in at the end. Logic: @mobile/hooks useForgotFlow. */
 export function ForgotForm() {
   const f = useForgotFlow(() => router.replace("/"));
   const { t: text } = f, first = f.step === "email", [touched, setTouched] = useState(false), [again, setAgain] = useState("");

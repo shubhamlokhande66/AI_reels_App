@@ -1,0 +1,24 @@
+{
+  "name": "@mobile/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Code the web app and the API both run: CMS texts, plans, templates, collections, and the media analysis core.",
+  "exports": {
+    "./*": {
+      "shubix-dist": "./dist/*.js",
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "@types/node": "^24.13.6"
+  },
+  "files": [
+    "src",
+    "dist"
+  ]
+}

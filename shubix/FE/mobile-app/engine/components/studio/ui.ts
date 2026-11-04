@@ -1,4 +1,7 @@
-import { buttonClass, chipClass, iconButtonClass, segClass, tileClass } from "@shubix/ui-web";
+import { buttonClass, iconButtonClass } from "./uiweb/button";
+import { chipClass } from "./uiweb/chip";
+import { segClass } from "./uiweb/seg";
+import { tileClass } from "./uiweb/tile";
 
 /** The studio's building blocks, as Tailwind classes for its HTML strings: the website's own (Shared/ui-web), so the
  * studio looks like the rest of the app. Size or place is added where one is used: class="${Button.icon} size-11". */

@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { createApiClient } from "@shubix/api-client";
+import { createApiClient } from "@mobile/api-client";
 import { tokenStore } from "./device";
 
 /** BE/api (NestJS): every endpoint. EXPO_PUBLIC_API_URL, else the computer running Expo: in a browser localhost; on a

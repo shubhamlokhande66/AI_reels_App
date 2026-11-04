@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { AudioLines, Mic2, Plus, Trash2 } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
-import { Button, Card, Eyebrow, Heading, Page, SectionHeader, colors, confirmAction, toast } from "@shubix/ui-mobile";
+import { Button, Card, Eyebrow, Heading, Page, SectionHeader, colors, confirmAction, toast } from "@mobile/ui-mobile";
 import { mobileApi } from "../lib/api";
 import { PlanGate } from "../components/templates/PlanGate";
 const languages = ["en", "hi", "mr", "hinglish"];

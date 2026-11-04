@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { Clapperboard, Plus, ScanSearch, Sparkles, Trash2 } from "lucide-react-native";
-import { Button, Card, Eyebrow, Heading, Page, SectionHeader, colors, confirmAction, toast } from "@shubix/ui-mobile";
+import { Button, Card, Eyebrow, Heading, Page, SectionHeader, colors, confirmAction, toast } from "@mobile/ui-mobile";
 import { mobileApi } from "../lib/api";
 export default function TrendsScreen() {
   const qc = useQueryClient(), q = useQuery({ queryKey: ["native-trends"], queryFn: mobileApi.references, retry: false });

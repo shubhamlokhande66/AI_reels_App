@@ -1,10 +1,10 @@
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useText } from "@shubix/hooks";
-import { Gold, Icon, colors } from "@shubix/ui-mobile";
-import type { IconName } from "@shubix/ui-core";
-import { TABS, isActive } from "@shubix/core/lib/nav";
+import { useText } from "@mobile/hooks";
+import { Gold, Icon, colors } from "@mobile/ui-mobile";
+import type { IconName } from "@mobile/ui-core";
+import { TABS, isActive } from "@mobile/core/lib/nav";
 
 /** The website's phone bottom bar (components/molecules/BottomNav.tsx): Home, Templates, the raised gold Create
  * button, My Reels and Account. The open tab is gold with a line under its name. */

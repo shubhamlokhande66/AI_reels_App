@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackHandler, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useStudioText } from "@shubix/hooks";
-import { asksForAllClips } from "@shubix/core/lib/chatSize";
-import { Button, IconButton, Segmented, Slider, confirmAction, toast, useColors } from "@shubix/ui-mobile";
-import { errorMessage } from "@shubix/api-client";
-import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@shubix/validations";
-import { evaluateSpeedRamp, recordEdit, slipClip, stepEditHistory } from "@shubix/video-engine";
+import { useStudioText } from "@mobile/hooks";
+import { asksForAllClips } from "@mobile/core/lib/chatSize";
+import { Button, IconButton, Segmented, Slider, confirmAction, toast, useColors } from "@mobile/ui-mobile";
+import { errorMessage } from "@mobile/api-client";
+import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@mobile/validations";
+import { evaluateSpeedRamp, recordEdit, slipClip, stepEditHistory } from "@mobile/video-engine";
 import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
@@ -16,7 +16,7 @@ import { pickInOrder } from "../components/organisms/Gallery";
 import { isNativeEffectSupported, isNativeTransitionSupported, previewSpec, videoEngine } from "../lib/video";
 import { ShubixPreviewView, type PreviewRef } from "../modules/shubix-video";
 import { engine, textsOf } from "../lib/engine";
-import { TEXT_TEMPLATES } from "@shubix/core/lib/text-templates";
+import { TEXT_TEMPLATES } from "@mobile/core/lib/text-templates";
 import { Choices, DOCK, Preview, SHOT_TOOLS, StudioBar, Timeline, ToolRow, ToolSheet, Transport } from "../components/organisms/EditorParts";
 
 type Overlay = ReelProject["overlays"][number];
