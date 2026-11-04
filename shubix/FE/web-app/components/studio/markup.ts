@@ -602,7 +602,7 @@ export const STUDIO_HTML = `
   <button type="button" class="${Button.close} absolute top-2.5 right-2.5" id="cconfx" aria-label="Close" title="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
   <span class="cconfi" aria-hidden="true">${IC.spark}</span>
   <b id="cconft"></b><p id="cconfp"></p><ul class="cconfl" id="cconfl" hidden></ul><p class="cconfbal" id="cconfbal"></p>
-  <div class="cconfa w-full flex-row! flex-nowrap! items-stretch! [&>button]:min-w-0 [&>button]:flex-1"><button type="button" class="${Button.secondary}" id="cconfno"></button><button type="button" class="${Button.primary}" id="cconfok"></button><button type="button" class="${Button.danger}" id="cconfex" hidden></button></div>
+  <div class="cconfa w-full flex-row! flex-nowrap! items-stretch! [&>button]:h-auto! [&>button]:min-h-11 [&>button]:min-w-0 [&>button]:flex-1 [&>button]:whitespace-normal! [&>button]:px-2.5! [&>button]:py-2! [&>button]:text-center [&>button]:leading-tight"><button type="button" class="${Button.secondary}" id="cconfno"></button><button type="button" class="${Button.primary}" id="cconfok"></button><button type="button" class="${Button.danger}" id="cconfex" hidden></button></div>
 </div></div>
 <div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
 <section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">
