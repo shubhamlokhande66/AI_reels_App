@@ -593,8 +593,11 @@
 .brs .fready small{color:var(--muted);font-size:13px}
 
 /* the Reel Preview (computers) */
-.brs .fprev{display:grid;gap:14px;align-content:start}
-.brs .fprevh{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brs .fprev{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;align-content:start;min-width:0}
+.brs .fprevh{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+/* the Reel's shape: under the title, as wide as the card (it never leaves it) */
+.brs .fprevh #aspect{flex:1 1 100%;flex-wrap:wrap;min-width:0;max-width:100%}
+.brs .fprevh #aspect button{flex:1 1 22%;min-width:0;padding-inline:6px;white-space:nowrap}
 .brs .fprevh b{font:600 15px var(--body)}
 .brs .fprevbox{position:relative;aspect-ratio:9/16;border-radius:18px;overflow:hidden;display:grid;place-items:center;align-content:center;gap:10px;background:radial-gradient(60% 50% at 50% 35%,color-mix(in srgb,var(--accent) 38%,transparent),transparent 70%),linear-gradient(170deg,#373124,#10100f);color:#fff}
 .brs .fplay{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.75)}
@@ -602,7 +605,9 @@
 .brs .fprevbox small{font:600 13px var(--body);color:rgba(255,255,255,.8)}
 .brs .fprevbox.ready{box-shadow:0 0 0 2px var(--accent)}
 /* computers: the card fits the window (Generate Reel always in reach on a short laptop screen); the preview 9:16 inside */
-@media (min-width:1024px){ .brs.fopen .fprevbox{height:clamp(260px,calc(100vh - 320px),680px);width:auto;justify-self:center} }
+/* as tall as the screen allows, never wider than its card */
+@media (min-width:1024px){ .brs.fopen .fprevbox{height:auto;width:min(100%,calc(clamp(260px,calc(100vh - 320px),680px) * .5625));justify-self:center}
+  .brs.fopen[data-asp="4:5"] .fprevbox,.brs.fopen[data-asp="1:1"] .fprevbox{width:100%} }
 .brs .fgen{width:100%;justify-content:center;gap:9px;min-height:48px;font-size:14.5px;border-radius:13px}
 .brs .fgen svg{width:19px;height:19px}
 .brs .fnote{display:flex;align-items:center;justify-content:center;gap:6px;margin:0;color:var(--muted);font-size:12.5px;text-align:center}
@@ -624,6 +629,12 @@
 @media (min-width:1024px){
   .brs.fopen .fan{display:none !important}
   .brs.fopen .fgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,340px);gap:18px;align-items:start}
+  /* one section open at a time (flow.ts): a minimised one is its head, with a chevron */
+  .brs.fopen .ffold>:not(.sh){display:none !important}
+  .brs.fopen :is(#s1,#s2,#fai){scroll-margin-top:92px}
+  .brs.fopen :is(#s1,#s2)>.sh{cursor:pointer}
+  .brs.fopen :is(#s1,#s2)>.sh::after{content:"";flex:none;align-self:center;width:9px;height:9px;margin-inline:4px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(-135deg) translate(-2px,-2px);transition:transform .2s}
+  .brs.fopen .ffold>.sh::after{transform:rotate(45deg) translate(-2px,-2px)}
   .brs.fopen .fmain{display:grid;gap:16px;min-width:0}
   .brs.fopen .fprev{position:sticky;top:84px;padding:16px;border:1px solid var(--line);border-radius:20px;background:var(--surface)}
   .brs.fopen .fadjust{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;align-items:start}
@@ -659,7 +670,7 @@
 
 
 /* the made Reel in the preview card: the engine canvas fills it, its play button on top */
-.brs .fprevbox .pvbox{position:absolute;inset:0;display:grid;place-items:center;background:#000}
+.brs .fprevbox .pvbox{position:absolute;inset:0;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;aspect-ratio:auto!important;display:grid;place-items:center;background:#000}
 .brs .fprevbox .pvbox #out{width:100%;height:100%;max-height:none;object-fit:contain;border-radius:0}
 .brs .fprevbox:has(.pvbox) :is(.fplay,small){display:none}
 /* the engine reads its canvas colours from the page root (engine.ts css()): the same values there */
@@ -1017,7 +1028,10 @@
 .brs.made.v-one .transport #nshot{order:5}
 .brs.made.v-one .transport #cover{order:6}
 .brs.made.v-one .transport #remix{order:7;margin-left:auto;width:auto;height:36px;min-height:36px;padding:0 14px;gap:6px;border-radius:18px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:600 13px var(--body)}
+.brs.made.v-one .transport #remix{display:inline-flex;flex-direction:row;align-items:center;justify-content:center;flex:0 0 auto;white-space:nowrap;line-height:1}
 .brs.made.v-one .transport #remix span{display:inline}
+/* computers: the Reel's shape is chosen in the header only, and Ask Shubix is in the header too (no floating button as well) */
+@media (min-width:1024px){ .brs #prevaspbtn{display:none !important} .brs.made:not(.fopen) .chatfab{display:none !important} }
 .brs.made.v-one .transport #remix svg{width:16px;height:16px}
 
 /* the shot sheet */
@@ -3354,7 +3368,7 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.made.v-one:not(.fopen) .panels:not([hidden]):has(.panel.on) {
     z-index: 70 !important;
     max-height: min(72svh, 620px) !important;
-    padding-bottom: calc(82px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom)) !important;
   }
   .brs.made.v-one:not(.fopen) .wrap { padding-bottom: 0 !important; }
 }
@@ -3581,3 +3595,48 @@ html:has(.brs .cconf:not([hidden])) body,html:has(.brs .xsheet:not([hidden])) bo
   .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid > button[aria-pressed="true"]{border-color:rgba(216,189,123,.4) !important;background:rgba(216,189,123,.13) !important}
   .brs.fpost.made.v-one:not(.fopen) .dock .shotToolGrid > button:first-child{margin-left:8px}
 }
+
+/* computers: the Reel is what the person came to check: as big as the screen allows, whatever older rules above say */
+@media (min-width:1024px){
+  .brs.brs.made.v-one:not(.fopen) :is(.workbench,.previewPanel){height:auto !important;max-height:none !important;grid-template-rows:auto !important}
+  .brs.brs.made.v-one:not(.fopen) .previewPanel{overflow:visible !important}
+  /* the video and its controls fit the screen under the page's header; the clip controls scroll in the card's height */
+  .brs.brs.made.v-one:not(.fopen) .previewStage{flex:none !important;height:clamp(360px,calc(100svh - 350px),760px) !important;max-height:none !important;container-type:size}
+  .brs.brs.made.v-one:not(.fopen) .inspector{height:0 !important;min-height:100% !important;max-height:none !important;overflow-y:auto !important}
+  .brs.brs.made.v-one:not(.fopen) .previewStage .videoFrame{width:min(100cqw,100cqh * var(--ar,.5625)) !important;max-width:100% !important;max-height:100% !important;height:auto !important}
+}
+
+/* phones: the player's row: the times never squeeze onto each other or the play button; the sound is its icon */
+@media (max-width:1023px){
+  .brs.brs.made.v-one .previewPanel .transport :is(.tc,.timeDivider){flex:none !important;min-width:max-content !important;overflow:visible !important}
+  .brs.brs.made.v-one .previewPanel .transport{gap:6px !important;flex-wrap:nowrap !important}
+}
+@media (max-width:480px){
+  .brs.brs.made.v-one .previewPanel .transport #soundstate{font-size:0 !important;gap:0 !important;flex:none}
+  .brs.brs.made.v-one .previewPanel .transport #remix{padding:0 10px !important}
+}
+@media (max-width:340px){
+  .brs.brs.made.v-one .previewPanel .transport #remix span{display:none !important}
+  .brs.brs.made.v-one .previewPanel .transport #remix{padding:0 10px !important;gap:0 !important}
+}
+/* phones, no tool open: the Reel as wide as the card (what the person came to check), as tall as most of the screen */
+@media (max-width:1023px){
+  .brs.brs.made.v-one:is([data-tool=""],:not([data-tool])) .previewPanel .previewStage{height:auto !important;max-height:none !important;flex:none !important;padding:6px 0 !important;container-type:inline-size}
+  .brs.brs.made.v-one:is([data-tool=""],:not([data-tool])) .previewPanel .previewStage .videoFrame{width:min(100cqw,74svh * var(--ar,.5625)) !important;max-width:100% !important;height:auto !important;max-height:none !important}
+}
+
+/* a clip's card: it plays itself (engine.ts cardsPlay) and goes where it is dragged; on it only its number and tick, and Remove */
+.brs .clip .cv{display:none}
+.brs.fopen .clip .cv.on{display:block;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:14px;z-index:1;pointer-events:none}
+.brs.fopen .clip .meta{z-index:2}
+.brs.fopen .clip .cnum{top:6px !important;left:6px !important;height:22px;min-width:22px;padding:0 5px;font-size:11px}
+.brs.fopen .clip .clip-status{position:absolute !important;inset:7px auto auto 32px !important;width:20px !important;height:20px !important;min-width:0 !important;font-size:11px !important;z-index:3}
+.brs.fopen .clip .del{top:6px !important;right:6px !important}
+/* the Create page has Ask Shubix at its top: no floating button over its buttons as well */
+.brs.fopen .chatfab{display:none !important}
+.brs.fopen .clip{cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.brs.fopen .clip canvas.th{-webkit-user-drag:none}
+.brs.fopen .clip.dragging{cursor:grabbing;z-index:50;pointer-events:none;box-shadow:0 18px 40px -12px rgba(0,0,0,.55);border-radius:14px}
+/* a clip being dragged sideways is never the browser's swipe back */
+html:has(.brs .clip.dragging),html:has(.brs .clip.dragging) body{overscroll-behavior:none}
+.brs.fopen #clips{overscroll-behavior-x:contain}

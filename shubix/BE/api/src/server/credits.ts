@@ -104,6 +104,15 @@ export async function chargeOnce(action: string, key: string, reason: string): P
   if (await (await col("credit_ledger")).findOne({ ref, delta: { $lt: 0 }, refunded: { $ne: true } })) return { taken: 0, ref };
   return { taken: await charge(action, ref, reason), ref };
 }
+/** Before the AI works: would chargeOnce pass? Nothing is taken: the credits go when the AI has answered, so a Reel cancelled
+ * before that costs nothing. */
+export async function canChargeOnce(action: string, key: string) {
+  const uid = currentUser();
+  if (!enabled() || !uid || (await isAdminUser(uid))) return;
+  if (await (await col("credit_ledger")).findOne({ ref: `${action}:${uid}:${key}`, delta: { $lt: 0 }, refunded: { $ne: true } })) return;
+  const cost = await costOf(action), have = balanceOf(await wallet(uid));
+  if (cost > 0 && have < cost) throw new NotEnoughCredits(`This needs ${cost} credit${cost > 1 ? "s" : ""}, you have ${have}. Top up or choose a plan to continue.`, { needed: cost, balance: have });
+}
 /** One Ask Shubix message on a Reel: the plan's first few per Reel (freeChats: Editor 2, Pro 5) use no credits, the
  * rest are charged (small or whole-Reel). Counted on the server per person and Reel by message id, so a retry of the
  * same message is the same turn and a Reel opened again keeps its count. `undo` gives a failed turn back. */
@@ -133,8 +142,16 @@ export async function setPlanByAdmin(userId: string, planId: string, months: num
 }
 /** An AI Reel's credits pay for its plan: once the plan is delivered the charge stays (marked here); a charge whose plan
  * never came (the AI failed, answered only a part) is given back by refundUndelivered. */
-export async function markDelivered(ref: string) {
-  if (ref) await (await col("credit_ledger")).updateOne({ ref, delta: { $lt: 0 } }, { $set: { delivered: true } });
+export async function markDelivered(ref: string, fingerprint?: string) {
+  if (ref) await (await col("credit_ledger")).updateOne({ ref, delta: { $lt: 0 } }, { $set: { delivered: true, ...(fingerprint ? { fingerprint } : {}) } });
+}
+/** What an AI Reel's work is charged under. The app's id alone does not decide: once a Reel has its plan, other footage or another
+ * plan under the same id is a new Reel, with its own charge. The same work again (a retry) is not. */
+export async function reelChargeKey(action: string, key: string, fingerprint: string) {
+  const uid = currentUser();
+  if (!uid) return key;
+  const paid = await (await col("credit_ledger")).findOne({ ref: `${action}:${uid}:${key}`, delta: { $lt: 0 }, refunded: { $ne: true } });
+  return paid?.delivered && paid.fingerprint !== fingerprint ? `${key}:again:${fingerprint}` : key;
 }
 export async function refundUndelivered(ref: string): Promise<number> {
   if (!ref) return 0;

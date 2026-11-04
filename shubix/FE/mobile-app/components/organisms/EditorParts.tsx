@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useStudioText } from "@mobile/hooks";
@@ -17,15 +17,14 @@ import { useThumb } from "../../lib/thumbs";
 const CLIP_COL = ["#6b5540", "#46596a", "#5a4766", "#476452", "#6e4a44", "#5f5a3c", "#3f5d63", "#6a5a2e"];
 export const mmss = (t: number, tenth = true) => { t = Math.max(0, t); const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s < 9.95 ? "0" : ""}${s.toFixed(tenth ? 1 : 0)}`; };
 
-/** The studio's top bar: its sign, REEL STUDIO with the saved dot, the Reel's name, and Export. */
-export function StudioBar({ title, saved, onBack, onExport }: { title: string; saved: boolean; onBack: () => void; onExport: () => void }) {
+/** The studio's top bar: its sign, the Reel's name, and Export. */
+export function StudioBar({ title, onBack, onExport }: { title: string; onBack: () => void; onExport: () => void }) {
   const words = useStudioText();
   return (
     <View className="mx-4 mb-3 mt-2 min-h-[58px] flex-row items-center gap-3 rounded-[18px] border border-border bg-surface px-3">
       <IconButton icon="back" label={words("Back")} size={36} look="plain" onPress={onBack} />
       <View className="h-[34px] w-[34px] items-center justify-center rounded-[11px] border border-accent/30 bg-accent/10"><Glyph name="Shots" size={18} color="accent" /></View>
       <View className="min-w-0 flex-1 gap-[3px]">
-        <View className="flex-row items-center gap-1.5"><Text className="text-[8px] font-bold tracking-[1px] text-muted">REEL STUDIO</Text><View className={`h-1.5 w-1.5 rounded-full ${saved ? "bg-[#72bd91]" : "bg-border"}`} /><Text numberOfLines={1} className="text-[8px] font-bold tracking-[1px] text-muted">{words(saved ? "SAVED REEL" : "SAVING…")}</Text></View>
         <Text numberOfLines={1} className="text-[13px] text-foreground">{title}</Text>
       </View>
       <View><Button title={words("Export")} iconAfter="arrow" onPress={onExport} /></View>
@@ -42,11 +41,13 @@ function rampTimelineAt(segments: SpeedRampSegment[], sourceTime: number) {
 
 /** The preview box: the editor's one player inside it, the big play button over it while paused, which shot it is (01 / 08). */
 export function Preview({ n, of, playing, aspect, error, onToggle, children }: { n: number; of: number; playing: boolean; aspect: number; error?: string | null; onToggle: () => void; children: ReactNode }) {
-  const words = useStudioText();
+  const words = useStudioText(), screen = useWindowDimensions();
+  // the Reel is what the person came to check: as wide as the screen, as tall as most of it
+  const width = Math.min(screen.width - 32, screen.height * 0.68 * aspect);
   return (
     <View className="gap-2 px-4">
       <View className="flex-row items-center gap-1.5"><View className="h-1.5 w-1.5 rounded-full bg-danger" /><Text className="text-[10px] font-bold tracking-[1.2px] text-muted">{words("PREVIEW")}</Text></View>
-      <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ height: 360, aspectRatio: aspect }}>
+      <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ width, aspectRatio: aspect }}>
         {children}
         {error ? <View pointerEvents="none" className="absolute inset-0 items-center justify-center bg-black/70 px-4"><Text className="text-center text-[12px] font-semibold text-white">{error}</Text></View>
           : !playing && <View pointerEvents="none" className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}

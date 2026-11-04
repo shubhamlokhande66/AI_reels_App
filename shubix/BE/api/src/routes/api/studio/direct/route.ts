@@ -1,7 +1,8 @@
+import crypto from "node:crypto";
 import { trendText } from "../../../../server/studio/styles";
 import { isPlanAdmin } from "../../../../server/core/admin";
 import { body } from "../../../../server/core/body";
-import { balanceNow, chargeOnce, chatTurn, markDelivered, refund, refundUndelivered, requireAiPlan } from "../../../../server/credits";
+import { balanceNow, chargeOnce, chatTurn, markDelivered, reelChargeKey, refund, refundUndelivered, requireAiPlan } from "../../../../server/credits";
 import { chatSize } from "@shubix/core/lib/chatSize";
 import { requireFeature } from "../../../../server/core/features";
 import { route } from "../../../../server/core/http";
@@ -17,7 +18,9 @@ export const POST = route(async (req) => {
   limits.ai(req); // each AI call costs money
   const d = await body(req, DirectIn), t0 = Date.now();
   // the Reel's AI (once per Reel), then the chat message it answers (once per message: small or the whole Reel)
-  const reelCharge = d.reelId ? await chargeOnce("studio_ai", d.reelId, "Shubix AI Reel") : null;
+  // (another plan for a Reel that already has one is a new Reel: its own charge. A chat message and New mix have their own charges)
+  const planPrint = crypto.createHash("sha256").update(JSON.stringify(d.slots.map((s) => [s.t, s.candidates?.map((c) => c.id)]))).digest("hex").slice(0, 16);
+  const reelCharge = d.reelId ? await chargeOnce("studio_ai", d.chat || d.patch || d.variants ? d.reelId : await reelChargeKey("studio_ai", d.reelId, planPrint), "Shubix AI Reel") : null;
   // the plan's first chat changes on a Reel are free (Editor 2, Pro 5); the rest use credits
   const chatCharge = d.chat && d.reelId ? await chatTurn(d.reelId, d.chat.id || `n${d.chat.n}`, chatSize(d.chat.text) === "small" ? "studio_chat_small" : "studio_chat_big", "Ask Shubix: " + d.chat.text.slice(0, 60)) : null;
   const chatOut = chatCharge ? { chat: { free: chatCharge.free, used: chatCharge.used, left: chatCharge.left, charged: chatCharge.taken } } : {};
@@ -40,7 +43,7 @@ export const POST = route(async (req) => {
   }
   try {
     const res = await direct(d, undefined, await taste(), await trendText(d.reelKind)).catch(async (e) => { await chatCharge?.undo(); throw e; });
-    if (reelCharge) await markDelivered(reelCharge.ref);   // the Reel got its plan: its credits are spent
+    if (reelCharge) await markDelivered(reelCharge.ref, planPrint);   // the Reel got its plan: its credits are spent
     recordRun({ kind: "plan", cuts: d.slots.length, mode: d.mode, provider: res.provider, model: res.model, ms: Date.now() - t0, ok: true,
       transitions: res.slots.filter((s) => s.transition && s.transition !== "hard").length,
       effects: res.slots.filter((s) => s.effect && s.effect !== "none").length, keys: res.slots.reduce((n, s) => n + s.keys.length, 0) });

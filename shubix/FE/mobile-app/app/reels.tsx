@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useText } from "@mobile/hooks";
-import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors, confirmAction, toast } from "@mobile/ui-mobile";
+import { Badge, Button, Card, EmptyState, Gold, Icon, IconButton, Page, ReelCover, Segmented, colors, confirmAction, tell } from "@mobile/ui-mobile";
 import type { CloudReel } from "@mobile/types";
 import { clock, formatRelative, megabytes, videoQuality } from "@mobile/utils";
 import { AdBanner } from "../components/molecules/AdBanner";
@@ -108,7 +108,7 @@ function SavedCard({ reel, onWatch, onChange }: { reel: CloudReel; onWatch: (uri
     if (!reel.shared) onChange();
     await Share.share({ title: reel.name, message: mobileApi.absoluteAsset(next.shareUrl!) });
   });
-  const remove = async () => { if (await confirmAction({ title: text("reels.deleteDraftTitle", { name: reel.name }), body: text("reels.deleteSavedText"), ok: text("reels.delete"), danger: true })) void run(async () => { await mobileApi.deleteReel(reel.id); onChange(); toast(text("reels.deleted", { name: reel.name }), "success"); }); };
+  const remove = async () => { if (await confirmAction({ title: text("reels.deleteDraftTitle", { name: reel.name }), body: text("reels.deleteSavedText"), ok: text("reels.delete"), danger: true })) void run(async () => { await mobileApi.deleteReel(reel.id); onChange(); tell(text("reels.deleted", { name: reel.name }), "success"); }); };
   return (
     <View className="min-w-0 gap-2">
       <Pressable onPress={() => void watch()} accessibilityLabel={text("reels.watch", { name: reel.name })}>

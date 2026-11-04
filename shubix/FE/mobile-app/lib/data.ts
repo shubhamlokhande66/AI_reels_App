@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useText } from "@mobile/hooks";
-import { chooseAction, confirmAction, toast } from "@mobile/ui-mobile";
+import { chooseAction, confirmAction, tell } from "@mobile/ui-mobile";
 import { listDef, type ListItem } from "@mobile/core/lib/collections";
 import { DEFAULTS, type Features } from "@mobile/core/lib/features-list";
 import { DEFAULT_TEMPLATES } from "@mobile/core/lib/studio-templates";
@@ -42,8 +42,8 @@ export function useDraftActions() {
   const edit = (draft: MobileProject) => router.push({ pathname: "/editor", params: { id: draft.id } });
   async function remove(draft: MobileProject) {
     if (!await confirmAction({ title: text("reels.deleteDraftTitle", { name: draft.title }), body: text("reels.deleteDraftText"), ok: text("reels.delete"), danger: true })) return;
-    try { await removeProject(draft.id); await queryClient.invalidateQueries({ queryKey: ["drafts"] }); toast(text("reels.deleted", { name: draft.title }), "success"); }
-    catch { toast(text("reels.deleteFailed"), "danger"); }
+    try { await removeProject(draft.id); await queryClient.invalidateQueries({ queryKey: ["drafts"] }); tell(text("reels.deleted", { name: draft.title }), "success"); }
+    catch { tell(text("reels.deleteFailed"), "danger"); }
   }
   async function menu(draft: MobileProject) {
     const picked = await chooseAction({ title: draft.title, actions: [{ label: text("common.open"), icon: "pen" }, { label: text("reels.delete"), icon: "trash", danger: true }] });

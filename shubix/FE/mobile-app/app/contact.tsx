@@ -3,7 +3,7 @@ import { Linking, Pressable, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useApi, useText } from "@mobile/hooks";
-import { Button, Card, Chip, ErrorBanner, Field, Heading, Icon, IconTile, Input, Page, TextArea, toast } from "@mobile/ui-mobile";
+import { Button, Card, Chip, ErrorBanner, Field, Heading, Icon, IconTile, Input, Page, TextArea, tell } from "@mobile/ui-mobile";
 import type { IconName, Tone } from "@mobile/ui-core";
 import { emailOk } from "@mobile/validations";
 import { errorMessage } from "@mobile/api-client";
@@ -38,7 +38,7 @@ export default function ContactScreen() {
   const valid = emailOk(email) && message.trim().length >= 10;
   async function send() {
     setError(null); setBusy(true);
-    try { const r = await mobileApi.contact({ email: email.trim(), name: name.trim(), topic, message: message.trim() }); setTicket(r.ticket); toast(text("contact.sentTitle"), "success"); }
+    try { const r = await mobileApi.contact({ email: email.trim(), name: name.trim(), topic, message: message.trim() }); setTicket(r.ticket); tell(text("contact.sentTitle"), "success"); }
     catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   }
   return (

@@ -62,6 +62,28 @@ describe("plans and Shubix AI credits", () => {
     expect((await aiAllowed()).ok).toBe(false);
     expect((await aiAllowed(true)).ok).toBe(true); // the administrator always
   });
+  it("takes nothing before the AI has answered, and says early when there are too few credits", async () => {
+    const { canChargeOnce, chargeOnce, setPlanByAdmin, balanceNow } = await import("../../src/server/credits");
+    await setPlanByAdmin("u1", "pro", 1);
+    const before = await balanceNow();
+    await canChargeOnce("studio_ai", "reelCancelled");
+    expect(await balanceNow()).toBe(before); // cancelled now: nothing was taken
+    expect((await chargeOnce("studio_ai", "reelCancelled", "AI Reel")).taken).toBe(10);
+    await expect(canChargeOnce("studio_ai", "reelCancelled")).resolves.toBeUndefined(); // paid already: more clips cost nothing
+  });
+  it("takes a new charge when a Reel that has its plan gets another, whatever id the app sends", async () => {
+    const { chargeOnce, setPlanByAdmin, balanceNow, markDelivered, reelChargeKey } = await import("../../src/server/credits");
+    await setPlanByAdmin("u1", "pro", 1);
+    const first = await chargeOnce("studio_ai", await reelChargeKey("studio_ai", "reelA", "plan1"), "AI Reel");
+    expect(first.taken).toBe(10);
+    expect(await reelChargeKey("studio_ai", "reelA", "plan2")).toBe("reelA"); // no plan yet: the same Reel (clips, pace, its plan)
+    await markDelivered(first.ref, "plan1");
+    expect(await reelChargeKey("studio_ai", "reelA", "plan1")).toBe("reelA"); // the same plan again: a retry, nothing more
+    const other = await reelChargeKey("studio_ai", "reelA", "plan2");
+    expect((await chargeOnce("studio_ai", other, "AI Reel")).taken).toBe(10); // another plan on the same id: a new charge
+    expect((await chargeOnce("studio_ai", other, "AI Reel")).taken).toBe(0);  // and only once
+    expect(await balanceNow()).toBe(720 - 20);
+  });
   it("charges an AI Reel once and each chat message once", async () => {
     const { chargeOnce, setPlanByAdmin, balanceNow } = await import("../../src/server/credits");
     await setPlanByAdmin("u1", "pro", 1);

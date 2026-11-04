@@ -28,9 +28,10 @@ export async function keepFile(from: string, folder: string, name: string): Prom
 }
 
 /** Copy picker URIs into app-private storage so Android's temporary photo-picker grant survives reloads. */
-export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], onEach?: (done: number) => void): Promise<ProjectClip[]> {
+export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], onEach?: (done: number) => void, from = 0): Promise<ProjectClip[]> {
   let done = 0; // `onEach`: how many are copied so far
-  return Promise.all(assets.map(async (asset, index) => {
+  return Promise.all(assets.map(async (asset, i) => {
+    const index = from + i; // `from`: how many of this Reel's clips are kept already
     const original = asset.fileName || `moment-${index + 1}.${asset.type === "image" ? "jpg" : "mp4"}`;
     const uri = await keepFile(asset.uri, `projects/${id}`, `${index + 1}-${original}`);
     onEach?.(++done);
@@ -38,5 +39,14 @@ export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], o
     return clipSchema.parse({ id: `${id}-clip-${index + 1}`, uri, name: original, kind: asset.type === "image" ? "image" : "video", duration: sourceDuration, sourceDuration, start: 0, end: sourceDuration, speed: 1, reverse: false, muted: false, volume: 1, filter: "Original", transition: "Cut", rotation: 0, mirror: false, flip: false, fit: "cover" });
   }));
 }
+
+/** What a new Reel starts from when it is asked for in the editor (changed clips): the Create screen takes it once. */
+export type NewReelSeed = { media: ImagePickerAsset[]; song: { uri: string; name: string; duration: number } | null; start: number; length: number };
+let seed: NewReelSeed | null = null;
+export const setNewReelSeed = (s: NewReelSeed) => { seed = s; };
+export const takeNewReelSeed = () => { const s = seed; seed = null; return s; };
+
+/** A Reel given up before it was saved: its kept files go. */
+export function forgetKeptFiles(id: string) { try { const dir = new Directory(Paths.document, "projects", id); if (dir.exists) dir.delete(); } catch (e) { console.warn("Kept files not removed:", e instanceof Error ? e.message : e); } }
 
 export const keepPickedFile = (projectId: string, from: string, name: string) => keepFile(from, `projects/${projectId}`, `audio-${name}`);

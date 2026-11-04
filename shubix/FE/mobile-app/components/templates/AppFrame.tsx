@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, BackHandler, Easing, Platform, Text, View } from "react-native";
 import { router, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApi, useText } from "@mobile/hooks";
+import { useApi, useStudioText, useText } from "@mobile/hooks";
 import { Button, FeedbackHost, TaskHost } from "@mobile/ui-mobile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { tokenStore } from "../../lib/device";
@@ -33,7 +33,8 @@ function WakeMark() {
  * (not in the studio: /create and /editor keep the screen, as on the website) and the menu. The sign-in pages stand alone; signed out, the other pages lead to sign in. */
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname(), { me, refresh } = useApi(), insets = useSafeAreaInsets(), text = useText();
-  const feedback = (bottom: number) => <><TaskHost bottom={bottom + 8} /><FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} bottom={bottom} /></>;
+  const words = useStudioText();
+  const feedback = <><TaskHost cancel={text("common.cancel")} cancelReel={words("Cancel Reel")} cantCancel={words("Shubix AI has started working on this Reel. You can't cancel now.")} hide={words("Hide")} words={words} /><FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} /></>;
   const [menu, setMenu] = useState(false), [noToken, setNoToken] = useState(false), [slow, setSlow] = useState(false);
   const authPage = AUTH_PAGES.includes(pathname), open = authPage || PUBLIC_PAGES.includes(pathname);
   // who is signed in is not known yet: no token on this phone means signed out at once; with one, the app waits for the
@@ -51,7 +52,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
     const handler = BackHandler.addEventListener("hardwareBackPress", () => { setMenu(false); return true; }); // Android back closes the menu
     return () => handler.remove();
   }, [menu]);
-  if (authPage) return <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>{children}{feedback(16)}</View>;
+  if (authPage) return <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>{children}{feedback}</View>;
   // an administrator whose daily code is due (still signed in): the code first, emailed at once
   if (adminQ.data?.otp && adminCodeWanted() && !open) return <AdminCode onDone={() => void qc.invalidateQueries({ queryKey: ["native-admin"] })} />;
   if (unknown) return (
@@ -68,7 +69,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       {showTabs(pathname) && <BottomNav pathname={pathname} />}
       <MenuDrawer open={menu} onClose={() => setMenu(false)} pathname={pathname} />
       <HelpChat pathname={pathname} bottom={showTabs(pathname) ? 84 : 16} />
-      {feedback(showTabs(pathname) ? 88 : 84)}
+      {feedback}
     </View>
   );
 }

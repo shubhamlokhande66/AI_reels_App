@@ -3,6 +3,7 @@
 //   node scripts/engine-golden.mjs            compare
 //   node scripts/engine-golden.mjs --update   write the file (only when the edit was changed on purpose)
 //   node scripts/engine-golden.mjs --ai       the same with a fake Shubix AI server: its plan, texts and steps must come out the same (tests/golden/edit-ai.json)
+//   node scripts/engine-golden.mjs --cancel   the popup's Cancel, again and again: no clip lost or added, nothing done twice, the AI's plan at the end
 //   node scripts/engine-golden.mjs --chat     Shubix AI closed at first, then asked for in the chat: it must look at the clips, plan, and say Done
 // Needs ffmpeg and Chrome. Nothing reaches the internet: /api answers 404, so the phone's own edit is what is compared.
 import { execFileSync, spawn } from "node:child_process";
@@ -13,7 +14,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url)), app = join(here, "..");
-const site = join(app, "modules", "shubix-video", "android", "src", "main", "assets", "engine"), CHAT = process.argv.includes("--chat"), AI = CHAT || process.argv.includes("--ai"), golden = join(app, "tests", "golden", AI ? "edit-ai.json" : "edit.json");
+const site = join(app, "modules", "shubix-video", "android", "src", "main", "assets", "engine"), CHAT = process.argv.includes("--chat"), CANCEL = process.argv.includes("--cancel"), AI = CHAT || CANCEL || process.argv.includes("--ai"), golden = join(app, "tests", "golden", AI ? "edit-ai.json" : "edit.json");
 if (!existsSync(join(site, "index.html"))) throw new Error("Build the engine first: node engine/build.mjs");
 const work = mkdtempSync(join(tmpdir(), "golden-"));
 const ff = (...a) => execFileSync("ffmpeg", ["-v", "error", "-y", ...a], { stdio: ["ignore", "ignore", "inherit"] });
@@ -36,6 +37,7 @@ const server = createServer((q, r) => {
     let body = ""; q.on("data", (c) => (body += c)); q.on("end", () => {
       const d = JSON.parse(body || "{}");
       aiCalls.push(path);
+      if (path === "/api/studio/rank-shots" && CANCEL && aiCalls.filter((c) => c === path).length === 1) return setTimeout(() => json({ clips: [] }), 8000);   // slow: Cancel comes first
       if (path === "/api/studio/rank-shots") return json({ charged: 0, balance: 100, clips: d.clips.map((c, i) => ({ id: c.id, summary: "clip " + (i + 1), mood: "calm", frames: c.frames.map((f, k) => ({ t: f.t, score: 0.5 + ((k % 5) / 10), roles: ["action"], tags: ["street"], issues: [], person: false, subject: null, note: "moment" })) })) });
       if (path === "/api/studio/pace") return json({ story: "steady", sections: d.sections.map((s) => ({ i: s.i, every: 2, why: "even" })) });
       if (path === "/api/studio/direct") return json({ balance: 100, story: "the fake plan", texts: [{ text: "Hello from the plan", at: 1, dur: 2, style: "pop", place: "middle" }], actions: [{ do: "captions", on: false }],
@@ -73,6 +75,44 @@ try {
   await put("#mfile", [song]);
   for (let i = 0; i < 240 && !(await run(`document.querySelector("#studio").__studio.work.songReady`)); i++) await wait(250);
   await put("#vfile", clips);
+  if (CANCEL) {
+    const S = `document.querySelector("#studio").__studio`, root = `document.querySelector("#studio")`;
+    const count = () => run(`${root}.querySelector("#clips").children.length`), left = async (ms = 120000) => { const t0 = Date.now(); while (Date.now() - t0 < ms && !(await run(`${S}.work.pending===0`))) await wait(150); };
+    const seen = []; const say = (name, ok, extra = "") => { seen.push(ok); console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra === "" ? "" : "  · " + extra}`); };
+    await wait(200); await run(`${S}.cancelNow()`); await left();
+    say("Cancel keeps every clip", (await count()) === 4, await count());
+    const readFirst = await run(`${S}.sources.length`);
+    await run(`${S}.resumeClips()`); await wait(100); await run(`${S}.cancelNow()`); await left();
+    say("a second Cancel: the same clips", (await count()) === 4, await count());
+    await run(`${S}.resumeClips()`); await left();
+    for (let i = 0; i < 60 && !(await run(`${root}.querySelector("#s2").classList.contains("done")`)); i++) await wait(250);
+    say("Proceed reads what was left, each clip once", (await count()) === 4 && (await run(`${S}.sources.length`)) === 4, `${readFirst} read at the first Cancel, ${await run(`${S}.sources.length`)} at the end`);
+    const useNow = async () => { void run(`${S}.upsell().then(String)`); for (let i = 0; i < 60 && (await run(`${root}.querySelector("#cconf").hidden`)); i++) await wait(100); await run(`${root}.querySelector("#cconfok").click()`); };
+    for (let i = 0; i < 120 && !(await run(`${S}.work.shots>0`)); i++) await wait(250);
+    await useNow();
+    for (let i = 0; i < 200 && !aiCalls.includes("/api/studio/rank-shots"); i++) await wait(100);
+    await run(`${S}.cancelNow()`); await wait(800);
+    say("Cancel before the AI's answer: no next step", !aiCalls.includes("/api/studio/pace") && !aiCalls.includes("/api/studio/direct"), aiCalls.join(" "));
+    await useNow();
+    for (let i = 0; i < 240 && !aiCalls.includes("/api/studio/direct"); i++) await wait(250);
+    for (let i = 0; i < 80 && (await run(`${S}.work.aiWait||${S}.work.dir||${S}.work.ai||${S}.work.pace`)); i++) await wait(250);
+    say("Proceed: the AI goes on to its plan", aiCalls.includes("/api/studio/direct") && !(await run(`${S}.work.aiWait`)), aiCalls.join(" "));
+    // a change after the Reel is made: no AI by itself; Make new Reel: a new id, so a new charge
+    const n0 = aiCalls.length, id0 = await run(`${S}.brainDebug.ES.reelId`);
+    await run(`${root}.querySelector("#clips .clip:last-child .del").click()`); await wait(1800);
+    say("a change after the Reel: Shubix AI does not run by itself", aiCalls.length === n0 && (await run(`${S}.work.aiWait`)) === false, aiCalls.slice(n0).join(" "));
+    await run(`${S}.newReel()`); const id1 = await run(`${S}.brainDebug.ES.reelId`);
+    say("Make new Reel has a new id", !!id1 && id1 !== id0, `${id0} -> ${id1}`);
+    await useNow();
+    for (let i = 0; i < 160 && !aiCalls.slice(n0).includes("/api/studio/direct"); i++) await wait(250);
+    say("Use makes its plan", aiCalls.slice(n0).includes("/api/studio/direct"), aiCalls.slice(n0).join(" "));
+    say("no page errors", !errors.length, errors.join(" | ").slice(0, 300));
+    code = seen.every(Boolean) ? 0 : 1;
+    console.log(code ? "CANCEL FAILED" : "CANCEL OK");
+    throw new Error("");
+  }
+  // the phone's Next after the clips: Shubix AI's question, then its work
+  if (AI) { for (let i = 0; i < 240 && !(await run(`(()=>{const w=document.querySelector("#studio").__studio.work;return w.songReady&&!w.pending&&w.shots>0})()`)); i++) await wait(250); run(`document.querySelector("#studio").__studio.upsell().then(String)`); }
   if (CHAT) {
     const press = (button) => run(`(()=>{const r=document.querySelector("#studio"),c=r.querySelector("#cconf");if(c.hidden)return false;r.querySelector("${button}").click();return true})()`);
     for (let i = 0; i < 240 && !(await press("#cconfx")); i++) await wait(250);

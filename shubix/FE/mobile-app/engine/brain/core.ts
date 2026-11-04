@@ -108,6 +108,7 @@ function aiDone(charged, failed){
 // the AI's plan arrived: asked for in the chat, it is shown as a report and waits for Generate; otherwise it is used
 function dirArrived(key, d){
   if(ES.chatWaiting){ const ask = ES.chatMsgs.filter(m => m.who === 'me').slice(-1)[0]?.text || ''; ES.chatPending = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions, cost: ES.chatCost, intent: parseDirectorVisualIntent(ask) }; EH.chatProposal(ES.chatPending); return false; }
+  ES.aiDoneSig = EH.inputSig(); ES.regenOk = false;
   ES.director = { key, slots: d.slots, story: d.story || '', texts: d.texts, actions: d.actions }; ES.dirCache.set(key, ES.director); if(d.texts || d.actions) queueMicrotask(() => void aiApply(d)); return true;   // (after the shots are made: makeEdit)
 }
 function applyChatVisualIntent(intent, slots = []){
@@ -285,7 +286,7 @@ function dirRequest(cands){
   return { req, ctx };
 }
 function directorMaybe(){
-  if(ES.keepSaved) return;
+  if(ES.keepSaved || EH.aiHeldBack()) return;
   if(!ES.aiOn || ES.dirBusy || !ES.edit.length || ES.recording || !EH.aiReelOk() || ES.refReading) return;
   if(!ES.sources.length || ES.sources.some(s=>!s.ai && !s.aiFailed && !s.removed)) return;   // after the AI has looked at the clips (or could not)
   if(ES.paceBusy || EH.paceWanted()) return;   // the pace first: it decides where the cuts are
@@ -304,10 +305,11 @@ function directorMaybe(){
     const from = st.plans.filter(Boolean), src = from[ES.mixNo % from.length], slots = EH.refitDirector(src, false);
     if(slots){ ES.director = { key, slots, story: src.story, interim: st.busy }; if(!st.busy) ES.dirCache.set(key, ES.director); makeEdit(); return; }
   }
+  if(EH.planIsFinal()) return;
   EH.directorRun(key);
 }
 function paceMaybe(){
-  if(ES.keepSaved) return;
+  if(ES.keepSaved || EH.aiHeldBack()) return;
   if(ES.paceBusy || !EH.paceWanted() || !EH.aiReelOk() || ES.refReading) return;
   const key = EH.paceKey();
   if(ES.paceCache.has(key)){ ES.pacing = ES.paceCache.get(key); makeEdit(); return; }

@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Platform, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { askAction, tasks, type TaskKind } from "@mobile/ui-mobile";
+import { askAction, tasks, tell, type TaskKind } from "@mobile/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
 import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
 import { buildSpeedRampSegments } from "@mobile/video-engine";
@@ -150,6 +150,17 @@ export const engine = {
   frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
   /** a new Reel: the studio's page is loaded again, so nothing of the Reel before it stays (song, clips, edit, AI, cards);
    * it signs in again and reads the plan and credits anew on its first call */
+  /** Proceed after a Cancel: the song goes on from where it stopped */
+  songAgain: () => call<SongAnalysis>("songAgain"),
+  /** The popup's Cancel: the studio stops what is running; what is done stays done */
+  cancel: () => call<{ ok: boolean }>("cancel"),
+  /** Next after the clips: Shubix AI's question, then its work; false when the person closed the question or cancelled */
+  ai: () => call<{ went: boolean }>("ai").then((r) => r.went),
+  /** Make new Reel: charged as a new Reel; Keep old Reel: the studio holds that Reel again */
+  newReel: () => call<{ ok: boolean }>("newReel"),
+  keptOldReel: () => call<{ ok: boolean }>("keptOldReel"),
+  /** whether this person's plan has Shubix AI */
+  aiOn: () => call<{ on: boolean }>("aiState").then((r) => r.on),
   fresh: () => restart("A new Reel was started."),
   /** the test APK: the brain makes this Reel again in the app's own JS, from a copy of the studio's state (the Reel itself is not touched) */
   brainCheck: async () => {
@@ -210,8 +221,8 @@ async function onAsk(q: AskEvent) {
   void call("answer", { pick: v === 0 ? "ok" : v === 1 && q.no ? "no" : "close" });
 }
 function onMessage(e: WebViewMessageEvent) {
-  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string } | TaskEvent | AskEvent;
-  if ("event" in m) return m.event === "ask" ? void onAsk(m) : onTask(m);
+  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string } | TaskEvent | AskEvent | { event: "spent" } | { event: "tell"; text: string };
+  if ("event" in m) return m.event === "spent" ? tasks.lock() : m.event === "tell" ? tell(m.text, "danger") : m.event === "ask" ? void onAsk(m) : onTask(m);
   if (m.id === 0) return ready?.();
   const w = waiting.get(m.id);
   if (!w) return;
@@ -224,7 +235,7 @@ export const STOPPED = "Stopped.";
 // the studio starts again (the phone stopped its page, out of memory, or the person left): what it was doing fails
 function restart(why = "The phone stopped the studio. Please try again.") {
   waiting.forEach((w) => w.reject(new Error(why))); waiting.clear(); shown.forEach((id) => tasks.clear(id)); shown.clear();
-  setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); page?.reload();
+  tasks.unlock(); setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); page?.reload();
 }
 
 /** The studio's page, hidden (behind everything, never touched): mounted once at the app's root. Not opacity 0:
