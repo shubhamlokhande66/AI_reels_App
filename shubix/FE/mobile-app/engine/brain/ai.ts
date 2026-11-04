@@ -7,6 +7,7 @@ import { sectionsOf } from '../components/studio/soundmap';
 import { TEXT_TEMPLATES } from '@mobile/core/lib/text-templates';
 
 export function createAiBrain(ES, EH){
+const framesMade = new WeakMap();   // a clip's frames are made once (Cancel, then Proceed: not again)
 function aiGate(again = false){
   if(!ES.aiOn) return Promise.resolve(false);
   const id = EH.reelIdNow(); if(ES.aiReel === id) return Promise.resolve(true);
@@ -45,11 +46,11 @@ async function aiRun(){
   let charged = 0, failed = 0;
   try{
     const jobs = [];
-    for(const [i, s] of need.entries()){ EH.aiStat('Shubix is looking at clip ' + (i + 1) + ' of ' + need.length + '…'); const frames = await EH.aiFrames(s); if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
+    for(const [i, s] of need.entries()){ EH.aiStat('Shubix is looking at clip ' + (i + 1) + ' of ' + need.length + '…'); if(ES.aiStopper.signal.aborted) return; let frames = framesMade.get(s); if(!frames){ frames = await EH.aiFrames(s); framesMade.set(s, frames); } if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
     EH.aiStat('Shubix is choosing the best moments of your clips…');
     for(let k=0; k<jobs.length; k+=12){
       const part = jobs.slice(k, k+12);
-      const r = await EH.apiFetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: EH.ac.signal,
+      const r = await EH.apiFetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: ES.aiStopper.signal,
         body: JSON.stringify({ reelId: EH.reelIdNow(), clips: part.map(j=>({ id:j.id, name:j.src.name, frames:j.frames })) }) });
       const res = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not do this step (' + r.status + ').'));
@@ -95,6 +96,7 @@ async function variantsRun(st){
 function timeoutSignal(ms){
   const c = new AbortController(); let late = false;
   const t = setTimeout(()=>{ late = true; c.abort(); }, ms), stop = () => c.abort();
+  ES.aiStopper?.signal.addEventListener('abort', stop);
   EH.ac.signal.addEventListener('abort', stop);
   return { signal: c.signal, timedOut: () => late, done: () => { clearTimeout(t); EH.ac.signal.removeEventListener('abort', stop); } };
 }
@@ -112,6 +114,7 @@ async function paceRun(key){
     const r = await EH.apiFetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not choose the pace (' + r.status + ').'));
+    EH.aiSpent();
     const every = new Map((res.sections || []).map(x=>[x.i, x.every]));
     const answer = secs.map(s=>({ t: s.t, len: s.len, every: every.get(s.i) || s.now }));
     if(whole) ES.songPace.set(songKey, { secs: answer, story: res.story || '' });   // kept even if the part moved meanwhile

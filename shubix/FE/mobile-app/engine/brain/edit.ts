@@ -314,7 +314,7 @@ function trackFaces(raw){
   return out;
 }
 function previewBatchClose(){
-  if(ES.previewBatchUi){ES.previewBatchUi.overlay.remove();ES.previewBatchUi=null;}
+  ES.previewBatchUi = null;
   ES.previewBatchCompressed=0; ES.previewBatchDetected=0;
 }
 // speech parts of a clip in seconds: in above 0.5, out after 0.2 s below 0.35, then padded and short pauses kept

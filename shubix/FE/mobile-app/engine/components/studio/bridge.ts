@@ -32,7 +32,8 @@ export function initBridge(root: HTMLElement): () => void {
   const post = (m: object) => (window as unknown as { ReactNativeWebView?: Native }).ReactNativeWebView?.postMessage(JSON.stringify(m));
   const $ = <T extends HTMLElement>(id: string) => root.querySelector<T>("#" + id);
   const studio = () => (root as unknown as { __studio?: Studio }).__studio;
-  let files = "", key = "", reading = false;
+  let files = "", key = "", reading = false, stops = 0;   // stops: the popup's Cancels (whoever waits for that work stops waiting)
+  const flow = () => studio() as unknown as { cancelNow: () => void; resumeSong: () => void; resumeClips: () => void; upsell: () => Promise<string>; work: { aiOn?: boolean } };
 
   // the phone's sign-in on the API's requests (the page has no sign-in cookie)
   const send = window.fetch.bind(window);
@@ -82,6 +83,7 @@ export function initBridge(root: HTMLElement): () => void {
   // made: the song read, the clips read, the shots there, and Shubix AI done with them (its clips' check, the pace, the plan)
   const made = () => { const w = studio()?.work as (Studio["work"] & { pace?: boolean; aiWait?: boolean }) | undefined; return !!w && w.songReady && !w.pending && w.shots > 0 && !w.ai && !w.dir && !w.pace && !w.aiWait; };
 
+  const songFacts = () => { const current = studio()!, r = current.songR!, n = (k: string) => r.cutType.filter((t) => t === k).length; return { duration: current.dur, bpm: Math.round(60 / r.period), beats: r.beats.length, drops: n("drop"), breaks: n("break") }; };
   const OPS: Record<string, (a: Record<string, unknown>) => Promise<unknown>> = {
     async setup(a) {
       files = String(a.files); key = String(a.key); token = String(a.token || ""); if (token) noteSignedIn();
@@ -95,18 +97,43 @@ export function initBridge(root: HTMLElement): () => void {
     async song(a) {
       const st = studio(), previous = st?.songR;
       const name = String(a.name);
+      const g = stops;
       put($("mfile"), [await fileOf(String(a.path), name)]);
-      await until(() => !!studio()?.work.songReady && !!studio()?.songR && studio()?.songR !== previous);
-      const current = studio()!, r = current.songR!, n = (k: string) => r.cutType.filter((t) => t === k).length;
-      return { duration: current.dur, bpm: Math.round(60 / r.period), beats: r.beats.length, drops: n("drop"), breaks: n("break") };
+      await until(() => stops !== g || (!!studio()?.work.songReady && !!studio()?.songR && studio()?.songR !== previous));
+      if (stops !== g) throw new Error("Stopped");
+      return songFacts();
     },
+    /** Proceed after a Cancel: the song goes on from where it stopped */
+    async songAgain() {
+      const g = stops;
+      flow().resumeSong();
+      await until(() => stops !== g || (!!studio()?.work.songReady && !!studio()?.songR));
+      if (stops !== g) throw new Error("Stopped");
+      return songFacts();
+    },
+    /** The popup's Cancel: what is done stays done */
+    async cancel() { stops++; reading = false; flow().cancelNow(); return { ok: true }; },
+    /** Next after the clips: Shubix AI's question (Use), then its work. `went`: false when closed or cancelled */
+    async ai() {
+      const g = stops, went = await flow().upsell();
+      if (went === "close") return { went: false };
+      await until(() => stops !== g || made(), 300_000);
+      return { went: stops === g };
+    },
+    async aiState() { return { on: !!flow().work.aiOn }; },
     async clips(a) {
-      const list = a.paths as { path: string; name: string }[], got: File[] = [];
-      for (const c of list) got.push(await fileOf(c.path, c.name));
-      // the studio may leave a clip out (one it cannot play, the same footage twice): done when its reading is over
-      // a new Reel: the last Reel's clips go first (the studio's file box adds to what it has, as Add clips does)
-      $("clearv")?.click();
-      reading = true; put($("vfile"), got); await until(() => !reading && !studio()!.work.pending);
+      const list = a.paths as { path: string; name: string }[], got: File[] = [], g = stops;
+      // only what is new is read: what was read stays, what the popup's Cancel left unread goes on. A clip taken out or moved: all again
+      const cards = () => [...($("clips")?.children ?? [])].map((c) => (c as unknown as { __src?: { name: string } }).__src?.name).filter((n): n is string => !!n);
+      const had = cards(), names = list.map((c) => c.name), keep = had.every((n, i) => names.indexOf(n) >= 0 && (i === 0 || names.indexOf(n) > names.indexOf(had[i - 1])));
+      const fresh = keep ? list.filter((c) => !had.includes(c.name)) : list;
+      for (const c of fresh) got.push(await fileOf(c.path, c.name));
+      if (!keep) $("clearv")?.click();
+      if (stops !== g) return { clips: studio()!.work.clips, names: studio()!.sources.map((s) => s.name) };
+      if (got.length) { reading = true; put($("vfile"), got); }
+      else { reading = !!studio()!.work.pending; flow().resumeClips(); reading = !!studio()!.work.pending; }
+      await until(() => stops !== g || (!reading && !studio()!.work.pending));
+      await until(() => !studio()!.work.pending);   // (a clip still finishing after a Cancel)
       return { clips: studio()!.work.clips, names: studio()!.sources.map((s) => s.name) };
     },
     async choose(a) {
@@ -120,14 +147,6 @@ export function initBridge(root: HTMLElement): () => void {
       await new Promise((r) => setTimeout(r, 400)); // the part is placed (useSection)
       return { mode: studio()?.mode, start: studio()?.section.start ?? 0 };
     },
-    /** Next after the clips: Shubix AI's question (Use), then its work. `went`: false when the person closed the question */
-    async ai() {
-      const went = await (studio() as unknown as { upsell: () => Promise<string> }).upsell();
-      if (went === "close") return { went: false };
-      await until(made, 300_000);
-      return { went: true };
-    },
-    async aiState() { return { on: !!(studio()!.work as unknown as { aiOn?: boolean }).aiOn }; },
     async ready() { await until(made); return { work: studio()!.work, state: studio()!.state() }; },
     async state() { return studio()?.state(); },
     async undo() {
@@ -414,7 +433,7 @@ export function initBridge(root: HTMLElement): () => void {
     },
   };
 
-  const onTask = (e: Event) => { const d = (e as CustomEvent).detail; if (d.id === "clips" && (d.state === "done" || d.state === "fail")) reading = false; post({ event: "task", ...d }); };
+  const onTask = (e: Event) => { const d = (e as CustomEvent).detail; if (d.id === "clips" && (d.state === "done" || d.state === "fail" || d.state === "clear")) reading = false; post({ event: "task", ...d }); };
   root.addEventListener("studio-task", onTask);
   const onSpent = () => post({ event: "spent" });
   root.addEventListener("studio-ai-spent", onSpent);

@@ -150,7 +150,11 @@ export const engine = {
   frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
   /** a new Reel: the studio's page is loaded again, so nothing of the Reel before it stays (song, clips, edit, AI, cards);
    * it signs in again and reads the plan and credits anew on its first call */
-  /** Next after the clips: Shubix AI's question, then its work; false when the person closed the question */
+  /** Proceed after a Cancel: the song goes on from where it stopped */
+  songAgain: () => call<SongAnalysis>("songAgain"),
+  /** The popup's Cancel: the studio stops what is running; what is done stays done */
+  cancel: () => call<{ ok: boolean }>("cancel"),
+  /** Next after the clips: Shubix AI's question, then its work; false when the person closed the question or cancelled */
   ai: () => call<{ went: boolean }>("ai").then((r) => r.went),
   /** whether this person's plan has Shubix AI */
   aiOn: () => call<{ on: boolean }>("aiState").then((r) => r.on),

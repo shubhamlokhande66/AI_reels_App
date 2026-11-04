@@ -290,8 +290,9 @@ async function decodeAnyAudio(file){
 // Create flow hides the status line on phones, so the button itself says it is working)
 function songBusy(on){ const b = $('mpick'); b.classList.toggle('busy', on); b.setAttribute('aria-busy', String(on)); b.disabled = on;
   b.querySelector('span').textContent = on ? 'Reading the song…' : 'Choose song'; $('rlist').classList.toggle('busy', on); }
+let lastSong = null, songStopped = false, clipsStopped = false;   // what the popup's Cancel stopped: Proceed goes on from there
 async function loadMusic(file, cached = null){
-  remakeOk(); wipKeep(file); wipNote({ song: fileFp(file) });
+  remakeOk(); wipKeep(file); wipNote({ song: fileFp(file) }); lastSong = file; songStopped = false;
   const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
   stopAll(); songBusy(true);
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
@@ -746,16 +747,25 @@ function drawSpark(src){
 }
 // uploads go into a queue: you can add more videos any time, even while others are still being read
 let addQueue = Promise.resolve(), batchN = 0, batchDone = 0; ES.pending = 0;
+// the clips the popup's Cancel left unread: their cards stay, and only they are read again
+const unreadClips = () => [...$('clips').children].map(c => c.__src).filter(s => s && s.unread && !s.removed);
+function queueClips(jobs){
+  clipsStopped = false; jobs.forEach(s => { s.unread = false; });
+  if(!ES.pending){ batchN = 0; batchDone = 0; }
+  batchN += jobs.length; ES.pending += jobs.length; updateQ();
+  tasks.start('clips', 'clips', 'Reading your clips', 'Finding the best moments in ' + batchN + ' clip' + (batchN > 1 ? 's' : ''));
+  jobs.forEach(job=>{ addQueue = addQueue.then(()=>{
+    if(!clipsStopped) return readVideo(job);
+    job.unread = true; const dd = job.card && job.card.querySelector('.dd'); if(dd) dd.textContent = 'Not analysed yet';
+  }).catch(()=>{}).then(()=>{ ES.pending--; batchDone++; updateQ(); }); });
+  addQueue = addQueue.then(()=>{ if(!ES.pending) finishAdding(); });
+}
 function addVideos(files, restored = false){
   const list = [...files].filter(f=>f.type.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv)$/i.test(f.name));
   if(!list.length){ $('s2st').textContent = 'That is not a video. Choose MP4, MOV or WEBM.'; return; }
   if(ES.playing){ ES.pos = curTime(); stopAll(); }   // free the computer so reading is fast
   const jobs = list.map(f=>makeCard(f));
-  if(!ES.pending){ batchN = 0; batchDone = 0; }
-  batchN += jobs.length; ES.pending += jobs.length; updateQ();
-  tasks.start('clips', 'clips', 'Reading your clips', 'Finding the best moments in ' + batchN + ' clip' + (batchN > 1 ? 's' : ''));
-  jobs.forEach(job=>{ addQueue = addQueue.then(()=>readVideo(job)).catch(()=>{}).then(()=>{ ES.pending--; batchDone++; updateQ(); }); });
-  addQueue = addQueue.then(()=>{ if(!ES.pending) finishAdding(); });
+  queueClips([...unreadClips(), ...jobs]);
   list.forEach(wipKeep);
   if(jobs.length > 1 && !restored && location.pathname !== '/engine') askOrder(jobs.map(j => j.card));   // (the phone app sends its clips in the order tapped)
 }
@@ -798,7 +808,8 @@ function reorderClips(){
   remakeOk(); if(ES.buf && ES.sources.length && ES.kind !== 'talk') makeEdit();
 }
 $('crev').addEventListener('click', () => { if(ES.pending || ES.recording) return; const box = $('clips'); [...box.children].reverse().forEach(c => box.appendChild(c)); reorderClips(); });
-function updateQ(){ $('qinfo').textContent = ES.pending ? ES.pending + ' clips left to read…' : ''; $('s2st').textContent = ES.pending ? 'Reading clips…' : (ES.sources.length + ' clips ready'); }
+function updateQ(){ const off = clipsStopped;   // cancelled in the popup: nothing is being read, whatever is still finishing
+  $('qinfo').textContent = ES.pending && !off ? ES.pending + ' clips left to read…' : ''; $('s2st').textContent = off ? 'Clips not analysed yet' : ES.pending ? 'Reading clips…' : (ES.sources.length + ' clips ready'); }
 function setClipStatus(src, status, detail){
   if(!src || !src.card) return;
   src.status=status;
@@ -831,14 +842,12 @@ const SCAN_V = 1;
 async function keptGet(pre, f){ if(typeof indexedDB === 'undefined' || !f) return null; try{ return await idb('files', 'readonly', s => s.get(pre + fileFp(f))) || null; }catch(e){ return null; } }
 function keptPut(pre, f, val){ if(typeof indexedDB === 'undefined' || !f) return Promise.resolve(); return idb('files', 'readwrite', s => s.put(val, pre + fileFp(f))).catch(e => { console.info('clip reading not kept:', e && e.message); }); }
 ES.previewBatchUi = null; ES.previewBatchCompressed = 0; ES.previewBatchDetected = 0;
+// heavy clips being compressed: on the clips' own card, which the phone's one popup shows (a clip cancelled meanwhile says nothing)
 function previewBatchShow(src, message, progress){
-  if(!ES.previewBatchUi){
-    const overlay=document.createElement('div'); overlay.className='askbg'; overlay.setAttribute('role','dialog'); overlay.setAttribute('aria-modal','true');
-    overlay.innerHTML='<div class="ask" style="max-width:420px;width:calc(100% - 32px)"><p style="font-weight:700;margin-bottom:8px">Preparing your videos for smooth editing</p><p data-proxy-detail style="font-size:13px;opacity:.8;margin:0 0 14px"></p><div style="height:8px;border-radius:99px;background:rgba(128,128,128,.25);overflow:hidden"><div data-proxy-bar style="height:100%;width:0%;background:var(--accent,#d4af37);transition:width .15s"></div></div><p data-proxy-percent style="font-size:12px;text-align:right;margin:7px 0 0"></p></div>';
-    root.appendChild(overlay); ES.previewBatchUi={overlay,detail:overlay.querySelector('[data-proxy-detail]'),bar:overlay.querySelector('[data-proxy-bar]'),percent:overlay.querySelector('[data-proxy-percent]')};
-  }
-  ES.previewBatchUi.detail.textContent=message;
-  if(progress!==undefined){const n=Math.max(0,Math.min(100,Math.round(progress*100)));ES.previewBatchUi.bar.style.width=n+'%';ES.previewBatchUi.percent.textContent=n+'%';}
+  if(clipsStopped || (src && src.removed)) return;
+  ES.previewBatchUi = true;
+  if(!tasks.has('clips')) tasks.start('clips', 'clips', 'Reading your clips', message);
+  tasks.update('clips', progress === undefined ? null : progress, message, 'Preparing your videos for smooth editing');
 }
 /* ---- clips from any camera: an edit copy for what plays badly or not at all here (lib/previewProxy.ts) ----
  * iPhone 4K HDR / Cinematic / slo-mo, Android 60 fps / 8K / HDR10+, GoPro, drones, mirrorless 10-bit 4:2:2, screen
@@ -1103,6 +1112,7 @@ $('csnd').addEventListener('click', e => { const b = e.target.closest('button');
   notify(ES.au.clip === 'mute' ? "The clips' own sound is muted." : ES.au.clip === 'voices' ? 'Only the voices in your clips are kept.' : "All of your clips' sound is kept, under the song.");
 }, SIG);
 function finishAdding(){
+  if(clipsStopped){ if(unreadClips().length){ tasks.clear('clips'); return; } clipsStopped = false; }   // cancelled: nothing to say (all were read by then: as usual)
   previewBatchClose();
   remakeOk();
   { const order = [...$('clips').children].map(c => c.__src).filter(s => ES.sources.includes(s)); if(order.length === ES.sources.length) ES.sources.splice(0, ES.sources.length, ...order); }   // read in turn: the cards' order (askOrder)
@@ -1440,8 +1450,30 @@ function pickBackground(mode, color){ if(/^#[0-9a-f]{6}$/i.test(color || '')) bg
 // Free (no Shubix AI in the plan): on Generate, once per Reel, what Shubix AI would do and the way to it.
 // 'upgrade' (to Plans), 'basic' (the phone's own edit), 'close' (✕: nothing) or 'skip' (a plan with Shubix AI, or already asked)
 let upsold = '';
+// ---- the popup's Cancel: what is running stops and nothing more is charged; what is done stays done
+ES.aiStopper = new AbortController();
+ac.signal.addEventListener('abort', () => ES.aiStopper.abort());
+function cancelNow(){
+  if(ES.aiBusy || ES.paceBusy || ES.dirBusy || tasks.has('ai')){
+    ES.aiStopper.abort(); ES.aiStopper = new AbortController(); ES.aiBusy = ES.paceBusy = ES.dirBusy = false; aiStat('');
+    ES.aiReel = ''; ES.gateNo = '';
+  }
+  if(ES.pending || tasks.has('clips')){ clipsStopped = true; previewBatchClose(); tasks.clear('clips'); updateQ(); }
+  if(tasks.has('song') || tasks.has('beats')){
+    musicToken++; songStopped = !!lastSong; songBusy(false);
+    $('s1st').textContent = $('s1').classList.contains('done') ? 'Beat check not finished' : 'Song not analysed yet';
+    tasks.clear('song'); tasks.clear('beats');
+  }
+}
+// Proceed goes on from where the song stopped: read and analysed, only the beat check is left; analysed, it is not done again
+function resumeSong(){
+  songStopped = false;
+  if($('s1').classList.contains('done') && ES.song && ES.song.r) return void checkBeatsWithAi(musicToken);
+  void loadMusic(lastSong, ES.song && ES.song.file === lastSong && ES.song.r ? { r: ES.song.r } : null);
+}
+const resumeClips = () => { if(unreadClips().length) queueClips(unreadClips()); else clipsStopped = false; };
 async function upsell(){
-  aiHeld = false;
+  aiHeld = false; ES.dirFailedKey = ''; ES.paceFailedKey = '';
   if(!aiLocked){
     if(!ES.aiOn) return 'skip';
     if(aiReelOk()){ aiRun(); return 'skip'; }   // already agreed for this Reel: the AI starts (it was held)
@@ -4819,7 +4851,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { brainDebug: { ES, HOOKS, makeEditNow, copyOfState }, get layerMedia(){ return ES.lmedia; }, get aiPlan(){ return ES.director && ES.director.slots && !ES.director.interim ? { story: ES.director.story || '', lines: ES.plan.map((p, i) => planLine(p, i, ES.director.slots)) } : null; }, get songR(){ return ES.song && ES.song.r; }, get now(){ return ES.playing ? Math.max(0, curTime()) : (ES.pos || 0); }, get playing(){ return ES.playing; }, get dur(){ return ES.buf ? ES.buf.duration : 0; }, get songName(){ return ES.song && ES.song.name ? ES.song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return ES.hookText; }, get capsOn(){ return ES.capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return ES.pos; }, get playing(){ return ES.playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return ES.capLines; }, get editGen(){ return ES.editGen; }, get vo(){ return ES.vo; }, get base(){ return { buf: ES.baseBuf, norm: ES.baseNorm }; }, get overlays(){ return ES.overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!ES.bgMask, err: ES.bgErr }; }, get faceHow(){ return ES.sources.map(s => s.faceHow); }, seek: t => { ES.pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return ES.talk; }, get audio(){ return ES.buf; }, get kind(){ return ES.kind; }, get section(){ return { start: ES.secStart, len: ES.buf ? ES.buf.duration : 0, auto: sec.auto, whole: ES.song ? ES.song.buf.duration : 0, words: ES.capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return ES.capLines; }, faceYOnScreen, get edit(){ return ES.edit; }, setEdit: list => restoreEdit(list), get plan(){ return ES.plan; }, sources: ES.sources, gl: !!GL, get beats(){ return ES.beats; }, get parts(){ return ES.songPartsRel; }, get mode(){ return ES.mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return ES.beatInfo; }, get ref(){ return ES.refProfile; }, fingerprint: () => ES.refProfile ? fingerprintOf(ES.refProfile) : null, copyMatch, get grade(){ return GRADES[ES.look]; },
-  snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ES.ovSel = ES.overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ES.ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return ES.look; }, get marks(){ return ES.userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => ES.lastVideo && saveFile(ES.lastVideo, lastName || 'reel.mp4'),
+  snap: histSnap, unsnap: snapRestore, upsell, cancelNow, resumeSong, resumeClips, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ES.ovSel = ES.overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ES.ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return ES.look; }, get marks(){ return ES.userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => ES.lastVideo && saveFile(ES.lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!ES.song || ES.kind === 'talk', songReady: ES.kind === 'talk' || !!(ES.song && ES.buf && ES.song.r), beats: ES.beatsBusy, pending: ES.pending, clips: ES.sources.length, shots: ES.edit.length, ai: ES.aiBusy, dir: ES.dirBusy, pace: ES.paceBusy,
     // Shubix AI is on for this Reel and its plan has not come yet (nor failed): the Reel is not final (the phone app waits)
     aiOn: !!ES.aiOn, aiWait: !!(ES.aiOn && aiReelOk() && ES.aiGaveUp !== reelIdNow() && ES.edit.length && !(ES.director && ES.director.key === dirKey() && !ES.director.interim) && ES.dirFailedKey !== dirKey()), speech: ES.speechBusy, exporting: ES.exportBusy, exportP: ES.exportP }; }, shotExtract: () => ES.edit.length && extractAudio(ES.edit[segAt(ES.pos)].src), get au(){ return ES.au; }, setAudioMix: async patch => { auSet(patch); ES.clipMixKey = ''; await ensureMix(); return ES.au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return ES.layers; }, get lmedia(){ return ES.lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },

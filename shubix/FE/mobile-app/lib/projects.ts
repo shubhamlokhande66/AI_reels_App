@@ -28,9 +28,10 @@ export async function keepFile(from: string, folder: string, name: string): Prom
 }
 
 /** Copy picker URIs into app-private storage so Android's temporary photo-picker grant survives reloads. */
-export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], onEach?: (done: number) => void): Promise<ProjectClip[]> {
+export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], onEach?: (done: number) => void, from = 0): Promise<ProjectClip[]> {
   let done = 0; // `onEach`: how many are copied so far
-  return Promise.all(assets.map(async (asset, index) => {
+  return Promise.all(assets.map(async (asset, i) => {
+    const index = from + i; // `from`: how many of this Reel's clips are kept already
     const original = asset.fileName || `moment-${index + 1}.${asset.type === "image" ? "jpg" : "mp4"}`;
     const uri = await keepFile(asset.uri, `projects/${id}`, `${index + 1}-${original}`);
     onEach?.(++done);
