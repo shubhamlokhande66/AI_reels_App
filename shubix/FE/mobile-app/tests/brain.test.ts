@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clipBytes, endWell, fmt, lowerB, nearestS, panClamp, rmsOf, upperB } from "../engine/brain/pure";
+import { clipBytes, endWell, fmt, lowerB, nearestS, panClamp, rmsOf, srcPos, upperB } from "../engine/brain/pure";
 
 // runs without a browser (no document, no window): the brain must stay able to leave the hidden page
 describe("the engine's brain outside the browser", () => {
@@ -19,6 +19,10 @@ describe("the engine's brain outside the browser", () => {
     expect(panClamp(10, 100, 200)).toBe(0);
     expect(panClamp(-500, 100, 200)).toBe(-100);
     expect(panClamp(0, 100, 50)).toBe(25);
+  });
+  it("every helper finds the others it needs", () => {
+    const shot = { in: 2, end: 3, start: 0, scaleR: 1, sp: { pos: (l: number) => l } };
+    expect(srcPos(shot, 0.5)).toBe(2.5);
   });
   it("words times, sizes and loudness", () => {
     expect(fmt(65.5)).toBe("1:05.50");

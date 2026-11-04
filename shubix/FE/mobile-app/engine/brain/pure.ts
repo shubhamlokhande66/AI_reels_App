@@ -1,6 +1,7 @@
 // The engine's helpers that need no browser and no engine state: moved out of components/studio/engine.ts as the first
 // step of running the phone's brain without the hidden page. They must stay free of the DOM (tests/brain.test.ts).
 // @ts-nocheck
+export const srcPosF = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
 export const fmt = t => { t = Math.max(0,t); const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s<10?'0':'') + s.toFixed(2); };
 export function endWell(p){ while(p.length > 1 && p[p.length-1].end - p[p.length-1].start < 1){ const l = p.pop(); p[p.length-1].end = l.end; } return p; }
 export function nearestS(S, t){ let lo=0, hi=S.length-1; while(lo<hi){ const m=(lo+hi)>>1; if(S[m].t < t) lo=m+1; else hi=m; } return (lo>0 && Math.abs(S[lo-1].t-t) < Math.abs(S[lo].t-t)) ? lo-1 : lo; }

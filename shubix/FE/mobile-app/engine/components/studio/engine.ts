@@ -29,7 +29,7 @@ const decFile = s => s.edFile || s.file;
 import { parseDirectorVisualIntent } from './visualIntent';
 import { bootPart } from '../../lib/boot';
 
-import { TAIL, aiBonus, beatFxOf, buildCapLines, clipBytes, crossesScene, csFilter, curveSpeed, endWell, fmt, goodSecs, isIndic, keyframesFor, lowerB, maskPath, moveWords, nearestS, panClamp, rampSpeed, revFrame, rmsOf, shotBeats, splitPoint, srcPos, statsIndex, suitFx, toSlots, updateClipHoverInfo, upperB, velocitySpeed, whatClip, windowStats, wrapLines } from '../../brain/pure';
+import { TAIL, aiBonus, beatFxOf, buildCapLines, clipBytes, crossesScene, csFilter, curveSpeed, endWell, fmt, goodSecs, isIndic, keyframesFor, lowerB, maskPath, moveWords, nearestS, panClamp, rampSpeed, revFrame, rmsOf, shotBeats, splitPoint, srcPos, srcPosF, statsIndex, suitFx, toSlots, updateClipHoverInfo, upperB, velocitySpeed, whatClip, windowStats, wrapLines } from '../../brain/pure';
 export function initStudio(root, deps) {
   const { loadMediabunny, loadAacEncoder = null, beatThis: aiBeats = null, speechProbs = null, personMask = null, findFaces = null, loadRnnoise = null, cloud = null, tts = null } = deps;
 
@@ -3529,7 +3529,6 @@ async function prepare(i, t, quick){
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
   if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 650 : 4000); }catch(err){} }
 }
-const srcPosF = (e, l) => e.in + e.sp.pos(l)*e.scaleR;
 const rateAt = (e, l) => { const r = e.sp.at(l)*e.scaleR; return r<=0 ? 0 : Math.max(0.0625, Math.min(16, r)); };
 // faster than a video can play (16x, a very fast shot "In my order"): the preview shows it frame by frame, by seeking
 const PLAY_MAX = 16, rawRate = (e, l) => e.sp.at(l)*e.scaleR;
