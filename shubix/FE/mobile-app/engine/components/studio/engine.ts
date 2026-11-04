@@ -702,7 +702,35 @@ async function videoData(v, ms=12000){
 // where the browser can (the same frames on every phone, as fast as the decoder, whatever the browser does with <video>
 // elements), else taken from a video element by seeking. frames(ts) gives one drawable per time (null when there is none),
 // to be used before the next one is asked for; at(t) gives one.
+// On the phone the app's hardware decoder gives the frames (FrameReader.kt); a clip it cannot read goes the web's way.
 async function clipReader(src, maxSide){
+  const ph = window.__phone, path = ph && !src.edFile && src.file && ph.paths[src.file.name + '|' + src.file.size];
+  if(!path) return webReader(src, maxSide);
+  const sc = Math.min(1, maxSide/Math.max(src.w, src.h)), W = Math.max(2, Math.round(src.w*sc/2)*2), H = Math.max(2, Math.round(src.h*sc/2)*2), size = W*H*4;
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'), pic = g.createImageData(W, H);
+  let web = null; const other = async () => web ??= await webReader(src, maxSide);
+  const frames = async function*(ts){
+    let done = 0, reader = null;
+    try{
+      const r = await fetch(ph.base + '/frames?k=' + ph.key + '&p=' + encodeURIComponent(path) + '&w=' + W + '&h=' + H, { method: 'POST', body: ts.map(t => Math.max(0, t).toFixed(3)).join(',') });
+      if(r.ok){
+        reader = r.body.getReader(); let has = -1, got = 0;
+        for(;;){ const { value, done: end } = await reader.read(); if(end) break;
+          for(let i = 0; i < value.length;){
+            if(has < 0){ has = value[i++]; got = 0; if(!has){ has = -1; done++; yield null; } continue; }
+            const n = Math.min(size - got, value.length - i); pic.data.set(value.subarray(i, i + n), got); got += n; i += n;
+            if(got === size){ has = -1; g.putImageData(pic, 0, 0); done++; yield c; }
+          } }
+      }
+    }catch(err){ console.warn('the phone could not read the clip', err); }
+    finally{ if(reader) reader.cancel().catch(() => {}); }
+    if(done < ts.length) yield* (await other()).frames(ts.slice(done));
+  };
+  return { fast: true, frames,
+    async at(t){ for await (const f of frames([t])) return f; return null; },
+    close(){ if(web) web.close(); } };
+}
+async function webReader(src, maxSide){
   try{
     const mb = await loadMediabunny();
     const input = new mb.Input({ source: new mb.BlobSource(decFile(src)), formats: mb.ALL_FORMATS });

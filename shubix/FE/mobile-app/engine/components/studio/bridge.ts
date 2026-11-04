@@ -25,6 +25,7 @@ type StudioLayer = { id?: number; t0?: number; t1?: number; x?: number; y?: numb
 type Studio = { sources: { name: string }[]; section: { start: number }; setPart: (t: number) => Promise<void>; songR?: { period: number; beats: number[]; cutType: string[] }; dur: number; work: { songReady: boolean; beats: boolean; pending: number; clips: number; shots: number; ai: boolean; dir: boolean; exporting: boolean }; editGen: number; state: () => unknown; setEdit: (list: unknown[]) => boolean; autoExport: (cloud?: boolean) => Promise<Blob | null>; exportLocked: () => { name: string; need: string }[]; exportFix: () => void; caption: () => string; edit: unknown[]; beats: number[]; mode: string; now: number; segAt: (t: number) => number; shotCs: () => unknown; shotSet: (patch: unknown) => void; shotOp: (op: string, arg?: unknown) => boolean; shotSlip: (delta: number) => boolean; shotTrim: (direction: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean>; seek: (time: number) => Promise<unknown>; kfSeek: (time: number) => Promise<unknown>; kfSet: (values: Record<string, number>) => void; kfTarget: () => KeyframeTarget; layerAdd: (files: File[]) => Promise<void>; layerSelect: (index: number) => boolean | Promise<boolean>; layerSet: (key: string, value: unknown) => void; layerDelete: () => boolean; layers: StudioLayer[]; setAudioMix: (patch: { mvol?: number; mfin?: number; mfout?: number }) => Promise<unknown>; remix: () => boolean; saveNow: () => unknown; ttsVoices: Array<{ key: string; label: string }>; addTts: (text: string, voice: string) => Promise<unknown>; clearTts: () => boolean; setCaptions: (enabled: boolean, language?: string, translation?: string) => Promise<unknown>; setCaptionStyle: (style: string) => string; setOverlays: (list: Array<Record<string, unknown>>) => number };
 type Native = { postMessage: (m: string) => void };
 
+type PhoneFiles = { base: string; key: string; paths: Record<string, string> };
 export function initBridge(root: HTMLElement): () => void {
   // the phone's side (found when it is needed: the phone sets it up with the page)
   const post = (m: object) => (window as unknown as { ReactNativeWebView?: Native }).ReactNativeWebView?.postMessage(JSON.stringify(m));
@@ -49,6 +50,8 @@ export function initBridge(root: HTMLElement): () => void {
     const r = await send(`${files}/f?k=${key}&p=${encodeURIComponent(path)}`);
     if (!r.ok) throw new Error(`The phone could not give ${name} (${r.status})`);
     const b = await r.blob();
+    // the phone's own decoder reads this clip from its path (engine.ts clipReader)
+    (window as unknown as { __phone?: PhoneFiles }).__phone = { base: files, key, paths: { ...(window as unknown as { __phone?: PhoneFiles }).__phone?.paths, [`${name}|${b.size}`]: path } };
     return new File([b], name, { type: b.type || "application/octet-stream", lastModified: Date.now() });
   };
   const put = (input: HTMLInputElement | null, list: File[]) => {
