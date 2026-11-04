@@ -255,7 +255,9 @@ export function initFlow(root: HTMLElement): () => void {
     // Copy a Reel: the copied Reel's song may still be coming while the clips are in (Next waits for it, spinning)
     const songComing = working.has("refsong") || working.has("song");
     const busy = (ready || (clipsOk() && songComing)) && !stop && (working.size > 0 || shubixBusy() || !made());
-    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", (!clipsOk() && !stopped().clips) || busy || !!stop);
+    // nothing goes forward while the song or the clips are being worked on, or without both. After a Cancel it only offers to continue
+    const paused = (stopped().song || songOk()) && (stopped().clips || clipsOk()) && (stopped().song || stopped().clips);
+    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", (!clipsOk() && !stopped().clips) || busy || !!stop || working.size > 0);
     // every button forward says what it waits for while it is off (phones: Next on each screen; computers: Generate)
     const reading = !stopped().clips && (working.has("clips") || (!!$("qinfo").textContent && !clipsOk()));
     const missing = stopped().clips ? "" : !clipsOk() ? (reading ? "Reading your clips…" : has("photomode") ? "Add your photos to continue" : "Add your clips to continue")
@@ -268,10 +270,10 @@ export function initFlow(root: HTMLElement): () => void {
       setAttr($(b), "aria-busy", String(songBusy));
       setText($(t), songBusy ? "Reading your song…" : !songOk() && !stopped().song ? "Choose a song to continue" : "Next");
     }
-    setFlag($<HTMLButtonElement>("fgen"), "disabled", (!ready && !stopped().clips && !stopped().song) || busy);
+    setFlag($<HTMLButtonElement>("fgen"), "disabled", (!ready && !paused) || busy || working.size > 0);
     setAttr($("fclipsnext"), "aria-busy", String(busy));
     setAttr($("fgen"), "aria-busy", String(busy));
-    setText($("fgent"), busy ? "Making your Reel…" : ready || stopped().clips || stopped().song ? "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
+    setText($("fgent"), paused ? "Continue analysis" : busy ? "Making your Reel…" : ready ? "Generate Reel" : stopped().song ? missing || "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
     setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
     setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : copy && !refName && !songOk() ? "Pick the Reel to copy, then add your clips."
       : copy && songComing ? "Taking the song from the Reel you copy…" : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");

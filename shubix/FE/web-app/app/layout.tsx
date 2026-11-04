@@ -46,9 +46,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" data-theme="dark" suppressHydrationWarning className={`${body.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
         {/* the saved (or system) theme is applied before the first paint: no flash of the other theme */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
-        {/* Google AdSense on every page, as Google asks. Same id as AdSlot's, so AdSlot does not load it twice */}
-        <script id="adsbygoogle-js" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5459735473283681" crossOrigin="anonymous" />
+        <script suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+        {/* Google AdSense on every page, as Google asks. Same id as AdSlot's, so AdSlot does not load it twice. Google's script
+            puts one of its own at the top of the head before the page hydrates: not a mismatch to report */}
+        <script suppressHydrationWarning id="adsbygoogle-js" async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5459735473283681" crossOrigin="anonymous" />
       </head>
       <body className="min-h-full">
         <Providers>
