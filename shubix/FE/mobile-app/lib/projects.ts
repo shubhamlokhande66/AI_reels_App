@@ -40,6 +40,12 @@ export async function keepPickedAssets(id: string, assets: ImagePickerAsset[], o
   }));
 }
 
+/** What a new Reel starts from when it is asked for in the editor (changed clips): the Create screen takes it once. */
+export type NewReelSeed = { media: ImagePickerAsset[]; song: { uri: string; name: string; duration: number } | null; start: number; length: number };
+let seed: NewReelSeed | null = null;
+export const setNewReelSeed = (s: NewReelSeed) => { seed = s; };
+export const takeNewReelSeed = () => { const s = seed; seed = null; return s; };
+
 /** A Reel given up before it was saved: its kept files go. */
 export function forgetKeptFiles(id: string) { try { const dir = new Directory(Paths.document, "projects", id); if (dir.exists) dir.delete(); } catch (e) { console.warn("Kept files not removed:", e instanceof Error ? e.message : e); } }
 

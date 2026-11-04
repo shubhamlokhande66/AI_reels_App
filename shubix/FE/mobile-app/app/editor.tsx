@@ -1,13 +1,14 @@
+import type { ImagePickerAsset } from "expo-image-picker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackHandler, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useStudioText } from "@mobile/hooks";
 import { asksForAllClips } from "@mobile/core/lib/chatSize";
-import { Button, IconButton, Segmented, Slider, confirmAction, tell, useColors } from "@mobile/ui-mobile";
+import { Button, IconButton, Segmented, Slider, confirmAction, tell, useColors, askAction } from "@mobile/ui-mobile";
 import { errorMessage } from "@mobile/api-client";
 import { clipDuration, projectDuration, splitClip, type ProjectClip, type ReelProject } from "@mobile/validations";
 import { evaluateSpeedRamp, recordEdit, slipClip, stepEditHistory } from "@mobile/video-engine";
-import { getProject, keepPickedAssets, keepPickedFile, saveProject } from "../lib/projects";
+import { getProject, keepPickedAssets, keepPickedFile, saveProject, setNewReelSeed } from "../lib/projects";
 import { pickSong } from "../lib/songs";
 import { useLocked } from "../lib/data";
 import { AskShubix, styleFromWords } from "../components/organisms/AskShubix";
@@ -362,6 +363,16 @@ export default function EditorScreen() {
   async function addClips(replace = false) {
     const assets = await pickInOrder({ kind: "both", limit: replace ? 1 : 30 }); // in the order tapped
     if (!assets?.length || !p) return;
+    // a Reel made by Shubix AI: other clips are a new Reel, asked for and charged as one; this Reel stays as it is in My Reels
+    if (p.studio && (await engine.aiOn().catch(() => false))) {
+      const v = await askAction({ title: words("You changed your Reel"), body: words("Your clips are different now. Make a new Reel with these changes? Keeping this Reel changes nothing and uses no credits."), ok: words("Make new Reel"), cancel: words("Keep this Reel") });
+      if (v !== 0) return;
+      const own = [...new Map(clips.map((c) => [c.uri, c])).values()].map((c) => ({ uri: c.uri, type: c.kind === "image" ? "image" : "video", duration: c.sourceDuration * 1000, fileName: c.name, width: 0, height: 0 }) as ImagePickerAsset);
+      const picked = replace && clip ? own.map((a) => (a.uri === clip.uri ? assets[0] : a)) : [...own, ...assets];
+      setNewReelSeed({ media: picked.slice(0, 30), song: p.audioUri ? { uri: p.audioUri, name: p.audioName ?? "Song", duration: p.music?.duration ?? 0 } : null, start: p.settings?.start ?? 0, length: p.settings?.length ?? 0 });
+      router.push(`/create/${p.kind ?? "music"}`);
+      return;
+    }
     try {
       const got = await keepPickedAssets(`${p.id}-${Date.now()}`, assets);
       setClips(replace && clip ? clips.map((c, i) => (i === selected ? { ...got[0], id: c.id } : c)) : [...clips, ...got]);

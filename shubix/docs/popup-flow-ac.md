@@ -51,7 +51,7 @@ Every new Reel from Shubix AI costs credits. Shubix AI never runs by itself on c
 
 While the inputs differ from the Reel that was made, the changes are not saved over that Reel.
 
-- On the website, a change inside the editor is asked straight away, in the same way.
+- A change inside the editor is asked straight away. On the website it continues there. On Android, Make new Reel opens the Create screen with the old and new clips, and the old Reel stays in My Reels.
 - Once a Reel has its plan, Shubix AI plans again only through Make new Reel or the chat, which have their own charges. A style change does not re-run it.
 - The server decides too: other footage or another plan under the same Reel id, after its plan was delivered, takes a new charge. A retry of the same work does not.
 
@@ -81,11 +81,11 @@ While the inputs differ from the Reel that was made, the changes are not saved o
 |---|---|---|
 | 1. Popups | Tested in the browser | Built, not run on a phone |
 | 2. Cancel and Proceed | Tested in the browser | Engine tested, screens not run on a phone |
-| 2. Clips play in their cards | Tested in the browser | Built, not run on a phone (the first 4 clips play) |
+| 2. Clips play in their cards | Tested in the browser | Built, not run on a phone. The first 4 clips play, not those on the screen |
 | 2. Drag to move a clip | Tested in the browser | Built, not run on a phone |
 | 3. Shubix AI and credits | Tested with a fake AI | Engine tested, screens not run on a phone |
-| 4. Changes after a Reel is made | Tested with a fake AI | Engine tested, screen not run on a phone |
+| 4. Changes after a Reel is made | Tested with a fake AI | Engine tested, screens not run on a phone |
 | 5. Steps and Back | Tested in the browser | Green steps built; accordion is computer only |
-| 6. Editor | Tested in the browser | Header line removed, the rest is website only |
+| 6. Editor | Tested in the browser | Built, not run on a phone: no header line, wide preview. Its Mix Video has its own row, so the time and 340 px rules do not apply. Cursors do not apply |
 
 Not yet tested anywhere: the real AI and real credits, a 4K compress, and a full export after these changes.

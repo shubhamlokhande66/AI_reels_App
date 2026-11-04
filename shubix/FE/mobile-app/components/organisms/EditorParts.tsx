@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState, type ComponentRef, type ReactNode } from "react";
-import { Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Image, Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useStudioText } from "@mobile/hooks";
@@ -41,11 +41,13 @@ function rampTimelineAt(segments: SpeedRampSegment[], sourceTime: number) {
 
 /** The preview box: the editor's one player inside it, the big play button over it while paused, which shot it is (01 / 08). */
 export function Preview({ n, of, playing, aspect, error, onToggle, children }: { n: number; of: number; playing: boolean; aspect: number; error?: string | null; onToggle: () => void; children: ReactNode }) {
-  const words = useStudioText();
+  const words = useStudioText(), screen = useWindowDimensions();
+  // the Reel is what the person came to check: as wide as the screen, as tall as most of it
+  const width = Math.min(screen.width - 32, screen.height * 0.68 * aspect);
   return (
     <View className="gap-2 px-4">
       <View className="flex-row items-center gap-1.5"><View className="h-1.5 w-1.5 rounded-full bg-danger" /><Text className="text-[10px] font-bold tracking-[1.2px] text-muted">{words("PREVIEW")}</Text></View>
-      <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ height: 360, aspectRatio: aspect }}>
+      <Pressable onPress={onToggle} accessibilityLabel={words(playing ? "Pause" : "Play preview")} className="self-center overflow-hidden rounded-[18px] border border-border bg-black" style={{ width, aspectRatio: aspect }}>
         {children}
         {error ? <View pointerEvents="none" className="absolute inset-0 items-center justify-center bg-black/70 px-4"><Text className="text-center text-[12px] font-semibold text-white">{error}</Text></View>
           : !playing && <View pointerEvents="none" className="absolute inset-0 items-center justify-center"><View className="h-[62px] w-[62px] items-center justify-center rounded-full border-2 border-white/75 bg-black/35"><Icon name="play" size={26} color="#fff" /></View></View>}

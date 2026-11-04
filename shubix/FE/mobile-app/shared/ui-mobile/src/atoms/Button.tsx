@@ -36,7 +36,7 @@ export function Button({ title, onPress, variant = "primary", size = "md", full 
       className={`flex-row items-center justify-center gap-2 overflow-hidden active:opacity-80 ${v.box} ${s.box} ${full ? "w-full" : "self-start"} ${className}`}>
       {variant === "primary" && !off && <Gold />}
       {loading ? <ActivityIndicator size="small" color={look[v.color] ?? v.color} /> : typeof icon === "string" ? <Icon name={icon as IconName} size={s.icon} color={(off ? offInk : v.color) as ColorName} /> : icon}
-      <Text numberOfLines={1} style={off ? { color: offInk } : undefined} className={`font-bold ${v.text} ${s.text}`}>{title}</Text>
+      <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={off ? { color: offInk } : undefined} className={`font-bold ${v.text} ${s.text}`}>{title}</Text>
       {iconAfter && <Icon name={iconAfter} size={s.icon} color={(off ? offInk : v.color) as ColorName} />}
     </Pressable>
   );

@@ -10,7 +10,7 @@ import { PlanGate } from "../../components/templates/PlanGate";
 import type { ProjectClip } from "@mobile/validations";
 import { engine, engineOn, shotsOf, type SongAnalysis } from "../../lib/engine";
 import { errorMessage } from "@mobile/api-client";
-import { forgetKeptFiles, keepPickedAssets, keepPickedFile, removeProject, saveProject } from "../../lib/projects";
+import { forgetKeptFiles, keepPickedAssets, keepPickedFile, removeProject, saveProject, takeNewReelSeed } from "../../lib/projects";
 import { pickSong, recentSongs, songLength, type Song } from "../../lib/songs";
 import { AskShubix, styleFromWords } from "../../components/organisms/AskShubix";
 import { pickInOrder } from "../../components/organisms/Gallery";
@@ -203,6 +203,13 @@ function CreateFlowScreen() {
       setStep("clips"); router.push({ pathname: "/editor", params: { id } }); // back from the editor: the clips again
     } catch (e) { const gone = !making.current; making.current = false; tasks.clear("flow"); tasks.unlock(); if (!gone) tell(errorMessage(e), "danger"); setStep("clips"); }
   }
+
+  // a new Reel asked for in the editor: its song and clips, read now; Next asks Shubix AI's question as for any new Reel
+  useEffect(() => {
+    const seed = takeNewReelSeed(); if (!seed) return;
+    setPhotos(false); setMedia(seed.media); setSong(seed.song as Song | null); setLength(seed.length); setStep("clips");
+    void (async () => { if (seed.song) await hear(seed.song as Song); setStart(seed.start); await readClips(seed.media, seed.song as Song | null); })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the bottom button: its words say what it waits for while it is off (the website's flow.ts)
   const needSong = kind !== "talking";
