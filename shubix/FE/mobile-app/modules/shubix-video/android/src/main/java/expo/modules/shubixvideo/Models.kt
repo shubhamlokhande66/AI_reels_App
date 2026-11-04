@@ -22,8 +22,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
-/** The AI models on the phone itself, with ONNX Runtime for Android: the beat tracker, the speech finder, the voices, the
- * person mask and the faces. Each file is downloaded once into `dir`. No Android class is used here, so a computer can
+/** The AI models on the phone itself, with ONNX Runtime for Android: the beat tracker, the speech finder, the person mask
+ * and the faces. Each file is downloaded once into `dir`. No Android class is used here, so a computer can
  * run this file against the same models (scripts/models-check.mjs).
  * A run's body and answer: 4 bytes (little endian) with the length of a JSON list of {n: name, t: type, d: dims, l: bytes},
  * then the tensors' bytes, little endian, one after another. */
@@ -38,7 +38,7 @@ class Models(private val dir: File, private val api: String) {
   val runs = AtomicLong()
 
   private fun fileOf(url: String): File {
-    if (!(url.startsWith("/api/studio/model/") || url.startsWith(VOICES)) || url.contains("..")) throw IllegalArgumentException("Not a model of this app")
+    if (!url.startsWith("/api/studio/model/") || url.contains("..")) throw IllegalArgumentException("Not a model of this app")
     val name = MessageDigest.getInstance("SHA-1").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
     return File(dir.apply { mkdirs() }, "$name.onnx")
   }
@@ -50,7 +50,7 @@ class Models(private val dir: File, private val api: String) {
       if (to.isFile) return onProgress(1f)
       val part = File(to.path + ".part")
       try {
-        val c = URL(if (url.startsWith("/")) api + url else url).openConnection() as HttpURLConnection
+        val c = URL(api + url).openConnection() as HttpURLConnection
         c.connectTimeout = 30_000; c.readTimeout = 120_000
         if (c.responseCode != 200) throw IllegalStateException("Model download failed (${c.responseCode})")
         val total = c.contentLengthLong; var got = 0L; var told = 0L
@@ -161,9 +161,8 @@ class Models(private val dir: File, private val api: String) {
   }
 
   private companion object {
-    const val VOICES = "https://huggingface.co/rhasspy/piper-voices/"
     const val SMALL = 5L * 1024 * 1024
-    const val MAX_OPEN = 110L * 1024 * 1024   // the beat tracker and one voice, with the small models
+    const val MAX_OPEN = 60L * 1024 * 1024   // the beat tracker with the small models
     const val WINDOW = 512
     const val CONTEXT = 64
   }

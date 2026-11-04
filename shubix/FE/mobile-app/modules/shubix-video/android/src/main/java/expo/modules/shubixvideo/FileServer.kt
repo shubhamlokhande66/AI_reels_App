@@ -32,7 +32,8 @@ import kotlin.concurrent.thread
  *   POST /model?k=KEY&u=MODEL       the model is downloaded when needed: lines of progress, then "ok" (Models.kt)
  *   GET  /model?k=KEY               how many runs the models have done
  *   POST /onnx?k=KEY&u=MODEL        one run of a model
- *   POST /speech?k=KEY&u=MODEL      the chance of speech in a 16 kHz sound */
+ *   POST /speech?k=KEY&u=MODEL      the chance of speech in a 16 kHz sound
+ *   POST /speak?k=KEY&v=LANGUAGE    the body's words spoken by the phone's voice: floats, with X-Sample-Rate (SystemVoice.kt) */
 @androidx.media3.common.util.UnstableApi
 class FileServer(private val context: Context, private val roots: List<File>, private val outDir: File, private val api: String) {
   private val assets: AssetManager = context.assets
@@ -43,9 +44,10 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
   private val decoders = Semaphore(3, true)
   private val copies = Semaphore(1, true)
   private val models = Models(File(context.filesDir, "models"), api)
+  private val voice = SystemVoice(context, outDir)
 
   init { thread(isDaemon = true, name = "shubix-files") { while (!server.isClosed) try { val s = server.accept(); thread(isDaemon = true) { serve(s) } } catch (_: Exception) {} } }
-  fun close() = try { server.close() } catch (_: Exception) {}
+  fun close() { try { server.close() } catch (_: Exception) {}; voice.close() }
 
   private fun inside(f: File) = roots.any { f.canonicalPath.startsWith(it.canonicalPath + File.separator) }
 
@@ -58,7 +60,7 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech" && url.path != "/speak") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -99,6 +101,15 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
           val bytes = java.nio.ByteBuffer.allocate(probs.size * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN); bytes.asFloatBuffer().put(probs)
           reply(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream"), bytes.array())
         } catch (e: Throwable) { reply(out, 500, "Model failed", mapOf("Content-Type" to "text/plain"), (e.message ?: "model failed").toByteArray()) }
+      }
+      url.path == "/speak" && method == "POST" -> {
+        val body = ByteArray((headers["content-length"]?.toIntOrNull() ?: 0).coerceIn(0, 200_000)); var read = 0
+        while (read < body.size) { val n = input.read(body, read, body.size - read); if (n <= 0) break; read += n }
+        try {
+          val (pcm, rate) = voice.speak(String(body, 0, read), url.getQueryParameter("v") ?: "")
+          val bytes = java.nio.ByteBuffer.allocate(pcm.size * 4).order(java.nio.ByteOrder.LITTLE_ENDIAN); bytes.asFloatBuffer().put(pcm)
+          reply(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream", "X-Sample-Rate" to rate.toString()), bytes.array())
+        } catch (e: Throwable) { reply(out, 500, "Voice failed", mapOf("Content-Type" to "text/plain"), (e.message ?: "voice failed").toByteArray()) }
       }
       url.path == "/copy" && method == "POST" -> {
         val f = File(url.getQueryParameter("p") ?: "")
