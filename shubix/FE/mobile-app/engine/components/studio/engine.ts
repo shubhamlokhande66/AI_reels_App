@@ -3362,25 +3362,14 @@ function saveFile(blob, name){
 const savedMsg = (shared, what) => shared ? what + ' is ready: tap the button below to save it to Photos or share it.' : what + ' saved';
 function showMsg(t, err, cls){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.title=t; m.classList.toggle('err', !!err); m.classList.toggle('addclips', cls === 'addclips'); if(err) notify(t, 'err'); }
 // a short note that pops up at the bottom and goes away by itself (errors stay a little longer)
+// a message: this page is hidden on the phone, so an error goes to the phone's popup (the phone's own screens say the rest)
 function notify(t, kind){
-  const box = $('toasts'); if(!box || !t) return;
-  const n = document.createElement('div'); n.className = 'toast' + (kind ? ' ' + kind : ''); n.textContent = t;
-  box.appendChild(n); while(box.children.length > 3) box.firstChild.remove();
-  requestAnimationFrame(() => n.classList.add('in'));
-  setTimeout(() => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); }, kind === 'err' ? 6000 : 3500);
+  if(t && kind === 'err') root.dispatchEvent(new CustomEvent('studio-tell', { detail: { text: t } }));
 }
 // a message with one action button (a late AI plan: "Use it"); it stays a while, the action runs once
-function notifyAct(t, label, fn, ms = 20000){
-  const box = $('toasts'); if(!box || !t) return;
-  const n = document.createElement('div'); n.className = 'toast resume'; n.setAttribute('role', 'status');
-  const x = document.createElement('span'); x.textContent = t;
-  const go = document.createElement('button'); go.type = 'button'; go.textContent = label;
-  const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Not now';
-  const close = () => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); };
-  go.addEventListener('click', () => { close(); try{ fn(); }catch(e){ console.warn(e); } });
-  no.addEventListener('click', close);
-  n.append(x, go, no); box.appendChild(n); requestAnimationFrame(() => n.classList.add('in'));
-  setTimeout(close, ms);
+// a message with one action (a late AI plan: "Use it"): the phone's popup asks it
+function notifyAct(t, label, fn){
+  void askCredits({ title: t, text: '', bal: null, ok: label, no: 'Not now' }).then(v => { if(v === true) try{ fn(); }catch(e){ console.warn(e); } });
 }
 // a yes / no question inside the studio (instead of the browser's own box)
 function askConfirm(text, okLabel){

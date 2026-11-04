@@ -437,6 +437,8 @@ export function initBridge(root: HTMLElement): () => void {
   root.addEventListener("studio-task", onTask);
   const onSpent = () => post({ event: "spent" });
   root.addEventListener("studio-ai-spent", onSpent);
+  const onTell = (e: Event) => post({ event: "tell", text: (e as CustomEvent<{ text: string }>).detail.text });
+  root.addEventListener("studio-tell", onTell);
   // the studio's question opens (#cconf shown): the phone asks it
   // every question once, by its number (a question asked while another was still showing, or a box drawn anew, used to
   // stay unasked on the phone: the studio then waited for ever, e.g. Ask Shubix)
@@ -459,5 +461,5 @@ export function initBridge(root: HTMLElement): () => void {
     },
   };
   post({ id: 0, ok: true, result: "ready" });
-  return () => { root.removeEventListener("studio-task", onTask); root.removeEventListener("studio-ai-spent", onSpent); asking.disconnect(); window.fetch = send; };
+  return () => { root.removeEventListener("studio-task", onTask); root.removeEventListener("studio-ai-spent", onSpent); root.removeEventListener("studio-tell", onTell); asking.disconnect(); window.fetch = send; };
 }

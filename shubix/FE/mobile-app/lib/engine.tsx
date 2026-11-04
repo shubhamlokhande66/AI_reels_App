@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Platform, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { askAction, tasks, type TaskKind } from "@mobile/ui-mobile";
+import { askAction, tasks, tell, type TaskKind } from "@mobile/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
 import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
 import { buildSpeedRampSegments } from "@mobile/video-engine";
@@ -218,8 +218,8 @@ async function onAsk(q: AskEvent) {
   void call("answer", { pick: v === 0 ? "ok" : v === 1 && q.no ? "no" : "close" });
 }
 function onMessage(e: WebViewMessageEvent) {
-  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string } | TaskEvent | AskEvent | { event: "spent" };
-  if ("event" in m) return m.event === "spent" ? tasks.lock() : m.event === "ask" ? void onAsk(m) : onTask(m);
+  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string } | TaskEvent | AskEvent | { event: "spent" } | { event: "tell"; text: string };
+  if ("event" in m) return m.event === "spent" ? tasks.lock() : m.event === "tell" ? tell(m.text, "danger") : m.event === "ask" ? void onAsk(m) : onTask(m);
   if (m.id === 0) return ready?.();
   const w = waiting.get(m.id);
   if (!w) return;

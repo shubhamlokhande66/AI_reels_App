@@ -51,10 +51,10 @@ export function FlowHead({ title, at, onBack, onSkip }: { title: string; at: num
         {DOTS.map((name, i) => {
           const n = i + 1, s = n === at ? "on" : n < at ? "ok" : "no";
           return [
-            i > 0 && <View key={`l${n}`} className={`h-0.5 flex-1 ${n <= at ? "bg-accent" : "bg-border"}`} />,
-            <View key={n} accessibilityLabel={words(name)} className={`h-7 w-7 items-center justify-center overflow-hidden rounded-full border ${s === "on" ? "border-transparent" : s === "ok" ? "border-accent bg-accent/15" : "border-border bg-surface-2"}`}>
+            i > 0 && <View key={`l${n}`} className={`h-0.5 flex-1 ${n <= at ? "bg-success" : "bg-border"}`} />,
+            <View key={n} accessibilityLabel={words(name)} className={`h-7 w-7 items-center justify-center overflow-hidden rounded-full border ${s === "on" ? "border-transparent" : s === "ok" ? "border-transparent bg-success" : "border-border bg-surface-2"}`}>
               {s === "on" && <Gold />}
-              {s === "ok" ? <Icon name="check" size={14} stroke={2.6} color="accent" /> : <Text className={`text-[12px] font-semibold ${s === "on" ? "text-on-accent" : "text-muted"}`}>{n}</Text>}
+              {s === "ok" ? <Icon name="check" size={14} stroke={2.6} color="white" /> : <Text className={`text-[12px] font-semibold ${s === "on" ? "text-on-accent" : "text-muted"}`}>{n}</Text>}
             </View>,
           ];
         })}
