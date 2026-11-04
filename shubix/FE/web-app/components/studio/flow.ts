@@ -75,7 +75,11 @@ export function initFlow(root: HTMLElement): () => void {
   const clipsOk = () => done("s2");
   // Shubix's line under the clips ends in "…" while it works (scoring the clips, the pace, planning the shots, the mixes)
   // Shubix AI still working on the Reel (the studio's own state; its status line can end in "…" when it is only cut short)
-  const aiWorking = () => { const w = (root as unknown as { __studio?: { work?: { ai?: boolean; dir?: boolean } } }).__studio?.work; return !!w && (!!w.ai || !!w.dir); };
+  const aiWorking = () => { const w = (root as unknown as { __studio?: { work?: { ai?: boolean; dir?: boolean; pace?: boolean; aiWait?: boolean } } }).__studio?.work; return !!w && (!!w.ai || !!w.dir || !!w.pace || !!w.aiWait); };   // (aiWait: agreed to, its plan not here yet, also between its steps)
+  type Live = { upsell?: () => Promise<string>; saveNow?: () => Promise<string>; askNotDone?: () => Promise<boolean>; cancelled?: () => { song: boolean; clips: boolean }; guard?: (on: boolean) => void };
+  const live = () => (root as unknown as { __studio?: Live }).__studio;
+  const stopped = () => live()?.cancelled?.() ?? { song: false, clips: false };
+  let aiRunNo = 0;   // the wait for the Reel that the popup's Cancel ended
   const shubixBusy = () => { const a = $("aistat"); return !a.hidden && /…$/.test(a.textContent ?? ""); };
   const order = () => ORDER[has("talkmode") ? "talk" : "music"];
 
@@ -172,6 +176,7 @@ export function initFlow(root: HTMLElement): () => void {
   };
 
   const apply = () => {
+    live()?.guard?.(!revealed);   // the popup's Cancel, while the Reel is being made
     const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
     setClass(root, "fopen", on);
     setFlag($("fhead"), "hidden", !on);
@@ -250,23 +255,23 @@ export function initFlow(root: HTMLElement): () => void {
     // Copy a Reel: the copied Reel's song may still be coming while the clips are in (Next waits for it, spinning)
     const songComing = working.has("refsong") || working.has("song");
     const busy = (ready || (clipsOk() && songComing)) && !stop && (working.size > 0 || shubixBusy() || !made());
-    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", !clipsOk() || busy || !!stop);
+    setFlag($<HTMLButtonElement>("fclipsnext"), "disabled", (!clipsOk() && !stopped().clips) || busy || !!stop);
     // every button forward says what it waits for while it is off (phones: Next on each screen; computers: Generate)
-    const reading = working.has("clips") || (!!$("qinfo").textContent && !clipsOk());
-    const missing = !clipsOk() ? (reading ? "Reading your clips…" : has("photomode") ? "Add your photos to continue" : "Add your clips to continue")
+    const reading = !stopped().clips && (working.has("clips") || (!!$("qinfo").textContent && !clipsOk()));
+    const missing = stopped().clips ? "" : !clipsOk() ? (reading ? "Reading your clips…" : has("photomode") ? "Add your photos to continue" : "Add your clips to continue")
       : !songOk() && !songComing ? "Choose a song first" : "";
     setText($("fclipsnt"), stop || (busy ? "Next" : missing || "Next"));
     // Music (phones): Next only with a song ready (or "use my clips' own sound"), a spinner while it is read
     const songBusy = working.has("song") || working.has("refsong");   // (the beat check is waited for at the clips)
     for (const [b, t] of [["fchnext", "fchnt"], ["fadjnext", "fadjnt"]] as const) {
-      setFlag($<HTMLButtonElement>(b), "disabled", !songOk() || songBusy);
+      setFlag($<HTMLButtonElement>(b), "disabled", (!songOk() && !stopped().song) || songBusy);
       setAttr($(b), "aria-busy", String(songBusy));
-      setText($(t), songBusy ? "Reading your song…" : !songOk() ? "Choose a song to continue" : "Next");
+      setText($(t), songBusy ? "Reading your song…" : !songOk() && !stopped().song ? "Choose a song to continue" : "Next");
     }
-    setFlag($<HTMLButtonElement>("fgen"), "disabled", !ready || busy);
+    setFlag($<HTMLButtonElement>("fgen"), "disabled", (!ready && !stopped().clips && !stopped().song) || busy);
     setAttr($("fclipsnext"), "aria-busy", String(busy));
     setAttr($("fgen"), "aria-busy", String(busy));
-    setText($("fgent"), busy ? "Making your Reel…" : ready ? "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
+    setText($("fgent"), busy ? "Making your Reel…" : ready || stopped().clips || stopped().song ? "Generate Reel" : (!songOk() && !songComing && (kind !== "copy" || has("pickown")) ? "Choose a song first" : missing || "Generate Reel"));
     setText($("freadyt"), made() ? "Your Reel is ready!" : ready ? "Making your Reel…" : "Ready to create your Reel!");
     setText($("freadys"), made() ? "Press Generate Reel to see it." : ready ? "Shubix is reading your clips and the beats." : copy && !refName && !songOk() ? "Pick the Reel to copy, then add your clips."
       : copy && songComing ? "Taking the song from the Reel you copy…" : !songOk() ? "Choose a song, then add your clips." : "Add your clips, then press Generate.");
@@ -287,6 +292,7 @@ export function initFlow(root: HTMLElement): () => void {
   };
   const next = () => {
     const o = order(), i = o.indexOf(step);
+    if ((step === "choose" || step === "adjust") && stopped().song) { void live()?.askNotDone?.(); return; }
     if ((step === "choose" || step === "adjust") && !songOk()) return;   // (its Next is off: a click that slipped through)
     if (step === "clips" && !songOk()) { if (kind === "copy") root.classList.add("pickown"); return go("choose"); } // no song yet (Copy a Reel: its Reel had none)
     if (step === "clips") { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); return; }   // as Generate: Shubix AI's question first
@@ -329,14 +335,15 @@ export function initFlow(root: HTMLElement): () => void {
     if (t.closest("#fskip")) { go(order()[1]); return; }
     if (t.closest("#fgen")) {
       // Free: first, once per Reel, why Shubix AI is worth it (Upgrade, Create basic Reel, or ✕ to stay here)
-      const st = (root as unknown as { __studio?: { upsell?: () => Promise<string>; saveNow?: () => Promise<string> } }).__studio;
+      const st = live(), run = ++aiRunNo;
       void (async () => {
+        if (await st?.askNotDone?.()) return;   // after a Cancel: Proceed reads it again, then Next
         const r = st?.upsell ? await st.upsell() : "skip";
         if (r === "upgrade" || r === "close") return;
         if (phone()) return go("analyse");   // its analysing screen opens the Reel once Shubix is done
         await new Promise((ok) => setTimeout(ok, 400)); apply();
-        for (let t = 0; (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
-        if (made()) {
+        for (let t = 0; run === aiRunNo && (aiWorking() || !made()) && t < 600; t++) { await new Promise((ok) => setTimeout(ok, 300)); apply(); }   // the AI's Reel, not the first one (3 min at most)
+        if (run === aiRunNo && made()) {
           revealed = true; mark(true); apply(); window.scrollTo({ top: 0 }); // the editor from its top: the breadcrumb, the Reel's name and Export
           setAddress("/editor?session=1"); // show this live Reel at /editor without reloading or saving it first
           requestAnimationFrame(() => {
@@ -425,6 +432,9 @@ export function initFlow(root: HTMLElement): () => void {
   });
   refMo.observe($("refinfo"), { childList: true, characterData: true, subtree: true });
 
+  // the popup's Cancel during Shubix AI: back to the clips, nothing opens
+  root.addEventListener("studio-cancelled", () => { if (step === "adjust" && !done("s1")) go("choose"); else apply(); }, sig);
+  root.addEventListener("studio-ai-cancel", () => { aiRunNo++; if (step === "analyse") go("clips"); else apply(); }, sig);
   // a song that is ready moves the phones on to adjusting it
   let wasSong = done("s1");
   // the engine's progress (reading the clips, the beats, the AI) fills the checklist and the ring

@@ -34,7 +34,7 @@ function WakeMark() {
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname(), { me, refresh } = useApi(), insets = useSafeAreaInsets(), text = useText();
   const words = useStudioText();
-  const feedback = <><TaskHost cancel={text("common.cancel")} cancelReel={words("Cancel Reel")} cantCancel={words("Shubix AI has started working on this Reel. You can't cancel now.")} hide={words("Hide")} /><FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} /></>;
+  const feedback = <><TaskHost cancel={text("common.cancel")} cancelReel={words("Cancel Reel")} cantCancel={words("Shubix AI has started working on this Reel. You can't cancel now.")} hide={words("Hide")} words={words} /><FeedbackHost ok={text("common.ok")} cancel={text("common.cancel")} /></>;
   const [menu, setMenu] = useState(false), [noToken, setNoToken] = useState(false), [slow, setSlow] = useState(false);
   const authPage = AUTH_PAGES.includes(pathname), open = authPage || PUBLIC_PAGES.includes(pathname);
   // who is signed in is not known yet: no token on this phone means signed out at once; with one, the app waits for the

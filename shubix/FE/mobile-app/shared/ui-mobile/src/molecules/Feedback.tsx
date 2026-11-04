@@ -44,12 +44,13 @@ export function FeedbackHost({ ok, cancel }: { ok: string; cancel: string }) {
   const a = useSyncExternalStore(subscribe, () => ask);
   return (
     <Modal visible={!!a} transparent animationType="fade" statusBarTranslucent onRequestClose={() => answer(-1)}>
-      <ThemeLayer className="items-center justify-center bg-black/60 px-4">
+      <ThemeLayer className="items-center justify-center bg-black/75 px-4">
         {a && (
-          <View accessibilityViewIsModal accessibilityRole="alert" className="w-full max-w-[420px] gap-3 rounded-2xl border border-border bg-surface p-5">
+          <View accessibilityViewIsModal accessibilityRole="alert" className="w-full max-w-[440px] gap-4 overflow-hidden rounded-[28px] border border-accent/30 bg-surface p-6 shadow-2xl shadow-accent/30">
+            <View pointerEvents="none" className="absolute inset-x-10 top-0 h-px bg-accent/80" />
             {a.danger && <View className="h-11 w-11 items-center justify-center rounded-full bg-danger/15"><Icon name="trash" color="danger" /></View>}
-            <Text className="text-[17px] font-bold leading-[23px] text-foreground">{a.title}</Text>
-            {a.body ? <Text className="text-[12.5px] leading-[19px] text-muted">{a.body}</Text> : null}
+            <Text className="text-center text-[19px] font-semibold leading-[25px] tracking-tight text-foreground">{a.title}</Text>
+            {a.body ? <Text className="text-center text-[13px] leading-[20px] text-muted">{a.body}</Text> : null}
             {a.list?.map((x) => <View key={x} className="flex-row items-center gap-2.5"><View className="h-5 w-5 items-center justify-center rounded-full bg-accent/15"><Icon name="check" size={12} color="accent" /></View><Text className="flex-1 text-[13px] text-foreground">{x}</Text></View>)}
             {a.single ? <Button full title={ok} onPress={() => answer(0)} />
               : a.actions ? (
@@ -63,13 +64,11 @@ export function FeedbackHost({ ok, cancel }: { ok: string; cancel: string }) {
                   <Button full variant="secondary" title={a.cancel ?? cancel} onPress={() => answer(-1)} />
                 </>
               ) : (
-                <>
-                  <View className="mt-1 flex-row gap-2">
-                    <Button className="flex-1" variant="secondary" icon="back" title={a.cancel ?? cancel} onPress={() => answer(1)} />
-                    <Button className="flex-1" variant={a.danger ? "destroy" : "primary"} title={a.ok ?? ok} onPress={() => answer(0)} />
-                  </View>
-                  {a.extra ? <Button full variant="destroy" title={a.extra} onPress={() => answer(2)} /> : null}
-                </>
+                <View className="mt-1 flex-row gap-2">
+                  <Button className="flex-1" variant="secondary" icon="back" title={a.cancel ?? cancel} onPress={() => answer(1)} />
+                  {a.extra ? <Button className="flex-1" variant="destroy" title={a.extra} onPress={() => answer(2)} /> : null}
+                  <Button className="flex-1" variant={a.danger ? "destroy" : "primary"} title={a.ok ?? ok} onPress={() => answer(0)} />
+                </View>
               )}
           </View>
         )}

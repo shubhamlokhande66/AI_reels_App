@@ -1,3 +1,6 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 @source "../../../Shared/ui-web/src";
+
+/* the page behind a popup stays still */
+html:has([data-tasks]:not([hidden])), html:has(#cconf:not([hidden])), html:has([data-popup]) { overflow: hidden; }

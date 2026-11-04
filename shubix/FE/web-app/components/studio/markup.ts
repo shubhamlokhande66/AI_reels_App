@@ -598,11 +598,11 @@ export const STUDIO_HTML = `
 <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 <!-- the shot sheet: a shot tapped on the timeline (views.ts): over the clip on a computer, from the bottom on a phone -->
 <!-- credits: asked before Shubix AI uses them (an AI Reel, a chat change); Free: the plans -->
-<div class="cconf" id="cconf" hidden><div class="cconfb" role="dialog" aria-modal="true" aria-labelledby="cconft">
+<div class="cconf bg-black/70! backdrop-blur-md" id="cconf" hidden><div class="cconfb relative! w-full! max-w-[560px]! gap-4! overflow-hidden! rounded-[32px]! border! border-accent/30! bg-surface! p-6! sm:p-9! shadow-[0_32px_90px_-24px_rgba(0,0,0,.75),0_0_70px_-28px_var(--accent)]!" role="dialog" aria-modal="true" aria-labelledby="cconft">
   <button type="button" class="${Button.close} absolute top-2.5 right-2.5" id="cconfx" aria-label="Close" title="Close">${I('<path d="M6 6l12 12M18 6L6 18"/>')}</button>
   <span class="cconfi" aria-hidden="true">${IC.spark}</span>
   <b id="cconft"></b><p id="cconfp"></p><ul class="cconfl" id="cconfl" hidden></ul><p class="cconfbal" id="cconfbal"></p>
-  <div class="cconfa"><button type="button" class="${Button.secondary}" id="cconfno"></button><button type="button" class="${Button.primary}" id="cconfok"></button></div>
+  <div class="cconfa w-full flex-row! flex-nowrap! items-stretch! [&>button]:min-w-0 [&>button]:flex-1"><button type="button" class="${Button.secondary}" id="cconfno"></button><button type="button" class="${Button.primary}" id="cconfok"></button><button type="button" class="${Button.danger}" id="cconfex" hidden></button></div>
 </div></div>
 <div class="clipbar" id="clipbar" hidden role="toolbar" aria-label="Selected clip"></div>
 <section class="ctpop" id="ctpop" hidden role="dialog" aria-labelledby="ctpoph">

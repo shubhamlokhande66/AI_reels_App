@@ -1,4 +1,5 @@
-/** Short pop-up notes after an action (bottom of the screen, a few seconds): "Saved", "Deleted", or what went wrong.
+/** Messages in a popup at the centre of the screen, closed by its OK: what went wrong or must be read. A success says
+ * nothing: its result is on the screen.
  * React code calls toast.success / toast.error; the studio engine (plain script) can send the same note with
  * window.dispatchEvent(new CustomEvent("shubix-toast", { detail: { kind, text } })). <Toaster/> shows them. */
 export type ToastKind = "success" | "error" | "info";
@@ -21,13 +22,11 @@ export function dismissToast(id: number) {
 }
 
 function push(kind: ToastKind, text: string) {
-  if (!text) return;
+  if (!text || kind === "success") return;
   // the same note twice in a row (two parts of a page failing alike) shows once
   if (items.some((t) => t.text === text && t.kind === kind)) return;
-  const t = { id: next++, kind, text };
-  items = [...items.slice(-2), t];
+  items = [...items, { id: next++, kind, text }];
   emit();
-  setTimeout(() => dismissToast(t.id), kind === "error" ? 6000 : 3200);
 }
 
 export const toast = {

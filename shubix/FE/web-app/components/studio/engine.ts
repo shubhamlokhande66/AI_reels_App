@@ -373,8 +373,9 @@ async function decodeAnyAudio(file){
 // Create flow hides the status line on phones, so the button itself says it is working)
 function songBusy(on){ const b = $('mpick'); b.classList.toggle('busy', on); b.setAttribute('aria-busy', String(on)); b.disabled = on;
   b.querySelector('span').textContent = on ? 'Reading the song…' : 'Choose song'; $('rlist').classList.toggle('busy', on); }
+let lastSong = null, songCancelled = false, clipsStopped = false;   // what the popup's Cancel stopped: Next offers it again
 async function loadMusic(file, cached = null){
-  remakeOk(); wipKeep(file); wipNote({ song: fileFp(file) });
+  remakeOk(); wipKeep(file); wipNote({ song: fileFp(file) }); lastSong = file; songCancelled = false;
   const name = file.name, token = ++musicToken;   // a newer song wins over anything still running for an older one
   stopAll(); songBusy(true);
   $('s1st').textContent = 'Analysing the song… (you can keep using the page)'; $('mname').textContent = name; $('s1').classList.remove('done');
@@ -1015,16 +1016,25 @@ function drawSpark(src){
 }
 // uploads go into a queue: you can add more videos any time, even while others are still being read
 let addQueue = Promise.resolve(), pending = 0, batchN = 0, batchDone = 0;
+// the clips the popup's Cancel left unread: their cards stay, and only they are read again
+const unreadClips = () => [...$('clips').children].map(c => c.__src).filter(s => s && s.unread && !s.removed);
+function queueClips(jobs){
+  clipsStopped = false; jobs.forEach(s => { s.unread = false; });
+  if(!pending){ batchN = 0; batchDone = 0; }
+  batchN += jobs.length; pending += jobs.length; updateQ();
+  tasks.start('clips', 'clips', 'Reading your clips', 'Finding the best moments in ' + batchN + ' clip' + (batchN > 1 ? 's' : ''));
+  jobs.forEach(job=>{ addQueue = addQueue.then(()=>{
+    if(!clipsStopped) return readVideo(job);
+    job.unread = true; const dd = job.card && job.card.querySelector('.dd'); if(dd) dd.textContent = 'Not analysed yet';
+  }).catch(()=>{}).then(()=>{ pending--; batchDone++; updateQ(); }); });
+  addQueue = addQueue.then(()=>{ if(!pending) finishAdding(); });
+}
 function addVideos(files, restored = false){
   const list = [...files].filter(f=>f.type.startsWith('video/') || /\.(mp4|mov|webm|m4v|3gp|mkv)$/i.test(f.name));
   if(!list.length){ $('s2st').textContent = 'That is not a video. Choose MP4, MOV or WEBM.'; return; }
   if(playing){ pos = curTime(); stopAll(); }   // free the computer so reading is fast
   const jobs = list.map(f=>makeCard(f));
-  if(!pending){ batchN = 0; batchDone = 0; }
-  batchN += jobs.length; pending += jobs.length; updateQ();
-  tasks.start('clips', 'clips', 'Reading your clips', 'Finding the best moments in ' + batchN + ' clip' + (batchN > 1 ? 's' : ''));
-  jobs.forEach(job=>{ addQueue = addQueue.then(()=>readVideo(job)).catch(()=>{}).then(()=>{ pending--; batchDone++; updateQ(); }); });
-  addQueue = addQueue.then(()=>{ if(!pending) finishAdding(); });
+  queueClips([...unreadClips(), ...jobs]);
   list.forEach(wipKeep);
   if(jobs.length > 1 && !restored && location.pathname !== '/engine') askOrder(jobs.map(j => j.card));   // (the phone app sends its clips in the order tapped)
 }
@@ -1067,7 +1077,8 @@ function reorderClips(){
   remakeOk(); if(buf && sources.length && kind !== 'talk') makeEdit();
 }
 $('crev').addEventListener('click', () => { if(pending || recording) return; const box = $('clips'); [...box.children].reverse().forEach(c => box.appendChild(c)); reorderClips(); });
-function updateQ(){ $('qinfo').textContent = pending ? pending + ' clips left to read…' : ''; $('s2st').textContent = pending ? 'Reading clips…' : (sources.length + ' clips ready'); }
+function updateQ(){ const off = clipsStopped;   // cancelled in the popup: nothing is being read, whatever is still finishing
+  $('qinfo').textContent = pending && !off ? pending + ' clips left to read…' : ''; $('s2st').textContent = off ? 'Clips not analysed yet' : pending ? 'Reading clips…' : (sources.length + ' clips ready'); }
 function setClipStatus(src, status, detail){
   if(!src || !src.card) return;
   src.status=status;
@@ -1112,17 +1123,15 @@ async function keptSweep(){
   }catch(e){}
 }
 let previewBatchUi = null, previewBatchCompressed = 0, previewBatchDetected = 0;
+// heavy clips being compressed: in the one popup, on the clips' own card (never a second window; a clip cancelled meanwhile says nothing)
 function previewBatchShow(src, message, progress){
-  if(!previewBatchUi){
-    const overlay=document.createElement('div'); overlay.className='askbg'; overlay.setAttribute('role','dialog'); overlay.setAttribute('aria-modal','true');
-    overlay.innerHTML='<div class="ask" style="max-width:420px;width:calc(100% - 32px)"><p style="font-weight:700;margin-bottom:8px">Preparing your videos for smooth editing</p><p data-proxy-detail style="font-size:13px;opacity:.8;margin:0 0 14px"></p><div style="height:8px;border-radius:99px;background:rgba(128,128,128,.25);overflow:hidden"><div data-proxy-bar style="height:100%;width:0%;background:var(--accent,#d4af37);transition:width .15s"></div></div><p data-proxy-percent style="font-size:12px;text-align:right;margin:7px 0 0"></p></div>';
-    root.appendChild(overlay); previewBatchUi={overlay,detail:overlay.querySelector('[data-proxy-detail]'),bar:overlay.querySelector('[data-proxy-bar]'),percent:overlay.querySelector('[data-proxy-percent]')};
-  }
-  previewBatchUi.detail.textContent=message;
-  if(progress!==undefined){const n=Math.max(0,Math.min(100,Math.round(progress*100)));previewBatchUi.bar.style.width=n+'%';previewBatchUi.percent.textContent=n+'%';}
+  if(clipsStopped || (src && src.removed)) return;
+  previewBatchUi = true;
+  if(!tasks.has('clips')) tasks.start('clips', 'clips', 'Reading your clips', message);
+  tasks.update('clips', progress === undefined ? null : progress, message, 'Preparing your videos for smooth editing');
 }
 function previewBatchClose(){
-  if(previewBatchUi){previewBatchUi.overlay.remove();previewBatchUi=null;}
+  previewBatchUi = null;
   previewBatchCompressed=0; previewBatchDetected=0;
 }
 function clipBytes(bytes){
@@ -1419,6 +1428,7 @@ $('csnd').addEventListener('click', e => { const b = e.target.closest('button');
   notify(au.clip === 'mute' ? "The clips' own sound is muted." : au.clip === 'voices' ? 'Only the voices in your clips are kept.' : "All of your clips' sound is kept, under the song.");
 }, SIG);
 function finishAdding(){
+  if(clipsStopped){ if(unreadClips().length){ tasks.clear('clips'); return; } clipsStopped = false; }   // cancelled: nothing to say (all were read by then: as usual)
   previewBatchClose();
   remakeOk();
   { const order = [...$('clips').children].map(c => c.__src).filter(s => sources.includes(s)); if(order.length === sources.length) sources.splice(0, sources.length, ...order); }   // read in turn: the cards' order (askOrder)
@@ -1865,12 +1875,12 @@ function askCredits(o){
     // no second choice (o.no empty): just the button and ✕
     $('cconfok').textContent = o.ok; $('cconfno').textContent = o.no || ''; $('cconfno').hidden = !o.no;
     $('cconf').dataset.q = String((+($('cconf').dataset.q || 0)) + 1);   // each question its number (the phone app is asked each one)
-    $('cconf').hidden = false; $('cconfok').focus();
-    const esc = e => { if(e.key === 'Escape') done(null); };
-    const done = v => { $('cconf').hidden = true; $('cconfok').onclick = $('cconfno').onclick = $('cconfx').onclick = $('cconf').onclick = null; removeEventListener('keydown', esc); res(v); };
+    $('cconf').hidden = false; $('cconfok').focus({ preventScroll: true });
+    $('cconfex').textContent = o.extra || ''; $('cconfex').hidden = !o.extra;
+    const done = v => { $('cconf').hidden = true; $('cconfok').onclick = $('cconfno').onclick = $('cconfx').onclick = $('cconfex').onclick = null; res(v); };
     $('cconfok').onclick = () => done(true); $('cconfno').onclick = () => done(false);
-    $('cconfx').onclick = () => done(null); addEventListener('keydown', esc);   // ✕ / Escape: closed, nothing chosen
-    $('cconf').onclick = e => { if(e.target === $('cconf')) done(null); };
+    $('cconfx').onclick = () => done(null);   // ✕: closed, nothing chosen (only its buttons close it)
+    $('cconfex').onclick = () => done('extra');
   });
 }
 function aiOff(msg){ aiOn = false; aiStat(msg); const pr = [...$('mode').children].find(x => x.getAttribute('aria-pressed') === 'true'); modeWords(pr ? pr.dataset.m : mode); if(buf && sources.length && !recording) makeEdit(); }
@@ -1925,8 +1935,51 @@ const aiReelOk = () => aiOn && !!reelId && aiReel === reelId;
 // Free (no Shubix AI in the plan): on Generate, once per Reel, what Shubix AI would do and the way to it.
 // 'upgrade' (to Plans), 'basic' (the phone's own edit), 'close' (✕: nothing) or 'skip' (a plan with Shubix AI, or already asked)
 let upsold = '';
+// ---- the popup's Cancel (Create flow): what is running stops and nothing more is charged; Next offers it again
+let aiStopper = new AbortController();
+ac.signal.addEventListener('abort', () => aiStopper.abort());
+function cancelNow(){
+  if(aiBusy || paceBusy || dirBusy || tasks.has('ai')){
+    aiStopper.abort(); aiStopper = new AbortController(); aiBusy = paceBusy = dirBusy = false; aiStat('');
+    aiReel = ''; gateNo = ''; root.dispatchEvent(new Event('studio-ai-cancel'));
+  }
+  if(pending || tasks.has('clips')){
+    clipsStopped = true; previewBatchClose(); tasks.clear('clips'); updateQ();
+  }
+  if(tasks.has('song') || tasks.has('beats')){
+    musicToken++; songCancelled = !!lastSong; songBusy(false);
+    // the beat check stopped: the song is read, its section stays as it is. Stopped while it was read: back to choosing, with its name
+    if($('s1').classList.contains('done')) $('s1st').textContent = 'Beat check not finished';
+    else $('s1st').textContent = 'Song not analysed yet';
+    tasks.clear('song'); tasks.clear('beats');
+  }
+  root.dispatchEvent(new Event('studio-cancelled'));
+}
+// Cancel Reel: nothing of it stays, back to Home
+async function cancelReel(){
+  const v = await askCredits({ title: 'Cancel this Reel?', text: 'Your song, clips and progress for this Reel will be removed.', bal: null, ok: 'Cancel Reel', no: 'Keep working' });
+  if(v !== true) return;
+  aiStopper.abort();
+  try{ life({ wip: null }); if(proj) await idb('meta', 'readwrite', s => s.delete(proj.id)); sessionStorage.removeItem('brs-resume:' + location.pathname); }catch(e){}
+  location.assign('/');
+}
+const flowGuard = { onCancel: cancelNow, onCancelReel: () => void cancelReel() };
+// Proceed goes on from where the song stopped: read and analysed, only the beat check is left; analysed, it is not done again
+function resumeSong(){
+  songCancelled = false;
+  if($('s1').classList.contains('done') && song && song.r) return void checkBeatsWithAi(musicToken);
+  void loadMusic(lastSong, song && song.file === lastSong && song.r ? { r: song.r } : null);
+}
+// Next after a Cancel: the work again (true: Next waits for it), or not
+async function askNotDone(){
+  if(!songCancelled && !clipsStopped) return false;
+  const v = await askCredits({ title: 'Analysis not done', text: songCancelled ? "Your song's beat check did not finish." : "Your clips' analysis did not finish.", bal: null, ok: 'Proceed', no: 'Cancel', extra: 'Cancel Reel' });
+  if(v === 'extra') void cancelReel();
+  else if(v === true){ if(songCancelled) resumeSong(); if(clipsStopped) queueClips(unreadClips()); }
+  return true;
+}
 async function upsell(){
-  aiHeld = false;
+  aiHeld = false; tasks.unlock(); dirFailedKey = ''; paceFailedKey = '';
   if(!aiLocked){
     if(!aiOn) return 'skip';
     if(aiReelOk()){ aiRun(); return 'skip'; }   // already agreed for this Reel: the AI starts (it was held)
@@ -2021,13 +2074,15 @@ async function aiRun(){
   let charged = 0, failed = 0;
   try{
     const jobs = [];
-    for(const s of need){ const frames = await aiFrames(s); if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
+    for(const [i, s] of need.entries()){ if(aiStopper.signal.aborted) return; aiStat('Shubix is looking at clip ' + (i + 1) + ' of ' + need.length + '…'); const frames = s.aiFramesMade || (s.aiFramesMade = await aiFrames(s)); if(frames.length) jobs.push({ id: 'c'+jobs.length, src: s, frames }); }
+    aiStat('Shubix is choosing the best moments of your clips…');
     for(let k=0; k<jobs.length; k+=12){
       const part = jobs.slice(k, k+12);
-      const r = await fetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: ac.signal,
+      const r = await fetch('/api/studio/rank-shots', { method:'POST', headers:{'Content-Type':'application/json'}, signal: aiStopper.signal,
         body: JSON.stringify({ reelId: reelIdNow(), clips: part.map(j=>({ id:j.id, name:j.src.name, frames:j.frames })) }) });
       const res = await r.json().catch(()=>({}));
       if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not do this step (' + r.status + ').'));
+      tasks.lock();
       charged += res.charged || 0; if(typeof res.balance === 'number' && aiInfo){ aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
       for(const c of res.clips || []){ const j = part.find(x=>x.id===c.id); if(!j) continue;
         j.src.ai = { frames: c.frames, summary: c.summary, mood: c.mood }; const fp = fpOf(j.src); aiCache.set(fp, j.src.ai);
@@ -2362,8 +2417,12 @@ async function chatSend(text){
   dirFailedKey = ''; paceFailedKey = '';
   const asked = chatMsgs.length;
   makeEdit();
-  // an answer that never comes (the AI waits for the clips' check, or nothing was asked): not a spinner for ever
-  setTimeout(() => { if(chatWaiting && chatMsgs.length === asked) chatFail(dirBusy || paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : 'Your Reel is updated.'); }, 120000);
+  // the plan comes after the AI has looked at the clips: if it has not yet (it was only agreed to just now), it looks now
+  if(sources.some(s => !s.ai && !s.aiFailed && !s.removed)) aiRun();
+  // an answer that never comes: not a spinner for ever. While the clips are still being looked at, nothing else can start: wait for them
+  const noAnswer = () => { if(!chatWaiting || chatMsgs.length !== asked) return; if(aiBusy) return void setTimeout(noAnswer, 15000);
+    chatFail(dirBusy || paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : director && director.key === dirKey() ? 'Your Reel is updated.' : 'Shubix could not change the Reel right now. Try again in a moment.'); };
+  setTimeout(noAnswer, 120000);
 }
 // the chat's messages live where it is used: in the Ask Shubix bar under the title (the Create steps), or in the chat panel
 function chatInline(on){
@@ -2661,7 +2720,7 @@ function refitDirector(src, withShots){
 function directorMaybe(){
   if(keepSaved) return;
   if(!aiOn || dirBusy || !edit.length || recording || !aiReelOk() || refReading) return;
-  if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
+  if(!sources.length || sources.some(s=>!s.ai && !s.aiFailed && !s.removed)) return;   // after the AI has looked at the clips (or could not)
   if(paceBusy || paceWanted()) return;   // the pace first: it decides where the cuts are
   const key = dirKey(); if((director && director.key===key && !director.interim) || dirFailedKey===key) return;
   if(chatPending && chatPending.key === key) return;   // the creator's asked-for plan waits for Generate
@@ -2705,7 +2764,7 @@ const dirCache = new Map();
 function timeoutSignal(ms){
   const c = new AbortController(); let late = false;
   const t = setTimeout(()=>{ late = true; c.abort(); }, ms), stop = () => c.abort();
-  ac.signal.addEventListener('abort', stop);
+  ac.signal.addEventListener('abort', stop); aiStopper.signal.addEventListener('abort', stop);
   return { signal: c.signal, timedOut: () => late, done: () => { clearTimeout(t); ac.signal.removeEventListener('abort', stop); } };
 }
 /* ---- the sound map: what the AI hears (components/studio/soundmap.ts), measured once per song part ---- */
@@ -2791,6 +2850,7 @@ async function paceRun(key){
     const r = await fetch('/api/studio/pace', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(req), signal: tm.signal });
     const res = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not choose the pace (' + r.status + ').'));
+    tasks.lock();
     const every = new Map((res.sections || []).map(x=>[x.i, x.every]));
     const answer = secs.map(s=>({ t: s.t, len: s.len, every: every.get(s.i) || s.now }));
     if(whole) songPace.set(songKey, { secs: answer, story: res.story || '' });   // kept even if the part moved meanwhile
@@ -5386,25 +5446,15 @@ function saveFile(blob, name){
 const savedMsg = (shared, what) => shared ? what + ' is ready: tap the button below to save it to Photos or share it.' : what + ' saved';
 function showMsg(t, err, cls){ const m=$('xmsg'); m.hidden=false; m.textContent=t; m.title=t; m.classList.toggle('err', !!err); m.classList.toggle('addclips', cls === 'addclips'); if(err) notify(t, 'err'); }
 // a short note that pops up at the bottom and goes away by itself (errors stay a little longer)
+// a message: a popup with OK (Toaster). What only says an action worked says nothing: its result is on the screen
+const QUIET = /^(Undone|Redone|Shot \d|Marker|Using the sound|Your clips' own|The clips' own|Only the voices|All the sound|Your phone reloaded)/;
 function notify(t, kind){
-  const box = $('toasts'); if(!box || !t) return;
-  const n = document.createElement('div'); n.className = 'toast' + (kind ? ' ' + kind : ''); n.textContent = t;
-  box.appendChild(n); while(box.children.length > 3) box.firstChild.remove();
-  requestAnimationFrame(() => n.classList.add('in'));
-  setTimeout(() => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); }, kind === 'err' ? 6000 : 3500);
+  if(!t || kind === 'ok' || (!kind && QUIET.test(t))) return;
+  window.dispatchEvent(new CustomEvent('shubix-toast', { detail: { kind: kind === 'err' ? 'error' : 'info', text: t } }));
 }
 // a message with one action button (a late AI plan: "Use it"); it stays a while, the action runs once
-function notifyAct(t, label, fn, ms = 20000){
-  const box = $('toasts'); if(!box || !t) return;
-  const n = document.createElement('div'); n.className = 'toast resume'; n.setAttribute('role', 'status');
-  const x = document.createElement('span'); x.textContent = t;
-  const go = document.createElement('button'); go.type = 'button'; go.textContent = label;
-  const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Not now';
-  const close = () => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); };
-  go.addEventListener('click', () => { close(); try{ fn(); }catch(e){ console.warn(e); } });
-  no.addEventListener('click', close);
-  n.append(x, go, no); box.appendChild(n); requestAnimationFrame(() => n.classList.add('in'));
-  setTimeout(close, ms);
+function notifyAct(t, label, fn){
+  void askCredits({ title: t, text: '', bal: null, ok: label, no: 'Not now' }).then(v => { if(v === true) try{ fn(); }catch(e){ console.warn(e); } });
 }
 // a yes / no question inside the studio (instead of the browser's own box)
 function askConfirm(text, okLabel){
@@ -7241,14 +7291,9 @@ async function resumeOffer(){
   let id = ''; try{ id = sessionStorage.getItem('brs-resume:' + location.pathname) || ''; }catch(e){}
   if(!id || new URLSearchParams(location.search).get('p')) return;
   const p = await idb('meta', 'readonly', st => st.get(id)).catch(() => null); if(!p) return;
-  const box = $('toasts'); if(!box) return;
-  const n = document.createElement('div'); n.className = 'toast resume';
-  const t = document.createElement('span'); t.textContent = 'Your Reel "' + p.name + '" was saved on this phone.';
-  const go = document.createElement('a'); go.href = '/editor?p=' + encodeURIComponent(id); go.textContent = 'Continue';
-  const no = document.createElement('button'); no.type = 'button'; no.textContent = 'Start new';
-  no.addEventListener('click', () => { try{ sessionStorage.removeItem('brs-resume:' + location.pathname); }catch(e){} n.remove(); });
-  n.append(t, go, no); box.appendChild(n); requestAnimationFrame(() => n.classList.add('in'));
-  setTimeout(() => { n.classList.remove('in'); setTimeout(() => n.remove(), 300); }, 15000);
+  const v = await askCredits({ title: 'Your Reel "' + p.name + '" was saved on this phone.', text: '', bal: null, ok: 'Continue', no: 'Start new' });
+  if(v === true) location.assign('/editor?p=' + encodeURIComponent(id));
+  else try{ sessionStorage.removeItem('brs-resume:' + location.pathname); }catch(e){}
 }
 const press = (seg, attr, val) => { const b = $(seg).querySelector(`[data-${attr}="${val}"]`); if(b && b.getAttribute('aria-pressed') !== 'true') b.click(); };
 async function openProject(id){
@@ -7389,7 +7434,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { get songR(){ return song && song.r; }, get now(){ return playing ? Math.max(0, curTime()) : (pos || 0); }, get playing(){ return playing; }, get dur(){ return buf ? buf.duration : 0; }, get songName(){ return song && song.name ? song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return hookText; }, get capsOn(){ return capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return pos; }, get playing(){ return playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return capLines; }, get editGen(){ return editGen; }, get vo(){ return vo; }, get base(){ return { buf: baseBuf, norm: baseNorm }; }, get overlays(){ return overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!bgMask, err: bgErr }; }, get faceHow(){ return sources.map(s => s.faceHow); }, seek: t => { pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return talk; }, get audio(){ return buf; }, get kind(){ return kind; }, get section(){ return { start: secStart, len: buf ? buf.duration : 0, auto: sec.auto, whole: song ? song.buf.duration : 0, words: capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return capLines; }, faceYOnScreen, get edit(){ return edit; }, setEdit: list => restoreEdit(list), get plan(){ return plan; }, sources, gl: !!GL, get beats(){ return beats; }, get parts(){ return songPartsRel; }, get mode(){ return mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return beatInfo; }, get ref(){ return refProfile; }, fingerprint: () => refProfile ? fingerprintOf(refProfile) : null, copyMatch, get grade(){ return GRADES[look]; },
-  snap: histSnap, unsnap: snapRestore, upsell, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
+  snap: histSnap, unsnap: snapRestore, upsell, askNotDone, cancelled: () => ({ song: songCancelled, clips: clipsStopped }), guard: on => tasks.setGuard(on ? flowGuard : null), projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ovSel = overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return look; }, get marks(){ return userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => lastVideo && saveFile(lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!song || kind === 'talk', songReady: kind === 'talk' || !!(song && buf && song.r), beats: beatsBusy, pending, clips: sources.length, shots: edit.length, ai: aiBusy, dir: dirBusy, pace: paceBusy,
     // Shubix AI is on for this Reel and its plan has not come yet (nor failed): the Reel is not final (the phone app waits)
     aiWait: !!(aiOn && aiReelOk() && aiGaveUp !== reelIdNow() && edit.length && !(director && director.key === dirKey() && !director.interim) && dirFailedKey !== dirKey()), speech: speechBusy, exporting: exportBusy, exportP }; }, shotExtract: () => edit.length && extractAudio(edit[segAt(pos)].src), get au(){ return au; }, setAudioMix: async patch => { auSet(patch); clipMixKey = ''; await ensureMix(); return au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return layers; }, get lmedia(){ return lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },
