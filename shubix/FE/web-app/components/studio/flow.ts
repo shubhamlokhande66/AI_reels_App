@@ -175,6 +175,25 @@ export function initFlow(root: HTMLElement): () => void {
     }).join("") + "</ol>";
   };
 
+  /* Computers: one section open at a time. Music first, Clips minimised; once the song and its beat check are done, Music
+   * minimises with a green tick (its song's name on it) and the page goes on to Clips. A section's head opens it again. */
+  let openSec: "s1" | "s2" | null = null, songWas = false, songTimer: ReturnType<typeof setTimeout> | undefined;
+  const songDoneNow = () => !!songOk() && !stopped().song && !working.has("song") && !working.has("beats") && !working.has("refsong");
+  const toClips = () => { openSec = "s2"; apply(); setTimeout(() => $("s2").scrollIntoView({ behavior: "smooth", block: "start" }), 60); };
+  const sections = (on: boolean) => {
+    const desk = on && !phone(), songDone = songDoneNow();
+    if (desk && openSec === null) { openSec = songDone ? "s2" : "s1"; songWas = songDone; }
+    if (desk && songDone && !songWas) { clearTimeout(songTimer); songTimer = setTimeout(() => { if (songDoneNow() && !songWas) { songWas = true; toClips(); } }, 700); }   // (the beat check may start right after the song)
+    if (!songDone) { clearTimeout(songTimer); if (desk && songWas) openSec = "s1"; songWas = false; }
+    for (const id of ["s1", "s2"] as const) {
+      const s = $(id), head = s.querySelector<HTMLElement>(".sh")!, num = head.firstElementChild as HTMLElement, fold = desk && openSec !== id, tick = desk && done(id) && (id !== "s1" || songDone);
+      setClass(s, "ffold", fold);
+      if (desk) { setClass(s, "folded", false); setAttr(head, "aria-expanded", String(!fold)); }
+      setText(num, tick ? "✓" : id === "s1" ? "1" : "2");
+      setClass(num, "bg-success!", tick); setClass(num, "text-white", tick);
+      if (fold && tick && id === "s1") setText(head.querySelector<HTMLElement>(".fsh")!, ($("mname").textContent ?? "").replace(/\.[^.]+$/, ""));
+    }
+  };
   const apply = () => {
     live()?.guard?.(!revealed);   // the popup's Cancel, while the Reel is being made
     const on = (chosen() || !!urlKind()) && !revealed && !has("autoing");
@@ -239,6 +258,7 @@ export function initFlow(root: HTMLElement): () => void {
     if (adj) { setText($("fsongn"), ($("mname").textContent ?? "").replace(/\.[^.]+$/, "")); setText($("fsongd"), "Song · " + ($("mdur").textContent ?? "")); }
     setText($("fptitle"), { intro: "", choose: copy && !own ? "Music" : "Choose Music", adjust: "Adjust Music", clips: has("photomode") ? "Add Your Photos" : "Add Your Clips", analyse: "" }[step]);
     place(true);
+    sections(on);
     // the header's steps: Music · Clips · AI Edit · Preview & Export
     const cur = !songOk() ? 1 : !clipsOk() ? 2 : 3;
     const mob = { intro: 1, choose: 1, adjust: 1, clips: 2, analyse: 3 }[step];
@@ -296,6 +316,7 @@ export function initFlow(root: HTMLElement): () => void {
     const o = order(), i = o.indexOf(step);
     if ((step === "choose" || step === "adjust") && stopped().song) { void live()?.askNotDone?.(); return; }
     if ((step === "choose" || step === "adjust") && !songOk()) return;   // (its Next is off: a click that slipped through)
+    if ((step === "choose" || step === "adjust") && !phone()) return toClips();   // computers: all on one page
     if (step === "clips" && !songOk()) { if (kind === "copy") root.classList.add("pickown"); return go("choose"); } // no song yet (Copy a Reel: its Reel had none)
     if (step === "clips") { $<HTMLButtonElement>("fgen").disabled = false; $("fgen").click(); return; }   // as Generate: Shubix AI's question first
     if (i >= 0 && i < o.length - 1) go(o[i + 1]);
@@ -330,6 +351,8 @@ export function initFlow(root: HTMLElement): () => void {
       else if (to === "start" || to === "flow") go(to === "flow" && clipsOk() ? "clips" : order()[0]);
       return;
     }
+    const secHead = t.closest<HTMLElement>("#s1 > .sh, #s2 > .sh");   // computers: a section's head opens that section
+    if (secHead && root.classList.contains("fopen") && !phone()) { openSec = secHead.parentElement!.id === "s1" ? "s1" : "s2"; apply(); return; }
     if (t.closest("#fadd")) { $("addv").click(); return; } // the "+" tile at the end of the clips
     if (t.closest("#fapply")) { closeTool(); return; } // Edit Options: Apply (every change is already in the Reel)
     const fd = t.closest<HTMLElement>("[data-fd]");

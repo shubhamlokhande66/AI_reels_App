@@ -4,3 +4,7 @@
 
 /* the page behind a popup stays still */
 html:has([data-tasks]:not([hidden])), html:has(#cconf:not([hidden])), html:has([data-popup]) { overflow: hidden; }
+
+/* every button: the hand; one that is off: the red circle with a line (it must still get the pointer to show it; a disabled button takes no click) */
+button, [role=button], a[href], summary, label[for] { cursor: pointer; }
+button:disabled, button[aria-disabled=true], [role=button][aria-disabled=true], a[aria-disabled=true] { cursor: not-allowed !important; pointer-events: auto !important; }
