@@ -32,10 +32,14 @@ import { bootPart } from '../../lib/boot';
 import { TAIL, aiBonus, beatFxOf, buildCapLines, clipBytes, crossesScene, csFilter, curveSpeed, endWell, fmt, goodSecs, isIndic, keyframesFor, lowerB, maskPath, moveWords, nearestS, panClamp, rampSpeed, revFrame, rmsOf, shotBeats, splitPoint, srcPos, srcPosF, statsIndex, suitFx, toSlots, updateClipHoverInfo, upperB, velocitySpeed, whatClip, windowStats, wrapLines } from '../../brain/pure';
 import { createEditBrain } from '../../brain/edit';
 import { createCoreBrain } from '../../brain/core';
+import { createReelBrain } from '../../brain/reel';
 export function initStudio(root, deps) {
 
 // the edit core's state (brain/edit.ts); everything it needs from the page comes through the getters of EH
 const ES = {};
+
+// the engine's logic without browser code (brain/reel.ts)
+const { makeEditNow } = createReelBrain(ES, { get life(){ return life; }, get sources(){ return sources; }, get buildTalk(){ return buildTalk; }, get storyEdit(){ return storyEdit; }, get ukKeep(){ return ukKeep; }, get stopAll(){ return stopAll; }, get adaptPlan(){ return adaptPlan; }, get paceNow(){ return paceNow; }, get beatEdit(){ return beatEdit; }, get noFlashCuts(){ return noFlashCuts; }, get withPartCuts(){ return withPartCuts; }, get styleEdit(){ return styleEdit; }, get applyDirectorStyle(){ return applyDirectorStyle; }, get finishTransitions(){ return finishTransitions; }, get tastePlan(){ return tastePlan; }, get seqSlots(){ return seqSlots; }, get clipFlaw(){ return clipFlaw; }, get aiAt(){ return aiAt; }, get aiTags(){ return aiTags; }, get ON_PHONE(){ return ON_PHONE; }, get dirShot(){ return dirShot; }, get scoreWindow(){ return scoreWindow; }, get rng(){ return rng; }, get seqPick(){ return seqPick; }, get flickBuild(){ return flickBuild; }, get dirSlotOf(){ return dirSlotOf; }, get tasteFx(){ return tasteFx; }, get FX_NAME(){ return FX_NAME; }, get ukRestore(){ return ukRestore; }, get setCanvas(){ return setCanvas; }, get camAt(){ return camAt; }, get renderEDL(){ return renderEDL; }, get autoTools(){ return autoTools; }, get speechScan(){ return speechScan; }, get editShown(){ return editShown; }, get aiStat(){ return aiStat; }, get tellReadyIfAway(){ return tellReadyIfAway; }, get captureLoop(){ return captureLoop; }, get paceMaybe(){ return paceMaybe; }, get directorMaybe(){ return directorMaybe; }, get chatReportAuto(){ return chatReportAuto; }, get copyLookSoon(){ return copyLookSoon; } });
 
 // the engine's logic without browser code (brain/core.ts)
 const { smoothLive, addMark, delMark, clearMarks, stopPart, checkBeatsWithAi, scanGet, scanPut, keptSweep, editCopyFailNote, styleEdit, aiDone, dirArrived, applyChatVisualIntent, chatDone, chatFail, chatLocal, applyDirectorStyle, dirRequest, directorMaybe, paceMaybe, account, makeEdit, showShot, changed, shotOp, shotReorder, shotCs, shotSet, shotSlip, shotTrim, shotRoll, shotRipple, histTick, histRebase, histGo, snapRestore, remixNow, lazyPlayer, layerAdd, layoutLayer, lySelect, lyDelete, lySet, drawHook, facePosOnScreen, faceYOnScreen, drawCaptions, drawText, aiApply, drawOverlays, kfNow, kfTarget, kfLocal, kfAtHead, kfSeek, kfSet, segRegion, maskNow, maskSoon, shiftCaptions, csGeom, layerOf, shotReverse, lensOf, shapeAt, exportSound, autoExport, cutFramesOf, zoomBetween, frameCuts, renderedLook, copyLook, ttsMake, clearTts, ensureMix, sfxAdd, applyVo, autoTools, speechScan, autoSound, cleanVo, placeTemplateTexts, nextUntitled, idb, putFile, restoreEdit, forgetSong } = createCoreBrain(ES, { get smoothPic(){ return smoothPic; }, get remakeOk(){ return remakeOk; }, get withMarks(){ return withMarks; }, get notify(){ return notify; }, get partNow(){ return partNow; }, get drawMusic(){ return drawMusic; }, get aiBeats(){ return aiBeats; }, get IOS(){ return IOS; }, get aiBeatsOff(){ return aiBeatsOff; }, get life(){ return life; }, get checkBeatsInner(){ return checkBeatsInner; }, get keptGet(){ return keptGet; }, get SCAN_V(){ return SCAN_V; }, get keptPut(){ return keptPut; }, get isLocked(){ return isLocked; }, get SPEED(){ return SPEED; }, get snapSpeed(){ return snapSpeed; }, get copyStyle(){ return copyStyle; }, get sources(){ return sources; }, get aiStat(){ return aiStat; }, get chatProposal(){ return chatProposal; }, get dirCache(){ return dirCache; }, get reelLen(){ return reelLen; }, get FX_OK(){ return FX_OK; }, get FX_NAME(){ return FX_NAME; }, get renderEDL(){ return renderEDL; }, get redrawFrame(){ return redrawFrame; }, get setOverlaysFromNative(){ return setOverlaysFromNative; }, get chatAnswer(){ return chatAnswer; }, get setModeQuiet(){ return setModeQuiet; }, get dirKey(){ return dirKey; }, get copyExact(){ return copyExact; }, get holdSpeed(){ return holdSpeed; }, get ACCENTS(){ return ACCENTS; }, get finishTransitions(){ return finishTransitions; }, get cutMusic(){ return cutMusic; }, get paceNow(){ return paceNow; }, get reelIdNow(){ return reelIdNow; }, get refContext(){ return refContext; }, get recentTools(){ return recentTools; }, get aiReelOk(){ return aiReelOk; }, get paceWanted(){ return paceWanted; }, get mixStore(){ return mixStore; }, get variantsRun(){ return variantsRun; }, get planSig(){ return planSig; }, get refitDirector(){ return refitDirector; }, get directorRun(){ return directorRun; }, get paceKey(){ return paceKey; }, get paceCache(){ return paceCache; }, get songPace(){ return songPace; }, get paceSongKey(){ return paceSongKey; }, get paceFromSong(){ return paceFromSong; }, get paceRun(){ return paceRun; }, get planLoad(){ return planLoad; }, get aiCheck(){ return aiCheck; }, get curTime(){ return curTime; }, get makeEditNow(){ return makeEditNow; }, get startPlayback(){ return startPlayback; }, get prepare(){ return prepare; }, get drawFrame(){ return drawFrame; }, get drawTimeline(){ return drawTimeline; }, get stopAll(){ return stopAll; }, get repick(){ return repick; }, get segAt(){ return segAt; }, get editOf(){ return editOf; }, get MIN_SHOT(){ return MIN_SHOT; }, get speedFor(){ return speedFor; }, get csOf(){ return csOf; }, get kxSet(){ return kxSet; }, get CS0(){ return CS0; }, get histBase(){ return histBase; }, get hist(){ return hist; }, get histSnap(){ return histSnap; }, get histUI(){ return histUI; }, get HIST_MAX(){ return HIST_MAX; }, get renderOvList(){ return renderOvList; }, get lyUI(){ return lyUI; }, get makeVideo(){ return makeVideo; }, get addLayerMedia(){ return addLayerMedia; }, get LY0(){ return LY0; }, get prepLayers(){ return prepLayers; }, get out(){ return out; }, get LAYOUTS(){ return LAYOUTS; }, get lyOn(){ return lyOn; }, get layoutWords(){ return layoutWords; }, get og(){ return og; }, get EASE(){ return EASE; }, get drawWord(){ return drawWord; }, get camAt(){ return camAt; }, get trOf(){ return trOf; }, get drawWatermark(){ return drawWatermark; }, get aiTexts(){ return aiTexts; }, get aiActions(){ return aiActions; }, get personMask(){ return personMask; }, get drawOverlay(){ return drawOverlay; }, get ovTiming(){ return ovTiming; }, get KF_NEAR(){ return KF_NEAR; }, get kfSync(){ return kfSync; }, get uAt(){ return uAt; }, get UK0(){ return UK0; }, get KF_SL(){ return KF_SL; }, get redraw(){ return redraw; }, get kfListSoon(){ return kfListSoon; }, get setMask(){ return setMask; }, get segInput(){ return segInput; }, get bgStat(){ return bgStat; }, get markKeyWords(){ return markKeyWords; }, get translateSoon(){ return translateSoon; }, get kf(){ return kf; }, get emphAt(){ return emphAt; }, get beatPulse(){ return beatPulse; }, get accentAt(){ return accentAt; }, get stabAt(){ return stabAt; }, get csCam(){ return csCam; }, get csFade(){ return csFade; }, get rateAt(){ return rateAt; }, get texOf(){ return texOf; }, get csMat(){ return csMat; }, get hexRgb(){ return hexRgb; }, get CANVAS_PATS(){ return CANVAS_PATS; }, get upSharp(){ return upSharp; }, get REV_MAX(){ return REV_MAX; }, get tasks(){ return tasks; }, get revCache(){ return revCache; }, get SHAPE_K(){ return SHAPE_K; }, get getCtx(){ return getCtx; }, get runExport(){ return runExport; }, get xq(){ return xq; }, get CUT_K(){ return CUT_K; }, get greyOf(){ return greyOf; }, get lookOfImage(){ return lookOfImage; }, get avgLook(){ return avgLook; }, get fpOf(){ return fpOf; }, get GRADES(){ return GRADES; }, get showCopyMatch(){ return showCopyMatch; }, get LOOKS(){ return LOOKS; }, get captureLoop(){ return captureLoop; }, get tts(){ return tts; }, get ttsList(){ return ttsList; }, get saveNow(){ return saveNow; }, get clipVoiced(){ return clipVoiced; }, get csVoiced(){ return csVoiced; }, get clipPcm(){ return clipPcm; }, get decodeAnyAudio(){ return decodeAnyAudio; }, get speedKey(){ return speedKey; }, get sfxEvents(){ return sfxEvents; }, get SFX_NAMES(){ return SFX_NAMES; }, get sfxUI(){ return sfxUI; }, get musicOut(){ return musicOut; }, get voPcm(){ return voPcm; }, get pitchShift(){ return pitchShift; }, get voiceFx(){ return voiceFx; }, get ttsPcm(){ return ttsPcm; }, get sfxSynth(){ return sfxSynth; }, get csAutoClear(){ return csAutoClear; }, get csAutoSet(){ return csAutoSet; }, get speechShare(){ return speechShare; }, get dirSlotOf(){ return dirSlotOf; }, get AI_CS(){ return AI_CS; }, get speechProbs(){ return speechProbs; }, get setKind(){ return setKind; }, get extractAudio(){ return extractAudio; }, get denoise(){ return denoise; }, get addOverlay(){ return addOverlay; }, get pdb(){ return pdb; }, get fileFp(){ return fileFp; }, get setCanvas(){ return setCanvas; }, get flickBuild(){ return flickBuild; }, get listRecent(){ return listRecent; } });
@@ -85,7 +89,7 @@ if(lifeBefore && Date.now() - lifeBefore.at < 10*60e3 && location.pathname !== '
 const WIP = location.pathname.startsWith('/create');
 const wipGet = fp => idb('files', 'readonly', s => s.get('w:' + fp)).catch(() => null);
 function wipKeep(f){ if(WIP && f && typeof indexedDB !== 'undefined') idb('files', 'readwrite', s => s.put(f, 'w:' + fileFp(f))).catch(() => {}); }
-function wipNote(p){ if(WIP) life({ wip: { ...(ES.lifeNote.wip || {}), clips: [...$('clips').children].map(c => c.__src && fileFp(c.__src.file)).filter(Boolean), seq: seqOn, ...p } }); }
+function wipNote(p){ if(WIP) life({ wip: { ...(ES.lifeNote.wip || {}), clips: [...$('clips').children].map(c => c.__src && fileFp(c.__src.file)).filter(Boolean), seq: ES.seqOn, ...p } }); }
 async function wipRestore(w){
   const sf = w.song ? await wipGet(w.song) : null, cf = (await Promise.all((w.clips || []).map(wipGet))).filter(Boolean);
   if(!sf && !cf.length) return;
@@ -1372,7 +1376,7 @@ const UK0 = {x:0, y:0, s:1, r:0, o:1}, UK_PROPS = ['x','y','s','r','o'];
 // a flash of light or a small pulse, each starting exactly on its hit and gone within 0.4 s.
 const ACCENTS = ['punch','shake','flash','pulse'], ACC_T = 0.4;
 
-let dupCount = 0;
+ES.dupCount = 0;
 /* ---- optional AI: which moment goes where ----
    The phone sends a few small frames per clip; a vision model scores each moment like a pro editor (strength, what it
    suits, what is wrong, where the subject is). Timing stays with the music analysis; the AI only steers the choice of
@@ -1983,10 +1987,10 @@ async function footCheck(){
   if(v === true) root.dispatchEvent(new CustomEvent('studio-goto', { detail: 'music' }));
   else if(v === false) $('vfile').click();
 }
-let remakeAfterExport = false;
+ES.remakeAfterExport = false;
 /* ---- Clip order: "Mix all clips" (the best moments of every clip, anywhere in the Reel) or "In my order" (the clips one
  * after another, as they were added: each gets a share of the shots by its length, and its moments go in time order) ---- */
-let seqOn = false;
+ES.seqOn = false;
 // In my order, the moments: each clip is walked forward only (a shot starts where the one before it in that clip ended, so
 // no moment is ever used twice, and a clip once left is never come back to); a normal shot takes its clip's best moment
 // within its share of what is left. In a fast part of the song (4 or more cuts in a row, each 0.5 s or less) the shots
@@ -1995,150 +1999,16 @@ let seqOn = false;
 // A clip too short for its shots plays a little slower instead of repeating.
 const SEQ_FAST = 0.5, SEQ_MAX = 40;
 function setSeq(on, remake = true){
-  seqOn = on; root.classList.toggle('seqon', on);
+  ES.seqOn = on; root.classList.toggle('seqon', on);
   [...$('seq').children].forEach(x => x.setAttribute('aria-pressed', String((x.dataset.q === 'order') === on)));
   $('seqhelp').textContent = on ? 'Your clips play one after another, in the order you added them' : 'Shubix picks the best moments from all your clips';
   wipNote();
   if(remake && ES.buf && sources.length && ES.kind !== 'talk' && !ES.restoring) makeEdit();
 }
 $('seq').addEventListener('click', e => { const b = e.target.closest('button'); if(b && !ES.recording) remakeOk(); if(b && !ES.recording) setSeq(b.dataset.q === 'order'); }, SIG);
-function makeEditNow(){
-  if(ES.refReading) return;   // the Reel to copy is being read: its copy is made right after (no ordinary Reel meanwhile)
-  life({ stage: 'making the Reel', clips: sources.length });
-  if(ES.exportBusy){ remakeAfterExport = true; return; }   // a late AI answer: the video being made keeps its edit
-  if(ES.keepSaved) return;   // an opened Reel: as it was saved
-  if(ES.kind === 'talk'){ if(sources.length) buildTalk(); return; }
-  if(story && storyEdit()) return;
-  if(!ES.buf || !sources.length) return;
-  const keptUk = ukKeep();
-  stopAll(); ES.plan = adaptPlan(); { const pc = paceNow(); if(pc) ES.plan = beatEdit(endWell(noFlashCuts(withPartCuts(repace(ES.basePlan, pc.secs.map(x => ({ ...x, every: x.every === 'hits' ? 1 : x.every === 'flicker' ? 8 : x.every })), ES.beats, ES.buf.duration, ES.mode)))), pc.secs); } styleEdit(); const dirInfo = applyDirectorStyle(); if(!dirInfo) finishTransitions(); tastePlan();
-  const gmax = Math.max(1e-6, ...sources.flatMap(s=>s.samples.map(x=>x.m)));
-  const used = sources.map(()=>[]);
-  // the opening shot picks first (the first 2 seconds decide if people keep watching), then drops, hits, breaks, the rest
-  // "In my order": each shot has its clip and its part of that clip (seqSlots), so the clips play one after another
-  const seq = seqOn && sources.length > 1 ? seqSlots(ES.plan.length) : null;
-  const order = ES.plan.map((s,i)=>i).sort((a,b)=>{ const pr={drop:0,hit:1,break:2,cut:3}; return (a===0?-1:pr[ES.plan[a].type]) - (b===0?-1:pr[ES.plan[b].type]) || a-b; });
-  const res = new Array(ES.plan.length); dupCount = 0;
-  // Shared Director pass: rank the source clips once, then use its explainable quality ranking
-  // as a gentle prior in the existing per-shot visual scorer. The music edit still owns timing;
-  // the existing AI's explicit shot choices remain authoritative.
-  const directorShots = sources.map((src, sourceIndex) => {
-    const samples = src.samples || [];
-    const avg = (key, fallback = 0) => samples.length ? samples.reduce((n, x) => n + (Number(x[key]) || 0), 0) / samples.length : fallback;
-    const sharp = avg('sh') / Math.max(1e-6, src.shMed || 1);
-    const faceScore = Math.max(0, Math.min(1, (src.faces || []).filter(x => x.n).length / Math.max(1, (src.faces || []).length)));
-    const quality = Math.max(0, Math.min(1, 0.55 + (sharp - 1) * 0.18 + (avg('b') - 0.45) * 0.2 - clipFlaw(src) * 0.08));
-    const aiSummary = aiAt(src, 0, src.dur);
-    const motion = Math.max(0, Math.min(1, avg('m')));
-    const roles = aiSummary ? aiSummary.roles : {}, tags = aiTags(src);
-    return { id: String(sourceIndex), sourceIndex, duration: src.dur, sourceStart: 0, sourceEnd: src.dur,
-      quality, motion, aestheticScore: aiSummary ? Math.max(0, Math.min(1, aiSummary.score || 0)) : quality,
-      faceScore, subjectScore: Math.max(faceScore, Math.max(0, Math.min(1, avg('b')))),
-      isHighlight: !!(aiSummary && aiSummary.score > 0.82),
-      tags, isProduct: tags.includes('product'), isFood: tags.includes('food'), isLandscape: tags.includes('travel'),
-      isOpening: roles.hook > 0.55, isEnding: roles.ending > 0.55, isDetail: roles.detail > 0.55,
-      isAction: motion > 0.68 || roles.action > 0.55,
-      isUsable: src.dur > 0.35 && quality > 0.08,
-      speech: !!(src.voice && src.voice.has) };
-  });
-  const directorMusic = { duration: ES.buf.duration, beats: ES.beats, downbeats: ES.beats.filter((_, i) => i % 2 === 0),
-    drops: ES.plan.filter(x => x.type === 'drop').map(x => x.start),
-    quietRanges: ES.plan.filter(x => x.type === 'break').map(x => [x.start, x.end] as [number, number]) };
-  const inferredMood = ES.mode === 'fast' ? 'energetic' : ES.mode === 'smooth' ? 'minimal' : inferAutonomousMood(directorShots, directorMusic).mood;
-  const autonomousDirector = createAutonomousReelPlan({
-    shots: directorShots, music: directorMusic,
-    targetDuration: Math.min(180, ES.buf.duration), aspect: ES.aspect,
-    mood: inferredMood,
-    platform: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 'android' : 'web',
-    intensity: ES.mode === 'fast' ? 'bold' : ES.mode === 'smooth' ? 'subtle' : 'balanced',
-  });
-  const autonomousErrors = validateAutonomousReelPlan(autonomousDirector);
-  // Keep the established scorer as a safety fallback until the autonomous plan passes validation.
-  const sharedDirector = autonomousErrors.length ? createDirectorPlan({
-    shots: directorShots, beats: ES.beats, drops: ES.plan.filter(x => x.type === 'drop').map(x => x.start),
-    targetDuration: Math.min(180, ES.buf.duration), aspect: ES.aspect,
-    mood: ES.mode === 'fast' ? 'energetic' : ES.mode === 'smooth' ? 'minimal' : 'cinematic',
-    mobile: /Android|iPhone|iPad|iPod/i.test(navigator.userAgent),
-    intensity: ES.mode === 'fast' ? 'bold' : ES.mode === 'smooth' ? 'subtle' : 'balanced',
-  }) : autonomousDirector;
-  const sharedRank = new Map(sharedDirector.shots.map((shot, rank) => [shot.sourceIndex, rank]));
-  const sharedRankMax = Math.max(1, sharedDirector.shots.length - 1);
-  // the director's chosen moments are held for their own cuts
-  const held = ES.plan.map((s,i)=>{ const d = dirShot(i); return d ? {i, si:d.src, a:d.in, b:d.in + s.sp.pos(s.end-s.start)} : null; }).filter(Boolean);
-  const pick = (i, allowNeighbour, allowOverlap, anyScene) => {
-    const s = ES.plan[i], len = s.end - s.start, dir = dirShot(i);
-    let best=null, bs=-Infinity;
-    sources.forEach((src,si)=>{
-      let need = s.sp.pos(len), scaleR = 1;
-      if(need > src.dur-TAIL){ scaleR = Math.max(0.05, (src.dur-TAIL)/need*0.98); need *= scaleR; }
-      if(!allowNeighbour && sources.length>1 && [res[i-1],res[i+1]].some(x=>x && x.src===si)) return;
-      const stepT = Math.max(0.1, Math.min(0.5, src.dur/120));
-      const tryAt = (a) => {
-        let ov = 0; used[si].forEach(([u0,u1])=>{ ov += Math.max(0, Math.min(u1,a+need)-Math.max(u0,a)); });
-        if(!allowOverlap && ov > 0.001) return;          // a moment of footage is used only once
-        if(!allowOverlap && held.some(h=>h.i!==i && h.si===si && !res[h.i] && Math.min(h.b,a+need)-Math.max(h.a,a) > 0.001)) return;
-        if(!anyScene && crossesScene(src, a, a+need)) return;   // a shot never runs across a cut inside the clip
-        const w = scoreWindow(i, src, a, need, gmax);
-        let sc = w.sc - 5*ov/need + rng()*0.15;
-        const directorRank = sharedRank.get(si);
-        if(directorRank != null) sc += 0.18 * (1 - directorRank / sharedRankMax); // soft preference, never overrides explicit AI picks
-        const isDir = dir && dir.src===si && Math.abs(a-dir.in) < 0.26;
-        if(isDir) sc += 4;   // the director's choice wins whenever the rules allow it
-        if(sc>bs){ const st=w.st; bs=sc; best={src:si, in:a, scaleR, cx: st.face>0.3 ? st.fx : st.cx, cy: st.face>0.3 ? st.fy : 0.45, face: st.face, fs: st.fs, mot: w.m, ov, aiNote: w.ai ? w.ai.note : '', byDir: isDir}; }
-      };
-      for(let a=0; a<=src.dur-need-TAIL+1e-6; a+=stepT) tryAt(a);
-      if(dir && dir.src===si && dir.in <= src.dur-need-TAIL+1e-6) tryAt(dir.in);   // its exact moment too (off the scan grid)
-    });
-    return best;
-  };
-  if(seq) seqPick(seq, res, gmax);
-  else order.forEach(i=>{
-    const len = ES.plan[i].end - ES.plan[i].start;
-    let best = pick(i,false,false) || pick(i,true,false) || pick(i,true,true) || pick(i,true,true,true) || {src:0,in:0,scaleR:1,cx:0.5,cy:0.5,face:0,ov:0};
-    if(best.ov > 0.001) dupCount++;
-    used[best.src].push([best.in, best.in + ES.plan[i].sp.pos(len)*best.scaleR]);
-    res[i] = best;
-  });
-  const useCount = sources.map(()=>0);   // (players re-assigned by assignPlayers on manual edits)
-  ES.edit = ES.plan.map((s,i)=>({...s, ...res[i], el: sources[res[i].src].els[(useCount[res[i].src]++)%3]}));
-  flickBuild();   // a copied flicker montage: its stills (once per set of clips)
-  const taste = { n: ES.edit.length, moves: 0, prevZoom: false, lastZoom: -99, shape: false, drops: ES.edit.filter(x => x.type === 'drop').map(x => x.start) };
-  ES.edit.forEach((e,i)=>{
-    const d = dirSlotOf(i), shared = sharedDirector.shots.find(x => x.sourceIndex === e.src);
-    e.dirWhy = d ? d.why : '';
-    e.cx = 0.5 + (e.cx-0.5)*(e.face>0.3 ? 1 : 0.8);
-    if(ES.mode!=='smooth' && !e.fxByDir) suitFx(e);
-    tasteFx(e, i, taste);
-    // When the optional cloud AI director is unavailable, apply the shared on-device director's
-    // renderable treatment as a conservative fallback. Never overwrite an explicit AI choice.
-    if(!dirInfo && shared){
-      if(!e.fxByDir && e.efx === 'none'){
-        const fx = shared.effects.find(id => !!FX_NAME[id]);
-        if(fx && (e.end - e.start) >= 0.65) e.efx = fx;
-      }
-      // The shared plan's transition IDs are renderer-native; keep explicit rules/AI choices intact.
-      if(i > 0 && !e.trByDir && e.tr === 'hard' && shared.transition !== 'hard' && shared.transition in TR_DUR) e.tr = shared.transition;
-      // Apply the shared camera keyframes to the same WebGL/2D draw path used by preview and MP4 export.
-      if(!e.ak || !e.ak.length){
-        const len = e.end - e.start, scaleTrack = shared.keyframes.find(track => track.property === 'scale');
-        const xTrack = shared.keyframes.find(track => track.property === 'x');
-        if(len >= 0.3 && scaleTrack && xTrack){
-          const sourceDuration = Math.max(0.001, shared.duration);
-          e.ak = [0, len].map(t => {
-            const sourceTime = t / len * sourceDuration;
-            return { t, s: evaluateKeyframes(scaleTrack.keyframes, sourceTime), x: evaluateKeyframes(xTrack.keyframes, sourceTime), y: 0, r: 0, o: 1, ez: 'inOut' };
-          });
-        }
-      }
-      if(e.type === 'drop' && shared.speed > 1.05 && (e.end - e.start) >= 0.4) e.sp = rampSpeed(e.end - e.start);
-    }
-    if(shared && !e.why) e.why = shared.reason;
-    e.kf = keyframesFor(e);
-    e.beatsIn = ES.beats.filter(b=>b>e.start+0.12 && b<e.end-0.05).map(b=>b-e.start);
-  });
-  ukRestore(keptUk);
-  setCanvas(); ES.edit.forEach(e=>camAt(e, 0)); renderEDL();
-  autoTools(); speechScan();
+// the page's side of making a Reel (brain/reel.ts asks for these)
+const ON_PHONE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+function editShown(dupCount){
   $('s3').classList.remove('locked'); $('s3').classList.add('done');
   const total = sources.reduce((a,s)=>a+s.dur,0);
   $('s3st').textContent = ES.edit.length + ' shots · ' + fmt(ES.buf.duration) + (dupCount ? ' · ' + dupCount + ' shots reused (not enough footage)' : ' · no repeated moments');
@@ -2146,19 +2016,11 @@ function makeEditNow(){
   if(dupCount) showMsg(dupCount + ' shot' + (dupCount>1?'s repeat':' repeats') + ': your clips are short for this song · add more clips to avoid it', false, 'addclips');
   else $('xmsg').hidden = true;
   ['play','remix','export','cover'].forEach(id=>$(id).disabled=false);
-  if(dirInfo && !ES.director.interim){ const shots = ES.edit.filter((e,i)=>dirShot(i)).length, kept = ES.edit.filter(e=>e.byDir).length;
-    const keys = ES.edit.reduce((n,e)=>n+((e.acc&&e.acc.length)||0), 0);
-    // what the AI really decided: the cuts it answered; the rest are the phone's (said, never hidden)
-    const answered = ES.plan.filter((_, i) => { const d = ES.director.slots[i]; return d && !d.auto; }).length;
-    if(!answered) aiStat('Shubix could not plan this Reel. Your Reel uses the phone\'s own smart edit.');
-    else aiStat('Shubix planned your Reel' + (ES.director.story ? ': ' + ES.director.story : '') + (answered < ES.plan.length ? ' (' + answered + ' of ' + ES.plan.length + ' shots; the rest from your phone\'s edit)' : '') + (keys ? ' · ' + keys + ' keyframe' + (keys>1?'s':'') + ' on the hits' : '') + (answered < ES.plan.length || ES.director.story ? '' : '.')); }
-  // made while the person was in another app (the clips read, the AI's plan arrived): they are told
-  if(isHidden() && !aiBusy && !ES.dirBusy && !ES.paceBusy && readyToldGen !== reelIdNow()){ readyToldGen = reelIdNow(); void notifyDone('Your Reel is ready', 'Tap to preview it in Shubix', 'shubix-reel'); }
-  captureLoop(); ES.editGen++;
-  paceMaybe(); directorMaybe();
-  chatReportAuto();
-  if(ES.look === 'copy' && ES.refProfile) setTimeout(()=>{ copyLook(); }, 0);
 }
+function tellReadyIfAway(){
+  if(isHidden() && !aiBusy && !ES.dirBusy && !ES.paceBusy && readyToldGen !== reelIdNow()){ readyToldGen = reelIdNow(); void notifyDone('Your Reel is ready', 'Tap to preview it in Shubix', 'shubix-reel'); }
+}
+function copyLookSoon(){ if(ES.look === 'copy' && ES.refProfile) setTimeout(()=>{ copyLook(); }, 0); }
 function captureLoop(){
   if(!ES.edit.length) return;
   // the edit made again (a late AI answer, New mix): the playhead stays where the creator left it
@@ -4062,7 +3924,7 @@ async function runExport(toCloud){
   } finally {
     titleDone('export'); awake();
     ES.exportBusy = false; if(wakeLock){ try{ await wakeLock.release(); }catch(err){} wakeLock = null; }
-    if(remakeAfterExport){ remakeAfterExport = false; if(ES.buf && sources.length && !ES.recording) makeEdit(); }
+    if(ES.remakeAfterExport){ ES.remakeAfterExport = false; if(ES.buf && sources.length && !ES.recording) makeEdit(); }
   }
 }
 
@@ -4816,7 +4678,7 @@ ES.speechBusy = false;
  * narration is the Reel's voiceover (the song, if any, plays quietly under it), each sentence is a scene cut from the
  * creator's clips or photos (a soft zoom or drift on each shot, a dissolve between scenes), and the captions are the
  * story's own words timed to the speech. Nothing is uploaded and nothing is charged. ---- */
-let story = null;   // { scenes: [{ a, b, text }], dur }
+ES.story = null;   // { scenes: [{ a, b, text }], dur }
 const storySentences = (t) => (t.replace(/\s+/g, ' ').match(/[^.!?।]+[.!?।]*/g) || []).map(s => s.trim()).filter(s => s.length > 1);
 // a quiet track the length of the story, for a Reel without a song (the edit needs a sound to follow)
 function silentWav(sec){
@@ -4826,11 +4688,11 @@ function silentWav(sec){
 }
 // the edit of a story: the scenes cover the whole Reel, each in shots of about 3 s, clips taken in turn
 function storyEdit(){
-  if(!story || !sources.length || !ES.buf || ES.kind === 'talk') return false;
-  const D = ES.buf.duration, n = sources.length, list = [], sc = story.scenes;
+  if(!ES.story || !sources.length || !ES.buf || ES.kind === 'talk') return false;
+  const D = ES.buf.duration, n = sources.length, list = [], sc = ES.story.scenes;
   sc.forEach((s, j) => { const a = j ? (sc[j-1].b + s.a)/2 : 0, b = j < sc.length - 1 ? (s.b + sc[j+1].a)/2 : D, parts = Math.max(1, Math.round((b - a)/3.2));
     for(let k=0;k<parts;k++) list.push({ start: a + (b - a)*k/parts, end: a + (b - a)*(k + 1)/parts, type: k ? 'cut' : 'hit', fx: 'Story', tr: k ? 'hard' : j ? 'dissolve' : 'fadein',
-      efx: (j + k) % 2 ? 'pan-soft' : 'punch-soft', sp: 'normal', src: story.per ? Math.min(n - 1, Math.floor(j / story.per)) : (j + k) % n, in: 0, scaleR: 1, cx: 0.5, cy: 0.45, face: 0, fs: 0 }); });
+      efx: (j + k) % 2 ? 'pan-soft' : 'punch-soft', sp: 'normal', src: ES.story.per ? Math.min(n - 1, Math.floor(j / ES.story.per)) : (j + k) % n, in: 0, scaleR: 1, cx: 0.5, cy: 0.45, face: 0, fs: 0 }); });
   if(!restoreEdit(list)) return false;
   ES.edit.forEach((e, i) => { if(!repick(i, false, e.src)) repick(i, false); });
   assignPlayers(); ES.edit.forEach(e => { e.cam = null; e.kf = keyframesFor(e); camAt(e, 0); }); renderEDL(); autoTools();
@@ -4841,7 +4703,7 @@ function storyEdit(){
 async function storyRun(text, voice, songFile, clipFiles, onStage, per){
   onStage && onStage('voice', 0);
   const S = await storyVoice(text, voice, (p, stage) => onStage && onStage('voice', p, stage));
-  story = { scenes: S.scenes, dur: S.dur, per: per || 0 }; // per: Shubix's pictures in order, each covering that many sentences
+  ES.story = { scenes: S.scenes, dur: S.dur, per: per || 0 }; // per: Shubix's pictures in order, each covering that many sentences
   ES.vo = { raw: S.pcm, sr: S.sr, key: 'story' + Date.now().toString(36), clean: null };
   Object.defineProperty(ES.vo, 'pcm', { configurable: true, get(){ return this.raw; } });
   capCache.set('vo|' + ES.vo.key + '|0.00|' + $('caplang').value, { from: 0, words: S.words });
@@ -4849,7 +4711,7 @@ async function storyRun(text, voice, songFile, clipFiles, onStage, per){
   if(songFile){ await loadMusic(songFile); setLen(Math.max(5, Math.min(180, Math.ceil(S.dur)))); ES.au = { ...ES.au, mvol: Math.min(ES.au.mvol, 0.6) }; }
   else await loadMusic(silentWav(S.dur));
   onStage && onStage('clips', 0); addVideos(clipFiles); await addQueue;
-  if(!ES.edit.length || !story) makeEdit();
+  if(!ES.edit.length || !ES.story) makeEdit();
   $('caps').checked = true; ES.capsOn = true; $('caprow').hidden = false; await loadCaptions();
   afterVo();
 }
@@ -4995,7 +4857,7 @@ function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB,
 function stateOf(){
   return { kind: ES.kind, song: ES.song && ES.song.file ? { fp: fileFp(ES.song.file), name: ES.song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au: ES.au, tts: ES.ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo: ES.trTo, trOnly: ES.trOnly, tr: ES.trTo ? [...trCache].filter(([k]) => k.startsWith(ES.trTo + '|')).slice(0, 200) : [], denoise: ES.denoiseOn, mode: ES.mode === 'copy' ? 'auto' : ES.mode, look: ES.look === 'copy' ? 'vivid' : ES.look, aspect: ES.aspect, textStyle: ES.textStyle, hookText: ES.hookText, capsOn: ES.capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: ES.userMarks.slice(0, 200), sfx: ES.sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ES.ACCENT, seed: ES.seed, bg: bgFile ? fileFp(bgFile) : '', seq: seqOn, title: reelTitle, chat: ES.chatMsgs.slice(-20), reelId: ES.reelId, aiOk: !!ES.reelId && aiReel === ES.reelId, chatUsed },
+    settings: { au: ES.au, tts: ES.ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo: ES.trTo, trOnly: ES.trOnly, tr: ES.trTo ? [...trCache].filter(([k]) => k.startsWith(ES.trTo + '|')).slice(0, 200) : [], denoise: ES.denoiseOn, mode: ES.mode === 'copy' ? 'auto' : ES.mode, look: ES.look === 'copy' ? 'vivid' : ES.look, aspect: ES.aspect, textStyle: ES.textStyle, hookText: ES.hookText, capsOn: ES.capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: ES.userMarks.slice(0, 200), sfx: ES.sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ES.ACCENT, seed: ES.seed, bg: bgFile ? fileFp(bgFile) : '', seq: ES.seqOn, title: reelTitle, chat: ES.chatMsgs.slice(-20), reelId: ES.reelId, aiOk: !!ES.reelId && aiReel === ES.reelId, chatUsed },
     overlays: ES.overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: ES.lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
