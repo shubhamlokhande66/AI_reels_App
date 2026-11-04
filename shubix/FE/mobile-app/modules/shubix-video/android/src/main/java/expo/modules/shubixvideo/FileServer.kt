@@ -14,6 +14,8 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.net.URL
 import java.security.SecureRandom
+import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /** The hidden engine page's home (lib/engine.tsx): a tiny web server on the phone itself (127.0.0.1 only).
@@ -22,12 +24,14 @@ import kotlin.concurrent.thread
  * The page plays the clips and the song from it (with seeking: Range) and sends the finished Reel back to it, with the
  * key. Only files inside the app's own folders are served or written.
  *   GET  /f?k=KEY&p=PATH            a file (PATH: an absolute path or a file:// address)
+ *   POST /frames?k=KEY&p=PATH&w=W&h=H  a clip's frames at the times in the body, comma separated (FrameReader.kt)
  *   PUT  /out?k=KEY&name=NAME       the body is kept as <cache>/engine-out/NAME; answers its path */
 class FileServer(private val roots: List<File>, private val outDir: File, private val assets: AssetManager, private val api: String) {
   val key: String = ByteArray(18).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
   // one address, so the page keeps its storage from one run to the next; any free port when another app holds it
   private val server = try { ServerSocket(47831, 16, InetAddress.getByName("127.0.0.1")) } catch (_: Exception) { ServerSocket(0, 16, InetAddress.getByName("127.0.0.1")) }
   val port: Int get() = server.localPort
+  private val decoders = Semaphore(3, true)
 
   init { thread(isDaemon = true, name = "shubix-files") { while (!server.isClosed) try { val s = server.accept(); thread(isDaemon = true) { serve(s) } } catch (_: Exception) {} } }
   fun close() = try { server.close() } catch (_: Exception) {}
@@ -43,7 +47,7 @@ class FileServer(private val roots: List<File>, private val outDir: File, privat
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -63,6 +67,20 @@ class FileServer(private val roots: List<File>, private val outDir: File, privat
         if (method == "GET") RandomAccessFile(f, "r").use { r -> r.seek(a); val buf = ByteArray(256 * 1024); var left = b - a + 1
           while (left > 0) { val n = r.read(buf, 0, minOf(buf.size.toLong(), left).toInt()); if (n <= 0) break; out.write(buf, 0, n); left -= n } }
         out.flush()
+      }
+      url.path == "/frames" && method == "POST" -> {
+        val f = File(url.getQueryParameter("p") ?: "")
+        val w = url.getQueryParameter("w")?.toIntOrNull() ?: 0; val h = url.getQueryParameter("h")?.toIntOrNull() ?: 0
+        if (!f.isFile || !inside(f) || w !in 2..2048 || h !in 2..2048) return@use reply(out, 404, "Not Found", emptyMap(), null)
+        val body = ByteArray((headers["content-length"]?.toIntOrNull() ?: 0).coerceIn(0, 4_000_000)); var read = 0
+        while (read < body.size) { val n = input.read(body, read, body.size - read); if (n <= 0) break; read += n }
+        val times = String(body, 0, read).split(',').mapNotNull { it.toDoubleOrNull() }.toDoubleArray()
+        // the phone has few hardware decoders: at most three clips at a time; waiting too long, the page reads it itself
+        if (!decoders.tryAcquire(30, TimeUnit.SECONDS)) return@use reply(out, 503, "Busy", emptyMap(), null)
+        var began = false
+        try { readFrames(f, w, h, times, out) { began = true; write(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream")) } }
+        catch (e: Exception) { if (!began) reply(out, 422, "Unreadable", emptyMap(), null) }
+        finally { decoders.release() }
       }
       url.path == "/out" && (method == "PUT" || method == "POST") -> {
         val name = (url.getQueryParameter("name") ?: "reel.mp4").replace(Regex("[^A-Za-z0-9._-]"), "_")
