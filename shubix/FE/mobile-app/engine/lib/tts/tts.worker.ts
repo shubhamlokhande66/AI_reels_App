@@ -1,13 +1,14 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web/wasm";
 import { ortThreads } from "../ortThreads";
+import { phoneFirst, type Native } from "../nativeModels";
 
 /** Text to speech on the phone: Piper voices (MIT; rhasspy/piper-voices, about 60 MB each, downloaded once and kept in
  * the browser's Cache Storage) run with ONNX Runtime's WebAssembly backend in this worker. The text becomes phoneme ids
  * with piper-phonemize (WebAssembly build of @diffusionstudio/piper-wasm, served from /vendor/piper/), as Piper does.
  * In: the text and the voice's model and config URLs. Out: mono PCM at the voice's sample rate. */
 
-type In = { id: number; text: string; model: string; config: string; wasm: string; piper: string };
+type In = { id: number; text: string; model: string; config: string; wasm: string; piper: string; native?: Native };
 const CACHE = "brs-models-v1";
 const sessions = new Map<string, Promise<{ s: ort.InferenceSession; cfg: PiperConfig }>>();
 type PiperConfig = { audio: { sample_rate: number }; espeak: { voice: string }; inference?: { noise_scale?: number; length_scale?: number; noise_w?: number }; speaker_id_map?: Record<string, number> };
@@ -67,8 +68,8 @@ self.onmessage = async (e: MessageEvent<In>) => {
     ort.env.wasm.wasmPaths = m.wasm; ort.env.wasm.numThreads = ortThreads(Math.min(4, navigator.hardwareConcurrency || 2));
     if (!sessions.has(m.model)) sessions.set(m.model, (async () => {
       const cfg = JSON.parse(new TextDecoder().decode(await bytes(m.config))) as PiperConfig;
-      const model = await bytes(m.model, (p) => post({ id: m.id, type: "progress", stage: "download", p }));
-      return { s: await ort.InferenceSession.create(model, { executionProviders: ["wasm"], graphOptimizationLevel: "all" }), cfg };
+      const onP = (p: number) => post({ id: m.id, type: "progress", stage: "download", p });
+      return { s: await phoneFirst(m.native, m.model, async () => ort.InferenceSession.create(await bytes(m.model, onP), { executionProviders: ["wasm"], graphOptimizationLevel: "all" }), onP), cfg };
     })().catch((err) => { sessions.delete(m.model); throw err; }));
     const { s, cfg } = await sessions.get(m.model)!, sr = cfg.audio.sample_rate, inf = cfg.inference ?? {};
     const parts = chunks(m.text), pcms: Float32Array[] = [], gap = new Float32Array(Math.round(0.18 * sr));

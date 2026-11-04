@@ -1,6 +1,7 @@
 import type { BeatThisResult } from "@mobile/core/lib/beatThis/core";
 import { FILTERBANK_PATH, MODEL_PATH, resample, simdOk } from "@mobile/core/lib/beatThis/device";
 import { isIOS } from "../ortThreads";
+import { phoneModels } from "../nativeModels";
 
 /** Fast Studio's on-device beat tracker: Beat This! in a worker (lib/beatThis/beatThis.worker.ts). The song is resampled
  * to 22 050 Hz here (the browser's own resampler), the network runs in the worker. Rejects when this device cannot run
@@ -45,6 +46,6 @@ export async function beatThisOnDevice(mono: Float32Array, sr: number, onProgres
     };
     const onErr = (e: ErrorEvent) => { w.removeEventListener("message", onMsg); w.removeEventListener("error", onErr); if (worker === w) worker = null; settle(); reject(new Error(e.message || "beat worker failed")); };
     w.addEventListener("message", onMsg); w.addEventListener("error", onErr);
-    w.postMessage({ id, samples, model: new URL(MODEL_URL, location.href).href, filterbank: new URL(FILTERBANK_URL, location.href).href, wasm: new URL(WASM_BASE, location.href).href }, [samples.buffer]);
+    w.postMessage({ id, samples, model: new URL(MODEL_URL, location.href).href, filterbank: new URL(FILTERBANK_URL, location.href).href, wasm: new URL(WASM_BASE, location.href).href, native: phoneModels() }, [samples.buffer]);
   });
 }

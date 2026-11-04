@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import * as ort from "onnxruntime-web/wasm";
+import { phoneFirst, type Native } from "../nativeModels";
 import { ortThreads } from "../ortThreads";
 
 /** Fast Studio's eyes on the phone, in a worker (ONNX Runtime WebAssembly): MediaPipe Selfie Segmentation (who is the
@@ -7,8 +8,8 @@ import { ortThreads } from "../ortThreads";
  * (server/vision/data). Inputs arrive as RGBA pixels and are turned into the tensors each model wants here. */
 
 type Msg =
-  | { id: number; type: "seg"; rgba: Uint8ClampedArray; base: string; wasm: string }
-  | { id: number; type: "face"; rgba: Uint8ClampedArray[]; base: string; wasm: string };
+  | { id: number; type: "seg"; rgba: Uint8ClampedArray; base: string; wasm: string; native?: Native }
+  | { id: number; type: "face"; rgba: Uint8ClampedArray[]; base: string; wasm: string; native?: Native };
 const CACHE = "brs-models-v1";
 const sessions = new Map<string, Promise<ort.InferenceSession>>();
 
@@ -20,12 +21,12 @@ async function bytes(url: string): Promise<Uint8Array> {
   try { await cache?.put(url, new Response(b.slice().buffer, { headers: { "content-type": "application/octet-stream" } })); } catch { /* storage full */ }
   return b;
 }
-function session(name: string, base: string, wasm: string) {
+function session(name: string, base: string, wasm: string, native?: Native) {
   let s = sessions.get(name);
   if (!s) {
     ort.env.wasm.wasmPaths = wasm;
     ort.env.wasm.numThreads = ortThreads(self.crossOriginIsolated ? Math.min(2, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)) : 1);
-    s = bytes(base + name).then((b) => ort.InferenceSession.create(b, { executionProviders: ["wasm"], graphOptimizationLevel: "all" }));
+    s = phoneFirst(native, base + name, () => bytes(base + name).then((b) => ort.InferenceSession.create(b, { executionProviders: ["wasm"], graphOptimizationLevel: "all" })));
     s.catch(() => sessions.delete(name)); sessions.set(name, s);
   }
   return s;
@@ -42,12 +43,12 @@ self.onmessage = async (e: MessageEvent<Msg>) => {
   const m = e.data, post = (o: object, tr: Transferable[] = []) => (self as unknown as Worker).postMessage(o, tr);
   try {
     if (m.type === "seg") {
-      const s = await session("selfie_segmentation.onnx", m.base, m.wasm);
+      const s = await session("selfie_segmentation.onnx", m.base, m.wasm, m.native);
       const o = await s.run({ input_1: tensor(m.rgba, 256, 0, 1) });
       const mask = Float32Array.from(o.activation_10.data as Float32Array);
       post({ id: m.id, type: "done", mask }, [mask.buffer]);
     } else {
-      const s = await session("face_detection_short_range.onnx", m.base, m.wasm), all: number[][][] = [];
+      const s = await session("face_detection_short_range.onnx", m.base, m.wasm, m.native), all: number[][][] = [];
       for (const px of m.rgba) {
         const o = await s.run({ input: tensor(px, 128, -1, 1) });
         const reg = o.regressors.data as Float32Array, cls = o.classificators.data as Float32Array, found: number[][] = [];
