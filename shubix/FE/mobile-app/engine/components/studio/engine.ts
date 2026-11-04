@@ -1560,7 +1560,7 @@ async function chatApp(text){
   const before = ES.chatMsgs.length;
   await chatSend(text);
   const t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms));
-  while((ES.chatWaiting || ES.dirBusy || ES.paceBusy) && Date.now() - t0 < 240000) await wait(300);
+  while((ES.chatWaiting || ES.aiBusy || ES.dirBusy || ES.paceBusy) && Date.now() - t0 < 240000) await wait(300);
   let applied = false;
   if(ES.chatPending && ES.chatPending.key === dirKey()){
     const pd = ES.chatPending; ES.chatPending = null; chatReported = pd.key;
@@ -1664,8 +1664,12 @@ async function chatSend(text){
   ES.dirFailedKey = ''; ES.paceFailedKey = '';
   const asked = ES.chatMsgs.length;
   makeEdit();
-  // an answer that never comes (the AI waits for the clips' check, or nothing was asked): not a spinner for ever
-  setTimeout(() => { if(ES.chatWaiting && ES.chatMsgs.length === asked) chatFail(ES.dirBusy || ES.paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : 'Your Reel is updated.'); }, 120000);
+  // the plan comes after the AI has looked at the clips: if it has not yet (it was only agreed to just now), it looks now
+  if(ES.sources.some(s => !s.ai && !s.aiFailed && !s.removed)) aiRun();
+  // an answer that never comes: not a spinner for ever. While the clips are still being looked at, nothing else can start: wait for them
+  const noAnswer = () => { if(!ES.chatWaiting || ES.chatMsgs.length !== asked) return; if(ES.aiBusy) return void setTimeout(noAnswer, 15000);
+    chatFail(ES.dirBusy || ES.paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : ES.director && ES.director.key === dirKey() ? 'Your Reel is updated.' : 'Shubix could not change the Reel right now. Try again in a moment.'); };
+  setTimeout(noAnswer, 120000);
 }
 // the chat's messages live where it is used: in the Ask Shubix bar under the title (the Create steps), or in the chat panel
 function chatInline(on){

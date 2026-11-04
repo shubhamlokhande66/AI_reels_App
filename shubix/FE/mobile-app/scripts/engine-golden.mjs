@@ -3,6 +3,7 @@
 //   node scripts/engine-golden.mjs            compare
 //   node scripts/engine-golden.mjs --update   write the file (only when the edit was changed on purpose)
 //   node scripts/engine-golden.mjs --ai       the same with a fake Shubix AI server: its plan, texts and steps must come out the same (tests/golden/edit-ai.json)
+//   node scripts/engine-golden.mjs --chat     Shubix AI closed at first, then asked for in the chat: it must look at the clips, plan, and say Done
 // Needs ffmpeg and Chrome. Nothing reaches the internet: /api answers 404, so the phone's own edit is what is compared.
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -12,7 +13,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url)), app = join(here, "..");
-const site = join(app, "modules", "shubix-video", "android", "src", "main", "assets", "engine"), AI = process.argv.includes("--ai"), golden = join(app, "tests", "golden", AI ? "edit-ai.json" : "edit.json");
+const site = join(app, "modules", "shubix-video", "android", "src", "main", "assets", "engine"), CHAT = process.argv.includes("--chat"), AI = CHAT || process.argv.includes("--ai"), golden = join(app, "tests", "golden", AI ? "edit-ai.json" : "edit.json");
 if (!existsSync(join(site, "index.html"))) throw new Error("Build the engine first: node engine/build.mjs");
 const work = mkdtempSync(join(tmpdir(), "golden-"));
 const ff = (...a) => execFileSync("ffmpeg", ["-v", "error", "-y", ...a], { stdio: ["ignore", "ignore", "inherit"] });
@@ -72,6 +73,21 @@ try {
   await put("#mfile", [song]);
   for (let i = 0; i < 240 && !(await run(`document.querySelector("#studio").__studio.work.songReady`)); i++) await wait(250);
   await put("#vfile", clips);
+  if (CHAT) {
+    const press = (button) => run(`(()=>{const r=document.querySelector("#studio"),c=r.querySelector("#cconf");if(c.hidden)return false;r.querySelector("${button}").click();return true})()`);
+    for (let i = 0; i < 240 && !(await press("#cconfx")); i++) await wait(250);
+    for (let i = 0; i < 240 && !(await run(`(()=>{const w=document.querySelector("#studio").__studio.work;return w.songReady&&!w.pending&&w.shots>0&&!w.ai})()`)); i++) await wait(250);
+    aiCalls.length = 0;
+    let answer = null;
+    run(`document.querySelector("#studio").__studio.chatApp("Make it calm and cinematic, slower cuts").then(JSON.stringify)`).then((a) => (answer = a));
+    const t0 = Date.now();
+    while (!answer && Date.now() - t0 < 250000) { await press("#cconfok"); await wait(250); }
+    const { applied, answer: said } = JSON.parse(answer || "{}"), clipsSeen = await run(`document.querySelector("#studio").__studio.sources.every(c=>c.ai)`);
+    console.log("calls:", [...new Set(aiCalls)].join(" ") || "none", "| clips looked at:", clipsSeen, "| applied:", applied, "| seconds:", Math.round((Date.now() - t0) / 1000), "| said:", said);
+    code = applied && clipsSeen && aiCalls.includes("/api/studio/rank-shots") && aiCalls.includes("/api/studio/direct") ? 0 : 1;
+    console.log(code ? "CHAT FAILED" : "CHAT OK");
+    throw new Error("");
+  }
   // the studio's question (Shubix AI will edit this Reel) is answered Use, as the phone's person does
   const quiet = `(()=>{const r=document.querySelector("#studio"),c=r.querySelector("#cconf");if(c&&!c.hidden)r.querySelector("#cconfok").click();const w=r.__studio.work;return w.songReady&&!w.pending&&w.shots>0&&!w.ai&&!w.dir&&!w.pace&&!w.beats&&!w.aiWait?w.shots:0})()`;
   let still = 0, last = 0;
@@ -98,11 +114,11 @@ try {
   const edit = JSON.stringify(JSON.parse(read), round, 1);
   if (process.argv.includes("--update")) { mkdirSync(dirname(golden), { recursive: true }); writeFileSync(golden, edit + "\n"); console.log(`Written: ${(AI ? JSON.parse(edit).edit : JSON.parse(edit)).length} shots`); code = 0; }
   else {
-    const want = readFileSync(golden, "utf8").trim();
+    const want = readFileSync(golden, "utf8").split(/\r?\n/).join("\n").trim();
     if (want === edit) { console.log(`SAME Reel: ${(AI ? JSON.parse(edit).edit : JSON.parse(edit)).length} shots`); code = 0; }
     else { const a = want.split("\n"), b = edit.split("\n"), at = a.findIndex((l, i) => l !== b[i]); console.log(`DIFFERENT at line ${at + 1}:\n  was ${a[at]}\n  now ${b[at]}`); }
   }
   ws.close();
-} catch (e) { console.error(e.message); }
+} catch (e) { if (e.message) console.error(e.message); }
 finally { browser.kill(); server.close(); await wait(300); try { rmSync(work, { recursive: true, force: true }); } catch {} }
 process.exit(code);

@@ -66,6 +66,7 @@ async function aiRun(){
     if(e && e.name === 'AbortError') return;
     ES.aiGaveUp = EH.reelIdNow();   // nothing more comes from Shubix for this Reel: it is final as the phone made it
     console.warn('AI picks not used:', e); EH.aiStat('Shubix could not look at your clips right now. Your Reel uses the best moments picked on your phone' + (EH.aiCostOf('reel') && ES.dirPlannedReel !== EH.reelIdNow() ? ' · no credits were used.' : '.'));
+    EH.chatFail('Shubix could not look at your clips right now. Try again in a moment.');
   }
 }
 // New mix: the AI's other plans for these cuts, all in one call (the input is sent once)

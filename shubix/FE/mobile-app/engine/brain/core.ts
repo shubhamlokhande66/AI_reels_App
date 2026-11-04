@@ -287,7 +287,7 @@ function dirRequest(cands){
 function directorMaybe(){
   if(ES.keepSaved) return;
   if(!ES.aiOn || ES.dirBusy || !ES.edit.length || ES.recording || !EH.aiReelOk() || ES.refReading) return;
-  if(!ES.sources.length || ES.sources.some(s=>!s.ai && !s.aiFailed)) return;   // after the AI has looked at the clips (or could not)
+  if(!ES.sources.length || ES.sources.some(s=>!s.ai && !s.aiFailed && !s.removed)) return;   // after the AI has looked at the clips (or could not)
   if(ES.paceBusy || EH.paceWanted()) return;   // the pace first: it decides where the cuts are
   const key = EH.dirKey(); if((ES.director && ES.director.key===key && !ES.director.interim) || ES.dirFailedKey===key) return;
   if(ES.chatPending && ES.chatPending.key === key) return;   // the creator's asked-for plan waits for Generate
