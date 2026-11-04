@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useColorScheme } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { Theme, ThemePref } from "@shubix/ui-mobile";
+import type { Theme, ThemePref } from "@mobile/ui-mobile";
 
 /** The person's look, kept on this phone (the website's lib/theme.ts: the same key and the same default, Light). */
 const KEY = "shubix-theme";

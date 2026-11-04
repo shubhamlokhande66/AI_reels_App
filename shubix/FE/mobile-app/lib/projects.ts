@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Directory, File, Paths } from "expo-file-system";
 import type { ImagePickerAsset } from "expo-image-picker";
-import { clipSchema, projectSchema, type ProjectClip, type ReelProject } from "@shubix/validations";
+import { clipSchema, projectSchema, type ProjectClip, type ReelProject } from "@mobile/validations";
 
 const KEY = "shubix.mobile.projects.v1";
 export type MobileProject = ReelProject;

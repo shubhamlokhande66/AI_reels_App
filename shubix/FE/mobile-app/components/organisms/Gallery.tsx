@@ -4,8 +4,8 @@ import * as DocumentPicker from "expo-document-picker";
 import type { ImagePickerAsset } from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library/legacy";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useStudioText } from "@shubix/hooks";
-import { Button, Icon, ThemeLayer } from "@shubix/ui-mobile";
+import { useStudioText } from "@mobile/hooks";
+import { Button, Icon, ThemeLayer } from "@mobile/ui-mobile";
 import { songLength } from "../../lib/songs";
 import { Thumb } from "./CreateFlow";
 

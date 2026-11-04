@@ -4,10 +4,10 @@ import { Image, PanResponder, Pressable, ScrollView, Text, View, useWindowDimens
 import Svg, { Circle } from "react-native-svg";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import type { ImagePickerAsset } from "expo-image-picker";
-import { useStudioText } from "@shubix/hooks";
-import { Button, Gold, Icon, IconButton, Input, Segmented, useColors } from "@shubix/ui-mobile";
-import type { IconName } from "@shubix/ui-core";
-import { clock } from "@shubix/utils";
+import { useStudioText } from "@mobile/hooks";
+import { Button, Gold, Icon, IconButton, Input, Segmented, useColors } from "@mobile/ui-mobile";
+import type { IconName } from "@mobile/ui-core";
+import { clock } from "@mobile/utils";
 import { forgetSong, type Song } from "../../lib/songs";
 import { useThumb } from "../../lib/thumbs";
 

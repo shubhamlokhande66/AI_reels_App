@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
-import { useText } from "@shubix/hooks";
-import { Card, Icon } from "@shubix/ui-mobile";
+import { useText } from "@mobile/hooks";
+import { Card, Icon } from "@mobile/ui-mobile";
 import { Logo } from "../atoms/Logo";
 
 /** The sign-in pages' frame (the website's components/molecules/AuthFrame.tsx): back to sign in, the logo on its dark

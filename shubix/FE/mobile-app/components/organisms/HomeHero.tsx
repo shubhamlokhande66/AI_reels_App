@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Text, View } from "react-native";
 import Svg, { Defs, Ellipse, LinearGradient, Polygon } from "react-native-svg";
 import { LinearGradient as Fill } from "expo-linear-gradient";
-import { useText } from "@shubix/hooks";
-import { Button, Gold, GoldText, Icon, Paint, cssLine, mix, places, stopsOf, useColors } from "@shubix/ui-mobile";
-import { heroArt } from "@shubix/ui-core";
+import { useText } from "@mobile/hooks";
+import { Button, Gold, GoldText, Icon, Paint, cssLine, mix, places, stopsOf, useColors } from "@mobile/ui-mobile";
+import { heroArt } from "@mobile/ui-core";
 
 /** Home's hero (the website's components/organisms/home/HomeHero.tsx): the tag, the three-line title, the line, the
  * Create button and the three steps, then the studio picture: a 9:16 Reel at sunset, the soundtrack's bars moving to

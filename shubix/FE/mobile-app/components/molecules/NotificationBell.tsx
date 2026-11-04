@@ -3,9 +3,9 @@ import { Linking, Modal, Pressable, ScrollView, Text, View } from "react-native"
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useText } from "@shubix/hooks";
-import { Icon, IconButton, ThemeLayer } from "@shubix/ui-mobile";
-import { formatRelative } from "@shubix/utils";
+import { useText } from "@mobile/hooks";
+import { Icon, IconButton, ThemeLayer } from "@mobile/ui-mobile";
+import { formatRelative } from "@mobile/utils";
 import { mobileApi } from "../../lib/api";
 
 /** The top bar's bell (the website's NotificationBell): the administrator's messages, a red dot for what is new;

@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
-import { colors } from "@shubix/ui-mobile";
-import { useText } from "@shubix/hooks";
+import { colors } from "@mobile/ui-mobile";
+import { useText } from "@mobile/hooks";
 import { router } from "expo-router";
 import { useLockCheck } from "../../lib/data";
 

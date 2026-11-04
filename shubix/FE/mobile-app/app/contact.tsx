@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Linking, Pressable, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { useApi, useText } from "@shubix/hooks";
-import { Button, Card, Chip, ErrorBanner, Field, Heading, Icon, IconTile, Input, Page, TextArea, toast } from "@shubix/ui-mobile";
-import type { IconName, Tone } from "@shubix/ui-core";
-import { emailOk } from "@shubix/validations";
-import { errorMessage } from "@shubix/api-client";
+import { useApi, useText } from "@mobile/hooks";
+import { Button, Card, Chip, ErrorBanner, Field, Heading, Icon, IconTile, Input, Page, TextArea, toast } from "@mobile/ui-mobile";
+import type { IconName, Tone } from "@mobile/ui-core";
+import { emailOk } from "@mobile/validations";
+import { errorMessage } from "@mobile/api-client";
 import { mobileApi } from "../lib/api";
 import { useList } from "../lib/data";
 

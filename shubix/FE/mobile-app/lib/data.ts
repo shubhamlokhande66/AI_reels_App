@@ -1,12 +1,12 @@
 import { useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useText } from "@shubix/hooks";
-import { chooseAction, confirmAction, toast } from "@shubix/ui-mobile";
-import { listDef, type ListItem } from "@shubix/core/lib/collections";
-import { DEFAULTS, type Features } from "@shubix/core/lib/features-list";
-import { DEFAULT_TEMPLATES } from "@shubix/core/lib/studio-templates";
-import { DEFAULT_LOCKS, PAGE_LOCK, lockedFor, needMap, type PlanId } from "@shubix/core/lib/plan-locks";
+import { useText } from "@mobile/hooks";
+import { chooseAction, confirmAction, toast } from "@mobile/ui-mobile";
+import { listDef, type ListItem } from "@mobile/core/lib/collections";
+import { DEFAULTS, type Features } from "@mobile/core/lib/features-list";
+import { DEFAULT_TEMPLATES } from "@mobile/core/lib/studio-templates";
+import { DEFAULT_LOCKS, PAGE_LOCK, lockedFor, needMap, type PlanId } from "@mobile/core/lib/plan-locks";
 import { mobileApi } from "./api";
 import { listProjects, removeProject, type MobileProject } from "./projects";
 

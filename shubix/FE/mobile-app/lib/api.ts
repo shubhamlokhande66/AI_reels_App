@@ -1,12 +1,12 @@
 import { api, API_URL } from "./session";
 import { fetchWithToken, tokenStore } from "./device";
-import type { StudioTemplate } from "@shubix/core/lib/studio-templates";
-import type { Features } from "@shubix/core/lib/features-list";
-import type { Content } from "@shubix/core/lib/collections";
-import type { CloudReel, CloudUsage, Credits, MyMarketing, Pricing } from "@shubix/types";
-import type { PlanLocks } from "@shubix/core/lib/plan-locks";
+import type { StudioTemplate } from "@mobile/core/lib/studio-templates";
+import type { Features } from "@mobile/core/lib/features-list";
+import type { Content } from "@mobile/core/lib/collections";
+import type { CloudReel, CloudUsage, Credits, MyMarketing, Pricing } from "@mobile/types";
+import type { PlanLocks } from "@mobile/core/lib/plan-locks";
 
-/** Every call goes to BE/api through the shared client (lib/session.ts, @shubix/api-client): the Bearer token from
+/** Every call goes to BE/api through the shared client (lib/session.ts, @mobile/api-client): the Bearer token from
  * secure storage, the app's error messages, the same logic as the website. */
 const USER_ONLY = ["/api/credits", "/api/notifications", "/api/studio/reels", "/api/ads", "/api/templates", "/api/marketing", "/api/brands", "/api/voices"];
 const json = async <T = unknown>(path: string, init?: RequestInit): Promise<T> => {

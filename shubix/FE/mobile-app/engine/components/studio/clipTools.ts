@@ -1,0 +1,188 @@
+
+/* Clip tools of the current shot (as in VN / CapCut's clip toolbar): one row of tools, the open tool's controls under it.
+ * Everything is a field of the shot's settings (the engine's e.cs), so preview, export, Undo and saved Reels all keep it,
+ * and the AI can set the same fields. One-tap tools (Rotate, Mirror, Flip, Fit) act at once; the others open controls. */
+import { Chip, Tile } from "./ui";
+
+export type ClipCs = {
+  i: number; rev: boolean; zoom: number; cx: number | null; cy: number | null; vol: number; rot: number; fh: boolean; fv: boolean; fit: boolean; bg: string; bgc: string; bd: number; bdc: string;
+  bri: number; con: number; sat: number; warm: number; hi?: number; sh?: number; hue?: number; sharp?: number; vig?: number; beauty?: number; stab?: number; smooth?: number; enh?: boolean; kx?: number; kxHere?: boolean; kxOp?: "add" | "del" | "clear"; all?: boolean; crown?: string[]; pitch?: number; mus?: number; curve?: { a: number; b: number; c: number; d: number; e: number } | null; fin: number; fout: number;
+  mz: { x: number; y: number; w: number; h: number; s: number } | null; mg: { x: number; y: number; r: number; z: number } | null;
+  mk?: Mask | null;
+  /** green screen: the key colour, how much around it goes (0.05-0.9), the colour shown behind */
+  ck?: { c: string; tol: number; bg: string } | null;
+  /** Curves: per channel (m = all three) 5 outputs at the inputs 0, ¼, ½, ¾, 1; HSL: per colour band [hue, saturation, lightness] -1..1 */
+  cv?: Partial<Record<"m" | "r" | "g" | "b", number[]>> | null;
+  hsl?: Partial<Record<string, number[]>> | null;
+};
+const CV_ID = [0, 0.25, 0.5, 0.75, 1];
+const CV_CH: [string, string][] = [["m", "All"], ["r", "Red"], ["g", "Green"], ["b", "Blue"]];
+const CV_PRESETS: [string, string, Record<string, number[]>][] = [
+  ["contrast", "More contrast", { m: [0, 0.18, 0.5, 0.82, 1] }], ["fade", "Faded film", { m: [0.1, 0.3, 0.52, 0.76, 0.94] }], ["bright", "Brighter mids", { m: [0, 0.32, 0.6, 0.83, 1] }],
+  ["moody", "Moody", { m: [0, 0.2, 0.45, 0.72, 0.95], b: [0.05, 0.28, 0.52, 0.75, 0.97] }], ["cross", "Cross process", { r: [0, 0.2, 0.55, 0.85, 1], g: [0, 0.25, 0.52, 0.8, 1], b: [0.12, 0.3, 0.48, 0.66, 0.85] }],
+];
+const HSL_BANDS: [string, string, string][] = [["red", "Red", "#ff3b30"], ["orange", "Orange", "#ff9500"], ["yellow", "Yellow", "#ffcc00"], ["green", "Green", "#34c759"], ["aqua", "Aqua", "#32d2e6"], ["blue", "Blue", "#0a84ff"], ["purple", "Purple", "#8e5cf7"], ["magenta", "Magenta", "#ff2d92"]];
+let cvCh = "m", hslBand = "red";   // the channel and the colour band being edited
+/** a mask on the shot (CapCut's Mask): its shape, centre, size, turn (degrees), soft edge, inverted, the colour outside it */
+export type Mask = { s: string; x: number; y: number; w: number; h: number; a: number; f: number; inv: boolean; c: string };
+export const MASKS: [string, string][] = [["circle", "Circle"], ["rect", "Rectangle"], ["heart", "Heart"], ["star", "Star"], ["split", "Split"], ["film", "Filmstrip"]];
+export type ClipApi = { shotCs: () => ClipCs | null; shotSet: (p: Partial<ClipCs> | null) => void; shotSlip: (d: number) => boolean; shotTrim: (d: number) => boolean; shotExtract: () => unknown; shotReverse: () => Promise<boolean> };
+
+const I = (d: string) => `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+/** every clip tool: [key, name, icon] (the phones' clip toolbar shows them too, components/studio/views.ts) */
+export const CLIP_TOOLS: [string, string, string][] = [
+  ["kf", "Keyframe", I('<path d="M12 3l5 9-5 9-5-9z"/><path d="M3 12h3M18 12h3" opacity=".5"/>')],
+  ["vol", "Volume", I('<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>')],
+  ["extract", "Extract audio", I('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>')],
+  ["crop", "Crop", I('<path d="M6 2v16h16M2 6h16v16"/>')],
+  ["rev", "Reverse", I('<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>')],
+  ["rot", "Rotate", I('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>')],
+  ["fh", "Mirror", I('<path d="M12 3v18M8 7L3 12l5 5zM16 7l5 5-5 5z"/>')],
+  ["fv", "Flip", I('<path d="M3 12h18M7 8l5-5 5 5zM7 16l5 5 5-5z"/>')],
+  ["fit", "Fit", I('<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/>')],
+  ["canvas", "Canvas", I('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/>')],
+  ["border", "Border", I('<rect x="3" y="3" width="18" height="18" rx="2"/><rect x="6.5" y="6.5" width="11" height="11" rx="1"/>')],
+  ["adjust", "Adjust", I('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>')],
+  ["curve", "Speed curve", I('<path d="M3 18c4 0 4-12 9-12s5 12 9 12"/><circle cx="12" cy="6" r="1.5"/>')],
+  ["smooth", "Smooth slow-mo", I('<path d="M3 17c3 0 3-4 6-4s3 4 6 4 3-4 6-4"/><path d="M3 9h3M9 9h3M15 9h3" opacity=".5"/>')],
+  ["stab", "Stabilize", I('<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M2 12h2M20 12h2M12 2v2M12 20v2"/>')],
+  ["beauty", "Beauty", I('<circle cx="12" cy="10" r="6"/><path d="M9 9h.01M15 9h.01M9.5 12.5a3.5 3.5 0 0 0 5 0M6 21c1.5-3 4-4 6-4s4.5 1 6 4"/>')],
+  ["fade", "Fade", I('<path d="M3 20L12 4l9 16z"/><path d="M12 4v16" stroke-dasharray="2 2"/>')],
+  ["mosaic", "Mosaic", I('<rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="9" y="9" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/>')],
+  ["mask", "Mask", I('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor" opacity=".35"/>')],
+  ["curves", "Curves", I('<path d="M4 20C9 20 9 4 20 4"/><path d="M4 4v16h16" opacity=".4"/>')],
+  ["hsl", "HSL", I('<circle cx="12" cy="12" r="9"/><path d="M12 3v9l7.8 4.5M12 12L4.2 16.5"/>')],
+  ["chroma", "Chroma key", I('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6" /><circle cx="16" cy="8" r="1.5"/>')],
+  ["lens", "Magnifier", I('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5"/>')],
+  ["slip", "Slip", I('<path d="M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4"/>')],
+  ["trim", "Trim", I('<path d="M7 4v16M17 4v16M7 12h10"/>')],
+];
+/** the canvas patterns behind a fitted picture (in the chosen colour) */
+const PATS: [string, string][] = [["grad", "Gradient"], ["stripes", "Stripes"], ["dots", "Dots"], ["grid", "Grid"], ["checker", "Checker"]];
+const SWATCH = ["#000000", "#ffffff", "#f3ede3", "#d4b07a", "#e85d75", "#4f7cff", "#1db954", "#ff9f1c"];
+const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+// the Adjust sliders' signs (the design: a sign, the name, the slider, the value)
+const SLIDE_IC: Record<string, string> = {
+  bri: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  con: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/>',
+  sat: '<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',
+  warm: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',
+  hi: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18M12 8h9M12 13h8"/>',
+  sh: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/>',
+  hue: '<circle cx="12" cy="12" r="9"/><path d="M12 3v9l6.4 6.4"/>',
+  sharp: '<path d="M12 3l9 16H3z"/>',
+  vig: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/>',
+};
+const slider = (k: string, label: string, v: number, min: number, max: number, step: number, unit = "") =>
+  `<label class="cslide${SLIDE_IC[k] ? " csi" : ""}">${SLIDE_IC[k] ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SLIDE_IC[k]}</svg>` : ""}<span>${label}</span><input type="range" data-s="${k}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${fmtV(v, unit)}</output></label>`;
+const fmtV = (v: number, unit: string) => unit === "°" ? `${Math.round(v)}°` : unit === "st" ? `${v > 0 ? "+" : ""}${Math.round(v)}` : unit === "s" ? `${v.toFixed(1)} s` : unit === "x" ? `${v.toFixed(1)}×` : unit === "%" ? `${Math.round(v * 100)}%` : `${v > 0 ? "+" : ""}${Math.round(v * 100)}`;
+const swatches = (k: string, cur: string) => `<span class="cswatch">${SWATCH.map((c) => `<button type="button" data-col="${k}" data-v="${c}" aria-pressed="${c === cur}" aria-label="Colour ${c}" style="background:${c}"></button>`).join("")}</span>`;
+const DEF_MZ = { x: 0.3, y: 0.25, w: 0.4, h: 0.25, s: 0.035 }, DEF_MG = { x: 0.5, y: 0.45, r: 0.18, z: 2 }, DEF_MK: Mask = { s: "circle", x: 0.5, y: 0.5, w: 0.7, h: 0.7, a: 0, f: 0.04, inv: false, c: "#000000" };
+
+/** The row of tools and the open tool's controls */
+export function clipToolsHtml(c: ClipCs, open: string): string {
+  const on = (k: string) => k === "rev" ? c.rev : k === "crop" ? c.zoom > 1 || c.cx != null : k === "vol" ? c.vol > 0 : k === "rot" ? c.rot !== 0 : k === "fh" ? c.fh : k === "fv" ? c.fv : k === "fit" ? c.fit : k === "canvas" ? c.fit : k === "border" ? c.bd > 0
+    : k === "adjust" ? !!(c.bri || c.con || c.sat || c.warm || c.hi || c.sh || c.hue || c.sharp || c.vig) : k === "beauty" ? !!c.beauty : k === "curve" ? !!c.curve : k === "stab" ? !!c.stab : k === "kf" ? !!c.kx: k === "smooth" ? !!c.smooth : k === "fade" ? c.fin > 0 || c.fout > 0 : k === "mosaic" ? !!c.mz : k === "lens" ? !!c.mg : k === "mask" ? !!c.mk : k === "chroma" ? !!c.ck : k === "curves" ? !!c.cv : k === "hsl" ? !!c.hsl : false;
+  const row = `<div class="ctrow" role="toolbar" aria-label="Clip tools">${CLIP_TOOLS.map(([k, n, ic]) =>
+    `<button type="button" class="ct ${Tile} min-w-[62px]"${on(k) ? " data-on" : ""} data-ct="${k}" aria-pressed="${open === k}">${ic}<span>${c.crown?.includes(k) ? "👑 " : ""}${n}${k === "rot" && c.rot ? ` ${c.rot}°` : ""}</span></button>`).join("")}</div>`;
+  let body = "";
+  const need = (t: string) => `<p class="cnote">${t}</p>`;
+  if (open === "vol") body = slider("vol", "Clip sound", c.vol, 0, 2, 0.05, "%") + slider("pitch", "Pitch (semitones)", c.pitch ?? 0, -12, 12, 1, "st") + slider("mus", "Music under this shot", c.mus ?? 1, 0, 1.5, 0.05, "%") + `<button type="button" class="${Chip}" data-act="enh" aria-pressed="${!!c.enh}">Enhance voice</button>` + need("The clip's own sound under the music (0% = the song alone). The music steps back while the clip is loud.");
+  else if (open === "extract") body = `<button type="button" class="${Chip}" data-act="extract">Use this clip's sound as the song</button>${need("Its beats then lead the cuts, as with any song. Change it back in Music.")}`;
+  else if (open === "crop") body = slider("zoom", "Zoom", c.zoom, 1, 3, 0.05, "x") + slider("cx", "Across", c.cx ?? 0.5, 0, 1, 0.01, "%") + slider("cy", "Down", c.cy ?? 0.5, 0, 1, 0.01, "%")
+    + `<button type="button" class="${Chip}" data-act="crop-auto">${c.cx == null ? "Following the face (automatic)" : "Back to automatic (follows the face)"}</button>`;
+  else if (open === "canvas") body = !c.fit ? need("Canvas shows around a fitted picture. Turn on Fit first.") + `<button type="button" class="${Chip}" data-act="fit-on">Fit the whole picture</button>`
+    : `<div class="chips"><button type="button" class="${Chip}" data-bg="blur" aria-pressed="${c.bg === "blur"}">Blur</button><button type="button" class="${Chip}" data-bg="color" aria-pressed="${c.bg === "color"}">Colour</button>${PATS.map(([k, n]) => `<button type="button" class="${Chip}" data-bg="${k}" aria-pressed="${c.bg === k}">${n}</button>`).join("")}</div>${c.bg !== "blur" ? swatches("bgc", c.bgc) : ""}`;
+  else if (open === "border") body = !c.fit ? need("A border goes around a fitted picture. Turn on Fit first.") + `<button type="button" class="${Chip}" data-act="fit-on">Fit the whole picture</button>`
+    : slider("bd", "Width", c.bd, 0, 1, 0.05, "%") + swatches("bdc", c.bdc);
+  else if (open === "adjust") body = slider("bri", "Brightness", c.bri, -1, 1, 0.05) + slider("con", "Contrast", c.con, -1, 1, 0.05) + slider("sat", "Saturation", c.sat, -1, 1, 0.05) + slider("warm", "Warmth", c.warm, -1, 1, 0.05)
+    + slider("hi", "Highlights", c.hi ?? 0, -1, 1, 0.05) + slider("sh", "Shadows", c.sh ?? 0, -1, 1, 0.05) + slider("hue", "Hue", c.hue ?? 0, -1, 1, 0.02) + slider("sharp", "Sharpen", c.sharp ?? 0, 0, 1, 0.05, "%") + slider("vig", "Vignette", c.vig ?? 0, 0, 1, 0.05, "%");
+  else if (open === "curve") body = (["a", "b", "c", "d", "e"] as const).map((k, i) => slider("curve." + k, ["Start", "¼", "Middle", "¾", "End"][i], c.curve?.[k] ?? 1, 0.2, 4, 0.1, "x")).join("") + need("The shot's speed at five points, smooth in between: slow it down in the middle, speed it into the end.");
+  else if (open === "kf") body = `<div class="chips"><button type="button" class="${Chip}" data-act="kf-add"${c.kxHere ? " disabled" : ""}>◆ Add keyframe here</button>${c.kxHere ? `<button type="button" class="${Chip}" data-act="kf-del">Remove this keyframe</button>` : ""}${c.kx ? `<button type="button" class="${Chip}" data-act="kf-clear">Remove all (${c.kx})</button>` : ""}</div>`
+    + need(c.kx ? "Move the playhead and change Adjust, Volume, Crop or Mask: the key there changes (or a new one is made), and the shot glides between them." : "Saves the shot's colour, volume, zoom, framing and mask at the playhead. Add another later in the shot with other values and it glides between them.");
+  else if (open === "smooth") body = slider("smooth", "Smooth slow-mo", c.smooth ?? 0, 0, 1, 0.05, "%") + need("A slowed shot glides: the pictures between two real frames are blended. Slow the shot first (Speed 0.5× or slower, or a Speed curve).");
+  else if (open === "stab") body = slider("stab", "Stabilize", c.stab ?? 0, 0, 1, 0.05, "%") + need("Takes out the camera's shake, zoomed in a little so no edge shows.");
+  else if (open === "beauty") body = slider("beauty", "Smooth skin", c.beauty ?? 0, 0, 1, 0.05, "%") + need("Softens skin and keeps the eyes, hair and edges sharp.");
+  else if (open === "fade") body = slider("fin", "Fade in", c.fin, 0, 1.5, 0.1, "s") + slider("fout", "Fade out", c.fout, 0, 1.5, 0.1, "s") + `<button type="button" class="${Chip}" data-act="fade-all">Same fades on every shot</button>`;
+  else if (open === "mosaic") body = !c.mz ? `<button type="button" class="${Chip}" data-act="mz-on">Add mosaic</button>${need("Hides a face, a plate or a logo with blocks.")}`
+    : slider("mz.x", "Left", c.mz.x, 0, 0.95, 0.01, "%") + slider("mz.y", "Top", c.mz.y, 0, 0.95, 0.01, "%") + slider("mz.w", "Width", c.mz.w, 0.05, 1, 0.01, "%") + slider("mz.h", "Height", c.mz.h, 0.05, 1, 0.01, "%") + slider("mz.s", "Block size", c.mz.s, 0.01, 0.1, 0.005, "%") + `<button type="button" class="${Chip}" data-act="mz-off">Remove mosaic</button>`;
+  else if (open === "lens") body = !c.mg ? `<button type="button" class="${Chip}" data-act="mg-on">Add magnifier</button>${need("A round lens that zooms into one spot.")}`
+    : slider("mg.x", "Across", c.mg.x, 0, 1, 0.01, "%") + slider("mg.y", "Down", c.mg.y, 0, 1, 0.01, "%") + slider("mg.r", "Size", c.mg.r, 0.05, 0.45, 0.01, "%") + slider("mg.z", "Zoom", c.mg.z, 1.2, 4, 0.1, "x") + `<button type="button" class="${Chip}" data-act="mg-off">Remove magnifier</button>`;
+  else if (open === "mask") body = `<div class="chips">${MASKS.map(([k, n]) => `<button type="button" class="${Chip}" data-mk="${k}" aria-pressed="${c.mk?.s === k}">${n}</button>`).join("")}</div>`
+    + (!c.mk ? need("Shows the shot only inside a shape (or outside it, inverted); the rest is a colour.") : slider("mk.x", "Across", c.mk.x, 0, 1, 0.01, "%") + slider("mk.y", "Down", c.mk.y, 0, 1, 0.01, "%") + slider("mk.w", "Width", c.mk.w, 0.05, 1.5, 0.01, "%") + slider("mk.h", "Height", c.mk.h, 0.05, 1.5, 0.01, "%")
+      + slider("mk.a", "Turn", c.mk.a, -180, 180, 1, "°") + slider("mk.f", "Soft edge", c.mk.f, 0, 0.3, 0.01, "%") + swatches("mk.c", c.mk.c) + `<div class="chips"><button type="button" class="${Chip}" data-act="mk-inv" aria-pressed="${c.mk.inv}">Invert</button><button type="button" class="${Chip}" data-act="mk-off">Remove mask</button></div>`);
+  else if (open === "curves") { const pts = c.cv?.[cvCh as "m"] ?? CV_ID;
+    body = `<div class="chips">${CV_CH.map(([k, n]) => `<button type="button" class="${Chip}" data-cvch="${k}" aria-pressed="${cvCh === k}">${n}</button>`).join("")}</div>`
+      + ["Shadows", "Darks", "Middle", "Lights", "Highlights"].map((n, i) => slider(`cv.${cvCh}.${i}`, n, pts[i], 0, 1, 0.01, "%")).join("")
+      + `<div class="chips">${CV_PRESETS.map(([k, n]) => `<button type="button" class="${Chip}" data-cvp="${k}">${n}</button>`).join("")}<button type="button" class="${Chip}" data-act="cv-off">Reset curves</button></div>`; }
+  else if (open === "hsl") { const v = c.hsl?.[hslBand] ?? [0, 0, 0];
+    body = `<div class="chips">${HSL_BANDS.map(([k, n, col]) => `<button type="button" class="${Chip}" data-hb="${k}" aria-pressed="${hslBand === k}"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${col};margin-right:6px"></span>${n}</button>`).join("")}</div>`
+      + slider(`hsl.${hslBand}.0`, "Hue", v[0], -1, 1, 0.02) + slider(`hsl.${hslBand}.1`, "Saturation", v[1], -1, 1, 0.02) + slider(`hsl.${hslBand}.2`, "Lightness", v[2], -1, 1, 0.02)
+      + `<button type="button" class="${Chip}" data-act="hsl-off">Reset HSL</button>` + need("Changes one colour only: make skies bluer, skin warmer, leaves greener."); }
+  else if (open === "chroma") body = `<div class="chips"><button type="button" class="${Chip}" data-ck="#00FF00" aria-pressed="${c.ck?.c === "#00FF00"}">Green</button><button type="button" class="${Chip}" data-ck="#0000FF" aria-pressed="${c.ck?.c === "#0000FF"}">Blue</button><button type="button" class="${Chip}" data-ck="#FFFFFF" aria-pressed="${c.ck?.c === "#FFFFFF"}">White</button><button type="button" class="${Chip}" data-ck="#000000" aria-pressed="${c.ck?.c === "#000000"}">Black</button></div>`
+    + (!c.ck ? need("Takes a colour out of the shot (a green screen); the colour you choose shows behind.") : slider("ck.tol", "Strength", c.ck.tol, 0.05, 0.9, 0.01, "%") + `<p class="cnote">Behind</p>` + swatches("ck.bg", c.ck.bg) + `<button type="button" class="${Chip}" data-act="ck-off">Remove chroma key</button>`);
+  else if (open === "slip") body = `<div class="chips"><button type="button" class="${Chip}" data-slip="-1">◀ 1 s earlier</button><button type="button" class="${Chip}" data-slip="-0.25">◀ ¼ s</button><button type="button" class="${Chip}" data-slip="0.25">¼ s ▶</button><button type="button" class="${Chip}" data-slip="1">1 s later ▶</button></div>${need("Shows an earlier or later moment of the same clip. The shot keeps its place on the beat.")}`;
+  else if (open === "trim") body = `<div class="chips"><button type="button" class="${Chip}" data-trim="-1">Shorter by a beat</button><button type="button" class="${Chip}" data-trim="1">Longer by a beat</button></div>${need("The cut moves one beat; the next shot starts there.")}`;
+  const reset = `<button type="button" class="${Chip} text-muted" data-act="reset">Reset this shot</button>`;
+  return row + (body ? `<div class="ctbody">${body}</div>` : "") + reset;
+}
+
+/** Wires one container: clicks and sliders call the engine; `rerender` draws the tools again after a change */
+export function clipToolsEvents(box: HTMLElement, api: () => ClipApi | undefined, getOpen: () => string, setOpen: (k: string) => void, rerender: () => void, sig: AddEventListenerOptions) {
+  box.addEventListener("click", (ev) => {
+    const t = ev.target as HTMLElement, A = api(), c = A?.shotCs(); if (!A || !c) return;
+    const ct = t.closest<HTMLElement>("[data-ct]");
+    if (ct) {
+      const k = ct.dataset.ct!;
+      if (k === "rev") { void A.shotReverse().then(rerender); return; }
+      if (k === "rot") A.shotSet({ rot: (c.rot + 90) % 360 });
+      else if (k === "fh") A.shotSet({ fh: !c.fh });
+      else if (k === "fv") A.shotSet({ fv: !c.fv });
+      else if (k === "fit") A.shotSet({ fit: !c.fit });
+      else setOpen(getOpen() === k ? "" : k);
+      rerender(); return;
+    }
+    const act = t.closest<HTMLElement>("[data-act]")?.dataset.act;
+    if (act === "fit-on") A.shotSet({ fit: true });
+    else if (act === "mz-on") A.shotSet({ mz: { ...DEF_MZ } });
+    else if (act === "mz-off") A.shotSet({ mz: null });
+    else if (act === "mg-on") A.shotSet({ mg: { ...DEF_MG } });
+    else if (act === "mg-off") A.shotSet({ mg: null });
+    else if (act === "mk-off") A.shotSet({ mk: null });
+    else if (act === "ck-off") A.shotSet({ ck: null });
+    else if (act === "cv-off") A.shotSet({ cv: null });
+    else if (act === "hsl-off") A.shotSet({ hsl: null });
+    else if (act === "enh") A.shotSet({ enh: !c.enh });
+    else if (act === "fade-all") A.shotSet({ fin: c.fin, fout: c.fout, all: true } as Partial<ClipCs>);
+    else if (act === "kf-add" || act === "kf-del" || act === "kf-clear") A.shotSet({ kxOp: act.slice(3) as "add" | "del" | "clear" });
+    const cvch = t.closest<HTMLElement>("[data-cvch]")?.dataset.cvch; if (cvch) cvCh = cvch;
+    const hb = t.closest<HTMLElement>("[data-hb]")?.dataset.hb; if (hb) hslBand = hb;
+    const cvp = t.closest<HTMLElement>("[data-cvp]")?.dataset.cvp; if (cvp) A.shotSet({ cv: { ...CV_PRESETS.find((x) => x[0] === cvp)![2] } });
+    if (cvch || hb || cvp) { rerender(); return; }
+    const ck = t.closest<HTMLElement>("[data-ck]")?.dataset.ck; if (ck) A.shotSet({ ck: { tol: 0.35, bg: "#000000", ...(c.ck ?? {}), c: ck } });
+    else if (act === "mk-inv" && c.mk) A.shotSet({ mk: { ...c.mk, inv: !c.mk.inv } });
+    else if (act === "reset") A.shotSet(null);
+    else if (act === "extract") void A.shotExtract();
+    else if (act === "crop-auto") A.shotSet({ zoom: 1, cx: null, cy: null });
+    const mk = t.closest<HTMLElement>("[data-mk]")?.dataset.mk; if (mk) A.shotSet({ mk: { ...(c.mk ?? DEF_MK), s: mk } });
+    const bg = t.closest<HTMLElement>("[data-bg]")?.dataset.bg; if (bg) A.shotSet({ bg: bg === "blur" || PATS.some(([k]) => k === bg) ? bg : "color" });
+    const col = t.closest<HTMLElement>("[data-col]"); if (col) A.shotSet(col.dataset.col === "mk.c" ? { mk: { ...(c.mk ?? DEF_MK), c: col.dataset.v! } } : col.dataset.col === "ck.bg" && c.ck ? { ck: { ...c.ck, bg: col.dataset.v! } } : { [col.dataset.col!]: col.dataset.v } as Partial<ClipCs>);
+    const sl = t.closest<HTMLElement>("[data-slip]")?.dataset.slip; if (sl) A.shotSlip(+sl);
+    const tr = t.closest<HTMLElement>("[data-trim]")?.dataset.trim; if (tr) A.shotTrim(+tr);
+    if (act || bg || col || sl || tr || mk || ck) rerender();
+  }, sig);
+  // sliders change the picture while they move; the tools are drawn again when they are let go
+  const fromSlider = (el: HTMLInputElement) => {
+    const A = api(), c = A?.shotCs(); if (!A || !c) return; const k = el.dataset.s!, v = +el.value;
+    const out = el.parentElement?.querySelector("output"); if (out) { const unit = k === "pitch" ? "st" : k === "mus" ? "%" : /^(fin|fout)$/.test(k) ? "s" : k === "mk.a" ? "°" : k === "mg.z" || k === "zoom" || k.startsWith("curve.") ? "x" : /^(cx|cy)$/.test(k) ? "%" : /^(bd|mz|mg|mk|ck|cv|vol|smooth|stab)/.test(k) ? "%" : ""; out.textContent = fmtV(v, unit); }
+    // a curve's point or a colour band's value: cv.<channel>.<n> / hsl.<band>.<n>
+    if (k.startsWith("cv.") || k.startsWith("hsl.")) { const [o, ch, n] = k.split("."), base = o === "cv" ? { ...(c.cv ?? {}) } : { ...(c.hsl ?? {}) } as Record<string, number[]>;
+      const arr = [...((base as Record<string, number[]>)[ch] ?? (o === "cv" ? CV_ID : [0, 0, 0]))]; arr[+n] = v; (base as Record<string, number[]>)[ch] = arr; A.shotSet({ [o]: base } as Partial<ClipCs>); return; }
+    if (k === "cx" || k === "cy") A.shotSet({ cx: k === "cx" ? v : c.cx ?? 0.5, cy: k === "cy" ? v : c.cy ?? 0.5 });
+    else if (k.includes(".")) { const [o, f] = k.split(".") as ["mz" | "mg" | "mk" | "ck" | "curve", string]; A.shotSet({ [o]: { ...(c[o] as object), [f]: v } } as Partial<ClipCs>); }
+    else A.shotSet({ [k]: v } as Partial<ClipCs>);
+  };
+  box.addEventListener("input", (ev) => { const el = ev.target as HTMLInputElement; if (el.dataset.s) fromSlider(el); }, sig);
+  box.addEventListener("change", (ev) => { const el = ev.target as HTMLInputElement; if (el.dataset.s) rerender(); }, sig);
+}
+export { esc as escClip };

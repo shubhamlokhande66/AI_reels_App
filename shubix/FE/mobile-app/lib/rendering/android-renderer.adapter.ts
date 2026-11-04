@@ -3,7 +3,7 @@ import {
   type RenderJobSpec,
   type RendererAdapter,
   type RendererCapabilities,
-} from "@shubix/core/engine/rendering";
+} from "@mobile/core/engine/rendering";
 import {
   isAndroidEffectSupported,
   isAndroidFilterSupported,

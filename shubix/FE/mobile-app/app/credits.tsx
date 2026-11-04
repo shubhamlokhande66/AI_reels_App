@@ -1,10 +1,10 @@
 import { ActivityIndicator, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
-import { useText } from "@shubix/hooks";
-import { Badge, Card, ErrorBanner, Icon, Page, SectionHeader, useColors } from "@shubix/ui-mobile";
-import type { Credits } from "@shubix/types";
-import { errorMessage } from "@shubix/api-client";
+import { useText } from "@mobile/hooks";
+import { Badge, Card, ErrorBanner, Icon, Page, SectionHeader, useColors } from "@mobile/ui-mobile";
+import type { Credits } from "@mobile/types";
+import { errorMessage } from "@mobile/api-client";
 import { mobileApi } from "../lib/api";
 import { RewardedAdCard } from "../components/molecules/AdBanner";
 import { useCredits } from "../lib/data";

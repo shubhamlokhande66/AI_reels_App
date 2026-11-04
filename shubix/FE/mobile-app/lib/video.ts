@@ -1,7 +1,7 @@
 import { Paths } from "expo-file-system";
-import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
+import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
 import { ShubixVideo } from "../modules/shubix-video";
-import { ADJ_FRAG, GRADE_FRAG, KEY_FRAG, MAIN_FRAG, PASS_VERT, PIC_FRAG, PIC_FX, TR_DUR } from "@shubix/core/lib/shaders";
+import { ADJ_FRAG, GRADE_FRAG, KEY_FRAG, MAIN_FRAG, PASS_VERT, PIC_FRAG, PIC_FX, TR_DUR } from "@mobile/core/lib/shaders";
 import {
   createAndroidRendererAdapter,
   createRenderJobFromProject,
@@ -83,16 +83,14 @@ function nativeSpec(p: ReelProject, width: number, height: number, preview = fal
     texts: p.overlays.map((o) => ({ ...o, size: Math.min(120, Math.max(8, o.size ?? 36)) })),
   };
 }
-/** the live preview's spec: the export's, half size (smooth on any phone), without what the phone's engine cannot draw
- * yet (it is left out, never an error: the export still checks it); null when the engine is not in this app */
-/** a shot's keyframes and speed ramp as the phone's engine accepts them (finite, increasing, within the clip's source
- * length): Shubix AI's keys on a slowed shot can run past it, and one such key turned the whole live preview off (the
- * old player then stuttered back and forth). Left out here, never an error: the export still checks them. */
+/** a shot's keyframes and speed ramp as the phone's engine accepts them (finite, increasing; keyframes within the
+ * shot's length, the ramp within its source): one bad key must not stop the Reel from playing. */
 function fitTimes(c: ProjectClip) {
-  const len = Math.max(0, c.end - c.start), ok = (t: unknown) => typeof t === "number" && Number.isFinite(t) && t >= 0 && t <= len;
-  const rising = <T,>(list: T[] | undefined, at: (x: T) => unknown) => { let last = -1; return list?.filter((x) => { const t = at(x); if (!ok(t) || (t as number) <= last) return false; last = t as number; return true; }); };
-  return { keyframes: rising(c.keyframes, (k) => (k as { t?: unknown }).t), speedRamp: rising(c.speedRamp, (k) => (k as { time?: unknown }).time)?.filter((k) => Number((k as { speed?: unknown }).speed) > 0) };
+  const rising = <T,>(list: T[] | undefined, at: (x: T) => unknown, len: number) => { let last = -1; return list?.filter((x) => { const t = at(x); if (typeof t !== "number" || !Number.isFinite(t) || t < 0 || t > len || t <= last) return false; last = t; return true; }); };
+  return { keyframes: rising(c.keyframes, (k) => (k as { t?: unknown }).t, clipDuration(c)), speedRamp: rising(c.speedRamp, (k) => (k as { time?: unknown }).time, Math.max(0, c.end - c.start))?.filter((k) => Number((k as { speed?: unknown }).speed) > 0) };
 }
+/** the player's spec: the export's, half size (smooth on any phone), without what the phone's engine cannot draw yet
+ * (it is left out, never an error: the export still checks it); null when the engine is not in this app */
 export function previewSpec(p: ReelProject): string | null {
   if (!ShubixVideo || !p.clips.length) return null;
   const [w, h] = SIZE[p.settings?.aspect ?? "9:16"] ?? SIZE["9:16"], k = 540 / Math.min(w, h);

@@ -2,8 +2,8 @@ import {
   clipDuration,
   projectDuration,
   type ReelProject,
-} from "@shubix/validations";
-import type { RenderJobSpec, RenderTrackItem } from "@shubix/core/engine/rendering";
+} from "@mobile/validations";
+import type { RenderJobSpec, RenderTrackItem } from "@mobile/core/engine/rendering";
 import { UnsupportedAndroidRenderFeature } from "./android-renderer.adapter";
 import {
   isAndroidTransitionSupported,

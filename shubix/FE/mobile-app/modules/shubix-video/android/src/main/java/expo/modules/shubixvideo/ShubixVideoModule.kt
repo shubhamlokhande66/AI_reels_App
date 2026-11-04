@@ -9,13 +9,15 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.media.MediaMetadataRetriever
 import androidx.media3.common.C
 import androidx.media3.common.Effect
+import androidx.media3.effect.GlEffect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.GainProcessor
-import androidx.media3.common.audio.SonicAudioProcessor
+import androidx.media3.common.audio.SpeedProvider
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.AlphaScale
@@ -29,7 +31,6 @@ import androidx.media3.effect.Presentation
 import androidx.media3.effect.RgbAdjustment
 import androidx.media3.effect.RgbFilter
 import androidx.media3.effect.ScaleAndRotateTransformation
-import androidx.media3.effect.SpeedChangeEffect
 import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TimestampWrapper
 import androidx.media3.transformer.Composition
@@ -129,7 +130,7 @@ class ShubixVideoModule : Module() {
         val spec = JSONObject(specJson)
         val w = spec.getInt("width"); val h = spec.getInt("height")
         require(w in 2..3840 && h in 2..3840) { "Preview dimensions are out of range." }
-        val built = buildComposition(spec, w, h)
+        val built = buildComposition(spec, w, h, live = true)
         view.load(built.composition, at)
         built.duration
       }.runOnQueue(Queues.MAIN)
@@ -139,10 +140,10 @@ class ShubixVideoModule : Module() {
       AsyncFunction("setMuted") { view: ShubixPreviewView, muted: Boolean -> view.setMuted(muted) }.runOnQueue(Queues.MAIN)
       AsyncFunction("release") { view: ShubixPreviewView -> view.release() }.runOnQueue(Queues.MAIN)
     }
-    // the engine page's way to the app's files (FileServer): started once, its port and key
-    Function("fileServer") {
+    // the engine page's home on the phone (FileServer): started once, its port and key; `api`: where its /api calls go
+    Function("fileServer") { api: String ->
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
-      val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out")).also { files = it }
+      val s = files ?: FileServer(listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out"), c.assets, api.trimEnd('/')).also { files = it }
       mapOf("port" to s.port, "key" to s.key)
     }
     OnDestroy {
@@ -250,7 +251,8 @@ class ShubixVideoModule : Module() {
   /** the Reel as a Media3 Composition (the clips with their changes and texts, the song under them) and its length in
    * seconds: the same for the export and the live preview (ShubixPreviewView) */
   internal class Built(val composition: Composition, val duration: Double)
-  internal fun buildComposition(spec: JSONObject, w: Int, h: Int): Built {
+  internal fun buildComposition(spec: JSONObject, w: Int, h: Int, live: Boolean = false): Built {
+    val lengths = mutableMapOf<String, Long?>()
     val shaders = StudioShaders.of(spec)
     // the studio's texts as the website draws them (StudioTexts.kt), when the phone sends them so (studioTexts)
     val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { StudioTextRenderer(it, w, h) }
@@ -279,17 +281,20 @@ class ShubixVideoModule : Module() {
       require(speedValue.isFinite() && speedValue > 0.0) { "Clip ${i + 1} has an invalid playback speed." }
       // Keep duration calculations and the actual Media3 speed effect on the same bounded rate.
       val speed = speedValue.coerceIn(0.25, 4.0).toFloat()
-      val startMs = (startSeconds * 1000).toLong(); val endMs = (endSeconds * 1000).toLong()
+      val startMs = (startSeconds * 1000).toLong()
+      // the file's real length: the player needs it, and a shot never runs past the end of its file
+      val sourceMs = if (image) null else sourceLengthMs(uri, lengths)
+      val endMs = (endSeconds * 1000).toLong().let { if (sourceMs != null && sourceMs > startMs) minOf(it, sourceMs) else it }
       val item = MediaItem.Builder().setUri(Uri.parse(uri)).apply {
         if (image) setImageDurationMs(endMs - startMs)
         else setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(startMs).setEndPositionMs(endMs).build())
       }.build()
       val sourceDuration = (endMs - startMs).coerceAtLeast(1L) / 1000.0
-      validateKeyframes(c.optJSONArray("keyframes"), sourceDuration, "Clip ${i + 1}")
       validateCustomEffects(c.optJSONArray("effects"), "Clip ${i + 1}")
       val ramp = if (!image) speedRampSlices(c.optJSONArray("speedRamp"), sourceDuration, speed.toDouble()) else emptyList()
-      val slices = if (ramp.isEmpty()) listOf(RampSlice(0.0, sourceDuration, speed.toDouble())) else ramp
-      val clipTotalOutputDuration = slices.sumOf { (it.end - it.start) / it.speed }
+      val slices = if (ramp.isNotEmpty()) ramp else listOf(RampSlice(0.0, sourceDuration, if (image) 1.0 else speed.toDouble()))
+      val clipOutputDuration = slices.sumOf { (it.end - it.start) / it.speed }
+      validateKeyframes(c.optJSONArray("keyframes"), clipOutputDuration, "Clip ${i + 1}")
       val volumeValue = c.optDouble("volume", 1.0)
       require(volumeValue.isFinite()) { "Clip ${i + 1} has an invalid audio volume." }
       val clipVolume = volumeValue.toFloat().coerceIn(0f, 1f)
@@ -298,72 +303,65 @@ class ShubixVideoModule : Module() {
       val turn = rotationValue.toFloat()
       val mirror = c.optBoolean("mirror"); val flip = c.optBoolean("flip")
       val muted = c.optBoolean("muted")
-      // Share caption bitmaps across speed-ramp slices instead of allocating a full frame per slice.
       val textCache = if (texts != null && texts.length() > 0) TextOverlayCache(texts, w, h) else null
       val clipTimelineStart = at
-      var clipOutputDuration = 0.0
-      for (slice in slices) {
-        val sliceStartMs = startMs + (slice.start * 1000).toLong()
-        val sliceEndMs = startMs + (slice.end * 1000).toLong()
-        val segmentItem = MediaItem.Builder().setUri(Uri.parse(c.getString("uri"))).apply {
-          if (image) setImageDurationMs((slice.end - slice.start).times(1000).toLong())
-          else setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(sliceStartMs).setEndPositionMs(sliceEndMs).build())
-        }.build()
-        val segmentSpeed = if (image) 1f else slice.speed.toFloat().coerceIn(0.25f, 4f)
-        val segmentDuration = (slice.end - slice.start) / segmentSpeed
-        val video = mutableListOf<Effect>()
-        val audio = mutableListOf<AudioProcessor>()
-        if (!image && segmentSpeed != 1f) { video += SpeedChangeEffect(segmentSpeed); audio += SonicAudioProcessor().apply { setSpeed(segmentSpeed); setPitch(segmentSpeed) } }
-        if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
-        if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
-        val keyframes = c.optJSONArray("keyframes")
-        if (keyframes != null && keyframes.length() > 0) {
-          video += keyframeTransform(keyframes, clipOutputDuration, w, h)
-          video += keyframeOpacityEffects(keyframes, clipOutputDuration, segmentDuration)
-        }
-        val transitionIn = c.optJSONObject("transitionIn")
-        if (transitionIn != null) {
-          val transitionType = transitionIn.optString("type")
-          require(transitionType in setOf("fade", "blur", "flash", "slide-left", "slide-right", "slide-up", "slide-down", "zoom-in", "zoom-out", "spin", "whip-pan")) {
-            "Transition $transitionType is not supported by the Android export engine."
-          }
-          val requestedTransitionDuration = transitionIn.optDouble("duration", 0.35).let {
-            if (it.isFinite()) it else 0.35
-          }
-          // Speed ramps can make the rendered clip shorter than its source trim. Bound the
-          // entrance to the actual output duration so it always completes within this clip.
-          val maxTransitionDuration = (clipTotalOutputDuration / 2.0).coerceAtLeast(0.001)
-          val transitionDuration = requestedTransitionDuration.coerceIn(0.001, maxTransitionDuration)
-          when (transitionType) {
-            "fade" -> {
-              val fadeFrames = org.json.JSONArray()
-                .put(JSONObject().put("t", 0.0).put("o", 0.0))
-                .put(JSONObject().put("t", transitionDuration).put("o", 1.0))
-              video += keyframeOpacityEffects(fadeFrames, clipOutputDuration, segmentDuration)
-            }
-            "blur" -> video += transitionBlurEffects(clipOutputDuration, segmentDuration, transitionDuration)
-            "flash" -> video += transitionFlashEffects(clipOutputDuration, segmentDuration, transitionDuration)
-            else -> {
-              val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
-              if (transformFrames != null) video += keyframeTransform(transformFrames, clipOutputDuration, w, h)
-            }
-          }
-        }
-        video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
-        video += filter(c.optString("filter"))
-        // the studio's transition into this shot (tr: id, dur): the old shot's last frame and this one, as the website
-        val tr = c.optJSONObject("tr")
-        if (shaders?.main != null && tr != null && clipOutputDuration < tr.optDouble("dur", 0.0)) video += Transition(shaders.vert, shaders.main, held, tr.optString("id"), tr.optDouble("dur"), clipOutputDuration)
-        if (shaders?.main != null && c.optBoolean("keep")) video += KeepLast(shaders.vert, held)
-        video += customEffects(c.optJSONArray("effects"), clipOutputDuration, segmentDuration, clipTotalOutputDuration, w, h)
-        video += studioPasses(shaders, c, clipOutputDuration, clipTotalOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
-        studioMask(c, clipOutputDuration, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts
-        if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at + clipOutputDuration)))
-        else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at + clipOutputDuration)))
-        require(items.size < 10_000) { "This Reel contains too many speed-ramp segments for a safe native export." }
-        items += EditedMediaItem.Builder(segmentItem).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply { if (image) setFrameRate(30) }.build()
-        clipOutputDuration += segmentDuration
+      // the time the effects get: the export counts from this shot's start, the live player from the Reel's start
+      val base = if (live) at else 0.0
+      val video = mutableListOf<Effect>()
+      val audio = mutableListOf<AudioProcessor>()
+      if (!image && clipVolume != 1f) audio += gainProcessor(clipVolume)
+      if (turn != 0f || mirror || flip) video += ScaleAndRotateTransformation.Builder().setRotationDegrees(-turn).setScale(if (mirror) -1f else 1f, if (flip) -1f else 1f).build()
+      val keyframes = c.optJSONArray("keyframes")
+      if (keyframes != null && keyframes.length() > 0) {
+        video += keyframeTransform(keyframes, base, w, h)
+        if ((0 until keyframes.length()).any { keyframes.optJSONObject(it)?.has("o") == true }) video += keyframeOpacityEffects(keyframes, base, clipOutputDuration)
       }
+      val transitionIn = c.optJSONObject("transitionIn")
+      if (transitionIn != null) {
+        val transitionType = transitionIn.optString("type")
+        require(transitionType in setOf("fade", "blur", "flash", "slide-left", "slide-right", "slide-up", "slide-down", "zoom-in", "zoom-out", "spin", "whip-pan")) {
+          "Transition $transitionType is not supported by the Android export engine."
+        }
+        val requestedTransitionDuration = transitionIn.optDouble("duration", 0.35).let {
+          if (it.isFinite()) it else 0.35
+        }
+        // Speed ramps can make the rendered clip shorter than its source trim. Bound the
+        // entrance to the actual output duration so it always completes within this clip.
+        val transitionDuration = requestedTransitionDuration.coerceIn(0.001, (clipOutputDuration / 2.0).coerceAtLeast(0.001))
+        when (transitionType) {
+          "fade" -> {
+            val fadeFrames = org.json.JSONArray()
+              .put(JSONObject().put("t", 0.0).put("o", 0.0))
+              .put(JSONObject().put("t", transitionDuration).put("o", 1.0))
+            video += keyframeOpacityEffects(fadeFrames, base, clipOutputDuration)
+          }
+          "blur" -> video += transitionBlurEffects(base, clipOutputDuration, transitionDuration)
+          "flash" -> video += transitionFlashEffects(base, clipOutputDuration, transitionDuration)
+          else -> {
+            val transformFrames = transitionTransformFrames(transitionType, transitionDuration)
+            if (transformFrames != null) video += keyframeTransform(transformFrames, base, w, h)
+          }
+        }
+      }
+      video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
+      video += filter(c.optString("filter"))
+      // the studio's transition into this shot (tr: id, dur): the old shot's last frame and this one, as the website
+      val tr = c.optJSONObject("tr")
+      if (shaders?.main != null && tr != null) video += Transition(shaders.vert, shaders.main, held, tr.optString("id"), tr.optDouble("dur"), -base)
+      if (shaders?.main != null && c.optBoolean("keep")) video += KeepLast(shaders.vert, held)
+      video += customEffects(c.optJSONArray("effects"), base, clipOutputDuration, w, h)
+      video += studioPasses(shaders, c, -base, clipOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
+      studioMask(c, -base, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts
+      if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at - base)))
+      else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at - base)))
+      items += EditedMediaItem.Builder(item).setRemoveAudio(muted).setEffects(Effects(audio, video)).apply {
+        if (image) setFrameRate(30)
+        else {
+          setDurationUs((sourceMs ?: endMs) * 1000)
+          // one speed for the whole shot, or its speed ramp: the one way both the export and the live player take speed
+          if (slices.any { it.speed.toFloat() != 1f }) setSpeed(ClipSpeed(slices))
+        }
+      }.build()
       require(clipOutputDuration.isFinite() && clipOutputDuration > 0.0 && at + clipOutputDuration <= 24.0 * 60.0 * 60.0) {
         "The Reel duration is invalid or exceeds the 24-hour native export limit."
       }
@@ -398,8 +396,11 @@ class ShubixVideoModule : Module() {
       require(volumeValue.isFinite() && fadeInValue.isFinite() && fadeOutValue.isFinite() && duckLevelValue.isFinite()) {
         "The background music settings contain an invalid number."
       }
+      val songMs = sourceLengthMs(audioUri, lengths)
+      val songStartMs = (audioStart * 1000).toLong()
+      val songEndMs = ((audioStart + audioDuration) * 1000).toLong().let { if (songMs != null && songMs > songStartMs) minOf(it, songMs) else it }
       val music = MediaItem.Builder().setUri(Uri.parse(audioUri))
-        .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs((audioStart * 1000).toLong()).setEndPositionMs(((audioStart + audioDuration) * 1000).toLong()).build()).build()
+        .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(songStartMs).setEndPositionMs(songEndMs).build()).build()
       val musicVolume = volumeValue.toFloat().coerceIn(0f, 1f)
       val fadeIn = fadeInValue.coerceIn(0.0, 10.0)
       val fadeOut = fadeOutValue.coerceIn(0.0, 10.0)
@@ -407,13 +408,33 @@ class ShubixVideoModule : Module() {
       val duckLevel = duckLevelValue.toFloat().coerceIn(0.1f, 1f)
       val musicAudio: List<AudioProcessor> = if (musicVolume == 1f && fadeIn == 0.0 && fadeOut == 0.0 && (!ducking || clipAudioRanges.isEmpty())) emptyList()
         else listOf(gainProcessor(musicVolume, audioDuration, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
-      sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
+      sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setDurationUs((songMs ?: songEndMs) * 1000).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
     return Built(Composition.Builder(sequences).build(), at)
   }
 
   private data class RampPoint(val time: Double, val speed: Double, val easing: String)
   private data class RampSlice(val start: Double, val end: Double, val speed: Double)
+
+  /** a shot's speeds for Media3 (time from the shot's start, in the source) */
+  private class ClipSpeed(slices: List<RampSlice>) : SpeedProvider {
+    private val parts = slices.fold(mutableListOf<Pair<Long, Float>>()) { all, s ->
+      val rate = s.speed.toFloat().coerceIn(0.25f, 4f)
+      if (all.lastOrNull()?.second != rate) all += Pair((s.start * 1_000_000).toLong(), rate)
+      all
+    }
+    override fun getSpeed(timeUs: Long) = parts.lastOrNull { it.first <= timeUs }?.second ?: parts.first().second
+    override fun getNextSpeedChangeTimeUs(timeUs: Long) = parts.firstOrNull { it.first > timeUs }?.first ?: C.TIME_UNSET
+  }
+
+  /** how long a file is in milliseconds (each file is asked once for a Reel); null when it cannot be read here */
+  private fun sourceLengthMs(uri: String, lengths: MutableMap<String, Long?>): Long? = lengths.getOrPut(uri) {
+    val reader = MediaMetadataRetriever()
+    try {
+      reader.setDataSource(appContext.reactContext, Uri.parse(uri))
+      reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()?.takeIf { it > 0 }
+    } catch (_: Exception) { null } finally { reader.release() }
+  }
 
   private fun rampEase(value: Double, easing: String): Double {
     val t = value.coerceIn(0.0, 1.0)
@@ -442,9 +463,9 @@ class ShubixVideoModule : Module() {
   }
 
   /** Apply the clip's shared transform keyframes per rendered frame (translation, scale and rotation). */
-  private fun keyframeTransform(frames: org.json.JSONArray, timelineOffsetSeconds: Double, frameWidth: Int, frameHeight: Int): MatrixTransformation {
+  private fun keyframeTransform(frames: org.json.JSONArray, base: Double, frameWidth: Int, frameHeight: Int): MatrixTransformation {
     return MatrixTransformation { presentationTimeUs ->
-      val time = timelineOffsetSeconds + presentationTimeUs / 1_000_000.0
+      val time = presentationTimeUs / 1_000_000.0 - base
       val x = keyframeValue(frames, time, "x", 0.0)
       val y = keyframeValue(frames, time, "y", 0.0)
       val scale = keyframeValue(frames, time, "s", 1.0).coerceIn(0.05, 8.0)
@@ -537,47 +558,50 @@ class ShubixVideoModule : Module() {
     return org.json.JSONArray().put(from).put(to)
   }
 
-  /** A blur-to-clear entrance, scoped to the transition interval on each speed-ramp slice. */
-  private fun transitionBlurEffects(offsetSeconds: Double, durationSeconds: Double, transitionSeconds: Double): List<Effect> {
-    val activeSeconds = (transitionSeconds - offsetSeconds).coerceIn(0.0, durationSeconds)
+  /** A window of a shot for a timed effect: `base` = where the effects' time has this shot's start. */
+  private fun within(effect: GlEffect, base: Double, startUs: Long, endUs: Long): Effect {
+    val at = (base * 1_000_000).toLong()
+    return TimestampWrapper(effect, at + startUs, at + endUs)
+  }
+
+  /** A blur-to-clear entrance, scoped to the transition interval. */
+  private fun transitionBlurEffects(base: Double, durationSeconds: Double, transitionSeconds: Double): List<Effect> {
+    val activeSeconds = transitionSeconds.coerceIn(0.0, durationSeconds)
     if (activeSeconds <= 0.0) return emptyList()
     val steps = kotlin.math.ceil(activeSeconds / 0.05).toInt().coerceIn(1, 80)
     return (0 until steps).mapNotNull { index ->
       val startUs = (activeSeconds * index / steps * 1_000_000.0).toLong()
       val endUs = (activeSeconds * (index + 1) / steps * 1_000_000.0).toLong()
       if (endUs <= startUs) return@mapNotNull null
-      val time = offsetSeconds + (startUs + endUs) / 2_000_000.0
-      val progress = (time / transitionSeconds).coerceIn(0.0, 1.0)
+      val progress = ((startUs + endUs) / 2_000_000.0 / transitionSeconds).coerceIn(0.0, 1.0)
       val radius = (20.0 * (1.0 - progress)).toFloat()
-      if (radius <= 0.1f) null else TimestampWrapper(GaussianBlur(radius), startUs, endUs)
+      if (radius <= 0.1f) null else within(GaussianBlur(radius), base, startUs, endUs)
     }
   }
 
   /** A short white flash that settles to the source image. */
-  private fun transitionFlashEffects(offsetSeconds: Double, durationSeconds: Double, transitionSeconds: Double): List<Effect> {
-    val activeSeconds = (transitionSeconds - offsetSeconds).coerceIn(0.0, durationSeconds)
+  private fun transitionFlashEffects(base: Double, durationSeconds: Double, transitionSeconds: Double): List<Effect> {
+    val activeSeconds = transitionSeconds.coerceIn(0.0, durationSeconds)
     if (activeSeconds <= 0.0) return emptyList()
     val steps = kotlin.math.ceil(activeSeconds / 0.04).toInt().coerceIn(1, 40)
     return (0 until steps).mapNotNull { index ->
       val startUs = (activeSeconds * index / steps * 1_000_000.0).toLong()
       val endUs = (activeSeconds * (index + 1) / steps * 1_000_000.0).toLong()
       if (endUs <= startUs) return@mapNotNull null
-      val time = offsetSeconds + (startUs + endUs) / 2_000_000.0
-      val progress = (time / transitionSeconds).coerceIn(0.0, 1.0)
-      TimestampWrapper(Brightness((0.28 * (1.0 - progress)).toFloat()), startUs, endUs)
+      val progress = ((startUs + endUs) / 2_000_000.0 / transitionSeconds).coerceIn(0.0, 1.0)
+      within(Brightness((0.28 * (1.0 - progress)).toFloat()), base, startUs, endUs)
     }
   }
 
   /** Approximate animated opacity with short timestamp-scoped GPU alpha effects. */
-  private fun keyframeOpacityEffects(frames: org.json.JSONArray, timelineOffsetSeconds: Double, durationSeconds: Double): List<Effect> {
+  private fun keyframeOpacityEffects(frames: org.json.JSONArray, base: Double, durationSeconds: Double): List<Effect> {
     val steps = kotlin.math.ceil(durationSeconds.coerceAtLeast(0.0) / 0.1).toInt().coerceIn(1, 600)
     return (0 until steps).mapNotNull { index ->
       val startUs = (durationSeconds * index / steps * 1_000_000.0).toLong()
       val endUs = (durationSeconds * (index + 1) / steps * 1_000_000.0).toLong()
       if (endUs <= startUs) return@mapNotNull null
-      val sampleTime = timelineOffsetSeconds + (startUs + endUs) / 2_000_000.0
-      val alpha = keyframeValue(frames, sampleTime, "o", 1.0).coerceIn(0.0, 1.0).toFloat()
-      TimestampWrapper(AlphaScale(alpha), startUs, endUs)
+      val alpha = keyframeValue(frames, (startUs + endUs) / 2_000_000.0, "o", 1.0).coerceIn(0.0, 1.0).toFloat()
+      within(AlphaScale(alpha), base, startUs, endUs)
     }
   }
 
@@ -715,7 +739,7 @@ class ShubixVideoModule : Module() {
 
   /** The website's filters, as colour changes (Original: none). */
   /** Deterministic GPU effects supported by the shared Android RenderJob adapter. */
-  private fun customEffects(effects: org.json.JSONArray?, timelineOffsetSeconds: Double, durationSeconds: Double, clipDurationSeconds: Double, frameWidth: Int, frameHeight: Int): List<Effect> {
+  private fun customEffects(effects: org.json.JSONArray?, base: Double, durationSeconds: Double, frameWidth: Int, frameHeight: Int): List<Effect> {
     if (effects == null) return emptyList()
     val result = mutableListOf<Effect>()
     for (i in 0 until effects.length()) {
@@ -729,14 +753,14 @@ class ShubixVideoModule : Module() {
             val startUs = (durationSeconds * step / steps * 1_000_000.0).toLong()
             val endUs = (durationSeconds * (step + 1) / steps * 1_000_000.0).toLong()
             if (endUs <= startUs) continue
-            val time = timelineOffsetSeconds + (startUs + endUs) / 2_000_000.0
+            val time = (startUs + endUs) / 2_000_000.0
             val pulse = (0.15 + 0.85 * (kotlin.math.sin(time * 2.0 * Math.PI / 0.9) + 1.0) / 2.0).toFloat()
-            result += TimestampWrapper(GaussianBlur((intensity * 18f * pulse).coerceAtLeast(0.1f)), startUs, endUs)
+            result += within(GaussianBlur((intensity * 18f * pulse).coerceAtLeast(0.1f)), base, startUs, endUs)
           }
         }
         "punch", "punch-soft", "pan-soft", "zoomburst", "drift", "shake", "bounce", "tilt", "snap", "hook", "jump", "pan", "heartbeat" -> {
-          val frames = motionEffectFrames(effect.optString("type"), clipDurationSeconds, intensity.toDouble())
-          if (frames != null) result += keyframeTransform(frames, timelineOffsetSeconds, frameWidth, frameHeight)
+          val frames = motionEffectFrames(effect.optString("type"), durationSeconds, intensity.toDouble())
+          if (frames != null) result += keyframeTransform(frames, base, frameWidth, frameHeight)
         }
         "brightness" -> if (intensity > 0f) result += Brightness(intensity * 0.25f)
         "contrast" -> if (intensity > 0f) result += Contrast(intensity * 0.5f)

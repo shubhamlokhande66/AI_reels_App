@@ -1,0 +1,27 @@
+{
+  "name": "@mobile/hooks",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.tsx",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mobile/api-client": "workspace:*",
+    "@mobile/core": "workspace:*",
+    "@mobile/types": "workspace:*",
+    "@mobile/validations": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "@types/react": "~19.3.0",
+    "react": "19.3.0"
+  }
+}

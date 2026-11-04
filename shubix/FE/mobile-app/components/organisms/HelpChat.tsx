@@ -4,9 +4,9 @@ import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useText } from "@shubix/hooks";
-import { Bubble, Button, ChatChip, Gold, Icon, ThemeLayer, Typing, useColors } from "@shubix/ui-mobile";
-import { errorMessage } from "@shubix/api-client";
+import { useText } from "@mobile/hooks";
+import { Bubble, Button, ChatChip, Gold, Icon, ThemeLayer, Typing, useColors } from "@mobile/ui-mobile";
+import { errorMessage } from "@mobile/api-client";
 import { mobileApi } from "../../lib/api";
 
 type Msg = { role: "user" | "assistant"; content: string; human?: boolean; suggestions?: string[] };

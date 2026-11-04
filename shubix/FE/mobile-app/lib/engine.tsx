@@ -1,19 +1,18 @@
 import { useRef } from "react";
 import { Platform, View } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { askAction, tasks, type TaskKind } from "@shubix/ui-mobile";
+import { askAction, tasks, type TaskKind } from "@mobile/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
-import { clipDuration, type ProjectClip, type ReelProject } from "@shubix/validations";
-import { buildSpeedRampSegments } from "@shubix/video-engine";
+import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
+import { buildSpeedRampSegments } from "@mobile/video-engine";
 import { tokenStore } from "./device";
+import { API_URL } from "./session";
 
-/** The website's own Fast Studio makes the phone's Reels: its page /engine (FE/web-app app/engine, worked through
- * components/studio/bridge.ts) runs hidden in the phone's browser engine, so the song's analysis, the beat check, the
- * clips' reading, the cuts on the beat, the transitions, the effects and the MP4 are the website's, exactly. The phone's
- * screens stay its own; the studio's task cards come over to the phone's (tasks). The studio reads the phone's files
- * through the app's little server (modules/shubix-video FileServer.kt), so this needs the app's own build (not Expo Go).
- * EXPO_PUBLIC_SITE_URL: the website; while developing the computer's (adb reverse tcp:3001 tcp:3001: on the phone
- * "localhost", which the browser engine trusts for making videos).
+/** The phone's own engine makes its Reels: the page in FE/mobile-app/engine (its own code, worked through
+ * components/studio/bridge.ts), built into the APK and run hidden in the phone's browser engine. It does not come from
+ * the website, so changing or deploying the website does not change the phone. The phone's screens stay its own; the
+ * engine's task cards come over to the phone's (tasks). The app's little server (modules/shubix-video FileServer.kt)
+ * serves the page, its files and its API calls, so this needs the app's own build (not Expo Go).
  * TODO (later): the same engine in Kotlin, without the hidden page (docs/roadmap.md). */
 export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
 export type SongAnalysis = { duration: number; bpm: number; beats: number; drops: number; breaks: number };
@@ -29,7 +28,7 @@ type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void };
 type Page = { injectJavaScript: (js: string) => void; reload: () => void };
 const waiting = new Map<number, Waiting>();
 let page: Page | null = null, held = "", next = 1, ready: (() => void) | null = null, isReady = new Promise<void>((r) => { ready = r; }), setUp = false;
-const files = ShubixVideo ? ShubixVideo.fileServer() : null;
+const files = ShubixVideo ? ShubixVideo.fileServer(API_URL) : null;
 
 /** whether this phone can make Reels with the studio (the app's own build, not Expo Go or the web) */
 export const engineOn = Platform.OS !== "web" && !!files;
@@ -223,7 +222,7 @@ export function EngineHost() {
   if (!engineOn) return null;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0.01, zIndex: -1 }}>
-      <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `${SITE_URL}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
+      <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `http://127.0.0.1:${files!.port}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
         mixedContentMode="always" mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback webviewDebuggingEnabled={__DEV__ || process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1"}
         onContentProcessDidTerminate={() => restart()} onRenderProcessGone={() => restart()} />
     </View>

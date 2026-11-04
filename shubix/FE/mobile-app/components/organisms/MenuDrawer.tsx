@@ -5,10 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { mobileApi } from "../../lib/api";
 import { SITE_URL } from "../../lib/engine";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApi, useSignOut, useText } from "@shubix/hooks";
-import { Avatar, Hairline, Icon, IconButton, Sidebar, colors } from "@shubix/ui-mobile";
-import type { IconName } from "@shubix/ui-core";
-import { GROUPS, isActive, type NavItem } from "@shubix/core/lib/nav";
+import { useApi, useSignOut, useText } from "@mobile/hooks";
+import { Avatar, Hairline, Icon, IconButton, Sidebar, colors } from "@mobile/ui-mobile";
+import type { IconName } from "@mobile/ui-core";
+import { GROUPS, isActive, type NavItem } from "@mobile/core/lib/nav";
 import { Logo } from "../atoms/Logo";
 import { ThemeToggle } from "../molecules/ThemeToggle";
 

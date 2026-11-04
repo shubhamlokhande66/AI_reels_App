@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { router } from "expo-router";
-import { useStudioText } from "@shubix/hooks";
-import { Bubble, ChatChip, Gold, Icon, useColors } from "@shubix/ui-mobile";
+import { useStudioText } from "@mobile/hooks";
+import { Bubble, ChatChip, Gold, Icon, useColors } from "@mobile/ui-mobile";
 
 // the ideas under the box (the website's askchips): what is shown, and what it says
 const IDEAS: [string, string][] = [["Fast & energetic", "Fast cuts on every beat, high energy"], ["Calm & cinematic", "Make it calm and cinematic, slower cuts"], ["Zoom on the drop", "Zoom in on the drop and add camera moves on the beats"], ["Slow-mo ending", "Slow motion on the best moment at the end"]];

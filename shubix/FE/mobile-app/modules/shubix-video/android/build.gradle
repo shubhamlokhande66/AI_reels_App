@@ -15,7 +15,7 @@ android {
 }
 
 // Google's Media3 Transformer: joins the clips, applies their changes and the texts, mixes the song and writes the MP4
-def media3 = "1.8.0"
+def media3 = "1.9.1"
 dependencies {
   implementation "androidx.media3:media3-transformer:$media3"
   implementation "androidx.media3:media3-effect:$media3"

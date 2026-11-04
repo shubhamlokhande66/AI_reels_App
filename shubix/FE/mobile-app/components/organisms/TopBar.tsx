@@ -1,12 +1,12 @@
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { Crown } from "lucide-react-native";
-import { colors } from "@shubix/ui-mobile";
+import { colors } from "@mobile/ui-mobile";
 import { useCredits } from "../../lib/data";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useApi, useText } from "@shubix/hooks";
-import { Hairline, IconButton } from "@shubix/ui-mobile";
-import { pageMeta } from "@shubix/core/lib/nav";
+import { useApi, useText } from "@mobile/hooks";
+import { Hairline, IconButton } from "@mobile/ui-mobile";
+import { pageMeta } from "@mobile/core/lib/nav";
 import { Logo } from "../atoms/Logo";
 import { NotificationBell } from "../molecules/NotificationBell";
 

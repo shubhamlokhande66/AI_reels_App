@@ -1,11 +1,11 @@
 import { Text } from "react-native";
 import { router } from "expo-router";
-import { useVerifyFlow } from "@shubix/hooks";
-import { Button, ErrorBanner, OtpInput } from "@shubix/ui-mobile";
+import { useVerifyFlow } from "@mobile/hooks";
+import { Button, ErrorBanner, OtpInput } from "@mobile/ui-mobile";
 import { AuthFrame } from "../templates/AuthFrame";
 
 /** Verify the email with the 6-digit code from the sign-up email (the website's app/verify/page.tsx); the sixth digit
- * sends it. Logic: @shubix/hooks useVerifyFlow. */
+ * sends it. Logic: @mobile/hooks useVerifyFlow. */
 export function VerifyForm() {
   const f = useVerifyFlow(() => router.replace("/"));
   const { t: text } = f;

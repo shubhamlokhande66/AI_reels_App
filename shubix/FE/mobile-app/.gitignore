@@ -8,3 +8,5 @@ expo-env.d.ts
 !modules/*/android/
 !modules/*/android/build/
 modules/*/android/build/
+# the engine page's build (engine/build.mjs)
+modules/*/android/src/main/assets/engine/
