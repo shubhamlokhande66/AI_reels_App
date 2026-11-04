@@ -1,0 +1,261 @@
+{
+ "edit": [
+  {
+   "start": 0,
+   "end": 2.465,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "hard",
+   "efx": "none",
+   "sp": "normal",
+   "src": 3,
+   "in": 0,
+   "scaleR": 1,
+   "cx": 0.501,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0,
+   "acc": [
+    {
+     "at": 0.3,
+     "do": "punch"
+    }
+   ],
+   "cs": {
+    "bri": 0.4,
+    "con": 0.08,
+    "auto": [
+     "bri",
+     "con"
+    ]
+   }
+  },
+  {
+   "start": 2.465,
+   "end": 3.465,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "dissolve",
+   "efx": "punch",
+   "sp": "normal",
+   "src": 0,
+   "in": 3.3,
+   "scaleR": 1,
+   "cx": 0.506,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0
+  },
+  {
+   "start": 3.465,
+   "end": 6.465,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "hard",
+   "efx": "punch",
+   "sp": "normal",
+   "src": 2,
+   "in": 0,
+   "scaleR": 0.931,
+   "cx": 0.463,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0,
+   "acc": [
+    {
+     "at": 0.3,
+     "do": "punch"
+    }
+   ]
+  },
+  {
+   "start": 6.465,
+   "end": 7.465,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "dissolve",
+   "efx": "none",
+   "sp": "normal",
+   "src": 0,
+   "in": 2.1,
+   "scaleR": 1,
+   "cx": 0.496,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0
+  },
+  {
+   "start": 7.465,
+   "end": 9.465,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "hard",
+   "efx": "punch",
+   "sp": "normal",
+   "src": 0,
+   "in": 0,
+   "scaleR": 1,
+   "cx": 0.513,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0,
+   "acc": [
+    {
+     "at": 0.3,
+     "do": "punch"
+    }
+   ]
+  },
+  {
+   "start": 9.465,
+   "end": 10.965,
+   "type": "hit",
+   "fx": "Zoom punch",
+   "tr": "dissolve",
+   "efx": "punch",
+   "sp": "normal",
+   "src": 3,
+   "in": 2.5,
+   "scaleR": 1,
+   "cx": 0.509,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0,
+   "cs": {
+    "bri": 0.4,
+    "con": 0.08,
+    "auto": [
+     "bri",
+     "con"
+    ]
+   }
+  },
+  {
+   "start": 10.965,
+   "end": 13.965,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "hard",
+   "efx": "none",
+   "sp": "normal",
+   "src": 3,
+   "in": 2.8,
+   "scaleR": 1,
+   "cx": 0.507,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0,
+   "acc": [
+    {
+     "at": 0.3,
+     "do": "punch"
+    }
+   ],
+   "cs": {
+    "bri": 0.4,
+    "con": 0.08,
+    "auto": [
+     "bri",
+     "con"
+    ]
+   }
+  },
+  {
+   "start": 13.965,
+   "end": 14.965,
+   "type": "hit",
+   "fx": "Zoom punch",
+   "tr": "dissolve",
+   "efx": "punch",
+   "sp": "normal",
+   "src": 1,
+   "in": 2.8,
+   "scaleR": 1,
+   "cx": 0.471,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0
+  },
+  {
+   "start": 14.965,
+   "end": 17.965,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "hard",
+   "efx": "punch",
+   "sp": "normal",
+   "src": 1,
+   "in": 0,
+   "scaleR": 1,
+   "cx": 0.475,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0,
+   "acc": [
+    {
+     "at": 0.3,
+     "do": "punch"
+    }
+   ]
+  },
+  {
+   "start": 17.965,
+   "end": 18.965,
+   "type": "hit",
+   "fx": "Zoom punch",
+   "tr": "dissolve",
+   "efx": "none",
+   "sp": "normal",
+   "src": 1,
+   "in": 1.8,
+   "scaleR": 1,
+   "cx": 0.48,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0
+  },
+  {
+   "start": 18.965,
+   "end": 20,
+   "type": "cut",
+   "fx": "Hard cut",
+   "tr": "hard",
+   "efx": "punch",
+   "sp": "normal",
+   "src": 0,
+   "in": 3.8,
+   "scaleR": 1,
+   "cx": 0.52,
+   "cy": 0.45,
+   "face": 0,
+   "fs": 0,
+   "acc": [
+    {
+     "at": 0.3,
+     "do": "punch"
+    }
+   ],
+   "cs": {
+    "fout": 0.52,
+    "auto": [
+     "fout"
+    ]
+   }
+  }
+ ],
+ "overlays": [
+  [
+   "Hello from the plan",
+   null,
+   null,
+   "pop"
+  ]
+ ],
+ "status": "Shubix planned your Reel: the fake plan · 6 keyframes on the hits",
+ "clips": [
+  "clip 1",
+  "clip 2",
+  "clip 3",
+  "clip 4"
+ ]
+}
