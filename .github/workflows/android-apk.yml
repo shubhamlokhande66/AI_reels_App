@@ -14,6 +14,7 @@ jobs:
     env:
       EXPO_PUBLIC_API_URL: https://api.shubix.in
       EXPO_PUBLIC_SITE_URL: https://shubix.in
+      ADMOB_ANDROID_APP_ID: ca-app-pub-5459735473283681~7574692434
     steps:
       - name: Free disk space
         working-directory: /

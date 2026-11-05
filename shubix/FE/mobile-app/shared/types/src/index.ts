@@ -1,5 +1,5 @@
 /** Types shared by FE/web-app, FE/mobile-app and BE/api. */
-export type SessionUser = { id: string; email: string; emailVerified: boolean; username: string | null };
+export type SessionUser = { id: string; email: string; emailVerified: boolean; username: string | null; codeWait?: number };
 export type MeResponse = { authEnabled: boolean; user: SessionUser | null };
 /** `token` is only sent to the phone app (X-Client: mobile); the website gets an httpOnly cookie. */
 export type AuthResponse = { user: SessionUser; token?: string };

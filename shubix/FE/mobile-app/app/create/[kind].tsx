@@ -157,7 +157,7 @@ function CreateFlowScreen() {
     const list = [...media, ...got].slice(0, 30);
     setMedia(list); await readClips(list);
   }
-  // Next after the clips: Free or Upgrade (a plan without Shubix AI), or Shubix AI's question and its work in the popup; the
+  // Next after the clips: Free or Add more credits (a plan without Shubix AI), or Shubix AI's question and its work in the popup; the
   // draft saved, then the editor with the Reel. Without the engine (Expo Go) the clips play in turn.
   async function make() {
     // a Reel was made here: nothing changed, the same Reel; changed, a new Reel is asked for (it costs credits), or the old one stays
@@ -179,7 +179,7 @@ function CreateFlowScreen() {
     try {
       if (engineOn && music) {
         if (!(await engine.aiOn())) {
-          const v = await askAction({ title: words("Make it perfect with Shubix AI"), body: words("Continue free with your phone's own edit, or see the plans with Shubix AI."), ok: words("Upgrade"), cancel: words("Free") });
+          const v = await askAction({ title: words("Make it perfect with Shubix AI"), body: words("Continue free with your phone's own edit, or add more credits for Shubix AI."), ok: words("Add more credits"), cancel: words("Free") });
           if (v === 0) router.push("/credits");
           if (v !== 1) return;
         }

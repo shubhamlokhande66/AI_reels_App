@@ -63,7 +63,7 @@ export default function LoginPage() {
       if (!signin) clearRef(); // the invite is used
       await qc.invalidateQueries();
       // a new account: the code from the email first; an administrator: the admin code (emailed now) first
-      router.replace(!signin ? "/verify?sent=1" : "adminCode" in r && r.adminCode ? "/admin?code=sent" : "/");
+      router.replace(!signin || r.user?.emailVerified === false ? "/verify?sent=1" : "adminCode" in r && r.adminCode ? "/admin?code=sent" : "/");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -125,8 +125,8 @@ export default function LoginPage() {
             </div>
 
             <div role="group" aria-label={text("auth.signIn")} className="mb-3 shadow-[0_8px_24px_-20px_rgba(0,0,0,.35)] grid grid-cols-2 gap-1 rounded-xl border border-border bg-surface-2 p-1">
-              <button type="button" aria-pressed={signin} onClick={() => changeMode("signin")} className={cn(TAB, signin && TAB_ON)}>{text("auth.signIn")}</button>
-              <button type="button" aria-pressed={!signin} onClick={() => changeMode("signup")} className={cn(TAB, !signin && TAB_ON)}>{text("auth.createLink")}</button>
+              <button type="button" disabled={busy} aria-pressed={signin} onClick={() => changeMode("signin")} className={cn(TAB, signin && TAB_ON)}>{text("auth.signIn")}</button>
+              <button type="button" disabled={busy} aria-pressed={!signin} onClick={() => changeMode("signup")} className={cn(TAB, !signin && TAB_ON)}>{text("auth.createLink")}</button>
             </div>
 
             <Card key={mode} className="relative rounded-[22px] bg-[color:color-mix(in_srgb,var(--surface)_96%,var(--accent))] shadow-[0_24px_60px_-38px_rgba(0,0,0,.36),inset_0_1px_0_rgba(255,255,255,.45)] flex flex-col gap-4 overflow-hidden p-5 sm:gap-6 sm:p-7 lg:p-8">
@@ -135,7 +135,7 @@ export default function LoginPage() {
                 <h1 className="m-0 font-[family-name:var(--font-display)] text-[25px] font-semibold tracking-[-0.035em] sm:text-[28px]">{text(signin ? "auth.signIn" : "auth.signUp")}</h1>
                 <p className="m-0 mt-1.5 text-[12.5px] leading-relaxed text-muted sm:text-[13px]">{text(signin ? "auth.signInSub" : "auth.signUpSub")}</p>
               </div>
-              <form onSubmit={submit} noValidate className="relative z-10 flex flex-col gap-3 sm:gap-[18px]">
+              <form onSubmit={submit} noValidate className="relative z-10 flex flex-col gap-3 sm:gap-[18px]"><fieldset disabled={busy} className="contents">
                 <Field label={text("auth.email")} error={touched.email ? emailErr : ""}>
                   <Input type="email" autoComplete="email" placeholder={text("auth.emailPlaceholder")} value={email} aria-invalid={!!(touched.email && emailErr) || undefined}
                     className={touched.email && emailErr ? "border-danger" : undefined} onChange={(e) => setEmail(e.target.value)} onBlur={() => touch("email")} />
@@ -156,7 +156,7 @@ export default function LoginPage() {
                 <Button type="submit" size="lg" icon="sparkle" loading={busy} disabled={!valid} className="mt-1 !shadow-[0_14px_26px_-16px_var(--brand-glow),inset_0_1px_0_rgba(255,255,255,.26)] !h-12 w-full !rounded-xl !text-[13.5px]">
                   {busy ? text("auth.wait") : text(signin ? "auth.signIn" : "auth.signUpButton")}
                 </Button>
-              </form>
+              </fieldset></form>
               <div className="relative z-10 flex min-h-5 flex-col items-center gap-2 pr-12 text-center text-[12px] sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:pr-0 sm:text-left">
                 <span className="text-muted">{text(signin ? "auth.newHere" : "auth.haveAccount")} <button type="button" className="font-bold text-accent hover:underline" onClick={() => changeMode(signin ? "signup" : "signin")}>{text(signin ? "auth.createLink" : "auth.signIn")}</button></span>
                 {signin && <Link href="/forgot" className="shrink-0 font-bold text-accent hover:underline">{text("auth.forgotLink")}</Link>}

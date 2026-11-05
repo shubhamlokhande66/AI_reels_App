@@ -10,6 +10,7 @@ import { AppError } from "./errors";
 
 export const COOKIE = "reel_session", SESSION_DAYS = 30;
 const PUBLIC_PATHS = ["/api/cron/", "/api/contact", "/api/help", "/api/boot", "/api/offer", "/api/marketing/click", "/api/health", "/api/auth/", "/api/admin/session", "/api/public/", "/api/partner/", "/api/plans", "/api/site", "/api/texts", "/api/content", "/api/plan-locks", "/api/features"];
+const PENDING_PATHS = ["/api/auth/", "/api/admin/session", "/api/boot"];
 const userCtx = new AsyncLocalStorage<string | null>();
 export const currentUser = (): string | null => userCtx.getStore() ?? null;
 export const withUser = <T>(uid: string | null, fn: () => T): T => userCtx.run(uid, fn);
@@ -51,20 +52,27 @@ export function readSession(tokenIn: string | null | undefined): [string, number
     return [String(d.u), Number(d.v ?? 0), Number(d.a ?? 0)];
   } catch { return null; }
 }
-const versions = new Map<string, [number, number]>(), VERSION_TTL = 20_000;
+const versions = new Map<string, [number, number, boolean]>(), VERSION_TTL = 20_000;
 export const forgetSessionCache = (userId: string) => { versions.delete(userId); };
 /** The account still exists and the session is not older than its last password change / sign-out everywhere. */
 export async function sessionValid(userId: string, version: number): Promise<boolean> {
+  return (await accountFacts(userId))?.[0] === version;
+}
+/** The email of this account was proved with its code (accounts from before the codes have no `emailVerified`: they count as proved). */
+export async function sessionVerified(userId: string): Promise<boolean> {
+  return (await accountFacts(userId))?.[2] === true;
+}
+async function accountFacts(userId: string) {
   let hit = versions.get(userId);
   if (!hit || Date.now() - hit[1] > VERSION_TTL) {
-    if (!/^[0-9a-f]{24}$/.test(userId)) return false;
+    if (!/^[0-9a-f]{24}$/.test(userId)) return null;
     const { mainDb, ObjectId } = await import("./db");
-    const doc = await (await mainDb()).collection("users").findOne({ _id: new ObjectId(userId) }, { projection: { sessionVersion: 1 } });
-    if (!doc) { versions.delete(userId); return false; }
-    hit = [Number(doc.sessionVersion ?? 0), Date.now()];
+    const doc = await (await mainDb()).collection("users").findOne({ _id: new ObjectId(userId) }, { projection: { sessionVersion: 1, emailVerified: 1 } });
+    if (!doc) { versions.delete(userId); return null; }
+    hit = [Number(doc.sessionVersion ?? 0), Date.now(), doc.emailVerified !== false];
     versions.set(userId, hit);
   }
-  return hit[0] === version;
+  return hit;
 }
 /** The affiliate-only session (the partner dashboard, /affiliate, signed in by an emailed code): its own cookie, so it
  * opens the partner dashboard and nothing else of the studio (the /api/partner routes read it, resolveUser never does). */
@@ -95,7 +103,13 @@ export async function resolveUser(req: Request): Promise<string | null> {
   const token = sessionToken(req);
   let uid: string | null = null;
   if (token) { const s = readSession(token); if (s && (await sessionValid(s[0], s[1]))) uid = s[0]; }
-  if (!uid && !isPublic(new URL(req.url).pathname) && req.method !== "OPTIONS") throw new AuthRequired();
+  const path = new URL(req.url).pathname;
+  // signed in but the email's code not entered yet: only what the code screen needs; everywhere else as nobody, or refused
+  if (uid && !PENDING_PATHS.some((p) => path.startsWith(p)) && !(await sessionVerified(uid))) {
+    if (isPublic(path) || req.method === "OPTIONS") return null;
+    throw new AppError("Enter the code from your email to continue.", { code: "EMAIL_NOT_VERIFIED", status: 403 });
+  }
+  if (!uid && !isPublic(path) && req.method !== "OPTIONS") throw new AuthRequired();
   return uid;
 }
 /** the request's session token: the cookie, or a Bearer header (the phone app) */

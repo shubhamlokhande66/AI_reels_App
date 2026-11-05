@@ -18,7 +18,7 @@ export function ForgotForm() {
         <>
           <Text className="text-[12.5px] leading-[19px] text-muted">{text("auth.forgotCodeText")}</Text>
           <Field label={text("auth.email")} error={emailErr}>
-            <Input icon={<Icon name="mail" size={17} color="muted" />} value={f.email} onChangeText={f.setEmail} onBlur={() => setTouched(true)} invalid={!!emailErr}
+            <Input editable={!f.busy} icon={<Icon name="mail" size={17} color="muted" />} value={f.email} onChangeText={f.setEmail} onBlur={() => setTouched(true)} invalid={!!emailErr}
               autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder={text("auth.emailPlaceholder")} />
           </Field>
           {f.error ? <ErrorBanner message={f.error} /> : null}
@@ -29,15 +29,15 @@ export function ForgotForm() {
           <Text className="text-[12.5px] leading-[19px] text-muted">{text("auth.resetCodeSent", { email: f.email.trim() })}</Text>
           <OtpInput label={text("auth.codeLabel")} value={f.code} onChange={f.setCode} invalid={!!f.error && !f.code} disabled={f.busy} />
           <Field label={text("auth.newPassword")} hint={text("auth.lengthHint")} error={f.password && !passwordOk(f.password) ? text("auth.shortPassword") : ""} ok={passwordOk(f.password) ? text("auth.strongEnough") : ""}>
-            <PasswordInput value={f.password} onChangeText={f.setPassword} invalid={!!f.password && !passwordOk(f.password)} autoComplete="new-password" placeholder={text("auth.newPasswordPlaceholder")} />
+            <PasswordInput editable={!f.busy} value={f.password} onChangeText={f.setPassword} invalid={!!f.password && !passwordOk(f.password)} autoComplete="new-password" placeholder={text("auth.newPasswordPlaceholder")} />
           </Field>
           <Field label={text("auth.confirmPassword")} error={again && again !== f.password ? text("auth.mismatch") : ""} ok={again && again === f.password ? text("auth.match") : ""}>
-            <PasswordInput value={again} onChangeText={setAgain} invalid={!!again && again !== f.password} autoComplete="new-password" placeholder={text("auth.confirmPlaceholder")} />
+            <PasswordInput editable={!f.busy} value={again} onChangeText={setAgain} invalid={!!again && again !== f.password} autoComplete="new-password" placeholder={text("auth.confirmPlaceholder")} />
           </Field>
           {f.error ? <ErrorBanner message={f.error} /> : null}
           <Button full loading={f.busy} disabled={f.code.length !== 6 || !passwordOk(f.password) || again !== f.password} title={f.busy ? text("auth.saving") : text("auth.resetButton")} onPress={() => void f.reset()} />
           <Text className="text-center text-[12.5px] text-muted">{text("auth.noCode")}{" "}
-            <Text onPress={() => void f.send()} className="font-bold text-accent">{text("auth.resendCode")}</Text>{" · "}
+            {f.wait > 0 ? text("auth.resendIn", { s: f.wait }) : <Text onPress={() => void f.send()} accessibilityRole="button" className="font-bold text-accent">{text("auth.resendCode")}</Text>}{" · "}
             <Text onPress={() => { f.setStep("email"); f.setCode(""); }} className="font-bold text-accent">{text("auth.otherEmail")}</Text>
           </Text>
           <Text className="text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</Text>

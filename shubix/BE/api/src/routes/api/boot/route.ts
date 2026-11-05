@@ -1,5 +1,5 @@
 import { adminState } from "../../../server/core/admin";
-import { currentUser } from "../../../server/core/auth";
+import { currentUser, sessionVerified } from "../../../server/core/auth";
 import { settings } from "../../../server/core/config";
 import { getFeatures } from "../../../server/core/features";
 import { route } from "../../../server/core/http";
@@ -20,7 +20,7 @@ import { myNotifications } from "../../../server/broadcasts";
  * its own route answers; a part that fails, or that its route would refuse (credits, plan locks and features need a
  * signed-in person when accounts are on; plan locks and features are for everyone), is left out, and the page then asks its own route as before. */
 export const GET = route(async (req) => {
-  const signedIn = !settings.authEnabled || !!currentUser();
+  const uid = currentUser(), signedIn = !settings.authEnabled || (!!uid && (await sessionVerified(uid)));
   if (settings.billingEnabled) sweepSoon(); // unfinished checkouts' reminder emails, now and then, in the background
   const part = async <T,>(f: () => Promise<T> | T) => { try { return await f(); } catch { return undefined; } };
   const [texts, account, site, admin, features, planLocks, credits, offer, help, plans, content, ads, notifications] = await Promise.all([

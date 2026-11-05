@@ -115,6 +115,10 @@ export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => 
   const running = all.filter((t) => t.kind !== "export" && !hidden.includes(t.id)), own = running.filter((t) => t.id !== "flow"), shown = own.length ? own : running;
   const on = shown.length > 0;
   useEffect(() => { setLate(false); if (!on) { setHidden([]); return; } const t = setTimeout(() => setLate(true), 30_000); return () => clearTimeout(t); }, [on]);
+  // while the AI works: why to stay, one short line after another
+  const notes = lock || shown.some((t) => t.kind === "ai" && t.state === "run") ? [words("Keep Shubix open until this is done."), words("Closing now may lose this Reel's credits."), ...(g && lock ? [cantCancel] : [])] : [];
+  const [note, setNote] = useState(0), many = notes.length > 1;
+  useEffect(() => { if (!many) return; const id = setInterval(() => setNote((n) => n + 1), 3500); return () => clearInterval(id); }, [many]);
   return (
     <Modal visible={on && !asking} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { if (g && !lock) g.onCancel(); }}>
       <ThemeLayer className="items-center justify-center bg-black/75 px-4">
@@ -124,7 +128,7 @@ export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => 
             <View className="items-center gap-1.5">
               <Text className="text-[11px] font-bold uppercase tracking-[2.4px] text-accent">{words("Shubix Studio")}</Text>
               <Text className="text-center text-[24px] font-semibold tracking-tight text-foreground">{words("Crafting your Reel")}</Text>
-              <Text className="text-center text-[13px] leading-[20px] text-muted">{words("A lot is happening behind the scenes to make your Reel: every beat, every clip, every moment.")}</Text>
+              <Text className="text-center text-[13px] leading-[20px] text-muted">{words("Every beat, every clip, every moment.")}</Text>
             </View>
           )}
           {shown.slice(-1).map((t) => <TaskCard key={t.id} t={t} />)}
@@ -142,11 +146,9 @@ export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => 
               })}
             </View>
           )}
+          {notes.length > 0 && <Text numberOfLines={2} className="min-h-[38px] text-center text-[12.5px] font-semibold leading-[19px] text-foreground">{notes[note % notes.length]}</Text>}
           {g && lock ? (
-            <>
-              <Text className="text-center text-[12.5px] leading-[19px] text-muted">{cantCancel}</Text>
-              <Button full variant="secondary" disabled icon="back" title={cancel} onPress={() => {}} />
-            </>
+            <Button full variant="secondary" disabled icon="back" title={cancel} onPress={() => {}} />
           ) : g ? (
             <View className="flex-row gap-2">
               <Button className="flex-1" variant="secondary" icon="back" title={cancel} onPress={g.onCancel} />
