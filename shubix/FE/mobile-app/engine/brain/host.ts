@@ -3,6 +3,10 @@
 // and takes what the phone worked out: the song's analysis (SongAnalysis.kt) and each clip's reading (ClipScan.kt).
 // @ts-nocheck
 import { DEFAULT_LOCKS, needMap } from "../../shared/core/src/lib/plan-locks";
+import { chatSize } from "../../shared/core/src/lib/chatSize";
+import { templateTexts } from "../../shared/core/src/lib/text-templates";
+import { parseDirectorVisualIntent } from "../components/studio/visualIntent";
+import { toSlots } from "./pure";
 import { brainFromCopy } from "./index";
 
 /** a song's sound as the brain reads it: the part of the Web Audio AudioBuffer it uses */
@@ -22,6 +26,42 @@ export function createHost(initial, io = {}){
   ES.aiStopper = new AbortController();
   // what the page keeps outside its state; the page's own drawing and buttons are not here
   Object.assign(values, { ac: new AbortController(), fxCache: new Map(), sfxCache: new Map(), isPhotoMode: () => !!ES.photoMode, clipNames: () => ES.sources.filter(s => !s.removed).map(s => s.name), curTime: () => ES.pos });
+  // the chat and the tools: their rules are the brain's, and nothing is drawn here
+  const hist = { u: [], r: [], cur: null, cand: '', base: '' }, ready = () => Promise.resolve();
+  Object.assign(values, { hist, HIST_MAX: 60, chatSize, toSlots, parseDirectorVisualIntent, aiFreeChats: () => (ES.aiInfo && Number(ES.aiInfo.freeChats)) || 0,
+    chatSync: (res) => { if(res && res.chat && typeof res.chat.used === 'number') ES.chatUsed = res.chat.used; }, aiLocked: () => !!ES.aiInfo && ES.aiInfo.planAi === false, aiNeedOn: () => false,
+    tasks: { start: (id, kind, title, detail) => io.task && io.task('start', id, title, detail, kind), update: (id, p, detail, title) => io.task && io.task('progress', id, title, detail, undefined, p), done: (id, title) => io.task && io.task('done', id, title), fail: (id, title) => io.task && io.task('fail', id, title), clear: (id) => io.task && io.task('clear', id), has: () => false },
+    prepare: ready, prepLayers: ready, revCache: ready, loadFont: ready, notify: (t) => io.tell && io.tell(t), notifyAct: (t) => io.tell && io.tell(t),
+    addLayerMedia: async (f) => ({ kind: f.kind, path: f.path, w: f.w, h: f.h, dur: f.kind === 'video' ? f.dur : Infinity, name: f.name }),
+    tts: io.speak ? { voices: io.voices || [], speak: io.speak } : null, setCaptions, addTemplate, addTtsAtPlayhead });
+  if(!Array.isArray(ES.ttsClips)) ES.ttsClips = [];
+  function addTemplate(key, words, at, len, ai){
+    const L = ES.buf ? ES.buf.duration : 0, t = Math.max(0, Math.min(Math.max(0, L - 0.6), at ?? (ES.pos || 0))), parts = templateTexts(key, words, t, len); if(!parts.length) return 0;
+    for(const q of parts) ES.overlays.push({ id: ++ES.ovSeq, text: q.text, emoji: false, style: q.style, color: q.color, anim: q.anim, out: q.out, loop: q.loop, font: q.font, t0: q.start, t1: Math.min(L, q.end), x: q.x, y: q.y, size: q.size, all: false, tpl: key, ...(ai ? { aiIntent: 'ai' } : {}) });
+    ES.ovSel = ES.overlays.length - 1; return parts.length;
+  }
+  async function addTtsAtPlayhead(text, voice){
+    if(!String(text || '').trim() || !voice) throw new Error('Enter the voice text and choose a voice.');
+    const c = { id: (ES.ttsClips.reduce((q, x) => Math.max(q, x.id), 0)) + 1, text: String(text).slice(0, 1200), voice, at: ES.edit.length ? Math.max(0, Math.min(ES.pos, (ES.buf ? ES.buf.duration : 0) - 0.5)) : 0 };
+    await brain.ttsMake(c, true); if(!c.pcm) throw new Error('The voice could not be generated. Please try another voice or shorter text.');
+    ES.ttsClips.push(c); ES.clipMixKey = ''; brain.applyVo();
+    return { id: c.id, at: c.at, duration: c.pcm.length/c.sr };
+  }
+  /** the words of the song: the server hears a 16 kHz copy (a straight line between samples, in place of the page's filters) */
+  async function setCaptions(enabled, language, translation){
+    ES.capsOn = !!enabled; if(language !== undefined) ES.capLang = String(language || ''); if(translation !== undefined) ES.trTo = String(translation || '');
+    if(ES.capsOn && ES.song && io.apiFetch){
+      const M = ES.song.mono, sr = ES.song.buf.sampleRate, from = ES.secStart + ES.buf.duration > 179 ? ES.secStart : 0, a = Math.round(from*sr), len = Math.min(M.length - a, Math.round(180*sr)), n = Math.max(1, Math.ceil(len*16000/sr));
+      let pk = 0; const y = new Float32Array(n); for(let i=0;i<n;i++){ const p = a + i*sr/16000, k = Math.floor(p), f = p - k, v = (M[k] || 0)*(1 - f) + (M[k+1] || 0)*f; y[i] = v; if(Math.abs(v) > pk) pk = Math.abs(v); }
+      const gain = pk > 0 ? 0.9/pk : 1, dv = new DataView(new ArrayBuffer(44 + n*2)), str = (o, x) => { for(let i=0;i<x.length;i++) dv.setUint8(o+i, x.charCodeAt(i)); };
+      str(0,'RIFF'); dv.setUint32(4, 36 + n*2, true); str(8,'WAVE'); str(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,16000,true); dv.setUint32(28,32000,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); str(36,'data'); dv.setUint32(40,n*2,true);
+      for(let i=0;i<n;i++) dv.setInt16(44 + i*2, Math.max(-1, Math.min(1, y[i]*gain))*32767, true);
+      const r = await io.apiFetch('/api/studio/transcribe?lang=' + encodeURIComponent(ES.capLang || ''), { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: new Uint8Array(dv.buffer) }), res = await r.json().catch(() => ({}));
+      if(!r.ok) throw new Error((res.error && res.error.message) || ('Captions failed (' + r.status + ').'));
+      ES.capAll = { from, words: Array.isArray(res.words) ? res.words : [] }; brain.shiftCaptions();
+    }
+    return { enabled: ES.capsOn, language: ES.capLang || '', translation: ES.trTo || '' };
+  }
   // the export's choices and the plan's rules (the page's Export sheet)
   const xq = { res: '1080', fps: 30, nowm: false }, XQ = { '720': { scale: 2/3, bitrate: 6e6 }, '1080': { scale: 1, bitrate: 12e6 }, '4k': { scale: 2, bitrate: 35e6 } };
   let EXR = DEFAULT_LOCKS.export;
@@ -132,5 +172,5 @@ export function createHost(initial, io = {}){
     ES.sources.push(src); return src;
   }
   function makeReel(){ if(ES.buf && ES.sources.length) brain.makeEditNow(); return ES.edit; }
-  return { brain, ES, values, sec, setSong, useSection, addClip, makeReel, account, runAi, aiBusy, exportChoose, exportPlan, exportOptions, exportFix: () => lockedUsed().forEach(x => x.fix()), lockedUsed };
+  return { brain, ES, values, sec, setSong, useSection, addClip, makeReel, account, runAi, aiBusy, setCaptions, addTemplate, addTtsAtPlayhead, exportChoose, exportPlan, exportOptions, exportFix: () => lockedUsed().forEach(x => x.fix()), lockedUsed };
 }

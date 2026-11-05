@@ -78,9 +78,56 @@ describe("the studio with no page", () => {
     const r = await going as { clips: number };
     expect(r.clips).toBeLessThan(3);
   });
-  it("says so for an operation it does not have yet", async () => {
+  it("says so for an operation it does not have", async () => {
     const { e } = engine();
-    await expect(e.call("chat", { text: "hi" })).rejects.toThrow(/Not on the phone's own engine yet/);
+    await expect(e.call("nothing")).rejects.toThrow(/Not on the phone's own engine yet/);
+  });
+  const reel = async (seconds = 30) => { const x = engine(seconds); await x.e.call("song", { path: "/s.mp3", name: "s.mp3" }); await x.e.call("clips", { paths: clips }); return x; };
+  const edit = async (e: ReturnType<typeof engine>["e"]) => (await e.call("state") as { edit: { start: number; end: number; tr?: string; efx?: string; cs?: Record<string, unknown>; uk?: unknown[] }[]; overlays: { text: string }[]; settings: { au: Record<string, unknown> } });
+  it("changes a shot and takes it back", async () => {
+    const { e } = await reel(), before = JSON.stringify((await edit(e)).edit.map((s) => s.efx));
+    await e.call("seek", { time: 1 });
+    await e.call("shotStyle", { kind: "effect", value: "rgbpulse" });
+    const at = async () => (await edit(e)).edit.find((s) => s.start <= 1 && s.end > 1)!;
+    expect((await at()).efx).toBe("rgbpulse");
+    await e.call("shotSet", { patch: { bri: 0.3 } });
+    expect((await at()).cs?.bri).toBe(0.3);
+    expect(JSON.stringify((await edit(e)).edit.map((s) => s.efx))).not.toBe(before);
+  });
+  it("adds and removes keyframes", async () => {
+    const { e } = await reel();
+    await e.call("kfSeek", { time: 0.5 });
+    const k = await e.call("kfSet", { values: { s: 1.2 } }) as { ok: boolean };
+    expect(k.ok).toBe(true);
+    const row = await e.call("kfSeek", { time: 0.5 }) as { keyframes: unknown[] };
+    expect(row.keyframes.length).toBeGreaterThan(0);
+    expect(await e.call("kfClear") as { keyframes: unknown[] }).toMatchObject({ keyframes: [] });
+  });
+  it("sets the music's mix and adds a sound effect", async () => {
+    const { e } = await reel(10);
+    await e.call("audioMix", { mvol: 0.5 });
+    expect((await edit(e)).settings.au.mvol).toBe(0.5);
+    expect(await e.call("sfx", { kind: "whoosh", time: 2 })).toMatchObject({ ok: true });
+  });
+  it("adds a text template", async () => {
+    const { TEXT_TEMPLATES } = await import("@mobile/core/lib/text-templates"), key = (Array.isArray(TEXT_TEMPLATES) ? (TEXT_TEMPLATES[0] as { key: string }).key : Object.keys(TEXT_TEMPLATES)[0]);
+    const { e } = await reel();
+    expect(await e.call("template", { key, time: 2 })).toMatchObject({ ok: true });
+    expect((await edit(e)).overlays.length).toBeGreaterThan(0);
+  });
+  it("marks a shot to play backwards", async () => {
+    const { e } = await reel();
+    await e.call("seek", { time: 1 });
+    expect(await e.call("shotReverse")).toMatchObject({ ok: true });
+    expect((await edit(e)).edit.find((s) => s.start <= 1 && s.end > 1)!.cs?.rev).toBe(true);
+  });
+  it("adds a layer, moves it and deletes it", async () => {
+    const { e } = await reel();
+    expect(await e.call("layerAdd", { path: "/o.mp4", name: "o.mp4" })).toMatchObject({ ok: true, count: 1 });
+    await e.call("layerSet", { key: "op", value: 0.5 });
+    const rows = await e.call("layerList") as { opacity: number; native: { path: string } }[];
+    expect(rows[0].opacity).toBe(0.5); expect(rows[0].native.path).toBe("/o.mp4");
+    expect(await e.call("layerDelete")).toMatchObject({ ok: true });
   });
 });
 

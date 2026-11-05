@@ -1,5 +1,6 @@
 import { createHost, soundOf } from "../engine/brain/host";
 import initial from "../engine/brain/initial-state.json";
+import { TTS_VOICES, voiceLanguage } from "../engine/lib/tts/voices";
 
 /** The studio with no page: the operations of the hidden page's bridge (engine/components/studio/bridge.ts), run on the brain in the app's own
  * JS, with the phone's own code doing the heavy work through its file server (SongAnalysis.kt, ClipScan.kt, ClipFaces.kt). On only when the
@@ -11,7 +12,7 @@ export type NativeIo = { base: string; key: string; fetch: Fetch; token?: () => 
   /** Shubix AI's question: true Use, false the other button, null closed */
   ask?: (q: { title: string; text: string; list?: string[]; bal?: number | null; ok: string; no?: string; after?: number | null }) => Promise<boolean | null>;
   /** what Shubix is doing, in its words; an error when `err` */
-  stat?: (text: string, err?: boolean) => void; spent?: () => void };
+  stat?: (text: string, err?: boolean) => void; spent?: () => void; tell?: (text: string) => void };
 type Args = Record<string, unknown>;
 type Clip = { path: string; name: string };
 
@@ -46,7 +47,7 @@ export function wavOf(buf: { length: number; sampleRate: number; numberOfChannel
 }
 
 export function createNativeEngine(io: NativeIo) {
-  const make = () => createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx, apiFetch, aiFrames, ask: (q: Parameters<NonNullable<NativeIo["ask"]>>[0]) => io.ask ? io.ask(q) : Promise.resolve(null), stat: io.stat, spent: io.spent });
+  const make = () => createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx, apiFetch, aiFrames, ask: (q: Parameters<NonNullable<NativeIo["ask"]>>[0]) => io.ask ? io.ask(q) : Promise.resolve(null), stat: io.stat, spent: io.spent, tell: io.tell, voices: TTS_VOICES, speak });
   let host = make(), signedIn = false;
   let stops = 0, read: Clip[] = [], reading = 0;
   const url = (path: string, q = "") => `${io.base}/${path}?k=${io.key}${q}`;
@@ -63,6 +64,12 @@ export function createNativeEngine(io: NativeIo) {
     const res = await io.fetch(url("aiframes", `&p=${encodeURIComponent(src.path)}&w=${w}&h=${h}`), { method: "POST", body: ts.map((t) => t.toFixed(3)).join(",") });
     if (!res.ok) throw new Error(await res.text());
     return (await res.json() as (string | null)[]).map((image, i) => image ? { t: +ts[i].toFixed(2), image } : null).filter(Boolean);
+  }
+  /** the phone's own voice speaks: its samples and rate (SystemVoice.kt) */
+  async function speak(text: string, voice: string) {
+    const res = await io.fetch(url("speak", `&v=${encodeURIComponent(voiceLanguage(voice))}`), { method: "POST", body: text });
+    if (!res.ok) throw new Error(await res.text());
+    return { pcm: new Float32Array(await res.arrayBuffer()), sr: Number((res as unknown as { headers?: { get(k: string): string | null } }).headers?.get("X-Sample-Rate")) || 22050 };
   }
   async function analyse(mono: Float32Array, sr: number, opts: Args = {}) {
     const head = new TextEncoder().encode(JSON.stringify({ ...opts, sr })), body = new Uint8Array(4 + head.length + mono.byteLength);
@@ -108,6 +115,7 @@ export function createNativeEngine(io: NativeIo) {
     if (stops === g) host.makeReel();
     return { clips: host.ES.sources.length, names: host.ES.sources.map((s: { name: string }) => s.name) };
   }
+  const kfRow = () => { const T = host.brain.kfTarget(); return T ? { ok: true, index: T.i, what: T.what, a: T.a, b: T.b, keyframes: ((T.obj.uk || []) as Args[]).map((k) => ({ ...k })) } : null; };
   function state(){ return ({ edit: host.brain.editOf(), overlays: host.ES.overlays, mode: host.ES.mode, settings: { au: host.ES.au, capsOn: !!host.ES.capsOn, caplang: host.ES.capLang ?? "", captr: host.ES.trTo ?? "", textStyle: host.ES.textStyle ?? "pop" } }); }
   const work = () => ({ clips: host.ES.sources.length, shots: host.ES.edit.length, songReady: !!host.ES.song?.r, pending: reading });
 
@@ -151,8 +159,51 @@ export function createNativeEngine(io: NativeIo) {
     exportOptions: (a) => host.exportOptions(a),
     copies: () => [],
     frame: () => ({ src: "" }),
-    layerList: () => [],
-    ttsVoices: () => host.values.ttsVoices ?? [],
+    layerList: () => host.ES.layers.map((L: Args & { m: number; mk?: { w?: number; h?: number; th?: number; f?: number; a?: number; inv?: boolean }; key?: { on?: boolean; c?: string; tol?: number }; followOffsetX?: number; followOffsetY?: number; s: number; op: number; r: number }, index: number) => {
+      const M = host.ES.lmedia[L.m as number] as { path?: string; kind?: string } | undefined;
+      return { index, id: L.id, t0: L.t0, t1: L.t1, x: L.x, y: L.y, scale: L.s, opacity: L.op, rotation: L.r, mask: L.mask, blend: L.blend || "source-over", follow: L.follow || "none", followOffsetX: L.followOffsetX || 0, followOffsetY: L.followOffsetY || 0,
+        maskWidth: L.mk?.w ?? 0.8, maskHeight: L.mk?.h ?? 0.8, maskThreshold: L.mk?.th ?? 0.5, maskFeather: L.mk?.f ?? 0.12, maskAngle: L.mk?.a ?? 0, maskInverted: !!L.mk?.inv, chromaKey: !!L.key?.on, chromaColor: L.key?.c ?? "#00FF00", chromaTolerance: L.key?.tol ?? 0.35,
+        native: M?.path ? { path: M.path, kind: M.kind, t0: L.t0, t1: L.t1, in: L.in, x: L.x, y: L.y, s: L.s, r: L.r, op: L.op, fh: L.fh, fv: L.fv, fin: L.fin, fout: L.fout, crop: L.crop, mask: L.mask, mk: L.mk, rad: L.rad, key: L.key, blend: L.blend } : null };
+    }),
+    layerAdd: async (a) => {
+      const path = String(a.path), name = String(a.name || "overlay"), p = await io.fetch(url("probe", `&p=${encodeURIComponent(path)}`));
+      const video = /\.(mp4|mov|m4v|3gp|webm|mkv)$/i.test(name) && p.ok, facts = video ? await p.json() as { dur: number; w: number; h: number } : { dur: 0, w: Number(a.w) || 1080, h: Number(a.h) || 1080 };
+      await host.brain.layerAdd([{ kind: video ? "video" : "photo", path, name, ...facts }]);
+      return { ok: true, count: host.ES.layers.length };
+    },
+    layerSelect: async (a) => ({ ok: !!(await host.brain.lySelect(Number(a.index))), selected: Number(a.index) }),
+    layerSet: (a) => { host.brain.lySet(String(a.key), a.value); return { ok: true }; },
+    layerDelete: () => ({ ok: host.brain.lyDelete() }),
+    ttsVoices: () => TTS_VOICES,
+    ttsAdd: (a) => host.addTtsAtPlayhead(String(a.text || ""), String(a.voice || "")),
+    ttsClear: () => ({ ok: host.brain.clearTts() }),
+    captions: (a) => host.setCaptions(!!a.enabled, a.language === undefined ? undefined : String(a.language), a.translation === undefined ? undefined : String(a.translation)),
+    captionStyle: (a) => { host.ES.textStyle = String(a.style || "pop"); return { style: host.ES.textStyle }; },
+    template: (a) => { host.ES.pos = Math.max(0, Number(a.time) || 0); return { ok: host.addTemplate(String(a.key), undefined, host.ES.pos, undefined, false) > 0, state: state() }; },
+    shotReverse: async () => ({ ok: await host.brain.shotReverse(), state: state() }),
+    shotExtract: async () => { const e = host.ES.edit[host.brain.segAt(host.ES.pos)], s = e && host.ES.sources[e.src]; if (!s) return { ok: false }; await song({ path: s.path, name: s.name }); return { ok: true }; },
+    kfSeek: async (a) => { await host.brain.kfSeek(Math.max(0, Number(a.time) || 0)); return kfRow(); },
+    kfEase: (a) => { const T = host.brain.kfTarget(), k = T && host.brain.kfAtHead(T); if (!k) throw new Error("Select a keyframe first"); k.ez = String(a.easing || "inOut"); return kfRow(); },
+    kfRemove: () => { const T = host.brain.kfTarget(), k = T && host.brain.kfAtHead(T); if (!k) throw new Error("There is no keyframe at the playhead"); T.obj.uk.splice(T.obj.uk.indexOf(k), 1); if (!T.obj.uk.length) delete T.obj.uk; return kfRow(); },
+    kfClear: () => { const T = host.brain.kfTarget(); if (T) delete T.obj.uk; return kfRow(); },
+    kfStep: async (a) => {
+      const T = host.brain.kfTarget(); if (!T || T.what !== "shot") return { ok: false, time: host.ES.pos };
+      const local = host.ES.pos - T.a, frames = (T.obj.uk || []) as { t: number }[], next = Number(a.direction) < 0 ? [...frames].filter((f) => f.t < local - 0.02).pop() : frames.find((f) => f.t > local + 0.02);
+      if (!next) return { ok: false, time: host.ES.pos };
+      await host.brain.kfSeek(T.a + next.t); return { ok: true, time: host.ES.pos };
+    },
+    chat: async (a) => { const r = await host.brain.chatApp(String(a.text || "").slice(0, 300)); return { ...r, state: state() }; },
+    set: (a) => {
+      const box = String(a.box), v = a.value;
+      if (box === "vfx") { host.ES.au = { ...host.ES.au, vfx: String(v) }; host.brain.applyVo(); }
+      else if (box === "aitouch") { host.ES.au = { ...host.ES.au, ai: !!v }; host.brain.autoTools(); host.brain.applyVo(); host.ES.clipMixKey = ""; }
+      else if (box === "look") host.ES.look = String(v);
+      else if (box === "mode") { host.ES.mode = String(v); host.makeReel(); }
+      else if (box === "seq") { host.ES.seqOn = v === "order"; host.makeReel(); }
+      else if (box === "aspect") host.ES.aspect = String(v);
+      else throw new Error(`The phone's own engine has no ${box}`);
+      return { work: work(), state: state() };
+    },
     cancelExport: () => ({ ok: true }),
     brainCheck: () => ({ copy: "{}", shots: [] }),
     exportMix: async (a) => {
@@ -165,8 +216,7 @@ export function createNativeEngine(io: NativeIo) {
       return { ...(await res.json() as Args), plan };
     },
   };
-  // not written yet: the app's page is still needed for these
-  const NOT_YET = ["answer", "chat", "exportReel", "kfSeek", "kfEase", "kfRemove", "kfClear", "kfStep", "template", "layerAdd", "layerSelect", "layerSet", "layerDelete", "ttsAdd", "ttsClear", "captions", "captionStyle", "shotExtract", "shotReverse", "set"];
+  const NOT_YET: string[] = [];
   return {
     has: (op: string) => op in ops, notYet: NOT_YET, ascii, read: () => read, host: () => host,
     fresh: () => { stops++; read = []; signedIn = false; host = make(); },
