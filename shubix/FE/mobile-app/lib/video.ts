@@ -19,7 +19,7 @@ import {
 export const videoEngine = { ready: !!ShubixVideo };
 const SIZE: Record<string, [number, number]> = { "9:16": [1080, 1920], "4:5": [1080, 1350], "1:1": [1080, 1080], "16:9": [1920, 1080], "3:4": [1080, 1440], "4:3": [1440, 1080], "2:1": [1920, 960], "2.35:1": [1920, 816] };
 /** Shared capability checks used by editor UI and export validation. */
-export const isNativeTransitionSupported = isAndroidTransitionSupported;
+export const isNativeTransitionSupported = (id: string) => isAndroidTransitionSupported(id) || !!TR_DUR[id]; // the studio's own: nativeSpec's `tr`
 export const isNativeEffectSupported = isAndroidEffectSupported;
 
 
@@ -27,13 +27,13 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
   const unsupported = p.clips.find((clip) =>
     clip.reverse ||
-    (!!clip.transition && !isAndroidTransitionSupported(clip.transition)) ||
+    (!!clip.transition && !isNativeTransitionSupported(clip.transition)) ||
     (!!clip.effect && !isAndroidEffectSupported(clip.effect)) ||
     !isAndroidFilterSupported(clip.filter) ||
     (clip.volume ?? 1) > 1
   );
   if (unsupported?.reverse) throw new Error("Reverse playback is not supported by the current Android native export engine yet.");
-  if (unsupported?.transition && !isAndroidTransitionSupported(unsupported.transition)) {
+  if (unsupported?.transition && !isNativeTransitionSupported(unsupported.transition)) {
     throw new Error(`The ${unsupported.transition} transition is not supported by the current Android export engine yet. Choose Cut before exporting.`);
   }
   if (unsupported?.effect && unsupported.effect !== "none" && !isAndroidEffectSupported(unsupported.effect)) {

@@ -22,4 +22,6 @@ dependencies {
   implementation "androidx.media3:media3-common:$media3"
   // who is the person in a shot, on the phone (text behind the person in the live player: PersonMask.kt)
   implementation "com.google.mlkit:segmentation-selfie:16.0.0-beta6"
+  // the AI models on the phone itself (Models.kt); the same version as the page's onnxruntime-web
+  implementation "com.microsoft.onnxruntime:onnxruntime-android:1.29.0"
 }

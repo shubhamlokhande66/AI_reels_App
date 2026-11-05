@@ -13,7 +13,8 @@ export const OWNER = "ownerId";
 export const UNSCOPED = new Set(["users", "app_settings", "wallets", "credit_ledger", "payments", "presence"]);
 
 export function client(): Promise<MongoClient> {
-  g.__mongo ??= new MongoClient(settings.mongodbUri, { serverSelectionTimeoutMS: 5000, maxPoolSize: 20 }).connect();
+  // a failed connection is not kept: the next request tries again, so the server recovers without a restart
+  g.__mongo ??= new MongoClient(settings.mongodbUri, { serverSelectionTimeoutMS: 5000, maxPoolSize: 20 }).connect().catch((e) => { g.__mongo = undefined; throw e; });
   return g.__mongo;
 }
 export async function mainDb(): Promise<Db> {

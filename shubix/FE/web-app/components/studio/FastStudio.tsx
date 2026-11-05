@@ -7,7 +7,6 @@ import { initViews } from "@/components/studio/views";
 import { initSteps } from "@/components/studio/steps";
 import { initAuto } from "@/components/studio/auto";
 import { initFlow } from "@/components/studio/flow";
-import { TTS_VOICES } from "@/lib/tts/voices";
 import { useAdmin, useTexts, useText } from "@/hooks/useApi";
 import { STUDIO_KEYS } from "@shubix/core/lib/texts-all";
 import { startTextSwap } from "@/components/studio/textSwap";
@@ -83,12 +82,6 @@ export function FastStudio({ kind, engine = false }: { kind?: "music" | "talking
           // who is the person (background blur / replace, text behind the person) and where faces are (MediaPipe models)
           // voice noise cleanup (RNNoise, WebAssembly), loaded only for talking videos and voiceovers
           loadRnnoise: () => import("@shiguredo/rnnoise-wasm"),
-          // text to speech on the phone (Piper voices in a worker, lib/tts); each voice downloaded once
-          tts: {
-            voices: TTS_VOICES,
-            speak: (text: string, voice: string, onProgress?: (p: import("@/lib/tts/client").TtsProgress) => void) =>
-              import("@/lib/tts/client").then((m) => m.speak(text, voice, onProgress)),
-          },
           // My Reels: "Export & save" keeps the finished Reel in the account (straight to storage, lib/cloudReels.ts)
           cloud: {
             usage: () => import("@/lib/cloudReels").then((m) => m.cloudUsage()),

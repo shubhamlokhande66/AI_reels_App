@@ -19,7 +19,6 @@ export const GROUPS: NavGroup[] = [
       { href: "/create/talking", label: "Talking Reel", tk: "nav.talking", icon: "mic", fullLoad: true },
       { href: "/create/photo", label: "Photo Reel", tk: "nav.photo", icon: "image", fullLoad: true },
       { href: "/create/copy", label: "Copy a Reel", tk: "nav.copy", icon: "copy", fullLoad: true },
-      { href: "/create/story", label: "Story Maker", tk: "nav.story", icon: "book", fullLoad: true },
       { href: "/reels", label: "My Reels", tk: "nav.reels", icon: "reels" },
     ],
   },
@@ -75,7 +74,6 @@ const LEGAL: PageMeta = { title: "Legal", tk: "nav.legal", back: "/" };
 const PAGES: Record<string, PageMeta> = {
   "/": { title: "Shubix", credits: true, tabs: true },
   "/reels": { title: "My Reels", tk: "nav.reels", credits: true, tabs: true },
-  "/create/story": { title: "Story Maker", tk: "nav.story", back: "/", credits: true },
   "/create/edit": { title: "Your Reel", tk: "nav.yourReel", credits: true },
   "/editor": { title: "Reel Studio", credits: true },
   // the flow has its own back (FE/web-app/components/studio/flow.ts)

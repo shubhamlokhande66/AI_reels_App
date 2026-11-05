@@ -28,7 +28,6 @@ export const LISTS: ListDef[] = [
       card("talking", "Talking Reel", "Vlogs & Tutorials", "/create/talking", "mic", "talk"),
       card("photo", "Photo Reel", "Bring Photos to Life", "/create/photo", "image", "photo"),
       card("copy", "Copy a Reel", "Match any Reel", "/create/copy", "copy", "copy"),
-      card("story", "Story Maker", "Text to Video", "/create/story", "book", "story"),
       card("templates", "Templates", "Ready-made Styles", "/templates", "grid", "template"),
       card("reels", "My Reels", "Watch & share", "/reels", "video", "recreate"),
     ],

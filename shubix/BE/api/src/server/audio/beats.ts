@@ -1,30 +1,25 @@
 import { round } from "@shubix/core/engine/core/py";
-import { bpmFromBeats } from "./bpm";
 import type { BeatThisResult } from "./beatThis";
-import type { EssentiaBeats } from "./essentia";
 import * as tempo from "./tempo";
 
-/** Beats and tempo. The beats are Essentia's RhythmExtractor2013 (multifeature: five onset functions, the beats they agree
- * on, with a confidence) and are kept EXACTLY as detected: nothing is inserted, removed or moved afterwards. When Essentia
- * finds no usable beats, an evenly spaced grid is used instead and labelled as such (beatSource = "inferred_grid").
+/** Beats and tempo. The beats and bar starts come from the neural tracker (Beat This!) and are kept as detected. When it
+ * cannot run, an evenly spaced grid on the song's hits is used instead and labelled as such (beatSource = "inferred_grid").
  *
- * Tempo: Essentia's own BPM, compared with an independent estimate (PercivalBpmEstimator) and with the beat intervals.
- * Two estimates that differ by a half / double (or 2:3) factor are a metrical-level ambiguity, not a confirmation; it is
- * reported, not resolved by changing the beats. Bars (downbeats) and the meter are only given with enough evidence. */
+ * Tempo: compared with an independent estimate from the onset envelope. Two estimates that differ by a half / double (or
+ * 2:3) factor are a metrical-level ambiguity, not a confirmation; it is reported, not resolved by changing the beats. */
 
 export type BpmAgreement = "agree" | "octave" | "disagree" | "unknown";
 export interface BeatResult {
   bpm: number;
-  /** Essentia's confidence scaled to 0..1 (its own scale is 0..5.32; above ~3.5 is very sure, below ~1.5 unsure) */
+  /** the network's mean probability, 0..1; 0 for an even grid */
   confidence: number;
-  essentiaConfidence: number;
   beats: number[];
   /** per beat 0..1: evidence for that beat (a hit on it, against the music around; and its spacing on the local grid) */
   beatConfidences: number[];
-  beatSource: "beat_this" | "essentia" | "inferred_grid";
+  beatSource: "beat_this" | "inferred_grid";
   /** per beat: its place in the bar, 1 = the bar start (empty when the bars are not known) */
   beatPositions: number[];
-  bpmEstimates: { beatThis?: number | null; rhythmExtractor: number; percival: number | null; beatIntervals: number | null };
+  bpmEstimates: { beatThis?: number | null; envelope: number | null; beatIntervals: number | null };
   bpmAgreement: BpmAgreement;
   onsets: number[];
   tempoSections: tempo.TempoSection[];
@@ -35,8 +30,6 @@ export interface BeatResult {
 
 const AGREE = 0.04; // two tempo estimates within 4% are the same tempo
 const OCTAVE_RATIOS = [2, 0.5, 1.5, 2 / 3, 3, 1 / 3];
-const BAR_MIN_CONFIDENCE = 0.5; // below this the bar phase is not trusted, and no downbeats are given
-const ESSENTIA_MAX_CONFIDENCE = 5.32;
 
 export function compareBpm(a: number, b: number | null): BpmAgreement {
   if (!a || !b) return "unknown";
@@ -103,10 +96,17 @@ export function barPhase(beats: number[], levels: number[]): { meter: 3 | 4; pha
   return best;
 }
 
-const uniformGrid = (bpm: number, duration: number) => {
-  const period = 60 / bpm;
-  return Array.from({ length: Math.trunc(duration / period) + 1 }, (_, i) => round(i * period, 3));
-};
+/** An even grid, starting where its beats land on the strongest hits (`env`: 512-sample frames at 22 050 Hz). */
+function evenGrid(bpm: number, env: Float64Array, duration: number): number[] {
+  const period = 60 / bpm, frames = (t: number) => Math.round(t * tempo.SR / tempo.HOP);
+  let start = 0, best = -1;
+  for (let at = 0; at < period; at += tempo.HOP / tempo.SR) {
+    let sum = 0;
+    for (let t = at; t < duration; t += period) sum += env[frames(t)] ?? 0;
+    if (sum > best) { best = sum; start = at; }
+  }
+  return Array.from({ length: Math.trunc((duration - start) / period) + 1 }, (_, i) => round(start + i * period, 3));
+}
 
 /** Each beat's place in its bar (1 = the bar start), counted from the bar starts; the beats before the first bar start
  * count back from it (..., 3, 4, then 1). Empty when there are no bar starts. */
@@ -125,7 +125,7 @@ export function barPositions(beats: number[], downbeats: number[], meter: number
 
 /** Beats and bars from the neural tracker (Beat This!): its own beats and bar starts, the meter from how many beats a
  * bar has, the tempo from the beat spacing, and its probabilities as the confidence. */
-function fromNetwork(net: BeatThisResult, ess: EssentiaBeats, onsets: number[], env: Float64Array, duration: number, percival: number | null): BeatResult {
+function fromNetwork(net: BeatThisResult, onsets: number[], env: Float64Array, duration: number, estimate: number | null): BeatResult {
   const keep = net.beats.map((t, i) => [t, net.beatProbabilities[i]] as const).filter(([t]) => t >= 0 && t <= duration + 0.05);
   const beats = keep.map(([t]) => t), probs = keep.map(([, p]) => p);
   // the tempo: a straight-line fit of beat time against beat number (the network works in 20 ms frames: one beat gap
@@ -144,23 +144,18 @@ function fromNetwork(net: BeatThisResult, ess: EssentiaBeats, onsets: number[], 
   else sections = [{ start: 0, end: round(duration, 3), bpm: round(bpm, 1), confidence: round(median(probs), 2) }];
   const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
   return {
-    bpm: round(bpm, 2), confidence: round(mean(probs), 3), essentiaConfidence: round(ess.confidence, 3),
+    bpm: round(bpm, 2), confidence: round(mean(probs), 3),
     beats, beatConfidences: probs, beatSource: "beat_this", beatPositions: meter ? barPositions(beats, downbeats, meter) : [],
-    bpmEstimates: { beatThis: round(bpm, 2), rhythmExtractor: round(ess.bpm, 2), percival: percival ? round(percival, 2) : null, beatIntervals: round(bpm, 2) },
-    bpmAgreement: compareBpm(bpm, percival), onsets: onsets.map((t) => round(t, 3)), tempoSections: sections,
+    bpmEstimates: { beatThis: round(bpm, 2), envelope: estimate ? round(estimate, 2) : null, beatIntervals: round(bpm, 2) },
+    bpmAgreement: compareBpm(bpm, estimate), onsets: onsets.map((t) => round(t, 3)), tempoSections: sections,
     downbeats, downbeatConfidence: round(mean(net.downbeatProbabilities), 3), meter,
   };
 }
 
-export function detectBeats(ess: EssentiaBeats, onsets: number[], env: Float64Array, duration: number, percival: number | null = null,
-                            signal: { y: Float32Array; sr: number } | null = null, net: BeatThisResult | null = null): BeatResult {
-  if (net && net.beats.length >= 4) return fromNetwork(net, ess, onsets, env, duration, percival);
-  // fallback (the network could not run): Essentia's beats, unchanged
-  const raw = ess.beats.filter((t) => t >= 0 && t <= duration + 0.05);
-  const usable = raw.length >= 4 && ess.bpm > 0;
-  const bpm = usable ? ess.bpm : percival || ess.bpm || 120;
-  const beats = usable ? raw : uniformGrid(bpm, duration);
-  const [fromIntervals] = raw.length >= 4 ? bpmFromBeats(raw) : [0];
+export function detectBeats(onsets: number[], env: Float64Array, duration: number, estimate: number | null, net: BeatThisResult | null = null): BeatResult {
+  if (net && net.beats.length >= 4) return fromNetwork(net, onsets, env, duration, estimate);
+  // fallback (the network could not run): an even grid at the estimated tempo, with no bars
+  const bpm = estimate || 120, beats = evenGrid(bpm, env, duration);
   let sections = tempo.localTempo(env, beats, duration, bpm);
   if (tempo.changesTempo(sections)) sections = tempo.refine(sections, beats, env);
   else {
@@ -168,31 +163,13 @@ export function detectBeats(ess: EssentiaBeats, onsets: number[], env: Float64Ar
     const conf = round(sections.length ? sections.reduce((a, s) => a + s.confidence, 0) / sections.length : regular, 2);
     sections = [{ start: 0, end: round(duration, 3), bpm: round(bpm, 1), confidence: conf }];
   }
-  // the meter and bar phase only when one clearly fits better than the other
-  let downbeats: number[] = [], barConf = 0, meter: 3 | 4 | null = null;
-  if (usable && signal) {
-    const bar = barPhase(beats, beatLevels(beats, signal.y, signal.sr));
-    if (bar && bar.confidence >= BAR_MIN_CONFIDENCE) {
-      const pos = beatPositions(beats);
-      downbeats = beats.filter((_, i) => pos[i] % bar.meter === bar.phase);
-      barConf = bar.confidence;
-      meter = bar.meter;
-    }
-  }
   return {
-    bpm: round(bpm, 2),
-    confidence: usable ? round(Math.min(Math.max(ess.confidence / ESSENTIA_MAX_CONFIDENCE, 0), 1), 3) : 0,
-    essentiaConfidence: round(ess.confidence, 3),
-    beats: beats.map((t) => round(t, 3)),
+    bpm: round(bpm, 2), confidence: 0, beats,
     beatConfidences: tempo.beatConfidence(beats, env, sections),
-    beatSource: usable ? "essentia" : "inferred_grid",
-    beatPositions: meter ? barPositions(beats, downbeats, meter) : [],
-    bpmEstimates: { rhythmExtractor: round(ess.bpm, 2), percival: percival ? round(percival, 2) : null, beatIntervals: fromIntervals ? round(fromIntervals, 2) : null },
-    bpmAgreement: compareBpm(ess.bpm, percival),
+    beatSource: "inferred_grid", beatPositions: [],
+    bpmEstimates: { envelope: estimate ? round(estimate, 2) : null, beatIntervals: null },
+    bpmAgreement: "unknown",
     onsets: onsets.map((t) => round(t, 3)),
-    tempoSections: sections,
-    downbeats: downbeats.map((t) => round(t, 3)),
-    downbeatConfidence: barConf,
-    meter,
+    tempoSections: sections, downbeats: [], downbeatConfidence: 0, meter: null,
   };
 }

@@ -12,7 +12,7 @@ export type Progress = (stage: "download" | "run", p: number) => void;
 type Ort = any;
 type Session = { run: (feeds: Record<string, unknown>) => Promise<Record<string, { data: unknown }>> };
 const CACHE = "brs-models-v1";
-type Urls = { model: string; filterbank: string; wasm: string; headers?: Record<string, string> };
+type Urls = { model: string; filterbank: string; wasm: string; headers?: Record<string, string>; open?: (url: string, wasm: () => Promise<Session>, onProgress: (p: number) => void) => Promise<Session> };
 
 /** WebAssembly SIMD (the runtime needs it): a tiny module using a v128 instruction must validate. */
 export function simdOk(): boolean {
@@ -59,11 +59,11 @@ function load(ort: Ort, urls: Urls, threads: number, onProgress: Progress) {
     ort.env.wasm.numThreads = threads;
     let pm = 0, pf = 0;
     const tell = () => onProgress("download", 0.97 * pm + 0.03 * pf);
-    const [model, fbBuf] = await Promise.all([getBytes(urls.model, (p) => { pm = p; tell(); }, urls.headers), getBytes(urls.filterbank, (p) => { pf = p; tell(); }, urls.headers)]);
-    const fb = new Float32Array(fbBuf);
+    const onModel = (p: number) => { pm = p; tell(); };
+    const wasm = async (): Promise<Session> => ort.InferenceSession.create(new Uint8Array(await getBytes(urls.model, onModel, urls.headers)), { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
+    const fbBuf = await getBytes(urls.filterbank, (p) => { pf = p; tell(); }, urls.headers), fb = new Float32Array(fbBuf);
     if (fb.length !== BINS * MELS) throw new Error("Beat This! mel filterbank has the wrong size");
-    const session = await ort.InferenceSession.create(new Uint8Array(model), { executionProviders: ["wasm"], graphOptimizationLevel: "all" });
-    return { session, fb };
+    return { session: await (urls.open ? urls.open(urls.model, wasm, onModel) : wasm()), fb };
   })().catch((e) => { ready = null; throw e; });
   return ready;
 }

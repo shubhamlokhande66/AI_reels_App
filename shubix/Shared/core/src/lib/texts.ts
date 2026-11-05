@@ -127,7 +127,6 @@ const LEGAL_ABOUT = `{name} is a Reels video studio for creators, small business
 - **Talking Reel:** turn a video of someone speaking into a Reel with captions.
 - **Photo Reel:** make a moving Reel from your photos.
 - **Copy a Reel:** start from the rhythm and style of a Reel you like.
-- **Story Maker:** write a story, and it becomes scenes with a narration and captions.
 
 ## How it works
 Pick a sound, add your clips, and let {name} make the first edit. Then change anything you like in the editor: clips, text, filters, effects and sound. Your video is made on your own device, so your original clips stay with you unless you use a feature that needs them on our servers. The [Privacy Policy](/privacy) explains exactly what is sent and why.
@@ -148,7 +147,7 @@ Shubix is a video studio for short vertical videos. Choose a song, add your clip
 - **Make it yours:** change the clips, add text and captions, adjust colour and sound, then export in 9:16.
 
 ## Made for every kind of Reel
-A Music Reel is cut to a song. A Talking Reel keeps the words of someone speaking and adds captions. A Photo Reel brings your pictures to life. Copy a Reel starts from the rhythm of a Reel you like, and Story Maker turns your written story into scenes with a narration.
+A Music Reel is cut to a song. A Talking Reel keeps the words of someone speaking and adds captions. A Photo Reel brings your pictures to life. Copy a Reel starts from the rhythm of a Reel you like.
 
 ## Tips for a better Reel
 Start with your strongest moment, because people decide in the first seconds. Use several short clips instead of one long clip, keep your subject in the centre of the 9:16 frame, and use music you have the right to use. Read more about [Shubix](/about), or see the [plans](/pricing).`;

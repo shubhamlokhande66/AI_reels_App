@@ -9,3 +9,5 @@ onlyBuiltDependencies:
   - prisma
   - "@nestjs/core"
   - sharp
+overrides:
+  multer: "^2.5.0"

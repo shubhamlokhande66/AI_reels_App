@@ -2,6 +2,8 @@
  * The sound is resampled to 16 kHz here (the browser's own resampler); rejects when the model cannot run, and the editor
  * then falls back to loudness. */
 
+import { phoneModels, speechOnPhone } from "../nativeModels";
+
 export const VAD_MODEL_URL = "/api/studio/model/silero_vad_16k_op15.onnx";
 export const VAD_HOP = 512 / 16000;
 let worker: Worker | null = null, nextId = 1;
@@ -22,7 +24,8 @@ async function to16k(mono: Float32Array, sr: number): Promise<Float32Array> {
 
 export async function speechProbs(mono: Float32Array, sr: number): Promise<Float32Array> {
   if (typeof Worker === "undefined" || typeof WebAssembly === "undefined") throw new Error("no WebAssembly here");
-  const samples = await to16k(mono, sr);
+  const samples = await to16k(mono, sr), native = phoneModels();
+  if (native) try { return await speechOnPhone(native, new URL(VAD_MODEL_URL, location.href).href, samples); } catch (e) { console.warn("[models] the phone's speech model failed, WebAssembly instead:", e); }
   worker ??= new Worker("/w/vad.worker.js", { type: "module" });
   const w = worker, id = nextId++;
   return new Promise((resolve, reject) => {

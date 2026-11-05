@@ -1,5 +1,5 @@
 // @vitest-environment node
-// Benchmark: Fast Studio's in-browser beat analysis vs the server's (Essentia, Beat This!). Not part of the suite: temporary.
+// Benchmark: Fast Studio's in-browser beat analysis vs the server's (Beat This!). Not part of the suite: temporary.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -7,7 +7,6 @@ import path from "node:path";
 import { it } from "vitest";
 import { analyzeAudio } from "../../../src/server/audio/analyzer";
 import { decode } from "../../../src/server/audio/decode";
-import { essentiaBeats } from "../../../src/server/audio/essentia";
 import { findBinary } from "../../../src/server/core/ffmpeg";
 import { rng } from "../rng";
 import { writeWav } from "../audio/fixtures";
@@ -91,12 +90,11 @@ function synthetic(): { name: string; y: Float32Array; truth: Truth }[] {
 }
 
 const CACHE = path.join(os.tmpdir(), "studio-bench-server.json");
-const cache: Record<string, { ess: { beats: number[]; bpm: number }; a: { beats: number[]; bpm: number; beatSource: string; onsets: number[]; duration: number }; tEss: number; tSrv: number }> = fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
+const cache: Record<string, { a: { beats: number[]; bpm: number; beatSource: string; onsets: number[]; duration: number }; tSrv: number }> = fs.existsSync(CACHE) ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : {};
 async function server(file: string, key: string) {
   if (!cache[key]) {
-    let t0 = performance.now(); const e = await essentiaBeats(await decode(file, 44100)); const tEss = performance.now() - t0;
-    t0 = performance.now(); const x = await analyzeAudio(file); const tSrv = performance.now() - t0;
-    cache[key] = { ess: { beats: e.beats, bpm: e.bpm }, a: { beats: x.beats, bpm: x.bpm, beatSource: x.beatSource, onsets: x.onsets, duration: x.duration }, tEss, tSrv };
+    const t0 = performance.now(); const x = await analyzeAudio(file); const tSrv = performance.now() - t0;
+    cache[key] = { a: { beats: x.beats, bpm: x.bpm, beatSource: x.beatSource, onsets: x.onsets, duration: x.duration }, tSrv };
     fs.writeFileSync(CACHE, JSON.stringify(cache));
   }
   return cache[key];
@@ -115,11 +113,10 @@ it.skipIf(!process.env.STUDIO_BENCH)("Fast Studio vs server beat accuracy", { ti
     const mp3 = wav.replace(/\.wav$/, ".mp3"); // what people upload
     execFileSync(findBinary("ffmpeg"), ["-y", "-loglevel", "error", "-i", wav, "-b:a", "192k", mp3]);
     const t0 = performance.now(); const st = studio(decodeStereo(mp3), 48000); const tStudio = performance.now() - t0;
-    const { ess, a, tEss, tSrv } = await server(mp3, "syn:" + s.name);
+    const { a, tSrv } = await server(mp3, "syn:" + s.name);
     log(`\n### ${s.name} (true ${s.truth.bpm} BPM)`);
     log(`Fast Studio : ${fmtS(score(st.beats, s.truth.beats))}  bpm ${(60 / st.period).toFixed(1)}  ${tStudio.toFixed(0)} ms  | cuts on a real hit: ${(100 * hitRate(st.cuts.filter((c) => c > 0.1), s.truth.hits)).toFixed(0)}% of ${st.cuts.length}`);
     { const ai = studio(decodeStereo(mp3), 48000, { beats: a.beats }); log(`Studio + AI : ${fmtS(score(ai.beats, s.truth.beats))}  bpm ${(60 / ai.period).toFixed(1)}  picked ${ai.beatSource}`); }
-    log(`Essentia    : ${fmtS(score(ess.beats, s.truth.beats))}  bpm ${ess.bpm.toFixed(1)}  ${tEss.toFixed(0)} ms`);
     log(`Server final: ${fmtS(score(a.beats, s.truth.beats))}  bpm ${a.bpm.toFixed(1)}  ${tSrv.toFixed(0)} ms  (${a.beatSource})`);
   }
   log("\n## Real songs (no ground truth: measured against Beat This!, the server's neural tracker)");
@@ -129,13 +126,12 @@ it.skipIf(!process.env.STUDIO_BENCH)("Fast Studio vs server beat accuracy", { ti
   const seen = new Set<number>();
   for (const f of songs) {
     const size = fs.statSync(f).size; if (seen.has(size)) continue; seen.add(size);
-    let a, ess; try { ({ a, ess } = await server(f, "real:" + path.basename(f) + ":" + size)); } catch (e) { log(`${path.basename(f)}: skipped (${(e as Error).message})`); continue; }
+    let a; try { ({ a } = await server(f, "real:" + path.basename(f) + ":" + size)); } catch (e) { log(`${path.basename(f)}: skipped (${(e as Error).message})`); continue; }
     if (a.duration < 8) { log(`${path.basename(f)}: skipped (${a.duration}s)`); continue; }
     const t0 = performance.now(), st = studio(decodeStereo(f), 48000), tS = performance.now() - t0;
     log(`\n### ${path.basename(f)} (${a.duration.toFixed(0)} s, Beat This! ${a.bpm.toFixed(1)} BPM, source ${a.beatSource})`);
     log(`Fast Studio vs Beat This!: ${fmtS(score(st.beats, a.beats))}  bpm ${(60 / st.period).toFixed(1)} | cuts on a server onset: ${(100 * hitRate(st.cuts.filter((c) => c > 0.1), a.onsets)).toFixed(0)}%  ${tS.toFixed(0)} ms`);
     { const ai = studio(decodeStereo(f), 48000, { beats: a.beats }); log(`Studio + AI vs Beat This!: ${fmtS(score(ai.beats, a.beats))}  bpm ${(60 / ai.period).toFixed(1)}  picked ${ai.beatSource}`); }
-    log(`Essentia    vs Beat This!: ${fmtS(score(ess.beats, a.beats))}  bpm ${ess.bpm.toFixed(1)} (intervals ${bpmOf(ess.beats).toFixed(1)})`);
   }
   fs.writeFileSync(path.join(os.tmpdir(), "studio-bench.txt"), lines.join("\n"));
 });

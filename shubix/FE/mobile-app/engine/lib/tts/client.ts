@@ -1,28 +1,36 @@
-/** Fast Studio's text to speech on the phone (lib/tts/tts.worker.ts): Piper voices, downloaded once from
- * rhasspy/piper-voices (Hugging Face) and kept on the phone. Nothing is uploaded. */
+/** Text to speech: the phone's own voices (SystemVoice.kt, through the app's file server). Nothing is uploaded by us. */
 
-import { voiceUrl } from "./voices";
-export { TTS_VOICES, voiceUrl, type TtsVoice } from "./voices";
+import { phoneModels } from "../nativeModels";
+import { voiceLanguage } from "./voices";
+export { TTS_VOICES, type TtsVoice } from "./voices";
 
-let worker: Worker | null = null, nextId = 1;
-export type TtsProgress = { stage: "download" | "speak"; p: number };
+export type TtsProgress = { stage: "speak"; p: number };
 
-export function speak(text: string, voice: string, onProgress?: (p: TtsProgress) => void): Promise<{ pcm: Float32Array; sr: number }> {
-  if (typeof Worker === "undefined" || typeof WebAssembly === "undefined") return Promise.reject(new Error("no WebAssembly here"));
-  worker ??= new Worker("/w/tts.worker.js", { type: "module" });
-  const w = worker, id = nextId++, u = voiceUrl(voice);
-  return new Promise((resolve, reject) => {
-    const done = () => { w.removeEventListener("message", onMsg); w.removeEventListener("error", onErr); };
-    const onMsg = (e: MessageEvent) => { const d = e.data; if (d.id !== id) return;
-      if (d.type === "progress") { onProgress?.({ stage: d.stage, p: d.p }); return; }
-      done(); if (d.type === "done") resolve({ pcm: d.pcm, sr: d.sr }); else reject(new Error(d.message)); };
-    const onErr = (e: ErrorEvent) => { done(); worker = null; reject(new Error(e.message || "voice worker failed")); };
-    w.addEventListener("message", onMsg); w.addEventListener("error", onErr);
-    w.postMessage({ id, text, model: u.model, config: u.config, wasm: new URL("/vendor/ort/", location.href).href, piper: new URL("/vendor/piper/", location.href).href });
-  });
+// long text: by sentences (a few hundred letters at most each), joined with a short pause
+function chunks(text: string, max = 300): string[] {
+  const out: string[] = []; let cur = "";
+  for (const s of text.match(/[^.!?।\n]+[.!?।]*\s*/g) ?? [text]) {
+    if ((cur + s).length > max && cur.trim()) { out.push(cur.trim()); cur = ""; }
+    cur += s;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
 }
 
-/** Is this voice already on the phone? (then adding speech starts at once) */
-export async function voiceStored(voice: string): Promise<boolean> {
-  try { const c = await caches.open("brs-models-v1"); return !!(await c.match(voiceUrl(voice).model)); } catch { return false; }
+export async function speak(text: string, voice: string, onProgress?: (p: TtsProgress) => void): Promise<{ pcm: Float32Array; sr: number }> {
+  const n = phoneModels();
+  if (!n) throw new Error("Text to speech works in the app");
+  const parts = chunks(text), pcms: Float32Array[] = [];
+  let sr = 22050;
+  for (let k = 0; k < parts.length; k++) {
+    onProgress?.({ stage: "speak", p: k / parts.length });
+    const res = await fetch(`${n.base}/speak?k=${n.key}&v=${encodeURIComponent(voiceLanguage(voice))}`, { method: "POST", body: parts[k] });
+    if (!res.ok) throw new Error(await res.text());
+    sr = Number(res.headers.get("X-Sample-Rate")) || sr;
+    pcms.push(new Float32Array(await res.arrayBuffer()));
+    if (k < parts.length - 1) pcms.push(new Float32Array(Math.round(0.18 * sr)));
+  }
+  const pcm = new Float32Array(pcms.reduce((a, p) => a + p.length, 0)); let at = 0;
+  for (const p of pcms) { pcm.set(p, at); at += p.length; }
+  return { pcm, sr };
 }

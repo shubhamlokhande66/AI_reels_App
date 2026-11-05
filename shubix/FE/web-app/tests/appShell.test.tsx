@@ -36,7 +36,7 @@ beforeEach(() => { admin.value = false; });
 describe("AppShell navigation", () => {
   it("shows people the product: the ways to make a Reel, My Reels, templates and brands", () => {
     const nav = renderShell();
-    for (const [name, href] of [["Music Reel", "/create/music"], ["Talking Reel", "/create/talking"], ["Photo Reel", "/create/photo"], ["Story Maker", "/create/story"], ["My Reels", "/reels"], ["Templates", "/templates"], ["Brands", "/brands"]]) {
+    for (const [name, href] of [["Music Reel", "/create/music"], ["Talking Reel", "/create/talking"], ["Photo Reel", "/create/photo"], ["My Reels", "/reels"], ["Templates", "/templates"], ["Brands", "/brands"]]) {
       expect(nav.getByRole("link", { name: new RegExp(name) })).toHaveAttribute("href", href);
     }
     expect(screen.getAllByText("me@example.com").length).toBeGreaterThan(0); // the sidebar and the phone menu
@@ -64,10 +64,10 @@ describe("AppShell navigation", () => {
 });
 
 describe("AppShell: the Create flow in the menu", () => {
-  it("lists Music, Talking and Photo Reel and Story Maker instead of Fast Studio", () => {
+  it("lists Music, Talking and Photo Reel instead of Fast Studio, and no Story Maker", () => {
     const nav = renderShell();
     expect(nav.queryByRole("link", { name: /Fast Studio/ })).toBeNull();
-    expect(nav.getAllByRole("link", { name: /Story Maker/ })).toHaveLength(1);
+    expect(nav.queryByRole("link", { name: /Story Maker/ })).toBeNull();
   });
 
 });
