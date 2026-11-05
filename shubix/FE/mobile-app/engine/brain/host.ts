@@ -12,6 +12,7 @@ export function soundOf(channels, sampleRate){
 
 export function createHost(initial, io = {}){
   const brain = brainFromCopy(initial), { ES, values } = brain, analyse = io.analyse;
+  if(io.getCtx) values.getCtx = io.getCtx;
   const sec = { len: 0, auto: true, start: 0 };
   values.sec = sec; values.partBeats = values.partBeats ?? undefined;
 
@@ -54,8 +55,9 @@ export function createHost(initial, io = {}){
     if(ES.sources.length) brain.makeEditNow();
   }
   /** `channels`: the song's sound, one Float32Array each; `mono`: their mix; `r`: its analysis */
-  async function setSong({ channels, mono, r, name, file }){
-    const buf = soundOf(channels, 0 + (r.sampleRate || 0) || channels.sampleRate || 44100);
+  async function setSong(song){
+    const { channels, mono, r, name, file, sampleRate } = song;
+    const buf = soundOf(channels, sampleRate);
     ES.song = { buf, mono, r, name, file, source: r.beatSource || 'own', key: name + '|' + buf.duration.toFixed(2) };
     ES.buf = buf; ES.mono = mono; ES.secStart = 0;
     await useSection();

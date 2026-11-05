@@ -164,8 +164,8 @@ try {
     const { createHost } = await import("file:///" + hostFile.replace(/\\/g, "/")), { shotsOf } = await import("file:///" + bundle.replace(/\\/g, "/"));
     if (UPDATE_START) writeFileSync(join(app, "engine", "brain", "initial-state.json"), startState);
     try {
-      const host = createHost(startState), mono = Float32Array.from(inputs.mono), r = { ...inputs.r, rmsF: Float32Array.from(inputs.r.rmsF), pfArr: Float32Array.from(inputs.r.pfArr), onEnv: Float64Array.from(inputs.r.onEnv), sampleRate: inputs.sr };
-      await host.setSong({ channels: [mono], mono, r, name: inputs.name, file: { name: inputs.name, size: mono.length } });
+      const host = createHost(startState), mono = Float32Array.from(inputs.mono), r = { ...inputs.r, rmsF: Float32Array.from(inputs.r.rmsF), pfArr: Float32Array.from(inputs.r.pfArr), onEnv: Float64Array.from(inputs.r.onEnv) };
+      await host.setSong({ channels: [mono], mono, r, name: inputs.name, sampleRate: inputs.sr });
       for (const c of inputs.clips) host.addClip(c);
       host.ES.seed = JSON.parse(copy).ES.seed; host.ES.mixNo = JSON.parse(copy).ES.mixNo;   // the page has made its Reel several times by now
       host.makeReel();

@@ -134,6 +134,13 @@ class Models(private val dir: File, private val api: String) {
     } finally { feeds.values.forEach { it.close() } }
   }
 
+  /** one run with a single float input, the outputs by name (for the phone's own code) */
+  fun runFloats(url: String, input: String, data: FloatArray, shape: LongArray): Map<String, FloatArray> = using(url) { session ->
+    OnnxTensor.createTensor(env, FloatBuffer.wrap(data), shape).use { t ->
+      session.run(mapOf(input to t)).use { result -> result.associate { e -> val b = (e.value as OnnxTensor).floatBuffer; e.key to FloatArray(b.remaining()).also { b.get(it) } } }
+    }
+  }
+
   /** Silero's chance of speech for every 512 samples of 16 kHz mono floats, each window seeing the 64 samples before it, as
    * Silero's own wrapper does. The sound is read as it arrives, so a long clip needs no more memory than a short one. */
   fun speech(url: String, sound: InputStream, bytes: Long): FloatArray = using(url) { session ->

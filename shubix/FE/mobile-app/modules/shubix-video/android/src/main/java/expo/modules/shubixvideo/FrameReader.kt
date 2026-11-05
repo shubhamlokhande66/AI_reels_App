@@ -91,6 +91,18 @@ internal fun scanFile(file: File, dur: Double, onProgress: (Double) -> Unit): Cl
   }, onProgress)
 }
 
+/** Where faces are in a whole clip, on the phone's own decoder and model (ClipFaces.kt) */
+internal fun facesOfFile(file: File, dur: Double, W: Int, H: Int, models: Models): List<FaceLook> {
+  val (w, h) = faceFrameSize(W, H); val times = faceTimes(dur); val looks = ArrayList<FaceLook>()
+  models.fetch(FACE_MODEL) {}
+  readFrames(file, w, h, times, FrameSink(w * h * 4) { k, rgba ->
+    if (rgba != null) looks += FaceLook(times[k], lookForFaces(rgba, w, h, W.toDouble(), H.toDouble()) { square ->
+      val o = models.runFloats(FACE_MODEL, "input", square, longArrayOf(1, 128, 128, 3)); faceRows(o.getValue("regressors"), o.getValue("classificators"))
+    })
+  }) {}
+  return looks
+}
+
 /** a decoded picture as small RGBA, turned as the clip is shown (BT.601; close enough for reading a clip) */
 private fun toRgba(image: Image, rotation: Int, w: Int, h: Int, rgba: ByteArray) {
   if (image.format != ImageFormat.YUV_420_888) throw IllegalArgumentException("picture format ${image.format}")

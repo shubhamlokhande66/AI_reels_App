@@ -34,6 +34,8 @@ import kotlin.concurrent.thread
  *   POST /onnx?k=KEY&u=MODEL        one run of a model
  *   POST /speech?k=KEY&u=MODEL      the chance of speech in a 16 kHz sound
  *   POST /scan?k=KEY&p=PATH&dur=D   a clip's samples and scene changes (ClipScan.kt): lines of progress, then a line of JSON
+ *   GET  /probe?k=KEY&p=PATH        a clip's length and its size as shown: { dur, w, h }
+ *   POST /faces?k=KEY&p=PATH&dur=D&w=W&h=H  where faces are in a clip (ClipFaces.kt): a line of JSON
  *   POST /song?k=KEY                the song's beats and cuts (SongAnalysis.kt); the body is as songFromRequest reads it
  *   POST /speak?k=KEY&v=LANGUAGE    the body's words spoken by the phone's voice: floats, with X-Sample-Rate (SystemVoice.kt) */
 @androidx.media3.common.util.UnstableApi
@@ -62,7 +64,7 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech" && url.path != "/speak" && url.path != "/song" && url.path != "/scan") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech" && url.path != "/speak" && url.path != "/song" && url.path != "/scan" && url.path != "/probe" && url.path != "/faces") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -96,6 +98,29 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
         while (read < body.size) { val n = input.read(body, read, body.size - read); if (n <= 0) break; read += n }
         try { reply(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream"), models.run(url.getQueryParameter("u") ?: "", body)) }
         catch (e: Throwable) { reply(out, 500, "Model failed", mapOf("Content-Type" to "text/plain"), (e.message ?: "model failed").toByteArray()) }
+      }
+      url.path == "/probe" && method == "GET" -> {
+        val f = File(url.getQueryParameter("p") ?: "")
+        if (!f.isFile || !inside(f)) return@use reply(out, 404, "Not Found", emptyMap(), null)
+        val r = android.media.MediaMetadataRetriever()
+        try {
+          r.setDataSource(f.path)
+          val turn = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+          val a = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0; val b = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+          val dur = (r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toDoubleOrNull() ?: 0.0) / 1000
+          if (a <= 0 || b <= 0 || dur <= 0) return@use reply(out, 422, "Unreadable", emptyMap(), null)
+          reply(out, 200, "OK", mapOf("Content-Type" to "application/json"), org.json.JSONObject().put("dur", dur).put("w", if (turn % 180 == 0) a else b).put("h", if (turn % 180 == 0) b else a).toString().toByteArray())
+        } catch (e: Exception) { reply(out, 422, "Unreadable", emptyMap(), null) } finally { r.release() }
+      }
+      url.path == "/faces" && method == "POST" -> {
+        val f = File(url.getQueryParameter("p") ?: ""); val dur = url.getQueryParameter("dur")?.toDoubleOrNull() ?: 0.0
+        val w = url.getQueryParameter("w")?.toIntOrNull() ?: 0; val h = url.getQueryParameter("h")?.toIntOrNull() ?: 0
+        if (!f.isFile || !inside(f) || dur <= 0 || w <= 0 || h <= 0) return@use reply(out, 404, "Not Found", emptyMap(), null)
+        if (!decoders.tryAcquire(30, TimeUnit.SECONDS)) return@use reply(out, 503, "Busy", emptyMap(), null)
+        write(out, 200, "OK", mapOf("Content-Type" to "text/plain"))
+        try { out.write((facesOfFile(f, dur, w, h, models).facesToJson().toString() + "\n").toByteArray()) }
+        catch (e: Throwable) { out.write("${(e.message ?: "no faces").replace('\n', ' ').ifBlank { "no faces" }}\n".toByteArray()) }
+        finally { decoders.release(); out.flush() }
       }
       url.path == "/scan" && method == "POST" -> {
         val f = File(url.getQueryParameter("p") ?: ""); val dur = url.getQueryParameter("dur")?.toDoubleOrNull() ?: 0.0
