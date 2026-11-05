@@ -374,6 +374,11 @@ class ShubixVideoModule : Module() {
       if (!live) studioStabilizer(c)?.let { video += it }
       video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
       video += filter(c.optString("filter"))
+      // the shot's beat effect, with the studio's own shader (StudioTransitions.kt)
+      if (!live && shaders?.main != null) c.optJSONObject("beatFx")?.let { fx ->
+        val beats = fx.optJSONArray("beats")
+        video += BeatFx(shaders.vert, shaders.main, fx.optString("id"), (0 until (beats?.length() ?: 0)).map { beats!!.optDouble(it) }, clipOutputDuration)
+      }
       // the studio's transition into this shot (tr: id, dur): the old shot's last frame and this one, as the website
       val tr = c.optJSONObject("tr")
       if (shaders?.main != null && tr != null) video += Transition(shaders.vert, shaders.main, held, tr.optString("id"), tr.optDouble("dur"), -base)

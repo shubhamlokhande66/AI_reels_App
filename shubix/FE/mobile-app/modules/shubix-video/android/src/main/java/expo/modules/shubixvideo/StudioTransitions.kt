@@ -10,8 +10,11 @@ import androidx.media3.effect.BaseGlShaderProgram
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 
@@ -53,33 +56,7 @@ internal class Transition(private val vert: String, private val main: String, pr
       val p = if (dur > 0) (local / dur).coerceIn(0.0, 1.0) else 1.0
       if (p >= 1.0 || (!held.has && id != "fadein")) { draw(copy, inputTexId); return }
       val s = stateOf(id, p, w, h, held.has)
-      prog.use()
-      // Media3 binds every sampler itself: each must be named here, before bindAttributesAndUniforms
-      prog.setSamplerTexIdUniform("tB", if (s.swap) held.tex else inputTexId, 0)
-      prog.setSamplerTexIdUniform("tA", if (held.has) held.tex else inputTexId, 1)
-      prog.setSamplerTexIdUniform("tL", inputTexId, 2)
-      prog.setBufferAttribute("a", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
-      prog.bindAttributesAndUniforms()
-      val u = { n: String -> prog.getUniformLocation(n) }
-      val f1 = { n: String, v: Float -> GLES20.glUniform1f(u(n), v) }
-      val f2 = { n: String, a: Float, b: Float -> GLES20.glUniform2f(u(n), a, b) }
-      val f3 = { n: String, a: Float, b: Float, c: Float -> GLES20.glUniform3f(u(n), a, b, c) }
-      val f4 = { n: String, a: FloatArray -> GLES20.glUniform4f(u(n), a[0], a[1], a[2], a[3]) }
-      f2("res", w, h)
-      for ((k, L) in listOf("A" to s.a, "B" to s.b)) {
-        f4("r$k", L.rect); f1("rot$k", L.rot); f1("zb$k", L.zb); f2("db$k", L.dbx, L.dby); f1("rgb$k", L.rgb); f1("ex$k", L.expo); f1("br$k", 1f)
-        f2("off$k", 0f, 0f); f1("cl$k", L.clip); f4("tf$k", floatArrayOf(1f, 0f, 0f, 1f)); f4("bg$k", floatArrayOf(0f, 0f, 0f, -1f)); f4("bgr$k", floatArrayOf(0f, 0f, 1f, 1f))
-        f4("bd$k", FloatArray(4)); f4("ad$k", FloatArray(4)); f4("ad2$k", FloatArray(4)); f1("be$k", 0f); f1("al$k", 1f)
-      }
-      f1("hasA", if (s.hasA) 1f else 0f); f1("mode", s.mode); f1("prog", s.prog); f1("mixv", s.mix); f2("irisC", w / 2, h / 2)
-      f1("time", local.toFloat()); f1("snap", 0f); f4("bgR", floatArrayOf(0f, 0f, 1f, 1f)); f1("bgDark", 0f); f4("frR", floatArrayOf(0f, 0f, w, h)); f1("border", 0f)
-      // the look is the shot's own (done before this pass): a neutral grade here, so it is not given twice
-      f1("con", 1f); f1("sat", 1f); f1("bri", 1f); f1("teal", 0f); f1("mono", 0f); f1("vig", 0f); f1("grain", 0f); f1("warm", 0f); f1("lift", 0f)
-      f4("tsh", floatArrayOf(0.5f, 0.5f, 0.5f, 0f)); f4("thi", floatArrayOf(0.5f, 0.5f, 0.5f, 0f))
-      f1("flash", s.flash); f3("leak", s.leak[0], s.leak[1], s.leak[2]); f1("loopMix", 0f)
-      f4("mz", FloatArray(4)); f1("mzc", 1f); f4("mg", floatArrayOf(0f, 0f, 0f, 1f)); f4("shp", FloatArray(4)); f4("shq", FloatArray(4))
-      GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-      GlUtil.checkGlError()
+      drawMain(prog, if (s.swap) held.tex else inputTexId, if (held.has) held.tex else inputTexId, inputTexId, w, h, s.a, s.b, s.hasA, s.mode, s.prog, s.mix, local.toFloat(), s.flash, s.leak)
     }
     override fun release() { super.release(); copy.delete(); prog.delete() }
   }
@@ -90,6 +67,79 @@ private fun draw(p: GlProgram, tex: Int) {
   p.use(); p.setSamplerTexIdUniform("T", tex, 0)
   p.setBufferAttribute("a", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
   p.bindAttributesAndUniforms(); GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+}
+
+/** the studio's main shader, one draw (its uniforms as the website's renderer sets them; the look is the shot's own, done before this pass) */
+private fun drawMain(prog: GlProgram, texB: Int, texA: Int, texL: Int, w: Float, h: Float, a: Layer, b: Layer, hasA: Boolean, mode: Float, progress: Float, mix: Float, time: Float, flash: Float, leak: FloatArray,
+                     shp: FloatArray = FloatArray(4), shq: FloatArray = FloatArray(4), mono: Float = 0f, con: Float = 1f) {
+  prog.use()
+  // Media3 binds every sampler itself: each must be named here, before bindAttributesAndUniforms
+  prog.setSamplerTexIdUniform("tB", texB, 0)
+  prog.setSamplerTexIdUniform("tA", texA, 1)
+  prog.setSamplerTexIdUniform("tL", texL, 2)
+  prog.setBufferAttribute("a", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
+  prog.bindAttributesAndUniforms()
+  val u = { n: String -> prog.getUniformLocation(n) }
+  val f1 = { n: String, v: Float -> GLES20.glUniform1f(u(n), v) }
+  val f2 = { n: String, x: Float, y: Float -> GLES20.glUniform2f(u(n), x, y) }
+  val f3 = { n: String, x: Float, y: Float, z: Float -> GLES20.glUniform3f(u(n), x, y, z) }
+  val f4 = { n: String, v: FloatArray -> GLES20.glUniform4f(u(n), v[0], v[1], v[2], v[3]) }
+  f2("res", w, h)
+  for ((k, L) in listOf("A" to a, "B" to b)) {
+    f4("r$k", L.rect); f1("rot$k", L.rot); f1("zb$k", L.zb); f2("db$k", L.dbx, L.dby); f1("rgb$k", L.rgb); f1("ex$k", L.expo); f1("br$k", 1f)
+    f2("off$k", 0f, 0f); f1("cl$k", L.clip); f4("tf$k", floatArrayOf(1f, 0f, 0f, 1f)); f4("bg$k", floatArrayOf(0f, 0f, 0f, -1f)); f4("bgr$k", floatArrayOf(0f, 0f, 1f, 1f))
+    f4("bd$k", FloatArray(4)); f4("ad$k", FloatArray(4)); f4("ad2$k", FloatArray(4)); f1("be$k", 0f); f1("al$k", 1f)
+  }
+  f1("hasA", if (hasA) 1f else 0f); f1("mode", mode); f1("prog", progress); f1("mixv", mix); f2("irisC", w / 2, h / 2)
+  f1("time", time); f1("snap", 0f); f4("bgR", floatArrayOf(0f, 0f, 1f, 1f)); f1("bgDark", 0f); f4("frR", floatArrayOf(0f, 0f, w, h)); f1("border", 0f)
+  f1("con", con); f1("sat", 1f); f1("bri", 1f); f1("teal", 0f); f1("mono", mono); f1("vig", 0f); f1("grain", 0f); f1("warm", 0f); f1("lift", 0f)
+  f4("tsh", floatArrayOf(0.5f, 0.5f, 0.5f, 0f)); f4("thi", floatArrayOf(0.5f, 0.5f, 0.5f, 0f))
+  f1("flash", flash); f3("leak", leak[0], leak[1], leak[2]); f1("loopMix", 0f)
+  f4("mz", FloatArray(4)); f1("mzc", 1f); f4("mg", floatArrayOf(0f, 0f, 0f, 1f)); f4("shp", shp); f4("shq", shq)
+  GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+  GlUtil.checkGlError()
+}
+
+/** A shot's beat effect, as the website's shapeAt / beatFxOf (brain/core.ts, brain/pure.ts) with the same shader: a shape that steps on the
+ * shot's beats, or an RGB split, blur or strobe on them. A shape's centre is the frame's: the website's follows the subject. */
+private val SHAPE_K = mapOf("boxgrow" to 1, "grid" to 2, "strips" to 3, "circle" to 4, "heartbeat" to 5, "starbeat" to 6, "frame" to 7, "mirror" to 8, "kaleido" to 9, "triple" to 10, "vhs" to 11)
+internal val BEAT_EFFECTS = SHAPE_K.keys + setOf("strobe", "rgbpulse", "blurpulse")
+
+@UnstableApi
+internal class BeatFx(private val vert: String, private val main: String, private val id: String, beatsIn: List<Double>, private val length: Double) : GlEffect {
+  private val beats = beatsIn.filter { it > 0.08 && it < length - 0.05 }.ifEmpty { generateSequence(0.6) { it + 0.6 }.takeWhile { it < length - 0.1 }.toList() }
+  override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = object : BaseGlShaderProgram(useHdr, 1) {
+    private val prog = GlProgram(vert, main)
+    private var w = 1f; private var h = 1f
+    override fun configure(inputWidth: Int, inputHeight: Int): Size { w = inputWidth.toFloat(); h = inputHeight.toFloat(); return Size(inputWidth, inputHeight) }
+    override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) {
+      val t = presentationTimeUs / 1_000_000.0
+      val past = beats.filter { t >= it }; val n = past.size; val since = if (n > 0) t - past.last() else t
+      val bump = if (n > 0) exp(-since / 0.12) else 0.0
+      fun step(levels: List<Double>): Double { val x = levels[min(n, levels.size - 1)]; val from = if (n > 0) levels[min(n - 1, levels.size - 1)] else x * 0.7; return from + (x - from) * outBack(min(1.0, since / 0.16)) }
+      val k = SHAPE_K[id] ?: 0; var cells = 0
+      val level = when (k) {
+        1 -> step(listOf(0.4, 0.62, 0.84, 1.0))
+        2 -> { cells = if (length > 2.4 && beats.size >= 6) 3 else 2; min((cells * cells).toDouble(), 1.0 + n) }
+        3 -> { cells = 3; min(3.0, 1.0 + n) }
+        4 -> 0.5 * (1 + 0.14 * bump)
+        5 -> 0.36 * (1 + 0.16 * bump)
+        6 -> 0.42 * (1 + 0.16 * bump)
+        7 -> 0.8 * (1 + 0.035 * bump)
+        10 -> min(3.0, 1.0 + n)
+        else -> 1.0
+      }
+      var pulse = 0.0
+      for (b in beats) { val d = t - b; if (d >= 0 && d < 0.4) pulse = max(pulse, exp(-d / 0.09)) }
+      val picture = Layer(floatArrayOf(0f, 0f, w, h))
+      when (id) { "rgbpulse" -> picture.rgb = (18 * pulse).toFloat(); "blurpulse" -> picture.zb = (1.4 * pulse).toFloat(); "vhs" -> picture.rgb = (5 + 3 * abs(sin(t * 7))).toFloat() }
+      val strobe = id == "strobe" && n > 0 && since < 0.1
+      drawMain(prog, inputTexId, inputTexId, inputTexId, w, h, Layer(floatArrayOf(0f, 0f, w, h)), picture, false, 0f, 1f, 1f, t.toFloat(),
+        if (strobe) (0.3 * (1 - since / 0.1)).toFloat() else 0f, FloatArray(3),
+        floatArrayOf(k.toFloat(), level.toFloat(), w / 2, h / 2), floatArrayOf(cells.toFloat(), 0f, 0f, 0f), if (strobe) 1f else 0f, if (strobe) 1.25f else 1f)
+    }
+    override fun release() { super.release(); prog.delete() }
+  }
 }
 
 /** one shot in the transition: its rect on the frame (x, y, w, h in pixels, y down), turn (radians), blurs, colour split, light */

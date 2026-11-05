@@ -23,6 +23,8 @@ export const isNativeTransitionSupported = isAndroidTransitionSupported;
 export const isNativeEffectSupported = isAndroidEffectSupported;
 
 
+// the studio's beat effects: the native export draws them with the studio's own shader (BeatFx, StudioTransitions.kt)
+const BEAT_FX = new Set(["boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"]);
 /** What the native export cannot make yet for this Reel, so it stays on the studio's export (docs/native-engine.md). */
 export function nativeExportGaps(p: ReelProject, layers: NativeLayerRow[]): string[] {
   const gaps = new Set<string>();
@@ -34,22 +36,28 @@ export function nativeExportGaps(p: ReelProject, layers: NativeLayerRow[]): stri
     if (l.mask && !["none", "circle", "radial", "oval", "ellipse", "rect", "rectangle", "polygon"].includes(l.mask)) gaps.add(`the ${l.mask} mask on layers`);
   }
   if (p.overlays.some((o) => (o as { behind?: boolean }).behind)) gaps.add("text behind the person");
+  for (const c of p.clips) {
+    if (c.effect && c.effect !== "none" && !BEAT_FX.has(c.effect) && !isAndroidEffectSupported(c.effect)) gaps.add(`the ${c.effect} effect`);
+    if (c.transition && !isAndroidTransitionSupported(c.transition) && !TR_DUR[c.transition]) gaps.add(`the ${c.transition} transition`);
+    if (!isAndroidFilterSupported(c.filter)) gaps.add(`the ${c.filter} filter`);
+  }
   return [...gaps];
 }
 export type NativeLayerRow = { native?: unknown; blend?: string; chromaKey?: boolean; follow?: string; mask?: string };
 
 /** `studio`: the studio's finished sound (engine.exportMix), which replaces the clips' sound and the song, and its plan: watermark, quality, frame rate. */
-export async function exportReel(p: ReelProject, onProgress: (done: number) => void, studio?: { mix: string | null; layers?: NativeLayerRow[]; plan: { watermark: boolean; fps: number; bitrate: number; scale: number; stabs?: unknown[] } }) {
+export async function exportReel(p: ReelProject, onProgress: (done: number) => void, studio?: { mix: string | null; layers?: NativeLayerRow[]; plan: { watermark: boolean; fps: number; bitrate: number; scale: number; stabs?: unknown[]; beats?: number[][] } }) {
   const mix = studio?.mix;
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
-  const unsupported = p.clips.find((clip) =>
-    (!studio && clip.reverse) ||
+  // a Studio Reel never stops here: what the native engine lacks is named by nativeExportGaps, and such a Reel stays on the studio's export
+  const unsupported = studio ? undefined : p.clips.find((clip) =>
+    clip.reverse ||
     (!!clip.transition && !isAndroidTransitionSupported(clip.transition)) ||
     (!!clip.effect && !isAndroidEffectSupported(clip.effect)) ||
     !isAndroidFilterSupported(clip.filter) ||
     (!mix && (clip.volume ?? 1) > 1)
   );
-  if (!studio && unsupported?.reverse) throw new Error("Reverse playback is not supported by the current Android native export engine yet.");
+  if (unsupported?.reverse) throw new Error("Reverse playback is not supported by the current Android native export engine yet.");
   if (unsupported?.transition && !isAndroidTransitionSupported(unsupported.transition)) {
     throw new Error(`The ${unsupported.transition} transition is not supported by the current Android export engine yet. Choose Cut before exporting.`);
   }
@@ -69,17 +77,25 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   const output = `${root}/exports/${safeId}-${Date.now()}.mp4`;
   // a clip played backwards: its own reversed file (a Studio Reel only: its sound comes from the mix)
   const clips = studio ? await Promise.all(p.clips.map(async (c) => c.reverse && c.kind !== "image" ? { ...c, uri: await ShubixVideo!.reverseCopy(c.uri, c.start, c.end), start: 0, end: c.end - c.start, reverse: false } : c)) : p.clips;
+  if (studio) for (const [i, c] of clips.entries()) clips[i] = { ...c, filter: isAndroidFilterSupported(c.filter) ? c.filter : "Original", effect: c.effect && !BEAT_FX.has(c.effect) && !isAndroidEffectSupported(c.effect) ? undefined : c.effect };
   const made = nativeSpec({ ...p, clips }, width, height);
   const spec = { ...made, output, ...(studio ? {
     watermark: studio.plan.watermark, fps: studio.plan.fps, bitrate: Math.round(studio.plan.bitrate),
-    clips: made.clips.map((c, i) => studio.plan.stabs?.[i] ? { ...c, stabPath: studio.plan.stabs[i] } : c),
+    clips: withStudio(made.clips, studio, p),
     layers: (studio.layers ?? []).map((l) => l.native).filter(Boolean),
   } : {}), ...(mix ? {
-    clips: made.clips.map((c, i) => ({ ...c, muted: true, volume: 1, ...(studio?.plan.stabs?.[i] ? { stabPath: studio.plan.stabs[i] } : {}) })),
+    clips: withStudio(made.clips, studio!, p).map((c) => ({ ...c, muted: true, volume: 1 })),
     audio: { uri: mix.startsWith("file:") ? mix : `file://${mix}`, start: 0, volume: 1, fadeIn: 0, fadeOut: 0, ducking: false, duckLevel: 0.35 },
   } : {}) };
   const sub = ShubixVideo.addListener("onProgress", (e) => onProgress(e.progress));
   try { return await ShubixVideo.exportReel(JSON.stringify(spec)); } finally { sub.remove(); }
+}
+/** each shot's steadying path and beat effect, from the studio's plan */
+function withStudio<C>(clips: C[], studio: { plan: { stabs?: unknown[]; beats?: number[][] } }, p: ReelProject) {
+  return clips.map((c, i) => {
+    const fx = p.clips[i]?.effect;
+    return { ...c, ...(studio.plan.stabs?.[i] ? { stabPath: studio.plan.stabs[i] } : {}), ...(fx && BEAT_FX.has(fx) ? { effects: [], beatFx: { id: fx, beats: studio.plan.beats?.[i] ?? [] } } : {}) };
+  });
 }
 export const cancelExport = () => ShubixVideo?.cancel();
 /** a clip that comes in with one of the studio's transitions (the first clip only with a fade in) */
