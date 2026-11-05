@@ -7,6 +7,7 @@ import { createReelBrain } from "./reel";
 import { createSharedBrain } from "./shared";
 import { createAiBrain } from "./ai";
 import { createSmallBrain } from "./small";
+import { createChatBrain } from "./chat";
 
 /** all the brain's parts on one state; what is not in the brain comes from `values` (plain data), else it is a page job, which does nothing here */
 export function createBrain(ES, values = {}) {
@@ -16,8 +17,8 @@ export function createBrain(ES, values = {}) {
     if (name in values) return values[name];
     return () => { pageJobs.set(name, (pageJobs.get(name) || 0) + 1); };
   } });
-  Object.assign(parts, { small: createSmallBrain(ES, EH), shared: createSharedBrain(ES, EH), edit: createEditBrain(ES, EH), core: createCoreBrain(ES, EH), reel: createReelBrain(ES, EH), ai: createAiBrain(ES, EH) });
-  return { ...parts.small, ...parts.shared, ...parts.edit, ...parts.core, ...parts.ai, ...parts.reel, ES, pageJobs };
+  Object.assign(parts, { chat: createChatBrain(ES, EH), small: createSmallBrain(ES, EH), shared: createSharedBrain(ES, EH), edit: createEditBrain(ES, EH), core: createCoreBrain(ES, EH), reel: createReelBrain(ES, EH), ai: createAiBrain(ES, EH) });
+  return { ...parts.chat, ...parts.small, ...parts.shared, ...parts.edit, ...parts.core, ...parts.ai, ...parts.reel, ES, pageJobs };
 }
 
 const isPagePart = (v) => (typeof Node !== "undefined" && v instanceof Node) || (typeof CanvasRenderingContext2D !== "undefined" && v instanceof CanvasRenderingContext2D);

@@ -33,6 +33,7 @@ import { bootPart } from '../../lib/boot';
 import { SCENE_FEAT, findScenes, histD, scanFinish, TAIL, aiBonus, beatFxOf, buildCapLines, clipBytes, crossesScene, csFilter, curveSpeed, endWell, fmt, goodSecs, isIndic, keyframesFor, lowerB, maskPath, moveWords, nearestS, panClamp, rampSpeed, revFrame, rmsOf, shotBeats, splitPoint, srcPos, srcPosF, statsIndex, suitFx, toSlots, updateClipHoverInfo, upperB, velocitySpeed, whatClip, windowStats, wrapLines } from '../../brain/pure';
 import { createEditBrain } from '../../brain/edit';
 import { createCoreBrain } from '../../brain/core';
+import { createChatBrain } from '../../brain/chat';
 import { createSmallBrain } from '../../brain/small';
 import { copyOfState } from '../../brain/index';
 import { createReelBrain } from '../../brain/reel';
@@ -44,6 +45,8 @@ export function initStudio(root, deps) {
 const ES = {}, HOOKS = {};
 const { aiBal, aiCostOf, creditWord, aiHeldBack, planIsFinal, csFade, csOf, csVoiced, clipVoiced, musicOut, hexRgb, lyOn, rateAt, reelLen, partOn, storySentences, avgLook, clip, fileFp, ttsPcm, paceKey, paceSongKey, inputSig } = createSmallBrain(ES, HOOKS.small = { get kxAt(){ return kxAt; }, get CS0(){ return CS0; }, get fxCache(){ return fxCache; }, get voiceFx(){ return voiceFx; }, get isPhotoMode(){ return isPhotoMode; },
   clipNames: () => [...$('clips').children].map(c => c.__src && !c.__src.removed ? c.__src.name : '').filter(Boolean) });
+const { chatApp, chatPatch, chatSend, chatAnswer } = createChatBrain(ES, HOOKS.chat = { get HIST_MAX(){ return HIST_MAX; }, get IN_APP(){ return IN_APP; }, get aiApply(){ return aiApply; }, get aiBal(){ return aiBal; }, get aiCostOf(){ return aiCostOf; }, get aiFreeChats(){ return aiFreeChats; }, get aiGate(){ return aiGate; }, get aiHeldBack(){ return aiHeldBack; }, get aiReelOk(){ return aiReelOk; }, get aiRun(){ return aiRun; }, get applyChatVisualIntent(){ return applyChatVisualIntent; }, get askCredits(){ return askCredits; }, get chatClearWait(){ return chatClearWait; }, get chatFail(){ return chatFail; }, get chatLocal(){ return chatLocal; }, get chatProposal(){ return chatProposal; }, get chatSay(){ return chatSay; }, get chatSize(){ return chatSize; }, get chatSync(){ return chatSync; }, get creditWord(){ return creditWord; }, get dirKey(){ return dirKey; }, get dirRequest(){ return dirRequest; }, get directorCandidates(){ return directorCandidates; }, get hist(){ return hist; }, get histSnap(){ return histSnap; }, get histUI(){ return histUI; }, get makeEdit(){ return makeEdit; }, get newId(){ return newId; }, get parseDirectorVisualIntent(){ return parseDirectorVisualIntent; }, get remakeOk(){ return remakeOk; }, get saveNow(){ return saveNow; }, get speedKey(){ return speedKey; }, get stopAll(){ return stopAll; }, get timeoutSignal(){ return timeoutSignal; }, get toSlots(){ return toSlots; }, get hist(){ return hist; }, get HIST_MAX(){ return HIST_MAX; }, get IN_APP(){ return IN_APP; }, get apiFetch(){ return apiFetch; }, get creditsChanged(){ return creditsChanged; }, aiLocked: () => aiLocked, aiNeedOn: () => root.classList.contains('aineed'), chatInputClear: () => { $('chatin').value = ''; chatFit(); }, chatUiBusy: on => { $('chatsend').disabled = on; },
+  chatLink: words => { const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = words; $('chatlog').appendChild(a); } });
 const { aiRun, aiGate, directorRun, variantsRun, paceRun, aiActions, aiTexts, timeoutSignal } = createAiBrain(ES, HOOKS.ai = { get aiSpent(){ return aiSpent; }, get aiHeldBack(){ return aiHeldBack; }, get BLENDS(){ return BLENDS; }, get IN_APP(){ return IN_APP; }, get LY0(){ return LY0; }, get SFX_NAMES(){ return SFX_NAMES; }, get SHOT_OPS(){ return SHOT_OPS; }, get VARIANTS(){ return VARIANTS; }, get ac(){ return ac; }, get addLayerMedia(){ return addLayerMedia; }, get addMark(){ return addMark; }, get addTemplate(){ return addTemplate; }, get addTtsAtPlayhead(){ return addTtsAtPlayhead; }, get aiBal(){ return aiBal; }, get aiCache(){ return aiCache; }, get aiCostOf(){ return aiCostOf; }, get aiDone(){ return aiDone; }, get aiFrames(){ return aiFrames; }, get aiNeed(){ return aiNeed; }, get aiReelOk(){ return aiReelOk; }, get aiRestore(){ return aiRestore; }, get aiStat(){ return aiStat; }, get aiStatText(){ return aiStatText; }, get apiFetch(){ return apiFetch; }, get askCredits(){ return askCredits; }, get auSet(){ return auSet; }, get chatFail(){ return chatFail; }, get chatSync(){ return chatSync; }, get clearMarks(){ return clearMarks; }, get creditWord(){ return creditWord; }, get creditsChanged(){ return creditsChanged; }, get dirArrived(){ return dirArrived; }, get dirKey(){ return dirKey; }, get dirRequest(){ return dirRequest; }, get directorCandidates(){ return directorCandidates; }, get directorMaybe(){ return directorMaybe; }, get ensureMix(){ return ensureMix; }, get fpOf(){ return fpOf; }, get getSoundMap(){ return getSoundMap; }, get isPhotoMode(){ return isPhotoMode; }, get keepAiPick(){ return keepAiPick; }, get loadFont(){ return loadFont; }, get lyUI(){ return lyUI; }, get makeEdit(){ return makeEdit; }, get mixStore(){ return mixStore; }, get notifyAct(){ return notifyAct; }, get openPricing(){ return openPricing; }, get paceFromSong(){ return paceFromSong; }, get paceKey(){ return paceKey; }, get paceMaybe(){ return paceMaybe; }, get paceSongKey(){ return paceSongKey; }, get pickBackground(){ return pickBackground; }, get pickLook(){ return pickLook; }, get pickVoiceFx(){ return pickVoiceFx; }, get planSig(){ return planSig; }, get prepLayers(){ return prepLayers; }, get redraw(){ return redraw; }, get redrawFrame(){ return redrawFrame; }, get reelIdNow(){ return reelIdNow; }, get reelLen(){ return reelLen; }, get refContext(){ return refContext; }, get renderOvList(){ return renderOvList; }, get saveNow(){ return saveNow; }, get setCaptionStyle(){ return setCaptionStyle; }, get setCaptions(){ return setCaptions; }, get sfxUI(){ return sfxUI; }, get shotOp(){ return shotOp; }, get shotSet(){ return shotSet; }, get tts(){ return tts; }, get wholeSections(){ return wholeSections; } });
 const { lockNeed, isLocked, isPartStart, SIZES, SPEED, SNAP_T, snapSpeed, FX_NAME, ACCENTS, aiReelOk, fpOf, aiTrusted, dirKey, dirSlotOf, dirShot, TR_STYLE, RECIPES, dirBase, planSig, paceUsable, paceNow, paceWanted, SEQ_FAST, SEQ_MAX, SPEED_KEYS, holdSpeed, speedKey, lyOf, refKeyOf, copyTimed, REF_TR, copyExact, AI_CS } = createSharedBrain(ES, HOOKS.shared = { get paceKey(){ return paceKey; }, get CANVAS_PATS(){ return CANVAS_PATS; }, get allOpen(){ return allOpen; }, get asFree(){ return asFree; } });
 
@@ -1336,12 +1339,12 @@ let aiLocked = false; ES.aiBusy = false; ES.aiInfo = null; ES.aiOn = false;
 ES.aiDoneSig = null; ES.regenOk = false;
 // a Reel has its plan: the AI plans again only when it is asked (Make new Reel, or the chat, which have their charges), never by itself
 // the phone's Make new Reel: a new id, so it is a new Reel for the credits; Keep old Reel: what the studio holds again is that Reel
-function newReel(){ ES.regenOk = true; ES.reelId = newId(); ES.aiReel = ''; ES.gateNo = ''; chatUsed = 0; ES.director = null; ES.dirCache.clear(); ES.aiMixes.clear(); ES.dirPlannedReel = ''; ES.aiGaveUp = ''; ES.dirFailedKey = ''; ES.paceFailedKey = ''; }
+function newReel(){ ES.regenOk = true; ES.reelId = newId(); ES.aiReel = ''; ES.gateNo = ''; ES.chatUsed = 0; ES.director = null; ES.dirCache.clear(); ES.aiMixes.clear(); ES.dirPlannedReel = ''; ES.aiGaveUp = ''; ES.dirFailedKey = ''; ES.paceFailedKey = ''; }
 function keptOldReel(){ ES.aiDoneSig = inputSig(); ES.regenOk = false; }
-let chatUsed = 0; ES.gateP = null; ES.aiReel = ''; ES.reelId = '';   // aiReel: the Reel the person said yes to ('no:' + id: said no); chatUsed: Ask Shubix changes on it (the plan's first few are free)
+ES.chatUsed = 0; ES.gateP = null; ES.aiReel = ''; ES.reelId = '';   // aiReel: the Reel the person said yes to ('no:' + id: said no); ES.chatUsed: Ask Shubix changes on it (the plan's first few are free)
 const newId = () => { try{ return crypto.randomUUID().replace(/-/g, '').slice(0, 20); }catch(e){ return Math.random().toString(36).slice(2, 12) + Date.now().toString(36); } };
 const aiFreeChats = () => (ES.aiInfo && Number(ES.aiInfo.freeChats)) || 0;
-const chatSync = res => { if(res && res.chat && typeof res.chat.used === 'number') chatUsed = res.chat.used; };
+const chatSync = res => { if(res && res.chat && typeof res.chat.used === 'number') ES.chatUsed = res.chat.used; };
 function askCredits(o){
   return new Promise(res => {
     $('cconft').textContent = o.title; $('cconfp').textContent = o.text;
@@ -1475,8 +1478,7 @@ function chatSay(who, text, wait){
   $('chatlog').appendChild(p); $('chatlog').scrollTop = $('chatlog').scrollHeight; return p;
 }
 function chatClearWait(){ $('chatlog').querySelectorAll('.wait').forEach(x => x.remove()); }
-function chatAnswer(text){ chatClearWait(); chatSay('ai', text); ES.chatMsgs.push({ who: 'ai', text }); ES.chatWaiting = false; $('chatsend').disabled = false; }
-let chatReported = ''; ES.chatPending = null;
+ES.chatReported = ''; ES.chatPending = null;
 function planReport(slots, story, changed){
   const box = document.createElement('div'); box.className = 'ai rep';
   const n = ES.plan.length, tr = slots.filter((d,i) => i && d && d.tr && d.tr !== 'hard').length, fx = slots.filter((d,i) => d && d.fx && d.fx !== 'none' && !(i === 0 && d.fx === 'hook')).length,
@@ -1510,7 +1512,7 @@ async function chatGenerate(btn){
   remakeOk();
   const pd = ES.chatPending; btn.disabled = true;
   if(!pd || pd.key !== dirKey()){ chatAnswer('The Reel changed since this plan. Tell me again what you want and I\'ll plan it anew.'); return; }
-  ES.chatPending = null; chatReported = pd.key; ES.director = { key: pd.key, slots: pd.slots, story: pd.story }; ES.dirCache.set(pd.key, ES.director);
+  ES.chatPending = null; ES.chatReported = pd.key; ES.director = { key: pd.key, slots: pd.slots, story: pd.story }; ES.dirCache.set(pd.key, ES.director);
   let applied = '';
   try {
     makeEdit(); await aiApply(pd);
@@ -1524,30 +1526,15 @@ async function chatGenerate(btn){
   if(!ES.playing && !ES.recording && ES.buf && ES.edit.length) startPlayback(0);
   btn.textContent = 'Generated ✓';
   const bal = aiBal();
-  chatAnswer('Your new Reel is ready ✓' + (applied ? ' Applied: ' + applied + '.' : '') + (!pd.cost && aiFreeChats() ? ' Free change · ' + (Math.max(0, aiFreeChats() - chatUsed) ? Math.max(0, aiFreeChats() - chatUsed) + ' free left for this Reel.' : 'next changes use credits.') : '') + (pd.cost ? ' ' + creditWord(pd.cost) + ' used' + (bal != null ? ' · ' + creditWord(bal) + ' left' : '') + '.' : '') + ' Not quite right? Tell me what to change and I\'ll check it again.');
+  chatAnswer('Your new Reel is ready ✓' + (applied ? ' Applied: ' + applied + '.' : '') + (!pd.cost && aiFreeChats() ? ' Free change · ' + (Math.max(0, aiFreeChats() - ES.chatUsed) ? Math.max(0, aiFreeChats() - ES.chatUsed) + ' free left for this Reel.' : 'next changes use credits.') : '') + (pd.cost ? ' ' + creditWord(pd.cost) + ' used' + (bal != null ? ' · ' + creditWord(bal) + ' left' : '') + '.' : '') + ' Not quite right? Tell me what to change and I\'ll check it again.');
 }
 // a plan the AI made by itself (no chat): its report goes into the chat too, and the button shows there is one
 function chatReportAuto(){
-  if(ES.chatWaiting || ES.chatPending || !ES.aiOn || !ES.director || ES.director.key !== dirKey() || chatReported === ES.director.key) return;
-  chatReported = ES.director.key; $('chatlog').appendChild(planReport(ES.director.slots, ES.director.story)); $('chatfab').classList.add('news'); $('tbchat').classList.add('news');
+  if(ES.chatWaiting || ES.chatPending || !ES.aiOn || !ES.director || ES.director.key !== dirKey() || ES.chatReported === ES.director.key) return;
+  ES.chatReported = ES.director.key; $('chatlog').appendChild(planReport(ES.director.slots, ES.director.story)); $('chatfab').classList.add('news'); $('tbchat').classList.add('news');
 }
 // the phone app's Ask Shubix: the website's own chat (the same AI, its credit questions asked on the phone); the plan it
 // makes is applied at once (the phone has no Generate button of the studio's), and the answer goes back to the phone
-async function chatApp(text){
-  const before = ES.chatMsgs.length;
-  await chatSend(text);
-  const t0 = Date.now(), wait = ms => new Promise(r => setTimeout(r, ms));
-  while((ES.chatWaiting || ES.aiBusy || ES.dirBusy || ES.paceBusy) && Date.now() - t0 < 240000) await wait(300);
-  let applied = false;
-  if(ES.chatPending && ES.chatPending.key === dirKey()){
-    const pd = ES.chatPending; ES.chatPending = null; chatReported = pd.key;
-    ES.director = { key: pd.key, slots: pd.slots, story: pd.story }; ES.dirCache.set(pd.key, ES.director);
-    makeEdit(); await aiApply(pd); try{ applyChatVisualIntent(pd.intent, pd.slots); }catch(e){}
-    applied = !!ES.edit.length; if(applied){ ES.chatMsgs.push({ who: 'ai', text: 'Done ✓' }); saveNow(); }
-  }
-  const said = ES.chatMsgs.slice(before).filter(m => m.who === 'ai').map(m => m.text).filter(t => t !== 'Done ✓').pop() || '';
-  return { applied, answer: applied ? 'Done ✓ Your Reel is edited the way you asked' + (ES.director && ES.director.story ? ': ' + ES.director.story : '.') : said || (ES.chatWaiting ? 'Shubix is still working on it. Ask again in a moment.' : 'OK') };
-}
 function chatRestore(list){
   if(!Array.isArray(list)) return; ES.chatMsgs = list.filter(m => m && typeof m.text === 'string').slice(-20);
   $('chatlog').innerHTML = ''; ES.chatMsgs.forEach(m => chatSay(m.who === 'me' ? 'me' : 'ai', m.text));
@@ -1556,99 +1543,6 @@ function chatRestore(list){
 function setModeQuiet(m){ ES.mode = m; [...$('mode').children].forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m)); modeWords(m); if(ES.buf) ES.plan = adaptPlan(); }
 ES.chatCost = 0;
 // a small change: only the shots it is about come back from the AI; every other shot stays exactly as it is
-async function chatPatch(text, n, id){
-  ES.chatWaiting = true; ES.chatPending = null; $('chatsend').disabled = true; chatSay('ai', 'Changing just that part', true);
-  const tm = timeoutSignal(45000);
-  try{
-    const cands = directorCandidates(); ES.dirCands = cands;
-    const { req } = dirRequest(cands), key = dirKey(), len = i => ES.edit[i].end - ES.edit[i].start;
-    req.patch = { ask: text, current: ES.edit.map((e, i) => ({ i, clip: 'c' + (e.src + 1), at: +e.in.toFixed(2), transition: e.tr || 'hard', effect: e.efx || 'none', speed: speedKey(e.sp) })) };
-    req.chat = { n, id, text };
-    const r = await fetch('/api/studio/direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req), signal: tm.signal });
-    const res = await r.json().catch(() => ({}));
-    if(!r.ok) throw new Error((res.error && res.error.message) || ('Shubix could not change it (' + r.status + ').'));
-    chatSync(res); if(typeof res.balance === 'number' && ES.aiInfo){ ES.aiInfo.balance = res.balance; window.dispatchEvent(new Event('brs-credits')); }
-    const base = ES.director && ES.director.key === key ? ES.director.slots.slice() : ES.edit.map((e, i) => ({ cand: { src: e.src, in: e.in }, tr: e.tr, fx: e.efx, sp: speedKey(e.sp),
-      keys: (e.acc || []).map(q => ({ at: q.at, do: q.do })), move: (e.ak || []).map(q => ({ at: q.t / Math.max(0.05, len(i)), s: q.s, x: q.x, y: q.y, r: q.r, ez: q.ez })), cs: e.cs || null, why: '' }));
-    const got = toSlots(res.slots, cands), changed = new Set();
-    got.forEach((x, i) => { if(x && base[i] !== undefined){ base[i] = { ...x, cand: x.cand || base[i].cand }; changed.add(i); } });
-    const intent = parseDirectorVisualIntent(text);
-    if(intent.transitionAll || intent.effectsAll) ES.edit.forEach((_, i) => changed.add(i));
-    if(!changed.size && !intent.openingText && !intent.squareFrameAll && !intent.transitionAll && !intent.effectsAll){ chatAnswer('I could not tell which shot to change. Name it, e.g. "shot 3: slow-mo" or "the first clip: the dance".'); return; }
-    ES.chatPending = { key, slots: base, story: res.story || '', texts: res.texts, actions: res.actions, changed, cost: ES.chatCost, intent };
-    chatProposal(ES.chatPending);
-  }catch(e){ chatFail(tm.timedOut() ? 'Shubix took too long this time. Try again in a moment.' : String(e && e.message || 'Shubix could not change it right now.')); }
-  finally{ tm.done(); }
-}
-async function chatSend(text){
-  remakeOk();
-  text = String(text || '').trim().slice(0, 300); if(!text || ES.chatWaiting) return;
-  if(aiHeldBack()){ chatSay('me', text); ES.chatMsgs.push({ who: 'me', text }); chatAnswer('Your song or clips changed. Go on with Next to make a new Reel first.'); return; }
-  chatSay('me', text); ES.chatMsgs.push({ who: 'me', text });
-  $('chatin').value = ''; chatFit();
-  const ready = ES.buf && ES.sources.length && ES.edit.length && !ES.recording;
-  // Explicit, deterministic visual edits are applied locally on every plan. They do not need
-  // a model round-trip, a credit check or a server upload; verify the full scope before replying.
-  const localVisualIntent = parseDirectorVisualIntent(text);
-  const hasLocalVisualIntent = !!(localVisualIntent.openingText || localVisualIntent.squareFrameAll
-    || localVisualIntent.transitionAll || localVisualIntent.effectsAll);
-  if(ready && hasLocalVisualIntent){
-    try{
-      const before = histSnap();
-      const localSlots = ES.edit.map(shot => ({ tr: shot.tr || 'hard', fx: shot.efx || 'none', effect: shot.efx || 'none' }));
-      if(ES.playing) stopAll();
-      const applied = applyChatVisualIntent(localVisualIntent, localSlots);
-      if(!applied) throw new Error('No supported visual change was detected.');
-      hist.u.push(before); if(hist.u.length > HIST_MAX) hist.u.shift();
-      hist.r = []; hist.cur = histSnap(); hist.cand = ''; histUI();
-      saveNow();
-      chatAnswer('Done ✓ Applied ' + applied + ' to the current Reel on this device. No Shubix AI credits used.');
-    }catch(error){
-      chatAnswer('I could not verify that every requested change was applied. ' + String(error && error.message || error));
-    }
-    return;
-  }
-  // no Shubix AI in this plan (Free): the phone's own changes, and the way to get the AI
-  if(!ES.aiOn){
-    const did = chatLocal(text);
-    if(ready && did.length) makeEdit();
-    chatAnswer((did.length ? 'Done ✓ I used ' + did.join(' and ') + ' (on your phone). ' : '') + (aiLocked && IN_APP ? 'Changing the Reel from your words is Shubix AI, which is not on your plan.' : aiLocked ? 'Changing the Reel from your words is Shubix AI: it is in the Editor and Pro plans.' : 'Shubix AI is off for this Reel, so I can only switch the style (say "faster" or "calmer") or make a new version.'));
-    if(aiLocked && !IN_APP){ const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = 'See Editor & Pro'; $('chatlog').appendChild(a); }
-    return;
-  }
-  if(!ready){ ES.wish = ES.chatMsgs.filter(m => m.who === 'me').map(m => m.text).join(' · ').slice(-800); chatAnswer('Got it! I\'ll edit your Reel this way as soon as it is made.'); return; }
-  if(!aiReelOk() && !(await aiGate(root.classList.contains('aineed')))){ chatAnswer('This Reel is edited on your phone, so I can only switch its style (say "faster" or "calmer").'); return; }
-  // what this change costs, asked first: a few named shots or the whole Reel
-  const size = chatSize(text), freeN = aiFreeChats(), free = bal0 => bal0 !== null && chatUsed < freeN, bal = aiBal();
-  const cost = free(bal) ? 0 : aiCostOf(size === 'small' ? 'small' : 'big');
-  if(free(bal)){
-    const left = freeN - chatUsed - 1;
-    const ok = await askCredits({ title: size === 'small' ? 'A small change · free' : 'Change the whole Reel · free', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + 'Your plan has ' + freeN + ' free changes per Reel: this one is free, ' + (left ? left + ' more free after it.' : 'after it each change uses credits.'), bal, ok: 'Make the change', no: 'Cancel' });
-    if(!ok){ chatAnswer('OK, nothing changed.'); return; }
-  } else if(!cost || bal === null){
-    const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (cost ? 'It uses ' + creditWord(cost) + '.' : 'Included in your plan.'), bal, ok: 'Make the change', no: 'Cancel' });
-    if(!ok){ chatAnswer('OK, nothing changed.'); return; }
-  } else if(cost && bal !== null){
-    if(bal < cost){ chatAnswer('This change needs ' + creditWord(cost) + ' and you have ' + creditWord(bal) + '.'); if(!IN_APP){ const a = document.createElement('a'); a.href = '/pricing'; a.className = `${Button.primary} up`; a.textContent = 'Top up'; $('chatlog').appendChild(a); } return; }
-    const ok = await askCredits({ title: size === 'small' ? 'A small change' : 'Change the whole Reel', text: (size === 'small' ? 'Shubix changes only the shots you named; the rest stays as it is. ' : 'Shubix plans the whole Reel again with what you asked. ') + (freeN ? 'The ' + freeN + ' free changes for this Reel are used, so this' : 'It') + ' uses ' + creditWord(cost) + '.', bal, after: bal - cost, ok: 'Use ' + creditWord(cost), no: 'Cancel' });
-    if(!ok){ chatAnswer('OK, nothing changed and no credits used.'); return; }
-  }
-  ES.chatCost = cost; const n = ++ES.chatN, id = newId();
-  if(size === 'small') return chatPatch(text, n, id);
-  chatLocal(text);
-  ES.wish = ES.chatMsgs.filter(m => m.who === 'me').map(m => m.text).join(' · ').slice(-800);
-  ES.chatAsk = { n, id, text };
-  ES.chatWaiting = true; ES.chatPending = null; $('chatsend').disabled = true; chatSay('ai', 'Planning your Reel: checking every clip', true);
-  ES.dirFailedKey = ''; ES.paceFailedKey = '';
-  const asked = ES.chatMsgs.length;
-  makeEdit();
-  // the plan comes after the AI has looked at the clips: if it has not yet (it was only agreed to just now), it looks now
-  if(ES.sources.some(s => !s.ai && !s.aiFailed && !s.removed)) aiRun();
-  // an answer that never comes: not a spinner for ever. While the clips are still being looked at, nothing else can start: wait for them
-  const noAnswer = () => { if(!ES.chatWaiting || ES.chatMsgs.length !== asked) return; if(ES.aiBusy) return void setTimeout(noAnswer, 15000);
-    chatFail(ES.dirBusy || ES.paceBusy ? 'Still working on it… it is taking longer than usual. I\'ll keep going; you can ask again in a moment.' : ES.director && ES.director.key === dirKey() ? 'Your Reel is updated.' : 'Shubix could not change the Reel right now. Try again in a moment.'); };
-  setTimeout(noAnswer, 120000);
-}
 // the chat's messages live where it is used: in the Ask Shubix bar under the title (the Create steps), or in the chat panel
 function chatInline(on){
   const log = $('chatlog'), home = on ? $('askbody') : $('chatbox');
@@ -4592,7 +4486,7 @@ function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB,
 function stateOf(){
   return { kind: ES.kind, song: ES.song && ES.song.file ? { fp: fileFp(ES.song.file), name: ES.song.name } : null, sec: { len: sec.len, auto: sec.auto, start: sec.start },
     clips: ES.sources.map(s => ({ fp: fileFp(s.file), name: s.name })),
-    settings: { au: ES.au, tts: ES.ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo: ES.trTo, trOnly: ES.trOnly, tr: ES.trTo ? [...trCache].filter(([k]) => k.startsWith(ES.trTo + '|')).slice(0, 200) : [], denoise: ES.denoiseOn, mode: ES.mode === 'copy' ? 'auto' : ES.mode, look: ES.look === 'copy' ? 'vivid' : ES.look, aspect: ES.aspect, textStyle: ES.textStyle, hookText: ES.hookText, capsOn: ES.capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: ES.userMarks.slice(0, 200), sfx: ES.sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ES.ACCENT, seed: ES.seed, bg: bgFile ? fileFp(bgFile) : '', seq: ES.seqOn, title: reelTitle, chat: ES.chatMsgs.slice(-20), reelId: ES.reelId, aiOk: !!ES.reelId && ES.aiReel === ES.reelId, chatUsed },
+    settings: { au: ES.au, tts: ES.ttsClips.map(c => ({ id: c.id, text: c.text, voice: c.voice, at: c.at })), trTo: ES.trTo, trOnly: ES.trOnly, tr: ES.trTo ? [...trCache].filter(([k]) => k.startsWith(ES.trTo + '|')).slice(0, 200) : [], denoise: ES.denoiseOn, mode: ES.mode === 'copy' ? 'auto' : ES.mode, look: ES.look === 'copy' ? 'vivid' : ES.look, aspect: ES.aspect, textStyle: ES.textStyle, hookText: ES.hookText, capsOn: ES.capsOn, caplang: $('caplang').value, talkPace, talkMusic, bgMode, bgColor, marks: ES.userMarks.slice(0, 200), sfx: ES.sfxList.map(x => ({ at: x.at, kind: x.kind })), capColor: ES.ACCENT, seed: ES.seed, bg: bgFile ? fileFp(bgFile) : '', seq: ES.seqOn, title: reelTitle, chat: ES.chatMsgs.slice(-20), reelId: ES.reelId, aiOk: !!ES.reelId && ES.aiReel === ES.reelId, chatUsed: ES.chatUsed },
     overlays: ES.overlays.map(o => { const c = { ...o }; delete c.box; return c; }),
     lmedia: ES.lmedia.map(M => ({ fp: fileFp(M.file), name: M.name })), layers: lyOf(),
     edit: editOf(),
@@ -4674,7 +4568,7 @@ async function openProject(id){
     press('tpace', 'p', S.talkPace); press('tmusic', 'v', String(S.talkMusic));
     if(S.au) ES.au = { ...AU0, ...S.au }; auUI();
     if(S.tts && S.tts.length){ ES.ttsClips = S.tts.map(c => ({ ...c })); ttsSeq = ES.ttsClips.reduce((q, c) => Math.max(q, c.id), 0); ttsList(); }
-    ES.hookText = S.hookText || ''; $('hook').value = ES.hookText; ES.seed = S.seed || 1; chatRestore(S.chat); if(typeof S.reelId === 'string' && S.reelId){ ES.reelId = S.reelId; if(S.aiOk) ES.aiReel = ES.reelId; chatUsed = Number(S.chatUsed) || 0; } if(S.denoise === false){ ES.denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
+    ES.hookText = S.hookText || ''; $('hook').value = ES.hookText; ES.seed = S.seed || 1; chatRestore(S.chat); if(typeof S.reelId === 'string' && S.reelId){ ES.reelId = S.reelId; if(S.aiOk) ES.aiReel = ES.reelId; ES.chatUsed = Number(S.chatUsed) || 0; } if(S.denoise === false){ ES.denoiseOn = false; $('dn1').checked = false; $('dn2').checked = false; }
     if(S.caplang !== undefined) $('caplang').value = S.caplang;
     if(S.trTo){ for(const [k, v] of S.tr || []) trCache.set(k, v); ES.trTo = S.trTo; ES.trOnly = !!S.trOnly; $('captr').value = ES.trTo; $('tronly').checked = ES.trOnly; $('trwrap').hidden = false; }
     if(st.caps && st.caps.key) capCache.set(st.caps.key, st.caps.all);
