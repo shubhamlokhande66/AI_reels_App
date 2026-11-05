@@ -50,3 +50,16 @@ Still in the page: the audio and mel steps before the models run. These must mov
 `node scripts/models-check.mjs [voice]` compares the phone's models with the WebAssembly copies on a connected phone. The same-input outputs must be within 0.01. The beat tracker is an 8-bit network, so it has its own rule: the same number of beats and downbeats, each within 20 ms, one network frame.
 
 Tested on a computer: `Models.kt` on the JVM against the page's copies passed, with beats up to 20 ms apart. `SystemVoice.kt` needs a phone. Neither has run on a phone.
+
+## Moving a Studio Reel's export to the native engine
+
+The studio's export stays the default until the test APK's parity pair passes on a phone (`scripts/parity.mjs`).
+
+Done, not yet run on a phone:
+
+- Sound: the studio renders its finished mix to a WAV (`exportMix`), which replaces the clips' sound and the song. The mixing code itself still runs in the page.
+- Watermark, quality, bitrate and the 30 fps limit, as the studio decides them from the plan and the person's choices (`exportPlan`).
+
+Still missing (`nativeExportGaps` in `lib/video.ts` lists them for a Reel): overlay layers, reverse, stabilize, beauty, 60 fps. Not in that list yet: text behind the person and text following a face, chroma key and blend on layers.
+
+Before the WebView can go, these also leave the page: the sound mix, audio and mel steps, the studio's state and edit logic that still touch the page, and the screens' calls to it.

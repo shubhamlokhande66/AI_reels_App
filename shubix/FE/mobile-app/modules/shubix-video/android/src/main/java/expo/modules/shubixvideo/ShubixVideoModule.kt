@@ -25,6 +25,7 @@ import androidx.media3.effect.Brightness
 import androidx.media3.effect.Contrast
 import androidx.media3.effect.GaussianBlur
 import androidx.media3.effect.HslAdjustment
+import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.Presentation
@@ -35,7 +36,9 @@ import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TimestampWrapper
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.media3.transformer.VideoEncoderSettings
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
@@ -188,6 +191,10 @@ class ShubixVideoModule : Module() {
     val transformer = try {
       Transformer.Builder(context)
         .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
+        .apply {
+          val bitrate = spec.optInt("bitrate")
+          if (bitrate > 0) setEncoderFactory(DefaultEncoderFactory.Builder(context).setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build()).build())
+        }
         .addListener(object : Transformer.Listener {
           override fun onCompleted(composition: Composition, result: ExportResult) {
             if (activeExport !== session) return
@@ -263,6 +270,7 @@ class ShubixVideoModule : Module() {
     }
     // the overlay layers, live player only (the export of a Reel with layers is the engine page's)
     val studioLayers = spec.optJSONArray("layers")?.takeIf { live && it.length() > 0 }?.let { StudioLayerRenderer(it, w, h) }
+    val watermark = if (!live && spec.optBoolean("watermark")) StudioWatermark(appContext.reactContext ?: throw IllegalStateException("No app"), w, h) else null
     val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
@@ -363,6 +371,7 @@ class ShubixVideoModule : Module() {
       if (studioLayers != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioLayers.overlay(at - base)))
       if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at - base)))
       else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at - base)))
+      if (watermark != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(watermark))
       // the live player keeps its GPU programs when the next shot's effects are the same objects: shots with nothing of
       // their own (most cuts of a fast Reel) share one list, so a cut does not rebuild them
       if (live && turn == 0f && !mirror && !flip && (keyframes == null || keyframes.length() == 0) && transitionIn == null && tr == null && !c.optBoolean("keep") &&
@@ -425,7 +434,11 @@ class ShubixVideoModule : Module() {
         else listOf(gainProcessor(musicVolume, audioDuration, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setDurationUs((songMs ?: songEndMs) * 1000).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
-    return Built(Composition.Builder(sequences).build(), at)
+    // the export's frame rate: faster sources are brought down to it, as the studio writes frames at its own rate
+    val fps = spec.optInt("fps").takeIf { !live && it > 0 }
+    return Built(Composition.Builder(sequences).apply {
+      if (fps != null) setEffects(Effects(emptyList(), listOf(FrameDropEffect.createDefaultFrameDropEffect(fps.toFloat()))))
+    }.build(), at)
   }
 
   private data class RampPoint(val time: Double, val speed: Double, val easing: String)

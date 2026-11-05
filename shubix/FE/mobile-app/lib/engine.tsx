@@ -23,6 +23,7 @@ export type SongAnalysis = { duration: number; bpm: number; beats: number; drops
 export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
 export type EngineReel = { work: { clips: number; shots: number }; state: { edit: EngineShot[]; mode?: string } & Record<string, unknown> };
 /** the website's Export sheet: quality, frame rate, the watermark, without the song */
+export type StudioExportPlan = { watermark: boolean; res: string; fps: number; bitrate: number; scale: number };
 export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWatermark?: boolean; noSong?: boolean; myReels?: boolean; fixLocked?: boolean };
 export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean;
   size: string; fileName: string; myReels: boolean; myReelsNote: string; locked: { name: string; need: string }[] };
@@ -142,8 +143,8 @@ export const engine = {
     if (!(await engine.edit(p))) return null;
     return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
   },
-  /** the Reel's whole sound as a WAV on the phone, for the native export; null: the Reel has no sound */
-  exportMix: (name: string) => call<{ path: string | null }>("exportMix", { name }).then((r) => r.path),
+  /** for the native export: the Reel's whole sound as a WAV on the phone (null: no sound), and what the studio decided from the plan and these choices */
+  exportMix: (name: string, o: ExportChoice = {}) => call<{ path: string | null; plan: StudioExportPlan }>("exportMix", { name, ...o }),
   exportReel: (name: string, o: ExportChoice = {}) => call<{ path: string; size: number; caption?: string }>("exportReel", { name, ...o }).then((r) => ({ uri: `file://${r.path}`, size: r.size, caption: r.caption ?? "" })),
   /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
   exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),

@@ -32,10 +32,10 @@ type Made = { uri: string; size: number; caption?: string };
 /** the test APK: the same Reel from both engines in the gallery, named for scripts/parity.mjs */
 async function saveParityPair(reel: ReelProject, engineUri: string, choice: ExportChoice) {
   const state = await engine.tool("state") as { layers?: unknown[] };
-  const gaps = nativeExportGaps(reel, { ...choice, layers: state?.layers?.length ?? 0 });
+  const { path, plan } = await engine.exportMix(`${reel.id}-mix.wav`, choice);
+  const gaps = nativeExportGaps(reel, { fps: plan.fps, layers: state?.layers?.length ?? 0 });
   if (gaps.length) tell(`Parity: the native export has no ${gaps.join(", ")} yet`, "info");
-  const mix = await engine.exportMix(`${reel.id}-mix.wav`);
-  const native = await exportReel(reel, () => {}, mix), stamp = Date.now();
+  const native = await exportReel(reel, () => {}, { mix: path, plan }), stamp = Date.now();
   if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return;
   for (const [kind, uri] of [["engine", engineUri], ["native", native.uri]]) {
     const copy = new File(Paths.cache, `parity-${kind}-${stamp}.mp4`);
