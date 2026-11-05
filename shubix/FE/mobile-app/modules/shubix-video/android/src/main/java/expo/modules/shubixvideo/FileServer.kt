@@ -36,6 +36,7 @@ import kotlin.concurrent.thread
  *   POST /scan?k=KEY&p=PATH&dur=D   a clip's samples and scene changes (ClipScan.kt): lines of progress, then a line of JSON
  *   GET  /probe?k=KEY&p=PATH        a clip's length and its size as shown: { dur, w, h }
  *   POST /faces?k=KEY&p=PATH&dur=D&w=W&h=H  where faces are in a clip (ClipFaces.kt): a line of JSON
+ *   POST /aiframes?k=KEY&p=PATH&w=W&h=H  frames at the times in the body, comma separated, for Shubix AI: JSON, a base64 JPEG for each (null: none)
  *   POST /song?k=KEY                the song's beats and cuts (SongAnalysis.kt); the body is as songFromRequest reads it
  *   POST /speak?k=KEY&v=LANGUAGE    the body's words spoken by the phone's voice: floats, with X-Sample-Rate (SystemVoice.kt) */
 @androidx.media3.common.util.UnstableApi
@@ -64,7 +65,7 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech" && url.path != "/speak" && url.path != "/song" && url.path != "/scan" && url.path != "/probe" && url.path != "/faces") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech" && url.path != "/speak" && url.path != "/song" && url.path != "/scan" && url.path != "/probe" && url.path != "/faces" && url.path != "/aiframes") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -111,6 +112,17 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
           if (a <= 0 || b <= 0 || dur <= 0) return@use reply(out, 422, "Unreadable", emptyMap(), null)
           reply(out, 200, "OK", mapOf("Content-Type" to "application/json"), org.json.JSONObject().put("dur", dur).put("w", if (turn % 180 == 0) a else b).put("h", if (turn % 180 == 0) b else a).toString().toByteArray())
         } catch (e: Exception) { reply(out, 422, "Unreadable", emptyMap(), null) } finally { r.release() }
+      }
+      url.path == "/aiframes" && method == "POST" -> {
+        val f = File(url.getQueryParameter("p") ?: ""); val w = url.getQueryParameter("w")?.toIntOrNull() ?: 0; val h = url.getQueryParameter("h")?.toIntOrNull() ?: 0
+        if (!f.isFile || !inside(f) || w !in 2..2048 || h !in 2..2048) return@use reply(out, 404, "Not Found", emptyMap(), null)
+        val body = ByteArray((headers["content-length"]?.toIntOrNull() ?: 0).coerceIn(0, 100_000)); var read = 0
+        while (read < body.size) { val n = input.read(body, read, body.size - read); if (n <= 0) break; read += n }
+        val times = String(body, 0, read).split(',').mapNotNull { it.toDoubleOrNull() }.toDoubleArray()
+        if (!decoders.tryAcquire(30, TimeUnit.SECONDS)) return@use reply(out, 503, "Busy", emptyMap(), null)
+        try { reply(out, 200, "OK", mapOf("Content-Type" to "application/json"), jpegsOfFile(f, w, h, times).toString().toByteArray()) }
+        catch (e: Throwable) { reply(out, 422, "Unreadable", mapOf("Content-Type" to "text/plain"), (e.message ?: "no frames").toByteArray()) }
+        finally { decoders.release() }
       }
       url.path == "/faces" && method == "POST" -> {
         val f = File(url.getQueryParameter("p") ?: ""); val dur = url.getQueryParameter("dur")?.toDoubleOrNull() ?: 0.0

@@ -7,7 +7,11 @@ import initial from "../engine/brain/initial-state.json";
 export const NATIVE_ENGINE = process.env.EXPO_PUBLIC_NATIVE_ENGINE === "1";
 
 type Fetch = (url: string, init?: { method?: string; body?: unknown }) => Promise<{ ok: boolean; status: number; text(): Promise<string>; json(): Promise<unknown>; arrayBuffer(): Promise<ArrayBuffer> }>;
-export type NativeIo = { base: string; key: string; fetch: Fetch; onProgress?: (what: "song" | "clips", p: number) => void };
+export type NativeIo = { base: string; key: string; fetch: Fetch; token?: () => Promise<string | null>; onProgress?: (what: "song" | "clips", p: number) => void;
+  /** Shubix AI's question: true Use, false the other button, null closed */
+  ask?: (q: { title: string; text: string; list?: string[]; bal?: number | null; ok: string; no?: string; after?: number | null }) => Promise<boolean | null>;
+  /** what Shubix is doing, in its words; an error when `err` */
+  stat?: (text: string, err?: boolean) => void; spent?: () => void };
 type Args = Record<string, unknown>;
 type Clip = { path: string; name: string };
 
@@ -42,11 +46,24 @@ export function wavOf(buf: { length: number; sampleRate: number; numberOfChannel
 }
 
 export function createNativeEngine(io: NativeIo) {
-  let host = createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx });
+  const make = () => createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx, apiFetch, aiFrames, ask: (q: Parameters<NonNullable<NativeIo["ask"]>>[0]) => io.ask ? io.ask(q) : Promise.resolve(null), stat: io.stat, spent: io.spent });
+  let host = make(), signedIn = false;
   let stops = 0, read: Clip[] = [], reading = 0;
   const url = (path: string, q = "") => `${io.base}/${path}?k=${io.key}${q}`;
   function getCtx() { return { createBuffer: (count: number, n: number, sr: number) => soundOf(Array.from({ length: count }, () => new Float32Array(n)), sr) }; }
 
+  async function apiFetch(path: string, o: { method?: string; headers?: Record<string, string>; body?: unknown; signal?: unknown } = {}) {
+    const token = await io.token?.();
+    return io.fetch(io.base + path, { ...o, headers: { ...o.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) } } as never);
+  }
+  /** the frames Shubix AI looks at, as JPEGs from the phone's own decoder */
+  async function aiFrames(src: { path: string; w: number; h: number }) {
+    const ts = (host.brain.aiTimes(src) as number[]).slice().sort((x, y) => x - y), sc = Math.min(1, 384 / Math.max(src.w, src.h));
+    const w = Math.max(2, Math.round(src.w * sc / 2) * 2), h = Math.max(2, Math.round(src.h * sc / 2) * 2);
+    const res = await io.fetch(url("aiframes", `&p=${encodeURIComponent(src.path)}&w=${w}&h=${h}`), { method: "POST", body: ts.map((t) => t.toFixed(3)).join(",") });
+    if (!res.ok) throw new Error(await res.text());
+    return (await res.json() as (string | null)[]).map((image, i) => image ? { t: +ts[i].toFixed(2), image } : null).filter(Boolean);
+  }
   async function analyse(mono: Float32Array, sr: number, opts: Args = {}) {
     const head = new TextEncoder().encode(JSON.stringify({ ...opts, sr })), body = new Uint8Array(4 + head.length + mono.byteLength);
     new DataView(body.buffer).setUint32(0, head.length, true); body.set(head, 4); body.set(new Uint8Array(mono.buffer, mono.byteOffset, mono.byteLength), 4 + head.length);
@@ -91,11 +108,11 @@ export function createNativeEngine(io: NativeIo) {
     if (stops === g) host.makeReel();
     return { clips: host.ES.sources.length, names: host.ES.sources.map((s: { name: string }) => s.name) };
   }
-  const state = () => ({ edit: host.brain.editOf(), overlays: host.ES.overlays, mode: host.ES.mode, settings: { au: host.ES.au, capsOn: !!host.ES.capsOn, caplang: host.ES.capLang ?? "", captr: host.ES.trTo ?? "", textStyle: host.ES.textStyle ?? "pop" } });
+  function state(){ return ({ edit: host.brain.editOf(), overlays: host.ES.overlays, mode: host.ES.mode, settings: { au: host.ES.au, capsOn: !!host.ES.capsOn, caplang: host.ES.capLang ?? "", captr: host.ES.trTo ?? "", textStyle: host.ES.textStyle ?? "pop" } }); }
   const work = () => ({ clips: host.ES.sources.length, shots: host.ES.edit.length, songReady: !!host.ES.song?.r, pending: reading });
 
   const ops: Record<string, (a: Args) => unknown> = {
-    setup: () => ({ ok: true, ai: false }),
+    setup: async () => { signedIn = true; return { ok: true, ai: await host.account().catch(() => false) }; },
     song,
     songAgain: () => { if (!host.ES.song?.r) throw new Error("Add your song again"); return facts(); },
     cancel: () => { stops++; return { ok: true }; },
@@ -119,10 +136,19 @@ export function createNativeEngine(io: NativeIo) {
     shotTrim: (a) => ({ ok: host.brain.shotTrim(Number(a.direction) || 1), state: state() }),
     seek: (a) => { host.ES.pos = Math.max(0, Number(a.time) || 0); return { time: host.ES.pos }; },
     remix: () => { host.brain.remixNow?.(); return { ok: true, state: state() }; },
-    aiState: () => ({ on: false }),
-    newReel: () => ({ ok: true }),
+    aiState: async () => { if (!signedIn) { signedIn = true; await host.account().catch(() => false); } return { on: !!host.ES.aiOn }; },
+    ai: async () => { if (!signedIn) { signedIn = true; await host.account().catch(() => false); } const g = stops; const went = await host.runAi(); return { went: went && stops === g }; },
+    newReel: () => { host.brain.newReel?.(); host.ES.regenOk = true; host.ES.reelId = ""; host.ES.aiReel = ""; host.ES.gateNo = ""; host.ES.director = null; return { ok: true }; },
     keptOldReel: () => ({ ok: true }),
-    aiPlan: () => null,
+    aiPlan: () => { const d = host.ES.director; return d && d.slots && !d.interim ? { story: d.story || "", lines: [] } : null; },
+    undo: () => ({ ok: !!host.brain.histGo(true), state: state() }),
+    redo: () => ({ ok: !!host.brain.histGo(false), state: state() }),
+    kfSet: (a) => { host.brain.kfSet(a.values); return { ok: true }; },
+    audioMix: (a) => { host.ES.au = { ...host.ES.au, ...(a as object), ...("mfout" in a ? { mfoutManual: true } : {}) }; host.ES.clipMixKey = ""; host.brain.applyVo(); return host.ES.au; },
+    sfx: (a) => { host.ES.pos = Math.max(0, Number(a.time) || 0); host.brain.sfxAdd(String(a.kind)); return { ok: true }; },
+    mark: (a) => { host.ES.pos = Math.max(0, Number(a.time) || 0); const f = ({ add: host.brain.addMark, del: host.brain.delMark, clear: host.brain.clearMarks } as Record<string, () => void>)[String(a.op)]; if (!f) return { ok: false }; f(); return { ok: true, state: state() }; },
+    shotStyle: (a) => { const i = host.brain.segAt(host.ES.pos), e = host.ES.edit[i]; if (!e) throw new Error("There is no selected shot"); if (a.kind === "transition") e.tr = String(a.value); else if (a.kind === "effect") e.efx = String(a.value); return { ok: true, state: state() }; },
+    exportOptions: (a) => host.exportOptions(a),
     copies: () => [],
     frame: () => ({ src: "" }),
     layerList: () => [],
@@ -130,9 +156,9 @@ export function createNativeEngine(io: NativeIo) {
     cancelExport: () => ({ ok: true }),
     brainCheck: () => ({ copy: "{}", shots: [] }),
     exportMix: async (a) => {
-      host.brain.applyVo();
-      const s = host.brain.exportSound();
-      const plan = { watermark: !a.noWatermark, res: "1080", fps: 30, bitrate: 12e6, scale: 1, stabs: host.ES.edit.map(() => null), beats: host.ES.edit.map((e: { beatsIn?: number[] }) => e.beatsIn ?? []), follow: [] };
+      host.exportChoose(a); if (a.fixLocked) host.exportFix();
+      await host.brain.ensureMix();
+      const s = host.brain.exportSound(), plan = host.exportPlan();
       if (!s) return { path: null, plan };
       const res = await io.fetch(url("out", `&name=${encodeURIComponent(String(a.name || "mix.wav"))}`), { method: "PUT", body: new Uint8Array(wavOf(s.buf, s.gain)) });
       if (!res.ok) throw new Error("The Reel's sound could not be saved on the phone");
@@ -140,10 +166,10 @@ export function createNativeEngine(io: NativeIo) {
     },
   };
   // not written yet: the app's page is still needed for these
-  const NOT_YET = ["ai", "answer", "chat", "undo", "redo", "exportOptions", "exportReel", "kfSeek", "kfEase", "kfRemove", "kfClear", "kfStep", "kfSet", "audioMix", "sfx", "mark", "template", "layerAdd", "layerSelect", "layerSet", "layerDelete", "ttsAdd", "ttsClear", "captions", "captionStyle", "shotExtract", "shotReverse", "shotStyle", "set"];
+  const NOT_YET = ["answer", "chat", "exportReel", "kfSeek", "kfEase", "kfRemove", "kfClear", "kfStep", "template", "layerAdd", "layerSelect", "layerSet", "layerDelete", "ttsAdd", "ttsClear", "captions", "captionStyle", "shotExtract", "shotReverse", "set"];
   return {
     has: (op: string) => op in ops, notYet: NOT_YET, ascii, read: () => read, host: () => host,
-    fresh: () => { stops++; read = []; host = createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx }); },
+    fresh: () => { stops++; read = []; signedIn = false; host = make(); },
     call: async (op: string, a: Args = {}) => { const f = ops[op]; if (!f) throw new Error(`Not on the phone's own engine yet: ${op}`); return f(a); },
   };
 }

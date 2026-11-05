@@ -9,6 +9,8 @@ import { tokenStore } from "./device";
 import { API_URL } from "./session";
 import { fitShot } from "./shotFit";
 import { reelFromCopy } from "../engine/brain/index";
+import { fetch as nativeFetch } from "expo/fetch";
+import { createNativeEngine, NATIVE_ENGINE } from "./nativeEngine";
 
 /** The phone's own engine makes its Reels: the page in FE/mobile-app/engine (its own code, worked through
  * components/studio/bridge.ts), built into the APK and run hidden in the phone's browser engine. It does not come from
@@ -37,8 +39,17 @@ const files = ShubixVideo ? ShubixVideo.fileServer(API_URL) : null;
 /** whether this phone can make Reels with the studio (the app's own build, not Expo Go or the web) */
 export const engineOn = Platform.OS !== "web" && !!files;
 
+// the studio with no page, when this build says so (lib/nativeEngine.ts): the same operations, the same answers
+const native = NATIVE_ENGINE && files ? createNativeEngine({
+  base: `http://127.0.0.1:${files.port}`, key: files.key, fetch: nativeFetch as never, token: () => tokenStore.get(),
+  ask: async (q) => { const v = await askAction({ title: q.title, body: [q.text, q.bal == null ? "" : `You have ${q.bal} credits`].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) }); return v === 0 ? true : v === 1 && q.no ? false : null; },
+  stat: (text, err) => { if (!text) return tasks.clear("ai"); if (text.endsWith("…")) { tasks.start("ai", "ai", "Shubix at work", text.slice(0, -1)); return; } if (err) tasks.fail("ai", text); else tasks.done("ai", text); },
+  spent: () => tasks.lock(),
+}) : null;
+
 async function call<T>(op: string, args: Record<string, unknown> = {}): Promise<T> {
   if (!engineOn) throw new Error("Making Reels needs the Shubix app (not Expo Go).");
+  if (native) return native.call(op, args) as Promise<T>;
   await isReady;
   if (!setUp && op !== "setup") { setUp = true; await call("setup", { files: `http://127.0.0.1:${files!.port}`, key: files!.key, token: await tokenStore.get() }); }
   const id = next++;
@@ -237,6 +248,7 @@ function onMessage(e: WebViewMessageEvent) {
 export const STOPPED = "Stopped.";
 // the studio starts again (the phone stopped its page, out of memory, or the person left): what it was doing fails
 function restart(why = "The phone stopped the studio. Please try again.") {
+  if (native) { native.fresh(); held = ""; shown.forEach((id) => tasks.clear(id)); shown.clear(); tasks.unlock(); return; }
   waiting.forEach((w) => w.reject(new Error(why))); waiting.clear(); shown.forEach((id) => tasks.clear(id)); shown.clear();
   tasks.unlock(); setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); page?.reload();
 }
@@ -245,7 +257,7 @@ function restart(why = "The phone stopped the studio. Please try again.") {
  * Android never draws a fully transparent view, and a WebView that is never drawn gets no frames (no animation frames,
  * its videos barely decode): reading clips took minutes in the app and seconds in Chrome. 0.01 is drawn yet unseen. */
 export function EngineHost() {
-  if (!engineOn) return null;
+  if (!engineOn || native) return null;
   return (
     <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0.01, zIndex: -1 }}>
       <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `http://127.0.0.1:${files!.port}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled

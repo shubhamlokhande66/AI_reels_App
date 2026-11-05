@@ -91,6 +91,21 @@ internal fun scanFile(file: File, dur: Double, onProgress: (Double) -> Unit): Cl
   }, onProgress)
 }
 
+/** Frames as JPEGs (quality 72, as the page's), each base64, in the order of the times */
+internal fun jpegsOfFile(file: File, w: Int, h: Int, times: DoubleArray): org.json.JSONArray {
+  val out = org.json.JSONArray(); val pixels = IntArray(w * h)
+  readFrames(file, w, h, times, FrameSink(w * h * 4) { _, rgba ->
+    if (rgba == null) out.put(org.json.JSONObject.NULL)
+    else {
+      for (i in pixels.indices) { val o = i * 4; pixels[i] = (255 shl 24) or ((rgba[o].toInt() and 255) shl 16) or ((rgba[o + 1].toInt() and 255) shl 8) or (rgba[o + 2].toInt() and 255) }
+      val pic = android.graphics.Bitmap.createBitmap(pixels, w, h, android.graphics.Bitmap.Config.ARGB_8888); val b = java.io.ByteArrayOutputStream()
+      pic.compress(android.graphics.Bitmap.CompressFormat.JPEG, 72, b); pic.recycle()
+      out.put(android.util.Base64.encodeToString(b.toByteArray(), android.util.Base64.NO_WRAP))
+    }
+  }) {}
+  return out
+}
+
 /** Where faces are in a whole clip, on the phone's own decoder and model (ClipFaces.kt) */
 internal fun facesOfFile(file: File, dur: Double, W: Int, H: Int, models: Models): List<FaceLook> {
   val (w, h) = faceFrameSize(W, H); val times = faceTimes(dur); val looks = ArrayList<FaceLook>()

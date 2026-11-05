@@ -14,6 +14,7 @@ import type { IconName } from "@mobile/ui-core";
 import { megabytes } from "@mobile/utils";
 import { errorMessage } from "@mobile/api-client";
 import type { ReelProject } from "@mobile/validations";
+import { NATIVE_ENGINE } from "../../lib/nativeEngine";
 import { canUseSharedAndroidRenderer, cancelExport, exportReel, exportReelWithSharedRenderer, nativeExportGaps, type NativeLayerRow } from "../../lib/video";
 import { FlowAnalyse } from "./CreateFlow";
 import { notifyAway } from "../../lib/notify";
@@ -68,6 +69,10 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
       if (reel.studio) {
         if (!engine.holds(reel.id)) throw new Error("The original Studio editing session is not available. Reopen this Reel from Fast Studio before exporting so its advanced effects and layers are preserved.");
         if (!(await engine.edit(reel))) throw new Error("Studio could not sync this edit. Your advanced effects have been kept; reopen the Reel in Fast Studio and try Export again.");
+        if (NATIVE_ENGINE) {   // the phone's own engine: the Reel's sound from the brain, the picture from the native export
+          const { path, plan } = await engine.exportMix(`${reel.id}-mix.wav`, { ...choice, fixLocked: true });
+          return exportReel(reel, (p) => live && setPct(p), { mix: path, plan });
+        }
         return engine.exportReel(`${reel.id}.mp4`, { ...choice, fixLocked: true }); // the person saw the list and chose Export
       }
       if (canUseSharedAndroidRenderer(reel)) return exportReelWithSharedRenderer(reel, (p) => live && setPct(p));

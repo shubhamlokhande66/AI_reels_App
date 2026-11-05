@@ -2,6 +2,7 @@
 // page's engine.ts. It starts from the state the page starts with (initial-state.json, written by scripts/engine-golden.mjs --update),
 // and takes what the phone worked out: the song's analysis (SongAnalysis.kt) and each clip's reading (ClipScan.kt).
 // @ts-nocheck
+import { DEFAULT_LOCKS, needMap } from "../../shared/core/src/lib/plan-locks";
 import { brainFromCopy } from "./index";
 
 /** a song's sound as the brain reads it: the part of the Web Audio AudioBuffer it uses */
@@ -20,11 +21,46 @@ export function createHost(initial, io = {}){
     aiSpent: () => io.spent && io.spent(), creditsChanged: () => {}, newId: () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36), openPricing: () => {} });
   ES.aiStopper = new AbortController();
   // what the page keeps outside its state; the page's own drawing and buttons are not here
-  Object.assign(values, { ac: new AbortController(), fxCache: new Map(), sfxCache: new Map(), isPhotoMode: () => !!ES.photoMode, clipNames: () => ES.sources.filter(s => !s.removed).map(s => s.name), curTime: () => ES.pos, kxAt: (o) => o });
+  Object.assign(values, { ac: new AbortController(), fxCache: new Map(), sfxCache: new Map(), isPhotoMode: () => !!ES.photoMode, clipNames: () => ES.sources.filter(s => !s.removed).map(s => s.name), curTime: () => ES.pos });
+  // the export's choices and the plan's rules (the page's Export sheet)
+  const xq = { res: '1080', fps: 30, nowm: false }, XQ = { '720': { scale: 2/3, bitrate: 6e6 }, '1080': { scale: 1, bitrate: 12e6 }, '4k': { scale: 2, bitrate: 35e6 } };
+  let EXR = DEFAULT_LOCKS.export;
+  const exRule = () => values.planOpen ? { maxRes: '4k', fps60: true, noWatermark: true } : (EXR[ES.planNow] || EXR.free);
+  function lockedUsed(){
+    const out = [], add = (cat, key, name, fix) => { if(brain.isLocked(cat, key)) out.push({ need: brain.lockNeed(cat, key), name, fix }); };
+    for(const e of ES.edit){
+      if(e.tr && e.tr !== 'hard') add('tr', e.tr, e.tr, () => { e.tr = 'dissolve'; });
+      if(e.efx && e.efx !== 'none') add('fx', e.efx, brain.FX_NAME[e.efx] || e.efx, () => { e.efx = 'none'; });
+      const c = e.cs || {};
+      if(c.beauty) add('tool', 'beauty', 'Beauty', () => { delete e.cs.beauty; });
+      if(c.stab) add('tool', 'stab', 'Stabilize', () => { delete e.cs.stab; });
+      if(c.curve) add('tool', 'curve', 'Speed curve', () => { delete e.cs.curve; e.sp = brain.SPEED.normal; });
+    }
+    for(const o of ES.overlays){ if(o.font) add('font', o.font, 'Font ' + o.font, () => { o.font = undefined; });
+      if(!o.emoji) add('text', o.style, 'Text style ' + o.style, () => { o.style = 'bold'; });
+      if(o.track) add('tool', 'track', 'Text follows the person', () => { o.track = false; }); }
+    const R = exRule(), rk = { '720': 0, '1080': 1, '4k': 2 };
+    if(rk[xq.res] > rk[R.maxRes]) out.push({ need: xq.res === '4k' ? 'pro' : 'creator', name: xq.res + ' quality', fix: () => { xq.res = R.maxRes; } });
+    if(xq.fps === 60 && !R.fps60) out.push({ need: 'creator', name: '60 fps', fix: () => { xq.fps = 30; } });
+    const seen = new Set(); return out.filter(x => !seen.has(x.name) && seen.add(x.name));
+  }
+  function exportChoose(a = {}){ if(a.res && XQ[a.res]) xq.res = a.res; if(a.fps === 30 || a.fps === 60) xq.fps = a.fps; if(a.noWatermark !== undefined) xq.nowm = !!a.noWatermark; }
+  function exportPlan(){
+    return { watermark: !(exRule().noWatermark && xq.nowm), res: xq.res, fps: xq.fps, bitrate: XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1), scale: XQ[xq.res].scale,
+      beats: ES.edit.map(e => e.beatsIn || []),
+      follow: ES.layers.map(L => { if(L.follow !== 'face') return null; const path = []; for(let t = L.t0; t < L.t1; t += 0.2){ const f = brain.facePosOnScreen ? brain.facePosOnScreen(t) : null; path.push([t, f ? f.x + (L.followOffsetX || 0) : L.x, f ? f.y + (L.followOffsetY || 0) : L.y]); } return path; }),
+      stabs: ES.edit.map(e => { const s = ES.sources[e.src]; if(!(e.cs && e.cs.stab > 0) || !s || !s.samples || s.samples.length < 4) return null; const t = s.samples.map(x => x.t), p = t.map(v => brain.stabAt(s, v) || [0, 0]); return { t, dx: p.map(v => v[0]), dy: p.map(v => v[1]) }; }) };
+  }
+  function exportOptions(a = {}){
+    exportChoose(a);
+    const R = exRule(), rk = { '720': 0, '1080': 1, '4k': 2 }, dur = ES.buf ? ES.buf.duration : 0, mb = (XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1) + 256e3) * dur / 8 / 1e6;
+    const res = Object.fromEntries(['720', '1080', '4k'].map(r => [r, { locked: rk[r] > rk[R.maxRes], off: false }]));
+    return { res, fps60Locked: !R.fps60, watermarkOff: !!R.noWatermark, size: xq.fps + ' fps · up to ' + (mb < 10 ? mb.toFixed(1) : Math.round(mb)) + ' MB', fileName: (ES.song ? ES.song.name.replace(/\.[^.]+$/, '') : 'reel') + '.mp4', myReels: false, myReelsNote: '', locked: lockedUsed().map(x => ({ name: x.name, need: x.need })) };
+  }
   /** what this person's plan has: Shubix AI or not, the credits */
   async function account(){
     const read = (u) => io.apiFetch(u).then(x => x.ok ? x.json() : null).catch(() => null), [locks, credits] = await Promise.all([read('/api/plan-locks'), read('/api/credits')]);
-    if(locks && locks.groups && brain.needMap) ES.LOCKS = brain.needMap(locks);
+    if(locks && locks.groups){ ES.LOCKS = needMap(locks); EXR = locks.export || EXR; }
     if(credits){ values.planOpen = !credits.enabled && !credits.billing; ES.planNow = credits.enabled && credits.plan ? credits.plan : credits.billing ? 'free' : ES.planNow; }
     values.allOpen = () => !!values.planOpen; values.asFree = () => false;
     const r = await io.apiFetch('/api/studio/rank-shots'); if(!r.ok) return false;
@@ -96,5 +132,5 @@ export function createHost(initial, io = {}){
     ES.sources.push(src); return src;
   }
   function makeReel(){ if(ES.buf && ES.sources.length) brain.makeEditNow(); return ES.edit; }
-  return { brain, ES, values, sec, setSong, useSection, addClip, makeReel, account, runAi, aiBusy };
+  return { brain, ES, values, sec, setSong, useSection, addClip, makeReel, account, runAi, aiBusy, exportChoose, exportPlan, exportOptions, exportFix: () => lockedUsed().forEach(x => x.fix()), lockedUsed };
 }
