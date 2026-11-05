@@ -28,7 +28,8 @@ import kotlin.math.sin
  * the nearest Android family (condensed, serif, script, casual). One renderer for the whole Reel, two full-frame bitmaps
  * in turn (Media3 uploads an overlay again only when it is given another bitmap). */
 @UnstableApi
-internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private val h: Int, private val person: PersonMask? = null) {
+internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private val h: Int, private val person: PersonMask? = null, private val assets: android.content.res.AssetManager? = null) {
+  private val fonts = HashMap<String, Typeface?>()
   private val list = (0 until texts.length()).mapNotNull { texts.optJSONObject(it) }.filter { it.optString("text").isNotBlank() }
   private val bufs = arrayOf(Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888), Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888))
   private var turn = 0
@@ -43,7 +44,7 @@ internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private 
     // text behind the person: drawn on its own, the person cut out of it, then put under the other texts
     val back = if (person != null) on.filter { it.optBoolean("behind") } else emptyList()
     if (back.isNotEmpty()) {
-      person!!.want(t)
+      person!!.ready(t)
       val under = behindBuf ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { behindBuf = it }
       under.eraseColor(Color.TRANSPARENT)
       val cut = Canvas(under); for (ov in back) draw(cut, ov, t)
@@ -65,7 +66,11 @@ internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private 
 
   private fun col(s: String, d: Int = Color.WHITE) = try { Color.parseColor(s) } catch (_: Exception) { d }
   private fun dark(c: Int) = Color.red(c) * 0.299 + Color.green(c) * 0.587 + Color.blue(c) * 0.114 < 140
-  private fun face(font: String, clean: Boolean): Typeface = when (font) {
+  /** the studio's own font, from the APK (assets/fonts); else the nearest Android family */
+  private fun face(font: String, clean: Boolean): Typeface = fonts.getOrPut(font) {
+    if (font.isEmpty() || font == "auto" || assets == null) null else try { Typeface.createFromAsset(assets, "fonts/$font.ttf") } catch (_: Exception) { null }
+  } ?: nearest(font, clean)
+  private fun nearest(font: String, clean: Boolean): Typeface = when (font) {
     "anton", "bebas", "oswald" -> Typeface.create("sans-serif-condensed", Typeface.BOLD)
     "playfair", "rozha", "yatra" -> Typeface.create(Typeface.SERIF, Typeface.BOLD)
     "pacifico", "dancing", "lobster", "caveat", "kalam" -> Typeface.create("cursive", Typeface.BOLD)
@@ -125,6 +130,15 @@ internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private 
     val top = H * (220f / 1920f) + th / 2 + fs * 0.3f; val bot = H * (1 - 450f / 1920f) - th / 2 - fs * 0.3f
     var cx = max(tw / 2 + W * 0.05f, min(W - tw / 2 - W * 0.05f, (ov.optDouble("x", 0.5) * W).toFloat()))
     var cy = (max(top, min(bot, (ov.optDouble("y", 0.4) * H).toFloat())) + dy).toFloat()
+    // follows the person: on the subject of the shot playing, the text's place as a distance from it
+    ov.optJSONArray("trackPath")?.let { path ->
+      val q = path.optJSONArray(min(path.length() - 1, max(0, (t / 0.1).toInt())))
+      if (q != null && q.optDouble(3, 0.0) > 0 && q.optDouble(4, 0.0) > 0) {
+        val sc2 = max(W / q.optDouble(3), H / q.optDouble(4)); val dw = q.optDouble(3) * sc2; val dh = q.optDouble(4) * sc2
+        cx = max(tw / 2, min(W - tw / 2, ((W - dw) / 2 + q.optDouble(1) * dw + (ov.optDouble("x", 0.5) - 0.5) * W).toFloat()))
+        cy = (max(th / 2, min(H - th / 2, ((H - dh) / 2 + q.optDouble(2) * dh + (ov.optDouble("y", 0.4) - 0.5) * H).toFloat())) + dy).toFloat()
+      }
+    }
     if (u != null) { cx += (u[1] * W).toFloat(); cy += (u[2] * H).toFloat() }
     val focus = ov.optDouble("focus", Double.NaN); val fx = if (focus.isFinite()) ((focus - 0.5) * tw).toFloat() else 0f
     val baseline = { k: Int -> (k - (lines.size - 1) / 2f) * lh - (p.ascent() + p.descent()) / 2 }   // "middle" as the canvas's textBaseline

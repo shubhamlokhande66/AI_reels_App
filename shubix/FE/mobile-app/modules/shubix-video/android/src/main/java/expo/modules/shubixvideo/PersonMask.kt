@@ -18,8 +18,17 @@ internal class ShotTime(val path: String, val image: Boolean, val at: Double, va
  * A worker reads a small frame of the shot at the time asked last and keeps the newest mask, so the mask can trail the
  * picture a little in the preview. It stops by itself when nothing asks for a moment. `latest`: white and solid where the
  * person is, null until the first answer. */
-internal class PersonMask(private val shots: List<ShotTime>) {
+internal class PersonMask(private val shots: List<ShotTime>, private val exact: Boolean = false) {
   @Volatile var latest: Bitmap? = null
+  @Volatile private var doneFor = -1.0
+
+  /** the mask for time `t`: the player goes on with the newest one it has; the export waits for this frame's (for a moment) */
+  fun ready(t: Double) {
+    want(t)
+    if (!exact) return
+    val until = System.currentTimeMillis() + 2_000
+    while (doneFor != t && System.currentTimeMillis() < until) Thread.sleep(3)
+  }
   @Volatile private var wanted = 0.0
   @Volatile private var askedAt = 0L
   private var running = false
@@ -44,13 +53,13 @@ internal class PersonMask(private val shots: List<ShotTime>) {
         val frame = if (shot.image) BitmapFactory.decodeFile(shot.path, BitmapFactory.Options().apply { inSampleSize = 4 }) else {
           if (open != shot.path) { reader?.release(); reader = MediaMetadataRetriever().apply { setDataSource(shot.path) }; open = shot.path }
           val us = ((shot.start + (t - shot.at).coerceIn(0.0, shot.length) * shot.rate) * 1_000_000).toLong()
-          if (Build.VERSION.SDK_INT >= 27) reader!!.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 320) else reader!!.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+          if (Build.VERSION.SDK_INT >= 27) reader!!.getScaledFrameAtTime(us, if (exact) MediaMetadataRetriever.OPTION_CLOSEST else MediaMetadataRetriever.OPTION_CLOSEST_SYNC, if (exact) 640 else 320, if (exact) 640 else 320) else reader!!.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
         } ?: continue
         val soft = if (frame.config == Bitmap.Config.ARGB_8888) frame else frame.copy(Bitmap.Config.ARGB_8888, false)
         val mask = Tasks.await(model.process(InputImage.fromBitmap(soft, 0)))
         val data = mask.buffer.apply { rewind() }.asFloatBuffer(); val w = mask.width; val h = mask.height
         val pixels = IntArray(w * h) { ((data.get(it) * 255).toInt().coerceIn(0, 255) shl 24) or 0xFFFFFF }
-        latest = Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
+        latest = Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888); doneFor = t
       }
     } catch (_: Exception) {
     } finally {

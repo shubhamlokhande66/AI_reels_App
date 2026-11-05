@@ -9,7 +9,7 @@ phone app (FE/mobile-app) ──────────────────
 
 - **The Reel is made on the person's device.** Fast Studio (`FE/web-app/components/studio`) reads the song (beats, drops,
   parts), reads the clips (motion, faces, best moments), plans the cuts on the beat, plays the preview and exports the
-  video (WebCodecs, else the browser's recorder). The phone app runs the same engine in a hidden page (`/engine`).
+  video (WebCodecs, else the browser's recorder). The phone app has its own engine, without a browser (`docs/native-engine.md`).
 - **The API** (`BE/api`) keeps accounts and sessions, plans and credits (Razorpay on the website), the CMS texts,
   templates, My Reels (R2), email, ads settings, error reports, and the AI features (Shubix AI plans the edit from small
   preview frames; captions and narration). Heavy clips the browser cannot decode are converted there (FFmpeg).

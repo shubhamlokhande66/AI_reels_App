@@ -33,10 +33,9 @@ The engine is the app's own Expo module `FE/mobile-app/modules/shubix-video` (Ko
    sequences.
 6. **DONE (all 44, the outgoing shot's last frame as on the website; StudioTransitions.kt): the 44 transitions.** Two shots overlap for the transition's length. Media3 sequences don't overlap, so the
    transition is drawn by one GPU pass that reads the end of one shot and the start of the next.
-7. **DONE (StudioTexts.kt; Google fonts drawn in the nearest Android family, text behind the person and follow-the-person not yet): texts as the studio draws them.** Its styles, fonts, entrances, exits, loops and keyframes, drawn per frame onto a
+7. **DONE (StudioTexts.kt, with the studio's fonts in `assets/fonts`): texts as the studio draws them.** Its styles, fonts, entrances, exits, loops and keyframes, drawn per frame onto a
    bitmap overlay.
-8. **Parity check.** A test that draws the same frames on the website and on the phone and compares them. Then the
-   phone's export can move from the hidden studio page to the native engine.
+8. **Parity check, not done.** The page was removed first, by decision, so the phone's export was never compared with the page's frame by frame.
 
 Each step ships on its own: the live preview gets a little closer to the studio's look with each one, and the export
 stays on the studio until step 8.
@@ -45,8 +44,20 @@ stays on the studio until step 8.
 
 `Models.kt` runs the beat tracker, speech finder, person mask and faces with ONNX Runtime for Android. `SystemVoice.kt` speaks with the phone's own text-to-speech. The hidden page reaches it through the file server (`/model`, `/onnx`, `/speech`, `/speak`). If the phone's model fails, the page's WebAssembly copy takes over and a warning goes to the console.
 
-Still in the page: the audio and mel steps before the models run. These must move before the WebView can go.
-
-`node scripts/models-check.mjs [voice]` compares the phone's models with the WebAssembly copies on a connected phone. The same-input outputs must be within 0.01. The beat tracker is an 8-bit network, so it has its own rule: the same number of beats and downbeats, each within 20 ms, one network frame.
-
 Tested on a computer: `Models.kt` on the JVM against the page's copies passed, with beats up to 20 ms apart. `SystemVoice.kt` needs a phone. Neither has run on a phone.
+
+## The studio on the phone
+
+The app has one engine and no hidden page: the WebView, its page and `engine/build.mjs` are gone.
+
+- `lib/engine.ts`: what the screens call. `lib/nativeEngine.ts`: every operation, on the brain.
+- `engine/brain/host.ts`: the song, part and clip flows, Shubix AI, the plan's export rules. It starts from `engine/brain/initial-state.json`, a saved start state that nothing makes any more: change it by hand.
+- `engine/brain/chat.ts`, `small.ts`: Ask Shubix and small rules.
+- Kotlin, through the file server: `SongAnalysis.kt` (`/song`), `ClipStats.kt` and `ClipScan.kt` (`/scan`), `ClipFaces.kt` (`/faces`), `/probe`, `/aiframes`, `SystemVoice.kt` (`/speak`), `/copy`, `/sound`, `/out`, `/probe` with `VideoFacts.kt`, and `/api`, passed on to the server.
+- Export: the sound from the brain (`exportMix`), then the picture, its layers, watermark, quality and frame rate from `exportReel` in `lib/video.ts`. `nativeExportGaps` names what it leaves out.
+
+Tested: `tests/native-engine.test.ts` runs the operations against a fake file server; `song-parity.mjs` and `clip-parity.mjs` compare Kotlin on a computer with the JavaScript; the whole app compiles with Metro and Hermes. It has not been run on a phone since the page was removed, and the page-versus-brain golden went with the page (last passed before the removal, git history has `scripts/engine-golden.mjs`).
+
+Brought over from the page: a shot's and a layer's own sound in the mix, the limiter on the Reel's sound (the same settings, not the browser's exact compressor), captions heard from the band of a voice, edit copies for HDR, 10-bit, more than 30 fps, a varying frame rate and very large clips (`VideoFacts.kt`, `editCopyOf`), a beat shape on its subject, a layer mask's soft edge, saving to My Reels.
+
+Not needed here: noise cleanup was only for Talking Reels, which do not use this engine; nothing asks for the page's paused picture.

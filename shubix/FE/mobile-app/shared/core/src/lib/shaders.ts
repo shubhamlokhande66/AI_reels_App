@@ -258,3 +258,13 @@ void main(){ vec3 c = texture2D(T, v).rgb*255., k = key*255.; float d = distance
   float a = clamp((d - t)/40., 0., 1.);
   if(d < t + 40.){ if(k.g == km && c.g > max(c.r, c.b)) c.g = max(c.r, c.b); else if(k.b == km && c.b > max(c.r, c.g)) c.b = max(c.r, c.g); }
   gl_FragColor = vec4(mix(bg, c/255., a), 1.); }`;
+
+/** skin smoothing of a shot as one pass over its frame: the same formula as shotL above */
+export const BEAUTY_FRAG = `precision mediump float; varying vec2 v; uniform sampler2D T; uniform vec2 res; uniform float be;
+void main(){ vec3 c = texture2D(T, v).rgb; vec2 a = vec2(1.6/res.x, 0.), b = vec2(0., 1.6/res.y), d = vec2(4.5/res.x, 0.), e = vec2(0., 4.5/res.y);
+  vec3 bl = (texture2D(T, v+a).rgb + texture2D(T, v-a).rgb + texture2D(T, v+b).rgb + texture2D(T, v-b).rgb)*0.25;
+  vec3 wb = (texture2D(T, v+d).rgb + texture2D(T, v-d).rgb + texture2D(T, v+e).rgb + texture2D(T, v-e).rgb + bl*4.)/8.;
+  float skin = smoothstep(0.02,0.1,c.r-c.g)*smoothstep(0.0,0.06,c.g-c.b)*step(0.2,c.r);
+  float flatness = 1.-smoothstep(0.03,0.14,length(c-wb));
+  c = mix(c, wb*1.02+0.01, clamp(be*skin*flatness,0.,0.9));
+  gl_FragColor = vec4(clamp(c, 0., 1.), 1.); }`;

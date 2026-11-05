@@ -1,6 +1,5 @@
 // The engine's edit core: how a Reel's shots are chosen and placed. Moved from components/studio/engine.ts, with its state in
-// one object (ES) and what stays in the page behind hooks (EH), on the way to running the phone's brain without the hidden page.
-// The golden test (scripts/engine-golden.mjs) says it still makes the same Reel.
+// one object (ES) and what is the app's own behind hooks (EH).
 // @ts-nocheck
 import { endWell, crossesScene, fmt, TAIL, windowStats, srcPosF, srcPos, aiBonus, moveWords, rampSpeed, velocitySpeed, curveSpeed } from './pure';
 import { TR_DUR } from '@mobile/core/lib/shaders';

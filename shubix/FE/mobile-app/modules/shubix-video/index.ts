@@ -3,6 +3,7 @@ import { requireNativeView, requireOptionalNativeModule, type EventSubscription 
 /** The phone's video engine (android/…/ShubixVideoModule.kt). null where it is not in the app: Expo Go and the web. */
 type Engine = {
   exportReel(spec: string): Promise<{ uri: string; size: number; duration: number }>;
+  reverseCopy(uri: string, start: number, end: number): Promise<string>;
   cancel(): Promise<void>;
   /** the tiny web server on the phone (127.0.0.1): it serves the engine page from the APK, reads the app's files for it,
    * takes the Reel back and passes its calls on to `api` */

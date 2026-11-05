@@ -1,5 +1,5 @@
 // Shubix AI: looking at the clips, the pace, the plan and its steps. Moved from
-// components/studio/engine.ts: its state is the object ES, and what must stay in the page (drawing, the page's boxes) comes through EH.
+// the website's studio: its state is the object ES, and what is the app's own comes through EH.
 // The golden test (scripts/engine-golden.mjs) says it still makes the same Reel.
 // @ts-nocheck
 import { toSlots } from './pure';

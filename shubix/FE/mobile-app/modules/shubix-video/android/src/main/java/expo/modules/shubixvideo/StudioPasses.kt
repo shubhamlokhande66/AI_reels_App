@@ -9,12 +9,13 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BaseGlShaderProgram
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** The studio's GPU passes on the phone: the website's own shader text (Shared/core/src/lib/shaders.ts), sent by the
  * phone's JS in the spec ("shaders"), so both engines run one program. A website texture's row 0 is the picture's top,
  * a Media3 texture's is its bottom: one #define turns every texture read over, the shader itself stays the website's. */
-internal class StudioShaders(val vert: String, val pic: String, val grade: String, val adj: String?, val key: String?, val main: String?) {
+internal class StudioShaders(val vert: String, val pic: String, val grade: String, val adj: String?, val key: String?, val main: String?, val beauty: String?) {
   companion object {
     private const val FLIP = "#define texture2D(s, c) texture2D(s, vec2((c).x, 1.0 - (c).y))\n"
     fun of(spec: JSONObject): StudioShaders? {
@@ -22,7 +23,7 @@ internal class StudioShaders(val vert: String, val pic: String, val grade: Strin
       val vert = s.optString("vert"); val pic = s.optString("pic"); val grade = s.optString("grade")
       if (vert.isBlank() || pic.isBlank() || grade.isBlank()) return null
       val opt = { k: String -> s.optString(k).takeIf { it.isNotBlank() }?.let { FLIP + it } }
-      return StudioShaders(vert, FLIP + pic, FLIP + grade, opt("adj"), opt("key"), opt("main"))
+      return StudioShaders(vert, FLIP + pic, FLIP + grade, opt("adj"), opt("key"), opt("main"), opt("beauty"))
     }
   }
 }
@@ -51,6 +52,25 @@ private class StudioPass(private val vert: String, private val frag: String, pri
 /** a clip's studio passes from its spec: "pic" { kind (PIC_FX), amt } and "grade" { cv, hsl }; `offset` = where this
  * item starts in its shot, `len` = the shot's length (seconds), both on the output's clock */
 @UnstableApi
+internal fun studioStabilizer(clip: JSONObject): androidx.media3.effect.MatrixTransformation? {
+  val path = clip.optJSONObject("stabPath") ?: return null
+  val amount = clip.optJSONObject("cs")?.optDouble("stab", 0.0)?.takeIf { it.isFinite() && it > 0.0 } ?: return null
+  val ts = path.optJSONArray("t") ?: return null; val xs = path.optJSONArray("dx") ?: return null; val ys = path.optJSONArray("dy") ?: return null
+  if (ts.length() < 2 || xs.length() != ts.length() || ys.length() != ts.length()) return null
+  val start = clip.optDouble("start", 0.0); val speed = clip.optDouble("speed", 1.0).takeIf { it.isFinite() && it > 0.0 } ?: 1.0
+  val zoom = (1 + 0.12 * amount).toFloat()
+  fun at(list: JSONArray, i: Int, j: Int, f: Double) = list.optDouble(i) + (list.optDouble(j) - list.optDouble(i)) * f
+  return androidx.media3.effect.MatrixTransformation { us ->
+    val t = start + us / 1_000_000.0 * speed
+    var hi = 1
+    while (hi < ts.length() - 1 && ts.optDouble(hi) < t) hi++
+    val lo = hi - 1
+    val f = ((t - ts.optDouble(lo)) / maxOf(1e-6, ts.optDouble(hi) - ts.optDouble(lo))).coerceIn(0.0, 1.0)
+    // the frame is 2 wide in these units; up on screen is positive
+    android.graphics.Matrix().apply { setScale(zoom, zoom); postTranslate((2 * at(xs, lo, hi, f) * amount).toFloat(), (-2 * at(ys, lo, hi, f) * amount).toFloat()) }
+  }
+}
+
 internal fun studioPasses(sh: StudioShaders?, clip: JSONObject, offset: Double, len: Double): List<GlEffect> {
   if (sh == null) return emptyList()
   val out = mutableListOf<GlEffect>()
@@ -92,6 +112,11 @@ internal fun studioPasses(sh: StudioShaders?, clip: JSONObject, offset: Double, 
       GLES20.glUniform1f(p.getUniformLocation("kind"), kind.toFloat())
       GLES20.glUniform1f(p.getUniformLocation("amt"), (maxOf(0.0, ramp) * amt).toFloat())
     }
+  }
+  // skin smoothing (cs.beauty), the formula of the website's shot renderer
+  val beauty = cs?.optDouble("beauty", 0.0)?.takeIf { it.isFinite() && it > 0.0 }
+  if (sh.beauty != null && beauty != null) out += StudioPass(sh.vert, sh.beauty) { p, w, h, _ ->
+    GLES20.glUniform2f(p.getUniformLocation("res"), w, h); GLES20.glUniform1f(p.getUniformLocation("be"), beauty.toFloat())
   }
   // chroma key (cs.ck: c, tol, bg), after the picture effects as on the website (shotKey)
   val ck = cs?.optJSONObject("ck")
@@ -168,4 +193,41 @@ private fun kxAt(base: Map<String, Double>, keys: List<JSONObject>, l: Double): 
     p = ease(b.optString("ez", "inOut"), ((l - ta) / maxOf(1e-6, tb - ta)).coerceIn(0.0, 1.0)); break
   }
   return base.mapValues { (n, d) -> val x = if (a.has(n)) a.optDouble(n, d) else d; val y = if (b.has(n)) b.optDouble(n, d) else d; (x + (y - x) * p).toFloat() }
+}
+
+internal val BLEND_MODE = mapOf("multiply" to 1, "screen" to 2, "overlay" to 3, "lighter" to 4, "darken" to 5, "lighten" to 6, "soft-light" to 7, "hard-light" to 8, "color-dodge" to 9, "color-burn" to 10, "difference" to 11, "exclusion" to 12)
+private const val BLEND_FRAG = """precision mediump float; varying vec2 v; uniform sampler2D T, L; uniform float mode;
+vec3 hard(vec3 b, vec3 s){ return mix(2.*b*s, 1.-2.*(1.-b)*(1.-s), step(.5, s)); }
+vec3 soft(vec3 b, vec3 s){ vec3 d = mix(((16.*b-12.)*b+4.)*b, sqrt(b), step(.25, b)); return mix(b-(1.-2.*s)*b*(1.-b), b+(2.*s-1.)*(d-b), step(.5, s)); }
+vec3 blendOf(vec3 b, vec3 s){
+  if(mode<1.5) return b*s; if(mode<2.5) return b+s-b*s; if(mode<3.5) return hard(s,b); if(mode<5.5) return min(b,s); if(mode<6.5) return max(b,s);
+  if(mode<7.5) return soft(b,s); if(mode<8.5) return hard(b,s); if(mode<9.5) return min(vec3(1.), b/max(vec3(.001),1.-s)); if(mode<10.5) return 1.-min(vec3(1.),(1.-b)/max(vec3(.001),s));
+  if(mode<11.5) return abs(b-s); return b+s-2.*b*s; }
+void main(){ vec3 b = texture2D(T, vec2(v.x, 1.-v.y)).rgb; vec4 l = texture2D(L, v);
+  if(l.a<.002){ gl_FragColor = vec4(b,1.); return; }
+  vec3 s = l.rgb/l.a;
+  gl_FragColor = vec4(mode>3.5&&mode<4.5 ? min(vec3(1.), b+l.rgb) : mix(b, clamp(blendOf(b,s),0.,1.), l.a), 1.); }"""
+
+/** one overlay layer blended into the picture, as the website's globalCompositeOperation (the W3C formulas) */
+@UnstableApi
+internal class LayerBlend(private val vert: String, private val layer: StudioLayerRenderer, private val mode: Int, private val offset: Double) : GlEffect {
+  override fun toGlShaderProgram(context: android.content.Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = object : androidx.media3.effect.BaseGlShaderProgram(useHdr, 1) {
+    private val program = GlProgram(vert, BLEND_FRAG)
+    private val tex = IntArray(1).also { GLES20.glGenTextures(1, it, 0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, it[0])
+      for ((k, v) in listOf(GLES20.GL_TEXTURE_MIN_FILTER to GLES20.GL_LINEAR, GLES20.GL_TEXTURE_MAG_FILTER to GLES20.GL_LINEAR, GLES20.GL_TEXTURE_WRAP_S to GLES20.GL_CLAMP_TO_EDGE, GLES20.GL_TEXTURE_WRAP_T to GLES20.GL_CLAMP_TO_EDGE)) GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, k, v) }
+    override fun configure(inputWidth: Int, inputHeight: Int) = androidx.media3.common.util.Size(inputWidth, inputHeight)
+    override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) {
+      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[0])
+      android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, layer.at(offset + presentationTimeUs / 1_000_000.0), 0)
+      program.use()
+      program.setSamplerTexIdUniform("T", inputTexId, 0)
+      program.setSamplerTexIdUniform("L", tex[0], 1)
+      program.setBufferAttribute("a", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
+      program.bindAttributesAndUniforms()
+      GLES20.glUniform1f(program.getUniformLocation("mode"), mode.toFloat())
+      GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+      GlUtil.checkGlError()
+    }
+    override fun release() { super.release(); program.delete(); GLES20.glDeleteTextures(1, tex, 0) }
+  }
 }

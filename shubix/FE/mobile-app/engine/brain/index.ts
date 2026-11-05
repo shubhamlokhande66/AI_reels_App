@@ -6,6 +6,8 @@ import { createCoreBrain } from "./core";
 import { createReelBrain } from "./reel";
 import { createSharedBrain } from "./shared";
 import { createAiBrain } from "./ai";
+import { createSmallBrain } from "./small";
+import { createChatBrain } from "./chat";
 
 /** all the brain's parts on one state; what is not in the brain comes from `values` (plain data), else it is a page job, which does nothing here */
 export function createBrain(ES, values = {}) {
@@ -15,8 +17,8 @@ export function createBrain(ES, values = {}) {
     if (name in values) return values[name];
     return () => { pageJobs.set(name, (pageJobs.get(name) || 0) + 1); };
   } });
-  Object.assign(parts, { shared: createSharedBrain(ES, EH), edit: createEditBrain(ES, EH), core: createCoreBrain(ES, EH), reel: createReelBrain(ES, EH), ai: createAiBrain(ES, EH) });
-  return { ...parts.shared, ...parts.edit, ...parts.core, ...parts.ai, ...parts.reel, ES, pageJobs };
+  Object.assign(parts, { chat: createChatBrain(ES, EH), small: createSmallBrain(ES, EH), shared: createSharedBrain(ES, EH), edit: createEditBrain(ES, EH), core: createCoreBrain(ES, EH), reel: createReelBrain(ES, EH), ai: createAiBrain(ES, EH) });
+  return { ...parts.chat, ...parts.small, ...parts.shared, ...parts.edit, ...parts.core, ...parts.ai, ...parts.reel, ES, pageJobs };
 }
 
 const isPagePart = (v) => (typeof Node !== "undefined" && v instanceof Node) || (typeof CanvasRenderingContext2D !== "undefined" && v instanceof CanvasRenderingContext2D);
@@ -39,8 +41,8 @@ export function copyOfState(ES, HOOKS) {
   return JSON.stringify({ ES, values }, dump);
 }
 
-/** makes the Reel from a state copy, with no page: its shots (start, end, clip, in, transition, effect) */
-export function reelFromCopy(copy) {
+/** a brain on a state copy (speeds back from their names); `values`: its plain values, which the caller may change */
+export function brainFromCopy(copy) {
   const typed = { Float32Array, Float64Array, Uint8Array, Uint8ClampedArray, Int16Array, Int32Array, Uint16Array, Uint32Array };
   const revive = (k, v) => {
     if (!v || !v.__t) return v;
@@ -51,7 +53,13 @@ export function reelFromCopy(copy) {
   const { ES, values } = JSON.parse(copy, revive), brain = createBrain(ES, values);
   const speeds = (o, seen = new Set()) => { if (!o || typeof o !== "object" || seen.has(o)) return; seen.add(o); if (o.sp && o.sp.__sp !== undefined) o.sp = brain.speedFor(o.sp.__sp, o); for (const v of Array.isArray(o) ? o : Object.values(o)) speeds(v, seen); };
   speeds(ES);
+  return { ...brain, values };
+}
+
+/** makes the Reel from a state copy, with no page: its shots (start, end, clip, in, transition, effect) */
+export const shotsOf = (ES) => { const rounded = (v) => (typeof v === "number" ? +v.toFixed(3) : v); return ES.edit.map((e) => [e.start, e.end, e.src, e.in, e.tr, e.efx].map(rounded)); };
+export function reelFromCopy(copy) {
+  const brain = brainFromCopy(copy);
   brain.makeEditNow();
-  const rounded = (v) => (typeof v === "number" ? +v.toFixed(3) : v);
-  return { shots: ES.edit.map((e) => [e.start, e.end, e.src, e.in, e.tr, e.efx].map(rounded)), pageJobs: [...brain.pageJobs.keys()] };
+  return { shots: shotsOf(brain.ES), pageJobs: [...brain.pageJobs.keys()] };
 }

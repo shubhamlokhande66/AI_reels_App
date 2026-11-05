@@ -191,7 +191,6 @@ function CreateFlowScreen() {
         if (!went && again && making.current) { making.current = false; tasks.clear("flow"); setStep("clips"); return void keepOldReel(old); }   // Shubix AI's question closed: the old Reel
         if (!went || !making.current) { making.current = false; tasks.clear("flow"); setStep("clips"); return; }
         clips = shotsOf((await engine.ready(id)).state.edit, sources.length ? sources : clips); studio = true;
-        if (process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1") void engine.brainCheck().then((r) => tell(`Brain on the phone: ${r.same ? "same Reel" : "DIFFERENT"}, ${r.shots} shots, ${r.ms} ms`, r.same ? "info" : "danger")).catch((e) => tell(`Brain check: ${errorMessage(e)}`, "danger"));
       } else clips = clips.map((c) => ({ ...c, speed: { fast: 1.25, smooth: 0.8, "": 1 }[style] }));
       const audioUri = song ? await keepPickedFile(id, song.uri, `${song.name}.m4a`) : undefined;
       const now = new Date().toISOString();

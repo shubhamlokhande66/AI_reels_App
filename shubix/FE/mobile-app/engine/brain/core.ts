@@ -1,5 +1,5 @@
 // The engine's logic with no browser code of its own (making the Reel, the AI's plans and steps, undo, the song's parts...). Moved from
-// components/studio/engine.ts: its state is the object ES, and what must stay in the page (drawing, the page's boxes) comes through EH.
+// the website's studio: its state is the object ES, and what is the app's own comes through EH.
 // The golden test (scripts/engine-golden.mjs) says it still makes the same Reel.
 // @ts-nocheck
 import { srcPos, whatClip, velocitySpeed, rampSpeed, keyframesFor, crossesScene, srcPosF, TAIL, buildCapLines, panClamp, shotBeats, windowStats } from './pure';
@@ -871,7 +871,7 @@ async function ensureMix(){
   const shots = EH.clipVoiced() ? ES.edit.filter(e => EH.csVoiced(e)) : [];
   for(const e of shots) await EH.clipPcm(e.src);
   for(const c of ES.ttsClips) if(!c.pcm) try{ await ttsMake(c, false); }catch(e){}
-  for(const L of ES.layers){ const M = ES.lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await EH.decodeAnyAudio(M.file), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
+  for(const L of ES.layers){ const M = ES.lmedia[L.m]; if(L.vol > 0 && M && M.kind === 'video' && M.pcm === undefined){ try{ const b = await EH.decodeAnyAudio(M.file || M), x = new Float32Array(b.length); for(let c=0;c<b.numberOfChannels;c++){ const d = b.getChannelData(c); for(let i=0;i<x.length;i++) x[i] += d[i]/b.numberOfChannels; } M.pcm = { x, sr: b.sampleRate }; }catch(e){ M.pcm = null; } } }
   const key = JSON.stringify([ES.au, ES.vo && ES.vo.key, ES.ttsClips.map(c => [c.id, c.at, !!c.pcm]), ES.layers.map(L => [L.id, L.t0, L.t1, L.in, L.vol]), ES.denoiseOn, ES.baseBuf.length, shots.map(e => [e.start, e.end, e.src, e.in, e.scaleR, EH.speedKey(e.sp), e.cs.vol, e.cs.fin, e.cs.fout, !!e.cs.enh, e.cs.kx ? JSON.stringify(e.cs.kx.filter(k => 'vol' in k)) : 0])]);
   const key2 = key + JSON.stringify([EH.sfxEvents(), ES.au.sfx, ES.au.sfxv, ES.edit.map(e => e.cs ? [e.cs.mus, e.cs.pitch] : 0)]);
   if(key2 !== ES.clipMixKey){ ES.clipMixKey = key2; applyVo(); }

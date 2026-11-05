@@ -25,6 +25,7 @@ import androidx.media3.effect.Brightness
 import androidx.media3.effect.Contrast
 import androidx.media3.effect.GaussianBlur
 import androidx.media3.effect.HslAdjustment
+import androidx.media3.effect.FrameDropEffect
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.MatrixTransformation
 import androidx.media3.effect.Presentation
@@ -35,7 +36,9 @@ import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TimestampWrapper
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItemSequence
+import androidx.media3.transformer.VideoEncoderSettings
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
@@ -123,6 +126,18 @@ class ShubixVideoModule : Module() {
       }
     }
     AsyncFunction("cancel") { main.post { cancelActiveExport() } }
+    // a part of a clip played backwards, as its own file; the same part is made once (ReverseCopy.kt)
+    AsyncFunction("reverseCopy") { uri: String, start: Double, end: Double, promise: Promise ->
+      val c = appContext.reactContext ?: throw IllegalStateException("No app")
+      kotlin.concurrent.thread(isDaemon = true, name = "shubix-reverse") {
+        try {
+          val path = Uri.parse(uri).path ?: uri; val from = File(path)
+          val to = File(File(c.cacheDir, "engine-out").apply { mkdirs() }, "rev-${(path + from.length() + from.lastModified() + start + end).hashCode().toUInt()}.mp4")
+          if (!to.isFile || to.length() == 0L) makeReverseCopy(path, to, start, end)
+          promise.resolve(Uri.fromFile(to).toString())
+        } catch (e: Throwable) { promise.reject("E_REVERSE", e.message ?: "The clip could not be reversed.", e) }
+      }
+    }
     // the live preview: the Reel as the export makes it, playing (ShubixPreviewView); a smaller frame is fine here
     View(ShubixPreviewView::class) {
       Events("onTime", "onEnded", "onError")
@@ -140,7 +155,7 @@ class ShubixVideoModule : Module() {
       AsyncFunction("setMuted") { view: ShubixPreviewView, muted: Boolean -> view.setMuted(muted) }.runOnQueue(Queues.MAIN)
       AsyncFunction("release") { view: ShubixPreviewView -> view.release() }.runOnQueue(Queues.MAIN)
     }
-    // the engine page's home on the phone (FileServer): started once, its port and key; `api`: where its /api calls go
+    // the engine's home on the phone (FileServer): started once, its port and key; `api`: where its /api calls go
     Function("fileServer") { api: String ->
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
       val s = files ?: FileServer(c, listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out"), api.trimEnd('/')).also { files = it }
@@ -188,6 +203,10 @@ class ShubixVideoModule : Module() {
     val transformer = try {
       Transformer.Builder(context)
         .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
+        .apply {
+          val bitrate = spec.optInt("bitrate")
+          if (bitrate > 0) setEncoderFactory(DefaultEncoderFactory.Builder(context).setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build()).build())
+        }
         .addListener(object : Transformer.Listener {
           override fun onCompleted(composition: Composition, result: ExportResult) {
             if (activeExport !== session) return
@@ -258,11 +277,16 @@ class ShubixVideoModule : Module() {
     val shotTimes = mutableListOf<ShotTime>()
     val sharedEffects = mutableMapOf<String, MutableList<Effect>>()
     val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { list ->
-      val behind = live && (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
-      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes) else null)
+      val behind = (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
+      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes, exact = !live) else null, appContext.reactContext?.assets)
     }
-    // the overlay layers, live player only (the export of a Reel with layers is the engine page's)
-    val studioLayers = spec.optJSONArray("layers")?.takeIf { live && it.length() > 0 }?.let { StudioLayerRenderer(it, w, h) }
+    // the overlay layers: the player shows the newest frame it has, the export the exact one
+    val allLayers = spec.optJSONArray("layers")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } } ?: emptyList()
+    // the export: a layer with a blend mode is its own GPU pass over the picture (StudioPasses.kt); the others one overlay
+    val blended = if (live) emptyList() else allLayers.filter { BLEND_MODE.containsKey(it.optString("blend")) }
+    val studioLayers = (allLayers - blended.toSet()).takeIf { it.isNotEmpty() }?.let { StudioLayerRenderer(org.json.JSONArray(it), w, h, exact = !live) }
+    val blendLayers = blended.map { StudioLayerRenderer(org.json.JSONArray(listOf(it)), w, h, exact = true) to BLEND_MODE.getValue(it.optString("blend")) }
+    val watermark = if (!live && spec.optBoolean("watermark")) StudioWatermark(appContext.reactContext ?: throw IllegalStateException("No app"), w, h) else null
     val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
     val clips = spec.getJSONArray("clips")
     require(clips.length() > 0) { "Add at least one clip before exporting." }
@@ -351,8 +375,14 @@ class ShubixVideoModule : Module() {
           }
         }
       }
+      if (!live) studioStabilizer(c)?.let { video += it }
       video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
       video += filter(c.optString("filter"))
+      // the shot's beat effect, with the studio's own shader (StudioTransitions.kt)
+      if (!live && shaders?.main != null) c.optJSONObject("beatFx")?.let { fx ->
+        val beats = fx.optJSONArray("beats")
+        video += BeatFx(shaders.vert, shaders.main, fx.optString("id"), (0 until (beats?.length() ?: 0)).map { beats!!.optDouble(it) }, clipOutputDuration, fx.optJSONObject("cam"))
+      }
       // the studio's transition into this shot (tr: id, dur): the old shot's last frame and this one, as the website
       val tr = c.optJSONObject("tr")
       if (shaders?.main != null && tr != null) video += Transition(shaders.vert, shaders.main, held, tr.optString("id"), tr.optDouble("dur"), -base)
@@ -360,9 +390,11 @@ class ShubixVideoModule : Module() {
       video += customEffects(c.optJSONArray("effects"), base, clipOutputDuration, w, h)
       video += studioPasses(shaders, c, -base, clipOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
       studioMask(c, -base, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts
+      if (shaders != null) for ((layer, mode) in blendLayers) video += LayerBlend(shaders.vert, layer, mode, at - base)
       if (studioLayers != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioLayers.overlay(at - base)))
       if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at - base)))
       else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at - base)))
+      if (watermark != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(watermark))
       // the live player keeps its GPU programs when the next shot's effects are the same objects: shots with nothing of
       // their own (most cuts of a fast Reel) share one list, so a cut does not rebuild them
       if (live && turn == 0f && !mirror && !flip && (keyframes == null || keyframes.length() == 0) && transitionIn == null && tr == null && !c.optBoolean("keep") &&
@@ -425,7 +457,11 @@ class ShubixVideoModule : Module() {
         else listOf(gainProcessor(musicVolume, audioDuration, fadeIn, fadeOut, if (ducking) clipAudioRanges else emptyList(), duckLevel))
       sequences += EditedMediaItemSequence.Builder(listOf(EditedMediaItem.Builder(music).setDurationUs((songMs ?: songEndMs) * 1000).setRemoveVideo(true).setEffects(Effects(musicAudio, emptyList())).build())).build()
     }
-    return Built(Composition.Builder(sequences).build(), at)
+    // the export's frame rate: faster sources are brought down to it, as the studio writes frames at its own rate
+    val fps = spec.optInt("fps").takeIf { !live && it > 0 }
+    return Built(Composition.Builder(sequences).apply {
+      if (fps != null) setEffects(Effects(emptyList(), listOf(FrameDropEffect.createDefaultFrameDropEffect(fps.toFloat()))))
+    }.build(), at)
   }
 
   private data class RampPoint(val time: Double, val speed: Double, val easing: String)

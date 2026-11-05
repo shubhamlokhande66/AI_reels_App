@@ -72,6 +72,52 @@ internal fun readFrames(file: File, w: Int, h: Int, times: DoubleArray, out: Out
   }
 }
 
+/** Frames as they are decoded: each answer of readFrames handed over instead of written */
+private class FrameSink(private val size: Int, private val onFrame: (Int, ByteArray?) -> Unit) : OutputStream() {
+  private var k = 0
+  override fun write(b: Int) { if (b == 0) onFrame(k++, null) }
+  override fun write(b: ByteArray, off: Int, len: Int) { if (len == size) onFrame(k++, b) }
+}
+
+/** A whole clip read on the phone (ClipScan.kt) */
+internal fun scanFile(file: File, dur: Double, onProgress: (Double) -> Unit): ClipScanResult {
+  val w = 128; val h = 72; val times = scanTimes(dur)
+  return scanClip(times, { emit ->
+    readFrames(file, w, h, times, FrameSink(w * h * 4) { k, rgba -> if (rgba == null) emit(k, null, null) else emit(k, shrinkRgba(rgba, w, h, CLIP_SW, CLIP_SH), rgba) }) {}
+  }, { t ->
+    var hist: FloatArray? = null
+    readFrames(file, w, h, doubleArrayOf(t), FrameSink(w * h * 4) { _, rgba -> if (rgba != null) hist = colorHist(shrinkRgba(rgba, w, h, CLIP_SW, CLIP_SH)) }) {}
+    hist
+  }, onProgress)
+}
+
+/** Frames as JPEGs (quality 72), each base64, in the order of the times */
+internal fun jpegsOfFile(file: File, w: Int, h: Int, times: DoubleArray): org.json.JSONArray {
+  val out = org.json.JSONArray(); val pixels = IntArray(w * h)
+  readFrames(file, w, h, times, FrameSink(w * h * 4) { _, rgba ->
+    if (rgba == null) out.put(org.json.JSONObject.NULL)
+    else {
+      for (i in pixels.indices) { val o = i * 4; pixels[i] = (255 shl 24) or ((rgba[o].toInt() and 255) shl 16) or ((rgba[o + 1].toInt() and 255) shl 8) or (rgba[o + 2].toInt() and 255) }
+      val pic = android.graphics.Bitmap.createBitmap(pixels, w, h, android.graphics.Bitmap.Config.ARGB_8888); val b = java.io.ByteArrayOutputStream()
+      pic.compress(android.graphics.Bitmap.CompressFormat.JPEG, 72, b); pic.recycle()
+      out.put(android.util.Base64.encodeToString(b.toByteArray(), android.util.Base64.NO_WRAP))
+    }
+  }) {}
+  return out
+}
+
+/** Where faces are in a whole clip, on the phone's own decoder and model (ClipFaces.kt) */
+internal fun facesOfFile(file: File, dur: Double, W: Int, H: Int, models: Models): List<FaceLook> {
+  val (w, h) = faceFrameSize(W, H); val times = faceTimes(dur); val looks = ArrayList<FaceLook>()
+  models.fetch(FACE_MODEL) {}
+  readFrames(file, w, h, times, FrameSink(w * h * 4) { k, rgba ->
+    if (rgba != null) looks += FaceLook(times[k], lookForFaces(rgba, w, h, W.toDouble(), H.toDouble()) { square ->
+      val o = models.runFloats(FACE_MODEL, "input", square, longArrayOf(1, 128, 128, 3)); faceRows(o.getValue("regressors"), o.getValue("classificators"))
+    })
+  }) {}
+  return looks
+}
+
 /** a decoded picture as small RGBA, turned as the clip is shown (BT.601; close enough for reading a clip) */
 private fun toRgba(image: Image, rotation: Int, w: Int, h: Int, rgba: ByteArray) {
   if (image.format != ImageFormat.YUV_420_888) throw IllegalArgumentException("picture format ${image.format}")
