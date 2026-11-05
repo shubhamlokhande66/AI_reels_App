@@ -35,6 +35,22 @@ export function useStudioText() {
   return useCallback((words: string, vars?: Record<string, string | number>) => fill(texts[STUDIO_KEYS.get(words) ?? ""] || words, vars), [texts]);
 }
 
+/** Seconds left before a code may be sent again: counts down to 0; `start(n)` begins again. */
+export function useCountdown() {
+  const [until, setUntil] = useState(0), [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (until <= now) return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [until, now]);
+  return { left: Math.max(0, Math.ceil((until - now) / 1000)), start: useCallback((s: number) => { const t = Date.now(); setNow(t); setUntil(t + s * 1000); }, []) };
+}
+/** The seconds the server still wants before another code ("we just sent one"), from its refusal. */
+export const waitOf = (e: unknown): number | undefined => {
+  const w = (e as { details?: { wait?: unknown } | null }).details?.wait;
+  return typeof w === "number" ? w : undefined;
+};
+
 /** Sign in / create an account: fields, messages as people type, submit. `onDone(signedUp)` decides where to go. */
 export function useAuthForm(onDone: (signedUp: boolean) => void) {
   const { api, refresh } = useApi(), text = useText();
@@ -72,13 +88,14 @@ export function useForgotFlow(onDone: () => void) {
   const [email, setEmail] = useState(""), [code, setCode] = useState(""), [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const run = async (fn: () => Promise<unknown>) => { setError(null); setBusy(true); try { await fn(); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); } };
-  const send = () => (emailOk(email) ? run(async () => { await api.auth.forgot(email.trim()); setStep("code"); }) : setError(text("auth.badEmail")));
+  const wait = useCountdown();
+  const send = () => (emailOk(email) ? run(async () => { const r = await api.auth.forgot(email.trim()); wait.start(r.wait ?? 60); setStep("code"); }) : setError(text("auth.badEmail")));
   const reset = () => {
     if (!/^\d{6}$/.test(code.trim())) return setError(text("auth.enterSixDigits"));
     if (!passwordOk(password)) return setError(text("auth.shortPassword"));
     return run(async () => { await api.auth.reset(email.trim(), code.trim(), password); await refresh(); onDone(); });
   };
-  return { step, setStep, email, setEmail, code, setCode, password, setPassword, error, busy, send, reset, t: text };
+  return { step, setStep, email, setEmail, code, setCode, password, setPassword, error, busy, send, reset, wait: wait.left, t: text };
 }
 
 /** Verify the email with the 6-digit code from the sign-up email. */
@@ -90,8 +107,17 @@ export function useVerifyFlow(onDone: () => void) {
     setError(null); setBusy(true);
     try { await api.auth.verify(code.trim()); await refresh(); onDone(); } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
-  const resend = async () => { setError(null); try { await api.auth.resendVerify(); setNote(text("auth.codeResent")); } catch (e) { setError(errorMessage(e)); } };
-  return { email: me?.user?.email ?? "", code, setCode, error, note, busy, verify, resend, t: text };
+  const wait = useCountdown(), codeWait = me?.user?.codeWait, startWait = wait.start;
+  useEffect(() => { if (codeWait) startWait(codeWait); }, [codeWait, startWait]);
+  const resend = async () => {
+    setError(null); setNote(null);
+    try {
+      const r = await api.auth.resendVerify();
+      startWait(r.wait ?? 60);
+      if (r.sent === false) setError(text("auth.codeNotSent")); else setNote(text("auth.codeResent"));
+    } catch (e) { const w = waitOf(e); if (w) startWait(w); else setError(errorMessage(e)); }
+  };
+  return { email: me?.user?.email ?? "", code, setCode, error, note, busy, verify, resend, wait: wait.left, t: text };
 }
 
 /** Sign out on this device. */

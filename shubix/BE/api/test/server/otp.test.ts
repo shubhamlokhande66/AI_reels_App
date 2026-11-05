@@ -94,6 +94,16 @@ describe("one-time codes", () => {
 });
 
 describe("no code, no account", () => {
+  it("the code screen is told how long is left before a new code", async () => {
+    const id = await signUp("wait@x.com");
+    const left = (await withUser(id, () => A.me())).user as { codeWait?: number };
+    expect(left.codeWait).toBeGreaterThan(50);
+    expect(left.codeWait).toBeLessThanOrEqual(60);
+    await expect(withUser(id, () => A.resendVerify())).rejects.toMatchObject({ code: "VERIFY_TOO_SOON", details: { wait: expect.any(Number) } });
+    await withUser(id, () => A.verifyCode(lastCode()));
+    expect((await withUser(id, () => A.me())).user).not.toHaveProperty("codeWait");
+  });
+
   const cookieOf = (r: Response) => r.headers.get("set-cookie")!.split(";")[0];
   const asUser = async (path: string, cookie: string) => (await import("../../src/server/core/auth")).resolveUser(new Request(`http://x${path}`, { headers: { cookie } }));
 

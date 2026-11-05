@@ -120,7 +120,7 @@ export async function me() {
   // iosApp: the Shubix app on this person's iPhone was opened in the last 14 days (adminDashboard.ts ping), so Safari
   // hides its "Install the app" banner; not opened for 14 days, it was most likely removed, and the banner comes back
   const iosApp = !!u && u.iosAppAt instanceof Date && Date.now() - u.iosAppAt.getTime() < 14 * 864e5;
-  return { authEnabled: settings.authEnabled, user: u ? { ...userOut(u), iosApp } : null };
+  return { authEnabled: settings.authEnabled, user: u ? { ...userOut(u), iosApp, ...(u.emailVerified === false ? { codeWait: waitLeft(u.verifyOtp as Otp | undefined) } : {}) } : null };
 }
 export async function register(email0: string, password: string, ref?: string) {
   needAccounts();

@@ -16,7 +16,7 @@ export function VerifyForm() {
       {f.error ? <ErrorBanner message={f.error} /> : null}
       {f.note && !f.error ? <Text className="text-[12.5px] font-semibold text-success">{f.note}</Text> : null}
       <Button full loading={f.busy} disabled={f.code.length !== 6} title={text("auth.verifyButton")} onPress={() => void f.verify()} />
-      <Text className="text-center text-[12.5px] text-muted">{text("auth.noCode")} <Text onPress={() => void f.resend()} className="font-bold text-accent">{text("auth.resendCode")}</Text></Text>
+      <Text className="text-center text-[12.5px] text-muted">{text("auth.noCode")} {f.wait > 0 ? text("auth.resendIn", { s: f.wait }) : <Text onPress={() => void f.resend()} accessibilityRole="button" className="font-bold text-accent">{text("auth.resendCode")}</Text>}</Text>
       <Text className="text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</Text>
       <Text onPress={() => void signOut()} accessibilityRole="button" className="text-center text-[12.5px] font-bold text-accent">{text("auth.useOtherEmail")}</Text>
     </AuthFrame>

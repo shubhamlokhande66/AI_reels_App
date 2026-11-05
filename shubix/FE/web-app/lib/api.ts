@@ -203,7 +203,7 @@ export type AdPlace = "home" | "homeEnd" | "reels" | "rewards" | "account";
 export type AdsConfig = { enabled: boolean; client: string; slot: string; places: Record<AdPlace, boolean>; admob: { android: string; ios: string; interstitial: string; rewarded: string; rewardCredits: number; rewardDaily: number } };
 export const api = {
   health: () => request<Health>("/api/health"),
-  me: () => viaBoot("me", () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me")),
+  me: () => viaBoot("me", () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean; codeWait?: number } | null }>("/api/auth/me")),
   login: (email: string, password: string) =>
     request<{ user: { id: string; email: string; emailVerified?: boolean }; adminCode?: boolean }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   register: (email: string, password: string, ref?: string) =>
@@ -243,7 +243,7 @@ export const api = {
     request<{ ok: boolean; ticket: string }>("/api/contact", { method: "POST", body: JSON.stringify(d) }),
   helpOn: () => viaBoot("help", () => request<{ on: boolean }>("/api/help")),
   help: (messages: { role: "user" | "assistant"; content: string }[], page = "") =>
-    // quiet (no "Working…" pill over the chat): the chat shows its own typing dots
+    // quiet (no bar over the chat): the chat shows its own typing dots
     send<{ answer: string; needsHuman: boolean; suggestions: string[] }>("/api/help", { method: "POST", body: JSON.stringify({ messages, page }) }, 60_000),
   adminSupport: (status: "open" | "done" | "all") => request<{
     settings: { chat: boolean; autoReply: boolean }; open: number;

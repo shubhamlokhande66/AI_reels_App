@@ -307,7 +307,7 @@ export const TEXT_GROUPS: TextGroup[] = [
     S("Verify email",
       C("Code", T("auth.codeSentTo", "Line ({email})", "We sent a 6-digit code to {email}. Enter it below; it works for 10 minutes.", true), T("auth.codeLabel", "Code boxes (screen readers)", "6-digit code"),
         T("auth.verifyButton", "Button", "Verify"), T("auth.noCode", "Before resend", "Didn't get it?"), T("auth.resendCode", "Resend", "Send a new code"),
-        T("auth.resendIn", "Resend wait ({s})", "Send again in {s}s"), T("auth.codeResent", "After resending", "A new code is on its way."),
+        T("auth.resendIn", "Resend wait ({s})", "Send again in {s}s"), T("auth.codeResent", "After resending", "A new code is on its way."), T("auth.codeNotSent", "Code could not be sent", "We could not send the code. Try again in a minute."),
         T("auth.checkSpam", "Spam hint", "Check your spam folder too."), T("auth.useOtherEmail", "Use another email", "Use another email"), T("auth.enterSixDigits", "Code missing", "Enter the 6-digit code from the email."),
         T("auth.enterCode", "Banner button", "Enter code"), T("auth.signInToVerify", "Signed out", "Sign in to verify your email.")),
       C("Verify page", T("auth.verifyTitle", "Title", "Verify your email"), T("auth.verifying", "While checking", "Checking your link…"),

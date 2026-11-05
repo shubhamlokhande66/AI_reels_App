@@ -34,7 +34,7 @@ export function AdminCode({ onLater }: { onLater?: () => void }) {
   const send = async (first = false) => {
     setError(null); setBusy(true);
     try { const r = await api.adminCode(); wait.start(r.wait ?? 60); setSent(true); }
-    catch (e) { if (first && (e as { code?: string }).code === "VERIFY_TOO_SOON") { setSent(true); wait.start(60); } else setError(errorMessage(e)); }
+    catch (e) { if (first && (e as { code?: string }).code === "VERIFY_TOO_SOON") { setSent(true); const w = (e as { details?: { wait?: unknown } }).details?.wait; wait.start(typeof w === "number" ? w : 60); } else setError(errorMessage(e)); }
     finally { setBusy(false); }
   };
   useEffect(() => { if (!justSent) void send(true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -54,7 +54,7 @@ export function AdminCode({ onLater }: { onLater?: () => void }) {
             : "For security, the administration asks for a code from your email once a day."}
         </span>
         {sent ? (
-          <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void verify(); }}>
+          <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); void verify(); }}><fieldset disabled={busy} className="contents">
             <OtpInput label="Admin code" value={code} onChange={(v) => { setCode(v); setError(null); }} onComplete={(v) => void verify(v)} invalid={!!error} disabled={busy} />
             {error && <ErrorBanner message={error} />}
             <Button type="submit" loading={busy} disabled={code.length !== 6}>Open the administration</Button>
@@ -62,7 +62,7 @@ export function AdminCode({ onLater }: { onLater?: () => void }) {
               Didn&apos;t get it?{" "}
               {wait.left > 0 ? <span>Send again in {wait.left}s</span> : <button type="button" className="font-bold text-accent" onClick={() => void send()}>Send a new code</button>}
             </p>
-          </form>
+          </fieldset></form>
         ) : (
           <>
             {error && <ErrorBanner message={error} />}

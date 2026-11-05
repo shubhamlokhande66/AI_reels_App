@@ -1,11 +1,12 @@
 import { useEffect } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthForm } from "@mobile/hooks";
 import { Button, Card, ErrorBanner, Eyebrow, Field, Gold, Icon, Input, PasswordInput } from "@mobile/ui-mobile";
 import { Logo } from "../atoms/Logo";
+import { KeyboardScroll } from "../molecules/KeyboardScroll";
 import { SoundBars } from "./HomeHero";
 
 // the website's legal links under the form (components/molecules/Legal.tsx, compact): the pages the app has
@@ -19,13 +20,13 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
   const { t: text, signin } = f, insets = useSafeAreaInsets();
   useEffect(() => { if (initial !== "signin") f.setMode(initial); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const tab = (mode: "signin" | "signup", label: string) => (
-    <Pressable onPress={() => f.setMode(mode)} accessibilityRole="button" accessibilityState={{ selected: f.mode === mode }} className="min-h-10 flex-1 items-center justify-center overflow-hidden rounded-[9px]">
+    <Pressable onPress={() => f.setMode(mode)} disabled={f.busy} accessibilityRole="button" accessibilityState={{ selected: f.mode === mode }} className="min-h-10 flex-1 items-center justify-center overflow-hidden rounded-[9px]">
       {f.mode === mode && <Gold />}
       <Text className={`text-[12px] font-bold ${f.mode === mode ? "text-on-accent" : "text-muted"}`}>{label}</Text>
     </Pressable>
   );
   return (
-    <ScrollView className="flex-1 bg-background" keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <KeyboardScroll className="flex-1 bg-background" showsVerticalScrollIndicator={false}>
       <View className="min-h-[260px] overflow-hidden px-5 pb-10" style={{ paddingTop: Math.max(20, insets.top) }}>
         <LinearGradient colors={["#111110", "#171613", "#252117"]} locations={[0, 0.57, 1]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: "absolute", inset: 0 }} />
         <View className="absolute -right-24 -top-28 h-[340px] w-[340px] rounded-full border border-[rgba(240,217,155,0.09)]" />
@@ -60,16 +61,16 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
           </View>
           <View className="gap-3">
             <Field label={text("auth.email")} error={f.errors.email}>
-              <Input icon={<Icon name="mail" size={17} color="muted" />} value={f.email} onChangeText={f.setEmail} onBlur={() => f.touch("email")} invalid={!!f.errors.email}
+              <Input editable={!f.busy} icon={<Icon name="mail" size={17} color="muted" />} value={f.email} onChangeText={f.setEmail} onBlur={() => f.touch("email")} invalid={!!f.errors.email}
                 autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder={text("auth.emailPlaceholder")} />
             </Field>
             <Field label={text("auth.password")} error={f.errors.password} ok={f.ok.password} hint={signin ? undefined : text("auth.lengthHint")}>
-              <PasswordInput value={f.password} onChangeText={f.setPassword} onBlur={() => f.touch("password")} invalid={!!f.errors.password}
+              <PasswordInput editable={!f.busy} value={f.password} onChangeText={f.setPassword} onBlur={() => f.touch("password")} invalid={!!f.errors.password}
                 autoComplete={signin ? "password" : "new-password"} placeholder={text(signin ? "auth.passwordPlaceholder" : "auth.newPasswordPlaceholder")} showLabel={text("auth.showPassword")} hideLabel={text("auth.hidePassword")} />
             </Field>
             {!signin && (
               <Field label={text("auth.confirmPassword")} error={f.errors.again} ok={f.ok.again}>
-                <PasswordInput value={f.again} onChangeText={f.setAgain} onBlur={() => f.touch("again")} invalid={!!f.errors.again} autoComplete="new-password" placeholder={text("auth.confirmPlaceholder")} />
+                <PasswordInput editable={!f.busy} value={f.again} onChangeText={f.setAgain} onBlur={() => f.touch("again")} invalid={!!f.errors.again} autoComplete="new-password" placeholder={text("auth.confirmPlaceholder")} />
               </Field>
             )}
             {f.error ? <ErrorBanner message={f.error} /> : null}
@@ -87,6 +88,6 @@ export function SignInForm({ initial = "signin" }: { initial?: "signin" | "signu
           {LEGAL.map(([href, key]) => <Text key={href} onPress={() => router.push(href)} accessibilityRole="link" className="py-1.5 text-xs text-muted">{text(key)}</Text>)}
         </View>
       </View>
-    </ScrollView>
+    </KeyboardScroll>
   );
 }

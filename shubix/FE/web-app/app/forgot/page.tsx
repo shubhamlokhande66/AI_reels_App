@@ -59,7 +59,7 @@ export default function ForgotPage() {
       <Card className="flex flex-col gap-3">
         <h1 className="m-0 font-[family-name:var(--font-display)] text-[21px] font-semibold tracking-[-0.015em]">{step === "email" ? text("auth.forgotTitle") : text("auth.resetTitle")}</h1>
         {step === "email" ? (
-          <form onSubmit={(e) => { e.preventDefault(); void send(); }} className="flex flex-col gap-3">
+          <form onSubmit={(e) => { e.preventDefault(); void send(); }} className="flex flex-col gap-3"><fieldset disabled={busy} className="contents">
             <p className="m-0 text-[12.5px] text-muted">{text("auth.forgotCodeText")}</p>
             <Field label={text("auth.email")} error={touched && email && !emailOk(email) ? text("auth.badEmail") : ""}>
               <Input type="email" autoComplete="email" placeholder={text("auth.emailPlaceholder")} value={email} className={touched && email && !emailOk(email) ? "border-danger" : undefined}
@@ -67,9 +67,9 @@ export default function ForgotPage() {
             </Field>
             {error && <ErrorBanner message={error} />}
             <Button type="submit" loading={busy} disabled={!emailOk(email)}>{busy ? text("auth.sending") : text("auth.sendCode")}</Button>
-          </form>
+          </fieldset></form>
         ) : (
-          <form onSubmit={reset} className="flex flex-col gap-3">
+          <form onSubmit={reset} className="flex flex-col gap-3"><fieldset disabled={busy} className="contents">
             <p className="m-0 text-[12.5px] text-muted">{text("auth.resetCodeSent", { email: maskEmail(email.trim()) })}</p>
             <OtpInput label={text("auth.codeLabel")} value={code} onChange={(v) => { setCode(v); setError(null); }} onComplete={codeDone} invalid={!!error && code.length === 0} disabled={busy} />
             <div ref={pwBox} className="contents">
@@ -92,7 +92,7 @@ export default function ForgotPage() {
               <button type="button" className="font-bold text-accent" onClick={() => { setStep("email"); setCode(""); setError(null); setNote(null); }}>{text("auth.otherEmail")}</button>
             </p>
             <p className="m-0 text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</p>
-          </form>
+          </fieldset></form>
         )}
       </Card>
     </AuthFrame>
