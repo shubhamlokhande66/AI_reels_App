@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { z } from "zod";
-import { AuthRequired, clearPartnerCookie, currentUser, partnerCookie, partnerSession } from "./core/auth";
+import { AuthRequired, clearPartnerCookie, currentUser, partnerCookie, partnerSession, forgetSessionCache } from "./core/auth";
 import { settings } from "./core/config";
 import { mainDb, ObjectId } from "./core/db";
 import { ValidationFailed } from "./core/errors";
@@ -65,6 +65,7 @@ export async function verifyPartnerCode(email0: string, code: string) {
     await ensureUsername(String(u!._id)); // their link: /?ref=username
   } else {
     await users.updateOne({ _id: u._id }, { $set: { emailVerified: true, lastLoginAt: new Date() } }); // the code proves the email
+    forgetSessionCache(String(u._id));
   }
   return Response.json({ ok: true }, { headers: { "Set-Cookie": partnerCookie(u as { _id: unknown; sessionVersion?: unknown }) } });
 }

@@ -35,7 +35,6 @@ import { InstallApp } from "@/components/molecules/InstallApp";
 import { StoreBadges } from "@/components/molecules/StoreBadges";
 import { HelpChat } from "@/components/organisms/HelpChat";
 import { InstallBanner } from "@/components/molecules/InstallBanner";
-import { VerifyBanner } from "@/components/molecules/VerifyBanner";
 import { captureRef } from "@/lib/marketing";
 import { OfferStrip } from "@/components/molecules/OfferStrip";
 import { TOP_SLOT, useCustomTitle } from "@/components/templates/TopBar";
@@ -277,6 +276,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (signedOut && !authPage && !publicPage) router.replace("/login"); // accounts on and nobody signed in: the sign-in page
   }, [signedOut, authPage, publicPage, router]);
+  // the email's code not entered yet: nothing opens but the code screen (the server refuses the rest too)
+  const needsCode = me.data?.user?.emailVerified === false && !authPage && !publicPage;
+  useEffect(() => { if (needsCode) router.replace("/verify"); }, [needsCode, router]);
   // an admin page opened by address in user mode: say so instead of showing it (the server guards its data too)
   const adminPage = GROUPS.some((g) => g.admin && g.items.some((i) => isActive(pathname, i.href)));
   const blocked = adminPage && !admin && !loading;
@@ -293,6 +295,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         : <Spinner label={text("common.connecting")} />}
     </main>
   );
+  if (needsCode) return <main className="rm grid min-h-screen place-items-center"><Spinner /></main>;
   // an administrator whose daily code is due (still signed in): the code first, emailed at once (the admin pages ask it themselves)
   const adminArea = pathname.startsWith("/admin") || pathname.startsWith("/cms");
   if (otp && !adminLater && !authPage && !publicPage && !adminArea) return (
@@ -477,7 +480,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {off && (
                 <Card role="status" className="mb-3 text-[12.5px] text-warning">{text("common.offAdmin", { page: off.label })}</Card>
               )}
-              {me.data?.user?.emailVerified === false && <VerifyBanner email={me.data.user.email} />}
               {offer && pathname !== "/pricing" && !pathname.startsWith("/create") && <OfferStrip offer={offer} bar />}
               {children}
             </>

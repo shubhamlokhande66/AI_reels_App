@@ -1,6 +1,6 @@
 import { Text } from "react-native";
 import { router } from "expo-router";
-import { useVerifyFlow } from "@mobile/hooks";
+import { useSignOut, useVerifyFlow } from "@mobile/hooks";
 import { Button, ErrorBanner, OtpInput } from "@mobile/ui-mobile";
 import { AuthFrame } from "../templates/AuthFrame";
 
@@ -8,7 +8,7 @@ import { AuthFrame } from "../templates/AuthFrame";
  * sends it. Logic: @mobile/hooks useVerifyFlow. */
 export function VerifyForm() {
   const f = useVerifyFlow(() => router.replace("/"));
-  const { t: text } = f;
+  const { t: text } = f, signOut = useSignOut(() => router.replace("/login"));
   return (
     <AuthFrame title={text("auth.verifyTitle")}>
       <Text className="text-[13px] leading-5 text-muted">{text("auth.codeSentTo", { email: f.email })}</Text>
@@ -18,6 +18,7 @@ export function VerifyForm() {
       <Button full loading={f.busy} disabled={f.code.length !== 6} title={text("auth.verifyButton")} onPress={() => void f.verify()} />
       <Text className="text-center text-[12.5px] text-muted">{text("auth.noCode")} <Text onPress={() => void f.resend()} className="font-bold text-accent">{text("auth.resendCode")}</Text></Text>
       <Text className="text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</Text>
+      <Text onPress={() => void signOut()} accessibilityRole="button" className="text-center text-[12.5px] font-bold text-accent">{text("auth.useOtherEmail")}</Text>
     </AuthFrame>
   );
 }

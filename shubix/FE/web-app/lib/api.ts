@@ -205,9 +205,9 @@ export const api = {
   health: () => request<Health>("/api/health"),
   me: () => viaBoot("me", () => request<{ authEnabled: boolean; user: { id: string; email: string; emailVerified?: boolean; iosApp?: boolean } | null }>("/api/auth/me")),
   login: (email: string, password: string) =>
-    request<{ user: { id: string; email: string }; adminCode?: boolean }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+    request<{ user: { id: string; email: string; emailVerified?: boolean }; adminCode?: boolean }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   register: (email: string, password: string, ref?: string) =>
-    request<{ user: { id: string; email: string } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password, ...(ref ? { ref } : {}) }) }),
+    request<{ user: { id: string; email: string; emailVerified?: boolean } }>("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password, ...(ref ? { ref } : {}) }) }),
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   verifyCode: (code: string) => request<{ ok: boolean; email: string }>("/api/auth/verify", { method: "POST", body: JSON.stringify({ code }) }),
   resetWithCode: (email: string, code: string, password: string) =>

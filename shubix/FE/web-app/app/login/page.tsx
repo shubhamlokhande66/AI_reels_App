@@ -63,7 +63,7 @@ export default function LoginPage() {
       if (!signin) clearRef(); // the invite is used
       await qc.invalidateQueries();
       // a new account: the code from the email first; an administrator: the admin code (emailed now) first
-      router.replace(!signin ? "/verify?sent=1" : "adminCode" in r && r.adminCode ? "/admin?code=sent" : "/");
+      router.replace(!signin || r.user?.emailVerified === false ? "/verify?sent=1" : "adminCode" in r && r.adminCode ? "/admin?code=sent" : "/");
     } catch (err) {
       setError(errorMessage(err));
     } finally {

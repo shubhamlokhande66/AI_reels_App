@@ -86,6 +86,8 @@ async function checkCode(u: Doc, purpose: Purpose, code: string) {
 
 async function markVerified(u: Doc) {
   await (await users()).updateOne({ _id: u._id }, { $set: { emailVerified: true, emailVerifiedAt: new Date() }, $unset: { verify: "", verifyOtp: "" } });
+  forgetSessionCache(String(u._id)); // the account opens at once
+  void sendWelcome(String(u._id), String(u.email)); // only an account with a proved email gets it
   await rewardFor(String(u._id), "verified", grantCredits).catch(() => {}); // an invite rewarded on a verified email
   return { ok: true, email: String(u.email) };
 }
@@ -137,12 +139,11 @@ export async function register(email0: string, password: string, ref?: string) {
     if ((e as { code?: number }).code === 11000) throw new ConflictError("An account with this email already exists. Sign in instead.", { code: "EMAIL_TAKEN" });
     throw e;
   }
-  await sendCode(u, "verify"); // the sign-up code (not sent: the server log says so, the account works anyway)
+  const codeSent = await sendCode(u, "verify"); // the account opens only with this code; not sent: the screen offers to send it again
   // a username (also the invite code) and, if a friend's link brought them, the invite (its rewards follow the admin's rule)
   const uid = String(u._id);
-  void sendWelcome(uid, email); // after the code, not waited for: the sign-up stays quick
   try { (u as Doc).username = await ensureUsername(uid); await noteReferral(uid, ref, grantCredits); } catch (e) { console.warn("sign-up marketing:", (e as Error).message); }
-  return withCookie({ user: userOut(u) }, sessionCookie(u), 201);
+  return withCookie({ user: userOut(u), codeSent }, sessionCookie(u), 201);
 }
 export async function login(email: string, password: string) {
   needAccounts();
@@ -150,6 +151,8 @@ export async function login(email: string, password: string) {
   if (u && u.partnerOnly && !u.password) throw new AuthRequired(PARTNER_ONLY, "PARTNER_ONLY");
   if (!u || !verifyPassword(password, String(u.password))) throw new AuthRequired("The email or password is not correct.", "BAD_CREDENTIALS");
   await (await users()).updateOne({ _id: u._id }, { $set: { lastLoginAt: new Date() }, $inc: { loginCount: 1 } }); // for the admin dashboard
+  // the email not proved yet: only its code opens the account (a new one is sent, at most one a minute)
+  if (u.emailVerified === false && !waitLeft(u.verifyOtp as Otp | undefined)) await sendCode(u, "verify");
   // an administrator: signed in, and a code is emailed at once; the admin pages open after it (adminCode below)
   const adminCode = await isAdminEmail(String(u.email));
   if (adminCode && !waitLeft(u.adminOtp as Otp | undefined)) await sendCode(u, "admin");
@@ -171,6 +174,7 @@ export async function verifyAdminCode(code: string) {
   await checkCode(u, "admin", code.trim());
   const until = new Date(Date.now() + ADMIN_CODE_HOURS * 3600_000);
   await (await users()).updateOne({ _id: u._id }, { $set: { adminUntil: until, emailVerified: true } }); // the code proves the email too
+  forgetSessionCache(String(u._id));
   return withCookie({ ok: true, until }, sessionCookie(u, until.getTime()));
 }
 export const logout = () => withCookie({ ok: true }, clearCookie());

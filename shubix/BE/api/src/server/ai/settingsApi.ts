@@ -73,7 +73,10 @@ function providerName(value: string, field: string, allowEmpty = false): string 
 /** Only the fields sent change; an empty model means "use the .env value". */
 export async function putConfig(raw: Record<string, unknown>) {
   const p = ConfigIn.parse(raw), sent = new Set(Object.keys(raw)), saved = loadSaved();
-  if (sent.has("provider") && p.provider) saved.provider = providerName(p.provider, "provider");
+  if (sent.has("provider") && p.provider) {
+    saved.provider = providerName(p.provider, "provider");
+    if (!sent.has("taskProviders")) saved.taskProviders = {}; // no old per-task choice, which the admin page does not show, overrides this one
+  }
   if (sent.has("textProvider")) saved.textProvider = providerName(p.textProvider ?? "", "textProvider", true);
   if (sent.has("visionProvider")) saved.visionProvider = providerName(p.visionProvider ?? "", "visionProvider", true);
   if (sent.has("fallbackEnabled") && p.fallbackEnabled !== null && p.fallbackEnabled !== undefined) saved.fallbackEnabled = p.fallbackEnabled;

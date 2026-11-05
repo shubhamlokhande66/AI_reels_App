@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { useMe, useText } from "@/hooks/useApi";
@@ -44,7 +44,7 @@ function ByLink({ token }: { token: string }) {
 
 /** The 6-digit code from the sign-up email (the person is signed in). */
 function ByCode({ justSent }: { justSent: boolean }) {
-  const qc = useQueryClient(), text = useText(), me = useMe();
+  const qc = useQueryClient(), text = useText(), me = useMe(), router = useRouter();
   const [code, setCode] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null), [note, setNote] = useState<string | null>(null);
   const wait = useCountdown(justSent ? 60 : 0);
@@ -78,6 +78,7 @@ function ByCode({ justSent }: { justSent: boolean }) {
           : <button type="button" className="font-bold text-accent" onClick={() => void resend()}>{text("auth.resendCode")}</button>}
       </p>
       <p className="m-0 text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</p>
+      <button type="button" className="text-center text-[12.5px] font-bold text-accent" onClick={() => void api.logout().then(() => qc.invalidateQueries()).then(() => router.replace("/login"))}>{text("auth.useOtherEmail")}</button>
     </form>
   );
 }

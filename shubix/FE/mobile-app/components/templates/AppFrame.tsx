@@ -47,12 +47,16 @@ export function AppFrame({ children }: { children: ReactNode }) {
   useEffect(() => { setSlow(false); if (!unknown) return; const t = setTimeout(() => setSlow(true), 40_000); return () => clearTimeout(t); }, [unknown]);
   useEffect(() => setMenu(false), [pathname]); // a new page: the menu closes
   useEffect(() => { if (signedOut && !open) router.replace("/login"); }, [signedOut, open]);
+  // the email's code not entered yet: nothing opens but the code screen (the server refuses the rest too)
+  const needsCode = me?.user?.emailVerified === false && !open;
+  useEffect(() => { if (needsCode) router.replace("/verify"); }, [needsCode]);
   useEffect(() => {
     if (!menu || Platform.OS === "web") return;
     const handler = BackHandler.addEventListener("hardwareBackPress", () => { setMenu(false); return true; }); // Android back closes the menu
     return () => handler.remove();
   }, [menu]);
   if (authPage) return <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>{children}{feedback}</View>;
+  if (needsCode) return <View className="flex-1 items-center justify-center bg-background"><WakeMark /></View>;
   // an administrator whose daily code is due (still signed in): the code first, emailed at once
   if (adminQ.data?.otp && adminCodeWanted() && !open) return <AdminCode onDone={() => void qc.invalidateQueries({ queryKey: ["native-admin"] })} />;
   if (unknown) return (
