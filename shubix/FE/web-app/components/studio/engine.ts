@@ -4942,15 +4942,22 @@ const GL = (()=>{
     };
     init();
     c.addEventListener('webglcontextlost', e=>{ e.preventDefault(); lost = true; });
-    c.addEventListener('webglcontextrestored', ()=>{ try{ init(); lost = false; }catch(err){ console.warn('WebGL could not be restored:', err && err.message); } });
+    c.addEventListener('webglcontextrestored', ()=>{ try{ init(); lost = false; shown.length = 0; }catch(err){ console.warn('WebGL could not be restored:', err && err.message); } });
     // iPhone: a 4K video is not made a 4K texture each frame (33 MB, two during a transition); it is drawn into a copy of
-    // at most 1920 px first. The shader reads the texture in 0-1 coordinates, so the picture is the same.
+    // at most 1920 px first, and while the preview plays no bigger than it covers the canvas. The shader reads the texture in
+    // 0-1 coordinates, so the picture is the same.
     const small = [], fitIOS = (k, v) => {
-      const W = v.videoWidth, H = v.videoHeight, sc = 1920/Math.max(W, H); if(!IOS || !(sc < 1)) return v;
+      const W = v.videoWidth, H = v.videoHeight, most = 1920/Math.max(W, H), live = playing && !recording && !exporting ? Math.max(out.width/W, out.height/H) : 1;
+      const sc = Math.min(most, live); if(!IOS || !(sc < 1)) return v;
       const c2 = small[k] || (small[k] = document.createElement('canvas')), w = Math.round(W*sc), h = Math.round(H*sc);
       if(c2.width !== w || c2.height !== h){ c2.width = w; c2.height = h; }
       c2.getContext('2d').drawImage(v, 0, 0, w, h); return c2; };
-    const upload = (k, src) => { if(!src) return; if(src.readyState!==undefined && src.readyState<2) return; if(src.readyState!==undefined) src = fitIOS(k, src); gl.activeTexture(gl.TEXTURE0+k); gl.bindTexture(gl.TEXTURE_2D,tex[k]);
+    // iPhone: a video frame goes to the GPU once: the screen is redrawn more often than a clip has new frames, and Safari's copy is slow
+    const shown = [], frameNo = v => { if(!v.requestVideoFrameCallback) return null;
+      if(v.__frames === undefined){ v.__frames = 0; const cb = () => { v.__frames++; v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); } return v.__frames; };
+    const sameFrame = (k, v) => { if(!IOS || !playing || recording || exporting) { shown[k] = null; return false; } const n = frameNo(v), was = shown[k];
+      if(n === null || !n) { shown[k] = null; return false; } shown[k] = { v, n }; return !!was && was.v === v && was.n === n; };
+    const upload = (k, src) => { if(!src) return; if(src.readyState!==undefined && src.readyState<2) return; if(src.readyState!==undefined){ if(sameFrame(k, src)) return; src = fitIOS(k, src); } else shown[k] = null; gl.activeTexture(gl.TEXTURE0+k); gl.bindTexture(gl.TEXTURE_2D,tex[k]);
       try{ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,src); }catch(e){} };
     const set = (name, v) => { const l=U[name]; if(!l) return; if(typeof v==='number') gl.uniform1f(l,v); else if(v.length===2) gl.uniform2fv(l,v); else if(v.length===3) gl.uniform3fv(l,v); else gl.uniform4fv(l,v); };
     return { canvas:c, gl, get lost(){ return lost || gl.isContextLost(); }, render(S){
@@ -5365,6 +5372,12 @@ function setPlayLabel(on){ $('play').innerHTML = (on ? PAUSE_SVG : PLAY_SVG) + '
 // moved on, so two quick taps never leave two songs playing (and Pause always stops the one that plays)
 function stopAll(){ playGen++; starting = false; stopPart(); stopLayers(); playing=false; if(src){ const s=src; src=null; try{s.stop();}catch(e){} } clearInterval(timer); cancelAnimationFrame(rafId); edit.forEach(e=>e.el.pause()); setPlayLabel(false); }
 let rafId=0;
+let liveShot = -1, liveDrawn = 0;
+// how the preview runs on an iPhone, once for each page: there is no other way to see it (Admin -> Errors, as "perf")
+const LP = { at: 0, n: 0, ms: 0, sent: false };
+function livePerf(t0, ms, e){ if(LP.sent) return; if(!LP.at || t0 - LP.last > 1000){ LP.at = t0; LP.n = 0; LP.ms = 0; } LP.last = t0; LP.n++; LP.ms += ms; if(t0 - LP.at < 8000) return;
+  LP.sent = true; const v = e && e.el, s = (t0 - LP.at)/1000;
+  try{ window.__shubixReport && window.__shubixReport('perf', 'Preview on iPhone: ' + (LP.n/s).toFixed(1) + ' pictures a second, ' + (LP.ms/LP.n).toFixed(1) + ' ms each, video ' + (v ? v.videoWidth + 'x' + v.videoHeight : '?') + ', canvas ' + out.width + 'x' + out.height); }catch(err){} }
 async function startPlayback(from, destNode){
   if(!destNode && root.classList.contains('aineed')) return;   // waiting for Shubix AI: nothing to play yet
   stopAll();
@@ -5425,17 +5438,28 @@ async function startPlayback(from, destNode){
       else if(r===0){ if(!e.el.paused) e.el.pause(); if(Math.abs(e.el.currentTime-want) > 0.05) e.el.currentTime = want; }   // freeze frame
       else if(rawRate(e, l) > PLAY_MAX){ if(!e.el.paused) e.el.pause(); if(!e.el.seeking && Math.abs(e.el.currentTime-want) > 0.03) e.el.currentTime = want; }   // too fast to play: frame by frame
       else {   // speed ramps + gentle catch-up: nudge the speed a little instead of jumping (a jump shows as a hitch)
-        const diff = want - e.el.currentTime;
-        if(Math.abs(diff) > 0.45) e.el.currentTime = want;
-        const nr = Math.max(0.0625, Math.min(16, r * (1 + Math.max(-0.2, Math.min(0.2, diff*1.2)))));
-        if(Math.abs(e.el.playbackRate - nr) > 0.01) e.el.playbackRate = nr;
+        const diff = want - e.el.currentTime, tNow = performance.now();
+        if(IOS){   // Safari hitches each time a video's speed is set, and a seek stops it for a moment: both only when it has really drifted
+          if(Math.abs(diff) > 0.45 && !e.el.seeking && tNow - (e.el.__seekAt || 0) > 1500){ e.el.__seekAt = tNow; e.el.currentTime = want; }
+          const nr = Math.max(0.0625, Math.min(16, Math.abs(diff) > 0.12 ? r * (1 + Math.max(-0.2, Math.min(0.2, diff*1.2))) : r));
+          if(Math.abs(e.el.playbackRate - nr) > 0.03 && tNow - (e.el.__rateAt || 0) > 400){ e.el.__rateAt = tNow; e.el.playbackRate = nr; }
+        } else {
+          if(Math.abs(diff) > 0.45) e.el.currentTime = want;
+          const nr = Math.max(0.0625, Math.min(16, r * (1 + Math.max(-0.2, Math.min(0.2, diff*1.2)))));
+          if(Math.abs(e.el.playbackRate - nr) > 0.01) e.el.playbackRate = nr;
+        }
         if(e.el.paused) e.el.play().catch(()=>{}); }
       // the shot after next is cued once this one's transition is over (its player may be the one that transition used)
       const n2 = edit[i+2];
       if(n2 && !n2._cued && l > trDur(e) + 0.05){ n2._cued = true; prepare(i+2, n2.start); }
     }
     if(layers.length) syncLayers(t);
-    drawFrame(t);
+    // iPhone: 30 pictures a second are enough for a Reel, and leave the phone time to decode; a new shot is drawn at once
+    const t0 = performance.now();
+    if(!IOS || recording || i !== liveShot || t0 - liveDrawn >= 30){
+      liveShot = i; liveDrawn = t0; drawFrame(t);
+      if(IOS) livePerf(t0, performance.now() - t0, edit[i]);
+    }
   };
   const raf = () => { loop(); if(playing) rafId = requestAnimationFrame(raf); };
   rafId = requestAnimationFrame(raf);
