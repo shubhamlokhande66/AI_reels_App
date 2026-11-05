@@ -126,6 +126,18 @@ class ShubixVideoModule : Module() {
       }
     }
     AsyncFunction("cancel") { main.post { cancelActiveExport() } }
+    // a part of a clip played backwards, as its own file; the same part is made once (ReverseCopy.kt)
+    AsyncFunction("reverseCopy") { uri: String, start: Double, end: Double, promise: Promise ->
+      val c = appContext.reactContext ?: throw IllegalStateException("No app")
+      kotlin.concurrent.thread(isDaemon = true, name = "shubix-reverse") {
+        try {
+          val path = Uri.parse(uri).path ?: uri; val from = File(path)
+          val to = File(File(c.cacheDir, "engine-out").apply { mkdirs() }, "rev-${(path + from.length() + from.lastModified() + start + end).hashCode().toUInt()}.mp4")
+          if (!to.isFile || to.length() == 0L) makeReverseCopy(path, to, start, end)
+          promise.resolve(Uri.fromFile(to).toString())
+        } catch (e: Throwable) { promise.reject("E_REVERSE", e.message ?: "The clip could not be reversed.", e) }
+      }
+    }
     // the live preview: the Reel as the export makes it, playing (ShubixPreviewView); a smaller frame is fine here
     View(ShubixPreviewView::class) {
       Events("onTime", "onEnded", "onError")
@@ -268,8 +280,8 @@ class ShubixVideoModule : Module() {
       val behind = live && (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
       StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes) else null)
     }
-    // the overlay layers, live player only (the export of a Reel with layers is the engine page's)
-    val studioLayers = spec.optJSONArray("layers")?.takeIf { live && it.length() > 0 }?.let { StudioLayerRenderer(it, w, h) }
+    // the overlay layers: the player shows the newest frame it has, the export the exact one
+    val studioLayers = spec.optJSONArray("layers")?.takeIf { it.length() > 0 }?.let { StudioLayerRenderer(it, w, h, exact = !live) }
     val watermark = if (!live && spec.optBoolean("watermark")) StudioWatermark(appContext.reactContext ?: throw IllegalStateException("No app"), w, h) else null
     val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
     val clips = spec.getJSONArray("clips")
@@ -359,6 +371,7 @@ class ShubixVideoModule : Module() {
           }
         }
       }
+      if (!live) studioStabilizer(c)?.let { video += it }
       video += Presentation.createForWidthAndHeight(w, h, if (c.optString("fit") == "contain") Presentation.LAYOUT_SCALE_TO_FIT else Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP)
       video += filter(c.optString("filter"))
       // the studio's transition into this shot (tr: id, dur): the old shot's last frame and this one, as the website

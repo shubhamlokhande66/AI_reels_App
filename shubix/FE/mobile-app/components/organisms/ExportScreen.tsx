@@ -14,7 +14,7 @@ import type { IconName } from "@mobile/ui-core";
 import { megabytes } from "@mobile/utils";
 import { errorMessage } from "@mobile/api-client";
 import type { ReelProject } from "@mobile/validations";
-import { canUseSharedAndroidRenderer, cancelExport, exportReel, exportReelWithSharedRenderer, nativeExportGaps } from "../../lib/video";
+import { canUseSharedAndroidRenderer, cancelExport, exportReel, exportReelWithSharedRenderer, nativeExportGaps, type NativeLayerRow } from "../../lib/video";
 import { FlowAnalyse } from "./CreateFlow";
 import { notifyAway } from "../../lib/notify";
 import { useThumb } from "../../lib/thumbs";
@@ -31,11 +31,11 @@ type Made = { uri: string; size: number; caption?: string };
  * into an MP4 on this phone (Cancel stops it), then the Reel to watch, Download, Share and the caption for the post. */
 /** the test APK: the same Reel from both engines in the gallery, named for scripts/parity.mjs */
 async function saveParityPair(reel: ReelProject, engineUri: string, choice: ExportChoice) {
-  const state = await engine.tool("state") as { layers?: unknown[] };
+  const rows = await engine.tool("layerList"), layers = Array.isArray(rows) ? rows as NativeLayerRow[] : [];
   const { path, plan } = await engine.exportMix(`${reel.id}-mix.wav`, choice);
-  const gaps = nativeExportGaps(reel, { fps: plan.fps, layers: state?.layers?.length ?? 0 });
+  const gaps = nativeExportGaps(reel, layers);
   if (gaps.length) tell(`Parity: the native export has no ${gaps.join(", ")} yet`, "info");
-  const native = await exportReel(reel, () => {}, { mix: path, plan }), stamp = Date.now();
+  const native = await exportReel(reel, () => {}, { mix: path, layers, plan }), stamp = Date.now();
   if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return;
   for (const [kind, uri] of [["engine", engineUri], ["native", native.uri]]) {
     const copy = new File(Paths.cache, `parity-${kind}-${stamp}.mp4`);

@@ -22,13 +22,14 @@ import kotlin.math.min
 
 /** The studio's overlay layers in the live player: photos and videos placed on the frame as the website's drawLayers()
  * (engine.ts): place, size, turn, flip, crop, fades, round corners and the shape masks. Not drawn here yet: chroma key,
- * blend modes, the linear / mirror / luma masks and following a face (the export draws them, in the engine page). A video
- * layer shows the newest frame its worker has decoded, so it can look less smooth here than in the export. */
+ * blend modes, the linear / mirror / luma masks and following a face (a Reel with those is exported by the engine page). In
+ * the player a video layer shows the newest frame its worker has decoded; `exact`, in the export, waits for the right one. */
 @UnstableApi
-internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, private val h: Int) {
-  private class Layer(val spec: JSONObject, val feed: () -> Bitmap?, val ask: (Double) -> Unit)
+internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, private val h: Int, private val exact: Boolean = false) {
+  private class Layer(val spec: JSONObject, val feed: () -> Bitmap?, val ask: (Double) -> Unit, val done: () -> Unit = {})
   private val list = (0 until layers.length()).mapNotNull { layers.optJSONObject(it) }.filter { File(it.optString("path")).isFile }.map { spec ->
-    if (spec.optString("kind") == "video") VideoFeed(spec.optString("path"), maxOf(w, h)).let { f -> Layer(spec, { f.latest }, { f.want(it) }) }
+    if (spec.optString("kind") == "video" && exact) ExactFeed(spec.optString("path"), maxOf(w, h)).let { f -> Layer(spec, { f.latest }, { f.at(it) }, { f.close() }) }
+    else if (spec.optString("kind") == "video") VideoFeed(spec.optString("path"), maxOf(w, h)).let { f -> Layer(spec, { f.latest }, { f.want(it) }) }
     else { val pic by lazy { photo(spec.optString("path"), maxOf(w, h)) }; Layer(spec, { pic }, {}) }
   }
   private val bufs = arrayOf(Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888), Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888))
@@ -36,6 +37,7 @@ internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, privat
   private val blank = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
 
   @Synchronized fun at(t: Double): Bitmap {
+    list.filter { t >= it.spec.optDouble("t1") }.forEach { it.done() }
     val on = list.filter { t >= it.spec.optDouble("t0") && t < it.spec.optDouble("t1") }
     if (on.isEmpty()) return blank
     turn = 1 - turn; val b = bufs[turn]; b.eraseColor(Color.TRANSPARENT)
@@ -103,6 +105,21 @@ internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, privat
       d.setTargetSize(maxOf(1, (info.size.width * scale).toInt()), maxOf(1, (info.size.height * scale).toInt()))
     } else BitmapFactory.decodeFile(path)
   } catch (_: Exception) { null }
+
+  /** a video layer's frames for the export: the frame of the time asked, read at once; the reader closes when the layer is over */
+  private class ExactFeed(private val path: String, private val side: Int) {
+    var latest: Bitmap? = null
+    private var reader: MediaMetadataRetriever? = null
+    private var closed = false
+    fun at(seconds: Double) {
+      if (closed) return
+      val r = reader ?: MediaMetadataRetriever().also { it.setDataSource(path); reader = it }
+      val us = (seconds * 1_000_000).toLong()
+      val frame = if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST, side / 2, side / 2) else r.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST)
+      if (frame != null) { latest?.recycle(); latest = frame }
+    }
+    fun close() { if (closed) return; closed = true; runCatching { reader?.release() }; reader = null }
+  }
 
   /** a video layer's frames: a worker decodes the time asked last and keeps the newest picture; it stops by itself when
    * nothing has asked for a moment (the layer is over, or the player paused), and starts again when asked */
