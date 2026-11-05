@@ -37,17 +37,20 @@ export async function showInterstitial(unit: string): Promise<void> {
   });
 }
 
-/** A rewarded ad: true once it was watched to the end. The credits come from the server (AdMob calls it, signed, with
- * this person's id), never from the phone. */
-export async function showRewarded(unit: string, userId: string): Promise<boolean> {
-  if (!lib || !unit || !(await adsReady())) return false;
+/** A rewarded ad, loaded before it is offered: `watch` is true once it was watched to the end. The credits come from the
+ * server (AdMob calls it, signed, with this person's id), never from the phone. Refused with AdMob's reason when no ad loads. */
+export type RewardAd = { watch: () => Promise<boolean> };
+export async function loadRewarded(unit: string, userId: string): Promise<RewardAd> {
+  if (!lib || !unit || !(await adsReady())) throw new Error("ads-not-ready");
   const ad = lib.RewardedAd.createForAdRequest(__DEV__ ? lib.TestIds.REWARDED : unit, { serverSideVerificationOptions: { userId } });
-  return new Promise<boolean>((done) => {
-    let earned = false;
-    ad.addAdEventListener(lib.RewardedAdEventType.LOADED, () => void ad.show().catch(() => done(false)));
-    ad.addAdEventListener(lib.RewardedAdEventType.EARNED_REWARD, () => { earned = true; });
-    ad.addAdEventListener(lib.AdEventType.CLOSED, () => done(earned));
-    ad.addAdEventListener(lib.AdEventType.ERROR, () => done(false));
+  let earned = false, ended: (v: boolean) => void = () => {}, failed: (e: Error) => void = () => {};
+  ad.addAdEventListener(lib.RewardedAdEventType.EARNED_REWARD, () => { earned = true; });
+  ad.addAdEventListener(lib.AdEventType.CLOSED, () => ended(earned));
+  await new Promise<void>((loaded, refused) => {
+    failed = refused;
+    ad.addAdEventListener(lib.RewardedAdEventType.LOADED, () => loaded());
+    ad.addAdEventListener(lib.AdEventType.ERROR, (e) => { failed(e as Error); ended(false); });
     ad.load();
   });
+  return { watch: () => new Promise<boolean>((done) => { ended = done; void ad.show().catch(() => done(false)); }) };
 }

@@ -60,7 +60,8 @@ export function effective(saved: SavedAIConfig = loadSaved()): EffectiveAIConfig
     return [t, (m.vision ?? "").trim() || envVision.trim() || t];
   };
   return {
-    provider, textProvider: norm(saved.textProvider) || norm(settings.aiTextProvider) || provider, visionProvider: norm(saved.visionProvider) || norm(settings.aiVisionProvider) || provider,
+    // what the admin saved always comes before the server's env: a saved provider with no separate text or vision provider is used for both
+    provider, textProvider: norm(saved.textProvider) || norm(saved.provider) || norm(settings.aiTextProvider) || provider, visionProvider: norm(saved.visionProvider) || norm(saved.provider) || norm(settings.aiVisionProvider) || provider,
     fallbackEnabled: saved.fallbackEnabled ?? settings.aiFallbackEnabled, fallbackProvider: norm(saved.fallbackProvider) || norm(settings.aiFallbackProvider),
     models: { ollama: pick("ollama", getChosenModel() || settings.ollamaModel, settings.ollamaVisionModel), openai: pick("openai", settings.openaiTextModel, settings.openaiVisionModel),
       gemini: pick("gemini", settings.geminiTextModel, settings.geminiVisionModel), claude: pick("claude", settings.claudeTextModel, settings.claudeVisionModel) },

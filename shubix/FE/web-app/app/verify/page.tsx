@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, errorMessage } from "@/lib/api";
 import { useMe, useText } from "@/hooks/useApi";
@@ -44,11 +44,12 @@ function ByLink({ token }: { token: string }) {
 
 /** The 6-digit code from the sign-up email (the person is signed in). */
 function ByCode({ justSent }: { justSent: boolean }) {
-  const qc = useQueryClient(), text = useText(), me = useMe();
+  const qc = useQueryClient(), text = useText(), me = useMe(), router = useRouter();
   const [code, setCode] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null), [note, setNote] = useState<string | null>(null);
   const wait = useCountdown(justSent ? 60 : 0);
-  const user = me.data?.user;
+  const user = me.data?.user, codeWait = user?.codeWait, startWait = wait.start;
+  useEffect(() => { if (codeWait) startWait(codeWait); }, [codeWait]); // eslint-disable-line react-hooks/exhaustive-deps -- how long the server still wants, on any way here
   if (me.isLoading) return <Spinner />;
   if (!user) return <p className="m-0 text-[13px]">{text("auth.signInToVerify")} <Link href="/login" className="font-bold text-accent">{text("auth.signIn")}</Link></p>;
   if (done || user.emailVerified !== false) return <Done email={done ?? user.email} />;
@@ -62,11 +63,11 @@ function ByCode({ justSent }: { justSent: boolean }) {
   };
   const resend = async () => {
     setError(null); setNote(null);
-    try { const r = await api.resendVerify(); wait.start(r.wait ?? 60); setNote(text("auth.codeResent")); }
-    catch (e) { setError(errorMessage(e)); }
+    try { const r = await api.resendVerify(); wait.start(r.wait ?? 60); if (r.sent === false) setError(text("auth.codeNotSent")); else setNote(text("auth.codeResent")); }
+    catch (e) { const w = (e as { details?: { wait?: unknown } }).details?.wait; if (typeof w === "number") wait.start(w); else setError(errorMessage(e)); }
   };
   return (
-    <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void verify(); }}>
+    <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void verify(); }}><fieldset disabled={busy} className="contents">
       <p className="m-0 text-[13px] text-muted">{text("auth.codeSentTo", { email: maskEmail(user.email) })}</p>
       <OtpInput label={text("auth.codeLabel")} value={code} onChange={(v) => { setCode(v); setError(null); }} onComplete={(v) => void verify(v)} invalid={!!error} disabled={busy} />
       {error && <ErrorBanner message={error} />}
@@ -78,7 +79,8 @@ function ByCode({ justSent }: { justSent: boolean }) {
           : <button type="button" className="font-bold text-accent" onClick={() => void resend()}>{text("auth.resendCode")}</button>}
       </p>
       <p className="m-0 text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</p>
-    </form>
+      <button type="button" className="text-center text-[12.5px] font-bold text-accent" onClick={() => void api.logout().then(() => qc.invalidateQueries()).then(() => router.replace("/login"))}>{text("auth.useOtherEmail")}</button>
+    </fieldset></form>
   );
 }
 

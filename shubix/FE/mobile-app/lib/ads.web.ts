@@ -7,4 +7,5 @@ export const adChoicesNeeded = async () => false;
 export const showAdChoices = async () => {};
 export const adsInApp = false;
 export const showInterstitial = async (_unit: string) => {};
-export const showRewarded = async (_unit: string, _userId: string) => false;
+export type RewardAd = { watch: () => Promise<boolean> };
+export const loadRewarded = async (_unit: string, _userId: string): Promise<RewardAd> => { throw new Error("ads-not-ready"); };

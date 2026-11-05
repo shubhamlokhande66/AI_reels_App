@@ -115,15 +115,15 @@ function SignIn({ program, onIn }: { program: PartnerMe["program"]; onIn: () => 
           <p className="m-0 mt-1 text-[13px] text-muted">{sent ? text("auth.codeSentTo", { email: maskEmail(email.trim()) }) : text("aff.signLine", { percent: program.percent, months: program.months })}</p>
         </div>
         {!sent ? (
-          <form onSubmit={send} noValidate className="flex flex-col gap-4">
+          <form onSubmit={send} noValidate className="flex flex-col gap-4"><fieldset disabled={busy} className="contents">
             <Field label={text("auth.email")}>
               <Input type="email" autoComplete="email" placeholder={text("auth.emailPlaceholder")} value={email} onChange={(e) => { setEmail(e.target.value); setError(null); }} />
             </Field>
             {error && <ErrorBanner message={error} />}
             <Button type="submit" size="lg" loading={busy} disabled={!emailOk(email)}>{text("aff.sendCode")}</Button>
-          </form>
+          </fieldset></form>
         ) : (
-          <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void verify(); }}>
+          <form className="flex flex-col gap-4" onSubmit={(e) => { e.preventDefault(); void verify(); }}><fieldset disabled={busy} className="contents">
             <OtpInput label={text("auth.codeLabel")} value={code} onChange={(v) => { setCode(v); setError(null); }} onComplete={(v) => void verify(v)} invalid={!!error} disabled={busy} />
             {error && <ErrorBanner message={error} />}
             {note && !error && <p className="m-0 text-[12.5px] font-semibold text-success">{note}</p>}
@@ -135,7 +135,7 @@ function SignIn({ program, onIn }: { program: PartnerMe["program"]; onIn: () => 
             </p>
             <p className="m-0 text-center text-[11.5px] text-muted">{text("auth.checkSpam")}</p>
             <button type="button" className="text-[12.5px] font-bold text-muted hover:text-foreground" onClick={() => { setSent(false); setCode(""); setError(null); setNote(null); }}>{text("aff.otherEmail")}</button>
-          </form>
+          </fieldset></form>
         )}
       </Card>
       <p className="m-0 text-center text-[12.5px] text-muted">{text("aff.haveShubix")} <Link href="/login" className="font-bold text-accent">{text("aff.signInShubix")}</Link></p>
@@ -159,12 +159,12 @@ function Apply({ me, onSent }: { me: PartnerMe; onSent: () => void }) {
           <Heading size="title" as="h1">{text("aff.applyTitle")}</Heading>
           <p className="m-0 mt-1 text-[13px] text-muted">{text("aff.signLine", { percent: me.program.percent, months: me.program.months })}</p>
         </div>
-        <form onSubmit={send} className="flex flex-col gap-4">
+        <form onSubmit={send} className="flex flex-col gap-4"><fieldset disabled={busy} className="contents">
           <Field label={text("auth.email")} hint={text("aff.applyAs", { email: me.email ?? "" })}><Input value={me.email ?? ""} readOnly disabled /></Field>
           <Field label={text("aff.noteLabel")}><Input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder={text("aff.notePlaceholder")} /></Field>
           {err && <ErrorBanner message={err} />}
           <Button type="submit" size="lg" icon="sparkle" loading={busy}>{text("aff.applyButton")}</Button>
-        </form>
+        </fieldset></form>
       </Card>
     </Narrow>
   );
@@ -199,7 +199,7 @@ function PayoutCard({ a, onSaved }: { a: AffiliateDetail; onSaved: () => void })
       {p && !edit && <p className="m-0 flex items-center gap-2 rounded-xl bg-surface-2 px-3 py-2.5 text-[13px]"><Icon name="check" size={14} className="text-success" />{text("aff.payNow", { where: where(p) })}</p>}
       {done && !edit && <p className="m-0 text-[12.5px] font-semibold text-success">{text("aff.paySaved")}</p>}
       {edit && (
-        <form onSubmit={save} className="flex flex-col gap-3">
+        <form onSubmit={save} className="flex flex-col gap-3"><fieldset disabled={busy} className="contents">
           <Segmented label={text("aff.payTitle")} value={method} onChange={(v) => setMethod(v as "upi" | "bank")} className="self-start"
             options={[{ value: "upi", label: text("aff.payUpi") }, { value: "bank", label: text("aff.payBank") }]} />
           {method === "upi" ? (
@@ -217,7 +217,7 @@ function PayoutCard({ a, onSaved }: { a: AffiliateDetail; onSaved: () => void })
             {p && <Button type="button" variant="ghost" size="sm" onClick={() => { setEdit(false); setErr(null); }}>{text("common.cancel")}</Button>}
             <Button type="submit" size="sm" icon="check" loading={busy}>{text("aff.paySave")}</Button>
           </div>
-        </form>
+        </fieldset></form>
       )}
     </Card>
   );

@@ -43,9 +43,9 @@ describe("one-time codes", () => {
     const code = lastCode();
     expect(code).toMatch(/^\d{6}$/);
     expect(codeMails().at(-1)?.text).toContain(code);
-    await vi.waitFor(() => expect(sent.find((m) => m.to === "otp@x.com" && m.subject.startsWith("Welcome"))?.text).toMatch(/\/pricing[\s\S]*Stop these emails/));
     await expect(withUser(id, () => A.verifyCode(other(code)))).rejects.toThrow(/not right. 4 tries left/);
     expect(await withUser(id, () => A.verifyCode(code))).toMatchObject({ ok: true, email: "otp@x.com" });
+    await vi.waitFor(() => expect(sent.find((m) => m.to === "otp@x.com" && m.subject.startsWith("Welcome"))?.text).toMatch(/\/pricing[\s\S]*Stop these emails/));
     expect((await withUser(id, () => A.me())).user?.emailVerified).toBe(true);
     expect(await withUser(id, () => A.verifyCode(code))).toMatchObject({ ok: true }); // already verified: fine
   });
@@ -90,5 +90,52 @@ describe("one-time codes", () => {
     const n = sent.length;
     await A.forgot("reset@x.com"); // within the minute: no second email
     expect(sent.length).toBe(n);
+  });
+});
+
+describe("no code, no account", () => {
+  it("the code screen is told how long is left before a new code", async () => {
+    const id = await signUp("wait@x.com");
+    const left = (await withUser(id, () => A.me())).user as { codeWait?: number };
+    expect(left.codeWait).toBeGreaterThan(50);
+    expect(left.codeWait).toBeLessThanOrEqual(60);
+    await expect(withUser(id, () => A.resendVerify())).rejects.toMatchObject({ code: "VERIFY_TOO_SOON", details: { wait: expect.any(Number) } });
+    await withUser(id, () => A.verifyCode(lastCode()));
+    expect((await withUser(id, () => A.me())).user).not.toHaveProperty("codeWait");
+  });
+
+  const cookieOf = (r: Response) => r.headers.get("set-cookie")!.split(";")[0];
+  const asUser = async (path: string, cookie: string) => (await import("../../src/server/core/auth")).resolveUser(new Request(`http://x${path}`, { headers: { cookie } }));
+
+  it("a new account opens nothing until its code is entered", async () => {
+    const cookie = cookieOf(await A.register("new@x.com", "password123"));
+    const u = await (await mainDb()).collection("users").findOne({ email: "new@x.com" }), id = String(u!._id);
+    await expect(asUser("/api/credits", cookie)).rejects.toMatchObject({ code: "EMAIL_NOT_VERIFIED", status: 403 });
+    await expect(asUser("/api/studio/direct", cookie)).rejects.toMatchObject({ code: "EMAIL_NOT_VERIFIED" });
+    expect(await asUser("/api/plans", cookie)).toBeNull();                 // public: as nobody
+    expect(await asUser("/api/auth/verify", cookie)).toBe(id);             // what the code screen needs
+    await withUser(id, () => A.verifyCode(other(lastCode()))).catch(() => {});
+    await expect(asUser("/api/credits", cookie)).rejects.toMatchObject({ code: "EMAIL_NOT_VERIFIED" }); // a wrong code opens nothing
+    await withUser(id, () => A.verifyCode(lastCode()));
+    expect(await asUser("/api/credits", cookie)).toBe(id);
+  });
+
+  it("signing in does not skip the code, and sends a new one", async () => {
+    await A.register("back@x.com", "password123");
+    await (await mainDb()).collection("users").updateOne({ email: "back@x.com" }, { $unset: { "verifyOtp.sentAt": "" } }); // a minute has passed
+    const before = codeMails().length, r = await A.login("back@x.com", "password123");
+    expect(codeMails().length).toBe(before + 1);
+    expect((await r.clone().json()).user.emailVerified).toBe(false);
+    await expect(asUser("/api/credits", cookieOf(r))).rejects.toMatchObject({ code: "EMAIL_NOT_VERIFIED" });
+  });
+
+  it("an account from before the codes keeps working; a welcome email only after the code", async () => {
+    const id = (await (await mainDb()).collection("users").insertOne({ email: "old@x.com", password: "x", sessionVersion: 0 })).insertedId;
+    const { makeToken, COOKIE } = await import("../../src/server/core/auth");
+    expect(await asUser("/api/credits", `${COOKIE}=${makeToken(String(id))}`)).toBe(String(id));
+    const uid = await signUp("w@x.com");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(sent.filter((m) => m.to === "w@x.com" && !/\d{6}/.test(m.subject)).length).toBe(0);
+    await withUser(uid, () => A.verifyCode(lastCode()));
   });
 });

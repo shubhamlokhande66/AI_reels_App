@@ -19,3 +19,14 @@ export function reportErrors() {
     before(error, fatal);
   });
 }
+
+const told = new Set<string>();
+/** Something that is no crash but should be seen in Admin → Errors (why no ad loads): once per kind in a run. */
+export function reportProblem(message: string) {
+  if (__DEV__ || told.has(message) || told.size >= 10) return;
+  told.add(message);
+  void fetch(`${API_URL}/api/public/client-error`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "error", message: message.slice(0, 400), stack: "", path: `app-${Platform.OS}` }),
+  }).catch(() => {});
+}

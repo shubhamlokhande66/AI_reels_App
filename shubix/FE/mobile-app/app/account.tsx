@@ -15,13 +15,13 @@ import { useCredits } from "../lib/data";
 import { open } from "../lib/navigate";
 
 const day = (d?: string | null) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "");
-type PanelId = "password" | "sessions" | "payments" | "delete";
+type PanelId = "password" | "sessions" | "delete";
 /** A result line under a form: green when it worked, red when not. */
 const Note = ({ ok, children }: { ok: boolean; children: ReactNode }) =>
   <Text className={`rounded-xl border px-3 py-2 text-[13px] font-semibold ${ok ? "border-success/40 bg-success/10 text-success" : "border-danger/40 bg-danger/10 text-danger"}`}>{children}</Text>;
 
 /** My account (the website's app/account/page.tsx): who you are and your plan, your credits, the account's settings
- * as rows (each opens its panel: password, devices, payments, delete), and Sign out. Every text: Admin → CMS → My account. */
+ * as rows (each opens its panel: password, devices, delete), and Sign out. Every text: Admin → CMS → My account. */
 export default function AccountScreen() {
   const text = useText(), { me } = useApi(), credits = useCredits().data, [panel, setPanel] = useState<PanelId | null>(null);
   const signOut = useSignOut(() => router.replace("/login"));
@@ -84,7 +84,6 @@ export default function AccountScreen() {
           <Card className="overflow-hidden p-0">
             {row("password", "key", text("account.changeTitle"), text("account.rowPassword"))}
             {row("sessions", "shield", text("account.devices"), text("account.rowSessions"))}
-            {row("payments", "coins", text("account.paymentsTitle"), text("account.rowPayments"))}
           </Card>
         </View>
         <ThemeChoice />
@@ -97,7 +96,6 @@ export default function AccountScreen() {
       </View>
       <SidePanel {...panelProps("password", text("account.changeTitle"))}><ChangePassword email={user.email} onDone={() => setPanel(null)} /></SidePanel>
       <SidePanel {...panelProps("sessions", text("account.devices"))}><Sessions /></SidePanel>
-      <SidePanel {...panelProps("payments", text("account.paymentsTitle"))}><Payments /></SidePanel>
       <SidePanel {...panelProps("delete", text("account.deleteTitle"))}><DeleteAccount email={user.email} /></SidePanel>
     </Page>
   );
@@ -151,30 +149,6 @@ function Sessions() {
         setBusy(true);
         try { await mobileApi.logoutEverywhere(); await refresh(); setDone(text("account.everywhereDone")); } catch (e) { setDone(errorMessage(e)); } finally { setBusy(false); }
       }} /></View>
-    </View>
-  );
-}
-
-/** Payments & receipts: every order, the paid ones with their receipt number (the receipt was emailed). */
-function Payments() {
-  const text = useText(), q = useQuery({ queryKey: ["my-payments"], queryFn: mobileApi.payments, retry: false });
-  if (q.isLoading) return <ActivityIndicator color={colors.accent} />;
-  if (q.error) return <ErrorBanner message={errorMessage(q.error)} />;
-  const list = q.data ?? [];
-  if (!list.length) return <Text className="text-[13px] text-muted">{text("account.noPayments")}</Text>;
-  return (
-    <View className="gap-2">
-      <Text className="text-[12.5px] text-muted">{text("account.paymentsNote")}</Text>
-      {list.map((p) => (
-        <View key={p.id} className="flex-row flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-border bg-surface px-4 py-3">
-          <View className="min-w-0 flex-1">
-            <Text numberOfLines={1} className="text-[14px] font-bold text-foreground">{p.label}</Text>
-            <Text className="text-[12px] text-muted">{new Date(p.paidAt ?? p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}{p.receiptNo ? ` · ${p.receiptNo}` : ""}</Text>
-          </View>
-          <Text className="font-bold text-foreground">₹{p.amount.toLocaleString("en-IN")}</Text>
-          <Badge tone={p.status === "paid" ? "success" : "neutral"}>{text(p.status === "paid" ? "account.paid" : "account.notPaid")}</Badge>
-        </View>
-      ))}
     </View>
   );
 }

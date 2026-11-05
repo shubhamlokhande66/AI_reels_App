@@ -10,7 +10,7 @@ import { errorMessage } from "@mobile/api-client";
 import { mobileApi } from "../lib/api";
 import { useList } from "../lib/data";
 
-const TOPICS = ["account", "payment", "reels", "rewards", "other"] as const;
+const TOPICS = ["account", "reels", "rewards", "other"] as const;
 
 /** One way to reach us: its icon, its name and the address (a card that opens it). */
 function Way({ href, icon, tone, title, line }: { href: string; icon: IconName; tone: Tone; title: string; line: string }) {
@@ -69,7 +69,6 @@ export default function ContactScreen() {
               <Field label={text("contact.topic")}>
                 <View className="flex-row flex-wrap gap-2">{TOPICS.map((k) => <Chip key={k} label={text(`contact.topic.${k}`)} on={topic === k} onPress={() => setTopic(k)} />)}</View>
               </Field>
-              {topic === "payment" && <Text className="rounded-xl bg-surface-2 px-3 py-2 text-[12px] text-muted">{text("contact.paymentHint")}</Text>}
               <Field label={text("contact.message")}><TextArea value={message} onChangeText={setMessage} maxLength={4000} placeholder={text("contact.messagePlaceholder")} /></Field>
               {error ? <ErrorBanner message={error} /> : null}
               <Button full icon="send" loading={busy} disabled={!valid} title={text("contact.send")} onPress={() => void send()} />
