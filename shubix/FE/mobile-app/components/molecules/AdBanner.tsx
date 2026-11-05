@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BannerAd, BannerAdSize, TestIds, adsInApp, adsReady, showRewarded } from "../../lib/ads";
+import { BannerAd, BannerAdSize, TestIds, adsInApp, adsReady, loadRewarded, type RewardAd } from "../../lib/ads";
+import { reportProblem } from "../../lib/errors";
 import { useApi, useText } from "@mobile/hooks";
 import { Button, Card, tell } from "@mobile/ui-mobile";
 import { mobileApi, type AdPlace } from "../../lib/api";
@@ -21,22 +22,34 @@ export function useAdPlan() {
 /** Watch a rewarded ad for credits (any plan, with credits on): the server gives them once AdMob confirms the ad was
  * watched, up to the administrator's number a day. */
 export function RewardedAdCard() {
-  const text = useText(), { me } = useApi(), { ads, credits } = useAdPlan(), qc = useQueryClient(), [busy, setBusy] = useState(false);
+  const text = useText(), { me } = useApi(), { ads, credits } = useAdPlan(), qc = useQueryClient(), [busy, setBusy] = useState(false), [ad, setAd] = useState<RewardAd | null>(null);
   const a = ads.data?.admob, unit = Platform.OS === "android" ? a?.rewarded : "", userId = me?.user?.id;
-  if (!adsInApp || !unit || !userId || !credits.data?.enabled || ads.data?.enabled === false || !a?.rewardCredits) return null;
+  const offered = !!(adsInApp && unit && userId && credits.data?.enabled && ads.data?.enabled !== false && a?.rewardCredits);
+  // the card shows only with an ad ready to play: no button that answers "no ad"; none yet: tried again in a minute
+  useEffect(() => {
+    if (!offered || ad) return;
+    let live = true, later: ReturnType<typeof setTimeout>;
+    const load = () => loadRewarded(unit!, userId!).then((r) => { if (live) setAd(r); }).catch((e: { code?: string; message?: string }) => {
+      reportProblem(`Rewarded ad: ${e.code ?? e.message ?? "no ad"}`);
+      if (live) later = setTimeout(load, 60_000);
+    });
+    void load();
+    return () => { live = false; clearTimeout(later); };
+  }, [offered, ad, unit, userId]);
+  if (!offered || !ad) return null;
   const watch = async () => {
     setBusy(true);
-    const earned = await showRewarded(unit, userId).catch(() => false);
-    setBusy(false);
-    if (!earned) return tell(text("ads.rewardNone"), "danger");
-    tell(text("ads.rewardDone", { n: a.rewardCredits! }), "success");
+    const earned = await ad.watch().catch(() => false);
+    setBusy(false); setAd(null); // an ad plays once: the next one loads
+    if (!earned) return tell(text("ads.rewardEarly"), "info");
+    tell(text("ads.rewardDone", { n: a!.rewardCredits! }), "success");
     setTimeout(() => void qc.invalidateQueries({ queryKey: ["native-credits"] }), 4000); // AdMob calls the server within seconds
   };
   return (
     <Card className="gap-3">
-      <Text className="text-[15px] font-bold text-foreground">{text("ads.rewardTitle", { n: a.rewardCredits })}</Text>
-      <Text className="text-[12.5px] text-muted">{text("ads.rewardSub", { n: a.rewardDaily ?? 5 })}</Text>
-      <Button icon="play" title={text(busy ? "ads.rewardLoading" : "ads.rewardWatch")} disabled={busy} onPress={() => void watch()} />
+      <Text className="text-[15px] font-bold text-foreground">{text("ads.rewardTitle", { n: a!.rewardCredits! })}</Text>
+      <Text className="text-[12.5px] text-muted">{text("ads.rewardSub", { n: a!.rewardDaily ?? 5 })}</Text>
+      <Button icon="play" title={text("ads.rewardWatch")} loading={busy} onPress={() => void watch()} />
     </Card>
   );
 }

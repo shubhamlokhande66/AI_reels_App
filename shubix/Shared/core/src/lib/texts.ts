@@ -494,7 +494,7 @@ export const TEXT_GROUPS: TextGroup[] = [
       C("Watch an ad for credits (phone app, Credits page)", T("ads.rewardTitle", "Title ({n}: credits)", "Watch an ad, get {n} free credits"),
         T("ads.rewardSub", "Line ({n}: a day)", "A short video ad. Up to {n} times a day."), T("ads.rewardWatch", "Button", "Watch ad"),
         T("ads.rewardLoading", "Button while loading", "Loading ad…"), T("ads.rewardDone", "After the ad ({n})", "Thanks! {n} credits are on their way."),
-        T("ads.rewardNone", "No reward", "No ad right now, or it was closed early. Try again later.")),
+        T("ads.rewardEarly", "Ad closed before its end", "Watch the whole ad to get the credits.")),
       C("Invite card (in an ad spot without AdSense)", T("plan.inviteAdTitle", "Title", "Invite friends, earn credits"),
         T("plan.inviteAdText", "Line", "Share your link: your friend gets free credits, and so do you."), T("plan.inviteAdButton", "Button", "Invite & earn"))),
     S("Not enough credits",
