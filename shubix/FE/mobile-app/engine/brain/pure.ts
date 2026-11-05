@@ -180,3 +180,97 @@ export function beatFxOf(e, local){
   let r = 0; for(const b of shotBeats(e)){ const d = local - b; if(d >= 0 && d < 0.4) r = Math.max(r, Math.exp(-d/0.09)); }
   return e.efx === 'rgbpulse' ? { rgb: 18*r, zb: 0 } : { rgb: 0, zb: 1.4*r };
 }
+
+/* ---- scene changes inside a clip, from its samples: grabH(t) gives the colour histogram of any moment ---- */
+export const SCENE_FEAT = 64 + 16 + 40;
+const FEAT = SCENE_FEAT;
+// 0 = the same scene, 1 = nothing shared: the strongest of the three views (colours, brightness, layout)
+// (brightness: the earth mover's distance between the two histograms, i.e. how far the brightness moved, so a change of
+// grain or compression on a flat picture does not count, a jump to a darker or brighter scene does)
+export const colourD = (a, b) => { let c=0; for(let k=0;k<64;k++) c += Math.abs(a[k]-b[k]); return c/2; };
+export const histD = (a, b) => { let c=0, l=0, ca=0, cb=0, g=0; for(let k=0;k<64;k++) c += Math.abs(a[k]-b[k]);
+  for(let k=64;k<80;k++){ ca += a[k]; cb += b[k]; l += Math.abs(ca-cb); }
+  for(let k=80;k<FEAT;k++) g += Math.abs(a[k]-b[k]);
+  return Math.max(c/2, Math.min(1, 2.5*l/15), Math.min(1, 2.5*g/40)); };
+// Candidates come from the samples (adaptive threshold: a cut is a spike far above the change around it, a fast pan is
+// not; a flash returns to the same picture and is not a cut). Hard cuts are then pinned to the frame by bisection.
+export async function findScenes(grabH, S, H, LM){
+  const n = S.length, out = []; if(n < 3) return out;
+  const c = new Float32Array(n); for(let i=1;i<n;i++) c[i] = histD(H[i-1], H[i]);
+  const isCut = new Uint8Array(n);
+  for(let i=1;i<n;i++){
+    let s=0, k=0; for(let j=Math.max(1,i-5); j<=Math.min(n-1,i+5); j++) if(Math.abs(j-i)>1){ s+=c[j]; k++; }
+    const local = k ? s/k : 0;
+    if(c[i] < 0.28 || c[i] < 2.6*local + 0.08) continue;
+    if(c[i] < c[i-1] || (i+1<n && c[i] < c[i+1])) continue;   // the peak of a two-sample change
+    // a flash or a passing object: the picture soon returns to what it was
+    let back = false; for(let j=i+1; j<n && S[j].t <= S[i].t+0.5; j++) if(histD(H[i-1], H[j]) < 0.45*c[i]){ back = true; break; }
+    if(back) continue;
+    // and the picture well before must differ from the picture well after (coming back from a flash is not a cut)
+    const pre = nearestS(S, S[i-1].t-0.45), post = nearestS(S, S[i].t+0.35);
+    if(histD(H[pre], H[post]) < 0.5*c[i]) continue;
+    isCut[i] = 1;
+  }
+  for(let i=1;i<n;i++) if(isCut[i]){
+    // bisection between the last sample of the old scene and the first of the new one, to about one frame
+    let lo = S[i-1].t, hi = S[i].t; const hA = H[i-1], hB = H[i];
+    for(let it=0; it<8 && hi-lo > 1/60; it++){
+      const mid = (lo+hi)/2, h = await grabH(mid); if(!h) break;
+      if(histD(h, hA) <= histD(h, hB)) lo = mid; else hi = mid;
+    }
+    out.push({t0:lo, t1:hi, kind:'cut'});
+  }
+  // fade through black (or white): the picture goes to one flat level and comes back. The whole fade is covered: from
+  // where the brightness starts to slide until it stops. A white flash in one scene is not a fade (same picture after).
+  const gap = n > 1 ? (S[n-1].t - S[0].t)/(n-1) : 0.2;
+  for(let i=1;i<n-1;i++){
+    const dark = S[i].b < 0.05, flat = dark || S[i].b > 0.96; if(!flat) continue;
+    const same = j => dark ? S[j].b < 0.05 : S[j].b > 0.96;
+    let a=i; while(a>0 && same(a-1)) a--;
+    let b=i; while(b<n-1 && same(b+1)) b++;
+    if(a>0 && b<n-1){
+      const sl = (j, k) => dark ? S[j].b > S[k].b + 0.004 : S[j].b < S[k].b - 0.004;   // still sliding towards the flat level
+      let a2 = a-1; while(a2>0 && sl(a2-1, a2) && S[a].t - S[a2-1].t < 2) a2--;
+      let b2 = b+1; while(b2<n-1 && sl(b2+1, b2) && S[b2+1].t - S[b].t < 2) b2++;
+      // the picture just before the fade against just after it (a flash returns to the same picture)
+      const pre = nearestS(S, S[a2].t-0.2), post = nearestS(S, S[b2].t+0.2);
+      // through white, the colours must change (a camera pan changes the layout, not the colours: a flash in a pan is no cut)
+      const changes = (dark ? histD(H[pre], H[post]) : colourD(H[pre], H[post])) > 0.3, long = dark && S[b].t - S[a].t >= 0.1;
+      if(changes || long) out.push({t0:S[a2].t - gap, t1:S[b2].t + gap, kind:'fade', tc:(S[a].t + S[b].t)/2, white: !dark});   // tc: the darkest / brightest moment
+    }
+    i = b;
+  }
+  // dissolve: a short stretch (0.25-2.2 s) of steady change between two still stretches, ending on a different picture,
+  // where each pixel of the middle frame is a blend of the frames before and after (a camera pan is not a blend)
+  const cs = [...c].slice(1).sort((x,y)=>x-y), base = cs[cs.length>>1] || 0, thr = Math.max(0.03, 2.5*base);
+  // settled: the picture barely changes in the two samples before a (it is where a transition starts) / after b (ends)
+  const calmTh = Math.max(0.06, 1.5*base);
+  const settledBefore = a => { const v = [c[a], c[a-1]].filter(x=>x!==undefined); return !v.length || v.reduce((q,x)=>q+x,0)/v.length < calmTh; };
+  const settledAfter = b => { const v = [c[b+1], c[b+2]].filter(x=>x!==undefined); return !v.length || v.reduce((q,x)=>q+x,0)/v.length < calmTh; };
+  for(let i=1;i<n;i++){
+    if(c[i] <= thr) continue;
+    let j = i; while(j+1<n && c[j+1] > thr) j++;
+    const a = i-1, b = j, dur = S[b].t - S[a].t;
+    if(dur >= 0.25 && dur <= 2.2 && histD(H[a], H[b]) >= 0.35){
+      const m = (a+b)>>1, A = LM[a], B = LM[b], M = LM[m];
+      let dA=0, dB=0; for(let k=0;k<M.length;k++){ dA += Math.abs(M[k]-A[k]); dB += Math.abs(M[k]-B[k]); }
+      let be = Infinity; for(let al=0.05; al<0.96; al+=0.05){ let e=0; for(let k=0;k<M.length;k++) e += Math.abs(M[k] - (al*A[k] + (1-al)*B[k])); be = Math.min(be, e); }
+      if(be < 0.5*Math.min(dA, dB)) out.push({t0:S[a].t - gap, t1:S[b].t + gap, kind:'dissolve'});   // a full sample of margin: its first / last frames are faint
+      else if(dur <= 0.5 && settledBefore(a) && settledAfter(b)) out.push({t0:S[a].t, t1:S[b].t, kind:'cut'});   // a quick slide / whip / zoom into another scene
+    } else if(dur > 0.05 && dur < 0.25 && histD(H[a], H[b]) >= 0.35 && settledBefore(a) && settledAfter(b) && !out.some(o=>o.t1 >= S[a].t - 0.05 && o.t0 <= S[b].t + 0.05)){
+      out.push({t0:S[a].t, t1:S[b].t, kind:'cut'});
+    }
+    i = j;
+  }
+  // merge what overlaps (a cut found inside a fade is the fade)
+  out.sort((x,y)=>x.t0-y.t0);
+  const merged = [];
+  for(const o of out){ const l = merged[merged.length-1]; if(l && o.t0 <= l.t1 + 0.05){ l.t1 = Math.max(l.t1, o.t1); if(l.kind==='cut'){ l.kind = o.kind; if(o.tc !== undefined){ l.tc = o.tc; l.white = o.white; } } } else merged.push({...o}); }
+  return merged;
+}
+
+/* a cut inside the clip looks like a burst of "action": the samples at a cut get the motion of their neighbours; then the motion is smoothed a little */
+export function scanFinish(S, scenes){
+  for(const sc of scenes){ S.forEach((s,i)=>{ if(s.t >= sc.t0-0.01 && s.t <= sc.t1+0.3){ const a=S[i-2]||S[i+2]||s; s.m = Math.min(s.m, a.m); s.sw = 0; s.cut = true; } }); }
+  return S.map((s,i)=>({...s, m: (S[Math.max(0,i-1)].m + s.m + S[Math.min(S.length-1,i+1)].m)/3}));
+}

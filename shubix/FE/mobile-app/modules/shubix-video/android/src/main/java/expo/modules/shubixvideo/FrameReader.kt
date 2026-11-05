@@ -72,6 +72,25 @@ internal fun readFrames(file: File, w: Int, h: Int, times: DoubleArray, out: Out
   }
 }
 
+/** Frames as they are decoded: each answer of readFrames handed over instead of written */
+private class FrameSink(private val size: Int, private val onFrame: (Int, ByteArray?) -> Unit) : OutputStream() {
+  private var k = 0
+  override fun write(b: Int) { if (b == 0) onFrame(k++, null) }
+  override fun write(b: ByteArray, off: Int, len: Int) { if (len == size) onFrame(k++, b) }
+}
+
+/** A whole clip read on the phone (ClipScan.kt) */
+internal fun scanFile(file: File, dur: Double, onProgress: (Double) -> Unit): ClipScanResult {
+  val w = 128; val h = 72; val times = scanTimes(dur)
+  return scanClip(times, { emit ->
+    readFrames(file, w, h, times, FrameSink(w * h * 4) { k, rgba -> if (rgba == null) emit(k, null, null) else emit(k, shrinkRgba(rgba, w, h, CLIP_SW, CLIP_SH), rgba) }) {}
+  }, { t ->
+    var hist: FloatArray? = null
+    readFrames(file, w, h, doubleArrayOf(t), FrameSink(w * h * 4) { _, rgba -> if (rgba != null) hist = colorHist(shrinkRgba(rgba, w, h, CLIP_SW, CLIP_SH)) }) {}
+    hist
+  }, onProgress)
+}
+
 /** a decoded picture as small RGBA, turned as the clip is shown (BT.601; close enough for reading a clip) */
 private fun toRgba(image: Image, rotation: Int, w: Int, h: Int, rgba: ByteArray) {
   if (image.format != ImageFormat.YUV_420_888) throw IllegalArgumentException("picture format ${image.format}")
