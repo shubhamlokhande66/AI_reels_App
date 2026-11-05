@@ -1,0 +1,70 @@
+// The studio's flows with no page: a song, its part, the clips, the Reel. What the phone's own engine runs in place of the hidden
+// page's engine.ts. It starts from the state the page starts with (initial-state.json, written by scripts/engine-golden.mjs --update),
+// and takes what the phone worked out: the song's analysis (SongAnalysis.kt) and each clip's reading (ClipScan.kt).
+// @ts-nocheck
+import { brainFromCopy } from "./index";
+
+/** a song's sound as the brain reads it: the part of the Web Audio AudioBuffer it uses */
+export function soundOf(channels, sampleRate){
+  const length = channels[0].length;
+  return { length, sampleRate, numberOfChannels: channels.length, duration: length/sampleRate, getChannelData: (c) => channels[c] };
+}
+
+export function createHost(initial, io = {}){
+  const brain = brainFromCopy(initial), { ES, values } = brain, analyse = io.analyse;
+  const sec = { len: 0, auto: true, start: 0 };
+  values.sec = sec; values.partBeats = values.partBeats ?? undefined;
+
+  function applyAnalysis(r){
+    Object.assign(ES, { period: r.period, hopSec: r.hopSec, rmsF: r.rmsF, onFps: r.onFps, onOff: r.onOff, hitsRaw: r.hitsRaw, hitsStr: r.hitsStr, pfArr: r.pfArr, beats: r.beats, cuts: r.cuts, cutType: r.cutType, cutFx: r.cutFx, peaks: r.peaks, peakS: r.peakS });
+    Object.assign(values, { phase: r.phase, onEnv: r.onEnv, barOff: r.barOff });
+    ES.songPartsRel = r.parts || [];
+    brain.buildPlan();
+  }
+  function loudness(){
+    let s = 0, n = 0; for(let i=0;i<ES.mono.length;i+=64){ const v = ES.mono[i]; if(Math.abs(v) > 0.003){ s += v*v; n++; } }
+    const rms = 10*Math.log10(s/Math.max(1, n) + 1e-12); ES.normGain = Math.pow(10, Math.max(-6, Math.min(9, -14 - rms))/20);
+  }
+  /** the song or its part becomes what the Reel is cut to (the page's useSection) */
+  async function useSection(){
+    if(!ES.song || !ES.song.r) return;
+    const W = ES.song.buf, D = W.duration, sr = W.sampleRate, parts = brain.partsOfSong();
+    let r;
+    if(!sec.len || sec.len >= D - 0.3){ ES.buf = W; ES.mono = ES.song.mono; ES.secStart = 0; r = brain.applyParts(ES.song.r, parts, 0, D); }
+    else {
+      const pb = brain.partBeats(sec.len), L = Math.min(pb.len, D);
+      let st = sec.auto ? brain.bestPart(L) : brain.snapToBeat(sec.start);
+      st = Math.max(0, Math.min(st, D - L)); sec.start = st;
+      const a = Math.round(st*sr), n = Math.min(W.length - a, Math.round(L*sr)), fi = Math.round(0.006*sr), fo = Math.round(Math.min(0.35, L*0.05)*sr), channels = [];
+      for(let c=0;c<W.numberOfChannels;c++){ const d = W.getChannelData(c).slice(a, a+n); for(let i=0;i<fi;i++) d[i] *= i/fi; for(let i=0;i<fo;i++) d[n-1-i] *= i/fo; channels.push(d); }
+      const m = ES.song.mono.slice(a, a+n), given = (ES.song.r.beats || []).filter(t => t >= st - 0.01 && t < st + L - 0.02).map(t => Math.max(0, t - st));
+      r = await analyse(m, sr, given.length >= 4 ? { forceBeats: given, forceSource: ES.song.source } : {});
+      const W2 = (ES.song.r.cuts || []).map((c,k) => ({ t: c - st, ty: ES.song.r.cutType[k], fx: ES.song.r.cutFx[k] })).filter(c => c.t > -0.15 && c.t < L + 0.15);
+      const near = t => { let b = null, bd = 0.12; for(const c of W2){ const d = Math.abs(c.t - t); if(d < bd){ bd = d; b = c; } } return b; };
+      r = { ...r, cuts: r.cuts.slice(), cutType: r.cutType.slice(), cutFx: r.cutFx.slice() };
+      r.cuts.forEach((t,k) => { const w = near(t); if(w){ r.cutType[k] = w.ty; r.cutFx[k] = w.fx; } else if(r.cutType[k] === 'drop' || r.cutType[k] === 'break'){ r.cutType[k] = 'cut'; r.cutFx[k] = 'Hard cut'; } });
+      const d0 = W2.find(c => c.ty === 'drop' && Math.abs(c.t) < 0.12);
+      if(d0 && !(r.cuts.length && r.cuts[0] < 0.12)){ r.cuts.unshift(0); r.cutType.unshift('drop'); r.cutFx.unshift(d0.fx); }
+      r = brain.applyParts(r, parts, st, L);
+      ES.buf = soundOf(channels, sr); ES.mono = m; ES.secStart = st;
+    }
+    ES.musicKey = ES.song.key + (ES.secStart || ES.buf !== W ? '@' + ES.secStart.toFixed(2) + '+' + ES.buf.duration.toFixed(2) : '');
+    applyAnalysis(r); loudness();
+    ES.pos = 0; ES.baseBuf = ES.buf; ES.baseNorm = ES.normGain;
+    if(ES.sources.length) brain.makeEditNow();
+  }
+  /** `channels`: the song's sound, one Float32Array each; `mono`: their mix; `r`: its analysis */
+  async function setSong({ channels, mono, r, name, file }){
+    const buf = soundOf(channels, 0 + (r.sampleRate || 0) || channels.sampleRate || 44100);
+    ES.song = { buf, mono, r, name, file, source: r.beatSource || 'own', key: name + '|' + buf.duration.toFixed(2) };
+    ES.buf = buf; ES.mono = mono; ES.secStart = 0;
+    await useSection();
+  }
+  /** a clip read by the phone: { name, dur, w, h, samples, scenes, faces, faceHow } */
+  function addClip(clip){
+    const shs = clip.samples.map(s => s.sh).sort((a,b) => a - b), src = { removed: false, ...clip, shMed: shs[Math.floor(shs.length/2)] || 1, els: [{}, {}, {}] };
+    ES.sources.push(src); return src;
+  }
+  function makeReel(){ if(ES.buf && ES.sources.length) brain.makeEditNow(); return ES.edit; }
+  return { brain, ES, values, sec, setSong, useSection, addClip, makeReel };
+}

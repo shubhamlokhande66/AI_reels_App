@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const here = dirname(fileURLToPath(import.meta.url)), app = join(here, "..");
+const here = dirname(fileURLToPath(import.meta.url)), app = join(here, ".."), UPDATE_START = process.argv.includes("--update-start");
 const site = join(app, "modules", "shubix-video", "android", "src", "main", "assets", "engine"), CHAT = process.argv.includes("--chat"), CANCEL = process.argv.includes("--cancel"), AI = CHAT || CANCEL || process.argv.includes("--ai"), golden = join(app, "tests", "golden", AI ? "edit-ai.json" : "edit.json");
 if (!existsSync(join(site, "index.html"))) throw new Error("Build the engine first: node engine/build.mjs");
 const work = mkdtempSync(join(tmpdir(), "golden-"));
@@ -72,6 +72,7 @@ try {
     const { result: { nodeId } } = await send("DOM.querySelector", { nodeId: root.nodeId, selector });
     await send("DOM.setFileInputFiles", { nodeId, files });
   };
+  const startState = await run(`(()=>{const s=document.querySelector("#studio").__studio.brainDebug;return s.copyOfState(s.ES,s.HOOKS)})()`);
   await put("#mfile", [song]);
   for (let i = 0; i < 240 && !(await run(`document.querySelector("#studio").__studio.work.songReady`)); i++) await wait(250);
   await put("#vfile", clips);
@@ -155,6 +156,24 @@ try {
   let headless = "";
   try { const r = reelFromCopy(copy); headless = JSON.stringify(r.shots); console.log("page jobs it asked for:", r.pageJobs.join(" ") || "none"); } catch (e) { console.log("NO BROWSER: threw:", e.stack?.split("\n").slice(0, 3).join(" | ")); }
   const browserMade = JSON.stringify(after, round);
+  // the same Reel from nothing but the song's and the clips' readings, as the phone's own engine makes it (brain/host.ts)
+  { const inputs = JSON.parse(await run(`(()=>{const d=document.querySelector("#studio").__studio.brainDebug,E=d.ES,A=a=>a&&Array.from(a),r=E.song.r;return JSON.stringify({sr:E.song.buf.sampleRate,mono:A(E.song.mono),name:E.song.name,r:{...r,rmsF:A(r.rmsF),pfArr:A(r.pfArr),onEnv:A(r.onEnv)},clips:E.sources.map(s=>({name:s.name,dur:s.dur,w:s.w,h:s.h,samples:s.samples,scenes:s.scenes,faces:s.faces,faceHow:s.faceHow}))})})()`));
+    const hostFile = join(work, "host.mjs");
+    await build({ entryPoints: [join(app, "engine", "brain", "host.ts")], bundle: true, format: "esm", platform: "node", outfile: hostFile, logLevel: "error", absWorkingDir: app, nodePaths: [join(app, "node_modules")] });
+    await build({ entryPoints: [join(app, "engine", "brain", "index.ts")], bundle: true, format: "esm", platform: "node", outfile: bundle, logLevel: "error", absWorkingDir: app, nodePaths: [join(app, "node_modules")] });
+    const { createHost } = await import("file:///" + hostFile.replace(/\\/g, "/")), { shotsOf } = await import("file:///" + bundle.replace(/\\/g, "/"));
+    if (UPDATE_START) writeFileSync(join(app, "engine", "brain", "initial-state.json"), startState);
+    try {
+      const host = createHost(startState), mono = Float32Array.from(inputs.mono), r = { ...inputs.r, rmsF: Float32Array.from(inputs.r.rmsF), pfArr: Float32Array.from(inputs.r.pfArr), onEnv: Float64Array.from(inputs.r.onEnv), sampleRate: inputs.sr };
+      await host.setSong({ channels: [mono], mono, r, name: inputs.name, file: { name: inputs.name, size: mono.length } });
+      for (const c of inputs.clips) host.addClip(c);
+      host.ES.seed = JSON.parse(copy).ES.seed; host.ES.mixNo = JSON.parse(copy).ES.mixNo;   // the page has made its Reel several times by now
+      host.makeReel();
+      const hostMade = JSON.stringify(shotsOf(host.ES));
+      if (hostMade === browserMade) console.log(`HOST: same Reel from the readings alone, ${host.ES.edit.length} shots; page jobs: ${[...host.brain.pageJobs.keys()].join(" ") || "none"}`);
+      else { console.log("HOST: different"); console.log("  browser", browserMade.slice(0, 300)); console.log("  host   ", hostMade.slice(0, 300)); console.log("  page jobs:", [...host.brain.pageJobs.keys()].join(" ")); errors.push("The host made another Reel"); }
+    } catch (e) { console.log("HOST: threw:", e.stack.slice(0, 500)); errors.push("The host threw"); }
+  }
   if (headless === browserMade) console.log(`NO BROWSER: same Reel, ${after.length} shots`);
   else { console.log("NO BROWSER: different"); console.log("  browser", browserMade.slice(0, 260)); console.log("  node   ", headless.slice(0, 260)); errors.push("The brain alone made a different Reel."); }
   }
@@ -162,7 +181,8 @@ try {
   if (process.argv.includes("--update")) { mkdirSync(dirname(golden), { recursive: true }); writeFileSync(golden, edit + "\n"); console.log(`Written: ${(AI ? JSON.parse(edit).edit : JSON.parse(edit)).length} shots`); code = 0; }
   else {
     const want = readFileSync(golden, "utf8").split(/\r?\n/).join("\n").trim();
-    if (want === edit) { console.log(`SAME Reel: ${(AI ? JSON.parse(edit).edit : JSON.parse(edit)).length} shots`); code = 0; }
+    if (want === edit && errors.length) console.log("SAME Reel, but:", errors.join(" | "));
+    else if (want === edit) { console.log(`SAME Reel: ${(AI ? JSON.parse(edit).edit : JSON.parse(edit)).length} shots`); code = 0; }
     else { const a = want.split("\n"), b = edit.split("\n"), at = a.findIndex((l, i) => l !== b[i]); console.log(`DIFFERENT at line ${at + 1}:\n  was ${a[at]}\n  now ${b[at]}`); }
   }
   ws.close();
