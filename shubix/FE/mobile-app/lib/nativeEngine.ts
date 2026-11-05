@@ -2,11 +2,8 @@ import { createHost, soundOf } from "../engine/brain/host";
 import initial from "../engine/brain/initial-state.json";
 import { TTS_VOICES, voiceLanguage } from "../engine/lib/tts/voices";
 
-/** The studio with no page: the operations of the hidden page's bridge (engine/components/studio/bridge.ts), run on the brain in the app's own
- * JS, with the phone's own code doing the heavy work through its file server (SongAnalysis.kt, ClipScan.kt, ClipFaces.kt). On only when the
- * build says so (EXPO_PUBLIC_NATIVE_ENGINE): until the operations marked below are written, the page stays the app's engine. */
-export const NATIVE_ENGINE = process.env.EXPO_PUBLIC_NATIVE_ENGINE === "1";
-
+/** The studio: its operations run on the brain in the app's own JS, with the phone's own code doing the heavy work through
+ * its file server (SongAnalysis.kt, ClipScan.kt, ClipFaces.kt). */
 type Fetch = (url: string, init?: { method?: string; body?: unknown }) => Promise<{ ok: boolean; status: number; text(): Promise<string>; json(): Promise<unknown>; arrayBuffer(): Promise<ArrayBuffer> }>;
 export type NativeIo = { base: string; key: string; fetch: Fetch; token?: () => Promise<string | null>; onProgress?: (what: "song" | "clips", p: number) => void;
   /** Shubix AI's question: true Use, false the other button, null closed */
@@ -222,8 +219,6 @@ export function createNativeEngine(io: NativeIo) {
       else throw new Error(`The phone's own engine has no ${box}`);
       return { work: work(), state: state() };
     },
-    cancelExport: () => ({ ok: true }),
-    brainCheck: () => ({ copy: "{}", shots: [] }),
     exportMix: async (a) => {
       host.exportChoose(a); if (a.fixLocked) host.exportFix();
       await host.brain.ensureMix();

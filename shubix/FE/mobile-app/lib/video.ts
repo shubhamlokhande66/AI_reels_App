@@ -46,7 +46,7 @@ export type NativeLayerRow = { native?: unknown; blend?: string };
 export async function exportReel(p: ReelProject, onProgress: (done: number) => void, studio?: { mix: string | null; layers?: NativeLayerRow[]; plan: { watermark: boolean; fps: number; bitrate: number; scale: number; stabs?: unknown[]; beats?: number[][]; follow?: (number[][] | null)[] } }) {
   const mix = studio?.mix;
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
-  // a Studio Reel never stops here: what the native engine lacks is named by nativeExportGaps, and such a Reel stays on the studio's export
+  // a Studio Reel never stops here: what the native engine lacks is named by nativeExportGaps
   const unsupported = studio ? undefined : p.clips.find((clip) =>
     clip.reverse ||
     (!!clip.transition && !isNativeTransitionSupported(clip.transition)) ||

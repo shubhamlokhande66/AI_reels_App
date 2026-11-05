@@ -1,20 +1,12 @@
 package expo.modules.shubixvideo
 
-import ai.onnxruntime.OnnxJavaType
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.DataInputStream
 import java.io.File
-import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.FloatBuffer
-import java.nio.LongBuffer
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -22,11 +14,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
-/** The AI models on the phone itself, with ONNX Runtime for Android: the beat tracker, the speech finder, the person mask
- * and the faces. Each file is downloaded once into `dir`. No Android class is used here, so a computer can
- * run this file against the same models (scripts/models-check.mjs).
- * A run's body and answer: 4 bytes (little endian) with the length of a JSON list of {n: name, t: type, d: dims, l: bytes},
- * then the tensors' bytes, little endian, one after another. */
+/** The AI model on the phone itself, with ONNX Runtime for Android: the faces. The file is downloaded once into `dir`. */
 class Models(private val dir: File, private val api: String) {
   private class Held(val session: OrtSession, val bytes: Long, @Volatile var used: Long)
   private val env by lazy { OrtEnvironment.getEnvironment() }
@@ -96,44 +84,6 @@ class Models(private val dir: File, private val api: String) {
     }
   }
 
-  /** One run of a model (the format is at the top of this file). */
-  fun run(url: String, body: ByteArray): ByteArray = using(url) { session ->
-    val all = ByteBuffer.wrap(body).order(ByteOrder.LITTLE_ENDIAN)
-    val headLength = all.int
-    val head = JSONArray(String(body, 4, headLength))
-    var at = 4 + headLength
-    val feeds = LinkedHashMap<String, OnnxTensor>()
-    try {
-      for (k in 0 until head.length()) {
-        val t = head.getJSONObject(k); val dims = t.getJSONArray("d"); val length = t.getInt("l")
-        val shape = LongArray(dims.length()) { dims.getLong(it) }
-        val bytes = ByteBuffer.wrap(body, at, length).slice().order(ByteOrder.LITTLE_ENDIAN)
-        feeds[t.getString("n")] = when (t.getString("t")) {
-          "float32" -> OnnxTensor.createTensor(env, bytes.asFloatBuffer(), shape)
-          "int64" -> OnnxTensor.createTensor(env, bytes.asLongBuffer(), shape)
-          else -> throw IllegalArgumentException("Tensor type ${t.getString("t")}")
-        }
-        at += length
-      }
-      session.run(feeds).use { result ->
-        val list = JSONArray(); val parts = ArrayList<ByteBuffer>()
-        for (entry in result) {
-          val tensor = entry.value as OnnxTensor
-          if (tensor.info.type != OnnxJavaType.FLOAT) throw IllegalStateException("Output type ${tensor.info.type}")
-          val data = tensor.floatBuffer
-          val part = ByteBuffer.allocate(data.remaining() * 4).order(ByteOrder.LITTLE_ENDIAN)
-          part.asFloatBuffer().put(data); parts.add(part)
-          list.put(JSONObject().put("n", entry.key).put("t", "float32").put("d", JSONArray(tensor.info.shape.toList())).put("l", part.capacity()))
-        }
-        val headOut = list.toString().toByteArray()
-        val out = ByteBuffer.allocate(4 + headOut.size + parts.sumOf { it.capacity() }).order(ByteOrder.LITTLE_ENDIAN)
-        out.putInt(headOut.size).put(headOut)
-        parts.forEach { out.put(it.array()) }
-        out.array()
-      }
-    } finally { feeds.values.forEach { it.close() } }
-  }
-
   /** one run with a single float input, the outputs by name (for the phone's own code) */
   fun runFloats(url: String, input: String, data: FloatArray, shape: LongArray): Map<String, FloatArray> = using(url) { session ->
     OnnxTensor.createTensor(env, FloatBuffer.wrap(data), shape).use { t ->
@@ -141,36 +91,8 @@ class Models(private val dir: File, private val api: String) {
     }
   }
 
-  /** Silero's chance of speech for every 512 samples of 16 kHz mono floats, each window seeing the 64 samples before it, as
-   * Silero's own wrapper does. The sound is read as it arrives, so a long clip needs no more memory than a short one. */
-  fun speech(url: String, sound: InputStream, bytes: Long): FloatArray = using(url) { session ->
-    val input = DataInputStream(sound)
-    val count = (bytes / (WINDOW * 4)).toInt()
-    val raw = ByteArray(WINDOW * 4); val window = FloatArray(CONTEXT + WINDOW); val probs = FloatArray(count)
-    var state = FloatArray(2 * 128)
-    OnnxTensor.createTensor(env, LongBuffer.wrap(longArrayOf(16000)), longArrayOf()).use { rate ->
-      for (k in 0 until count) {
-        input.readFully(raw)
-        System.arraycopy(window, WINDOW, window, 0, CONTEXT)   // the end of the last window comes first
-        ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().get(window, CONTEXT, WINDOW)
-        OnnxTensor.createTensor(env, FloatBuffer.wrap(window), longArrayOf(1, (CONTEXT + WINDOW).toLong())).use { samples ->
-          OnnxTensor.createTensor(env, FloatBuffer.wrap(state), longArrayOf(2, 1, 128)).use { memory ->
-            session.run(mapOf("input" to samples, "state" to memory, "sr" to rate)).use { o ->
-              probs[k] = (o.get("output").get() as OnnxTensor).floatBuffer.get(0)
-              val next = (o.get("stateN").get() as OnnxTensor).floatBuffer
-              state = FloatArray(next.remaining()).also { next.get(it) }
-            }
-          }
-        }
-      }
-    }
-    probs
-  }
-
   private companion object {
     const val SMALL = 5L * 1024 * 1024
     const val MAX_OPEN = 60L * 1024 * 1024   // the beat tracker with the small models
-    const val WINDOW = 512
-    const val CONTEXT = 64
   }
 }

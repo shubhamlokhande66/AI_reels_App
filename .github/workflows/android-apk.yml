@@ -4,12 +4,6 @@ name: Android test APK
 # Actions, Android test APK, Run workflow; download it from the run's Artifacts.
 on:
   workflow_dispatch:
-    inputs:
-      engine:
-        description: "page: the hidden page, and a parity pair after each export. native: the app's own engine, no page."
-        type: choice
-        options: [page, native]
-        default: page
 
 jobs:
   apk:
@@ -20,8 +14,6 @@ jobs:
     env:
       EXPO_PUBLIC_API_URL: https://api.shubix.in
       EXPO_PUBLIC_SITE_URL: https://shubix.in
-      EXPO_PUBLIC_WEBVIEW_DEBUG: "1" # the test APK only: the hidden studio can be inspected over USB (chrome://inspect)
-      EXPO_PUBLIC_NATIVE_ENGINE: ${{ inputs.engine == 'native' && '1' || '' }}
     steps:
       - name: Free disk space
         working-directory: /
@@ -45,7 +37,6 @@ jobs:
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @shubix/mobile-app engine:build
       - run: pnpm --filter @shubix/mobile-app exec expo prebuild --platform android --no-install
       - name: Assemble the release APK
         working-directory: shubix/FE/mobile-app/android

@@ -10,7 +10,6 @@ import { ThemeProvider, themes } from "@mobile/ui-mobile";
 import { api } from "../lib/session";
 import { useThemePref } from "../lib/theme";
 import { AppFrame } from "../components/templates/AppFrame";
-import { EngineHost } from "../lib/engine";
 import { GalleryHost } from "../components/organisms/Gallery";
 import { reportErrors } from "../lib/errors";
 
@@ -23,7 +22,6 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><ApiProvider api={api}><QueryClientProvider client={client}><ThemeProvider {...look}>
       <StatusBar style={look.theme === "dark" ? "light" : "dark"} />
       <AppFrame><Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: themes[look.theme].background }, animation: "fade" }} /></AppFrame>
-      <EngineHost />
       <GalleryHost />
     </ThemeProvider></QueryClientProvider></ApiProvider></SafeAreaProvider></GestureHandlerRootView>
   );

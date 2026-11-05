@@ -3,7 +3,6 @@ import { showInterstitial } from "../../lib/ads";
 import { useEffect, useState } from "react";
 import { Image, Modal, Platform, ScrollView, Switch, Text, View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { File, Paths } from "expo-file-system";
 import * as MediaLibrary from "expo-media-library/legacy";
 import * as Sharing from "expo-sharing";
 import * as Clipboard from "expo-clipboard";
@@ -14,7 +13,6 @@ import type { IconName } from "@mobile/ui-core";
 import { megabytes } from "@mobile/utils";
 import { errorMessage } from "@mobile/api-client";
 import type { ReelProject } from "@mobile/validations";
-import { NATIVE_ENGINE } from "../../lib/nativeEngine";
 import { canUseSharedAndroidRenderer, cancelExport, exportReel, exportReelWithSharedRenderer, nativeExportGaps, type NativeLayerRow } from "../../lib/video";
 import { FlowAnalyse } from "./CreateFlow";
 import { notifyAway } from "../../lib/notify";
@@ -30,21 +28,6 @@ type Made = { uri: string; size: number; caption?: string };
  * (quality, frame rate, the size it will be, its file name, the watermark, without the song, Save to My Reels); what the
  * plan does not include is listed and taken out before the export (the app never sends people to buy), then the Reel made
  * into an MP4 on this phone (Cancel stops it), then the Reel to watch, Download, Share and the caption for the post. */
-/** the test APK: the same Reel from both engines in the gallery, named for scripts/parity.mjs */
-async function saveParityPair(reel: ReelProject, engineUri: string, choice: ExportChoice) {
-  const rows = await engine.tool("layerList"), layers = Array.isArray(rows) ? rows as NativeLayerRow[] : [];
-  const { path, plan } = await engine.exportMix(`${reel.id}-mix.wav`, choice);
-  const gaps = nativeExportGaps(reel, layers);
-  if (gaps.length) tell(`Parity: the native export has no ${gaps.join(", ")} yet`, "info");
-  const native = await exportReel(reel, () => {}, { mix: path, layers, plan }), stamp = Date.now();
-  if (!(await MediaLibrary.requestPermissionsAsync(true)).granted) return;
-  for (const [kind, uri] of [["engine", engineUri], ["native", native.uri]]) {
-    const copy = new File(Paths.cache, `parity-${kind}-${stamp}.mp4`);
-    new File(uri).copy(copy);
-    await MediaLibrary.createAssetAsync(copy.uri);
-  }
-  tell("Parity pair saved", "info");
-}
 
 export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onClose: () => void }) {
   const words = useStudioText(), insets = useSafeAreaInsets();
@@ -69,11 +52,12 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
       if (reel.studio) {
         if (!engine.holds(reel.id)) throw new Error("The original Studio editing session is not available. Reopen this Reel from Fast Studio before exporting so its advanced effects and layers are preserved.");
         if (!(await engine.edit(reel))) throw new Error("Studio could not sync this edit. Your advanced effects have been kept; reopen the Reel in Fast Studio and try Export again.");
-        if (NATIVE_ENGINE) {   // the phone's own engine: the Reel's sound from the brain, the picture from the native export
-          const { path, plan } = await engine.exportMix(`${reel.id}-mix.wav`, { ...choice, fixLocked: true });
-          return exportReel(reel, (p) => live && setPct(p), { mix: path, plan });
-        }
-        return engine.exportReel(`${reel.id}.mp4`, { ...choice, fixLocked: true }); // the person saw the list and chose Export
+        // the Reel's sound from the brain, the picture and its layers from the phone's export
+        const { path, plan } = await engine.exportMix(`${reel.id}-mix.wav`, { ...choice, fixLocked: true }); // the person saw the list and chose Export
+        const rows = await engine.tool("layerList"), layers = Array.isArray(rows) ? rows as NativeLayerRow[] : [];
+        const gaps = nativeExportGaps(reel, layers);
+        if (gaps.length) tell(words("This export leaves out: {gaps}", { gaps: gaps.join(", ") }), "info");
+        return exportReel(reel, (p) => live && setPct(p), { mix: path, layers, plan });
       }
       if (canUseSharedAndroidRenderer(reel)) return exportReelWithSharedRenderer(reel, (p) => live && setPct(p));
       return exportReel(reel, (p) => live && setPct(p));
@@ -81,8 +65,6 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     make().then(async (r) => {
       if (!live) return;
       setPct(1); setDone(r); setStep("done"); if (adPlan && full) void showInterstitial(full); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
-      // the test APK only: the native engine makes the same Reel, both go to the gallery for scripts/parity.mjs
-      if (reel.studio && process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1" && !NATIVE_ENGINE) void saveParityPair(reel, r.uri, choice).catch((e) => tell(`Native export: ${errorMessage(e)}`, "danger"));
       // saved to the gallery at once when allowed (a Photos permission error never undoes the export)
       try {
         if ((await MediaLibrary.requestPermissionsAsync(true)).granted) { await MediaLibrary.createAssetAsync(r.uri); if (live) setSaved(true); }
@@ -93,7 +75,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
   }, [step, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cancel (and Android back) while it is made: stopped, back to the Reel
-  const cancel = () => { void (studio ? engine.cancelExport() : cancelExport()); onClose(); };
+  const cancel = () => { void cancelExport(); onClose(); };
   const download = async () => {
     if (!done) return;
     try {

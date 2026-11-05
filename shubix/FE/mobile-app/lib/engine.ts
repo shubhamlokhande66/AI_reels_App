@@ -1,6 +1,4 @@
-import { useRef } from "react";
-import { Platform, View } from "react-native";
-import { WebView, type WebViewMessageEvent } from "react-native-webview";
+import { Platform } from "react-native";
 import { askAction, tasks, tell, type TaskKind } from "@mobile/ui-mobile";
 import { ShubixVideo } from "../modules/shubix-video";
 import { clipDuration, type ProjectClip, type ReelProject } from "@mobile/validations";
@@ -8,16 +6,12 @@ import { buildSpeedRampSegments } from "@mobile/video-engine";
 import { tokenStore } from "./device";
 import { API_URL } from "./session";
 import { fitShot } from "./shotFit";
-import { reelFromCopy } from "../engine/brain/index";
 import { fetch as nativeFetch } from "expo/fetch";
-import { createNativeEngine, NATIVE_ENGINE } from "./nativeEngine";
+import { createNativeEngine } from "./nativeEngine";
 
-/** The phone's own engine makes its Reels: the page in FE/mobile-app/engine (its own code, worked through
- * components/studio/bridge.ts), built into the APK and run hidden in the phone's browser engine. It does not come from
- * the website, so changing or deploying the website does not change the phone. The phone's screens stay its own; the
- * engine's task cards come over to the phone's (tasks). The app's little server (modules/shubix-video FileServer.kt)
- * serves the page, its files and its API calls, so this needs the app's own build (not Expo Go).
- * TODO (later): the same engine in Kotlin, without the hidden page (docs/roadmap.md). */
+/** The phone's own engine makes its Reels: the brain in the app's own JS (lib/nativeEngine.ts, engine/brain), with the
+ * phone's code doing the heavy work through the app's little server (modules/shubix-video FileServer.kt). It does not
+ * come from the website, so changing or deploying the website does not change the phone. It needs the app's own build (not Expo Go). */
 export const SITE_URL = (process.env.EXPO_PUBLIC_SITE_URL || "http://localhost:3001").replace(/\/$/, "");
 export type AiPlan = { story: string; lines: string[] };
 export type SongAnalysis = { duration: number; bpm: number; beats: number; drops: number; breaks: number };
@@ -30,17 +24,13 @@ export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWater
 export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean;
   size: string; fileName: string; myReels: boolean; myReelsNote: string; locked: { name: string; need: string }[] };
 
-type Waiting = { resolve: (v: unknown) => void; reject: (e: Error) => void };
-type Page = { injectJavaScript: (js: string) => void; reload: () => void };
-const waiting = new Map<number, Waiting>();
-let page: Page | null = null, held = "", next = 1, ready: (() => void) | null = null, isReady = new Promise<void>((r) => { ready = r; }), setUp = false;
+let held = "";
 const files = ShubixVideo ? ShubixVideo.fileServer(API_URL) : null;
 
 /** whether this phone can make Reels with the studio (the app's own build, not Expo Go or the web) */
 export const engineOn = Platform.OS !== "web" && !!files;
 
-// the studio with no page, when this build says so (lib/nativeEngine.ts): the same operations, the same answers
-const native = NATIVE_ENGINE && files ? createNativeEngine({
+const native = files ? createNativeEngine({
   base: `http://127.0.0.1:${files.port}`, key: files.key, fetch: nativeFetch as never, token: () => tokenStore.get(),
   ask: async (q) => { const v = await askAction({ title: q.title, body: [q.text, q.bal == null ? "" : `You have ${q.bal} credits`].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) }); return v === 0 ? true : v === 1 && q.no ? false : null; },
   stat: (text, err) => { if (!text) return tasks.clear("ai"); if (text.endsWith("…")) { tasks.start("ai", "ai", "Shubix at work", text.slice(0, -1)); return; } if (err) tasks.fail("ai", text); else tasks.done("ai", text); },
@@ -50,15 +40,8 @@ const native = NATIVE_ENGINE && files ? createNativeEngine({
 }) : null;
 
 async function call<T>(op: string, args: Record<string, unknown> = {}): Promise<T> {
-  if (!engineOn) throw new Error("Making Reels needs the Shubix app (not Expo Go).");
-  if (native) return native.call(op, args) as Promise<T>;
-  await isReady;
-  if (!setUp && op !== "setup") { setUp = true; await call("setup", { files: `http://127.0.0.1:${files!.port}`, key: files!.key, token: await tokenStore.get() }); }
-  const id = next++;
-  return new Promise<T>((resolve, reject) => {
-    waiting.set(id, { resolve: resolve as (v: unknown) => void, reject });
-    page?.injectJavaScript(`window.engine.call(${id}, ${JSON.stringify(op)}, ${JSON.stringify(args)}); true;`);
-  });
+  if (!native) throw new Error("Making Reels needs the Shubix app (not Expo Go).");
+  return native.call(op, args) as Promise<T>;
 }
 /** the studio's texts as the phone keeps them (its own: a number id, t0 / t1, size as a multiple of 36); every setting kept */
 export function textsOf(list: unknown): ReelProject["overlays"] | undefined {
@@ -85,7 +68,6 @@ export const engine = {
   ready: (id: string) => call<EngineReel>("ready").then((r) => { held = id; return r; }),
   /** whether the studio holds this draft as it made it (then the website's export makes it, with its transitions and effects) */
   holds: (id: string) => engineOn && held === id,
-  /** the website's export of the Reel the studio holds: the MP4 on the phone */
   /** the Reel as the phone's editor changed it, back in the studio (its order, trims, speeds, transitions, effects), so
    * the website's export still makes it; false when the studio cannot make it so (a new clip, a turned or mirrored clip,
    * a filter: then the phone's export makes it) */
@@ -158,14 +140,10 @@ export const engine = {
   },
   /** for the native export: the Reel's whole sound as a WAV on the phone (null: no sound), and what the studio decided from the plan and these choices */
   exportMix: (name: string, o: ExportChoice = {}) => call<{ path: string | null; plan: StudioExportPlan }>("exportMix", { name, ...o }),
-  exportReel: (name: string, o: ExportChoice = {}) => call<{ path: string; size: number; caption?: string }>("exportReel", { name, ...o }).then((r) => ({ uri: `file://${r.path}`, size: r.size, caption: r.caption ?? "" })),
   /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
   exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),
-  cancelExport: () => call("cancelExport").catch(() => undefined),
   /** the Reel's picture at `t` exactly as the studio makes it (null: it could not) */
   frame: (t: number) => call<{ src: string }>("frame", { t }).then((r) => r.src || null).catch(() => null),
-  /** a new Reel: the studio's page is loaded again, so nothing of the Reel before it stays (song, clips, edit, AI, cards);
-   * it signs in again and reads the plan and credits anew on its first call */
   /** Proceed after a Cancel: the song goes on from where it stopped */
   songAgain: () => call<SongAnalysis>("songAgain"),
   /** The popup's Cancel: the studio stops what is running; what is done stays done */
@@ -177,16 +155,12 @@ export const engine = {
   keptOldReel: () => call<{ ok: boolean }>("keptOldReel"),
   /** whether this person's plan has Shubix AI */
   aiOn: () => call<{ on: boolean }>("aiState").then((r) => r.on),
-  fresh: () => restart("A new Reel was started."),
-  /** the test APK: the brain makes this Reel again in the app's own JS, from a copy of the studio's state (the Reel itself is not touched) */
-  brainCheck: async () => {
-    const r = await call<{ copy: string; shots: unknown[] }>("brainCheck"), t0 = Date.now(), here = reelFromCopy(r.copy);
-    return { same: JSON.stringify(here.shots) === JSON.stringify(r.shots), shots: here.shots.length, ms: Date.now() - t0, pageJobs: here.pageJobs };
-  },
+  /** a new Reel: nothing of the Reel before it stays (song, clips, edit, AI, cards) */
+  fresh: () => restart(),
   /** what Shubix AI planned for the Reel the studio holds: its story and a line per shot; null when it did not edit it */
   aiPlan: () => call<AiPlan | null>("aiPlan"),
-  /** everything the studio is doing stops (the person left the screen that asked for it): its page starts fresh */
-  stop: () => restart(STOPPED),
+  /** everything the studio is doing stops (the person left the screen that asked for it) */
+  stop: () => restart(),
   /** the clips' smooth copies the studio made (4K / HDR / 60 fps / a changing frame rate), saved on the phone: the
    * phone's preview and export play these, so heavy footage never stutters or stalls (`name`: the clip as sent) */
   copies: () => call<{ name: string; path: string; w: number; h: number }[]>("copies").catch(() => []),
@@ -230,41 +204,7 @@ function onTask(t: TaskEvent) {
   else if (t.state === "fail") tasks.fail(t.id, t.title ?? "");
   else tasks.clear(t.id);
 }
-// the studio's question (Shubix AI's credits: "Shubix AI will edit this Reel", Use 10 credits) asked on the phone, its answer pressed there
-type AskEvent = { event: "ask"; title: string; text: string; list: string[]; balance: string; ok: string; no: string };
-async function onAsk(q: AskEvent) {
-  const v = await askAction({ title: q.title, body: [q.text, q.balance].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) });
-  void call("answer", { pick: v === 0 ? "ok" : v === 1 && q.no ? "no" : "close" });
-}
-function onMessage(e: WebViewMessageEvent) {
-  const m = JSON.parse(e.nativeEvent.data) as { id: number; ok: boolean; result?: unknown; error?: string } | TaskEvent | AskEvent | { event: "spent" } | { event: "tell"; text: string };
-  if ("event" in m) return m.event === "spent" ? tasks.lock() : m.event === "tell" ? tell(m.text, "danger") : m.event === "ask" ? void onAsk(m) : onTask(m);
-  if (m.id === 0) return ready?.();
-  const w = waiting.get(m.id);
-  if (!w) return;
-  waiting.delete(m.id);
-  if (m.ok) w.resolve(m.result); else w.reject(new Error(m.error));
-}
-
-/** said when the person left the screen that asked: nobody is there to show it */
-export const STOPPED = "Stopped.";
-// the studio starts again (the phone stopped its page, out of memory, or the person left): what it was doing fails
-function restart(why = "The phone stopped the studio. Please try again.") {
-  if (native) { native.fresh(); held = ""; shown.forEach((id) => tasks.clear(id)); shown.clear(); tasks.unlock(); return; }
-  waiting.forEach((w) => w.reject(new Error(why))); waiting.clear(); shown.forEach((id) => tasks.clear(id)); shown.clear();
-  tasks.unlock(); setUp = false; held = ""; isReady = new Promise<void>((r) => { ready = r; }); page?.reload();
-}
-
-/** The studio's page, hidden (behind everything, never touched): mounted once at the app's root. Not opacity 0:
- * Android never draws a fully transparent view, and a WebView that is never drawn gets no frames (no animation frames,
- * its videos barely decode): reading clips took minutes in the app and seconds in Chrome. 0.01 is drawn yet unseen. */
-export function EngineHost() {
-  if (!engineOn || native) return null;
-  return (
-    <View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width: 390, height: 844, opacity: 0.01, zIndex: -1 }}>
-      <WebView ref={(w: Page | null) => { page = w; }} source={{ uri: `http://127.0.0.1:${files!.port}/engine` }} onMessage={onMessage} javaScriptEnabled domStorageEnabled
-        mixedContentMode="always" mediaPlaybackRequiresUserAction={false} allowsInlineMediaPlayback webviewDebuggingEnabled={__DEV__ || process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1"}
-        onContentProcessDidTerminate={() => restart()} onRenderProcessGone={() => restart()} />
-    </View>
-  );
+// everything starts again: what it was doing stops, no card stays
+function restart() {
+  native?.fresh(); held = ""; shown.forEach((id) => tasks.clear(id)); shown.clear(); tasks.unlock();
 }

@@ -52,7 +52,6 @@ jobs:
           echo "$KS" | base64 -d > FE/mobile-app/keys/shubix-upload.jks
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=upload\nkeyPassword=%s\n' "$PWD/FE/mobile-app/keys/shubix-upload.jks" "$SP" "$KP" > FE/mobile-app/keystore.properties
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @shubix/mobile-app engine:build
       - run: pnpm --filter @shubix/mobile-app exec expo prebuild --platform android --clean --no-install
       - name: Bundle the release (.aab)
         working-directory: shubix/FE/mobile-app/android

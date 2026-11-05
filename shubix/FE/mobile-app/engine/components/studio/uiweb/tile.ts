@@ -1,3 +1,0 @@
-/** The website's tool tile: an icon over its name (the editor's tools, a shot's tools), as Tailwind classes; its size
- * is set where it is used. Chosen: aria-pressed="true"; data-on: the tool is in use. */
-export const tileClass = "relative flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-[11px] border border-transparent p-1.5 text-center text-[11px] font-medium leading-tight text-muted transition-colors hover:border-border hover:bg-accent/8 hover:text-foreground disabled:opacity-40 aria-pressed:border-accent/30 aria-pressed:bg-accent/13 aria-pressed:text-accent data-on:text-accent data-danger:text-danger [&>svg]:shrink-0 [&>svg]:text-accent/80 data-danger:[&>svg]:text-danger data-[locked=true]:[&>svg]:opacity-70";

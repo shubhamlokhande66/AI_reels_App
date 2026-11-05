@@ -120,4 +120,4 @@ stay native. The phone's files reach the page through the app's file server (`mo
 | 5 | Style: transitions, effects, speed (the studio's shots become the editor's clips: `shotsOf`); Filters, touch-ups, hook, text style, the clips' sound, background are its buttons (`set`) | ✅ |
 | 6 | Export: the studio's own (`exportReel`), also after the editor's changes (order, trims, speeds, transitions, effects go back: `edit`); the phone's Media3 export when the studio cannot make it (a new clip, a turned or mirrored clip, a filter on one shot, the phone's own texts, another song) | ✅ (to test on a phone) |
 | 7 | The editor's preview shows the studio's transitions and effects (`components/organisms/shotMotion.ts`: flashes, dips, pushes, zooms, spins, flips, glitches; punches, drifts, shakes, pulses on the beat; a dissolve or a mask as a soft dip, since the preview plays one shot at a time) | ✅ (to test on a phone) |
-| TODO (later) | The same engine in Kotlin instead of the hidden page (faster; checked against the shared modules' results) | ⬜ |
+| In test | The phone's engine without the hidden page (`docs/native-engine.md`): written, not yet run on a phone | ⬜ |
