@@ -43,7 +43,7 @@ export function nativeExportGaps(p: ReelProject, layers: NativeLayerRow[]): stri
 export type NativeLayerRow = { native?: unknown; blend?: string };
 
 /** `studio`: the studio's finished sound (engine.exportMix), which replaces the clips' sound and the song, and its plan: watermark, quality, frame rate. */
-export async function exportReel(p: ReelProject, onProgress: (done: number) => void, studio?: { mix: string | null; layers?: NativeLayerRow[]; plan: { watermark: boolean; fps: number; bitrate: number; scale: number; stabs?: unknown[]; beats?: number[][]; follow?: (number[][] | null)[] } }) {
+export async function exportReel(p: ReelProject, onProgress: (done: number) => void, studio?: { mix: string | null; layers?: NativeLayerRow[]; plan: { textTrack?: unknown; watermark: boolean; fps: number; bitrate: number; scale: number; stabs?: unknown[]; beats?: number[][]; follow?: (number[][] | null)[] } }) {
   const mix = studio?.mix;
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
   // a Studio Reel never stops here: what the native engine lacks is named by nativeExportGaps
@@ -79,6 +79,7 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   const spec = { ...made, output, ...(studio ? {
     watermark: studio.plan.watermark, fps: studio.plan.fps, bitrate: Math.round(studio.plan.bitrate),
     clips: withStudio(made.clips, studio, p),
+    texts: made.texts.map((o, i) => (p.overlays[i] as { track?: boolean } | undefined)?.track && studio.plan.textTrack ? { ...o, trackPath: studio.plan.textTrack } : o),
     layers: (studio.layers ?? []).map((l, i) => l.native && { ...(l.native as object), ...(studio.plan.follow?.[i] ? { followPath: studio.plan.follow[i] } : {}) }).filter(Boolean),
   } : {}), ...(mix ? {
     clips: withStudio(made.clips, studio!, p).map((c) => ({ ...c, muted: true, volume: 1 })),
@@ -88,10 +89,10 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   try { return await ShubixVideo.exportReel(JSON.stringify(spec)); } finally { sub.remove(); }
 }
 /** each shot's steadying path and beat effect, from the studio's plan */
-function withStudio<C>(clips: C[], studio: { plan: { stabs?: unknown[]; beats?: number[][] } }, p: ReelProject) {
+function withStudio<C>(clips: C[], studio: { plan: { stabs?: unknown[]; beats?: number[][]; beatCam?: unknown[] } }, p: ReelProject) {
   return clips.map((c, i) => {
     const fx = p.clips[i]?.effect;
-    return { ...c, ...(studio.plan.stabs?.[i] ? { stabPath: studio.plan.stabs[i] } : {}), ...(fx && BEAT_FX.has(fx) ? { effects: [], beatFx: { id: fx, beats: studio.plan.beats?.[i] ?? [] } } : {}) };
+    return { ...c, ...(studio.plan.stabs?.[i] ? { stabPath: studio.plan.stabs[i] } : {}), ...(fx && BEAT_FX.has(fx) ? { effects: [], beatFx: { id: fx, beats: studio.plan.beats?.[i] ?? [], cam: studio.plan.beatCam?.[i] ?? null } } : {}) };
   });
 }
 export const cancelExport = () => ShubixVideo?.cancel();

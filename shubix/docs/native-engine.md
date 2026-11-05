@@ -33,7 +33,7 @@ The engine is the app's own Expo module `FE/mobile-app/modules/shubix-video` (Ko
    sequences.
 6. **DONE (all 44, the outgoing shot's last frame as on the website; StudioTransitions.kt): the 44 transitions.** Two shots overlap for the transition's length. Media3 sequences don't overlap, so the
    transition is drawn by one GPU pass that reads the end of one shot and the start of the next.
-7. **DONE (StudioTexts.kt; Google fonts drawn in the nearest Android family, text behind the person and follow-the-person not yet): texts as the studio draws them.** Its styles, fonts, entrances, exits, loops and keyframes, drawn per frame onto a
+7. **DONE (StudioTexts.kt, with the studio's fonts in `assets/fonts`): texts as the studio draws them.** Its styles, fonts, entrances, exits, loops and keyframes, drawn per frame onto a
    bitmap overlay.
 8. **Parity check, not done.** The page was removed first, by decision, so the phone's export was never compared with the page's frame by frame.
 
@@ -53,14 +53,11 @@ The app has one engine and no hidden page: the WebView, its page and `engine/bui
 - `lib/engine.ts`: what the screens call. `lib/nativeEngine.ts`: every operation, on the brain.
 - `engine/brain/host.ts`: the song, part and clip flows, Shubix AI, the plan's export rules. It starts from `engine/brain/initial-state.json`, a saved start state that nothing makes any more: change it by hand.
 - `engine/brain/chat.ts`, `small.ts`: Ask Shubix and small rules.
-- Kotlin, through the file server: `SongAnalysis.kt` (`/song`), `ClipStats.kt` and `ClipScan.kt` (`/scan`), `ClipFaces.kt` (`/faces`), `/probe`, `/aiframes`, `SystemVoice.kt` (`/speak`), `/copy`, `/sound`, `/out`, and `/api`, passed on to the server.
+- Kotlin, through the file server: `SongAnalysis.kt` (`/song`), `ClipStats.kt` and `ClipScan.kt` (`/scan`), `ClipFaces.kt` (`/faces`), `/probe`, `/aiframes`, `SystemVoice.kt` (`/speak`), `/copy`, `/sound`, `/out`, `/probe` with `VideoFacts.kt`, and `/api`, passed on to the server.
 - Export: the sound from the brain (`exportMix`), then the picture, its layers, watermark, quality and frame rate from `exportReel` in `lib/video.ts`. `nativeExportGaps` names what it leaves out.
 
 Tested: `tests/native-engine.test.ts` runs the operations against a fake file server; `song-parity.mjs` and `clip-parity.mjs` compare Kotlin on a computer with the JavaScript; the whole app compiles with Metro and Hermes. It has not been run on a phone since the page was removed, and the page-versus-brain golden went with the page (last passed before the removal, git history has `scripts/engine-golden.mjs`).
 
-What the page did that this does not:
+Brought over from the page: a shot's and a layer's own sound in the mix, the limiter on the Reel's sound (the same settings, not the browser's exact compressor), captions heard from the band of a voice, edit copies for HDR, 10-bit, more than 30 fps, a varying frame rate and very large clips (`VideoFacts.kt`, `editCopyOf`), a beat shape on its subject, a layer mask's soft edge, saving to My Reels.
 
-- Sound: no fast limiter, only a peak step; no noise cleanup on clip voices.
-- Captions: the words are heard from a plain 16 kHz copy, without the page's filters.
-- A clip is copied only when its long side is over 1920 px; the page also copied HDR, 60 fps and clips with a changing frame rate.
-- A beat shape is centred on the frame; a layer's mask has no soft edge; My Reels is not offered at export; the paused picture comes from the live player, with no studio frame.
+Not needed here: noise cleanup was only for Talking Reels, which do not use this engine; nothing asks for the page's paused picture.

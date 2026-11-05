@@ -7,6 +7,7 @@ import { tokenStore } from "./device";
 import { API_URL } from "./session";
 import { fitShot } from "./shotFit";
 import { fetch as nativeFetch } from "expo/fetch";
+import { File } from "expo-file-system";
 import { createNativeEngine } from "./nativeEngine";
 
 /** The phone's own engine makes its Reels: the brain in the app's own JS (lib/nativeEngine.ts, engine/brain), with the
@@ -19,7 +20,7 @@ export type SongAnalysis = { duration: number; bpm: number; beats: number; drops
 export type EngineShot = { start: number; end: number; type: string; tr?: string; efx?: string; sp: string; src: number; in: number; cs?: Record<string, unknown>; uk?: NonNullable<ProjectClip["keyframes"]> };
 export type EngineReel = { work: { clips: number; shots: number }; state: { edit: EngineShot[]; mode?: string } & Record<string, unknown> };
 /** the website's Export sheet: quality, frame rate, the watermark, without the song */
-export type StudioExportPlan = { watermark: boolean; res: string; fps: number; bitrate: number; scale: number; stabs: ({ t: number[]; dx: number[]; dy: number[] } | null)[]; beats: number[][]; follow: (number[][] | null)[] };
+export type StudioExportPlan = { watermark: boolean; res: string; fps: number; bitrate: number; scale: number; stabs: ({ t: number[]; dx: number[]; dy: number[] } | null)[]; beats: number[][]; beatCam: unknown[]; follow: (number[][] | null)[] };
 export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWatermark?: boolean; noSong?: boolean; myReels?: boolean; fixLocked?: boolean };
 export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean;
   size: string; fileName: string; myReels: boolean; myReelsNote: string; locked: { name: string; need: string }[] };
@@ -35,6 +36,7 @@ const native = files ? createNativeEngine({
   ask: async (q) => { const v = await askAction({ title: q.title, body: [q.text, q.bal == null ? "" : `You have ${q.bal} credits`].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) }); return v === 0 ? true : v === 1 && q.no ? false : null; },
   stat: (text, err) => { if (!text) return tasks.clear("ai"); if (text.endsWith("…")) { tasks.start("ai", "ai", "Shubix at work", text.slice(0, -1)); return; } if (err) tasks.fail("ai", text); else tasks.done("ai", text); },
   spent: () => tasks.lock(),
+  readBytes: async (path, at, length) => { const h = new File(`file://${path}`).open(); try { h.offset = at; return h.readBytes(length); } finally { h.close(); } },
   tell: (text) => tell(text, "danger"),
   task: (state, id, title, detail, kind, p) => onTask({ event: "task", id, state, p: p ?? null, title, detail, kind: kind as TaskKind | undefined }),
 }) : null;
@@ -140,6 +142,8 @@ export const engine = {
   },
   /** for the native export: the Reel's whole sound as a WAV on the phone (null: no sound), and what the studio decided from the plan and these choices */
   exportMix: (name: string, o: ExportChoice = {}) => call<{ path: string | null; plan: StudioExportPlan }>("exportMix", { name, ...o }),
+  /** a finished Reel saved to My Reels too */
+  saveToMyReels: (uri: string, name: string) => call("saveToMyReels", { path: pathOf(uri), name }),
   /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
   exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),
   /** the Reel's picture at `t` exactly as the studio makes it (null: it could not) */

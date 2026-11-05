@@ -18,10 +18,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import kotlin.concurrent.thread
+import kotlin.math.max
 import kotlin.math.min
 
 /** The studio's overlay layers in the live player: photos and videos placed on the frame as the website's drawLayers()
- * (engine.ts): place, size, turn, flip, crop, fades, round corners and the masks. A mask's soft edge is not drawn. In the export
+ * (engine.ts): place, size, turn, flip, crop, fades, round corners and the masks. In the export
  * (`exact`): chroma key, the luma mask, following a face, and blend modes (LayerBlend, StudioPasses.kt). In the player a video
  * layer shows the newest frame its worker has decoded; in the export it waits for the right one. */
 @UnstableApi
@@ -69,11 +70,17 @@ internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, privat
     g.rotate(L.optDouble("r", 0.0).toFloat())
     g.scale(if (L.optBoolean("fh")) -1f else 1f, if (L.optBoolean("fv")) -1f else 1f)
     val box = RectF(-dw / 2, -dh / 2, dw / 2, dh / 2)
-    shape(L, dw, dh)?.let { (path, inside) -> if (inside) g.clipPath(path) else g.clipOutPath(path) }
+    // a mask's soft edge, as the website: the mask drawn blurred (a radial one: a gradient), a little inside its size
+    val m = L.optJSONObject("mk"); val kind = L.optString("mask"); val feather = max(0.0, m?.optDouble("f", 0.0) ?: 0.0).toFloat() * min(dw, dh) * 0.5f
+    val soft = kind != "luma" && (kind == "radial" || feather > 0.5f)
+    val shaped = shape(L, dw, dh, if (soft && kind != "radial") feather else 0f)
+    if (!soft || shaped == null) shaped?.let { (path, inside) -> if (inside) g.clipPath(path) else g.clipOutPath(path) }
     val round = L.optDouble("rad", 0.0).toFloat() * min(dw, dh) / 2
     if (round > 0) g.clipPath(Path().apply { addRoundRect(box, round, round, Path.Direction.CW) })
     val keyed = if (exact) pixelMasks(L, pic, from, dw.toInt(), dh.toInt()) else null
-    if (keyed != null) { g.drawBitmap(keyed, null, box, paint); keyed.recycle() } else g.drawBitmap(pic, from, box, paint)
+    if (soft && shaped != null) softMasked(g, shaped, kind, feather, min(dw, dh) * (m?.optDouble("w", 0.8)?.toFloat() ?: 0.8f) / 2, m?.optBoolean("inv") == true, dw, dh, paint) { c, b, plain -> if (keyed != null) c.drawBitmap(keyed, null, b, plain) else c.drawBitmap(pic, from, b, plain) }
+    else if (keyed != null) g.drawBitmap(keyed, null, box, paint) else g.drawBitmap(pic, from, box, paint)
+    keyed?.recycle()
     g.restore()
   }
 
@@ -122,10 +129,27 @@ internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, privat
     return out
   }
 
+  /** the layer on its own picture, its mask's soft shape taken from that picture, then drawn */
+  private fun softMasked(g: Canvas, shaped: Pair<Path, Boolean>, kind: String, feather: Float, radius: Float, inv: Boolean, dw: Float, dh: Float, paint: Paint, draw: (Canvas, RectF, Paint) -> Unit) {
+    val bw = maxOf(2, dw.toInt()); val bh = maxOf(2, dh.toInt()); val box = RectF(-bw / 2f, -bh / 2f, bw / 2f, bh / 2f)
+    val out = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888); val mask = Bitmap.createBitmap(bw, bh, Bitmap.Config.ALPHA_8)
+    try {
+      val c = Canvas(out); c.translate(bw / 2f, bh / 2f); draw(c, box, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+      val k = Canvas(mask); k.translate(bw / 2f, bh / 2f)
+      val ink = Paint(Paint.ANTI_ALIAS_FLAG)
+      if (kind == "radial") ink.shader = android.graphics.RadialGradient(0f, 0f, maxOf(1f, radius), if (inv) android.graphics.Color.TRANSPARENT else android.graphics.Color.BLACK, if (inv) android.graphics.Color.BLACK else android.graphics.Color.TRANSPARENT, android.graphics.Shader.TileMode.CLAMP)
+      else ink.maskFilter = android.graphics.BlurMaskFilter(maxOf(1f, feather), android.graphics.BlurMaskFilter.Blur.NORMAL)
+      k.drawPath(shaped.first, ink)
+      val cut = Paint().apply { xfermode = android.graphics.PorterDuffXfermode(if (shaped.second || kind == "radial") android.graphics.PorterDuff.Mode.DST_IN else android.graphics.PorterDuff.Mode.DST_OUT) }
+      c.translate(-bw / 2f, -bh / 2f); c.drawBitmap(mask, 0f, 0f, cut)
+      g.drawBitmap(out, null, RectF(-dw / 2, -dh / 2, dw / 2, dh / 2), paint)
+    } finally { out.recycle(); mask.recycle() }
+  }
+
   /** the layer's mask as a path around its centre, and whether its inside is what shows */
-  private fun shape(L: JSONObject, dw: Float, dh: Float): Pair<Path, Boolean>? {
+  private fun shape(L: JSONObject, dw: Float, dh: Float, inset: Float = 0f): Pair<Path, Boolean>? {
     val m = L.optJSONObject("mk") ?: JSONObject()
-    val mw = m.optDouble("w", 0.8).toFloat() * dw; val mh = m.optDouble("h", 0.8).toFloat() * dh
+    val mw = maxOf(1f, m.optDouble("w", 0.8).toFloat() * dw - 2 * inset); val mh = maxOf(1f, m.optDouble("h", 0.8).toFloat() * dh - 2 * inset)
     val box = RectF(-mw / 2, -mh / 2, mw / 2, mh / 2); val path = Path()
     when (L.optString("mask")) {
       "circle", "radial", "oval", "ellipse" -> path.addOval(box, Path.Direction.CW)

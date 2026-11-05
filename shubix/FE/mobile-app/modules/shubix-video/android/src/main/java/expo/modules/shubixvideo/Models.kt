@@ -22,7 +22,7 @@ class Models(private val dir: File, private val api: String) {
   // runs share the lock; closing a model waits until no run is using one
   private val gate = ReentrantReadWriteLock()
   private val downloading = Any()
-  /** runs so far: a test can see that the phone's model did the work, and not the page's copy */
+  /** runs so far */
   val runs = AtomicLong()
 
   private fun fileOf(url: String): File {

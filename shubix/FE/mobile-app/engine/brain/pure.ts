@@ -274,3 +274,24 @@ export function scanFinish(S, scenes){
   for(const sc of scenes){ S.forEach((s,i)=>{ if(s.t >= sc.t0-0.01 && s.t <= sc.t1+0.3){ const a=S[i-2]||S[i+2]||s; s.m = Math.min(s.m, a.m); s.sw = 0; s.cut = true; } }); }
   return S.map((s,i)=>({...s, m: (S[Math.max(0,i-1)].m + s.m + S[Math.min(S.length-1,i+1)].m)/3}));
 }
+
+/** A sound through a two-pole filter (the standard biquad, Q as a browser's default): `high` keeps what is above `hz`. */
+function biquad(x, sr, hz, high){
+  const w = 2*Math.PI*hz/sr, cos = Math.cos(w), alpha = Math.sin(w)/(2*1.122), a0 = 1 + alpha, a1 = -2*cos/a0, a2 = (1 - alpha)/a0;
+  const b1 = (high ? -(1 + cos) : 1 - cos)/a0, b0 = (high ? (1 + cos)/2 : (1 - cos)/2)/a0, b2 = b0, y = new Float32Array(x.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for(let i=0;i<x.length;i++){ const v = x[i], o = b0*v + b1*x1 + b2*x2 - a1*y1 - a2*y2; x2 = x1; x1 = v; y2 = y1; y1 = o; y[i] = o; }
+  return y;
+}
+/** What the words are heard from: the band of a voice (150 Hz to 4.2 kHz), so the drums and hiss do not cover them. */
+export function voiceBand(x, sr){ return biquad(biquad(x, sr, 150, true), sr, Math.min(4200, sr*0.45), false); }
+/** A fast limiter on a stereo sound (threshold -1.5 dB, ratio 20, attack 2 ms, release 80 ms), both channels moved together. */
+export function limitStereo(L, R, sr){
+  const thr = 0.8414, att = Math.exp(-1/(0.002*sr)), rel = Math.exp(-1/(0.08*sr)), A = new Float32Array(L.length), B = new Float32Array(L.length);
+  let env = 0;
+  for(let i=0;i<L.length;i++){
+    const p = Math.max(Math.abs(L[i]), Math.abs(R[i])); env = p > env ? att*env + (1 - att)*p : rel*env + (1 - rel)*p;
+    const g = env > thr ? thr*Math.pow(env/thr, 1/20)/env : 1; A[i] = L[i]*g; B[i] = R[i]*g;
+  }
+  return [A, B];
+}

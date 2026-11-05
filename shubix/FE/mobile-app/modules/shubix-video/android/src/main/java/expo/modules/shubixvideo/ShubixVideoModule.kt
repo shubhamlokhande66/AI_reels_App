@@ -155,7 +155,7 @@ class ShubixVideoModule : Module() {
       AsyncFunction("setMuted") { view: ShubixPreviewView, muted: Boolean -> view.setMuted(muted) }.runOnQueue(Queues.MAIN)
       AsyncFunction("release") { view: ShubixPreviewView -> view.release() }.runOnQueue(Queues.MAIN)
     }
-    // the engine page's home on the phone (FileServer): started once, its port and key; `api`: where its /api calls go
+    // the engine's home on the phone (FileServer): started once, its port and key; `api`: where its /api calls go
     Function("fileServer") { api: String ->
       val c = appContext.reactContext ?: throw IllegalStateException("No app")
       val s = files ?: FileServer(c, listOf(c.filesDir, c.cacheDir), File(c.cacheDir, "engine-out"), api.trimEnd('/')).also { files = it }
@@ -278,7 +278,7 @@ class ShubixVideoModule : Module() {
     val sharedEffects = mutableMapOf<String, MutableList<Effect>>()
     val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { list ->
       val behind = (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
-      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes, exact = !live) else null)
+      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes, exact = !live) else null, appContext.reactContext?.assets)
     }
     // the overlay layers: the player shows the newest frame it has, the export the exact one
     val allLayers = spec.optJSONArray("layers")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } } ?: emptyList()
@@ -381,7 +381,7 @@ class ShubixVideoModule : Module() {
       // the shot's beat effect, with the studio's own shader (StudioTransitions.kt)
       if (!live && shaders?.main != null) c.optJSONObject("beatFx")?.let { fx ->
         val beats = fx.optJSONArray("beats")
-        video += BeatFx(shaders.vert, shaders.main, fx.optString("id"), (0 until (beats?.length() ?: 0)).map { beats!!.optDouble(it) }, clipOutputDuration)
+        video += BeatFx(shaders.vert, shaders.main, fx.optString("id"), (0 until (beats?.length() ?: 0)).map { beats!!.optDouble(it) }, clipOutputDuration, fx.optJSONObject("cam"))
       }
       // the studio's transition into this shot (tr: id, dur): the old shot's last frame and this one, as the website
       val tr = c.optJSONObject("tr")

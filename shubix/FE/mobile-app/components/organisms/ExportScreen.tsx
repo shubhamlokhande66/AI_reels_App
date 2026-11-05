@@ -65,6 +65,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
     make().then(async (r) => {
       if (!live) return;
       setPct(1); setDone(r); setStep("done"); if (adPlan && full) void showInterstitial(full); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
+      if (reel.studio && allowed?.myReels && choice.myReels) void engine.saveToMyReels(r.uri, allowed.fileName).then(() => tell(words("Saved to My Reels"), "success")).catch((e) => tell(errorMessage(e), "danger"));
       // saved to the gallery at once when allowed (a Photos permission error never undoes the export)
       try {
         if ((await MediaLibrary.requestPermissionsAsync(true)).granted) { await MediaLibrary.createAssetAsync(r.uri); if (live) setSaved(true); }

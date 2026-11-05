@@ -24,7 +24,7 @@ import kotlin.concurrent.thread
  *   POST /copy?k=KEY&p=PATH&w=W&h=H&fps=F&b=BITRATE  a heavy clip's edit copy; answers its path (EditCopy.kt)
  *   PUT  /out?k=KEY&name=NAME       the body is kept as <cache>/engine-out/NAME; answers its path
  *   POST /scan?k=KEY&p=PATH&dur=D   a clip's samples and scene changes (ClipScan.kt): lines of progress, then a line of JSON
- *   GET  /probe?k=KEY&p=PATH        a clip's length and its size as shown: { dur, w, h }
+ *   GET  /probe?k=KEY&p=PATH        a clip's length, its size as shown and what it is (VideoFacts.kt)
  *   POST /faces?k=KEY&p=PATH&dur=D&w=W&h=H  where faces are in a clip (ClipFaces.kt): a line of JSON
  *   POST /aiframes?k=KEY&p=PATH&w=W&h=H  frames at the times in the body, comma separated, for Shubix AI: JSON, a base64 JPEG for each (null: none)
  *   POST /song?k=KEY                the song's beats and cuts (SongAnalysis.kt); the body is as songFromRequest reads it
@@ -32,7 +32,7 @@ import kotlin.concurrent.thread
 @androidx.media3.common.util.UnstableApi
 class FileServer(private val context: Context, private val roots: List<File>, private val outDir: File, private val api: String) {
   val key: String = ByteArray(18).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
-  // one address, so the page keeps its storage from one run to the next; any free port when another app holds it
+  // one address from one run to the next; any free port when another app holds it
   private val server = try { ServerSocket(47831, 16, InetAddress.getByName("127.0.0.1")) } catch (_: Exception) { ServerSocket(0, 16, InetAddress.getByName("127.0.0.1")) }
   val port: Int get() = server.localPort
   private val decoders = Semaphore(3, true)
@@ -66,7 +66,7 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
           val a = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0; val b = r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
           val dur = (r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toDoubleOrNull() ?: 0.0) / 1000
           if (a <= 0 || b <= 0 || dur <= 0) return@use reply(out, 422, "Unreadable", emptyMap(), null)
-          reply(out, 200, "OK", mapOf("Content-Type" to "application/json"), org.json.JSONObject().put("dur", dur).put("w", if (turn % 180 == 0) a else b).put("h", if (turn % 180 == 0) b else a).toString().toByteArray())
+          reply(out, 200, "OK", mapOf("Content-Type" to "application/json"), videoFacts(f).let { v -> org.json.JSONObject().put("dur", dur).put("w", if (turn % 180 == 0) a else b).put("h", if (turn % 180 == 0) b else a).put("size", f.length()).put("fps", v.fps).put("hdr", v.hdr).put("tenBit", v.tenBit).put("chroma422", v.chroma422).put("times", org.json.JSONArray(v.times)).toString() }.toByteArray())
         } catch (e: Exception) { reply(out, 422, "Unreadable", emptyMap(), null) } finally { r.release() }
       }
       url.path == "/aiframes" && method == "POST" -> {

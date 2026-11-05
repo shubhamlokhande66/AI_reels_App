@@ -1,12 +1,11 @@
-// The studio's flows with no page: a song, its part, the clips, the Reel. What the phone's own engine runs in place of the hidden
-// page's engine.ts. It starts from the state the page starts with (initial-state.json, written by scripts/engine-golden.mjs --update),
+// The studio's flows: a song, its part, the clips, the Reel. It starts from a saved start state (initial-state.json),
 // and takes what the phone worked out: the song's analysis (SongAnalysis.kt) and each clip's reading (ClipScan.kt).
 // @ts-nocheck
 import { DEFAULT_LOCKS, needMap } from "../../shared/core/src/lib/plan-locks";
 import { chatSize } from "../../shared/core/src/lib/chatSize";
 import { templateTexts } from "../../shared/core/src/lib/text-templates";
 import { parseDirectorVisualIntent } from "../components/studio/visualIntent";
-import { toSlots } from "./pure";
+import { toSlots, voiceBand } from "./pure";
 import { brainFromCopy } from "./index";
 
 /** a song's sound as the brain reads it: the part of the Web Audio AudioBuffer it uses */
@@ -18,13 +17,20 @@ export function soundOf(channels, sampleRate){
 export function createHost(initial, io = {}){
   const brain = brainFromCopy(initial), { ES, values } = brain, analyse = io.analyse;
   if(io.getCtx) values.getCtx = io.getCtx;
+  // a clip's and a layer's own sound, read by the phone (null: it has none)
+  if(io.readSound){
+    values.decodeAnyAudio = async (f) => { const r = await io.readSound(f.path); return soundOf(r.channels, r.sampleRate); };
+    values.clipPcm = async (si) => { const c = ES.sources[si]; if(!c) return null; if(c.pcm !== undefined) return c.pcm;
+      try{ const r = await io.readSound(c.soundPath || c.path); c.pcm = { x: r.mono, sr: r.sampleRate }; }catch(e){ c.pcm = null; }
+      return c.pcm; };
+  }
   // Shubix AI: its calls, its question, its words and each clip's frames come from the app
   const aiCache = new Map();
   Object.assign(values, { IN_APP: true, aiCache, apiFetch: io.apiFetch, askCredits: io.ask, aiFrames: io.aiFrames, ...(io.stat ? { aiStat: io.stat } : {}), aiStatText: () => '',
     keepAiPick: (fp, ai) => aiCache.set(fp, ai), aiRestore: (src) => { const c = aiCache.get(brain.fpOf(src)); if(c && Array.isArray(c.frames)) src.ai = c; },
     aiSpent: () => io.spent && io.spent(), creditsChanged: () => {}, newId: () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36), openPricing: () => {} });
   ES.aiStopper = new AbortController();
-  // what the page keeps outside its state; the page's own drawing and buttons are not here
+  // what is kept outside the state
   Object.assign(values, { ac: new AbortController(), fxCache: new Map(), sfxCache: new Map(), isPhotoMode: () => !!ES.photoMode, clipNames: () => ES.sources.filter(s => !s.removed).map(s => s.name), curTime: () => ES.pos });
   // the chat and the tools: their rules are the brain's, and nothing is drawn here
   const hist = { u: [], r: [], cur: null, cand: '', base: '' }, ready = () => Promise.resolve();
@@ -47,12 +53,12 @@ export function createHost(initial, io = {}){
     ES.ttsClips.push(c); ES.clipMixKey = ''; brain.applyVo();
     return { id: c.id, at: c.at, duration: c.pcm.length/c.sr };
   }
-  /** the words of the song: the server hears a 16 kHz copy (a straight line between samples, in place of the page's filters) */
+  /** the words of the song: the server hears a 16 kHz copy of the band of a voice */
   async function setCaptions(enabled, language, translation){
     ES.capsOn = !!enabled; if(language !== undefined) ES.capLang = String(language || ''); if(translation !== undefined) ES.trTo = String(translation || '');
     if(ES.capsOn && ES.song && io.apiFetch){
-      const M = ES.song.mono, sr = ES.song.buf.sampleRate, from = ES.secStart + ES.buf.duration > 179 ? ES.secStart : 0, a = Math.round(from*sr), len = Math.min(M.length - a, Math.round(180*sr)), n = Math.max(1, Math.ceil(len*16000/sr));
-      let pk = 0; const y = new Float32Array(n); for(let i=0;i<n;i++){ const p = a + i*sr/16000, k = Math.floor(p), f = p - k, v = (M[k] || 0)*(1 - f) + (M[k+1] || 0)*f; y[i] = v; if(Math.abs(v) > pk) pk = Math.abs(v); }
+      const M = ES.song.mono, sr = ES.song.buf.sampleRate, from = ES.secStart + ES.buf.duration > 179 ? ES.secStart : 0, a = Math.round(from*sr), len = Math.min(M.length - a, Math.round(180*sr)), n = Math.max(1, Math.ceil(len*16000/sr)), F = voiceBand(M.subarray(a, a + len), sr);
+      let pk = 0; const y = new Float32Array(n); for(let i=0;i<n;i++){ const p = i*sr/16000, k = Math.floor(p), f = p - k, v = (F[k] || 0)*(1 - f) + (F[k+1] || 0)*f; y[i] = v; if(Math.abs(v) > pk) pk = Math.abs(v); }
       const gain = pk > 0 ? 0.9/pk : 1, dv = new DataView(new ArrayBuffer(44 + n*2)), str = (o, x) => { for(let i=0;i<x.length;i++) dv.setUint8(o+i, x.charCodeAt(i)); };
       str(0,'RIFF'); dv.setUint32(4, 36 + n*2, true); str(8,'WAVE'); str(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true); dv.setUint32(24,16000,true); dv.setUint32(28,32000,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); str(36,'data'); dv.setUint32(40,n*2,true);
       for(let i=0;i<n;i++) dv.setInt16(44 + i*2, Math.max(-1, Math.min(1, y[i]*gain))*32767, true);
@@ -62,7 +68,7 @@ export function createHost(initial, io = {}){
     }
     return { enabled: ES.capsOn, language: ES.capLang || '', translation: ES.trTo || '' };
   }
-  // the export's choices and the plan's rules (the page's Export sheet)
+  // the export's choices and the plan's rules
   const xq = { res: '1080', fps: 30, nowm: false }, XQ = { '720': { scale: 2/3, bitrate: 6e6 }, '1080': { scale: 1, bitrate: 12e6 }, '4k': { scale: 2, bitrate: 35e6 } };
   let EXR = DEFAULT_LOCKS.export;
   const exRule = () => values.planOpen ? { maxRes: '4k', fps60: true, noWatermark: true } : (EXR[ES.planNow] || EXR.free);
@@ -88,6 +94,14 @@ export function createHost(initial, io = {}){
   function exportPlan(){
     return { watermark: !(exRule().noWatermark && xq.nowm), res: xq.res, fps: xq.fps, bitrate: XQ[xq.res].bitrate * (xq.fps > 30 ? 1.5 : 1), scale: XQ[xq.res].scale,
       beats: ES.edit.map(e => e.beatsIn || []),
+      // a text that follows the person: the subject every 0.1 s of the Reel (t, x and y in the clip, the clip's size)
+      textTrack: !(ES.overlays || []).some(o => o.track) || !brain.camAt ? null : (() => { const out = [], D = ES.buf ? ES.buf.duration : 0;
+        for(let t = 0; t < D; t += 0.1){ const e = ES.edit.find(x => t < x.end) || ES.edit[ES.edit.length - 1], c = e && ES.sources[e.src]; if(!c){ out.push([+t.toFixed(2), 0.5, 0.5, 0, 0]); continue; }
+          const p = brain.camAt(e, t - e.start); out.push([+t.toFixed(2), +p[0].toFixed(4), +p[1].toFixed(4), c.w, c.h]); }
+        return out; })(),
+      // where a beat shape's subject is in each shot (t, then x and y in the clip, 0..1), and the clip's size
+      beatCam: ES.edit.map(e => { const c = ES.sources[e.src]; if(!c || !values.SHAPE_K || !values.SHAPE_K[e.efx] || !brain.camAt) return null;
+        const path = []; for(let t = 0; t < e.end - e.start; t += 0.1){ const p = brain.camAt(e, t); path.push([+t.toFixed(2), +p[0].toFixed(4), +p[1].toFixed(4)]); } return { w: c.w, h: c.h, path }; }),
       follow: ES.layers.map(L => { if(L.follow !== 'face') return null; const path = []; for(let t = L.t0; t < L.t1; t += 0.2){ const f = brain.facePosOnScreen ? brain.facePosOnScreen(t) : null; path.push([t, f ? f.x + (L.followOffsetX || 0) : L.x, f ? f.y + (L.followOffsetY || 0) : L.y]); } return path; }),
       stabs: ES.edit.map(e => { const s = ES.sources[e.src]; if(!(e.cs && e.cs.stab > 0) || !s || !s.samples || s.samples.length < 4) return null; const t = s.samples.map(x => x.t), p = t.map(v => brain.stabAt(s, v) || [0, 0]); return { t, dx: p.map(v => v[0]), dy: p.map(v => v[1]) }; }) };
   }
@@ -130,7 +144,7 @@ export function createHost(initial, io = {}){
     let s = 0, n = 0; for(let i=0;i<ES.mono.length;i+=64){ const v = ES.mono[i]; if(Math.abs(v) > 0.003){ s += v*v; n++; } }
     const rms = 10*Math.log10(s/Math.max(1, n) + 1e-12); ES.normGain = Math.pow(10, Math.max(-6, Math.min(9, -14 - rms))/20);
   }
-  /** the song or its part becomes what the Reel is cut to (the page's useSection) */
+  /** the song or its part becomes what the Reel is cut to */
   async function useSection(){
     if(!ES.song || !ES.song.r) return;
     const W = ES.song.buf, D = W.duration, sr = W.sampleRate, parts = brain.partsOfSong();

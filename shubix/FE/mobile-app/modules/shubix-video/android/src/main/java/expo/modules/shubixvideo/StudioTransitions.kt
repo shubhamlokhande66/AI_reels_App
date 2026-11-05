@@ -106,7 +106,7 @@ private val SHAPE_K = mapOf("boxgrow" to 1, "grid" to 2, "strips" to 3, "circle"
 internal val BEAT_EFFECTS = SHAPE_K.keys + setOf("strobe", "rgbpulse", "blurpulse")
 
 @UnstableApi
-internal class BeatFx(private val vert: String, private val main: String, private val id: String, beatsIn: List<Double>, private val length: Double) : GlEffect {
+internal class BeatFx(private val vert: String, private val main: String, private val id: String, beatsIn: List<Double>, private val length: Double, private val cam: org.json.JSONObject? = null) : GlEffect {
   private val beats = beatsIn.filter { it > 0.08 && it < length - 0.05 }.ifEmpty { generateSequence(0.6) { it + 0.6 }.takeWhile { it < length - 0.1 }.toList() }
   override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = object : BaseGlShaderProgram(useHdr, 1) {
     private val prog = GlProgram(vert, main)
@@ -134,11 +134,20 @@ internal class BeatFx(private val vert: String, private val main: String, privat
       val picture = Layer(floatArrayOf(0f, 0f, w, h))
       when (id) { "rgbpulse" -> picture.rgb = (18 * pulse).toFloat(); "blurpulse" -> picture.zb = (1.4 * pulse).toFloat(); "vhs" -> picture.rgb = (5 + 3 * abs(sin(t * 7))).toFloat() }
       val strobe = id == "strobe" && n > 0 && since < 0.1
+      val centre = shapeCentre(k, level, t)
       drawMain(prog, inputTexId, inputTexId, inputTexId, w, h, Layer(floatArrayOf(0f, 0f, w, h)), picture, false, 0f, 1f, 1f, t.toFloat(),
         if (strobe) (0.3 * (1 - since / 0.1)).toFloat() else 0f, FloatArray(3),
-        floatArrayOf(k.toFloat(), level.toFloat(), w / 2, h / 2), floatArrayOf(cells.toFloat(), 0f, 0f, 0f), if (strobe) 1f else 0f, if (strobe) 1.25f else 1f)
+        floatArrayOf(k.toFloat(), level.toFloat(), centre[0], centre[1]), floatArrayOf(cells.toFloat(), 0f, 0f, 0f), if (strobe) 1f else 0f, if (strobe) 1.25f else 1f)
     }
     override fun release() { super.release(); prog.delete() }
+    /** a shape's centre: on the shot's subject at this time, kept so the shape stays in the frame */
+    private fun shapeCentre(k: Int, level: Double, t: Double): FloatArray {
+      val path = cam?.optJSONArray("path"); val sw = cam?.optDouble("w", 0.0) ?: 0.0; val sh = cam?.optDouble("h", 0.0) ?: 0.0
+      if (path == null || path.length() == 0 || sw <= 0 || sh <= 0 || !(k == 1 || k in 4..6)) return floatArrayOf(w / 2, h / 2)
+      val p = path.optJSONArray(min(path.length() - 1, max(0, (t / 0.1).toInt()))) ?: return floatArrayOf(w / 2, h / 2)
+      val scale = max(w / sw, h / sh); val dw = sw * scale; val dh = sh * scale; val m = if (k == 1) level * 0.5 else 0.25
+      return floatArrayOf(min(w * (1 - m), max(w * m, (w - dw) / 2 + p.optDouble(1) * dw)).toFloat(), min(h * (1 - m), max(h * m, (h - dh) / 2 + p.optDouble(2) * dh)).toFloat())
+    }
   }
 }
 

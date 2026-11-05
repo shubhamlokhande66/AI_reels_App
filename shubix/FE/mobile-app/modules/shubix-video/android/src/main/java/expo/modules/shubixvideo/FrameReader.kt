@@ -91,7 +91,7 @@ internal fun scanFile(file: File, dur: Double, onProgress: (Double) -> Unit): Cl
   }, onProgress)
 }
 
-/** Frames as JPEGs (quality 72, as the page's), each base64, in the order of the times */
+/** Frames as JPEGs (quality 72), each base64, in the order of the times */
 internal fun jpegsOfFile(file: File, w: Int, h: Int, times: DoubleArray): org.json.JSONArray {
   val out = org.json.JSONArray(); val pixels = IntArray(w * h)
   readFrames(file, w, h, times, FrameSink(w * h * 4) { _, rgba ->

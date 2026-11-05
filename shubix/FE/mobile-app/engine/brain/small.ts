@@ -1,4 +1,4 @@
-// The small rules the page and the phone's own engine share: no browser in them.
+// The small rules of the phone's engine.
 // @ts-nocheck
 export function createSmallBrain(ES, EH){
   const aiBal = () => ES.aiInfo && typeof ES.aiInfo.balance === 'number' ? ES.aiInfo.balance : null;

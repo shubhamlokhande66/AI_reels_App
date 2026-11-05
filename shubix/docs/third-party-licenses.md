@@ -33,6 +33,8 @@ Android's voice choice is now by language, not by person. A language must be ins
 | ONNX Runtime | MIT |
 | Media3 | Apache-2.0 |
 | tracking.js | BSD |
+| Text fonts in the Android app (`assets/fonts`, from `@expo-google-fonts`): Anton, Bebas Neue, Poppins, Montserrat, Oswald, Bangers, Pacifico, Lobster, Dancing Script, Caveat, Playfair Display, Mukta, Baloo 2, Yatra One, Kalam, Rozha One | SIL OFL 1.1: may be bundled in a paid app, not sold alone; a notices screen is still to do |
+| Permanent Marker (the same) | Apache-2.0 |
 | `mediabunny`, `@mediabunny/aac-encoder` | MPL-2.0. The encoder is built from FFmpeg, whose licence terms need a check for the notices screen |
 | `sharp` (libvips) | Apache-2.0 and LGPL-3.0, on the server |
 | `node-forge` | BSD-3-Clause or GPL-2.0: we use it under BSD |
