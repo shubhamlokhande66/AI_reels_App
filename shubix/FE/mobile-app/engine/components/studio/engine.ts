@@ -3462,6 +3462,33 @@ ES.noSong = false;
 $('nosong').addEventListener('change', e => { ES.noSong = e.target.checked; }, SIG);
 // a check that may never answer on some browsers gets a time limit (then the export takes the other way)
 const inTime = (p, ms, fallback) => Promise.race([Promise.resolve(p).catch(() => fallback), new Promise(r => setTimeout(() => r(fallback), ms))]);
+/* the Reel's whole sound, as the export writes it: rendered offline with the same chain as the preview (loudness, limiter, tiny
+ * fades). null: the Reel has no sound. A loud, dense song still overshoots past 0 dB after the limiter (it is a fast compressor,
+ * not a wall): the whole mix is brought down so its peak sits at -0.5 dBFS (a fraction of a decibel: no audible change). */
+async function renderedSound(dur, sr){
+  await ensureMix();
+  const snd = exportSound(); if(!snd) return null;
+  const oc = new OfflineAudioContext(2, Math.ceil(dur*sr), sr), sn = oc.createBufferSource(); sn.buffer = snd.buf;
+  const g = oc.createGain(), lim = oc.createDynamicsCompressor();
+  lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.08;
+  g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(snd.gain, 0.02);
+  g.gain.setValueAtTime(snd.gain, Math.max(0.03, dur-0.25)); g.gain.linearRampToValueAtTime(0.0001, dur);
+  sn.connect(g); g.connect(lim); lim.connect(oc.destination); sn.start(0);
+  const audio = await oc.startRendering();
+  let pk = 0; for(let c=0;c<audio.numberOfChannels;c++){ const d = audio.getChannelData(c); for(let i=0;i<d.length;i++){ const v = d[i] < 0 ? -d[i] : d[i]; if(v > pk) pk = v; } }
+  if(pk > 0.944){ const k = 0.944/pk; for(let c=0;c<audio.numberOfChannels;c++){ const d = audio.getChannelData(c); for(let i=0;i<d.length;i++) d[i] *= k; } }
+  return audio;
+}
+/* that sound as a 16-bit WAV file, for the phone's native export; null: no sound */
+async function exportMixWav(){
+  const sr = 48000, audio = await renderedSound(ES.buf.duration, sr); if(!audio) return null;
+  const n = audio.length, L = audio.getChannelData(0), R = audio.getChannelData(Math.min(1, audio.numberOfChannels-1));
+  const b = new ArrayBuffer(44 + n*4), v = new DataView(b), tag = (at, t) => { for(let i=0;i<4;i++) v.setUint8(at+i, t.charCodeAt(i)); };
+  tag(0, 'RIFF'); v.setUint32(4, 36 + n*4, true); tag(8, 'WAVE'); tag(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr*4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); tag(36, 'data'); v.setUint32(40, n*4, true);
+  for(let i=0,o=44;i<n;i++,o+=4){ v.setInt16(o, Math.max(-1, Math.min(1, L[i]))*32767, true); v.setInt16(o+2, Math.max(-1, Math.min(1, R[i]))*32767, true); }
+  return new Blob([b], { type: 'audio/wav' });
+}
 async function fastExport(){
   if(!window.VideoEncoder || !window.OfflineAudioContext) return false;
   tasks.update('export', null, 'Getting the encoder ready');
@@ -3490,23 +3517,8 @@ async function fastExport(){
   const inputs = [];
   let pre = null;   // the next shot's decoder, seeking ahead (finished before the decoders are let go)
   try{
-    // sound: rendered offline, the same chain as the preview (loudness, limiter, tiny fades)
-    await ensureMix();
-    const snd = exportSound(), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(dur*sr), sr);
-    const sn = oc.createBufferSource(); sn.buffer = snd ? snd.buf : oc.createBuffer(2, Math.ceil(dur*sr), sr);
-    const g = oc.createGain(), lim = oc.createDynamicsCompressor();
-    lim.threshold.value = -1.5; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.08;
-    const eg = snd ? snd.gain : 1;
-    g.gain.setValueAtTime(0, 0); g.gain.linearRampToValueAtTime(eg, 0.02);
-    g.gain.setValueAtTime(eg, Math.max(0.03, dur-0.25)); g.gain.linearRampToValueAtTime(0.0001, dur);
-    sn.connect(g); g.connect(lim); lim.connect(oc.destination); sn.start(0);
     tasks.update('export', null, 'Mixing the sound');
-    const audio = snd ? await oc.startRendering() : null;
-    // the limiter above is a fast compressor, not a wall: a loud, dense song still overshoots past 0 dB here and there
-    // (a crackle on phones, and the quality check below). The whole mix is brought down so its peak sits at -0.5 dBFS
-    // (a fraction of a decibel: no audible change).
-    if(audio){ let pk = 0; for(let c=0;c<audio.numberOfChannels;c++){ const d = audio.getChannelData(c); for(let i=0;i<d.length;i++){ const v = d[i] < 0 ? -d[i] : d[i]; if(v > pk) pk = v; } }
-      if(pk > 0.944){ const k = 0.944/pk; for(let c=0;c<audio.numberOfChannels;c++){ const d = audio.getChannelData(c); for(let i=0;i<d.length;i++) d[i] *= k; } } }
+    const sr = 48000, audio = await renderedSound(dur, sr);
     tasks.update('export', 0, 'Putting your Reel together · keep this screen on');
     const chunkOf = (k) => { // one second of the sound as its own AudioBuffer (fed in step with the picture)
       const a = Math.round(k*sr), b = Math.min(audio.length, Math.round((k+1)*sr)); if(b<=a) return null;
@@ -4851,7 +4863,7 @@ async function pickRecent(fp){
 listRecent();
 
 root.__studio = { brainDebug: { ES, HOOKS, makeEditNow, copyOfState }, get layerMedia(){ return ES.lmedia; }, get aiPlan(){ return ES.director && ES.director.slots && !ES.director.interim ? { story: ES.director.story || '', lines: ES.plan.map((p, i) => planLine(p, i, ES.director.slots)) } : null; }, get songR(){ return ES.song && ES.song.r; }, get now(){ return ES.playing ? Math.max(0, curTime()) : (ES.pos || 0); }, get playing(){ return ES.playing; }, get dur(){ return ES.buf ? ES.buf.duration : 0; }, get songName(){ return ES.song && ES.song.name ? ES.song.name.replace(/\.[^.]+$/, '') : ''; }, get title(){ return reelTitle; }, get hook(){ return ES.hookText; }, get capsOn(){ return ES.capsOn; }, segAt, drawTimeline, state: () => stateOf(), get pos(){ return ES.pos; }, get playing(){ return ES.playing; }, kfSet, kfTarget: () => kfTarget(), kfSeek, uAt, emph: emphAt, get capLines(){ return ES.capLines; }, get editGen(){ return ES.editGen; }, get vo(){ return ES.vo; }, get base(){ return { buf: ES.baseBuf, norm: ES.baseNorm }; }, get overlays(){ return ES.overlays; }, setOverlays: setOverlaysFromNative, get bg(){ return { mode: bgMode, mask: !!ES.bgMask, err: ES.bgErr }; }, get faceHow(){ return ES.sources.map(s => s.faceHow); }, seek: t => { ES.pos = t; const i = segAt(t); return prepare(i, t).then(()=>drawFrame(t)); }, get talk(){ return ES.talk; }, get audio(){ return ES.buf; }, get kind(){ return ES.kind; }, get section(){ return { start: ES.secStart, len: ES.buf ? ES.buf.duration : 0, auto: sec.auto, whole: ES.song ? ES.song.buf.duration : 0, words: ES.capWords }; }, get wakeLockHeld(){ return !!wakeLock; }, loseGL: () => GL && GL.gl.getExtension('WEBGL_lose_context'), renderedLook, get capLines(){ return ES.capLines; }, faceYOnScreen, get edit(){ return ES.edit; }, setEdit: list => restoreEdit(list), get plan(){ return ES.plan; }, sources: ES.sources, gl: !!GL, get beats(){ return ES.beats; }, get parts(){ return ES.songPartsRel; }, get mode(){ return ES.mode; }, get recipe(){ return recipeNow().name; }, planNow: () => adaptPlan().map(x => +x.start.toFixed(2)), get beatInfo(){ return ES.beatInfo; }, get ref(){ return ES.refProfile; }, fingerprint: () => ES.refProfile ? fingerprintOf(ES.refProfile) : null, copyMatch, get grade(){ return GRADES[ES.look]; },
-  snap: histSnap, unsnap: snapRestore, upsell, cancelNow, resumeSong, resumeClips, newReel, keptOldReel, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ES.ovSel = ES.overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ES.ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return ES.look; }, get marks(){ return ES.userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => ES.lastVideo && saveFile(ES.lastVideo, lastName || 'reel.mp4'),
+  snap: histSnap, unsnap: snapRestore, upsell, cancelNow, resumeSong, resumeClips, newReel, keptOldReel, exportMixWav, projId: () => proj ? proj.id : '', saveNow, shotOp, shotMove: shotReorder, shotRoll, ovSelect: i => { ES.ovSel = ES.overlays[i] ? i : -1; renderOvList(); redraw(); }, ovRefresh: () => { renderOvList(); redraw(); }, get ovSel(){ return ES.ovSel; }, shotCs, shotSet, shotSlip, shotTrim, shotRipple, shotReverse, addMark, clearMarks, setTlZoom, sfxAdd, sfxEvents, ensureMix, setLook: k => { const b = $('look').querySelector('[data-l="' + k + '"]'); if(b) b.click(); return ES.look; }, get marks(){ return ES.userMarks; }, autoExport, extractAudio, autoSound, storyRun, setPart: t => { remakeOk(); sec.start = Math.max(0, +t || 0); sec.auto = false; return useSection(); }, saveLast: () => ES.lastVideo && saveFile(ES.lastVideo, lastName || 'reel.mp4'),
   get work(){ return { song: !!ES.song || ES.kind === 'talk', songReady: ES.kind === 'talk' || !!(ES.song && ES.buf && ES.song.r), beats: ES.beatsBusy, pending: ES.pending, clips: ES.sources.length, shots: ES.edit.length, ai: ES.aiBusy, dir: ES.dirBusy, pace: ES.paceBusy,
     // Shubix AI is on for this Reel and its plan has not come yet (nor failed): the Reel is not final (the phone app waits)
     aiOn: !!ES.aiOn, aiWait: !!(ES.aiOn && !planIsFinal() && !aiHeldBack() && aiReelOk() && ES.aiGaveUp !== reelIdNow() && ES.edit.length && !(ES.director && ES.director.key === dirKey() && !ES.director.interim) && ES.dirFailedKey !== dirKey()), speech: ES.speechBusy, exporting: ES.exportBusy, exportP: ES.exportP }; }, shotExtract: () => ES.edit.length && extractAudio(ES.edit[segAt(ES.pos)].src), get au(){ return ES.au; }, setAudioMix: async patch => { auSet(patch); ES.clipMixKey = ''; await ensureMix(); return ES.au; }, remix: remixNow, ensureMix, get canUndo(){ return hist.u.length > 0; }, get layers(){ return ES.layers; }, get lmedia(){ return ES.lmedia; }, layerAdd, layerSelect: lySelect, layerSet: lySet, layerDelete: lyDelete, get ttsVoices(){ return tts ? tts.voices : []; }, addTts: addTtsAtPlayhead, clearTts, setCaptions, setCaptionStyle, get canRedo(){ return hist.r.length > 0; },

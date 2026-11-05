@@ -139,6 +139,13 @@ try {
   if (AI) console.log("calls to the fake AI:", [...new Set(aiCalls)].join(" ") || "none");
   // the same Reel made again with no browser: the engine's state taken just before it makes it, then the brain alone in Node
   if (!AI) {
+  // the finished sound for the native export, and the studio's own export with the same sound code
+  const mix = JSON.parse(await run(`(async()=>{const s=document.querySelector("#studio").__studio,b=await s.exportMixWav(),v=new DataView(await b.arrayBuffer());let loud=0;for(let o=44;o<v.byteLength;o+=4)loud=Math.max(loud,Math.abs(v.getInt16(o,true)));return JSON.stringify({riff:v.getUint32(0)===0x52494646,rate:v.getUint32(24,true),seconds:(v.byteLength-44)/4/48000,loud,dur:s.brainDebug.ES.buf.duration})})()`));
+  console.log("sound for the native export:", JSON.stringify(mix));
+  if (!mix.riff || mix.rate !== 48000 || Math.abs(mix.seconds - mix.dur) > 0.01 || mix.loud < 1000) errors.push("The sound for the native export is wrong: " + JSON.stringify(mix));
+  const movie = JSON.parse(await run(`(async()=>{const b=await document.querySelector("#studio").__studio.autoExport(false);if(!b)return JSON.stringify({size:0});const a=await b.arrayBuffer(),bin=new TextDecoder("latin1").decode(new Uint8Array(a));return JSON.stringify({size:a.byteLength,sound:bin.includes("mp4a"),picture:bin.includes("avc1")})})()`));
+  console.log("the studio's own export:", JSON.stringify(movie));
+  if (!movie.size || !movie.sound || !movie.picture) errors.push("The studio's export has no sound or picture: " + JSON.stringify(movie));
   const made = await run(`(()=>{const s=document.querySelector("#studio").__studio,d=s.brainDebug;const copy=d.copyOfState(d.ES,d.HOOKS);d.makeEditNow();return JSON.stringify({copy,after:d.ES.edit.map(e=>[e.start,e.end,e.src,e.in,e.tr,e.efx])})})()`);
   const { copy, after } = JSON.parse(made);
   const { build } = await import("esbuild");

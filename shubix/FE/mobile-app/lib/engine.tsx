@@ -142,6 +142,8 @@ export const engine = {
     if (!(await engine.edit(p))) return null;
     return shotsOf((await call<EngineReel>("set", { box, value, ...(attr ? { attr } : {}) })).state.edit, sources);
   },
+  /** the Reel's whole sound as a WAV on the phone, for the native export; null: the Reel has no sound */
+  exportMix: (name: string) => call<{ path: string | null }>("exportMix", { name }).then((r) => r.path),
   exportReel: (name: string, o: ExportChoice = {}) => call<{ path: string; size: number; caption?: string }>("exportReel", { name, ...o }).then((r) => ({ uri: `file://${r.path}`, size: r.size, caption: r.caption ?? "" })),
   /** the website's Export sheet with these choices: what the plan and the phone allow, the size, the file name, My Reels */
   exportOptions: (o: ExportChoice = {}) => call<ExportOptions>("exportOptions", o),

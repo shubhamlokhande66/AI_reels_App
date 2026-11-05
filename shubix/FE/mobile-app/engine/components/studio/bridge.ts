@@ -33,7 +33,7 @@ export function initBridge(root: HTMLElement): () => void {
   const $ = <T extends HTMLElement>(id: string) => root.querySelector<T>("#" + id);
   const studio = () => (root as unknown as { __studio?: Studio }).__studio;
   let files = "", key = "", reading = false, stops = 0;   // stops: the popup's Cancels (whoever waits for that work stops waiting)
-  const flow = () => studio() as unknown as { cancelNow: () => void; resumeSong: () => void; resumeClips: () => void; upsell: () => Promise<string>; newReel: () => void; keptOldReel: () => void; work: { aiOn?: boolean } };
+  const flow = () => studio() as unknown as { cancelNow: () => void; resumeSong: () => void; resumeClips: () => void; upsell: () => Promise<string>; newReel: () => void; keptOldReel: () => void; exportMixWav: () => Promise<Blob | null>; work: { aiOn?: boolean } };
 
   // the phone's sign-in on the API's requests (the page has no sign-in cookie)
   const send = window.fetch.bind(window);
@@ -417,6 +417,15 @@ export function initBridge(root: HTMLElement): () => void {
     },
     /** stops a running export (the website's Cancel export) */
     async cancelExport() { $("fexpcancel")?.click(); return { ok: true }; },
+    /** the Reel's whole sound as a WAV on the phone, for the native export; path null: the Reel has no sound */
+    async exportMix(a) {
+      await until(made);
+      const blob = await studio()!.exportMixWav();
+      if (!blob) return { path: null };
+      const r = await send(`${files}/out?k=${key}&name=${encodeURIComponent(String(a.name || "mix.wav"))}`, { method: "PUT", body: blob });
+      if (!r.ok) throw new Error("The Reel's sound could not be saved on the phone");
+      return await r.json();
+    },
     async exportReel(a) {
       await until(made);
       // the creator closed Shubix AI's question: the studio keeps the Reel for Shubix AI (its own words say so)

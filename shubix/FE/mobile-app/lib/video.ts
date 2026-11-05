@@ -23,14 +23,28 @@ export const isNativeTransitionSupported = isAndroidTransitionSupported;
 export const isNativeEffectSupported = isAndroidEffectSupported;
 
 
-export async function exportReel(p: ReelProject, onProgress: (done: number) => void) {
+/** What the native export cannot make yet for this Reel, so it stays on the studio's export (docs/native-engine.md). */
+export function nativeExportGaps(p: ReelProject, o: { layers: number; res?: string; fps?: number; noWatermark?: boolean }): string[] {
+  const gaps: string[] = [];
+  if (!o.noWatermark) gaps.push("watermark");
+  if (o.layers > 0) gaps.push("overlay layers");
+  if ((o.res ?? "1080") !== "1080") gaps.push(`${o.res} quality`);
+  if ((o.fps ?? 30) !== 30) gaps.push(`${o.fps} fps`);
+  if (p.clips.some((c) => c.reverse)) gaps.push("reverse");
+  if (p.clips.some((c) => c.cs?.stab)) gaps.push("stabilize");
+  if (p.clips.some((c) => c.cs?.beauty)) gaps.push("beauty");
+  return gaps;
+}
+
+/** `mix`: the studio's finished sound (engine.exportMix): it replaces the clips' sound and the song, so all of the sound is as the studio made it. */
+export async function exportReel(p: ReelProject, onProgress: (done: number) => void, mix?: string | null) {
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
   const unsupported = p.clips.find((clip) =>
     clip.reverse ||
     (!!clip.transition && !isAndroidTransitionSupported(clip.transition)) ||
     (!!clip.effect && !isAndroidEffectSupported(clip.effect)) ||
     !isAndroidFilterSupported(clip.filter) ||
-    (clip.volume ?? 1) > 1
+    (!mix && (clip.volume ?? 1) > 1)
   );
   if (unsupported?.reverse) throw new Error("Reverse playback is not supported by the current Android native export engine yet.");
   if (unsupported?.transition && !isAndroidTransitionSupported(unsupported.transition)) {
@@ -42,14 +56,18 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   if (unsupported && !isAndroidFilterSupported(unsupported.filter)) {
     throw new Error(`The ${unsupported.filter} filter is not supported by the current Android export engine yet.`);
   }
-  if (unsupported && (unsupported.volume ?? 1) > 1) {
+  if (unsupported && !mix && (unsupported.volume ?? 1) > 1) {
     throw new Error("Android export currently supports source-audio gain up to 100%. Lower this clip volume before exporting.");
   }
   const [width, height] = SIZE[p.settings?.aspect ?? "9:16"] ?? SIZE["9:16"];
   const root = Paths.document.uri.replace(/^file:\/\//, "").replace(/\/$/, "");
   const safeId = p.id.replace(/[^A-Za-z0-9._-]/g, "_") || "reel";
   const output = `${root}/exports/${safeId}-${Date.now()}.mp4`;
-  const spec = { ...nativeSpec(p, width, height), output };
+  const made = nativeSpec(p, width, height);
+  const spec = { ...made, output, ...(mix ? {
+    clips: made.clips.map((c) => ({ ...c, muted: true, volume: 1 })),
+    audio: { uri: mix.startsWith("file:") ? mix : `file://${mix}`, start: 0, volume: 1, fadeIn: 0, fadeOut: 0, ducking: false, duckLevel: 0.35 },
+  } : {}) };
   const sub = ShubixVideo.addListener("onProgress", (e) => onProgress(e.progress));
   try { return await ShubixVideo.exportReel(JSON.stringify(spec)); } finally { sub.remove(); }
 }
