@@ -33,6 +33,7 @@ import { bootPart } from '../../lib/boot';
 import { SCENE_FEAT, findScenes, histD, scanFinish, TAIL, aiBonus, beatFxOf, buildCapLines, clipBytes, crossesScene, csFilter, curveSpeed, endWell, fmt, goodSecs, isIndic, keyframesFor, lowerB, maskPath, moveWords, nearestS, panClamp, rampSpeed, revFrame, rmsOf, shotBeats, splitPoint, srcPos, srcPosF, statsIndex, suitFx, toSlots, updateClipHoverInfo, upperB, velocitySpeed, whatClip, windowStats, wrapLines } from '../../brain/pure';
 import { createEditBrain } from '../../brain/edit';
 import { createCoreBrain } from '../../brain/core';
+import { createSmallBrain } from '../../brain/small';
 import { copyOfState } from '../../brain/index';
 import { createReelBrain } from '../../brain/reel';
 import { createSharedBrain } from '../../brain/shared';
@@ -41,6 +42,8 @@ export function initStudio(root, deps) {
 
 // the edit core's state (brain/edit.ts); everything it needs from the page comes through the getters of EH
 const ES = {}, HOOKS = {};
+const { aiBal, aiCostOf, creditWord, aiHeldBack, planIsFinal, csFade, csOf, csVoiced, clipVoiced, musicOut, hexRgb, lyOn, rateAt, reelLen, partOn, storySentences, avgLook, clip, fileFp, ttsPcm, paceKey, paceSongKey, inputSig } = createSmallBrain(ES, HOOKS.small = { get kxAt(){ return kxAt; }, get CS0(){ return CS0; }, get fxCache(){ return fxCache; }, get voiceFx(){ return voiceFx; }, get isPhotoMode(){ return isPhotoMode; },
+  clipNames: () => [...$('clips').children].map(c => c.__src && !c.__src.removed ? c.__src.name : '').filter(Boolean) });
 const { aiRun, aiGate, directorRun, variantsRun, paceRun, aiActions, aiTexts, timeoutSignal } = createAiBrain(ES, HOOKS.ai = { get aiSpent(){ return aiSpent; }, get aiHeldBack(){ return aiHeldBack; }, get BLENDS(){ return BLENDS; }, get IN_APP(){ return IN_APP; }, get LY0(){ return LY0; }, get SFX_NAMES(){ return SFX_NAMES; }, get SHOT_OPS(){ return SHOT_OPS; }, get VARIANTS(){ return VARIANTS; }, get ac(){ return ac; }, get addLayerMedia(){ return addLayerMedia; }, get addMark(){ return addMark; }, get addTemplate(){ return addTemplate; }, get addTtsAtPlayhead(){ return addTtsAtPlayhead; }, get aiBal(){ return aiBal; }, get aiCache(){ return aiCache; }, get aiCostOf(){ return aiCostOf; }, get aiDone(){ return aiDone; }, get aiFrames(){ return aiFrames; }, get aiNeed(){ return aiNeed; }, get aiReelOk(){ return aiReelOk; }, get aiRestore(){ return aiRestore; }, get aiStat(){ return aiStat; }, get aiStatText(){ return aiStatText; }, get apiFetch(){ return apiFetch; }, get askCredits(){ return askCredits; }, get auSet(){ return auSet; }, get chatFail(){ return chatFail; }, get chatSync(){ return chatSync; }, get clearMarks(){ return clearMarks; }, get creditWord(){ return creditWord; }, get creditsChanged(){ return creditsChanged; }, get dirArrived(){ return dirArrived; }, get dirKey(){ return dirKey; }, get dirRequest(){ return dirRequest; }, get directorCandidates(){ return directorCandidates; }, get directorMaybe(){ return directorMaybe; }, get ensureMix(){ return ensureMix; }, get fpOf(){ return fpOf; }, get getSoundMap(){ return getSoundMap; }, get isPhotoMode(){ return isPhotoMode; }, get keepAiPick(){ return keepAiPick; }, get loadFont(){ return loadFont; }, get lyUI(){ return lyUI; }, get makeEdit(){ return makeEdit; }, get mixStore(){ return mixStore; }, get notifyAct(){ return notifyAct; }, get openPricing(){ return openPricing; }, get paceFromSong(){ return paceFromSong; }, get paceKey(){ return paceKey; }, get paceMaybe(){ return paceMaybe; }, get paceSongKey(){ return paceSongKey; }, get pickBackground(){ return pickBackground; }, get pickLook(){ return pickLook; }, get pickVoiceFx(){ return pickVoiceFx; }, get planSig(){ return planSig; }, get prepLayers(){ return prepLayers; }, get redraw(){ return redraw; }, get redrawFrame(){ return redrawFrame; }, get reelIdNow(){ return reelIdNow; }, get reelLen(){ return reelLen; }, get refContext(){ return refContext; }, get renderOvList(){ return renderOvList; }, get saveNow(){ return saveNow; }, get setCaptionStyle(){ return setCaptionStyle; }, get setCaptions(){ return setCaptions; }, get sfxUI(){ return sfxUI; }, get shotOp(){ return shotOp; }, get shotSet(){ return shotSet; }, get tts(){ return tts; }, get wholeSections(){ return wholeSections; } });
 const { lockNeed, isLocked, isPartStart, SIZES, SPEED, SNAP_T, snapSpeed, FX_NAME, ACCENTS, aiReelOk, fpOf, aiTrusted, dirKey, dirSlotOf, dirShot, TR_STYLE, RECIPES, dirBase, planSig, paceUsable, paceNow, paceWanted, SEQ_FAST, SEQ_MAX, SPEED_KEYS, holdSpeed, speedKey, lyOf, refKeyOf, copyTimed, REF_TR, copyExact, AI_CS } = createSharedBrain(ES, HOOKS.shared = { get paceKey(){ return paceKey; }, get CANVAS_PATS(){ return CANVAS_PATS; }, get allOpen(){ return allOpen; }, get asFree(){ return asFree; } });
 
@@ -1331,18 +1334,12 @@ let aiLocked = false; ES.aiBusy = false; ES.aiInfo = null; ES.aiOn = false;
 /* ---- a Reel made by Shubix AI costs credits each time. aiDoneSig: the song and clips of the Reel that was made. While they
  * differ (and the person has not said yes, regenOk), Shubix AI does not run by itself ---- */
 ES.aiDoneSig = null; ES.regenOk = false;
-const inputSig = () => [ES.song && ES.song.file ? fileFp(ES.song.file) : '', (+ES.secStart || 0).toFixed(2), ES.buf ? ES.buf.duration.toFixed(2) : '', ...[...$('clips').children].map(c => c.__src && !c.__src.removed ? c.__src.name : '').filter(Boolean)].join(';');
-const aiHeldBack = () => !!ES.aiDoneSig && !ES.regenOk && inputSig() !== ES.aiDoneSig;
 // a Reel has its plan: the AI plans again only when it is asked (Make new Reel, or the chat, which have their charges), never by itself
-const planIsFinal = () => !!ES.aiDoneSig && !ES.regenOk && !ES.chatWaiting;
 // the phone's Make new Reel: a new id, so it is a new Reel for the credits; Keep old Reel: what the studio holds again is that Reel
 function newReel(){ ES.regenOk = true; ES.reelId = newId(); ES.aiReel = ''; ES.gateNo = ''; chatUsed = 0; ES.director = null; ES.dirCache.clear(); ES.aiMixes.clear(); ES.dirPlannedReel = ''; ES.aiGaveUp = ''; ES.dirFailedKey = ''; ES.paceFailedKey = ''; }
 function keptOldReel(){ ES.aiDoneSig = inputSig(); ES.regenOk = false; }
 let chatUsed = 0; ES.gateP = null; ES.aiReel = ''; ES.reelId = '';   // aiReel: the Reel the person said yes to ('no:' + id: said no); chatUsed: Ask Shubix changes on it (the plan's first few are free)
 const newId = () => { try{ return crypto.randomUUID().replace(/-/g, '').slice(0, 20); }catch(e){ return Math.random().toString(36).slice(2, 12) + Date.now().toString(36); } };
-const aiCostOf = k => (ES.aiInfo && ES.aiInfo.costs && Number(ES.aiInfo.costs[k])) || 0;
-const aiBal = () => ES.aiInfo && typeof ES.aiInfo.balance === 'number' ? ES.aiInfo.balance : null;
-const creditWord = n => n + ' credit' + (n === 1 ? '' : 's');
 const aiFreeChats = () => (ES.aiInfo && Number(ES.aiInfo.freeChats)) || 0;
 const chatSync = res => { if(res && res.chat && typeof res.chat.used === 'number') chatUsed = res.chat.used; };
 function askCredits(o){
@@ -1739,15 +1736,12 @@ ES.smapKey = ''; ES.smapVal = null;
    the phone's own pace shows first and the AI's replaces it when it arrives. */
 ES.paceFailedKey = ''; ES.pacing = null; ES.paceBusy = false;
 ES.paceCache = new Map();
-const paceKey = () => [ES.wish, ES.tplKind, ES.musicKey, ES.mode, ES.mode === 'copy' && ES.refProfile ? ES.refProfile.name + '|' + ES.refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', ES.sources.length, Math.round(ES.sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#');
    // a copied Reel keeps its own rhythm
 
 
 // The pace is asked for every section of the whole song (when a part of it is used), so moving the part needs no new
 // question: each of the part's sections takes the pace of the song's section it lies in.
 ES.songPace = new Map();   // paceSongKey -> { secs: [{ t, len, every }] in the song's time, story }
-const paceSongKey = () => ES.song ? [ES.song.key, ES.mode, ES.mode === 'copy' && ES.refProfile ? ES.refProfile.name + '|' + ES.refProfile.dur : '', root.classList.contains('photomode') ? 'p' : 'v', ES.sources.length, Math.round(ES.sources.reduce((a,s)=>a+(s.removed?0:s.dur||0),0))].join('#') : '';
-const partOn = () => !!ES.song && ES.buf !== ES.song.buf;
 ES.wholeMapKey = ''; ES.wholeMap = null;
 // is the studio's AI on? The administrator decides (Administration -> Features -> AI director) and the server has an AI
 // provider; people never choose: when it is on, every Reel is edited by the AI. Asked at the start, and again when the
@@ -1935,7 +1929,6 @@ async function prepare(i, t, quick){
   e.el.pause(); const r0 = rateAt(e, local); if(r0>0) e.el.playbackRate = r0;
   if(Math.abs(e.el.currentTime - target) > 0.04){ e.el.currentTime = target; try{ await waitEv(e.el,'seeked', quick ? 650 : 4000); }catch(err){} }
 }
-const rateAt = (e, l) => { const r = e.sp.at(l)*e.scaleR; return r<=0 ? 0 : Math.max(0.0625, Math.min(16, r)); };
 // faster than a video can play (16x, a very fast shot "In my order"): the preview shows it frame by frame, by seeking
 const PLAY_MAX = 16, rawRate = (e, l) => e.sp.at(l)*e.scaleR;
 const ease = x => 1 - Math.pow(1-Math.min(1,Math.max(0,x)),3);
@@ -2068,7 +2061,6 @@ async function addLayerMedia(file){
   await new Promise((res, rej) => { el.onloadedmetadata = res; el.onerror = () => rej(new Error('This video cannot be opened.')); });
   return { kind:'video', file, url, el, w: el.videoWidth, h: el.videoHeight, dur: el.duration, name: file.name };
 }
-const lyOn = (L, t) => t >= L.t0 && t < L.t1;
 const lyTime = (L, t) => L.in + (t - L.t0);
 // the layer's picture, cropped, masked and faded, in its own canvas; then placed on the frame
 const gifFrame = (M, t) => { const T = ((t % M.gdur) + M.gdur) % M.gdur; let k = 0; while(k + 1 < M.times.length && M.times[k + 1] <= T) k++; return M.frames[k]; };
@@ -2295,7 +2287,6 @@ const OV_PRESETS = {
   diwali:  { text: 'शुभ दीपावली 🪔', style: 'neon', color: '#FFD54A', y: 0.28, size: 1, all: true },
   hdiwali: { text: 'Happy Diwali 🪔', style: 'neon', color: '#FFD54A', y: 0.28, size: 1, all: true },
 };
-const reelLen = () => (ES.buf ? ES.buf.duration : 0);
 function setOverlaysFromNative(list){
   const D = reelLen(), incoming = Array.isArray(list) ? list : [];
   ES.overlays = incoming.map(o => {
@@ -3025,10 +3016,7 @@ function shotMask(t){
  * changes (or adds) the key there, as in CapCut. ---- */
 const KX = ['bri','con','sat','warm','hi','sh','hue','vig','sharp','zoom','cx','cy','vol'], KX_MK = ['x','y','w','h','a','f'], KX_D = { cx: 0.5, cy: 0.5 };
 // a shot's settings (at `l` seconds into it, when it has keyframes)
-const csOf = (e, l) => e && e.cs ? kxAt({ ...CS0, ...e.cs }, l) : CS0;
 const ROTI = [[1,0,0,1],[0,1,-1,0],[-1,0,0,-1],[0,-1,1,0]];
-const hexRgb = h => { const n = parseInt(String(h).replace('#',''), 16) || 0; return [(n>>16&255)/255, (n>>8&255)/255, (n&255)/255]; };
-const csFade = (c, local, L) => Math.min(c.fin > 0 ? Math.min(1, local/c.fin) : 1, c.fout > 0 ? Math.min(1, Math.max(0, (L-local)/c.fout)) : 1);
 /* ---- Reverse: a shot played backwards ----
  * The preview plays it from its frames, decoded once at a small size (rc); the export decodes it forwards in windows of
  * a dozen frames (a ring of canvases, so a long or 4K shot never fills the memory) and hands them out backwards. ---- */
@@ -3876,7 +3864,6 @@ function lookStats(g, w, h, crop){
   return { mean, std: Math.sqrt(Math.max(0, sl2/n-mean*mean)), p5: sorted[Math.floor(n*0.05)], p95: sorted[Math.floor(n*0.95)], sat: ss/n, warm: sw/n,
     split: (hiN ? hiW/hiN : 0) - (loN ? loW/loN : 0), vig: cn && co ? Math.max(0, 1 - (cor/co)/Math.max(1e-3, cen/cn)) : 0, grain };
 }
-const avgLook = arr => { const o = {}; if(!arr.length) return null; for(const k of Object.keys(arr[0])) o[k] = arr.reduce((q,x)=>q+x[k],0)/arr.length; return o; };
 // colour statistics of one full-size frame (canvas or video): a 96-wide copy for colours, a 1:1 centre crop for grain
 function lookOfImage(img, w, h){
   const cw = 96, ch = Math.max(2, Math.round(96*h/w)), c = document.createElement('canvas'); c.width=cw; c.height=ch; const g = c.getContext('2d', {willReadFrequently:true}); g.drawImage(img,0,0,cw,ch);
@@ -4186,7 +4173,6 @@ function refLookApply(R){
  * change made to a shot's transition, effect or speed is sent too, so the learned styles follow the creator's taste. */
 const STYLE_KINDS = { wedding: 'Wedding', travel: 'Travel', festival: 'Festival', dance: 'Dance', talking: 'Talking', product: 'Product', food: 'Food', fitness: 'Fitness', vlog: 'Vlog', birthday: 'Birthday', car: 'Car & bike', shop: 'Shop & opening', event: 'Event & party', other: 'Other' };
 let learnedKind = '', editsQ = [], editsT = 0;
-const clip = (x, a, b) => Math.min(b, Math.max(a, Number.isFinite(x) ? x : a));
 async function api(path, opts){ const r = await fetch(path, { signal: ac.signal, ...opts, headers: { ...(opts && opts.headers) } }); const j = await r.json().catch(() => ({}));
   if(r.status === 401) throw new Error('sign in to keep a style library'); if(!r.ok) throw new Error((j.error && j.error.message) || ('error ' + r.status)); return j; }
 // only the administrator teaches the styles (FastStudio.tsx sets the 'admin' class): a creator's copied Reel is offered
@@ -4335,7 +4321,6 @@ function voStat(t){ $('vostat').textContent = t; }
 // sfx: the automatic sound effects (a whoosh into a swipe, a boom on a drop...) are off by default: a whoosh on every
 // swipe is what makes an edit sound home-made; they are one tap away (Music → Sound effects) and can be added by hand
 const AU0 = { mvol: 1, mfin: 0, mfout: 0, mfoutManual: false, vfx: 'none', ai: true, clip: 'mute', sfx: false, sfxv: 0.6 };
-const musicOut = () => ES.au.mfoutManual ? ES.au.mfout : (ES.au.ai ? 0.8 : 0);
 ES.clipMixKey = ''; ES.au = { ...AU0 };
 const fxCache = new Map();
 // a shot's own sound, decoded once per clip (null: the clip has no sound)
@@ -4346,12 +4331,9 @@ async function clipPcm(si){
     s.pcm = { x: m, sr: b.sampleRate }; }catch(e){ s.pcm = null; }
   return s.pcm;
 }
-const csVoiced = e => !!(e.cs && (e.cs.vol > 0 || (e.cs.kx || []).some(k => k.vol > 0)));   // the shot's own sound plays (its volume, or a volume keyframe)
-const clipVoiced = () => ES.kind !== 'talk' && ES.edit.some(e => csVoiced(e));
 /* ---- text to speech (the phone's own voices): each piece of speech starts at its time and is mixed like the
  * voiceover (the voice changer works on it too; the song steps back while it speaks) ---- */
 let ttsSeq = 0; ES.ttsClips = [];
-const ttsPcm = (c) => { if(!c.pcm) return null; if(ES.au.vfx === 'none') return c.pcm; const k = 'tts' + c.id + '|' + ES.au.vfx; if(!fxCache.has(k)) fxCache.set(k, voiceFx(c.pcm, c.sr, ES.au.vfx)); return fxCache.get(k); };
 async function ttsAdd(){
   const text = $('ttstext').value.trim(), voice = $('ttsvoice').value; if(!text || !voice) return;
   if(!tts){ notify('Text to speech is not available here.', 'err'); return; }
@@ -4434,7 +4416,6 @@ ES.speechBusy = false;
  * creator's clips or photos (a soft zoom or drift on each shot, a dissolve between scenes), and the captions are the
  * story's own words timed to the speech. Nothing is uploaded and nothing is charged. ---- */
 ES.story = null;   // { scenes: [{ a, b, text }], dur }
-const storySentences = (t) => (t.replace(/\s+/g, ' ').match(/[^.!?।]+[.!?।]*/g) || []).map(s => s.trim()).filter(s => s.length > 1);
 // a quiet track the length of the story, for a Reel without a song (the edit needs a sound to follow)
 function silentWav(sec){
   const sr = 22050, n = Math.ceil(sec*sr), b = new ArrayBuffer(44 + n*2), v = new DataView(b), s = (o, t) => { for(let i=0;i<t.length;i++) v.setUint8(o + i, t.charCodeAt(i)); };
@@ -4603,7 +4584,6 @@ if(location.pathname.startsWith('/create') && location.pathname !== '/create/edi
 // a saved Reel, opened: its edit is kept as it was saved (no new plan, no rebuild when the clips' check or the beats
 // finish) until the creator asks for a change that needs one (Change Reel, a style, the chat, clips, the song or its part)
 ES.keepSaved = false;
-const fileFp = f => f ? [f.name, f.size, f.lastModified].join('|') : '';
 let voF = null; const voFile = () => (voF && voF.name === 'voiceover-' + ES.vo.key + '.f32') ? voF : (voF = new File([ES.vo.raw], 'voiceover-' + ES.vo.key + '.f32', { type: 'application/octet-stream', lastModified: parseInt(ES.vo.key, 36) || 1 }));
 function pdb(){ return new Promise((res, rej) => { const r = indexedDB.open(PDB, 2);
   r.onupgradeneeded = () => { const d = r.result; if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'id' }); if(!d.objectStoreNames.contains('files')) d.createObjectStore('files');

@@ -13,6 +13,34 @@ export function soundOf(channels, sampleRate){
 export function createHost(initial, io = {}){
   const brain = brainFromCopy(initial), { ES, values } = brain, analyse = io.analyse;
   if(io.getCtx) values.getCtx = io.getCtx;
+  // Shubix AI: its calls, its question, its words and each clip's frames come from the app
+  const aiCache = new Map();
+  Object.assign(values, { IN_APP: true, aiCache, apiFetch: io.apiFetch, askCredits: io.ask, aiFrames: io.aiFrames, ...(io.stat ? { aiStat: io.stat } : {}), aiStatText: () => '',
+    keepAiPick: (fp, ai) => aiCache.set(fp, ai), aiRestore: (src) => { const c = aiCache.get(brain.fpOf(src)); if(c && Array.isArray(c.frames)) src.ai = c; },
+    aiSpent: () => io.spent && io.spent(), creditsChanged: () => {}, newId: () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36), openPricing: () => {} });
+  ES.aiStopper = new AbortController();
+  // what the page keeps outside its state; the page's own drawing and buttons are not here
+  Object.assign(values, { ac: new AbortController(), fxCache: new Map(), sfxCache: new Map(), isPhotoMode: () => !!ES.photoMode, clipNames: () => ES.sources.filter(s => !s.removed).map(s => s.name), curTime: () => ES.pos, kxAt: (o) => o });
+  /** what this person's plan has: Shubix AI or not, the credits */
+  async function account(){
+    const read = (u) => io.apiFetch(u).then(x => x.ok ? x.json() : null).catch(() => null), [locks, credits] = await Promise.all([read('/api/plan-locks'), read('/api/credits')]);
+    if(locks && locks.groups && brain.needMap) ES.LOCKS = brain.needMap(locks);
+    if(credits){ values.planOpen = !credits.enabled && !credits.billing; ES.planNow = credits.enabled && credits.plan ? credits.plan : credits.billing ? 'free' : ES.planNow; }
+    values.allOpen = () => !!values.planOpen; values.asFree = () => false;
+    const r = await io.apiFetch('/api/studio/rank-shots'); if(!r.ok) return false;
+    ES.aiInfo = await r.json(); ES.aiOn = !!(ES.aiInfo && ES.aiInfo.available && ES.aiInfo.planAi !== false);
+    return ES.aiOn;
+  }
+  const aiBusy = () => !!(ES.aiBusy || ES.dirBusy || ES.paceBusy || (ES.aiOn && brain.aiReelOk() && ES.aiGaveUp !== brain.reelIdNow() && ES.edit.length && !(ES.director && ES.director.key === brain.dirKey() && !ES.director.interim) && ES.dirFailedKey !== brain.dirKey()));
+  /** Next after the clips: Shubix AI's question, then its work. false: the person closed the question */
+  async function runAi(wait = (ms) => new Promise(r => setTimeout(r, ms))){
+    if(!ES.aiOn) return true;
+    ES.dirFailedKey = ''; ES.paceFailedKey = '';
+    if(!brain.aiReelOk()){ const go = await brain.aiGate(true); if(!go) return ES.lowAsked === brain.reelIdNow(); }
+    await brain.aiRun();
+    for(let i = 0; i < 2400 && aiBusy(); i++) await wait(100);
+    return true;
+  }
   const sec = { len: 0, auto: true, start: 0 };
   values.sec = sec; values.partBeats = values.partBeats ?? undefined;
 
@@ -68,5 +96,5 @@ export function createHost(initial, io = {}){
     ES.sources.push(src); return src;
   }
   function makeReel(){ if(ES.buf && ES.sources.length) brain.makeEditNow(); return ES.edit; }
-  return { brain, ES, values, sec, setSong, useSection, addClip, makeReel };
+  return { brain, ES, values, sec, setSong, useSection, addClip, makeReel, account, runAi, aiBusy };
 }

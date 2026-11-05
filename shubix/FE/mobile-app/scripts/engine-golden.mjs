@@ -138,6 +138,28 @@ try {
   if (errors.length) throw new Error("The engine threw:\n" + [...new Set(errors)].join("\n"));
   const round = (k, v) => (typeof v === "number" ? +v.toFixed(3) : v);
   if (AI) console.log("calls to the fake AI:", [...new Set(aiCalls)].join(" ") || "none");
+  // Shubix AI's whole Reel with no page: the same calls to the same fake AI must give the same plan (brain/host.ts)
+  if (AI) {
+    const inputs = JSON.parse(await run(`(()=>{const d=document.querySelector("#studio").__studio.brainDebug,E=d.ES,A=a=>a&&Array.from(a),r=E.song.r;return JSON.stringify({sr:E.song.buf.sampleRate,mono:A(E.song.mono),name:E.song.name,r:{...r,rmsF:A(r.rmsF),pfArr:A(r.pfArr),onEnv:A(r.onEnv)},clips:E.sources.map(s=>({name:s.name,dur:s.dur,w:s.w,h:s.h,samples:s.samples,scenes:s.scenes,faces:s.faces,faceHow:s.faceHow}))})})()`));
+    const { build } = await import("esbuild"), hostFile = join(work, "host-ai.mjs");
+    await build({ entryPoints: [join(app, "engine", "brain", "host.ts")], bundle: true, format: "esm", platform: "node", outfile: hostFile, logLevel: "error", absWorkingDir: app, nodePaths: [join(app, "node_modules")] });
+    const { createHost } = await import("file:///" + hostFile.replace(/\\/g, "/"));
+    try {
+      const n0 = aiCalls.length, asked = [];
+      const host = createHost(startState, { apiFetch: (u, o) => fetch(`http://127.0.0.1:${port}${u}`, o), ask: async (q) => { asked.push(q.title); return true; }, aiFrames: async (src) => host.brain.aiTimes(src).sort((x, y) => x - y).map((t) => ({ t: +t.toFixed(2), image: "x" })), analyse: async () => { throw new Error("no part in this test"); } });
+      const mono = Float32Array.from(inputs.mono), r = { ...inputs.r, rmsF: Float32Array.from(inputs.r.rmsF), pfArr: Float32Array.from(inputs.r.pfArr), onEnv: Float64Array.from(inputs.r.onEnv) };
+      await host.setSong({ channels: [mono], mono, r, name: inputs.name, sampleRate: inputs.sr });
+      for (const c of inputs.clips) host.addClip(c);
+      host.makeReel();
+      console.log("host's plan:", await host.account() ? "Shubix AI" : "no AI");
+      const went = await host.runAi();
+      const pageRead = JSON.parse(read), shots = (l) => JSON.stringify(l.map((e) => [e.start, e.end, e.src, e.in, e.tr, e.efx].map((v) => (typeof v === "number" ? +v.toFixed(3) : v))));
+      const hostShots = shots(host.brain.editOf()), pageShots = shots(pageRead.edit);
+      console.log("host's calls:", aiCalls.slice(n0).join(" "), "| asked:", asked.join(" / "), "| went:", went, "| page jobs:", [...host.brain.pageJobs.keys()].join(" "));
+      if (hostShots === pageShots) console.log(`HOST AI: same plan, ${pageRead.edit.length} shots`);
+      else { console.log("HOST AI: different"); console.log("  page", pageShots.slice(0, 300)); console.log("  host", hostShots.slice(0, 300)); errors.push("The host made another AI Reel"); }
+    } catch (e) { console.log("HOST AI: threw:", e.stack.slice(0, 600)); errors.push("The host threw with AI"); }
+  }
   // the same Reel made again with no browser: the engine's state taken just before it makes it, then the brain alone in Node
   if (!AI) {
   // the finished sound for the native export, and the studio's own export with the same sound code
