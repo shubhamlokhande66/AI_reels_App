@@ -1,6 +1,7 @@
 import { beatThisWith, MELS } from "@mobile/core/lib/beatThis/core";
+import { songAnalysis } from "@mobile/core/engine/studio/song";
 import { beatThisOnDevice } from "./beatThis/client";
-import { holdModel, phoneModels, runModel, speechOnPhone, type Feed } from "./nativeModels";
+import { holdModel, phoneModels, runModel, songOnPhone, speechOnPhone, type Feed } from "./nativeModels";
 import { speak } from "./tts/client";
 import { speechProbs } from "./vad/client";
 import { findFaces, personMask } from "./vision/client";
@@ -69,6 +70,11 @@ export async function modelCheck(voice?: string) {
   rows.push({ model: BEAT, diff: 0, nativeMs: beatMs, wasmMs: beatWasmMs, note: `logits up to ${windowDiff.max.toFixed(3)} apart, ${x.beats.length}/${y.beats.length} beats up to ${far(x.beats, y.beats).toFixed(3)} s, ${x.downbeats.length}/${y.downbeats.length} downbeats up to ${far(x.downbeats, y.downbeats).toFixed(3)} s` });
   const close = Math.max(far(x.beats, y.beats), far(x.downbeats, y.downbeats)) <= 0.021;
 
+  // the song's beats and cuts: the phone's code against the page's, on the same 20 seconds
+  { const [p, nativeMs] = await timed(() => songOnPhone(n, song, 22050)), [j, wasmMs] = await timed(async () => songAnalysis(song, 22050));
+    const same = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 1e-3);
+    const ok = same(p.beats, j.beats) && same(p.cuts, j.cuts) && JSON.stringify(p.cutType) === JSON.stringify(j.cutType) && Math.abs(p.period - j.period) < 1e-6;
+    rows.push({ model: "song analysis", diff: ok ? 0 : 1, nativeMs, wasmMs, note: `${p.beats.length} beats, ${p.cuts.length} cuts` }); }
   // the workers: each must add to the phone's count of runs, or it fell back to its WebAssembly copy
   const runs = async () => Number(await (await fetch(`${n.base}/model?k=${n.key}`)).text());
   const worker = async (model: string, job: () => Promise<string>) => {

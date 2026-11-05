@@ -17,6 +17,7 @@ import { MAIN_VERT, MAIN_FRAG, PASS_VERT, GRADE_FRAG, PIC_FRAG, PIC_FX, TR_DUR }
 import { needMap, planRank, PLAN_NAME, DEFAULT_LOCKS } from '@mobile/core/lib/plan-locks';
 import { DEFAULT_TEMPLATES, liveTemplates, edgeAt } from '@mobile/core/lib/studio-templates';
 import { songAnalysis } from '@mobile/core/engine/studio/song';
+import { phoneModels, songOnPhone } from '@/lib/nativeModels';
 import { soundMap, describeCut, sectionsOf, repace } from './soundmap';
 import { revealShape, motionBetween, shotMove, shapeInside, SHAPE_REACH } from './refread';
 import { Button, Chip } from "./ui";
@@ -198,7 +199,13 @@ const TCOL = {drop:'--drop', hit:'--hit', cut:'--cut', break:'--break'};
 const TNAME = {drop:'DROP', hit:'HIT', cut:'CUT', break:'BREAK'};
 
 /* =============== MUSIC ENGINE: songAnalysis, shared with the phone (@mobile/core/engine/studio/song) =============== */
+// on the phone its own code does it, faster and outside this page (SongAnalysis.kt); if that fails, the worker below
 function analyseInWorker(m, sr, opts){
+  const native = phoneModels();
+  if(native && !ES.userMarks.length) return songOnPhone(native, m, sr, opts).catch(err => { console.warn('[song] the phone could not analyse it, here instead:', err); return analyseInPageWorker(m, sr, opts); });
+  return analyseInPageWorker(m, sr, opts);
+}
+function analyseInPageWorker(m, sr, opts){
   return new Promise((resolve, reject) => {
     // beats the creator tapped in are the page's: with any, the song is analysed on the page (they become its beats)
     if(ES.userMarks.length) return reject(new Error('own beats: analysed on the page'));

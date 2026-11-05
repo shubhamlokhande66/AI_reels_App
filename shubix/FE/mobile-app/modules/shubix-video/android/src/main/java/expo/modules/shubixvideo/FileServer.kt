@@ -33,6 +33,7 @@ import kotlin.concurrent.thread
  *   GET  /model?k=KEY               how many runs the models have done
  *   POST /onnx?k=KEY&u=MODEL        one run of a model
  *   POST /speech?k=KEY&u=MODEL      the chance of speech in a 16 kHz sound
+ *   POST /song?k=KEY                the song's beats and cuts (SongAnalysis.kt); the body is as songFromRequest reads it
  *   POST /speak?k=KEY&v=LANGUAGE    the body's words spoken by the phone's voice: floats, with X-Sample-Rate (SystemVoice.kt) */
 @androidx.media3.common.util.UnstableApi
 class FileServer(private val context: Context, private val roots: List<File>, private val outDir: File, private val api: String) {
@@ -60,7 +61,7 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
     val url = Uri.parse("http://x$target")
     if (method == "OPTIONS") return@use reply(out, 204, "No Content", emptyMap(), null)
     if (url.path?.startsWith("/api/") == true) return@use proxy(method, target, headers, input, out)
-    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech" && url.path != "/speak") return@use page(method, url.path ?: "/", out)
+    if (url.path != "/f" && url.path != "/out" && url.path != "/frames" && url.path != "/sound" && url.path != "/copy" && url.path != "/model" && url.path != "/onnx" && url.path != "/speech" && url.path != "/speak" && url.path != "/song") return@use page(method, url.path ?: "/", out)
     if (url.getQueryParameter("k") != key) return@use reply(out, 403, "Forbidden", emptyMap(), "no key".toByteArray())
     when {
       url.path == "/f" && (method == "GET" || method == "HEAD") -> {
@@ -94,6 +95,12 @@ class FileServer(private val context: Context, private val roots: List<File>, pr
         while (read < body.size) { val n = input.read(body, read, body.size - read); if (n <= 0) break; read += n }
         try { reply(out, 200, "OK", mapOf("Content-Type" to "application/octet-stream"), models.run(url.getQueryParameter("u") ?: "", body)) }
         catch (e: Throwable) { reply(out, 500, "Model failed", mapOf("Content-Type" to "text/plain"), (e.message ?: "model failed").toByteArray()) }
+      }
+      url.path == "/song" && method == "POST" -> {
+        val body = ByteArray((headers["content-length"]?.toIntOrNull() ?: 0).coerceIn(0, 400_000_000)); var read = 0
+        while (read < body.size) { val n = input.read(body, read, body.size - read); if (n <= 0) break; read += n }
+        try { reply(out, 200, "OK", mapOf("Content-Type" to "application/json"), songFromRequest(body).toString().toByteArray()) }
+        catch (e: Throwable) { reply(out, 500, "Song failed", mapOf("Content-Type" to "text/plain"), (e.message ?: "song failed").toByteArray()) }
       }
       url.path == "/speech" && method == "POST" -> {
         try {

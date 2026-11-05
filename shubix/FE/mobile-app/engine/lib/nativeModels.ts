@@ -59,6 +59,15 @@ export async function speechOnPhone(n: Native, url: string, samples: Float32Arra
   return new Float32Array(await res.arrayBuffer());
 }
 
+/** The song's beats and cuts, worked out by the phone (SongAnalysis.kt): the website's songAnalysis answer, typed arrays included. */
+export async function songOnPhone(n: Native, mono: Float32Array, sr: number, opts?: Record<string, unknown>) {
+  const head = new TextEncoder().encode(JSON.stringify({ ...opts, sr }));
+  const res = await fetch(`${n.base}/song?k=${n.key}`, { method: "POST", body: new Blob([new Uint32Array([head.length]), head, mono as BlobPart]) });
+  if (!res.ok) throw new Error(`song: ${res.status} ${await res.text()}`);
+  const r = await res.json();
+  return { ...r, rmsF: Float32Array.from(r.rmsF), pfArr: Float32Array.from(r.pfArr), onEnv: Float64Array.from(r.onEnv) };
+}
+
 /** A session for a worker: the phone's model, or `wasm` from the first moment the phone's fails. Same run() and outputs. */
 export async function phoneFirst<S extends Runs>(n: Native | undefined, url: string, wasm: () => Promise<S>, onProgress?: (p: number) => void): Promise<S> {
   if (!n) return wasm();
