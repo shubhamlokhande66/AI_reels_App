@@ -194,3 +194,40 @@ private fun kxAt(base: Map<String, Double>, keys: List<JSONObject>, l: Double): 
   }
   return base.mapValues { (n, d) -> val x = if (a.has(n)) a.optDouble(n, d) else d; val y = if (b.has(n)) b.optDouble(n, d) else d; (x + (y - x) * p).toFloat() }
 }
+
+internal val BLEND_MODE = mapOf("multiply" to 1, "screen" to 2, "overlay" to 3, "lighter" to 4, "darken" to 5, "lighten" to 6, "soft-light" to 7, "hard-light" to 8, "color-dodge" to 9, "color-burn" to 10, "difference" to 11, "exclusion" to 12)
+private const val BLEND_FRAG = """precision mediump float; varying vec2 v; uniform sampler2D T, L; uniform float mode;
+vec3 hard(vec3 b, vec3 s){ return mix(2.*b*s, 1.-2.*(1.-b)*(1.-s), step(.5, s)); }
+vec3 soft(vec3 b, vec3 s){ vec3 d = mix(((16.*b-12.)*b+4.)*b, sqrt(b), step(.25, b)); return mix(b-(1.-2.*s)*b*(1.-b), b+(2.*s-1.)*(d-b), step(.5, s)); }
+vec3 blendOf(vec3 b, vec3 s){
+  if(mode<1.5) return b*s; if(mode<2.5) return b+s-b*s; if(mode<3.5) return hard(s,b); if(mode<5.5) return min(b,s); if(mode<6.5) return max(b,s);
+  if(mode<7.5) return soft(b,s); if(mode<8.5) return hard(b,s); if(mode<9.5) return min(vec3(1.), b/max(vec3(.001),1.-s)); if(mode<10.5) return 1.-min(vec3(1.),(1.-b)/max(vec3(.001),s));
+  if(mode<11.5) return abs(b-s); return b+s-2.*b*s; }
+void main(){ vec3 b = texture2D(T, vec2(v.x, 1.-v.y)).rgb; vec4 l = texture2D(L, v);
+  if(l.a<.002){ gl_FragColor = vec4(b,1.); return; }
+  vec3 s = l.rgb/l.a;
+  gl_FragColor = vec4(mode>3.5&&mode<4.5 ? min(vec3(1.), b+l.rgb) : mix(b, clamp(blendOf(b,s),0.,1.), l.a), 1.); }"""
+
+/** one overlay layer blended into the picture, as the website's globalCompositeOperation (the W3C formulas) */
+@UnstableApi
+internal class LayerBlend(private val vert: String, private val layer: StudioLayerRenderer, private val mode: Int, private val offset: Double) : GlEffect {
+  override fun toGlShaderProgram(context: android.content.Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = object : androidx.media3.effect.BaseGlShaderProgram(useHdr, 1) {
+    private val program = GlProgram(vert, BLEND_FRAG)
+    private val tex = IntArray(1).also { GLES20.glGenTextures(1, it, 0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, it[0])
+      for ((k, v) in listOf(GLES20.GL_TEXTURE_MIN_FILTER to GLES20.GL_LINEAR, GLES20.GL_TEXTURE_MAG_FILTER to GLES20.GL_LINEAR, GLES20.GL_TEXTURE_WRAP_S to GLES20.GL_CLAMP_TO_EDGE, GLES20.GL_TEXTURE_WRAP_T to GLES20.GL_CLAMP_TO_EDGE)) GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, k, v) }
+    override fun configure(inputWidth: Int, inputHeight: Int) = androidx.media3.common.util.Size(inputWidth, inputHeight)
+    override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) {
+      GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[0])
+      android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, layer.at(offset + presentationTimeUs / 1_000_000.0), 0)
+      program.use()
+      program.setSamplerTexIdUniform("T", inputTexId, 0)
+      program.setSamplerTexIdUniform("L", tex[0], 1)
+      program.setBufferAttribute("a", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
+      program.bindAttributesAndUniforms()
+      GLES20.glUniform1f(program.getUniformLocation("mode"), mode.toFloat())
+      GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+      GlUtil.checkGlError()
+    }
+    override fun release() { super.release(); program.delete(); GLES20.glDeleteTextures(1, tex, 0) }
+  }
+}

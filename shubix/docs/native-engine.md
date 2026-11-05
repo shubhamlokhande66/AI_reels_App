@@ -55,11 +55,15 @@ Tested on a computer: `Models.kt` on the JVM against the page's copies passed, w
 
 The studio's export stays the default until the test APK's parity pair passes on a phone (`scripts/parity.mjs`).
 
-Done, not yet run on a phone:
+Written, compiled, not yet run on a phone:
 
 - Sound: the studio renders its finished mix to a WAV (`exportMix`), which replaces the clips' sound and the song. The mixing code itself still runs in the page.
-- Watermark, quality, bitrate and the 30 fps limit, as the studio decides them from the plan and the person's choices (`exportPlan`).
+- Watermark, quality, bitrate and frame rate, as the studio decides them from the plan and the person's choices (`exportPlan`). 60 fps only goes as high as the source.
+- Reverse (a reversed copy of the shot, `ReverseCopy.kt`), stabilize, beauty.
+- The 14 beat effects, with the studio's shader (`BeatFx`). A shape is centred on the frame; the studio centres it on the subject.
+- Overlay layers with their exact frame, chroma key, all masks without their soft edge, following a face, 12 blend modes (`LayerBlend`).
+- Text behind the person, waiting for that frame's mask.
 
-Still missing (`nativeExportGaps` in `lib/video.ts` lists them for a Reel): overlay layers, reverse, stabilize, beauty, 60 fps. Not in that list yet: text behind the person and text following a face, chroma key and blend on layers.
+`nativeExportGaps` in `lib/video.ts` names what a Reel still needs from the studio's export: another blend mode, or an effect, transition or filter the native engine does not know.
 
 Before the WebView can go, these also leave the page: the sound mix, audio and mel steps, the studio's state and edit logic that still touch the page, and the screens' calls to it.

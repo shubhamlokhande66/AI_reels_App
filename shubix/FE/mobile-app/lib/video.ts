@@ -24,18 +24,15 @@ export const isNativeEffectSupported = isAndroidEffectSupported;
 
 
 // the studio's beat effects: the native export draws them with the studio's own shader (BeatFx, StudioTransitions.kt)
+const LAYER_BLENDS = new Set(["source-over", "multiply", "screen", "overlay", "lighter", "darken", "lighten", "soft-light", "hard-light", "color-dodge", "color-burn", "difference", "exclusion"]);
 const BEAT_FX = new Set(["boxgrow", "grid", "strips", "circle", "heartbeat", "starbeat", "frame", "mirror", "kaleido", "triple", "vhs", "strobe", "rgbpulse", "blurpulse"]);
 /** What the native export cannot make yet for this Reel, so it stays on the studio's export (docs/native-engine.md). */
 export function nativeExportGaps(p: ReelProject, layers: NativeLayerRow[]): string[] {
   const gaps = new Set<string>();
   for (const l of layers) {
     if (!l.native) gaps.add("a layer whose file is not on the phone");
-    if (l.blend && l.blend !== "source-over") gaps.add("layer blend modes");
-    if (l.chromaKey) gaps.add("chroma key on layers");
-    if (l.follow && l.follow !== "none") gaps.add("layers that follow a face");
-    if (l.mask && !["none", "circle", "radial", "oval", "ellipse", "rect", "rectangle", "polygon"].includes(l.mask)) gaps.add(`the ${l.mask} mask on layers`);
+    if (l.blend && !LAYER_BLENDS.has(l.blend)) gaps.add(`the ${l.blend} blend`);
   }
-  if (p.overlays.some((o) => (o as { behind?: boolean }).behind)) gaps.add("text behind the person");
   for (const c of p.clips) {
     if (c.effect && c.effect !== "none" && !BEAT_FX.has(c.effect) && !isAndroidEffectSupported(c.effect)) gaps.add(`the ${c.effect} effect`);
     if (c.transition && !isAndroidTransitionSupported(c.transition) && !TR_DUR[c.transition]) gaps.add(`the ${c.transition} transition`);
@@ -43,10 +40,10 @@ export function nativeExportGaps(p: ReelProject, layers: NativeLayerRow[]): stri
   }
   return [...gaps];
 }
-export type NativeLayerRow = { native?: unknown; blend?: string; chromaKey?: boolean; follow?: string; mask?: string };
+export type NativeLayerRow = { native?: unknown; blend?: string };
 
 /** `studio`: the studio's finished sound (engine.exportMix), which replaces the clips' sound and the song, and its plan: watermark, quality, frame rate. */
-export async function exportReel(p: ReelProject, onProgress: (done: number) => void, studio?: { mix: string | null; layers?: NativeLayerRow[]; plan: { watermark: boolean; fps: number; bitrate: number; scale: number; stabs?: unknown[]; beats?: number[][] } }) {
+export async function exportReel(p: ReelProject, onProgress: (done: number) => void, studio?: { mix: string | null; layers?: NativeLayerRow[]; plan: { watermark: boolean; fps: number; bitrate: number; scale: number; stabs?: unknown[]; beats?: number[][]; follow?: (number[][] | null)[] } }) {
   const mix = studio?.mix;
   if (!ShubixVideo) throw new Error("The video engine is not in this app.");
   // a Studio Reel never stops here: what the native engine lacks is named by nativeExportGaps, and such a Reel stays on the studio's export
@@ -82,7 +79,7 @@ export async function exportReel(p: ReelProject, onProgress: (done: number) => v
   const spec = { ...made, output, ...(studio ? {
     watermark: studio.plan.watermark, fps: studio.plan.fps, bitrate: Math.round(studio.plan.bitrate),
     clips: withStudio(made.clips, studio, p),
-    layers: (studio.layers ?? []).map((l) => l.native).filter(Boolean),
+    layers: (studio.layers ?? []).map((l, i) => l.native && { ...(l.native as object), ...(studio.plan.follow?.[i] ? { followPath: studio.plan.follow[i] } : {}) }).filter(Boolean),
   } : {}), ...(mix ? {
     clips: withStudio(made.clips, studio!, p).map((c) => ({ ...c, muted: true, volume: 1 })),
     audio: { uri: mix.startsWith("file:") ? mix : `file://${mix}`, start: 0, volume: 1, fadeIn: 0, fadeOut: 0, ducking: false, duckLevel: 0.35 },

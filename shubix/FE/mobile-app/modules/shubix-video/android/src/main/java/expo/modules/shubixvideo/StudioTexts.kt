@@ -43,7 +43,7 @@ internal class StudioTextRenderer(texts: JSONArray, private val w: Int, private 
     // text behind the person: drawn on its own, the person cut out of it, then put under the other texts
     val back = if (person != null) on.filter { it.optBoolean("behind") } else emptyList()
     if (back.isNotEmpty()) {
-      person!!.want(t)
+      person!!.ready(t)
       val under = behindBuf ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { behindBuf = it }
       under.eraseColor(Color.TRANSPARENT)
       val cut = Canvas(under); for (ov in back) draw(cut, ov, t)

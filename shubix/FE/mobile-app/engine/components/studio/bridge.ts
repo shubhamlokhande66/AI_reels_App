@@ -52,7 +52,7 @@ export function initBridge(root: HTMLElement): () => void {
   const nativeLayer = (layer: Record<string, unknown>) => {
     const media = (studio() as unknown as { layerMedia?: { file?: File; kind?: string }[] } | undefined)?.layerMedia?.[Number(layer.m)], file = media?.file;
     const path = file && (window as unknown as { __phone?: PhoneFiles }).__phone?.paths[`${file.name}|${file.size}`];
-    return path ? { path, kind: media.kind, t0: layer.t0, t1: layer.t1, in: layer.in, x: layer.x, y: layer.y, s: layer.s, r: layer.r, op: layer.op, fh: layer.fh, fv: layer.fv, fin: layer.fin, fout: layer.fout, crop: layer.crop, mask: layer.mask, mk: layer.mk, rad: layer.rad } : null;
+    return path ? { path, kind: media.kind, t0: layer.t0, t1: layer.t1, in: layer.in, x: layer.x, y: layer.y, s: layer.s, r: layer.r, op: layer.op, fh: layer.fh, fv: layer.fv, fin: layer.fin, fout: layer.fout, crop: layer.crop, mask: layer.mask, mk: layer.mk, rad: layer.rad, key: layer.key, blend: layer.blend } : null;
   };
   const fileOf = async (path: string, name: string) => {
     const r = await send(`${files}/f?k=${key}&p=${encodeURIComponent(path)}`);

@@ -277,11 +277,15 @@ class ShubixVideoModule : Module() {
     val shotTimes = mutableListOf<ShotTime>()
     val sharedEffects = mutableMapOf<String, MutableList<Effect>>()
     val studioText = spec.optJSONArray("texts")?.takeIf { spec.optBoolean("studioTexts") && it.length() > 0 }?.let { list ->
-      val behind = live && (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
-      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes) else null)
+      val behind = (0 until list.length()).any { list.optJSONObject(it)?.optBoolean("behind") == true }
+      StudioTextRenderer(list, w, h, if (behind) PersonMask(shotTimes, exact = !live) else null)
     }
     // the overlay layers: the player shows the newest frame it has, the export the exact one
-    val studioLayers = spec.optJSONArray("layers")?.takeIf { it.length() > 0 }?.let { StudioLayerRenderer(it, w, h, exact = !live) }
+    val allLayers = spec.optJSONArray("layers")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) } } ?: emptyList()
+    // the export: a layer with a blend mode is its own GPU pass over the picture (StudioPasses.kt); the others one overlay
+    val blended = if (live) emptyList() else allLayers.filter { BLEND_MODE.containsKey(it.optString("blend")) }
+    val studioLayers = (allLayers - blended.toSet()).takeIf { it.isNotEmpty() }?.let { StudioLayerRenderer(org.json.JSONArray(it), w, h, exact = !live) }
+    val blendLayers = blended.map { StudioLayerRenderer(org.json.JSONArray(listOf(it)), w, h, exact = true) to BLEND_MODE.getValue(it.optString("blend")) }
     val watermark = if (!live && spec.optBoolean("watermark")) StudioWatermark(appContext.reactContext ?: throw IllegalStateException("No app"), w, h) else null
     val held = HeldFrame()   // the last frame of the shot before a studio transition (StudioTransitions.kt)
     val clips = spec.getJSONArray("clips")
@@ -386,6 +390,7 @@ class ShubixVideoModule : Module() {
       video += customEffects(c.optJSONArray("effects"), base, clipOutputDuration, w, h)
       video += studioPasses(shaders, c, -base, clipOutputDuration)   // the studio's own GPU passes (StudioPasses.kt)
       studioMask(c, -base, w, h)?.let { video += OverlayEffect(mutableListOf(it)) }   // its mask, under the texts
+      if (shaders != null) for ((layer, mode) in blendLayers) video += LayerBlend(shaders.vert, layer, mode, at - base)
       if (studioLayers != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioLayers.overlay(at - base)))
       if (studioText != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(studioText.overlay(at - base)))
       else if (textCache != null) video += OverlayEffect(mutableListOf<androidx.media3.effect.TextureOverlay>(TimedTexts(textCache, at - base)))

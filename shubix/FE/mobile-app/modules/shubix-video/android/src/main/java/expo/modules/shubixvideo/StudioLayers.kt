@@ -21,9 +21,9 @@ import kotlin.concurrent.thread
 import kotlin.math.min
 
 /** The studio's overlay layers in the live player: photos and videos placed on the frame as the website's drawLayers()
- * (engine.ts): place, size, turn, flip, crop, fades, round corners and the shape masks. Not drawn here yet: chroma key,
- * blend modes, the linear / mirror / luma masks and following a face (a Reel with those is exported by the engine page). In
- * the player a video layer shows the newest frame its worker has decoded; `exact`, in the export, waits for the right one. */
+ * (engine.ts): place, size, turn, flip, crop, fades, round corners and the masks. A mask's soft edge is not drawn. In the export
+ * (`exact`): chroma key, the luma mask, following a face, and blend modes (LayerBlend, StudioPasses.kt). In the player a video
+ * layer shows the newest frame its worker has decoded; in the export it waits for the right one. */
 @UnstableApi
 internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, private val h: Int, private val exact: Boolean = false) {
   private class Layer(val spec: JSONObject, val feed: () -> Bitmap?, val ask: (Double) -> Unit, val done: () -> Unit = {})
@@ -55,6 +55,7 @@ internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, privat
 
   private fun draw(g: Canvas, L: JSONObject, pic: Bitmap, t: Double) {
     val W = w.toFloat(); val H = h.toFloat()
+    val place = followed(L, t)
     val crop = L.optJSONObject("crop")
     fun cut(k: String) = crop?.optDouble(k, 0.0) ?: 0.0
     val from = Rect((pic.width * cut("l")).toInt(), (pic.height * cut("t")).toInt(), (pic.width * (1 - cut("r"))).toInt(), (pic.height * (1 - cut("b"))).toInt())
@@ -64,15 +65,61 @@ internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, privat
     val fade = min(if (fadeIn > 0) min(1.0, (t - L.optDouble("t0")) / fadeIn) else 1.0, if (fadeOut > 0) min(1.0, (L.optDouble("t1") - t) / fadeOut) else 1.0)
     val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG).apply { alpha = (L.optDouble("op", 1.0) * fade * 255).toInt().coerceIn(0, 255) }
     g.save()
-    g.translate(L.optDouble("x", 0.5).toFloat() * W, L.optDouble("y", 0.5).toFloat() * H)
+    g.translate(place.first * W, place.second * H)
     g.rotate(L.optDouble("r", 0.0).toFloat())
     g.scale(if (L.optBoolean("fh")) -1f else 1f, if (L.optBoolean("fv")) -1f else 1f)
     val box = RectF(-dw / 2, -dh / 2, dw / 2, dh / 2)
     shape(L, dw, dh)?.let { (path, inside) -> if (inside) g.clipPath(path) else g.clipOutPath(path) }
     val round = L.optDouble("rad", 0.0).toFloat() * min(dw, dh) / 2
     if (round > 0) g.clipPath(Path().apply { addRoundRect(box, round, round, Path.Direction.CW) })
-    g.drawBitmap(pic, from, box, paint)
+    val keyed = if (exact) pixelMasks(L, pic, from, dw.toInt(), dh.toInt()) else null
+    if (keyed != null) { g.drawBitmap(keyed, null, box, paint); keyed.recycle() } else g.drawBitmap(pic, from, box, paint)
     g.restore()
+  }
+
+  /** where the layer is: its place, or the face it follows at this time (samples from the studio: t, x, y) */
+  private fun followed(L: JSONObject, t: Double): Pair<Float, Float> {
+    val path = L.optJSONArray("followPath")
+    if (path != null && path.length() > 0) {
+      var best = path.optJSONArray(0)
+      for (i in 1 until path.length()) { val p = path.optJSONArray(i) ?: continue; if (kotlin.math.abs(p.optDouble(0) - t) < kotlin.math.abs(best.optDouble(0) - t)) best = p }
+      return Pair(best.optDouble(1).toFloat(), best.optDouble(2).toFloat())
+    }
+    return Pair(L.optDouble("x", 0.5).toFloat(), L.optDouble("y", 0.5).toFloat())
+  }
+
+  /** chroma key and the luma mask, pixel by pixel as the website's chromaKey() and layerMask(); null: the layer has neither */
+  private fun pixelMasks(L: JSONObject, pic: Bitmap, from: Rect, dw: Int, dh: Int): Bitmap? {
+    val key = L.optJSONObject("key")?.takeIf { it.optBoolean("on") }; val luma = L.optString("mask") == "luma"
+    if (key == null && !luma) return null
+    val out = Bitmap.createBitmap(maxOf(2, dw), maxOf(2, dh), Bitmap.Config.ARGB_8888)
+    Canvas(out).drawBitmap(pic, from, Rect(0, 0, out.width, out.height), Paint(Paint.FILTER_BITMAP_FLAG))
+    val px = IntArray(out.width * out.height); out.getPixels(px, 0, out.width, 0, 0, out.width, out.height)
+    if (key != null) {
+      val c = try { Color.parseColor(key.optString("c", "#00FF00")) } catch (_: Exception) { Color.GREEN }
+      val kr = Color.red(c).toDouble(); val kg = Color.green(c).toDouble(); val kb = Color.blue(c).toDouble()
+      val tol = 40 + key.optDouble("tol", 0.35) * 180; val soft = 40.0; val top = maxOf(kr, kg, kb); val dom = if (kg == top) 1 else if (kb == top) 2 else 0
+      for (i in px.indices) {
+        val v = px[i]; val r = Color.red(v); val gr = Color.green(v); val b = Color.blue(v)
+        val dist = Math.sqrt((r - kr) * (r - kr) + (gr - kg) * (gr - kg) + (b - kb) * (b - kb))
+        if (dist < tol) px[i] = 0
+        else if (dist < tol + soft) {
+          val a = (Color.alpha(v) * (dist - tol) / soft).toInt()
+          px[i] = if (dom == 1 && gr > maxOf(r, b)) Color.argb(a, r, maxOf(r, b), b) else if (dom == 2 && b > maxOf(r, gr)) Color.argb(a, r, gr, maxOf(r, gr)) else Color.argb(a, r, gr, b)
+        }
+      }
+    }
+    if (luma) {
+      val m = L.optJSONObject("mk") ?: JSONObject(); val th = m.optDouble("th", 0.5).coerceIn(0.0, 1.0); val sf = m.optDouble("f", 0.12).coerceIn(0.015, 0.5)
+      val lo = maxOf(0.0, th - sf); val hi = minOf(1.0, th + sf); val inv = m.optBoolean("inv")
+      for (i in px.indices) {
+        val v = px[i]; val lum = (0.2126 * Color.red(v) + 0.7152 * Color.green(v) + 0.0722 * Color.blue(v)) / 255
+        val x = ((lum - lo) / maxOf(0.0001, hi - lo)).coerceIn(0.0, 1.0); var mask = x * x * (3 - 2 * x); if (inv) mask = 1 - mask
+        px[i] = Color.argb((Color.alpha(v) * mask).toInt(), Color.red(v), Color.green(v), Color.blue(v))
+      }
+    }
+    out.setPixels(px, 0, out.width, 0, 0, out.width, out.height)
+    return out
   }
 
   /** the layer's mask as a path around its centre, and whether its inside is what shows */
@@ -83,6 +130,8 @@ internal class StudioLayerRenderer(layers: JSONArray, private val w: Int, privat
     when (L.optString("mask")) {
       "circle", "radial", "oval", "ellipse" -> path.addOval(box, Path.Direction.CW)
       "rect", "rectangle" -> path.addRect(box, Path.Direction.CW)
+      "line" -> { val R = Math.hypot(dw.toDouble(), dh.toDouble()).toFloat(); path.addRect(RectF(-R, -R, R, (m.optDouble("h", 0.8).toFloat() - 0.5f) * dh), Path.Direction.CW) }
+      "mirror" -> { val R = Math.hypot(dw.toDouble(), dh.toDouble()).toFloat(); path.addRect(RectF(-R, -mh / 2, R, mh / 2), Path.Direction.CW) }
       "polygon" -> {
         val pts = m.optJSONArray("points") ?: return null
         for (i in 0 until pts.length()) {
