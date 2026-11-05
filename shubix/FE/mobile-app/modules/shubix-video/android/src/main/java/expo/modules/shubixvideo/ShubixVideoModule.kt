@@ -126,6 +126,11 @@ class ShubixVideoModule : Module() {
       }
     }
     AsyncFunction("cancel") { main.post { cancelActiveExport() } }
+    // the screen stays on while the phone works for the person (Shubix AI, the export)
+    Function("keepAwake") { on: Boolean ->
+      appContext.currentActivity?.let { a -> a.runOnUiThread { if (on) a.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) else a.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) } }
+      Unit
+    }
     // a part of a clip played backwards, as its own file; the same part is made once (ReverseCopy.kt)
     AsyncFunction("reverseCopy") { uri: String, start: Double, end: Double, promise: Promise ->
       val c = appContext.reactContext ?: throw IllegalStateException("No app")

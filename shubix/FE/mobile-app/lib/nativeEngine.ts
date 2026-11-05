@@ -11,6 +11,8 @@ export type NativeIo = { base: string; key: string; fetch: Fetch; token?: () => 
   ask?: (q: { title: string; text: string; list?: string[]; bal?: number | null; ok: string; no?: string; after?: number | null }) => Promise<boolean | null>;
   /** what Shubix is doing, in its words; an error when `err` */
   stat?: (text: string, err?: boolean) => void; spent?: () => void; tell?: (text: string) => void;
+  /** one clip was read, or could not be */
+  clipDone?: (name: string, ok: boolean) => void;
   /** a step of the work popup */
   readBytes?: (path: string, at: number, length: number) => Promise<Uint8Array>;
   task?: (state: "start" | "progress" | "done" | "fail" | "clear", id: string, title?: string, detail?: string, kind?: string, p?: number | null) => void };
@@ -194,17 +196,26 @@ export function createNativeEngine(io: NativeIo) {
     const keep = had.every((n: string, i: number) => names.indexOf(n) >= 0 && (i === 0 || names.indexOf(n) > names.indexOf(had[i - 1])));
     if (!keep) { host.ES.sources.length = 0; }
     const known = host.ES.sources.map((s: { name: string }) => s.name), fresh = list.filter((c) => !known.includes(c.name));
+    const failed: string[] = []; let lastError: unknown;
     reading++;
     if (fresh.length) io.task?.("start", "clips", "Reading your clips", `Finding the best moments in ${fresh.length} clip${fresh.length > 1 ? "s" : ""}`, "clips");
     try {
-      for (let i = 0; i < fresh.length; i++) { if (stops !== g) break; io.task?.("progress", "clips", undefined, `Clip ${i + 1} of ${fresh.length}`, undefined, i / fresh.length); await readClip(fresh[i]); io.onProgress?.("clips", (i + 1) / fresh.length); }
+      for (let i = 0; i < fresh.length; i++) {
+        if (stops !== g) break;
+        io.task?.("progress", "clips", undefined, `Clip ${i + 1} of ${fresh.length}`, undefined, i / fresh.length);
+        // a clip that cannot be read is named on its own card: the others go on
+        try { await readClip(fresh[i]); io.clipDone?.(fresh[i].name, true); }
+        catch (e) { failed.push(fresh[i].name); lastError = e; io.clipDone?.(fresh[i].name, false); }
+        io.onProgress?.("clips", (i + 1) / fresh.length);
+      }
+      if (stops === g && !host.ES.sources.length && lastError) throw lastError;
       io.task?.(stops !== g ? "clear" : "done", "clips", `${host.ES.sources.length} clip${host.ES.sources.length > 1 ? "s" : ""} ready`);
     } catch (e) { io.task?.("fail", "clips", e instanceof Error ? e.message : "The clip could not be read"); throw e; }
     finally { reading--; }
     host.ES.sources.sort((x: { name: string }, y: { name: string }) => names.indexOf(x.name) - names.indexOf(y.name));
     read = list;
     if (stops === g) host.makeReel();
-    return { clips: host.ES.sources.length, names: host.ES.sources.map((s: { name: string }) => s.name) };
+    return { clips: host.ES.sources.length, names: host.ES.sources.map((s: { name: string }) => s.name), failed };
   }
   const kfRow = () => { const T = host.brain.kfTarget(); return T ? { ok: true, index: T.i, what: T.what, a: T.a, b: T.b, keyframes: ((T.obj.uk || []) as Args[]).map((k) => ({ ...k })) } : null; };
   function state(){ return ({ edit: host.brain.editOf(), overlays: host.ES.overlays, mode: host.ES.mode, settings: { au: host.ES.au, capsOn: !!host.ES.capsOn, caplang: host.ES.capLang ?? "", captr: host.ES.trTo ?? "", textStyle: host.ES.textStyle ?? "pop" } }); }

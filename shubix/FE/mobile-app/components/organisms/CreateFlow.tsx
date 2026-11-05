@@ -2,7 +2,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SongAnalysis } from "../../lib/engine";
-import { Animated, Image, PanResponder, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Animated, Image, PanResponder, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import type { ImagePickerAsset } from "expo-image-picker";
@@ -31,7 +31,7 @@ export const KINDS: Record<FlowKind, { title: string; sub: string; intro: string
   photo: { title: "Photo Reel", sub: "Your photos, moving to the music, cut on the beat.", intro: "Create a Photo Reel", checks: ["Pick a song", "Add your photos", "Shubix moves them on the beat", "Preview, make changes and export"], icon: "image" },
   copy: { title: "Copy a Reel", sub: "Match a Reel you like: its cuts, texts and look on your clips.", intro: "Copy a Reel", checks: ["Pick the Reel to copy (its song comes with it)", "Add your clips", "Shubix copies its cuts and look", "Preview, make changes and export"], icon: "copy" },
 };
-export const ORDER: Record<FlowKind, FlowStep[]> = { music: ["intro", "choose", "adjust", "clips", "analyse"], photo: ["intro", "choose", "adjust", "clips", "analyse"], copy: ["intro", "choose", "adjust", "clips", "analyse"], talking: ["intro", "clips", "analyse"] };
+export const ORDER: Record<FlowKind, FlowStep[]> = { music: ["intro", "choose", "clips", "analyse"], photo: ["intro", "choose", "clips", "analyse"], copy: ["intro", "choose", "clips", "analyse"], talking: ["intro", "clips", "analyse"] };
 export const AI_STEPS: [IconName, string][] = [["search", "Detecting scenes and best moments"], ["music", "Matching with music beats"], ["wand", "Auto transitions and effects"], ["palette", "Colour and quality enhancement"]];
 const DOTS = ["Music", "Clips", "Shubix Edit", "Preview & Export"];
 
@@ -217,7 +217,8 @@ export type ClipSettings = { order: ClipOrder; aspect: Aspect; pace: TalkPace; u
 const CARD_PLAYERS = 4;
 /** A clip's card: it plays itself, muted and looping (a very big clip keeps its picture, for the same reason), and goes where it is
  * dragged after holding it a moment, so a quick swipe still scrolls the page. */
-function ClipTile({ asset, n, of, size, playing, onMove, onRemove }: { asset: ImagePickerAsset; n: number; of: number; size: number; playing: boolean; onMove: (from: number, to: number) => void; onRemove: (i: number) => void }) {
+export type ClipState = "wait" | "ok" | "bad";
+function ClipTile({ asset, n, of, size, playing, state, onMove, onRemove }: { asset: ImagePickerAsset; n: number; of: number; size: number; playing: boolean; state?: ClipState; onMove: (from: number, to: number) => void; onRemove: (i: number) => void }) {
   const words = useStudioText(), shift = useRef(new Animated.ValueXY()).current, [held, setHeld] = useState(false);
   const light = asset.type !== "image" && (asset.width ?? 0) * (asset.height ?? 0) <= 2_400_000, on = playing && light;
   const player = useVideoPlayer(on ? asset.uri : null, (p) => { p.loop = true; p.muted = true; p.play(); });
@@ -234,13 +235,15 @@ function ClipTile({ asset, n, of, size, playing, onMove, onRemove }: { asset: Im
         {on && <View pointerEvents="none" className="absolute inset-0"><VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} /></View>}
         <View className="absolute left-1.5 top-1.5 h-6 min-w-6 items-center justify-center rounded-full bg-accent px-1.5"><Text className="text-[11px] font-bold text-background">{n + 1}</Text></View>
         <View className="absolute bottom-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5"><Text className="text-[11px] font-semibold text-white">{asset.type === "image" ? "5s" : clock((asset.duration ?? 0) / 1000)}</Text></View>
+        {state === "wait" && <View pointerEvents="none" className="absolute inset-0 items-center justify-center bg-black/35"><ActivityIndicator color="#ffffff" /></View>}
+        {state === "bad" && <View pointerEvents="none" className="absolute inset-0 items-center justify-center bg-black/75 px-2"><Text className="text-center text-[11px] font-semibold text-white">{words("This clip could not be read")}</Text></View>}
         <Pressable onPress={() => onRemove(n)} accessibilityLabel={words("Remove")} hitSlop={6} className="absolute right-1.5 top-1.5 h-6 w-6 items-center justify-center rounded-full bg-black/70"><Icon name="close" size={13} color="#fff" /></Pressable>
       </Animated.View>
     </GestureDetector>
   );
 }
 
-export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onMove, play, settings, onSettings }: { kind: FlowKind; photos: boolean; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; onMove: (from: number, to: number) => void; play: boolean; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
+export function FlowClips({ kind, photos, onTab, media, states, onAdd, onRemove, onMove, play, settings, onSettings }: { kind: FlowKind; photos: boolean; states?: (ClipState | undefined)[]; onTab: (photos: boolean) => void; media: ImagePickerAsset[]; onAdd: () => void; onRemove: (i: number) => void; onMove: (from: number, to: number) => void; play: boolean; settings: ClipSettings; onSettings: (s: Partial<ClipSettings>) => void }) {
   const words = useStudioText(), { width } = useWindowDimensions(), tile = (Math.min(width, 520) - 32 - 36 - 16) / 3;
   return (
     <FlowCard>
@@ -266,7 +269,7 @@ export function FlowClips({ kind, photos, onTab, media, onAdd, onRemove, onMove,
           <Label>{words("Selected Clips")}</Label>
           {media.length > 1 && <Text className="-mt-1 text-[12px] text-muted">{words("Hold a clip and drag it to move it. The numbers are the order.")}</Text>}
           <View className="flex-row flex-wrap gap-2">
-            {media.map((m, i) => <ClipTile key={`${m.uri}-${i}`} asset={m} n={i} of={media.length} size={tile} playing={play && i < CARD_PLAYERS} onMove={onMove} onRemove={onRemove} />)}
+            {media.map((m, i) => <ClipTile key={`${m.uri}-${i}`} asset={m} n={i} of={media.length} size={tile} playing={play && i < CARD_PLAYERS} state={states?.[i]} onMove={onMove} onRemove={onRemove} />)}
             <Pressable onPress={onAdd} accessibilityLabel={words("Add more clips")} className="items-center justify-center rounded-[14px] border-[1.5px] border-dashed border-border bg-surface-2 active:opacity-80" style={{ width: tile, height: tile }}><Icon name="plus" size={28} /></Pressable>
           </View>
         </View>

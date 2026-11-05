@@ -284,3 +284,28 @@ describe("what the old page did, on the phone's own engine", () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+describe("clips read behind the screen", () => {
+  it("a clip that cannot be read is named, and the others go on", async () => {
+    const server = fileServer(clickTrack(10)), told: [string, boolean][] = [];
+    const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => {
+      const u = new URL(to);
+      if (u.pathname === "/probe" && u.searchParams.get("p") === "/b.mp4") return { ok: false, status: 422, text: async () => "no", json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) };
+      return server.fetcher(to, init);
+    };
+    const e = createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never, clipDone: (name: string, ok: boolean) => told.push([name, ok]) } as never);
+    await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+    const r = await e.call("clips", { paths: clips }) as { clips: number; names: string[]; failed: string[] };
+    expect(r.failed).toEqual(["b.mp4"]);
+    expect(r.names).toEqual(["a.mp4", "c.mp4"]);
+    expect(told).toEqual([["a.mp4", true], ["b.mp4", false], ["c.mp4", true]]);
+    expect((await e.call("ready") as { work: { shots: number } }).work.shots).toBeGreaterThan(0);
+  });
+  it("no clip readable at all says so", async () => {
+    const server = fileServer(clickTrack(10));
+    const fetcher = async (to: string, init?: { method?: string; body?: unknown }) => new URL(to).pathname === "/probe" ? { ok: false, status: 422, text: async () => "no", json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) } : server.fetcher(to, init);
+    const e = createNativeEngine({ base: "http://phone", key: "k", fetch: fetcher as never } as never);
+    await e.call("song", { path: "/s.mp3", name: "s.mp3" });
+    await expect(e.call("clips", { paths: clips })).rejects.toThrow(/cannot be read/);
+  });
+});

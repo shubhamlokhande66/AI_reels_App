@@ -47,6 +47,7 @@ export function createTasks(host: HTMLElement) {
   box.className = "fixed inset-0 z-[90] grid place-items-center bg-black/70 px-4 backdrop-blur-md";
   box.innerHTML = `<div role="dialog" aria-modal="true" class="relative flex w-full max-w-[580px] flex-col gap-5 overflow-hidden rounded-[32px] border border-accent/30 bg-surface p-6 text-foreground sm:p-9 [@media(max-height:680px)]:gap-3 [@media(max-height:680px)]:p-5! shadow-[0_32px_90px_-24px_rgba(0,0,0,.75),0_0_70px_-28px_var(--accent)]"><i class="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-accent to-transparent"></i><div data-head hidden class="text-center"><p class="m-0 text-[12px] font-bold uppercase tracking-[.22em] text-accent" data-kicker></p><h2 class="m-0 mt-2 text-[26px] font-semibold leading-tight tracking-tight" data-big></h2><p class="m-0 mt-2 text-[14px] leading-[22px] text-muted [@media(max-height:680px)]:hidden" data-sub></p></div><div data-list class="flex flex-col gap-4"></div><ul data-steps hidden class="m-0 flex list-none flex-col gap-3 rounded-[20px] border border-border bg-foreground/[.03] p-4 sm:p-5 [@media(max-height:680px)]:gap-1.5 [@media(max-height:680px)]:p-3"></ul><p data-why hidden aria-live="off" class="m-0 min-h-[38px] text-center text-[12.5px] font-semibold leading-[19px] text-foreground"></p><div data-acts class="flex gap-2"></div></div>`;
   host.appendChild(box);
+  host.addEventListener("studio-quiet", () => refresh());
   const head = box.querySelector<HTMLElement>("[data-head]")!, steps = box.querySelector<HTMLElement>("[data-steps]")!, doneSteps = new Set<string>();
   head.querySelector("[data-kicker]")!.textContent = tx("Shubix Studio");
   head.querySelector("[data-big]")!.textContent = tx("Crafting your Reel");
@@ -65,7 +66,15 @@ export function createTasks(host: HTMLElement) {
   const list = box.querySelector<HTMLElement>("[data-list]")!, why = box.querySelector<HTMLElement>("[data-why]")!, acts = box.querySelector<HTMLElement>("[data-acts]")!;
   // while the AI works: why to stay, one short line after another
   let notes: string[] = [], note = 0, noteTimer: ReturnType<typeof setInterval> | undefined;
-  const stopNotes = () => { clearInterval(noteTimer); noteTimer = undefined; };
+  // the screen stays on while the AI works (where the browser allows it)
+  let awake: { release: () => Promise<void> } | null = null, asking = false;
+  const stayAwake = async (on: boolean) => {
+    if (!on) { const a = awake; awake = null; await a?.release().catch(() => undefined); return; }
+    if (awake || asking) return;
+    asking = true;
+    try { const w = (navigator as unknown as { wakeLock?: { request(t: string): Promise<{ release: () => Promise<void> }> } }).wakeLock; if (w) awake = await w.request("screen"); } catch { /* not allowed now: the words still say to stay */ } finally { asking = false; }
+  };
+  const stopNotes = () => { clearInterval(noteTimer); noteTimer = undefined; void stayAwake(false); };
   let guard: { onCancel: () => void; onCancelReel: () => void } | null = null, locked = false, hideOk = false, hideTimer: ReturnType<typeof setTimeout> | undefined;
   const hiddenIds = new Set<string>();
   const onOwnScreen = (c: Card) => c.kind === "export" && window.matchMedia("(max-width: 1023px)").matches;
@@ -76,12 +85,14 @@ export function createTasks(host: HTMLElement) {
     // one card, the newest: the popup never scrolls (the others are in its steps)
     const newest = shown[shown.length - 1]?.[0];
     cards.forEach((c, id) => { c.el.hidden = id !== newest; });
-    const was = box.hidden; box.hidden = !shown.length;
+    // the Create flow's work before Generate goes on behind the page (flow.ts): each clip's card says how it goes
+    const was = box.hidden; box.hidden = !shown.length || host.dataset.fquiet === "1";
     if (box.hidden) { stopNotes(); hiddenIds.clear(); hideOk = false; clearTimeout(hideTimer); return; }
     if (was) { hideOk = false; clearTimeout(hideTimer); hideTimer = setTimeout(() => { hideOk = true; refresh(); }, 30_000); }
     head.hidden = steps.hidden = !guard; if (guard) paintSteps();
     notes = locked || shown.some(([, c]) => c.kind === "ai") ? [tx("Keep Shubix open until this is done."), tx("Closing now may lose this Reel's credits."), ...(guard && locked ? [tx("Shubix AI has started working on this Reel. You can't cancel now.")] : [])] : [];
     why.hidden = !notes.length; if (notes.length) why.textContent = notes[note % notes.length];
+    if (notes.length) void stayAwake(true);
     if (!notes.length) stopNotes(); else if (!noteTimer) noteTimer = setInterval(() => { why.textContent = notes[++note % notes.length]; }, 3500);
     acts.textContent = "";
     if (guard && locked) button(Button.secondary, tx("Cancel"), () => {}, true);

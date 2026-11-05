@@ -18,7 +18,7 @@ export type TaskKind = "music" | "clips" | "ai" | "export" | "cloud" | "voice";
 export type TaskGuard = { onCancel: () => void; onCancelReel: () => void };
 type Task = { id: string; kind: TaskKind; title: string; detail: string; p: number | null; t0: number; state: "run" | "done" | "fail" };
 
-let list: Task[] = [], guard: TaskGuard | null = null, locked = false;
+let list: Task[] = [], guard: TaskGuard | null = null, locked = false, quiet = false;
 // what the Create flow's popup lists, in order (a process's id, its line)
 const STEPS: [string, string][] = [["song", "Reading your song"], ["beats", "Checking every beat"], ["clips", "Preparing and analysing your clips"], ["ai", "Shubix AI editing your Reel"]];
 const doneSteps = new Set<string>();
@@ -55,6 +55,8 @@ export const tasks = {
   /** The AI has answered, its tokens are spent: nothing can be cancelled until unlock. */
   lock: () => { locked = true; emit(); },
   unlock: () => { locked = false; emit(); },
+  /** The Create flow's work before Make Reel goes on behind the screen: its steps are counted, no popup. */
+  quiet: (on: boolean) => { quiet = on; emit(); },
 };
 
 const left = (s: number) => (s < 1.5 ? "almost done" : s < 60 ? `about ${Math.ceil(s)} s left` : `about ${Math.ceil(s / 60)} min left`);
@@ -110,7 +112,7 @@ function TaskCard({ t }: { t: Task }) {
 
 /** The popup. The screen's own step ("flow") shows only while no process of the studio has a card of its own. */
 export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => s }: { cancel: string; cancelReel: string; cantCancel: string; hide: string; words?: (s: string) => string }) {
-  const all = useSyncExternalStore(subscribe, () => list), g = useSyncExternalStore(subscribe, () => guard), lock = useSyncExternalStore(subscribe, () => locked), asking = useAskOpen();
+  const all = useSyncExternalStore(subscribe, () => list), g = useSyncExternalStore(subscribe, () => guard), lock = useSyncExternalStore(subscribe, () => locked), hush = useSyncExternalStore(subscribe, () => quiet), asking = useAskOpen();
   const [hidden, setHidden] = useState<string[]>([]), [late, setLate] = useState(false);
   const running = all.filter((t) => t.kind !== "export" && !hidden.includes(t.id)), own = running.filter((t) => t.id !== "flow"), shown = own.length ? own : running;
   const on = shown.length > 0;
@@ -120,7 +122,7 @@ export function TaskHost({ cancel, cancelReel, cantCancel, hide, words = (s) => 
   const [note, setNote] = useState(0), many = notes.length > 1;
   useEffect(() => { if (!many) return; const id = setInterval(() => setNote((n) => n + 1), 3500); return () => clearInterval(id); }, [many]);
   return (
-    <Modal visible={on && !asking} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { if (g && !lock) g.onCancel(); }}>
+    <Modal visible={on && !asking && !hush} transparent animationType="fade" statusBarTranslucent onRequestClose={() => { if (g && !lock) g.onCancel(); }}>
       <ThemeLayer className="items-center justify-center bg-black/75 px-4">
         <View accessibilityViewIsModal className="w-full max-w-[560px] gap-5 overflow-hidden rounded-[32px] border border-accent/30 bg-surface p-6 shadow-2xl shadow-accent/30">
           <View pointerEvents="none" className="absolute inset-x-10 top-0 h-px bg-accent/80" />

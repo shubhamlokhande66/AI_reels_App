@@ -25,7 +25,11 @@ export type ExportChoice = { res?: "720" | "1080" | "4k"; fps?: 30 | 60; noWater
 export type ExportOptions = { res: Record<"720" | "1080" | "4k", { locked: boolean; off: boolean }>; fps60Locked: boolean; watermarkOff: boolean;
   size: string; fileName: string; myReels: boolean; myReelsNote: string; locked: { name: string; need: string }[] };
 
-let held = "";
+let held = "", clipRead: ((name: string, ok: boolean) => void) | null = null;
+/** told as each clip is read: its card shows it */
+export const onClipRead = (fn: typeof clipRead) => { clipRead = fn; };
+/** the screen stays on while the phone works for the person (Shubix AI, the export) */
+export const keepAwake = (on: boolean) => { try { ShubixVideo?.keepAwake?.(on); } catch { /* an older build: nothing */ } };
 const files = ShubixVideo ? ShubixVideo.fileServer(API_URL) : null;
 
 /** whether this phone can make Reels with the studio (the app's own build, not Expo Go or the web) */
@@ -36,6 +40,7 @@ const native = files ? createNativeEngine({
   ask: async (q) => { const v = await askAction({ title: q.title, body: [q.text, q.bal == null ? "" : `You have ${q.bal} credits`].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) }); return v === 0 ? true : v === 1 && q.no ? false : null; },
   stat: (text, err) => { if (!text) return tasks.clear("ai"); if (text.endsWith("…")) { tasks.start("ai", "ai", "Shubix at work", text.slice(0, -1)); return; } if (err) tasks.fail("ai", text); else tasks.done("ai", text); },
   spent: () => tasks.lock(),
+  clipDone: (name, ok) => clipRead?.(name, ok),
   readBytes: async (path, at, length) => { const h = new File(`file://${path}`).open(); try { h.offset = at; return h.readBytes(length); } finally { h.close(); } },
   tell: (text) => tell(text, "danger"),
   task: (state, id, title, detail, kind, p) => onTask({ event: "task", id, state, p: p ?? null, title, detail, kind: kind as TaskKind | undefined }),
