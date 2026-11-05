@@ -45,6 +45,8 @@ const native = NATIVE_ENGINE && files ? createNativeEngine({
   ask: async (q) => { const v = await askAction({ title: q.title, body: [q.text, q.bal == null ? "" : `You have ${q.bal} credits`].filter(Boolean).join(" · "), list: q.list, ok: q.ok, ...(q.no ? { cancel: q.no } : {}) }); return v === 0 ? true : v === 1 && q.no ? false : null; },
   stat: (text, err) => { if (!text) return tasks.clear("ai"); if (text.endsWith("…")) { tasks.start("ai", "ai", "Shubix at work", text.slice(0, -1)); return; } if (err) tasks.fail("ai", text); else tasks.done("ai", text); },
   spent: () => tasks.lock(),
+  tell: (text) => tell(text, "danger"),
+  task: (state, id, title, detail, kind, p) => onTask({ event: "task", id, state, p: p ?? null, title, detail, kind: kind as TaskKind | undefined }),
 }) : null;
 
 async function call<T>(op: string, args: Record<string, unknown> = {}): Promise<T> {

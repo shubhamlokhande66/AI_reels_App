@@ -12,7 +12,9 @@ export type NativeIo = { base: string; key: string; fetch: Fetch; token?: () => 
   /** Shubix AI's question: true Use, false the other button, null closed */
   ask?: (q: { title: string; text: string; list?: string[]; bal?: number | null; ok: string; no?: string; after?: number | null }) => Promise<boolean | null>;
   /** what Shubix is doing, in its words; an error when `err` */
-  stat?: (text: string, err?: boolean) => void; spent?: () => void; tell?: (text: string) => void };
+  stat?: (text: string, err?: boolean) => void; spent?: () => void; tell?: (text: string) => void;
+  /** a step of the work popup, as the page's tasks */
+  task?: (state: "start" | "progress" | "done" | "fail" | "clear", id: string, title?: string, detail?: string, kind?: string, p?: number | null) => void };
 type Args = Record<string, unknown>;
 type Clip = { path: string; name: string };
 
@@ -47,9 +49,9 @@ export function wavOf(buf: { length: number; sampleRate: number; numberOfChannel
 }
 
 export function createNativeEngine(io: NativeIo) {
-  const make = () => createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx, apiFetch, aiFrames, ask: (q: Parameters<NonNullable<NativeIo["ask"]>>[0]) => io.ask ? io.ask(q) : Promise.resolve(null), stat: io.stat, spent: io.spent, tell: io.tell, voices: TTS_VOICES, speak });
+  const make = () => createHost(JSON.stringify(initial), { analyse: (m: Float32Array, sr: number, opts: Args) => analyse(m, sr, opts), getCtx, apiFetch, aiFrames, ask: (q: Parameters<NonNullable<NativeIo["ask"]>>[0]) => io.ask ? io.ask(q) : Promise.resolve(null), stat: io.stat, spent: io.spent, tell: io.tell, task: io.task, voices: TTS_VOICES, speak });
   let host = make(), signedIn = false;
-  let stops = 0, read: Clip[] = [], reading = 0;
+  let stops = 0, read: Clip[] = [], reading = 0, copies: { name: string; path: string; w: number; h: number }[] = [];
   const url = (path: string, q = "") => `${io.base}/${path}?k=${io.key}${q}`;
   function getCtx() { return { createBuffer: (count: number, n: number, sr: number) => soundOf(Array.from({ length: count }, () => new Float32Array(n)), sr) }; }
 
@@ -80,15 +82,20 @@ export function createNativeEngine(io: NativeIo) {
     return { ...r, rmsF: Float32Array.from(r.rmsF), pfArr: Float32Array.from(r.pfArr), onEnv: Float64Array.from(r.onEnv) };
   }
   async function song(a: Args) {
-    const g = stops, path = String(a.path), name = String(a.name), res = await io.fetch(url("sound", `&p=${encodeURIComponent(path)}`));
-    if (!res.ok) throw new Error("This file has no sound we can read. Try an MP3, M4A or WAV.");
-    const { sampleRate, channels, mono } = pcmOf(await res.arrayBuffer());
-    if (stops !== g) throw new Error("Stopped");
-    const r = await analyse(mono, sampleRate);
-    if (stops !== g) throw new Error("Stopped");
-    await host.setSong({ channels, mono, r, name, sampleRate });
-    host.brain.sectionFacts?.();
-    return facts();
+    const g = stops, path = String(a.path), name = String(a.name);
+    io.task?.("start", "song", "Adding your song", `Reading the sound of ${name.replace(/\.[^.]+$/, "")}`, "music");
+    try {
+      const res = await io.fetch(url("sound", `&p=${encodeURIComponent(path)}`));
+      if (!res.ok) throw new Error("This file has no sound we can read. Try an MP3, M4A or WAV.");
+      const { sampleRate, channels, mono } = pcmOf(await res.arrayBuffer());
+      if (stops !== g) throw new Error("Stopped");
+      io.task?.("progress", "song", undefined, "Finding the beats, drops and breaks");
+      const r = await analyse(mono, sampleRate);
+      if (stops !== g) throw new Error("Stopped");
+      await host.setSong({ channels, mono, r, name, sampleRate });
+      io.task?.("done", "song", "Song ready");
+      return facts();
+    } catch (e) { io.task?.(stops !== g ? "clear" : "fail", "song", e instanceof Error ? e.message : "The song could not be read"); throw e; }
   }
   const facts = () => { const r = host.ES.song.r as { period: number; beats: number[]; cutType: string[] }, n = (k: string) => r.cutType.filter((t) => t === k).length; return { duration: host.ES.buf.duration, bpm: Math.round(60 / r.period), beats: r.beats.length, drops: n("drop"), breaks: n("break") }; };
 
@@ -96,10 +103,18 @@ export function createNativeEngine(io: NativeIo) {
     const p = `&p=${encodeURIComponent(c.path)}`, probe = await io.fetch(url("probe", p));
     if (!probe.ok) throw new Error(`This clip cannot be read: ${c.name}`);
     const { dur, w, h } = await probe.json() as { dur: number; w: number; h: number };
-    const scan = lastLine(await (await io.fetch(url("scan", `${p}&dur=${dur}`), { method: "POST" })).text(), "{");
+    // a very big clip (4K): an edit copy of at most 1920 px is what is read and previewed; the export can still read the original
+    let path = c.path, W = w, H = h;
+    if (Math.max(w, h) > 1920) {
+      const k = 1920 / Math.max(w, h), cw = Math.round(w * k / 2) * 2, ch = Math.round(h * k / 2) * 2;
+      const made = await io.fetch(url("copy", `${p}&w=${cw}&h=${ch}&fps=30&b=8000000`), { method: "POST" });
+      if (made.ok) { path = (await made.json() as { path: string }).path; W = cw; H = ch; copies.push({ name: c.name, path, w: cw, h: ch }); }
+    }
+    const q = `&p=${encodeURIComponent(path)}&dur=${dur}`;
+    const scan = lastLine(await (await io.fetch(url("scan", q), { method: "POST" })).text(), "{");
     let raw: { t: number; rects: unknown[] }[] = [];
-    try { raw = lastLine(await (await io.fetch(url("faces", `${p}&dur=${dur}&w=${w}&h=${h}`), { method: "POST" })).text(), "["); } catch { /* no faces read: the Reel is still made */ }
-    host.addClip({ name: c.name, path: c.path, dur, w, h, samples: scan.samples, scenes: scan.scenes, faces: host.brain.trackFaces(raw), faceHow: "blazeface" });
+    try { raw = lastLine(await (await io.fetch(url("faces", `${q}&w=${W}&h=${H}`), { method: "POST" })).text(), "["); } catch { /* no faces read: the Reel is still made */ }
+    host.addClip({ name: c.name, path, dur, w: W, h: H, samples: scan.samples, scenes: scan.scenes, faces: host.brain.trackFaces(raw), faceHow: "blazeface" });
   }
   async function clips(a: Args) {
     const list = a.paths as Clip[], g = stops, names = list.map((c) => c.name), had = host.ES.sources.map((s: { name: string }) => s.name);
@@ -107,9 +122,12 @@ export function createNativeEngine(io: NativeIo) {
     if (!keep) { host.ES.sources.length = 0; }
     const known = host.ES.sources.map((s: { name: string }) => s.name), fresh = list.filter((c) => !known.includes(c.name));
     reading++;
+    if (fresh.length) io.task?.("start", "clips", "Reading your clips", `Finding the best moments in ${fresh.length} clip${fresh.length > 1 ? "s" : ""}`, "clips");
     try {
-      for (let i = 0; i < fresh.length; i++) { if (stops !== g) break; await readClip(fresh[i]); io.onProgress?.("clips", (i + 1) / fresh.length); }
-    } finally { reading--; }
+      for (let i = 0; i < fresh.length; i++) { if (stops !== g) break; io.task?.("progress", "clips", undefined, `Clip ${i + 1} of ${fresh.length}`, undefined, i / fresh.length); await readClip(fresh[i]); io.onProgress?.("clips", (i + 1) / fresh.length); }
+      io.task?.(stops !== g ? "clear" : "done", "clips", `${host.ES.sources.length} clip${host.ES.sources.length > 1 ? "s" : ""} ready`);
+    } catch (e) { io.task?.("fail", "clips", e instanceof Error ? e.message : "The clip could not be read"); throw e; }
+    finally { reading--; }
     host.ES.sources.sort((x: { name: string }, y: { name: string }) => names.indexOf(x.name) - names.indexOf(y.name));
     read = list;
     if (stops === g) host.makeReel();
@@ -157,7 +175,7 @@ export function createNativeEngine(io: NativeIo) {
     mark: (a) => { host.ES.pos = Math.max(0, Number(a.time) || 0); const f = ({ add: host.brain.addMark, del: host.brain.delMark, clear: host.brain.clearMarks } as Record<string, () => void>)[String(a.op)]; if (!f) return { ok: false }; f(); return { ok: true, state: state() }; },
     shotStyle: (a) => { const i = host.brain.segAt(host.ES.pos), e = host.ES.edit[i]; if (!e) throw new Error("There is no selected shot"); if (a.kind === "transition") e.tr = String(a.value); else if (a.kind === "effect") e.efx = String(a.value); return { ok: true, state: state() }; },
     exportOptions: (a) => host.exportOptions(a),
-    copies: () => [],
+    copies: () => copies,
     frame: () => ({ src: "" }),
     layerList: () => host.ES.layers.map((L: Args & { m: number; mk?: { w?: number; h?: number; th?: number; f?: number; a?: number; inv?: boolean }; key?: { on?: boolean; c?: string; tol?: number }; followOffsetX?: number; followOffsetY?: number; s: number; op: number; r: number }, index: number) => {
       const M = host.ES.lmedia[L.m as number] as { path?: string; kind?: string } | undefined;
@@ -219,7 +237,7 @@ export function createNativeEngine(io: NativeIo) {
   const NOT_YET: string[] = [];
   return {
     has: (op: string) => op in ops, notYet: NOT_YET, ascii, read: () => read, host: () => host,
-    fresh: () => { stops++; read = []; signedIn = false; host = make(); },
+    fresh: () => { stops++; read = []; copies = []; signedIn = false; host = make(); },
     call: async (op: string, a: Args = {}) => { const f = ops[op]; if (!f) throw new Error(`Not on the phone's own engine yet: ${op}`); return f(a); },
   };
 }

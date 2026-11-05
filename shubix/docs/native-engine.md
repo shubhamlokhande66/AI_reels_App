@@ -67,3 +67,23 @@ Written, compiled, not yet run on a phone:
 `nativeExportGaps` in `lib/video.ts` names what a Reel still needs from the studio's export: another blend mode, or an effect, transition or filter the native engine does not know.
 
 Before the WebView can go, these also leave the page: the sound mix, audio and mel steps, the studio's state and edit logic that still touch the page, and the screens' calls to it.
+
+## The studio with no page
+
+`EXPO_PUBLIC_NATIVE_ENGINE=1` builds the app with no hidden page. The Android test APK's workflow has an `engine` choice for it; the Play bundle stays on the page until this passes on a phone.
+
+- `lib/nativeEngine.ts`: every operation of the page's bridge, with the same answers.
+- `engine/brain/host.ts`: the page's song, part and clip flows, Shubix AI, the plan's export rules. It starts from `engine/brain/initial-state.json` (`scripts/engine-golden.mjs --update-start`).
+- `engine/brain/chat.ts`, `small.ts`: Ask Shubix and small rules, shared with the page.
+- Kotlin, through the file server: `SongAnalysis.kt` (`/song`), `ClipStats.kt` and `ClipScan.kt` (`/scan`), `ClipFaces.kt` (`/faces`), `/probe`, `/aiframes`, `SystemVoice.kt` (`/speak`), `Models.kt`.
+
+Tested: `scripts/engine-golden.mjs` makes the same Reel, plain and with a fake Shubix AI; `song-parity.mjs` and `clip-parity.mjs` compare Kotlin on a computer with the JavaScript; `tests/native-engine.test.ts` runs the operations against a fake file server; the whole app compiles with Metro and Hermes. None of it has run on a phone.
+
+Where the no-page engine differs from the page today:
+
+- Sound: no fast limiter, only the page's peak step; no noise cleanup on clip voices (rnnoise is WebAssembly).
+- Captions: the words are heard from a plain 16 kHz copy, without the page's filters.
+- A clip is copied only when its long side is over 1920 px; the page also copies HDR, 60 fps and clips with a changing frame rate.
+- A beat shape is centred on the frame; a layer's mask has no soft edge; My Reels is not offered at export; the paused picture comes from the live player, with no studio frame.
+
+The WebView goes only after this passes on a phone: then remove `react-native-webview`, `EngineHost`, the engine page's assets and the switch.

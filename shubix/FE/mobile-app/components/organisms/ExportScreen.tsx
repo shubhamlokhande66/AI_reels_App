@@ -82,7 +82,7 @@ export function ExportScreen({ reel, onClose }: { reel: ReelProject | null; onCl
       if (!live) return;
       setPct(1); setDone(r); setStep("done"); if (adPlan && full) void showInterstitial(full); notifyAway(words("Reel Exported!"), words("Your Reel is ready"), "/reels");
       // the test APK only: the native engine makes the same Reel, both go to the gallery for scripts/parity.mjs
-      if (reel.studio && process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1") void saveParityPair(reel, r.uri, choice).catch((e) => tell(`Native export: ${errorMessage(e)}`, "danger"));
+      if (reel.studio && process.env.EXPO_PUBLIC_WEBVIEW_DEBUG === "1" && !NATIVE_ENGINE) void saveParityPair(reel, r.uri, choice).catch((e) => tell(`Native export: ${errorMessage(e)}`, "danger"));
       // saved to the gallery at once when allowed (a Photos permission error never undoes the export)
       try {
         if ((await MediaLibrary.requestPermissionsAsync(true)).granted) { await MediaLibrary.createAssetAsync(r.uri); if (live) setSaved(true); }
