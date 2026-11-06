@@ -1994,11 +1994,13 @@ function aiGate(again = false){
       // too few credits: the Reel is still made, by the phone's own smart edit (like the Free plan), never held back;
       // the top-up is offered once per Reel (not again on every Next)
       aiNeed(false); gateNo = id;
-      aiStat('Edited on your phone · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
+      aiStat('Free edit · Shubix AI needs ' + creditWord(cost) + ' (you have ' + creditWord(bal) + ')');
       if(lowAsked !== id){ lowAsked = id;
         if(IN_APP) await askCredits({ title: 'Not enough credits for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit.', bal, ok: 'OK' });
-        else { const go = await askCredits({ title: 'Top up for Shubix AI', text: 'Shubix AI uses ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '. Your Reel is made with the phone\'s own smart edit now; top up to let Shubix edit it.', bal, ok: 'Top up', no: 'Use the phone\'s edit' });
-          if(go) location.assign('/pricing'); } }
+        else { const go = await askCredits({ title: 'Not enough credits', text: 'Shubix AI needs ' + creditWord(cost) + ' for this Reel and you have ' + creditWord(bal) + '.', bal, ok: 'Top up', no: 'Free edit' });
+          if(go === true) location.assign('/pricing');
+          // Top up, or the popup closed: nothing is made; Generate asks again
+          if(go !== false){ lowAsked = ''; gateNo = ''; } } }
       return false; }
     // what Shubix AI does and what it costs, then Use (✕: nothing runs, nothing is taken; no "free" choice)
     // Generate was pressed with the price on the screen: that is the answer (flow.ts)

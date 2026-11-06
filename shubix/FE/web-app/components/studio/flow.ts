@@ -408,8 +408,8 @@ export function initFlow(root: HTMLElement): () => void {
     if (t.closest("#fadjust")) { go("adjust"); return; }
     if (t.closest("#slen") && e.isTrusted) lengthTouched = true;
     if (t.closest("#fgen")) {
-      // too few credits: said at once, before any waiting (Top up, or the Reel with the phone's own edit)
-      if (live()?.aiPrice?.().low) { void live()!.askLow!().then(() => { const g = $<HTMLButtonElement>("fgen"); g.disabled = false; g.click(); }); return; }
+      // too few credits: said at once, before any waiting (Top up, or a free edit)
+      if (live()?.aiPrice?.().low) { void live()!.askLow!().then(() => { if (live()?.aiPrice?.().low) return; const g = $<HTMLButtonElement>("fgen"); g.disabled = false; g.click(); }); return; }   // (Free edit goes on; Top up and closing it do not)
       // still being read: the one popup shows it now, and this goes on by itself when it is done
       if (!stopped().song && !stopped().clips && (working.size > 0 || shubixBusy() || !made())) { wantGen = true; apply(); return; }
       // Free: first, once per Reel, why Shubix AI is worth it (Upgrade, Create basic Reel, or ✕ to stay here)
