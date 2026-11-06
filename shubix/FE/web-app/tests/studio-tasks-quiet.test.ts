@@ -18,7 +18,7 @@ describe("the work popup", () => {
   });
   it("shows at once when the flow is not quiet", () => {
     const host = document.createElement("div"), tasks = createTasks(host);
-    tasks.start("export", "export", "Exporting", "");
+    tasks.start("clips", "clips", "Reading your clips", "");
     expect(popup(host).hidden).toBe(false);
   });
   it("says to keep the app open while the AI works, one short line at a time", () => {
